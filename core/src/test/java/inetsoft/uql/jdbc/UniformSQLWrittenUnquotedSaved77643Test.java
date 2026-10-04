@@ -249,6 +249,86 @@ class UniformSQLWrittenUnquotedSaved77643Test {
       assertEquals(3000, result.split("\"mixedcase\"", -1).length - 1);
    }
 
+   /**
+    * N1: a qualifier written quoted names a quoted table of an outer query (a correlation), it
+    * isn't generated as the table written unquoted of its own query.
+    */
+   @Test
+   void quotedQualifierOfAnOuterTableIsKept() throws Exception {
+      List<Executable> checks = new ArrayList<>();
+      String[][] cases = {
+         { "select id from \"MyTab\" where 99 in (select \"MyTab\".\"id\" from MyTab)",
+           "select \"MyTab\".\"id\" from \"mytab\"" },
+         { "select id from \"MyTab\" where exists (select 1 from MyTab where \"MyTab\".\"id\" = 99)",
+           "where \"MyTab\".\"id\" = 99" },
+      };
+
+      for(boolean ansi : new boolean[] { false, true }) {
+         for(String[] c : cases) {
+            String generated = regenerate(parse(c[0], source(ansi)));
+            String loaded = regenerate(load(toXML(parse(c[0], source(ansi))), source(ansi)));
+            checks.add(() -> assertTrue(generated.contains(c[1]), generated));
+            checks.add(() -> assertTrue(loaded.contains(c[1]), loaded));
+         }
+      }
+
+      assertAll(checks);
+   }
+
+   /**
+    * The metadata step records the qualifier it writes for a column of a table without an
+    * alias written unquoted (the table's name in place of T), so it's generated as the table
+    * (Snowflake T for t).
+    */
+   @Test
+   void qualifierOfTheMetadataStepIsTheTable() throws Exception {
+      for(String helper : new String[] { "snowflake", "exasol" }) {
+         UniformSQL sql = parse("select T.MixedCase from t", helpers(helper));
+         String generated = fixed(sql, "id", "MIXEDCASE");
+         // the column the step resolved, under the qualifier it wrote
+         assertEquals("\"t\".MIXEDCASE", sql.getSelection().getColumn(0), helper);
+         assertEquals("select \"T\".MIXEDCASE from \"T\"", generated, helper);
+      }
+   }
+
+   /**
+    * N2: the parse result of a query with twins MyTab and "MyTab" without aliases is the one
+    * before the fix, whatever the folding: an outer join of the twins is refused, the sql runs
+    * as written.
+    */
+   @Test
+   void twinsParseAsBefore() throws Exception {
+      // the sql, and whether it's parsed (before the fix)
+      Object[][] cases = {
+         { "select mytab.id from MyTab, \"MyTab\"", true },
+         { "select mytab.id from MyTab join \"MyTab\" on mytab.id = \"MyTab\".id", true },
+         { "select mytab.id from MyTab left join \"MyTab\" on mytab.id = \"MyTab\".id", false },
+         { "select mytab.id from MyTab right join \"MyTab\" on mytab.id = \"MyTab\".id", false },
+         { "select mytab.id from \"MyTab\" left join MyTab on mytab.id = \"MyTab\".id", false },
+         { "select a.id from MyTab, \"MyTab\", a left join b on a.id = b.id", true },
+      };
+      List<Executable> checks = new ArrayList<>();
+
+      for(String fold : new String[] { "true", "false" }) {
+         for(boolean ansi : new boolean[] { false, true }) {
+            withProperty("db.foldUnquotedIdentifiers", fold, () -> {
+               for(Object[] c : cases) {
+                  UniformSQL sql = new UniformSQL();
+                  sql.setDataSource(source(ansi));
+                  new SQLProcessor(sql).parse((String) c[0]);
+                  int result = sql.getParseResult();
+                  checks.add(() -> assertEquals((Boolean) c[1] ? UniformSQL.PARSE_SUCCESS : UniformSQL.PARSE_FAILED,
+                                                result, fold + " ansi " + ansi + ": " + c[0]));
+               }
+
+               return null;
+            });
+         }
+      }
+
+      assertAll(checks);
+   }
+
    // a postgresql data source, with ansi joins or not
    private static JDBCDataSource source(boolean ansi) {
       JDBCDataSource ds = helpers("postgresql");

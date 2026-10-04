@@ -403,9 +403,7 @@ public class JDBCUtil {
             // the same column qualified by its table, it keeps its quoting
             xselect.renameColumn(i, path);
 
-            if(unquoted != null) {
-               xselect.setWrittenUnquoted(i, unquoted.rename(path, sql.getSQLHelper().getQuote()));
-            }
+            xselect.setWrittenUnquoted(i, renameWrittenUnquoted(sql, unquoted, path));
 
             xselect.setAlias(i, alias);
             xselect.setTable(path, field.getTable());
@@ -632,9 +630,47 @@ public class JDBCUtil {
          // the names written unquoted that the resolved column keeps (Bug #77643)
          WrittenUnquoted unquoted = exp.getWrittenUnquoted();
          exp.setValue(fullPath1, type);
-         exp.setWrittenUnquoted(unquoted == null ? null :
-            unquoted.rename(fullPath1, sql.getSQLHelper().getQuote()));
+         exp.setWrittenUnquoted(renameWrittenUnquoted(sql, unquoted, fullPath1));
       }
+   }
+
+   /**
+    * Get the names written unquoted of a column the metadata step renamed (Bug #77643): the
+    * names it keeps, and the qualifier it wrote as the name of a table without an alias
+    * (getFullPathOf "format table case", or a column it qualified), which is written unquoted
+    * where the table's name was.
+    * @param unquoted the names of the column before, or <tt>null</tt> if the column wasn't
+    *                 parsed.
+    * @param path the new name of the column.
+    * @return the names of the new name, or <tt>null</tt>.
+    */
+   public static WrittenUnquoted renameWrittenUnquoted(UniformSQL sql, WrittenUnquoted unquoted,
+                                                       String path)
+   {
+      if(unquoted == null || path == null) {
+         return null;
+      }
+
+      String quote = sql.getSQLHelper().getQuote();
+      WrittenUnquoted renamed = unquoted.rename(path, quote);
+      int idx = path.lastIndexOf('.');
+      int oidx = unquoted.getText().lastIndexOf('.');
+
+      // the qualifier as it was, it has its own names
+      if(renamed == null || idx <= 0 ||
+         oidx > 0 && unquoted.getText().substring(0, oidx).equals(path.substring(0, idx)))
+      {
+         return renamed;
+      }
+
+      String table = path.substring(0, idx);
+      int tidx = sql.getTableIndex(table);
+      SelectTable stable = tidx >= 0 ? sql.getSelectTable(tidx) : null;
+      WrittenUnquoted tnames = stable == null ? null : stable.getWrittenUnquoted();
+
+      // the names of the table name, the first names of the path
+      return tnames != null && table.equals(stable.getName()) && table.equals(stable.getAlias()) ?
+         renamed.withNames(tnames.getNames()) : renamed;
    }
 
    /**

@@ -4626,7 +4626,7 @@ public class SQLHelper implements KeywordProvider {
     * @return the sql with the names folded.
     */
    public String foldWrittenUnquoted(String generated, WrittenUnquoted names) {
-      if(names == null || generated == null || WrittenUnquoted.isUnfolded()) {
+      if(names == null || names.isEmpty() || generated == null || WrittenUnquoted.isUnfolded()) {
          return generated;
       }
 
@@ -4670,14 +4670,14 @@ public class SQLHelper implements KeywordProvider {
    /**
     * Generate the qualifiers that name a table without an alias whose name was written
     * unquoted (e.g. "t".id for t written unquoted) as the name of the table is generated in
-    * the from clause (Bug #77643). Only a qualifier the text has no record of is generated so,
-    * one added after the parse (e.g. by the metadata step): a name of the text is generated
-    * as its record says, it may be written quoted. A qualifier in a nested query is of that
-    * query.
-    * @param names the names written unquoted of the text, or <tt>null</tt>.
+    * the from clause (Bug #77643). Only a text built after the parse, without a record (e.g. by
+    * the query editor, a worksheet or a vpm condition), is generated so: a parsed text has a
+    * record, also empty, which says how each of its names was written, and the metadata step
+    * records the qualifiers it writes. A qualifier in a nested query is of that query.
+    * @param names the names written unquoted of the text, or <tt>null</tt> if it has none.
     */
    private String foldTableQualifiers(String generated, WrittenUnquoted names) {
-      Map<String, String> qualifiers = getTableQualifiers();
+      Map<String, String> qualifiers = names != null ? Collections.emptyMap() : getTableQualifiers();
       String quote = getQuote();
 
       if(generated == null || qualifiers.isEmpty() || quote.isEmpty()) {
@@ -4685,7 +4685,6 @@ public class SQLHelper implements KeywordProvider {
       }
 
       List<int[]> found = WrittenUnquoted.findNames(generated, quote);
-      boolean[] own = names != null ? names.getOwnNames(generated, quote) : new boolean[found.size()];
       boolean[] nested = WrittenUnquoted.getNestedNames(generated, quote);
       StringBuilder sb = new StringBuilder();
       int last = 0;
@@ -4693,7 +4692,7 @@ public class SQLHelper implements KeywordProvider {
       for(int n = 0; n < found.size(); n++) {
          int start = found.get(n)[0] - quote.length();
 
-         if(own[n] || nested[n] || start < last || start > 0 && generated.charAt(start - 1) == '.') {
+         if(nested[n] || start < last || start > 0 && generated.charAt(start - 1) == '.') {
             continue;
          }
 

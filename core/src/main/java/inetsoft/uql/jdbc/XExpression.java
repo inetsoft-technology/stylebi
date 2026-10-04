@@ -394,9 +394,7 @@ public class XExpression implements Cloneable, Serializable, XMLSerializable {
 
       // the names written unquoted (Bug #77643). Older versions ignore them and generate the
       // names as stored, as before
-      if(names != null) {
-         writer.print(" unquoted=\"" + names.toAttribute() + "\"");
-      }
+      writer.print(WrittenUnquoted.toXMLAttribute(names));
 
       writer.println(">");
 

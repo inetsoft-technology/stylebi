@@ -59,6 +59,32 @@ public final class WrittenUnquoted implements Serializable {
    }
 
    /**
+    * Check if no name was written unquoted. A parsed text has a record, also empty, a text
+    * built after the parse (e.g. by the query editor) has none.
+    */
+   public boolean isEmpty() {
+      return names.length == 0 && aliases.length == 0;
+   }
+
+   /**
+    * Get the record with more names written unquoted.
+    * @param more the positions of the names.
+    */
+   public WrittenUnquoted withNames(int[] more) {
+      Set<Integer> all = new TreeSet<>();
+      Arrays.stream(names).forEach(all::add);
+      Arrays.stream(more).forEach(all::add);
+      return new WrittenUnquoted(text, all.stream().mapToInt(Integer::intValue).toArray(), aliases);
+   }
+
+   /**
+    * Get the positions of the names written unquoted, that don't reference an alias.
+    */
+   public int[] getNames() {
+      return names.clone();
+   }
+
+   /**
     * Get the text the names were recorded for.
     */
    public String getText() {
@@ -83,6 +109,11 @@ public final class WrittenUnquoted implements Serializable {
     * Get the record as an xml attribute value, e.g. "0,2,a3" (a for an alias reference).
     */
    public String toAttribute() {
+      // a parsed text without a name written unquoted
+      if(isEmpty()) {
+         return EMPTY;
+      }
+
       StringBuilder sb = new StringBuilder();
 
       for(int name : names) {
@@ -103,6 +134,10 @@ public final class WrittenUnquoted implements Serializable {
    public static WrittenUnquoted fromAttribute(String text, String value) {
       if(text == null || value == null || value.isEmpty()) {
          return null;
+      }
+
+      if(EMPTY.equals(value)) {
+         return new WrittenUnquoted(text, null, null);
       }
 
       List<Integer> names = new ArrayList<>();
@@ -193,7 +228,8 @@ public final class WrittenUnquoted implements Serializable {
     * with a name of this text written unquoted.
     * @param ntext the new text.
     * @param quote the quote of the helper.
-    * @return the record of the new text, or <tt>null</tt> if it has no name written unquoted.
+    * @return the record of the new text, empty if it has no name written unquoted, or
+    *         <tt>null</tt> if the quote is not known.
     */
    public WrittenUnquoted rename(String ntext, String quote) {
       if(ntext == null || quote == null || quote.isEmpty()) {
@@ -219,7 +255,9 @@ public final class WrittenUnquoted implements Serializable {
          }
       }
 
-      return of(ntext, nnames, naliases);
+      // the new text is of the parsed text, its record is kept, also empty
+      return new WrittenUnquoted(ntext, nnames.stream().mapToInt(Integer::intValue).toArray(),
+                                 naliases.stream().mapToInt(Integer::intValue).toArray());
    }
 
    /**
@@ -299,24 +337,6 @@ public final class WrittenUnquoted implements Serializable {
    private static boolean sameName(String text1, int[] name1, String text2, int[] name2) {
       int len = name1[1] - name1[0];
       return len == name2[1] - name2[0] && text1.regionMatches(name1[0], text2, name2[0], len);
-   }
-
-   /**
-    * Find the quoted names of the sql generated for this text that are its own names, matched
-    * in order by their content (a name written quoted is one of them).
-    * @return for each quoted name of the generated sql, whether it's one of this text's names.
-    */
-   public boolean[] getOwnNames(String generated, String quote) {
-      List<int[]> found = findNames(generated, quote);
-      boolean[] own = new boolean[found.size()];
-
-      for(int match : match(text, findNames(text, quote), generated, found)) {
-         if(match >= 0) {
-            own[match] = true;
-         }
-      }
-
-      return own;
    }
 
    /**
@@ -439,6 +459,31 @@ public final class WrittenUnquoted implements Serializable {
       }
 
       return false;
+   }
+
+   /**
+    * Get the xml attribute of a record, " unquoted=..." or "" if none. An empty record is
+    * written only for a helper that folds the names, see writingEmpty: it tells a parsed text
+    * from a text built after the parse, which only that helper's generation asks.
+    */
+   public static String toXMLAttribute(WrittenUnquoted names) {
+      return names == null || names.isEmpty() && !EMPTY_SAVED.get() ? "" :
+         " unquoted=\"" + names.toAttribute() + "\"";
+   }
+
+   /**
+    * Write xml with the empty records or not, see toXMLAttribute.
+    */
+   public static void writingEmpty(boolean empty, Runnable action) {
+      boolean old = EMPTY_SAVED.get();
+      EMPTY_SAVED.set(empty);
+
+      try {
+         action.run();
+      }
+      finally {
+         EMPTY_SAVED.set(old);
+      }
    }
 
    /**
@@ -574,8 +619,11 @@ public final class WrittenUnquoted implements Serializable {
    // private use characters marking the names in sql generated to be saved
    private static final char NAME_MARK = '';
    private static final char ALIAS_MARK = '';
+   // the attribute value of a record without a name, see toAttribute
+   private static final String EMPTY = "-";
    // the most cells of the longest common subsequence of the names, see match
    private static final long MAX_MATCH = 250_000;
    private static final ThreadLocal<Integer> MARKING = ThreadLocal.withInitial(() -> 0);
+   private static final ThreadLocal<Boolean> EMPTY_SAVED = ThreadLocal.withInitial(() -> false);
    private static final ThreadLocal<Integer> UNFOLDED = ThreadLocal.withInitial(() -> 0);
 }

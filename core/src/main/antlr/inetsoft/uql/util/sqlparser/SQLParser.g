@@ -483,6 +483,13 @@ private void checkOuterJoinTables(UniformSQL sql, Token tok)
 
       String[] tables = { join.getTable1(sql), join.getTable2(sql) };
 
+      // the twins MyTab and "MyTab" without aliases were one table, and an outer join of a
+      // table with itself is refused, the sql runs as written (Bug #77643)
+      if(isTwinPair(sql, tables[0], tables[1])) {
+         throw new SemanticException("Unsupported outer join condition: " + join,
+                                     getFilename(), tok.getLine(), tok.getColumn());
+      }
+
       for(int j = 0; j < tables.length; j++) {
          if(tables[j] != null && tables[j].length() > 0 &&
             getJoinTableIndex(sql, tables[j]) < 0)
@@ -493,6 +500,38 @@ private void checkOuterJoinTables(UniformSQL sql, Token tok)
          }
       }
    }
+}
+
+// check if two join tables are the twins of a table without an alias written unquoted and
+// quoted (MyTab and "MyTab"), see addTable
+private boolean isTwinPair(UniformSQL sql, String table1, String table2) {
+   if(table1 == null || table2 == null || table1.isEmpty() || table2.isEmpty()) {
+      return false;
+   }
+
+   String quote = getHelperQuote();
+
+   for(SelectTable twin : sql.getSelectTable()) {
+      if(!(twin.getName() instanceof String) || twin.getWrittenUnquoted() == null ||
+         twin.getName().equals(twin.getAlias()))
+      {
+         continue;
+      }
+
+      String name = (String) twin.getName();
+      String plain = name.replace(quote, "");
+
+      for(SelectTable other : sql.getSelectTable()) {
+         if(other != twin && name.equals(other.getName()) && name.equals(other.getAlias()) &&
+            table1.replace(quote, "").equalsIgnoreCase(plain) &&
+            table2.replace(quote, "").equalsIgnoreCase(plain))
+         {
+            return true;
+         }
+      }
+   }
+
+   return false;
 }
 
 private void collectJoins(XFilterNode node, List joins) {
@@ -2167,10 +2206,12 @@ void setWrittenUnquoted(XExpression exp, int start) {
  * @param end the index in identTokens after the last identifier of the part.
  * @param item <tt>true</tt> if the text is a group by or order by field, which may be the
  *             alias of a select column.
- * @return the names, or <tt>null</tt> if none.
+ * @return the names, empty if none, or <tt>null</tt> if the text isn't parsed with a query.
  */
 WrittenUnquoted getWrittenUnquoted(String text, int start, int end, boolean item) {
-   if(text == null || start < 0 || end > identTokens.size() || start >= end) {
+   // a text parsed without a query (e.g. a vpm condition) has no record, as a text built
+   // after the parse
+   if(text == null || uniSql == null || start < 0 || end > identTokens.size()) {
       return null;
    }
 
@@ -2203,7 +2244,14 @@ WrittenUnquoted getWrittenUnquoted(String text, int start, int end, boolean item
       (isAliasReference(match, field) ? aliases : unquoted).add(i);
    }
 
-   return WrittenUnquoted.of(text, unquoted, aliases);
+   // a parsed text has a record, also empty, see WrittenUnquoted.isEmpty. An empty record is
+   // only of use to a helper that folds the names, as it's saved, see UniformSQL.writeXML0
+   if(unquoted.isEmpty() && aliases.isEmpty() && getHelperCase() == SQLHelper.IdentifierCase.UNKNOWN) {
+      return null;
+   }
+
+   return new WrittenUnquoted(text, unquoted.stream().mapToInt(Integer::intValue).toArray(),
+                              aliases.stream().mapToInt(Integer::intValue).toArray());
 }
 
 /**
@@ -2268,6 +2316,8 @@ private static boolean hasAlias(inetsoft.uql.path.XSelection selection, String n
  * @return the table, or <tt>null</tt> if the table already exists.
  */
 SelectTable addTable(UniformSQL sql, String alias, String name, WrittenUnquoted unquoted) {
+   // a table name records only names written unquoted
+   unquoted = unquoted == null || unquoted.isEmpty() ? null : unquoted;
    SelectTable stable = alias.equals("") ? sql.addTable(name) : sql.addTable(alias, name);
 
    if(stable == null && alias.equals("")) {
@@ -2295,6 +2345,13 @@ SelectTable addTable(UniformSQL sql, String alias, String name, WrittenUnquoted 
    }
 
    return stable;
+}
+
+// the case the helper of the parsed sql folds a name written unquoted to
+private SQLHelper.IdentifierCase getHelperCase() {
+   SQLHelper helper = SQLHelper.getSQLHelper(uniSql != null ? uniSql.getDataSource() : null,
+                                             (Principal) null);
+   return helper != null ? helper.getIdentifierCase() : SQLHelper.IdentifierCase.UNKNOWN;
 }
 
 // the name of a table folded as the database reads it, or without quotes if the case isn't known

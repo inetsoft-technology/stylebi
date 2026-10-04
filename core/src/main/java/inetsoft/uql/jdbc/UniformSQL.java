@@ -1232,6 +1232,18 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
     * @param full whether write full info.
     */
    private synchronized void writeXML0(PrintWriter writer, boolean full) {
+      // the empty records of the names written unquoted, for a helper that folds them. A sub
+      // query without a data source is of the data source of the query it's written in
+      if(dataSource == null) {
+         writeXML1(writer, full);
+      }
+      else {
+         WrittenUnquoted.writingEmpty(SQLHelper.getSQLHelper(dataSource).getIdentifierCase() !=
+            SQLHelper.IdentifierCase.UNKNOWN, () -> writeXML1(writer, full));
+      }
+   }
+
+   private synchronized void writeXML1(PrintWriter writer, boolean full) {
       writer.print("<" + XML_TAG + " parse=\"" + parseIt + "\"");
 
       if(lossy != null) {
@@ -1336,8 +1348,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       for(int i = 0; i < columnCount; i++) {
          WrittenUnquoted names = selection.getWrittenUnquoted(i);
          // the names written unquoted (Bug #77643), older versions ignore them
-         writer.println("<column" + (names != null ?
-            " unquoted=\"" + names.toAttribute() + "\"" : "") + ">");
+         writer.println("<column" + WrittenUnquoted.toXMLAttribute(names) + ">");
          String column = selection.getColumn(i);
          String alias = selection.getAlias(i);
          String type = selection.getType(column);
@@ -2175,8 +2186,8 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
     * qualifier of a column resolved to its exact name (Bug #77643).
     */
    private WrittenUnquoted renameWrittenUnquoted(WrittenUnquoted unquoted, Object field) {
-      return unquoted == null || !(field instanceof String) ? null :
-         unquoted.rename((String) field, getSQLHelper().getQuote());
+      return field instanceof String ?
+         JDBCUtil.renameWrittenUnquoted(this, unquoted, (String) field) : null;
    }
 
    /**
@@ -4451,7 +4462,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
     * (Bug #77643). Older versions ignore it and generate the names as stored.
     */
    private static String unquotedAttribute(WrittenUnquoted names) {
-      return names == null ? "" : " unquoted=\"" + names.toAttribute() + "\"";
+      return WrittenUnquoted.toXMLAttribute(names);
    }
 
    /**
