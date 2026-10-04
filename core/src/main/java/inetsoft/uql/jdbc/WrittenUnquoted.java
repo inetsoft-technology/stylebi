@@ -463,27 +463,11 @@ public final class WrittenUnquoted implements Serializable {
 
    /**
     * Get the xml attribute of a record, " unquoted=..." or "" if none. An empty record is
-    * written only for a helper that folds the names, see writingEmpty: it tells a parsed text
-    * from a text built after the parse, which only that helper's generation asks.
+    * written too: it tells a parsed text from a text built after the parse. The parser makes
+    * one only for a helper that folds the names, so other helpers' xml doesn't have it.
     */
    public static String toXMLAttribute(WrittenUnquoted names) {
-      return names == null || names.isEmpty() && !EMPTY_SAVED.get() ? "" :
-         " unquoted=\"" + names.toAttribute() + "\"";
-   }
-
-   /**
-    * Write xml with the empty records or not, see toXMLAttribute.
-    */
-   public static void writingEmpty(boolean empty, Runnable action) {
-      boolean old = EMPTY_SAVED.get();
-      EMPTY_SAVED.set(empty);
-
-      try {
-         action.run();
-      }
-      finally {
-         EMPTY_SAVED.set(old);
-      }
+      return names == null ? "" : " unquoted=\"" + names.toAttribute() + "\"";
    }
 
    /**
@@ -624,6 +608,5 @@ public final class WrittenUnquoted implements Serializable {
    // the most cells of the longest common subsequence of the names, see match
    private static final long MAX_MATCH = 250_000;
    private static final ThreadLocal<Integer> MARKING = ThreadLocal.withInitial(() -> 0);
-   private static final ThreadLocal<Boolean> EMPTY_SAVED = ThreadLocal.withInitial(() -> false);
    private static final ThreadLocal<Integer> UNFOLDED = ThreadLocal.withInitial(() -> 0);
 }

@@ -1232,18 +1232,6 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
     * @param full whether write full info.
     */
    private synchronized void writeXML0(PrintWriter writer, boolean full) {
-      // the empty records of the names written unquoted, for a helper that folds them. A sub
-      // query without a data source is of the data source of the query it's written in
-      if(dataSource == null) {
-         writeXML1(writer, full);
-      }
-      else {
-         WrittenUnquoted.writingEmpty(SQLHelper.getSQLHelper(dataSource).getIdentifierCase() !=
-            SQLHelper.IdentifierCase.UNKNOWN, () -> writeXML1(writer, full));
-      }
-   }
-
-   private synchronized void writeXML1(PrintWriter writer, boolean full) {
       writer.print("<" + XML_TAG + " parse=\"" + parseIt + "\"");
 
       if(lossy != null) {

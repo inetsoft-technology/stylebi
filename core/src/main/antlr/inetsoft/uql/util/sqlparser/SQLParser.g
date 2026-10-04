@@ -2245,7 +2245,7 @@ WrittenUnquoted getWrittenUnquoted(String text, int start, int end, boolean item
    }
 
    // a parsed text has a record, also empty, see WrittenUnquoted.isEmpty. An empty record is
-   // only of use to a helper that folds the names, as it's saved, see UniformSQL.writeXML0
+   // only of use to a helper that folds the names, so other helpers save the xml as before
    if(unquoted.isEmpty() && aliases.isEmpty() && getHelperCase() == SQLHelper.IdentifierCase.UNKNOWN) {
       return null;
    }

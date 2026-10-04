@@ -276,6 +276,33 @@ class UniformSQLWrittenUnquotedSaved77643Test {
    }
 
    /**
+    * N3: a query loaded without a data source and saved again keeps the records of its parsed
+    * texts, also empty, so the qualifier written quoted of an outer table is still kept.
+    */
+   @Test
+   void quotedQualifierIsKeptAfterASaveWithoutADataSource() throws Exception {
+      List<Executable> checks = new ArrayList<>();
+      String[][] cases = {
+         { "select id from \"MyTab\" where 99 in (select \"MyTab\".\"id\" from MyTab)",
+           "select \"MyTab\".\"id\" from \"mytab\"" },
+         { "select id from \"MyTab\" where exists (select 1 from MyTab where \"MyTab\".\"id\" = 99)",
+           "where \"MyTab\".\"id\" = 99" },
+      };
+
+      for(String[] c : cases) {
+         String saved = toXML(parse(c[0], helpers("postgresql")));
+         UniformSQL loaded = new UniformSQL();
+         loaded.parseXML(inetsoft.util.Tool.parseXML(new java.io.StringReader(saved)).getDocumentElement());
+         // saved again without a data source, as a copy or a move of the asset does
+         String again = toXML(loaded);
+         String generated = regenerate(load(again, helpers("postgresql")));
+         checks.add(() -> assertTrue(generated.contains(c[1]), generated));
+      }
+
+      assertAll(checks);
+   }
+
+   /**
     * The metadata step records the qualifier it writes for a column of a table without an
     * alias written unquoted (the table's name in place of T), so it's generated as the table
     * (Snowflake T for t).
