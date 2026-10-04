@@ -716,11 +716,39 @@ public class VpmCondition extends VpmObject {
          String ncolumn = ncolumns[i];
 
          if(ncolumn != null) {
-            // a bracket quoted column ([Customer's]) stays quoted, the helper may not quote it
-            String bcolumn = bracket && ncolumn.endsWith("." + column) ?
-               ncolumn.substring(0, ncolumn.length() - column.length()) + "[" + column + "]" :
-               null;
+            // the table part of the column before the helper quotes it (o. of o.A)
+            String rawPrefix = ncolumn.endsWith("." + column) ?
+               ncolumn.substring(0, ncolumn.length() - column.length()) : null;
             ncolumn = helper.buildFieldExpression(ncolumn, false);
+            // the table part as the helper quotes it ("Order Details". of "Order Details".A)
+            String prefix = rawPrefix == null ? null : getTablePrefix(ncolumn, column, helper);
+            // a bracket quoted column ([Customer's]) stays quoted, the helper may not quote it
+            String bcolumn = !bracket || rawPrefix == null ? null :
+               (prefix != null ? prefix : rawPrefix) + "[" + column + "]";
+            // the replacement of a column written without quotes, or null to use ncolumn
+            String ucolumn = null;
+
+            if(prefix != null) {
+               // Bug #77697, a quoted name with a doubled quote ("A""B") is not quoted by the
+               // helper, as it contains a quote, so it is quoted as it was written
+               if(column.contains("\"\"") && ncolumn.equals(prefix + column)) {
+                  ncolumn = prefix + "\"" + column + "\"";
+               }
+               // Bug #77697, a name with $ or # (amount$, emp#no) is a valid name without
+               // quotes, and a quoted name is case-sensitive (oracle), so a column written
+               // without quotes isn't quoted only for its $ or #
+               else if(UNQUOTED_NAME.matcher(column).matches() &&
+                  !ncolumn.equals(prefix + column))
+               {
+                  String plain = column.replace('$', '_').replace('#', '_');
+                  String nplain = helper.buildFieldExpression(rawPrefix + plain, false);
+
+                  if(nplain.equals(prefix + plain)) {
+                     ucolumn = prefix + column;
+                  }
+               }
+            }
+
             // String creg = ".*['\"]?" + table + "['\"]?\\.['\"]?" + column + "(['\"]?)(\\W+.)*";
             // Bug #77663, a ' is not an identifier quote (the optional ' took the closing quote
             // of a literal), and a name ending with the table name (XT.A) is not the table
@@ -731,11 +759,32 @@ public class VpmCondition extends VpmObject {
                getNamePattern(column, bracket) + "(?![\\w$])(?!\\.)";
             exp = replaceOutsideLiterals(
                exp, Pattern.compile(rreg, Pattern.UNICODE_CHARACTER_CLASS), ncolumn, bcolumn,
-               rules);
+               ucolumn, rules);
          }
       }
 
       return exp;
+   }
+
+   /**
+    * Get the table part of a column built by the helper, ending with the dot.
+    * @param field the column built by the helper (SQLHelper.buildFieldExpression()).
+    * @param column the column part, without quotes.
+    * @return the table part, or null if the field doesn't end with the column, quoted by
+    * the helper or not.
+    */
+   private static String getTablePrefix(String field, String column, SQLHelper helper) {
+      String quote = helper.getQuote();
+
+      for(String end : new String[] { column, quote + column + quote }) {
+         int len = field.length() - end.length();
+
+         if(len > 0 && field.endsWith(end) && field.charAt(len - 1) == '.') {
+            return field.substring(0, len);
+         }
+      }
+
+      return null;
    }
 
    /**
@@ -754,11 +803,13 @@ public class VpmCondition extends VpmObject {
     * string in some databases (a mysql "it\"s T.A").
     * @param breplacement the replacement of a match ending with a bracket quoted name, or
     *                     null to use the replacement.
+    * @param ureplacement the replacement of a match ending with a name without quotes, or
+    *                     null to use the replacement.
     * @param rules the quoting and comment rules of the database (ColumnIterator.getRules()).
     */
    private static String replaceOutsideLiterals(String exp, Pattern pattern,
                                                 String replacement, String breplacement,
-                                                int rules)
+                                                String ureplacement, int rules)
    {
       int len = exp.length();
       // the characters of the literals, comments and variables
@@ -837,8 +888,11 @@ public class VpmCondition extends VpmObject {
          }
 
          if(replace) {
+            char last = exp.charAt(mend - 1);
             result.append(exp, start, mstart).append(
-               breplacement != null && exp.charAt(mend - 1) == ']' ? breplacement : replacement);
+               breplacement != null && last == ']' ? breplacement :
+               ureplacement != null && last != '"' && last != ']' && last != '`' ?
+                  ureplacement : replacement);
             start = i = mend;
          }
          else {
@@ -1012,4 +1066,7 @@ public class VpmCondition extends VpmObject {
    private static final Logger LOG = LoggerFactory.getLogger(VpmCondition.class);
    // a bracket quoted name in a column, [A] in T.[A]
    private static final Pattern BRACKET_NAME = Pattern.compile("\\[([^\\[\\]]*)\\]");
+   // a name with $ or # that needs no quotes (amount$, emp#no)
+   private static final Pattern UNQUOTED_NAME =
+      Pattern.compile("(?=.*[$#])[\\p{L}_][\\w$#]*", Pattern.UNICODE_CHARACTER_CLASS);
 }

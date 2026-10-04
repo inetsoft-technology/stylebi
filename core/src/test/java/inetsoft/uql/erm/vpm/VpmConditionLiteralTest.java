@@ -121,13 +121,18 @@ class VpmConditionLiteralTest {
          // a ' in a bracket quoted name (item 1)
          Arguments.of(MSSQL, "concat($(a.b), T.A, [it's], 'x', T.B)",
                       "concat($(a.b), o.A, [it's], 'x', o.B)"),
-         Arguments.of(null, "concat($(a.b), T.A, [it's], 'x', T.B)",
-                      "concat($(a.b), o.A, [it's], 'x', o.B)"),
          Arguments.of(MSSQL, "T.A ^ 1 + [it's] + 'x' + T.B", "o.A ^ 1 + [it's] + 'x' + o.B"),
          Arguments.of(MSSQL, "T.A % 2 + [Customer's Name] + T.B",
                       "o.A % 2 + [Customer's Name] + o.B"),
          Arguments.of(MSSQL, "T.A + [it's] + T.B;", "o.A + [it's] + o.B;"),
-         Arguments.of(null, "T.A || [it's] || 'x' || T.B", "o.A || [it's] || 'x' || o.B"),
+         Arguments.of(MSSQL, "T.A || [it's] || 'x' || T.B", "o.A || [it's] || 'x' || o.B"),
+         // a [ is an array, not a quoted name, in a database without its own sql helper
+         // (review round 1)
+         Arguments.of(TRINO, "contains(ARRAY [T.B], T.A)", "contains(ARRAY [o.B], o.A)"),
+         Arguments.of(PRESTO, "cardinality(ARRAY [T.A, T.B]) > 0",
+                      "cardinality(ARRAY [o.A, o.B]) > 0"),
+         Arguments.of(TERADATA, "contains(ARRAY [T.B], T.A)", "contains(ARRAY [o.B], o.A)"),
+         Arguments.of(null, "contains(ARRAY [T.B], T.A)", "contains(ARRAY [o.B], o.A)"),
          // a bracket quoted name is a column (item 1)
          Arguments.of(MSSQL, "T.[Name] + T.B", "o.[Name] + o.B"),
          Arguments.of(MSSQL, "[T].[Name] + T.B", "o.[Name] + o.B"),
@@ -156,7 +161,20 @@ class VpmConditionLiteralTest {
          Arguments.of(MSSQL, "T.DATE + T.DATE_ID", "o.\"DATE\" + o.DATE_ID"),
          Arguments.of(MYSQL, "T.DATE + T.DATE_ID", "o.`DATE` + o.DATE_ID"),
          Arguments.of(null, "concat($(a.b), T.DATE, T.DATE$X)",
-                      "concat($(a.b), o.\"DATE\", o.\"DATE$X\")"),
+                      "concat($(a.b), o.\"DATE\", o.DATE$X)"),
+         // a name with $ or # written without quotes is not quoted, a quoted name is
+         // case-sensitive in oracle (verify F1)
+         Arguments.of(ORACLE, "T.amount$ * 2", "o.amount$ * 2"),
+         Arguments.of(ORACLE, "T.emp#no + T.b", "o.emp#no + o.b"),
+         Arguments.of(ORACLE, "nvl(T.amount$, 0)", "nvl(o.amount$, 0)"),
+         Arguments.of(null, "T.a$x + 1", "o.a$x + 1"),
+         Arguments.of(MSSQL, "T.emp#no + T.b", "o.emp#no + o.b"),
+         Arguments.of(ORACLE, "nvl(T.\"amount$\", 0)", "nvl(o.\"amount$\", 0)"),
+         // a name the helper quotes for another reason is still quoted
+         Arguments.of(POSTGRESQL, "T.A$X + 1", "o.\"A$X\" + 1"),
+         // a doubled quote in a quoted name (verify F2)
+         Arguments.of(POSTGRESQL, "T.\"A\"\"B\"", "o.\"A\"\"B\""),
+         Arguments.of(POSTGRESQL, "T.\"A\"\"B\" || T.C", "o.\"A\"\"B\" || o.\"C\""),
          // a mysql # comment (item 5)
          Arguments.of(MYSQL, "T.A # note\n + T.B", "o.A # note\n + o.B"),
          Arguments.of(MYSQL, "T.A # it's\n + T.B", "o.A # it's\n + o.B"),
@@ -186,6 +204,11 @@ class VpmConditionLiteralTest {
          Arguments.of(null, "T.A in (select X.B from X where X.C = T.D)",
                       "o.A in (select X.B from X where X.C = o.D)"),
          Arguments.of(null, "T.A between 1 and T.B", "o.A between 1 and o.B"),
+         Arguments.of(MYSQL, "T.A between 1 and T.B", "o.A between 1 and o.B"),
+         Arguments.of(null, "T.A is null or T.B > 0", "o.A is null or o.B > 0"),
+         Arguments.of(MSSQL, "T.A IS NOT NULL AND T.B <> 'it''s'",
+                      "o.A IS NOT NULL AND o.B <> 'it''s'"),
+         Arguments.of(null, "T.A in (1, 2) and T.B = 1", "o.A in (1, 2) and o.B = 1"),
          Arguments.of(POSTGRESQL, "T.A[1] + T.B", "o.\"A\"[1] + o.\"B\""),
          Arguments.of(POSTGRESQL, "(T.A)[1] || T.B", "(o.\"A\")[1] || o.\"B\""),
          Arguments.of(POSTGRESQL, "T.A = ANY(ARRAY[T.B, T.C])",
@@ -245,6 +268,15 @@ class VpmConditionLiteralTest {
       assertEquals(List.of("v"), varsql.getParameterValues());
    }
 
+   // a bracket quoted column is replaced with the alias quoted as the other columns are
+   // (review round 1, minor 2)
+   @Test
+   void aliasOfBracketQuotedColumnIsQuoted() throws Exception {
+      assertEquals("\"Order Details\".[A] + \"Order Details\".B = 1",
+                   evaluate("T", "Order Details", "T.[A] + T.B", MSSQL));
+      assertEquals("\"select\".[A] > 0 = 1", evaluate("T", "select", "T.[A] > 0", MSSQL));
+   }
+
    private static String evaluate(String table, String alias, String exp) throws Exception {
       return evaluate(table, alias, exp, null);
    }
@@ -279,6 +311,9 @@ class VpmConditionLiteralTest {
    private static final String MYSQL = "mysql";
    private static final String POSTGRESQL = "postgresql";
    private static final String ORACLE = "oracle";
+   private static final String TRINO = "trino";
+   private static final String PRESTO = "presto";
+   private static final String TERADATA = "teradata";
 
    @Configuration
    static class TestConfig {

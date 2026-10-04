@@ -252,9 +252,8 @@ public class ColumnIterator {
          return BACKSLASH | BACKSLASH_DQ;
       case "snowflake":
          return BACKSLASH;
-      // a generic jdbc database, or no data source
-      case "default":
-         return BRACKET_NAME;
+      // a generic jdbc database (presto, trino, teradata), or no data source, uses the
+      // common rules. A [ is not a name there, it starts an array (ARRAY [T.A])
       default:
          return 0;
       }
@@ -264,7 +263,7 @@ public class ColumnIterator {
     * Check if the rules quote a name in brackets ([T].[A]).
     */
    public static boolean isBracketQuote(int rules) {
-      return (rules & (BRACKET | BRACKET_NAME)) != 0;
+      return (rules & BRACKET) != 0;
    }
 
    /**
@@ -287,21 +286,7 @@ public class ColumnIterator {
          return SQLQuoteScanner.getCloseQuote(c);
       }
 
-      if((rules & BRACKET) != 0) {
-         return ']';
-      }
-
-      // where the database is not known, a [ after a name (a[1], field[...]) is a
-      // subscript, not a quoted name
-      if((rules & BRACKET_NAME) != 0) {
-         char p = start == 0 ? ' ' : text.charAt(start - 1);
-
-         if(!Character.isLetterOrDigit(p) && "_$)]\"`'".indexOf(p) < 0) {
-            return ']';
-         }
-      }
-
-      return 0;
+      return (rules & BRACKET) != 0 ? ']' : 0;
    }
 
    /**
@@ -377,17 +362,17 @@ public class ColumnIterator {
    private static final char[] splits = {'\t', '\n', '\r', ' ', '!',  '%', '&', '(',
       ')', '*', '+', ',', '-', '/', ':', ';', '<', '=', '>', '[', ']', '^', '{', '|', '}',
       '~'};
-   // the prefix of a string literal (N'abc', X'0F', mysql _utf8'abc'), not a column
+   // the prefix of a string literal (N'abc', X'0F', mysql _utf8'abc'), not a column. The
+   // first alternative is empty on purpose: no text before the quote (a literal after a
+   // split char, or the second half of 'it''s') is not a name either
    private static final Pattern STRING_PREFIX =
-      Pattern.compile("(?i)|n|e|x|b|q|nq|r|u&|_\\w+");
+      Pattern.compile("(?i)(?:|n|e|x|b|q|nq|r|u&|_\\w+)");
    // the quoting and comment rules that differ between databases
    private static final int BACKSLASH = 1; // a backslash escapes in '' strings
    private static final int BACKSLASH_DQ = 2; // a backslash escapes in "" strings and names
    private static final int HASH_COMMENT = 4; // # starts a comment to the end of the line
    private static final int DASH_SPACE = 8; // -- starts a comment only if a space follows
    private static final int BRACKET = 16; // [...] is a quoted name
-   // [...] is a quoted name where a name starts, the database is not known
-   private static final int BRACKET_NAME = 32;
    private static final String[] keywords = {"all", "and", "any",
       "approximate_num", "as", "asc", "between", "both", "by", "case", "cast",
       "char","close_paren", "close_parent", "coalesce", "colon", "colon_equ",

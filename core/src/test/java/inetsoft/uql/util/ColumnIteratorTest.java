@@ -78,9 +78,9 @@ class ColumnIteratorTest {
          Arguments.of("sql server", "T.A + [it's] + T.B;", Set.of("T.A", "[it's]", "T.B")),
          Arguments.of("sql server", "concat($(a.b), T.[Customer's], 'x', T.B)",
                       Set.of("T.[Customer's]", "T.B")),
-         // a generic database: a [ where a name starts is a quoted name, not after a name
-         Arguments.of("default", "concat($(a.b), T.A, [it's], 'x', T.B)",
-                      Set.of("T.A", "[it's]", "T.B")),
+         // a generic database: a [ is an array or a subscript, not a quoted name
+         Arguments.of("default", "contains(ARRAY [T.B], T.A)", Set.of("T.A", "T.B")),
+         Arguments.of("default", "cardinality(ARRAY [T.A, T.B]) > 0", Set.of("T.A", "T.B")),
          Arguments.of("default", "x[1] + T.B", Set.of("T.B")),
          // the name before a literal is a column, not the prefix of a literal
          Arguments.of(null, "concat($(p), T.A^'x')", Set.of("T.A")),
