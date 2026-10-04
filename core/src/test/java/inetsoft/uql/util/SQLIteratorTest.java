@@ -487,6 +487,14 @@ public class SQLIteratorTest {
       assertTimeoutPreemptively(Duration.ofSeconds(10), () -> iterate(sql));
       assertEquals("x", columns.get(50_000));
       assertEquals("a=1", whereClause);
+
+      // where tags in a comment that starts at a different index in each database
+      setup();
+      String sql2 = "select a #t -- " + "/*<where>*/x/*</where>*/ ".repeat(40_000) +
+         "\nfrom T where /*<where>*/a=1/*</where>*/";
+
+      assertTimeoutPreemptively(Duration.ofSeconds(10), () -> iterate(sql2));
+      assertEquals(List.of("a=1"), wheres);
    }
 
    // Bug #77695, a tag after a -- in the middle of a line is in a comment, it is not a tag
@@ -559,6 +567,44 @@ public class SQLIteratorTest {
       setup();
       iterate("select * from T where /*<where>*/x > 5--1/*</where>*/\norder by 1");
       assertEquals("x > 5--1", whereClause);
+   }
+
+   // Bug #77695, a where tag after a -- is ignored also when an earlier token on the line is
+   // a comment in some databases only (a sql server #tmp, a postgresql #>> or $$x--y$$, a
+   // --x or a--1), so each database reads the tag in a comment, at a different start
+   @Test
+   void tagInCommentOfEveryDatabaseIsIgnored() {
+      for(String sql : new String[] {
+         "select * from #tmp t1 -- where /*<where>*/t1.ORDER_ID > 0/*</where>*/",
+         "select t1.DATA #>> '{a}' as v from SA.ORDERS t1 -- where /*<where>*/1=1/*</where>*/",
+         "select $$x--y$$ as v from SA.ORDERS t1 -- where /*<where>*/1=1/*</where>*/",
+         "select * from SA.ORDERS --old: -- where /*<where>*/ORDER_ID > 0/*</where>*/",
+         "select a--1 as v from SA.ORDERS -- where /*<where>*/1=1/*</where>*/",
+         "select * from #tmp t1 -- where /*<where>*/\nt1.ORDER_ID > 0/*</where>*/" })
+      {
+         setup();
+         assertEquals(sql, iterate(sql), sql);
+         assertNull(whereClause, sql);
+      }
+
+      // the closing tag in a -- comment after a #tmp ends the value at the --
+      setup();
+      String sql = "select * from #tmp t1 where /*<where>*/a=1 -- why /*</where>*/\norder by 1";
+      assertEquals("select * from #tmp t1 where a=1 -- why \norder by 1", iterate(sql));
+      assertEquals("a=1 ", whereClause);
+
+      // a tag that some database reads as sql is still read
+      for(String[] c : new String[][] {
+         { "select * from #tmp t1 where /*<where>*/a=1/*</where>*/", "a=1" },
+         { "select * from T where d #>> '{a}' <> '--' and /*<where>*/1=1/*</where>*/", "1=1" },
+         { "select * from T where n <> 'O\\'Brien -- x' and /*<where>*/1=1/*</where>*/", "1=1" },
+         { "select * from T where x > 5--1 and /*<where>*/1=1/*</where>*/", "1=1" },
+         { "select * from T --x /*<where>*/1=1/*</where>*/", "1=1" } })
+      {
+         setup();
+         iterate(c[0]);
+         assertEquals(c[1], whereClause, c[0]);
+      }
    }
 
    // Bug #77695, a closing tag in a -- comment that starts in the value ends the value at the

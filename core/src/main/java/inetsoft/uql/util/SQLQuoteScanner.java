@@ -193,6 +193,21 @@ public final class SQLQuoteScanner {
     * the character is not inside a comment.
     */
    public static int[] findComments(String text, IntPredicate tag) {
+      return findComments(text, tag, null);
+   }
+
+   /**
+    * Find the comments of the sql text, as findComments(text, tag), and also the characters
+    * that every database family reads inside some comment, whatever index that comment
+    * starts at in each family.
+    * @param lastStart if not null, it gets, for each character inside a comment in every
+    *                  family, the latest index where one of those comments starts, and -1 for
+    *                  the other characters. So no text that one of these databases reads as
+    *                  sql or as quoted text gets an index.
+    * @return for each character, the index where the comment holding it starts in every
+    * family, or -1.
+    */
+   public static int[] findComments(String text, IntPredicate tag, int[] lastStart) {
       int len = text.length();
       int[] comment = null;
 
@@ -203,12 +218,21 @@ public final class SQLQuoteScanner {
 
          if(comment == null) {
             comment = comment2;
+
+            if(lastStart != null) {
+               System.arraycopy(comment2, 0, lastStart, 0, len);
+            }
+
             continue;
          }
 
          for(int i = 0; i < len; i++) {
             if(comment[i] != comment2[i]) {
                comment[i] = -1;
+            }
+
+            if(lastStart != null && lastStart[i] >= 0) {
+               lastStart[i] = comment2[i] < 0 ? -1 : Math.max(lastStart[i], comment2[i]);
             }
          }
       }

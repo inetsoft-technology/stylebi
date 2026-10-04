@@ -135,6 +135,40 @@ class SQLQuoteScannerTest {
       assertEquals(-1, c[text.indexOf('c')]);
    }
 
+   // a character every database reads in some comment gets the latest start of those
+   // comments, even when the comments start at different indexes (a mysql # comment, a --x)
+   @Test
+   void commentsOfEveryDatabaseAtAnyStart() {
+      for(String text : new String[] {
+         "select * from #tmp t -- where x", "select d #>> '{a}' from t -- where x",
+         "select $$a--b$$ from t -- where x", "select * from t --old: -- where x",
+         "select a--1 from t -- where x" })
+      {
+         int[] last = new int[text.length()];
+         int[] comment = SQLQuoteScanner.findComments(text, i -> false, last);
+         int x = text.indexOf("where");
+
+         assertEquals(-1, comment[x], text);
+         assertEquals(text.lastIndexOf("-- "), last[x], text);
+      }
+
+      // not a comment in one database, or in no database
+      for(String text : new String[] {
+         "select * from #tmp t where x", "select d #>> '{a}' <> '--' and x from t",
+         "select 'O\\'Brien -- y' and x from t", "select 5--1 and x from t" })
+      {
+         int[] last = new int[text.length()];
+         SQLQuoteScanner.findComments(text, i -> false, last);
+         assertEquals(-1, last[text.lastIndexOf('x')], text);
+      }
+
+      // the same start in every database
+      String text = "select a -- x\nfrom t";
+      int[] last = new int[text.length()];
+      int[] comment = SQLQuoteScanner.findComments(text, i -> false, last);
+      assertArrayEquals(comment, last);
+   }
+
    // a slash-star the caller marks as a tag is sql, not a comment, unless it is in a comment
    @Test
    void tagIsNotComment() {

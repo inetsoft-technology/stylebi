@@ -119,7 +119,8 @@ public class SQLIterator {
       // mid-line --, or in a slash-star comment) is not sql, so it is not a tag. A tag opener
       // is not a comment itself, the text after it is sql
       opener = findOpeners(sql);
-      commentStart = SQLQuoteScanner.findComments(sql, i -> opener[i] != 0);
+      lastCommentStart = new int[sql.length()];
+      commentStart = SQLQuoteScanner.findComments(sql, i -> opener[i] != 0, lastCommentStart);
       lastCloser = null;
       int start = 0;
 
@@ -290,7 +291,8 @@ public class SQLIterator {
             // Bug #77695, a column tag in a comment is still read if it is closed, as before,
             // since its value is removed from the sql (the comment may end at the tag's */)
             if(c != '*' || lc != '/' || quoted[offset + i - 1] ||
-               commentStart[offset + i - 1] >= 0 && !isClosedColumnOpener(offset + i - 1))
+               commentStart[offset + i - 1] >= 0 && !isClosedColumnOpener(offset + i - 1) ||
+               isCommentedWhereOpener(offset + i - 1))
             {
                i++;
                continue;
@@ -356,7 +358,10 @@ public class SQLIterator {
             }
 
             String val = line.substring(eindex + 2, index2);
-            int cstart = commentStart[offset + index2] - offset;
+            // a where closing tag in a comment of every database ends the value at the latest
+            // start, as the opener (sql server #tmp, postgresql #>> or $$x--y$$ before a --)
+            int cstart = (type == WHERE_ELEMENT ? lastCommentStart : commentStart)
+               [offset + index2] - offset;
 
             // Bug #77695, the closing tag is in a -- comment that starts in the value, so the
             // value ends at the comment, which is passed on as text as the database reads it
@@ -451,6 +456,17 @@ public class SQLIterator {
       }
 
       return opener;
+   }
+
+   /**
+    * Check if a where tag opens at the index inside a comment of every database family. The
+    * comment may start at a different index in each family, such as at a sql server #tmp
+    * table, a postgresql #>> operator or $$x--y$$ string, or a --x, which is a comment in
+    * some databases, before the -- that is a comment in all of them. Each database reads the
+    * tag in a comment, so it is not a tag, and the condition is not written into the comment.
+    */
+   private boolean isCommentedWhereOpener(int index) {
+      return opener[index] == WHERE_OPENER && lastCommentStart[index] >= 0;
    }
 
    /**
@@ -557,6 +573,8 @@ public class SQLIterator {
    private boolean[] quoted; // the characters of the sql inside quoted text
    private byte[] opener; // the tag openers of the sql
    private int[] commentStart; // the start of the comment holding each character, or -1
+   // the latest start of the comments holding each character in every database family, or -1
+   private int[] lastCommentStart;
    private Map<String, Integer> lastCloser; // see isClosedColumnOpener
    private List listeners; // sql listeners
 }
