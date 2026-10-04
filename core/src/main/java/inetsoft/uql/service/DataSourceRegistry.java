@@ -46,6 +46,7 @@ import org.w3c.dom.ProcessingInstruction;
 
 import java.beans.PropertyChangeListener;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.io.Serializable;
 import java.lang.SecurityException;
 import java.lang.reflect.Method;
@@ -1327,25 +1328,23 @@ public class DataSourceRegistry implements MessageListener {
             moveEntries(rest);
          }
          catch(MoveEntriesException e) {
+            // moved, only a permission wasn't
             if(e.isCommitted()) {
                addMovedDataSources(rest, moved);
+
+               try {
+                  moveAdditionalPermissions(leftAdditionals, oname, nname);
+               }
+               catch(Exception ex) {
+                  e.addSuppressed(ex);
+               }
             }
 
             throw e;
          }
 
          addMovedDataSources(rest, moved);
-
-         for(AssetEntry entry : leftAdditionals) {
-            String opath = entry.getPath();
-            int index = opath.lastIndexOf('/');
-            String oparent = opath.substring(0, index);
-            String nparent = nname + oparent.substring(oname.length());
-            String name = opath.substring(index + 1);
-            current = opath;
-            updatePermission(ResourceType.DATA_SOURCE, oparent + "::" + name,
-                             nparent + "::" + name);
-         }
+         moveAdditionalPermissions(leftAdditionals, oname, nname);
 
          for(DataSourceFolder dsfolder : subfolders) {
             String opath = dsfolder.getFullName();
@@ -1373,6 +1372,21 @@ public class DataSourceRegistry implements MessageListener {
          String failed = e instanceof MoveEntriesException moveException &&
             moveException.getPath() != null ? moveException.getPath() : current;
          throw new DataSourceRenameException(oname, nname, failed, moved, e);
+      }
+   }
+
+   // moves the "parent::name" permissions of additional connections moved to a new folder
+   private void moveAdditionalPermissions(List<AssetEntry> additionals, String oname,
+                                          String nname)
+   {
+      for(AssetEntry entry : additionals) {
+         String opath = entry.getPath();
+         int index = opath.lastIndexOf('/');
+         String oparent = opath.substring(0, index);
+         String nparent = nname + oparent.substring(oname.length());
+         String name = opath.substring(index + 1);
+         updatePermission(ResourceType.DATA_SOURCE, oparent + "::" + name,
+                          nparent + "::" + name);
       }
    }
 
@@ -2346,7 +2360,7 @@ public class DataSourceRegistry implements MessageListener {
       Permission permission = engine.getPermission(type, oldResource);
 
       if(permission != null) {
-         engine.setPermission(type, newResource, permission);
+         savePermission(engine, type, newResource, permission);
       }
    }
 
@@ -2653,11 +2667,34 @@ public class DataSourceRegistry implements MessageListener {
 
       Permission permission = engine.getPermission(type, oldResource);
 
-      // Bug #77704, saved under the new key before it is removed from the old one, so a failed
-      // save doesn't lose it
+      // Bug #77704, removed from the old key only once it can be read back under the new one.
+      // The authorization provider logs a failed save instead of throwing it.
       if(permission != null && !oldResource.equals(newResource)) {
-         engine.setPermission(type, newResource, permission);
+         savePermission(engine, type, newResource, permission);
          engine.removePermission(type, oldResource);
+
+         if(engine.getPermission(type, oldResource) != null) {
+            LOG.warn("Failed to remove the permission of {} {} after it was moved to {}",
+                     type, oldResource, newResource);
+         }
+      }
+   }
+
+   /**
+    * Saves a permission and checks that it can be read back, since the authorization provider
+    * logs a failed save instead of throwing it.
+    *
+    * @throws UncheckedIOException if it isn't saved.
+    */
+   private static void savePermission(SecurityEngine engine, ResourceType type, String resource,
+                                      Permission permission)
+   {
+      engine.setPermission(type, resource, permission);
+
+      // a blank permission is removed instead
+      if(!permission.isBlank() && !permission.equals(engine.getPermission(type, resource))) {
+         throw new UncheckedIOException(new IOException(
+            "Failed to save the permission of " + type + " " + resource));
       }
    }
 

@@ -111,6 +111,8 @@ class DataSourceRenameFailureTest {
    private String failKey;
    // the permission whose save fails
    private String failPermission;
+   // whether a failed permission save throws, which the real provider doesn't do
+   private boolean failPermissionThrows;
    // the connector of the tabular data sources isn't installed while an operation runs
    private boolean uninstalled;
    private static int seq;
@@ -133,8 +135,13 @@ class DataSourceRenameFailureTest {
       doAnswer(inv -> {
          String key = key(inv.getArgument(0), inv.getArgument(1));
 
+         // FileAuthorizationProvider logs a failed save and doesn't throw it
          if(key.equals(failPermission)) {
-            throw new IllegalStateException("simulated permission storage failure");
+            if(failPermissionThrows) {
+               throw new IllegalStateException("simulated permission storage failure");
+            }
+
+            return null;
          }
 
          return store.put(key, inv.getArgument(2));
@@ -181,6 +188,7 @@ class DataSourceRenameFailureTest {
    void tearDown() throws Exception {
       failKey = null;
       failPermission = null;
+      failPermissionThrows = false;
       uninstalled = false;
       storageField.set(registry, storage);
       auditStatic.close();
@@ -235,50 +243,82 @@ class DataSourceRenameFailureTest {
                     false, false);
    }
 
-   // Bug #77704 r1: the permission of a data source can't be saved once the data source has been
-   // moved. It must be reported as moved, its dependencies renamed and its permission kept.
+   // Bug #77704 r1/r2: the permission of a data source can't be saved once the data source has
+   // been moved. It must be reported as moved, its dependencies renamed and its permission kept.
+   // The real provider only logs the failure, a throwing one is checked too.
    @Test
    void emFolderMoveWithAFailedPermissionSave() throws Exception {
-      String p = scenario();
-      String nfolder = p + "Dest/" + p + "F";
-      failPermission = key(ResourceType.DATA_SOURCE, nfolder + "/B");
-      Throwable thrown =
-         run(0, false, () -> emMove(p + "F", RepositoryEntry.DATA_SOURCE_FOLDER, p + "Dest"));
-      failPermission = null;
+      for(boolean throwing : new boolean[] { false, true }) {
+         String p = scenario();
+         String nfolder = p + "Dest/" + p + "F";
+         String label = throwing ? "the save throws" : "the save is only logged";
+         failPermission = key(ResourceType.DATA_SOURCE, nfolder + "/B");
+         failPermissionThrows = throwing;
+         Throwable thrown =
+            run(0, false, () -> emMove(p + "F", RepositoryEntry.DATA_SOURCE_FOLDER, p + "Dest"));
+         failPermission = null;
 
-      DataSourceRenameException error = assertInstanceOf(DataSourceRenameException.class, thrown);
-      assertEquals(p + "F/B", error.getFailedPath());
-      registry.clearCache();
-      assertNull(registry.getDataSource(p + "F/B"));
-      assertNotNull(registry.getDataSource(nfolder + "/B"));
-      assertTrue(error.isMoved(p + "F/A"), error.getMessage());
-      assertTrue(error.isMoved(p + "F/B"), error.getMessage());
-      assertFalse(error.isMoved(p + "F/D"), error.getMessage());
-      // not lost, still under the old key
-      assertSame(perm(ResourceType.DATA_SOURCE, p + "F/B#grant"),
-                 perm(ResourceType.DATA_SOURCE, p + "F/B"));
-      checkTransforms(Map.of(p + "F/A", true, p + "F/B", true, p + "F/G/C", false),
-                      "B's permission fails");
-      assertTrue(audits.contains(ActionRecord.ACTION_STATUS_FAILURE));
+         DataSourceRenameException error =
+            assertInstanceOf(DataSourceRenameException.class, thrown, label);
+         assertEquals(p + "F/B", error.getFailedPath(), label);
+         registry.clearCache();
+         assertNull(registry.getDataSource(p + "F/B"), label);
+         assertNotNull(registry.getDataSource(nfolder + "/B"), label);
+         assertTrue(error.isMoved(p + "F/A"), error.getMessage());
+         assertTrue(error.isMoved(p + "F/B"), error.getMessage());
+         assertFalse(error.isMoved(p + "F/D"), error.getMessage());
+         // not lost, still under the old key
+         assertSame(perm(ResourceType.DATA_SOURCE, p + "F/B#grant"),
+                    perm(ResourceType.DATA_SOURCE, p + "F/B"), label);
+         checkTransforms(Map.of(p + "F/A", true, p + "F/B", true, p + "F/G/C", false), label);
+         assertTrue(audits.contains(ActionRecord.ACTION_STATUS_FAILURE), label);
 
-      for(String source : List.of("A", "D", "G/C")) {
-         checkSource(p, source, p + "F/" + source, nfolder + "/" + source, "B's permission fails");
+         for(String source : List.of("A", "D", "G/C")) {
+            checkSource(p, source, p + "F/" + source, nfolder + "/" + source, label);
+         }
       }
    }
 
-   // Bug #77704 r1: the permission of the new folder can't be saved, the new folder is removed
+   // Bug #77704 r1/r2: the permission of the new folder can't be saved, the new folder is removed
    @Test
    void emFolderMoveWithAFailedFolderPermissionCopy() throws Exception {
+      for(boolean throwing : new boolean[] { false, true }) {
+         String p = scenario();
+         String nfolder = p + "Dest/" + p + "F";
+         String label = throwing ? "the copy throws" : "the copy is only logged";
+         failPermission = key(ResourceType.DATA_SOURCE_FOLDER, nfolder);
+         failPermissionThrows = throwing;
+         Throwable thrown =
+            run(0, false, () -> emMove(p + "F", RepositoryEntry.DATA_SOURCE_FOLDER, p + "Dest"));
+         failPermission = null;
+
+         assertInstanceOf(DataSourceRenameException.class, thrown, label);
+         checkFolder(p, nfolder, thrown, false, label);
+         assertNull(registry.getDataSourceFolder(nfolder), label);
+      }
+   }
+
+   // Bug #77704 r2: the "parent::name" permission of an additional connection whose parent can't
+   // be loaded is moved with the rest, even when a permission of the rest isn't saved
+   @Test
+   void emFolderMoveUninstalledWithAFailedPermissionSave() throws Exception {
       String p = scenario();
       String nfolder = p + "Dest/" + p + "F";
-      failPermission = key(ResourceType.DATA_SOURCE_FOLDER, nfolder);
+      uninstalled = true;
+      failPermission = key(ResourceType.DATA_SOURCE, nfolder + "/B");
+      // thrown, so the batch is reported as committed on both versions
+      failPermissionThrows = true;
       Throwable thrown =
          run(0, false, () -> emMove(p + "F", RepositoryEntry.DATA_SOURCE_FOLDER, p + "Dest"));
       failPermission = null;
+      uninstalled = false;
 
-      assertInstanceOf(DataSourceRenameException.class, thrown);
-      checkFolder(p, nfolder, thrown, false, "the folder permission fails");
-      assertNull(registry.getDataSourceFolder(nfolder));
+      DataSourceRenameException error = assertInstanceOf(DataSourceRenameException.class, thrown);
+      assertTrue(error.isMoved(p + "F/A"), error.getMessage());
+      assertTrue(error.isMoved(p + "F/B"), error.getMessage());
+      assertSame(perm(ResourceType.DATA_SOURCE, p + "F/B#grant"),
+                 perm(ResourceType.DATA_SOURCE, p + "F/B"));
+      checkSource(p, "A", p + "F/A", nfolder + "/A", "uninstalled");
    }
 
    // portal move of a folder into another one
