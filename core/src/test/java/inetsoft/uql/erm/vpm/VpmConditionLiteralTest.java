@@ -161,15 +161,34 @@ class VpmConditionLiteralTest {
          Arguments.of(MSSQL, "T.DATE + T.DATE_ID", "o.\"DATE\" + o.DATE_ID"),
          Arguments.of(MYSQL, "T.DATE + T.DATE_ID", "o.`DATE` + o.DATE_ID"),
          Arguments.of(null, "concat($(a.b), T.DATE, T.DATE$X)",
-                      "concat($(a.b), o.\"DATE\", o.DATE$X)"),
-         // a name with $ or # written without quotes is not quoted, a quoted name is
-         // case-sensitive in oracle (verify F1)
+                      "concat($(a.b), o.\"DATE\", o.\"DATE$X\")"),
+         // a name with $ or # written without quotes is not quoted in a database where it is
+         // a valid name without quotes, a quoted name is case-sensitive in oracle (verify F1)
          Arguments.of(ORACLE, "T.amount$ * 2", "o.amount$ * 2"),
          Arguments.of(ORACLE, "T.emp#no + T.b", "o.emp#no + o.b"),
          Arguments.of(ORACLE, "nvl(T.amount$, 0)", "nvl(o.amount$, 0)"),
-         Arguments.of(null, "T.a$x + 1", "o.a$x + 1"),
          Arguments.of(MSSQL, "T.emp#no + T.b", "o.emp#no + o.b"),
+         Arguments.of(SYBASE, "coalesce(T.emp#no, 0) + 1", "coalesce(o.emp#no, 0) + 1"),
+         Arguments.of(DB2, "coalesce(T.amount$, 0) + 1", "coalesce(o.amount$, 0) + 1"),
+         Arguments.of(MYSQL, "coalesce(T.amount$, 0) + 1", "coalesce(o.amount$, 0) + 1"),
          Arguments.of(ORACLE, "nvl(T.\"amount$\", 0)", "nvl(o.\"amount$\", 0)"),
+         // a $ name that becomes a keyword with _ in place of $ (review round 2, minor 2)
+         Arguments.of(ORACLE, "T.current$date + 1", "o.current$date + 1"),
+         // $ and # are not valid in a name without quotes in other databases, so the name is
+         // quoted as in a function call before (review round 2, finding 1, verify G1)
+         Arguments.of(null, "T.a$x + 1", "o.\"a$x\" + 1"),
+         Arguments.of(TRINO, "coalesce(T.a$x, 0) + 1", "coalesce(o.\"a$x\", 0) + 1"),
+         Arguments.of(TRINO, "T.a$x + 1", "o.\"a$x\" + 1"),
+         Arguments.of(PRESTO, "nvl(T.order#, 0)", "nvl(o.\"order#\", 0)"),
+         Arguments.of(HIVE, "nvl(T.amount$, 0)", "nvl(o.`amount$`, 0)"),
+         Arguments.of(DATABRICKS, "coalesce(T.a$x, 0) + 1", "coalesce(o.`a$x`, 0) + 1"),
+         Arguments.of(DATABRICKS, "nvl(T.order#, 0)", "nvl(o.`order#`, 0)"),
+         Arguments.of(CLICKHOUSE, "coalesce(T.a$x, 0) + 1", "coalesce(o.\"a$x\", 0) + 1"),
+         Arguments.of(DERBY, "coalesce(T.A$X, 0) + 1", "coalesce(o.\"A$X\", 0) + 1"),
+         Arguments.of(BIGQUERY, "coalesce(T.a$x, 0) + 1", "coalesce(o.`a$x`, 0) + 1"),
+         // a double quoted name with a [ is not a bracket quoted name (verify G2)
+         Arguments.of(MSSQL, "T.\"a[b]\" + T.c", "o.\"a[b]\" + o.c"),
+         Arguments.of(MSSQL, "upper(T.\"a[b]\")", "upper(o.\"a[b]\")"),
          // a name the helper quotes for another reason is still quoted
          Arguments.of(POSTGRESQL, "T.A$X + 1", "o.\"A$X\" + 1"),
          // a doubled quote in a quoted name (verify F2)
@@ -314,6 +333,13 @@ class VpmConditionLiteralTest {
    private static final String TRINO = "trino";
    private static final String PRESTO = "presto";
    private static final String TERADATA = "teradata";
+   private static final String SYBASE = "sybase";
+   private static final String DB2 = "db2";
+   private static final String HIVE = "hive";
+   private static final String DATABRICKS = "databricks";
+   private static final String CLICKHOUSE = "clickhouse";
+   private static final String DERBY = "derby";
+   private static final String BIGQUERY = "google bigquery";
 
    @Configuration
    static class TestConfig {

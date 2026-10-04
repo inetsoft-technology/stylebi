@@ -735,12 +735,12 @@ public class VpmCondition extends VpmObject {
                   ncolumn = prefix + "\"" + column + "\"";
                }
                // Bug #77697, a name with $ or # (amount$, emp#no) is a valid name without
-               // quotes, and a quoted name is case-sensitive (oracle), so a column written
-               // without quotes isn't quoted only for its $ or #
-               else if(UNQUOTED_NAME.matcher(column).matches() &&
-                  !ncolumn.equals(prefix + column))
-               {
-                  String plain = column.replace('$', '_').replace('#', '_');
+               // quotes in some databases, and a quoted name is case-sensitive (oracle), so
+               // a column written without quotes isn't quoted only for its $ or #. The name
+               // with 0 in place of $ and # tells if the helper quotes it for another reason
+               // (a keyword, the case), a 0 never makes a name a keyword (current$date)
+               else if(isUnquotedName(column, helper) && !ncolumn.equals(prefix + column)) {
+                  String plain = column.replace('$', '0').replace('#', '0');
                   String nplain = helper.buildFieldExpression(rawPrefix + plain, false);
 
                   if(nplain.equals(prefix + plain)) {
@@ -764,6 +764,44 @@ public class VpmCondition extends VpmObject {
       }
 
       return exp;
+   }
+
+   /**
+    * Check if a name with $ or # is a valid name without quotes in the database. Oracle,
+    * DB2, SQL Server and Sybase allow $ and # after the first character of a name without
+    * quotes, and MySQL allows $. Other databases (Trino, Presto, Hive, Databricks,
+    * ClickHouse, Derby, BigQuery) allow only letters, digits and _, so the name is quoted.
+    */
+   private static boolean isUnquotedName(String name, SQLHelper helper) {
+      if(!UNQUOTED_NAME.matcher(name).matches()) {
+         return false;
+      }
+
+      String chars;
+
+      switch(helper.getSQLHelperType()) {
+      case "oracle":
+      case "db2":
+      case "sql server":
+      case "sybase":
+         chars = "$#";
+         break;
+      case "mysql":
+         chars = "$";
+         break;
+      default:
+         return false;
+      }
+
+      for(int i = 0; i < name.length(); i++) {
+         char c = name.charAt(i);
+
+         if((c == '$' || c == '#') && chars.indexOf(c) < 0) {
+            return false;
+         }
+      }
+
+      return true;
    }
 
    /**
@@ -1064,9 +1102,10 @@ public class VpmCondition extends VpmObject {
    private int type;
    private XFilterNode conds;
    private static final Logger LOG = LoggerFactory.getLogger(VpmCondition.class);
-   // a bracket quoted name in a column, [A] in T.[A]
-   private static final Pattern BRACKET_NAME = Pattern.compile("\\[([^\\[\\]]*)\\]");
-   // a name with $ or # that needs no quotes (amount$, emp#no)
+   // a bracket quoted name in a column, [A] in T.[A], but not a [ inside a name ("a[b]")
+   private static final Pattern BRACKET_NAME =
+      Pattern.compile("(?<![^.])\\[([^\\[\\]]*)\\](?![^.])");
+   // a name with $ or # that may need no quotes (amount$, emp#no), see isUnquotedName()
    private static final Pattern UNQUOTED_NAME =
       Pattern.compile("(?=.*[$#])[\\p{L}_][\\w$#]*", Pattern.UNICODE_CHARACTER_CLASS);
 }
