@@ -642,6 +642,27 @@ class AdditionalConnectionPermissionRemovalTest {
       assertSame(child, perm("resOwn::resOwnA"));
    }
 
+   // Bug #77700: EM Delete of an additional connection by its registry path, "P/add" or
+   // "F/P/add", has no data source entry at that path, so the parent keeps its own permission
+   @Test
+   void additionalConnectionDeleteKeepsTheParentPermission() throws Exception {
+      addFolder("acF");
+
+      for(String path : List.of("acP", "acF/acP")) {
+         addParent(path, "acA", "acB");
+         Permission parent = grant(path);
+         Permission kept = grant(path + "::acB");
+         grant(path + "::acA");
+
+         emDelete(path + "/acA");
+
+         assertChildren(path, "acB");
+         assertNull(perm(path + "::acA"), path);
+         assertSame(parent, perm(path), path);
+         assertSame(kept, perm(path + "::acB"), path);
+      }
+   }
+
    // Bug #77700: an import that overwrites a data source with its own export, at the top level
    // and in a folder, keeps the permissions of the data source and of its additional connections
    @Test
