@@ -665,6 +665,13 @@ public final class XUtil {
                                              KeywordProvider provider) {
       String quote = provider == null ? "\"" : provider.getQuote();
 
+      // a name that already looks fully wrapped (e.g. a qualified-name segment a caller
+      // re-quotes, like "id" built while assembling "a"."id") is passed through as-is. This
+      // is ambiguous with a raw name whose own first and last character both happen to be
+      // the quote char (#77661), but callers throughout this codebase rely on this shortcut
+      // for already-wrapped segments far more than the rare literal case needs it covered
+      // here; the one confirmed raw-content case (quoteDot, SQLParser.g) checks for an
+      // embedded quote itself before ever reaching this method.
       if(str.startsWith(quote) && str.endsWith(quote) && str.length() > 1) {
          return false;
       }
@@ -699,12 +706,19 @@ public final class XUtil {
          return true;
       }
 
+      // see isSpecialName()'s comment on this same shortcut
       if(str.startsWith(quote) && str.endsWith(quote) && length > 1) {
          return false;
       }
 
       for(int i = 0; i < length; i++) {
          char ic = str.charAt(i);
+
+         // an embedded quote char must be quoted (and escaped on wrap) so it isn't read as
+         // the closing delimiter when the wrapped name is reparsed (#77661)
+         if(quote.indexOf(ic) >= 0) {
+            return true;
+         }
 
          switch(ic) {
          case '_': // quote alias with '_' as the first char for oracle
@@ -800,7 +814,10 @@ public final class XUtil {
          return name;
       }
 
-      return isSpecial || name.indexOf('.') >= 0 ? quote + name + quote : name;
+      // escape an embedded quote char by doubling it, so it isn't read as the closing
+      // delimiter when the wrapped name is reparsed (#77661)
+      return isSpecial || name.indexOf('.') >= 0 ?
+         quote + name.replace(quote, quote + quote) + quote : name;
    }
 
    /**
@@ -838,7 +855,8 @@ public final class XUtil {
          }
 
          if(isSpecialName(arr[i], quoteKeyword, provider)) {
-            str.append(quote + arr[i] + quote);
+            // escape an embedded quote char by doubling it (#77661)
+            str.append(quote).append(arr[i].replace(quote, quote + quote)).append(quote);
          }
          else {
             str.append(arr[i]);
@@ -873,8 +891,9 @@ public final class XUtil {
          return alias;
       }
 
+      // escape an embedded quote char by doubling it (#77661)
       return quote == null || " ".equals(quote) || "".equals(quote) ?
-         alias : quote + alias + quote;
+         alias : quote + alias.replace(quote, quote + quote) + quote;
    }
 
    public static String getQuote(JDBCDataSource xds) {
