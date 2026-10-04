@@ -2927,9 +2927,10 @@ public final class XUtil {
     * Rewrite the sentinel parameters in the subqueries of the conditions, e.g.
     * <tt>x in (select ...)</tt>, <tt>exists (select ...)</tt> or <tt>x = (select ...)</tt>,
     * for the pass that keeps the conditions with an unset parameter (a VPM condition, a
-    * select-list subquery, {@link #rewriteSentinels}). The pass that removes them reaches these
-    * subqueries in removeNoParamConditions. A condition is never removed here, in a VPM
-    * condition that would drop a row-security filter (Bug #77706).
+    * select-list or order by subquery that is not single-row, {@link #rewriteSentinels}). The
+    * pass that removes them reaches these subqueries in removeNoParamConditions. A condition
+    * is never removed here, in a VPM condition that would drop a row-security filter
+    * (Bug #77706).
     * <p>
     * A subquery kept as a sql string (a VPM condition's subquery is saved unparsed) is parsed
     * into a copy, and replaced by the copy only if the rewrite changes its sql. The string is
