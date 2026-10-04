@@ -623,7 +623,8 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       }
 
       helper.setUniformSql(copy);
-      return helper.generateSentence();
+      // the join structure is checked on the names as stored (Bug #77643)
+      return WrittenUnquoted.unfolded(helper::generateSentence);
    }
 
    /**
@@ -2067,7 +2068,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                unquoted = renameWrittenUnquoted(unquoted, path);
             }
             else {
-               String fp = JDBCUtil.getFullPathOf(this, (String) field, quote != null);
+               String fp = JDBCUtil.getFullPathOf(this, (String) field, quote != null, unquoted);
 
                if(fp != null && !fp.equals(field)) {
                   copyQuotedField((String) field, fp);
@@ -2704,7 +2705,8 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             changed = true;
          }
          else if(groupBy[i] instanceof String) {
-            String fp = JDBCUtil.getFullPathOf(this, (String) groupBy[i], quotes[i] != null);
+            String fp = JDBCUtil.getFullPathOf(this, (String) groupBy[i], quotes[i] != null,
+                                               unquoted[i]);
 
             if(fp != null && !fp.equals(groupBy[i])) {
                copyQuotedField((String) groupBy[i], fp);

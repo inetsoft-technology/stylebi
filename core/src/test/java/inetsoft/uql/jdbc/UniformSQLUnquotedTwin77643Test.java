@@ -250,9 +250,10 @@ class UniformSQLUnquotedTwin77643Test {
    }
 
    /**
-    * The metadata step also runs on a loaded query, which doesn't keep which names were
-    * written unquoted. A name is the column of its stored case, whatever the order of the
-    * metadata. A query saved before this change kept an unquoted name in its written case.
+    * The metadata step also runs on a loaded query. It saves which names were written
+    * unquoted (Bug #77643), so the name written unquoted is the column of the folded case,
+    * whatever the order of the metadata. The stored name keeps its written case. A query
+    * saved before that is generated as before, see UniformSQLWrittenUnquoted77643Test.
     */
    @Test
    void savedQueryIsTheColumnOfItsStoredCase() throws Exception {
@@ -262,7 +263,7 @@ class UniformSQLUnquotedTwin77643Test {
 
       for(String[] columns : new String[][] { PG_TWIN_SECOND, PG_TWIN_FIRST }) {
          UniformSQL sql = load(xml, helpers("postgresql"));
-         assertEquals("select \"t\".\"MixedCase\" from \"t\"", fixed(sql, columns), columns[1]);
+         assertEquals("select \"t\".\"mixedcase\" from \"t\"", fixed(sql, columns), columns[1]);
       }
 
       // written in the folded case

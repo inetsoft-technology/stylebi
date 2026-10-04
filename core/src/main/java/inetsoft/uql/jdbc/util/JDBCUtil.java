@@ -354,7 +354,8 @@ public class JDBCUtil {
 
       for(int i = 0; i < select.getColumnCount(); i++) {
          String path = select.getColumn(i);
-         XField field = getColumnField(sql, path, false);
+         XField field = getColumnField(sql, path, false,
+            select instanceof JDBCSelection ? ((JDBCSelection) select).getWrittenUnquoted(i) : null);
 
          if(field == null && !path.endsWith("*") &&
             !path.equals(select.getAlias(i)))
@@ -382,19 +383,18 @@ public class JDBCUtil {
          String alias = xselect.getAlias(i);
          // the flag of this column, which stays at its position (Bug #77573)
          boolean quoted = xselect.isQuoted(i);
-         String fp = getFullPathOf(sql, path, quoted);
+         // the names written unquoted, also of a query saved and loaded (Bug #77643)
+         WrittenUnquoted unquoted = xselect.getWrittenUnquoted(i);
+         String fp = getFullPathOf(sql, path, quoted, unquoted);
 
          if(fp != null) {
             path = fp;
          }
 
          // the field of the column getFullPathOf resolved, of its type
-         XField field = getColumnField(sql, path, quoted);
+         XField field = getColumnField(sql, path, quoted, unquoted);
 
          if(field != null && field.getTable().length() > 0) {
-            // the names written unquoted that the resolved column keeps, e.g. its qualifier
-            // (Bug #77643)
-            WrittenUnquoted unquoted = xselect.getWrittenUnquoted(i);
             // the same column qualified by its table, it keeps its quoting
             xselect.renameColumn(i, path);
 
@@ -431,6 +431,20 @@ public class JDBCUtil {
     *               the same case.
     */
    public static String getFullPathOf(UniformSQL sql, String path, boolean quoted) {
+      return getFullPathOf(sql, path, quoted, null);
+   }
+
+   /**
+    * Get full path of column.
+    * @param sql Uniform SQL object
+    * @param path column name
+    * @param quoted <tt>true</tt> if the column was written as a quoted identifier.
+    * @param unquoted the names of the column written unquoted (Bug #77643), recorded for the
+    *                 text of the column, or <tt>null</tt> if not known.
+    */
+   public static String getFullPathOf(UniformSQL sql, String path, boolean quoted,
+                                      WrittenUnquoted unquoted)
+   {
       String res = null;
       int idx = path.lastIndexOf('.');
       String table, col;
@@ -464,7 +478,7 @@ public class JDBCUtil {
       }
 
       res = table + "." + col;
-      XField field = getColumnField(sql, res, quoted);
+      XField field = getColumnField(sql, res, quoted, unquoted);
 
       if(field != null && field.getTable().length() > 0) {
          if(!field.getName().equals(col)) {
@@ -480,10 +494,14 @@ public class JDBCUtil {
     * Get the field of a column path. A case-sensitive helper whose database folds unquoted
     * names to one case stores the exact name of a column, so the field of that case is
     * preferred over one that only matches ignoring case, and a column segment written
-    * unquoted in the sql parsed last is matched in the folded case (Bug #77643).
+    * unquoted (in the sql parsed last, or recorded with the column) is matched in the folded
+    * case (Bug #77643).
     * @param quoted <tt>true</tt> if the column was written as a quoted identifier.
+    * @param unquoted the names of the column written unquoted, or <tt>null</tt> if not known.
     */
-   private static XField getColumnField(UniformSQL sql, String path, boolean quoted) {
+   private static XField getColumnField(UniformSQL sql, String path, boolean quoted,
+                                        WrittenUnquoted unquoted)
+   {
       SQLHelper.IdentifierCase fold = sql.getSQLHelper().getIdentifierCase();
 
       if(fold == SQLHelper.IdentifierCase.UNKNOWN) {
@@ -493,9 +511,14 @@ public class JDBCUtil {
       int idx = path.lastIndexOf('.');
       String col = path.substring(idx + 1);
 
-      // stored with the quotes of the helper ("MixedCase")
-      if(col.length() > 2 && sql.isParsedUnquotedSegment(col)) {
-         String quote = col.substring(0, 1);
+      // stored with the quotes of the helper ("MixedCase"). The names recorded with the column
+      // are of this column, the record of the parse is of any column of that text
+      String quote = sql.getSQLHelper().getQuote();
+      boolean written = unquoted != null && SQLHelper.isFoldUnquotedIdentifiers() ?
+         unquoted.isLastNameWrittenUnquoted(col, quote) : sql.isParsedUnquotedSegment(col);
+
+      if(col.length() > 2 && written) {
+         quote = col.substring(0, 1);
          path = path.substring(0, idx + 1) + quote +
             fold.fold(col.substring(1, col.length() - 1)) + quote;
       }
@@ -596,7 +619,7 @@ public class JDBCUtil {
     */
    private static void normalizeExpression(XExpression exp, UniformSQL sql) {
       String ex1 = exp.toString();
-      String fullPath1 = getFullPathOf(sql, ex1, exp.isQuotedField());
+      String fullPath1 = getFullPathOf(sql, ex1, exp.isQuotedField(), exp.getWrittenUnquoted());
 
       if(fullPath1 != null) {
          String type = sql.isTableColumn(fullPath1) ? XExpression.FIELD :

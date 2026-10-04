@@ -4627,7 +4627,7 @@ public class SQLHelper implements KeywordProvider {
     * @return the sql with the names folded.
     */
    public String foldWrittenUnquoted(String generated, WrittenUnquoted names) {
-      if(names == null || generated == null) {
+      if(names == null || generated == null || WrittenUnquoted.isUnfolded()) {
          return generated;
       }
 

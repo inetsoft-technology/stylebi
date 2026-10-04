@@ -258,6 +258,24 @@ public final class WrittenUnquoted implements Serializable {
    }
 
    /**
+    * Check if the last segment of the text, a column, was written unquoted.
+    * @param column the column segment, in quotes as stored ("MixedCase").
+    * @param quote the quote of the helper.
+    */
+   public boolean isLastNameWrittenUnquoted(String column, String quote) {
+      List<int[]> found = findNames(text, quote);
+
+      if(found.isEmpty() || quote == null || quote.isEmpty() ||
+         !text.endsWith(column) || !column.equals(quote + getName(text, found.get(found.size() - 1)) + quote) ||
+         found.get(found.size() - 1)[1] + quote.length() != text.length())
+      {
+         return false;
+      }
+
+      return contains(names, found.size() - 1);
+   }
+
+   /**
     * Find the quoted names of a sql text, string literals aside.
     * @return the start and end of the content of each name, in order.
     */
@@ -336,6 +354,28 @@ public final class WrittenUnquoted implements Serializable {
    }
 
    /**
+    * Check if the sql is generated on this thread as stored, without folding the names
+    * written unquoted, e.g. the text of a searched case built at parse.
+    */
+   public static boolean isUnfolded() {
+      return UNFOLDED.get() > 0;
+   }
+
+   /**
+    * Generate sql with the names written unquoted as stored, see isUnfolded.
+    */
+   public static <T> T unfolded(java.util.function.Supplier<T> action) {
+      UNFOLDED.set(UNFOLDED.get() + 1);
+
+      try {
+         return action.get();
+      }
+      finally {
+         UNFOLDED.set(UNFOLDED.get() - 1);
+      }
+   }
+
+   /**
     * Mark a name written unquoted in sql generated to be saved, see marking.
     * @param alias <tt>true</tt> if the name references an alias.
     */
@@ -407,4 +447,5 @@ public final class WrittenUnquoted implements Serializable {
    private static final char NAME_MARK = '';
    private static final char ALIAS_MARK = '';
    private static final ThreadLocal<Integer> MARKING = ThreadLocal.withInitial(() -> 0);
+   private static final ThreadLocal<Integer> UNFOLDED = ThreadLocal.withInitial(() -> 0);
 }

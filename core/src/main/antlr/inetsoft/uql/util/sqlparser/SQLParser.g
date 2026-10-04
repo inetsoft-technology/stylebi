@@ -3522,7 +3522,10 @@ searched_when_clause returns [String searchwhen = ""]
         :
         a:WHEN node = search_condition {checkNoOuterJoins(node, a);} b:THEN tmp1 = result
         {SQLHelper helper = SQLHelper.getSQLHelper(this.uniSql);
-         String condition = helper.generateConditions(node);
+         // the stored text keeps the names as written, the names written unquoted are folded
+         // when the column is generated, see getWrittenUnquoted (Bug #77643)
+         XFilterNode when = node;
+         String condition = WrittenUnquoted.unfolded(() -> helper.generateConditions(when));
         searchwhen = a.getText() + " " + condition + " " + b.getText() + " " + tmp1;}
         ;
 
