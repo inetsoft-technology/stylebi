@@ -163,6 +163,36 @@ class DeployManagerServiceUndecryptableSecretImportTest {
       assertNull(PasswordEncryption.getMasterDecryptFailures());
    }
 
+   @Test
+   void unprefixedClearTextSecretIsImportedAsIsWithoutWarning() throws Exception {
+      DeploymentInfo info = info("legacy-plain-secret");
+      List<String> failed = new ArrayList<>();
+
+      importAssets(info, failed);
+
+      ArgumentCaptor<XDataSource> imported = ArgumentCaptor.forClass(XDataSource.class);
+      verify(registry).setDataSource(imported.capture(), anyBoolean());
+      assertEquals("legacy-plain-secret", ((ClientTestDs) imported.getValue()).getClientSecret());
+      assertTrue(failed.isEmpty(), failed.toString());
+      assertTrue(info.getImportWarnings().isEmpty(), info.getImportWarnings().toString());
+   }
+
+   @Test
+   void counterIsClearedWhenImportThrows() throws Exception {
+      String foreign = ForeignMasterSecret.encrypt("another-master-pw", "s3cret");
+      DeploymentInfo info = info(foreign);
+      // fails after the data source (and its undecryptable secret) was imported
+      when(info.getIgnoredQueries()).thenThrow(new IllegalStateException("import failed"));
+
+      assertThrows(IllegalStateException.class, () -> importAssets(info, new ArrayList<>()));
+
+      // the import scope is closed, a later decrypt on this thread is not counted anywhere
+      assertNull(PasswordEncryption.getMasterDecryptFailures());
+      assertFalse(PasswordEncryption.isDecryptForceLocal());
+      assertEquals(foreign, Tool.decryptPassword(foreign, true));
+      assertNull(PasswordEncryption.getMasterDecryptFailures());
+   }
+
    private void importAssets(DeploymentInfo info, List<String> failed) throws Exception {
       service.importAssets(false, new ArrayList<>(), info, false, principal, new ArrayList<>(),
                            null, failed, null, new ArrayList<>());
