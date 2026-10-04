@@ -172,6 +172,15 @@ class VpmConditionLiteralTest {
          Arguments.of(DB2, "coalesce(T.amount$, 0) + 1", "coalesce(o.amount$, 0) + 1"),
          Arguments.of(MYSQL, "coalesce(T.amount$, 0) + 1", "coalesce(o.amount$, 0) + 1"),
          Arguments.of(ORACLE, "nvl(T.\"amount$\", 0)", "nvl(o.\"amount$\", 0)"),
+         // h2 allows $ in a name without quotes and folds it to upper case, so a quoted lower
+         // or mixed case name is a different column, # is not allowed (verify round 3, H1)
+         Arguments.of(H2, "T.amount$ * 2", "o.amount$ * 2"),
+         Arguments.of(H2, "T.a$x + 1", "o.a$x + 1"),
+         Arguments.of(H2, "T.Amount$ + 1", "o.Amount$ + 1"),
+         Arguments.of(H2, "T.a$1 + 1", "o.a$1 + 1"),
+         Arguments.of(H2, "nvl(T.amount$, 0)", "nvl(o.amount$, 0)"),
+         Arguments.of(H2, "coalesce(T.Amount$, T.b) + 1", "coalesce(o.Amount$, o.b) + 1"),
+         Arguments.of(H2, "T.emp#no + 1", "o.\"emp#no\" + 1"),
          // a $ name that becomes a keyword with _ in place of $ (review round 2, minor 2)
          Arguments.of(ORACLE, "T.current$date + 1", "o.current$date + 1"),
          // $ and # are not valid in a name without quotes in other databases, so the name is
@@ -340,6 +349,7 @@ class VpmConditionLiteralTest {
    private static final String CLICKHOUSE = "clickhouse";
    private static final String DERBY = "derby";
    private static final String BIGQUERY = "google bigquery";
+   private static final String H2 = "h2";
 
    @Configuration
    static class TestConfig {

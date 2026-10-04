@@ -769,7 +769,8 @@ public class VpmCondition extends VpmObject {
    /**
     * Check if a name with $ or # is a valid name without quotes in the database. Oracle,
     * DB2, SQL Server and Sybase allow $ and # after the first character of a name without
-    * quotes, and MySQL allows $. Other databases (Trino, Presto, Hive, Databricks,
+    * quotes, and MySQL and H2 allow $ (H2 continues a name without quotes with any java
+    * identifier character, and allows # only in some compatibility modes). Other databases (Trino, Presto, Hive, Databricks,
     * ClickHouse, Derby, BigQuery) allow only letters, digits and _, so the name is quoted.
     */
    private static boolean isUnquotedName(String name, SQLHelper helper) {
@@ -787,6 +788,7 @@ public class VpmCondition extends VpmObject {
          chars = "$#";
          break;
       case "mysql":
+      case "h2":
          chars = "$";
          break;
       default:
