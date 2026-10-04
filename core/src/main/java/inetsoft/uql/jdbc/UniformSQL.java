@@ -2003,7 +2003,16 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                changed = true;
 
                if(path == null) {
-                  continue;
+                  int idx = getUnqualifiedSelectColumn((String) field, quote);
+
+                  if(idx < 0) {
+                     continue;
+                  }
+
+                  // the select column, with its quoting (Bug #77639)
+                  path = getSelection().getColumn(idx);
+                  quote = getSelectQuote(idx, path);
+                  carryQuotedField(path, quote);
                }
 
                field = path;
@@ -2406,6 +2415,109 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    }
 
    /**
+    * Get the select column that an unqualified group by or order by name references when
+    * the field list doesn't know the columns of the table (Bug #77639). Without the metadata,
+    * the field list has the select column (t.k) as an expression, which the name (k) doesn't
+    * find. The name is that column only if the from clause has one table (or derived table),
+    * of which no column is known, and one plain column of it with the name is selected,
+    * written with the same quoting: an unquoted name is folded by the database, a quoted one
+    * isn't, so they aren't compared. It is called after the alias checks; a name that is a
+    * select alias in any case isn't guessed.
+    * @param quote the quoting of the field, see getQuote(OrderByItem).
+    * @return the index of the select column, or -1 if not known.
+    */
+   private int getUnqualifiedSelectColumn(String field, String quote) {
+      boolean quoted = quote != null;
+      String ref = quoted ? null : getUnquotedReference(field);
+      String name = ref != null ? ref : field;
+
+      // a qualified quoted name (t."k") isn't unqualified. An unquoted name is an identifier
+      // as the sql lexer reads it (IDENT), e.g. a chinese name, apart from an @variable
+      if(getTableCount() != 1 || quoted && !quote.isEmpty() || name.isEmpty() ||
+         name.indexOf('"') >= 0 ||
+         !quoted && !name.matches("[A-Za-z_\\u0100-\\uFFFE][A-Za-z0-9_\\u0100-\\uFFFE]*"))
+      {
+         return -1;
+      }
+
+      String alias = getTableAlias(0);
+
+      // the columns of a table with metadata are in the field list. A column left out (e.g.
+      // hidden by vpm) isn't guessed. The columns of a derived table are those of its
+      // select list, named by the field list after the inner column (t.k), not the name
+      if(alias == null || !(getTableName(alias) instanceof UniformSQL) &&
+         fields.stream().anyMatch(xfield -> alias.equals(xfield.getTable())))
+      {
+         return -1;
+      }
+
+      XSelection select = getSelection();
+
+      for(int i = 0; i < select.getColumnCount(); i++) {
+         String calias = select.getAlias(i);
+
+         if(calias != null && XUtil.removeQuote(calias).equalsIgnoreCase(name)) {
+            return -1;
+         }
+      }
+
+      // the select list doesn't keep its columns with a wildcard
+      if(isSelectWildcard()) {
+         return -1;
+      }
+
+      String table = alias.replace("\"", "");
+      int found = -1;
+
+      for(int i = 0; i < select.getColumnCount(); i++) {
+         String column = select.getColumn(i);
+
+         if(column == null) {
+            continue;
+         }
+
+         boolean cquoted = select instanceof JDBCSelection &&
+            ((JDBCSelection) select).isQuoted(i);
+         String seg = cquoted ? ((JDBCSelection) select).getQuotedColumn(i) : null;
+         int dot = seg != null && column.endsWith("." + seg) ?
+            column.length() - seg.length() - 1 : cquoted ? -1 : column.lastIndexOf('.');
+
+         if(seg == null && dot >= 0) {
+            seg = column.substring(dot + 1).replace("\"", "");
+         }
+
+         // a column without the qualifier of the table, or an expression, named like the
+         // name may be what it references
+         if(dot <= 0 || select.isExpression(i) || !XUtil.isQualifiedName(column) ||
+            !table.equalsIgnoreCase(column.substring(0, dot).replace("\"", "")))
+         {
+            if(XUtil.removeQuote(column).equalsIgnoreCase(name) ||
+               seg != null && seg.equalsIgnoreCase(name))
+            {
+               return -1;
+            }
+
+            continue;
+         }
+
+         if(!seg.equalsIgnoreCase(name)) {
+            continue;
+         }
+
+         // the same quoting and name, and the same column as another match
+         if(quoted != cquoted || quoted && !seg.equals(name) ||
+            found >= 0 && !column.equals(select.getColumn(found)))
+         {
+            return -1;
+         }
+
+         found = i;
+      }
+
+      return found;
+   }
+
+   /**
     * Check if the helper is of a database that folds an unquoted name to one case
     * (postgresql to lower case, snowflake and exasol to upper case), see foldName.
     */
@@ -2621,6 +2733,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       // remove group by columns that does not have table
       List<Object> vec = new ArrayList<>();
       List<String> qvec = new ArrayList<>();
+      int idx;
 
       for(int i = 0; i < groupBy.length; i++) {
          Object obj = groupBy[i];
@@ -2640,6 +2753,15 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             else if((fname = getUnquotedColumnPath(fname)) != null) {
                vec.add(fname);
                qvec.add(quotes[i]);
+               changed = true;
+            }
+            else if((idx = getUnqualifiedSelectColumn((String) obj, quotes[i])) >= 0) {
+               // the select column, with its quoting (Bug #77639)
+               String path = getSelection().getColumn(idx);
+               String quote = getSelectQuote(idx, path);
+               carryQuotedField(path, quote);
+               vec.add(path);
+               qvec.add(quote);
                changed = true;
             }
          }
