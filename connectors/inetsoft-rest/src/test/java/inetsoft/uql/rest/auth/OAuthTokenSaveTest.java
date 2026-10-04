@@ -30,6 +30,7 @@ import inetsoft.uql.asset.sync.DependencyStorageService;
 import inetsoft.uql.asset.sync.RenameTransformHandler;
 import inetsoft.uql.jdbc.ConnectionPoolFactory;
 import inetsoft.uql.rest.datasource.keap.KeapDataSource;
+import inetsoft.uql.rest.datasource.zohocrm.ZohoCRMDataSource;
 import inetsoft.uql.rest.json.*;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.service.XEngine;
@@ -205,6 +206,130 @@ class OAuthTokenSaveTest {
       assertEquals(issued + TimeUnit.HOURS.toMillis(24), stored.getTokenExpiration());
    }
 
+   // AbstractRestDataSource.refreshTokens saves onto the stored definition: a variable that was
+   // replaced on the query-time clone keeps its template in the stored definition
+   @Test
+   void refreshTokensKeepsTheTemplates() throws Exception {
+      KeapDataSource keap = new KeapDataSource();
+      keap.setName("keapVarDs");
+      keap.setClientId("$(appkey)");
+      keap.setClientSecret("secret");
+      keap.setAccessToken("tok-A");
+      keap.setRefreshToken("R");
+      keap.setTokenExpiration(System.currentTimeMillis() - 60_000L);
+      registry.setDataSource(keap, false);
+      Tokens tokens = Tokens.builder().accessToken("tok-B").refreshToken("R2")
+         .issued(System.currentTimeMillis()).expiration(0L).build();
+      KeapDataSource runtime = (KeapDataSource) registry.getDataSource("keapVarDs").clone();
+      VariableTable vars = new VariableTable();
+      vars.put("appkey", "acme-key");
+      TabularUtil.replaceVariables(runtime, vars);
+      assertEquals("acme-key", runtime.getClientId());
+
+      try(MockedStatic<AuthorizationClient> client = mockStatic(AuthorizationClient.class)) {
+         client.when(() -> AuthorizationClient.refresh(any(), any(), any(), any(), any(), any(),
+                                                       anyBoolean(), any()))
+            .thenReturn(tokens);
+         runtime.getQueryHttpParameters();
+      }
+
+      registry.clearCache();
+      KeapDataSource stored = (KeapDataSource) registry.getDataSource("keapVarDs");
+      assertEquals("tok-B", stored.getAccessToken());
+      assertEquals("R2", stored.getRefreshToken());
+      assertEquals("$(appkey)", stored.getClientId());
+   }
+
+   // ZohoCRM refreshes through its own token request and saves through the helper: the stored
+   // definition gets the new tokens and the API domain, and keeps the account domain template
+   @Test
+   void zohoRefreshKeepsTheTemplates() throws Exception {
+      server.createContext("/zoho/oauth/v2/token", exchange -> {
+         byte[] bytes = ("{\"access_token\":\"tok-Z\",\"refresh_token\":\"R2\"," +
+            "\"api_domain\":\"" + base + "/zapi\",\"expires_in\":3600}")
+            .getBytes(StandardCharsets.UTF_8);
+         exchange.getResponseHeaders().add("Content-Type", "application/json");
+         exchange.sendResponseHeaders(200, bytes.length);
+
+         try(OutputStream output = exchange.getResponseBody()) {
+            output.write(bytes);
+         }
+      });
+      ZohoCRMDataSource zoho = new ZohoCRMDataSource();
+      zoho.setName("zohoVarDs");
+      zoho.setClientId("client");
+      zoho.setClientSecret("secret");
+      zoho.setAccountDomain(base + "/$(region)");
+      zoho.setAccessToken("tok-A");
+      zoho.setRefreshToken("R");
+      zoho.setTokenExpiration(System.currentTimeMillis() - 60_000L);
+      registry.setDataSource(zoho, false);
+      ZohoCRMDataSource runtime = (ZohoCRMDataSource) registry.getDataSource("zohoVarDs").clone();
+      VariableTable vars = new VariableTable();
+      vars.put("region", "zoho");
+      TabularUtil.replaceVariables(runtime, vars);
+      assertEquals(base + "/zoho", runtime.getAccountDomain());
+
+      runtime.getQueryHttpParameters();
+
+      // the runtime instance uses the new token
+      assertEquals("tok-Z", runtime.getAccessToken());
+      registry.clearCache();
+      ZohoCRMDataSource stored = (ZohoCRMDataSource) registry.getDataSource("zohoVarDs");
+      assertEquals("tok-Z", stored.getAccessToken());
+      assertEquals("R2", stored.getRefreshToken());
+      assertEquals(base + "/zapi", stored.getURL());
+      assertTrue(stored.getTokenExpiration() > System.currentTimeMillis());
+      assertEquals(base + "/$(region)", stored.getAccountDomain());
+   }
+
+   // a URL property with checkEnvVariables resolves $(prop) from the system properties at query
+   // time, the resolved value is not written to the stored definition, with or without a refresh
+   @Test
+   void environmentValuesAreNotSaved() throws Exception {
+      String prop = "bug77692.env.path";
+      System.setProperty(prop, "envvalue");
+
+      try {
+         RestJsonDataSource ds = source("envDs", validExpiration());
+         ds.setURL(base + "/$(" + prop + ")");
+         ds.setQueryHttpParameters(new HttpParameter[0]);
+         registry.setDataSource(ds, false);
+
+         runQuery("envDs", new VariableTable());
+         assertEquals(List.of("/envvalue/users X-Tenant=null Bearer tok-A"), requests);
+         registry.clearCache();
+         assertEquals(base + "/$(" + prop + ")", registry.getDataSource("envDs") instanceof
+            RestJsonDataSource stored ? stored.getURL() : null);
+
+         // now with an expired token and a refresh
+         RestJsonDataSource expired = (RestJsonDataSource) registry.getDataSource("envDs").clone();
+         expired.setTokenExpiration(System.currentTimeMillis() - 60_000L);
+         registry.setDataSource(expired, false);
+         RestJsonDataSource runtime = prepare("envDs", new RestJsonQuery(), new VariableTable());
+         assertEquals(base + "/envvalue", runtime.getURL());
+         Tokens tokens = Tokens.builder().accessToken("tok-B").refreshToken("R2")
+            .issued(System.currentTimeMillis()).expiration(validExpiration()).build();
+
+         try(MockedStatic<AuthorizationClient> client = mockStatic(AuthorizationClient.class);
+             CloseableHttpAsyncClient http = HttpAsyncClients.createDefault())
+         {
+            client.when(() -> AuthorizationClient.refreshTokens(any(), anyBoolean()))
+               .thenReturn(tokens);
+            RestAuthenticatorFactory.createFrom(runtime, http)
+               .authenticateRequest(new HttpGet(runtime.getURL()), HttpClientContext.create());
+         }
+
+         registry.clearCache();
+         RestJsonDataSource stored = (RestJsonDataSource) registry.getDataSource("envDs");
+         assertEquals("tok-B", stored.getAccessToken());
+         assertEquals(base + "/$(" + prop + ")", stored.getURL());
+      }
+      finally {
+         System.clearProperty(prop);
+      }
+   }
+
    private void runQuery(String name, VariableTable vars) throws Exception {
       // TabularHandler.execute: clone the query and the data source, fill the missing
       // variables, replace the variables, run
@@ -291,6 +416,8 @@ class OAuthTokenSaveTest {
             .thenReturn(RestJsonDataSource.class.getName());
          when(config.getDataSourceClass("Rest.InfusionSoft"))
             .thenReturn(KeapDataSource.class.getName());
+         when(config.getDataSourceClass("Rest.ZohoCRM"))
+            .thenReturn(ZohoCRMDataSource.class.getName());
          when(config.getClass(anyString(), anyString()))
             .thenAnswer(inv -> Class.forName(inv.<String>getArgument(1)));
          return config;
