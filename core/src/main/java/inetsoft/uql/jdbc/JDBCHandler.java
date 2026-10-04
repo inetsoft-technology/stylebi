@@ -270,7 +270,8 @@ public class JDBCHandler extends XHandler {
     * <p>
     * The sql string is kept, as before, when it isn't parsed (parse off or not PARSE_SUCCESS)
     * or is lossy, since the structure doesn't describe all of it, when it embeds a parameter
-    * (<tt>$(@name)</tt>), and when it has an optimizer hint or a MySQL executable comment,
+    * (<tt>$(@name)</tt> anywhere in the string, which also excludes a quoted
+    * <tt>'$(@name)'</tt>), and when it has an optimizer hint or a MySQL executable comment,
     * which the generated sql would drop. Other comments are dropped from the rewritten sql.
     * @param xquery the private clone of the query being executed.
     * @return <tt>true</tt> if the definition was replaced by the rewritten copy.

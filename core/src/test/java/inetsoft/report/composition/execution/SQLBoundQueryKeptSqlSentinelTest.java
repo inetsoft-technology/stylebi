@@ -332,6 +332,67 @@ class SQLBoundQueryKeptSqlSentinelTest {
       assertTrue(norm(run.sql).contains("a.id = ?"), run.sql);
    }
 
+   // the gate finds a quoted '$(p)' whatever operand shapes the rewrite handles, so the run
+   // does what the sentinel rewrite does on the structure: the kept sql while the rewrite
+   // leaves the quoted operand alone, the rewritten sql once it handles it (Bug #77709)
+   @Test
+   void quotedSentinelFollowsTheRewrite() throws Exception {
+      String sql = "select a.k from a where a.name = '$(p)' group by a.k order by 1";
+      VariableTable vars = new VariableTable();
+      vars.put("p", ES);
+      assertTrue(XUtil.hasSentinelParameter(sql, vars));
+
+      Worksheet ws = new Worksheet();
+      SQLBoundTableAssembly table = newTable(ws, sql, "k");
+      UniformSQL structure = (UniformSQL)
+         ((SQLBoundTableAssemblyInfo) table.getTableInfo()).getQuery().getSQLDefinition();
+      structure = structure.clone();
+      structure.clearSQLString();
+      boolean rewritable = XUtil.rewriteSentinels(structure, vars);
+
+      Run run = run(ws, table, ES, null);
+      assertTrue(run.keptString);
+
+      if(rewritable) {
+         assertTrue(norm(run.sql).contains("a.name = ''"), run.sql);
+         assertEquals(List.of("1", "2", "3"), rows(run.table));
+      }
+      else {
+         assertEquals(norm(sql.replace("$(p)", ES)), norm(run.sql));
+         assertEquals(List.of(), rows(run.table));
+      }
+   }
+
+   // a failure inside the rewrite falls back to the kept sql string, as before
+   @Test
+   void rewriteFailureSendsKeptSql() throws Exception {
+      String sql = "select a.k from a where a.name = $(p) group by a.k";
+      UniformSQL usql = new FailingUniformSQL();
+      usql.setDataSource(dataSource());
+
+      synchronized(usql) {
+         usql.setParseSQL(true);
+         usql.setSQLString(sql, true);
+         usql.wait(10000);
+      }
+
+      assertEquals(UniformSQL.PARSE_SUCCESS, usql.getParseResult());
+      assertTrue(usql.hasSQLString());
+      JDBCQuery query = new JDBCQuery();
+      query.setName("bug77708");
+      query.setDataSource(dataSource());
+      query.setSQLDefinition(usql);
+      VariableTable vars = new VariableTable();
+      vars.put("p", ES);
+
+      JDBCHandler handler = new JDBCHandler();
+      handler.connect(query.getDataSource(), vars);
+      executed.set(null);
+      XNode node = handler.execute(query, vars, null, null);
+      assertEquals(norm(bound(sql)), norm(executed.get()));
+      assertEquals(List.of(), rows(new XNodeTableLens(node)));
+   }
+
    // the sentinel walk doesn't descend into a WHERE condition subquery yet (Bug #77706), so
    // the rewrite changes nothing and the kept string is sent as written
    @Test
@@ -608,6 +669,18 @@ class SQLBoundQueryKeptSqlSentinelTest {
       @Override
       public XQuery applyHiddenColumns(XQuery query, VariableTable vars, Principal user) {
          return user == null ? query : (XQuery) query.clone();
+      }
+   }
+
+   // a query whose sql can't be generated from its structure, so the rewrite on the copy fails
+   private static final class FailingUniformSQL extends UniformSQL {
+      @Override
+      public synchronized String getSQLString() {
+         if(!hasSQLString()) {
+            throw new IllegalStateException("the sql can't be generated");
+         }
+
+         return super.getSQLString();
       }
    }
 

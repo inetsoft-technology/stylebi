@@ -2714,16 +2714,17 @@ public final class XUtil {
    }
 
    /**
-    * Check if the sql refers to a parameter, as <tt>$(name)</tt>, whose value is a sentinel
-    * (NULL_VALUE, EMPTY_STRING or NULL_STRING, or a one-element array of one). An embedded
-    * <tt>$(@name)</tt> is not counted.
+    * Check if the sql refers to a parameter, as <tt>$(name)</tt> anywhere in the text (quoted
+    * or not), whose value is a sentinel (NULL_VALUE, EMPTY_STRING or NULL_STRING, or a
+    * one-element array of one). An embedded <tt>$(@name)</tt> is not counted. It's a cheap
+    * superset check that doesn't depend on which operand shapes the rewrite handles.
     */
    public static boolean hasSentinelParameter(String sql, VariableTable params) {
       if(sql == null || params == null || !sql.contains("$(")) {
          return false;
       }
 
-      Matcher matcher = SPECIFIC_VARIABLE.matcher(sql);
+      Matcher matcher = SQL_PARAMETER.matcher(sql);
 
       while(matcher.find()) {
          if(getSpecificValue(params, matcher.group(1)) != null) {
@@ -2733,6 +2734,11 @@ public final class XUtil {
 
       return false;
    }
+
+   // a $(name) reference anywhere in sql text, quoted or not (not $(@name)), for
+   // hasSentinelParameter. Kept apart from the operand patterns (SPECIFIC_VARIABLE etc.) so
+   // that a change to them doesn't narrow the check.
+   private static final Pattern SQL_PARAMETER = Pattern.compile("\\$\\(([^()$@]+)\\)");
 
    /**
     * Rewrite the conditions with a sentinel parameter, and remove the conditions with a
