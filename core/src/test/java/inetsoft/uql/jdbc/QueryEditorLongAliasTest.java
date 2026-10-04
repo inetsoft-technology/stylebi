@@ -120,6 +120,9 @@ class QueryEditorLongAliasTest {
 
       String text = generate(sql);
       assertTrue(text.contains("ALIAS_0"), text);
+      UniformSQL loaded = reload(sql);
+      assertEquals(LONG, loaded.getSelection().getAlias(1), product);
+      assertEquals(text, generate(loaded), product);
 
       // a later add of the same column sees the stored name and makes its own one
       result = service.addColumns(RID, List.of(column(LONG)));
@@ -141,6 +144,9 @@ class QueryEditorLongAliasTest {
       assertEquals(LONG, sql.getSelection().getAlias(1), product);
       String text = generate(sql);
       assertTrue(text.contains("ALIAS_0"), text);
+      UniformSQL loaded = reload(sql);
+      assertEquals(LONG, loaded.getSelection().getAlias(1), product);
+      assertEquals(text, generate(loaded), product);
    }
 
    /**
@@ -167,6 +173,12 @@ class QueryEditorLongAliasTest {
          service(added, ds).addColumns(RID, List.of(column(LONG)));
          assertEquals(List.of("EMP.ID", LONG), header(conn, added));
          assertEquals(List.of("EMP.ID", LONG), header(conn, reload(added)));
+
+         UniformSQL expression = parse("select EMP.ID from EMP", ds);
+         service(expression, ds).addExpression(expression, (JDBCSelection) expression.getSelection(),
+                                               "EMP." + LONG, ds, null);
+         assertEquals(List.of("EMP.ID", LONG), header(conn, expression));
+         assertEquals(List.of("EMP.ID", LONG), header(conn, reload(expression)));
       }
       finally {
          drop("bug77711a");
