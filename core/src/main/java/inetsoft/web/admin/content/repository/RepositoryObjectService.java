@@ -942,6 +942,14 @@ public class RepositoryObjectService {
             continue;
          }
 
+         // a folder moved into itself or one of its subfolders would be left with no parent
+         if((typeFrom & RepositoryEntry.DATA_SOURCE_FOLDER) == RepositoryEntry.DATA_SOURCE_FOLDER &&
+            newPath.startsWith(pathFrom + "/"))
+         {
+            throw new MessageException(Catalog.getCatalog(principal).getString(
+               "common.datasource.moveIntoItself", pathFrom));
+         }
+
          if(!dataSourceTargets.add(newPath) || dataSourceRegistry.isDataSourcePathInUse(newPath)) {
             throw new MessageException(Catalog.getCatalog(principal).getString(
                "common.datasource.moveTargetExists", newPath));

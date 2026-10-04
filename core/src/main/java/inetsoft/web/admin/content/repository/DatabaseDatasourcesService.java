@@ -230,6 +230,12 @@ public class DatabaseDatasourcesService {
          }
 
          if(!Objects.requireNonNull(newPath).equals(path)) {
+            // a name with a slash could put the folder into itself, with no parent left
+            if(DataSourceRegistry.isSameOrDescendantPath(path, newPath)) {
+               throw new MessageException(Catalog.getCatalog(principal).getString(
+                  "common.datasource.moveIntoItself", path));
+            }
+
             // renaming onto a path used by a data source or another folder would merge with it
             if(dataSourceRegistry.isDataSourcePathInUse(newPath)) {
                throw new MessageException(Catalog.getCatalog(principal).getString(

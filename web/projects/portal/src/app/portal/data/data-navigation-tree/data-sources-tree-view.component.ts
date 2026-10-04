@@ -973,6 +973,15 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
       }
 
       if(targetEntry.type == AssetType.DATA_SOURCE_FOLDER) {
+         // a folder can't be moved into itself or one of its subfolders
+         const targetPath = targetEntry.path;
+         assets = assets.filter(item => targetPath !== item.path &&
+            !targetPath?.startsWith(item.path + "/"));
+
+         if(assets.length == 0) {
+            return;
+         }
+
          ComponentTool.showConfirmDialog(this.modalService, "_#(js:Confirm)",
             "_#(js:em.reports.drag.confirm)").then((buttonClicked) =>
          {
