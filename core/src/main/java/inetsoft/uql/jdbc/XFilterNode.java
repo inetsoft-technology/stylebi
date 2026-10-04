@@ -287,6 +287,14 @@ public abstract class XFilterNode
    }
 
    /**
+    * Check if the joins directly under the node are joins of the query, i.e. if the node is
+    * an AND set. A join under any other set (OR, IS, IS NOT) is a condition.
+    */
+   static boolean isJoinJunction(XNode node) {
+      return node instanceof XSet && XSet.AND.equalsIgnoreCase(((XSet) node).getRelation());
+   }
+
+   /**
     * Recursive method used to remove joins from the node tree and remove or
     * collapse unneccessary junctions.
     *
@@ -295,7 +303,9 @@ public abstract class XFilterNode
     * @param negated true if the node is under a negated set.
     */
    private void removeJoinsRecursive(XFilterNode node, boolean negated) {
-      if(!(node instanceof XSet)) {
+      // a join under an OR or a truth test (is/is not) set is a condition, not a join of
+      // the query, so don't descend into it (same rule as UniformSQL.getJoins)
+      if(!isJoinJunction(node)) {
          return;
       }
 

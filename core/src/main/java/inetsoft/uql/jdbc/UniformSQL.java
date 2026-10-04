@@ -4585,9 +4585,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
     * there, they can't be written as a condition.
     */
    private void getJoins(XFilterNode root, List<XJoin> joins, boolean negated) {
-      if((root instanceof XSet) &&
-         ((XSet) root).getRelation().equalsIgnoreCase(XSet.AND))
-      {
+      if(XFilterNode.isJoinJunction(root)) {
          negated = negated || root.isIsNot();
 
          for(int i = 0; i < root.getChildCount(); i++) {
