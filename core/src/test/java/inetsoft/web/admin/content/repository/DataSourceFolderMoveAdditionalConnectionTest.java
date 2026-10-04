@@ -374,6 +374,36 @@ class DataSourceFolderMoveAdditionalConnectionTest {
       assertTabularRename("rnF/rnS/rnX", "rnG/rnS/rnX", null);
    }
 
+   // Bug #77703: a portal folder rename with a data source whose connector isn't installed. The
+   // dependency info the service submits before the rename must hold the tabular rename of it.
+   @Test
+   void portalFolderRenameWithAnUninstalledConnector() throws Exception {
+      addFolder("prF");
+      addTabular("prF/prT");
+      AssetEntry dependent = addDependent("prF/prT");
+      DataSourceBrowserService service = new DataSourceBrowserService(
+         security, objectService(registry), repository, mock(DataSourceService.class), registry,
+         mock(Config.class), transformHandler);
+
+      uninstall(() -> service.renameFolder("prF", "prG", "prF", "prG", principal));
+
+      assertNull(registry.getDataSourceFolder("prF"));
+      assertNotNull(registry.getDataSourceFolder("prG"));
+      assertFalse(containsDataSource("prF/prT"));
+      assertTabular("prG/prT", "prG/prT");
+
+      ArgumentCaptor<RenameDependencyInfo> captor =
+         ArgumentCaptor.forClass(RenameDependencyInfo.class);
+      verify(transformHandler, atLeastOnce()).addTransformTask(captor.capture());
+      // the first one is submitted by the service, the others by the repository
+      RenameDependencyInfo info = captor.getAllValues().get(0);
+      assertTrue(info.getRenameInfos().stream().anyMatch(i -> isRename(i, "prF/prT", "prG/prT")),
+                 "no tabular rename in the info of the service");
+      assertTrue(info.getDependencyMap().get(dependent).stream()
+                    .anyMatch(i -> isRename(i, "prF/prT", "prG/prT")),
+                 "the dependent isn't renamed in the info of the service");
+   }
+
    // Bug #77703: an entry that is already corrupt (stored with no root element) can't be loaded
    // with the connector installed. The move must go on and keep it under the new path.
    @Test
