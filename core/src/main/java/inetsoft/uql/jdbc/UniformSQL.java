@@ -2514,7 +2514,10 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       }
    }
 
-   private static boolean hasWildcard(XSelection selection) {
+   /**
+    * Check if a selection has a wildcard (* or t.*) column.
+    */
+   public static boolean hasWildcard(XSelection selection) {
       for(int i = 0; selection != null && i < selection.getColumnCount(); i++) {
          String path = selection.getColumn(i);
 

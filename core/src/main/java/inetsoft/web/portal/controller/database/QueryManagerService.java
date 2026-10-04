@@ -2545,7 +2545,9 @@ public class QueryManagerService {
 
       if((sql.getParseResult() == UniformSQL.PARSE_SUCCESS ||
          sql.getParseResult() == UniformSQL.PARSE_PARTIALLY) &&
-         sql.getSelection().getColumnCount() > 0)
+         sql.getSelection().getColumnCount() > 0 &&
+         // the columns of a wildcard that isn't expanded are known from the output (Bug #77617)
+         !UniformSQL.hasWildcard(sql.getSelection()))
       {
          JDBCSelection selection = (JDBCSelection) sql.getSelection();
 
