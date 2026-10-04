@@ -230,6 +230,43 @@ class SQLHelperVpmInputLimitTest {
       assertEquals(generate("oracle", text, false), generate("oracle", text, true));
    }
 
+   // oracle with ansi joins: a statement whose conditions are all in the join's ON has no
+   // where clause and stays valid (the empty where was "replaced" in the whole sql), and a
+   // statement with a where clause gets the rownum limit in it, after the joins
+   @ParameterizedTest
+   @CsvSource(delimiter = '|', quoteCharacter = '~', value = {
+      "select c.id, o.amt from customers c left outer join orders o on c.id = o.cid|",
+      "select c.id, o.amt from customers c, orders o where c.id = o.cid|",
+      "select c.region, sum(c.credit) from customers c group by c.region having sum(c.credit) > 10|",
+      "select c.id, o.amt from customers c left outer join orders o on c.id = o.cid where o.amt > 5|ON c.id = o.cid where (o.amt > 5) AND rownum <= 2",
+      "select c.id, o.amt from customers c inner join orders o on c.id = o.cid where c.id > 0 or o.amt < 3|ON c.id = o.cid where ((c.id > 0 or o.amt < 3)) AND rownum <= 2",
+   })
+   void oracleAnsiJoinLimited(String text, String end) throws Exception {
+      String sql = generate("oracle", true, text, true, false);
+
+      assertEquals(0, parenDepth(sql), sql);
+
+      if(end == null) {
+         assertEquals(generate("oracle", true, text, false, false), sql);
+      }
+      else {
+         assertTrue(sql.endsWith(end), sql);
+         assertEquals(1, count(sql, "rownum"), sql);
+      }
+   }
+
+   // with an output limit the output is limited instead (generateMaxRowsClause()), and the
+   // where clause doesn't also get the input limit
+   @Test
+   void oracleOutputLimitWithoutInputRownum() throws Exception {
+      String text = "select customers.id from customers where customers.id > 0";
+      String sql = generate("oracle", false, text, true, true);
+
+      assertEquals(1, count(sql, "rownum"), sql);
+      assertTrue(sql.endsWith("where rownum <= 7"), sql);
+      assertFalse(sql.contains("rownum <= 2"), sql);
+   }
+
    // the input limit is applied on the database: 2 of the 6 rows
    @ParameterizedTest
    @CsvSource(delimiter = '|', quoteCharacter = '~', value = {
@@ -333,11 +370,25 @@ class SQLHelperVpmInputLimitTest {
    }
 
    private static String generate(String product, String text, boolean vpm) throws Exception {
-      UniformSQL usql = parse(dataSource(product), text);
+      return generate(product, false, text, vpm, false);
+   }
+
+   // ansi: ansi join syntax. out: an output limit of 7 rows
+   private static String generate(String product, boolean ansi, String text, boolean vpm,
+                                  boolean out)
+      throws Exception
+   {
+      JDBCDataSource ds = dataSource(product);
+      ds.setAnsiJoin(ansi);
+      UniformSQL usql = parse(ds, text);
 
       if(vpm) {
          usql.setVPMCondition(true);
          usql.setHint(UniformSQL.HINT_INPUT_MAXROWS, "2");
+      }
+
+      if(out) {
+         usql.setHint(UniformSQL.HINT_OUTPUT_MAXROWS, "7");
       }
 
       return usql.getSQLString().replaceAll("\\s+", " ").trim();
