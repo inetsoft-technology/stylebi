@@ -21,6 +21,7 @@ import inetsoft.test.*;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.XNode;
+import inetsoft.uql.jdbc.util.VarSQL;
 import inetsoft.uql.util.XUtil;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -337,6 +338,82 @@ class XUtilSentinelOperandTest {
       usql = parse(sql, "default");
       XUtil.validateConditions(null, usql, vars, true, true);
       assertEndsWith("where a.k = 1 and $(q) IS NULL", generate(usql));
+   }
+
+   // the reported shapes, bound by VarSQL as JDBCHandler binds them rather than as text
+   static Stream<Arguments> varSqlCases() {
+      return Stream.of(
+         Arguments.of(SELECT + "where $(p) <> a.name", NULL_VALUE,
+                      SELECT + "where a.name IS NOT NULL"),
+         Arguments.of(SELECT + "where $(p) <> a.id", NULL_VALUE,
+                      SELECT + "where a.id IS NOT NULL"),
+         Arguments.of(SELECT + "where $(p) <> a.name", EMPTY_STRING,
+                      SELECT + "where '' <> a.name"),
+         Arguments.of(SELECT + "where $(p) <> a.name", NULL_STRING,
+                      SELECT + "where 'null' <> a.name"),
+         Arguments.of(SELECT + "where $(p) = a.name", NULL_VALUE,
+                      SELECT + "where a.name IS NULL"),
+         Arguments.of(SELECT + "where $(p) = a.id", NULL_VALUE,
+                      SELECT + "where a.id IS NULL"),
+         Arguments.of(SELECT + "where $(p) = a.name", EMPTY_STRING,
+                      SELECT + "where '' = a.name"),
+         Arguments.of(SELECT + "where $(p) = a.name", NULL_STRING,
+                      SELECT + "where 'null' = a.name"),
+         Arguments.of(SELECT + "where a.name between $(p) and 'z'", NULL_VALUE,
+                      SELECT + "where a.name IS NULL"),
+         Arguments.of(SELECT + "where a.id between $(p) and 10", NULL_VALUE,
+                      SELECT + "where a.id IS NULL"),
+         Arguments.of(SELECT + "where a.name between $(p) and 'z'", EMPTY_STRING,
+                      SELECT + "where a.name between '' and 'z'"),
+         Arguments.of(SELECT + "where a.name between $(p) and 'z'", NULL_STRING,
+                      SELECT + "where a.name between 'null' and 'z'"),
+         Arguments.of(SELECT + "where a.name in ($(p))", NULL_VALUE,
+                      SELECT + "where a.name IS NULL"),
+         Arguments.of(SELECT + "where a.id in ($(p))", NULL_VALUE,
+                      SELECT + "where a.id IS NULL"),
+         Arguments.of(SELECT + "where a.name in ($(p))", EMPTY_STRING,
+                      SELECT + "where a.name in ('')"),
+         Arguments.of(SELECT + "where a.name in ($(p))", NULL_STRING,
+                      SELECT + "where a.name in ('null')"));
+   }
+
+   @ParameterizedTest
+   @MethodSource("varSqlCases")
+   void sameRowsThroughVarSQL(String sql, String p, String expected) throws Exception {
+      try(Connection conn = connect()) {
+         List<String> expectedRows = rows(conn, expected);
+
+         for(boolean forVpm : new boolean[] { false, true }) {
+            VariableTable vars = new VariableTable();
+            vars.put("p", p);
+            UniformSQL usql = parse(sql, "derby");
+            XUtil.validateConditions(null, usql, vars, true, forVpm);
+            usql.clearSQLString();
+            VarSQL varsql = new VarSQL();
+            varsql.setSQLType(VarSQL.SQLType.STATEMENT);
+            String bound = varsql.replaceVariables(usql.getSQLString(), vars);
+            List<String> actual = new ArrayList<>();
+
+            try(PreparedStatement stmt = conn.prepareStatement(bound)) {
+               List<Object> values = varsql.getParameterValues();
+
+               for(int i = 0; i < values.size(); i++) {
+                  stmt.setObject(i + 1, values.get(i));
+               }
+
+               try(ResultSet rs = stmt.executeQuery()) {
+                  while(rs.next()) {
+                     actual.add(rs.getString(1) + "|" + rs.getString(2) + "|" +
+                                   rs.getString(3) + "|");
+                  }
+               }
+            }
+
+            Collections.sort(actual);
+            assertEquals(expectedRows, actual, "forVpm=" + forVpm + "\nbound: " + bound);
+            assertTrue(varsql.getParameterValues().isEmpty(), bound);
+         }
+      }
    }
 
    @AfterAll
