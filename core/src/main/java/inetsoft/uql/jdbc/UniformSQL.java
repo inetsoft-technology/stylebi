@@ -2854,7 +2854,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          String path = xselect.getColumn(i);
 
          if(isTableColumn(path)) {
-            String oldTableAlias = getTableFromPath(path);
+            String oldTableAlias = getAliasMapKey(getTableFromPath(path), aliasMap);
 
             if(aliasMap.containsKey(oldTableAlias)) {
                String newTableAlias = (String) aliasMap.get(oldTableAlias);
@@ -2945,7 +2945,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                continue;
             }
 
-            String oldTableAlias = getTableFromPath(field);
+            String oldTableAlias = getAliasMapKey(getTableFromPath(field), aliasMap);
 
             if(aliasMap.containsKey(oldTableAlias)) {
                String newTableAlias = (String) aliasMap.get(oldTableAlias);
@@ -2955,8 +2955,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                }
 
                String quote = getQuote(orders[i]);
-               String col = getColumnFromPath(field, oldTableAlias,
-                                              getQuotedSegment(quote), quote != null);
+               String col = getRenamedColumn(field, oldTableAlias, quote);
                replaceOrderBy(i, newTableAlias + "." + col, orders[i].getOrder());
                copyQuotedField(field, newTableAlias + "." + col);
             }
@@ -2970,7 +2969,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                continue;
             }
 
-            String oldTableAlias = getTableFromPath((String) groups[i]);
+            String oldTableAlias = getAliasMapKey(getTableFromPath((String) groups[i]), aliasMap);
 
             if(aliasMap.containsKey(oldTableAlias)) {
                String newTableAlias = (String) aliasMap.get(oldTableAlias);
@@ -2982,8 +2981,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                String field = (String) groups[i];
                // the quoting of this field, which keeps its position
                String quote = getGroupQuote(i);
-               String col = getColumnFromPath(field, oldTableAlias,
-                                              getQuotedSegment(quote), quote != null);
+               String col = getRenamedColumn(field, oldTableAlias, quote);
                renameGroupField(i, newTableAlias + "." + col);
                copyQuotedField(field, (String) groups[i]);
             }
@@ -2996,6 +2994,24 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             setHaving((XFilterNode) getHaving().getChild(0));
          }
       }
+   }
+
+   /**
+    * Get the column of an order by or group by item whose table is renamed. An item of
+    * an unaliased table on postgresql, snowflake or exasol is stored with in-band quotes
+    * ("q"."k"), so its column keeps them ("k"). The column without them (k) doesn't match
+    * the select column x."k" when there is no table metadata, and the item would be
+    * dropped (Bug #77648).
+    * @param quote the quoting of the item, see getQuote(OrderByItem).
+    */
+   private String getRenamedColumn(String path, String table, String quote) {
+      if(quote == null && table != null && table.startsWith("\"") &&
+         path.startsWith(table + ".") && path.length() > table.length() + 1)
+      {
+         return path.substring(table.length() + 1);
+      }
+
+      return getColumnFromPath(path, table, getQuotedSegment(quote), quote != null);
    }
 
    /**
@@ -3099,7 +3115,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          }
 
          String path = (String) expr.getValue();
-         String table = getTableFromPath(path);
+         String table = getAliasMapKey(getTableFromPath(path), aliasmap);
          String quote = getSQLHelper().getQuote();
 
          if(aliasmap.containsKey(table)) {
@@ -3125,11 +3141,41 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             }
          }
          else {
-            return aliasmap.contains(table);
+            String quoted = getInBandQuoted(table);
+            return aliasmap.contains(table) || (quoted != null && aliasmap.contains(quoted));
          }
       }
 
       return false;
+   }
+
+   /**
+    * Get the key of the alias map that a table qualifier names. A helper that keeps
+    * identifier case (postgresql, snowflake, exasol) stores the alias of an unaliased
+    * table with in-band quotes ("q"), while getTableFromPath may return the qualifier
+    * with the quotes stripped (q), so the in-band form is tried when there is no exact
+    * match (Bug #77648).
+    * @return the matching key, or the table itself if no key matches.
+    */
+   private String getAliasMapKey(String table, Map<?, ?> aliasmap) {
+      if(table == null || aliasmap.containsKey(table)) {
+         return table;
+      }
+
+      String quoted = getInBandQuoted(table);
+      return quoted != null && aliasmap.containsKey(quoted) ? quoted : table;
+   }
+
+   /**
+    * Get a table qualifier with the in-band quotes that XUtil.getTablePart strips,
+    * or null if it is empty or already quoted.
+    */
+   private static String getInBandQuoted(String table) {
+      if(table == null || table.isEmpty() || table.startsWith("\"")) {
+         return null;
+      }
+
+      return "\"" + table + "\"";
    }
 
    /**
