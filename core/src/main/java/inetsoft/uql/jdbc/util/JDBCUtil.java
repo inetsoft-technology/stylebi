@@ -234,6 +234,8 @@ public class JDBCUtil {
 
             if(name instanceof UniformSQL) {
                UniformSQL sql1 = (UniformSQL) name;
+               // the parser records the names of a derived table in the outer query
+               sql1.addParsedUnquotedSegments(sql.getParsedUnquotedSegments());
                fixUniformSQLInfo(sql1, repository, session, xds);
                XSelection xSelects = sql1.getSelection();
 
@@ -386,7 +388,8 @@ public class JDBCUtil {
             path = fp;
          }
 
-         XField field = sql.getFieldByPath(path, quoted);
+         // the field of the column getFullPathOf resolved, of its type
+         XField field = getColumnField(sql, path, quoted);
 
          if(field != null && field.getTable().length() > 0) {
             // the same column qualified by its table, it keeps its quoting

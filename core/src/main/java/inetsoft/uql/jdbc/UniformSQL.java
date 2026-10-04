@@ -2312,6 +2312,26 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    }
 
    /**
+    * Get a copy of the column segments written unquoted, see isParsedUnquotedSegment.
+    */
+   public synchronized Set<String> getParsedUnquotedSegments() {
+      return parsedUnquotedSegments == null ?
+         new HashSet<>() : new HashSet<>(parsedUnquotedSegments);
+   }
+
+   /**
+    * Add column segments written unquoted, e.g. those of a derived table, which the parser
+    * records in the outer query, see isParsedUnquotedSegment.
+    */
+   public synchronized void addParsedUnquotedSegments(Set<String> segments) {
+      if(parsedUnquotedSegments == null) {
+         parsedUnquotedSegments = new HashSet<>();
+      }
+
+      parsedUnquotedSegments.addAll(segments);
+   }
+
+   /**
     * Clear the record of the column segments written unquoted, see isParsedUnquotedSegment.
     */
    public synchronized void clearParsedUnquotedSegments() {

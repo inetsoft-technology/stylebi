@@ -126,6 +126,90 @@ class UniformSQLUnquotedTwin77643Test {
    }
 
    /**
+    * The type of a select column is the type of the column it's resolved to, also when the
+    * twins have other types (review I1).
+    */
+   @Test
+   void selectColumnTypeIsOfItsTwin() throws Exception {
+      for(String[] columns : new String[][] { PG_TWIN_SECOND, PG_TWIN_FIRST }) {
+         for(String query : new String[] { "select t.mixedcase from t", "select t.MixedCase from t" }) {
+            UniformSQL sql = parse(query, helpers("postgresql"));
+            JDBCDataSource ds = (JDBCDataSource) sql.getDataSource().clone();
+            ds.setName(ds.getName() + "_" + (++sources));
+            sql.setDataSource(ds);
+            JDBCUtil.fixUniformSQLInfo(sql, repository(columns,
+               column -> "mixedcase".equals(column) ? String.class : Integer.class), null, ds);
+            JDBCSelection select = (JDBCSelection) sql.getSelection();
+            String label = query + " " + columns[1];
+
+            assertEquals("\"t\".mixedcase", select.getColumn(0), label);
+            assertEquals(XSchema.STRING, select.getType(select.getColumn(0)), label);
+         }
+
+         // the quoted twin keeps its own type
+         UniformSQL sql = parse("select t.\"MixedCase\" from t", helpers("postgresql"));
+         JDBCDataSource ds = (JDBCDataSource) sql.getDataSource().clone();
+         ds.setName(ds.getName() + "_" + (++sources));
+         sql.setDataSource(ds);
+         JDBCUtil.fixUniformSQLInfo(sql, repository(columns,
+            column -> "mixedcase".equals(column) ? String.class : Integer.class), null, ds);
+         JDBCSelection select = (JDBCSelection) sql.getSelection();
+         assertEquals(XSchema.INTEGER, select.getType(select.getColumn(0)), columns[1]);
+      }
+   }
+
+   /**
+    * The parser records the names of a derived table in the outer query, the metadata step of
+    * the derived table gets them (review I2). A derived table without its data source (it gets
+    * the one of the outer query when the outer sql is generated) is resolved as before.
+    */
+   @Test
+   void derivedTableTwinsInBothOrders() throws Exception {
+      for(String written : new String[] { "t.MixedCase", "t.mixedcase" }) {
+         String query = "select s.b from (select " + written + " as b from t) s";
+
+         for(String[] columns : new String[][] { PG_TWIN_SECOND, PG_TWIN_FIRST }) {
+            String label = written + " " + columns[1];
+
+            // generated once, the derived table has the data source
+            UniformSQL sql = parse(query, helpers("postgresql"));
+            regenerate(sql);
+            assertEquals("select \"s\".\"b\" from ( select \"t\".\"mixedcase\" as \"b\" from \"t\") s",
+                         fixed(sql, columns), label);
+
+            // no data source: the first column ignoring case, as before
+            String generated = fixed(parse(query, helpers("postgresql")), columns);
+            String first = columns[1].equals("MixedCase") ? "\"MixedCase\"" : "\"mixedcase\"";
+            assertTrue(generated.contains("\"t\"." + first + " as \"b\""), label + ": " + generated);
+         }
+      }
+   }
+
+   /**
+    * WHERE goes through the same resolution (JDBCUtil.normalizeExpression), and the sql
+    * regenerated after the metadata step parses and regenerates to itself.
+    */
+   @Test
+   void whereAndRoundTripInBothOrders() throws Exception {
+      for(String[] columns : new String[][] { PG_TWIN_SECOND, PG_TWIN_FIRST }) {
+         for(String written : new String[] { "t.MixedCase", "t.mixedcase" }) {
+            String generated = fixed("postgresql", "select t.id from t where " + written + " > 15", columns);
+            assertTrue(generated.endsWith(" where \"t\".mixedcase > 15"), columns[1] + ": " + generated);
+         }
+
+         for(String query : new String[] {
+            "select t.\"MixedCase\", t.MixedCase as b from t order by t.MixedCase desc",
+            "select t.mixedcase, count(*) from t group by t.mixedcase",
+            "select t.id from t where t.MixedCase > 15" })
+         {
+            String generated = fixed("postgresql", query, columns);
+            UniformSQL again = parse(generated, helpers("postgresql"));
+            assertEquals(generated, fixed(again, columns), columns[1] + ": " + query);
+         }
+      }
+   }
+
+   /**
     * Snowflake and exasol fold to upper case. The order by of a select column is generated
     * quoted, so it named the first twin in the metadata.
     */
@@ -310,6 +394,13 @@ class UniformSQLUnquotedTwin77643Test {
    static final String[] TWIN_FIRST = { "id", "MIXEDCASE", "MixedCase" };
 
    static XRepository repository(String[] columns) throws Exception {
+      return repository(columns, column -> Integer.class);
+   }
+
+   // the column metadata, each column of the type of the function
+   static XRepository repository(String[] columns, java.util.function.Function<String, Class<?>> types)
+      throws Exception
+   {
       XRepository repository = mock(XRepository.class);
       when(repository.getMetaData(any(), any(), any(), anyBoolean(), any())).thenAnswer(inv -> {
          XNode mtype = inv.getArgument(2);
@@ -321,7 +412,7 @@ class UniformSQLUnquotedTwin77643Test {
          XTypeNode result = new XTypeNode("Result");
 
          for(String column : columns) {
-            result.addChild(XSchema.createPrimitiveType(column, Integer.class));
+            result.addChild(XSchema.createPrimitiveType(column, types.apply(column)));
          }
 
          XTypeNode meta = new XTypeNode("meta");
