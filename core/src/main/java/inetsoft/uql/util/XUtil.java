@@ -706,6 +706,12 @@ public final class XUtil {
       for(int i = 0; i < length; i++) {
          char ic = str.charAt(i);
 
+         // an embedded quote char must be quoted (and escaped on wrap) so it isn't read as
+         // the closing delimiter when the wrapped name is reparsed (#77661)
+         if(quote.indexOf(ic) >= 0) {
+            return true;
+         }
+
          switch(ic) {
          case '_': // quote alias with '_' as the first char for oracle
             if(i == 0) {
@@ -800,7 +806,10 @@ public final class XUtil {
          return name;
       }
 
-      return isSpecial || name.indexOf('.') >= 0 ? quote + name + quote : name;
+      // escape an embedded quote char by doubling it, so it isn't read as the closing
+      // delimiter when the wrapped name is reparsed (#77661)
+      return isSpecial || name.indexOf('.') >= 0 ?
+         quote + name.replace(quote, quote + quote) + quote : name;
    }
 
    /**
@@ -838,7 +847,8 @@ public final class XUtil {
          }
 
          if(isSpecialName(arr[i], quoteKeyword, provider)) {
-            str.append(quote + arr[i] + quote);
+            // escape an embedded quote char by doubling it (#77661)
+            str.append(quote).append(arr[i].replace(quote, quote + quote)).append(quote);
          }
          else {
             str.append(arr[i]);
@@ -873,8 +883,9 @@ public final class XUtil {
          return alias;
       }
 
+      // escape an embedded quote char by doubling it (#77661)
       return quote == null || " ".equals(quote) || "".equals(quote) ?
-         alias : quote + alias + quote;
+         alias : quote + alias.replace(quote, quote + quote) + quote;
    }
 
    public static String getQuote(JDBCDataSource xds) {
