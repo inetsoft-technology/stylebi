@@ -655,3 +655,28 @@ describe("DataFolderBrowserComponent – moveSelected / moveAssets / moveAssets0
       }
    });
 });
+
+// ===========================================================================
+// Bug #77705 — a sibling whose name starts with the moved item's name is a target
+// ===========================================================================
+
+describe("DataFolderBrowserComponent – moveAssets0 sibling sharing a name prefix (Bug #77705)", () => {
+   it("should move a folder or worksheet onto a sibling sharing its name, not onto itself or a subfolder", async () => {
+      const confirmSpy = vi.spyOn(ComponentTool, "showConfirmDialog").mockResolvedValue("cancel");
+      const { comp } = await renderComponent();
+      const scope = AssetEntryHelper.GLOBAL_SCOPE;
+      const folder = makeFolder({ name: "F", path: "F", scope });
+
+      (comp as any).moveAssets0([folder], makeFolder({ name: "F", path: "F", scope }));
+      (comp as any).moveAssets0([folder], makeFolder({ name: "G", path: "F/G", scope }));
+
+      expect(confirmSpy).not.toHaveBeenCalled();
+
+      (comp as any).moveAssets0([folder], makeFolder({ name: "Fx", path: "Fx", scope }));
+      await waitFor(() => expect(confirmSpy).toHaveBeenCalledTimes(1));
+
+      (comp as any).moveAssets0([makeInfo({ name: "Sales", path: "Sales", scope })],
+                                makeFolder({ name: "Sales2", path: "Sales2", scope }));
+      await waitFor(() => expect(confirmSpy).toHaveBeenCalledTimes(2));
+   });
+});

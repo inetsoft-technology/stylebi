@@ -27,6 +27,7 @@ import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetFolder;
 import inetsoft.uql.asset.sync.RenameTransformHandler;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
@@ -34,7 +35,6 @@ import inetsoft.web.admin.schedule.model.*;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.portal.data.CheckDuplicateResponse;
 import inetsoft.web.portal.data.TaskFolderBrowserModel;
-import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -371,10 +371,12 @@ public class ScheduleTaskFolderService {
 
    /**
     * Checks if a folder of a move request is not moved: a missing path, a move into the folder
-    * itself or one of its subfolders, or a move into the folder it is already in.
+    * itself or one of its subfolders, or a move into the folder it is already in. Bug #77705, a
+    * sibling whose name starts with the same text, e.g. "Fx" for "F", is not a subfolder.
     */
    private boolean isSkippedMove(String folderPath, AssetEntry targetEntry) {
-      return folderPath == null || StringUtils.startsWith(targetEntry.getPath(), folderPath) ||
+      return folderPath == null ||
+         DataSourceRegistry.isSameOrDescendantPath(folderPath, targetEntry.getPath()) ||
          Tool.equals(getMovedPath(folderPath, targetEntry), folderPath);
    }
 

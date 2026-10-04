@@ -20,7 +20,7 @@
  * ScheduleFolderTreeComponent — Testing Library style
  *
  * Risk-first coverage:
- *   Group 1 [Risk 3] — isDescendant: startsWith false positive for sibling paths sharing a prefix
+ *   Group 1 [Risk 3] — isDescendant: startsWith false positive for sibling paths sharing a prefix (Bug #77705, fixed)
  *   Group 2 [Risk 3] — editTaskFolder: rename path uses indexOf (first "/") not lastIndexOf (it.failing — confirmed bug)
  *   Group 3 [Risk 2] — editFolderEnabled: root-path guard and empty-selection guard
  *   Group 4 [Risk 2] — contextMenuClick: node selection toggle behavior
@@ -144,11 +144,10 @@ async function renderComponent() {
 
 describe("ScheduleFolderTreeComponent — isDescendant: startsWith false positive", () => {
 
-   // Boundary / defensive only: isDescendant must distinguish "folder1" from "folder10".
+   // Bug #77705: isDescendant must distinguish "folder1" from "folder10".
    // A naive startsWith("folder1") returns true for "folder10/sub", which is NOT a real descendant.
-   // This can cause moveTaskFolder to incorrectly skip a valid move operation. Not always
-   // user-visible in normal UI flows; keep as an implementation-level guard.
-   it.fails("should return false when searchNode path shares only a string prefix, not a real ancestor relationship", async () => {
+   // moveTaskFolder then skipped the drag of a folder onto a sibling such as "folder10".
+   it("should return false when searchNode path shares only a string prefix, not a real ancestor relationship", async () => {
       const { comp } = await renderComponent();
 
       const parent     = makeTreeNode("folder1", "folder1");
@@ -167,6 +166,57 @@ describe("ScheduleFolderTreeComponent — isDescendant: startsWith false positiv
       const child  = makeTreeNode("folder1/sub", "sub");
 
       expect((comp as any).isDescendant([parent], child)).toBe(true);
+   });
+
+   // Bug #77705: the folder itself still counts, so a drop onto itself stays blocked
+   it("should return true when searchNode is the parent itself", async () => {
+      const { comp } = await renderComponent();
+
+      const parent = makeTreeNode("folder1", "folder1");
+      expect((comp as any).isDescendant([parent], makeTreeNode("folder1", "folder1"))).toBe(true);
+   });
+
+   // Bug #77705: a drag of F onto its sibling Fx is moved; onto F itself or F/G it is not
+   it("should move a folder onto a sibling sharing its prefix but not onto itself or a subfolder", async () => {
+      const bodies: any[] = [];
+      server.use(
+         http.post("*/api/em/schedule/check-folder", async ({ request }) => {
+            bodies.push(await request.json());
+            return MswHttpResponse.json(true);
+         })
+      );
+      const { comp } = await renderComponent();
+      const f = makeRepositoryFlatNode("F", "F", 1);
+      const drop = (target: RepositoryFlatNode) => {
+         comp.selectedNodes = [f];
+         comp.moveTaskFolder(target);
+      };
+
+      drop(makeRepositoryFlatNode("F", "F", 1));
+      drop(makeRepositoryFlatNode("F/G", "G", 2));
+      drop(makeRepositoryFlatNode("Fx", "Fx", 1));
+
+      await waitFor(() => expect(bodies.length).toBe(1));
+      expect(bodies[0].target.path).toBe("Fx");
+      expect(bodies[0].folders).toEqual(["F"]);
+   });
+
+   // Bug #77705: a multi-select of F and its sibling Fx keeps both folders
+   it("should keep a selected sibling sharing the prefix of another selected folder", async () => {
+      const bodies: any[] = [];
+      server.use(
+         http.post("*/api/em/schedule/check-folder", async ({ request }) => {
+            bodies.push(await request.json());
+            return MswHttpResponse.json(true);
+         })
+      );
+      const { comp } = await renderComponent();
+      comp.selectedNodes = [makeRepositoryFlatNode("F", "F", 1), makeRepositoryFlatNode("Fx", "Fx", 1),
+                            makeRepositoryFlatNode("F/G", "G", 2)];
+      comp.moveTaskFolder(makeRepositoryFlatNode("Y", "Y", 1));
+
+      await waitFor(() => expect(bodies.length).toBe(1));
+      expect([...bodies[0].folders].sort()).toEqual(["F", "Fx"]);
    });
 
    // Boundary: empty parents array → never a descendant
