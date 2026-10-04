@@ -32,6 +32,7 @@ import inetsoft.uql.jdbc.*;
 import inetsoft.uql.jdbc.util.JDBCUtil;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.Identity;
+import inetsoft.uql.util.XUtil;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
@@ -539,13 +540,8 @@ public class DatabaseDatasourcesService {
 
          if(!oname.equals(name)) {
             renameAdditionalSource(base, oname, name);
-            Permission permission = securityEngine.getPermission(ResourceType.DATA_SOURCE,
-               base.getFullName() + "::" + oname);
-
-            if(permission != null) {
-               securityEngine.setPermission(ResourceType.DATA_SOURCE,
-                  base.getFullName() + "::" + name, permission);
-            }
+            updateAdditionalPermissions(base.getFullName(), Collections.emptySet(),
+                                        Collections.singletonMap(oname, name));
          }
       }
       else {
@@ -596,10 +592,19 @@ public class DatabaseDatasourcesService {
                jdbcDataSource.removeDatasource(dataSourceName);
             }
 
+            // the names of the kept and renamed additional connections before this save, and the
+            // renames, by old name
+            Set<String> keptOldNames = new HashSet<>();
+            Map<String, String> renames = new LinkedHashMap<>();
+
             // add newly additional ds
             for(DatabaseDefinition ads : additionalDataSources) {
                String additionalName = ads.getName();
                String oldName = ads.getOldName();
+
+               if(oldName != null) {
+                  keptOldNames.add(oldName);
+               }
 
                if(additionalNamePasswordMap.get(oldName) != null && ads.getAuthentication() != null) {
                   AuthenticationDetails authentication = ads.getAuthentication();
@@ -619,16 +624,16 @@ public class DatabaseDatasourcesService {
 
                if(oldName != null && !oldName.equals(additionalName)) {
                   renameAdditionalSource(jdbcDataSource, oldName, additionalName);
-                  Permission permission = securityEngine.getPermission(ResourceType.DATA_SOURCE,
-                     fullName + "::" + oldName);
-
-                  if(permission != null) {
-                     securityEngine.setPermission(ResourceType.DATA_SOURCE,
-                        fullName + "::" + additionalName, permission);
-                  }
+                  renames.put(oldName, additionalName);
                }
             }
 
+            // a new additional connection has no old name, so one that has the name of a removed
+            // one is not kept. The parent was renamed above, which moved the permissions of its
+            // additional connections, so they are under its new name
+            Set<String> removedNames = new HashSet<>(additionalNamePasswordMap.keySet());
+            removedNames.removeAll(keptOldNames);
+            updateAdditionalPermissions(jdbcDataSource.getFullName(), removedNames, renames);
             refreshAdditionalSource(jdbcDataSource);
          }
       }
@@ -699,6 +704,55 @@ public class DatabaseDatasourcesService {
       }
 
       return dataSource;
+   }
+
+   /**
+    * Updates the permissions of the additional connections of a data source after they are
+    * removed or renamed. All old permissions are read before any is removed, so that swapped or
+    * chained names keep their own permissions.
+    *
+    * @param parent       the full name of the data source.
+    * @param removedNames the names of the removed additional connections.
+    * @param renames      the new names of the renamed additional connections, by old name.
+    */
+   private void updateAdditionalPermissions(String parent, Set<String> removedNames,
+                                            Map<String, String> renames)
+   {
+      if(removedNames.isEmpty() && renames.isEmpty() || !hasPermissionStore()) {
+         return;
+      }
+
+      Map<String, Permission> permissions = new HashMap<>();
+
+      for(String oldName : renames.keySet()) {
+         permissions.put(oldName, securityEngine.getPermission(ResourceType.DATA_SOURCE,
+            parent + XUtil.ADDITIONAL_DS_CONNECTOR + oldName));
+      }
+
+      Set<String> oldNames = new HashSet<>(removedNames);
+      oldNames.addAll(renames.keySet());
+
+      for(String oldName : oldNames) {
+         securityEngine.removePermission(ResourceType.DATA_SOURCE,
+            parent + XUtil.ADDITIONAL_DS_CONNECTOR + oldName);
+      }
+
+      for(Map.Entry<String, String> rename : renames.entrySet()) {
+         Permission permission = permissions.get(rename.getKey());
+
+         if(permission != null) {
+            securityEngine.setPermission(ResourceType.DATA_SOURCE,
+               parent + XUtil.ADDITIONAL_DS_CONNECTOR + rename.getValue(), permission);
+         }
+      }
+   }
+
+   /**
+    * Checks if the security provider stores permissions of its own, i.e. it is not virtual.
+    */
+   private boolean hasPermissionStore() {
+      SecurityProvider provider = securityEngine.getSecurityProvider();
+      return provider == null || !provider.isVirtual();
    }
 
    private void renameAdditionalSource(JDBCDataSource xds, String oname, String nname) {

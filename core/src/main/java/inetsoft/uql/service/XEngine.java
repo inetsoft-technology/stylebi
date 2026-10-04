@@ -431,6 +431,45 @@ public class XEngine implements XRepository, XQueryRepository {
    }
 
    /**
+    * Bug #77692, saves the tokens a data source obtained at runtime onto a copy of its stored
+    * definition, never the runtime instance, whose variables may have been substituted.
+    */
+   @Override
+   public void updateDataSourceTokens(XDataSource dx,
+                                      java.util.function.Consumer<XDataSource> apply)
+      throws Exception
+   {
+      String name = dx.getFullName();
+
+      if(name == null) {
+         return;
+      }
+
+      XDataSource stored;
+
+      if(isAdditionalConnectionSave(dx, null)) {
+         // an additional connection is stored under its parent, not at its bare name
+         String parentName = ((AdditionalConnectionDataSource<?>) dx).getBaseDatasource().getFullName();
+         XDataSource parent = getDSRegistry().getDataSource(parentName);
+         stored = parent instanceof AdditionalConnectionDataSource<?> ads ?
+            ads.getDataSource(name) : null;
+      }
+      else {
+         stored = getDSRegistry().getDataSource(name);
+      }
+
+      if(stored == null) {
+         LOG.warn("Data source {} was not found, its tokens are not saved", name);
+         return;
+      }
+
+      XDataSource copy = (XDataSource) stored.clone();
+      apply.accept(copy);
+      // an additional connection copy keeps its base, so it is saved under its parent
+      updateDataSource(copy, name);
+   }
+
+   /**
     * Rename transform assets dependent on the source.
     * @param info the rename dependency info.
     */

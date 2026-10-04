@@ -618,12 +618,14 @@ public class DataSourceRegistry implements MessageListener {
          String additionalName = getJDBCAdditionalConnectionName(dxname);
          String[] additionalNames = additionalName != null ?
             new String[] { additionalName } : getAdditionalConnectionNames(dxname);
+         List<String> additionalResources = getAdditionalConnectionResources(dxname);
          removeObject(new AssetEntry(AssetRepository.QUERY_SCOPE,
                                      AssetEntry.Type.DATA_SOURCE, dxname, null));
          removeObjects(getEntries(dxname + "/"));
          removeObject(new AssetEntry(AssetRepository.QUERY_SCOPE,
             AssetEntry.Type.DATA_MODEL, dxname, null));
          removeConnectionTestQueries(dxname, additionalNames);
+         removeAdditionalConnectionPermissions(additionalResources);
       }
       catch(Exception e) {
          LOG.error(
@@ -986,6 +988,62 @@ public class DataSourceRegistry implements MessageListener {
    }
 
    /**
+    * Gets the permission resources of the additional connections that are removed with a data
+    * source: "parent::name" of a removed additional connection, or "dxname::name" of each
+    * additional connection of a removed data source. Must be called before the entries are
+    * removed. The path may also be a permission resource that is not a registry path, e.g.
+    * "P::add", which has none.
+    */
+   private List<String> getAdditionalConnectionResources(String dxname) {
+      List<String> resources = new ArrayList<>();
+
+      // never keeps the data source from being removed
+      try {
+         if(isAdditionalConnectionPath(dxname)) {
+            int index = dxname.lastIndexOf('/');
+            resources.add(dxname.substring(0, index) + XUtil.ADDITIONAL_DS_CONNECTOR +
+                             dxname.substring(index + 1));
+         }
+         else if(getDataSource(dxname) instanceof AdditionalConnectionDataSource) {
+            for(String name : getAdditionalConnectionNames(dxname)) {
+               resources.add(dxname + XUtil.ADDITIONAL_DS_CONNECTOR + name);
+            }
+         }
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to get the additional connections of data source {}", dxname, e);
+      }
+
+      return resources;
+   }
+
+   /**
+    * Removes the permissions of removed additional connections, so that an additional
+    * connection created later with the same name doesn't get them.
+    */
+   private void removeAdditionalConnectionPermissions(List<String> resources) {
+      if(resources.isEmpty()) {
+         return;
+      }
+
+      SecurityEngine engine = SecurityEngine.getSecurity();
+      SecurityProvider provider = engine == null ? null : engine.getSecurityProvider();
+
+      if(engine == null || provider != null && provider.isVirtual()) {
+         return;
+      }
+
+      for(String resource : resources) {
+         try {
+            engine.removePermission(ResourceType.DATA_SOURCE, resource);
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to remove the permission of additional connection {}", resource, e);
+         }
+      }
+   }
+
+   /**
     * Removes the connection test queries of a removed data source and of its additional
     * connections, or of a removed additional connection. The test query of an additional
     * connection is kept under its name alone, so it is not removed if a data source of that full
@@ -1055,11 +1113,59 @@ public class DataSourceRegistry implements MessageListener {
             getEntries(oname + "/", AssetEntry.Type.DATA_SOURCE);
          AssetEntry[] allFolderChildren =
             getEntries(oname + "/", AssetEntry.Type.DATA_SOURCE_FOLDER);
+         // Decided before anything is renamed, from the entries only (no data source is loaded,
+         // so a parent whose connector isn't installed or that can't be read counts too): an
+         // additional connection is a data source entry whose parent path is a data source
+         // entry. This is the structural rule only. When a data source and a folder share a
+         // path, a data source of that folder is taken for an additional connection too.
+         Set<String> dsPaths = new HashSet<>();
 
          for(AssetEntry entry : allDSChildren) {
+            dsPaths.add(entry.getPath());
+         }
+
+         List<AssetEntry> additionals = new ArrayList<>();
+         Set<String> additionalPaths = new HashSet<>();
+
+         for(AssetEntry entry : allDSChildren) {
+            String path = entry.getPath();
+            int index = path.lastIndexOf('/');
+
+            if(index > 0 && dsPaths.contains(path.substring(0, index))) {
+               additionals.add(entry);
+               additionalPaths.add(path);
+            }
+         }
+
+         // a data source before its additional connections, as in removeDataSourceFolder
+         Arrays.sort(allDSChildren, Comparator.comparing(AssetEntry::getPath));
+
+         for(AssetEntry entry : allDSChildren) {
+            // an additional connection is moved by its parent's renameObjects, together with its
+            // "parent::name" permission. Renamed on its own, it would keep the permission under
+            // the old key and get the full path as its name.
+            if(additionalPaths.contains(entry.getPath())) {
+               continue;
+            }
+
             String opath = entry.getPath();
             String npath = nname + opath.substring(oname.length());
             renameDatasource(opath, npath);
+         }
+
+         // an additional connection still at its old path: its parent wasn't renamed, e.g. its
+         // connector isn't installed or it can't be read. The renameObjects below moves the
+         // entry but not the "parent::name" permission.
+         for(AssetEntry entry : additionals) {
+            if(containObject(entry)) {
+               String opath = entry.getPath();
+               int index = opath.lastIndexOf('/');
+               String oparent = opath.substring(0, index);
+               String nparent = nname + oparent.substring(oname.length());
+               String name = opath.substring(index + 1);
+               updatePermission(ResourceType.DATA_SOURCE, oparent + "::" + name,
+                                nparent + "::" + name);
+            }
          }
 
          for(AssetEntry entry : allFolderChildren) {
@@ -1335,12 +1441,15 @@ public class DataSourceRegistry implements MessageListener {
       }
 
       try {
+         // read before the additional connections of the data source are removed below
+         List<String> additionalResources = getAdditionalConnectionResources(datasource);
          //Remove all children. Because of the appended "/", the domain (if
          //present) won't be affected.
          removeObjects(getEntries(datasource + "/"));
          AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
                                            AssetEntry.Type.DATA_MODEL, datasource, null);
          removeObject(entry);
+         removeAdditionalConnectionPermissions(additionalResources);
       }
       catch(Exception e) {
          LOG.error(

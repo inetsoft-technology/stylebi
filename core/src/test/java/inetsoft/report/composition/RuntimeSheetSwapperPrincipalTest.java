@@ -122,7 +122,7 @@ class RuntimeSheetSwapperPrincipalTest {
       return result.get();
    }
 
-   // a swapper thread that starts after a swappable is registered waits until it is notified
+   // notify the swapper threads so they sweep before their timed wait ends
    private static boolean awaitSwap(XSwapper swapper, CountDownLatch swapped) throws Exception {
       Field field = XSwapper.class.getDeclaredField("swapLock");
       field.setAccessible(true);

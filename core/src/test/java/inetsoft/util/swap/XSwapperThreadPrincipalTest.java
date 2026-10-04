@@ -106,8 +106,7 @@ class XSwapperThreadPrincipalTest {
    }
 
    /**
-    * Wait for the swap. A swapper thread that starts after a swappable is registered waits
-    * until it is notified.
+    * Wait for the swap. Notify the swapper threads so they sweep before their timed wait ends.
     */
    static boolean awaitSwap(XSwapper swapper, CountDownLatch swapped) throws Exception {
       Field field = XSwapper.class.getDeclaredField("swapLock");

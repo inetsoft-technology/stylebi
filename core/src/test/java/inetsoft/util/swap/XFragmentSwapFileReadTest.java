@@ -26,10 +26,14 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.util.Random;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.*;
 import static org.mockito.Mockito.*;
 
 /**
@@ -75,18 +79,27 @@ class XFragmentSwapFileReadTest {
    void intFragmentIsReadOnceSwapFileIsReadableAgain() {
       XIntFragment fragment = createSwappedIntFragment();
       File file = intSwapFile(fragment);
-      assertTrue(file.setReadable(false), "swap file was not made unreadable");
 
       try {
-         assertThrows(SwapFileReadException.class, () -> fragment.getSafely(5));
+         // windows has no read permission to remove
+         assumeTrue(file.setReadable(false), "file read permission is not supported");
+
+         try {
+            // root reads the file anyway
+            assumeFalse(canRead(file), "swap file is still readable");
+            assertThrows(SwapFileReadException.class, () -> fragment.getSafely(5));
+         }
+         finally {
+            // restore without an assert that could replace the test's own failure
+            file.setReadable(true);
+         }
+
+         assertEquals(1005, fragment.getSafely(5));
+         assertEquals(100, fragment.size());
       }
       finally {
-         assertTrue(file.setReadable(true));
+         fragment.dispose();
       }
-
-      assertEquals(1005, fragment.getSafely(5));
-      assertEquals(100, fragment.size());
-      fragment.dispose();
    }
 
    @Test
@@ -293,6 +306,16 @@ class XFragmentSwapFileReadTest {
       return fragment.getFile(fragment.prefix + "_0.tdat");
    }
 
+   private static boolean canRead(File file) {
+      try(FileInputStream input = new FileInputStream(file)) {
+         input.read();
+         return true;
+      }
+      catch(IOException ex) {
+         return false;
+      }
+   }
+
    private static void truncate(File file, long length) throws Exception {
       try(RandomAccessFile raf = new RandomAccessFile(file, "rw")) {
          raf.setLength(length);
@@ -300,13 +323,29 @@ class XFragmentSwapFileReadTest {
    }
 
    private static void withReadOnlyDirectory(File dir, Runnable action) {
-      assertTrue(dir.setWritable(false), "cache directory was not made read-only");
+      // windows does not change the permissions of a directory
+      assumeTrue(dir.setWritable(false), "directory write permission is not supported");
 
       try {
+         // root creates files in it anyway
+         assumeFalse(canCreate(new File(dir, "probe-" + UUID.randomUUID() + ".tmp")),
+                     "cache directory is still writable");
          action.run();
       }
       finally {
-         assertTrue(dir.setWritable(true));
+         // restore without an assert that could replace the test's own failure
+         dir.setWritable(true);
+      }
+   }
+
+   private static boolean canCreate(File file) {
+      try {
+         boolean created = file.createNewFile();
+         file.delete();
+         return created;
+      }
+      catch(IOException ex) {
+         return false;
       }
    }
 

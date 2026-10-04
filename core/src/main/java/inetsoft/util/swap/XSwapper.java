@@ -1094,7 +1094,8 @@ public final class XSwapper {
       protected void doRun() {
          try {
             int state = GOOD_MEM;
-            long waitTime = 0;
+            // Bug #77682, wait(0) never times out, so every wait must have a timeout
+            long waitTime = 5000;
             swapping.set(true);
 
             outer:
@@ -1147,6 +1148,7 @@ public final class XSwapper {
                      }
                   }
 
+                  waitTime = 5000;
                   continue;
                }
 
@@ -1436,7 +1438,8 @@ public final class XSwapper {
 
    private final Lock waitLock = new ReentrantLock();
    private final Condition waitCondition = waitLock.newCondition();
-   private final Object swapLock = "swapLock";
+   // Bug #77682, not a string literal, which is interned and shared by every instance
+   private final Object swapLock = new Object();
 
    private final AtomicLong counter = new AtomicLong(0);
    private final ThreadLocal<Boolean> swapping = ThreadLocal.withInitial(() -> false);
