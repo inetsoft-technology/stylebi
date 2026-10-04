@@ -697,20 +697,7 @@ class UniformSQLCrossJoinChainTest {
     */
    static Stream<String> mainShapes() {
       return Stream.of(
-         X_RIGHT + "where exists (select 1 from p cross join q)",
-         X_RIGHT + "where exists (select 1 from (p join q on p.id = q.id) left join r " +
-            "on q.id = r.id)",
-         X_RIGHT + "where x.id in (select p.id from p, q, r)",
-         GROUP_RIGHT + "where exists (select 1 from p cross join q)",
-         COLS4 + "from a join b on a.id = b.id join ((c right join d on c.id = d.id))",
-         COLS4 + "from a left join b on a.id = b.id join (c right join d on c.id = d.id)",
-         "select x.id from x, p cross join q where exists (select 1 from a join b on a.id = b.id " +
-            "join (c right join d on c.id = d.id) where a.id = x.id)",
-         "select a.id, b.id, t.id from (select d.id from x, c right join d on c.id = d.id) t, " +
-            "a cross join b",
          // comma lists, chains, SQLHelper output and Oracle joins
-         COLS4 + "from a join b on a.id = b.id, c right join d on c.id = d.id",
-         COLS4 + "from a INNER JOIN b ON a.id = b.id , c RIGHT OUTER JOIN d ON c.id = d.id",
          COLS4 + "from c RIGHT OUTER JOIN d ON c.id = d.id , a, b",
          COLS3 + "from (a INNER JOIN b ON a.id = b.id ) LEFT OUTER JOIN c ON b.id = c.id",
          COLS4 + "from a INNER JOIN (c FULL OUTER JOIN d ON c.id = d.id ) ON a.id = c.id, b",
@@ -722,10 +709,65 @@ class UniformSQLCrossJoinChainTest {
          // the from clauses of leftJoinAfterFromItem with no new syntax (review r4)
          "select a.id, c.id, x.id from x, a left join c on a.id = c.id",
          COLS3 + "from a join b left join c on b.id = c.id",
-         COLS4 + "from d, a join (b left join c on b.id = c.id) on a.id = b.id",
-         // the from clause of rightJoinAtFromStart with no new syntax (review r5)
+         COLS4 + "from d, a join (b left join c on b.id = c.id) on a.id = b.id"
+      );
+   }
+
+   /**
+    * The from clauses of mainShapes that parsed before Bug #77675 with a RIGHT join group
+    * after a comma, which SQLite reads with the precedence of a JOIN. They are refused
+    * (SQLHelperCommaJoinGroupTest).
+    */
+   static Stream<String> commaRightJoinShapes() {
+      return Stream.of(
+         X_RIGHT + "where exists (select 1 from p cross join q)",
+         X_RIGHT + "where exists (select 1 from (p join q on p.id = q.id) left join r " +
+            "on q.id = r.id)",
+         X_RIGHT + "where x.id in (select p.id from p, q, r)",
+         "select a.id, b.id, t.id from (select d.id from x, c right join d on c.id = d.id) t, " +
+            "a cross join b",
+         COLS4 + "from a join b on a.id = b.id, c right join d on c.id = d.id",
+         COLS4 + "from a INNER JOIN b ON a.id = b.id , c RIGHT OUTER JOIN d ON c.id = d.id"
+      );
+   }
+
+   @ParameterizedTest
+   @MethodSource("commaRightJoinShapes")
+   void commaRightJoinShapeIsRefused(String text) {
+      for(String type : new String[] { "h2", "mysql-ansi", "postgresql", "mongo" }) {
+         assertRefused(text, dataSource(type), type);
+      }
+   }
+
+   /**
+    * The from clauses of mainShapes whose only RIGHT join group SQLHelper wrote after another
+    * join group (a join (c right join d on ..), and the B5 and B6 shapes, the known gap of
+    * review r4/r5). They parse, and the group is written first (Bug #77675,
+    * SQLHelperCommaJoinGroupTest compares their rows).
+    */
+   static Stream<String> movedRightJoinGroupShapes() {
+      return Stream.of(
+         GROUP_RIGHT + "where exists (select 1 from p cross join q)",
+         COLS4 + "from a join b on a.id = b.id join ((c right join d on c.id = d.id))",
+         COLS4 + "from a left join b on a.id = b.id join (c right join d on c.id = d.id)",
+         "select x.id from x, p cross join q where exists (select 1 from a join b on a.id = b.id " +
+            "join (c right join d on c.id = d.id) where a.id = x.id)",
+         // the B5 shape, d left join (c join e ..) after a join group, is checked without the
+         // round trip in mainLeftJoinOverNestedJoinRegeneratesAsBefore
          B6_RIGHT.trim()
       );
+   }
+
+   @ParameterizedTest
+   @MethodSource("movedRightJoinGroupShapes")
+   void movedRightJoinGroupShapeParses(String text) throws Exception {
+      for(String type : new String[] { "h2", "mysql-ansi", "postgresql", "mongo" }) {
+         JDBCDataSource ds = dataSource(type);
+         UniformSQL sql = parse(text, ds);
+         assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult(), type + ": " + text);
+         assertFalse(sql.isLossy(), type + ": " + text);
+         assertRoundTrip(regenerate(sql), ds);
+      }
    }
 
    @ParameterizedTest
@@ -751,9 +793,10 @@ class UniformSQLCrossJoinChainTest {
       "select c.id, d.id, e.id, x.id from x, d left join (c join e on c.id = e.id) on d.id = c.id" +
          "|select c.id, d.id, e.id, x.id from (c INNER JOIN e ON c.id = e.id ) RIGHT OUTER JOIN " +
          "d ON d.id = c.id , x",
+      // the RIGHT join group is written before the other group (Bug #77675)
       "select a.id, b.id, c.id, d.id, e.id from a join b on a.id = b.id, d left join (c join e " +
-         "on c.id = e.id) on d.id = c.id|select a.id, b.id, c.id, d.id, e.id from a INNER JOIN b " +
-         "ON a.id = b.id , (c INNER JOIN e ON c.id = e.id ) RIGHT OUTER JOIN d ON d.id = c.id"
+         "on c.id = e.id) on d.id = c.id|select a.id, b.id, c.id, d.id, e.id from (c INNER JOIN " +
+         "e ON c.id = e.id ) RIGHT OUTER JOIN d ON d.id = c.id , a INNER JOIN b ON a.id = b.id"
    })
    void mainLeftJoinOverNestedJoinRegeneratesAsBefore(String text, String expected) throws Exception {
       UniformSQL sql = parse(text, dataSource("h2"));
@@ -785,12 +828,15 @@ class UniformSQLCrossJoinChainTest {
          "Unsupported RIGHT or FULL join after a join without a join condition"), ex.getMessage());
    }
 
+   // a RIGHT or FULL join of a from item after a comma is refused at the end of the item
+   // whatever the syntax of the statement (Bug #77675), before the statement is checked
    @ParameterizedTest
    @MethodSource({ "rightJoinAfterFromItem", "rightJoinElsewhereInStatement" })
    void rightJoinAfterFromItemIsRefused(String text) {
       Exception ex = assertThrows(Exception.class, () -> parse(text, dataSource("mysql")));
       assertTrue(ex.getMessage().contains(
-         "Unsupported RIGHT or FULL join after another from item"), ex.getMessage());
+         "Unsupported RIGHT or FULL join after another from item") || ex.getMessage().contains(
+         "Unsupported RIGHT or FULL join in a from item after a comma"), ex.getMessage());
    }
 
    // a statement with a FULL join too (L11, L12) reports the RIGHT or FULL join first
@@ -894,17 +940,18 @@ class UniformSQLCrossJoinChainTest {
       "statement with a cross join chain or a parenthesized join";
 
    /**
-    * The from clause of the B6 shapes with no new syntax parses and regenerates as before,
-    * the RIGHT join group after the inner join group (the known gap on main, review r5).
+    * The from clause of the B6 shapes with no new syntax parses. It regenerated the RIGHT join
+    * group after the inner join group (the known gap on main, review r5), which SQLite reads
+    * with the precedence of a JOIN, and now writes it first (Bug #77675).
     */
    @Test
-   void mainRightJoinFirstRegeneratesAsBefore() throws Exception {
+   void mainRightJoinFirstRegeneratesFirst() throws Exception {
       String text = B6_RIGHT.trim();
       UniformSQL sql = parse(text, dataSource("h2-ansi"));
       assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult(), text);
       assertFalse(sql.isLossy(), text);
-      assertEquals("select c.id, d.id, p.id, q.id, r.id from p INNER JOIN q ON p.id = q.id AND " +
-         "p.k = q.k , c RIGHT OUTER JOIN d ON c.id = d.id , r", regenerate(sql));
+      assertEquals("select c.id, d.id, p.id, q.id, r.id from c RIGHT OUTER JOIN d ON c.id = d.id " +
+         ", p INNER JOIN q ON p.id = q.id AND p.k = q.k , r", regenerate(sql));
    }
 
    @ParameterizedTest
@@ -1043,6 +1090,17 @@ class UniformSQLCrossJoinChainTest {
          sql.setDataSource(ds);
          sql.clearSQLString();
          String generated = normalize(sql.getSQLString());
+
+         // a second RIGHT or FULL join group is written in parentheses, which the parser
+         // refuses, so the sql runs as written (Bug #77675, SQLHelperCommaJoinGroupTest).
+         // Oracle without ansi join writes RIGHT joins with (+)
+         if(model.matches("a-b:(=\\*|\\*=\\*),c-d:(=\\*|\\*=\\*)") &&
+            generated.contains(" OUTER JOIN "))
+         {
+            assertRefused(generated, ds, type);
+            continue;
+         }
+
          UniformSQL reparsed = parse(generated, ds);
          assertEquals(UniformSQL.PARSE_SUCCESS, reparsed.getParseResult(), type + ": " + generated);
          assertFalse(reparsed.isLossy(), type + ": " + generated);

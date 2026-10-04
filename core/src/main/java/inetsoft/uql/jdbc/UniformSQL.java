@@ -465,18 +465,13 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       for(Object obj : parser.getJoinOrderChecks()) {
          UniformSQL query = (UniformSQL) obj;
          String structure = null;
+         boolean commaGroupsNotMovable = false;
 
          try {
             if(source != null) {
-               // generate a copy, generateSentence changes the query (aliases, order by),
-               // and don't connect to the database for the product name or version,
-               // which don't change the joins
-               UniformSQL copy = query.clone();
-               copy.setDataSource(source);
-               SQLHelper helper = SQLHelper.getSQLHelper(SQLHelper.getProductName(source, true));
-               helper.setAnsiJoin(source.isAnsiJoin());
-               helper.setUniformSql(copy);
-               String generated = helper.generateSentence();
+               SQLHelper helper = getCheckSQLHelper(source);
+               String generated = generateCheckSQL(query, source, helper);
+               commaGroupsNotMovable = helper.isCommaGroupsNotMovable();
 
                UniformSQL regenerated = new UniformSQL();
                regenerated.setDataSource(source);
@@ -493,7 +488,139 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          }
 
          parser.checkJoinOrder(query, structure);
+         parser.checkCommaJoinGroups(query, commaGroupsNotMovable);
       }
+
+      checkCommaJoinGroups(parser);
+   }
+
+   /**
+    * Check that the regenerated sql of each query with an outer join that the join order
+    * check doesn't regenerate needs at most to move its only RIGHT or FULL join group before
+    * its other comma separated join groups (Bug #77675). Without a data source, its sql is
+    * checked with the base sql helper, which writes the join groups of every ANSI helper
+    * except MongoHelper the same way. A query whose sql can't be generated is refused, like
+    * the join order check does.
+    * @return true if the sql of any query was generated to check it.
+    */
+   private boolean checkCommaJoinGroups(SQLParser parser) throws Exception {
+      JDBCDataSource source = getDataSource();
+      boolean checked = false;
+
+      for(Object obj : parser.getCommaJoinGroupChecks()) {
+         UniformSQL query = (UniformSQL) obj;
+
+         // a single join group is never reordered, don't generate it (or the subqueries of
+         // the query, whose sql helper may connect to the database for its version)
+         if(!hasSeveralJoinGroups(query)) {
+            continue;
+         }
+
+         boolean commaGroupsNotMovable = true;
+         checked = true;
+
+         try {
+            SQLHelper helper = source != null ? getCheckSQLHelper(source) : new SQLHelper();
+            generateCheckSQL(query, source, helper);
+            commaGroupsNotMovable = helper.isCommaGroupsNotMovable();
+         }
+         catch(Exception ex) {
+            LOG.debug("Failed to generate the sql to check its join groups", ex);
+         }
+
+         parser.checkCommaJoinGroups(query, commaGroupsNotMovable);
+      }
+
+      return checked;
+   }
+
+   /**
+    * Check if the joins of a query connect its tables into two or more join groups, which
+    * SQLHelper writes as comma separated groups. A join whose tables are unknown counts as a
+    * group of its own.
+    */
+   private static boolean hasSeveralJoinGroups(UniformSQL query) {
+      XJoin[] joins = query.getJoins();
+
+      if(joins == null || joins.length < 2) {
+         return false;
+      }
+
+      Map<String, String> parents = new HashMap<>();
+      int groups = 0;
+
+      for(XJoin join : joins) {
+         String table1 = join.getTable1(query);
+         String table2 = join.getTable2(query);
+
+         if(table1 == null || table2 == null) {
+            return true;
+         }
+
+         String root1 = findJoinGroup(parents, table1);
+         String root2 = findJoinGroup(parents, table2);
+
+         if(root1 == null) {
+            parents.put(table1, table1);
+            root1 = table1;
+            groups++;
+         }
+
+         if(root2 == null) {
+            parents.put(table2, table2);
+            root2 = table2;
+            groups++;
+         }
+
+         if(!root1.equals(root2)) {
+            parents.put(root2, root1);
+            groups--;
+         }
+      }
+
+      return groups > 1;
+   }
+
+   /**
+    * Find the first table of the join group of a table, null if the table isn't in a group.
+    */
+   private static String findJoinGroup(Map<String, String> parents, String table) {
+      String parent = parents.get(table);
+
+      while(parent != null && !parent.equals(table)) {
+         table = parent;
+         parent = parents.get(table);
+      }
+
+      return parent;
+   }
+
+   /**
+    * Get the sql helper of a data source to check the regenerated sql of a parsed query,
+    * without connecting to the database for the product name or version, which don't change
+    * the joins.
+    */
+   private static SQLHelper getCheckSQLHelper(JDBCDataSource source) {
+      SQLHelper helper = SQLHelper.getSQLHelper(SQLHelper.getProductName(source, true));
+      helper.setAnsiJoin(source.isAnsiJoin());
+      return helper;
+   }
+
+   /**
+    * Generate the sql of a copy of a parsed query, the way a merge generates it. A copy,
+    * since generateSentence changes the query (aliases, order by).
+    */
+   private static String generateCheckSQL(UniformSQL query, JDBCDataSource source,
+                                          SQLHelper helper)
+   {
+      UniformSQL copy = query.clone();
+
+      if(source != null) {
+         copy.setDataSource(source);
+      }
+
+      helper.setUniformSql(copy);
+      return helper.generateSentence();
    }
 
    /**
@@ -5246,6 +5373,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          SQLParser parser = new SQLParser(lexer);
          UniformSQL sql = new UniformSQL();
          sql.setDataSource(getDataSource());
+         boolean commaGroupsChecked = false;
 
          try {
             parseUnquoted(() -> parser.direct_select_stmt_n_rows(sql));
@@ -5255,12 +5383,25 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             if(sql.getDataSource() != null) {
                sql.checkJoinOrders(parser, PARSE_PERIOD);
             }
+            else {
+               // checked with the base sql helper, which may differ from the data source's
+               // (e.g. Oracle without ansi join writes (+) joins), so the result isn't cached
+               try {
+                  commaGroupsChecked = sql.checkCommaJoinGroups(parser);
+               }
+               catch(antlr.SemanticException ex) {
+                  return true;
+               }
+            }
 
             boolean result = (sql.lossy != null && sql.lossy) || isLegacyCycleJoins();
 
-            // a check skipped for the missing data source isn't cached, so it runs once a
-            // caller sets the data source (e.g. BoundQuery checks lossy before setting it)
-            if(sql.getDataSource() == null && !parser.getJoinOrderChecks().isEmpty()) {
+            // a check skipped (or done with the base sql helper) for the missing data source
+            // isn't cached, so it runs once a caller sets the data source (e.g. BoundQuery
+            // checks lossy before setting it)
+            if(sql.getDataSource() == null &&
+               (!parser.getJoinOrderChecks().isEmpty() || commaGroupsChecked))
+            {
                return result;
             }
 

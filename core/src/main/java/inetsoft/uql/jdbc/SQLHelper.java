@@ -753,6 +753,8 @@ public class SQLHelper implements KeywordProvider {
       vJoin = null;
       textJoinOrder = null;
       ansiWhereJoins = null;
+      commaGroupsChanged = false;
+      commaGroupsNotMovable = false;
 
       // make sure the table aliases don't exceed database limit
       fixTableAliases();
@@ -2275,6 +2277,11 @@ public class SQLHelper implements KeywordProvider {
       List<XJoin> pending = new ArrayList<>();
       // true if the last join step is a right join that the pending conditions go into
       boolean lastRight = false;
+      // the [start, end] of each comma separated group in from, and if it has a RIGHT or FULL
+      // join step outside of parentheses
+      List<int[]> groupRanges = new ArrayList<>();
+      List<Boolean> groupRightOrFull = new ArrayList<>();
+      boolean rightOrFull = false;
 
       for(int i = 0; i < count; i++) {
          if(joinCount >= jsize) {
@@ -2321,6 +2328,7 @@ public class SQLHelper implements KeywordProvider {
                   top = from.length();
                }
 
+               rightOrFull = false;
                boolean newTables = true;
                XJoin previousJoin = null;
 
@@ -2381,6 +2389,7 @@ public class SQLHelper implements KeywordProvider {
                      appendJoinClause(from, join, op, tableOne, tableTwo, top, previousJoin);
 
                      if(newTables) {
+                        rightOrFull = isTopRightOrFull(rightOrFull, op, tableOne == null);
                         lastJoin = join;
                         lastTable = (SelectTable) (traverse ? table1[1] : table2[1]);
                         lastTablePreserved = isPreservedTable(join, traverse);
@@ -2445,6 +2454,8 @@ public class SQLHelper implements KeywordProvider {
                   }
 
                   pending.clear();
+                  groupRanges.add(new int[] { top, from.length() });
+                  groupRightOrFull.add(rightOrFull);
 
                   // if we reach here that means no related joins found
                   // moved ahead to find other groups
@@ -2455,7 +2466,135 @@ public class SQLHelper implements KeywordProvider {
          }
       }
 
+      List<String> groups = new ArrayList<>();
+
+      for(int[] range : groupRanges) {
+         groups.add(from.substring(range[0], range[1]));
+      }
+
+      // the groups are separated by commas only, see generateFromClauseText
+      if(String.join(COMMA_GAP, groups).contentEquals(from)) {
+         from = new StringBuilder(String.join(COMMA_GAP, orderCommaGroups(groups, groupRightOrFull)));
+      }
+
       return finishFromClause(from, usedtables, count);
+   }
+
+   /**
+    * Check if a join group has a RIGHT or FULL join step outside of parentheses, after a
+    * step is added to it.
+    * @param rightOrFull if the group had one before the step.
+    * @param op the ANSI join of the step.
+    * @param joinsGroup true if the step joins a table to the group, false if it starts the
+    * group. appendJoinClause puts the group before such a step in parentheses, unless the
+    * database doesn't support them (MongoHelper).
+    */
+   private boolean isTopRightOrFull(boolean rightOrFull, String op, boolean joinsGroup) {
+      if(joinsGroup && isJoinParenthesesSupported()) {
+         rightOrFull = false;
+      }
+
+      return rightOrFull || isRightOrFullJoin(op);
+   }
+
+   private static boolean isRightOrFullJoin(String op) {
+      return " RIGHT OUTER JOIN ".equals(op) || " FULL OUTER JOIN ".equals(op);
+   }
+
+   /**
+    * Order the comma separated join groups of a from clause so no group after a comma has a
+    * RIGHT or FULL join outside of parentheses. SQLite and HSQLDB give a comma and a JOIN the
+    * same precedence and read x, c RIGHT OUTER JOIN d ON .. as (x, c) RIGHT OUTER JOIN d ON ..,
+    * which null-extends the rows of x once instead of joining every row of x, so it returns
+    * different rows than x, (c RIGHT OUTER JOIN d ON ..), the way the other databases read it.
+    * An INNER or LEFT join of a group after a comma returns the same rows either way, since
+    * its condition only names the tables of its group (Bug #77675).
+    * <p>
+    * The first such group is moved before the other groups, which returns the same rows,
+    * as the groups are independent. Any other such group is put in parentheses, e.g. a FULL
+    * join group after another FULL join group. When the select list has a * column, every
+    * such group after the first group is put in parentheses instead of moving one, which would
+    * change the order of its columns. A database without join parentheses (MongoHelper)
+    * gets only the move.
+    * @param groups the text of each group, in from order.
+    * @param rightOrFull for each group, if it has a RIGHT or FULL join outside of parentheses.
+    * @return the groups in their new order.
+    */
+   private List<String> orderCommaGroups(List<String> groups, List<Boolean> rightOrFull) {
+      int first = rightOrFull.indexOf(Boolean.TRUE);
+
+      if(first < 0 || first == 0 && rightOrFull.lastIndexOf(Boolean.TRUE) == 0) {
+         return groups;
+      }
+
+      boolean parens = isJoinParenthesesSupported();
+      boolean star = isStarSelected();
+      boolean move = !parens || !star;
+      List<String> ordered = new ArrayList<>();
+
+      if(move) {
+         ordered.add(groups.get(first));
+      }
+
+      for(int i = 0; i < groups.size(); i++) {
+         if(move && i == first) {
+            continue;
+         }
+
+         boolean nested = parens && rightOrFull.get(i) && !ordered.isEmpty();
+         ordered.add(nested ? "(" + groups.get(i) + ")" : groups.get(i));
+      }
+
+      commaGroupsChanged = true;
+      // moving the only such group returns the same rows and columns, anything else leaves a
+      // group after a comma (in parentheses, or not on MongoHelper) or changes the order of
+      // the * columns
+      commaGroupsNotMovable = star || rightOrFull.indexOf(Boolean.TRUE) !=
+         rightOrFull.lastIndexOf(Boolean.TRUE);
+      return ordered;
+   }
+
+   /**
+    * Check if the select list has a * column (* or t.*), whose columns are in from order.
+    */
+   private boolean isStarSelected() {
+      XSelection selection = uniformSql.getSelection();
+      int count = selection == null ? 0 : selection.getColumnCount();
+
+      if(count == 0) {
+         return true;
+      }
+
+      for(int i = 0; i < count; i++) {
+         String column = selection.getColumn(i);
+
+         if(column != null && (column.trim().equals("*") || column.trim().endsWith(".*"))) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Check if the last generated sql moved or parenthesized a comma separated join group of a
+    * from clause (orderCommaGroups), which needs the joins of the query to be independent of
+    * the order of its from items. A parsed query isn't: SQLite reads the commas of the
+    * original sql with the precedence of a JOIN (Bug #77675).
+    */
+   public boolean isCommaGroupsChanged() {
+      return commaGroupsChanged;
+   }
+
+   /**
+    * Check if the last generated sql changed the comma separated join groups of a from clause
+    * (isCommaGroupsChanged) other than by moving its only group with a RIGHT or FULL join
+    * outside of parentheses to the front: it has two or more such groups, so one of them is
+    * still after a comma (in parentheses, or without them on MongoHelper), or its select list
+    * has a * column, so the group is put in parentheses or its columns are reordered.
+    */
+   public boolean isCommaGroupsNotMovable() {
+      return commaGroupsNotMovable;
    }
 
    /**
@@ -2605,18 +2744,18 @@ public class SQLHelper implements KeywordProvider {
          }
       }
 
-      StringBuilder from = new StringBuilder();
       Set<Object> usedtables = new HashSet<>();
+      List<String> texts = new ArrayList<>();
+      List<Boolean> rightOrFull = new ArrayList<>();
 
       for(TextJoinGroup group : groups) {
-         if(from.length() > 0) {
-            from.append(COMMA_GAP);
-         }
-
-         from.append(group.text);
+         texts.add(group.text.toString());
+         rightOrFull.add(group.rightOrFull);
          usedtables.addAll(group.tables);
       }
 
+      StringBuilder from =
+         new StringBuilder(String.join(COMMA_GAP, orderCommaGroups(texts, rightOrFull)));
       return finishFromClause(from, usedtables, count);
    }
 
@@ -2688,6 +2827,7 @@ public class SQLHelper implements KeywordProvider {
          group.first = tables[traverse ? 1 : 0][1];
          group.firstName = (String) tables[traverse ? 1 : 0][0];
          group.leftDeep = isInnerOrLeftJoin(op);
+         group.rightOrFull = isRightOrFullJoin(op);
          appendTextJoins(group, step, anchor, op, group.firstName,
                          (String) tables[traverse ? 0 : 1][0]);
          groups.add(group);
@@ -2706,6 +2846,7 @@ public class SQLHelper implements KeywordProvider {
          group = joined.iterator().next();
          String op = getAnsiJoin(anchor.getOp(), traverse);
          group.leftDeep = group.leftDeep && isInnerOrLeftJoin(op);
+         group.rightOrFull = isTopRightOrFull(group.rightOrFull, op, true);
          appendTextJoins(group, step, anchor, op, null, names.get(table));
       }
       else if(newTables.isEmpty() && joined.size() == 2) {
@@ -2743,6 +2884,8 @@ public class SQLHelper implements KeywordProvider {
             }
 
             if(group != null) {
+               // the joins of the right group follow the inner join step without parentheses
+               group.rightOrFull = left.rightOrFull || right.rightOrFull;
                group.tables.addAll(names.keySet());
                return true;
             }
@@ -2758,7 +2901,11 @@ public class SQLHelper implements KeywordProvider {
          // null-extended rows of c and returns wrong rows (#77581)
          group = new TextJoinGroup();
          group.leftDeep = false;
-         appendTextJoins(group, step, anchor, getAnsiJoin(anchor.getOp(), false),
+         String op = getAnsiJoin(anchor.getOp(), false);
+         // the left group is in parentheses, or written without them (MongoHelper), the
+         // right group always is
+         group.rightOrFull = isRightOrFullJoin(op) || !parens && left.rightOrFull;
+         appendTextJoins(group, step, anchor, op,
                          parens ? "(" + left.text + ")" : left.text.toString(),
                          "(" + right.flat + ")");
          group.tables.addAll(left.tables);
@@ -2878,6 +3025,8 @@ public class SQLHelper implements KeywordProvider {
       private String firstName;
       // true if the chain has only inner and left joins and no nested group
       private boolean leftDeep;
+      // true if the group has a RIGHT or FULL join step outside of parentheses
+      private boolean rightOrFull;
    }
 
    /**
@@ -6349,6 +6498,12 @@ public class SQLHelper implements KeywordProvider {
    private List<String> ansiWhereJoins = null;
    // true to generate the ANSI FROM clause without writing joins as cycle conditions
    private boolean noCycleConditions = false;
+   // true if this generation moved or parenthesized a comma separated join group, see
+   // orderCommaGroups (Bug #77675)
+   private boolean commaGroupsChanged = false;
+   // true if commaGroupsChanged did more than move the only RIGHT or FULL join group to the
+   // front, see isCommaGroupsNotMovable (Bug #77675)
+   private boolean commaGroupsNotMovable = false;
    private Map<String, String> aliasmap = null; // old table alias -> new alias
    private String version = "";
    private boolean isFormatSQL; //for test auto case. Test will not format sql.
