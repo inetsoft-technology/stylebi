@@ -226,17 +226,216 @@ class XUtilSentinelSelectListTest {
       }
    }
 
-   // an unset parameter in a select list subquery is left as it is (bound as null)
+   // Bug #77706 (product decision): the subqueries of rowCases are count(*) or max(...)
+   // without group by, which return one row anyway, so the condition of an unset parameter is
+   // removed from them, as from a where clause. Before, it was left as it is (bound as null).
    @ParameterizedTest
    @MethodSource("rowCases")
-   void unsetUnchanged(String sql, String p, String expected) throws Exception {
+   void unsetSingleRowConditionRemoved(String sql, String p, String expected)
+      throws Exception
+   {
+      String removed = removeP(sql);
+      assertFalse(removed.contains("$(p)"), removed);
+
+      try(Connection conn = derby().getConnection()) {
+         for(String type : TYPES) {
+            UniformSQL usql = parse(sql, type);
+            List<String> columns = columns(usql);
+            XUtil.validateConditions(null, usql, new VariableTable(), true, false);
+            // both select lists in the written order: sorted by the column text, the sql
+            // without the condition could put its columns in another order
+            usql.setHint(UniformSQL.HINT_WITHOUT_SORTED_SQL, true);
+            String generated = generate(usql);
+            UniformSQL expectedSQL = parse(removed, type);
+            expectedSQL.setHint(UniformSQL.HINT_WITHOUT_SORTED_SQL, true);
+
+            assertFalse(generated.contains("$(p)"), type + " not removed: " + generated);
+            assertEquals(rows(conn, generate(expectedSQL)), rows(conn, generated),
+                         type + "\ngenerated: " + generated);
+            // the column names, which name the result columns, are kept
+            assertEquals(columns, columns(usql), type);
+         }
+      }
+   }
+
+   // a subquery that may return more than one row, or whose aggregate is in an expression,
+   // keeps the condition of an unset parameter (bound as null), the sentinels are rewritten
+   static Stream<Arguments> notSingleRowCases() {
+      return Stream.of(
+         // not an aggregate
+         Arguments.of("select a.id, (select b.id from b where b.k = $(p)) from a"),
+         Arguments.of("select a.id, (select b.id from b where b.id = a.id and b.k = $(p)) " +
+                         "as x from a"),
+         // grouped
+         Arguments.of("select a.id, " + COUNT + "b.k = $(p) group by b.id) from a"),
+         Arguments.of("select a.id, (select max(b.id) from b where b.k = $(p) " +
+                         "having max(b.id) > 1) from a"),
+         // a window aggregate returns a row for each row
+         Arguments.of("select a.id, (select max(b.id) over (partition by b.k) from b " +
+                         "where b.k = $(p)) from a"),
+         Arguments.of("select a.id, (select count(*) over () from b where b.k = $(p)) from a"),
+         // two columns
+         Arguments.of("select a.id, (select max(b.id), min(b.id) from b where b.k = $(p)) " +
+                         "from a"),
+         // an aggregate in an expression (one row, but not recognized: bound as null)
+         Arguments.of("select a.id, (select count(*) + 1 from b where b.k = $(p)) from a"),
+         Arguments.of("select a.id, (select coalesce(max(b.id), 0) from b " +
+                         "where b.k = $(p)) from a"));
+   }
+
+   @ParameterizedTest
+   @MethodSource("notSingleRowCases")
+   void unsetNotSingleRowUnchanged(String sql) throws Exception {
       for(String type : TYPES) {
          String original = generate(parse(sql, type));
          UniformSQL usql = parse(sql, type);
-         VariableTable vars = new VariableTable();
-         XUtil.validateConditions(null, usql, vars, true, false);
+         XUtil.validateConditions(null, usql, new VariableTable(), true, false);
          assertEquals(original, generate(usql), type);
+
+         // the subquery is reached, a sentinel is rewritten
+         String generated = validate(parse(sql, type), NULL_VALUE);
+         assertFalse(generated.contains("$(p)"), type + " not rewritten: " + generated);
       }
+   }
+
+   // the vpm path keeps every condition of an unset parameter, single row or not
+   @Test
+   void vpmPathUnsetUnchanged() throws Exception {
+      String sql = "select a.id, " + COUNT + "b.k = $(p)) from a";
+
+      for(String type : TYPES) {
+         UniformSQL usql = parse(sql, type);
+         XUtil.validateConditions(null, usql, new VariableTable(), true, true);
+         assertEquals(generate(parse(sql, type)), generate(usql), type);
+      }
+   }
+
+   // Bug #77706: through XSessionManager and JDBCHandler on Derby, an unset parameter in a
+   // single row subquery of the select list removes its condition, in any other subquery it's
+   // bound as null. Rows of b: id 1, 1, 3, 3, 1, 3, 5, 5, 5, 7.
+   static Stream<Arguments> unsetRowCases() {
+      return Stream.of(
+         // all rows of b of the id (0 with the condition bound as null)
+         Arguments.of("select a.id, " + COUNT + "b.id = a.id and b.k = $(p)) as cnt from a",
+                      List.of("1|3", "3|3", "5|3")),
+         Arguments.of("select a.id, " + COUNT + "b.id <= a.id and b.k = $(p)) as cnt from a",
+                      List.of("1|3", "3|6", "5|9")),
+         // null with the condition bound as null
+         Arguments.of("select a.id, (select sum(b.id) from b where b.k = $(p)) as s from a",
+                      List.of("1|34", "3|34", "5|34")),
+         Arguments.of("select a.id, (select max(b.id) from b where b.k = $(p)) as m from a",
+                      List.of("1|7", "3|7", "5|7")),
+         Arguments.of("select a.id, (select min(b.id) from b where b.k = $(p)) as m from a",
+                      List.of("1|1", "3|1", "5|1")),
+         // Derby's avg of an int column is an int: 34 / 10
+         Arguments.of("select a.id, (select avg(b.id) from b where b.k = $(p)) as m from a",
+                      List.of("1|3", "3|3", "5|3")),
+         // an aggregate over an expression
+         Arguments.of("select a.id, (select sum(b.id * 2) from b where b.k = $(p)) as s from a",
+                      List.of("1|68", "3|68", "5|68")),
+         // the distinct non-null values of k: '2', '3', '', 'null', 'NULL_VALUE'
+         Arguments.of("select a.id, (select count(distinct b.k) from b where b.k = $(p)) as c " +
+                         "from a", List.of("1|5", "3|5", "5|5")),
+         // in a derived table
+         Arguments.of("select d.id, d.cnt from (select a.id, " + COUNT +
+                         "b.k = $(p)) as cnt from a) d", List.of("1|10", "3|10", "5|10")),
+         // not single row: bound as null (removing it would return more than one row)
+         Arguments.of("select a.id, (select b.id from b where b.k = $(p)) as x from a",
+                      List.of("1|null", "3|null", "5|null")),
+         Arguments.of("select a.id, (select count(*) + 1 from b where b.k = $(p)) as x from a",
+                      List.of("1|1", "3|1", "5|1")));
+   }
+
+   @ParameterizedTest
+   @MethodSource("unsetRowCases")
+   void unsetThroughJDBCHandler(String sql, List<String> expected) throws Exception {
+      UniformSQL usql = parsed(sql);
+      assertEquals(expected, rows(run(usql, new VariableTable())), sql);
+      // the saved query keeps the condition
+      assertTrue(usql.getSQLString().contains("$(p)"), usql.getSQLString());
+      assertNoColumnSQL(usql);
+   }
+
+   // the same saved query run unset, with a value, unset again and with a sentinel: no run
+   // reuses the sql of another
+   @Test
+   void unsetRunSequenceThroughJDBCHandler() throws Exception {
+      UniformSQL usql = parsed("select a.id, " + COUNT + "b.id = a.id and b.k = $(p)) " +
+                                  "as cnt from a");
+      Object[][] runs = {
+         { null, List.of("1|3", "3|3", "5|3") },
+         { "2", List.of("1|2", "3|1", "5|0") },
+         { null, List.of("1|3", "3|3", "5|3") },
+         { NULL_VALUE, List.of("1|1", "3|1", "5|0") },
+         { null, List.of("1|3", "3|3", "5|3") },
+      };
+
+      for(Object[] run : runs) {
+         VariableTable vars = new VariableTable();
+
+         if(run[0] != null) {
+            vars.put("p", run[0]);
+         }
+
+         assertEquals(run[1], rows(run(usql, vars)), "p=" + run[0]);
+         assertTrue(usql.getSQLString().contains("$(p)"), usql.getSQLString());
+         assertNoColumnSQL(usql);
+      }
+   }
+
+   // Bug #77706: the removed condition of a single row select list subquery is not reported as
+   // a changed query. An IN subquery with such a select list and no where clause keeps its
+   // predicate (reported as changed, the IN would be dropped as one without a condition), and
+   // an unset IN subquery inside a single row select list subquery is removed as in a where.
+   static Stream<Arguments> unsetEnclosingCases() {
+      return Stream.of(
+         // min(b.id) of all of b is 1 (null with the condition bound as null: no row)
+         Arguments.of("select a.id from a where a.id in " +
+                         "(select (select min(b.id) from b where b.k = $(p)) from C)",
+                      List.of("1")),
+         // all rows of b of the id (0 with the IN condition bound as null)
+         Arguments.of("select a.id, " + COUNT + "b.id = a.id and b.k in " +
+                         "(select C.K from C where C.K = $(p))) as cnt from a",
+                      List.of("1|3", "3|3", "5|3")));
+   }
+
+   @ParameterizedTest
+   @MethodSource("unsetEnclosingCases")
+   void unsetEnclosingSubqueryThroughJDBCHandler(String sql, List<String> expected)
+      throws Exception
+   {
+      UniformSQL usql = parsed(sql);
+      assertEquals(expected, rows(run(usql, new VariableTable())), sql);
+      // the saved query keeps the condition
+      assertTrue(usql.getSQLString().contains("$(p)"), usql.getSQLString());
+   }
+
+   // the sorted rows of a table lens, the columns joined by |
+   private static List<String> rows(TableLens table) {
+      List<String> rows = new ArrayList<>();
+
+      for(int r = 1; table.moreRows(r); r++) {
+         StringBuilder row = new StringBuilder();
+
+         for(int c = 0; c < table.getColCount(); c++) {
+            row.append(c > 0 ? "|" : "").append(table.getObject(r, c));
+         }
+
+         rows.add(row.toString());
+      }
+
+      Collections.sort(rows);
+      return rows;
+   }
+
+   // the sql without the condition of p, as the rowCases write it
+   private static String removeP(String sql) {
+      return sql.replace(" and b.k = $(p)", "")
+         .replace(" and C.K = $(p)", "")
+         .replace(" where b.k = $(p))", ")")
+         .replace(" where b.k <> $(p))", ")")
+         .replace(" where $(p) = b.k)", ")")
+         .replace(" where b.k in ($(p)))", ")");
    }
 
    // a value that isn't a sentinel is left as it is

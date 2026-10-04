@@ -2807,8 +2807,8 @@ public final class XUtil {
          }
       }
 
-      validateSelectList(query, usql, params, include, source);
-      validateOrderBy(query, usql, params, include, source);
+      validateSelectList(query, usql, params, include, removeUnset, source);
+      validateOrderBy(query, usql, params, include, removeUnset, source);
 
       // the operands with subqueries rewritten by processSpecificCondition
       Map<XExpression, OperandInfo> operands = new IdentityHashMap<>();
@@ -2887,11 +2887,12 @@ public final class XUtil {
     * Rewrite the sentinel parameters in the scalar subqueries of the select list. The parser
     * keeps such a subquery as the text of its column, which names the column and orders the
     * columns of the sorted sql, so the text is kept and the rewritten subquery is generated in
-    * its place (Bug #77620). An unset parameter is left as it is, removing its condition could
-    * make the subquery return more than one row.
+    * its place (Bug #77620). The condition of an unset parameter is removed only if the
+    * subquery returns one row anyway (see rewriteSubqueryText).
     */
    private static void validateSelectList(XQuery query, UniformSQL usql, VariableTable params,
-                                          boolean include, JDBCDataSource source)
+                                          boolean include, boolean removeUnset,
+                                          JDBCDataSource source)
    {
       if(!(usql.getSelection() instanceof JDBCSelection)) {
          return;
@@ -2903,7 +2904,7 @@ public final class XUtil {
          // the sql of an earlier run is for other parameter values
          selection.setColumnSQL(i, null);
          String sql = rewriteSubqueryText(query, selection.getColumn(i), params, include,
-                                          source);
+                                          removeUnset, source);
 
          if(sql != null) {
             selection.setColumnSQL(i, sql);
@@ -2916,10 +2917,11 @@ public final class XUtil {
     * keeps such a subquery as the text of its item, which is matched to the select list and
     * orders the columns of the sorted sql, so the text is kept and the rewritten subquery is
     * generated in its place (Bug #77706). It is rewritten as the same subquery in the select
-    * list is, an unset parameter is left as it is.
+    * list is, an unset parameter included.
     */
    private static void validateOrderBy(XQuery query, UniformSQL usql, VariableTable params,
-                                       boolean include, JDBCDataSource source)
+                                       boolean include, boolean removeUnset,
+                                       JDBCDataSource source)
    {
       Object[] fields = usql.getOrderByFields();
 
@@ -2931,7 +2933,8 @@ public final class XUtil {
             continue;
          }
 
-         String sql = rewriteSubqueryText(query, (String) fields[i], params, include, source);
+         String sql = rewriteSubqueryText(query, (String) fields[i], params, include,
+                                          removeUnset, source);
 
          if(sql != null) {
             usql.setOrderBySQL(i, sql);
@@ -2943,9 +2946,10 @@ public final class XUtil {
     * Rewrite the sentinel parameters in the subqueries of the conditions, e.g.
     * <tt>x in (select ...)</tt>, <tt>exists (select ...)</tt> or <tt>x = (select ...)</tt>,
     * for the pass that keeps the conditions with an unset parameter (a VPM condition, a
-    * select-list subquery, {@link #rewriteSentinels}). The pass that removes them reaches these
-    * subqueries in removeNoParamConditions. A condition is never removed here, in a VPM
-    * condition that would drop a row-security filter (Bug #77706).
+    * select-list or order by subquery that is not single-row, {@link #rewriteSentinels}). The
+    * pass that removes them reaches these subqueries in removeNoParamConditions. A condition
+    * is never removed here, in a VPM condition that would drop a row-security filter
+    * (Bug #77706).
     * <p>
     * A subquery kept as a sql string (a VPM condition's subquery is saved unparsed) is parsed
     * into a copy, and replaced by the copy only if the rewrite changes its sql. The string is
@@ -3015,12 +3019,20 @@ public final class XUtil {
     * Rewrite the parameters in the text of a scalar subquery that the parser keeps as text
     * (a select list column or an order by item). Every such text goes through here, so the
     * same subquery in the select list and the order by list gets the same sql.
+    * <p>
+    * The sentinel parameters are rewritten. If removeUnset, the conditions with a parameter
+    * without a value are removed only if the subquery returns one row anyway (isSingleRow,
+    * e.g. select count(*) from ... without group by). In any other subquery the condition is
+    * kept and the parameter is bound as NULL, removing it could make the subquery return more
+    * than one row (Bug #77706).
     * @param text the text, as the parser generates it.
+    * @param removeUnset <tt>false</tt> to keep the conditions with a parameter without a value.
     * @return the rewritten sql of the subquery, or <tt>null</tt> if the text isn't such a
     * subquery or is not changed.
     */
    private static String rewriteSubqueryText(XQuery query, String text, VariableTable params,
-                                             boolean include, JDBCDataSource source)
+                                             boolean include, boolean removeUnset,
+                                             JDBCDataSource source)
    {
       if(text == null || !text.contains("$(")) {
          return null;
@@ -3032,9 +3044,10 @@ public final class XUtil {
          return null;
       }
 
-      // not reported as changed, the subquery doesn't lose a condition. An unset parameter
-      // is left as it is, removing its condition could make it return more than one row
-      validateConditions0(query, sub, params, include, false, source);
+      // not reported as changed: the change is in a select column or an order by item, which
+      // doesn't decide if the enclosing query (e.g. an IN subquery) still has a condition
+      validateConditions0(query, sub, params, include, removeUnset && isSingleRow(sub),
+                          source);
       String sql = UniformSQL.getSelectListSubqueryText(sub);
       return sql.equals(text) ? null : sql;
    }
