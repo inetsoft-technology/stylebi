@@ -284,6 +284,13 @@ public class SelectTable implements Serializable, Cloneable {
             obj.quotedSegments = quotedSegments.clone();
          }
 
+         // a derived table is owned by the copy, as a where/having sub query is, otherwise
+         // the in-place rewrites of a query clone (e.g. XUtil.validateConditions) change the
+         // original query (Bug #77606)
+         if(name instanceof UniformSQL) {
+            obj.name = ((UniformSQL) name).clone();
+         }
+
          return obj;
       }
       catch(Exception ex) {

@@ -1376,6 +1376,14 @@ public class SQLHelper implements KeywordProvider {
          String subalias = getValidSubAlias(table, subCol);
          String alias = ((JDBCSelection) xselect).getValidAlias(xIdx, this);
          boolean aliasNull = alias == null || alias.equals(column);
+         // the sql of the column for the parameter values of this run, e.g. a scalar subquery
+         // with a sentinel parameter rewritten (Bug #77620), is generated as the text of the
+         // column is. Its name, table and alias are those of the column text.
+         String runSql = ((JDBCSelection) xselect).getColumnSQL(xIdx);
+
+         if(runSql != null) {
+            column = runSql;
+         }
 
          if(subalias != null) {
             // use the same quote logic for subalias

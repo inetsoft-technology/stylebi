@@ -102,7 +102,7 @@ class XBigObjectColumnSwapPriorityTest {
       try {
          long end = System.currentTimeMillis() + 5000;
 
-         // the first sweep waits for a notification, later sweeps run every 500ms at critical
+         // notify so the first sweep doesn't wait 5s, later sweeps run every 500ms at critical
          while(criticalNoSwap.get() == 0 && System.currentTimeMillis() < end) {
             synchronized(swapLock) {
                swapLock.notifyAll();

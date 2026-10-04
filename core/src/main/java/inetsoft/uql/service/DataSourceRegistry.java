@@ -618,12 +618,14 @@ public class DataSourceRegistry implements MessageListener {
          String additionalName = getJDBCAdditionalConnectionName(dxname);
          String[] additionalNames = additionalName != null ?
             new String[] { additionalName } : getAdditionalConnectionNames(dxname);
+         List<String> additionalResources = getAdditionalConnectionResources(dxname);
          removeObject(new AssetEntry(AssetRepository.QUERY_SCOPE,
                                      AssetEntry.Type.DATA_SOURCE, dxname, null));
          removeObjects(getEntries(dxname + "/"));
          removeObject(new AssetEntry(AssetRepository.QUERY_SCOPE,
             AssetEntry.Type.DATA_MODEL, dxname, null));
          removeConnectionTestQueries(dxname, additionalNames);
+         removeAdditionalConnectionPermissions(additionalResources);
       }
       catch(Exception e) {
          LOG.error(
@@ -967,6 +969,62 @@ public class DataSourceRegistry implements MessageListener {
       catch(Exception e) {
          LOG.warn("Failed to get the additional connections of data source {}", dxname, e);
          return new String[0];
+      }
+   }
+
+   /**
+    * Gets the permission resources of the additional connections that are removed with a data
+    * source: "parent::name" of a removed additional connection, or "dxname::name" of each
+    * additional connection of a removed data source. Must be called before the entries are
+    * removed. The path may also be a permission resource that is not a registry path, e.g.
+    * "P::add", which has none.
+    */
+   private List<String> getAdditionalConnectionResources(String dxname) {
+      List<String> resources = new ArrayList<>();
+
+      // never keeps the data source from being removed
+      try {
+         if(isAdditionalConnectionPath(dxname)) {
+            int index = dxname.lastIndexOf('/');
+            resources.add(dxname.substring(0, index) + XUtil.ADDITIONAL_DS_CONNECTOR +
+                             dxname.substring(index + 1));
+         }
+         else if(getDataSource(dxname) instanceof AdditionalConnectionDataSource) {
+            for(String name : getAdditionalConnectionNames(dxname)) {
+               resources.add(dxname + XUtil.ADDITIONAL_DS_CONNECTOR + name);
+            }
+         }
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to get the additional connections of data source {}", dxname, e);
+      }
+
+      return resources;
+   }
+
+   /**
+    * Removes the permissions of removed additional connections, so that an additional
+    * connection created later with the same name doesn't get them.
+    */
+   private void removeAdditionalConnectionPermissions(List<String> resources) {
+      if(resources.isEmpty()) {
+         return;
+      }
+
+      SecurityEngine engine = SecurityEngine.getSecurity();
+      SecurityProvider provider = engine == null ? null : engine.getSecurityProvider();
+
+      if(engine == null || provider != null && provider.isVirtual()) {
+         return;
+      }
+
+      for(String resource : resources) {
+         try {
+            engine.removePermission(ResourceType.DATA_SOURCE, resource);
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to remove the permission of additional connection {}", resource, e);
+         }
       }
    }
 
@@ -1361,12 +1419,15 @@ public class DataSourceRegistry implements MessageListener {
       }
 
       try {
+         // read before the additional connections of the data source are removed below
+         List<String> additionalResources = getAdditionalConnectionResources(datasource);
          //Remove all children. Because of the appended "/", the domain (if
          //present) won't be affected.
          removeObjects(getEntries(datasource + "/"));
          AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
                                            AssetEntry.Type.DATA_MODEL, datasource, null);
          removeObject(entry);
+         removeAdditionalConnectionPermissions(additionalResources);
       }
       catch(Exception e) {
          LOG.error(

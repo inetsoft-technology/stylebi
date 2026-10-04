@@ -24,6 +24,7 @@ import inetsoft.uql.jdbc.*;
 import inetsoft.uql.script.StringArray;
 import inetsoft.uql.script.VpmScope;
 import inetsoft.uql.util.ColumnIterator;
+import inetsoft.uql.util.SQLQuoteScanner;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.util.sqlparser.*;
 import inetsoft.util.Tool;
@@ -34,6 +35,8 @@ import org.w3c.dom.Element;
 import java.io.PrintWriter;
 import java.security.Principal;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * VpmCondition defines conditions attached to a physical table to filter
@@ -689,12 +692,65 @@ public class VpmCondition extends VpmObject {
          if(ncolumn != null) {
             ncolumn = helper.buildFieldExpression(ncolumn, false);
             // String creg = ".*['\"]?" + table + "['\"]?\\.['\"]?" + column + "(['\"]?)(\\W+.)*";
-            String rreg = "['\"]?" + table + "['\"]?\\.['\"]?" + column + "['\"]?";
-            exp = exp.replaceAll(rreg, ncolumn);
+            // Bug #77663, a ' is not an identifier quote (the optional ' took the closing quote
+            // of a literal), and a name ending with the table name (XT.A) is not the table
+            // (a unicode name, e.g. a chinese table name, is a name too)
+            String rreg = "(?<![\\w$.])\"?" + Pattern.quote(String.valueOf(table)) +
+               "\"?\\.\"?" + Pattern.quote(String.valueOf(column)) + "\"?";
+            exp = replaceOutsideLiterals(
+               exp, Pattern.compile(rreg, Pattern.UNICODE_CHARACTER_CLASS),
+               Matcher.quoteReplacement(ncolumn));
          }
       }
 
       return exp;
+   }
+
+   /**
+    * Replace the matches of a regular expression outside the string literals and comments of
+    * an expression. A double quoted or backquoted name ("T"."A") is not a literal, so it is
+    * replaced, but a ' inside it doesn't open a literal.
+    */
+   private static String replaceOutsideLiterals(String exp, Pattern pattern,
+                                                String replacement)
+   {
+      StringBuilder result = new StringBuilder();
+      int len = exp.length();
+      int start = 0;
+      int i = 0;
+      // the quotes found not closed. A quote that isn't closed doesn't open a literal or
+      // name, as before literals were skipped
+      String unclosed = "";
+
+      while(i < len) {
+         int end = SQLQuoteScanner.skipComment(exp, i);
+         char c = exp.charAt(i);
+
+         if(end < 0 && (c == '\'' || c == '"' || c == '`') && unclosed.indexOf(c) < 0) {
+            end = SQLQuoteScanner.skipQuoted(exp, i, c, false);
+
+            if(end < 0) {
+               unclosed += c;
+            }
+            // a quoted name is stepped over but stays in the text that is replaced
+            else if(c != '\'') {
+               i = end;
+               continue;
+            }
+         }
+
+         if(end < 0) {
+            i++;
+            continue;
+         }
+
+         result.append(pattern.matcher(exp.substring(start, i)).replaceAll(replacement));
+         result.append(exp, i, end);
+         start = i = end;
+      }
+
+      result.append(pattern.matcher(exp.substring(start)).replaceAll(replacement));
+      return result.toString();
    }
 
    private String getColumn(Object value, String[] tables,

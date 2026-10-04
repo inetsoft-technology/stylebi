@@ -47,6 +47,14 @@ package inetsoft.web.admin.properties;
  *     [log.provider blank, non-enterprise]   the guard is checked against the submitted value,
  *                      before the blank-value branch substitutes the stored one, so a build
  *                      already carrying log.provider=fluentd can still submit that field.
+ *     [org override of a global-only key]   inetsoft.org.<org>.<key> for a key in
+ *                      PropertiesEngine.EXCLUDED_ORG_PROPERTIES is refused with a MessageException
+ *                      and nothing is stored, also for a blank value; such an override is never
+ *                      read, so storing it silently had no effect (Redmine #77694).
+ *     [global-only key itself]              the global name is stored as normal.
+ *     [org override of olap.security.enabled] a real per-org property whose name only ends with an
+ *                      excluded name is stored as normal.
+ *     [delete of an org override]           still allowed, so an existing one can be cleaned up.
  */
 
 import inetsoft.report.internal.license.LicenseManager;
@@ -398,6 +406,106 @@ class PropertiesControllerTest {
       assertDoesNotThrow(() -> controller.editProperty(principal, property));
 
       sreeEnvStatic.verify(() -> SreeEnv.setProperty("log.provider", "fluentd"));
+   }
+
+   // [org override of a global-only key] refused, and nothing is written (Bug #77694)
+   @Test
+   void editProperty_orgOverrideOfExcludedKey_isRefused() {
+      PropertyModel property = PropertyModel.builder()
+         .name("  inetsoft.org.orga.replet.cache.directory  ")
+         .value("/tmp/orga")
+         .build();
+
+      MessageException thrown =
+         assertThrows(MessageException.class, () -> controller.editProperty(principal, property));
+
+      assertNotNull(thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("inetsoft.org.orga.replet.cache.directory"),
+                 thrown.getMessage());
+      sreeEnvStatic.verify(() -> SreeEnv.setProperty(anyString(), anyString()), never());
+      sreeEnvStatic.verify(SreeEnv::save, never());
+   }
+
+   // [org override of a global-only key, mixed case] the name is matched as it would be stored
+   @Test
+   void editProperty_mixedCaseOrgOverrideOfExcludedKey_isRefused() {
+      PropertyModel property = PropertyModel.builder()
+         .name("inetsoft.org.OrgA.SREE.HOME")
+         .value("/opt/orga")
+         .build();
+
+      assertThrows(MessageException.class, () -> controller.editProperty(principal, property));
+      sreeEnvStatic.verify(() -> SreeEnv.setProperty(anyString(), anyString()), never());
+   }
+
+   // [org override of a global-only key, blank value] refused before the blank-value branch
+   // could store the existing value back under the same name
+   @Test
+   void editProperty_orgOverrideOfExcludedKey_blankValue_isRefused() {
+      sreeEnvStatic.when(() -> SreeEnv.getProperty("inetsoft.org.orga.server.type"))
+         .thenReturn("server");
+
+      PropertyModel property = PropertyModel.builder()
+         .name("inetsoft.org.orga.server.type")
+         .value("")
+         .build();
+
+      assertThrows(MessageException.class, () -> controller.editProperty(principal, property));
+      sreeEnvStatic.verify(() -> SreeEnv.setProperty(anyString(), anyString()), never());
+      sreeEnvStatic.verify(SreeEnv::save, never());
+   }
+
+   // [global-only key itself] the global name stays writable
+   @Test
+   void editProperty_globalExcludedKey_isStored() throws Exception {
+      PropertyModel property = PropertyModel.builder()
+         .name("replet.cache.directory")
+         .value("/var/cache/stylebi")
+         .build();
+
+      controller.editProperty(principal, property);
+
+      sreeEnvStatic.verify(() -> SreeEnv.setProperty("replet.cache.directory", "/var/cache/stylebi"));
+      sreeEnvStatic.verify(SreeEnv::save);
+   }
+
+   // [org override of another key] org overrides that reads honor are stored as normal
+   @Test
+   void editProperty_orgOverrideOfOtherKey_isStored() throws Exception {
+      PropertyModel property = PropertyModel.builder()
+         .name("inetsoft.org.orga.mail.smtp.host")
+         .value("smtp.orga.example.com")
+         .build();
+
+      controller.editProperty(principal, property);
+
+      sreeEnvStatic.verify(
+         () -> SreeEnv.setProperty("inetsoft.org.orga.mail.smtp.host", "smtp.orga.example.com"));
+   }
+
+   // [org override of a real property that only ends with an excluded name] olap.security.enabled
+   // is read per organization, so its override takes effect and must still be stored
+   @Test
+   void editProperty_orgOverrideOfOlapSecurityEnabled_isStored() throws Exception {
+      PropertyModel property = PropertyModel.builder()
+         .name("inetsoft.org.orga.olap.security.enabled")
+         .value("true")
+         .build();
+
+      controller.editProperty(principal, property);
+
+      sreeEnvStatic.verify(
+         () -> SreeEnv.setProperty("inetsoft.org.orga.olap.security.enabled", "true"));
+      sreeEnvStatic.verify(SreeEnv::save);
+   }
+
+   // [delete of an org override] the only route in EM to clean up an existing dead override
+   @Test
+   void deleteProperty_orgOverrideOfExcludedKey_isRemoved() throws Exception {
+      controller.deleteProperty(principal, "inetsoft.org.orga.sree.home");
+
+      sreeEnvStatic.verify(() -> SreeEnv.remove("inetsoft.org.orga.sree.home"));
+      sreeEnvStatic.verify(SreeEnv::save);
    }
 
    // [security.exposedefaultorgtoall] fires repository event after set
