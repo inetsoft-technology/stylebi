@@ -152,6 +152,26 @@ class UniformSQLUnaliasedTableRenameTest {
       }
    }
 
+   @Test
+   void renameKeepsHavingOrAndSchemaQualifiedTable() throws Exception {
+      for(String helper : QUOTING) {
+         String query = "select q.k, count(*) from q group by q.k having q.k > 1";
+         String generated = rename(helper, query, "q", "x");
+         assertTrue(generated.contains("group by x.\"k\" having x.\"k\" > 1"), helper + " -> " + generated);
+         assertNoOldQualifier(helper, query, generated);
+
+         query = "select k from q where q.k > 1 or q.\"MixedCase\" < 5";
+         generated = rename(helper, query, "q", "x");
+         assertTrue(generated.endsWith(" where x.\"k\" > 1 or x.\"MixedCase\" < 5"), helper + " -> " + generated);
+         assertNoOldQualifier(helper, query, generated);
+
+         // the alias of a schema qualified table is stored as "public"."q"
+         query = "select public.q.k from public.q where public.q.k > 1";
+         assertEquals("select x.\"k\" from \"public\".\"q\" x where x.\"k\" > 1",
+                      rename(helper, query, "public.q", "x"), helper);
+      }
+   }
+
    /**
     * The rows of the renamed query are the rows of the original one. Derby folds unquoted
     * names to upper case, so the tables are created with the lower case names postgresql
