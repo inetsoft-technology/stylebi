@@ -208,6 +208,21 @@ class MirrorQuerySubAliasCacheTest {
       assertEquals(expected, lens(ws, "M3"));
    }
 
+   // an alias with a quote is rejected by every helper, without limit.alias.length
+   @Test
+   void mirrorOfPlainMirrorKeepsQuoteRenamedColumn() throws Exception {
+      SreeEnv.setProperty("limit.alias.length", null);
+      Worksheet ws = new Worksheet();
+      MirrorTableAssembly t1 = mirror(ws, "T1", table(ws, "T0", "select a.k, a.name from a",
+                                                      "k", "name"));
+      rename(t1, "k", "k\"q");
+      mirror(ws, "M2", mirror(ws, "M1", t1));
+      List<String> expected = List.of("[k\"q, name]", "[1, x]", "[2, y]", "[2, z]");
+
+      assertEquals(expected, lens(ws, "M1"));
+      assertEquals(expected, lens(ws, "M2"));
+   }
+
    // plain mirrors over a grouped mirror G1 of T1, one and two levels
    @Test
    void mirrorOfGroupedMirrorKeepsRenamedColumn() throws Exception {
