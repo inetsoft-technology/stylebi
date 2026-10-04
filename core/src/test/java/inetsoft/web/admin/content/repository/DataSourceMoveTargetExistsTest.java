@@ -458,10 +458,12 @@ class DataSourceMoveTargetExistsTest {
       addParent("dodA", "dodOuterAdd");
       folder("dodF");
       addParent("dodF/dodA", "dodInnerAdd");
-      ((JDBCDataSource) registry.getDataSource("dodA")).setDescription("outer");
-      registry.setDataSource(registry.getDataSource("dodA"), false);
-      ((JDBCDataSource) registry.getDataSource("dodF/dodA")).setDescription("inner");
-      registry.setDataSource(registry.getDataSource("dodF/dodA"), false);
+      JDBCDataSource outer = (JDBCDataSource) registry.getDataSource("dodA");
+      outer.setDescription("outer");
+      registry.setDataSource(outer, false);
+      JDBCDataSource inner = (JDBCDataSource) registry.getDataSource("dodF/dodA");
+      inner.setDescription("inner");
+      registry.setDataSource(inner, false);
 
       MessageException ex = assertThrows(MessageException.class, () -> objectService.moveFiles(
          request(dest("dodF"), node("dodA", RepositoryEntry.DATA_SOURCE | RepositoryEntry.FOLDER)),
