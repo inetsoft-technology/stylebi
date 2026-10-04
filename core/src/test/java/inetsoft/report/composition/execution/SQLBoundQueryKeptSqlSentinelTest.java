@@ -318,6 +318,20 @@ class SQLBoundQueryKeptSqlSentinelTest {
       }
    }
 
+   // a sentinel and an unset parameter in the same query: the sentinel is rewritten, and the
+   // condition with the unset parameter is kept and binds NULL, as for the sql string, so no
+   // row matches. Only the sentinel rewrite runs on the copy, a full validateConditions would
+   // drop the unset condition (rows 1, 2, 3).
+   @Test
+   void unsetParameterNextToSentinelStillBindsNull() throws Exception {
+      Run run = run("select a.k from a where a.name = $(p) and a.id = $(u) group by a.k " +
+                    "order by 1", ES, null);
+      assertTrue(run.keptString);
+      assertEquals(List.of(), rows(run.table));
+      assertTrue(norm(run.sql).contains("a.name = ''"), run.sql);
+      assertTrue(norm(run.sql).contains("a.id = ?"), run.sql);
+   }
+
    // the sentinel walk doesn't descend into a WHERE condition subquery yet (Bug #77706), so
    // the rewrite changes nothing and the kept string is sent as written
    @Test
