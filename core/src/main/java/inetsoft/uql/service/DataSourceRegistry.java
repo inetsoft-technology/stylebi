@@ -38,8 +38,11 @@ import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.event.EventListener;
+import org.w3c.dom.Document;
 import org.w3c.dom.Element;
+import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
+import org.w3c.dom.ProcessingInstruction;
 
 import java.beans.PropertyChangeListener;
 import java.io.Serializable;
@@ -51,6 +54,8 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Data source registry stores information on all data sources. The
@@ -1805,6 +1810,15 @@ public class DataSourceRegistry implements MessageListener {
       try {
          AssetEntry[] entries = getEntries(oldPrefix);
          AssetFolder root = getRoot();
+         // an additional connection is a data source entry whose parent path is a data source
+         // entry, as in renameDataSourceFolder
+         Set<String> dsPaths = new HashSet<>();
+
+         for(AssetEntry entry : entries) {
+            if(entry.isDataSource()) {
+               dsPaths.add(entry.getPath());
+            }
+         }
 
          for(AssetEntry oentry : entries) {
             String opath = oentry.getPath();
@@ -1825,8 +1839,22 @@ public class DataSourceRegistry implements MessageListener {
                root.removeEntry(oentry);
                root.addEntry(nentry);
                XMLSerializable obj = getObject(oentry, false, false);
-               indexedStorage.remove(oentry.toIdentifier(), true);
-               indexedStorage.putXMLSerializable(nentry.toIdentifier(), obj);
+
+               // can't be loaded, e.g. a data source whose connector isn't installed or an entry
+               // that is corrupt. Written again, it would be stored with no content.
+               if(obj == null ||
+                  obj instanceof XDataSourceWrapper wrapper && wrapper.getSource() == null)
+               {
+                  int index = opath.lastIndexOf('/');
+                  boolean additional = isAdditionalSource ||
+                     index > 0 && dsPaths.contains(opath.substring(0, index));
+                  moveStoredDocument(oentry, nentry, oentry.isDataSource() && !additional);
+               }
+               else {
+                  indexedStorage.remove(oentry.toIdentifier(), true);
+                  indexedStorage.putXMLSerializable(nentry.toIdentifier(), obj);
+               }
+
                clearCache2();
 
                if(isAdditionalSource && oentry.isDataSource()) {
@@ -1847,6 +1875,102 @@ public class DataSourceRegistry implements MessageListener {
       catch(Exception e) {
          LOG.error(
             "Failed to rename objects: " + oldPrefix, e);
+      }
+      finally {
+         indexedStorage.close();
+      }
+   }
+
+   /**
+    * Moves the stored document of an object that can't be loaded to the key of its new entry as
+    * it is, so it can be loaded again once its connector is installed.
+    *
+    * @param oentry         the old entry of the object.
+    * @param nentry         the new entry of the object.
+    * @param dataSourceName {@code true} to set the stored name to the new path, for a data source
+    *                       that isn't an additional connection.
+    */
+   private void moveStoredDocument(AssetEntry oentry, AssetEntry nentry, boolean dataSourceName) {
+      String okey = oentry.toIdentifier();
+      String nkey = nentry.toIdentifier();
+      Document doc;
+
+      try {
+         doc = indexedStorage.getDocument(okey, oentry.getOrgID());
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to read {}, moving it without changes", oentry.getPath(), e);
+         doc = null;
+      }
+
+      // not well-formed, keep its content as it is under the new key
+      if(doc == null || doc.getDocumentElement() == null) {
+         if(!indexedStorage.contains(okey, oentry.getOrgID())) {
+            LOG.warn("No stored document to move for {}", oentry.getPath());
+         }
+         else if(!indexedStorage.rename(okey, nkey, true)) {
+            LOG.error("Failed to move {} to {}", oentry.getPath(), nentry.getPath());
+         }
+
+         return;
+      }
+
+      String className = oentry.isDataSource() ? XDataSourceWrapper.class.getName() : null;
+
+      // putDocument adds the processing instruction with the new identifier
+      for(Node node = doc.getFirstChild(); node != null; ) {
+         Node next = node.getNextSibling();
+
+         if(node instanceof ProcessingInstruction pi && "inetsoft-asset".equals(pi.getTarget())) {
+            Matcher matcher = CLASS_NAME_PATTERN.matcher(pi.getData());
+            className = matcher.find() ? matcher.group(1) : className;
+            doc.removeChild(pi);
+         }
+
+         node = next;
+      }
+
+      if(className == null) {
+         LOG.error("Failed to move {} to {}, its class isn't known",
+                   oentry.getPath(), nentry.getPath());
+         return;
+      }
+
+      if(dataSourceName) {
+         doc.getDocumentElement().setAttribute("name", nentry.getPath());
+      }
+
+      indexedStorage.putDocument(nkey, doc, className, nentry.getOrgID());
+
+      // putDocument logs a failure instead of throwing it, keep the old one then
+      if(indexedStorage.contains(nkey, nentry.getOrgID())) {
+         indexedStorage.remove(okey, true);
+      }
+      else {
+         LOG.error("Failed to move {} to {}", oentry.getPath(), nentry.getPath());
+      }
+   }
+
+   /**
+    * Gets the type stored for a data source without loading it, e.g. for a data source whose
+    * connector isn't installed, which {@link #getDataSource(String)} returns null for.
+    *
+    * @param path the data source path.
+    *
+    * @return the type, or null if the data source has no stored document that can be read.
+    */
+   public String getStoredDataSourceType(String path) {
+      AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
+                                        AssetEntry.Type.DATA_SOURCE, path, null);
+
+      try {
+         Document doc = indexedStorage.getDocument(entry.toIdentifier(), entry.getOrgID());
+         Element elem = doc == null ? null : doc.getDocumentElement();
+         return elem == null ? null : Tool.getAttribute(elem, "type");
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to read the stored data source: {}", path, e);
+         return null;
       }
       finally {
          indexedStorage.close();
@@ -2373,6 +2497,7 @@ public class DataSourceRegistry implements MessageListener {
    private final Set<String> clashesReported = ConcurrentHashMap.newKeySet();
    private final Lock rootLock = new ReentrantLock();
 
+   private static final Pattern CLASS_NAME_PATTERN = Pattern.compile("classname=\"([^\"]*)\"");
    private static final Logger LOG = LoggerFactory.getLogger(DataSourceRegistry.class);
 
    private static final String FILTER_PREFIX = AssetRepository.QUERY_SCOPE + "^";
