@@ -19,6 +19,8 @@ package inetsoft.util.dep;
 
 import inetsoft.sree.security.*;
 import inetsoft.uql.*;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.erm.XDataModel;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.xmla.XMLADataSource;
@@ -325,6 +327,16 @@ public class XDataSourceAsset extends AbstractXAsset implements FolderChangeable
             getRegistry().updateDataSource(datasource, elem, isImport);
          }
          else {
+            // a data source isn't created at the path of a data source folder, with its data
+            // model and additional connections, the data sources in the folder would be taken
+            // for additional connections of the data source (Bug #77691)
+            if(getRegistry().containObject(new AssetEntry(
+               AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE_FOLDER, datasource, null)))
+            {
+               throw new MessageException(Catalog.getCatalog().getString(
+                  "common.datasource.moveTargetExists", datasource));
+            }
+
             getRegistry().setExistQueryFolders(new String[0]);
             getRegistry().parseDomain(elem);
             getRegistry().parseXDataSource(elem, isImport);

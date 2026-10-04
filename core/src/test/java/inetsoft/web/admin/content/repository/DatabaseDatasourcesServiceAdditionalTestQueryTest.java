@@ -114,7 +114,9 @@ class DatabaseDatasourcesServiceAdditionalTestQueryTest {
                                         AssetEntry.Type.DATA_SOURCE, path, null))
             .toArray(AssetEntry[]::new);
       }).when(REGISTRY).getEntries(anyString(), any(AssetEntry.Type.class));
-      doAnswer(inv -> store.containsKey(inv.<AssetEntry>getArgument(0).getPath()))
+      // the storage holds data sources only, no folders
+      doAnswer(inv -> inv.<AssetEntry>getArgument(0).getType() == AssetEntry.Type.DATA_SOURCE &&
+         store.containsKey(inv.<AssetEntry>getArgument(0).getPath()))
          .when(REGISTRY).containObject(any(AssetEntry.class));
       doAnswer(inv -> store.get(inv.<AssetEntry>getArgument(0).getPath()))
          .when(REGISTRY).getObject(any(AssetEntry.class), anyBoolean());
