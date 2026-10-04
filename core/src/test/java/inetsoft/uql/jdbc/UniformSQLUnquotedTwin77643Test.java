@@ -103,6 +103,29 @@ class UniformSQLUnquotedTwin77643Test {
    }
 
    /**
+    * The twins grouped by in one query. The group by named the first twin of the metadata
+    * for both of them.
+    */
+   @Test
+   void qualifiedTwinsInGroupByInBothOrders() throws Exception {
+      for(String[] columns : new String[][] { PG_TWIN_SECOND, PG_TWIN_FIRST }) {
+         assertEquals("select \"t\".\"MixedCase\", \"t\".\"mixedcase\" as \"b\", count(*) as \"n\" from \"t\" " +
+                      "group by \"t\".\"MixedCase\", \"t\".\"mixedcase\"",
+                      fixed("postgresql", "select t.\"MixedCase\", t.MixedCase as b, count(*) as n from t " +
+                            "group by t.\"MixedCase\", t.MixedCase", columns), columns[1]);
+      }
+
+      for(String helper : new String[] { "snowflake", "exasol" }) {
+         for(String[] columns : new String[][] { TWIN_SECOND, TWIN_FIRST }) {
+            String generated = fixed(helper, "select t.\"MixedCase\", t.MixedCase as b, count(*) as n from t " +
+                                     "group by t.\"MixedCase\", t.MixedCase", columns);
+            assertTrue(generated.endsWith(" group by \"t\".\"MixedCase\", \"t\".MIXEDCASE"),
+                       helper + " " + columns[1] + ": " + generated);
+         }
+      }
+   }
+
+   /**
     * Snowflake and exasol fold to upper case. The order by of a select column is generated
     * quoted, so it named the first twin in the metadata.
     */
