@@ -171,6 +171,23 @@ public class XExpression implements Cloneable, Serializable, XMLSerializable {
    }
 
    /**
+    * Get the names of the expression that were written unquoted in the parsed sql, which a
+    * case-sensitive helper stores in quotes in the case they were written (Bug #77643).
+    * @return the names, or <tt>null</tt> if none or not recorded for the current text.
+    */
+   public WrittenUnquoted getWrittenUnquoted() {
+      return value instanceof UniformSQL ? null : WrittenUnquoted.of(unquoted, toString());
+   }
+
+   /**
+    * Set the names of the expression that were written unquoted in the parsed sql.
+    * @param names the names, recorded for the current text, or <tt>null</tt>.
+    */
+   public void setWrittenUnquoted(WrittenUnquoted names) {
+      this.unquoted = names;
+   }
+
+   /**
     * Get the text of this expression to build the text of an enclosing expression. The
     * quotes of a quoted identifier are restored.
     */
@@ -283,6 +300,7 @@ public class XExpression implements Cloneable, Serializable, XMLSerializable {
    @Override
    public void parseXML(Element node) throws Exception {
       type = node.getAttribute("type");
+      unquoted = null;
 
       // @by vincentx, 2004-08-17
       // handles backward compatibility of xexpression types
@@ -344,6 +362,11 @@ public class XExpression implements Cloneable, Serializable, XMLSerializable {
             }
          }
       }
+
+      // the names written unquoted, see writeXML
+      if(!type.equals(SUBQUERY)) {
+         unquoted = WrittenUnquoted.fromAttribute(toString(), Tool.getAttribute(node, "unquoted"));
+      }
    }
 
    /**
@@ -365,6 +388,14 @@ public class XExpression implements Cloneable, Serializable, XMLSerializable {
          else {
             writer.print(" quote=\"" + quote + "\"");
          }
+      }
+
+      WrittenUnquoted names = getWrittenUnquoted();
+
+      // the names written unquoted (Bug #77643). Older versions ignore them and generate the
+      // names as stored, as before
+      if(names != null) {
+         writer.print(" unquoted=\"" + names.toAttribute() + "\"");
       }
 
       writer.println(">");
@@ -460,6 +491,7 @@ public class XExpression implements Cloneable, Serializable, XMLSerializable {
 
    private int quote = QUOTE_NONE;
    private String quotedColumn; // column segment of a qualified quoted identifier
+   private WrittenUnquoted unquoted; // the names written unquoted (Bug #77643)
    private Object value = "";
    private String type = FIELD;
    private int sqlType = -1;

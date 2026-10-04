@@ -392,12 +392,15 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          groupQuotes = uniformSql.groupQuotes == null ? null : uniformSql.groupQuotes.clone();
          groupQuoteFields = uniformSql.groupQuoteFields == null ? null :
             uniformSql.groupQuoteFields.clone();
+         groupUnquoted = uniformSql.groupUnquoted == null ? null :
+            uniformSql.groupUnquoted.clone();
 
          where = uniformSql.where == null ?
             null : (XFilterNode) uniformSql.where.clone();
          having = uniformSql.having == null ?
             null : (XFilterNode) uniformSql.having.clone();
          sqlstring = uniformSql.sqlstring;
+         sqlUnquoted = uniformSql.sqlUnquoted;
 
          parseIt = uniformSql.parseIt;
          parseResult = uniformSql.parseResult;
@@ -680,6 +683,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       groups = null;
       groupQuotes = null;
       groupQuoteFields = null;
+      groupUnquoted = null;
       where = null;
       having = null;
       distinctKey = false;
@@ -819,7 +823,12 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                if(issql) {
                   // the sql with the quotes of its quoted table names (#77569)
                   String quoted = Tool.getAttribute(namenode, "quotedSql");
-                  name = new UniformSQL(quoted != null ? quoted : (String) name, false);
+                  String text = quoted != null ? quoted : (String) name;
+                  UniformSQL sub = new UniformSQL(text, false);
+                  // its names written unquoted (Bug #77643)
+                  sub.setSQLStringWrittenUnquoted(
+                     WrittenUnquoted.fromAttribute(text, Tool.getAttribute(namenode, "unquoted")));
+                  name = sub;
                }
             }
             else if(sqlNameNode != null) {
@@ -835,6 +844,9 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             // the name segments written quoted in the parsed sql (#77569)
             if(namenode != null && name instanceof String) {
                stable.setQuotedSegmentsString(Tool.getAttribute(namenode, "quotedSegments"));
+               // the names written unquoted (Bug #77643)
+               stable.setWrittenUnquoted(
+                  WrittenUnquoted.fromAttribute((String) name, Tool.getAttribute(namenode, "unquoted")));
             }
          }
       }
@@ -952,6 +964,10 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             selection.setQuotedAggregate(selection.getColumnCount() - 1,
                Tool.getAttribute(quotedAggregateNode, "column"));
          }
+
+         // the names written unquoted (Bug #77643)
+         selection.setWrittenUnquoted(selection.getColumnCount() - 1,
+            WrittenUnquoted.fromAttribute(columnName, Tool.getAttribute(column, "unquoted")));
       }
 
       nlist = Tool.getChildNodesByTagName(node, "where");
@@ -1030,6 +1046,9 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                item.setQuoted(quote != null, getQuotedSegment(quote));
             }
 
+            // the names written unquoted (Bug #77643)
+            item.setWrittenUnquoted(
+               WrittenUnquoted.fromAttribute(field, Tool.getAttribute(sortNode, "unquoted")));
             orderByList.add(item);
             setQuotedAggregate(field, Tool.getAttribute(sortNode, "quotedAggregate"));
          }
@@ -1041,12 +1060,16 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          nlist = ((Element) nlist.item(0)).getElementsByTagName("field");
          groups = new Object[nlist.getLength()];
          groupQuotes = new String[groups.length];
+         groupUnquoted = new WrittenUnquoted[groups.length];
          boolean[] known = new boolean[groups.length];
 
          for(int i = 0; i < nlist.getLength(); i++) {
             Element groupNode = (Element) nlist.item(i);
             String field = Tool.getValue(groupNode);
             groups[i] = field;
+            // the names written unquoted (Bug #77643)
+            groupUnquoted[i] = WrittenUnquoted.fromAttribute(
+               field, Tool.getAttribute(groupNode, "unquoted"));
 
             groupQuotes[i] = readQuotedField(groupNode, field);
             known[i] = hasQuotedFieldAttribute(groupNode);
@@ -1251,16 +1274,37 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                sub.setDataSource(getDataSource());
             }
 
-            String text = toUnquotedString(sub);
-            String quoted = name.toString();
+            // the sql as generated without folding the names written unquoted, which are
+            // saved in the unquoted attribute (Bug #77643)
+            String text = WrittenUnquoted.marking(() -> toUnquotedString(sub));
+            String quoted = WrittenUnquoted.marking(() -> {
+               sub.clearCachedString();
+
+               try {
+                  return name.toString();
+               }
+               finally {
+                  sub.clearCachedString();
+               }
+            });
+            String quote = sub.getSQLHelper().getQuote();
+            // the names of the text that is loaded
+            WrittenUnquoted names = WrittenUnquoted.ofMarked(
+               WrittenUnquoted.unmark(quoted).equals(WrittenUnquoted.unmark(text)) ? text : quoted,
+               quote);
+            text = WrittenUnquoted.unmark(text);
+            quoted = WrittenUnquoted.unmark(quoted);
             writer.println("<name" + (!quoted.equals(text) ?
                " quotedSql=\"" + Tool.escape(quoted) + "\"" : "") +
+               (names != null ? " unquoted=\"" + names.toAttribute() + "\"" : "") +
                "><![CDATA[" + text + "]]></name>");
          }
          else {
             String quotedSegments = name instanceof String ? table.getQuotedSegmentsString() : null;
+            WrittenUnquoted names = table.getWrittenUnquoted();
             writer.println("<name" + (quotedSegments != null ?
                " quotedSegments=\"" + quotedSegments + "\"" : "") +
+               (names != null ? " unquoted=\"" + names.toAttribute() + "\"" : "") +
                "><![CDATA[" + name + "]]></name>");
          }
 
@@ -1289,7 +1333,10 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       int columnCount = selection.getColumnCount();
 
       for(int i = 0; i < columnCount; i++) {
-         writer.println("<column>");
+         WrittenUnquoted names = selection.getWrittenUnquoted(i);
+         // the names written unquoted (Bug #77643), older versions ignore them
+         writer.println("<column" + (names != null ?
+            " unquoted=\"" + names.toAttribute() + "\"" : "") + ">");
          String column = selection.getColumn(i);
          String alias = selection.getAlias(i);
          String type = selection.getType(column);
@@ -1357,7 +1404,8 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          String order = orderItems[i].getOrder();
          writer.print("<field" + (order != null ? " order=\"" + order + "\"" : "") +
                       quotedFieldAttribute(getQuote(orderItems[i]), orderField[i], quotedTexts) +
-                      quotedAggregateAttribute(orderField[i]) + "><![CDATA[");
+                      quotedAggregateAttribute(orderField[i]) +
+                      unquotedAttribute(orderItems[i].getWrittenUnquoted()) + "><![CDATA[");
          writer.print(orderField[i].toString());
          writer.print("]]></field>");
 
@@ -1373,7 +1421,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
 
       for(int i = 0; groupby != null && i < groupby.length; i++) {
          writer.print("<field" + quotedFieldAttribute(getGroupQuote(i), groupby[i], quotedTexts) +
-                      "><![CDATA[");
+                      unquotedAttribute(getGroupByWrittenUnquoted(i)) + "><![CDATA[");
          writer.print(groupby[i].toString());
          writer.print("]]></field>");
       }
@@ -1454,6 +1502,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    public synchronized void setSQLString(String sqlstring, boolean parse) {
       this.cstring = null;
       this.sqlstring = null;
+      this.sqlUnquoted = null;
       // a new sql string must re-derive lossy (null keeps the lazy check in isLossy())
       this.lossy = null;
 
@@ -1512,7 +1561,11 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    @Override
    public synchronized String getSQLString() {
       if(sqlstring != null) {
-         return sqlstring;
+         WrittenUnquoted names = WrittenUnquoted.of(sqlUnquoted, sqlstring);
+
+         // the sql of a derived table saved as text, its names written unquoted are folded
+         return names == null ? sqlstring :
+            getSQLHelper().foldWrittenUnquoted(sqlstring, names);
       }
 
       SQLHelper helper = getSQLHelper();
@@ -1953,6 +2006,8 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          String record = getQuotedAggregate(field);
          // the quoting of the item itself, two items may have the same text (Bug #77573)
          String quote = getQuote(item);
+         // the names written unquoted, kept for the names a renamed field keeps (Bug #77643)
+         WrittenUnquoted unquoted = item.getWrittenUnquoted();
          int ordinal = getOrdinal(field, quote != null);
          AliasRef aliasRef;
 
@@ -1983,6 +2038,8 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             if(!aliasRef.field().equals(field)) {
                field = aliasRef.field();
                changed = true;
+               // the reference is generated as resolved, a select column as the column
+               unquoted = aliasRef.unquoted();
             }
 
             if(aliasRef.column()) {
@@ -2007,6 +2064,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                }
 
                field = path;
+               unquoted = renameWrittenUnquoted(unquoted, path);
             }
             else {
                String fp = JDBCUtil.getFullPathOf(this, (String) field, quote != null);
@@ -2015,6 +2073,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                   copyQuotedField((String) field, fp);
                   field = fp;
                   changed = true;
+                  unquoted = renameWrittenUnquoted(unquoted, fp);
                }
             }
          }
@@ -2029,7 +2088,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             }
          }
 
-         if(!addOrderByIfAbsent(kept, field, item.getOrder(), quote)) {
+         if(!addOrderByIfAbsent(kept, field, item.getOrder(), quote, unquoted)) {
             // the first item on a column decides its direction, as in sql
             changed = true;
             continue;
@@ -2064,6 +2123,8 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             carryQuotedField(nfield, quote);
             kept.get(i).setField(nfield);
             kept.get(i).setQuoted(quote != null, getQuotedSegment(quote));
+            // the select column is generated as the column (Bug #77643)
+            kept.get(i).setWrittenUnquoted(getSelectUnquoted((Integer) field - 1));
             changed = true;
          }
       }
@@ -2089,18 +2150,32 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
     * @return <tt>true</tt> if added.
     */
    private boolean addOrderByIfAbsent(List<OrderByItem> items, Object field, String order,
-                                      String quote)
+                                      String quote, WrittenUnquoted unquoted)
    {
+      unquoted = WrittenUnquoted.of(unquoted, field);
+
       for(OrderByItem item : items) {
-         if(item.getField().equals(field) && Objects.equals(getQuote(item), quote)) {
+         if(item.getField().equals(field) && Objects.equals(getQuote(item), quote) &&
+            Objects.equals(item.getWrittenUnquoted(), unquoted))
+         {
             return false;
          }
       }
 
       OrderByItem item = new OrderByItem(field, order);
       item.setQuoted(quote != null, getQuotedSegment(quote));
+      item.setWrittenUnquoted(unquoted);
       items.add(item);
       return true;
+   }
+
+   /**
+    * Get the names written unquoted that a field renamed by the metadata step keeps, e.g. the
+    * qualifier of a column resolved to its exact name (Bug #77643).
+    */
+   private WrittenUnquoted renameWrittenUnquoted(WrittenUnquoted unquoted, Object field) {
+      return unquoted == null || !(field instanceof String) ? null :
+         unquoted.rename((String) field, getSQLHelper().getQuote());
    }
 
    /**
@@ -2148,6 +2223,15 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
 
       String seg = jselect.getQuotedColumn(idx);
       return seg == null ? "" : seg;
+   }
+
+   /**
+    * Get the names written unquoted of a select column, which a group by or order by field
+    * converted to the select column generates as the column (Bug #77643).
+    */
+   private WrittenUnquoted getSelectUnquoted(int idx) {
+      return getSelection() instanceof JDBCSelection ?
+         ((JDBCSelection) getSelection()).getWrittenUnquoted(idx) : null;
    }
 
    /**
@@ -2199,7 +2283,10 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
     *               <tt>quote</tt> (see getQuote(OrderByItem)), else the field keeps its own
     *               quoting.
     */
-   private record AliasRef(String field, boolean column, String quote) {
+   private record AliasRef(String field, boolean column, String quote, WrittenUnquoted unquoted) {
+      AliasRef(String field, boolean column, String quote) {
+         this(field, column, quote, null);
+      }
    }
 
    /**
@@ -2276,7 +2363,8 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       // a table column is referenced as itself. A reference to the alias as generated could
       // also name a selected column (order by "A" with w."A" selected is ambiguous)
       if(column != null && !select.isExpression(idx) && XUtil.isQualifiedName(column)) {
-         return new AliasRef(column, true, getSelectQuote(idx, column));
+         // with the names written unquoted of the select column (Bug #77643)
+         return new AliasRef(column, true, getSelectQuote(idx, column), getSelectUnquoted(idx));
       }
 
       return new AliasRef(alias, false, null);
@@ -2542,8 +2630,13 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       // the quoting of each field, two fields may have the same text (Bug #77573)
       String[] quotes = new String[groupBy.length];
 
+      // the names written unquoted of each field, kept for the names a renamed field keeps
+      // (Bug #77643)
+      WrittenUnquoted[] unquoted = new WrittenUnquoted[groupBy.length];
+
       for(int i = 0; i < groupBy.length; i++) {
          quotes[i] = getGroupQuote(i);
+         unquoted[i] = getGroupByWrittenUnquoted(i);
       }
 
       Boolean wildcard = null;
@@ -2568,6 +2661,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                   groupBy[i] = path;
                   quotes[i] = getSelectQuote(idx - 1, path);
                   carryQuotedField(path, quotes[i]);
+                  unquoted[i] = getSelectUnquoted(idx - 1);
                }
             }
          }
@@ -2586,6 +2680,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             // a group by name is a table column before it is a select alias
             groupBy[i] = alias;
             keep[i] = changed = true;
+            unquoted[i] = null;
          }
          else if(groupBy[i] instanceof String &&
             (aliasRef = getSelectAliasField((String) groupBy[i], quotes[i] != null)) != null)
@@ -2595,6 +2690,9 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             changed = changed || !aliasRef.field().equals(groupBy[i]);
             groupBy[i] = aliasRef.field();
             keep[i] = true;
+            // the reference is generated as resolved, a select column as the column
+            unquoted[i] = aliasRef.column() ? aliasRef.unquoted() :
+               WrittenUnquoted.of(unquoted[i], groupBy[i]);
 
             if(aliasRef.column()) {
                quotes[i] = aliasRef.quote();
@@ -2611,6 +2709,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             if(fp != null && !fp.equals(groupBy[i])) {
                copyQuotedField((String) groupBy[i], fp);
                groupBy[i] = fp;
+               unquoted[i] = renameWrittenUnquoted(unquoted[i], fp);
             }
          }
       }
@@ -2618,6 +2717,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       // remove group by columns that does not have table
       List<Object> vec = new ArrayList<>();
       List<String> qvec = new ArrayList<>();
+      List<WrittenUnquoted> uvec = new ArrayList<>();
 
       for(int i = 0; i < groupBy.length; i++) {
          Object obj = groupBy[i];
@@ -2625,6 +2725,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          if(keep[i]) {
             vec.add(obj);
             qvec.add(quotes[i]);
+            uvec.add(unquoted[i]);
          }
          else if(obj instanceof String && getOrdinal(obj, quotes[i] != null) == 0) {
             String fname = obj.toString();
@@ -2633,10 +2734,12 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                getSelection().getAliasColumn(fname) != null) {
                vec.add(obj);
                qvec.add(quotes[i]);
+               uvec.add(unquoted[i]);
             }
             else if((fname = getUnquotedColumnPath(fname)) != null) {
                vec.add(fname);
                qvec.add(quotes[i]);
+               uvec.add(renameWrittenUnquoted(unquoted[i], fname));
                changed = true;
             }
          }
@@ -2645,10 +2748,12 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       // removed or replaced some fields
       if(changed || vec.size() != groupBy.length) {
          setGroupBy(vec.toArray(new Object[0]), qvec.toArray(new String[0]));
+         setGroupByWrittenUnquoted(uvec.toArray(new WrittenUnquoted[0]));
       }
       else {
          groupQuotes = quotes;
          groupQuoteFields = groupBy.clone();
+         groupUnquoted = unquoted;
       }
    }
 
@@ -3998,6 +4103,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       // the text of its fields (isQuotedField)
       if(groups != this.groups) {
          groupQuotes = null;
+         groupUnquoted = null;
       }
 
       this.groups = groups;
@@ -4085,18 +4191,75 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    public synchronized boolean addOrderBy(Object field, String order, boolean quoted,
                                           String segment)
    {
+      return addOrderBy(field, order, quoted, segment, null);
+   }
+
+   /**
+    * Add an order by item unless an item of the same field, quoting and names written
+    * unquoted exists, see addOrderBy(Object, String, boolean, String).
+    * @param unquoted the names of the field written unquoted, see
+    *                 OrderByItem.getWrittenUnquoted (Bug #77643).
+    * @return <tt>true</tt> if added.
+    */
+   public synchronized boolean addOrderBy(Object field, String order, boolean quoted,
+                                          String segment, WrittenUnquoted unquoted)
+   {
       String quote = !quoted ? null : segment == null ? "" : segment;
+      unquoted = WrittenUnquoted.of(unquoted, field);
 
       for(OrderByItem item : orderByList) {
-         if(item.getField().equals(field) && Objects.equals(getQuote(item), quote)) {
+         if(item.getField().equals(field) && Objects.equals(getQuote(item), quote) &&
+            Objects.equals(item.getWrittenUnquoted(), unquoted))
+         {
             return false;
          }
       }
 
       OrderByItem item = new OrderByItem(field, order);
       item.setQuoted(quoted, segment);
+      item.setWrittenUnquoted(unquoted);
       orderByList.add(item);
       return true;
+   }
+
+   /**
+    * Get the names written unquoted of the order by item at a position, see
+    * OrderByItem.getWrittenUnquoted.
+    * @param idx the index in getOrderByItems().
+    */
+   public synchronized WrittenUnquoted getOrderByWrittenUnquoted(int idx) {
+      return idx >= 0 && idx < orderByList.size() ?
+         orderByList.get(idx).getWrittenUnquoted() : null;
+   }
+
+   /**
+    * Set the names written unquoted of each group by field, in the parsed sql (Bug #77643).
+    * A case-sensitive helper stores such a name in quotes in the case it was written.
+    * @param names the names of each field, recorded for its text, or <tt>null</tt>.
+    */
+   public synchronized void setGroupByWrittenUnquoted(WrittenUnquoted[] names) {
+      this.groupUnquoted = groups != null && names != null && names.length == groups.length ?
+         names.clone() : null;
+   }
+
+   /**
+    * Get the names written unquoted of the group by field at a position.
+    * @param idx the index in getGroupBy().
+    * @return the names, or <tt>null</tt> if none or not recorded for the current field.
+    */
+   public synchronized WrittenUnquoted getGroupByWrittenUnquoted(int idx) {
+      return groups != null && groupUnquoted != null && groupUnquoted.length == groups.length &&
+         idx >= 0 && idx < groups.length ? WrittenUnquoted.of(groupUnquoted[idx], groups[idx]) :
+         null;
+   }
+
+   /**
+    * Set the names written unquoted of the sql string, of a derived table saved as the text of
+    * its sql (Bug #77643).
+    * @param names the names, recorded for the sql string, or <tt>null</tt>.
+    */
+   public synchronized void setSQLStringWrittenUnquoted(WrittenUnquoted names) {
+      this.sqlUnquoted = names;
    }
 
    /**
@@ -4236,6 +4399,14 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       if(isQuotedField(field)) {
          setQuotedField(nfield, getQuotedFieldColumn(field));
       }
+   }
+
+   /**
+    * Get the xml attribute of the names written unquoted of a group by or order by field
+    * (Bug #77643). Older versions ignore it and generate the names as stored.
+    */
+   private static String unquotedAttribute(WrittenUnquoted names) {
+      return names == null ? "" : " unquoted=\"" + names.toAttribute() + "\"";
    }
 
    /**
@@ -4748,8 +4919,8 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
     * To string.
     */
    public synchronized String toString() {
-      // don't cache? generate statement
-      if(!cache) {
+      // don't cache? generate statement. The sql generated to be saved isn't cached either
+      if(!cache || WrittenUnquoted.isMarking()) {
          return getSQLString();
       }
       // cache? only generate statement if cached string is null
@@ -4904,6 +5075,10 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
 
          if(groupQuoteFields != null) {
             obj.groupQuoteFields = groupQuoteFields.clone();
+         }
+
+         if(groupUnquoted != null) {
+            obj.groupUnquoted = groupUnquoted.clone();
          }
 
          obj.quotedFields = new HashMap<>(quotedFields);
@@ -5518,6 +5693,11 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    private String[] groupQuotes;
    // the group by fields the quoting was recorded for
    private Object[] groupQuoteFields;
+   // the names written unquoted of each group by field, kept with the text they were recorded
+   // for (Bug #77643)
+   private WrittenUnquoted[] groupUnquoted;
+   // the names written unquoted of the sql string of a derived table saved as text (Bug #77643)
+   private WrittenUnquoted sqlUnquoted;
    // group by/order by fields written as quoted identifiers -> column segment ("" if bare)
    private HashMap<String, String> quotedFields = new HashMap<>();
    // order by aggregates of a qualified quoted column (sum(t."MixedCase")) -> column segment

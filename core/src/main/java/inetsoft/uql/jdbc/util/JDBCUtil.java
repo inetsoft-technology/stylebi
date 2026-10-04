@@ -392,8 +392,16 @@ public class JDBCUtil {
          XField field = getColumnField(sql, path, quoted);
 
          if(field != null && field.getTable().length() > 0) {
+            // the names written unquoted that the resolved column keeps, e.g. its qualifier
+            // (Bug #77643)
+            WrittenUnquoted unquoted = xselect.getWrittenUnquoted(i);
             // the same column qualified by its table, it keeps its quoting
             xselect.renameColumn(i, path);
+
+            if(unquoted != null) {
+               xselect.setWrittenUnquoted(i, unquoted.rename(path, sql.getSQLHelper().getQuote()));
+            }
+
             xselect.setAlias(i, alias);
             xselect.setTable(path, field.getTable());
 
@@ -593,7 +601,11 @@ public class JDBCUtil {
       if(fullPath1 != null) {
          String type = sql.isTableColumn(fullPath1) ? XExpression.FIELD :
             exp.getType();
+         // the names written unquoted that the resolved column keeps (Bug #77643)
+         WrittenUnquoted unquoted = exp.getWrittenUnquoted();
          exp.setValue(fullPath1, type);
+         exp.setWrittenUnquoted(unquoted == null ? null :
+            unquoted.rename(fullPath1, sql.getSQLHelper().getQuote()));
       }
    }
 

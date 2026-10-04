@@ -119,6 +119,23 @@ public class SelectTable implements Serializable, Cloneable {
    }
 
    /**
+    * Get the names of the table name that were written unquoted in the parsed sql, which a
+    * case-sensitive helper stores in quotes in the case they were written (Bug #77643).
+    * @return the names, or <tt>null</tt> if none or not recorded for the current name.
+    */
+   public WrittenUnquoted getWrittenUnquoted() {
+      return name instanceof String ? WrittenUnquoted.of(unquoted, name) : null;
+   }
+
+   /**
+    * Set the names of the table name that were written unquoted in the parsed sql.
+    * @param names the names, recorded for the current name, or <tt>null</tt>.
+    */
+   public void setWrittenUnquoted(WrittenUnquoted names) {
+      this.unquoted = names;
+   }
+
+   /**
     * Get the indexes of the name segments that were written as quoted identifiers ("a",
     * `a` or [a]) in the parsed sql. The name is split at unquoted dots, and the segments
     * are stored without their quotes unless the parser quoted them again.
@@ -303,6 +320,7 @@ public class SelectTable implements Serializable, Cloneable {
    private Object name;
    private String alias;
    private int[] quotedSegments; // indexes of the name segments written quoted
+   private WrittenUnquoted unquoted; // the names written unquoted (Bug #77643)
    private Point location;
    private Point scrollLocation;
    private String catalog;

@@ -261,8 +261,9 @@ class UniformSQLOuterJoinDialectTest {
    @CsvSource(delimiter = '|', value = {
       "select a.x from a left join b on b.id = a.id | " +
          "select \"a\".\"x\" from \"a\" LEFT OUTER JOIN \"b\" ON \"a\".\"id\" = \"b\".\"id\"",
+      // postgresql reads A and B written unquoted as a and b (Bug #77643)
       "select A.x from A left join B on A.id = B.id | " +
-         "select \"A\".\"x\" from \"A\" LEFT OUTER JOIN \"B\" ON \"A\".\"id\" = \"B\".\"id\"",
+         "select \"a\".\"x\" from \"a\" LEFT OUTER JOIN \"b\" ON \"a\".\"id\" = \"b\".\"id\"",
       "select sch.a.id from sch.a left join sch.b on sch.b.id = sch.a.id | " +
          "select \"sch\".\"a\".\"id\" from \"sch\".\"a\" LEFT OUTER JOIN \"sch\".\"b\" " +
          "ON \"sch\".\"a\".\"id\" = \"sch\".\"b\".\"id\"",

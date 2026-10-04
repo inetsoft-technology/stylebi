@@ -145,7 +145,8 @@ class UniformSQLDefaultLocaleFoldTest {
       assertEquals("select \"id\" as \"ida\" from \"t\" order by \"id\" asc",
                    regenerate(fixed("postgresql", "select id as \"ida\" from t order by IDA",
                                     "id")));
-      assertEquals("select \"id\" as IDA from \"t\" order by \"id\" asc",
+      // snowflake reads id and t written unquoted as ID and T (Bug #77643)
+      assertEquals("select \"ID\" as IDA from \"T\" order by \"ID\" asc",
                    regenerate(fixed("snowflake", "select id as \"IDA\" from t order by ida",
                                     "id")));
    }

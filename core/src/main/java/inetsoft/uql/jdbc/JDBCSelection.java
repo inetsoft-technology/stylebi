@@ -135,6 +135,7 @@ public class JDBCSelection extends XSelection {
       quotedAggregates.clear();
       quotedAliases.clear();
       columnSql.clear();
+      unquoted.clear();
    }
 
    /**
@@ -416,11 +417,15 @@ public class JDBCSelection extends XSelection {
     */
    public void renameColumn(int col, String path) {
       ColumnQuote quote = getColumnQuote(col);
+      WrittenUnquoted names = getWrittenUnquoted(col);
       setColumn(col, path);
 
       if(quote != null) {
          quoted.put(col, new ColumnQuote(path, quote.segment()));
       }
+
+      // the names written unquoted are of the text, a renamed column is generated as named
+      setWrittenUnquoted(col, names);
    }
 
    /**
@@ -433,6 +438,32 @@ public class JDBCSelection extends XSelection {
       super.setColumn(idx, col);
       quoted.remove(idx);
       columnSql.remove(idx);
+      unquoted.remove(idx);
+   }
+
+   /**
+    * Get the names of a column that were written unquoted in the parsed sql, which a
+    * case-sensitive helper stores in quotes in the case they were written (Bug #77643).
+    * @param col the column index.
+    * @return the names, or <tt>null</tt> if none or not recorded for the current text of the
+    *         column (e.g. a column added by the query editor, or saved before it was recorded).
+    */
+   public WrittenUnquoted getWrittenUnquoted(int col) {
+      return WrittenUnquoted.of(unquoted.get(col), getColumn(col));
+   }
+
+   /**
+    * Set the names of a column that were written unquoted in the parsed sql.
+    * @param col the column index.
+    * @param names the names, recorded for the current text of the column, or <tt>null</tt>.
+    */
+   public void setWrittenUnquoted(int col, WrittenUnquoted names) {
+      if(names == null || !names.isFor(getColumn(col))) {
+         unquoted.remove(col);
+      }
+      else if(col >= 0) {
+         unquoted.put(col, names);
+      }
    }
 
    /**
@@ -544,6 +575,16 @@ public class JDBCSelection extends XSelection {
       else {
          quotedAliases.remove(col);
       }
+
+      // the names written unquoted go with the text they were recorded for
+      WrittenUnquoted names = from.unquoted.get(fromCol);
+
+      if(names != null && col >= 0) {
+         unquoted.put(col, names);
+      }
+      else {
+         unquoted.remove(col);
+      }
    }
 
    /**
@@ -617,6 +658,7 @@ public class JDBCSelection extends XSelection {
          quoted = removeIndex(quoted, idx);
          quotedAliases = removeIndex(quotedAliases, idx);
          columnSql = removeIndex(columnSql, idx);
+         unquoted = removeIndex(unquoted, idx);
       }
 
       return removed;
@@ -688,6 +730,7 @@ public class JDBCSelection extends XSelection {
       select.quotedAggregates = new TreeMap<>(quotedAggregates);
       select.quotedAliases = new TreeMap<>(quotedAliases);
       select.columnSql = new TreeMap<>(columnSql);
+      select.unquoted = new TreeMap<>(unquoted);
 
       return select;
    }
@@ -702,13 +745,14 @@ public class JDBCSelection extends XSelection {
          Objects.equals(quoted, that.quoted) &&
          Objects.equals(quotedAggregates, that.quotedAggregates) &&
          Objects.equals(quotedAliases, that.quotedAliases) &&
-         Objects.equals(columnSql, that.columnSql);
+         Objects.equals(columnSql, that.columnSql) &&
+         Objects.equals(unquoted, that.unquoted);
    }
 
    @Override
    public int hashCode() {
       return Objects.hash(super.hashCode(), tablemap, aggregates, quoted, quotedAggregates,
-                          quotedAliases, columnSql);
+                          quotedAliases, columnSql, unquoted);
    }
 
    private HashMap<String, String> tablemap = new HashMap(); // path -> table (String)
@@ -727,6 +771,9 @@ public class JDBCSelection extends XSelection {
    // index of a column -> the sql generated in place of its text for a run, kept with the text
    // it was set for (Bug #77620)
    private TreeMap<Integer, ColumnSql> columnSql = new TreeMap<>();
+   // index of a column -> its names written unquoted, kept with the text they were recorded
+   // for (Bug #77643)
+   private TreeMap<Integer, WrittenUnquoted> unquoted = new TreeMap<>();
    private boolean plan = false; // plan flag
 
    private record AliasQuote(String alias, boolean quoted) implements java.io.Serializable {

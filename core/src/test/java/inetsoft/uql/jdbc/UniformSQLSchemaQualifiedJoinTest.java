@@ -514,9 +514,10 @@ class UniformSQLSchemaQualifiedJoinTest {
                       "select \"a\".\"id\", count(\"b\".\"x\") from \"s\".\"a\", \"s\".\"b\" " +
                          "where \"a\".\"id\" = \"b\".\"id\" group by \"a\".\"id\" " +
                          "having count(\"b\".\"x\") > 1"),
+         // postgresql reads ID and Name written unquoted as id and name (Bug #77643)
          Arguments.of(POSTGRESQL, "select a.ID, b.Name from s.a, s.b where a.ID = b.ID",
-                      "select \"a\".\"ID\", \"b\".\"Name\" from \"s\".\"a\", \"s\".\"b\" " +
-                         "where \"a\".\"ID\" = \"b\".\"ID\""),
+                      "select \"a\".\"id\", \"b\".\"name\" from \"s\".\"a\", \"s\".\"b\" " +
+                         "where \"a\".\"id\" = \"b\".\"id\""),
          Arguments.of(POSTGRESQL, "select * from s.a join s.b on a.id = b.id",
                       "select * from \"s\".\"a\", \"s\".\"b\" where \"a\".\"id\" = \"b\".\"id\"")
       );

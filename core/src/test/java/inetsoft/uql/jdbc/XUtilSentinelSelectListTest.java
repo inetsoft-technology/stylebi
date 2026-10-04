@@ -491,7 +491,8 @@ class XUtilSentinelSelectListTest {
       String original = generate(parse(sql, "postgresql"));
       String generated = validate(parse(sql, "postgresql"), NULL_VALUE);
       assertEquals(original.replace("= $(p)", "IS NULL"), generated);
-      assertTrue(generated.contains("= \"c\".\"ID\""), generated);
+      // ID written unquoted is the column id on postgresql (Bug #77643)
+      assertTrue(generated.contains("= \"c\".\"id\""), generated);
 
       // in a derived table, which gets the data source of its query
       sql = "select d.ID from (select \"c\".ID, (select count(*) from C where " +

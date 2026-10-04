@@ -220,8 +220,10 @@ class UniformSQLQualifiedQuotedColumnTest {
 
          // the column segment is stored without its quotes
          assertEquals("\"t\".MixedCase", sql.getSelection().getColumn(0), key);
-         String expected = "select \"t\".\"MixedCase\" from \"t\" where \"t\".\"MixedCase\" = 1 " +
-            "group by \"t\".\"MixedCase\"";
+         // t written unquoted, as the database reads it (Bug #77643)
+         String t = "postgresql".equals(key) ? "\"t\"" : "\"T\"";
+         String expected = "select " + t + ".\"MixedCase\" from " + t + " where " + t +
+            ".\"MixedCase\" = 1 group by " + t + ".\"MixedCase\"";
          assertEquals(expected, regenerate(sql), key);
          JDBCUtil.fixUniformSQLInfo(sql, repository(), null, ds);
          assertEquals(expected, regenerate(sql), key);
@@ -260,9 +262,12 @@ class UniformSQLQualifiedQuotedColumnTest {
          String column = sql.getSelection().getColumn(0);
          assertEquals("MixedCase", ((JDBCSelection) loaded.getSelection()).getQuotedColumn(column));
          assertEquals("MixedCase", loaded.getQuotedFieldColumn(column));
-         // the expression in the where clause
-         assertTrue(regenerate(loaded).contains("where " + column.replace("MixedCase", "\"MixedCase\"")),
-                    expected);
+         // the expression in the where clause. Snowflake and exasol read t written unquoted
+         // as T (Bug #77643)
+         String where = column.replace("MixedCase", "\"MixedCase\"");
+         where = "snowflake".equals(helper.getKey()) || "exasol".equals(helper.getKey()) ?
+            where.replace("\"t\".", "\"T\".") : where;
+         assertTrue(regenerate(loaded).contains("where " + where), expected);
       }
    }
 
@@ -458,17 +463,19 @@ class UniformSQLQualifiedQuotedColumnTest {
 
       for(String[] c : cases) {
          JDBCDataSource ds = helpers().get(c[0]);
-         String folded = "\"t\".\"" + c[1] + "\"";
+         // t written unquoted, as the database reads it (Bug #77643)
+         String t = "postgresql".equals(c[0]) ? "\"t\"" : "\"T\"";
+         String folded = t + ".\"" + c[1] + "\"";
          UniformSQL sql = parse(unquoted, ds);
          resolve(sql, c[1], "id");
-         assertEquals("select " + folded + " from \"t\" where " + folded + " = 1 group by " + folded +
+         assertEquals("select " + folded + " from " + t + " where " + folded + " = 1 group by " + folded +
                       " order by " + folded + " asc", regenerate(sql), c[0]);
 
          // the quoted name keeps its case
          sql = parse(quoted, ds);
          resolve(sql, "MixedCase", "id");
-         assertEquals("select \"t\".\"MixedCase\" from \"t\" where \"t\".\"MixedCase\" = 1 group by " +
-                      "\"t\".\"MixedCase\" order by \"t\".\"MixedCase\" asc", regenerate(sql), c[0]);
+         assertEquals("select " + t + ".\"MixedCase\" from " + t + " where " + t + ".\"MixedCase\" = 1 group by " +
+                      t + ".\"MixedCase\" order by " + t + ".\"MixedCase\" asc", regenerate(sql), c[0]);
       }
    }
 
@@ -510,7 +517,9 @@ class UniformSQLQualifiedQuotedColumnTest {
                String generated = regenerate(sql);
                String first = key.equals("snowflake") ? "MIXEDCASE" : columns[0];
 
-               assertTrue(generated.contains("where " + (ds == null || key.equals("h2") ? "t." : "\"t\".") +
+               // snowflake reads t written unquoted as T (Bug #77643)
+               assertTrue(generated.contains("where " + (ds == null || key.equals("h2") ? "t." :
+                                                         key.equals("snowflake") ? "\"T\"." : "\"t\".") +
                                              (key.equals("postgresql") || key.equals("snowflake") ?
                                                 "\"" + first + "\"" : first) + " = 1"),
                           label + ": " + generated);
@@ -641,7 +650,8 @@ class UniformSQLQualifiedQuotedColumnTest {
    void unquotedAggregatesKeepTheMetadataCaseRepairOnCaseSensitiveDatabases() throws Exception {
       String sum = "select q.id, sum(q.MixedCase) from t q group by q.id";
       String pg = "select \"q\".\"id\", sum(q.\"%s\") from \"t\" q group by \"q\".\"id\"";
-      String folding = "select \"q\".\"id\", sum(q.%s) from \"t\" q group by \"q\".\"id\"";
+      // snowflake and exasol read q, id and t written unquoted as Q, ID and T (Bug #77643)
+      String folding = "select \"Q\".\"ID\", sum(q.%s) from \"T\" q group by \"Q\".\"ID\"";
 
       // the column as postgresql stores an unquoted MixedCase
       assertEquals(String.format(pg, "mixedcase"), aggregate("postgresql", sum, "mixedcase", "id"));
@@ -660,7 +670,7 @@ class UniformSQLQualifiedQuotedColumnTest {
          assertEquals(String.format(folding, "MIXEDCASE"), aggregate(key, sum, TWIN_FIRST), key);
          // without the metadata step
          assertEquals(String.format(folding, "MixedCase"), aggregate(key, sum), key);
-         assertEquals("select \"q\".\"id\" from \"t\" q group by \"q\".\"id\" order by sum(q.MixedCase) asc",
+         assertEquals("select \"Q\".\"ID\" from \"T\" q group by \"Q\".\"ID\" order by sum(q.MixedCase) asc",
                       aggregate(key, "select q.id from t q group by q.id order by sum(q.MixedCase)"), key);
       }
    }
@@ -696,10 +706,11 @@ class UniformSQLQualifiedQuotedColumnTest {
       assertEquals("select \"q\".\"id\", sum(q.\"MixedCase\") from \"t\" q group by \"q\".\"id\"",
                    aggregate("postgresql", "select q.id, sum(q.\"MixedCase\") from t q group by q.id",
                              "MIXEDCASE", "MixedCase", "id"));
-      assertEquals("select \"q\".\"id\", sum(q.\"MixedCase\") from \"t\" q group by \"q\".\"id\"",
+      // snowflake and exasol read q, id and t written unquoted as Q, ID and T (Bug #77643)
+      assertEquals("select \"Q\".\"ID\", sum(q.\"MixedCase\") from \"T\" q group by \"Q\".\"ID\"",
                    aggregate("snowflake", "select q.id, sum(q.\"MixedCase\") from t q group by q.id",
                              "MixedCase", "id"));
-      assertEquals("select \"q\".\"id\", sum(q.\"low\") from \"t\" q group by \"q\".\"id\"",
+      assertEquals("select \"Q\".\"ID\", sum(q.\"low\") from \"T\" q group by \"Q\".\"ID\"",
                    aggregate("exasol", "select q.id, sum(q.\"low\") from t q group by q.id", "LOW", "low", "id"));
    }
 

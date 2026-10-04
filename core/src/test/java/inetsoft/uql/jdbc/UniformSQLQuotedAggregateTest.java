@@ -80,10 +80,10 @@ class UniformSQLQuotedAggregateTest {
 
       // was sum(q.MixedCase) or sum(q.MIXEDCASE), unquoted, which the database folds to MIXEDCASE
       for(String key : new String[] { "snowflake", "exasol" }) {
-         assertEquals(pg, aggregate(key, SELECT, TWIN_FIRST), key);
-         assertEquals(pg, aggregate(key, SELECT, TWIN_SECOND), key);
-         assertEquals(pg, aggregate(key, SELECT, "MixedCase", "id"), key);
-         assertEquals(pg, aggregate(key, SELECT), key);
+         assertEquals(upper(pg), aggregate(key, SELECT, TWIN_FIRST), key);
+         assertEquals(upper(pg), aggregate(key, SELECT, TWIN_SECOND), key);
+         assertEquals(upper(pg), aggregate(key, SELECT, "MixedCase", "id"), key);
+         assertEquals(upper(pg), aggregate(key, SELECT), key);
       }
 
       // the parser records the column of the aggregate, the stored text is unchanged
@@ -145,15 +145,20 @@ class UniformSQLQuotedAggregateTest {
       String folding = "select \"q\".\"id\", sum(q.%s) from \"t\" q group by \"q\".\"id\"";
 
       assertEquals(String.format(pg, "MIXEDCASE"), aggregate("postgresql", UNQUOTED, TWIN_FIRST));
-      assertEquals(String.format(pg, "MixedCase"), aggregate("postgresql", UNQUOTED, TWIN_SECOND));
+      // the metadata spelling is the written one, kept as written: postgresql reads MixedCase
+      // written unquoted as mixedcase (Bug #77643)
+      assertEquals(String.format(pg, "mixedcase"), aggregate("postgresql", UNQUOTED, TWIN_SECOND));
       assertEquals(String.format(pg, "mixedcase"), aggregate("postgresql", UNQUOTED, "mixedcase", "id"));
-      assertEquals(String.format(pg, "MixedCase"), aggregate("postgresql", UNQUOTED));
+      // without the metadata step, the column postgresql reads for MixedCase written unquoted
+      // (Bug #77643)
+      assertEquals(String.format(pg, "mixedcase"), aggregate("postgresql", UNQUOTED));
 
+      // snowflake and exasol read q, id and t written unquoted as Q, ID and T (Bug #77643)
       for(String key : new String[] { "snowflake", "exasol" }) {
-         assertEquals(String.format(folding, "MIXEDCASE"), aggregate(key, UNQUOTED, TWIN_FIRST), key);
-         assertEquals(String.format(folding, "MixedCase"), aggregate(key, UNQUOTED, TWIN_SECOND), key);
-         assertEquals(String.format(folding, "MixedCase"), aggregate(key, UNQUOTED), key);
-         assertEquals(String.format(folding, "MIXEDCASE") + " order by sum(q.MIXEDCASE) asc",
+         assertEquals(upper(String.format(folding, "MIXEDCASE")), aggregate(key, UNQUOTED, TWIN_FIRST), key);
+         assertEquals(upper(String.format(folding, "MixedCase")), aggregate(key, UNQUOTED, TWIN_SECOND), key);
+         assertEquals(upper(String.format(folding, "MixedCase")), aggregate(key, UNQUOTED), key);
+         assertEquals(upper(String.format(folding, "MIXEDCASE")) + " order by sum(q.MIXEDCASE) asc",
                       aggregate(key, UNQUOTED + " order by sum(q.MixedCase)", TWIN_FIRST), key);
       }
 
@@ -181,10 +186,10 @@ class UniformSQLQuotedAggregateTest {
 
       assertEquals("select \"q\".\"id\", sum(q.\"MIXEDCASE\") as \"a\", sum(q.\"MixedCase\") as \"b\" from \"t\" q " +
                    "group by \"q\".\"id\"", aggregate("postgresql", query, TWIN_FIRST));
-      assertEquals("select \"q\".\"id\", sum(q.MIXEDCASE) as a, sum(q.\"MixedCase\") as b from \"t\" q " +
-                   "group by \"q\".\"id\"", aggregate("snowflake", query, TWIN_FIRST));
-      assertEquals("select \"q\".\"id\", sum(q.MixedCase) as a, sum(q.\"MixedCase\") as b from \"t\" q " +
-                   "group by \"q\".\"id\"", aggregate("exasol", query, TWIN_SECOND));
+      assertEquals(upper("select \"q\".\"id\", sum(q.MIXEDCASE) as a, sum(q.\"MixedCase\") as b from \"t\" q " +
+                   "group by \"q\".\"id\""), aggregate("snowflake", query, TWIN_FIRST));
+      assertEquals(upper("select \"q\".\"id\", sum(q.MixedCase) as a, sum(q.\"MixedCase\") as b from \"t\" q " +
+                   "group by \"q\".\"id\""), aggregate("exasol", query, TWIN_SECOND));
       assertEquals("select q.id, sum(q.\"MixedCase\") as b, sum(q.MIXEDCASE) as a from t q group by q.id",
                    aggregate("h2", query, TWIN_FIRST));
 
@@ -206,10 +211,10 @@ class UniformSQLQuotedAggregateTest {
                    aggregate("postgresql", UNQUOTED + " order by sum(q.\"MixedCase\")", TWIN_FIRST));
       assertEquals(String.format(pg, "MixedCase", "MIXEDCASE"),
                    aggregate("postgresql", SELECT + " order by sum(q.MixedCase)", TWIN_FIRST));
-      assertEquals("select \"q\".\"id\", sum(q.\"MixedCase\") from \"t\" q group by \"q\".\"id\" " +
-                   "order by sum(q.\"MixedCase\") asc",
+      assertEquals(upper("select \"q\".\"id\", sum(q.\"MixedCase\") from \"t\" q group by \"q\".\"id\" " +
+                   "order by sum(q.\"MixedCase\") asc"),
                    aggregate("snowflake", SELECT + " order by sum(q.\"MixedCase\")", TWIN_SECOND));
-      assertEquals("select \"q\".\"id\" from \"t\" q group by \"q\".\"id\" order by sum(q.\"MixedCase\") asc",
+      assertEquals(upper("select \"q\".\"id\" from \"t\" q group by \"q\".\"id\" order by sum(q.\"MixedCase\") asc"),
                    aggregate("exasol", "select q.id from t q group by q.id order by sum(q.\"MixedCase\")"));
       // an order by alias is generated as the alias, as before
       assertEquals("select \"q\".\"id\", sum(q.\"MixedCase\") as \"s\" from \"t\" q group by \"q\".\"id\" " +
@@ -223,15 +228,21 @@ class UniformSQLQuotedAggregateTest {
 
    /**
     * HAVING doesn't go through getValidAggregate, it keeps the parsed text, unchanged by this
-    * fix. The unquoted spelling is quoted there on PostgreSQL, Snowflake and Exasol, a
-    * pre-existing defect out of the scope of #77578.
+    * fix. The unquoted spelling was quoted there on PostgreSQL, Snowflake and Exasol, a
+    * pre-existing defect out of the scope of #77578. Since #77643 it is generated in the case
+    * the database reads it.
     */
    @Test
    void havingIsUnchanged() throws Exception {
       for(String key : new String[] { "postgresql", "snowflake", "exasol" }) {
+         boolean pg = "postgresql".equals(key);
+
          for(String arg : new String[] { "q.\"MixedCase\"", "q.MixedCase" }) {
             String query = "select q.id from t q group by q.id having sum(" + arg + ") > 0";
-            String expected = "select \"q\".\"id\" from \"t\" q group by \"q\".\"id\" having sum(\"q\".\"MixedCase\") > 0";
+            String column = arg.contains("\"") ? "MixedCase" : pg ? "mixedcase" : "MIXEDCASE";
+            String expected = "select \"q\".\"id\" from \"t\" q group by \"q\".\"id\" having sum(\"q\".\"" +
+               column + "\") > 0";
+            expected = pg ? expected : upper(expected);
             assertEquals(expected, aggregate(key, query), key);
             assertEquals(expected, aggregate(key, query, TWIN_FIRST), key);
          }
@@ -258,7 +269,7 @@ class UniformSQLQuotedAggregateTest {
       assertEquals("select sum(t.\"MixedCase\") from T t",
                    aggregate("oracle", "select sum(t.\"MixedCase\") from t", TWIN_FIRST));
       // a derived table, the subquery keeps both columns
-      assertEquals("select sum(q.\"MixedCase\") from ( select \"MIXEDCASE\", \"t\".\"MixedCase\" from \"t\") q",
+      assertEquals("select sum(q.\"MixedCase\") from ( select \"MIXEDCASE\", \"T\".\"MixedCase\" from \"T\") q",
                    aggregate("snowflake", "select sum(q.\"MixedCase\") from (select \"MixedCase\", MIXEDCASE from t) q",
                              TWIN_FIRST));
       // a bare quoted argument isn't recorded, it keeps its text as before
@@ -457,7 +468,11 @@ class UniformSQLQuotedAggregateTest {
       for(String key : helpers().keySet()) {
          for(String query : queries) {
             String generated = regenerate(parse(query, source(key)));
-            assertEquals(generated, regenerate(parse(generated, source(key))), key + ": " + query);
+            // the generated sql has the folded name of a column written unquoted (#77643), which
+            // is parsed again as another stored text, and the select list is generated sorted by
+            // its stored text, so the columns may come in another order
+            assertEquals(sortedSelect(generated), sortedSelect(regenerate(parse(generated, source(key)))),
+                         key + ": " + query);
          }
       }
    }
@@ -726,6 +741,25 @@ class UniformSQLQuotedAggregateTest {
       catch(SQLException ex) {
          throw new SQLException(query, ex);
       }
+   }
+
+   // the name the database reads for the quoted names q, id and t written unquoted, on snowflake
+   // and exasol (Bug #77643)
+   private static String upper(String sql) {
+      return sql.replace("\"q\"", "\"Q\"").replace("\"id\"", "\"ID\"").replace("\"t\"", "\"T\"");
+   }
+
+   // the sql with the columns of its select list sorted
+   private static String sortedSelect(String sql) {
+      int from = sql.indexOf(" from ");
+
+      if(!sql.startsWith("select ") || from < 0) {
+         return sql;
+      }
+
+      String[] columns = sql.substring(7, from).split(", ");
+      Arrays.sort(columns);
+      return "select " + String.join(", ", columns) + sql.substring(from);
    }
 
    private static int count(Pattern pattern, String str) {

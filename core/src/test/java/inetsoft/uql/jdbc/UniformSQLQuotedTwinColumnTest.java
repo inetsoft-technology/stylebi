@@ -305,8 +305,8 @@ class UniformSQLQuotedTwinColumnTest {
    /**
     * PostgreSQL stores an unquoted name with in-band quotes ("MixedCase") and a quoted one
     * without them, flagged, so the two spellings have other text and other flags. The quoted
-    * one keeps its case. The unquoted one is generated quoted, as before this change: that is
-    * the in-band quoting of a case-sensitive helper, not the flag.
+    * one keeps its case. The unquoted one is generated in the case postgresql reads it,
+    * "mixedcase" (Bug #77643).
     */
    @Test
    void postgresqlTwinsBeforeAndAfterTheMetadataStep() throws Exception {
@@ -321,8 +321,8 @@ class UniformSQLQuotedTwinColumnTest {
       Map<String, String> stages = stages(
          "select \"MixedCase\", MixedCase as b from t group by \"MixedCase\", MixedCase " +
          "order by MixedCase desc, \"MixedCase\"", pg);
-      assertEquals("select \"MixedCase\" as \"b\", \"t\".\"MixedCase\" from \"t\" " +
-                   "group by \"t\".\"MixedCase\", \"MixedCase\" order by \"MixedCase\" desc, \"t\".\"MixedCase\" asc",
+      assertEquals("select \"mixedcase\" as \"b\", \"t\".\"MixedCase\" from \"t\" " +
+                   "group by \"t\".\"MixedCase\", \"mixedcase\" order by \"mixedcase\" desc, \"t\".\"MixedCase\" asc",
                    stages.get("fixed"));
       assertEquals(stages.get("fixed"), stages.get("fixed-xml"));
       assertEquals("select \"t\".\"MIXEDCASE\" as \"b\", \"t\".\"MixedCase\" from \"t\"",
@@ -465,17 +465,20 @@ class UniformSQLQuotedTwinColumnTest {
 
    /**
     * #77578 records the quoted column of an ORDER BY aggregate by its text. A later item of
-    * the same text and quoting is dropped, and doesn't clear or change the record of the item
-    * kept.
+    * the same text and quoting doesn't clear or change the record of the first item. It was
+    * dropped, it's another column (mixedcase) on postgresql, so it's kept and generated as
+    * that column (Bug #77643).
     */
    @Test
    void droppedOrderByItemKeepsTheAggregateRecord() throws Exception {
       UniformSQL sql = parse("select sum(t.\"MixedCase\") from t " +
                              "order by sum(t.\"MixedCase\") desc, sum(t.MixedCase)", helpers().get("postgresql"));
       OrderByItem[] items = sql.getOrderByItems();
-      assertEquals(1, items.length, Arrays.toString(items));
+      assertEquals(2, items.length, Arrays.toString(items));
       assertEquals("desc", items[0].getOrder());
       assertEquals("MixedCase", sql.getQuotedAggregate(items[0].getField()));
+      assertTrue(regenerate(sql).endsWith(" order by sum(\"t\".\"MixedCase\") desc, sum(\"t\".\"mixedcase\") asc"),
+                 regenerate(sql));
    }
 
    /**
@@ -882,11 +885,13 @@ class UniformSQLQuotedTwinColumnTest {
    @Test
    void aliasQuotingDecidesTheReferenceOnSnowflakeAndExasol() throws Exception {
       for(String helper : new String[] { "snowflake", "exasol" }) {
-         assertEquals("order by \"A\" desc",
+         // a reference written unquoted is generated as the alias is, unquoted (Bug #77643)
+         assertEquals("order by A desc",
                       orderBy(fixed(helper, "select id as a from u order by A desc", "id")), helper);
-         assertEquals("order by \"t\".A desc",
+         // t written unquoted is T (Bug #77643)
+         assertEquals("order by \"T\".A desc",
                       orderBy(fixed(helper, "select k as \"a\" from t order by a desc", "id", "k", "A")), helper);
-         assertEquals("order by \"t\".A desc",
+         assertEquals("order by \"T\".A desc",
                       orderBy(fixed(helper, "select id as \"a\" from t order by a desc", "id", "k", "A")), helper);
          // an expression alias is written unquoted, so the database folds it
          assertEquals("order by \"A\" desc",

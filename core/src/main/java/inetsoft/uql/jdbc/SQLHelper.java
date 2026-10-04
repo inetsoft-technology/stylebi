@@ -941,13 +941,18 @@ public class SQLHelper implements KeywordProvider {
          else {
             String quote = getQuote();
             String qname = quoteQuotedSegments(table, namestr);
+            StringBuilder nameStr = new StringBuilder();
 
             if(qname != null) {
-               sb.append(qname);
+               nameStr.append(qname);
             }
             else {
-               fixTableName(namestr, sb, quote, true);
+               fixTableName(namestr, nameStr, quote, true);
             }
+
+            // the names written unquoted, in the case the database reads them (Bug #77643)
+            sb.append(tobj instanceof String ?
+               foldWrittenUnquoted(nameStr.toString(), table.getWrittenUnquoted()) : nameStr);
          }
       }
 
@@ -959,8 +964,8 @@ public class SQLHelper implements KeywordProvider {
             alias = nalias;
          }
 
-         if(!alias.equals(namestr) && !alias.equals(trimQuote(namestr)) ||
-            uniformSql.hasVPMCondition() && isTableSubquery())
+         if(!alias.equals(namestr) && !alias.equals(trimQuote(namestr)) &&
+            !isFoldedTwin(table) || uniformSql.hasVPMCondition() && isTableSubquery())
          {
             sb.append(" ");
 
@@ -1478,6 +1483,10 @@ public class SQLHelper implements KeywordProvider {
             column = replaceTableByAlias(false, column);
          }
 
+         // the names written unquoted, in the case the database reads them (Bug #77643). The
+         // sql of the column for this run is generated from its text, it has the same names
+         column = foldNames(column, ((JDBCSelection) xselect).getWrittenUnquoted(xIdx));
+
          selectStr.append(" ");
          selectStr.append(column);
 
@@ -1898,17 +1907,51 @@ public class SQLHelper implements KeywordProvider {
       }
 
       StringBuilder from = new StringBuilder();
+      Set<String> unaliased = new HashSet<>();
       from.append(FROM);
 
       for(int i = 0; i < count; i++) {
-         from.append(generateTableClause(uniformSql.getSelectTable(i)));
+         SelectTable table = uniformSql.getSelectTable(i);
+         String clause = generateTableClause(table);
 
-         if(i != count - 1) {
+         // tables without an alias written in two quotings (MyTab and "MyTab") are two
+         // tables, generated as one table, as before, when the name isn't folded (Bug #77643)
+         if(isUnaliased(table) && !unaliased.add(clause)) {
+            continue;
+         }
+
+         if(i > 0) {
             from.append(COMMA_GAP);
          }
+
+         from.append(clause);
       }
 
       return from.toString();
+   }
+
+   // check if a table has no alias, see SQLParser addTable
+   private boolean isUnaliased(SelectTable table) {
+      Object name = table.getName();
+      String alias = table.getAlias();
+
+      return name instanceof String && alias != null &&
+         (alias.equals(name) || alias.equals(((String) name).replace(getQuote(), "")) ||
+          isFoldedTwin(table));
+   }
+
+   /**
+    * Check if a table without an alias is named by its name as the database folds it ("mytab"
+    * for MyTab written unquoted on postgresql), because a table of the same stored name was
+    * written quoted ("MyTab"), see SQLParser addTable (Bug #77643). The name isn't an alias.
+    */
+   private boolean isFoldedTwin(SelectTable table) {
+      Object name = table.getName();
+      String alias = table.getAlias();
+      String quote = getQuote();
+
+      return name instanceof String && alias != null && !quote.isEmpty() &&
+         alias.startsWith(quote) && !alias.equals(name) && alias.equalsIgnoreCase((String) name);
    }
 
    /**
@@ -3564,6 +3607,9 @@ public class SQLHelper implements KeywordProvider {
             else {
                sfield = replaceTableByAlias(false, sfield);
             }
+
+            // the names written unquoted, in the case the database reads them (Bug #77643)
+            sfield = foldNames(sfield, uniformSql.getOrderByWrittenUnquoted(i));
          }
          else {
             sfield = field.toString();
@@ -3717,7 +3763,8 @@ public class SQLHelper implements KeywordProvider {
                column = replaceTableByAlias(false, column);
             }
 
-            sfield = column;
+            // the names written unquoted, in the case the database reads them (Bug #77643)
+            sfield = foldNames(column, uniformSql.getGroupByWrittenUnquoted(i));
          }
 
          group.append(sfield.toString());
@@ -4383,6 +4430,9 @@ public class SQLHelper implements KeywordProvider {
          if(exp.isQuotedField()) {
             str = quoteIdentifier(value.toString(), str, exp.getQuotedColumn());
          }
+
+         // the names written unquoted, in the case the database reads them (Bug #77643)
+         str = foldNames(str, exp.getWrittenUnquoted());
       }
       else if(type.equals(XExpression.SUBQUERY)) {
          UniformSQL sql = (UniformSQL) value;
@@ -4428,6 +4478,7 @@ public class SQLHelper implements KeywordProvider {
          str = exp.toString(value);
          str = quoteExpressionColumn(str);
          String ignoreNotChangeAliasExp = null;
+         boolean aliased = false;
          String originalStr = str;
 
          // if table changed to a subquery, replace reference to table to alias
@@ -4460,11 +4511,17 @@ public class SQLHelper implements KeywordProvider {
                   !alias.equals(str) && requiresAliasInHaving())
                {
                   str = quoteAlias(alias);
+                  aliased = true;
                }
             }
          }
 
          str = transformDate(str);
+
+         // the names written unquoted, in the case the database reads them (Bug #77643)
+         if(!aliased) {
+            str = foldNames(str, exp.getWrittenUnquoted());
+         }
       }
       else if(type.equals(XExpression.VALUE) && value != null) {
          str = exp.toString(value);
@@ -4556,6 +4613,133 @@ public class SQLHelper implements KeywordProvider {
 
    // a name the database folds when it's written unquoted
    private static final Pattern PLAIN_IDENTIFIER = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
+
+   /**
+    * Fold the names written unquoted in the sql generated for a stored text (a select column,
+    * a condition expression, a group by or order by field, a table name, or the sql of a
+    * derived table saved as text). A case-sensitive helper stores such a name in quotes in the
+    * case it was written, the database reads the name written unquoted in its folded case
+    * (Bug #77643). The name is folded and kept in quotes. A name that references an alias is
+    * generated like the alias: folded only if the alias is generated unquoted. Nothing is
+    * folded if the case isn't known, or if db.foldUnquotedIdentifiers is false.
+    * @param generated the sql generated for the text.
+    * @param names the names of the text written unquoted, or <tt>null</tt>.
+    * @return the sql with the names folded.
+    */
+   public String foldWrittenUnquoted(String generated, WrittenUnquoted names) {
+      if(names == null || generated == null) {
+         return generated;
+      }
+
+      String quote = getQuote();
+
+      // the sql generated to be saved keeps the names as stored, marked to be saved
+      if(WrittenUnquoted.isMarking()) {
+         return names.apply(generated, quote, name -> WrittenUnquoted.mark(name, false),
+                            name -> quote + WrittenUnquoted.mark(name, true) + quote);
+      }
+
+      IdentifierCase fold = getIdentifierCase();
+
+      if(fold == IdentifierCase.UNKNOWN || !isFoldUnquotedIdentifiers()) {
+         return generated;
+      }
+
+      // a reference to an alias is generated as the alias is
+      return names.apply(generated, quote, fold::fold, this::quoteColumnAlias);
+   }
+
+   /**
+    * Check if the names written unquoted are generated in the case the database folds them
+    * to, see foldWrittenUnquoted. The property db.foldUnquotedIdentifiers=false generates them
+    * as stored, as before Bug #77643.
+    */
+   public static boolean isFoldUnquotedIdentifiers() {
+      return !"false".equals(SreeEnv.getProperty("db.foldUnquotedIdentifiers"));
+   }
+
+   /**
+    * Fold the names written unquoted in the sql generated for a stored text, see
+    * foldWrittenUnquoted, and the qualifiers that name a table without an alias whose name
+    * was written unquoted, as the table is generated in the from clause. Such a qualifier
+    * may have been added to the text after the parse, e.g. by the metadata step.
+    */
+   private String foldNames(String generated, WrittenUnquoted names) {
+      return foldTableQualifiers(foldWrittenUnquoted(generated, names));
+   }
+
+   /**
+    * Generate the qualifiers that name a table without an alias whose name was written
+    * unquoted (e.g. "t".id for t written unquoted) as the name of the table is generated in
+    * the from clause (Bug #77643).
+    */
+   private String foldTableQualifiers(String generated) {
+      Map<String, String> qualifiers = getTableQualifiers();
+      String quote = getQuote();
+
+      if(generated == null || qualifiers.isEmpty() || quote.isEmpty()) {
+         return generated;
+      }
+
+      StringBuilder sb = new StringBuilder();
+      int last = 0;
+
+      for(int[] range : WrittenUnquoted.findNames(generated, quote)) {
+         int start = range[0] - quote.length();
+
+         if(start < last || start > 0 && generated.charAt(start - 1) == '.') {
+            continue;
+         }
+
+         for(Map.Entry<String, String> entry : qualifiers.entrySet()) {
+            String name = entry.getKey();
+
+            if(generated.startsWith(name, start) &&
+               generated.startsWith(".", start + name.length()))
+            {
+               sb.append(generated, last, start).append(entry.getValue());
+               last = start + name.length();
+               break;
+            }
+         }
+      }
+
+      return last == 0 ? generated : sb.append(generated.substring(last)).toString();
+   }
+
+   /**
+    * Get the stored names of the tables without an alias whose name was written unquoted ->
+    * the name generated in the from clause. A name of two tables (MyTab and "MyTab") isn't
+    * one table.
+    */
+   private Map<String, String> getTableQualifiers() {
+      Map<String, String> qualifiers = new HashMap<>();
+      Set<String> names = new HashSet<>();
+      Set<String> shared = new HashSet<>();
+
+      for(SelectTable table : uniformSql == null ? new SelectTable[0] :
+         uniformSql.getSelectTable())
+      {
+         Object name = table.getName();
+
+         if(!(name instanceof String) || !isUnaliased(table)) {
+            continue;
+         }
+
+         if(!names.add((String) name)) {
+            shared.add((String) name);
+         }
+
+         String folded = foldWrittenUnquoted((String) name, table.getWrittenUnquoted());
+
+         if(!isFoldedTwin(table) && !folded.equals(name)) {
+            qualifiers.put((String) name, folded);
+         }
+      }
+
+      qualifiers.keySet().removeAll(shared);
+      return qualifiers;
+   }
 
    /**
     * The alias has special character should be quoted as "alias".

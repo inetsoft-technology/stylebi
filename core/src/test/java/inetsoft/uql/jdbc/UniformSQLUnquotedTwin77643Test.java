@@ -119,7 +119,8 @@ class UniformSQLUnquotedTwin77643Test {
          for(String[] columns : new String[][] { TWIN_SECOND, TWIN_FIRST }) {
             String generated = fixed(helper, "select t.\"MixedCase\", t.MixedCase as b, count(*) as n from t " +
                                      "group by t.\"MixedCase\", t.MixedCase", columns);
-            assertTrue(generated.endsWith(" group by \"t\".\"MixedCase\", \"t\".MIXEDCASE"),
+            // t written unquoted is T on snowflake and exasol (Bug #77643)
+            assertTrue(generated.endsWith(" group by \"T\".\"MixedCase\", \"T\".MIXEDCASE"),
                        helper + " " + columns[1] + ": " + generated);
          }
       }
@@ -220,10 +221,11 @@ class UniformSQLUnquotedTwin77643Test {
             String label = helper + " " + columns[1];
             String generated = fixed(helper, "select t.id, t.MIXEDCASE from t order by t.MIXEDCASE desc",
                                      columns);
-            assertTrue(generated.endsWith(" order by \"t\".\"MIXEDCASE\" desc"), label + ": " + generated);
+            // t written unquoted is T on snowflake and exasol (Bug #77643)
+            assertTrue(generated.endsWith(" order by \"T\".\"MIXEDCASE\" desc"), label + ": " + generated);
 
             generated = fixed(helper, "select t.id, t.MixedCase from t order by t.MixedCase desc", columns);
-            assertTrue(generated.endsWith(" order by \"t\".\"MIXEDCASE\" desc"), label + ": " + generated);
+            assertTrue(generated.endsWith(" order by \"T\".\"MIXEDCASE\" desc"), label + ": " + generated);
          }
       }
    }

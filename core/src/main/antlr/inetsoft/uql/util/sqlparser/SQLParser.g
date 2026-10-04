@@ -1947,6 +1947,9 @@ Boolean isQuotedIdentifier(Token token) {
 // UniformSQL.setGroupBy(Object[], String[])
 private String lastGroupQuote = null;
 private Vector lastGroupQuotes = null;
+// the names written unquoted of the last group by field and of the last group by list
+private WrittenUnquoted lastGroupMarker = null;
+private List<WrittenUnquoted> lastGroupMarkers = null;
 private int lastSegStart = 0;
 private String lastSeg = null;
 // the text of the last function and, if its only argument is a qualified quoted column
@@ -1997,10 +2000,24 @@ String quoteColumn(String col) {
 // when it's a table, which a column lookup never asks for
 String quoteSegment(String str) {
    boolean plain = identPlain;
-   String quoted = quoteDot(str);
+   String quoted = quotePlain(str);
 
    if(plain && uniSql != null && !quoted.equals(str)) {
       uniSql.addParsedUnquotedSegment(quoted);
+   }
+
+   return quoted;
+}
+
+// quoteDot a segment, a plain identifier put in quotes is recorded as written unquoted, see
+// getWrittenUnquoted
+String quotePlain(String str) {
+   boolean plain = identPlain;
+   Token token = identToken;
+   String quoted = quoteDot(str);
+
+   if(plain && token != null && !quoted.equals(str)) {
+      plainTokens.add(token);
    }
 
    return quoted;
@@ -2024,6 +2041,277 @@ String quoteDot(String str) {
    }
 
    return str;
+}
+
+// the identifier tokens consumed (not while guessing), in the order of the sql, see
+// getWrittenUnquoted (Bug #77643)
+private List<Token> identTokens = new ArrayList<>();
+// the plain identifiers that quoteDot put in quotes
+private Set<Token> plainTokens = Collections.newSetFromMap(new IdentityHashMap<>());
+// the plain column segments of column references -> their qualifier ("" if none)
+private Map<Token, String> columnQualifiers = new IdentityHashMap<>();
+// the token of the last qualified_id, column_name or schema_name if identPlain
+private Token identToken = null;
+// the query levels whose table_exp is being parsed, the innermost first
+private Deque<QueryLevel> levels = new ArrayDeque<>();
+// the select list of each query -> its columns, resolved when its from clause is parsed
+private Map<UniformSQL, QueryLevel> pendingLevels = new IdentityHashMap<>();
+
+// a query level: its select list, and its select columns whose names written unquoted are
+// found once the from clause is known
+private static class QueryLevel {
+   QueryLevel(UniformSQL sql) {
+      this.sql = sql;
+   }
+
+   final UniformSQL sql;
+   JDBCSelection selection;
+   final List<Object[]> columns = new ArrayList<>();
+}
+
+@Override
+public void consume() throws TokenStreamException {
+   if(inputState.guessing == 0 && isIdentifierToken(LA(1))) {
+      identTokens.add(LT(1));
+   }
+
+   super.consume();
+}
+
+private static boolean isIdentifierToken(int type) {
+   return type == IDENT || type == T_DATE || type == T_TIME || isQuotedIdentifierToken(type);
+}
+
+private static boolean isQuotedIdentifierToken(int type) {
+   return type == SPIDENT || type == SPIDENT2 || type == SPIDENT_SQUARE;
+}
+
+// the name of an identifier token as it's put in quotes
+private static String getIdentifierName(Token token) {
+   String text = token.getText();
+   return isQuotedIdentifierToken(token.getType()) && text.length() > 1 ?
+      text.substring(1, text.length() - 1) : text;
+}
+
+// the quote of the helper of the parsed sql, see quoteDot
+private String getHelperQuote() {
+   SQLHelper helper = SQLHelper.getSQLHelper(uniSql != null ? uniSql.getDataSource() : null,
+                                             (Principal) null);
+   return helper != null ? helper.getQuote() : "\"";
+}
+
+// the level of a query, created for its select list
+private QueryLevel getLevel(UniformSQL sql) {
+   return pendingLevels.computeIfAbsent(sql, QueryLevel::new);
+}
+
+// record a column of a select list, its names written unquoted are found when the from
+// clause of its query is parsed, which may have a derived table whose alias it references
+void addSelectColumn(UniformSQL sql, JDBCSelection selection, String text, int start) {
+   if(inputState.guessing > 0 || sql == null) {
+      return;
+   }
+
+   QueryLevel level = getLevel(sql);
+   level.selection = selection;
+   level.columns.add(new Object[] { selection.getColumnCount() - 1, text, start,
+                                    identTokens.size() });
+}
+
+// start the table_exp of a query
+void startLevel(UniformSQL sql) {
+   if(inputState.guessing == 0 && sql != null) {
+      levels.push(getLevel(sql));
+   }
+}
+
+// end the table_exp of a query, the names written unquoted of its select columns are found
+void endLevel(UniformSQL sql) {
+   if(inputState.guessing > 0 || sql == null || levels.isEmpty() || levels.peek().sql != sql) {
+      return;
+   }
+
+   QueryLevel level = levels.peek();
+
+   for(Object[] column : level.columns) {
+      int idx = (Integer) column[0];
+      String text = (String) column[1];
+
+      if(level.selection != null && text.equals(level.selection.getColumn(idx))) {
+         level.selection.setWrittenUnquoted(
+            idx, getWrittenUnquoted(text, (Integer) column[2], (Integer) column[3], false));
+      }
+   }
+
+   levels.pop();
+   pendingLevels.remove(sql);
+}
+
+// record the names written unquoted of an expression (e.g. a condition operand)
+void setWrittenUnquoted(XExpression exp, int start) {
+   if(inputState.guessing > 0 || exp == null || XExpression.SUBQUERY.equals(exp.getType()) ||
+      XExpression.VALUE.equals(exp.getType()))
+   {
+      return;
+   }
+
+   exp.setWrittenUnquoted(getWrittenUnquoted(exp.toString(), start, identTokens.size(), false));
+}
+
+/**
+ * Get the names written unquoted of the stored text of a part of the sql (Bug #77643). The
+ * quoted names of the text are matched in order with the identifiers of the part, by their
+ * name: a name made of a plain identifier that quoteDot put in quotes was written unquoted.
+ * @param text the stored text.
+ * @param start the index in identTokens of the first identifier of the part.
+ * @param end the index in identTokens after the last identifier of the part.
+ * @param item <tt>true</tt> if the text is a group by or order by field, which may be the
+ *             alias of a select column.
+ * @return the names, or <tt>null</tt> if none.
+ */
+WrittenUnquoted getWrittenUnquoted(String text, int start, int end, boolean item) {
+   if(text == null || start < 0 || end > identTokens.size() || start >= end) {
+      return null;
+   }
+
+   String quote = getHelperQuote();
+   List<int[]> names = WrittenUnquoted.findNames(text, quote);
+   List<Integer> unquoted = new ArrayList<>();
+   List<Integer> aliases = new ArrayList<>();
+   int next = start;
+
+   for(int i = 0; i < names.size(); i++) {
+      String name = text.substring(names.get(i)[0], names.get(i)[1]);
+      Token match = null;
+
+      for(int j = next; j < end && match == null; j++) {
+         Token token = identTokens.get(j);
+
+         if((plainTokens.contains(token) || isQuotedIdentifierToken(token.getType())) &&
+            name.equals(getIdentifierName(token)))
+         {
+            match = token;
+            next = j + 1;
+         }
+      }
+
+      if(match == null || !plainTokens.contains(match)) {
+         continue;
+      }
+
+      boolean field = item && names.size() == 1 && text.equals(quote + name + quote);
+      (isAliasReference(match, field) ? aliases : unquoted).add(i);
+   }
+
+   return WrittenUnquoted.of(text, unquoted, aliases);
+}
+
+/**
+ * Check if a plain column segment references a select alias: a group by or order by field
+ * that is the alias of a select column of its query, or a column of a derived table of the
+ * from clause that is an alias in the derived table. A reference is generated like the alias
+ * (Bug #77643).
+ * @param field <tt>true</tt> if the token is a whole group by or order by field.
+ */
+private boolean isAliasReference(Token token, boolean field) {
+   String qualifier = columnQualifiers.get(token);
+   QueryLevel level = levels.peek();
+
+   if(qualifier == null || level == null) {
+      return false;
+   }
+
+   String name = token.getText();
+
+   if(field && qualifier.isEmpty() && hasAlias(level.selection, name)) {
+      return true;
+   }
+
+   String quote = getHelperQuote();
+   String table = qualifier.replace(quote, "");
+
+   for(SelectTable stable : level.sql.getSelectTable()) {
+      if(stable.getName() instanceof UniformSQL &&
+         (qualifier.isEmpty() || table.equalsIgnoreCase(stable.getAlias())) &&
+         hasAlias(((UniformSQL) stable.getName()).getSelection(), name))
+      {
+         return true;
+      }
+   }
+
+   return false;
+}
+
+// check if a select list has an alias of a name, in any case
+private static boolean hasAlias(inetsoft.uql.path.XSelection selection, String name) {
+   for(int i = 0; selection != null && i < selection.getColumnCount(); i++) {
+      String alias = selection.getAlias(i);
+
+      if(alias != null && alias.equalsIgnoreCase(name)) {
+         return true;
+      }
+   }
+
+   return false;
+}
+
+/**
+ * Add a table of a from clause with the names of its name written unquoted. A table without
+ * an alias written in another quoting than a table of the same stored name (MyTab and
+ * "MyTab" on a case-sensitive helper) is another table (Bug #77643). The one written
+ * unquoted is named by its name as the database folds it ("mytab" on postgresql), or without
+ * the quotes if the case isn't known. That name isn't generated as an alias.
+ * @return the table, or <tt>null</tt> if the table already exists.
+ */
+SelectTable addTable(UniformSQL sql, String alias, String name, WrittenUnquoted unquoted) {
+   SelectTable stable = alias.equals("") ? sql.addTable(name) : sql.addTable(alias, name);
+
+   if(stable == null && alias.equals("")) {
+      SelectTable twin = null;
+
+      for(SelectTable table : sql.getSelectTable()) {
+         if(name.equals(table.getName()) && name.equals(table.getAlias())) {
+            twin = table;
+         }
+      }
+
+      if(twin != null && !Objects.equals(twin.getWrittenUnquoted(), unquoted) &&
+         (unquoted == null || twin.getWrittenUnquoted() == null))
+      {
+         WrittenUnquoted names = unquoted != null ? unquoted : twin.getWrittenUnquoted();
+         String unquotedAlias = getFoldedName(names);
+         stable = new SelectTable(name, name);
+         sql.addTable(stable);
+         (unquoted != null ? stable : twin).setAlias(unquotedAlias);
+      }
+   }
+
+   if(stable != null) {
+      stable.setWrittenUnquoted(unquoted);
+   }
+
+   return stable;
+}
+
+// the name of a table folded as the database reads it, or without quotes if the case isn't known
+private String getFoldedName(WrittenUnquoted names) {
+   String name = names.getText();
+   SQLHelper helper = SQLHelper.getSQLHelper(uniSql != null ? uniSql.getDataSource() : null,
+                                             (Principal) null);
+   SQLHelper.IdentifierCase fold = helper != null ? helper.getIdentifierCase() :
+      SQLHelper.IdentifierCase.UNKNOWN;
+   String quote = getHelperQuote();
+
+   return fold == SQLHelper.IdentifierCase.UNKNOWN ? name.replace(quote, "") :
+      names.apply(name, quote, fold::fold, alias -> null);
+}
+
+// record the qualifier of a plain column segment
+void setColumnQualifier(Token token, String qualifier) {
+   if(inputState.guessing == 0 && token != null && plainTokens.contains(token)) {
+      columnQualifiers.put(token, qualifier.endsWith(".") ?
+         qualifier.substring(0, qualifier.length() - 1) : qualifier);
+   }
 }
 }
 
@@ -2499,9 +2787,11 @@ row_value_constructor_2 returns [XExpression exp = null]
         ;
 
 row_value_constructor returns [XExpression exp = null]
-        {Token memoStart = LT(1); if(memoHit(MEMO_ROW_VALUE_CONSTRUCTOR, memoStart)) {return exp;}}
+        {Token memoStart = LT(1); if(memoHit(MEMO_ROW_VALUE_CONSTRUCTOR, memoStart)) {return exp;}
+         int identStart = identTokens.size();}
         :
         exp = row_value_constructor_body {memoSuccess(MEMO_ROW_VALUE_CONSTRUCTOR, memoStart)}?
+        {setWrittenUnquoted(exp, identStart);}
         ;
 
 row_value_constructor_body returns [XExpression exp = null]
@@ -2545,9 +2835,11 @@ row_value_const_list returns [XExpression exp = null]
         ;
 
 value_exp returns [XExpression exp = null]
-        {Token memoStart = LT(1); if(memoHit(MEMO_VALUE_EXP, memoStart)) {return exp;}}
+        {Token memoStart = LT(1); if(memoHit(MEMO_VALUE_EXP, memoStart)) {return exp;}
+         int identStart = identTokens.size();}
         :
         exp = value_exp_body {memoSuccess(MEMO_VALUE_EXP, memoStart)}?
+        {setWrittenUnquoted(exp, identStart);}
         ;
 
 value_exp_body returns [XExpression exp = null]
@@ -3002,13 +3294,20 @@ column_ref returns [String colref = ""]
         {String tmp; colrefQuote = XExpression.QUOTE_NONE; colrefColumn = null;}
         :
         // "order" and "simple" might be used as a table name
-        a:ORDER DOT tmp = column_name {colref = a.getText() + "." + quoteColumn(tmp); colrefQuoted = null;}
+        a:ORDER DOT tmp = column_name {colref = a.getText() + "." + quoteColumn(tmp); colrefQuoted = null;
+                                       setColumnQualifier(identToken, a.getText());}
         |
-        b:SIMPLE DOT tmp = column_name {colref = b.getText() + "." + quoteColumn(tmp); colrefQuoted = null;}
+        b:SIMPLE DOT tmp = column_name {colref = b.getText() + "." + quoteColumn(tmp); colrefQuoted = null;
+                                        setColumnQualifier(identToken, b.getText());}
         |
         colref = table_name
         {
            colrefQuoted = qnameQuoted;
+
+           // the column segment written unquoted, see isAliasReference
+           if(LA(1) != DOT) {
+              setColumnQualifier(identToken, colref.substring(0, lastSegStart));
+           }
 
            // the last segment of a qualified table_name is the column when no DOT follows
            if(LA(1) != DOT && lastSegQuote != XExpression.QUOTE_NONE && lastSegStart > 0 &&
@@ -3019,7 +3318,8 @@ column_ref returns [String colref = ""]
               colrefColumn = lastSeg;
            }
         }
-        (DOT tmp = column_name {colref += "." + quoteColumn(tmp);})?
+        (DOT tmp = column_name {String qualifier = colref; colref += "." + quoteColumn(tmp);
+                                setColumnQualifier(identToken, qualifier);})?
         ;
 
 set_fct_spec returns [String setfct = ""]
@@ -3254,19 +3554,19 @@ domain_name returns [String domainname = ""]
         ;
 
 schema_name returns [String schemaname = ""]
-        {checkStatus();}
+        {identPlain = false; identToken = null; checkStatus();}
         :
-        a:IDENT {schemaname = a.getText();}
+        a:IDENT {schemaname = a.getText(); identPlain = true; identToken = a;}
         | schemaname = special_identifier
         ;
 
 qualified_id returns [String qid = ""]
-        {identQuote = XExpression.QUOTE_NONE; identPlain = false;}
+        {identQuote = XExpression.QUOTE_NONE; identPlain = false; identToken = null;}
         :
-        (a:IDENT {qid = a.getText(); identPlain = true;}
+        (a:IDENT {qid = a.getText(); identPlain = true; identToken = a;}
         | qid = special_identifier
-        | b:T_TIME {qid = b.getText(); identPlain = true;}
-        | c:T_DATE {qid = c.getText(); identPlain = true;})
+        | b:T_TIME {qid = b.getText(); identPlain = true; identToken = b;}
+        | c:T_DATE {qid = c.getText(); identPlain = true; identToken = c;})
         ;
 
 data_type returns [String datatype = ""]
@@ -4051,9 +4351,9 @@ qualified_name returns [String qname = ""]
         {String tmp = ""; int seg = 0; List<Integer> qsegs = new ArrayList<>(); }
         :
         ((catalog_name DOT)=> {addQuotedSegment(qsegs, seg);}
-        tmp = catalog_name DOT {qname += quoteDot(tmp) + "."; seg++;}
+        tmp = catalog_name DOT {qname += quotePlain(tmp) + "."; seg++;}
         ( (~DOT)=> {addQuotedSegment(qsegs, seg);}
-        tmp = schema_name DOT {qname+=quoteDot(tmp)+"."; seg++;}| DOT {qname+="."; seg++;})?
+        tmp = schema_name DOT {qname+=quotePlain(tmp)+"."; seg++;}| DOT {qname+="."; seg++;})?
         )?
         {addQuotedSegment(qsegs, seg);}
         tmp = qualified_id {lastSegStart = qname.length(); lastSegQuote = identQuote; lastSeg = tmp; qname += quoteSegment(tmp);
@@ -4089,15 +4389,16 @@ correlation_name returns [String corname = ""]
         ;
 
 derived_column [JDBCSelection selection, UniformSQL sql]
-        {String tmp = null, aliastmp = null; Boolean aliasq = null; XExpression exp; {checkStatus();}}
+        {String tmp = null, aliastmp = null; Boolean aliasq = null; XExpression exp; int identStart = identTokens.size(); {checkStatus();}}
         :
         (column_name EQ)=>
         // the quoting of the alias is read before value_exp, which may parse other names
         aliastmp=column_name {aliasq = aliasQuoted;}
-        EQ exp=value_exp  // to support sybase gramma: select a=b, ....
+        EQ {identStart = identTokens.size();} exp=value_exp  // to support sybase gramma: select a=b, ....
         {
            tmp = exp.toString();
            selection.addColumn(tmp);
+           addSelectColumn(sql, selection, tmp, identStart);
            selection.setAlias(selection.getColumnCount() - 1,aliastmp);
            selection.setAliasQuoted(selection.getColumnCount() - 1, aliasq);
 
@@ -4151,6 +4452,7 @@ derived_column [JDBCSelection selection, UniformSQL sql]
            }
 
            selection.addColumn(tmp);
+           addSelectColumn(sql, selection, tmp, identStart);
 
            // by position, two columns may have the same text (Bug #77573)
            if(quotedField) {
@@ -4185,16 +4487,17 @@ as_clause returns [String as = ""]
         ;
 
 column_name returns [String colname = ""]
-        {identQuote = XExpression.QUOTE_NONE; identPlain = false; Token first = LT(1); checkStatus();}
+        {identQuote = XExpression.QUOTE_NONE; identPlain = false; identToken = null; Token first = LT(1); checkStatus();}
         :
-        a:IDENT {colname = a.getText(); aliasQuoted = Boolean.FALSE; identPlain = true;}
+        a:IDENT {colname = a.getText(); aliasQuoted = Boolean.FALSE; identPlain = true; identToken = a;}
         | colname = special_identifier {aliasQuoted = isQuotedIdentifier(first);}
-        | b:T_TIME {colname = b.getText(); aliasQuoted = Boolean.FALSE; identPlain = true;}
+        | b:T_TIME {colname = b.getText(); aliasQuoted = Boolean.FALSE; identPlain = true; identToken = b;}
         ;
 
 table_exp [UniformSQL sql]
         {XFilterNode where, having; String nouse; Token wtok = null; {checkStatus();}}
         :
+        {startLevel(sql);}
         (from_clause[sql] {moveOuterPairJoins(sql);})?
         ( {wtok = LT(1);} where = where_clause {checkWhereOuterJoins(sql, where, wtok);
         // checked before whereOuterPairJoins() turns joins into plain conditions
@@ -4208,6 +4511,8 @@ table_exp [UniformSQL sql]
         {checkRightJoins(sql);}
         // after the where clause, which may have an outer join (Bug #77495)
         {checkNewFromOuterJoins();}
+        // the names written unquoted in the select list, the from clause is known (Bug #77643)
+        {endLevel(sql);}
         ;
 
 from_clause [UniformSQL sql]
@@ -4235,7 +4540,8 @@ ansi_joins [UniformSQL sql] returns [String str = ""]
 ;
 
 table_ref [UniformSQL sql] returns [String tbref = ""]
-        {Object name; String alias = "", tmp,as = ""; Token atok = null; XExpression exp; int[] quoted = null; {checkStatus();}}
+        {Object name; String alias = "", tmp,as = ""; Token atok = null; XExpression exp; int[] quoted = null;
+         int identStart = 0; WrittenUnquoted unquoted = null; {checkStatus();}}
         :
      (ansi_joins[null])=> tbref = ansi_joins[sql]
         | name = derived_table
@@ -4261,7 +4567,9 @@ table_ref [UniformSQL sql] returns [String tbref = ""]
         }
         }
         |
-        name = table_name {quoted = qnameQuoted;}
+        {identStart = identTokens.size();}
+        name = table_name {quoted = qnameQuoted;
+                           unquoted = getWrittenUnquoted((String) name, identStart, identTokens.size(), false);}
         (
          ( a:AS {as = a.getText();})?
          {atok = LT(1);} alias = correlation_name
@@ -4278,14 +4586,7 @@ table_ref [UniformSQL sql] returns [String tbref = ""]
          tbref = name + " " + as + " " + alias;
 
          if(sql != null) {
-                 SelectTable stable;
-
-                 if(!alias.equals("")) {
-                        stable = sql.addTable(alias, name);
-                 }
-                 else {
-                        stable = sql.addTable(name);
-                 }
+                 SelectTable stable = addTable(sql, alias, (String) name, unquoted);
 
                  // the name segments written quoted, the name is stored without their quotes
                  if(stable != null) {
@@ -4296,9 +4597,12 @@ table_ref [UniformSQL sql] returns [String tbref = ""]
         ;
 
 table_ref_nojoin [UniformSQL sql, String op] returns [String tbref = ""]
-        {Object name; String alias = "", tmp,as = ""; Token atok = null; int[] quoted = null; SelectTable stable; {checkStatus();}}
+        {Object name; String alias = "", tmp,as = ""; Token atok = null; int[] quoted = null; SelectTable stable;
+         int identStart = 0; WrittenUnquoted unquoted = null; {checkStatus();}}
         :
-        name = table_name {quoted = qnameQuoted;}
+        {identStart = identTokens.size();}
+        name = table_name {quoted = qnameQuoted;
+                           unquoted = getWrittenUnquoted((String) name, identStart, identTokens.size(), false);}
         (
          ( a:AS {as = a.getText();})?
          {atok = LT(1);} alias = correlation_name
@@ -4309,9 +4613,9 @@ table_ref_nojoin [UniformSQL sql, String op] returns [String tbref = ""]
          tbref = name + " " + as + " " + alias;
 
          if(sql != null) {
-                 if(!alias.equals("")) {
-                        stable = sql.addTable(alias, name);
+                 stable = addTable(sql, alias, (String) name, unquoted);
 
+                 if(!alias.equals("")) {
                         if(op != null && op.trim().length() > 0) {
                            clearTableOps();
                            setTableOp(sql, alias, op.trim());
@@ -4319,8 +4623,6 @@ table_ref_nojoin [UniformSQL sql, String op] returns [String tbref = ""]
                         }
                  }
                  else {
-                        stable = sql.addTable(name);
-
                         if(op != null && op.trim().length() > 0) {
                            clearTableOps();
                            setTableOp(sql, name, op.trim());
@@ -4440,6 +4742,10 @@ group_by_clause [UniformSQL sql]
            // the quoting of each field, two fields may have the same text (Bug #77573)
            sql.setGroupBy(group.toArray(), gquotes == null || gquotes.size() != group.size() ?
               null : (String[]) gquotes.toArray(new String[0]));
+           // the names written unquoted of each field (Bug #77643)
+           sql.setGroupByWrittenUnquoted(lastGroupMarkers == null ||
+              lastGroupMarkers.size() != group.size() || gquotes == null ? null :
+              lastGroupMarkers.toArray(new WrittenUnquoted[0]));
         }
         ;
 
@@ -4463,20 +4769,21 @@ grouping_set
         ;
 
 grouping_column_ref_list [UniformSQL sql] returns [Vector glist = new Vector()]
-        {String tmp; Vector quotes = new Vector(); {checkStatus();}}
+        {String tmp; Vector quotes = new Vector(); List<WrittenUnquoted> markers = new ArrayList<>(); {checkStatus();}}
         :
-        tmp = grouping_column_ref[sql] {glist.add(tmp); quotes.add(lastGroupQuote);}
-        (COMMA tmp = grouping_column_ref[sql] {glist.add(tmp); quotes.add(lastGroupQuote);})*
-        {lastGroupQuotes = quotes;}
+        tmp = grouping_column_ref[sql] {glist.add(tmp); quotes.add(lastGroupQuote); markers.add(lastGroupMarker);}
+        (COMMA tmp = grouping_column_ref[sql] {glist.add(tmp); quotes.add(lastGroupQuote); markers.add(lastGroupMarker);})*
+        {lastGroupQuotes = quotes; lastGroupMarkers = markers;}
         ;
 
 grouping_column_ref [UniformSQL sql] returns [String gcol = ""]
-        {String tmp; XExpression exp = null; {checkStatus();}}
+        {String tmp; XExpression exp = null; int identStart = identTokens.size(); {checkStatus();}}
         :
         //gcol = column_ref ( tmp = collate_clause {gcol += " " + tmp;})?
         exp= value_exp
         {
            gcol = exp.toString();
+           lastGroupMarker = getWrittenUnquoted(gcol, identStart, identTokens.size(), true);
 
            // a quoted identifier ("x y" or t."x y"), stored without its quotes
            if(sql != null && exp.isQuotedField()) {
@@ -4887,7 +5194,7 @@ sort_spec_list [UniformSQL sql] returns [String ret = ""]
       ;
 
 sort_spec [UniformSQL sql] returns [String ret = ""]
-        {Object field; String order = "asc"; String tmp; XExpression exp; {checkStatus();}}
+        {Object field; String order = "asc"; String tmp; XExpression exp; int identStart = identTokens.size(); {checkStatus();}}
         :
         exp = sort_key
         //( tmp = collate_clause )?
@@ -4916,12 +5223,26 @@ sort_spec [UniformSQL sql] returns [String ret = ""]
           // each item keeps its own quoting and direction. A later item of the same text and
           // quoting sorts on the same key, so the first decides the direction, as in sql
           // (Bug #77573)
+          // the names written unquoted (Bug #77643)
+          WrittenUnquoted unquoted = field instanceof String ?
+             getWrittenUnquoted((String) field, identStart, identTokens.size(), true) : null;
+          // an item of the same text and quoting written unquoted in other names (MixedCase
+          // and "MixedCase" in sum(..), stored as sum("MixedCase")) is another item
+          boolean seen = false;
+
+          for(OrderByItem item : sql.getOrderByItems()) {
+             seen = seen || item.getField().equals(field) &&
+                item.isQuoted() == exp.isQuotedField() &&
+                Objects.equals(item.getQuotedColumn(), exp.getQuotedColumn());
+          }
+
           boolean added = sql.addOrderBy(field, order, exp.isQuotedField(),
-                                         exp.getQuotedColumn());
+                                         exp.getQuotedColumn(), unquoted);
 
           // an aggregate of a qualified quoted column (sum(t."MixedCase")), see #77578. A
-          // dropped item doesn't change the record of the item kept
-          if(added && field instanceof String) {
+          // dropped item, or an item of the same text and quoting, doesn't change the record of
+          // the item kept
+          if(added && !seen && field instanceof String) {
              sql.setQuotedAggregate((String) field, getFuncQuotedColumn(exp));
           }
          }

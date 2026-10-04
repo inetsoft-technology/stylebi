@@ -118,6 +118,23 @@ public class OrderByItem implements Serializable, Cloneable {
    }
 
    /**
+    * Get the names of the field that were written unquoted in the parsed sql, which a
+    * case-sensitive helper stores in quotes in the case they were written (Bug #77643).
+    * @return the names, or <tt>null</tt> if none or not recorded for the current field.
+    */
+   public WrittenUnquoted getWrittenUnquoted() {
+      return field instanceof String ? WrittenUnquoted.of(unquoted, field) : null;
+   }
+
+   /**
+    * Set the names of the field that were written unquoted in the parsed sql.
+    * @param names the names, recorded for the current field, or <tt>null</tt>.
+    */
+   public void setWrittenUnquoted(WrittenUnquoted names) {
+      this.unquoted = names;
+   }
+
+   /**
     * Get the string representation.
     */
    public String toString() {
@@ -131,12 +148,13 @@ public class OrderByItem implements Serializable, Cloneable {
       OrderByItem that = (OrderByItem) o;
       return Objects.equals(field, that.field) && Objects.equals(order, that.order) &&
          quoteSet == that.quoteSet && Objects.equals(quotedColumn, that.quotedColumn) &&
-         Objects.equals(quotedFor, that.quotedFor);
+         Objects.equals(quotedFor, that.quotedFor) &&
+         Objects.equals(getWrittenUnquoted(), that.getWrittenUnquoted());
    }
 
    @Override
    public int hashCode() {
-      return Objects.hash(field, order, quoteSet, quotedColumn, quotedFor);
+      return Objects.hash(field, order, quoteSet, quotedColumn, quotedFor, getWrittenUnquoted());
    }
 
    @Override
@@ -158,5 +176,7 @@ public class OrderByItem implements Serializable, Cloneable {
    private Object quotedFor;
    // the quoted column segment ("" if bare) if written as a quoted identifier, else null
    private String quotedColumn;
+   // the names written unquoted, of the text they were recorded for (Bug #77643)
+   private WrittenUnquoted unquoted;
 }
 

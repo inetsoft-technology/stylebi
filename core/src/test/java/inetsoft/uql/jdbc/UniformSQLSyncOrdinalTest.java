@@ -420,23 +420,28 @@ class UniformSQLSyncOrdinalTest {
       for(String key : new String[] { "postgresql", "snowflake", "exasol" }) {
          // the alias in the case the database folds an unquoted name to
          String a = "postgresql".equals(key) ? "a" : "A";
+         // the table and the reference as the database reads them: snowflake and exasol read
+         // t written unquoted as T, and the reference is generated as the alias, which they
+         // write unquoted (Bug #77643)
+         String t = "postgresql".equals(key) ? "\"t\"" : "\"T\"";
+         String ref = "postgresql".equals(key) ? "\"" + a + "\"" : a;
 
          assertTrue(regenerate(fixed("select id as " + a + " from t order by " + a, key, "id"))
-                       .endsWith("from \"t\" order by \"" + a + "\" asc"), key);
+                       .endsWith("from " + t + " order by " + ref + " asc"), key);
          assertTrue(regenerate(fixed("select t.id as " + a + " from t order by " + a + " desc",
                                      key, "id"))
-                       .endsWith("order by \"" + a + "\" desc"), key);
+                       .endsWith("order by " + ref + " desc"), key);
          assertTrue(regenerate(fixed("select \"MixedCase\" as " + a + " from t order by " + a,
                                      key, "MixedCase", "id"))
-                       .endsWith("order by \"" + a + "\" asc"), key);
+                       .endsWith("order by " + ref + " asc"), key);
 
          String generated = regenerate(fixed("select id as " + a + ", count(*) from t group by " +
                                              a, key, "id"));
-         assertTrue(generated.endsWith("group by \"" + a + "\""), key + " " + generated);
+         assertTrue(generated.endsWith("group by " + ref), key + " " + generated);
 
          generated = regenerate(fixed("select id " + a + ", count(*) from t group by id " +
                                       "order by " + a, key, "id"));
-         assertTrue(generated.endsWith("order by \"" + a + "\" asc"), key + " " + generated);
+         assertTrue(generated.endsWith("order by " + ref + " asc"), key + " " + generated);
       }
    }
 
@@ -468,21 +473,24 @@ class UniformSQLSyncOrdinalTest {
          String k = lower ? "k" : "K";
          String a = lower ? "a" : "A";
          String c = lower ? "c" : "C";
+         // a reference is generated as its alias, snowflake and exasol write a plain alias
+         // unquoted (Bug #77643)
+         String q = lower ? "\"" : "";
 
          String generated = regenerate(fixed("select k as " + id + ", id as " + k + " from t " +
                                              "order by " + id + " desc", key, id, k));
-         assertTrue(generated.endsWith("order by \"" + id + "\" desc"), key + " " + generated);
+         assertTrue(generated.endsWith("order by " + q + id + q + " desc"), key + " " + generated);
 
          generated = regenerate(fixed("select k as " + id + ", id as " + k + " from t " +
                                       "order by " + k + " desc, " + id, key, id, k));
-         assertTrue(generated.endsWith("order by \"" + k + "\" desc, \"" + id + "\" asc"),
+         assertTrue(generated.endsWith("order by " + q + k + q + " desc, " + q + id + q + " asc"),
                     key + " " + generated);
 
          generated = regenerate(fixed("select id as " + a + ", count(*) as " + c + " from t " +
                                       "group by " + a + " order by " + c + " desc, " + a,
                                       key, id, k));
-         assertTrue(generated.endsWith("group by \"" + a + "\" order by \"" + c + "\" desc, \"" +
-                                          a + "\" asc"), key + " " + generated);
+         assertTrue(generated.endsWith("group by " + q + a + q + " order by " + q + c + q +
+                                          " desc, " + q + a + q + " asc"), key + " " + generated);
       }
    }
 
@@ -497,17 +505,20 @@ class UniformSQLSyncOrdinalTest {
          boolean lower = "postgresql".equals(key);
          String alias = lower ? "a" : "A";
          String ref = lower ? "A" : "a";
+         // t and id written unquoted, as the database reads them (Bug #77643)
+         String t = lower ? "\"t\"" : "\"T\"";
+         String id = lower ? "\"id\"" : "\"ID\"";
 
          for(String as : new String[] { alias, "\"" + alias + "\"" }) {
             // the reference is spelled in another case than the alias is generated, so it is
             // generated as the alias's column ("id"), which sorts and groups the same (#77573)
             String generated = regenerate(fixed("select id as " + as + " from t order by " +
                                                 ref + " desc", key, "id", "a"));
-            assertTrue(generated.endsWith(" from \"t\" order by \"id\" desc"), key + " " + generated);
+            assertTrue(generated.endsWith(" from " + t + " order by " + id + " desc"), key + " " + generated);
 
             generated = regenerate(fixed("select id as " + as + ", count(*) from t group by " +
                                          ref + " order by " + ref + " desc", key, "id"));
-            assertTrue(generated.endsWith(" from \"t\" group by \"id\" order by \"id\" desc"),
+            assertTrue(generated.endsWith(" from " + t + " group by " + id + " order by " + id + " desc"),
                        key + " " + generated);
          }
       }
@@ -600,10 +611,11 @@ class UniformSQLSyncOrdinalTest {
                assertNull(JDBCQueryCacheNormalizer.generateSortedColumnMap(usql), key);
             }
 
-            // the table column first
+            // the table column first. t written unquoted, as the database reads it (Bug #77643)
             String generated = regenerate(fixedWithoutAliasQuoting("select id as " + as + ", count(*) from t " +
                                                 "group by " + alias, key, "id", "k", a));
-            assertTrue(generated.endsWith("group by \"t\"." + a), key + " " + generated);
+            assertTrue(generated.endsWith("group by " + ("postgresql".equals(key) ? "\"t\"." : "\"T\".") + a),
+                       key + " " + generated);
 
             generated = regenerate(fixedWithoutAliasQuoting("select id as " + as + ", count(*) from t " +
                                          "group by " + alias, key, "id", "k"));
@@ -623,23 +635,27 @@ class UniformSQLSyncOrdinalTest {
          boolean pg = "postgresql".equals(key);
          String id = pg ? "id" : "ID";
          String k = pg ? "k" : "K";
+         // t written unquoted, as the database reads it (Bug #77643)
+         String t = pg ? "\"t\"" : "\"T\"";
          String generated = regenerate(fixed("select k as ID, count(*) from t group by id",
                                              key, id, k));
          assertFalse(generated.contains("group by \"ID\""), key + " " + generated);
 
          generated = regenerate(fixed("select k / 100 as ID, count(*) from t " +
                                       "group by ID, k / 100", key, id, k));
-         assertTrue(generated.contains("group by \"t\"." + id + ", "), key + " " + generated);
+         assertTrue(generated.contains("group by " + t + "." + id + ", "), key + " " + generated);
 
          generated = regenerate(fixed("select k / 100 as id, count(*) from t " +
                                       "group by id, k / 100", key, id, k));
-         assertTrue(generated.contains("group by \"t\"." + id + ", "), key + " " + generated);
+         assertTrue(generated.contains("group by " + t + "." + id + ", "), key + " " + generated);
 
          // no column of that name: the alias, if it is in the folded case
          String alias = "postgresql".equals(key) ? "id" : "ID";
          generated = regenerate(fixed("select k / 100 as " + alias + ", count(*) from t " +
                                       "group by " + alias, key, id + "2", k));
-         assertTrue(generated.endsWith("group by \"" + alias + "\""), key + " " + generated);
+         // generated as the alias, snowflake and exasol write a plain alias unquoted (Bug #77643)
+         String q = pg ? "\"" : "";
+         assertTrue(generated.endsWith("group by " + q + alias + q), key + " " + generated);
       }
    }
 
@@ -667,15 +683,17 @@ class UniformSQLSyncOrdinalTest {
          boolean pg = "postgresql".equals(key);
          String id = pg ? "id" : "ID";
          String k = pg ? "k" : "K";
+         // t written unquoted, as the database reads it (Bug #77643)
+         String t = pg ? "\"t\"" : "\"T\"";
          String generated = regenerate(fixed("select id from t order by k desc", key, id, k));
-         assertTrue(generated.endsWith("order by \"t\"." + k + " desc"), key + " " + generated);
+         assertTrue(generated.endsWith("order by " + t + "." + k + " desc"), key + " " + generated);
 
          generated = regenerate(fixed("select id from t order by K desc", key, id, k));
-         assertTrue(generated.endsWith("order by \"t\"." + k + " desc"), key + " " + generated);
+         assertTrue(generated.endsWith("order by " + t + "." + k + " desc"), key + " " + generated);
 
          generated = regenerate(fixed("select id, count(*) from t group by id, k order by k",
                                       key, id, k));
-         assertTrue(generated.contains(" \"t\"." + k + " order by \"t\"." + k + " asc"),
+         assertTrue(generated.contains(" " + t + "." + k + " order by " + t + "." + k + " asc"),
                     key + " " + generated);
 
          // Finding Z: a column in another case (created quoted) isn't an unquoted reference
@@ -695,9 +713,12 @@ class UniformSQLSyncOrdinalTest {
          UniformSQL usql = fixed("select id from t order by \"K\" desc, \"k\"", key, "id", "K", "k");
          assertEquals("[\"t\".K:desc, \"t\".k:asc]", orderBy(usql), key);
 
-         // with no column K, getFullPathOf changes the case to k, before and after this fix
+         // with no column K, getFullPathOf changes the case to k, before and after this fix.
+         // id and t written unquoted, as the database reads them (Bug #77643)
          String generated = regenerate(fixed("select id from t order by \"K\" desc", key, "id", "k"));
-         assertEquals("select \"id\" from \"t\" order by \"t\".\"k\" desc", generated, key);
+         String expected = "select \"id\" from \"t\" order by \"t\".\"k\" desc";
+         assertEquals("postgresql".equals(key) ? expected :
+                         expected.replace("\"id\"", "\"ID\"").replace("\"t\"", "\"T\""), generated, key);
       }
    }
 
