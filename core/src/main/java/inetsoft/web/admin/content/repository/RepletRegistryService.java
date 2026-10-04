@@ -563,6 +563,14 @@ public class RepletRegistryService {
       RepletRegistry registryTo = repletRegistryManager.getRegistry(userTo);
       pathTo = "".equals(pathTo) || "/".equals(pathTo) ? "" : pathTo + "/";
       pathTo += entryName;
+
+      // Bug #77721, a folder copied into itself or one of its subfolders of the same owner
+      // would list its own copy as a subfolder and be copied without end.
+      if(Tool.equals(userFrom, userTo) && Tool.isDescendantPath(pathFrom, pathTo)) {
+         throw new MessageException(Catalog.getCatalog(principal).getString(
+            "common.folder.moveIntoItself", pathFrom));
+      }
+
       String identifier = null;
 
       if(isWSFolder) {

@@ -119,8 +119,19 @@ class SharepointAuthenticator extends BaseAuthenticationProvider {
 
    private void saveTokens() {
       if(saveTokens) {
+         // Bug #77699, save onto the stored definition, not this runtime instance whose
+         // variables may have been replaced with the values of the query
+         final String accessToken = dataSource.getAccessToken();
+         final String refreshToken = dataSource.getRefreshToken();
+         final Instant expires = dataSource.getTokenExpires();
+
          try {
-            XRepository.getRepository().updateDataSource(dataSource, dataSource.getFullName());
+            XRepository.getRepository().updateDataSourceTokens(dataSource, stored -> {
+               SharepointOnlineDataSource sharepoint = (SharepointOnlineDataSource) stored;
+               sharepoint.setAccessToken(accessToken);
+               sharepoint.setRefreshToken(refreshToken);
+               sharepoint.setTokenExpires(expires);
+            });
          }
          catch(Exception e) {
             LOG.error("Failed to save access token", e);

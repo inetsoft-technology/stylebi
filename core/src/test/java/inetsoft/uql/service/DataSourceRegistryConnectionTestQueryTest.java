@@ -72,7 +72,7 @@ class DataSourceRegistryConnectionTestQueryTest {
    private Comparator<String> entryOrder;
 
    @BeforeEach
-   void setUp() {
+   void setUp() throws Exception {
       oldContext = ThreadContext.getContextPrincipal();
       ThreadContext.setContextPrincipal(null);
       sources = new HashMap<>();
@@ -113,6 +113,21 @@ class DataSourceRegistryConnectionTestQueryTest {
          return null;
       }).when(registry).renameObjects(anyString(), anyString(), anyBoolean(), anyBoolean());
       doNothing().when(registry).renameObjects(anyString(), anyString());
+      // Bug #77704, a rename moves the objects of a data source in one batch
+      doAnswer(inv -> {
+         for(DataSourceRegistry.EntryMove move :
+             inv.<List<DataSourceRegistry.EntryMove>>getArgument(0))
+         {
+            if(move.oentry().isDataSource()) {
+               sources.put(move.nentry().getPath(), sources.remove(move.oentry().getPath()));
+            }
+         }
+
+         return null;
+      }).when(registry).moveEntries(anyList());
+      doReturn(false).when(registry).createMoveTargetFolder(any(DataSourceFolder.class),
+                                                             anyString());
+
       doAnswer(inv -> sources.remove(inv.<AssetEntry>getArgument(0).getPath()))
          .when(registry).removeObject(any(AssetEntry.class));
       doAnswer(inv -> {

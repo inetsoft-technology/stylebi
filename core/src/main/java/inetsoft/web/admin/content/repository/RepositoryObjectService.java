@@ -35,6 +35,7 @@ import inetsoft.uql.erm.*;
 import inetsoft.uql.erm.vpm.VirtualPrivateModel;
 import inetsoft.uql.erm.vpm.VpmCondition;
 import inetsoft.uql.service.DataSourceRegistry;
+import inetsoft.uql.service.DataSourceRenameException;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
@@ -976,6 +977,26 @@ public class RepositoryObjectService {
          }
       }
 
+      // Bug #77721, a worksheet or report folder dropped onto itself or one of its subfolders
+      // would be copied into itself without end. Check all nodes before moving any of them.
+      for(int i = 0; i < pathFroms.length; i++) {
+         int typeFrom = Integer.parseInt(typeFroms[i]);
+
+         if((typeFrom & RepositoryEntry.FOLDER) != RepositoryEntry.FOLDER ||
+            (typeFrom & RepositoryEntry.DATA_SOURCE_FOLDER) == RepositoryEntry.DATA_SOURCE_FOLDER ||
+            (typeFrom & RepositoryEntry.LOGIC_MODEL) == RepositoryEntry.LOGIC_MODEL ||
+            (typeFrom & RepositoryEntry.PARTITION) == RepositoryEntry.PARTITION ||
+            !Tool.equals(userFroms[i], userTo))
+         {
+            continue;
+         }
+
+         if(Tool.isSameOrDescendantPath(pathFroms[i], pathTo)) {
+            throw new MessageException(Catalog.getCatalog(principal).getString(
+               "common.folder.moveIntoItself", pathFroms[i]));
+         }
+      }
+
       for(int i = 0; i < pathFroms.length; i++) {
          Map<String, List<String>> info = new HashMap<>();
          info.put("info", new ArrayList<>());
@@ -1004,12 +1025,28 @@ public class RepositoryObjectService {
             int pindex = pathFrom.lastIndexOf("/");
             String name = pindex < 0 ? pathFrom : pathFrom.substring(pindex + 1);
             String newPath = "/".equals(pathTo) ? name : pathTo + "/" + name;
-            List<RenameDependencyInfo> renameDependencyInfos =
-               DependencyTransformer.createDatasourceFolderDependencyInfo(dataSourceRegistry,
+            Map<String, RenameDependencyInfo> renameDependencyInfos =
+               DependencyTransformer.createDatasourceFolderDependencyInfoMap(dataSourceRegistry,
                   pathFrom, newPath);
-            dataSourceRegistry.renameDataSourceFolder(pathFrom, newPath);
 
-            for(RenameDependencyInfo renameDependencyInfo : renameDependencyInfos) {
+            // Bug #77704, a failed move renames the dependencies of the data sources it moved
+            try {
+               dataSourceRegistry.renameDataSourceFolder(pathFrom, newPath);
+            }
+            catch(Exception ex) {
+               if(ex instanceof DataSourceRenameException renameException) {
+                  renameDependencyInfos.forEach((dataSource, renameDependencyInfo) -> {
+                     if(renameException.isMoved(dataSource)) {
+                        this.renameTransformHandler.addTransformTask(renameDependencyInfo);
+                     }
+                  });
+               }
+
+               auditMoveFailure(actionRecord, ex, fullPathTo, principal);
+               throw ex;
+            }
+
+            for(RenameDependencyInfo renameDependencyInfo : renameDependencyInfos.values()) {
                this.renameTransformHandler.addTransformTask(renameDependencyInfo);
             }
          }
@@ -1020,9 +1057,24 @@ public class RepositoryObjectService {
             XDataSource ds = xRepository.getDataSource(pathFrom);
             RenameDependencyInfo dinfo = DependencyTransformer.createDependencyInfo(
                pathFrom, newPath);
-            this.renameTransformHandler.addTransformTask(dinfo);
             ds.setName(newPath);
-            xRepository.updateDataSource(ds, pathFrom, false);
+
+            // Bug #77704, the dependencies are renamed once the data source is moved
+            try {
+               xRepository.updateDataSource(ds, pathFrom, false);
+            }
+            catch(Exception ex) {
+               if(ex instanceof DataSourceRenameException renameException &&
+                  renameException.isMoved(pathFrom))
+               {
+                  this.renameTransformHandler.addTransformTask(dinfo);
+               }
+
+               auditMoveFailure(actionRecord, ex, fullPathTo, principal);
+               throw ex;
+            }
+
+            this.renameTransformHandler.addTransformTask(dinfo);
          }
          else if(move && ((typeFrom & RepositoryEntry.LOGIC_MODEL) == RepositoryEntry.LOGIC_MODEL ||
             (typeFrom & RepositoryEntry.PARTITION) == RepositoryEntry.PARTITION))
@@ -1371,6 +1423,17 @@ public class RepositoryObjectService {
          repositoryType == RepositoryEntry.PROTOTYPE ? ActionRecord.OBJECT_TYPE_PROTOTYPE :
          (repositoryType & RepositoryEntry.FOLDER) != 0 ? ActionRecord.OBJECT_TYPE_FOLDER :
             ActionRecord.OBJECT_TYPE_REPORT;
+   }
+
+   // Bug #77704, a move that throws is audited as failed, as the portal does
+   private void auditMoveFailure(ActionRecord actionRecord, Exception ex, String fullPathTo,
+                                 Principal principal)
+   {
+      if(actionRecord != null) {
+         actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_FAILURE);
+         actionRecord.setActionError(ex.getMessage() + ", Target Entry: " + fullPathTo);
+         Audit.getInstance().auditAction(actionRecord, principal);
+      }
    }
 
    private String getMoveErrorMesssage(Map<String, List<String>> infos) {

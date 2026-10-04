@@ -1208,10 +1208,13 @@ export class DataFolderBrowserComponent extends CommandProcessor implements OnIn
    }
 
    private moveAssets0(assets: WorksheetBrowserInfo[], target: WorksheetBrowserInfo) {
+      // Bug #77705, a folder can't be moved into itself or one of its subfolders, but a sibling
+      // whose name starts with the same text, e.g. "Fx" for "F", is a target
       assets = assets
          .filter(item => (item.type === AssetType.WORKSHEET || item.type === AssetType.FOLDER) &&
             (target.path != AssetUtil.getParentPath(item.path) &&
-            !target.path.startsWith(item.path) || item.scope != target.scope));
+            target.path !== item.path && !target.path.startsWith(item.path + "/") ||
+            item.scope != target.scope));
 
       if(assets.length > 0) {
          ComponentTool.showConfirmDialog(this.modalService, "_#(js:Confirm)",

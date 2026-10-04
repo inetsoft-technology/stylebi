@@ -637,6 +637,7 @@ public class VpmCondition extends VpmObject {
 
          SQLParser parser = null;
          String[] fields = null;
+         String dbType = helper.getSQLHelperType();
 
          try {
             SQLLexer lexer = new SQLLexer(new java.io.StringReader(str));
@@ -644,12 +645,22 @@ public class VpmCondition extends VpmObject {
             parser.setPreferQuote(false);
             parser.setTime(5000);
             parser.value_exp();
-            fields = parser.getColumns();
+
+            // Bug #77697, the parser stops without an error at a token it doesn't know (div,
+            // ->>, over, a mysql # comment), and the columns after it were not found, so the
+            // expression is iterated as when the parser fails
+            if(parser.LA(1) == antlr.Token.EOF_TYPE) {
+               fields = parser.getColumns();
+            }
          }
          // a timeout, or a construct the parser refuses in a subquery
          catch(Exception ex) {
+            fields = null;
+         }
+
+         if(fields == null) {
             final ArrayList<String> columns = new ArrayList<>();
-            ColumnIterator iterator = new ColumnIterator((String) value);
+            ColumnIterator iterator = new ColumnIterator((String) value, dbType);
             ColumnIterator.ColumnListener listener = new
                ColumnIterator.ColumnListener()
             {
@@ -665,17 +676,32 @@ public class VpmCondition extends VpmObject {
          }
 
          value = replaceColumnTableName((String) value, fields, tables,
-                                        taliases, target, sql, helper);
+                                        taliases, target, sql, helper,
+                                        ColumnIterator.getRules(dbType));
          exp.setValue(value, exp.getType());
       }
    }
 
+   /**
+    * Replace the table of each column of an expression by the table alias.
+    * @param rules the quoting and comment rules of the database (ColumnIterator.getRules()).
+    */
    private String replaceColumnTableName(String exp, String[] columns,
                                          String[] tables, String[] taliases, int target,
-                                         UniformSQL sql, SQLHelper helper)
+                                         UniformSQL sql, SQLHelper helper, int rules)
    {
       if(columns == null || columns.length <= 0) {
          return exp;
+      }
+
+      boolean bracket = ColumnIterator.isBracketQuote(rules);
+      columns = columns.clone();
+
+      // Bug #77697, a bracket quoted name ([T].[A]) is the name, as the parser reports it
+      if(bracket) {
+         for(int i = 0; i < columns.length; i++) {
+            columns[i] = BRACKET_NAME.matcher(columns[i]).replaceAll("$1");
+         }
       }
 
       String[] ncolumns = new String[columns.length];
@@ -690,16 +716,50 @@ public class VpmCondition extends VpmObject {
          String ncolumn = ncolumns[i];
 
          if(ncolumn != null) {
+            // the table part of the column before the helper quotes it (o. of o.A)
+            String rawPrefix = ncolumn.endsWith("." + column) ?
+               ncolumn.substring(0, ncolumn.length() - column.length()) : null;
             ncolumn = helper.buildFieldExpression(ncolumn, false);
+            // the table part as the helper quotes it ("Order Details". of "Order Details".A)
+            String prefix = rawPrefix == null ? null : getTablePrefix(ncolumn, column, helper);
+            // a bracket quoted column ([Customer's]) stays quoted, the helper may not quote it
+            String bcolumn = !bracket || rawPrefix == null ? null :
+               (prefix != null ? prefix : rawPrefix) + "[" + column + "]";
+            // the replacement of a column written without quotes, or null to use ncolumn
+            String ucolumn = null;
+
+            if(prefix != null) {
+               // Bug #77697, a quoted name with a doubled quote ("A""B") is not quoted by the
+               // helper, as it contains a quote, so it is quoted as it was written
+               if(column.contains("\"\"") && ncolumn.equals(prefix + column)) {
+                  ncolumn = prefix + "\"" + column + "\"";
+               }
+               // Bug #77697, a name with $ or # (amount$, emp#no) is a valid name without
+               // quotes in some databases, and a quoted name is case-sensitive (oracle), so
+               // a column written without quotes isn't quoted only for its $ or #. The name
+               // with 0 in place of $ and # tells if the helper quotes it for another reason
+               // (a keyword, the case), a 0 never makes a name a keyword (current$date)
+               else if(isUnquotedName(column, helper) && !ncolumn.equals(prefix + column)) {
+                  String plain = column.replace('$', '0').replace('#', '0');
+                  String nplain = helper.buildFieldExpression(rawPrefix + plain, false);
+
+                  if(nplain.equals(prefix + plain)) {
+                     ucolumn = prefix + column;
+                  }
+               }
+            }
+
             // String creg = ".*['\"]?" + table + "['\"]?\\.['\"]?" + column + "(['\"]?)(\\W+.)*";
             // Bug #77663, a ' is not an identifier quote (the optional ' took the closing quote
             // of a literal), and a name ending with the table name (XT.A) is not the table
             // (a unicode name, e.g. a chinese table name, is a name too)
-            String rreg = "(?<![\\w$.])\"?" + Pattern.quote(String.valueOf(table)) +
-               "\"?\\.\"?" + Pattern.quote(String.valueOf(column)) + "\"?";
+            // Bug #77697, a name starting with the column name (T.AB, T.A$X, T.A.C) is not the
+            // column, and a name may be quoted in brackets
+            String rreg = "(?<![\\w$.])" + getNamePattern(table, bracket) + "\\." +
+               getNamePattern(column, bracket) + "(?![\\w$])(?!\\.)";
             exp = replaceOutsideLiterals(
-               exp, Pattern.compile(rreg, Pattern.UNICODE_CHARACTER_CLASS),
-               Matcher.quoteReplacement(ncolumn));
+               exp, Pattern.compile(rreg, Pattern.UNICODE_CHARACTER_CLASS), ncolumn, bcolumn,
+               ucolumn, rules);
          }
       }
 
@@ -707,35 +767,126 @@ public class VpmCondition extends VpmObject {
    }
 
    /**
-    * Replace the matches of a regular expression outside the string literals and comments of
-    * an expression. A double quoted or backquoted name ("T"."A") is not a literal, so it is
-    * replaced, but a ' inside it doesn't open a literal.
+    * Check if a name with $ or # is a valid name without quotes in the database. Oracle,
+    * DB2, SQL Server and Sybase allow $ and # after the first character of a name without
+    * quotes, and MySQL and H2 allow $ (H2 continues a name without quotes with any java
+    * identifier character, and allows # only in some compatibility modes). Other databases (Trino, Presto, Hive, Databricks,
+    * ClickHouse, Derby, BigQuery) allow only letters, digits and _, so the name is quoted.
+    */
+   private static boolean isUnquotedName(String name, SQLHelper helper) {
+      if(!UNQUOTED_NAME.matcher(name).matches()) {
+         return false;
+      }
+
+      String chars;
+
+      switch(helper.getSQLHelperType()) {
+      case "oracle":
+      case "db2":
+      case "sql server":
+      case "sybase":
+         chars = "$#";
+         break;
+      case "mysql":
+      case "h2":
+         chars = "$";
+         break;
+      default:
+         return false;
+      }
+
+      for(int i = 0; i < name.length(); i++) {
+         char c = name.charAt(i);
+
+         if((c == '$' || c == '#') && chars.indexOf(c) < 0) {
+            return false;
+         }
+      }
+
+      return true;
+   }
+
+   /**
+    * Get the table part of a column built by the helper, ending with the dot.
+    * @param field the column built by the helper (SQLHelper.buildFieldExpression()).
+    * @param column the column part, without quotes.
+    * @return the table part, or null if the field doesn't end with the column, quoted by
+    * the helper or not.
+    */
+   private static String getTablePrefix(String field, String column, SQLHelper helper) {
+      String quote = helper.getQuote();
+
+      for(String end : new String[] { column, quote + column + quote }) {
+         int len = field.length() - end.length();
+
+         if(len > 0 && field.endsWith(end) && field.charAt(len - 1) == '.') {
+            return field.substring(0, len);
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * Get the regular expression of a name that may be quoted.
+    */
+   private static String getNamePattern(String name, boolean bracket) {
+      String quoted = Pattern.quote(String.valueOf(name));
+      String pattern = "\"?" + quoted + "\"?";
+      return bracket ? "(?:\\[" + quoted + "\\]|" + pattern + ")" : pattern;
+   }
+
+   /**
+    * Replace the matches of a regular expression outside the string literals, comments and
+    * variables of an expression. A quoted name ("T"."A", [T].[A]) is not a literal, so a
+    * match of whole quoted names is replaced, but not a match inside quoted text, which is a
+    * string in some databases (a mysql "it\"s T.A").
+    * @param breplacement the replacement of a match ending with a bracket quoted name, or
+    *                     null to use the replacement.
+    * @param ureplacement the replacement of a match ending with a name without quotes, or
+    *                     null to use the replacement.
+    * @param rules the quoting and comment rules of the database (ColumnIterator.getRules()).
     */
    private static String replaceOutsideLiterals(String exp, Pattern pattern,
-                                                String replacement)
+                                                String replacement, String breplacement,
+                                                String ureplacement, int rules)
    {
-      StringBuilder result = new StringBuilder();
       int len = exp.length();
-      int start = 0;
-      int i = 0;
+      // the characters of the literals, comments and variables
+      boolean[] hidden = new boolean[len];
+      // the start of the quoted name containing each character, or -1
+      int[] owner = new int[len];
+      // the end of the quoted name starting at each index
+      int[] nameEnd = new int[len];
       // the quotes found not closed. A quote that isn't closed doesn't open a literal or
       // name, as before literals were skipped
       String unclosed = "";
+      int i = 0;
+
+      Arrays.fill(owner, -1);
 
       while(i < len) {
-         int end = SQLQuoteScanner.skipComment(exp, i);
-         char c = exp.charAt(i);
+         int end = ColumnIterator.skipComment(exp, i, rules);
+         boolean name = false;
 
-         if(end < 0 && (c == '\'' || c == '"' || c == '`') && unclosed.indexOf(c) < 0) {
-            end = SQLQuoteScanner.skipQuoted(exp, i, c, false);
+         if(end < 0) {
+            end = ColumnIterator.skipVariable(exp, i);
+         }
 
-            if(end < 0) {
-               unclosed += c;
-            }
-            // a quoted name is stepped over but stays in the text that is replaced
-            else if(c != '\'') {
-               i = end;
-               continue;
+         if(end < 0) {
+            char c = exp.charAt(i);
+            char close = ColumnIterator.getCloseQuote(exp, i, rules);
+
+            if(close != 0 && unclosed.indexOf(c) < 0) {
+               end = SQLQuoteScanner.skipQuoted(
+                  exp, i, close, ColumnIterator.isBackslashEscape(c, rules));
+
+               // a [ that is not closed ends at a line break or another [
+               if(end < 0 && c != '[') {
+                  unclosed += c;
+               }
+
+               name = c != '\'';
             }
          }
 
@@ -744,12 +895,52 @@ public class VpmCondition extends VpmObject {
             continue;
          }
 
-         result.append(pattern.matcher(exp.substring(start, i)).replaceAll(replacement));
-         result.append(exp, i, end);
-         start = i = end;
+         for(int j = i; j < end; j++) {
+            if(name) {
+               owner[j] = i;
+            }
+            else {
+               hidden[j] = true;
+            }
+         }
+
+         if(name) {
+            nameEnd[i] = end;
+         }
+
+         i = end;
       }
 
-      result.append(pattern.matcher(exp.substring(start)).replaceAll(replacement));
+      StringBuilder result = new StringBuilder();
+      Matcher matcher = pattern.matcher(exp);
+      int start = 0;
+      i = 0;
+
+      while(i <= len && matcher.find(i)) {
+         int mstart = matcher.start();
+         int mend = matcher.end();
+         boolean replace = mend > mstart &&
+            (owner[mstart] < 0 || owner[mstart] == mstart) &&
+            (owner[mend - 1] < 0 || nameEnd[owner[mend - 1]] == mend);
+
+         for(int j = mstart; replace && j < mend; j++) {
+            replace = !hidden[j];
+         }
+
+         if(replace) {
+            char last = exp.charAt(mend - 1);
+            result.append(exp, start, mstart).append(
+               breplacement != null && last == ']' ? breplacement :
+               ureplacement != null && last != '"' && last != ']' && last != '`' ?
+                  ureplacement : replacement);
+            start = i = mend;
+         }
+         else {
+            i = mstart + 1;
+         }
+      }
+
+      result.append(exp, start, len);
       return result.toString();
    }
 
@@ -913,4 +1104,10 @@ public class VpmCondition extends VpmObject {
    private int type;
    private XFilterNode conds;
    private static final Logger LOG = LoggerFactory.getLogger(VpmCondition.class);
+   // a bracket quoted name in a column, [A] in T.[A], but not a [ inside a name ("a[b]")
+   private static final Pattern BRACKET_NAME =
+      Pattern.compile("(?<![^.])\\[([^\\[\\]]*)\\](?![^.])");
+   // a name with $ or # that may need no quotes (amount$, emp#no), see isUnquotedName()
+   private static final Pattern UNQUOTED_NAME =
+      Pattern.compile("(?=.*[$#])[\\p{L}_][\\w$#]*", Pattern.UNICODE_CHARACTER_CLASS);
 }
