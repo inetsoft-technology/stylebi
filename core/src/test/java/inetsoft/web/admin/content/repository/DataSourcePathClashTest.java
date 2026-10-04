@@ -17,6 +17,10 @@
  */
 package inetsoft.web.admin.content.repository;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import inetsoft.report.LibManagerProvider;
 import inetsoft.report.XSessionManager;
 import inetsoft.sree.RepletRegistry;
@@ -42,6 +46,7 @@ import inetsoft.uql.util.Config;
 import inetsoft.uql.util.Drivers;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.MessageException;
+import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.credential.*;
@@ -63,6 +68,7 @@ import inetsoft.web.portal.service.datasource.XmlaDatasourceService;
 import inetsoft.web.session.IgniteSessionRepository;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.context.annotation.*;
@@ -71,6 +77,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.*;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.time.LocalDateTime;
@@ -354,6 +361,118 @@ class DataSourcePathClashTest {
       assertFalse(registry.containObject(dsEntry("jcuP/jcuSub/jcuNew2")));
    }
 
+   // 4b. a JDBC "create" into a clashed folder P is resolved by the controller to an edit of data
+   // source P. It's refused, and P keeps its name, its additional connections and the folder
+   @Test
+   void jdbcCreateInAClashedFolderDoesNotRenameTheDataSource() throws Exception {
+      folder("jkP");
+      addParent("jkP", "jkAdd");
+      jdbc("jkP/jkKid");
+
+      DatabaseDefinition definition = edit(source("jkNew"));
+      String action = databaseService.getActionName("jkP", definition.getName());
+      assertEquals(ActionRecord.ACTION_NAME_EDIT, action);
+      ConnectionStatus status = databaseService.saveDatabase("jkP", DataSourceSettingsModel
+         .builder().uploadEnabled(false).dataSource(definition)
+         .additionalDataSources(new DatabaseDefinition[0]).build(), action, principal);
+
+      assertNotNull(status);
+      assertEquals("Duplicate Folder", status.getStatus());
+      registry.clearCache();
+      assertNotNull(registry.getDataSource("jkP"));
+      assertNull(registry.getDataSource("jkNew"));
+      assertFalse(registry.containObject(dsEntry("jkNew")));
+      assertNames("jkP", "jkAdd");
+      assertNotNull(registry.getDataSource("jkP/jkKid"));
+      assertTrue(registry.containObject(folderEntry("jkP")));
+   }
+
+   // 4c. normal data: a JDBC create at the root and in a folder, and an edit, a rename and a save
+   // with additional connections, as the controller sends them, all succeed
+   @Test
+   void normalJdbcCreateAndEditSaveSucceed() throws Exception {
+      folder("jnF");
+
+      assertNull(controllerSave("", "jnA"));
+      assertNull(controllerSave("/", "jnRoot"));
+      assertNull(controllerSave("jnF", "jnB", "jnBAdd"));
+      registry.clearCache();
+      assertNotNull(registry.getDataSource("jnA"));
+      assertNotNull(registry.getDataSource("jnRoot"));
+      assertNames("jnF/jnB", "jnBAdd");
+
+      // edit with an unchanged name, add an additional connection, then rename
+      assertEquals(ActionRecord.ACTION_NAME_EDIT, databaseService.getActionName("jnF/jnB", "jnB"));
+      assertNull(saveEdit("jnF/jnB", "jnB", "jnBAdd", "jnBAdd2"));
+      assertNames("jnF/jnB", "jnBAdd", "jnBAdd2");
+      assertNull(saveEdit("jnF/jnB", "jnC", "jnBAdd", "jnBAdd2"));
+      registry.clearCache();
+      assertNull(registry.getDataSource("jnF/jnB"));
+      assertNames("jnF/jnC", "jnBAdd", "jnBAdd2");
+      assertNull(saveEdit("jnA", "jnA2"));
+      registry.clearCache();
+      assertNotNull(registry.getDataSource("jnA2"));
+      assertNull(registry.getDataSource("jnA"));
+      assertTrue(registry.getDataSourcePathClashes().stream().noneMatch(p -> p.startsWith("jn")));
+   }
+
+   // 4d. the clash WARN is logged once per organization and suggests no rename or delete
+   @Test
+   void clashWarningIsLoggedOncePerOrganization() throws Exception {
+      folder("wnP");
+      jdbc("wnP");
+      Field field = DataSourceRegistry.class.getDeclaredField("clashesReported");
+      field.setAccessible(true);
+      ((Set<?>) field.get(registry)).clear();
+      Logger logger = (Logger) LoggerFactory.getLogger(DataSourceRegistry.class);
+      ListAppender<ILoggingEvent> appender = new ListAppender<>();
+      appender.start();
+      logger.addAppender(appender);
+      Principal old = ThreadContext.getContextPrincipal();
+
+      try {
+         registry.init();
+         registry.init();
+         registry.init();
+
+         // another organization is reported on its own. Its storage is created first, then the
+         // set of reported organizations is cleared again, as after a restart
+         String org = "o77691";
+         ThreadContext.setContextPrincipal(new SRPrincipal(
+            new IdentityID("admin", org), new IdentityID[0], new String[0], org,
+            Tool.getSecureRandom().nextLong()));
+         registry.init();
+         folder("wnQ");
+         jdbc("wnQ");
+         assertEquals(List.of("wnQ"), registry.getDataSourcePathClashes());
+         ((Set<?>) field.get(registry)).remove(org);
+         registry.init();
+         registry.init();
+      }
+      finally {
+         ThreadContext.setContextPrincipal(old);
+         logger.detachAppender(appender);
+      }
+
+      List<String> warnings = appender.list.stream()
+         .filter(e -> e.getLevel() == Level.WARN)
+         .map(ILoggingEvent::getFormattedMessage)
+         .filter(m -> m.contains("share these paths"))
+         .toList();
+      assertEquals(2, warnings.size(), warnings.toString());
+      String host = warnings.get(0);
+      assertTrue(host.contains("wnP"), host);
+      assertTrue(warnings.get(1).contains("o77691") && warnings.get(1).contains("wnQ"),
+                 warnings.get(1));
+
+      for(String warning : warnings) {
+         assertFalse(warning.contains("Rename the folder"), warning);
+         assertFalse(warning.toLowerCase().matches(".*\\. (rename|delete|move|remove) .*"),
+                     warning);
+         assertTrue(warning.contains("don't rename or delete either of them"), warning);
+      }
+   }
+
    // 5. the portal and EM "New Folder" refuse a data source path and a path under a data source.
    // The EM auto name skips a data source's name, and a named folder isn't compared with a root
    // folder of the same name any more
@@ -538,6 +657,20 @@ class DataSourcePathClashTest {
       return databaseService.saveDatabase(folder, DataSourceSettingsModel.builder()
          .uploadEnabled(false).dataSource(definition).additionalDataSources(list)
          .build(), ActionRecord.ACTION_NAME_CREATE, principal);
+   }
+
+   // a save as the portal controller sends it, the action is worked out from the path
+   private ConnectionStatus controllerSave(String path, String name, String... additionals)
+      throws Exception
+   {
+      DatabaseDefinition definition = edit(source(name));
+      DatabaseDefinition[] list = Arrays.stream(additionals)
+         .map(additional -> edit(source(additional)))
+         .toArray(DatabaseDefinition[]::new);
+      String action = databaseService.getActionName(path, name);
+      return databaseService.saveDatabase(path, DataSourceSettingsModel.builder()
+         .uploadEnabled(false).dataSource(definition).additionalDataSources(list)
+         .build(), action, principal);
    }
 
    private void assertNames(String parentPath, String... names) {
