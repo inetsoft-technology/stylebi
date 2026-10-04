@@ -607,6 +607,22 @@ public class SQLIteratorTest {
       }
    }
 
+   // Bug #77695, a where tag is ignored also when no -- with a space comes before it, if each
+   // database reads it in a comment that starts elsewhere (mysql at a sql server #tmp, the
+   // others at 5--1). A tag-like text in such a comment isn't paired with the closing tag of
+   // the real tag on a later line, which took the lines between them as the where value
+   @Test
+   void tagInCommentsWithDifferentStartsIsIgnored() {
+      String sql = "select * from #tmp t1 where t1.b > 5--1 and /*<where>*/a=1/*</where>*/";
+      assertEquals(sql, iterate(sql));
+      assertNull(whereClause);
+
+      setup();
+      sql = "select t1.a--1, #tmp.c, 'a /*<where>*/ b'\nfrom T t1 where /*<where>*/a=1/*</where>*/";
+      assertEquals("select t1.a--1, #tmp.c, 'a /*<where>*/ b'\nfrom T t1 where a=1", iterate(sql));
+      assertEquals(List.of("a=1"), wheres);
+   }
+
    // Bug #77695, a closing tag in a -- comment that starts in the value ends the value at the
    // comment, and the comment is passed on as text, so the sql sent is unchanged
    @Test
