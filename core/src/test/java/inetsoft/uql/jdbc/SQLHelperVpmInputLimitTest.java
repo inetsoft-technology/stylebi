@@ -170,6 +170,29 @@ class SQLHelperVpmInputLimitTest {
       assertFalse(sql.contains("limit 2 limit"), sql);
    }
 
+   // a sql server subquery with order by starts with the top select option
+   // (getSelectionOption()), with or without distinct/all, so no second top is added
+   // (select top 2 top 999999999 is not valid sql)
+   @ParameterizedTest
+   @CsvSource(delimiter = '|', quoteCharacter = '~', value = {
+      "select customers.id from customers order by customers.id|select top 999999999",
+      "select distinct customers.id from customers order by customers.id|select distinct top 999999999",
+      "select all customers.id from customers order by customers.id|select all top 999999999",
+   })
+   void sqlServerSubqueryTopKept(String text, String start) throws Exception {
+      UniformSQL plain = parse(dataSource("sql server"), text);
+      plain.setSubQuery(true);
+      UniformSQL vpm = parse(dataSource("sql server"), text);
+      vpm.setSubQuery(true);
+      vpm.setVPMCondition(true);
+      vpm.setHint(UniformSQL.HINT_INPUT_MAXROWS, "2");
+      String sql = vpm.getSQLString().replaceAll("\\s+", " ").trim();
+
+      assertTrue(sql.startsWith(start + " "), sql);
+      assertEquals(plain.getSQLString().replaceAll("\\s+", " ").trim(), sql);
+      assertEquals(1, count(sql, "\\btop\\b"), sql);
+   }
+
    // an oracle query without a where clause: the empty where was "replaced" in the whole
    // sql, which broke it
    @Test
