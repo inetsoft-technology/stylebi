@@ -381,7 +381,16 @@ public class SQLIterator {
 
       if(index < line.length() - 1) {
          if(state == COMMENT_STATE) {
-            throw new RuntimeException("Invalid line found: " + line);
+            // Bug #77695, a slash-star that is not a tag and is not closed on the line, in a
+            // comment of every database wherever it starts (a -- comment after a sql server
+            // #tmp table), is text of that comment, as a where opener there is, and as on a
+            // line without a tag. No tag follows it on the line, since the tag's star-slash
+            // would have closed it
+            if(!isCommentedNonTag(offset + sindex - 2)) {
+               throw new RuntimeException("Invalid line found: " + line);
+            }
+
+            index = sindex - 3;
          }
 
          String val = line.substring(index + 1);
@@ -467,6 +476,15 @@ public class SQLIterator {
     */
    private boolean isCommentedWhereOpener(int index) {
       return opener[index] == WHERE_OPENER && lastCommentStart[index] >= 0;
+   }
+
+   /**
+    * Check if a slash-star that is not a tag opener is at the index inside a comment of every
+    * database family, wherever the comment starts in each family (at the slash-star or before
+    * it).
+    */
+   private boolean isCommentedNonTag(int index) {
+      return opener[index] == 0 && lastCommentStart[index] >= 0;
    }
 
    /**

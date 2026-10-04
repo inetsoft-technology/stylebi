@@ -623,6 +623,48 @@ public class SQLIteratorTest {
       assertEquals(List.of("a=1"), wheres);
    }
 
+   // Bug #77695, a slash-star not closed on its line, in a comment of every database wherever
+   // it starts (mysql at a sql server #tmp, the others at --), is text of the comment, as the
+   // where opener before it is. It was read as an open comment and the line threw
+   @Test
+   void unclosedSlashStarInCommentOfEveryDatabaseIsText() {
+      String sql = "select t1.a from #tmp t1 -- where /*<where>*/ /* old\n" +
+         "where /*<where>*/t1.a > 0/*</where>*/";
+      String text = iterate(sql);
+      assertEquals("select t1.a from #tmp t1 -- where /*<where>*/ /* old\nwhere t1.a > 0", text);
+      assertEquals(List.of("t1.a > 0"), wheres);
+      // main read the commented opener as the tag, with the value up to the real closing tag,
+      // and kept the real opener instead, so the text differs only in which opener is kept
+      String mainText = "select t1.a from #tmp t1 -- where  /* old\nwhere /*<where>*/t1.a > 0";
+      assertEquals(mainText.replace("/*<where>*/", ""), text.replace("/*<where>*/", ""));
+
+      setup();
+      sql = "select t1.a from #tmp t1 -- was /*<where>*/t1.b > 0 /* old\n" +
+         "where /*<where>*/t1.a > 0/*</where>*/";
+      assertEquals("select t1.a from #tmp t1 -- was /*<where>*/t1.b > 0 /* old\nwhere t1.a > 0",
+                   iterate(sql));
+      assertEquals(List.of("t1.a > 0"), wheres);
+
+      setup();
+      sql = "select /*<1>*/a/*</1>*/ from #tmp t1 -- note /* old";
+      assertEquals("select a from #tmp t1 -- note /* old", iterate(sql));
+      assertEquals("a", columns.get(1));
+
+      // the comment starts at the slash-star in some databases (mysql at #tmp, the others at
+      // the slash-star), the text is read as on a line without a tag, which never threw
+      setup();
+      sql = "select /*<1>*/a/*</1>*/ from #tmp t1 /* x\nwhere /*<where>*/a=1/*</where>*/";
+      assertEquals("select a from #tmp t1 /* x\nwhere a=1", iterate(sql));
+      assertEquals(List.of("a=1"), wheres);
+      setup();
+      assertEquals("select a from #tmp t1 /* x\nwhere a=1",
+                   iterate("select a from #tmp t1 /* x\nwhere /*<where>*/a=1/*</where>*/"));
+
+      // the slash-star is in a literal in some database, so the line is still invalid
+      assertThrows(RuntimeException.class, () -> iterate(
+         "select /*<1>*/a/*</1>*/ from T where n = 'O\\'Brien /* x'"));
+   }
+
    // Bug #77695, a closing tag in a -- comment that starts in the value ends the value at the
    // comment, and the comment is passed on as text, so the sql sent is unchanged
    @Test
