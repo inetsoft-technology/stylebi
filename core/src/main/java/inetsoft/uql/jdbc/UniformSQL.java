@@ -465,18 +465,13 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       for(Object obj : parser.getJoinOrderChecks()) {
          UniformSQL query = (UniformSQL) obj;
          String structure = null;
+         boolean commaGroupsChanged = false;
 
          try {
             if(source != null) {
-               // generate a copy, generateSentence changes the query (aliases, order by),
-               // and don't connect to the database for the product name or version,
-               // which don't change the joins
-               UniformSQL copy = query.clone();
-               copy.setDataSource(source);
-               SQLHelper helper = SQLHelper.getSQLHelper(SQLHelper.getProductName(source, true));
-               helper.setAnsiJoin(source.isAnsiJoin());
-               helper.setUniformSql(copy);
-               String generated = helper.generateSentence();
+               SQLHelper helper = getCheckSQLHelper(source);
+               String generated = generateCheckSQL(query, source, helper);
+               commaGroupsChanged = helper.isCommaGroupsChanged();
 
                UniformSQL regenerated = new UniformSQL();
                regenerated.setDataSource(source);
@@ -493,7 +488,64 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          }
 
          parser.checkJoinOrder(query, structure);
+         parser.checkCommaJoinGroups(query, commaGroupsChanged);
       }
+
+      checkCommaJoinGroups(parser);
+   }
+
+   /**
+    * Check that the regenerated sql of each query with an outer join that the join order
+    * check doesn't regenerate keeps the comma separated join groups of its from clause in
+    * place (Bug #77675). Without a data source, its sql is checked with the base sql helper,
+    * which writes the join groups of every ANSI helper except MongoHelper the same way.
+    */
+   private void checkCommaJoinGroups(SQLParser parser) throws Exception {
+      JDBCDataSource source = getDataSource();
+
+      for(Object obj : parser.getCommaJoinGroupChecks()) {
+         UniformSQL query = (UniformSQL) obj;
+         boolean commaGroupsChanged = false;
+
+         try {
+            SQLHelper helper = source != null ? getCheckSQLHelper(source) : new SQLHelper();
+            generateCheckSQL(query, source, helper);
+            commaGroupsChanged = helper.isCommaGroupsChanged();
+         }
+         catch(Exception ex) {
+            LOG.debug("Failed to generate the sql to check its join groups", ex);
+         }
+
+         parser.checkCommaJoinGroups(query, commaGroupsChanged);
+      }
+   }
+
+   /**
+    * Get the sql helper of a data source to check the regenerated sql of a parsed query,
+    * without connecting to the database for the product name or version, which don't change
+    * the joins.
+    */
+   private static SQLHelper getCheckSQLHelper(JDBCDataSource source) {
+      SQLHelper helper = SQLHelper.getSQLHelper(SQLHelper.getProductName(source, true));
+      helper.setAnsiJoin(source.isAnsiJoin());
+      return helper;
+   }
+
+   /**
+    * Generate the sql of a copy of a parsed query, the way a merge generates it. A copy,
+    * since generateSentence changes the query (aliases, order by).
+    */
+   private static String generateCheckSQL(UniformSQL query, JDBCDataSource source,
+                                          SQLHelper helper)
+   {
+      UniformSQL copy = query.clone();
+
+      if(source != null) {
+         copy.setDataSource(source);
+      }
+
+      helper.setUniformSql(copy);
+      return helper.generateSentence();
    }
 
    /**
@@ -5254,6 +5306,9 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             // the data source's sql helper, without one the parse result is kept
             if(sql.getDataSource() != null) {
                sql.checkJoinOrders(parser, PARSE_PERIOD);
+            }
+            else {
+               sql.checkCommaJoinGroups(parser);
             }
 
             boolean result = (sql.lossy != null && sql.lossy) || isLegacyCycleJoins();

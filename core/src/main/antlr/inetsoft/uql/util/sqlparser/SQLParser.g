@@ -771,7 +771,28 @@ private void checkRightJoins(UniformSQL sql) {
    }
    else {
       rightJoins.remove(sql);
+
+      if(hasOuterJoin(sql.getWhere())) {
+         commaJoinGroupChecks.add(sql);
+      }
    }
+}
+
+/**
+ * Check if a condition has an outer join.
+ */
+private boolean hasOuterJoin(XFilterNode node) {
+   if(node instanceof XJoin) {
+      return ((XJoin) node).isOuterJoin();
+   }
+
+   for(int i = 0; node instanceof XSet && i < node.getChildCount(); i++) {
+      if(hasOuterJoin((XFilterNode) node.getChild(i))) {
+         return true;
+      }
+   }
+
+   return false;
 }
 
 /**
@@ -794,6 +815,8 @@ private boolean hasInnerJoin(XFilterNode node) {
 // queries with a RIGHT or FULL join mixed with an inner join, or with a nested
 // join on the right side of an outer join, in parse order
 private List joinOrderChecks = new ArrayList();
+// the other queries with an outer join, in parse order (Bug #77675)
+private List commaJoinGroupChecks = new ArrayList();
 // sql -> the JoinEvents of the from clause, in parse order
 private Map joinEvents = new IdentityHashMap();
 // the from clause index of the first table of each enclosing join
@@ -872,6 +895,9 @@ private static class JoinEvent {
    final int rend;
    // the JOIN keyword of the join, null for a cross join of two tables (cross_join)
    Token tok;
+   // true if the join is in a parenthesized join of its from item, (c right join d on ..)
+   // join e on .. (ansi_joins)
+   boolean parenthesized;
 }
 
 /**
@@ -881,6 +907,34 @@ private static class JoinEvent {
  */
 public List getJoinOrderChecks() {
    return joinOrderChecks;
+}
+
+/**
+ * Get the queries with an outer join that are not in getJoinOrderChecks. Each must be
+ * checked with checkCommaJoinGroups after the parse.
+ */
+public List getCommaJoinGroupChecks() {
+   return commaJoinGroupChecks;
+}
+
+/**
+ * Check that the regenerated sql of a query with an outer join keeps the comma separated
+ * join groups of its from clause in place. SQLHelper moves a group with a RIGHT or FULL join
+ * before the other groups, or puts it in parentheses, because SQLite and HSQLDB read
+ * x, c RIGHT JOIN d ON .. as (x, c) RIGHT JOIN d ON .., and the other databases as
+ * x, (c RIGHT JOIN d ON ..). The query can't tell which of them the sql meant: UniformSQL
+ * keeps a join group of a JOIN without a join condition, a join (c right join d on ..), as a
+ * comma separated group too. So such a query is refused and its sql runs as written. A query
+ * with a * column would also return its columns in another order (Bug #77675).
+ * @param changed true if the regenerated sql moved or parenthesized a join group.
+ */
+public void checkCommaJoinGroups(UniformSQL sql, boolean changed) throws SemanticException {
+   if(changed) {
+      Token tok = (Token) rightJoins.get(sql);
+      throw new SemanticException(
+         "Unsupported RIGHT or FULL join group that is not the first from item",
+         getFilename(), tok == null ? 0 : tok.getLine(), tok == null ? 0 : tok.getColumn());
+   }
 }
 
 /**
@@ -1180,6 +1234,45 @@ private boolean isRightOperandJoined(UniformSQL sql, List events, int index) {
 private int getJoinEventCount(UniformSQL sql) {
    List events = sql == null ? null : (List) joinEvents.get(sql);
    return events == null ? 0 : events.size();
+}
+
+/**
+ * Mark the joins of a query recorded after the first count joins as parenthesized.
+ */
+private void markParenthesizedJoinEvents(UniformSQL sql, int count) {
+   List events = sql == null ? null : (List) joinEvents.get(sql);
+
+   for(int i = count; events != null && i < events.size(); i++) {
+      ((JoinEvent) events.get(i)).parenthesized = true;
+   }
+}
+
+/**
+ * Check the joins of a from item after a comma, recorded after the first count joins of the
+ * query. A RIGHT or FULL join of the item that is not in parentheses, and whose left operand
+ * starts at the first table of the item, is refused: SQLite and HSQLDB give a comma the
+ * precedence of a JOIN and read x, c right join d on .. as (x, c) right join d on .., and
+ * the other databases as x, (c right join d on ..), which returns different rows. The
+ * parser records the second reading, and so does SQLHelper's regenerated sql (Bug #77675).
+ * An INNER or LEFT join of the item, a join in parentheses, and a join of a nested right
+ * operand (x, a join (c right join d on ..) on ..) return the same rows either way.
+ * @param start the from clause index of the first table of the item.
+ */
+private void checkCommaItemJoins(UniformSQL sql, int start, int count)
+   throws SemanticException
+{
+   List events = sql == null ? null : (List) joinEvents.get(sql);
+
+   for(int i = count; events != null && i < events.size(); i++) {
+      JoinEvent event = (JoinEvent) events.get(i);
+
+      if(event.isRightOrFull() && !event.parenthesized && event.lstart == start) {
+         Token tok = event.tok;
+         throw new SemanticException(
+            "Unsupported RIGHT or FULL join in a from item after a comma", getFilename(),
+            tok == null ? 0 : tok.getLine(), tok == null ? 0 : tok.getColumn());
+      }
+   }
 }
 
 /**
@@ -4089,20 +4182,23 @@ table_exp [UniformSQL sql]
         ;
 
 from_clause [UniformSQL sql]
-        {String tmp; {checkStatus();}}
+        {String tmp; int start = 0; int events = 0; {checkStatus();}}
         :
-        FROM tmp = table_ref[sql] ( COMMA {clearUsingMerges(sql);} tmp = table_ref[sql] )*
+        FROM tmp = table_ref[sql] ( COMMA {clearUsingMerges(sql);}
+          {start = sql == null ? 0 : sql.getTableCount(); events = getJoinEventCount(sql);}
+          tmp = table_ref[sql] {checkCommaItemJoins(sql, start, events);} )*
         {checkNewFromOuterJoins();}
         ;
 
 ansi_joins [UniformSQL sql] returns [String str = ""]
-     {String tmp, tmp2; XExpression exp; boolean join = false; {checkStatus();}}
+     {String tmp, tmp2; XExpression exp; boolean join = false; int pevents = 0; {checkStatus();}}
      :
         // a cross join is a qualified join, so it can be followed by more joins and its
         // left operand starts at the first table of the join (Bug #77495)
          (table_ref_nojoin[null, null] join_hint)=>
         exp = qualified_join[sql] { str = exp.toString(); }
-     | {pushJoinStart(sql);} OPEN_PAREN tmp = ansi_joins[sql] CLOSE_PAREN { str = "(" + tmp + ")";}
+     | {pushJoinStart(sql); pevents = getJoinEventCount(sql);} OPEN_PAREN tmp = ansi_joins[sql] CLOSE_PAREN
+       { str = "(" + tmp + ")"; markParenthesizedJoinEvents(sql, pevents);}
         // redundant parentheses, ((a join b on ..)) or a parenthesized from clause, have no
         // join after the closing parenthesis
         ((sub_qualified_join[null])=> tmp2 = sub_qualified_join[sql] { str += " " + tmp2; join = true;})?
