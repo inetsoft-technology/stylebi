@@ -287,6 +287,49 @@ class XUtilSentinelConditionTest {
       }
    }
 
+   // Bug #77708, XUtil.rewriteSentinels rewrites only the sentinels, keeps the conditions of an
+   // unset parameter, and returns whether the generated sql changed
+   @Test
+   void rewriteSentinelsContract() throws Exception {
+      String sql = SELECT + "where a.name = $(p) and a.k = $(q)";
+      VariableTable vars = new VariableTable();
+      vars.put("p", EMPTY_STRING);
+      UniformSQL usql = parse(sql);
+      assertTrue(XUtil.rewriteSentinels(usql, vars));
+      String generated = normalize(usql.getSQLString());
+      assertTrue(generated.contains("a.name = ''"), generated);
+      assertTrue(generated.contains("$(q)"), "the unset condition was removed: " + generated);
+
+      // a value, or only an unset parameter: nothing changes
+      for(String p : new String[] { "n1", null }) {
+         vars = new VariableTable();
+
+         if(p != null) {
+            vars.put("p", p);
+         }
+
+         usql = parse(sql);
+         String before = usql.getSQLString();
+         assertFalse(XUtil.rewriteSentinels(usql, vars), "p=" + p);
+         assertEquals(before, usql.getSQLString(), "p=" + p);
+      }
+
+      // a query that still holds its sql string is left as it is
+      vars = new VariableTable();
+      vars.put("p", NULL_VALUE);
+      usql = new UniformSQL();
+      usql.parse(sql, UniformSQL.PARSE_ALL, UniformSQL.PARSE_PERIOD);
+      // as SQLProcessor keeps the string after parsing
+      usql.setSQLString(sql, false);
+      assertFalse(XUtil.rewriteSentinels(usql, vars));
+      assertEquals(sql, usql.getSQLString());
+
+      // the subquery of a WHERE condition isn't walked (Bug #77706)
+      usql = parse(SELECT + "where a.id IN (select b.id from b where b.x = $(p))");
+      assertFalse(XUtil.rewriteSentinels(usql, vars));
+      assertTrue(usql.getSQLString().contains("$(p)"));
+   }
+
    @AfterAll
    static void dropDatabase() {
       try {

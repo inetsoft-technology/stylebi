@@ -2675,6 +2675,66 @@ public final class XUtil {
    }
 
    /**
+    * Rewrite only the sentinel parameters (NULL_VALUE, EMPTY_STRING and NULL_STRING) of a
+    * query, in place, and tell whether the sql generated from it changed.
+    * <ul>
+    * <li>The query must be a private copy whose structure is the whole query: parsed, not
+    * lossy, with its sql string cleared ({@link UniformSQL#clearSQLString}). A query that
+    * still holds a sql string is not changed and <tt>false</tt> is returned, as
+    * {@link #validateConditions} returns early for it.</li>
+    * <li>Only the sentinel rewrite runs. A condition with a parameter that has no value is
+    * kept, the parameter binds SQL NULL (the same as <tt>forVpm = true</tt>).</li>
+    * <li>The positions rewritten are the ones {@link #validateConditions} rewrites when it
+    * keeps the unset conditions: the WHERE/HAVING comparison operands, FROM derived tables
+    * and select-list scalar subqueries. The subquery of a WHERE/HAVING condition (e.g.
+    * <tt>x in (select ...)</tt>) is not walked.</li>
+    * <li>Whether anything is rewritten is decided by comparing the sql generated before and
+    * after the rewrite, so the result is <tt>true</tt> exactly when the sql sent to the
+    * database changes, whatever position the rewrite reached.</li>
+    * </ul>
+    * @param usql the private copy of the query to rewrite.
+    * @param params the parameter values.
+    * @return <tt>true</tt> if the generated sql changed.
+    */
+   public static boolean rewriteSentinels(UniformSQL usql, VariableTable params) {
+      if(usql == null || params == null || usql.hasSQLString()) {
+         return false;
+      }
+
+      JDBCDataSource source = null;
+
+      for(UniformSQL sql = usql; sql != null && source == null; sql = sql.getParent()) {
+         source = sql.getDataSource();
+      }
+
+      String before = usql.getSQLString();
+      validateConditions0(null, usql, params, true, false, source);
+      usql.clearCachedString();
+      return !Tool.equals(before, usql.getSQLString());
+   }
+
+   /**
+    * Check if the sql refers to a parameter, as <tt>$(name)</tt>, whose value is a sentinel
+    * (NULL_VALUE, EMPTY_STRING or NULL_STRING, or a one-element array of one). An embedded
+    * <tt>$(@name)</tt> is not counted.
+    */
+   public static boolean hasSentinelParameter(String sql, VariableTable params) {
+      if(sql == null || params == null || !sql.contains("$(")) {
+         return false;
+      }
+
+      Matcher matcher = SPECIFIC_VARIABLE.matcher(sql);
+
+      while(matcher.find()) {
+         if(getSpecificValue(params, matcher.group(1)) != null) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
     * Rewrite the conditions with a sentinel parameter, and remove the conditions with a
     * parameter without a value.
     * @param removeUnset <tt>false</tt> to keep the conditions with a parameter without a value.
