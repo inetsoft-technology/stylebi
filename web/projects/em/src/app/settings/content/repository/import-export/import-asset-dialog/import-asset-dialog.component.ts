@@ -470,6 +470,19 @@ export class ImportAssetDialogComponent implements OnDestroy {
          }
       }
 
+      // Bug #77628, the assets were imported but need attention, e.g. secrets that could not be
+      // decrypted, show them as a warning without reporting the import as failed
+      const warnings = response.warnings || [];
+
+      if(warnings.length > 0) {
+         if(type === MessageDialogType.INFO) {
+            type = MessageDialogType.WARNING;
+            title = "_#(js:Warning)";
+         }
+
+         content = content + "\n\n" + warnings.join("\n");
+      }
+
       this.dialog.open(MessageDialog, { data: { title, content, type } })
          .afterClosed().subscribe(() => this.dialogRef.close(true));
    }

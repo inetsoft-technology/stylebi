@@ -478,7 +478,8 @@ public class DeployService {
          return ImportAssetResponse.builder()
             .failed(!failedAssets.isEmpty())
             .ignoreUserAssets(ignoreUserAssets)
-            .failedAssets(failedAssets).build();
+            .failedAssets(failedAssets)
+            .warnings(info.getImportWarnings()).build();
       }
 
       return ImportAssetResponse.builder()
@@ -576,6 +577,11 @@ public class DeployService {
          throw new Exception(
             "Failed to import the following assets: " +
             String.join(", ", response.failedAssets()));
+      }
+
+      // Bug #77628, the assets are imported, only log the warnings
+      for(String warning : response.warnings()) {
+         LOG.warn("Import of {}: {}", zipFile.getName(), warning);
       }
    }
 
