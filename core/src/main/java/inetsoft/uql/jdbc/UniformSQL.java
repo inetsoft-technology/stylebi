@@ -5344,6 +5344,39 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    }
 
    /**
+    * Parse the sql of a subquery that is kept as a sql string, e.g. the subquery value of a
+    * VPM condition, which is saved unparsed. The parse runs now, on a new query.
+    * @param sql the sql of the subquery.
+    * @param source the data source the subquery runs on.
+    * @return the parsed subquery without its sql string, so its structure is the whole
+    * subquery, or <tt>null</tt> if the sql isn't parsed completely (a failed or partial parse,
+    * or a lossy one).
+    */
+   public static UniformSQL parseSubquery(String sql, JDBCDataSource source) {
+      if(sql == null) {
+         return null;
+      }
+
+      UniformSQL sub = new UniformSQL();
+      sub.setDataSource(source);
+
+      try {
+         sub.parse(sql, PARSE_ALL, PARSE_PERIOD);
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to parse the subquery: {}", sql, ex);
+         return null;
+      }
+
+      if(sub.getParseResult() != PARSE_SUCCESS || sub.isLossy()) {
+         return null;
+      }
+
+      sub.clearSQLString();
+      return sub;
+   }
+
+   /**
     * Generate the text of a select list column that is a scalar subquery, as the parser
     * generates it (see parseSelectListSubquery).
     */
