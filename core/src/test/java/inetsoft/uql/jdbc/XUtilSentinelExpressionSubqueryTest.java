@@ -153,8 +153,9 @@ class XUtilSentinelExpressionSubqueryTest {
                       EMPTY_STRING, "[5]"),
          Arguments.of(A + "a.id = 0 + (select min(b.id) from b where b.k = $(p))",
                       NULL_STRING, "[5]"),
-         Arguments.of(A + "a.id = 0 + (select min(b.id) from b where b.k <> $(p))",
-                      NULL_VALUE, "[1]"),
+         // 7 rows of b have a b.k, 6 have one that isn't the text NULL_VALUE
+         Arguments.of(A + "a.id + 2 = 0 + (select count(*) from b where b.k <> $(p))",
+                      NULL_VALUE, "[5]"),
          // D1, a string operand, correlated
          Arguments.of(A + "'x' || (select max(b.k) from b where b.id = a.id and b.k = $(p)) " +
                          "= 'x'", EMPTY_STRING, "[5]"),
@@ -225,6 +226,45 @@ class XUtilSentinelExpressionSubqueryTest {
          Arguments.of(A + "a.id = ANY (select b.id from b where b.k = $(p))", "3", "[3]"),
          Arguments.of(A + "a.id = 0 + (select min(b.id) from b where b.k = $(p))", "3",
                       "[3]"));
+   }
+
+   // sql, value of p, value of q (null = unset), expected rows: a sentinel and a parameter
+   // without a value in the same subquery, each checked against its IN form
+   static Stream<Arguments> sentinelAndUnsetCases() {
+      String min = "0 + (select min(b.id) from b where b.k = $(p) and b.id > $(q))";
+      String any = "ANY (select b.id from b where b.k = $(p) and b.id > $(q))";
+      String in = "in (select b.id from b where b.k = $(p) and b.id > $(q))";
+
+      return Stream.of(
+         // single-row: the condition of q is removed, the outer condition kept
+         Arguments.of(A + "a.id = " + min, NULL_VALUE, UNSET, "[1]"),
+         Arguments.of(A + "a.id = " + min, NULL_STRING, UNSET, "[5]"),
+         Arguments.of(A + "a.id = " + min, NULL_VALUE, "1", "[3]"),
+         Arguments.of(H + "a.id = " + min, NULL_VALUE, UNSET, "[1]"),
+         Arguments.of(A + "a.id + 2 = 0 + (select count(*) from b where b.k <> $(p) and " +
+                         "b.id > $(q))", NULL_VALUE, UNSET, "[5]"),
+         // ANY as IN
+         Arguments.of(A + "a.id = " + any, NULL_VALUE, UNSET, "[1, 3]"),
+         Arguments.of(A + "a.id " + in, NULL_VALUE, UNSET, "[1, 3]"),
+         Arguments.of(A + "a.id = " + any, EMPTY_STRING, UNSET, "[5]"),
+         Arguments.of(H + "a.id = " + any, NULL_VALUE, UNSET, "[1, 3]"),
+         Arguments.of(H + "a.id " + in, NULL_VALUE, UNSET, "[1, 3]"),
+         // not single-row: the condition of q is kept, q is NULL
+         Arguments.of(A + "a.id = 0 + (select b.id from b where b.k = $(p) and b.id > $(q))",
+                      NULL_VALUE, UNSET, "[]"));
+   }
+
+   @ParameterizedTest
+   @MethodSource("sentinelAndUnsetCases")
+   void sentinelAndUnset(String sql, String p, String q, String expected) throws Exception {
+      VariableTable vars = vars(p);
+
+      if(q != null) {
+         vars.put("q", q);
+      }
+
+      assertEquals(expected, rows(run(parsed(sql), vars)).toString(),
+                   sql + " p=" + p + " q=" + q);
    }
 
    @ParameterizedTest
