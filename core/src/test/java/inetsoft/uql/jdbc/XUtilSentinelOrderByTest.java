@@ -425,17 +425,123 @@ class XUtilSentinelOrderByTest {
       }
    }
 
-   // an unset parameter in an order by subquery is left as it is (bound as null), as in the
-   // select list
+   // Bug #77706 (product decision): the subqueries of generationCases are count(*) without
+   // group by, which return one row anyway, so the condition of an unset parameter is removed
+   // from them, in the order by list as in the select list. Before, it was left as it is
+   // (bound as null).
    @ParameterizedTest
    @MethodSource("generationCases")
-   void unsetUnchanged(String sql) throws Exception {
+   void unsetSingleRowConditionRemoved(String sql) throws Exception {
+      String removed = removeP(sql);
+      assertFalse(removed.contains("$(p)"), removed);
+
       for(String type : TYPES) {
-         String original = generate(parse(sql, type));
+         UniformSQL usql = parse(sql, type);
+         Object[] orderBy = usql.getOrderByFields().clone();
+         XUtil.validateConditions(null, usql, new VariableTable(), true, false);
+         // the order by items keep their text (checked before the sql is generated, which
+         // may change the items of a distinct query on oracle)
+         assertArrayEquals(orderBy, usql.getOrderByFields(), type);
+         String generated = generate(usql);
+         assertFalse(generated.contains("$(p)"), type + " not removed: " + generated);
+         assertEquals(generate(parse(removed, type)), generated, type);
+      }
+   }
+
+   // the order by subquery that may return more than one row keeps the condition of an unset
+   // parameter (bound as null), as in the select list
+   @Test
+   void unsetNotSingleRowUnchanged() throws Exception {
+      String[] sqls = {
+         "select a.id from a order by (select count(*) from b where b.id = a.id and " +
+            "b.k = $(p) group by b.k) desc, a.id",
+         "select a.id from a order by (select count(*) + 1 from b where b.id = a.id and " +
+            "b.k = $(p)) desc, a.id",
+         "select a.id, (select max(b.id) from b where b.id = a.id and b.k = $(p) " +
+            "having max(b.id) > 1) from a order by (select max(b.id) from b where " +
+            "b.id = a.id and b.k = $(p) having max(b.id) > 1) desc, a.id"
+      };
+
+      for(String sql : sqls) {
+         for(String type : TYPES) {
+            String original = generate(parse(sql, type));
+            UniformSQL usql = parse(sql, type);
+            XUtil.validateConditions(null, usql, new VariableTable(), true, false);
+            assertEquals(original, generate(usql), type);
+
+            // the item is reached, a sentinel is rewritten
+            String generated = validate(parse(sql, type), NULL_VALUE);
+            assertFalse(generated.contains("$(p)"), type + " not rewritten: " + generated);
+         }
+      }
+   }
+
+   // the select list and the order by list copy of a subquery get the same sql with an unset
+   // parameter too
+   @Test
+   void unsetSelectListAndOrderByCopiesIdentical() throws Exception {
+      String sql = "select a.id, " + SUB + " from a order by " + SUB + " desc";
+
+      for(String type : TYPES) {
          UniformSQL usql = parse(sql, type);
          XUtil.validateConditions(null, usql, new VariableTable(), true, false);
-         assertEquals(original, generate(usql), type);
+         JDBCSelection selection = (JDBCSelection) usql.getSelection();
+         int idx = selection.getColumn(0).startsWith("(") ? 0 : 1;
+         String column = selection.getColumnSQL(idx);
+         assertNotNull(column, type);
+         assertFalse(column.contains("$(p)"), column);
+         assertEquals(column, usql.getOrderBySQL(0), type);
       }
+   }
+
+   // through JDBCHandler, the subquery as a select column and an order by item, unset: both
+   // copies count all rows of b up to the id (3, 6, 9). Were they different, the order and
+   // the values wouldn't match: with the condition bound as null all are 0, in a.id order.
+   @Test
+   void unsetSelectListAndOrderByThroughJDBCHandler() throws Exception {
+      String sub = "(select count(*) from b where b.id <= a.id and b.k = $(p))";
+      String[] sqls = {
+         "select a.id, " + sub + " from a order by " + sub + " desc, a.id",
+         "select a.id, " + sub + " as cnt from a order by " + sub + " desc, a.id",
+         "select a.id, " + sub + " as cnt from a order by cnt desc, a.id",
+         "select a.id from a order by " + sub + " desc, a.id"
+      };
+
+      for(String sql : sqls) {
+         UniformSQL usql = parsed(sql);
+         Object[][] runs = {
+            { null, List.of("5|9", "3|6", "1|3") },
+            { NULL_VALUE, List.of("3|2", "5|2", "1|1") },
+            { null, List.of("5|9", "3|6", "1|3") },
+            { "2", List.of("3|3", "5|3", "1|2") },
+         };
+
+         for(Object[] run : runs) {
+            VariableTable vars = new VariableTable();
+
+            if(run[0] != null) {
+               vars.put("p", run[0]);
+            }
+
+            TableLens table = run(usql, vars);
+            List<String> rows = ordered(table, table.getColCount() > 1 ? 2 : 1);
+            List<String> expected = (List<String>) run[1];
+
+            if(table.getColCount() == 1) {
+               expected = expected.stream().map(r -> r.substring(0, r.indexOf('|'))).toList();
+            }
+
+            assertEquals(expected, rows, sql + " p=" + run[0]);
+            assertNoOrderBySQL(usql);
+         }
+      }
+   }
+
+   // the sql without the condition of p, as generationCases write it
+   private static String removeP(String sql) {
+      return sql.replace(" and b.k = $(p)", "")
+         .replace(" where b.k = $(p))", ")")
+         .replace(" and q2.\"MixedK\" = $(p)", "");
    }
 
    // a value that isn't a sentinel is left as it is
