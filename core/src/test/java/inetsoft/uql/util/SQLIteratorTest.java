@@ -665,6 +665,25 @@ public class SQLIteratorTest {
          "select /*<1>*/a/*</1>*/ from T where n = 'O\\'Brien /* x'"));
    }
 
+   // Bug #77695, the unclosed slash-star passed on as text opens a block comment in every
+   // database that runs to the next line's where tag, so that tag is still not read: the
+   // text is passed through as written, and the vpm path rejects the query
+   @Test
+   void unclosedSlashStarTextDoesNotExposeLaterTagInComment() {
+      String sql = "select a /* y\n, b from T t1 -- where /*<where>*/ /* old\n" +
+         "where /*<where>*/t1.a > 0/*</where>*/";
+      assertEquals(sql, iterate(sql));
+      assertEquals(List.of(), wheres);
+
+      setup();
+      sql = "select /*<1>*/a/*</1>*/ /* y\n, b from T t1 -- where /*<where>*/ /* old\n" +
+         "where /*<where>*/t1.a > 0/*</where>*/";
+      assertEquals("select a /* y\n, b from T t1 -- where /*<where>*/ /* old\n" +
+                   "where /*<where>*/t1.a > 0/*</where>*/", iterate(sql));
+      assertEquals(List.of(), wheres);
+      assertEquals("a", columns.get(1));
+   }
+
    // Bug #77695, a closing tag in a -- comment that starts in the value ends the value at the
    // comment, and the comment is passed on as text, so the sql sent is unchanged
    @Test
