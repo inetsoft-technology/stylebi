@@ -2665,8 +2665,32 @@ public final class XUtil {
                                             VariableTable params, boolean include,
                                             boolean forVpm)
    {
+      JDBCDataSource source = null;
+
+      for(UniformSQL sql = usql; sql != null && source == null; sql = sql.getParent()) {
+         source = sql.getDataSource();
+      }
+
+      return validateConditions0(query, usql, params, include, !forVpm, source);
+   }
+
+   /**
+    * Rewrite the conditions with a sentinel parameter, and remove the conditions with a
+    * parameter without a value.
+    * @param removeUnset <tt>false</tt> to keep the conditions with a parameter without a value.
+    * @param source the data source of the query, which a derived table or subquery gets when
+    * it's generated.
+    */
+   private static boolean validateConditions0(XQuery query, UniformSQL usql,
+                                              VariableTable params, boolean include,
+                                              boolean removeUnset, JDBCDataSource source)
+   {
       if(usql.hasSQLString()) {
          return false;
+      }
+
+      if(usql.getDataSource() != null) {
+         source = usql.getDataSource();
       }
 
       boolean changed = false;
@@ -2676,10 +2700,12 @@ public final class XUtil {
          Object table = tables[i].getName();
 
          if(table instanceof UniformSQL) {
-            changed = validateConditions(query, (UniformSQL) table, params, include, forVpm) ||
-               changed;
+            changed = validateConditions0(query, (UniformSQL) table, params, include,
+                                          removeUnset, source) || changed;
          }
       }
+
+      validateSelectList(query, usql, params, include, source);
 
       XFilterNode condition = usql.getWhere();
 
@@ -2694,7 +2720,7 @@ public final class XUtil {
 
       // don't remove null paramter for vpm conditions, then variables in vpm condition
       // will not to be removed.
-      if(!forVpm) {
+      if(removeUnset) {
          ChangedInfo info = removeNoParamConditions(query, condition, params, include);
          changed = info.changed || changed;
 
@@ -2716,7 +2742,7 @@ public final class XUtil {
          }
       }
 
-      if(!forVpm) {
+      if(removeUnset) {
          ChangedInfo info = removeNoParamConditions(query, condition, params, include);
          changed = info.changed || changed;
 
@@ -2735,6 +2761,47 @@ public final class XUtil {
       usql.clearCachedString();
 
       return changed;
+   }
+
+   /**
+    * Rewrite the sentinel parameters in the scalar subqueries of the select list. The parser
+    * keeps such a subquery as the text of its column, which names the column and orders the
+    * columns of the sorted sql, so the text is kept and the rewritten subquery is generated in
+    * its place (Bug #77620). An unset parameter is left as it is, removing its condition could
+    * make the subquery return more than one row.
+    */
+   private static void validateSelectList(XQuery query, UniformSQL usql, VariableTable params,
+                                          boolean include, JDBCDataSource source)
+   {
+      if(!(usql.getSelection() instanceof JDBCSelection)) {
+         return;
+      }
+
+      JDBCSelection selection = (JDBCSelection) usql.getSelection();
+
+      for(int i = 0; i < selection.getColumnCount(); i++) {
+         // the sql of an earlier run is for other parameter values
+         selection.setColumnSQL(i, null);
+         String column = selection.getColumn(i);
+
+         if(column == null || !column.contains("$(")) {
+            continue;
+         }
+
+         UniformSQL sub = UniformSQL.parseSelectListSubquery(column, source);
+
+         if(sub == null) {
+            continue;
+         }
+
+         // not reported as changed, a select list doesn't lose a condition
+         validateConditions0(query, sub, params, include, false, source);
+         String sql = UniformSQL.getSelectListSubqueryText(sub);
+
+         if(!sql.equals(column)) {
+            selection.setColumnSQL(i, sql);
+         }
+      }
    }
 
    /**
