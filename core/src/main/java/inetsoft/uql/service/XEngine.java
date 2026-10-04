@@ -39,6 +39,7 @@ import inetsoft.uql.util.*;
 import inetsoft.uql.xmla.Domain;
 import inetsoft.uql.xmla.XMLADataSource;
 import inetsoft.util.*;
+import inetsoft.util.credential.CloudCredential;
 import inetsoft.web.cluster.ClearLocalNodeMetaDataCacheMessage;
 import inetsoft.web.cluster.RefreshMetaDataMessage;
 import jakarta.annotation.PostConstruct;
@@ -465,12 +466,34 @@ public class XEngine implements XRepository, XQueryRepository {
 
       XDataSource copy = (XDataSource) stored.clone();
       apply.accept(copy);
-      // Bug #77699, always write the tokens. The data source's equals may not see them, e.g.
-      // when they are held in a cloud credential, which is compared by its id only, and the
-      // copy would then be taken as unchanged and not saved
+
+      // Bug #77699, a cloud credential stores only its id, its tokens are read again from the
+      // secrets manager when the data source is loaded. Saving would store the new expiration
+      // with the old tokens, which would then be used as if they were valid, so the tokens are
+      // kept only by the runtime instance and refreshed again by the next query
+      if(isCloudCredentialChanged(stored, copy)) {
+         LOG.debug("The tokens of data source {} are held in a cloud credential and can't be " +
+                      "saved", name);
+         return;
+      }
+
+      // Bug #77699, always write the tokens. The data source's equals may not compare every
+      // token field, e.g. the token expiration and instance URL of Salesforce, and the copy
+      // would then be taken as unchanged and not saved
       copy.setLastModified(System.currentTimeMillis());
       // an additional connection copy keeps its base, so it is saved under its parent
       updateDataSource(copy, name);
+   }
+
+   /**
+    * Checks if applying the tokens changed the cloud credential of a data source, i.e. if the
+    * tokens are held in a credential whose values are not saved with the data source.
+    */
+   private static boolean isCloudCredentialChanged(XDataSource stored, XDataSource copy) {
+      return stored instanceof TabularDataSource<?> source &&
+         copy instanceof TabularDataSource<?> updated &&
+         source.getCredential() instanceof CloudCredential &&
+         !Objects.equals(source.getCredential(), updated.getCredential());
    }
 
    /**

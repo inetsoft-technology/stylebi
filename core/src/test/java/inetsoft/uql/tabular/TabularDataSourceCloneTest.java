@@ -79,6 +79,29 @@ class TabularDataSourceCloneTest {
       assertEquals("$(user)", cached.getUser());
    }
 
+   // a cloud credential is copied with its id and the values read from the secrets manager,
+   // without reading them again
+   @Test
+   void cloneOfACloudCredential() {
+      CountingCloudCredential credential = new CountingCloudCredential();
+      credential.setId("secret-id");
+      credential.setDBType("db");
+      credential.setUser("fetched-user");
+      CredentialDataSource ds = new CredentialDataSource();
+      ds.setCredential(credential);
+
+      CredentialDataSource copy = (CredentialDataSource) ds.clone();
+
+      assertNotSame(credential, copy.getCredential());
+      CloudPasswordCredential copied = (CloudPasswordCredential) copy.getCredential();
+      assertEquals("secret-id", copied.getId());
+      assertEquals("db", copied.getDBType());
+      assertEquals("fetched-user", copy.getUser());
+      assertEquals(0, credential.fetches);
+      assertEquals(0, ((CountingCloudCredential) copied).fetches);
+      assertEquals(ds, copy);
+   }
+
    @Test
    void cloneWithoutACredential() {
       NoCredentialDataSource ds = new NoCredentialDataSource();
@@ -126,6 +149,15 @@ class TabularDataSourceCloneTest {
       protected CredentialType getCredentialType() {
          return null;
       }
+   }
+
+   public static final class CountingCloudCredential extends CloudPasswordCredential {
+      @Override
+      public void fetchCredential() {
+         fetches++;
+      }
+
+      private int fetches;
    }
 
    // the constructor of the CredentialService bean is package private
