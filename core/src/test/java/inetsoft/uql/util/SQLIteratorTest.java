@@ -554,6 +554,20 @@ public class SQLIteratorTest {
       assertEquals("ssn ", columns.get(1));
    }
 
+   // Bug #77695, the closing tag of a value that spans lines is on a -- comment line, so the
+   // value ends before the comment and a condition added after it is not commented out
+   @Test
+   void closingTagInCommentLineEndsMultiLineValue() {
+      String sql = "select * from T where /*<where>*/a=1\n-- old /*</where>*/\norder by 1";
+      assertEquals("select * from T where a=1\n-- old \norder by 1", iterate(sql));
+      assertEquals(List.of("a=1\n"), wheres);
+
+      setup();
+      sql = "select /*<1>*/ssn,\n-- x /*</1>*/\nb from T";
+      assertEquals("select ssn,\n-- x \nb from T", iterate(sql));
+      assertEquals("ssn,\n", columns.get(1));
+   }
+
    // Bug #77695, a tag name other than where or a column number is a regular comment, which
    // is passed on, instead of a NumberFormatException or a column index below 0. A column
    // number may have leading zeros or a + sign, as Integer.parseInt read it

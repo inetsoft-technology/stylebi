@@ -60,6 +60,16 @@ class AbstractTableAssemblySQLExpressionTest {
                  deps.toString());
    }
 
+   // the worksheet's dependency check reads the same variables and doesn't fail either
+   @ParameterizedTest
+   @ValueSource(strings = { "$(v) /*<1>*/", "$(v) /*<x>*/1/*</x>*/",
+                            "$(v) + 1 /*/ c */ /*<where>*/1/*</where>*/" })
+   void dependencyCheckOfUnreadableSqlDoesNotFail(String exp) {
+      TableAssembly table = createTable(exp);
+
+      assertDoesNotThrow(() -> table.getWorksheet().checkDependencies());
+   }
+
    // the variables in a -- comment line are not used, also when the sql can't be read
    @Test
    void variableInCommentLineIsIgnored() {
