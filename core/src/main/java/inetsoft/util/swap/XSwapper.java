@@ -39,6 +39,7 @@ import java.lang.management.MemoryType;
 import java.lang.management.MemoryUsage;
 import java.lang.management.PlatformManagedObject;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -48,6 +49,7 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -1456,35 +1458,27 @@ public final class XSwapper {
    private static final class MonitorMulticaster implements XSwappableMonitor {
       @Override
       public void countHits(int type, int hits) {
-         monitors.stream()
-            .filter(m -> m.isLevelQualified(HITS))
-            .forEach(m -> m.countHits(type, hits));
+         forEachQualified(HITS, m -> m.countHits(type, hits));
       }
 
       @Override
       public void countMisses(int type, int misses) {
-         monitors.stream()
-            .filter(m -> m.isLevelQualified(MISSES))
-            .forEach(m -> m.countMisses(type, misses));
+         forEachQualified(MISSES, m -> m.countMisses(type, misses));
       }
 
       @Override
       public void countRead(long num, int type) {
-         monitors.stream()
-            .filter(m -> m.isLevelQualified(READ))
-            .forEach(m -> m.countRead(num, type));
+         forEachQualified(READ, m -> m.countRead(num, type));
       }
 
       @Override
       public void countWrite(long num, int type) {
-         monitors.stream()
-            .filter(m -> m.isLevelQualified(WRITTEN))
-            .forEach(m -> m.countWrite(num, type));
+         forEachQualified(WRITTEN, m -> m.countWrite(num, type));
       }
 
       @Override
       public boolean isLevelQualified(String attr) {
-         return monitors.stream().anyMatch(m -> m.isLevelQualified(attr));
+         return monitors.stream().anyMatch(m -> isQualified(m, attr));
       }
 
       void addMonitor(XSwappableMonitor monitor) {
@@ -1493,9 +1487,48 @@ public final class XSwapper {
 
       void removeMonitor(XSwappableMonitor monitor) {
          monitors.remove(monitor);
+         failedMonitors.remove(monitor);
+      }
+
+      // Bug #77684, a monitor only observes the swapper. A monitor that throws, from its
+      // level check or from the count itself, must not keep the count from the monitors
+      // after it, or fail the swap, read or access that is being counted.
+      private void forEachQualified(String attr, Consumer<XSwappableMonitor> count) {
+         for(XSwappableMonitor monitor : monitors) {
+            try {
+               if(monitor.isLevelQualified(attr)) {
+                  count.accept(monitor);
+               }
+            }
+            catch(RuntimeException ex) {
+               logFailure(monitor, ex);
+            }
+         }
+      }
+
+      private boolean isQualified(XSwappableMonitor monitor, String attr) {
+         try {
+            return monitor.isLevelQualified(attr);
+         }
+         catch(RuntimeException ex) {
+            logFailure(monitor, ex);
+            return false;
+         }
+      }
+
+      // counts are on hot paths, so a monitor that keeps failing is warned about only once
+      private void logFailure(XSwappableMonitor monitor, RuntimeException ex) {
+         if(failedMonitors.add(monitor)) {
+            LOG.warn("Swappable monitor {} failed, later failures are logged at debug level",
+                     monitor.getClass().getName(), ex);
+         }
+         else {
+            LOG.debug("Swappable monitor {} failed", monitor.getClass().getName(), ex);
+         }
       }
 
       private final List<XSwappableMonitor> monitors = new CopyOnWriteArrayList<>();
+      private final Set<XSwappableMonitor> failedMonitors = ConcurrentHashMap.newKeySet();
    }
 
    public static final String SWAP_FILE_MAP = "inetsoft.swap.file.map";
