@@ -72,6 +72,8 @@ public class XSwappableIntList implements Serializable {
     * Make a copy of the list.
     */
    public XSwappableIntList(XSwappableIntList list) {
+      this();
+
       int n = list.size();
 
       for(int i = 0; i < n; i++) {
