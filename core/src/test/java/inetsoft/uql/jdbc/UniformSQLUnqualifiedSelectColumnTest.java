@@ -134,7 +134,7 @@ class UniformSQLUnqualifiedSelectColumnTest {
       derbyName = "bug77639_" + (++sources) + "_" + RUN;
 
       try(Connection conn = derby().getConnection(); Statement stmt = conn.createStatement()) {
-         for(String table : new String[] { "T", "G" }) {
+         for(String table : new String[] { "T", "G", "C" }) {
             try {
                stmt.executeUpdate("drop table " + table);
             }
@@ -149,9 +149,15 @@ class UniformSQLUnqualifiedSelectColumnTest {
          stmt.executeUpdate("create table G (K VARCHAR(10), ID INT)");
          // two groups, one row per group only with the group by
          stmt.executeUpdate("insert into G values ('a', 1), ('a', 2), ('b', 3)");
+         // unquoted chinese column names, NAME and NO
+         stmt.executeUpdate("create table C (" + NAME + " VARCHAR(10), " + NO + " INT)");
+         stmt.executeUpdate("insert into C values ('a', 1), ('b', 2), ('a', 3)");
       }
    }
 
+   // chinese for name and number
+   private static final String NAME = "\u540d\u79f0";
+   private static final String NO = "\u7f16\u53f7";
    private static final String[] HELPERS = { "h2", "oracle", "postgresql", "snowflake", "exasol" };
 
    // the reported shape, on every helper: the trailing k was dropped
@@ -234,6 +240,29 @@ class UniformSQLUnqualifiedSelectColumnTest {
 
       assertEquals("[G.K:desc]", orderBy(usql));
       assertSameRows(sql, usql, true);
+   }
+
+   // an unquoted name the sql lexer reads as an identifier, not only an ascii one
+   @Test
+   void chineseNameIsKept() throws Exception {
+      String sql = "select C." + NAME + ", C." + NO + " from C order by " + NO + " desc";
+      UniformSQL usql = fixedWithoutMeta(sql);
+
+      assertEquals("[C." + NO + ":desc]", orderBy(usql));
+      assertSameRows(sql, usql, true);
+
+      sql = "select C." + NAME + ", count(*) from C group by " + NAME;
+      usql = fixedWithoutMeta(sql);
+
+      assertEquals("[C." + NAME + "]", Arrays.toString(usql.getGroupBy()));
+      assertSameRows(sql, usql, false);
+
+      for(String key : new String[] { "h2", "oracle" }) {
+         String generated = regenerate(fixed("select t." + NAME + ", count(*) from t group by " +
+                                             NAME + " order by " + NAME, key));
+         assertTrue(norm(generated).endsWith("group by t." + NAME + " order by t." + NAME + " asc"),
+                    key + " " + generated);
+      }
    }
 
    // a derived table is the only from item, its select list names the field t.k under x

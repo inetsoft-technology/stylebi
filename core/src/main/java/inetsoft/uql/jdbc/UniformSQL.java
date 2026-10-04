@@ -2421,8 +2421,8 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
     * find. The name is that column only if the from clause has one table (or derived table),
     * of which no column is known, and one plain column of it with the name is selected,
     * written with the same quoting: an unquoted name is folded by the database, a quoted one
-    * isn't, so they aren't compared. Called after the alias checks, a name that is the alias
-    * of a select column in any case isn't guessed.
+    * isn't, so they aren't compared. It is called after the alias checks; a name that is a
+    * select alias in any case isn't guessed.
     * @param quote the quoting of the field, see getQuote(OrderByItem).
     * @return the index of the select column, or -1 if not known.
     */
@@ -2431,9 +2431,11 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       String ref = quoted ? null : getUnquotedReference(field);
       String name = ref != null ? ref : field;
 
-      // a qualified quoted name (t."k") isn't unqualified
+      // a qualified quoted name (t."k") isn't unqualified. An unquoted name is an identifier
+      // as the sql lexer reads it (IDENT), e.g. a chinese name, apart from an @variable
       if(getTableCount() != 1 || quoted && !quote.isEmpty() || name.isEmpty() ||
-         name.indexOf('"') >= 0 || !quoted && !name.matches("[A-Za-z_][A-Za-z0-9_]*"))
+         name.indexOf('"') >= 0 ||
+         !quoted && !name.matches("[A-Za-z_\\u0100-\\uFFFE][A-Za-z0-9_\\u0100-\\uFFFE]*"))
       {
          return -1;
       }
