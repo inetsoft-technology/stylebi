@@ -255,12 +255,14 @@ public class DatabaseDatasourcesService {
             DependencyTransformer.prepareChildrenSources(path, childrenSources, repository);
             RenameDependencyInfo dinfo = DependencyTransformer.createDependencyInfo(
                path, newPath, childrenSources);
-            renameTransformHandler.addTransformTask(dinfo);
             folder.setName(newPath);
 
             Permission permission =
                securityEngine.getPermission(ResourceType.DATA_SOURCE_FOLDER, path);
+            // Bug #77704, added once the folder is moved. A failed move renames the dependencies
+            // of each data source it moved, in updateDataSourceFolder.
             repository.updateDataSourceFolder(folder, path);
+            renameTransformHandler.addTransformTask(dinfo);
 
             if(permission != null) {
                securityEngine.setPermission(ResourceType.DATA_SOURCE_FOLDER, newPath, permission);

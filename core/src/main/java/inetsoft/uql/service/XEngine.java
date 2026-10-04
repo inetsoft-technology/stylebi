@@ -325,7 +325,18 @@ public class XEngine implements XRepository, XQueryRepository {
       }
 
       String dname = oname != null ? oname : dx.getFullName();
-      getDSRegistry().renameDatasource(oname, dx.getFullName());
+
+      try {
+         getDSRegistry().renameDatasource(oname, dx.getFullName());
+      }
+      catch(DataSourceRenameException e) {
+         // Bug #77704, the data source itself was moved, only some of its objects weren't
+         if(nameChanged && e.isMoved(oname)) {
+            renameDependencies(dx, oname);
+         }
+
+         throw e;
+      }
 
       if(nameChanged || changed || odx == null) {
          getDSRegistry().setDataSource(dx, oname, actionRecord, checkDelete, false, true);
@@ -333,28 +344,8 @@ public class XEngine implements XRepository, XQueryRepository {
 
       // Only add transform task when data source is renamed, if folder is reanmed, it will add task in renama action.
       // Should only add one task for one action to avoid tranform one report/ws/vs for some time.
-      if(nameChanged) {
-         final String type = dx.getType();
-         boolean tabular = dx instanceof ListedDataSource ||
-            type.startsWith(SourceInfo.REST_PREFIX) || dx instanceof TabularDataSource;
-         String oname2 = oname;
-         String nname2 = dx.getFullName();
-
-         if(oname2.contains("/")) {
-            oname2 = oname2.substring(oname2.lastIndexOf("/") + 1);
-         }
-
-         if(nname2.contains("/")) {
-            nname2 = nname2.substring(nname2.lastIndexOf("/") + 1);
-         }
-
-         if(!tabular && Tool.equals(oname2, nname2)) {
-            return;
-         }
-
-         RenameDependencyInfo dinfo =
-            DependencyTransformer.createDependencyInfo(dx, oname, dx.getFullName());
-         renameTransform(dinfo);
+      if(nameChanged && !renameDependencies(dx, oname)) {
+         return;
       }
 
       if(dx instanceof AdditionalConnectionDataSource) {
@@ -367,6 +358,36 @@ public class XEngine implements XRepository, XQueryRepository {
             base.addDatasource(jds);
          }
       }
+   }
+
+   /**
+    * Adds the transform task of the dependencies of a renamed data source.
+    *
+    * @return {@code false} if there is none, the data source is only moved to another folder.
+    */
+   private boolean renameDependencies(XDataSource dx, String oname) {
+      final String type = dx.getType();
+      boolean tabular = dx instanceof ListedDataSource ||
+         type.startsWith(SourceInfo.REST_PREFIX) || dx instanceof TabularDataSource;
+      String oname2 = oname;
+      String nname2 = dx.getFullName();
+
+      if(oname2.contains("/")) {
+         oname2 = oname2.substring(oname2.lastIndexOf("/") + 1);
+      }
+
+      if(nname2.contains("/")) {
+         nname2 = nname2.substring(nname2.lastIndexOf("/") + 1);
+      }
+
+      if(!tabular && Tool.equals(oname2, nname2)) {
+         return false;
+      }
+
+      RenameDependencyInfo dinfo =
+         DependencyTransformer.createDependencyInfo(dx, oname, dx.getFullName());
+      renameTransform(dinfo);
+      return true;
    }
 
    @Override
@@ -642,6 +663,26 @@ public class XEngine implements XRepository, XQueryRepository {
    public void cutDataSourceFolder(DataSourceFolder folder, String oname)
       throws Exception
    {
+      Map<String, RenameDependencyInfo> unloadable = new LinkedHashMap<>();
+      cutDataSourceFolder(folder, oname, unloadable, new LinkedHashMap<>());
+
+      for(RenameDependencyInfo dinfo : unloadable.values()) {
+         RenameTransformHandler.getTransformHandler().addTransformTask(dinfo);
+      }
+   }
+
+   /**
+    * Moves the data sources and the subfolders of a data source folder.
+    *
+    * @param unloadable the dependency infos of the data sources that can't be loaded, which are
+    *                   left for renameDataSourceFolder.
+    * @param moved      the data sources moved, old path to new path.
+    */
+   private void cutDataSourceFolder(DataSourceFolder folder, String oname,
+                                    Map<String, RenameDependencyInfo> unloadable,
+                                    Map<String, String> moved)
+      throws Exception
+   {
       List<String> children = getDSRegistry().getSubDataSourceNames(oname);
 
       for(String name : children) {
@@ -661,7 +702,7 @@ public class XEngine implements XRepository, XQueryRepository {
                getDSRegistry(), name, newName, true);
 
             if(dinfo != null) {
-               RenameTransformHandler.getTransformHandler().addTransformTask(dinfo);
+               unloadable.put(name, dinfo);
             }
 
             continue;
@@ -670,8 +711,21 @@ public class XEngine implements XRepository, XQueryRepository {
          child.setName(newName);
          RenameDependencyInfo dinfo =
             DependencyTransformer.createDependencyInfo(child, name, newName, true);
+
+         // Bug #77704, the dependencies are renamed once the data source is moved
+         try {
+            updateDataSource(child, name, false, false);
+         }
+         catch(DataSourceRenameException e) {
+            if(e.isMoved(name)) {
+               RenameTransformHandler.getTransformHandler().addTransformTask(dinfo);
+            }
+
+            throw e;
+         }
+
+         moved.put(name, newName);
          RenameTransformHandler.getTransformHandler().addTransformTask(dinfo);
-         updateDataSource(child, name, false, false);
       }
 
       children = getDSRegistry().getSubfolderNames(oname);
@@ -687,9 +741,26 @@ public class XEngine implements XRepository, XQueryRepository {
          }
 
          child.setName(newName);
+         List<String> sources = getDSRegistry().getSubDataSourceNames(name, true);
          updateDataSourceFolder(child, name);
+
+         // the data sources the subfolder moved, for a later failure to report
+         for(String source : sources) {
+            if(!source.startsWith(name + "/")) {
+               continue;
+            }
+
+            String nsource = newName + source.substring(name.length());
+
+            if(getDSRegistry().containObject(new AssetEntry(
+               AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE, nsource, null)))
+            {
+               moved.put(source, nsource);
+            }
+         }
       }
    }
+
    /**
     * Add or replace a data source folder in the repository.
     * @param folder new data source folder.
@@ -727,11 +798,67 @@ public class XEngine implements XRepository, XQueryRepository {
                   "security.nopermission.write", oname));
             }
 
-            cutDataSourceFolder(folder, oname);
+            renameDataSourceFolder(folder, oname);
+         }
+         else {
+            getDSRegistry().renameDataSourceFolder(oname, folder.getFullName());
          }
 
-         getDSRegistry().renameDataSourceFolder(oname, folder.getFullName());
          getDSRegistry().setDataSourceFolder(folder);
+      }
+   }
+
+   /**
+    * Moves a data source folder, its data sources and its subfolders. Bug #77704, the new folder
+    * is created first, so that the data sources moved before a failed write are in it. The
+    * dependencies of a data source are renamed once it is moved.
+    *
+    * @throws DataSourceRenameException if a write failed, with the data sources moved before it.
+    */
+   private void renameDataSourceFolder(DataSourceFolder folder, String oname) throws Exception {
+      DataSourceRegistry registry = getDSRegistry();
+      String nname = folder.getFullName();
+      Map<String, RenameDependencyInfo> unloadable = new LinkedHashMap<>();
+      Map<String, String> moved = new LinkedHashMap<>();
+      boolean created = false;
+
+      try {
+         created = registry.createMoveTargetFolder(oname, nname);
+         cutDataSourceFolder(folder, oname, unloadable, moved);
+         registry.renameDataSourceFolder(oname, nname);
+      }
+      catch(DataSourceRenameException e) {
+         if(created) {
+            registry.discardMoveTargetFolder(oname, nname);
+         }
+
+         e.addMovedDataSources(oname, nname, moved);
+
+         for(Map.Entry<String, RenameDependencyInfo> entry : unloadable.entrySet()) {
+            if(e.isMoved(entry.getKey())) {
+               renameTransform(entry.getValue());
+            }
+         }
+
+         throw e;
+      }
+      catch(SecurityException | MessageException e) {
+         if(created) {
+            registry.discardMoveTargetFolder(oname, nname);
+         }
+
+         throw e;
+      }
+      catch(Exception e) {
+         if(created) {
+            registry.discardMoveTargetFolder(oname, nname);
+         }
+
+         throw new DataSourceRenameException(oname, nname, oname, moved, e);
+      }
+
+      for(RenameDependencyInfo dinfo : unloadable.values()) {
+         renameTransform(dinfo);
       }
    }
 
