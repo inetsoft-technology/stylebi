@@ -152,6 +152,20 @@ public class JDBCUtil {
                                         JDBCDataSource xds, Principal principal)
       throws Exception
    {
+      try {
+         fixUniformSQLInfo0(sql, repository, session, xds, principal);
+      }
+      finally {
+         // the record is only for the metadata step that follows the parse
+         sql.clearParsedUnquotedSegments();
+      }
+   }
+
+   private static void fixUniformSQLInfo0(UniformSQL sql, XRepository repository,
+                                          Object session, JDBCDataSource xds,
+                                          Principal principal)
+      throws Exception
+   {
       synchronized(sql) {
          if(sql.getTableCount() <= 0 || sql.getFieldList().length > 0) {
             fixSelectionInfo(sql);
@@ -220,6 +234,8 @@ public class JDBCUtil {
 
             if(name instanceof UniformSQL) {
                UniformSQL sql1 = (UniformSQL) name;
+               // the parser records the names of a derived table in the outer query
+               sql1.addParsedUnquotedSegments(sql.getParsedUnquotedSegments());
                fixUniformSQLInfo(sql1, repository, session, xds);
                XSelection xSelects = sql1.getSelection();
 
@@ -338,7 +354,7 @@ public class JDBCUtil {
 
       for(int i = 0; i < select.getColumnCount(); i++) {
          String path = select.getColumn(i);
-         XField field = sql.getFieldByPath(path);
+         XField field = getColumnField(sql, path, false);
 
          if(field == null && !path.endsWith("*") &&
             !path.equals(select.getAlias(i)))
@@ -372,7 +388,8 @@ public class JDBCUtil {
             path = fp;
          }
 
-         XField field = sql.getFieldByPath(path, quoted);
+         // the field of the column getFullPathOf resolved, of its type
+         XField field = getColumnField(sql, path, quoted);
 
          if(field != null && field.getTable().length() > 0) {
             // the same column qualified by its table, it keeps its quoting
@@ -439,7 +456,7 @@ public class JDBCUtil {
       }
 
       res = table + "." + col;
-      XField field = sql.getFieldByPath(res, quoted);
+      XField field = getColumnField(sql, res, quoted);
 
       if(field != null && field.getTable().length() > 0) {
          if(!field.getName().equals(col)) {
@@ -449,6 +466,33 @@ public class JDBCUtil {
       }
 
       return res;
+   }
+
+   /**
+    * Get the field of a column path. A case-sensitive helper whose database folds unquoted
+    * names to one case stores the exact name of a column, so the field of that case is
+    * preferred over one that only matches ignoring case, and a column segment written
+    * unquoted in the sql parsed last is matched in the folded case (Bug #77643).
+    * @param quoted <tt>true</tt> if the column was written as a quoted identifier.
+    */
+   private static XField getColumnField(UniformSQL sql, String path, boolean quoted) {
+      SQLHelper.IdentifierCase fold = sql.getSQLHelper().getIdentifierCase();
+
+      if(fold == SQLHelper.IdentifierCase.UNKNOWN) {
+         return sql.getFieldByPath(path, quoted);
+      }
+
+      int idx = path.lastIndexOf('.');
+      String col = path.substring(idx + 1);
+
+      // stored with the quotes of the helper ("MixedCase")
+      if(col.length() > 2 && sql.isParsedUnquotedSegment(col)) {
+         String quote = col.substring(0, 1);
+         path = path.substring(0, idx + 1) + quote +
+            fold.fold(col.substring(1, col.length() - 1)) + quote;
+      }
+
+      return sql.getFieldByPath(path, true);
    }
 
    /**
