@@ -116,6 +116,9 @@ class DashboardRegistryConcurrencyTest {
       LOAD_HOOK.set(null);
       threads.forEach(Thread::interrupt);
       threads.clear();
+      // Bug #77748, a change event still queued when this context is closed must not reach the
+      // next test's context while it is refreshing
+      DashboardRegistryTestSupport.quiesce(registryManager, dataSpace);
       OrganizationContextHolder.clear();
 
       if(builder != null) {
