@@ -3410,12 +3410,22 @@ public class SQLHelper implements KeywordProvider {
 
             // the sql of the item for the parameter values of this run, e.g. a scalar
             // subquery with a sentinel parameter rewritten (Bug #77706), in place of its text.
-            // The text was matched to the select list above. An item replaced by an alias or
-            // a select column has nothing to replace, that column has its own sql.
+            // The text was matched to the select list above.
             String runSql = uniformSql.getOrderBySQL(i);
 
             if(runSql != null) {
                sfield = sfield.replace(ofield, runSql);
+            }
+            // the item resolved to a select column whose text is put in its place (an alias
+            // sorted by its column without alias sorting, or access's getOrderByColumn): the
+            // sql of that column for this run. An item generated as the alias has no text of
+            // the column to replace.
+            else if(index >= 0) {
+               String colSql = xselect.getColumnSQL(index);
+
+               if(colSql != null) {
+                  sfield = sfield.replace(xselect.getColumn(index), colSql);
+               }
             }
 
             // table changed to a subquery, replace reference to table to alias

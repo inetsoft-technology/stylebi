@@ -249,6 +249,10 @@ class XUtilSentinelOrderByTest {
          Arguments.of("select a.id, " + SUB + " from a order by " + SUB + " desc, a.id"),
          Arguments.of("select a.id, " + SUB + " as cnt from a order by " + SUB +
                          " desc, a.id"),
+         // ordered by the alias of the subquery: oracle sorts an alias by its select column
+         // (!supportsAliasSorting), which is generated with the rewritten sql of the column
+         Arguments.of("select a.id, " + SUB + " as cnt from a order by cnt desc, a.id"),
+         Arguments.of("select distinct a.id, " + SUB + " as cnt from a order by cnt desc"),
          // a positional item next to the subquery item
          Arguments.of("select a.id from a order by " + SUB + " desc, 1"),
          Arguments.of("select a.id, " + SUB + " from a order by 2 desc, " + SUB + ", 1"),
@@ -345,6 +349,43 @@ class XUtilSentinelOrderByTest {
       try(Connection conn = derby().getConnection()) {
          // cnt|id: a.id 1 and 3 have a b row with a null k, 5 has none
          assertEquals(List.of("1|1|", "1|3|", "0|5|"), rows(conn, generated), generated);
+      }
+   }
+
+   // access sorts by the select column of an alias (AccessSQLHelper.getOrderByColumn), which
+   // is generated with the rewritten sql of the column
+   @Test
+   void accessHelper() throws Exception {
+      JDBCDataSource ds = new JDBCDataSource();
+      ds.setName("ds_access");
+      ds.setDriver("net.ucanaccess.jdbc.UcanaccessDriver");
+      ds.setURL("jdbc:ucanaccess://c:/x.accdb");
+      assertEquals("access", SQLHelper.getSQLHelper(ds).getSQLHelperType());
+      String[] sqls = {
+         D4A,
+         "select a.id, " + SUB + " as cnt from a order by cnt desc, a.id",
+         "select a.id, " + SUB + " as cnt from a order by " + SUB + " desc, a.id",
+      };
+
+      for(String sql : sqls) {
+         for(String[] p : new String[][] { { NULL_VALUE, "IS NULL" }, { EMPTY_STRING, "= ''" },
+                                           { NULL_STRING, "= 'null'" } })
+         {
+            UniformSQL original = new UniformSQL();
+            original.setDataSource(ds);
+            original.parse(sql, UniformSQL.PARSE_ALL, UniformSQL.PARSE_PERIOD);
+            assertEquals(UniformSQL.PARSE_SUCCESS, original.getParseResult(), sql);
+            String text = generate(original);
+            assertTrue(text.contains("$(p)"), text);
+
+            UniformSQL usql = new UniformSQL();
+            usql.setDataSource(ds);
+            usql.parse(sql, UniformSQL.PARSE_ALL, UniformSQL.PARSE_PERIOD);
+            usql.clearSQLString();
+            String generated = validate(usql, p[0]);
+            assertFalse(generated.contains("$(p)"), "not rewritten: " + generated);
+            assertEquals(text.replace("= $(p)", p[1]), generated, sql);
+         }
       }
    }
 
