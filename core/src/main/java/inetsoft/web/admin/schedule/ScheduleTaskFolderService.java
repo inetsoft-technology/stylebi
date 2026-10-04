@@ -27,7 +27,6 @@ import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetFolder;
 import inetsoft.uql.asset.sync.RenameTransformHandler;
-import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
@@ -376,7 +375,7 @@ public class ScheduleTaskFolderService {
     */
    private boolean isSkippedMove(String folderPath, AssetEntry targetEntry) {
       return folderPath == null ||
-         DataSourceRegistry.isSameOrDescendantPath(folderPath, targetEntry.getPath()) ||
+         Tool.isSameOrDescendantPath(folderPath, targetEntry.getPath()) ||
          Tool.equals(getMovedPath(folderPath, targetEntry), folderPath);
    }
 

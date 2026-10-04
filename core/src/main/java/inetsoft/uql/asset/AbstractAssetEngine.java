@@ -1858,6 +1858,14 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
                "common.sameFolder", nentry));
          }
 
+         // Bug #77721, a folder moved into one of its own subfolders would be written under
+         // itself while it is being moved, which loses or endlessly copies its subtree. A move
+         // to the same path (an alias change) or into another scope, user or org is not one.
+         if(isMovedIntoItself(oentry, nentry)) {
+            throw new MessageException(catalog.getString(
+               "common.folder.moveIntoItself", oentry.getPath()));
+         }
+
          IndexedStorage ostorage = getStorage(oentry);
          IndexedStorage nstorage = getStorage(nentry);
 
@@ -1899,6 +1907,18 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
       finally {
          writeLock.unlock();
       }
+   }
+
+   /**
+    * Checks if a folder would be moved into one of its own subfolders: the new folder is in the
+    * same scope, of the same type and of the same user and org, and its path lies strictly under
+    * the path of the old folder.
+    */
+   private static boolean isMovedIntoItself(AssetEntry oentry, AssetEntry nentry) {
+      return oentry.getScope() == nentry.getScope() && oentry.getType() == nentry.getType() &&
+         Tool.equals(oentry.getUser(), nentry.getUser()) &&
+         Tool.equals(oentry.getOrgID(), nentry.getOrgID()) &&
+         Tool.isDescendantPath(oentry.getPath(), nentry.getPath());
    }
 
    /**

@@ -2197,6 +2197,34 @@ public final class Tool extends CoreTool {
    }
 
    /**
+    * Checks if a "/"-separated folder path is the same as another path or lies under it, e.g.
+    * "F", "F/G" or "F/G/H" for "F", but not "Fx". A folder must not be moved or renamed into
+    * itself or one of its subfolders.
+    *
+    * @param path    the folder path, e.g. "F".
+    * @param newPath the path to check, e.g. "F/G".
+    *
+    * @return {@code true} if the new path is the path or one of its descendants.
+    */
+   public static boolean isSameOrDescendantPath(String path, String newPath) {
+      return path != null && newPath != null &&
+         (newPath.equals(path) || isDescendantPath(path, newPath));
+   }
+
+   /**
+    * Checks if a "/"-separated folder path lies strictly under another path, e.g. "F/G" or
+    * "F/G/H" for "F", but not "F" itself or "Fx".
+    *
+    * @param path    the folder path, e.g. "F".
+    * @param newPath the path to check, e.g. "F/G".
+    *
+    * @return {@code true} if the new path is one of the descendants of the path.
+    */
+   public static boolean isDescendantPath(String path, String newPath) {
+      return path != null && newPath != null && newPath.startsWith(path + "/");
+   }
+
+   /**
     * Get the build number of this software.
     */
    public static String getBuildNumber() {

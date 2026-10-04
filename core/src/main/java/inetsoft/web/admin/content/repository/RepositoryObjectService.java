@@ -976,6 +976,26 @@ public class RepositoryObjectService {
          }
       }
 
+      // Bug #77721, a worksheet or report folder dropped onto itself or one of its subfolders
+      // would be copied into itself without end. Check all nodes before moving any of them.
+      for(int i = 0; i < pathFroms.length; i++) {
+         int typeFrom = Integer.parseInt(typeFroms[i]);
+
+         if((typeFrom & RepositoryEntry.FOLDER) != RepositoryEntry.FOLDER ||
+            (typeFrom & RepositoryEntry.DATA_SOURCE_FOLDER) == RepositoryEntry.DATA_SOURCE_FOLDER ||
+            (typeFrom & RepositoryEntry.LOGIC_MODEL) == RepositoryEntry.LOGIC_MODEL ||
+            (typeFrom & RepositoryEntry.PARTITION) == RepositoryEntry.PARTITION ||
+            !Tool.equals(userFroms[i], userTo))
+         {
+            continue;
+         }
+
+         if(Tool.isSameOrDescendantPath(pathFroms[i], pathTo)) {
+            throw new MessageException(Catalog.getCatalog(principal).getString(
+               "common.folder.moveIntoItself", pathFroms[i]));
+         }
+      }
+
       for(int i = 0; i < pathFroms.length; i++) {
          Map<String, List<String>> info = new HashMap<>();
          info.put("info", new ArrayList<>());

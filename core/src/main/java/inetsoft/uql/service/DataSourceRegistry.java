@@ -1019,8 +1019,7 @@ public class DataSourceRegistry implements MessageListener {
     * @return {@code true} if the new path is the path or one of its descendants.
     */
    public static boolean isSameOrDescendantPath(String path, String newPath) {
-      return path != null && newPath != null &&
-         (newPath.equals(path) || newPath.startsWith(path + "/"));
+      return Tool.isSameOrDescendantPath(path, newPath);
    }
 
    /**
