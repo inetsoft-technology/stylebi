@@ -17,9 +17,11 @@
  */
 package inetsoft.web.admin.content.repository;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.report.LibManagerProvider;
 import inetsoft.sree.*;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.security.*;
 import inetsoft.sree.web.dashboard.DashboardRegistryManager;
 import inetsoft.test.*;
@@ -30,21 +32,34 @@ import inetsoft.uql.asset.sync.RenameTransformHandler;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.util.IndexedStorage;
 import inetsoft.util.MessageException;
+import inetsoft.util.log.LogManager;
 import inetsoft.web.RecycleBin;
+import inetsoft.web.RecycleUtils;
+import inetsoft.web.admin.AdminExceptionHandler;
 import inetsoft.web.admin.content.database.model.DataModelFolderManagerService;
 import inetsoft.web.admin.content.repository.model.MoveCopyTreeNodesRequest;
+import inetsoft.web.portal.controller.RepositoryTreeController;
+import inetsoft.web.portal.model.*;
+import inetsoft.web.viewsheet.command.MessageCommand;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.util.*;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /**
  * Bug #77721, every server path that moves or renames a worksheet or report folder must refuse a
@@ -70,7 +85,7 @@ class FolderMoveIntoItselfTest {
    // ---- worksheet (asset) folders: AbstractAssetEngine.changeFolder ----
 
    @Test
-   @Timeout(60)
+   @Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
    void assetFolderIntoItselfIsRefused() throws Exception {
       String n = "A77721a";
       addWsFolders(n, n + "/G");
@@ -86,7 +101,7 @@ class FolderMoveIntoItselfTest {
    }
 
    @Test
-   @Timeout(60)
+   @Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
    void assetFolderIntoGrandchildIsRefused() throws Exception {
       String n = "A77721b";
       addWsFolders(n, n + "/G");
@@ -102,7 +117,7 @@ class FolderMoveIntoItselfTest {
    }
 
    @Test
-   @Timeout(60)
+   @Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
    void userScopeAssetFolderIntoGrandchildIsRefused() throws Exception {
       String n = "A77721u";
       IdentityID admin = new IdentityID("admin", orgId);
@@ -119,7 +134,7 @@ class FolderMoveIntoItselfTest {
    }
 
    @Test
-   @Timeout(60)
+   @Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
    void assetFolderAliasOnlyChangeStillWorks() throws Exception {
       String n = "A77721c";
       addWsFolders(n, n + "/G");
@@ -133,7 +148,7 @@ class FolderMoveIntoItselfTest {
    }
 
    @Test
-   @Timeout(60)
+   @Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
    void assetFolderMoveIntoSiblingWithSamePrefixStillWorks() throws Exception {
       String n = "A77721d";
       addWsFolders(n, n + "/G", n + "x");
@@ -146,7 +161,7 @@ class FolderMoveIntoItselfTest {
    }
 
    @Test
-   @Timeout(60)
+   @Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
    void assetFolderCrossScopeMoveToSameNamedPathStillWorks() throws Exception {
       String n = "A77721e";
       IdentityID admin = new IdentityID("admin", orgId);
@@ -166,7 +181,7 @@ class FolderMoveIntoItselfTest {
    // ---- report (repository) folders: RepletRegistry.changeFolder ----
 
    @Test
-   @Timeout(60)
+   @Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
    void registryRefusesDescendantWithoutChange() throws Exception {
       RepletRegistry reg = new RepletRegistry("raw77721");
 
@@ -191,7 +206,7 @@ class FolderMoveIntoItselfTest {
    }
 
    @Test
-   @Timeout(60)
+   @Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
    void portalTreeChangeIntoItselfIsRefused() throws Exception {
       String n = "R77721a";
       addReportFolders(n, n + "/G");
@@ -199,15 +214,15 @@ class FolderMoveIntoItselfTest {
       Set<String> beforeKeys = assetKeys(vsFolder(n), n);
 
       // /api/portal/tree/change with the folder itself as the parent: R -> R/R
-      assertThrows(Exception.class, () -> allowAll(() -> SUtil.getRepletRepository()
-         .changeFolder(new RepositoryEntry(n, RepositoryEntry.FOLDER), n, null)));
+      assertRefusal(assertThrows(Exception.class, () -> allowAll(() -> SUtil.getRepletRepository()
+         .changeFolder(new RepositoryEntry(n, RepositoryEntry.FOLDER), n, null))));
 
       assertEquals(before, folders(registry(), n));
       assertEquals(beforeKeys, assetKeys(vsFolder(n), n));
    }
 
    @Test
-   @Timeout(60)
+   @Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
    void portalTreeChangeIntoGrandchildIsRefused() throws Exception {
       String n = "R77721b";
       addReportFolders(n, n + "/G");
@@ -215,15 +230,15 @@ class FolderMoveIntoItselfTest {
       Set<String> beforeKeys = assetKeys(vsFolder(n), n);
 
       // /api/portal/tree/change with a subfolder as the parent: R -> R/G/R
-      assertThrows(Exception.class, () -> allowAll(() -> SUtil.getRepletRepository()
-         .changeFolder(new RepositoryEntry(n, RepositoryEntry.FOLDER), n + "/G", null)));
+      assertRefusal(assertThrows(Exception.class, () -> allowAll(() -> SUtil.getRepletRepository()
+         .changeFolder(new RepositoryEntry(n, RepositoryEntry.FOLDER), n + "/G", null))));
 
       assertEquals(before, folders(registry(), n));
       assertEquals(beforeKeys, assetKeys(vsFolder(n), n));
    }
 
    @Test
-   @Timeout(60)
+   @Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
    void portalTreeRenameWithSlashIntoItselfIsRefused() throws Exception {
       String n = "R77721c";
       addReportFolders(n, n + "/G");
@@ -231,11 +246,11 @@ class FolderMoveIntoItselfTest {
       Set<String> beforeKeys = assetKeys(vsFolder(n), n);
 
       // /api/portal/tree/rename with a "/" in the new name: R -> R/x and R -> R/G/R
-      assertThrows(Exception.class, () -> allowAll(() -> SUtil.getRepletRepository()
-         .renameRepositoryEntry(new RepositoryEntry(n, RepositoryEntry.FOLDER), n + "/x", null)));
-      assertThrows(Exception.class, () -> allowAll(() -> SUtil.getRepletRepository()
+      assertRefusal(assertThrows(Exception.class, () -> allowAll(() -> SUtil.getRepletRepository()
+         .renameRepositoryEntry(new RepositoryEntry(n, RepositoryEntry.FOLDER), n + "/x", null))));
+      assertRefusal(assertThrows(Exception.class, () -> allowAll(() -> SUtil.getRepletRepository()
          .renameRepositoryEntry(new RepositoryEntry(n, RepositoryEntry.FOLDER), n + "/G/" + n,
-                                null)));
+                                null))));
 
       assertEquals(before, folders(registry(), n));
       assertEquals(beforeKeys, assetKeys(vsFolder(n), n));
@@ -244,7 +259,7 @@ class FolderMoveIntoItselfTest {
    // ---- EM tree/move: RepositoryObjectService.moveFiles ----
 
    @Test
-   @Timeout(60)
+   @Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
    void emMoveWorksheetFolderOntoItselfIsRefused() throws Exception {
       String n = "M77721a";
       addWsFolders(n, n + "/G");
@@ -259,7 +274,7 @@ class FolderMoveIntoItselfTest {
    }
 
    @Test
-   @Timeout(60)
+   @Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
    void emMoveWorksheetFolderIntoChildIsRefused() throws Exception {
       String n = "M77721b";
       addWsFolders(n, n + "/G");
@@ -274,7 +289,7 @@ class FolderMoveIntoItselfTest {
    }
 
    @Test
-   @Timeout(60)
+   @Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
    void emMoveReportFolderOntoItselfIsRefused() throws Exception {
       String n = "M77721c";
       addReportFolders(n, n + "/G");
@@ -291,7 +306,7 @@ class FolderMoveIntoItselfTest {
    }
 
    @Test
-   @Timeout(60)
+   @Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
    void emMoveReportFolderIntoChildIsRefused() throws Exception {
       String n = "M77721d";
       addReportFolders(n, n + "/G");
@@ -310,7 +325,7 @@ class FolderMoveIntoItselfTest {
    // ---- copy backstop: RepletRegistryService.copyFolder ----
 
    @Test
-   @Timeout(60)
+   @Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
    void copyFolderBackstopRefusesReportFolderIntoItself() throws Exception {
       String n = "C77721a";
       addReportFolders(n, n + "/G");
@@ -327,7 +342,7 @@ class FolderMoveIntoItselfTest {
    }
 
    @Test
-   @Timeout(60)
+   @Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
    void copyFolderBackstopRefusesWorksheetFolderIntoChild() throws Exception {
       String n = "C77721b";
       addWsFolders(n, n + "/G");
@@ -342,12 +357,158 @@ class FolderMoveIntoItselfTest {
       assertEquals(before, assetKeys(wsFolder(n), n));
    }
 
+   // ---- the refusal reaches the user as a message ----
+
+   @Test
+   @Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+   void portalTreeChangeEndpointReturnsRefusalMessage() throws Exception {
+      String n = "H77721a";
+      addReportFolders(n, n + "/G");
+      Set<String> before = folders(registry(), n);
+      ChangeRepositoryEntryEvent event = new ChangeRepositoryEntryEvent.Builder()
+         .entry(new RepositoryEntryModel<>(new RepositoryEntry(n, RepositoryEntry.FOLDER)))
+         .parent(new RepositoryEntryModel<>(new RepositoryEntry(n + "/G", RepositoryEntry.FOLDER)))
+         .confirmed(false)
+         .build();
+      MessageCommand[] result = new MessageCommand[1];
+
+      // POST /api/portal/tree/change: R -> R/G/R
+      allowAll(() -> result[0] = portalController().changeRepositoryEntry(event, admin()));
+
+      assertNotNull(result[0], "no message was returned for the refused move");
+      assertEquals(MessageCommand.Type.ERROR, result[0].getType());
+      assertRefusal(new Exception(result[0].getMessage()));
+      assertEquals(before, folders(registry(), n));
+   }
+
+   @Test
+   @Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+   void portalTreeRenameEndpointReturnsRefusalMessage() throws Exception {
+      String n = "H77721b";
+      addReportFolders(n, n + "/G");
+      Set<String> before = folders(registry(), n);
+      RenameRepositoryEntryEvent event = new RenameRepositoryEntryEvent.Builder()
+         .entry(new RepositoryEntryModel<>(new RepositoryEntry(n, RepositoryEntry.FOLDER)))
+         .newName(n + "/G/" + n)
+         .confirmed(false)
+         .build();
+      MessageCommand[] result = new MessageCommand[1];
+
+      // POST /api/portal/tree/rename with a "/" in the new name: R -> R/G/R
+      allowAll(() -> result[0] = portalController().renameRepositoryEntry(event, admin()));
+
+      assertNotNull(result[0], "no message was returned for the refused rename");
+      assertEquals(MessageCommand.Type.ERROR, result[0].getType());
+      assertRefusal(new Exception(result[0].getMessage()));
+      assertEquals(before, folders(registry(), n));
+   }
+
+   @Test
+   @Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+   void emTreeMoveEndpointReturnsRefusalMessage() throws Exception {
+      String n = "H77721c";
+      addWsFolders(n, n + "/G");
+      Set<String> before = assetKeys(wsFolder(n), n);
+      MockMvc mvc = MockMvcBuilders
+         .standaloneSetup(new RepositoryObjectController(
+            emService(), mock(ResourcePermissionService.class), mock(ScheduleManager.class)))
+         .setControllerAdvice(new AdminExceptionHandler(mock(LogManager.class)))
+         .build();
+      String body = new ObjectMapper().writeValueAsString(
+         moveRequest(n, n, RepositoryEntry.WORKSHEET_FOLDER));
+
+      // POST /api/em/content/repository/tree/move with the folder dropped onto itself
+      allowAll(() -> mvc.perform(post("/api/em/content/repository/tree/move")
+                                    .principal(admin())
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .accept(MediaType.APPLICATION_JSON)
+                                    .content(body))
+         .andExpect(status().isInternalServerError())
+         .andExpect(jsonPath("$.message", containsString(REFUSAL))));
+
+      assertEquals(before, assetKeys(wsFolder(n), n));
+   }
+
+   // ---- legitimate folder moves that must keep working ----
+
+   @Test
+   @Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+   void recycleBinTrashAndRestoreWorksheetFolderStillWorks() throws Exception {
+      String n = "B77721a";
+      addWsFolders(n, n + "/G");
+      RecycleBin bin = mock(RecycleBin.class);
+
+      allowAll(() -> RecycleUtils.moveAssetFolderToRecycleBin(wsFolder(n), admin(), bin, true));
+
+      String binPath = binPath(bin, n);
+      assertFalse(repo.containsEntry(wsFolder(n)));
+      assertTrue(repo.containsEntry(wsFolder(binPath + "/G")));
+
+      RecycleBin.Entry entry = new RecycleBin.Entry();
+      entry.setPath(binPath);
+      entry.setOriginalPath(n);
+      entry.setOriginalScope(AssetRepository.GLOBAL_SCOPE);
+      allowAll(() -> RecycleUtils.restoreWSFolder(entry, false, admin(), bin));
+
+      assertTrue(repo.containsEntry(wsFolder(n)));
+      assertTrue(repo.containsEntry(wsFolder(n + "/G")));
+      assertFalse(repo.containsEntry(wsFolder(binPath)));
+   }
+
+   @Test
+   @Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+   void recycleBinTrashAndRestoreReportFolderStillWorks() throws Exception {
+      String n = "B77721b";
+      addReportFolders(n, n + "/G");
+      RecycleBin bin = mock(RecycleBin.class);
+
+      allowAll(() -> RecycleUtils.moveRepositoryFolderToRecycleBin(n, n, null, admin(), bin));
+
+      String binPath = binPath(bin, n);
+      assertFalse(registry().isFolder(n));
+      assertTrue(registry().isFolder(binPath + "/G"));
+
+      RecycleBin.Entry entry = new RecycleBin.Entry();
+      entry.setPath(binPath);
+      entry.setOriginalPath(n);
+      entry.setOriginalScope(AssetRepository.GLOBAL_SCOPE);
+      allowAll(() -> RecycleUtils.restoreRepositoryFolder(entry, false, admin(), bin));
+
+      assertTrue(registry().isFolder(n));
+      assertTrue(registry().isFolder(n + "/G"));
+      assertFalse(registry().isFolder(binPath));
+   }
+
+   @Test
+   @Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+   void renameUserStillMovesUserFolders() throws Exception {
+      String n = "U77721a";
+      IdentityID oldUser = new IdentityID("u77721old", orgId);
+      IdentityID newUser = new IdentityID("u77721new", orgId);
+      repo.addFolder(userFolder(n, oldUser), null);
+      repo.addFolder(userFolder(n + "/G", oldUser), null);
+
+      repo.renameUser(oldUser, newUser);
+
+      assertTrue(repo.containsEntry(userFolder(n, newUser)));
+      assertTrue(repo.containsEntry(userFolder(n + "/G", newUser)));
+      assertFalse(repo.containsEntry(userFolder(n, oldUser)));
+   }
+
    // ---- helpers ----
 
-   private static void assertRefusal(Exception ex) {
-      assertTrue(ex.getMessage() != null && ex.getMessage().contains("into itself"),
-                 "unexpected refusal: " + ex.getMessage());
+   private static void assertRefusal(Throwable ex) {
+      for(Throwable t = ex; t != null; t = t.getCause()) {
+         if(t.getMessage() != null && t.getMessage().contains(REFUSAL)) {
+            return;
+         }
+      }
+
+      fail("unexpected refusal: " + ex);
    }
+
+   // the start of the common.folder.moveIntoItself text
+   private static final String REFUSAL = "into itself or one of its subfolders";
 
    private AssetEntry wsFolder(String path) {
       return new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.FOLDER, path, null, orgId);
@@ -410,6 +571,18 @@ class FolderMoveIntoItselfTest {
 
    private static ContentRepositoryTreeNode node(String path, int type) {
       return ContentRepositoryTreeNode.builder().label(path).path(path).type(type).build();
+   }
+
+   private static String binPath(RecycleBin bin, String originalPath) {
+      ArgumentCaptor<String> path = ArgumentCaptor.forClass(String.class);
+      verify(bin).addEntry(path.capture(), eq(originalPath), any(), any(), anyInt(), anyInt(),
+                           any());
+      return path.getValue();
+   }
+
+   private static RepositoryTreeController portalController() {
+      return new RepositoryTreeController(SUtil.getRepletRepository(), null, null,
+         mock(ScheduleManager.class), mock(RecycleBin.class), RepletRegistryManager.getInstance());
    }
 
    private static RepletRegistryService registryService() {
