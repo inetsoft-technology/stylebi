@@ -387,6 +387,23 @@ public class SQLIteratorTest {
       assertEquals("1=1", whereClause);
    }
 
+   // Bug #77663, the comment and quote forms of each database family (dollar quotes, q quotes,
+   // nested comments, # and // comments, 5--1) don't make the scan quadratic, closed or not
+   @Test
+   void dialectFormsAreScannedInLinearTime() {
+      for(String part : new String[] {
+         "$a$x'y ", "$a$x'y$a$ ", "$$'$$ ", "$1 'x' ", "q'[x ", "q'[it's]' ",
+         "/* /* x */ 'y */ ", "# it's\n", "5--1 'x\n", "'http://x' // y\n", "m['a]'] " })
+      {
+         setup();
+         String sql = "select * from t where /*<where>*/1=1/*</where>*/ and a = " +
+            part.repeat(1_000_000 / part.length());
+
+         assertTimeoutPreemptively(Duration.ofSeconds(10), () -> iterate(sql), part);
+         assertEquals("1=1", whereClause, part);
+      }
+   }
+
    // a tag after a -- in the middle of a line is still a tag, as before
    @Test
    void tagAfterMidLineCommentIsUnchanged() {
