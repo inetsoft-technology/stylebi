@@ -64,12 +64,39 @@ public class CloudResourceOwnerPasswordCredentials extends CloudPasswordCredenti
       this.tenantId = tenantId;
    }
 
+   /**
+    * Gets the access token obtained at runtime. The tokens are not part of the secret, they are
+    * neither read from nor written to the secrets manager, and they are not saved with the data
+    * source, which stores only the id of a cloud credential.
+    */
+   @Override
+   public String getAccessToken() {
+      return accessToken;
+   }
+
+   @Override
+   public void setAccessToken(String accessToken) {
+      this.accessToken = accessToken;
+   }
+
+   @Override
+   public String getRefreshToken() {
+      return refreshToken;
+   }
+
+   @Override
+   public void setRefreshToken(String refreshToken) {
+      this.refreshToken = refreshToken;
+   }
+
    @Override
    public void reset() {
       super.reset();
       clientId = "";
       clientSecret = "";
       tenantId = "";
+      accessToken = null;
+      refreshToken = null;
    }
 
    @Override
@@ -80,7 +107,11 @@ public class CloudResourceOwnerPasswordCredentials extends CloudPasswordCredenti
 
       return Tool.equals(((CloudResourceOwnerPasswordCredentials) obj).clientId, clientId) &&
          Tool.equals(((CloudResourceOwnerPasswordCredentials) obj).clientSecret, clientSecret) &&
-         Tool.equals(((CloudResourceOwnerPasswordCredentials) obj).tenantId, tenantId);
+         Tool.equals(((CloudResourceOwnerPasswordCredentials) obj).tenantId, tenantId) &&
+         // Bug #77730, the tokens are compared so that saving them onto a stored data source is
+         // detected as a change of its cloud credential, which can't be saved (Bug #77699)
+         Tool.equals(((CloudResourceOwnerPasswordCredentials) obj).accessToken, accessToken) &&
+         Tool.equals(((CloudResourceOwnerPasswordCredentials) obj).refreshToken, refreshToken);
    }
 
    @Override
@@ -164,4 +195,7 @@ public class CloudResourceOwnerPasswordCredentials extends CloudPasswordCredenti
    private String clientId;
    private String clientSecret;
    private String tenantId;
+   // runtime only, see getAccessToken()
+   private String accessToken;
+   private String refreshToken;
 }

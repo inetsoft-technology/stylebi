@@ -86,10 +86,11 @@ class SharepointTokenSaveTest {
       registry.init();
    }
 
-   // the token expiration is stored and the templates of the credential are kept, in the cache
-   // and in storage
+   // the templates of the credential are kept, in the cache and in storage. Bug #77730, the
+   // tokens were obtained with the values of the query, so they are not stored with the templates
+   // either, where they would be used for other values
    @Test
-   void tokensAreSavedOntoTheStoredDefinition() throws Exception {
+   void templatedCredentialIsKeptAndGetsNoTokens() throws Exception {
       registry.setDataSource(source("spDs"), false);
 
       // TabularHandler.execute: clone the data source and replace its variables
@@ -128,14 +129,16 @@ class SharepointTokenSaveTest {
       assertNotNull(runtime.getTokenExpires());
 
       cached = (SharepointOnlineDataSource) registry.getDataSource("spDs");
-      assertEquals(runtime.getTokenExpires(), cached.getTokenExpires());
+      assertNull(cached.getTokenExpires());
+      assertNull(cached.getAccessToken());
       assertEquals(USER, cached.getUser());
       assertEquals(TENANT, cached.getTenantId());
 
       registry.clearCache();
       SharepointOnlineDataSource stored =
          (SharepointOnlineDataSource) registry.getDataSource("spDs");
-      assertEquals(runtime.getTokenExpires(), stored.getTokenExpires());
+      assertNull(stored.getTokenExpires());
+      assertNull(stored.getAccessToken());
       assertEquals(USER, stored.getUser());
       assertEquals(TENANT, stored.getTenantId());
       assertEquals("password", stored.getPassword());
