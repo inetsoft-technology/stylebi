@@ -2683,6 +2683,18 @@ term returns [XExpression exp = null]
         {
            exp = new XExpression();
            exp.setValue(joinOp(tmp.getQuotedValue(), b.getText(), tmp1.getQuotedValue()), XExpression.EXPRESSION);
+        }
+        |
+        (c:PERCENT  tmp1 = term)
+        {
+           exp = new XExpression();
+           exp.setValue(joinOp(tmp.getQuotedValue(), c.getText(), tmp1.getQuotedValue()), XExpression.EXPRESSION);
+        }
+        |
+        (d:CARET  tmp1 = term)
+        {
+           exp = new XExpression();
+           exp.setValue(joinOp(tmp.getQuotedValue(), d.getText(), tmp1.getQuotedValue()), XExpression.EXPRESSION);
         })?
         {if(exp == null){exp = tmp;}}
         ;
@@ -2707,7 +2719,9 @@ factor returns [XExpression exp = null]
             }
 
             prefix = c.getText();
-         })? tmp = num_primary
+         }|
+         d:TILDE {prefix = d.getText();}
+         )? tmp = num_primary
         {
            if(prefix == null) {
               exp = tmp;
@@ -5578,3 +5592,13 @@ BACKSLASH	:	'\\' ;
 // of being dropped by filter mode, e.g. a stray '}' after a complete {fn ...} escape (#77680)
 RBRACE	:	'}' ;
 RBRACKET	:	']' ;
+
+PERCENT	:	'%'	;	//modulo
+CARET	:	'^'	;	//bitwise xor / power, dialect-dependent
+TILDE	:	'~'	;	//bitwise not (unary)
+// '#' can't safely be a binary operator: it means different things per dialect (a comment
+// opener in MySQL, part of a valid identifier in Oracle/SQL Server, XOR only in PostgreSQL),
+// and the parser has no dialect context to disambiguate. Keep it as a real token that no
+// parser rule accepts, the same pattern as BACKSLASH above, so '#' fails the parse with a
+// clear error instead of being silently dropped by filter mode (#77659).
+HASH	:	'#'	;
