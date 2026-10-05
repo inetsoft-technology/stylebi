@@ -145,7 +145,15 @@ class UniformSQLSchemaQualifiedJoinTest {
    void whereOuterJoinMixedQualifiersKeepFilterInWhere(String helper, String text, String expected)
       throws Exception
    {
-      UniformSQL sql = parse(text, helper);
+      // a where clause outer join is refused with a data source that writes ANSI joins (Bug
+      // #77548), so its structure is parsed without one, and generated with the data source
+      if(dataSource(helper) != null) {
+         assertThrows(antlr.SemanticException.class, () -> parse(text, helper));
+      }
+
+      UniformSQL sql = parse(text, DEFAULT);
+      sql.setDataSource(dataSource(helper));
+
       // the sql first: it is what runs, and what main got wrong
       assertEquals(expected, regenerate(sql));
       assertRoundTrip(sql, helper);

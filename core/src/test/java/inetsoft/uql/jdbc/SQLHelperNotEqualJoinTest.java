@@ -223,7 +223,8 @@ class SQLHelperNotEqualJoinTest {
    }
 
    // a WHERE != stays in WHERE next to WHERE-syntax outer joins (*= and Oracle (+)), which
-   // turn off the text join order
+   // turn off the text join order. Such sql is refused with a data source that writes ANSI
+   // joins (Bug #77548), so the structure is parsed without one, and regenerated with it
    @ParameterizedTest
    @CsvSource(delimiter = '|', value = {
       "from a, b where a.id *= b.id and a.k != b.k|" +
@@ -234,18 +235,25 @@ class SQLHelperNotEqualJoinTest {
    void whereOuterJoinSyntax(String tail, String expected) throws Exception {
       for(String type : new String[] { "h2", "h2-ansi", "derby-ansi", "oracle-ansi" }) {
          JDBCDataSource ds = dataSource(type);
-         String generated = generate(SEL2 + tail, ds);
+         UniformSQL refused = new UniformSQL();
+         refused.setDataSource(ds);
+         new SQLProcessor(refused).parse(SEL2 + tail);
+         assertEquals(UniformSQL.PARSE_FAILED, refused.getParseResult(), type);
+
+         String generated = generateParsedWithoutSource(SEL2 + tail, ds);
          assertEquals(expected, from(generated), type);
-         assertRoundTrip(generated, ds);
+         // the Oracle helper changes the case of the select list when it parses, so its round
+         // trip starts from the second generation
+         assertRoundTrip("oracle-ansi".equals(type) ? generate(generated, ds) : generated, ds);
       }
 
-      String generated = generate(SEL2 + tail, dataSource("postgresql"));
+      String generated = generateParsedWithoutSource(SEL2 + tail, dataSource("postgresql"));
       assertEquals("from \"a\" LEFT OUTER JOIN \"b\" ON \"a\".\"id\" = \"b\".\"id\" where " +
                       "\"a\".\"k\" != \"b\".\"k\"",
                    from(generated));
       assertEquals(0, RowCompare.diffCount(
          SEL2 + "from a left join b on a.id = b.id where a.k != b.k",
-         generate(SEL2 + tail, dataSource("derby")), 120), tail);
+         generateParsedWithoutSource(SEL2 + tail, dataSource("derby")), 120), tail);
    }
 
    // Oracle without the ANSI option writes (+) and the != in WHERE, unchanged. Parsed without

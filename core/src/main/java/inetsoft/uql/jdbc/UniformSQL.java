@@ -460,6 +460,9 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
     * when it's generated. Without a data source, the helper that generates the
     * sql later is unknown (e.g. Oracle without ansi join generates (+) joins),
     * so such a query is refused.
+    * <p>
+    * With a data source, an outer join of a where clause (*=, =* or (+)) is refused too,
+    * unless the sql helper writes it as written (Oracle without ansi join, Bug #77548).
     */
    private void checkJoinOrders(SQLParser parser, long time) throws Exception {
       JDBCDataSource source = getDataSource();
@@ -498,6 +501,12 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       }
 
       checkCommaJoinGroups(parser);
+
+      // without a data source, the sql helper is unknown, and the outer joins are checked
+      // once a data source is set (setDataSource, isLossy)
+      if(source != null) {
+         parser.checkWhereClauseOuterJoins(isWhereClauseOuterJoinSupported(source));
+      }
    }
 
    /**
@@ -4956,6 +4965,14 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       }
 
       this.dataSource = dataSource;
+
+      // an outer join of a where clause parsed without a data source, or with one that wrote
+      // it as written, is refused once a data source that writes ANSI joins is set (Bug #77548)
+      if(dataSource != null && parseIt && sqlstring != null && parseResult == PARSE_SUCCESS &&
+         hasWhereClauseOuterJoin(this) && !isWhereClauseOuterJoinSupported(dataSource))
+      {
+         refuseSavedJoins();
+      }
    }
 
    /**
@@ -5687,10 +5704,20 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             }
          }
 
+         JDBCDataSource source = getDataSource();
+
+         // see setDataSource (Bug #77548)
+         if(source != null && parseResult == PARSE_SUCCESS && hasWhereClauseOuterJoin(this) &&
+            !isWhereClauseOuterJoinSupported(source))
+         {
+            refuseSavedJoins();
+            return true;
+         }
+
          SQLLexer lexer = new SQLLexer(new StringReader(getQuotedSqlString(sqlstring)));
          SQLParser parser = new SQLParser(lexer);
          UniformSQL sql = new UniformSQL();
-         sql.setDataSource(getDataSource());
+         sql.setDataSource(source);
          boolean commaGroupsChecked = false;
 
          try {
@@ -5712,7 +5739,13 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                }
             }
 
-            boolean result = (sql.lossy != null && sql.lossy) || isLegacyCycleJoins(this);
+            boolean legacyCycle = isLegacyCycleJoins(this);
+            boolean result = (sql.lossy != null && sql.lossy) || legacyCycle;
+            // a legacy query with an outer join whose join clauses can't be recorded is
+            // regenerated in the outer-last order. Lossy isn't enough, vpm regenerates a lossy
+            // query (XUtil.isParsedSQL ignores lossy), so it's refused with a data source and
+            // its sql string runs as written (Bug #77548)
+            boolean refuse = legacyCycle && source != null && hasLegacyOuterJoins();
 
             // a query parsed before the join clauses were recorded gets them from the parse of
             // its sql string, after the cycle check above, so a legacy cycle stays lossy. When
@@ -5721,6 +5754,12 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                parser.getJoinOrderChecks() : Collections.emptyList()))
             {
                result = true;
+               refuse = source != null;
+            }
+
+            if(refuse) {
+               refuseSavedJoins();
+               return true;
             }
 
             // a check skipped (or done with the base sql helper) for the missing data source
@@ -5736,10 +5775,115 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          }
          catch(Exception e) {
             setLossy(true);
+
+            // the join clauses of a legacy query can't be recorded from a refused parse
+            if(source != null && parseResult == PARSE_SUCCESS && hasLegacyOuterJoins()) {
+               refuseSavedJoins();
+            }
          }
       }
 
       return lossy != null && lossy;
+   }
+
+   /**
+    * Check the joins of a query loaded from storage with the data source of its query, which
+    * isn't set on the query yet (JDBCQuery.parseXML), the way isLossy() checks them. Vpm decides
+    * whether to regenerate a query (XUtil.isParsedSQL) before it calls isLossy(), so a refusal
+    * there would be too late for it (Bug #77548). Only a query saved before the join clauses
+    * were recorded (Bug #77475) with an outer join, or with an outer join of a where clause, is
+    * checked, the others aren't parsed again.
+    */
+   synchronized void checkSavedJoins(JDBCDataSource source) {
+      if(source == null || dataSource != null || lossy != null || !parseIt ||
+         sqlstring == null || parseResult != PARSE_SUCCESS ||
+         !hasLegacyOuterJoins() && !hasWhereClauseOuterJoin(this))
+      {
+         return;
+      }
+
+      dataSource = source;
+
+      try {
+         isLossy();
+      }
+      finally {
+         dataSource = null;
+         cachedSQLHelper = null;
+      }
+   }
+
+   /**
+    * Fail the parse of a query whose joins can't be regenerated as written, so its sql string
+    * runs as written (Bug #77548).
+    */
+   private void refuseSavedJoins() {
+      setParseResult(PARSE_FAILED);
+      setLossy(true);
+   }
+
+   /**
+    * Check if this query is a parsed query saved before the join clauses were recorded (Bug
+    * #77475) with an outer join: none of the joins of it and its where and having subqueries
+    * has a join clause, and one is an outer join.
+    */
+   private boolean hasLegacyOuterJoins() {
+      List<UniformSQL> queries = new ArrayList<>();
+      addQueryLevels(this, queries);
+      boolean outer = false;
+
+      for(UniformSQL query : queries) {
+         XJoin[] joins = query.getJoins();
+
+         for(int i = 0; joins != null && i < joins.length; i++) {
+            if(joins[i].getJoinClause() != XJoin.UNKNOWN_CLAUSE) {
+               return false;
+            }
+
+            outer = outer || joins[i].isOuterJoin();
+         }
+      }
+
+      return outer;
+   }
+
+   /**
+    * Check if a query, its subqueries or its derived tables have an outer join recorded in a
+    * where clause (*=, =* or (+)).
+    */
+   private static boolean hasWhereClauseOuterJoin(UniformSQL sql) {
+      List<UniformSQL> queries = new ArrayList<>();
+      addQueryLevels(sql, queries);
+
+      for(UniformSQL query : queries) {
+         XJoin[] joins = query.getJoins();
+
+         for(int i = 0; joins != null && i < joins.length; i++) {
+            if(joins[i].isWhereClauseJoin() && joins[i].isOuterJoin()) {
+               return true;
+            }
+         }
+
+         for(SelectTable table : query.getSelectTable()) {
+            if(table != null && table.getName() instanceof UniformSQL &&
+               hasWhereClauseOuterJoin((UniformSQL) table.getName()))
+            {
+               return true;
+            }
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Check if the sql helper of a data source writes the outer joins of a where clause
+    * (*=, =* or (+)) as written. Only Oracle without ansi join does (it writes (+) joins).
+    * Every other helper writes them as ANSI joins of the from clause, in the outer-last order,
+    * which can move an inner join to the null-supplying side of the outer join (Bug #77548).
+    */
+   private static boolean isWhereClauseOuterJoinSupported(JDBCDataSource source) {
+      return !source.isAnsiJoin() && getCheckSQLHelper(source) instanceof OracleSQLHelper;
    }
 
    /**

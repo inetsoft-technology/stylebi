@@ -211,7 +211,7 @@ class UniformSQLOuterJoinDialectTest {
          return;
       }
 
-      UniformSQL sql = parse(text, ds);
+      UniformSQL sql = parseStructure(text, type, ds);
       assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult());
 
       for(XJoin join : sql.getJoins()) {
@@ -318,7 +318,7 @@ class UniformSQLOuterJoinDialectTest {
          return;
       }
 
-      UniformSQL sql = parse(text, ds);
+      UniformSQL sql = parseStructure(text, type, ds);
       assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult());
       String generated = normalize(sql.getSQLString());
       String unquoted = generated.replace("\"", "");
@@ -326,6 +326,13 @@ class UniformSQLOuterJoinDialectTest {
       // correlation to it
       assertFalse(unquoted.matches("(?i).*\\( select .* (join|from|,) a( |\\)).*"), generated);
       assertTrue(unquoted.matches("(?i).*\\( select .* where .*\\ba\\.(id|k)\\b.*"), generated);
+
+      // the correlation of a structure parsed without a quoting data source is quoted by the
+      // parse of its generated sql, so its round trip starts from the second generation
+      if(isWhereOuterJoinRefused(type, text)) {
+         generated = normalize(parse(generated, ds).getSQLString());
+      }
+
       assertEquals(generated, normalize(parse(generated, ds).getSQLString()));
    }
 
@@ -405,7 +412,7 @@ class UniformSQLOuterJoinDialectTest {
    })
    void generatesSql(String type, String text, String expected) throws Exception {
       JDBCDataSource ds = dataSource(type, null, null);
-      assertEquals(expected, normalize(parse(text, ds).getSQLString()));
+      assertEquals(expected, normalize(parseStructure(text, type, ds).getSQLString()));
    }
 
    // a bare table name resolves to the one unaliased schema table with that last segment
@@ -464,6 +471,32 @@ class UniformSQLOuterJoinDialectTest {
    // the generated sql is pretty-printed
    private static String normalize(String sql) {
       return sql.replaceAll("\\s+", " ").trim();
+   }
+
+   /**
+    * Parse sql with a data source. A where clause outer join (*=, =* or (+)) is refused with a
+    * data source that writes ANSI joins, every one but oracle without ansi join (Bug #77548),
+    * so its structure is parsed without the data source, which is set afterwards, as for sql
+    * parsed without one.
+    */
+   private static UniformSQL parseStructure(String text, String type, JDBCDataSource ds)
+      throws Exception
+   {
+      if(!isWhereOuterJoinRefused(type, text)) {
+         return parse(text, ds);
+      }
+
+      RecognitionException ex = assertThrows(RecognitionException.class, () -> parse(text, ds));
+      assertTrue(ex.getMessage().contains("Unsupported outer join in the where clause"),
+                 ex.getMessage());
+      UniformSQL sql = parse(text, null);
+      sql.setDataSource(ds);
+      return sql;
+   }
+
+   private static boolean isWhereOuterJoinRefused(String type, String text) {
+      return !"oracle".equals(type) &&
+         (text.contains("(+)") || text.contains("*=") || text.contains("=*"));
    }
 
    private static UniformSQL parse(String text, JDBCDataSource ds) throws Exception {

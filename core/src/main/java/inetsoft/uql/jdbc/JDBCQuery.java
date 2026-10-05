@@ -511,6 +511,13 @@ public class JDBCQuery extends XQuery {
       }
 
       super.parseXML(root);
+
+      // the sql isn't given the data source here, but its saved joins are checked with it
+      // before a caller (e.g. vpm) decides to regenerate the sql from them (Bug #77548)
+      if(sql instanceof UniformSQL && getDataSource() instanceof JDBCDataSource) {
+         ((UniformSQL) sql).checkSavedJoins((JDBCDataSource) getDataSource());
+      }
+
       this.fixUserVariables(this.sql);
 
       if(!(sql instanceof UniformSQL) || !((UniformSQL) sql).isParseSQL()) {

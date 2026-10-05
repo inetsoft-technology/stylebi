@@ -480,7 +480,11 @@ class UniformSQLWhereOnOuterPairTest {
       UniformSQL processed = new UniformSQL();
       processed.setDataSource(GenericJDBCDataSource.create());
       new SQLProcessor(processed).parse(text);
-      assertEquals(UniformSQL.PARSE_SUCCESS, processed.getParseResult(), text);
+      // a where clause outer join is refused with a data source that writes ANSI joins
+      // (Bug #77548)
+      boolean whereOuter = text.contains("(+)") || text.contains("*=");
+      assertEquals(whereOuter ? UniformSQL.PARSE_FAILED : UniformSQL.PARSE_SUCCESS,
+                   processed.getParseResult(), text);
    }
 
    private static void assertRoundTrip(String generated, JDBCDataSource ds) throws Exception {
@@ -570,9 +574,17 @@ class UniformSQLWhereOnOuterPairTest {
    private static UniformSQL parse(String text, JDBCDataSource ds) throws Exception {
       UniformSQL sql = new UniformSQL();
       // Bug #77434 refuses a RIGHT or FULL join mixed with an inner join, and a nested
-      // join on the right of an outer join, without a data source
-      sql.setDataSource(ds != null ? ds : GenericJDBCDataSource.create());
+      // join on the right of an outer join, without a data source. A where clause outer join
+      // is refused with a data source that writes ANSI joins (Bug #77548), so it's parsed
+      // without one, and generated with the generic data source
+      boolean whereOuter = ds == null && (text.contains("(+)") || text.contains("*="));
+      sql.setDataSource(ds != null ? ds : whereOuter ? null : GenericJDBCDataSource.create());
       sql.parse(text, UniformSQL.PARSE_ALL, UniformSQL.PARSE_PERIOD);
+
+      if(whereOuter) {
+         sql.setDataSource(GenericJDBCDataSource.create());
+      }
+
       return sql;
    }
 

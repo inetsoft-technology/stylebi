@@ -973,6 +973,29 @@ public void checkTextJoinOrder(UniformSQL sql, boolean outerLast) throws Semanti
 }
 
 /**
+ * Check the outer joins of the where clauses of the statement (*=, =* or (+)), at any query
+ * level. SQLHelper writes them as ANSI joins of the from clause in the outer-last order, which
+ * can move an inner join to the null-supplying side of the outer join, e.g. b.id(+) = a.id and
+ * b.id = c.id as (b JOIN c) RIGHT OUTER JOIN a, which keeps the a rows that the inner join
+ * removed. Only Oracle without ansi join writes them as written, so the statement is refused
+ * for every other data source and its sql runs as written (Bug #77548).
+ * @param supported true if the sql helper of the data source writes them as written.
+ */
+public void checkWhereClauseOuterJoins(boolean supported) throws SemanticException {
+   if(!supported && !whereOuterJoins.isEmpty()) {
+      Token tok = null;
+
+      for(Iterator i = whereOuterJoins.values().iterator(); i.hasNext();) {
+         tok = getFirstToken(tok, (Token) i.next());
+      }
+
+      throw new SemanticException(
+         "Unsupported outer join in the where clause, the data source writes ANSI joins",
+         getFilename(), tok == null ? 0 : tok.getLine(), tok == null ? 0 : tok.getColumn());
+   }
+}
+
+/**
  * Get the JOIN keyword of the first join recorded for a query, null if none.
  */
 private Token getFirstJoinToken(UniformSQL sql) {
