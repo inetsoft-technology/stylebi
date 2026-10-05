@@ -37,7 +37,6 @@ import inetsoft.uql.util.Config;
 import inetsoft.uql.xmla.Domain;
 import inetsoft.uql.xmla.XMLADataSource;
 import inetsoft.util.IndexedStorage;
-import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
 import inetsoft.web.RecycleBin;
 import inetsoft.web.admin.content.database.model.DataModelFolderManagerService;
@@ -254,21 +253,14 @@ class DataSourceFolderMoveDataModelTest {
       assertEquals("no.such.Domain", root.getAttribute("class"));
    }
 
-   // Bug #77691 clash data: a folder and a data source at the same path. The rename of the data
-   // source is refused while the folder holds a data source (Bug #77725). Without the folder,
-   // the data source stored under the data source is moved by renameDatasource's move of the
-   // objects under the data source.
+   // Bug #77691 clash data: a folder and a data source at the same path. The data source in the
+   // folder is moved by renameDatasource's move of the objects under the data source.
    @Test
    void renameOfADataSourceSharingAFolderPath() throws Exception {
       addFolder("clP");
       addModel("clP/clJ");
       registry.setDataSource(source("clP"), false);
 
-      assertThrows(MessageException.class, () -> registry.renameDatasource("clP", "clQ"));
-      registry.clearCache();
-      assertEquals("clP/clJ", registry.getDataModel("clP/clJ").getDataSource());
-
-      registry.removeObject(entry(AssetEntry.Type.DATA_SOURCE_FOLDER, "clP"));
       registry.renameDatasource("clP", "clQ");
 
       registry.clearCache();
