@@ -1470,8 +1470,9 @@ public class JDBCUtil {
       if(xfn instanceof XUnaryCondition) {
          c.setValue1(getClauseValue(xfn.getExpression1(), datasource));
          Operation op = new Operation();
-         op.setName(XFilterNode.getOpName(((XUnaryCondition) xfn).getOp()));
-         op.setSymbol(((XUnaryCondition) xfn).getOp());
+         String symbol = getClauseOpSymbol(xfn, ((XUnaryCondition) xfn).getOp());
+         op.setName(XFilterNode.getOpName(symbol));
+         op.setSymbol(symbol);
          c.setOperation(op);
          c.setValue2(new ClauseValue(XExpression.VALUE));
          c.setValue3(new ClauseValue(XExpression.VALUE));
@@ -1481,8 +1482,9 @@ public class JDBCUtil {
          c.setValue2(getClauseValue(((XBinaryCondition) xfn).getExpression2(), datasource));
 
          Operation op = new Operation();
-         op.setName(XFilterNode.getOpName(((XBinaryCondition) xfn).getOp()));
-         op.setSymbol(((XBinaryCondition) xfn).getOp());
+         String symbol = getClauseOpSymbol(xfn, ((XBinaryCondition) xfn).getOp());
+         op.setName(XFilterNode.getOpName(symbol));
+         op.setSymbol(symbol);
          c.setOperation(op);
          c.setValue3(new ClauseValue(XExpression.VALUE));
       }
@@ -1492,8 +1494,9 @@ public class JDBCUtil {
          c.setValue3(getClauseValue(((XTrinaryCondition) xfn).getExpression3(), datasource));
 
          Operation op = new Operation();
-         op.setName(XFilterNode.getOpName(((XTrinaryCondition) xfn).getOp()));
-         op.setSymbol(((XTrinaryCondition) xfn).getOp());
+         String symbol = getClauseOpSymbol(xfn, ((XTrinaryCondition) xfn).getOp());
+         op.setName(XFilterNode.getOpName(symbol));
+         op.setSymbol(symbol);
          c.setOperation(op);
       }
 
@@ -1501,6 +1504,21 @@ public class JDBCUtil {
       c.setValue(xfn.toString());
 
       return c;
+   }
+
+   /**
+    * Get the operator symbol sent to the conditions pane. The parser keeps an operator as
+    * typed (e.g. "is null", "Like"), so send the canonical symbol the pane's operator list
+    * uses. "!=" is sent as "<>" for a plain condition (not a join). An operator in no
+    * operator list is kept as is.
+    */
+   private static String getClauseOpSymbol(XFilterNode xfn, String op) {
+      if("!=".equals(op) && xfn instanceof XBinaryCondition && !(xfn instanceof XJoin)) {
+         return "<>";
+      }
+
+      String symbol = XFilterNode.getCanonicalOpSymbol(op);
+      return symbol == null || symbol.isEmpty() ? op : symbol;
    }
 
    private static ClauseValue getClauseValue(XExpression xe, XDataSource dataSource) {
