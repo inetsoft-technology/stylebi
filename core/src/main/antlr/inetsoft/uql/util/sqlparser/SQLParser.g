@@ -2673,20 +2673,33 @@ term returns [XExpression exp = null]
         ;
 
 factor returns [XExpression exp = null]
-        {String prefix = null; XExpression tmp; {checkStatus();}}
+        {String prefix = null; boolean dotNum = false; XExpression tmp; {checkStatus();}}
         :
         (a:PLUS {prefix = a.getText();}| b:MINUS {prefix = b.getText();}|
          c:DOT {
-            if(uniSql != null && uniSql.getDataSource() != null &&
-               uniSql.getDataSource().getDatabaseType() == JDBCDataSource.JDBC_SQLSERVER) {
+            // the lexer has no token for a number that starts with a dot, so .5 is DOT and 5.
+            // it is kept as .5 on every database. the check runs after the DOT is matched, so
+            // LT(1) is the token after it (Bug #77778)
+            Token num = LT(1);
+            dotNum = num.getType() == UNSIGNED_NUM_LIT && num.getText().indexOf('.') < 0 &&
+               num.getLine() == c.getLine() && num.getColumn() == c.getColumn() + 1;
+
+            // anything else after the dot (.a, .(5), .5.5, . 5) is not valid sql. refuse it so
+            // the original sql runs, instead of a regeneration that changes it
+            if(!dotNum && uniSql != null) {
+               throw new SemanticException("Unsupported expression after '.'",
+                                           getFilename(), c.getLine(), c.getColumn());
             }
-            else {
-               prefix = c.getText();
-            }
+
+            prefix = c.getText();
          })? tmp = num_primary
         {
            if(prefix == null) {
               exp = tmp;
+           }
+           else if(dotNum) {
+              exp = new XExpression();
+              exp.setValue(prefix + tmp.getQuotedValue(), XExpression.EXPRESSION);
            }
            else {
               exp = new XExpression();
