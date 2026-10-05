@@ -380,7 +380,7 @@ public class DataSourceController {
       Set<String> dataSources = getPaths(request.dataSources());
 
       for (SelectedDataSourceItem d : request.dataSources()) {
-         // Bug #77725, deleted with the folder at its path
+         // Bug #77725, deleted with the folder at its path, and audited with it (Bug #77819)
          if(folders.contains(d.path())) {
             continue;
          }

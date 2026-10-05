@@ -186,6 +186,7 @@ public class RepositoryObjectService {
          String objectName = Util.getObjectFullPath(node.type(), nodePath, principal, node.owner());
          ActionRecord actionRecord = SUtil.getActionRecord(principal,
             ActionRecord.ACTION_NAME_DELETE, objectName, getActionRecordType(node.type()));
+         ActionRecord dataSourceRecord = null;
 
          try {
             final RepletRegistry registry = repletRegistryManager.getRegistry(node.owner());
@@ -234,6 +235,7 @@ public class RepositoryObjectService {
                   }
                   catch(MissingAssetClassNameException e) {
                      LOG.error("Cannot move corrupt asset {} to recycle bin", asset.getPath(), e);
+                     actionRecord = null;
                      return new ConnectionStatus(
                         "corrupt:" + Catalog.getCatalog(principal).getString(
                            "em.content.deleteCorruptConfirm"));
@@ -243,23 +245,36 @@ public class RepositoryObjectService {
                break;
             case RepositoryEntry.DATA_SOURCE:
             case RepositoryEntry.DATA_SOURCE | RepositoryEntry.FOLDER:
-               // Bug #77725, deleted with the folder at its path
+               // Bug #77725, deleted with the folder at its path, and audited with it (Bug #77819)
                if(dataSourceFolders.contains(node.path())) {
+                  actionRecord = null;
                   break;
                }
 
                ConnectionStatus dataSource = deleteDataSource(node.path(), force, principal);
 
                if(dataSource != null) {
+                  actionRecord = getDeleteStatusRecord(actionRecord, dataSource);
                   return dataSource;
                }
 
                break;
             case RepositoryEntry.DATA_SOURCE_FOLDER:
+               // Bug #77819, a data source at the path of the folder is deleted with it, so it is
+               // audited with the outcome of the folder delete
+               if(dataSources.contains(node.path())) {
+                  dataSourceRecord = SUtil.getActionRecord(
+                     principal, ActionRecord.ACTION_NAME_DELETE,
+                     Util.getObjectFullPath(
+                        RepositoryEntry.DATA_SOURCE, nodePath, principal, node.owner()),
+                     ActionRecord.OBJECT_TYPE_DATASOURCE);
+               }
+
                ConnectionStatus dataSourceFolder = removeDataSourceFolder(
                   node.path(), force, principal, dataSources.contains(node.path()));
 
                if(dataSourceFolder != null) {
+                  actionRecord = getDeleteStatusRecord(actionRecord, dataSourceFolder);
                   return dataSourceFolder;
                }
 
@@ -297,6 +312,7 @@ public class RepositoryObjectService {
                                String msg = catalog.getString("Extended Model") +
                                   catalog.getString("common.datasource.goonAndmodelsDeleted",
                                                        String.join(",", extendedLogicalModels));
+                               actionRecord = null;
                                return new ConnectionStatus(msg);
                             }
                         }
@@ -304,6 +320,7 @@ public class RepositoryObjectService {
                         ConnectionStatus status = removeLogicalModel(dataModel, node.label(), force);
 
                         if(status != null) {
+                           actionRecord = getDeleteStatusRecord(actionRecord, status);
                            return status;
                         }
                      }
@@ -317,6 +334,7 @@ public class RepositoryObjectService {
                               String msg = catalog.getString("Extended View") +
                                  catalog.getString("common.datasource.goonAndmodelsDeleted",
                                                    String.join(",", extendedViews));
+                              actionRecord = null;
                               return new ConnectionStatus(msg);
                            }
                         }
@@ -487,6 +505,8 @@ public class RepositoryObjectService {
             }
          }
          catch(ConfirmException confirmException) {
+            // Bug #77819, a prompt to confirm the delete, the confirmed retry is audited
+            actionRecord = null;
             String message = confirmException.getMessage();
             return new ConnectionStatus(message);
          }
@@ -504,11 +524,37 @@ public class RepositoryObjectService {
          finally {
             if(actionRecord != null) {
                Audit.getInstance().auditAction(actionRecord, principal);
+
+               if(dataSourceRecord != null) {
+                  dataSourceRecord.setActionStatus(actionRecord.getActionStatus());
+                  dataSourceRecord.setActionError(actionRecord.getActionError());
+                  Audit.getInstance().auditAction(dataSourceRecord, principal);
+               }
             }
          }
       }
 
       return null;
+   }
+
+   /**
+    * Gets the audit record of a delete that returned a status instead of deleting (Bug #77819).
+    * A refusal is audited as a failure. A prompt to confirm the delete, e.g. of an item that has
+    * dependencies, is not audited, the delete is audited when it's confirmed.
+    *
+    * @param record the audit record of the delete.
+    * @param status the status returned by the delete.
+    *
+    * @return the record to audit, or null if it is not audited.
+    */
+   public static ActionRecord getDeleteStatusRecord(ActionRecord record, ConnectionStatus status) {
+      if(!(status instanceof RefusedStatus)) {
+         return null;
+      }
+
+      record.setActionStatus(ActionRecord.ACTION_STATUS_FAILURE);
+      record.setActionError(status.getStatus());
+      return record;
    }
 
    private void deleteDataModelFolder(TreeNodeInfo node, Principal principal) throws Exception {
@@ -562,7 +608,7 @@ public class RepositoryObjectService {
       if(!securityProvider.checkPermission(
          principal, ResourceType.DATA_SOURCE, dxname, ResourceAction.DELETE))
       {
-         return new ConnectionStatus(Catalog.getCatalog(principal).getString(
+         return new RefusedStatus(Catalog.getCatalog(principal).getString(
             "Permission denied to delete datasource"));
       }
 
@@ -650,7 +696,7 @@ public class RepositoryObjectService {
          if(!securityProvider.checkPermission(
             principal, ResourceType.DATA_SOURCE_FOLDER, folder, ResourceAction.DELETE))
          {
-            return new ConnectionStatus(Catalog.getCatalog(principal).getString(
+            return new RefusedStatus(Catalog.getCatalog(principal).getString(
                "Permission denied to delete datasource folder"));
          }
       }
@@ -1653,6 +1699,15 @@ public class RepositoryObjectService {
    {
       if(info.containsKey(key) && allInfos.containsKey(key) && info.get(key).size() > 0) {
          allInfos.get(key).addAll(info.get(key));
+      }
+   }
+
+   /**
+    * The status of a delete that is refused, as opposed to a prompt to confirm it (Bug #77819).
+    */
+   private static final class RefusedStatus extends ConnectionStatus {
+      RefusedStatus(String status) {
+         super(status);
       }
    }
 
