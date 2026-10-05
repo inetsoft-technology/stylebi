@@ -259,6 +259,30 @@ class UniformSQLNiladicKeywordQuoteTest {
       }
    }
 
+   // the middle segment of a 3-part name written quoted is quoted too
+   @Test
+   void quotedSchemaQualifiedTableRunsOnDerby() throws Exception {
+      try(Connection con = derby("s77763"); Statement st = con.createStatement()) {
+         st.execute("create table app.\"user\" (id int)");
+         st.execute("insert into app.\"user\" values (1)");
+         st.execute("insert into app.\"user\" values (2)");
+         JDBCDataSource ds = dataSource("derby");
+
+         for(String text : new String[] {
+            "select app.\"user\".id from app.\"user\"",
+            "select app.\"user\".id from app.\"user\" where app.\"user\".id = 1" })
+         {
+            String generated = regenerate(text, ds);
+            assertFalse(generated.contains("app.user"), generated);
+            assertEquals(rows(con, text), rows(con, generated), text + " => " + generated);
+         }
+
+         // a quoted middle segment after a plain catalog is stored quoted
+         Object name = parse("select x.id from mydb.\"user\".t x", ds).getSelectTable(0).getName();
+         assertTrue(name.toString().contains("\"user\""), name.toString());
+      }
+   }
+
    @Test
    void editorBuiltColumnRunsOnDerby() throws Exception {
       try(Connection con = derby("e77763"); Statement st = con.createStatement()) {
