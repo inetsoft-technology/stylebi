@@ -23,6 +23,7 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
@@ -182,6 +183,30 @@ class UniformSQLLegacyJoinClauseTest {
 
       assertTrue(loaded.isLossy());
       assertLegacy(loaded);
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "self-join", "no-new-table-step" })
+   void structureOfAnOldParserRunsTheRowsOfItsText(String name) throws Exception {
+      // saved by v1.1.x, whose parser built joins that today's parse of the text doesn't: the
+      // outer join of a self join reversed (a2.k *= a.id), or a join for an ON that names no
+      // new table (join r on b.k = a.k). Both regenerated with different rows
+      String xml;
+
+      try(InputStream input = getClass().getResourceAsStream(
+         "UniformSQLLegacyJoinClauseTest-" + name + ".xml"))
+      {
+         xml = new String(input.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+      }
+
+      UniformSQL loaded = new UniformSQL();
+      loaded.parseXML(Tool.parseXML(new StringReader(xml)).getDocumentElement());
+      loaded.setDataSource(GenericJDBCDataSource.create());
+      String text = loaded.getSQLString();
+      assertLegacy(loaded);
+
+      String executed = normalize(loaded.clone());
+      assertSameRows(text, executed == null ? text : executed);
    }
 
    @Test
