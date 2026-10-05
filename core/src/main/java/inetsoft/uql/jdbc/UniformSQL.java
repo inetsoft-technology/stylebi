@@ -38,6 +38,8 @@ import java.io.StringReader;
 import java.security.Principal;
 import java.util.List;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * The UniformSQL contains the information on a SQL select statement.
@@ -5969,6 +5971,11 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       addQueryLevels(this, queries);
       addQueryLevels(parsed, parsedQueries);
       Map<XJoin, Integer> clauses = new IdentityHashMap<>();
+      // the old parser saved "a"."id" as written, the current one may parse it as "a".id, so
+      // names are matched unquoted, folded as the database folds a name (Bug #77558)
+      SQLHelper.IdentifierCase fold = parsed.getDataSource() == null ?
+         SQLHelper.IdentifierCase.UNKNOWN :
+         getCheckSQLHelper(parsed.getDataSource()).getIdentifierCase();
 
       for(int i = 0; i < queries.size(); i++) {
          UniformSQL query = queries.get(i);
@@ -5987,7 +5994,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          // would be refused by the check), and a cycle can't be regenerated in the text order
          if(parsedQuery == null || queries.size() != parsedQueries.size() ||
             unchecked.stream().anyMatch(obj -> obj == parsedQuery) ||
-            isLegacyCycleJoins(query) || !matchJoinClauses(query, parsedQuery, clauses))
+            isLegacyCycleJoins(query) || !matchJoinClauses(query, parsedQuery, clauses, fold))
          {
             if(outer) {
                return false;
@@ -6041,10 +6048,12 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    /**
     * Match the joins of a query level to the joins of the same level of the parse of its sql
     * string, and add the join clause of each match.
+    * @param fold the case the database folds an unquoted name to.
     * @return false if the tables differ, or a join has no match or more than one.
     */
    private static boolean matchJoinClauses(UniformSQL query, UniformSQL parsed,
-                                           Map<XJoin, Integer> clauses)
+                                           Map<XJoin, Integer> clauses,
+                                           SQLHelper.IdentifierCase fold)
    {
       SelectTable[] tables = query.getSelectTable();
       SelectTable[] parsedTables = parsed.getSelectTable();
@@ -6057,9 +6066,10 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          Object name = tables[i].getName();
          Object parsedName = parsedTables[i].getName();
 
-         if(!Objects.equals(tables[i].getAlias(), parsedTables[i].getAlias()) ||
+         if(!Objects.equals(unquoteNames(tables[i].getAlias(), fold),
+                            unquoteNames(parsedTables[i].getAlias(), fold)) ||
             (name instanceof UniformSQL ? !(parsedName instanceof UniformSQL) :
-               !Objects.equals(name, parsedName)))
+               !Objects.equals(unquoteNames(name, fold), unquoteNames(parsedName, fold))))
          {
             return false;
          }
@@ -6075,7 +6085,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       Map<String, XJoin> parsedKeys = new HashMap<>();
 
       for(XJoin join : parsedJoins) {
-         if(parsedKeys.put(getJoinKey(join, parsed), join) != null) {
+         if(parsedKeys.put(getJoinKey(join, parsed, fold), join) != null) {
             return false;
          }
       }
@@ -6083,7 +6093,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       Map<XJoin, Integer> matches = new IdentityHashMap<>();
 
       for(XJoin join : joins) {
-         XJoin parsedJoin = parsedKeys.remove(getJoinKey(join, query));
+         XJoin parsedJoin = parsedKeys.remove(getJoinKey(join, query, fold));
 
          if(parsedJoin == null) {
             return false;
@@ -6096,9 +6106,39 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       return true;
    }
 
-   private static String getJoinKey(XJoin join, UniformSQL query) {
-      return join + "\0" + join.getTable1(query) + "\0" + join.getTable2(query);
+   private static String getJoinKey(XJoin join, UniformSQL query, SQLHelper.IdentifierCase fold) {
+      return unquoteNames(join + "\0" + join.getTable1(query) + "\0" + join.getTable2(query),
+                          fold);
    }
+
+   /**
+    * Write the names of a join or table without their double quotes, folded to the case the
+    * database folds a name to, e.g. "a"."id" and "a".id are both a.id on postgresql. A quoted
+    * name is folded too, since the current parser drops the quotes of a column it records as
+    * quoted, e.g. "A"."ID" is parsed as "A".ID. Only names are compared this way, the joins
+    * keep the saved names.
+    */
+   private static String unquoteNames(Object str, SQLHelper.IdentifierCase fold) {
+      if(str == null) {
+         return null;
+      }
+
+      Matcher matcher = MATCH_NAME.matcher(str.toString());
+      StringBuilder buf = new StringBuilder();
+
+      while(matcher.find()) {
+         String name = fold.fold(matcher.group(1) != null ?
+            matcher.group(1).replace("\"\"", "\"") : matcher.group(2));
+         matcher.appendReplacement(buf, Matcher.quoteReplacement(name));
+      }
+
+      matcher.appendTail(buf);
+      return buf.toString();
+   }
+
+   // a double quoted name, or a name that isn't quoted
+   private static final Pattern MATCH_NAME =
+      Pattern.compile("\"((?:[^\"]|\"\")*)\"|([A-Za-z_][A-Za-z0-9_]*)");
 
    private String getQuotedSqlString(String sql) {
       if(dataSource != null && (dataSource.getDatabaseType() == JDBCDataSource.JDBC_CLICKHOUSE ||

@@ -26,6 +26,7 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.context.annotation.*;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -48,7 +49,9 @@ import static org.mockito.Mockito.mock;
  * which ignores lossy, then only warns about lossy and clears the sql string, so the joins were
  * regenerated in the outer-last order and returned different rows. Such a query is now refused
  * (PARSE_FAILED) with a data source, and its sql string runs as written. It's also checked when
- * a query of a data source is loaded, since vpm decides before it calls isLossy().
+ * a query of a data source is loaded, since vpm decides before it calls isLossy(). The joins
+ * are matched with their names unquoted, folded as the database folds a name, so a postgresql
+ * save of "a"."id" (parsed as "a".id today) isn't refused for its quotes.
  * <p>
  * The saved queries are real 1.1.0 XML (UniformSQLLegacyJoinRefusalTest-1.1.0.txt).
  */
@@ -76,7 +79,9 @@ class UniformSQLLegacyJoinRefusalTest {
    }
 
    private static final String DB = "jdbc:derby:memory:bug77548r";
-   private static final String[] TABLES = { "a", "b", "c", "d", "e", "g", "p", "q", "r", "x" };
+   private static final String[] TABLES = { "a", "b", "c", "d", "e", "g", "p", "q", "r", "x",
+      // quoted names of the postgresql queries, derby keeps their case
+      "\"a\"", "\"b\"", "\"c\"", "\"e\"", "\"g\"", "\"p\"" };
 
    // the old parser recorded the outer join of a parenthesized operand from b (Bug #77516)
    private static final String ORIENTATION = "select a.id, b.id, c.id from a left join " +
@@ -97,6 +102,20 @@ class UniformSQLLegacyJoinRefusalTest {
       "(g join e on g.id = e.id) on b.id = e.id join p on e.id = p.id";
    private static final String INNER_CYCLE = "select a.id, b.id, c.id from a join b on " +
       "a.id = b.id join c on b.id = c.id and a.k = c.k";
+
+   // postgresql saves that #6291 records, the old parser saved "a"."id" where the current one
+   // parses "a".id, or "A".ID for "A"."ID"
+   private static final String PG_QUOTED = "select \"a\".\"id\", \"b\".\"id\" from \"a\" left " +
+      "join \"b\" on \"a\".\"id\" = \"b\".\"id\"";
+   private static final String PG_QUOTED_NESTED = "select \"b\".\"id\", \"e\".\"id\", \"g\".\"id\", " +
+      "\"p\".\"id\" from \"b\" left join (\"g\" join \"e\" on \"g\".\"id\" = \"e\".\"id\") on " +
+      "\"b\".\"id\" = \"e\".\"id\" join \"p\" on \"e\".\"id\" = \"p\".\"id\"";
+   private static final String PG_QUOTED_UPPER = "select \"A\".\"ID\", \"b\".\"id\" from \"A\" " +
+      "left join \"b\" on \"A\".\"ID\" = \"b\".\"id\"";
+   // a postgresql save whose joins don't match, quoted or not (Bug #77516)
+   private static final String PG_ORIENTATION_QUOTED = "select \"a\".\"id\", \"b\".\"id\", " +
+      "\"c\".\"id\" from \"a\" left join (\"b\" join \"c\" on \"b\".\"id\" = \"c\".\"id\") on " +
+      "\"b\".\"id\" = \"a\".\"id\"";
 
    static Stream<String> unrecordedQueries() {
       return Stream.of(ORIENTATION, WHERE_PAIR, CYCLE, REFUSED_PARSE);
@@ -166,6 +185,40 @@ class UniformSQLLegacyJoinRefusalTest {
       copy.setDataSource(GenericJDBCDataSource.create());
       copy.setSQLString(null);
       assertNull(rowMismatch(NESTED, normalize(copy.getSQLString())));
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { PG_QUOTED, PG_QUOTED_NESTED, PG_QUOTED_UPPER })
+   void postgresqlQuotedSavesAreRecorded(String text) throws Exception {
+      // the names are matched without their quotes, folded as postgresql folds them, so these
+      // aren't refused for the quotes the old parser kept
+      UniformSQL sql = savedFixture(text, "postgresql", dataSource("postgresql"));
+      assertFalse(sql.isLossy(), text);
+      assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult(), text);
+
+      for(XJoin join : sql.getJoins()) {
+         assertNotEquals(XJoin.UNKNOWN_CLAUSE, join.getJoinClause(), join.toString());
+      }
+
+      UniformSQL copy = sql.clone();
+      copy.setSQLString(null);
+      String generated = normalize(copy.getSQLString());
+
+      // the uppercase table isn't in the derby database
+      if(!PG_QUOTED_UPPER.equals(text)) {
+         assertNull(rowMismatch(text, generated), generated);
+      }
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = {
+      PG_ORIENTATION_QUOTED,
+      "select a.id, b.id, c.id from a left join (b join c on b.id = c.id) on b.id = a.id"
+   })
+   void postgresqlMismatchIsRefused(String text) throws Exception {
+      UniformSQL sql = savedFixture(text, "postgresql", dataSource("postgresql"));
+      assertTrue(sql.isLossy(), text);
+      assertRefused(text, sql);
    }
 
    @Test
@@ -242,10 +295,27 @@ class UniformSQLLegacyJoinRefusalTest {
 
    // a query saved by 1.1.0 that has a data source (or none) when it's loaded
    private static UniformSQL saved(String text, JDBCDataSource ds) throws Exception {
+      return savedFixture(text, "none", ds);
+   }
+
+   // a query saved by 1.1.0, parsed with a data source of the type
+   private static UniformSQL savedFixture(String text, String type, JDBCDataSource ds)
+      throws Exception
+   {
       UniformSQL sql = new UniformSQL();
       sql.setDataSource(ds);
-      sql.parseXML(element(savedXml(text, "none")));
+      sql.parseXML(element(savedXml(text, type)));
       return sql;
+   }
+
+   private static JDBCDataSource dataSource(String type) {
+      JDBCDataSource ds = new JDBCDataSource();
+      ds.setName("ds77548r_" + type);
+      ds.setDriver("org.postgresql.Driver");
+      ds.setURL("jdbc:postgresql://localhost:5432/db");
+      ds.setProductVersion("16");
+      assertEquals(type, SQLHelper.getSQLHelper(ds).getSQLHelperType());
+      return ds;
    }
 
    // a query of a data source, loaded with the saved sql
@@ -293,7 +363,8 @@ class UniformSQLLegacyJoinRefusalTest {
           Statement stmt = conn.createStatement())
       {
          for(String table : TABLES) {
-            stmt.executeUpdate("create table " + table + " (id int, k int)");
+            stmt.executeUpdate("create table " + table + (table.startsWith("\"") ?
+               " (\"id\" int, \"k\" int)" : " (id int, k int)"));
          }
       }
    }
