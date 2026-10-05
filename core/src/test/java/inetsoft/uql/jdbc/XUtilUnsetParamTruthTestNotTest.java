@@ -96,6 +96,8 @@ class XUtilUnsetParamTruthTestNotTest {
          // double negation
          Arguments.of("w", "a.id > 1 and not (not (a.name = 'n1') and a.k = $(p))",
                       "where a.id > 1 and a.name = 'n1'", "2,5"),
+         Arguments.of("w", "not (not (a.name = 'n1' and a.k = $(p)))",
+                      "where a.name = 'n1'", "1,2,5"),
          // the remaining condition is a set
          Arguments.of("w", "a.id > 1 and not ((a.name = 'n1' and a.id < 5) and a.k = $(p))",
                       "where a.id > 1 and not (a.name = 'n1' and a.id < 5)", "3,4,5,6"),
@@ -109,7 +111,9 @@ class XUtilUnsetParamTruthTestNotTest {
          Arguments.of("h", "not (count(*) > 2 and max(a.k) = $(p))",
                       "having not (count(*) > 2)", "n2,null"),
          Arguments.of("h", "count(*) > 0 and not (count(*) > 2 and max(a.k) = $(p))",
-                      "having count(*) > 0 and not (count(*) > 2)", "n2,null"));
+                      "having count(*) > 0 and not (count(*) > 2)", "n2,null"),
+         Arguments.of("h", "not (not (count(*) > 2) or max(a.k) = $(p))",
+                      "having count(*) > 2", "n1"));
    }
 
    // the truth test cases, rows are null for a condition that keeps a truth test
@@ -141,6 +145,9 @@ class XUtilUnsetParamTruthTestNotTest {
                       "where a.id > 1 and ((a.name = 'n1') is false)", null),
          Arguments.of("h", "not ((max(a.k) = $(p)) is true)", "group by a.name",
                       "n1,n2,null"),
+         // the having root is replaced by a truth test, whatever its relation
+         Arguments.of("h", "not ((count(*) > 2) is true and max(a.k) = $(p))",
+                      "having not ((count(*) > 2) is true)", null),
          Arguments.of("h", "count(*) > 2 and (max(a.k) = $(p)) is true",
                       "having count(*) > 2", "n1"));
    }
