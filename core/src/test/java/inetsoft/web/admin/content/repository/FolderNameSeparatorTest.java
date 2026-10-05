@@ -145,11 +145,11 @@ class FolderNameSeparatorTest {
       assertTrue(registry().isFolder(s + "x/G"));
    }
 
-   // an aliased folder is renamed by its alias, the name check is skipped there, so a "/" in the
-   // name must still only change the alias (to the last segment) and move nothing
+   // an aliased folder is refused too: RepletEngine reads the alias again on its own and would
+   // move the folder if the alias was cleared between the two reads
    @Test
    @Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
-   void portalTreeRenameOfAliasedFolderWithSlashOnlyChangesAlias() throws Exception {
+   void portalTreeRenameOfAliasedFolderWithSlashIsRefused() throws Exception {
       String s = "S77733m";
       String t = "T77733m";
       addReportFolders(s, s + "/G", t);
@@ -160,14 +160,13 @@ class FolderNameSeparatorTest {
 
       MessageCommand[] result = new MessageCommand[1];
       allowAll(() -> result[0] = portalController().renameRepositoryEntry(
-         renameEvent(s, t + "/NewAlias77733m"), admin()));
+         renameEvent(s, t + "/" + s), admin()));
 
-      assertNull(result[0], () -> "alias rename refused: " + result[0].getMessage());
+      assertInvalidName(result[0]);
       assertEquals(before, folders(registry(), s));
       assertEquals(beforeKeys, assetKeys(vsFolder(s), s));
       assertFalse(registry().isFolder(t + "/" + s));
-      assertFalse(registry().isFolder(t + "/NewAlias77733m"));
-      assertEquals("NewAlias77733m", registry().getFolderAlias(s));
+      assertEquals("Alias77733m", registry().getFolderAlias(s));
    }
 
    @Test

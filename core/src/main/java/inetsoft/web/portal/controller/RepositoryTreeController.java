@@ -400,9 +400,11 @@ public class RepositoryTreeController {
                     registry.getFolderAlias(entry.getPath()) : null;
             boolean reAlias = oalias != null && !"".equals(oalias);
 
-            // Bug #77733, a folder rename that isn't an alias change builds the new path from
-            // the name, a name with a slash would move the folder under another parent
-            if(entry.isFolder() && !reAlias && Tool.containsPathSeparator(newName)) {
+            // Bug #77733, a folder rename builds the new path from the name, a name with a
+            // slash would move the folder under another parent. Refused for an aliased folder
+            // too: RepletEngine reads the alias again and moves the folder if it was cleared in
+            // the meantime, and an alias change only keeps the last segment of the name anyway
+            if(entry.isFolder() && Tool.containsPathSeparator(newName)) {
                MessageCommand messageCommand = new MessageCommand();
                messageCommand.setMessage(Tool.getInvalidFolderNameMessage());
                messageCommand.setType(MessageCommand.Type.ERROR);

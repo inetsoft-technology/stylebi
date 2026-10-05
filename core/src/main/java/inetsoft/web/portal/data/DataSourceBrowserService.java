@@ -425,7 +425,8 @@ public class DataSourceBrowserService {
       }
 
       if(!Objects.requireNonNull(newPath).equals(path)) {
-         // a name with a slash could put the folder into itself, with no parent left
+         // a name with a slash is refused above (Bug #77733), kept in case the path is built
+         // otherwise: the folder must not be put into itself, with no parent left
          if(DataSourceRegistry.isSameOrDescendantPath(path, newPath)) {
             throw new MessageException(Catalog.getCatalog(principal).getString(
                "common.datasource.moveIntoItself", path));
@@ -437,7 +438,8 @@ public class DataSourceBrowserService {
                "common.datasource.moveTargetExists", newPath));
          }
 
-         // a name with a slash could put the folder under a data source
+         // a name with a slash is refused above (Bug #77733), kept in case the path is built
+         // otherwise: the folder must not be put under a data source
          String dataSource = dataSourceRegistry.getDataSourceAncestor(newPath);
 
          if(dataSource != null) {
