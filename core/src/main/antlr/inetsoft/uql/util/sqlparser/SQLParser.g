@@ -1997,6 +1997,17 @@ String quoteSegment(String str) {
    return quoted;
 }
 
+// join the text of a binary operator and its operands. A right operand that starts with a
+// unary minus (factor writes "- 1") is separated from a "-" operator by a space, because
+// "x-- 1" would be read as a line comment when the SQL is regenerated (#77754)
+String joinOp(String left, String op, String right) {
+   if(op.endsWith("-") && right != null && right.startsWith("-")) {
+      return left + op + " " + right;
+   }
+
+   return left + op + right;
+}
+
 // quote string if it contains dot
 String quoteDot(String str) {
    JDBCDataSource dx = null;
@@ -2605,16 +2616,16 @@ num_value_exp_body returns [XExpression exp = null]
         //(PLUS)=>
         a:PLUS  tmp1 = num_value_exp
         {exp = new XExpression();
-        exp.setValue(tmp.getQuotedValue() + a.getText() + tmp1.getQuotedValue(), XExpression.EXPRESSION);}
+        exp.setValue(joinOp(tmp.getQuotedValue(), a.getText(), tmp1.getQuotedValue()), XExpression.EXPRESSION);}
         |
         //(MINUS)=>
         b:MINUS tmp1 = num_value_exp
         {exp = new XExpression();
-        exp.setValue(tmp.getQuotedValue() + b.getText() + tmp1.getQuotedValue(), XExpression.EXPRESSION);}
+        exp.setValue(joinOp(tmp.getQuotedValue(), b.getText(), tmp1.getQuotedValue()), XExpression.EXPRESSION);}
         |
         c:COLON_EQU tmp1 = num_value_exp
         {exp = new XExpression();
-        exp.setValue(tmp.getQuotedValue() + c.getText() + tmp1.getQuotedValue(), XExpression.EXPRESSION);}
+        exp.setValue(joinOp(tmp.getQuotedValue(), c.getText(), tmp1.getQuotedValue()), XExpression.EXPRESSION);}
         )?
         {if(exp == null) {exp = tmp;}}
         ;
@@ -2628,7 +2639,7 @@ term returns [XExpression exp = null]
         (a:STAR  tmp1 = term)
         {
            exp = new XExpression();
-           exp.setValue(tmp.getQuotedValue() + a.getText() + tmp1.getQuotedValue(),
+           exp.setValue(joinOp(tmp.getQuotedValue(), a.getText(), tmp1.getQuotedValue()),
            XExpression.EXPRESSION);
         }
         |
@@ -2636,7 +2647,7 @@ term returns [XExpression exp = null]
         (b:DIV  tmp1 = term)
         {
            exp = new XExpression();
-           exp.setValue(tmp.getQuotedValue() + b.getText() + tmp1.getQuotedValue(), XExpression.EXPRESSION);
+           exp.setValue(joinOp(tmp.getQuotedValue(), b.getText(), tmp1.getQuotedValue()), XExpression.EXPRESSION);
         })?
         {if(exp == null){exp = tmp;}}
         ;
@@ -3702,13 +3713,13 @@ datetime_value_exp_body returns [String dve = ""]
         {String tmp, tmp1; {checkStatus();}}
         :
         (interval_value_exp PLUS)=>
-        tmp = interval_value_exp a:PLUS tmp1 = datetime_term {dve = tmp + a.getText() + tmp1;}
+        tmp = interval_value_exp a:PLUS tmp1 = datetime_term {dve = joinOp(tmp, a.getText(), tmp1);}
         |
         (interval_term PLUS)=>
-        tmp = interval_term b:PLUS tmp1 = datetime_value_exp {dve = tmp + b.getText() + tmp1;}
+        tmp = interval_term b:PLUS tmp1 = datetime_value_exp {dve = joinOp(tmp, b.getText(), tmp1);}
         |
         (interval_term MINUS )=>
-        tmp = interval_term c:MINUS tmp1 = datetime_value_exp {dve = tmp + c.getText() + tmp1;}
+        tmp = interval_term c:MINUS tmp1 = datetime_value_exp {dve = joinOp(tmp, c.getText(), tmp1);}
         | dve = datetime_term
         ;
 
@@ -3801,15 +3812,15 @@ interval_value_exp_body returns [String ive = ""]
         :
         (interval_term_1 PLUS )=>
         tmp = interval_term_1 a:PLUS  tmp1 = interval_value_exp_1
-        {ive = tmp + a.getText() + tmp1;}
+        {ive = joinOp(tmp, a.getText(), tmp1);}
         |
         (interval_term_1 MINUS )=>
         tmp = interval_term_1 b:MINUS  tmp1 = interval_value_exp_1
-        {ive = tmp + b.getText() + tmp1;}
+        {ive = joinOp(tmp, b.getText(), tmp1);}
         |
         (OPEN_PAREN datetime_value_exp)=>
         OPEN_PAREN tmp = datetime_value_exp c:MINUS tmp1 = datetime_term CLOSE_PAREN tmp2 = interval_qualifier
-        {ive = "(" + tmp + c.getText() + tmp1 + ") " + tmp2;}
+        {ive = "(" + joinOp(tmp, c.getText(), tmp1) + ") " + tmp2;}
         | ive = interval_term
         ;
 
@@ -3817,13 +3828,13 @@ interval_term returns [String it = ""]
         {String tmp1; XExpression exp; {checkStatus();}}
         :
         (factor STAR ) =>
-        exp = factor a:STAR tmp1 = interval_term_2 {it = exp.toQuotedString() + a.getText() + tmp1;}
+        exp = factor a:STAR tmp1 = interval_term_2 {it = joinOp(exp.toQuotedString(), a.getText(), tmp1);}
         |
         (factor DIV )=>
-        exp = factor b:DIV tmp1 = interval_term_2 {it = exp.toQuotedString() + b.getText() + tmp1;}
+        exp = factor b:DIV tmp1 = interval_term_2 {it = joinOp(exp.toQuotedString(), b.getText(), tmp1);}
         |
         (term STAR)=>
-        exp = term c:STAR tmp1 = interval_factor {it = exp.toQuotedString() + c.getText() + tmp1;}
+        exp = term c:STAR tmp1 = interval_factor {it = joinOp(exp.toQuotedString(), c.getText(), tmp1);}
         | it = interval_factor
         ;
 

@@ -271,11 +271,12 @@ class XUtilSentinelVpmSubqueryTest {
       }
    }
 
-   // the generated sql must parse back to itself: b.id - -1 is generated as b.id-- 1, which
-   // would comment out the owner predicate after it and return the rows of every owner. The
-   // subquery is sent as written instead (the sentinel binds its text, no row).
+   // the generated sql must parse back to itself. b.id - -1 was generated as b.id-- 1, which
+   // would comment out the owner predicate after it, so the subquery was sent as written. It's
+   // generated as b.id- - 1 now (#77754), so the subquery is rewritten and keeps the owner
+   // predicate.
    @Test
-   void generatedSqlThatDoesNotParseToItselfIsSentAsWritten() throws Exception {
+   void minusOfNegativeIsRewrittenWithOwnerPredicate() throws Exception {
       String sub = "select b.id from b where b.k = $(p) and b.id = b.id - -1 and " +
          "b.owner = $(_USER_)";
 
@@ -283,7 +284,13 @@ class XUtilSentinelVpmSubqueryTest {
          vpm = in(new UniformSQL(sub, false));
          Run run = run(p);
          assertEquals(List.of(), run.rows, "p=" + p + " " + run.condition);
-         assertTrue(run.condition.contains(sub.toLowerCase()), run.condition);
+         assertFalse(run.condition.contains("--"), run.condition);
+         assertTrue(run.condition.contains("b.owner = $(_user_)"), run.condition);
+         // without a sentinel the subquery is sent as written
+         assertEquals(p != NV && p != ES, run.condition.contains(sub.toLowerCase()),
+                      run.condition);
+         assertEquals(p == NV || p == ES, run.condition.contains("b.id = b.id- - 1"),
+                      run.condition);
       }
    }
 
