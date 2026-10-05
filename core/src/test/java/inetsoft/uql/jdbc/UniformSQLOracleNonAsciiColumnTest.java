@@ -278,6 +278,51 @@ class UniformSQLOracleNonAsciiColumnTest {
       }
    }
 
+   /**
+    * A non-ascii column written quoted in lower case is another column than the unquoted name,
+    * it must stay quoted as written. Before the fix every non-ascii aggregate column was quoted
+    * as written, now only the quote the parser recorded keeps it quoted.
+    */
+   @Test
+   void quotedNonAsciiColumnStaysQuoted() throws Exception {
+      String[] queries = {
+         "select sum(a.\"qимя\") from a",
+         "select a.id, sum(a.\"qимя\") from a group by a.id order by sum(a.\"qимя\")",
+         "select count(distinct a.\"qимя\") from a",
+         "select sum(a.\"qимя\"), sum(a.имя) from a",
+      };
+
+      try(Connection conn = DriverManager.getConnection("jdbc:derby:memory:bug77821q;create=true");
+          Statement stmt = conn.createStatement())
+      {
+         // "qимя" and имя (stored as ИМЯ) are two columns
+         stmt.execute("create table a (id int, имя int, \"qимя\" int)");
+         stmt.execute("insert into a values (1, 10, 1), (1, 20, 2), (2, 30, 3)");
+
+         for(String key : ORACLE) {
+            for(String query : queries) {
+               List<String> expected = rows(stmt, query);
+
+               for(String[] metadata : new String[][] { {}, { "ID", "ИМЯ", "qимя" } }) {
+                  String generated = aggregate(key, query, metadata);
+                  String label = key + " " + Arrays.toString(metadata) + ": " + query + " -> " + generated;
+                  assertTrue(generated.contains("(a.\"qимя\")") || generated.contains("(distinct a.\"qимя\")"),
+                             label);
+                  assertEquals(expected, rows(stmt, generated), label);
+               }
+            }
+         }
+      }
+      finally {
+         try {
+            DriverManager.getConnection("jdbc:derby:memory:bug77821q;drop=true");
+         }
+         catch(SQLException ignore) {
+            // a successful drop is reported as an exception
+         }
+      }
+   }
+
    // the rows, with the values of each row sorted (oracle reorders the select list)
    private static List<String> rows(Statement stmt, String query) throws SQLException {
       List<String> rows = new ArrayList<>();
