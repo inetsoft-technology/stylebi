@@ -29,6 +29,8 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.function.Executable;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.w3c.dom.*;
@@ -315,13 +317,7 @@ class TableLayoutParseTest {
 
    @Test
    void viewsheetParseFailsWithExceptionOnForgedColumns() throws Exception {
-      Viewsheet vs = new Viewsheet();
-      vs.addAssembly(new CalcTableVSAssembly(vs, "Calc1"));
-      StringWriter buf = new StringWriter();
-      PrintWriter writer = new PrintWriter(buf);
-      vs.writeXML(writer);
-      writer.flush();
-      String xml = buf.toString();
+      String xml = productViewsheetXml();
 
       // control: the unmodified viewsheet parses
       Viewsheet control = new Viewsheet();
@@ -339,6 +335,105 @@ class TableLayoutParseTest {
       }
 
       assertFails(() -> new Viewsheet().parseXML(elem), "invalid layout columns");
+   }
+
+   // the reported #77794 shapes: rows with no <rowHeight> children, through Viewsheet.parseXML
+   @ParameterizedTest
+   @ValueSource(strings = { "20000", "40000", "2147483647" })
+   void viewsheetParseFailsFastOnForgedRows(String rows) throws Exception {
+      Element elem = parse(productViewsheetXml());
+      firstViewsheetRegion(elem).setAttribute("rows", rows);
+      assertFails(() -> new Viewsheet().parseXML(elem), "invalid region rows");
+   }
+
+   // a count-valid single region at the cell cap: the only shape that fails if parse goes
+   // back to growing a region one row at a time instead of sizing it once
+   @ParameterizedTest
+   @ValueSource(ints = { 1, 3 })
+   void countValidSingleRegionAtCapParsesFast(int cols) throws Exception {
+      int rows = 100_000 / cols;
+      TableLayout layout = assertParses(parse(layoutXml(cols, 1, rows, false)));
+      assertEquals(rows, layout.getRowCount());
+      assertEquals(cols, layout.getColCount());
+
+      TableLayout again = assertParses(parse(toXml(layout)));
+      assertEquals(rows, again.getRowCount());
+   }
+
+   // a count-valid region with many rows through the real viewsheet parse
+   @Test
+   void viewsheetParsesCountValidManyRowsFast() throws Exception {
+      Element elem = parse(productViewsheetXml());
+      Element layoutE = (Element) elem.getElementsByTagName("tableLayout").item(0);
+      int cols = Integer.parseInt(layoutE.getAttribute("columns"));
+      Element region = firstViewsheetRegion(elem);
+      NodeList regions = Tool.getChildNodeByTagName(layoutE, "hregions")
+         .getElementsByTagName("region");
+      int other = 0;
+
+      for(int i = 1; i < regions.getLength(); i++) {
+         other += Integer.parseInt(((Element) regions.item(i)).getAttribute("rows"));
+      }
+
+      int rows = 100_000 / cols - other;
+      int existing = region.getElementsByTagName("rowHeight").getLength();
+
+      for(int r = existing; r < rows; r++) {
+         Element h = elem.getOwnerDocument().createElement("rowHeight");
+         h.setAttribute("row", "" + r);
+         h.setAttribute("height", "-1");
+         region.appendChild(h);
+      }
+
+      region.setAttribute("rows", "" + rows);
+      Viewsheet vs = new Viewsheet();
+      assertTimeoutPreemptively(Duration.ofSeconds(10), () -> vs.parseXML(elem));
+      CalcTableVSAssembly calc = (CalcTableVSAssembly) vs.getAssembly("Calc1");
+      TableLayout layout = ((CalcTableVSAssemblyInfo) calc.getInfo()).getTableLayout();
+      assertEquals(rows + other, layout.getRowCount());
+   }
+
+   // VRegion.initRowCount must stay a no-op like VRegion.setRowCount, or a vregion would
+   // get real arrays and start writing <rowHeight> nodes
+   @Test
+   void vregionInitRowCountIsNoOp() {
+      TableLayout layout = VSLayoutTool.createDefaultLayout();
+      TableLayout.VRegion vregion = layout.new VRegion();
+      vregion.initRowCount(2);
+
+      assertEquals(0, vregion.getRowCount());
+      String xml = toXml(vregion);
+      assertTrue(xml.contains("rows=\"0\""), xml);
+      assertFalse(xml.contains("<rowHeight"), xml);
+   }
+
+   // a forged vregion with rows and matching <rowHeight> children still fails as before
+   // (the vregion has no row arrays) instead of loading a vregion with rows
+   @Test
+   void vregionWithRowHeightsDoesNotGainRows() throws Exception {
+      Element elem = parse(layoutXml(2, 1, 1, false, 1));
+      Element vregions = Tool.getChildNodeByTagName(elem, "vregions");
+      Element layoutRegion = Tool.getChildNodeByTagName(vregions, "layoutRegion");
+      Element region = Tool.getChildNodeByTagName(layoutRegion, "region");
+      region.setAttribute("rows", "2");
+
+      for(int r = 0; r < 2; r++) {
+         Element h = elem.getOwnerDocument().createElement("rowHeight");
+         h.setAttribute("row", "" + r);
+         h.setAttribute("height", "-1");
+         region.appendChild(h);
+      }
+
+      TableLayout layout = new TableLayout();
+      Throwable thrown = captureThrowable(() -> layout.parseXML(elem));
+
+      if(thrown == null) {
+         assertEquals(0, layout.getVRegion(0).getRowCount());
+         assertFalse(toXml(layout.getVRegion(0)).contains("<rowHeight"));
+      }
+      else {
+         assertTrue(thrown instanceof Exception, "expected an Exception, got " + thrown);
+      }
    }
 
    // ---- helpers --------------------------------------------------------------------------
@@ -377,7 +472,23 @@ class TableLayoutParseTest {
       return Tool.getChildNodeByTagName(layoutRegion, "region");
    }
 
-   private static String toXml(XMLSerializable obj) {
+   /**
+    * The first hregion of the first calc table in a viewsheet element.
+    */
+   static Element firstViewsheetRegion(Element viewsheet) {
+      return firstRegion((Element) viewsheet.getElementsByTagName("tableLayout").item(0));
+   }
+
+   /**
+    * A viewsheet with one default calc table named Calc1, as Viewsheet.writeXML writes it.
+    */
+   static String productViewsheetXml() {
+      Viewsheet vs = new Viewsheet();
+      vs.addAssembly(new CalcTableVSAssembly(vs, "Calc1"));
+      return toXml(vs);
+   }
+
+   static String toXml(XMLSerializable obj) {
       StringWriter buf = new StringWriter();
       PrintWriter writer = new PrintWriter(buf);
       obj.writeXML(writer);
@@ -385,7 +496,7 @@ class TableLayoutParseTest {
       return buf.toString();
    }
 
-   private static Element parse(String xml) throws Exception {
+   static Element parse(String xml) throws Exception {
       return Tool.parseXML(new StringReader(xml)).getDocumentElement();
    }
 
@@ -450,11 +561,15 @@ class TableLayoutParseTest {
       assertFails(() -> new TableLayout().parseXML(elem), message);
    }
 
+   static void assertFails(Executable parse, String message) {
+      assertFailedWith(captureThrowable(parse), message);
+   }
+
    // catches Throwable itself: JUnit's assertThrows rethrows an OutOfMemoryError, which would
    // abort the test JVM instead of failing the test. The timeout turns a regression to the
    // quadratic parse into a failure instead of a stalled build.
-   private static void assertFails(Executable parse, String message) {
-      Throwable thrown = assertTimeoutPreemptively(Duration.ofSeconds(10), () -> {
+   static Throwable captureThrowable(Executable parse) {
+      return assertTimeoutPreemptively(Duration.ofSeconds(10), () -> {
          try {
             parse.execute();
          }
@@ -464,7 +579,9 @@ class TableLayoutParseTest {
 
          return null;
       });
+   }
 
+   static void assertFailedWith(Throwable thrown, String message) {
       assertTrue(thrown instanceof Exception, "expected an Exception, got " + thrown);
       assertTrue(thrown.getMessage() != null && thrown.getMessage().contains(message),
                  thrown.toString());
