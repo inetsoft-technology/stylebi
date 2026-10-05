@@ -328,10 +328,8 @@ public class SelectionTreePropertyDialogService {
          if(streeInfo.getVizMark() != null) {
             // a marked tree's rows and title lane follow the density, and its rows sit inside the
             // card inset
-            Insets inset = streeInfo.getPadding();
-            minListHeight = streeInfo.getListHeight() * streeInfo.getEffectiveCellHeight() +
-               (streeInfo.isTitleVisible() ? streeInfo.getTitleHeight() : 0) +
-               (inset == null ? 0 : inset.top + inset.bottom);
+            minListHeight = streeInfo.getListBodyHeight() +
+               (streeInfo.isTitleVisible() ? streeInfo.getTitleHeight() : 0);
          }
          else {
             minListHeight = streeInfo.getListHeight() * AssetUtil.defh;
