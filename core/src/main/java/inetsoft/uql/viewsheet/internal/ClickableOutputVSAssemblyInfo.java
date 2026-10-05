@@ -54,7 +54,7 @@ public abstract class ClickableOutputVSAssemblyInfo extends OutputVSAssemblyInfo
       super.writeContents(writer);
 
       if(onClick != null) {
-         writer.print("<onClick><![CDATA[" + onClick + "]]></onClick>");
+         writer.print("<onClick><![CDATA[" + Tool.splitCDATAEnd(onClick) + "]]></onClick>");
       }
    }
 
