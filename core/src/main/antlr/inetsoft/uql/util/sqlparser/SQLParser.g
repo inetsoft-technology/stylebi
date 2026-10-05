@@ -3470,9 +3470,10 @@ domain_name returns [String domainname = ""]
         ;
 
 schema_name returns [String schemaname = ""]
-        {checkStatus();}
+        // a quoted schema name isn't plain, see quoteDot (Bug #77763)
+        {identPlain = false; checkStatus();}
         :
-        a:IDENT {schemaname = a.getText();}
+        a:IDENT {schemaname = a.getText(); identPlain = true;}
         | schemaname = special_identifier
         ;
 
