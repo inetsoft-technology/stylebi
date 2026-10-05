@@ -118,6 +118,41 @@ class VpmConditionQuoteWrappedNameTest {
       assertEquals(expected + " = 1", evaluate(exp, product, "T", new String[] { "T" }));
    }
 
+   static Stream<Arguments> guardExpressions() {
+      // the raw name is replaced only where it is a column of the table, not in a literal
+      // or another table, and not as the column A written unquoted or quoted
+      String[][] cases = {
+         { "T.\"\"\"A\"\"\" + 'T.\"\"\"A\"\"\"'", "o.\"\"\"A\"\"\" + 'T.\"\"\"A\"\"\"'" },
+         { "TT.\"\"\"A\"\"\" + T.\"\"\"A\"\"\"", "TT.\"\"\"A\"\"\" + o.\"\"\"A\"\"\"" },
+         { "T.\"\"\"A\"\"\" + T.A + T.\"A\"", "o.\"\"\"A\"\"\" + {A} + {A}" },
+         { "T.\"\"\"A.B\"\"\" + T.\"\"\"A\"\"\"", "o.\"\"\"A.B\"\"\" + o.\"\"\"A\"\"\"" },
+      };
+      List<Arguments> args = new ArrayList<>();
+
+      for(String product : PRODUCTS) {
+         boolean pg = POSTGRESQL.equals(product);
+
+         for(String[] row : cases) {
+            String expected = expand(row[1], pg);
+            args.add(Arguments.of(product, row[0], expected, true));
+            args.add(Arguments.of(product, row[0] + " between 1 and 2",
+                                  expected + " between 1 and 2", false));
+         }
+      }
+
+      return args.stream();
+   }
+
+   @ParameterizedTest
+   @MethodSource("guardExpressions")
+   void quoteWrappedNameIsReplacedOnlyAsTheColumn(String product, String exp, String expected,
+                                                  boolean parsed)
+      throws Exception
+   {
+      assertEquals(parsed, isParsed(exp), "parser path");
+      assertEquals(expected + " = 1", evaluate(exp, product, "T", new String[] { "T" }));
+   }
+
    static Stream<Arguments> bracketExpressions() {
       return Stream.of(SQL_SERVER, ACCESS).flatMap(product -> Stream.of(
          Arguments.of(product, "T.[\"A\"]", "o.[\"A\"]"),
