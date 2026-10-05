@@ -126,7 +126,7 @@ public class MessageFormat extends Format {
    }
 
    /**
-    * Set the format to use for the format element with the format element index.
+    * Set the format to use for the format elements that use the given argument index.
     */
    public void setFormatByArgumentIndex(int idx, Format fmt) {
       this.fmt.setFormatByArgumentIndex(idx, fmt);

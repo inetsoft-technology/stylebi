@@ -116,6 +116,12 @@ class MessageFormatTest {
    }
 
    @Test
+   void extendedFormatWithDifferentUnitsOnOneArgument() {
+      assertEquals("1234.6K / 1.23M",
+         new MessageFormat("{0,number,0.0K} / {0,number,0.00M}", Locale.US).format(1234567));
+   }
+
+   @Test
    void extendedFormatOnSkippedArgument() {
       assertEquals("1.2K",
          new MessageFormat("{1,number,0.0K}", Locale.US).format(new Object[] { "x", 1234 }));
