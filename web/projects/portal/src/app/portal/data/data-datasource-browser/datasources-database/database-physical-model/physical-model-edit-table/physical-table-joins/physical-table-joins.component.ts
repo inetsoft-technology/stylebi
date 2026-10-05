@@ -49,7 +49,7 @@ import {
 import { EditJoinDialog } from "./edit-join-dialog/edit-join-dialog.component";
 import { AddJoinDialog } from "./add-join-dialog/add-join-dialog.component";
 
-const JOIN_CARDINALITY_URI: string = "../api/data/physicalmodel/cardinality/";
+const JOIN_CARDINALITY_URI: string = "../api/data/physicalmodel/cardinality";
 const JOIN_EDIT_URI: string = "../api/data/physicalmodel/join/";
 
 class JoinTreeType {
