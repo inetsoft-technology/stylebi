@@ -27,7 +27,9 @@
 
 import { HttpClient } from "@angular/common/http";
 import { HttpClientTestingModule, HttpTestingController } from "@angular/common/http/testing";
-import { IterableDiffers } from "@angular/core";
+import {
+   Component, EmbeddedViewRef, EventEmitter, Input, IterableDiffers, Output, TemplateRef, getDebugNode
+} from "@angular/core";
 import { TestBed } from "@angular/core/testing";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 
@@ -38,7 +40,13 @@ import { JoinType } from "../../../../../model/datasources/database/physical-mod
 import { MergingRule } from "../../../../../model/datasources/database/physical-model/merging-rule.enum";
 import { PhysicalModelDefinition } from "../../../../../model/datasources/database/physical-model/physical-model-definition";
 import { PhysicalTableModel } from "../../../../../model/datasources/database/physical-model/physical-table-model";
-import { EditJoinsEvent } from "../../../../../model/datasources/database/events/edit-joins-event";
+import {
+   EditJoinsEvent, ModifyJoinEventItem
+} from "../../../../../model/datasources/database/events/edit-joins-event";
+import { TreeComponent } from "../../../../../../../widget/tree/tree.component";
+import { ModalHeaderComponent } from "../../../../../../../widget/modal-header/modal-header.component";
+import { AddJoinDialog } from "./add-join-dialog/add-join-dialog.component";
+import { EditJoinDialog } from "./edit-join-dialog/edit-join-dialog.component";
 import { PhysicalTableJoinsComponent } from "./physical-table-joins.component";
 
 const CARDINALITY_URL = "../api/data/physicalmodel/cardinality";
@@ -200,5 +208,175 @@ describe("PhysicalTableJoinsComponent.addJoin - cardinality detection (Bug #7782
 
       http.expectNone(() => true);
       expect(comp.foreignTableRoot.children).toHaveLength(0);
+   });
+});
+
+/**
+ * Bug #77854, Edit Join > Cancel must leave the selected join exactly as it was and must not
+ * leave the modal's dismissal as an unhandled promise rejection ("ERROR null" in the console).
+ *
+ * The component's real template is rendered so the dialog receives whatever the
+ * <edit-join-dialog [joinModel]> binding passes; the NgbModal mock stamps the editJoinDialog
+ * template with close/dismiss callbacks the way NgbModal does.
+ */
+@Component({ selector: "tree", template: "", standalone: true })
+class TreeStub {
+   @Input() root: any;
+   @Input() showRoot: boolean;
+   @Input() showIcon: boolean;
+   @Input() multiSelect: boolean;
+   @Input() disabled: boolean;
+   @Input() selectedNodes: any;
+   @Output() nodesSelected = new EventEmitter<any>();
+   exclusiveSelectNode(): void {
+   }
+}
+
+@Component({ selector: "add-join-dialog", template: "", standalone: true })
+class AddJoinDialogStub {
+   @Input() database: string;
+   @Input() id: string;
+   @Input() table: any;
+   @Input() tables: any;
+   @Output() onCommit = new EventEmitter<any>();
+   @Output() onCancel = new EventEmitter<any>();
+}
+
+@Component({ selector: "modal-header", template: "", standalone: true })
+class ModalHeaderStub {
+   @Input() title: string;
+   @Input() cshid: string;
+   @Output() onCancel = new EventEmitter<any>();
+}
+
+describe("PhysicalTableJoinsComponent.editJoin - dialog cancel / commit (Bug #77854)", () => {
+   const JOIN_MODIFY_URL = "../api/data/physicalmodel/join/modify";
+   let http: HttpTestingController;
+   let dialog: EditJoinDialog;
+   let dialogView: EmbeddedViewRef<any>;
+   // zone.js reports a promise rejection nobody handles through console.error
+   // (in the app NgZone routes it to the ErrorHandler, i.e. "ERROR null")
+   let consoleError: ReturnType<typeof vi.spyOn>;
+
+   const modal = {
+      open: vi.fn((tpl: TemplateRef<any>) => {
+         let resolve: (v: any) => void;
+         let reject: (r: any) => void;
+         const result = new Promise((res, rej) => {
+            resolve = res;
+            reject = rej;
+         });
+         dialogView = tpl.createEmbeddedView({
+            close: (v: any) => resolve(v),
+            dismiss: (r: any) => reject(r),
+         });
+         dialogView.detectChanges();
+         const host = dialogView.rootNodes.find(n => n.tagName === "EDIT-JOIN-DIALOG");
+         dialog = getDebugNode(host).componentInstance as EditJoinDialog;
+         return { result };
+      })
+   };
+
+   beforeEach(() => {
+      modal.open.mockClear();
+      consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      TestBed.configureTestingModule({
+         imports: [HttpClientTestingModule, PhysicalTableJoinsComponent],
+         providers: [
+            { provide: NgbModal, useValue: modal },
+            { provide: DataPhysicalModelService, useValue: { highlightConnections: vi.fn() } },
+         ],
+      });
+      TestBed.overrideComponent(PhysicalTableJoinsComponent, {
+         remove: { imports: [TreeComponent, AddJoinDialog] },
+         add: { imports: [TreeStub, AddJoinDialogStub] },
+      });
+      TestBed.overrideComponent(EditJoinDialog, {
+         remove: { imports: [ModalHeaderComponent] },
+         add: { imports: [ModalHeaderStub] },
+      });
+
+      http = TestBed.inject(HttpTestingController);
+   });
+
+   afterEach(() => {
+      consoleError.mockRestore();
+      dialogView?.destroy();
+      dialogView = null;
+      http.verify();
+      TestBed.resetTestingModule();
+   });
+
+   function createWithSelectedJoin(join: JoinModel) {
+      const fixture = TestBed.createComponent(PhysicalTableJoinsComponent);
+      const comp = fixture.componentInstance;
+      const table = makeTable();
+      table.joins = [join];
+      comp.physicalModel = makePhysicalModel();
+      comp.databaseName = "testDb";
+      comp.table = table;
+      fixture.detectChanges();
+      comp.selectNode([comp.foreignTableRoot.children[0].children[0]]);
+      fixture.detectChanges();
+      return { fixture, comp, table };
+   }
+
+   /** Let the modal result settle and give the runtime a chance to report unhandled rejections. */
+   async function settle() {
+      await new Promise(r => setTimeout(r, 0));
+      await new Promise(r => setTimeout(r, 0));
+   }
+
+   it("should leave the join unchanged and not reject unhandled when cancelled", async () => {
+      const join = makeJoin({ type: JoinType.EQUAL, cardinality: Cardinality.ONE_TO_ONE });
+      const before = structuredClone(join);
+      const { comp, table } = createWithSelectedJoin(join);
+
+      comp.editJoin();
+      expect(dialog.joinModel).toEqual(before);
+
+      // what the dialog's ngModel bindings do when the user changes the join type etc.
+      dialog.joinModel.type = JoinType.FULL_OUTER;
+      dialog.joinModel.cardinality = Cardinality.MANY_TO_MANY;
+      dialog.cancel();
+      await settle();
+
+      expect(consoleError).not.toHaveBeenCalled();
+      expect(table.joins).toHaveLength(1);
+      expect(table.joins[0]).toBe(join);
+      expect(join).toEqual(before);
+      expect(comp.selectedJoins).toEqual([join]);
+      http.expectNone(() => true);
+   });
+
+   it("should modify the selected join and send old and new join when OK is clicked", async () => {
+      const join = makeJoin({ type: JoinType.EQUAL, cardinality: Cardinality.ONE_TO_ONE });
+      const before = structuredClone(join);
+      const { comp, table } = createWithSelectedJoin(join);
+      const tableChange = vi.fn();
+      comp.tableChange.subscribe(tableChange);
+
+      comp.editJoin();
+      dialog.joinModel.type = JoinType.FULL_OUTER;
+      dialog.ok();
+      await settle();
+
+      expect(consoleError).not.toHaveBeenCalled();
+      expect(table.joins[0]).toBe(join);
+      expect(join.type).toBe(JoinType.FULL_OUTER);
+      expect(join.cardinality).toBe(Cardinality.ONE_TO_ONE);
+      expect(comp.selectedJoins).toEqual([join]);
+
+      const req = http.expectOne(JOIN_MODIFY_URL);
+      expect(req.request.method).toBe("PUT");
+      const item = (req.request.body as EditJoinsEvent).joinItems[0] as ModifyJoinEventItem;
+      expect(item.actionType).toBe("modify");
+      expect(item.oldJoin).toEqual(before);
+      expect(item.join).toBe(join);
+      expect(item.join.type).toBe(JoinType.FULL_OUTER);
+
+      req.flush({});
+      expect(tableChange).toHaveBeenCalledWith(table);
    });
 });
