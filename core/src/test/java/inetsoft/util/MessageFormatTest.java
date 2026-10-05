@@ -90,4 +90,42 @@ class MessageFormatTest {
       assertEquals("20,250 USD", XUtil.format(
          TableFormat.getFormat(TableFormat.MESSAGE_FORMAT, "{0} USD", Locale.US), 20250));
    }
+
+   // Bug #77804: K/M/B number subformats must be swapped in by element index. These patterns
+   // have an element index that differs from its argument index, so they fail with
+   // setFormatByArgumentIndex.
+   @Test
+   void extendedFormatOnArgumentUsedTwice() {
+      String pattern = "{0} ({0,number,#,##0.0K})";
+      assertEquals("1,234 (1.2K)", new MessageFormat(pattern, Locale.US).format(1234));
+      assertEquals("1,234 (1.2K)", XUtil.format(
+         TableFormat.getFormat(TableFormat.MESSAGE_FORMAT, pattern, Locale.US), 1234));
+   }
+
+   @Test
+   void extendedFormatOnReorderedArguments() {
+      MessageFormat fmt = new MessageFormat("{1} {0,number,0.0K}", Locale.US);
+      assertEquals("5,678 1.2K", fmt.format(new Object[] { 1234, 5678 }));
+      assertEquals("Sales 1.2K", fmt.format(new Object[] { 1234, "Sales" }));
+   }
+
+   @Test
+   void extendedFormatDoesNotOverwriteSiblingElement() {
+      assertEquals("1.2K (1,234)",
+         new MessageFormat("{0,number,0.0K} ({0,number,#,##0})", Locale.US).format(1234));
+   }
+
+   @Test
+   void extendedFormatOnSkippedArgument() {
+      assertEquals("1.2K",
+         new MessageFormat("{1,number,0.0K}", Locale.US).format(new Object[] { "x", 1234 }));
+   }
+
+   @Test
+   void extendedFormatWhenElementMatchesArgument() {
+      assertEquals("Sales 1.2K",
+         new MessageFormat("{0} {1,number,0.0K}", Locale.US).format(new Object[] { "Sales", 1234 }));
+      assertEquals("1.2K", XUtil.format(
+         TableFormat.getFormat(TableFormat.MESSAGE_FORMAT, "{0,number,#,##0.0K}", Locale.US), 1234));
+   }
 }
