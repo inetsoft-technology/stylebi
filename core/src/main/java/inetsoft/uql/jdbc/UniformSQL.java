@@ -107,6 +107,13 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    public static final String XML_TAG = "uniform_sql";
 
    /**
+    * Attribute that marks a CDATA value whose XML 1.0 illegal characters were encoded with
+    * {@link Tool#encodeXMLIllegalChars}. It is written only when the value contains such a
+    * character, so the reader decodes only text that was encoded (Bug #77795).
+    */
+   static final String XML_ILLEGAL_CHARS_ATTR = "ctrlEncoded";
+
+   /**
     * Sorting order, ascending.
     */
    public static final String SORT_ASC = "asc";
@@ -1188,14 +1195,21 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          Element tag = (Element) nlist.item(0);
          String result = Tool.getAttribute(tag, "parseResult");
 
+         String text = Tool.getValue(tag);
+
+         // see writeXML0
+         if("true".equals(Tool.getAttribute(tag, XML_ILLEGAL_CHARS_ATTR))) {
+            text = Tool.decodeXMLIllegalChars(text);
+         }
+
          if(result != null) {
             parseResult = Integer.parseInt(result);
-            sqlstring = Tool.getValue(tag);
+            sqlstring = text;
          }
          else {
             // if the result is not in the xml, the sql has not been parsed
             // so we call setSQLString to force it to parse it initially
-            setSQLString(Tool.getValue(tag));
+            setSQLString(text);
          }
       }
       else {
@@ -1276,7 +1290,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          boolean issql = name instanceof UniformSQL;
 
          writer.println("<table>");
-         writer.println("<alias><![CDATA[" + alias + "]]></alias>");
+         writer.println("<alias><![CDATA[" + Tool.splitCDATAEnd(alias) + "]]></alias>");
 
          if(full && issql) {
             writer.println("<sqlName>");
@@ -1297,13 +1311,13 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             String quoted = name.toString();
             writer.println("<name" + (!quoted.equals(text) ?
                " quotedSql=\"" + Tool.escape(quoted) + "\"" : "") +
-               "><![CDATA[" + text + "]]></name>");
+               "><![CDATA[" + Tool.splitCDATAEnd(text) + "]]></name>");
          }
          else {
             String quotedSegments = name instanceof String ? table.getQuotedSegmentsString() : null;
             writer.println("<name" + (quotedSegments != null ?
                " quotedSegments=\"" + quotedSegments + "\"" : "") +
-               "><![CDATA[" + name + "]]></name>");
+               "><![CDATA[" + Tool.splitCDATAEnd(String.valueOf(name)) + "]]></name>");
          }
 
          writer.println("<issql><![CDATA[" + issql + "]]></issql>");
@@ -1315,13 +1329,13 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          String catalog = table.getCatalog();
 
          if(catalog != null) {
-            writer.println("<catalog><![CDATA[" + catalog + "]]></catalog>");
+            writer.println("<catalog><![CDATA[" + Tool.splitCDATAEnd(catalog) + "]]></catalog>");
          }
 
          String schema = table.getSchema();
 
          if(schema != null) {
-            writer.println("<schema><![CDATA[" + schema + "]]></schema>");
+            writer.println("<schema><![CDATA[" + Tool.splitCDATAEnd(schema) + "]]></schema>");
          }
 
          writer.println("</table>");
@@ -1343,16 +1357,16 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             tname = selection.getTable(alias);
          }
 
-         writer.println("<![CDATA[" + column + "]]>");
+         writer.println("<![CDATA[" + Tool.splitCDATAEnd(column) + "]]>");
          // whether the alias was written quoted, if known. Older versions ignore it
          Boolean aliasQuoted = selection.isAliasQuoted(i);
          writer.println("<alias" + (aliasQuoted == null ? "" : " quoted=\"" + aliasQuoted + "\"") +
-                        "><![CDATA[" + (alias == null ? "" : alias) + "]]></alias>");
-         writer.println("<type><![CDATA[" + (type == null ? "" : type) +
+                        "><![CDATA[" + (alias == null ? "" : Tool.splitCDATAEnd(alias)) + "]]></alias>");
+         writer.println("<type><![CDATA[" + (type == null ? "" : Tool.splitCDATAEnd(type)) +
                         "]]></type>");
-         writer.println("<table><![CDATA[" + (tname == null ? "" : tname) +
+         writer.println("<table><![CDATA[" + (tname == null ? "" : Tool.splitCDATAEnd(tname)) +
                         "]]></table>");
-         writer.println("<description><![CDATA[" + (desc == null ? "" : desc) +
+         writer.println("<description><![CDATA[" + (desc == null ? "" : Tool.splitCDATAEnd(desc)) +
                         "]]></description>");
          writer.println("<isExp><![CDATA[" + isExp + "]]></isExp>");
 
@@ -1400,7 +1414,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          writer.print("<field" + (order != null ? " order=\"" + order + "\"" : "") +
                       quotedFieldAttribute(getQuote(orderItems[i]), orderField[i], quotedTexts) +
                       quotedAggregateAttribute(orderField[i]) + "><![CDATA[");
-         writer.print(orderField[i].toString());
+         writer.print(Tool.splitCDATAEnd(orderField[i].toString()));
          writer.print("]]></field>");
 
          if(i != orderField.length - 1) {
@@ -1416,7 +1430,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       for(int i = 0; groupby != null && i < groupby.length; i++) {
          writer.print("<field" + quotedFieldAttribute(getGroupQuote(i), groupby[i], quotedTexts) +
                       "><![CDATA[");
-         writer.print(groupby[i].toString());
+         writer.print(Tool.splitCDATAEnd(groupby[i].toString()));
          writer.print("]]></field>");
       }
 
@@ -1429,7 +1443,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
 
          for(int i = 0; i < orderDBFlds.size(); i++) {
             writer.print("<field><![CDATA[");
-            writer.print(orderDBFlds.get(i));
+            writer.print(Tool.splitCDATAEnd(orderDBFlds.get(i)));
             writer.print("]]></field>");
          }
 
@@ -1443,7 +1457,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
 
          for(int i = 0; i < groupDBFlds.size(); i++) {
             writer.print("<field><![CDATA[");
-            writer.print(groupDBFlds.get(i));
+            writer.print(Tool.splitCDATAEnd(groupDBFlds.get(i)));
             writer.print("]]></field>");
          }
 
@@ -1459,8 +1473,13 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       writer.println("</having>");
 
       if(sqlstring != null) {
-         writer.println("<sqlstring parseResult=\"" + parseResult +
-                        "\"><![CDATA[" + sqlstring + "]]></sqlstring>");
+         // a character XML 1.0 can't carry is encoded, and marked so the reader decodes
+         // it. Other text is written as before, which older versions read the same way
+         boolean ctrl = Tool.hasXMLIllegalChars(sqlstring);
+         String text = ctrl ? Tool.encodeXMLIllegalChars(sqlstring) : sqlstring;
+         writer.println("<sqlstring parseResult=\"" + parseResult + "\"" +
+                        (ctrl ? " " + XML_ILLEGAL_CHARS_ATTR + "=\"true\"" : "") +
+                        "><![CDATA[" + Tool.splitCDATAEnd(text) + "]]></sqlstring>");
       }
 
       if(columns != null) {
@@ -1468,7 +1487,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
 
          for(XField fld : columns) {
             writer.println("<column type=\"" + fld.getType() + "\">");
-            writer.println("<![CDATA[" + fld.getName() + "]]>");
+            writer.println("<![CDATA[" + Tool.splitCDATAEnd(String.valueOf(fld.getName())) + "]]>");
             writer.println("</column>");
          }
 
