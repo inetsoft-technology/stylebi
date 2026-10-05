@@ -145,6 +145,31 @@ class FolderNameSeparatorTest {
       assertTrue(registry().isFolder(s + "x/G"));
    }
 
+   // an aliased folder is renamed by its alias, the name check is skipped there, so a "/" in the
+   // name must still only change the alias (to the last segment) and move nothing
+   @Test
+   @Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+   void portalTreeRenameOfAliasedFolderWithSlashOnlyChangesAlias() throws Exception {
+      String s = "S77733m";
+      String t = "T77733m";
+      addReportFolders(s, s + "/G", t);
+      registry().setFolderAlias(s, "Alias77733m", true);
+      registry().save();
+      Set<String> before = folders(registry(), s);
+      Set<String> beforeKeys = assetKeys(vsFolder(s), s);
+
+      MessageCommand[] result = new MessageCommand[1];
+      allowAll(() -> result[0] = portalController().renameRepositoryEntry(
+         renameEvent(s, t + "/NewAlias77733m"), admin()));
+
+      assertNull(result[0], () -> "alias rename refused: " + result[0].getMessage());
+      assertEquals(before, folders(registry(), s));
+      assertEquals(beforeKeys, assetKeys(vsFolder(s), s));
+      assertFalse(registry().isFolder(t + "/" + s));
+      assertFalse(registry().isFolder(t + "/NewAlias77733m"));
+      assertEquals("NewAlias77733m", registry().getFolderAlias(s));
+   }
+
    @Test
    @Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
    void portalEditFolderWithSlashIsRefused() throws Exception {
