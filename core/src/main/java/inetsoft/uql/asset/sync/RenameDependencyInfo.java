@@ -150,7 +150,8 @@ public class RenameDependencyInfo implements Serializable, XMLSerializable {
     */
    public void writeXML(PrintWriter writer) {
       writer.print("<renameDependencyInfo class=\"" + getClass().getName()
-         + "\" recursive=\"" + recursive + "\" id=\"" + id + "\">");
+         + "\" recursive=\"" + recursive + "\" updateStorage=\"" + updateStorage
+         + "\" runtime=\"" + runtime + "\" id=\"" + id + "\">");
 
       if(rinfos != null) {
          writer.print("<renameInfos>");
@@ -196,7 +197,11 @@ public class RenameDependencyInfo implements Serializable, XMLSerializable {
     * Method to parse an xml segment.
     */
    public void parseXML(Element elem) throws Exception {
-      recursive = "true".equalsIgnoreCase(Tool.getAttribute(elem, "class"));
+      // a missing attribute keeps the field default (entries written before updateStorage
+      // and runtime were persisted)
+      recursive = !"false".equalsIgnoreCase(Tool.getAttribute(elem, "recursive"));
+      updateStorage = !"false".equalsIgnoreCase(Tool.getAttribute(elem, "updateStorage"));
+      runtime = "true".equalsIgnoreCase(Tool.getAttribute(elem, "runtime"));
       id = Tool.getAttribute(elem, "id");
 
       if(id == null) {
@@ -207,7 +212,7 @@ public class RenameDependencyInfo implements Serializable, XMLSerializable {
 
       if(rnode != null) {
          NodeList infos = Tool.getChildNodesByTagName(rnode, "renameInfo");
-         List<RenameInfo> rinfos = new ArrayList<>();
+         rinfos = new ArrayList<>();
 
          for(int j = 0; j < infos.getLength(); j++) {
             Element infoElem = (Element) infos.item(j);
