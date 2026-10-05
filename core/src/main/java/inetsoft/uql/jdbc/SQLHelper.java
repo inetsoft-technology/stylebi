@@ -3848,6 +3848,10 @@ public class SQLHelper implements KeywordProvider {
             else if(!expr && isKeyword(column)) {
                column = quoteAlias(column);
             }
+            else if(expr && XUtil.isNiladicKeywordFunction(column)) {
+               // a niladic keyword-function (current_date) is stored as an expression so it's
+               // not quoted. It's written as is, not by its alias or index below (Bug #77763)
+            }
             // @by billh, some dbs(informix) do not support to group by
             // an expression, in this case, we try using its index instead
             else if(!supportsOperation(SQLHelper.EXPRESSION_COLUMN_GROUPBY) &&

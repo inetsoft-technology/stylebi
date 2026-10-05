@@ -792,14 +792,35 @@ public final class XUtil {
          }
       }
 
-      // CURRENT_DATE is a reserved ANSI SQL niladic keyword-function (no parens), not an
-      // identifier -- quoting it changes it into a quoted column reference
-      if(str.equalsIgnoreCase("current_date")) {
-         return true;
+      return false;
+   }
+
+   /**
+    * Check if the text is a keyword-function written without parens (e.g. CURRENT_TIMESTAMP),
+    * or an Oracle pseudo-column (e.g. ROWNUM, SYSDATE). It is a keyword on most databases, but
+    * written unquoted it means the function, not a column, so it must not be quoted then
+    * (Bug #77763). The same name written quoted ("user") is a column.
+    */
+   public static boolean isNiladicKeywordFunction(String str) {
+      if(str == null) {
+         return false;
+      }
+
+      for(String word : NILADIC_KEYWORD_FUNCTIONS) {
+         if(word.equalsIgnoreCase(str)) {
+            return true;
+         }
       }
 
       return false;
    }
+
+   private static final String[] NILADIC_KEYWORD_FUNCTIONS = {
+      "current_date", "current_time", "current_timestamp", "localtime", "localtimestamp",
+      "current_user", "session_user", "system_user", "user",
+      // Oracle pseudo-columns, not keywords on the other databases
+      "rownum", "sysdate", "rowid"
+   };
 
    /**
     * Quote one name segment.

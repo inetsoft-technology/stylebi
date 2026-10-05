@@ -2197,7 +2197,11 @@ String quoteDot(String str) {
    // that case: it treats a name starting and ending with the quote char as already
    // wrapped and passes it through (a shortcut other callers with genuinely pre-wrapped
    // segments rely on), so check for an embedded quote char directly here too (#77661)
-   if(str.indexOf(".") > 0 || preferQuote && !XUtil.shouldNotQuote(str) &&
+   // a niladic keyword-function (current_date) written unquoted is not a column, a name
+   // written quoted ("user") is (Bug #77763)
+   boolean niladic = identPlain && XUtil.isNiladicKeywordFunction(str);
+
+   if(str.indexOf(".") > 0 || preferQuote && !XUtil.shouldNotQuote(str) && !niladic &&
       (str.contains(quote) || XUtil.isSpecialName(str, true, helper)))
    {
       // escape an embedded quote char by doubling it, instead of stripping a would-be
@@ -3489,9 +3493,10 @@ domain_name returns [String domainname = ""]
         ;
 
 schema_name returns [String schemaname = ""]
-        {checkStatus();}
+        // a quoted schema name isn't plain, see quoteDot (Bug #77763)
+        {identPlain = false; checkStatus();}
         :
-        a:IDENT {schemaname = a.getText();}
+        a:IDENT {schemaname = a.getText(); identPlain = true;}
         | schemaname = special_identifier
         ;
 
@@ -4391,6 +4396,14 @@ derived_column [JDBCSelection selection, UniformSQL sql]
            // by position, two columns may have the same text (Bug #77573)
            if(quotedField) {
               selection.setQuoted(selection.getColumnCount() - 1, exp.getQuotedColumn());
+           }
+           // a niladic keyword-function written unquoted (current_date) is not a column, so
+           // it's not quoted as a keyword when generated. A model saved before quoted names
+           // were flagged (#77408) has no such record and keeps the quoting (Bug #77763)
+           else if(exp.getQuote() == XExpression.QUOTE_NONE &&
+                   XUtil.isNiladicKeywordFunction(tmp))
+           {
+              selection.setExpression(selection.getColumnCount() - 1, true);
            }
 
            // an aggregate of a qualified quoted column (sum(t."MixedCase")), the stored

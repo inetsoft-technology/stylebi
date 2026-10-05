@@ -67,12 +67,12 @@ class UniformSQLPositionalParamAndKeywordTest {
       assertFalse(generated.contains("`current_date`"), type + ": " + generated);
    }
 
-   // regression: current_timestamp is a distinct reserved keyword, not in #77664's narrow scope,
-   // and must continue to be quoted as before
+   // current_timestamp is a niladic keyword-function like current_date, quoting it makes it a
+   // column reference (Bug #77763)
    @Test
-   void currentTimestampStillQuoted() {
+   void currentTimestampStaysUnquoted() {
       String generated = regenerate("select current_timestamp from t", dataSource("postgresql"));
-      assertTrue(generated.contains("\"current_timestamp\""), generated);
+      assertEquals("select current_timestamp from \"t\"", generated);
    }
 
    // regression: a column name that merely starts with "current_date" must still be quoted --
