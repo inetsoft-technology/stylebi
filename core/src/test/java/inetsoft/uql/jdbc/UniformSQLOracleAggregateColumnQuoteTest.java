@@ -361,6 +361,57 @@ class UniformSQLOracleAggregateColumnQuoteTest {
    }
 
    /**
+    * Bug #77686, a name with a non-ascii character is quoted as written, as before #77646.
+    * Oracle allows only alphanumeric characters and _ $ # unquoted, T.a＿b is invalid.
+    */
+   @Test
+   void nonAsciiColumnIsQuotedAsWritten() throws Exception {
+      for(String key : ORACLE) {
+         for(String name : PARSED_NON_ASCII) {
+            assertEquals("select sum(T.\"" + name + "\") from T",
+                         aggregate(key, "select sum(T." + name + ") from T"), key + " " + name);
+         }
+
+         assertEquals("select max(t.\"a＿b\") from a t", aggregate(key, "select max(t.a＿b) from a t"), key);
+         assertEquals("select count(distinct t.\"データ\") from a t",
+                      aggregate(key, "select count(distinct t.データ) from a t"), key);
+         assertEquals("select T.ID, sum(T.\"名前\") from T group by T.ID order by sum(T.\"名前\") asc",
+                      aggregate(key, "select T.ID, sum(T.名前) from T group by T.ID order by sum(T.名前)"), key);
+         // an ascii name is still not quoted
+         assertEquals("select sum(T.a_b) from T", aggregate(key, "select sum(T.a_b) from T"), key);
+      }
+   }
+
+   /**
+    * Bug #77686, the worksheet push-down path, an aggregate added to the selection without
+    * parsing.
+    */
+   @Test
+   void nonAsciiColumnIsQuotedAsWrittenUnparsed() throws Exception {
+      for(String key : ORACLE) {
+         for(String name : NON_ASCII) {
+            UniformSQL sql = new UniformSQL();
+            sql.setDataSource(source(key));
+            sql.addTable("T");
+            sql.getSelection().addColumn("sum(T." + name + ")");
+            assertEquals("select sum(T.\"" + name + "\") from T", regenerate(sql), key + " " + name);
+         }
+
+         UniformSQL sql = new UniformSQL();
+         sql.setDataSource(source(key));
+         sql.addTable("T");
+         sql.getSelection().addColumn("sum(T.a_b)");
+         assertEquals("select sum(T.a_b) from T", regenerate(sql), key);
+      }
+   }
+
+   private static final String[] NON_ASCII = {
+      "データ", "名前", "a＿b", "ａｂ", "a‿b", "a·b", "über", "Größe"
+   };
+   // the parser doesn't take a·b and Größe unquoted, and drops the ü of über
+   private static final String[] PARSED_NON_ASCII = { "データ", "名前", "a＿b", "ａｂ", "a‿b" };
+
+   /**
     * A function of a column in the where clause doesn't go through getValidAggregate, the output
     * before this change.
     */
