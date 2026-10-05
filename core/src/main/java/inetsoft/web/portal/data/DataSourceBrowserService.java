@@ -529,15 +529,10 @@ public class DataSourceBrowserService {
     * @param auditPath audit path(fullPath).
     * @param principal user
     */
-   @Audited(
-         actionName = ActionRecord.ACTION_NAME_DELETE,
-         objectType = ActionRecord.OBJECT_TYPE_FOLDER
-   )
-   public ConnectionStatus deleteDataSourceFolder(
-      String path, @SuppressWarnings("unused") @AuditObjectName String auditPath, boolean force,
-      Principal principal)
+   public ConnectionStatus deleteDataSourceFolder(String path, String auditPath, boolean force,
+                                                  Principal principal)
    {
-      return repositoryObjectService.removeDataSourceFolder(path, force, principal);
+      return deleteDataSourceFolder(path, auditPath, force, false, principal);
    }
 
    /**
@@ -549,16 +544,46 @@ public class DataSourceBrowserService {
     *                       {@link RepositoryObjectService#removeDataSourceFolder(String, boolean, Principal, boolean)}.
     * @param principal user
     */
-   @Audited(
-         actionName = ActionRecord.ACTION_NAME_DELETE,
-         objectType = ActionRecord.OBJECT_TYPE_FOLDER
-   )
-   public ConnectionStatus deleteDataSourceFolder(
-      String path, @SuppressWarnings("unused") @AuditObjectName String auditPath, boolean force,
-      boolean withDataSource, Principal principal)
+   public ConnectionStatus deleteDataSourceFolder(String path, String auditPath, boolean force,
+                                                  boolean withDataSource, Principal principal)
    {
-      return repositoryObjectService.removeDataSourceFolder(
-         path, force, principal, withDataSource);
+      // Bug #77819, audited here, not with @Audited, as a returned status is a refusal or a
+      // prompt to confirm the delete, not a success
+      ActionRecord actionRecord = SUtil.getActionRecord(
+         principal, ActionRecord.ACTION_NAME_DELETE, auditPath, ActionRecord.OBJECT_TYPE_FOLDER);
+      // the data source at the path of the folder is deleted with it, so it is audited with the
+      // outcome of the folder delete
+      ActionRecord dataSourceRecord = withDataSource ? SUtil.getActionRecord(
+         principal, ActionRecord.ACTION_NAME_DELETE,
+         Util.getObjectFullPath(RepositoryEntry.DATA_SOURCE, path, principal),
+         ActionRecord.OBJECT_TYPE_DATASOURCE) : null;
+
+      try {
+         ConnectionStatus status = repositoryObjectService.removeDataSourceFolder(
+            path, force, principal, withDataSource);
+
+         if(status != null) {
+            actionRecord = RepositoryObjectService.getDeleteStatusRecord(actionRecord, status);
+         }
+
+         return status;
+      }
+      catch(Exception ex) {
+         actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_FAILURE);
+         actionRecord.setActionError(ex.getMessage());
+         throw ex;
+      }
+      finally {
+         if(actionRecord != null) {
+            Audit.getInstance().auditAction(actionRecord, principal);
+
+            if(dataSourceRecord != null) {
+               dataSourceRecord.setActionStatus(actionRecord.getActionStatus());
+               dataSourceRecord.setActionError(actionRecord.getActionError());
+               Audit.getInstance().auditAction(dataSourceRecord, principal);
+            }
+         }
+      }
    }
 
    private Locale getLocale(Principal principal) {
