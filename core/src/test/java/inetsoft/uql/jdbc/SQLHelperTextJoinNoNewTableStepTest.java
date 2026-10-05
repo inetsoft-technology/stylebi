@@ -111,6 +111,10 @@ class SQLHelperTextJoinNoNewTableStepTest {
          // the group of the ON is the right operand of an inner join
          "select c.id, d.id, p.id, q.id, r.id, x.id from d left join c on d.id = c.id, x join " +
             "(p join q on p.id = q.id join r on p.k = q.k) on x.id = p.id",
+         // the table of the ON is joined to a table after it, so the two are a later join
+         // group
+         "select c.id, d.id, e.id, f.id, r.id from d left join c on d.id = c.id join e on " +
+            "e.id = c.id join r on c.k = e.k join f on f.id = r.id",
          // a join cycle closed by the ON of a no new table step
          "select c.id, d.id, e.id, g.id, p.id, q.id from d left join c on d.id = c.id join e " +
             "on e.id = c.id, p join q on p.id = q.id join g on g.id = q.id join r on p.k = g.k"
