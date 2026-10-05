@@ -399,9 +399,10 @@ public abstract class DatasourcesBaseService {
       throws Exception
    {
       repository.removeDataSource(path, force);
-      securityEngine.removePermission(ResourceType.DATA_SOURCE, path);
       JDBCUtil.removeConnectionTestQuery(path);
       SreeEnv.save();
+      // revoke last, so a failed permission write doesn't skip the cleanup above
+      securityEngine.removePermission(ResourceType.DATA_SOURCE, path);
       return null;
    }
 
@@ -567,7 +568,23 @@ public abstract class DatasourcesBaseService {
          repository.updateDataSource(ds, null, false);
          afterUpdateSourceCallback(definition, ds, true);
 
+         AssetEntry entry = new AssetEntry(
+            AssetRepository.QUERY_SCOPE, isXmla ? AssetEntry.Type.DOMAIN : AssetEntry.Type.DATA_SOURCE, name, null);
+         entry = getDataSourceAssetEntry(entry);
 
+         if(entry != null) {
+            entry.setCreatedUsername(principal.getName());
+            entry.setCreatedDate(new Date());
+            updateDataSourceAssetEntry(entry);
+         }
+
+         if(authorized.additionalConnections() != null) {
+            saveAdditionalConnections((DataSourceDefinition) definition,
+               (AdditionalConnectionDataSource<?>) ds, authorized.additionalConnections(), null);
+         }
+
+         // the grant is written last, so a failed permission write doesn't skip the asset entry
+         // or the additional connections of the saved data source
          boolean isSelfUser = Tool.equals(Organization.getSelfOrganizationID(),
                                           OrganizationManager.getInstance().getCurrentOrgID(principal));
 
@@ -584,21 +601,6 @@ public abstract class DatasourcesBaseService {
             permission.updateGrantAllByOrg(orgId, true);
             securityEngine.setPermission(
                ResourceType.DATA_SOURCE, ds.getFullName(), permission);
-         }
-
-         AssetEntry entry = new AssetEntry(
-            AssetRepository.QUERY_SCOPE, isXmla ? AssetEntry.Type.DOMAIN : AssetEntry.Type.DATA_SOURCE, name, null);
-         entry = getDataSourceAssetEntry(entry);
-
-         if(entry != null) {
-            entry.setCreatedUsername(principal.getName());
-            entry.setCreatedDate(new Date());
-            updateDataSourceAssetEntry(entry);
-         }
-
-         if(authorized.additionalConnections() != null) {
-            saveAdditionalConnections((DataSourceDefinition) definition,
-               (AdditionalConnectionDataSource<?>) ds, authorized.additionalConnections(), null);
          }
       }
    }

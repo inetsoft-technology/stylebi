@@ -548,6 +548,8 @@ public class DatabaseDatasourcesService {
       jdbcDataSource.setAnsiJoin(newSrc.isAnsiJoin());
 
       boolean additionalChange = false;
+      // the permission of a saved data source, written at the end of the save
+      boolean savePermission = false;
 
       //Editing additional datasource connection. Delegate to its base.
       if(base != null) {
@@ -587,8 +589,7 @@ public class DatabaseDatasourcesService {
             oldPermission.updateGrantAllByOrg(orgId, true);
          }
 
-         securityEngine.setPermission(
-            ResourceType.DATA_SOURCE, jdbcDataSource.getFullName(), oldPermission);
+         savePermission = true;
          entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
             AssetEntry.Type.DATA_SOURCE, jdbcDataSource.getFullName(), null);
          entry = getDataSourceAssetEntry(entry);
@@ -685,6 +686,13 @@ public class DatabaseDatasourcesService {
 
       JDBCDataSource currentDataSource = (JDBCDataSource) Tool.clone(jdbcDataSource);
       transformTables(oldDataSource, currentDataSource);
+
+      // written last, so a failed permission write doesn't skip the asset entry, the additional
+      // connections or the rest of the save
+      if(savePermission) {
+         securityEngine.setPermission(
+            ResourceType.DATA_SOURCE, jdbcDataSource.getFullName(), oldPermission);
+      }
 
       return null;
    }

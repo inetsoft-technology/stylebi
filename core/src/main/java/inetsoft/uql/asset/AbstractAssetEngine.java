@@ -2146,12 +2146,26 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          return;
       }
 
-      securityEngine.removePermission(type, oentry.getPath());
+      // the permission move is best-effort: this runs inside the folder move, and a failed
+      // permission write must not stop the rest of the tree from being moved
+      try {
+         securityEngine.removePermission(type, oentry.getPath());
+      }
+      catch(RuntimeException e) {
+         LOG.error("Failed to remove the permission of {} {} after moving it to {}",
+                   type, oentry.getPath(), nentry.getPath(), e);
+      }
 
       // moving out of the global repository (e.g. into a user's private assets); the old
       // permission no longer applies to any path and must not be copied to the private path
       if(nentry.getScope() == GLOBAL_SCOPE) {
-         securityEngine.setPermission(type, nentry.getPath(), oldPermission);
+         try {
+            securityEngine.setPermission(type, nentry.getPath(), oldPermission);
+         }
+         catch(RuntimeException e) {
+            LOG.error("Failed to move the permission of {} {} to {}",
+                      type, oentry.getPath(), nentry.getPath(), e);
+         }
       }
    }
 

@@ -3503,7 +3503,15 @@ public class IdentityService {
                }
 
                if(containsOrgID(path, oldName.getOrgID()) && newName == null) {
-                  aprovider.removePermission(resourceType, path, resourceOrgID);
+                  // best-effort per item: a failed write must not stop the other items or the
+                  // caller's later steps (the identity delete/rename/org migration)
+                  try {
+                     aprovider.removePermission(resourceType, path, resourceOrgID);
+                  }
+                  catch(RuntimeException e) {
+                     LOG.error("Failed to remove the permission of {} {} for {}, it may still be stored",
+                               resourceType, path, oldName, e);
+                  }
                }
 
                for(ResourceAction action : ResourceAction.values()) {
@@ -3562,7 +3570,14 @@ public class IdentityService {
                   newOrgName = newName != null && newName.getName() != null ? newName.getName() : null;
                }
 
-               updatePermission(aprovider, permissionSet, oldOrgName, newOrgName, oldOrgId, newOrgId, doReplace, type);
+               try {
+                  updatePermission(aprovider, permissionSet, oldOrgName, newOrgName, oldOrgId,
+                                   newOrgId, doReplace, type);
+               }
+               catch(RuntimeException e) {
+                  LOG.error("Failed to update the permission of {} {} from {} to {}, it may not " +
+                            "have been saved", resourceType, path, oldName, newName, e);
+               }
             }
          }
       }

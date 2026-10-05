@@ -712,11 +712,33 @@ public class UserTreeService {
       // scope by the permission-checked group from the path, not the organization in the body
       themeService.updateIdentityTheme(group.name, model.name(), group.orgID, model.theme(),
                                        CustomTheme::getGroups, principal);
-      identityService.setIdentityPermissions(oldID, newID, ResourceType.SECURITY_GROUP,
-                                             principal, permittedIdentities, groupOrgID);
+      // the rename is already saved, so a failed permission write must not skip the migration;
+      // the failure is reported after it
+      RuntimeException permissionFailure = null;
 
-      if(!oldID.equals(newID)) {
-         migrateGroupRename(oldID, newID);
+      try {
+         identityService.setIdentityPermissions(oldID, newID, ResourceType.SECURITY_GROUP,
+                                                principal, permittedIdentities, groupOrgID);
+      }
+      catch(RuntimeException e) {
+         permissionFailure = e;
+      }
+
+      try {
+         if(!oldID.equals(newID)) {
+            migrateGroupRename(oldID, newID);
+         }
+      }
+      catch(Exception e) {
+         if(permissionFailure == null) {
+            throw e;
+         }
+
+         permissionFailure.addSuppressed(e);
+      }
+
+      if(permissionFailure != null) {
+         throw permissionFailure;
       }
    }
 
@@ -1314,10 +1336,33 @@ public class UserTreeService {
       // if the user has admin permission on themselves, rename the user in the grant
       List<IdentityModel> permittedIdentities = getRenamedPermittedIdentities(
          model.permittedIdentities(), Identity.USER, oldID, newID);
-      identityService.setIdentityPermissions(
-         oldID, newID, ResourceType.SECURITY_USER, principal, permittedIdentities,
-         model.organization());
-      migrateUserRename(oldID, newID);
+      // the rename is already saved, so a failed permission write must not skip the migration;
+      // the failure is reported after it
+      RuntimeException permissionFailure = null;
+
+      try {
+         identityService.setIdentityPermissions(
+            oldID, newID, ResourceType.SECURITY_USER, principal, permittedIdentities,
+            model.organization());
+      }
+      catch(RuntimeException e) {
+         permissionFailure = e;
+      }
+
+      try {
+         migrateUserRename(oldID, newID);
+      }
+      catch(Exception e) {
+         if(permissionFailure == null) {
+            throw e;
+         }
+
+         permissionFailure.addSuppressed(e);
+      }
+
+      if(permissionFailure != null) {
+         throw permissionFailure;
+      }
    }
 
 

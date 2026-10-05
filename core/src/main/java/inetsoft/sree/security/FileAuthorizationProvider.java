@@ -88,7 +88,15 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
                return;
             }
 
-            setPermission(type, path, orgPermission, orgId);
+            // keep the migration best-effort per entry, as it was before the writers threw: a
+            // failed re-put must not leave the loop or escape init()
+            try {
+               setPermission(type, path, orgPermission, orgId);
+            }
+            catch(RuntimeException e) {
+               LOG.error("Failed to isolate the permission of {} {} for organization {}",
+                         type, path, orgId, e);
+            }
          });
       }
    }
@@ -174,7 +182,7 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
             storage.put(getResourceKey(type, resource, orgID), perm).get(10L, TimeUnit.SECONDS);
          }
          catch(Exception e) {
-            LOG.error("Failed to set permission on {} {}", type, resource, e);
+            throw storageWriteFailure(type, resource, e);
          }
       }
    }
@@ -196,7 +204,7 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
                .get(10L, TimeUnit.SECONDS);
          }
          catch(Exception e) {
-            LOG.error("Failed to set permission on {} {}", type, identityID, e);
+            throw storageWriteFailure(type, identityID, e);
          }
       }
    }
@@ -210,7 +218,7 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
          storage.remove(getResourceKey(type, resource, orgID)).get(10L, TimeUnit.SECONDS);
       }
       catch(Exception e) {
-         LOG.error("Failed to remove permission from {} {}", type, resource, e);
+         throw storageWriteFailure(type, resource, e);
       }
    }
 
@@ -223,7 +231,7 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
          storage.remove(getResourceKey(type, identityID.convertToKey(), orgID)).get(10L, TimeUnit.SECONDS);
       }
       catch(Exception e) {
-         LOG.error("Failed to remove permission from {} {}", type, identityID, e);
+         throw storageWriteFailure(type, identityID, e);
       }
    }
 
@@ -238,7 +246,15 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
          ResourceType type = permissionSet.getFirst();
          String path = permissionSet.getThird();
 
-         removePermission(type, path, resourceOrgID);
+         // best-effort per item: one failed remove must not stop the rest, or the org delete
+         // cleanup that follows this call
+         try {
+            removePermission(type, path, resourceOrgID);
+         }
+         catch(RuntimeException e) {
+            LOG.error("Failed to remove the permission of {} {} while cleaning organization {}, " +
+                      "it may still be stored", type, path, orgId, e);
+         }
       }
    }
 
@@ -320,6 +336,22 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
       orgID = orgID != null ? orgID : SUtil.isMultiTenant() ?
          OrganizationManager.getInstance().getCurrentOrgID() : Organization.getDefaultOrganizationID();
       return type + ":" + orgID + ":" + path;
+   }
+
+   /**
+    * Logs a failed permission storage write and returns the exception to throw. A write that timed
+    * out may still complete, so the message says the permission may not have been saved.
+    */
+   private static RuntimeException storageWriteFailure(ResourceType type, Object resource,
+                                                       Exception cause)
+   {
+      if(cause instanceof InterruptedException) {
+         Thread.currentThread().interrupt();
+      }
+
+      String message = "The permission of " + type + " " + resource + " may not have been saved";
+      LOG.error(message, cause);
+      return new MessageException(message, cause);
    }
 
    private KeyValueStorage<Permission> storage;
