@@ -220,7 +220,8 @@ class SharepointTokenReuseTest {
    }
 
    // the variables of the credential are replaced for a query: tokens of the stored definition
-   // are not used for another account, and those of the query are not saved onto it
+   // are not used for another account, and those of the query are not saved onto it, the stored
+   // definition is not written at all
    @Test
    void tokensAreNotSharedAcrossAccounts() throws Exception {
       SharepointOnlineDataSource ds = source("spDs");
@@ -235,10 +236,13 @@ class SharepointTokenReuseTest {
       VariableTable vars = new VariableTable();
       vars.put("user", "alice");
       TabularUtil.replaceVariables(runtime, vars);
+      cacheEvents.set(0);
 
       assertEquals("Bearer tok-alice", send(runtime, true));
       assertEquals(List.of("password"), grants);
       assertTrue(bodies.get(0).contains("username=alice"), bodies.get(0));
+      // nothing is saved, so the stored definition is not written and no cache is cleared
+      assertEquals(0, cacheEvents.get(), "the stored definition is not written");
 
       registry.clearCache();
       SharepointOnlineDataSource stored = (SharepointOnlineDataSource) registry.getDataSource("spDs");

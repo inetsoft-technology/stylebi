@@ -67,23 +67,45 @@ class SharepointAuthenticator extends BaseAuthenticationProvider {
     * directly, it is not read again from the data source, whose credential may not hold it.
     */
    private String getToken() throws IOException {
-      String accessToken = dataSource.getAccessToken();
+      String accessToken;
+      String refreshToken;
+      Instant expires;
 
-      if(accessToken != null && !isExpired()) {
-         return accessToken;
+      // the tokens are read and replaced together, so that a token is never sent with the
+      // expiration of another token when the data source is used by more than one thread
+      synchronized(dataSource) {
+         accessToken = dataSource.getAccessToken();
+
+         if(accessToken != null && !isExpired()) {
+            return accessToken;
+         }
+
+         accessToken = requestToken();
+         refreshToken = dataSource.getRefreshToken();
+         expires = dataSource.getTokenExpires();
       }
 
+      saveTokens(accessToken, refreshToken, expires);
+      return accessToken;
+   }
+
+   /**
+    * Requests a new token, by refreshing the token if there is a refresh token, or by signing in.
+    */
+   private String requestToken() throws IOException {
       if(dataSource.getRefreshToken() != null) {
          try {
             return refreshAccessToken();
          }
          catch(IOException e) {
             // the refresh token may have expired or been revoked, sign in with the password
-            LOG.debug("Failed to refresh the access token, requesting a new token", e);
+            LOG.warn("Failed to refresh the access token of data source {}, signing in again: {}",
+                     dataSource.getFullName(), e.getMessage());
+            LOG.debug("Failed to refresh the access token", e);
          }
       }
 
-      return getAccessToken();
+      return requestPasswordGrant();
    }
 
    /**
@@ -94,7 +116,7 @@ class SharepointAuthenticator extends BaseAuthenticationProvider {
       return expires == null || !expires.isAfter(Instant.now().plus(EXPIRATION_MARGIN));
    }
 
-   private String getAccessToken() throws IOException {
+   private String requestPasswordGrant() throws IOException {
       return authorize("client_id=" + dataSource.getClientId() +
          "&client_secret=" + URLEncoder.encode(dataSource.getClientSecret(), "UTF-8") +
          "&scope=Sites.Read.All%20offline_access" +
@@ -137,8 +159,6 @@ class SharepointAuthenticator extends BaseAuthenticationProvider {
       dataSource.setRefreshToken(
          tokens.getRefreshToken() != null ? tokens.getRefreshToken() : refreshToken);
       dataSource.setTokenExpires(Instant.now().plus(tokens.getExpiresIn(), ChronoUnit.SECONDS));
-
-      saveTokens();
       return tokens.getAccessToken();
    }
 
@@ -157,35 +177,66 @@ class SharepointAuthenticator extends BaseAuthenticationProvider {
          .readValue(response.getEntity().getContent(), AuthorizationResponse.class);
    }
 
-   private void saveTokens() {
+   private void saveTokens(String accessToken, String refreshToken, Instant expires) {
       // Bug #77730, the tokens of a cloud credential are kept only by this runtime instance, the
-      // stored definition holds only the id of the secret and can't keep them (Bug #77699)
-      if(saveTokens && !(dataSource.getCredential() instanceof CloudCredential)) {
+      // stored definition holds only the id of the secret and can't keep them (Bug #77699).
+      // Tokens obtained for another account than that of the stored definition, e.g. when the
+      // variables of the credential were replaced with the values of the query, are not kept
+      // either, and the stored definition is then not written at all
+      if(!saveTokens || dataSource.getCredential() instanceof CloudCredential ||
+         !isSameAccount(getStoredDataSource()))
+      {
+         return;
+      }
+
+      try {
          // Bug #77699, save onto the stored definition, not this runtime instance whose
          // variables may have been replaced with the values of the query
-         final String accessToken = dataSource.getAccessToken();
-         final String refreshToken = dataSource.getRefreshToken();
-         final Instant expires = dataSource.getTokenExpires();
+         XRepository.getRepository().updateDataSourceTokens(dataSource, stored -> {
+            // checked again, the stored definition may have changed in the meantime
+            if(!isSameAccount(stored)) {
+               return;
+            }
 
-         try {
-            XRepository.getRepository().updateDataSourceTokens(dataSource, stored -> {
-               SharepointOnlineDataSource sharepoint = (SharepointOnlineDataSource) stored;
+            SharepointOnlineDataSource sharepoint = (SharepointOnlineDataSource) stored;
+            sharepoint.setAccessToken(accessToken);
+            sharepoint.setRefreshToken(refreshToken);
+            sharepoint.setTokenExpires(expires);
+         });
+      }
+      catch(Exception e) {
+         LOG.error("Failed to save access token", e);
+      }
+   }
 
-               // Bug #77730, the tokens belong to the user that signed in. If the variables of
-               // the credential were replaced with the values of the query, they are not kept by
-               // the stored definition, which would use them for the other values
-               if(!sharepoint.isSameAccount(dataSource)) {
-                  return;
-               }
+   /**
+    * Checks if a stored definition is that of the account the tokens were obtained for.
+    */
+   private boolean isSameAccount(Object stored) {
+      return stored instanceof SharepointOnlineDataSource sharepoint &&
+         sharepoint.isSameAccount(dataSource);
+   }
 
-               sharepoint.setAccessToken(accessToken);
-               sharepoint.setRefreshToken(refreshToken);
-               sharepoint.setTokenExpires(expires);
-            });
+   /**
+    * Gets the stored definition of the data source, without copying it.
+    */
+   private Object getStoredDataSource() {
+      try {
+         XRepository repository = XRepository.getRepository();
+         SharepointOnlineDataSource base = dataSource.getBaseDatasource();
+         String name = dataSource.getFullName();
+
+         // an additional connection is stored under its parent, not at its bare name
+         if(base != null && name != null && name.indexOf('/') < 0) {
+            return repository.getDataSource(base.getFullName(), false)
+               instanceof SharepointOnlineDataSource parent ? parent.getDataSource(name) : null;
          }
-         catch(Exception e) {
-            LOG.error("Failed to save access token", e);
-         }
+
+         return repository.getDataSource(name, false);
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to get the stored data source {}", dataSource.getFullName(), e);
+         return null;
       }
    }
 

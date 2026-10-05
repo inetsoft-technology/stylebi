@@ -90,7 +90,7 @@ class SharepointTokenSaveTest {
    // tokens were obtained with the values of the query, so they are not stored with the templates
    // either, where they would be used for other values
    @Test
-   void tokensAreSavedOntoTheStoredDefinition() throws Exception {
+   void templatedCredentialIsKeptAndGetsNoTokens() throws Exception {
       registry.setDataSource(source("spDs"), false);
 
       // TabularHandler.execute: clone the data source and replace its variables
