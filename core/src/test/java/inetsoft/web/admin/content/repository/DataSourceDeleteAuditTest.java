@@ -90,6 +90,7 @@ import static org.mockito.Mockito.*;
 class DataSourceDeleteAuditTest {
    private static final String URL = "jdbc:derby:memory:bug77819;create=true";
    private static final String DENIED_FOLDER = "Permission denied to delete datasource folder";
+   private static final String DENIED_SOURCE = "Permission denied to delete datasource";
 
    @Autowired
    private DataSourceRegistry registry;
@@ -98,6 +99,8 @@ class DataSourceDeleteAuditTest {
    private final Map<String, Permission> store = new HashMap<>();
    // the data source folders the user may not delete
    private final Set<String> deniedFolders = new HashSet<>();
+   // the data sources the user may not delete
+   private final Set<String> deniedSources = new HashSet<>();
    // the data sources a worksheet depends on
    private final List<String> dependencies = new ArrayList<>();
    private final List<ActionRecord> records = new ArrayList<>();
@@ -113,12 +116,15 @@ class DataSourceDeleteAuditTest {
       registry.init();
       store.clear();
       deniedFolders.clear();
+      deniedSources.clear();
       records.clear();
       SecurityProvider provider = mock(SecurityProvider.class);
       when(provider.isVirtual()).thenReturn(false);
       when(provider.checkPermission(any(), any(), anyString(), any())).thenAnswer(inv ->
          !(inv.getArgument(1) == ResourceType.DATA_SOURCE_FOLDER &&
-           deniedFolders.contains(inv.<String>getArgument(2))));
+           deniedFolders.contains(inv.<String>getArgument(2)) ||
+           inv.getArgument(1) == ResourceType.DATA_SOURCE &&
+           deniedSources.contains(inv.<String>getArgument(2))));
       doAnswer(inv -> store.remove(key(inv.getArgument(0), inv.getArgument(1))))
          .when(provider).removePermission(any(ResourceType.class), anyString());
       SecurityEngine security = mock(SecurityEngine.class);
@@ -324,6 +330,26 @@ class DataSourceDeleteAuditTest {
       assertNotNull(registry.getDataSourceFolder("ef"), "precondition: the folder is kept");
       assertRecords(record(ActionRecord.OBJECT_TYPE_FOLDER, "ef", false));
       assertEquals(DENIED_FOLDER, records.get(0).getActionError());
+   }
+
+   // a folder delete refused because a data source in it may not be deleted is audited as a
+   // failure, in the EM and in the portal
+   @Test
+   void folderDeleteRefusedByADataSourceInItIsAuditedAsFailure() throws Exception {
+      addFolder("fd");
+      addSource("fd/fdX");
+      deniedSources.add("fd/fdX");
+      ConnectionStatus status = objectService.deleteNodes(new TreeNodeInfo[] {
+         node("fd", RepositoryEntry.DATA_SOURCE_FOLDER) }, principal, true, false);
+      assertEquals(DENIED_SOURCE, status.getStatus());
+      status = controller.deleteDatasourceFolder("fd", true, principal);
+      assertEquals(DENIED_SOURCE, status.getStatus());
+      registry.clearCache();
+
+      assertNotNull(registry.getDataSource("fd/fdX"), "precondition: the data source is kept");
+      assertRecords(record(ActionRecord.OBJECT_TYPE_FOLDER, "fd", false),
+                    record(ActionRecord.OBJECT_TYPE_FOLDER, "fd", false));
+      assertTrue(records.stream().allMatch(r -> DENIED_SOURCE.equals(r.getActionError())));
    }
 
    // the dependency prompt of an EM data source delete is not audited, the confirmed delete is
