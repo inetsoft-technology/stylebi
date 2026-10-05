@@ -164,6 +164,40 @@ class UnloadableDataSourceMoveTest {
       }
    }
 
+   // EM Move of a data source with an additional connection whose connector isn't installed, sent
+   // with the node type the repository tree gives a data source (DATA_SOURCE | FOLDER)
+   @Test
+   void emMoveOfAnUninstalledDataSourceTreeNodeWithAnAdditionalConnectionIsRefused()
+      throws Exception
+   {
+      String p = prefix();
+      String path = p + "F/X";
+      tabular(path);
+      TestTabularDataSource parent = (TestTabularDataSource) registry.getDataSource(path);
+      TestTabularDataSource additional = new TestTabularDataSource();
+      additional.setName("A");
+      parent.addDatasource(additional);
+      grant(path);
+      uninstall();
+
+      MessageException error = assertThrows(
+         MessageException.class,
+         () -> emMove(List.of(path), RepositoryEntry.DATA_SOURCE | RepositoryEntry.FOLDER,
+                      p + "Dest"));
+
+      install();
+      assertEquals(unloadable(path), error.getMessage());
+      checkNotMoved(path, p + "Dest/X");
+      XDataSource stored = registry.getDataSource(path);
+      assertNotNull(stored, path + " is lost");
+      assertTrue(Arrays.asList(((AdditionalConnectionDataSource<?>) stored).getDataSourceNames())
+                    .contains("A"), path + " lost its additional connection");
+      assertFalse(storage.contains(entry(p + "Dest/X/A").toIdentifier()),
+                  "the additional connection is stored under the new path");
+      checkNothingQueued(path);
+      assertEquals(List.of(), audits);
+   }
+
    // EM Move of a data source whose stored definition is damaged
    @Test
    void emMoveOfACorruptDataSourceIsRefused() throws Exception {
