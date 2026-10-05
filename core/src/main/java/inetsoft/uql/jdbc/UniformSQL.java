@@ -2533,10 +2533,11 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       String name = ref != null ? ref : field;
 
       // a qualified quoted name (t."k") isn't unqualified. An unquoted name is an identifier
-      // as the sql lexer reads it (IDENT), e.g. a chinese name, apart from an @variable
+      // as the sql lexer reads it (IDENT), e.g. a chinese name or a latin-1 letter (Bug
+      // #77818), apart from an @variable
       if(getTableCount() != 1 || quoted && !quote.isEmpty() || name.isEmpty() ||
          name.indexOf('"') >= 0 ||
-         !quoted && !name.matches("[A-Za-z_\\u0100-\\uFFFE][A-Za-z0-9_\\u0100-\\uFFFE]*"))
+         !quoted && !name.matches(IDENT_NAME))
       {
          return -1;
       }
@@ -6154,6 +6155,14 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       matcher.appendTail(buf);
       return buf.toString();
    }
+
+   // an unquoted name as the sql lexer reads it (IDENT in SQLParser.g, keep them in step): the
+   // latin-1 letters but the operators U+00D7 and U+00F7, the middle dot U+00B7 after the
+   // first character, and every character from U+0100 up (Bug #77818)
+   private static final String IDENT_NAME =
+      "[A-Za-z_\\u00AA\\u00B5\\u00BA\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u00FF\\u0100-\\uFFFE]" +
+      "[A-Za-z0-9_\\u00AA\\u00B5\\u00B7\\u00BA\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u00FF" +
+      "\\u0100-\\uFFFE]*";
 
    // a double quoted name, or a name that isn't quoted
    private static final Pattern MATCH_NAME =

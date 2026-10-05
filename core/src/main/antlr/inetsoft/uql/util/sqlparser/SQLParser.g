@@ -5575,9 +5575,20 @@ private boolean isInterval() {
       '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9'
       ;*/
 
+// the latin-1 letters (U+00AA, U+00B5, U+00BA, U+00C0..U+00FF but the operators U+00D7 and
+// U+00F7) are identifier characters, as from U+0100 up, and the middle dot (U+00B7, as in
+// l\u00B7l) may continue one. Otherwise filter mode silently dropped such a letter, so
+// Kunden\u00FCbersicht was read as the table Kunden with the alias bersicht (Bug #77818).
+// Latin-1 symbols, e.g. the no-break space U+00A0, are not identifier characters
 IDENT
 			options {testLiterals=true;}
-			:	('a'..'z'|'A'..'Z'|'\u0100'..'\uFFFE'|'@') ('a'..'z'|'A'..'Z'|'\u0100'..'\uFFFE'|'_'|'0'..'9')*
+			:	('a'..'z'|'A'..'Z'|LATIN1_LETTER|'\u0100'..'\uFFFE'|'@')
+				('a'..'z'|'A'..'Z'|LATIN1_LETTER|'\u00B7'|'\u0100'..'\uFFFE'|'_'|'0'..'9')*
+			;
+
+protected
+LATIN1_LETTER	:	'\u00AA' | '\u00B5' | '\u00BA' | '\u00C0'..'\u00D6' | '\u00D8'..'\u00F6' |
+				'\u00F8'..'\u00FF'
 			;
 
 // setCommitToPath(true) after an opening delimiter makes an unterminated delimited token a
@@ -5589,8 +5600,9 @@ SPIDENT			:	'"' {setCommitToPath(true);} (~('"') | '"' '"')* '"'
 SPIDENT2		:	'`' {setCommitToPath(true);} ('\u0001'..'\u005f' | '\u0061'..'\ufffe')* '`'
 			;
 
+// a variable name may have the identifier characters of IDENT, e.g. $(\u00FCber) (Bug #77818)
 SPIDENT_VAR             :    "$(" {setCommitToPath(true);} ('a'..'z'|'A'..'Z'|'_'|'0'..'9'|' '|
-                                  '+' | '-' |'@'|'\u0100'..'\uFFFE')* ')' ;
+                                  '+' | '-' |'@'|LATIN1_LETTER|'\u00B7'|'\u0100'..'\uFFFE')* ')' ;
 
 // every character but '[' and ']', e.g. '\' or the CJK characters from U+80FE up. A '['
 // ends it, so a nested subscript (arr[idx[1]]) can't become one name (#77640). A doubled
