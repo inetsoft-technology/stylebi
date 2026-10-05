@@ -60,6 +60,7 @@ public class SharepointOnlineDataSource extends TabularDataSource<SharepointOnli
    @SuppressWarnings("unused")
    public void setUser(String username) {
       if(getCredential() instanceof PasswordCredential) {
+         clearTokensIfChanged(getUser(), username);
          ((PasswordCredential) getCredential()).setUser(username);
       }
    }
@@ -77,6 +78,7 @@ public class SharepointOnlineDataSource extends TabularDataSource<SharepointOnli
    @SuppressWarnings("unused")
    public void setPassword(String password) {
       if(getCredential() instanceof PasswordCredential) {
+         clearTokensIfChanged(getPassword(), password);
          ((PasswordCredential) getCredential()).setPassword(password);
       }
    }
@@ -94,6 +96,7 @@ public class SharepointOnlineDataSource extends TabularDataSource<SharepointOnli
    @SuppressWarnings("unused")
    public void setClientId(String clientId) {
       if(getCredential() instanceof ClientCredentials) {
+         clearTokensIfChanged(getClientId(), clientId);
          ((ClientCredentials) getCredential()).setClientId(clientId);
       }
    }
@@ -111,6 +114,7 @@ public class SharepointOnlineDataSource extends TabularDataSource<SharepointOnli
    @SuppressWarnings("unused")
    public void setTenantId(String tenantId) {
       if(getCredential() instanceof ResourceOwnerPasswordCredentials) {
+         clearTokensIfChanged(getTenantId(), tenantId);
          ((ResourceOwnerPasswordCredentials) getCredential()).setTenantId(tenantId);
       }
    }
@@ -128,6 +132,7 @@ public class SharepointOnlineDataSource extends TabularDataSource<SharepointOnli
    @SuppressWarnings("unused")
    public void setClientSecret(String clientSecret) {
       if(getCredential() instanceof ClientCredentials) {
+         clearTokensIfChanged(getClientSecret(), clientSecret);
          ((ClientCredentials) getCredential()).setClientSecret(clientSecret);
       }
    }
@@ -158,6 +163,31 @@ public class SharepointOnlineDataSource extends TabularDataSource<SharepointOnli
       if(getCredential() instanceof RefreshTokenCredential) {
          ((RefreshTokenCredential) getCredential()).setRefreshToken(refreshToken);
       }
+   }
+
+   /**
+    * Bug #77730, discards the tokens when a value that they were obtained with is changed, e.g.
+    * when the user is changed or the variables of the credential are replaced, so that the
+    * tokens of one account are never used for another.
+    */
+   private void clearTokensIfChanged(String oldValue, String newValue) {
+      if(!Objects.equals(oldValue, newValue)) {
+         setAccessToken(null);
+         setRefreshToken(null);
+         tokenExpires = null;
+      }
+   }
+
+   /**
+    * Checks if this data source signs in with the same values as another one, so that tokens
+    * obtained by one are valid for the other.
+    */
+   boolean isSameAccount(SharepointOnlineDataSource other) {
+      return Objects.equals(getUser(), other.getUser()) &&
+         Objects.equals(getPassword(), other.getPassword()) &&
+         Objects.equals(getClientId(), other.getClientId()) &&
+         Objects.equals(getTenantId(), other.getTenantId()) &&
+         Objects.equals(getClientSecret(), other.getClientSecret());
    }
 
    Instant getTokenExpires() {
