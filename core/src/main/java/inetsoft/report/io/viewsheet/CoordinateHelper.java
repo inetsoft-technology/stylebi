@@ -509,74 +509,25 @@ public class CoordinateHelper {
    }
 
    /**
-    * The y a selection container draws a child at: under the container's title and any
-    * out-selection rows, after the children above it.
+    * The y a selection container draws a child at. The container owns the rule, which its own
+    * layout also stores. {@code dim} is unused: a container's children are never tables.
     * @param containerTop the container's top, in the caller's pixel space.
     */
    public static float getContainerChildTop(CurrentSelectionVSAssembly cassembly,
                                             VSAssembly child, double containerTop,
                                             Dimension dim)
    {
-      Viewsheet vs = child.getViewsheet();
-      CurrentSelectionVSAssemblyInfo cinfo = (CurrentSelectionVSAssemblyInfo)
-         cassembly.getVSAssemblyInfo();
-      // current selection title height
-      float titleH = cinfo.getTitleHeight();
-      String[] assemblies = cassembly.getAssemblies();
-      int outN = !cassembly.isShowCurrentSelection() ? 0 :
-         cassembly.getOutSelectionTitles().length;
-      // the out rows' drawn height, which follows the density in a marked container
-      float currentY = (float) (containerTop + titleH +
-         outN * cinfo.getOutSelectionRowHeight(AssetUtil.defh));
-
-      for(int i = 0; i < assemblies.length; i++) {
-         if(child.getName().equals(assemblies[i])) {
-            break;
-         }
-
-         VSAssembly ass = (VSAssembly) vs.getAssembly(assemblies[i]);
-
-         if(ass == null) {
-            continue;
-         }
-
-         currentY += getAssemblySize(ass, dim).height;
-      }
-
-      return currentY;
+      return cassembly.getChildTop(child, containerTop);
    }
 
    /**
     * Get viewsheet assembly size.
     */
    public static Dimension getAssemblySize(VSAssembly assembly, Dimension size) {
-      if(assembly instanceof TimeSliderVSAssembly) {
-         TimeSliderVSAssembly slider = (TimeSliderVSAssembly) assembly;
-         TimeSliderVSAssemblyInfo info = (TimeSliderVSAssemblyInfo) slider.getVSAssemblyInfo();
-
-         if(info.isTitleVisible()) {
-            int titleh = info.getTitleHeight();
-            Dimension psize = assembly.getPixelSize();
-
-            if(info.isHidden()) {
-               return new Dimension(psize.width, titleh);
-            }
-
-            return new Dimension(psize.width, psize.height + titleh);
-         }
-      }
-
-      if(assembly instanceof SelectionListVSAssembly &&
-         ((SelectionListVSAssembly)assembly).getShowType() ==
-         SelectionListVSAssemblyInfo.DROPDOWN_SHOW_TYPE)
-      {
-         Dimension psize = assembly.getPixelSize();
-         SelectionListVSAssemblyInfo sinfo = (SelectionListVSAssemblyInfo) assembly.getInfo() ;
-         return new Dimension(psize.width, sinfo.getTitleHeight());
-      }
-
-      if(assembly instanceof SelectionListVSAssembly) {
-         return assembly.getPixelSize();
+      // a selection container child's drawn height, which the container owns
+      if(assembly instanceof TimeSliderVSAssembly || assembly instanceof SelectionListVSAssembly) {
+         return new Dimension(assembly.getPixelSize().width,
+                              CurrentSelectionVSAssembly.getDrawnHeight(assembly));
       }
 
       if(!(assembly instanceof TableDataVSAssembly)) {
