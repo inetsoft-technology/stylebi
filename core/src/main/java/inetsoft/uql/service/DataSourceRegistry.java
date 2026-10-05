@@ -225,7 +225,8 @@ public class DataSourceRegistry implements MessageListener {
     * Gets the paths that are used by both a data source and a data source folder in the current
     * organization. Such data can't be created any more (Bug #77691), but may exist. The data
     * sources in such a folder are stored at the paths of additional connections of the data
-    * source, so renaming or deleting the data source also changes them.
+    * source, so renaming or deleting one side is refused while the other side holds anything
+    * (see {@link #checkDataSourcePathClash(String)}).
     *
     * @return the paths, sorted.
     */
@@ -276,19 +277,221 @@ public class DataSourceRegistry implements MessageListener {
          List<String> clashes = getDataSourcePathClashes();
 
          if(!clashes.isEmpty()) {
-            // renaming or deleting either side moves or deletes the other's data sources, so no
-            // action is suggested until there is a repair (Bug #77691 follow-up)
+            // renaming, moving or deleting one side is refused while the other side holds
+            // anything under the path (Bug #77725), so the way out is to empty one side first
             LOG.warn("A data source and a data source folder share these paths in organization " +
                         "{}: {}. Saving the data source keeps the data sources in the folder. " +
-                        "Renaming or deleting the data source or the folder can move or delete " +
-                        "the other's data sources and additional connections, so don't rename " +
-                        "or delete either of them until the paths are repaired (a repair is " +
-                        "planned as a follow-up of Bug #77691).",
+                        "Renaming, moving or deleting the data source is refused while the " +
+                        "folder holds data sources or subfolders, and renaming, moving or " +
+                        "deleting the folder is refused while the data source has additional " +
+                        "connections or data models, unless both are deleted together. " +
+                        "Renaming or moving a folder above one of them is refused while its " +
+                        "folder holds data sources or subfolders. The two are separated by " +
+                        "moving the folder's data sources and subfolders out of it and then " +
+                        "renaming the data source.",
                      orgID, clashes);
          }
       }
       catch(Exception e) {
          LOG.debug("Failed to check the data source paths of organization {}", orgID, e);
+      }
+   }
+
+   /**
+    * Checks that a data source may be deleted, renamed or moved: if a data source folder has the
+    * same path (Bug #77691), the folder's data sources and subfolders are stored under the path
+    * of the data source and would be deleted or moved with it (Bug #77725). Thrown before
+    * anything is written.
+    *
+    * @param path the path of the data source.
+    *
+    * @throws MessageException if a folder at the path holds data sources or subfolders.
+    */
+   public void checkDataSourcePathClash(String path) {
+      PathClashSides sides = getPathClashSides(path);
+
+      if(sides != null) {
+         sides.check(sides.folderSide(), "common.datasource.pathClashFolderNotEmpty", path);
+      }
+   }
+
+   /**
+    * Checks that a data source folder may be renamed or moved: if a data source has the same path
+    * (Bug #77691), its additional connections and data models are stored under the path of the
+    * folder and would be moved with it, and a folder below it with a data source at its path
+    * would have its data sources taken for additional connections (Bug #77725). Thrown before
+    * anything is written.
+    *
+    * @param path the path of the folder.
+    *
+    * @throws MessageException if a data source at the path has additional connections or data
+    *                          models, or a data source at the path of a folder below it has a
+    *                          folder that holds data sources or subfolders.
+    */
+   public void checkDataSourceFolderPathClash(String path) {
+      checkDataSourceFolderDeletePathClash(path);
+
+      AssetEntry[] subfolders = getEntries(path + "/", AssetEntry.Type.DATA_SOURCE_FOLDER);
+      Arrays.sort(subfolders, Comparator.comparing(AssetEntry::getPath));
+
+      for(AssetEntry subfolder : subfolders) {
+         PathClashSides sides = getPathClashSides(subfolder.getPath());
+
+         if(sides != null) {
+            sides.check(sides.folderSide(), "common.datasource.pathClashBelow", path,
+                        subfolder.getPath());
+         }
+      }
+   }
+
+   /**
+    * Checks that a data source folder may be deleted: if a data source has the same path
+    * (Bug #77691), its additional connections and data models are stored under the path of the
+    * folder and would be deleted with it (Bug #77725). A folder below it with a data source at
+    * its path is deleted with that data source, both are what the delete asks for. Thrown before
+    * anything is written.
+    *
+    * @param path the path of the folder.
+    *
+    * @throws MessageException if a data source at the path has additional connections or data
+    *                          models.
+    */
+   public void checkDataSourceFolderDeletePathClash(String path) {
+      PathClashSides sides = getPathClashSides(path);
+
+      if(sides != null) {
+         sides.check(sides.dataSourceSide(), "common.datasource.pathClashDataSourceNotEmpty",
+                     path);
+      }
+   }
+
+   /**
+    * Checks if a data source and a data source folder share a path (older data, Bug #77691).
+    *
+    * @param path the path.
+    *
+    * @return {@code true} if both a data source and a folder are stored at the path.
+    */
+   public boolean isDataSourcePathClash(String path) {
+      return path != null &&
+         containObject(new AssetEntry(
+            AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE, path, null)) &&
+         containObject(new AssetEntry(
+            AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE_FOLDER, path, null));
+   }
+
+   /**
+    * Gets which side of a data source and data source folder at the same path holds entries
+    * under the path. The folder side is every subfolder, every data source stored with a full
+    * path name (a data source of the folder) and everything under it, and the data models and
+    * domains of those data sources. The data source side is every data source stored with a bare
+    * name (an additional connection), and the logical models, physical views and VPMs of the
+    * data source with their extended models. A data source one level under the path that can't
+    * be read can't be told apart, so it counts on both sides (as {@code unreadable}).
+    *
+    * @return the sides, or {@code null} if a data source and a folder don't share the path.
+    */
+   private PathClashSides getPathClashSides(String path) {
+      if(!isDataSourcePathClash(path)) {
+         return null;
+      }
+
+      String prefix = path + "/";
+      List<AssetEntry> entries = new ArrayList<>();
+      // the logical models and physical views of the data source, whose extended models are
+      // stored under them
+      Set<String> models = new HashSet<>();
+
+      for(AssetEntry entry : getEntries(prefix)) {
+         // the root folder may list a missing asset (bug #60767)
+         if(!containObject(entry)) {
+            continue;
+         }
+
+         entries.add(entry);
+         String name = entry.getPath().substring(prefix.length());
+
+         if(name.indexOf('/') < 0 && (entry.getType() == AssetEntry.Type.LOGIC_MODEL ||
+            entry.getType() == AssetEntry.Type.PARTITION))
+         {
+            models.add(entry.getType() + "/" + name);
+         }
+      }
+
+      boolean folderSide = false;
+      boolean dataSourceSide = false;
+      String unreadable = null;
+
+      for(AssetEntry entry : entries) {
+         String name = entry.getPath().substring(prefix.length());
+         int index = name.indexOf('/');
+         AssetEntry.Type type = entry.getType();
+
+         if(type == AssetEntry.Type.DATA_SOURCE && index < 0) {
+            String storedName = getStoredDataSourceName(entry);
+
+            if(storedName == null) {
+               unreadable = unreadable == null ? entry.getPath() : unreadable;
+            }
+            else if(storedName.indexOf('/') < 0) {
+               dataSourceSide = true;
+            }
+            else {
+               folderSide = true;
+            }
+         }
+         else if(index < 0 && (type == AssetEntry.Type.LOGIC_MODEL ||
+            type == AssetEntry.Type.PARTITION || type == AssetEntry.Type.VPM) ||
+            index > 0 && name.indexOf('/', index + 1) < 0 &&
+            (type == AssetEntry.Type.EXTENDED_LOGIC_MODEL &&
+               models.contains(AssetEntry.Type.LOGIC_MODEL + "/" + name.substring(0, index)) ||
+             type == AssetEntry.Type.EXTENDED_PARTITION &&
+               models.contains(AssetEntry.Type.PARTITION + "/" + name.substring(0, index))))
+         {
+            dataSourceSide = true;
+         }
+         else {
+            folderSide = true;
+         }
+      }
+
+      return new PathClashSides(path, folderSide, dataSourceSide, unreadable);
+   }
+
+   /**
+    * Gets the name a data source entry is stored with, or {@code null} if it can't be read.
+    */
+   private String getStoredDataSourceName(AssetEntry entry) {
+      return getStoredDataSourceName(entry, null);
+   }
+
+   private String getStoredDataSourceName(AssetEntry entry, String orgID) {
+      try {
+         XMLSerializable obj = getObject(entry, true, false, orgID);
+         return obj instanceof XDataSourceWrapper wrapper && wrapper.getSource() != null ?
+            wrapper.getSource().getFullName() : null;
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to read data source {}", entry.getPath(), e);
+         return null;
+      }
+   }
+
+   // which sides of a data source and folder at the same path hold entries under the path, and
+   // a data source under the path that can't be read, which counts on both sides
+   private record PathClashSides(String path, boolean folderSide, boolean dataSourceSide,
+                                 String unreadable)
+   {
+      // refuses if the side is not empty, or if an entry can't be told apart
+      void check(boolean side, String key, Object... args) {
+         if(side) {
+            throw new MessageException(Catalog.getCatalog().getString(key, args));
+         }
+
+         if(unreadable != null) {
+            throw new MessageException(Catalog.getCatalog().getString(
+               "common.datasource.pathClashUnreadable", path, unreadable));
+         }
       }
    }
 
@@ -350,7 +553,7 @@ public class DataSourceRegistry implements MessageListener {
       // which aren't presented as datasources on their own.
       String[] unfilteredNames = getFullNames(AssetEntry.Type.DATA_SOURCE).values().stream()
          .flatMap(List::stream).toArray(String[]::new);
-      return readableSources(getDataSourceFullNames0(unfilteredNames));
+      return readableSources(getDataSourceFullNames0(unfilteredNames, null));
    }
 
    /**
@@ -362,7 +565,7 @@ public class DataSourceRegistry implements MessageListener {
       // which aren't presented as datasources on their own.
       String[] unfilteredNames = getFullNames(AssetEntry.Type.DATA_SOURCE, orgID.orgID).values().stream()
          .flatMap(List::stream).toArray(String[]::new);
-      return readableSources(getDataSourceFullNames0(unfilteredNames));
+      return readableSources(getDataSourceFullNames0(unfilteredNames, orgID.orgID));
    }
 
    public String[] getDataSourceFullNames(String path) {
@@ -377,7 +580,7 @@ public class DataSourceRegistry implements MessageListener {
 
       if(names != null) {
          String[] unfilteredNames = names.toArray(new String[0]);
-         return readableSources(getDataSourceFullNames0(unfilteredNames));
+         return readableSources(getDataSourceFullNames0(unfilteredNames, null));
       }
 
       return new String[0];
@@ -394,14 +597,18 @@ public class DataSourceRegistry implements MessageListener {
 
       if(names != null) {
          String[] unfilteredNames = names.toArray(new String[0]);
-         return readableSources(getDataSourceFullNames0(unfilteredNames));
+         return readableSources(getDataSourceFullNames0(unfilteredNames, orgID));
       }
 
       return new String[0];
    }
 
-   private static String[] getDataSourceFullNames0(String[] unfilteredNames) {
+   /**
+    * @param orgID the organization of the names, or {@code null} for the current one.
+    */
+   private String[] getDataSourceFullNames0(String[] unfilteredNames, String orgID) {
       List<String> result = new ArrayList<>();
+      Set<String> folders = null;
 
       for(String name : unfilteredNames) {
          boolean isAdditional = false;
@@ -411,6 +618,19 @@ public class DataSourceRegistry implements MessageListener {
          // name of an additional connection
          for(String baseDS : unfilteredNames) {
             if(name.startsWith(baseDS + "/")) {
+               if(folders == null) {
+                  folders = new HashSet<>();
+                  getFullNames(AssetEntry.Type.DATA_SOURCE_FOLDER, orgID != null ? orgID :
+                     OrganizationManager.getInstance().getCurrentOrgID())
+                     .values().forEach(folders::addAll);
+               }
+
+               // Bug #77725, a data source of a folder at the path of the data source (older
+               // data, Bug #77691) is stored with its full path, an additional connection isn't
+               if(folders.contains(baseDS) && isStoredWithPathName(name, orgID)) {
+                  continue;
+               }
+
                isAdditional = true;
                break;
             }
@@ -698,6 +918,10 @@ public class DataSourceRegistry implements MessageListener {
          throw new SecurityException(Catalog.getCatalog().getString(
             "Permission denied to delete datasource"));
       }
+
+      // Bug #77725, before the try, which only logs a failure
+      checkDataSourcePathClash(dxname);
+
       try {
          // read before the data source and its additional connections are removed. The test
          // query of a removed additional connection is kept under its name alone
@@ -787,15 +1011,64 @@ public class DataSourceRegistry implements MessageListener {
     * @param name the specified data source folder name.
     */
    public synchronized void removeDataSourceFolder(String name) {
+      removeDataSourceFolder(name, false);
+   }
+
+   /**
+    * Remove a data source folder and its children from the repository.
+    *
+    * @param name           the specified data source folder name.
+    * @param withDataSource {@code true} to also remove a data source at the path of the folder
+    *                       (older data, Bug #77691) with its additional connections and data
+    *                       models. Otherwise the delete is refused if the data source has any
+    *                       (Bug #77725).
+    */
+   public synchronized void removeDataSourceFolder(String name, boolean withDataSource) {
       if(!checkPermission(ResourceType.DATA_SOURCE_FOLDER, name, ResourceAction.DELETE)) {
          throw new SecurityException(Catalog.getCatalog().getString(
             "Permission denied to delete datasource folder"));
       }
 
+      // Bug #77725, before the try, which only logs a failure
+      if(!withDataSource) {
+         checkDataSourceFolderDeletePathClash(name);
+      }
+
+      removeDataSourceFolder0(name);
+
+      if(withDataSource && containObject(new AssetEntry(
+         AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE, name, null)))
+      {
+         removeDataSource(name);
+      }
+   }
+
+   private void removeDataSourceFolder0(String name) {
       // the folders whose removal was tried, whose permissions are removed if they are gone
       List<AssetEntry> removedFolders = new ArrayList<>();
 
       try {
+         // Bug #77725, a subfolder at the path of a data source (older data, Bug #77691) is
+         // removed first, with its data sources and subfolders, and then the data source.
+         // Removed first, the data source would take the folder's data sources and subfolders
+         // and leave their permissions behind. A deeper one first.
+         AssetEntry[] clashed = Arrays.stream(
+            getEntries(name + "/", AssetEntry.Type.DATA_SOURCE_FOLDER))
+            .filter(entry -> isDataSourcePathClash(entry.getPath()))
+            .sorted(Comparator.comparing(AssetEntry::getPath).reversed())
+            .toArray(AssetEntry[]::new);
+
+         for(AssetEntry entry : clashed) {
+            if(!checkPermission(
+               ResourceType.DATA_SOURCE_FOLDER, entry.getPath(), ResourceAction.DELETE)) {
+               throw new SecurityException(Catalog.getCatalog().getString(
+                  "Permission denied to delete datasource folder"));
+            }
+
+            removeDataSourceFolder0(entry.getPath());
+            removeDataSource(entry.getPath());
+         }
+
          AssetEntry[] allDSChildren =
             getEntries(name + "/", AssetEntry.Type.DATA_SOURCE);
          AssetEntry[] allFolderChildren =
@@ -899,7 +1172,11 @@ public class DataSourceRegistry implements MessageListener {
       List<String> names = new ArrayList<>();
 
       for(String path : paths) {
-         if(!paths.contains(path.substring(0, path.lastIndexOf('/')))) {
+         String parent = path.substring(0, path.lastIndexOf('/'));
+
+         // Bug #77725, a data source of a folder at the path of the parent isn't an additional
+         // connection of it
+         if(!paths.contains(parent) || isFolderDataSourcePath(parent, path)) {
             names.add(path);
          }
       }
@@ -1017,6 +1294,9 @@ public class DataSourceRegistry implements MessageListener {
             "security.nopermission.write", "datasource"));
       }
 
+      // Bug #77725, a folder at the path would have its data sources moved under the new name
+      checkDataSourcePathClash(oname);
+
       XDomain domain = getDomain(oname);
       XDataModel model = getDataModel(oname);
       ds.setName(nname);
@@ -1115,7 +1395,35 @@ public class DataSourceRegistry implements MessageListener {
 
       XDataSource parent = getDataSource(path.substring(0, index));
       return parent instanceof AdditionalConnectionDataSource<?> ads &&
-         ads.containDatasource(path.substring(index + 1));
+         ads.containDatasource(path.substring(index + 1)) &&
+         !isFolderDataSourcePath(path.substring(0, index), path);
+   }
+
+   /**
+    * Checks if a data source entry under the path of a data source is a data source of a data
+    * source folder at the same path (older data, Bug #77691), not an additional connection: the
+    * folder exists and the entry is stored with a full path name, which an additional connection
+    * never is. An entry that can't be read is taken for an additional connection (Bug #77725).
+    *
+    * @param dataSource the path of the data source, e.g. "P".
+    * @param path       the path of the entry, e.g. "P/x".
+    *
+    * @return {@code true} if the entry is a data source of the folder.
+    */
+   public boolean isFolderDataSourcePath(String dataSource, String path) {
+      return containObject(new AssetEntry(
+         AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE_FOLDER, dataSource, null)) &&
+         isStoredWithPathName(path, null);
+   }
+
+   // a data source entry that can be read and is stored with a full path name
+   private boolean isStoredWithPathName(String path, String orgID) {
+      AssetEntry entry = orgID == null ?
+         new AssetEntry(AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE, path, null) :
+         new AssetEntry(AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE, path, null,
+                        orgID);
+      String name = getStoredDataSourceName(entry, orgID);
+      return name != null && name.indexOf('/') >= 0;
    }
 
    /**
@@ -1191,7 +1499,9 @@ public class DataSourceRegistry implements MessageListener {
 
       if(index <= 0 ||
          !(getDataSource(dxname.substring(0, index)) instanceof AdditionalConnectionDataSource) ||
-         !(getDataSource(dxname) instanceof JDBCDataSource))
+         !(getDataSource(dxname) instanceof JDBCDataSource) ||
+         // Bug #77725, a data source of a folder at the path of the data source
+         isFolderDataSourcePath(dxname.substring(0, index), dxname))
       {
          return null;
       }
@@ -1345,6 +1655,8 @@ public class DataSourceRegistry implements MessageListener {
       }
 
       checkDSFolderRenamePermission(oname);
+      // Bug #77725, before anything is written
+      checkDataSourceFolderPathClash(oname);
       // Bug #77704, a failed write stops the rename and is thrown, with the data sources moved
       // before it. The folders created for the move are removed again if nothing was moved in.
       Map<String, String> moved = new LinkedHashMap<>();

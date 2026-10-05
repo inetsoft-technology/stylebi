@@ -52,7 +52,9 @@ import java.io.File;
 import java.nio.file.Files;
 import java.security.Principal;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @RestController
 public class DataSourceController {
@@ -371,7 +373,15 @@ public class DataSourceController {
       // check every item before deleting any, so a denied item doesn't leave a partial delete
       checkDeletePermission(request, principal);
 
+      Set<String> folders = getPaths(request.folders());
+      Set<String> dataSources = getPaths(request.dataSources());
+
       for (SelectedDataSourceItem d : request.dataSources()) {
+         // Bug #77725, deleted with the folder at its path
+         if(folders.contains(d.path())) {
+            continue;
+         }
+
          DatabaseDefinition databaseDefinition = new DatabaseDefinition();
          databaseDefinition.setName(d.name());
          String fullPath = this.databaseDatasourcesService.getDataSourceAuditPath(d.path(), databaseDefinition, principal);
@@ -380,7 +390,10 @@ public class DataSourceController {
 
       for (SelectedDataSourceItem f : request.folders()) {
          String fullPath = Util.getObjectFullPath(RepositoryEntry.DATA_SOURCE_FOLDER, f.path(), principal);
-         ConnectionStatus status =
+         // Bug #77725, with the data source at its path if that is selected too
+         ConnectionStatus status = dataSources.contains(f.path()) ?
+            dataSourceBrowserService.deleteDataSourceFolder(
+               f.path(), fullPath, true, true, principal) :
             dataSourceBrowserService.deleteDataSourceFolder(f.path(), fullPath, true, principal);
 
          // refused after the check, e.g. a permission changed since, so don't report success
@@ -493,6 +506,33 @@ public class DataSourceController {
       for(SelectedDataSourceItem f : request.folders()) {
          datasourcesService.checkDataSourceFolderTreeDelete(f.path(), principal);
       }
+
+      // Bug #77725, a data source or folder whose path is shared by the other one, unless both
+      // are selected, which are deleted together
+      Set<String> folders = getPaths(request.folders());
+      Set<String> dataSources = getPaths(request.dataSources());
+
+      for(SelectedDataSourceItem d : request.dataSources()) {
+         if(!folders.contains(d.path())) {
+            datasourcesService.checkDeletePathClash(d.path(), false);
+         }
+      }
+
+      for(SelectedDataSourceItem f : request.folders()) {
+         if(!dataSources.contains(f.path())) {
+            datasourcesService.checkDeletePathClash(f.path(), true);
+         }
+      }
+   }
+
+   private static Set<String> getPaths(List<SelectedDataSourceItem> items) {
+      Set<String> paths = new HashSet<>();
+
+      for(SelectedDataSourceItem item : items) {
+         paths.add(item.path());
+      }
+
+      return paths;
    }
 
    private void checkDeletePermission(ResourceType type, String path, Principal principal)

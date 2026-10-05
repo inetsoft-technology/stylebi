@@ -442,6 +442,9 @@ public class DataSourceBrowserService {
                "common.datasource.moveUnderDataSource", dataSource));
          }
 
+         // Bug #77725, a data source at the path of the folder or of a subfolder
+         dataSourceRegistry.checkDataSourceFolderPathClash(path);
+
          List<String> childrenSources = new ArrayList<>();
          DependencyTransformer.prepareChildrenSources(path, childrenSources, repository);
          RenameDependencyInfo dinfo = DependencyTransformer.createDependencyInfo(
@@ -535,6 +538,27 @@ public class DataSourceBrowserService {
       Principal principal)
    {
       return repositoryObjectService.removeDataSourceFolder(path, force, principal);
+   }
+
+   /**
+    * delete datasource folder.
+    * @param path folder path.
+    * @param auditPath audit path(fullPath).
+    * @param withDataSource {@code true} to also delete a data source at the path of the folder
+    *                       (older data, Bug #77691), see
+    *                       {@link RepositoryObjectService#removeDataSourceFolder(String, boolean, Principal, boolean)}.
+    * @param principal user
+    */
+   @Audited(
+         actionName = ActionRecord.ACTION_NAME_DELETE,
+         objectType = ActionRecord.OBJECT_TYPE_FOLDER
+   )
+   public ConnectionStatus deleteDataSourceFolder(
+      String path, @SuppressWarnings("unused") @AuditObjectName String auditPath, boolean force,
+      boolean withDataSource, Principal principal)
+   {
+      return repositoryObjectService.removeDataSourceFolder(
+         path, force, principal, withDataSource);
    }
 
    private Locale getLocale(Principal principal) {
@@ -895,6 +919,20 @@ public class DataSourceBrowserService {
          if(dataSource != null) {
             throw new MessageException(Catalog.getCatalog(principal).getString(
                "common.datasource.moveUnderDataSource", dataSource));
+         }
+      }
+
+      // Bug #77725, a data source or folder whose path is shared by the other one
+      for(MoveCommand item : items) {
+         if(Objects.equals(item.getPath(), item.getOldPath())) {
+            continue;
+         }
+
+         if(PortalDataType.DATA_SOURCE_FOLDER.name().equals(item.getType())) {
+            registry.checkDataSourceFolderPathClash(item.getOldPath());
+         }
+         else {
+            registry.checkDataSourcePathClash(item.getOldPath());
          }
       }
    }

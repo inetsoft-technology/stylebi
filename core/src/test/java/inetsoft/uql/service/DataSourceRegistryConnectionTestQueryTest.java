@@ -91,7 +91,9 @@ class DataSourceRegistryConnectionTestQueryTest {
       doAnswer(inv -> inv.getArgument(1) == AssetEntry.Type.DATA_SOURCE ?
          entries(inv.getArgument(0)) : new AssetEntry[0])
          .when(registry).getEntries(anyString(), any(AssetEntry.Type.class));
-      doAnswer(inv -> sources.containsKey(inv.<AssetEntry>getArgument(0).getPath()))
+      // only data sources are stored, a folder at the path of one isn't (Bug #77725)
+      doAnswer(inv -> inv.<AssetEntry>getArgument(0).getType() == AssetEntry.Type.DATA_SOURCE &&
+         sources.containsKey(inv.<AssetEntry>getArgument(0).getPath()))
          .when(registry).containObject(any(AssetEntry.class));
       doAnswer(inv -> {
          if(inv.getArgument(2) == AssetEntry.Type.DATA_SOURCE) {

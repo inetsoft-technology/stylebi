@@ -126,6 +126,27 @@ public class RepositoryObjectService {
          checkPermission(node.type(), path, EnumSet.of(ResourceAction.DELETE), principal);
       }
 
+      // Bug #77725, a data source or folder whose path is shared by the other one, checked for
+      // every node before anything is deleted. A data source and the folder at its path that are
+      // both selected are deleted together.
+      Set<String> dataSourceFolders = new HashSet<>();
+      Set<String> dataSources = new HashSet<>();
+
+      for(TreeNodeInfo node : nodes) {
+         if(isDataSourceFolderNode(node.type())) {
+            dataSourceFolders.add(node.path());
+         }
+         else if(isDataSourceNode(node.type())) {
+            dataSources.add(node.path());
+         }
+      }
+
+      for(TreeNodeInfo node : nodes) {
+         if(!dataSourceFolders.contains(node.path()) || !dataSources.contains(node.path())) {
+            checkDataSourcePathClash(node.type(), node.path(), true);
+         }
+      }
+
       deleteAutoSaveNodes(autoSaveNodes, principal);
       List<TreeNodeInfo> list = new ArrayList<TreeNodeInfo>();
 
@@ -222,6 +243,11 @@ public class RepositoryObjectService {
                break;
             case RepositoryEntry.DATA_SOURCE:
             case RepositoryEntry.DATA_SOURCE | RepositoryEntry.FOLDER:
+               // Bug #77725, deleted with the folder at its path
+               if(dataSourceFolders.contains(node.path())) {
+                  break;
+               }
+
                ConnectionStatus dataSource = deleteDataSource(node.path(), force, principal);
 
                if(dataSource != null) {
@@ -230,8 +256,8 @@ public class RepositoryObjectService {
 
                break;
             case RepositoryEntry.DATA_SOURCE_FOLDER:
-               ConnectionStatus dataSourceFolder =
-                  removeDataSourceFolder(node.path(), force, principal);
+               ConnectionStatus dataSourceFolder = removeDataSourceFolder(
+                  node.path(), force, principal, dataSources.contains(node.path()));
 
                if(dataSourceFolder != null) {
                   return dataSourceFolder;
@@ -543,18 +569,74 @@ public class RepositoryObjectService {
       return null;
    }
 
+   /**
+    * Checks that a data source or data source folder node may be deleted or moved, if a data
+    * source and a data source folder share its path (Bug #77725). Other nodes are not checked.
+    *
+    * @param delete {@code true} for a delete, {@code false} for a move.
+    *
+    * @throws MessageException if the operation would act on the other one's entries.
+    */
+   private void checkDataSourcePathClash(int type, String path, boolean delete) {
+      if(isDataSourceFolderNode(type)) {
+         if(delete) {
+            dataSourceRegistry.checkDataSourceFolderDeletePathClash(path);
+         }
+         else {
+            dataSourceRegistry.checkDataSourceFolderPathClash(path);
+         }
+      }
+      else if(isDataSourceNode(type)) {
+         dataSourceRegistry.checkDataSourcePathClash(path);
+      }
+   }
+
+   private static boolean isDataSourceFolderNode(int type) {
+      return (type & RepositoryEntry.DATA_SOURCE_FOLDER) == RepositoryEntry.DATA_SOURCE_FOLDER;
+   }
+
+   private static boolean isDataSourceNode(int type) {
+      return !isDataSourceFolderNode(type) &&
+         (type & RepositoryEntry.DATA_SOURCE) == RepositoryEntry.DATA_SOURCE;
+   }
+
    private void removeDataSource(String dxname) {
       dataSourceRegistry.removeDataSource(dxname);
       securityProvider.removePermission(ResourceType.DATA_SOURCE, dxname);
    }
 
-   public synchronized ConnectionStatus removeDataSourceFolder(String dxname,
-                                                               boolean force,
-                                                               Principal principal)
+   public ConnectionStatus removeDataSourceFolder(String dxname, boolean force,
+                                                  Principal principal)
    {
+      return removeDataSourceFolder(dxname, force, principal, false);
+   }
+
+   /**
+    * Removes a data source folder with its data sources and subfolders.
+    *
+    * @param withDataSource {@code true} to also remove a data source at the path of the folder
+    *                       (older data, Bug #77691). Otherwise the delete is refused if that
+    *                       data source has additional connections or data models (Bug #77725).
+    *
+    * @return the reason it may not be deleted, or null if it was deleted.
+    */
+   public synchronized ConnectionStatus removeDataSourceFolder(String dxname, boolean force,
+                                                               Principal principal,
+                                                               boolean withDataSource)
+   {
+      // Bug #77725, a data source at the path of the folder
+      if(!withDataSource) {
+         dataSourceRegistry.checkDataSourceFolderDeletePathClash(dxname);
+      }
+
       // every data source and subfolder at any depth is checked before anything is deleted, as
       // the registry deletes them all (Bug #77731)
-      List<String> sources = dataSourceRegistry.getFolderTreeDataSourceNames(dxname);
+      List<String> sources = new ArrayList<>(
+         dataSourceRegistry.getFolderTreeDataSourceNames(dxname));
+
+      if(withDataSource && dataSourceRegistry.isDataSourcePathClash(dxname)) {
+         sources.add(dxname);
+      }
 
       for(String source : sources) {
          ConnectionStatus status = checkDataSourceDelete(source, force, principal);
@@ -574,12 +656,16 @@ public class RepositoryObjectService {
       }
 
       for(String source : sources) {
-         removeDataSource(source);
+         // Bug #77725, a data source at the path of the folder or of a subfolder is removed by
+         // the registry together with that folder
+         if(!dataSourceRegistry.isDataSourcePathClash(source)) {
+            removeDataSource(source);
+         }
       }
 
       // the registry removes the permission of each removed folder, this one too, only once the
       // stored index no longer lists it
-      dataSourceRegistry.removeDataSourceFolder(dxname);
+      dataSourceRegistry.removeDataSourceFolder(dxname, withDataSource);
 
       return null;
    }
@@ -1025,6 +1111,19 @@ public class RepositoryObjectService {
          if(dataSource != null) {
             throw new MessageException(Catalog.getCatalog(principal).getString(
                "common.datasource.moveUnderDataSource", dataSource));
+         }
+      }
+
+      // Bug #77725, a data source or folder whose path is shared by the other one. Check all
+      // nodes before moving any of them.
+      for(int i = 0; i < pathFroms.length; i++) {
+         String pathFrom = pathFroms[i] == null ? "" : pathFroms[i];
+         int pindex = pathFrom.lastIndexOf("/");
+         String name = pindex < 0 ? pathFrom : pathFrom.substring(pindex + 1);
+         String newPath = "/".equals(pathTo) ? name : pathTo + "/" + name;
+
+         if(!newPath.equals(pathFrom)) {
+            checkDataSourcePathClash(Integer.parseInt(typeFroms[i]), pathFrom, false);
          }
       }
 
