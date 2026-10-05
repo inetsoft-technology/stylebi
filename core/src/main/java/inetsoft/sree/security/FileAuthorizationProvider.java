@@ -276,8 +276,24 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
 
       List<KeyValuePair<Permission>> list = storage.stream().collect(Collectors.toList());
 
-      try {
-         for(KeyValuePair<Permission> pair : list) {
+      // The identity record is already gone when this listener runs, so the cleanup is
+      // best-effort per entry: a failed entry must not stop the remaining entries from being
+      // updated (Bug #77799). This method must not throw either: AuthenticationChain.changeDelegate
+      // has no catch, and a throw would skip SecurityEngine.fireAuthenticationChange (which logs out
+      // the sessions of a removed or renamed organization).
+      //
+      // The caller holds the authentication provider's lock. After the first put that times out
+      // (a hung backend), the remaining puts are still submitted, but are not waited on, so the
+      // whole cleanup waits at most one put timeout, as it did before. Those keys are reported as
+      // not confirmed, because a put that was not waited on, or that timed out, may still land.
+      List<String> failedKeys = new ArrayList<>();
+      List<String> unconfirmedKeys = new ArrayList<>();
+      Exception firstFailure = null;
+      boolean timedOut = false;
+      boolean interrupted = false;
+
+      for(KeyValuePair<Permission> pair : list) {
+         try {
             Permission perm = pair.getValue();
             boolean changed = false;
 
@@ -303,12 +319,48 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
             }
 
             if(changed) {
-               storage.put(pair.getKey(), perm).get(10L, TimeUnit.SECONDS);
+               Future<Permission> future = storage.put(pair.getKey(), perm);
+
+               if(timedOut) {
+                  unconfirmedKeys.add(pair.getKey());
+               }
+               else {
+                  future.get(10L, TimeUnit.SECONDS);
+               }
             }
          }
+         catch(TimeoutException e) {
+            timedOut = true;
+            unconfirmedKeys.add(pair.getKey());
+            firstFailure = firstFailure == null ? e : firstFailure;
+         }
+         catch(InterruptedException e) {
+            // Future.get cleared the interrupt flag, so the remaining entries can still be
+            // updated. The flag is restored after the loop.
+            interrupted = true;
+            failedKeys.add(pair.getKey());
+            firstFailure = firstFailure == null ? e : firstFailure;
+         }
+         catch(Exception e) {
+            failedKeys.add(pair.getKey());
+            firstFailure = firstFailure == null ? e : firstFailure;
+         }
       }
-      catch(Exception e) {
-         LOG.error("Failed to update permissions", e);
+
+      if(!failedKeys.isEmpty() || !unconfirmedKeys.isEmpty()) {
+         LOG.error(
+            "Failed to update the permissions after identity {} (type {}) was {}; these " +
+            "permission entries may not have been updated: failed={}, not confirmed={}",
+            oldID, type, removed ? "removed" : "renamed to " + newID, failedKeys, unconfirmedKeys,
+            firstFailure);
+      }
+
+      // Restore the interrupt for the caller. Note that this listener is still inside
+      // AuthenticationChain.changeDelegate, so the next listener (SecurityEngine's
+      // fireAuthenticationChange, which logs out the sessions of a removed organization) then runs
+      // on an interrupted thread, and an interruptible call there may fail.
+      if(interrupted) {
+         Thread.currentThread().interrupt();
       }
    }
 
