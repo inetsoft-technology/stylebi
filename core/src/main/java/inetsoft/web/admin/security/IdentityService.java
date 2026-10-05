@@ -3573,11 +3573,18 @@ public class IdentityService {
          return;
       }
 
-      if(resourceType == ResourceType.DATA_SOURCE) {
-         dataSourceRegistry.removeDataSource(path);
+      // Bug #77725, a data source and a folder that share the path are kept, and so is the user
+      // delete
+      try {
+         if(resourceType == ResourceType.DATA_SOURCE) {
+            dataSourceRegistry.removeDataSource(path);
+         }
+         else if(resourceType == ResourceType.DATA_SOURCE_FOLDER) {
+            dataSourceRegistry.removeDataSourceFolder(path);
+         }
       }
-      else if(resourceType == ResourceType.DATA_SOURCE_FOLDER) {
-         dataSourceRegistry.removeDataSourceFolder(path);
+      catch(MessageException e) {
+         LOG.warn("Kept {} {} of the deleted user: {}", resourceType, path, e.getMessage());
       }
    }
 

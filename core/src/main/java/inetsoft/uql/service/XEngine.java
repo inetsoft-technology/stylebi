@@ -306,6 +306,11 @@ public class XEngine implements XRepository, XQueryRepository {
       boolean nameChanged = oname != null && !Tool.equals(oname, dx.getFullName());
       boolean changed = odx != null && (!Tool.equals(dx, odx) || dx.getLastModified() != odx.getLastModified());
 
+      // Bug #77725, before the meta data is removed
+      if(nameChanged) {
+         getDSRegistry().checkDataSourcePathClash(oname);
+      }
+
       if(nameChanged || changed) {
          // when a datasource has been updated, remove the handlers for
          // that datasource from the cache.
@@ -355,7 +360,11 @@ public class XEngine implements XRepository, XQueryRepository {
 
          for(String name : names) {
             AdditionalConnectionDataSource<?> jds = base.getDataSource(name);
-            base.addDatasource(jds);
+
+            // can't be read, it is left as it is
+            if(jds != null) {
+               base.addDatasource(jds);
+            }
          }
       }
    }
@@ -663,6 +672,8 @@ public class XEngine implements XRepository, XQueryRepository {
    public void cutDataSourceFolder(DataSourceFolder folder, String oname)
       throws Exception
    {
+      // Bug #77725, before any data source is moved
+      getDSRegistry().checkDataSourceFolderPathClash(oname);
       Map<String, RenameDependencyInfo> unloadable = new LinkedHashMap<>();
       cutDataSourceFolder(folder, oname, unloadable, new LinkedHashMap<>());
 
@@ -798,6 +809,8 @@ public class XEngine implements XRepository, XQueryRepository {
                   "security.nopermission.write", oname));
             }
 
+            // Bug #77725, before cutDataSourceFolder, which moves the data sources first
+            getDSRegistry().checkDataSourceFolderPathClash(oname);
             moveDataSourceFolder(folder, oname);
          }
          else {
@@ -879,6 +892,8 @@ public class XEngine implements XRepository, XQueryRepository {
     */
    @Override
    public boolean removeDataSource(String dxname, boolean removeAnyWay) {
+      // Bug #77725, before the data model is removed
+      getDSRegistry().checkDataSourcePathClash(dxname);
       removeMetaData(dxname);
       getDSRegistry().removeDataModel(dxname);
       getDSRegistry().removeDataSource(dxname);
@@ -900,10 +915,25 @@ public class XEngine implements XRepository, XQueryRepository {
    public boolean removeDataSourceFolder(String name, boolean removeAnyWay)
       throws Exception
    {
+      // Bug #77725, before any subfolder or data source is removed
+      getDSRegistry().checkDataSourceFolderPathClash(name);
+      return removeDataSourceFolder0(name, removeAnyWay);
+   }
+
+   private boolean removeDataSourceFolder0(String name, boolean removeAnyWay) throws Exception {
       List<String> children = getDSRegistry().getSubfolderNames(name);
 
       for(String child : children) {
-         removeDataSourceFolder(child, removeAnyWay);
+         // Bug #77725, a data source at the path of the subfolder is removed first, with its
+         // additional connections, or the subfolder's removal would be refused. The check above
+         // found nothing of the subfolder's under its path.
+         if(getDSRegistry().containObject(new AssetEntry(
+            AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE, child, null)))
+         {
+            removeDataSource(child, removeAnyWay);
+         }
+
+         removeDataSourceFolder0(child, removeAnyWay);
       }
 
       children = getDSRegistry().getSubDataSourceNames(name);

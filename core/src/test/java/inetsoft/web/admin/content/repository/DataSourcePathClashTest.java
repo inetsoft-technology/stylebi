@@ -469,7 +469,11 @@ class DataSourcePathClashTest {
          assertFalse(warning.contains("Rename the folder"), warning);
          assertFalse(warning.toLowerCase().matches(".*\\. (rename|delete|move|remove) .*"),
                      warning);
-         assertTrue(warning.contains("don't rename or delete either of them"), warning);
+         // Bug #77725, the operations that would act on the other side are refused, and the way
+         // out is given
+         assertTrue(warning.contains("is refused while the folder holds data sources"), warning);
+         assertTrue(warning.contains("move the folder's data sources and subfolders out of it, " +
+                                        "then rename the data source"), warning);
       }
    }
 
