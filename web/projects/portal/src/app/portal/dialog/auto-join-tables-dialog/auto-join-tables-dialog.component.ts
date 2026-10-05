@@ -37,7 +37,6 @@ import { FormsModule } from "@angular/forms";
 import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 const AUTO_JOIN_URI: string = "../api/data/physicalmodel/autoJoin/";
-const JOIN_CARDINALITY_URI: string = "../api/data/physicalmodel/cardinality/";
 const ADD_AUTO_JOIN_URI: string = "../api/data/physicalmodel/add/autoJoin";
 
 @Component({
