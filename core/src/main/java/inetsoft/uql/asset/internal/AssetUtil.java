@@ -2411,6 +2411,13 @@ public class AssetUtil {
     * @return the asset repository.
     */
    public static AssetRepository getAssetRepository(boolean design) {
+      // Bug #77827: the engine reads and writes every user's and org's assets with no
+      // principal check of its own, so a script must not hold it. Java helpers a script
+      // calls (VSUtil.getBookmarks, XUtil.runQuery) still get it
+      if(XUtil.isDirectScriptCall(AssetUtil.class)) {
+         throw new java.lang.SecurityException("A script may not get the asset repository");
+      }
+
       String key = design ? DESIGN_REPOSITORY_KEY : REPOSITORY_KEY;
       WeakReference<AssetRepository> ref = ConfigurationContext.getContext().get(key);
       AssetRepository rep = ref == null ? null : ref.get();
