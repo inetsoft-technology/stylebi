@@ -84,18 +84,17 @@ class UniformSQLUnquotedTwin77643Test {
 
    /**
     * The twins written in one query, the unquoted one in another case than the folded one.
+    * Both spellings in one query are refused (Bug #77643, UniformSQLCaseTwinRefuseTest), an
+    * unquoted one alone is the column of the folded case.
     */
    @Test
    void qualifiedTwinsInBothOrders() throws Exception {
+      assertTwinRefused("postgresql", "select t.\"MixedCase\", t.MixedCase as b from t");
+      assertTwinRefused("postgresql", "select t.\"MixedCase\", t.MixedCase as b from t " +
+                        "order by t.MixedCase desc");
+
       for(String[] columns : new String[][] { PG_TWIN_SECOND, PG_TWIN_FIRST }) {
          String label = columns[1];
-         assertEquals("select \"t\".\"MixedCase\", \"t\".\"mixedcase\" as \"b\" from \"t\"",
-                      fixed("postgresql", "select t.\"MixedCase\", t.MixedCase as b from t", columns),
-                      label);
-         assertEquals("select \"t\".\"MixedCase\", \"t\".\"mixedcase\" as \"b\" from \"t\" " +
-                      "order by \"t\".\"mixedcase\" desc",
-                      fixed("postgresql", "select t.\"MixedCase\", t.MixedCase as b from t " +
-                            "order by t.MixedCase desc", columns), label);
          assertEquals("select \"id\", \"t\".\"mixedcase\" from \"t\" order by \"t\".\"mixedcase\" desc",
                       fixed("postgresql", "select id, t.MixedCase from t order by t.MixedCase desc",
                             columns), label);
@@ -108,20 +107,17 @@ class UniformSQLUnquotedTwin77643Test {
     */
    @Test
    void qualifiedTwinsInGroupByInBothOrders() throws Exception {
+      // both spellings in one query are refused (Bug #77643)
+      for(String helper : new String[] { "postgresql", "snowflake", "exasol" }) {
+         assertTwinRefused(helper, "select t.\"MixedCase\", t.MixedCase as b, count(*) as n from t " +
+                           "group by t.\"MixedCase\", t.MixedCase");
+      }
+
       for(String[] columns : new String[][] { PG_TWIN_SECOND, PG_TWIN_FIRST }) {
          assertEquals("select \"t\".\"MixedCase\", \"t\".\"mixedcase\" as \"b\", count(*) as \"n\" from \"t\" " +
                       "group by \"t\".\"MixedCase\", \"t\".\"mixedcase\"",
-                      fixed("postgresql", "select t.\"MixedCase\", t.MixedCase as b, count(*) as n from t " +
-                            "group by t.\"MixedCase\", t.MixedCase", columns), columns[1]);
-      }
-
-      for(String helper : new String[] { "snowflake", "exasol" }) {
-         for(String[] columns : new String[][] { TWIN_SECOND, TWIN_FIRST }) {
-            String generated = fixed(helper, "select t.\"MixedCase\", t.MixedCase as b, count(*) as n from t " +
-                                     "group by t.\"MixedCase\", t.MixedCase", columns);
-            assertTrue(generated.endsWith(" group by \"t\".\"MixedCase\", \"t\".MIXEDCASE"),
-                       helper + " " + columns[1] + ": " + generated);
-         }
+                      fixed("postgresql", "select t.\"MixedCase\", t.mixedcase as b, count(*) as n from t " +
+                            "group by t.\"MixedCase\", t.mixedcase", columns), columns[1]);
       }
    }
 
@@ -198,7 +194,7 @@ class UniformSQLUnquotedTwin77643Test {
          }
 
          for(String query : new String[] {
-            "select t.\"MixedCase\", t.MixedCase as b from t order by t.MixedCase desc",
+            "select t.\"MixedCase\", t.mixedcase as b from t order by t.mixedcase desc",
             "select t.mixedcase, count(*) from t group by t.mixedcase",
             "select t.id from t where t.MixedCase > 15" })
          {
@@ -348,6 +344,15 @@ class UniformSQLUnquotedTwin77643Test {
       finally {
          java.util.Locale.setDefault(old);
       }
+   }
+
+   // a query with both spellings of a name is refused, its sql runs as written (Bug #77643)
+   static void assertTwinRefused(String helper, String query) {
+      UniformSQL sql = new UniformSQL();
+      sql.setDataSource(helpers(helper));
+      assertThrows(antlr.SemanticException.class,
+                   () -> sql.parse(query, UniformSQL.PARSE_ALL, UniformSQL.PARSE_PERIOD),
+                   helper + ": " + query);
    }
 
    private static SQLHelper helper(String key) {

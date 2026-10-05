@@ -81,6 +81,9 @@ class UniformSQLOuterJoinDialectTest {
          Arguments.of("databricks", "com.databricks.client.jdbc.Driver", "jdbc:databricks://localhost"));
    }
 
+   static final String QUOTED_TABLES =
+      "select a.x from \"a\" left join \"b\" on \"b\".\"id\" = \"a\".\"id\"";
+
    static final String[] ACCEPTED = {
       "select a.x from a left join b on b.id = a.id",
       "select a.x from a right join b on b.id = a.id",
@@ -89,7 +92,7 @@ class UniformSQLOuterJoinDialectTest {
       "select t1.x from a t1 left join b t2 on t2.id = t1.id",
       "select sch.a.id from sch.a left join sch.b on sch.b.id = sch.a.id",
       "select a.x from a left join b on a.k = b.k left join c on c.id = b.id",
-      "select a.x from \"a\" left join \"b\" on \"b\".\"id\" = \"a\".\"id\"",
+      QUOTED_TABLES,
       "select * from \"My A\" left join b on b.id = \"My A\".id"
    };
 
@@ -200,6 +203,14 @@ class UniformSQLOuterJoinDialectTest {
       throws Exception
    {
       JDBCDataSource ds = dataSource(type, driver, url);
+
+      // snowflake and exasol fold a.x to A.X, so a and "a" are two names and the query is
+      // refused (Bug #77643). It fails on these databases as written, "a" is no table
+      if(text.equals(QUOTED_TABLES) && (type.startsWith("snowflake") || type.startsWith("exasol"))) {
+         assertThrows(antlr.SemanticException.class, () -> parse(text, ds));
+         return;
+      }
+
       UniformSQL sql = parse(text, ds);
       assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult());
 

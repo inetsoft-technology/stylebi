@@ -179,20 +179,33 @@ class UniformSQLQuotedAggregateTest {
    void bothSpellingsOfOneColumnKeepTheirOwnQuotes() throws Exception {
       String query = "select q.id, sum(q.MixedCase) a, sum(q.\"MixedCase\") b from t q group by q.id";
 
-      assertEquals("select \"q\".\"id\", sum(q.\"MIXEDCASE\") as \"a\", sum(q.\"MixedCase\") as \"b\" from \"t\" q " +
-                   "group by \"q\".\"id\"", aggregate("postgresql", query, TWIN_FIRST));
-      assertEquals("select \"q\".\"id\", sum(q.MIXEDCASE) as a, sum(q.\"MixedCase\") as b from \"t\" q " +
-                   "group by \"q\".\"id\"", aggregate("snowflake", query, TWIN_FIRST));
-      assertEquals("select \"q\".\"id\", sum(q.MixedCase) as a, sum(q.\"MixedCase\") as b from \"t\" q " +
-                   "group by \"q\".\"id\"", aggregate("exasol", query, TWIN_SECOND));
+      // where they are two names, the query is refused (Bug #77643)
+      for(String key : TWIN_REFUSED) {
+         assertTwinRefused(key, query);
+      }
+
       assertEquals("select q.id, sum(q.\"MixedCase\") as b, sum(q.MIXEDCASE) as a from t q group by q.id",
                    aggregate("h2", query, TWIN_FIRST));
 
-      UniformSQL sql = parse(query, source("postgresql"));
-      JDBCSelection selection = (JDBCSelection) sql.getSelection();
-      assertEquals(selection.getColumn(1), selection.getColumn(2));
-      assertNull(selection.getQuotedAggregate(1));
-      assertEquals("MixedCase", selection.getQuotedAggregate(2));
+      // db.caseSensitive stores both with the same text, and folds no name
+      String old = SreeEnv.getProperty("db.caseSensitive");
+      SreeEnv.setProperty("db.caseSensitive", "true");
+
+      try {
+         UniformSQL sql = parse(query, source("h2"));
+         JDBCSelection selection = (JDBCSelection) sql.getSelection();
+         assertEquals(selection.getColumn(1), selection.getColumn(2));
+         assertNull(selection.getQuotedAggregate(1));
+         assertEquals("MixedCase", selection.getQuotedAggregate(2));
+      }
+      finally {
+         if(old == null) {
+            SreeEnv.remove("db.caseSensitive");
+         }
+         else {
+            SreeEnv.setProperty("db.caseSensitive", old);
+         }
+      }
    }
 
    @Test
@@ -201,11 +214,9 @@ class UniformSQLQuotedAggregateTest {
 
       assertEquals(String.format(pg, "MixedCase", "MixedCase"),
                    aggregate("postgresql", SELECT + " order by sum(q.\"MixedCase\")", TWIN_FIRST));
-      // the select list and the order by are recorded separately
-      assertEquals(String.format(pg, "MIXEDCASE", "MixedCase"),
-                   aggregate("postgresql", UNQUOTED + " order by sum(q.\"MixedCase\")", TWIN_FIRST));
-      assertEquals(String.format(pg, "MixedCase", "MIXEDCASE"),
-                   aggregate("postgresql", SELECT + " order by sum(q.MixedCase)", TWIN_FIRST));
+      // both spellings are refused on postgresql (Bug #77643)
+      assertTwinRefused("postgresql", UNQUOTED + " order by sum(q.\"MixedCase\")");
+      assertTwinRefused("postgresql", SELECT + " order by sum(q.MixedCase)");
       assertEquals("select \"q\".\"id\", sum(q.\"MixedCase\") from \"t\" q group by \"q\".\"id\" " +
                    "order by sum(q.\"MixedCase\") asc",
                    aggregate("snowflake", SELECT + " order by sum(q.\"MixedCase\")", TWIN_SECOND));
@@ -216,7 +227,8 @@ class UniformSQLQuotedAggregateTest {
                    "order by \"s\" asc",
                    aggregate("postgresql", "select q.id, sum(q.\"MixedCase\") s from t q group by q.id order by s"));
 
-      UniformSQL sql = parse(UNQUOTED + " order by sum(q.\"MixedCase\")", source("postgresql"));
+      // the select list and the order by are recorded separately
+      UniformSQL sql = parse(UNQUOTED + " order by sum(q.\"MixedCase\")", source("h2"));
       assertEquals("MixedCase", sql.getQuotedAggregate(sql.getOrderByFields()[0]));
       assertNull(((JDBCSelection) sql.getSelection()).getQuotedAggregate(1));
    }
@@ -300,6 +312,12 @@ class UniformSQLQuotedAggregateTest {
          "order by sum(q.\"MixedCase\")";
 
       for(String key : helpers().keySet()) {
+         // where they are two names, the query is refused (Bug #77643)
+         if(TWIN_REFUSED.contains(key)) {
+            assertTwinRefused(key, query);
+            continue;
+         }
+
          JDBCDataSource ds = source(key);
          UniformSQL sql = parse(query, ds);
          String xml = toXML(sql);
@@ -315,10 +333,11 @@ class UniformSQLQuotedAggregateTest {
          assertEquals(sql.getSelection(), loaded.getSelection(), key);
       }
 
-      // after the metadata step
-      UniformSQL sql = fixed("postgresql", query, TWIN_FIRST);
+      // after the metadata step, the quoted spelling only on postgresql
+      UniformSQL sql = fixed("postgresql", "select q.id, sum(q.mixedcase) a, sum(q.\"MixedCase\") b " +
+                             "from t q group by q.id order by sum(q.\"MixedCase\")", TWIN_FIRST);
       String expected = regenerate(sql);
-      assertEquals("select \"q\".\"id\", sum(q.\"MIXEDCASE\") as \"a\", sum(q.\"MixedCase\") as \"b\" from \"t\" q " +
+      assertEquals("select \"q\".\"id\", sum(q.\"MixedCase\") as \"b\", sum(q.\"MIXEDCASE\") as \"a\" from \"t\" q " +
                    "group by \"q\".\"id\" order by \"b\" asc", expected);
       // the metadata isn't saved, the loaded sql gets it again
       UniformSQL loaded = reload(sql);
@@ -384,7 +403,7 @@ class UniformSQLQuotedAggregateTest {
    void columnChangesKeepTheRecordAtItsColumn() throws Exception {
       // removing a column moves the records after it
       UniformSQL sql = parse("select q.id, sum(q.MixedCase) a, sum(q.\"MixedCase\") b from t q group by q.id",
-                             source("postgresql"));
+                             source("h2"));
       JDBCSelection selection = (JDBCSelection) sql.getSelection();
       selection.removeColumn(1);
       assertEquals("MixedCase", selection.getQuotedAggregate(1));
@@ -408,6 +427,12 @@ class UniformSQLQuotedAggregateTest {
       String renamed = "select r.id, sum(r.MixedCase) a, sum(r.\"MixedCase\") b from t r group by r.id";
 
       for(String key : new String[] { "h2", "h2-ansi", "oracle", "postgresql", "snowflake", "exasol" }) {
+         // where they are two names, the query is refused (Bug #77643)
+         if(TWIN_REFUSED.contains(key)) {
+            assertTwinRefused(key, renamed);
+            continue;
+         }
+
          sql = fixed(key, renamed, TWIN_FIRST);
          renameAlias(sql, "r", "x");
          selection = (JDBCSelection) sql.getSelection();
@@ -456,7 +481,23 @@ class UniformSQLQuotedAggregateTest {
 
       for(String key : helpers().keySet()) {
          for(String query : queries) {
+            if(TWIN_REFUSED.contains(key) && isTwin(query)) {
+               assertTwinRefused(key, query);
+               continue;
+            }
+
             String generated = regenerate(parse(query, source(key)));
+
+            // snowflake and exasol write a column of the alias q as "q"."id", next to the
+            // q."MixedCase" of an aggregate. "q" isn't the alias there (Q), so the sql fails as
+            // written, and the two spellings are refused when it's parsed (Bug #77643)
+            if(UPPER_FOLDING.contains(key) && generated.contains("\"q\".") &&
+               (generated.contains("(q.") || generated.contains(" q.")))
+            {
+               assertTwinRefused(key, generated);
+               continue;
+            }
+
             assertEquals(generated, regenerate(parse(generated, source(key))), key + ": " + query);
          }
       }
@@ -508,6 +549,12 @@ class UniformSQLQuotedAggregateTest {
             }
 
             for(String query : queries) {
+               // where they are two names, the query is refused and runs as written (Bug #77643)
+               if(TWIN_REFUSED.contains(key) && isTwin(query)) {
+                  assertTwinRefused(key, query);
+                  continue;
+               }
+
                List<String> expected = rows(stmt, query);
                String[][] metadata = key.equals("default") ? new String[][] { {} } :
                   new String[][] { {}, TWIN_FIRST, TWIN_SECOND };
@@ -726,6 +773,24 @@ class UniformSQLQuotedAggregateTest {
       catch(SQLException ex) {
          throw new SQLException(query, ex);
       }
+   }
+
+   // the helpers that fold an unquoted name, where q.MixedCase and q."MixedCase" are two
+   // names and a query with both is refused (Bug #77643)
+   private static final Set<String> TWIN_REFUSED = Set.of("postgresql", "snowflake", "exasol");
+
+   private static final Set<String> UPPER_FOLDING = Set.of("snowflake", "exasol");
+
+   private static boolean isTwin(String query) {
+      return query.contains("q.MixedCase") && query.contains("q.\"MixedCase\"");
+   }
+
+   private static void assertTwinRefused(String key, String query) {
+      UniformSQL sql = new UniformSQL();
+      sql.setDataSource(source(key));
+      assertThrows(antlr.SemanticException.class,
+                   () -> sql.parse(query, UniformSQL.PARSE_ALL, UniformSQL.PARSE_PERIOD),
+                   key + ": " + query);
    }
 
    private static int count(Pattern pattern, String str) {

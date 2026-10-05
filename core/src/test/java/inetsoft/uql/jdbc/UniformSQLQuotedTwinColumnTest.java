@@ -303,30 +303,18 @@ class UniformSQLQuotedTwinColumnTest {
    }
 
    /**
-    * PostgreSQL stores an unquoted name with in-band quotes ("MixedCase") and a quoted one
-    * without them, flagged, so the two spellings have other text and other flags. The quoted
-    * one keeps its case. The unquoted one is generated quoted, as before this change: that is
-    * the in-band quoting of a case-sensitive helper, not the flag.
+    * PostgreSQL stores an unquoted name with in-band quotes ("MixedCase"), so the two
+    * spellings of one name would be stored as one text. A query with both is refused
+    * (Bug #77643, UniformSQLCaseTwinRefuseTest). The quoted one keeps its case.
     */
    @Test
    void postgresqlTwinsBeforeAndAfterTheMetadataStep() throws Exception {
       JDBCDataSource pg = helpers().get("postgresql");
-      UniformSQL sql = parse("select \"MixedCase\", MixedCase as b from t", pg);
-      JDBCSelection select = (JDBCSelection) sql.getSelection();
-      assertEquals("MixedCase", select.getColumn(0));
-      assertTrue(select.isQuoted(0));
-      assertEquals("\"MixedCase\"", select.getColumn(1));
-      assertFalse(select.isQuoted(1));
-
-      Map<String, String> stages = stages(
+      assertTwinRefused("select \"MixedCase\", MixedCase as b from t", pg);
+      assertTwinRefused(
          "select \"MixedCase\", MixedCase as b from t group by \"MixedCase\", MixedCase " +
          "order by MixedCase desc, \"MixedCase\"", pg);
-      assertEquals("select \"MixedCase\" as \"b\", \"t\".\"MixedCase\" from \"t\" " +
-                   "group by \"t\".\"MixedCase\", \"MixedCase\" order by \"MixedCase\" desc, \"t\".\"MixedCase\" asc",
-                   stages.get("fixed"));
-      assertEquals(stages.get("fixed"), stages.get("fixed-xml"));
-      assertEquals("select \"t\".\"MIXEDCASE\" as \"b\", \"t\".\"MixedCase\" from \"t\"",
-                   stages("select t.\"MixedCase\", t.MixedCase as b from t", pg).get("fixed-twin-first"));
+      assertTwinRefused("select t.\"MixedCase\", t.MixedCase as b from t", pg);
       assertEquals("select \"t\".\"MixedCase\" from \"t\" order by \"t\".\"MixedCase\" asc",
                    stages("select \"MixedCase\" from t order by 1", pg).get("fixed"));
    }
@@ -470,8 +458,11 @@ class UniformSQLQuotedTwinColumnTest {
     */
    @Test
    void droppedOrderByItemKeepsTheAggregateRecord() throws Exception {
+      // both spellings of the name are refused on postgresql (Bug #77643)
+      assertTwinRefused("select sum(t.\"MixedCase\") from t " +
+                        "order by sum(t.\"MixedCase\") desc, sum(t.MixedCase)", helpers().get("postgresql"));
       UniformSQL sql = parse("select sum(t.\"MixedCase\") from t " +
-                             "order by sum(t.\"MixedCase\") desc, sum(t.MixedCase)", helpers().get("postgresql"));
+                             "order by sum(t.\"MixedCase\") desc, sum(t.\"MixedCase\")", helpers().get("postgresql"));
       OrderByItem[] items = sql.getOrderByItems();
       assertEquals(1, items.length, Arrays.toString(items));
       assertEquals("desc", items[0].getOrder());
@@ -547,9 +538,9 @@ class UniformSQLQuotedTwinColumnTest {
                    "order by \"k\" asc, count(*) asc",
                    fixed("postgresql", "select k as ID, count(*) from t group by id, k order by id, 2",
                          "id", "k", "a"));
-      // A1: an unquoted A is a, not the quoted alias "A"
-      assertEquals("select \"id\" as \"A\" from \"t\" order by \"t\".a desc",
-                   fixed("postgresql", "select id as \"A\" from t order by A desc", "id", "k", "a"));
+      // A1: an unquoted A is a, not the quoted alias "A". The regenerated "A" would be the
+      // alias, so the query is refused (Bug #77643)
+      assertTwinRefused("select id as \"A\" from t order by A desc", helpers().get("postgresql"));
       // a quoted "A" is the column "A", not the unquoted alias A (which is a)
       assertEquals("select \"w\".\"A\", \"w\".\"id\" as \"A\" from \"w\" order by \"w\".\"A\" desc",
                    fixed("postgresql", "select w.id as A, w.\"A\" from w order by \"A\" desc", "id", "A"));
@@ -559,10 +550,6 @@ class UniformSQLQuotedTwinColumnTest {
       // the common shape, the reference is the alias as generated
       assertEquals("select \"id\" as \"A\" from \"u\" order by \"A\" desc",
                    fixed("postgresql", "select id as A from u order by A desc", "id"));
-      // A1 where no column a exists: the original fails on postgresql (column a doesn't exist),
-      // the reference names nothing and is dropped, as on #6190
-      assertEquals("select \"id\" as \"A\" from \"u\"",
-                   fixed("postgresql", "select id as \"A\" from u order by A desc", "id"));
       // an ordinal next to them is converted, the items are decided
       assertEquals("select \"u\".\"id\", \"u\".\"k\" as \"A\" from \"u\" order by \"u\".\"k\" asc, \"u\".\"id\" desc",
                    fixed("postgresql", "select u.k as A, u.id from u order by a, 2 desc", "id", "k"));
@@ -884,10 +871,9 @@ class UniformSQLQuotedTwinColumnTest {
       for(String helper : new String[] { "snowflake", "exasol" }) {
          assertEquals("order by \"A\" desc",
                       orderBy(fixed(helper, "select id as a from u order by A desc", "id")), helper);
-         assertEquals("order by \"t\".A desc",
-                      orderBy(fixed(helper, "select k as \"a\" from t order by a desc", "id", "k", "A")), helper);
-         assertEquals("order by \"t\".A desc",
-                      orderBy(fixed(helper, "select id as \"a\" from t order by a desc", "id", "k", "A")), helper);
+         // the quoted alias "a" and an unquoted a, which is A, are refused (Bug #77643)
+         assertTwinRefused("select k as \"a\" from t order by a desc", helpers().get(helper));
+         assertTwinRefused("select id as \"a\" from t order by a desc", helpers().get(helper));
          // an expression alias is written unquoted, so the database folds it
          assertEquals("order by \"A\" desc",
                       orderBy(fixed(helper, "select id + 1 as a from t order by a desc", "id")), helper);
@@ -1090,6 +1076,14 @@ class UniformSQLQuotedTwinColumnTest {
       UniformSQL copy = new UniformSQL();
       copy.read(sql);
       return copy;
+   }
+
+   // a query with both spellings of a name is refused, its sql runs as written (Bug #77643)
+   private static void assertTwinRefused(String query, JDBCDataSource ds) {
+      UniformSQL sql = new UniformSQL();
+      sql.setDataSource(ds);
+      assertThrows(antlr.SemanticException.class,
+                   () -> sql.parse(query, UniformSQL.PARSE_ALL, UniformSQL.PARSE_PERIOD), query);
    }
 
    private static Map<String, JDBCDataSource> helpers() {

@@ -483,6 +483,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                   new StringReader(regenerated.getQuotedSqlString(generated)));
                SQLParser parser2 = new SQLParser(lexer);
                parser2.setTime(time);
+               parser2.setCaseTwinCheck(false);
                parseUnquoted(() -> parser2.direct_select_stmt_n_rows(regenerated));
                structure = parser2.getJoinStructure(regenerated);
             }
