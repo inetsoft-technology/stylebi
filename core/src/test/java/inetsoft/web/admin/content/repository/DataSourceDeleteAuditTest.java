@@ -242,6 +242,20 @@ class DataSourceDeleteAuditTest {
                    new ObjectMapper().writeValueAsString(status));
    }
 
+   // a portal folder delete that throws, refused on the path clash, is audited as a failure
+   @Test
+   void portalFolderDeleteThrownIsAuditedAsFailure() {
+      clash("pt");
+      Exception thrown = assertThrows(
+         Exception.class, () -> controller.deleteDatasourceFolder("pt", true, principal));
+      registry.clearCache();
+
+      assertNotNull(registry.getDataSourceFolder("pt"), "precondition: the folder is kept");
+      assertNotNull(registry.getDataSource("pt"), "precondition: the data source is kept");
+      assertRecords(record(ActionRecord.OBJECT_TYPE_FOLDER, "pt", false));
+      assertEquals(thrown.getMessage(), records.get(0).getActionError());
+   }
+
    // the dependency prompt of a portal folder delete is not audited, the confirmed delete is
    @Test
    void portalFolderDeletePromptIsNotAudited() throws Exception {
