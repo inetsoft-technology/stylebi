@@ -108,8 +108,9 @@ class UniformSQLCrossJoinChainTest {
    private static final String LEFT_FIRST_EXISTS = "select c.id, d.id from d left join c " +
       "on d.id = c.id where exists (select 1 from a cross join b cross join x)";
    // a LEFT join at the start of its from clause before a group whose join condition
-   // doesn't name the table it joins (join e on b.id = a.id), so SQLHelper leaves the
-   // text order and writes the outer join after the inner join group (review r5 B6)
+   // doesn't name the table it joins (join e on b.id = a.id). SQLHelper left the text
+   // order and wrote the outer join after the inner join group (review r5 B6). It now writes
+   // that condition in the where clause and keeps the text order (Bug #77674)
    private static final String LEFT_FIRST_FALLBACK = "select a.id, b.id, c.id, d.id, e.id from " +
       "d left join c on d.id = c.id, ((a join b on a.id = b.id join e on b.id = a.id))";
    // the same over a nested join, which SQLHelper writes as a RIGHT join group, (c join e)
@@ -118,9 +119,9 @@ class UniformSQLCrossJoinChainTest {
       "x.id from d left join (c join e on c.id = e.id) on d.id = c.id, ((a join b on a.id = b.id " +
       "join x on b.id = a.id))";
    // a LEFT join at the start of its from clause with later joins that don't join its right
-   // side in a column join, before a group that makes SQLHelper leave the text order. The
-   // inner joins are written first and the LEFT join after them, which joins the same rows
-   // (review r6)
+   // side in a column join, before a group that made SQLHelper leave the text order. The
+   // inner joins were written first and the LEFT join after them, which joins the same rows
+   // (review r6). The text order is now kept (Bug #77674)
    private static final String COLS6 = "select a.id, b.id, c.id, d.id, e.id, x.id ";
    private static final String FALLBACK_GROUP = ", ((a join b on a.id = b.id join x on b.id = a.id))";
    private static final String LEFT_FIRST_LATER_INNER = COLS6 + "from d left join c on d.id = c.id " +
@@ -227,25 +228,25 @@ class UniformSQLCrossJoinChainTest {
          Arguments.of(LEFT_FIRST_EXISTS, "d.id *= c.id",
                       "select c.id, d.id from d LEFT OUTER JOIN c ON d.id = c.id where EXISTS " +
                          "( select 1 from a, b, x)"),
-         // written after the inner join group and a comma, it still joins the same rows,
-         // since its join condition names only d and c (review r5)
+         // the join condition that names no new table is a where condition, and the LEFT
+         // join is written first, as in the text (review r5, Bug #77674)
          Arguments.of(LEFT_FIRST_FALLBACK, "d.id *= c.id; a.id = b.id; b.id = a.id",
-                      "select a.id, b.id, c.id, d.id, e.id from a INNER JOIN b ON a.id = b.id AND " +
-                         "b.id = a.id , d LEFT OUTER JOIN c ON d.id = c.id , e"),
-         // later joins that don't join the right side in a column join, written after the
-         // inner joins when SQLHelper leaves the text order (review r6)
+                      "select a.id, b.id, c.id, d.id, e.id from d LEFT OUTER JOIN c ON d.id = c.id , " +
+                         "a INNER JOIN b ON a.id = b.id , e where b.id = a.id"),
+         // later joins that don't join the right side in a column join, in the text order
+         // (review r6, Bug #77674)
          Arguments.of(LEFT_FIRST_LATER_INNER, "d.id *= c.id; d.id = e.id; a.id = b.id; b.id = a.id",
-                      COLS6 + "from (d INNER JOIN e ON d.id = e.id ) LEFT OUTER JOIN c ON d.id = c.id , " +
-                         "a INNER JOIN b ON a.id = b.id AND b.id = a.id , x"),
+                      COLS6 + "from (d LEFT OUTER JOIN c ON d.id = c.id ) INNER JOIN e ON d.id = e.id , " +
+                         "a INNER JOIN b ON a.id = b.id , x where b.id = a.id"),
          Arguments.of(LEFT_FIRST_LATER_LEFT, "d.id *= c.id; d.id *= e.id; a.id = b.id; b.id = a.id",
-                      COLS6 + "from a INNER JOIN b ON a.id = b.id AND b.id = a.id , (d LEFT OUTER JOIN " +
-                         "c ON d.id = c.id ) LEFT OUTER JOIN e ON d.id = e.id , x"),
+                      COLS6 + "from (d LEFT OUTER JOIN c ON d.id = c.id ) LEFT OUTER JOIN e ON " +
+                         "d.id = e.id , a INNER JOIN b ON a.id = b.id , x where b.id = a.id"),
          Arguments.of(LEFT_FIRST_LATER_FILTER, "d.id *= c.id; d.id = e.id; a.id = b.id; b.id = a.id",
-                      COLS6 + "from (d INNER JOIN e ON d.id = e.id ) LEFT OUTER JOIN c ON d.id = c.id , " +
-                         "a INNER JOIN b ON a.id = b.id AND b.id = a.id , x where c.id > 1"),
+                      COLS6 + "from (d LEFT OUTER JOIN c ON d.id = c.id ) INNER JOIN e ON d.id = e.id , " +
+                         "a INNER JOIN b ON a.id = b.id , x where (c.id > 1) AND b.id = a.id"),
          Arguments.of(LEFT_FIRST_WHERE_JOIN, "d.id *= c.id; a.id = b.id; b.id = a.id; e.id = c.id",
-                      COLS6 + "from a INNER JOIN b ON a.id = b.id AND b.id = a.id , d LEFT OUTER JOIN " +
-                         "c ON d.id = c.id , e, x where e.id = c.id")
+                      COLS6 + "from d LEFT OUTER JOIN c ON d.id = c.id , a INNER JOIN b ON " +
+                         "a.id = b.id , e, x where (e.id = c.id) AND b.id = a.id")
       );
    }
 
@@ -895,14 +896,16 @@ class UniformSQLCrossJoinChainTest {
 
    /**
     * The from clauses of leftJoinFollowedByJoinToItsRightSide and whereOuterJoinInNewSyntax
-    * with no new syntax parse and regenerate as before, the inner join first and the outer
-    * join written as a RIGHT join after it (the known gap on main, review r6). The next
-    * regeneration reverses the ON, as for the B5 and B6 twins, so there's no round trip.
+    * with no new syntax parse. The where clause outer join regenerates as before, the inner
+    * join first and the outer join written as a RIGHT join after it (the known gap on main,
+    * review r6). The next regeneration reverses the ON, as for the B5 and B6 twins, so there's
+    * no round trip. The ON joins keep the text order, with join r on p.k = q.k, which names
+    * no new table, as a where condition (Bug #77674).
     */
    static Stream<Arguments> mainOuterJoinFollowedByJoinToItsRightSide() {
       return Stream.of(
-         Arguments.of(B7_LEFT.trim(), B7_COLS + "from (e INNER JOIN c ON e.id = c.id ) RIGHT " +
-            "OUTER JOIN d ON d.id = c.id , p INNER JOIN q ON p.id = q.id AND p.k = q.k , r"),
+         Arguments.of(B7_LEFT.trim(), B7_COLS + "from (d LEFT OUTER JOIN c ON d.id = c.id ) " +
+            "INNER JOIN e ON e.id = c.id , p INNER JOIN q ON p.id = q.id , r where p.k = q.k"),
          Arguments.of(WHERE_OUTER.trim(), "select c.id, d.id, e.id from (e INNER JOIN c ON " +
             "e.id = c.id ) RIGHT OUTER JOIN d ON d.id = c.id , p INNER JOIN q ON p.id = q.id"));
    }
@@ -920,9 +923,11 @@ class UniformSQLCrossJoinChainTest {
 
    /**
     * A LEFT join over a nested join at the start of its from clause, written as a RIGHT
-    * join group, stays the first group when a later group makes SQLHelper leave the text
-    * order, so SQLite reads it the same (rows in rowQueries). Its regenerated join
-    * condition is reversed by the next regeneration, as on main, so there's no round trip.
+    * join group, stays the first group when a later group made SQLHelper leave the text
+    * order, so SQLite reads it the same (rows in rowQueries). The later group's join
+    * condition that names no new table is now a where condition in the text order (Bug
+    * #77674). Its regenerated join condition is reversed by the next regeneration, as on
+    * main, so there's no round trip.
     */
    @Test
    void leftJoinOverNestedJoinStaysFirstWithoutTextOrder() throws Exception {
@@ -931,8 +936,8 @@ class UniformSQLCrossJoinChainTest {
          assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult(), type);
          assertFalse(sql.isLossy(), type);
          assertEquals("select a.id, b.id, c.id, d.id, e.id, x.id from (c INNER JOIN e ON c.id = e.id ) " +
-                         "RIGHT OUTER JOIN d ON d.id = c.id , a INNER JOIN b ON a.id = b.id AND " +
-                         "b.id = a.id , x", regenerate(sql), type);
+                         "RIGHT OUTER JOIN d ON d.id = c.id , a INNER JOIN b ON a.id = b.id , x " +
+                         "where b.id = a.id", regenerate(sql), type);
       }
    }
 
@@ -951,7 +956,7 @@ class UniformSQLCrossJoinChainTest {
       assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult(), text);
       assertFalse(sql.isLossy(), text);
       assertEquals("select c.id, d.id, p.id, q.id, r.id from c RIGHT OUTER JOIN d ON c.id = d.id " +
-         ", p INNER JOIN q ON p.id = q.id AND p.k = q.k , r", regenerate(sql));
+         ", p INNER JOIN q ON p.id = q.id , r where p.k = q.k", regenerate(sql));
    }
 
    @ParameterizedTest
@@ -1309,7 +1314,22 @@ class UniformSQLCrossJoinChainTest {
    private static void assertRoundTrip(String generated, JDBCDataSource ds) throws Exception {
       UniformSQL reparsed = parse(generated, ds);
       assertEquals(UniformSQL.PARSE_SUCCESS, reparsed.getParseResult(), generated);
-      assertEquals(generated, regenerate(reparsed), "round trip");
+      String regenerated = regenerate(reparsed);
+
+      // a join condition SQLHelper writes after the from clause (one that names no new table,
+      // Bug #77674) is ANDed to the where clause as where (..) AND condition. Parsed again
+      // it's part of the where clause, written where .. and condition, which round trips
+      java.util.regex.Matcher anded =
+         java.util.regex.Pattern.compile("(.*) where \\((.*)\\) AND (.*)").matcher(generated);
+
+      if(!generated.equals(regenerated) && anded.matches()) {
+         assertEquals(anded.group(1) + " where " + anded.group(2) + " and " + anded.group(3),
+                      regenerated, "round trip");
+         assertEquals(regenerated, regenerate(parse(regenerated, ds)), "round trip");
+         return;
+      }
+
+      assertEquals(generated, regenerated, "round trip");
    }
 
    // the joins as "column op column" in the order of the where clause

@@ -755,6 +755,7 @@ public class SQLHelper implements KeywordProvider {
       ansiWhereJoins = null;
       commaGroupsChanged = false;
       commaGroupsNotMovable = false;
+      outerLastTextJoins = false;
 
       // make sure the table aliases don't exceed database limit
       fixTableAliases();
@@ -2178,6 +2179,9 @@ public class SQLHelper implements KeywordProvider {
       // preferred since it will guarantee all A records are returned.
       else {
          if(vJoin != null) {
+            // joins parsed from sql text lose the order and nesting of the text here, which
+            // the parse checks refuse (isOuterLastTextJoins, Bug #77674)
+            outerLastTextJoins = outerLastTextJoins || isTextJoinOrder();
             vJoin.sort(new OuterJoinComparator());
          }
       }
@@ -2631,6 +2635,17 @@ public class SQLHelper implements KeywordProvider {
    }
 
    /**
+    * Check if the last generated sql wrote joins parsed from sql text in the outer-last order
+    * (OuterJoinComparator) because they didn't fit the text order or one chain. That order can
+    * move an inner join to the null-supplying side of an outer join of the text, e.g.
+    * d left join c on d.id = c.id join e on e.id = c.id is written as
+    * (e JOIN c) RIGHT JOIN d, which keeps the d rows that the inner join removed (Bug #77674).
+    */
+   public boolean isOuterLastTextJoins() {
+      return outerLastTextJoins;
+   }
+
+   /**
     * Add the tables that are not in any join to the from clause.
     * @param from the joined tables.
     * @param usedtables the tables in the joins.
@@ -2770,12 +2785,17 @@ public class SQLHelper implements KeywordProvider {
       List<List<XJoin>> steps = new ArrayList<>(onClauses.values());
       steps.addAll(pairs.values());
       List<TextJoinGroup> groups = new ArrayList<>();
+      // the joins written in the where clause, added once the whole from clause fits, since
+      // the matrix walk of the old order writes its own
+      List<XJoin> whereJoins = new ArrayList<>();
 
       for(List<XJoin> step : steps) {
-         if(!appendTextJoinStep(groups, step, joinTables)) {
+         if(!appendTextJoinStep(groups, step, joinTables, whereJoins)) {
             return null;
          }
       }
+
+      whereJoins.forEach(this::addAnsiWhereJoin);
 
       Set<Object> usedtables = new HashSet<>();
       List<String> texts = new ArrayList<>();
@@ -2794,10 +2814,12 @@ public class SQLHelper implements KeywordProvider {
 
    /**
     * Add one join step to the text order groups.
+    * @param whereJoins the joins to write in the where clause.
     * @return <tt>false</tt> if the step doesn't fit a text order form.
     */
    private boolean appendTextJoinStep(List<TextJoinGroup> groups, List<XJoin> step,
-                                      Map<XJoin, Object[][]> joinTables)
+                                      Map<XJoin, Object[][]> joinTables,
+                                      List<XJoin> whereJoins)
    {
       // the conditions of the step are written as one AND list, so they must
       // be ANDed in the ON, e.g. not on b.id = c.id and (a.x = c.x or ...)
@@ -2946,6 +2968,18 @@ public class SQLHelper implements KeywordProvider {
          groups.remove(left);
          groups.remove(right);
          groups.add(group);
+      }
+      // an inner join ON that names only tables of one group adds no table, e.g. r in
+      // p join q on p.id = q.id join r on p.k = q.k, which is a comma item. It is a condition
+      // of the group, the same in the where clause as long as no later join null-extends the
+      // group. The parse fails when a later join does, because the regenerated joins then
+      // differ (Bug #77515, #77674). Not a join added in the query editor, which has no ON and
+      // no such check
+      else if(newTables.isEmpty() && joined.size() == 1 && !outer &&
+              step.get(0).isOnClauseJoin())
+      {
+         whereJoins.addAll(step);
+         return true;
       }
       else {
          return false;
@@ -6582,6 +6616,9 @@ public class SQLHelper implements KeywordProvider {
    // true if commaGroupsChanged did more than move the only RIGHT or FULL join group to the
    // front, see isCommaGroupsNotMovable (Bug #77675)
    private boolean commaGroupsNotMovable = false;
+   // true if this generation wrote parsed joins in the outer-last order, see
+   // isOuterLastTextJoins (Bug #77674)
+   private boolean outerLastTextJoins = false;
    private Map<String, String> aliasmap = null; // old table alias -> new alias
    private String version = "";
    private boolean isFormatSQL; //for test auto case. Test will not format sql.

@@ -950,6 +950,26 @@ public void checkCommaJoinGroups(UniformSQL sql, boolean notMovable) throws Sema
 }
 
 /**
+ * Check that the regenerated sql of a query with an outer join keeps the order and nesting of
+ * its joins. SQLHelper writes the joins in text order, and when a join doesn't fit it, writes
+ * them in the outer-last order, which can move an inner join to the null-supplying side of an
+ * outer join, e.g. d left join c on d.id = c.id join e on e.id = c.id as (e JOIN c) RIGHT JOIN
+ * d, which keeps the d rows that the inner join removed. Such a query is refused and its sql
+ * runs as written (Bug #77674).
+ * @param outerLast true if the regenerated sql wrote the joins in the outer-last order
+ * (SQLHelper.isOuterLastTextJoins).
+ */
+public void checkTextJoinOrder(UniformSQL sql, boolean outerLast) throws SemanticException {
+   if(outerLast) {
+      Token tok = getFirstJoinToken(sql);
+
+      throw new SemanticException(
+         "Unsupported join order, the joins can't be regenerated in the order of the sql",
+         getFilename(), tok == null ? 0 : tok.getLine(), tok == null ? 0 : tok.getColumn());
+   }
+}
+
+/**
  * Get the JOIN keyword of the first join recorded for a query, null if none.
  */
 private Token getFirstJoinToken(UniformSQL sql) {
