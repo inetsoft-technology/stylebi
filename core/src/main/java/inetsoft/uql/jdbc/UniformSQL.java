@@ -468,12 +468,14 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          UniformSQL query = (UniformSQL) obj;
          String structure = null;
          boolean commaGroupsNotMovable = false;
+         boolean outerLast = false;
 
          try {
             if(source != null) {
                SQLHelper helper = getCheckSQLHelper(source);
                String generated = generateCheckSQL(query, source, helper);
                commaGroupsNotMovable = helper.isCommaGroupsNotMovable();
+               outerLast = helper.isOuterLastTextJoins();
 
                UniformSQL regenerated = new UniformSQL();
                regenerated.setDataSource(source);
@@ -491,6 +493,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
 
          parser.checkJoinOrder(query, structure);
          parser.checkCommaJoinGroups(query, commaGroupsNotMovable);
+         parser.checkTextJoinOrder(query, outerLast);
       }
 
       checkCommaJoinGroups(parser);
@@ -499,11 +502,14 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    /**
     * Check that the regenerated sql of each query with an outer join that the join order
     * check doesn't regenerate needs at most to move its only RIGHT or FULL join group before
-    * its other comma separated join groups (Bug #77675). Without a data source, its sql is
-    * checked with the base sql helper, which writes the join groups of every ANSI helper
-    * except MongoHelper the same way. A query whose sql can't be generated is refused, like
-    * the join order check does.
-    * @return true if the sql of any query was generated to check it.
+    * its other comma separated join groups (Bug #77675), and keeps the order of its joins
+    * (Bug #77674). Without a data source, its sql is checked with the base sql helper, which
+    * writes the join groups of every ANSI helper except MongoHelper the same way. A query
+    * with several join groups whose sql can't be generated is refused, like the join order
+    * check does.
+    * @return true if the sql of any query with several join groups was generated to check
+    * it. The join order of a single group is the same with every helper that reaches the
+    * outer-last order (Oracle without ansi join never does), so its check isn't counted.
     */
    private boolean checkCommaJoinGroups(SQLParser parser) throws Exception {
       JDBCDataSource source = getDataSource();
@@ -511,29 +517,50 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
 
       for(Object obj : parser.getCommaJoinGroupChecks()) {
          UniformSQL query = (UniformSQL) obj;
+         boolean severalGroups = hasSeveralJoinGroups(query);
 
-         // a single join group is never reordered, don't generate it (or the subqueries of
-         // the query, whose sql helper may connect to the database for its version)
-         if(!hasSeveralJoinGroups(query)) {
+         // a single join group is never reordered, and its joins only lose their order
+         // with an inner join, so don't generate it (or the subqueries of the query, whose sql
+         // helper may connect to the database for its version) otherwise
+         if(!severalGroups && !hasOuterAndInnerJoins(query)) {
             continue;
          }
 
-         boolean commaGroupsNotMovable = true;
-         checked = true;
+         boolean commaGroupsNotMovable = severalGroups;
+         boolean outerLast = false;
+         checked = checked || severalGroups;
 
          try {
             SQLHelper helper = source != null ? getCheckSQLHelper(source) : new SQLHelper();
             generateCheckSQL(query, source, helper);
             commaGroupsNotMovable = helper.isCommaGroupsNotMovable();
+            outerLast = helper.isOuterLastTextJoins();
          }
          catch(Exception ex) {
             LOG.debug("Failed to generate the sql to check its join groups", ex);
          }
 
          parser.checkCommaJoinGroups(query, commaGroupsNotMovable);
+         parser.checkTextJoinOrder(query, outerLast);
       }
 
       return checked;
+   }
+
+   /**
+    * Check if a query has both an outer join and an inner join.
+    */
+   private static boolean hasOuterAndInnerJoins(UniformSQL query) {
+      XJoin[] joins = query.getJoins();
+      boolean outer = false;
+      boolean inner = false;
+
+      for(int i = 0; joins != null && i < joins.length; i++) {
+         outer = outer || joins[i].isOuterJoin();
+         inner = inner || !joins[i].isOuterJoin();
+      }
+
+      return outer && inner;
    }
 
    /**
