@@ -917,12 +917,21 @@ public class ResourcePermissionService {
 
    public static String getDataSourceResourceName(String resourcePath, DataSourceRegistry dataSourceRegistry) {
       if(resourcePath.contains("/")) {
-         // may be additional connection
+         // may be additional connection, of the data source with the longest path it lies under
+         String parent = null;
+
          for(String ds : dataSourceRegistry.getDataSourceFullNames()) {
-            if(resourcePath.startsWith(ds + "/")) {
-               resourcePath = ds + "::" + resourcePath.substring(ds.length() + 1);
-               break;
+            if(resourcePath.startsWith(ds + "/") &&
+               (parent == null || ds.length() > parent.length()))
+            {
+               parent = ds;
             }
+         }
+
+         // Bug #77725, a data source of a folder at the path of the data source (older data,
+         // Bug #77691) is not an additional connection of it
+         if(parent != null && !dataSourceRegistry.isFolderDataSourcePath(parent, resourcePath)) {
+            resourcePath = parent + "::" + resourcePath.substring(parent.length() + 1);
          }
       }
 

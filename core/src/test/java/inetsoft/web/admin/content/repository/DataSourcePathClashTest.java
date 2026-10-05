@@ -472,8 +472,9 @@ class DataSourcePathClashTest {
          // Bug #77725, the operations that would act on the other side are refused, and the way
          // out is given
          assertTrue(warning.contains("is refused while the folder holds data sources"), warning);
-         assertTrue(warning.contains("move the folder's data sources and subfolders out of it, " +
-                                        "then rename the data source"), warning);
+         assertTrue(warning.contains("separated by moving the folder's data sources and " +
+                                        "subfolders out of it and then renaming the data " +
+                                        "source"), warning);
       }
    }
 

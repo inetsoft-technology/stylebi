@@ -540,6 +540,27 @@ public class DataSourceBrowserService {
       return repositoryObjectService.removeDataSourceFolder(path, force, principal);
    }
 
+   /**
+    * delete datasource folder.
+    * @param path folder path.
+    * @param auditPath audit path(fullPath).
+    * @param withDataSource {@code true} to also delete a data source at the path of the folder
+    *                       (older data, Bug #77691), see
+    *                       {@link RepositoryObjectService#removeDataSourceFolder(String, boolean, Principal, boolean)}.
+    * @param principal user
+    */
+   @Audited(
+         actionName = ActionRecord.ACTION_NAME_DELETE,
+         objectType = ActionRecord.OBJECT_TYPE_FOLDER
+   )
+   public ConnectionStatus deleteDataSourceFolder(
+      String path, @SuppressWarnings("unused") @AuditObjectName String auditPath, boolean force,
+      boolean withDataSource, Principal principal)
+   {
+      return repositoryObjectService.removeDataSourceFolder(
+         path, force, principal, withDataSource);
+   }
+
    private Locale getLocale(Principal principal) {
       Locale locale;
 
