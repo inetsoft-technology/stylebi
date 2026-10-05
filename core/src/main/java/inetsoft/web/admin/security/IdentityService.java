@@ -3470,6 +3470,10 @@ public class IdentityService {
       SecurityProvider provider = securityEngine.getSecurityProvider();
       Organization oldOrganization = oldOrgId == null || oldOrgId.isEmpty() ?
          null : provider.getOrganization(oldOrgId);
+      // Bug #77771, the deleted self user's resources are removed after the permissions are
+      // written back. The registry removes their grants (and those of nested resources and
+      // additional connections), which the write-back of the snapshot would otherwise re-create.
+      List<Tuple2<ResourceType, String>> selfResources = new ArrayList<>();
 
       //iterate through all providers when updating permissions, else only first is found and set permissions can be lost
       for(AuthorizationProvider aprovider : securityEngine.getAuthorizationChain().get().getProviders()) {
@@ -3522,7 +3526,7 @@ public class IdentityService {
                         if(permission.isBlank() && !empty && oldName != null &&
                            Tool.equals(oldName.getOrgID(), Organization.getSelfOrganizationID()))
                         {
-                           removeSelfResource(resourceType, path);
+                           selfResources.add(new Tuple2<>(resourceType, path));
                         }
                      }
                      else if(type == Identity.GROUP) {
@@ -3565,6 +3569,10 @@ public class IdentityService {
                updatePermission(aprovider, permissionSet, oldOrgName, newOrgName, oldOrgId, newOrgId, doReplace, type);
             }
          }
+      }
+
+      for(Tuple2<ResourceType, String> selfResource : selfResources) {
+         removeSelfResource(selfResource.getFirst(), selfResource.getSecond());
       }
    }
 
