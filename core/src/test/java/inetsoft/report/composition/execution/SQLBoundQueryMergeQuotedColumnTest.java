@@ -355,6 +355,127 @@ class SQLBoundQueryMergeQuotedColumnTest {
       }
    }
 
+   // ---- a worksheet condition and sort on the same quoted column ----
+   @ParameterizedTest(name = "metadata={0}")
+   @ValueSource(booleans = { false, true })
+   void conditionAndSortOnQuotedColumn(boolean meta) throws Exception {
+      Result r = run("select o.\"Mixed\", o.amt from tw o", "tw", meta, t -> {
+         sort(t, "Mixed", XConstants.SORT_DESC);
+         condition(t, "Mixed", 50);
+      });
+      assertEquals(List.of(List.of(200, 20), List.of(100, 10)), rows(r, meta, "Mixed", "amt"),
+                   r.msg(meta));
+
+      r = run("select o.\"Mixed\", o.amt from tw o", "tw", meta, t -> {
+         sort(t, "Mixed", XConstants.SORT_ASC);
+         condition(t, "Mixed", 150);
+      });
+      assertEquals(List.of(List.of(200, 20)), rows(r, meta, "Mixed", "amt"), r.msg(meta));
+   }
+
+   // ---- group by one quoted column, sum of another quoted column ----
+   @ParameterizedTest(name = "metadata={0}")
+   @ValueSource(booleans = { false, true })
+   void groupByQuotedSumOtherQuoted(boolean meta) throws Exception {
+      Result r = run("select o.\"Order-Date\", o.\"Mixed\", o.amt from tw o", "tw", meta,
+                     t -> aggregate(t, "Order-Date", "Mixed"));
+      assertEquals(List.of(List.of(1, 100), List.of(2, 200)),
+                   sorted(r, meta, "Order-Date", "Mixed"), r.msg(meta));
+
+      r = run("select o.\"Mixed\", o.\"Order Date\", o.amt from tw o", "tw", meta,
+              t -> aggregate(t, "Mixed", "Order Date"));
+      assertEquals(List.of(List.of(100, 11), List.of(200, 22)),
+                   sorted(r, meta, "Mixed", "Order Date"), r.msg(meta));
+   }
+
+   // ---- distinct, with the other column hidden ----
+   @ParameterizedTest(name = "metadata={0}")
+   @ValueSource(booleans = { false, true })
+   void distinctWithHiddenColumn(boolean meta) throws Exception {
+      Result r = run("select o.\"Mixed\", o.amt from tw o", "tw", meta, t -> {
+         t.setDistinct(true);
+         ((ColumnRef) ref(t, "amt")).setVisible(false);
+      });
+      assertEquals(List.of(List.of(100), List.of(200)), sorted(r, meta, "Mixed"), r.msg(meta));
+   }
+
+   // ---- oracle (upper-folding) and postgresql, a quoted "Mixed" and lower case "mixed",
+   // sql only: quoted wherever the column is used, never quoted twice ----
+   @Test
+   void dialectMergedSql() throws Exception {
+      String[][] cases = {
+         { "select o.\"Mixed\", o.amt from tw o", null, null },
+         { "select o.\"Mixed\", o.amt from tw o", "sort", "Mixed" },
+         { "select o.\"Mixed\", o.amt from tw o", "cond", "Mixed" },
+         { "select o.\"Mixed\", o.amt from tw o", "sum", "Mixed" },
+         { "select o.\"Mixed\", o.amt from tw o", "group", "Mixed" },
+         { "select o.\"mixed\", o.amt from tw o", null, null },
+         { "select o.\"mixed\", o.amt from tw o", "sort", "mixed" },
+         { "select o.\"mixed\", o.amt from tw o", "cond", "mixed" },
+         { "select o.\"mixed\", o.amt from tw o", "sum", "mixed" },
+         { "select o.\"mixed\", o.amt from tw o", "group", "mixed" },
+         { "select \"mixed\", amt from tw", "sort", "mixed" },
+         { "select \"Mixed\", amt from tw", "cond", "Mixed" },
+      };
+
+      for(String db : new String[] { "oracle", "postgresql" }) {
+         for(String[] c : cases) {
+            String out = sqlFor(db, c[0], c[1], c[2]);
+            assertFalse(out.contains("\"\""), db + " double quote: " + out);
+            String seg = c[0].contains("\"mixed\"") ? "mixed" : "Mixed";
+
+            // the quoted segment must be generated quoted everywhere it appears
+            if("oracle".equals(db) || !"mixed".equals(seg)) {
+               // an output alias (as Mixed) only names the column
+               assertFalse(out.replaceAll(" as \\w+", "").matches(".*[ .(]" + seg + "\\b.*"),
+                           db + " unquoted " + seg + ": " + out);
+            }
+         }
+      }
+   }
+
+   private static String sqlFor(String db, String sql, String op, String column)
+      throws Exception
+   {
+      JDBCDataSource ds = new JDBCDataSource();
+      ds.setName("bug77786" + db);
+
+      if("oracle".equals(db)) {
+         ds.setDriver("oracle.jdbc.OracleDriver");
+         ds.setURL("jdbc:oracle:thin:@localhost:1521:x");
+         ds.setRuntimeProductName("oracle");
+      }
+      else {
+         ds.setDriver("org.postgresql.Driver");
+         ds.setURL("jdbc:postgresql://localhost/db");
+         ds.setRuntimeProductName("postgresql");
+         ds.setProductVersion("10.0");
+      }
+
+      Worksheet ws = new Worksheet();
+      SQLBoundTableAssembly table = newTable(ws, sql, ds);
+
+      if("sort".equals(op)) {
+         sort(table, column, XConstants.SORT_DESC);
+      }
+      else if("cond".equals(op)) {
+         condition(table, column, 0);
+      }
+      else if("sum".equals(op)) {
+         aggregate(table, "amt", column);
+      }
+      else if("group".equals(op)) {
+         aggregate(table, column, "amt");
+      }
+
+      SQLBoundQuery query = new SQLBoundQuery(
+         AssetQuerySandbox.RUNTIME_MODE, new AssetQuerySandbox(ws), table, false, false);
+      query.merge(new VariableTable());
+      UniformSQL copy = (UniformSQL) query.getQuery().getSQLDefinition().clone();
+      copy.clearSQLString();
+      return normalize(copy.getSQLString()).replaceAll("dataselcond[0-9_]+", "X");
+   }
+
    private static String pgSql(String sql, String op, String column) throws Exception {
       Worksheet ws = new Worksheet();
       SQLBoundTableAssembly table = newTable(ws, sql, postgresql());
