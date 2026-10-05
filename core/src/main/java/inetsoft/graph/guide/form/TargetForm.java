@@ -76,25 +76,82 @@ public class TargetForm extends GraphForm {
 
       // Have the Graph Target Strategy figure out the band boundaries
       double[] bandBoundaries = strategy.calculateBoundaries(data);
-      String[] labels;
+      String[] labels = null;
+      MessageFormat[] formats = labelFormats;
+      String fieldName = fieldLabel == null ? field : fieldLabel;
+      RuntimeException labelError = null;
 
       try {
-         labels = strategy.generateLabels(bandBoundaries, labelFormats,
-                                          fieldLabel == null ? field : fieldLabel,
+         labels = strategy.generateLabels(bandBoundaries, formats, fieldName,
                                           labelSpec.getFormat(), dateTarget, timeTarget);
       }
       catch(IllegalArgumentException ex) {
          // if format failed, don't format the parameter value. (53395)
-         labels = strategy.generateLabels(bandBoundaries, labelFormats,
-                                          fieldLabel == null ? field : fieldLabel, null,
-                                          dateTarget, timeTarget);
+         try {
+            labels = strategy.generateLabels(bandBoundaries, formats, fieldName, null,
+                                             dateTarget, timeTarget);
+         }
+         catch(RuntimeException ex2) {
+            labelError = ex2;
+         }
+      }
+      catch(RuntimeException ex) {
+         labelError = ex;
+      }
+
+      if(labelError != null) {
+         if(formats == null) {
+            throw labelError;
+         }
+
+         // a label pattern that can't be applied shouldn't fail the whole chart,
+         // label the target with the plain value instead (77805)
+         // MessageFormat isn't thread safe, don't share one between charts
+         formats = new MessageFormat[] { new MessageFormat("{0}") };
+         labels = generateFallbackLabels(bandBoundaries, formats, fieldName, labelError);
       }
 
       // Generate the forms used to draw each part
-      Collection<GraphForm> subForms = generateSubForms(coord, bandBoundaries, labels);
+      Collection<GraphForm> subForms =
+         generateSubForms(coord, bandBoundaries, labels, formats);
 
       // Merge the visuals from all of the sub-forms
       return mergeVisuals(coord, subForms);
+   }
+
+   /**
+    * Generate the labels with the default "{0}" pattern after the user label
+    * pattern failed to format.
+    */
+   private String[] generateFallbackLabels(double[] bandBoundaries,
+                                           MessageFormat[] fallbackFormats,
+                                           String fieldName, RuntimeException cause)
+   {
+      // the plain "{0}" patterns can't fail, only name the others
+      String patterns = Arrays.stream(labelFormats)
+         .map(MessageFormat::toPattern)
+         .filter(pattern -> !"{0}".equals(pattern))
+         .distinct()
+         .collect(Collectors.joining(", "));
+      String msg = "Failed to format target label \"" + patterns +
+         "\", the target value is shown instead";
+      Tool.addUserWarning(msg);
+
+      if(LOG.isDebugEnabled()) {
+         LOG.debug(msg, cause);
+      }
+      else {
+         LOG.warn("{}: {}", msg, cause.toString());
+      }
+
+      try {
+         return strategy.generateLabels(bandBoundaries, fallbackFormats, fieldName,
+                                        labelSpec.getFormat(), dateTarget, timeTarget);
+      }
+      catch(IllegalArgumentException ex) {
+         return strategy.generateLabels(bandBoundaries, fallbackFormats, fieldName,
+                                        null, dateTarget, timeTarget);
+      }
    }
 
    /**
@@ -121,7 +178,8 @@ public class TargetForm extends GraphForm {
     */
    private Collection<GraphForm> generateSubForms(Coordinate coord,
                                                   double[] bandBoundaries,
-                                                  String[] labels)
+                                                  String[] labels,
+                                                  MessageFormat[] labelFormats)
    {
       PriorityQueue<GraphForm> subForms = new PriorityQueue<>(11, fComparator);
 
