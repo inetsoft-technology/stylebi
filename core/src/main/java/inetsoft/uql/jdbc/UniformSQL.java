@@ -38,6 +38,8 @@ import java.io.StringReader;
 import java.security.Principal;
 import java.util.List;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * The UniformSQL contains the information on a SQL select statement.
@@ -460,6 +462,9 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
     * when it's generated. Without a data source, the helper that generates the
     * sql later is unknown (e.g. Oracle without ansi join generates (+) joins),
     * so such a query is refused.
+    * <p>
+    * With a data source, an outer join of a where clause (*=, =* or (+)) is refused too,
+    * unless the sql helper writes it as written (Oracle without ansi join, Bug #77548).
     */
    private void checkJoinOrders(SQLParser parser, long time) throws Exception {
       JDBCDataSource source = getDataSource();
@@ -498,6 +503,12 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       }
 
       checkCommaJoinGroups(parser);
+
+      // without a data source, the sql helper is unknown, and the outer joins are checked
+      // once a data source is set (setDataSource, isLossy)
+      if(source != null) {
+         parser.checkWhereClauseOuterJoins(isWhereClauseOuterJoinSupported(source));
+      }
    }
 
    /**
@@ -4956,6 +4967,14 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       }
 
       this.dataSource = dataSource;
+
+      // an outer join of a where clause parsed without a data source, or with one that wrote
+      // it as written, is refused once a data source that writes ANSI joins is set (Bug #77548)
+      if(dataSource != null && parseIt && sqlstring != null && parseResult == PARSE_SUCCESS &&
+         hasWhereClauseOuterJoin(this) && !isWhereClauseOuterJoinSupported(dataSource))
+      {
+         refuseSavedJoins();
+      }
    }
 
    /**
@@ -5687,10 +5706,20 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             }
          }
 
+         JDBCDataSource source = getDataSource();
+
+         // see setDataSource (Bug #77548)
+         if(source != null && parseResult == PARSE_SUCCESS && hasWhereClauseOuterJoin(this) &&
+            !isWhereClauseOuterJoinSupported(source))
+         {
+            refuseSavedJoins();
+            return true;
+         }
+
          SQLLexer lexer = new SQLLexer(new StringReader(getQuotedSqlString(sqlstring)));
          SQLParser parser = new SQLParser(lexer);
          UniformSQL sql = new UniformSQL();
-         sql.setDataSource(getDataSource());
+         sql.setDataSource(source);
          boolean commaGroupsChecked = false;
 
          try {
@@ -5712,7 +5741,13 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                }
             }
 
-            boolean result = (sql.lossy != null && sql.lossy) || isLegacyCycleJoins(this);
+            boolean legacyCycle = isLegacyCycleJoins(this);
+            boolean result = (sql.lossy != null && sql.lossy) || legacyCycle;
+            // a legacy query with an outer join whose join clauses can't be recorded is
+            // regenerated in the outer-last order. Lossy isn't enough, vpm regenerates a lossy
+            // query (XUtil.isParsedSQL ignores lossy), so it's refused with a data source and
+            // its sql string runs as written (Bug #77548)
+            boolean refuse = legacyCycle && source != null && hasLegacyOuterJoins();
 
             // a query parsed before the join clauses were recorded gets them from the parse of
             // its sql string, after the cycle check above, so a legacy cycle stays lossy. When
@@ -5721,6 +5756,12 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                parser.getJoinOrderChecks() : Collections.emptyList()))
             {
                result = true;
+               refuse = source != null;
+            }
+
+            if(refuse) {
+               refuseSavedJoins();
+               return true;
             }
 
             // a check skipped (or done with the base sql helper) for the missing data source
@@ -5736,10 +5777,115 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          }
          catch(Exception e) {
             setLossy(true);
+
+            // the join clauses of a legacy query can't be recorded from a refused parse
+            if(source != null && parseResult == PARSE_SUCCESS && hasLegacyOuterJoins()) {
+               refuseSavedJoins();
+            }
          }
       }
 
       return lossy != null && lossy;
+   }
+
+   /**
+    * Check the joins of a query loaded from storage with the data source of its query, which
+    * isn't set on the query yet (JDBCQuery.parseXML), the way isLossy() checks them. Vpm decides
+    * whether to regenerate a query (XUtil.isParsedSQL) before it calls isLossy(), so a refusal
+    * there would be too late for it (Bug #77548). Only a query saved before the join clauses
+    * were recorded (Bug #77475) with an outer join, or with an outer join of a where clause, is
+    * checked, the others aren't parsed again.
+    */
+   synchronized void checkSavedJoins(JDBCDataSource source) {
+      if(source == null || dataSource != null || lossy != null || !parseIt ||
+         sqlstring == null || parseResult != PARSE_SUCCESS ||
+         !hasLegacyOuterJoins() && !hasWhereClauseOuterJoin(this))
+      {
+         return;
+      }
+
+      dataSource = source;
+
+      try {
+         isLossy();
+      }
+      finally {
+         dataSource = null;
+         cachedSQLHelper = null;
+      }
+   }
+
+   /**
+    * Fail the parse of a query whose joins can't be regenerated as written, so its sql string
+    * runs as written (Bug #77548).
+    */
+   private void refuseSavedJoins() {
+      setParseResult(PARSE_FAILED);
+      setLossy(true);
+   }
+
+   /**
+    * Check if this query is a parsed query saved before the join clauses were recorded (Bug
+    * #77475) with an outer join: none of the joins of it and its where and having subqueries
+    * has a join clause, and one is an outer join.
+    */
+   private boolean hasLegacyOuterJoins() {
+      List<UniformSQL> queries = new ArrayList<>();
+      addQueryLevels(this, queries);
+      boolean outer = false;
+
+      for(UniformSQL query : queries) {
+         XJoin[] joins = query.getJoins();
+
+         for(int i = 0; joins != null && i < joins.length; i++) {
+            if(joins[i].getJoinClause() != XJoin.UNKNOWN_CLAUSE) {
+               return false;
+            }
+
+            outer = outer || joins[i].isOuterJoin();
+         }
+      }
+
+      return outer;
+   }
+
+   /**
+    * Check if a query, its subqueries or its derived tables have an outer join recorded in a
+    * where clause (*=, =* or (+)).
+    */
+   private static boolean hasWhereClauseOuterJoin(UniformSQL sql) {
+      List<UniformSQL> queries = new ArrayList<>();
+      addQueryLevels(sql, queries);
+
+      for(UniformSQL query : queries) {
+         XJoin[] joins = query.getJoins();
+
+         for(int i = 0; joins != null && i < joins.length; i++) {
+            if(joins[i].isWhereClauseJoin() && joins[i].isOuterJoin()) {
+               return true;
+            }
+         }
+
+         for(SelectTable table : query.getSelectTable()) {
+            if(table != null && table.getName() instanceof UniformSQL &&
+               hasWhereClauseOuterJoin((UniformSQL) table.getName()))
+            {
+               return true;
+            }
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Check if the sql helper of a data source writes the outer joins of a where clause
+    * (*=, =* or (+)) as written. Only Oracle without ansi join does (it writes (+) joins).
+    * Every other helper writes them as ANSI joins of the from clause, in the outer-last order,
+    * which can move an inner join to the null-supplying side of the outer join (Bug #77548).
+    */
+   private static boolean isWhereClauseOuterJoinSupported(JDBCDataSource source) {
+      return !source.isAnsiJoin() && getCheckSQLHelper(source) instanceof OracleSQLHelper;
    }
 
    /**
@@ -5825,6 +5971,11 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       addQueryLevels(this, queries);
       addQueryLevels(parsed, parsedQueries);
       Map<XJoin, Integer> clauses = new IdentityHashMap<>();
+      // the old parser saved "a"."id" as written, the current one may parse it as "a".id, so
+      // names are matched unquoted, folded as the database folds a name (Bug #77558)
+      SQLHelper.IdentifierCase fold = parsed.getDataSource() == null ?
+         SQLHelper.IdentifierCase.UNKNOWN :
+         getCheckSQLHelper(parsed.getDataSource()).getIdentifierCase();
 
       for(int i = 0; i < queries.size(); i++) {
          UniformSQL query = queries.get(i);
@@ -5843,7 +5994,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          // would be refused by the check), and a cycle can't be regenerated in the text order
          if(parsedQuery == null || queries.size() != parsedQueries.size() ||
             unchecked.stream().anyMatch(obj -> obj == parsedQuery) ||
-            isLegacyCycleJoins(query) || !matchJoinClauses(query, parsedQuery, clauses))
+            isLegacyCycleJoins(query) || !matchJoinClauses(query, parsedQuery, clauses, fold))
          {
             if(outer) {
                return false;
@@ -5897,10 +6048,12 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    /**
     * Match the joins of a query level to the joins of the same level of the parse of its sql
     * string, and add the join clause of each match.
+    * @param fold the case the database folds an unquoted name to.
     * @return false if the tables differ, or a join has no match or more than one.
     */
    private static boolean matchJoinClauses(UniformSQL query, UniformSQL parsed,
-                                           Map<XJoin, Integer> clauses)
+                                           Map<XJoin, Integer> clauses,
+                                           SQLHelper.IdentifierCase fold)
    {
       SelectTable[] tables = query.getSelectTable();
       SelectTable[] parsedTables = parsed.getSelectTable();
@@ -5913,9 +6066,10 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          Object name = tables[i].getName();
          Object parsedName = parsedTables[i].getName();
 
-         if(!Objects.equals(tables[i].getAlias(), parsedTables[i].getAlias()) ||
+         if(!Objects.equals(unquoteNames(tables[i].getAlias(), fold),
+                            unquoteNames(parsedTables[i].getAlias(), fold)) ||
             (name instanceof UniformSQL ? !(parsedName instanceof UniformSQL) :
-               !Objects.equals(name, parsedName)))
+               !Objects.equals(unquoteNames(name, fold), unquoteNames(parsedName, fold))))
          {
             return false;
          }
@@ -5931,7 +6085,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       Map<String, XJoin> parsedKeys = new HashMap<>();
 
       for(XJoin join : parsedJoins) {
-         if(parsedKeys.put(getJoinKey(join, parsed), join) != null) {
+         if(parsedKeys.put(getJoinKey(join, parsed, fold), join) != null) {
             return false;
          }
       }
@@ -5939,7 +6093,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       Map<XJoin, Integer> matches = new IdentityHashMap<>();
 
       for(XJoin join : joins) {
-         XJoin parsedJoin = parsedKeys.remove(getJoinKey(join, query));
+         XJoin parsedJoin = parsedKeys.remove(getJoinKey(join, query, fold));
 
          if(parsedJoin == null) {
             return false;
@@ -5952,9 +6106,39 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       return true;
    }
 
-   private static String getJoinKey(XJoin join, UniformSQL query) {
-      return join + "\0" + join.getTable1(query) + "\0" + join.getTable2(query);
+   private static String getJoinKey(XJoin join, UniformSQL query, SQLHelper.IdentifierCase fold) {
+      return unquoteNames(join + "\0" + join.getTable1(query) + "\0" + join.getTable2(query),
+                          fold);
    }
+
+   /**
+    * Write the names of a join or table without their double quotes, folded to the case the
+    * database folds a name to, e.g. "a"."id" and "a".id are both a.id on postgresql. A quoted
+    * name is folded too, since the current parser drops the quotes of a column it records as
+    * quoted, e.g. "A"."ID" is parsed as "A".ID. Only names are compared this way, the joins
+    * keep the saved names.
+    */
+   private static String unquoteNames(Object str, SQLHelper.IdentifierCase fold) {
+      if(str == null) {
+         return null;
+      }
+
+      Matcher matcher = MATCH_NAME.matcher(str.toString());
+      StringBuilder buf = new StringBuilder();
+
+      while(matcher.find()) {
+         String name = fold.fold(matcher.group(1) != null ?
+            matcher.group(1).replace("\"\"", "\"") : matcher.group(2));
+         matcher.appendReplacement(buf, Matcher.quoteReplacement(name));
+      }
+
+      matcher.appendTail(buf);
+      return buf.toString();
+   }
+
+   // a double quoted name, or a name that isn't quoted
+   private static final Pattern MATCH_NAME =
+      Pattern.compile("\"((?:[^\"]|\"\")*)\"|([A-Za-z_][A-Za-z0-9_]*)");
 
    private String getQuotedSqlString(String sql) {
       if(dataSource != null && (dataSource.getDatabaseType() == JDBCDataSource.JDBC_CLICKHOUSE ||

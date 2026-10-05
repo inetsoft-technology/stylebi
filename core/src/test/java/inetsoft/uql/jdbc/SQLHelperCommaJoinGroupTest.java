@@ -181,7 +181,9 @@ class SQLHelperCommaJoinGroupTest {
    /**
     * A where clause outer join is generated as an ANSI join, except by Oracle without ansi
     * join, which writes (+). Its only RIGHT join group is written first, which returns the
-    * rows of the where clause joins on every database.
+    * rows of the where clause joins on every database. Such sql is refused with a data source
+    * that writes ANSI joins (Bug #77548), so the structure is parsed without a data source
+    * and regenerated without its sql string, as after a parse without one.
     */
    @Test
    void whereClauseOuterJoinGroupAfterInnerGroupIsMovedFirst() throws Exception {
@@ -189,9 +191,15 @@ class SQLHelperCommaJoinGroupTest {
       String expected = COLS4 + "from a join b on a.id = b.id join (c right join d on c.id = d.id)";
 
       for(String helper : HELPERS) {
-         UniformSQL sql = parse(text, dataSource(helper));
+         if(!"oracle".equals(helper)) {
+            assertRefused(text, dataSource(helper), helper);
+         }
+
+         UniformSQL sql = parse(text, null);
          assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult(), helper + ": " + text);
          assertFalse(sql.isLossy(), helper + ": " + text);
+         sql.clearSQLString();
+         sql.setDataSource(dataSource(helper));
          String generated = regenerate(sql);
 
          if(!"oracle".equals(helper)) {
@@ -221,9 +229,7 @@ class SQLHelperCommaJoinGroupTest {
       sql.setDataSource(dataSource("oracle"));
       new SQLProcessor(sql).parse(text);
       assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult());
-      sql = parse(text, dataSource("oracle-ansi"));
-      assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult());
-      assertTrue(regenerate(sql).contains("from c RIGHT OUTER JOIN d"), regenerate(sql));
+      assertRefused(text, dataSource("oracle-ansi"), "oracle-ansi");
    }
 
    @Test
