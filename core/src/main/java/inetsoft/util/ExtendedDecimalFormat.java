@@ -34,6 +34,8 @@ import java.util.*;
  * A format class that supports different rounding options.
  */
 public class ExtendedDecimalFormat extends DecimalFormat {
+   // the implicit value before the rounding option was added; old streams load with no option
+   private static final long serialVersionUID = -881877823559828940L;
    public static final String AUTO_FORMAT = "#.#B";
 
    /**
@@ -77,6 +79,32 @@ public class ExtendedDecimalFormat extends DecimalFormat {
 
    public double getIncrement() {
       return increment;
+   }
+
+   /**
+    * Set the rounding option. It rounds the number as displayed, i.e. after it's divided by the
+    * K/M/B or user suffix unit and multiplied for % or per mille, at the last displayed digit.
+    * Without an option (null), the JDK rounding mode (HALF_UP by default) is used as is.
+    */
+   public void setRounding(RoundingMode rounding) {
+      setRoundingMode(rounding == null ? RoundingMode.HALF_UP : rounding);
+      this.rounding = rounding;
+   }
+
+   /**
+    * Get the rounding option, or null if it's not set.
+    */
+   public RoundingMode getRounding() {
+      return rounding;
+   }
+
+   /**
+    * Set the rounding option by using the string name of the options, e.g. "ROUND_DOWN".
+    *
+    * @throws RuntimeException if the name is not a rounding option. The option is not changed.
+    */
+   public void setRoundingByName(String round) {
+      setRounding(RoundingMode.valueOf(RoundDecimalFormat.roundingByName(round)));
    }
 
    /**
@@ -293,8 +321,9 @@ public class ExtendedDecimalFormat extends DecimalFormat {
       // keep fraction if double, or having fraction in pattern and k/m/b (54105).
       boolean fractional = isDouble || multiple > 1 && opattern.indexOf('.') >= 0;
 
-      // avoid "-0"
-      if(fractional && num.doubleValue() < 0) {
+      // avoid "-0". A rounding option never gives -0 (see below), and must not zero a value it
+      // rounds away from zero
+      if(rounding == null && fractional && num.doubleValue() < 0) {
          int fraction = getMaximumFractionDigits();
          double min = Math.pow(0.1, fraction + 2);
 
@@ -303,25 +332,72 @@ public class ExtendedDecimalFormat extends DecimalFormat {
          }
       }
 
-      StringBuffer sb = fractional ?
-         super.format(new BigDecimal(Double.toString(num.doubleValue() / multiple)),
-                      result, fieldPosition) :
-         super.format(num.longValue() / multiple, result, fieldPosition);
+      // a rounding option can throw (ROUND_UNNECESSARY), so always restore the pattern
+      try {
+         StringBuffer sb = fractional ?
+            formatFraction(num.doubleValue() / multiple, opattern, result, fieldPosition) :
+            super.format(num.longValue() / multiple, result, fieldPosition);
 
-      if(!"".equals(userSymbol)) {
-         sb.append(userSymbol.equals("\"%\"") ? "%" : userSymbol);
+         if(!"".equals(userSymbol)) {
+            sb.append(userSymbol.equals("\"%\"") ? "%" : userSymbol);
+         }
+         // append K/M/B, don't show 0B
+         else if(symbol != ' ' &&
+            (num.doubleValue() != 0 || symbol != 'B' || this.increment != 0))
+         {
+            sb.append(symbol);
+         }
+
+         return sb;
       }
-      // append K/M/B, don't show 0B
-      else if(symbol != ' ' && (num.doubleValue() != 0 || symbol != 'B' || this.increment != 0)) {
-         sb.append(symbol);
+      finally {
+         // if pattern modified, restore old pattern
+         if(npattern != null) {
+            super.applyPattern(opattern);
+         }
+      }
+   }
+
+   /**
+    * Format a number that has been divided by the unit (K/M/B or user suffix).
+    */
+   private StringBuffer formatFraction(double num, String opattern, StringBuffer result,
+                                       FieldPosition fieldPosition)
+   {
+      if(rounding == null) {
+         return super.format(new BigDecimal(Double.toString(num)), result, fieldPosition);
       }
 
-      // if pattern modified, restore old pattern
-      if(npattern != null) {
-         super.applyPattern(opattern);
+      // infinity has no digits to round, and no BigDecimal
+      if(Double.isInfinite(num)) {
+         return super.format(num, result, fieldPosition);
       }
 
-      return sb;
+      // an exponent pattern shows significant digits, so the digit to round at depends on the
+      // value, and the JDK rounding mode is the rounding option
+      if(usesExponent(opattern)) {
+         return super.format(new BigDecimal(Double.toString(num)), result, fieldPosition);
+      }
+
+      // round at the last displayed digit of the pattern in use (an auto downgrade may have
+      // added fraction digits). The JDK rounds 0.0004 to 0.00 for ROUND_UP, so it can't be
+      // left to the JDK rounding mode, and a rounded BigDecimal has no negative zero.
+      return super.format(RoundDecimalFormat.roundAtDisplayedDigit(
+         num, getMaximumFractionDigits(), getMultiplier(), rounding), result, fieldPosition);
+   }
+
+   /**
+    * Check if the pattern shows the number in scientific notation. A quoted 'E' in a prefix or
+    * suffix is not an exponent, but toPattern() drops the quotes, so ask the formatter itself.
+    */
+   private boolean usesExponent(String opattern) {
+      if(opattern.indexOf('E') < 0) {
+         return false;
+      }
+
+      FieldPosition exponent = new FieldPosition(NumberFormat.Field.EXPONENT);
+      super.format(1.0, new StringBuffer(), exponent);
+      return exponent.getEndIndex() > exponent.getBeginIndex();
    }
 
    @Override
@@ -561,6 +637,8 @@ public class ExtendedDecimalFormat extends DecimalFormat {
    private char symbol = ' ';
    private String userSymbol = "";
    private double increment = 0;
+   // the rounding option, null if not set
+   private RoundingMode rounding;
    private static Map<String, Long> mapping = new HashMap<>();
    private static final char[] EXT_DATA_FMT = {'B', 'K', 'M', 'b', 'k', 'm'};
    public static final String USER_FMT_PREFIX = "#,###";

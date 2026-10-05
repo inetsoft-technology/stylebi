@@ -26,6 +26,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 import java.io.*;
 import java.math.BigDecimal;
+import java.math.MathContext;
 import java.math.RoundingMode;
 import java.text.*;
 import java.util.Locale;
@@ -35,7 +36,9 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Bug #77513: NumberFormat.format(double) is final and tries the JDK fast path before the
  * overridden format(double, StringBuffer, FieldPosition), so the rounding option was skipped for
- * patterns such as "#,##0.###". The double results of the StringBuffer overload must not change.
+ * patterns such as "#,##0.###".
+ * Bug #77802: the rounding option must round at the last displayed digit, which includes the %
+ * or per mille multiplier and excludes literal text, the negative subpattern and the exponent.
  */
 @Tag("core")
 class RoundDecimalFormatRoundingModeTest {
@@ -49,7 +52,8 @@ class RoundDecimalFormatRoundingModeTest {
    // patterns the JDK fast path accepts, and patterns it never accepts
    private static final String[] PATTERNS = {
       "#,##0.###", "$#,##0.###", "#,##0.###;(#,##0.###)", "#,##0.### units", "¤#,##0.00",
-      "#,##0.##", "0.###", "#,##0", "0.0%", "#,##0.#%", "#,##0.###‰", "0.###E0", "##0.##E0"
+      "#,##0.##", "0.###", "#,##0", "0.0%", "#,##0.#%", "#,##0.###‰", "0.###E0", "##0.##E0",
+      "0.00 'E'", "0%"
    };
 
    private static final double[] VALUES = {
@@ -74,6 +78,9 @@ class RoundDecimalFormatRoundingModeTest {
    void scriptFormatNumber() {
       assertEquals("1.234", JavaScriptEngine.formatNumber(1.23456, "#,##0.###", "ROUND_DOWN"));
       assertEquals("1.235", JavaScriptEngine.formatNumber(1.23456, "#,##0.###", "ROUND_HALF_EVEN"));
+      // Bug #77802
+      assertEquals("12.34%", JavaScriptEngine.formatNumber(0.12345, "#,##0.00%", "ROUND_DOWN"));
+      assertEquals("13%", JavaScriptEngine.formatNumber(0.12345, "0%", "ROUND_UP"));
    }
 
    @Test
@@ -139,19 +146,19 @@ class RoundDecimalFormatRoundingModeTest {
 
    /**
     * format(double) must match the StringBuffer overload, and the StringBuffer overload must
-    * give the same result as before the fix: the value pre-rounded at the pattern text scale,
-    * then formatted HALF_EVEN by a plain DecimalFormat. ROUND_HALF_EVEN keeps the JDK's own
-    * format(double), whose fast path can differ from its StringBuffer overload (e.g. 0.0005).
+    * round the value at the last displayed digit (see expected()). ROUND_HALF_EVEN keeps the
+    * JDK's own format(double), whose fast path can differ from its StringBuffer overload
+    * (e.g. 0.0005).
     */
    @Test
-   void doubleOutputMatchesPreviousBehaviour() {
+   void doubleOutputRoundsAtDisplayedDigit() {
       for(String pattern : PATTERNS) {
          for(String mode : MODES) {
             RoundDecimalFormat fmt = new RoundDecimalFormat(pattern, US);
             fmt.setRoundingByName(mode);
 
             for(double value : VALUES) {
-               String expected = previous(pattern, fmt.getRounding(), value);
+               String expected = expected(pattern, fmt.getRounding(), value);
                String where = pattern + " " + mode + " " + value;
                String buffer;
                String plain;
@@ -170,7 +177,10 @@ class RoundDecimalFormatRoundingModeTest {
                   plain = "ArithmeticException";
                }
 
-               assertEquals(expected, buffer, where);
+               // engineering notation is checked by hand in nonFastPathDoubleOutput()
+               if(expected != null) {
+                  assertEquals(expected, buffer, where);
+               }
 
                if(fmt.getRounding() == BigDecimal.ROUND_HALF_EVEN) {
                   // unchanged: the JDK's own format(double), fast path included
@@ -196,16 +206,50 @@ class RoundDecimalFormatRoundingModeTest {
       "0.###E0, ROUND_FLOOR, 101.25, 1.012E2",
       "0.0%, ROUND_UP, 0.07, 7.0%",
       "0.0%, ROUND_UP, 0.13, 13.0%",
-      "'#,##0.#%', ROUND_DOWN, 0.123456, 12%",
+      "'#,##0.#%', ROUND_DOWN, 0.123456, 12.3%",
       "'#,##0.###;(#,##0.###)', ROUND_DOWN, 0.0005, 0",
       "'#,##0.###;(#,##0.###)', ROUND_HALF_DOWN, 0.0625, 0.062",
       "'#,##0.###;(#,##0.###)', ROUND_DOWN, -1.0625, (1.062)",
       "'#,##0.###;(#,##0.###)', ROUND_HALF_DOWN, -1.0625, (1.062)",
-      "'#,##0.###;(#,##0.###)', ROUND_UP, 0.0625, 0.062"
+      "'#,##0.###;(#,##0.###)', ROUND_UP, 0.0625, 0.063",
+      // Bug #77802: the multiplier counts, text after the digits does not
+      "'#,##0.00%', ROUND_DOWN, 0.12345, 12.34%",
+      "'#,##0.00%', ROUND_UP, 0.12341, 12.35%",
+      "0%, ROUND_UP, 0.12345, 13%",
+      "0%, ROUND_DOWN, 0.12345, 12%",
+      "'#,##0%', ROUND_UP, 0.5, 50%",
+      "0.00%, ROUND_HALF_UP, 0.00285, 0.29%",
+      "'#,##0.###‰', ROUND_DOWN, 0.0012345, 1.234‰",
+      "'#,##0.###‰', ROUND_UP, 0.0012341, 1.235‰",
+      "'0.00;(0.00)', ROUND_UP, -1.231, (1.24)",
+      "'0.00;(0.00)', ROUND_DOWN, 1.239, 1.23",
+      "'0.00 ''units''', ROUND_DOWN, 1.239, 1.23 units",
+      "'0.00 ''units''', ROUND_UP, 1.231, 1.24 units",
+      "'0 ''pcs.''', ROUND_UP, 1.2, 2 pcs.",
+      "'0 ''pcs.''', ROUND_DOWN, 1.9, 1 pcs.",
+      // a quoted E is a literal, not an exponent
+      "'0.00 ''E''', ROUND_UP, 0.0004, 0.01 E",
+      "0.00E0, ROUND_DOWN, 12399, 1.23E4",
+      "0.00E0, ROUND_UP, 12341, 1.24E4",
+      "0.00E0, ROUND_UP, 0.0012341, 1.24E-3",
+      "0.###E0, ROUND_DOWN, 1e-300, 1E-300",
+      // engineering notation shows max integer + max fraction (5) significant digits
+      "##0.##E0, ROUND_DOWN, 1234567, 1.2345E6",
+      "##0.##E0, ROUND_UP, 1234567, 1.2346E6",
+      "##0.##E0, ROUND_DOWN, 0.0012341, 1.2341E-3",
+      "##0.##E0, ROUND_DOWN, 1e-300, 1E-300",
+      // the JDK drops these to zero for ROUND_UP/FLOOR, and prints -0 for ROUND_DOWN
+      "0.00, ROUND_UP, 0.0004, 0.01",
+      "0.00, ROUND_FLOOR, -0.0004, -0.01",
+      "0.00, ROUND_DOWN, -0.004, 0.00",
+      "0.00, ROUND_DOWN, -0.0, 0.00",
+      // the decimal string is rounded, not the binary value (1.00499999...)
+      "0.00, ROUND_HALF_UP, 1.005, 1.01",
+      "0.00, ROUND_HALF_UP, 0.285, 0.29",
+      // the value needs no rounding at the displayed digit
+      "0.0%, ROUND_UNNECESSARY, 0.125, 12.5%"
    })
-   void nonFastPathDoubleOutputUnchanged(String pattern, String mode, double value,
-                                         String expected)
-   {
+   void nonFastPathDoubleOutput(String pattern, String mode, double value, String expected) {
       RoundDecimalFormat fmt = new RoundDecimalFormat(pattern, US);
       fmt.setRoundingByName(mode);
       assertEquals(expected,
@@ -231,6 +275,33 @@ class RoundDecimalFormatRoundingModeTest {
       RoundDecimalFormat fmt = new RoundDecimalFormat(pattern, US);
       fmt.setRoundingByName(mode);
       assertEquals(expected, format(fmt, new BigDecimal(value)));
+   }
+
+   @Test
+   void multiplierIsPartOfTheDisplayedDigit() {
+      RoundDecimalFormat fmt = new RoundDecimalFormat("0.00", US);
+      fmt.setMultiplier(100);
+      fmt.setRoundingByName("ROUND_DOWN");
+      assertEquals("12.34", fmt.format(0.12345));
+   }
+
+   @ParameterizedTest
+   @CsvSource({
+      "0.00, ROUND_UP", "0.00%, ROUND_DOWN", "'#,##0', ROUND_UP", "0.00E0, ROUND_UP",
+      "0.00, ROUND_UNNECESSARY"
+   })
+   void nanAndInfinityAreNotRounded(String pattern, String mode) {
+      RoundDecimalFormat fmt = new RoundDecimalFormat(pattern, US);
+      fmt.setRoundingByName(mode);
+      DecimalFormat jdk = new DecimalFormat(pattern, US);
+
+      for(double value : new double[] {
+         Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY })
+      {
+         assertEquals(jdk.format(value), fmt.format(value), pattern + " " + value);
+         assertEquals(jdk.format(value),
+                      fmt.format(value, new StringBuffer(), new FieldPosition(0)).toString());
+      }
    }
 
    @Test
@@ -331,26 +402,44 @@ class RoundDecimalFormatRoundingModeTest {
       assertEquals("1.234", copy.format(1.23456));
    }
 
-   // the double formatting before the fix: pre-round at the pattern text scale, then HALF_EVEN
-   private static String previous(String pattern, int rounding, double num) {
+   /**
+    * The expected double output, computed without the class. ROUND_HALF_EVEN is the JDK's own
+    * StringBuffer overload. A fixed-point pattern rounds the decimal string of the value at its
+    * maximum fraction digits plus the digits of its multiplier, and the exact result is formatted
+    * (the JDK rounding mode can't be the oracle: it drops 0.0004 to 0.00 for ROUND_UP).
+    * "0.###E0" rounds to 4 significant digits. Engineering notation is checked by hand, so it
+    * returns null.
+    */
+   private static String expected(String pattern, int rounding, double num) {
       DecimalFormat fmt = new DecimalFormat(pattern, US);
 
-      try {
-         if(rounding != BigDecimal.ROUND_HALF_EVEN) {
-            String fmtstr = fmt.toPattern();
-            int idx = fmtstr.lastIndexOf(".");
+      if(rounding == BigDecimal.ROUND_HALF_EVEN) {
+         return fmt.format(num, new StringBuffer(), new FieldPosition(0)).toString();
+      }
 
-            if(idx >= 0 || ("" + num).lastIndexOf(".") >= 0) {
-               int scale = idx >= 0 ? fmtstr.length() - idx - 1 : 0;
-               num = new BigDecimal(Double.toString(num)).setScale(scale, rounding).doubleValue();
-            }
+      if("##0.##E0".equals(pattern)) {
+         return null;
+      }
+
+      RoundingMode mode = RoundingMode.valueOf(rounding);
+      BigDecimal value = new BigDecimal(Double.toString(num));
+
+      try {
+         if("0.###E0".equals(pattern)) {
+            value = value.round(new MathContext(4, mode));
+         }
+         else {
+            int digits = (int) Math.round(Math.log10(fmt.getMultiplier()));
+            value = value.setScale(fmt.getMaximumFractionDigits() + digits, mode);
          }
       }
       catch(ArithmeticException ex) {
          return "ArithmeticException";
       }
 
-      return fmt.format(num, new StringBuffer(), new FieldPosition(0)).toString();
+      // exact, so the JDK has nothing left to round
+      fmt.setRoundingMode(RoundingMode.UNNECESSARY);
+      return fmt.format(value);
    }
 
    private static String format(Format fmt, Object value) {
