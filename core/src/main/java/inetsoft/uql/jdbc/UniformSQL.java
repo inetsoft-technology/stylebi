@@ -5680,7 +5680,16 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                }
             }
 
-            boolean result = (sql.lossy != null && sql.lossy) || isLegacyCycleJoins();
+            boolean result = (sql.lossy != null && sql.lossy) || isLegacyCycleJoins(this);
+
+            // a query parsed before the join clauses were recorded gets them from the parse of
+            // its sql string, after the cycle check above, so a legacy cycle stays lossy. When
+            // they can't be matched, its sql string is kept (Bug #77548)
+            if(!result && !recordLegacyJoinClauses(sql, sql.getDataSource() == null ?
+               parser.getJoinOrderChecks() : Collections.emptyList()))
+            {
+               result = true;
+            }
 
             // a check skipped (or done with the base sql helper) for the missing data source
             // isn't cached, so it runs once a caller sets the data source (e.g. BoundQuery
@@ -5709,8 +5718,8 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
     * different rows than the text. It is treated as lossy to keep the sql string instead
     * (Bug #77489).
     */
-   private boolean isLegacyCycleJoins() {
-      XJoin[] joins = getJoins();
+   private static boolean isLegacyCycleJoins(UniformSQL query) {
+      XJoin[] joins = query.getJoins();
 
       if(joins == null) {
          return false;
@@ -5726,8 +5735,8 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       }
 
       for(XJoin join : joins) {
-         String table1 = join.getTable1(this);
-         String table2 = join.getTable2(this);
+         String table1 = join.getTable1(query);
+         String table2 = join.getTable2(query);
 
          if(table1 == null || table2 == null || table1.isEmpty() || table2.isEmpty()) {
             continue;
@@ -5765,6 +5774,154 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       }
 
       return table;
+   }
+
+   /**
+    * Copy the join clauses of the parse of the sql string to the joins of this query and its
+    * where and having subqueries that have none (a parsed query saved before they were recorded,
+    * Bug #77475). Without them, the joins are regenerated in the outer-last order of joins built
+    * in the query editor, which can return different rows than the sql string (Bug #77548). A
+    * query level is copied only when its tables are the same as in the parse and each of its
+    * joins matches one join of the parse. Every level is matched before any is copied.
+    * @param parsed the parse of the sql string of this query.
+    * @param unchecked the queries of the parse whose join order wasn't checked.
+    * @return false if a legacy query level with an outer join can't be copied, or has a cycle.
+    */
+   private synchronized boolean recordLegacyJoinClauses(UniformSQL parsed, List<?> unchecked) {
+      List<UniformSQL> queries = new ArrayList<>();
+      List<UniformSQL> parsedQueries = new ArrayList<>();
+      addQueryLevels(this, queries);
+      addQueryLevels(parsed, parsedQueries);
+      Map<XJoin, Integer> clauses = new IdentityHashMap<>();
+
+      for(int i = 0; i < queries.size(); i++) {
+         UniformSQL query = queries.get(i);
+         XJoin[] joins = query.getJoins();
+
+         if(joins == null || Arrays.stream(joins).allMatch(
+            join -> join.getJoinClause() != XJoin.UNKNOWN_CLAUSE))
+         {
+            continue;
+         }
+
+         boolean outer = Arrays.stream(joins).anyMatch(XJoin::isOuterJoin);
+         UniformSQL parsedQuery = i < parsedQueries.size() ? parsedQueries.get(i) : null;
+
+         // a level whose join order check is skipped without a data source isn't copied (it
+         // would be refused by the check), and a cycle can't be regenerated in the text order
+         if(parsedQuery == null || queries.size() != parsedQueries.size() ||
+            unchecked.stream().anyMatch(obj -> obj == parsedQuery) ||
+            isLegacyCycleJoins(query) || !matchJoinClauses(query, parsedQuery, clauses))
+         {
+            if(outer) {
+               return false;
+            }
+         }
+      }
+
+      clauses.forEach(XJoin::setJoinClause);
+      return true;
+   }
+
+   /**
+    * Add a query and its where and having subqueries, in the order of its conditions. A derived
+    * table is not added, it is parsed again from its own sql string.
+    */
+   private static void addQueryLevels(UniformSQL query, List<UniformSQL> queries) {
+      queries.add(query);
+      addQueryLevels(query.getWhere(), queries);
+      addQueryLevels(query.getHaving(), queries);
+   }
+
+   private static void addQueryLevels(XFilterNode node, List<UniformSQL> queries) {
+      if(node instanceof XSet) {
+         for(int i = 0; i < node.getChildCount(); i++) {
+            addQueryLevels((XFilterNode) node.getChild(i), queries);
+         }
+      }
+      else if(node instanceof XBinaryCondition) {
+         addQueryLevels(((XBinaryCondition) node).getExpression1(), queries);
+         addQueryLevels(((XBinaryCondition) node).getExpression2(), queries);
+      }
+      else if(node instanceof XUnaryCondition) {
+         addQueryLevels(((XUnaryCondition) node).getExpression1(), queries);
+      }
+      else if(node instanceof XTrinaryCondition) {
+         addQueryLevels(((XTrinaryCondition) node).getExpression1(), queries);
+         addQueryLevels(((XTrinaryCondition) node).getExpression2(), queries);
+         addQueryLevels(((XTrinaryCondition) node).getExpression3(), queries);
+      }
+      else if(node instanceof XExpressionCondition) {
+         addQueryLevels(((XExpressionCondition) node).getExpression(), queries);
+      }
+   }
+
+   private static void addQueryLevels(XExpression expression, List<UniformSQL> queries) {
+      if(expression != null && expression.getValue() instanceof UniformSQL) {
+         addQueryLevels((UniformSQL) expression.getValue(), queries);
+      }
+   }
+
+   /**
+    * Match the joins of a query level to the joins of the same level of the parse of its sql
+    * string, and add the join clause of each match.
+    * @return false if the tables differ, or a join has no match or more than one.
+    */
+   private static boolean matchJoinClauses(UniformSQL query, UniformSQL parsed,
+                                           Map<XJoin, Integer> clauses)
+   {
+      SelectTable[] tables = query.getSelectTable();
+      SelectTable[] parsedTables = parsed.getSelectTable();
+
+      if(tables.length != parsedTables.length) {
+         return false;
+      }
+
+      for(int i = 0; i < tables.length; i++) {
+         Object name = tables[i].getName();
+         Object parsedName = parsedTables[i].getName();
+
+         if(!Objects.equals(tables[i].getAlias(), parsedTables[i].getAlias()) ||
+            (name instanceof UniformSQL ? !(parsedName instanceof UniformSQL) :
+               !Objects.equals(name, parsedName)))
+         {
+            return false;
+         }
+      }
+
+      XJoin[] joins = query.getJoins();
+      XJoin[] parsedJoins = parsed.getJoins();
+
+      if(parsedJoins == null || joins.length != parsedJoins.length) {
+         return false;
+      }
+
+      Map<String, XJoin> parsedKeys = new HashMap<>();
+
+      for(XJoin join : parsedJoins) {
+         if(parsedKeys.put(getJoinKey(join, parsed), join) != null) {
+            return false;
+         }
+      }
+
+      Map<XJoin, Integer> matches = new IdentityHashMap<>();
+
+      for(XJoin join : joins) {
+         XJoin parsedJoin = parsedKeys.remove(getJoinKey(join, query));
+
+         if(parsedJoin == null) {
+            return false;
+         }
+
+         matches.put(join, parsedJoin.getJoinClause());
+      }
+
+      clauses.putAll(matches);
+      return true;
+   }
+
+   private static String getJoinKey(XJoin join, UniformSQL query) {
+      return join + "\0" + join.getTable1(query) + "\0" + join.getTable2(query);
    }
 
    private String getQuotedSqlString(String sql) {
