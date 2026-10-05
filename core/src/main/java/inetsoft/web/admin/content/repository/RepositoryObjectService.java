@@ -577,8 +577,9 @@ public class RepositoryObjectService {
          removeDataSource(source);
       }
 
+      // the registry removes the permission of each removed folder, this one too, only once the
+      // stored index no longer lists it
       dataSourceRegistry.removeDataSourceFolder(dxname);
-      securityProvider.removePermission(ResourceType.DATA_SOURCE_FOLDER, dxname);
 
       return null;
    }

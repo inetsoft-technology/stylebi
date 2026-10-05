@@ -490,6 +490,29 @@ class DataSourceFolderDeleteTest {
                     "the permission of a folder that is still listed was removed");
    }
 
+   // the removal of the deleted folder itself fails to save the index: it is still listed by
+   // the stored index, so it keeps its permission. Its subfolder, removed before it, loses its.
+   @ParameterizedTest
+   @ValueSource(strings = { "em", "portal" })
+   void failedIndexSaveOfTheFolderKeepsItsPermission(String via) throws Exception {
+      String f = via + "ftF";
+      addFolder(f);
+      addFolder(f + "/G");
+      grant(ResourceType.DATA_SOURCE_FOLDER, f);
+      grant(ResourceType.DATA_SOURCE_FOLDER, f + "/G");
+      // the removal of f/G saves the index first, then that of f fails, and every later save
+      arm(2, true);
+
+      delete(via, f, false);
+      failAt = 0;
+
+      assertFalse(folderListed(f + "/G"));
+      assertNull(perm(ResourceType.DATA_SOURCE_FOLDER, f + "/G"));
+      assertTrue(folderListed(f));
+      assertNotNull(perm(ResourceType.DATA_SOURCE_FOLDER, f),
+                    "the permission of the deleted folder was removed although it is still listed");
+   }
+
    // the save fails once: the next save writes the index without the failed folder either, so
    // the folder is no longer listed and loses its permission
    @Test
