@@ -131,8 +131,9 @@ class UniformSQLCaseTwinRefuseTest {
    @ValueSource(strings = {
       "select id, x as \"MixedCase\" from t order by MixedCase",
       "select id, coalesce(nickname, name) as \"Name\" from emp order by Name desc",
-      "select x as \"MixedCase\", count(*) from t group by MixedCase",
-      "select id, \"MixedCase\" = x from t order by MixedCase"
+      // the T-SQL form "MixedCase" = x is a comparison on these dialects, so it no longer
+      // parses on them (#77785)
+      "select x as \"MixedCase\", count(*) from t group by MixedCase"
    })
    void quotedAliasTwinIsRefused(String text) throws Exception {
       assertRefused(text, FOLDING);

@@ -504,8 +504,12 @@ class UniformSQLQuotedTwinColumnTest {
       assertEquals(Boolean.TRUE, select.isAliasQuoted(5));
       assertNull(select.isAliasQuoted(6));
 
-      // sybase select A = expression, the alias quoting is read before the expression
-      select = (JDBCSelection) parse("select A = t.\"x\", \"B\" = t.y from t").getSelection();
+      // sybase select A = expression, the alias quoting is read before the expression. The
+      // form is parsed on a T-SQL data source only (#77785)
+      JDBCDataSource sybase = dataSource("net.sourceforge.jtds.jdbc.Driver", "jdbc:jtds:sybase://localhost/db",
+                                         "sybase", false);
+      assertEquals("sybase", SQLHelper.getSQLHelper(sybase).getSQLHelperType());
+      select = (JDBCSelection) parse("select A = t.\"x\", \"B\" = t.y from t", sybase).getSelection();
       assertEquals(Boolean.FALSE, select.isAliasQuoted(0));
       assertEquals(Boolean.TRUE, select.isAliasQuoted(1));
 
