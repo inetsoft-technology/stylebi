@@ -187,9 +187,48 @@ public abstract class XFilterNode
          return new XTrinaryCondition(new XExpression(), new XExpression(),
             new XExpression(), op);
       }
-      else {
+
+      // the parser keeps an operator as typed (e.g. "is null", "Like"), so match it ignoring
+      // case and build the node with the canonical symbol (e.g. "IS NULL", "LIKE")
+      String symbol = getCanonicalOpSymbol(op);
+
+      if(symbol != null && !symbol.isEmpty() && !symbol.equals(op)) {
+         return createConditionNode(symbol);
+      }
+
+      return null;
+   }
+
+   /**
+    * Get the canonical (uppercase) symbol of an operator symbol spelled in any case,
+    * e.g. "is null" -> "IS NULL", "Like" -> "LIKE".
+    *
+    * @return the canonical symbol, or null if the operator is in no operator list.
+    */
+   public static String getCanonicalOpSymbol(String op) {
+      if(op == null || op.isEmpty()) {
          return null;
       }
+
+      String name = XUnaryCondition.getOpName(op);
+
+      if(name != null && !name.isEmpty()) {
+         return XUnaryCondition.getOpSymbol(name);
+      }
+
+      name = XBinaryCondition.getOpName(op);
+
+      if(name != null && !name.isEmpty()) {
+         return XBinaryCondition.getOpSymbol(name);
+      }
+
+      name = XTrinaryCondition.getOpName(op);
+
+      if(name != null && !name.isEmpty()) {
+         return XTrinaryCondition.getOpSymbol(name);
+      }
+
+      return null;
    }
 
    /**
