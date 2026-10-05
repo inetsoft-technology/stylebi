@@ -54,6 +54,12 @@
     <surefire.forkCount>2</surefire.forkCount>
     <!-- The default timeout of every test and lifecycle method, a JUnit duration. -->
     <surefire.testTimeout>5 m</surefire.testTimeout>
+    <!--
+      Whether the lockcycle suite runs on pooled worksheet script contexts, as production does
+      by default (script.ws.contextPool). The daily slow-tests workflow also runs the suite
+      with -Dlockcycle.pool=false.
+    -->
+    <lockcycle.pool>true</lockcycle.pool>
   </properties>
 
   <dependencyManagement>
@@ -1026,6 +1032,7 @@
             <junit.jupiter.extensions.autodetection.enabled>true</junit.jupiter.extensions.autodetection.enabled>
             <junit.jupiter.extensions.autodetection.include>inetsoft.test.SreeHomeExtension,inetsoft.test.lockorder.LockOrderExtension</junit.jupiter.extensions.autodetection.include>
             <junit.jupiter.execution.timeout.default>${surefire.testTimeout}</junit.jupiter.execution.timeout.default>
+            <lockcycle.pool>${lockcycle.pool}</lockcycle.pool>
             <!--
               The following settings are because there are tests of date formatting and parsing
               and the assertions can be flaky if the time zone or locale changes. More substantial
