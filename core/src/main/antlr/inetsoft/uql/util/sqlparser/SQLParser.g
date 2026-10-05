@@ -656,18 +656,21 @@ private void addUsingTables(UniformSQL sql, List columns, int lstart, int rstart
  * has no place for the column list, so it would be kept as part of the alias
  * and regenerated as one quoted alias ("t(p,q)") without the column names.
  * A SQL Server table hint of an unaliased table (from a with (nolock)) parses
- * as an unquoted alias with and a column list, and is kept as before (Bug #77492).
+ * as an unquoted alias with and a column list. It is refused too: the
+ * regenerated alias "with(nolock)" hides the table name, so a qualified column
+ * fails or binds to an outer query's table (Bug #77492).
  */
 private void checkDerivedColumnList(UniformSQL sql, String alias, String columns,
                                     Token aliasTok, Token tok)
    throws SemanticException
 {
-   boolean hint = aliasTok != null && aliasTok.getType() == IDENT &&
-      "with".equalsIgnoreCase(aliasTok.getText());
+   if(sql != null) {
+      boolean hint = aliasTok != null && aliasTok.getType() == IDENT &&
+         "with".equalsIgnoreCase(aliasTok.getText());
+      String kind = hint ? "table hint" : "derived column list";
 
-   if(sql != null && !hint) {
       throw new SemanticException(
-         "Unsupported derived column list: " + alias + "(" + columns + ")",
+         "Unsupported " + kind + ": " + alias + "(" + columns + ")",
          getFilename(), tok.getLine(), tok.getColumn());
    }
 }
