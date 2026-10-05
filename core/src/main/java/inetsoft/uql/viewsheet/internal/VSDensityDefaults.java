@@ -233,10 +233,50 @@ public final class VSDensityDefaults {
    }
 
    /**
+    * The default size of a selection container: twelve title lanes, what the legacy 300x240 held
+    * at 20px. Its children collapse to one lane each, so capacity counts lanes, not rows. The
+    * width has no density opinion and the container no inset.
+    */
+   public static Dimension containerSize(VizContext ctx) {
+      if(!ctx.modern) {
+         return legacyContainerSize();
+      }
+
+      return containerSizeForMode(ctx.density);
+   }
+
+   /**
+    * Whether a size is one containerSize() could have written. Anything else is an author size.
+    */
+   public static boolean isSeededContainerSize(Dimension size) {
+      if(size == null) {
+         return false;
+      }
+
+      return size.equals(legacyContainerSize())
+         || size.equals(containerSizeForMode(COMFORTABLE))
+         || size.equals(containerSizeForMode(COMPACT))
+         || size.equals(containerSizeForMode(DENSE));
+   }
+
+   private static Dimension legacyContainerSize() {
+      return new Dimension(3 * AssetUtil.defw, CONTAINER_LANES * AssetUtil.defh);
+   }
+
+   private static Dimension containerSizeForMode(String mode) {
+      return new Dimension(3 * AssetUtil.defw, CONTAINER_LANES * titleHeightForMode(mode));
+   }
+
+   /**
     * Five data rows. The legacy default was defh * 6 - a title lane over five rows - so the lane
     * is counted separately in both the legacy and tier sizes and this constant means one thing.
     */
    private static final int SELECTION_ROWS = 5;
+
+   /**
+    * Twelve container lanes. Each child selection in a container collapses to one lane.
+    */
+   private static final int CONTAINER_LANES = 12;
 
    /**
     * Title-lane height for one assembly: the density row when the assembly is marked, its author
