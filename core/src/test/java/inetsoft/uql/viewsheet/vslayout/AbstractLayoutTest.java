@@ -20,6 +20,8 @@ package inetsoft.uql.viewsheet.vslayout;
 import inetsoft.test.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.TabVSAssemblyInfo;
+import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.viewsheet.internal.*;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -115,4 +117,51 @@ class AbstractLayoutTest {
    private static final int TAB_HEIGHT = 24;
    private static final int TALL_HEIGHT = 140;
    private static final int SHORT_HEIGHT = 40;
+
+   @Test
+   void aMarkedContainedListTakesItsTierHeightInADeviceLayout() {
+      Viewsheet applied = containerLayout().apply(containerViewsheet(VizMark.MODERN_LIGHT));
+      assertEquals(230, layoutHeight(applied, "SelectionList1"));
+   }
+
+   // 6 rows of defh with no title, as before
+   @Test
+   void anUnmarkedContainedListKeepsTheLegacyDeviceLayoutHeight() {
+      Viewsheet applied = containerLayout().apply(containerViewsheet(null));
+      assertEquals(6 * AssetUtil.defh, layoutHeight(applied, "SelectionList1"));
+   }
+
+   private ViewsheetLayout containerLayout() {
+      ViewsheetLayout layout = new ViewsheetLayout();
+      layout.setVSAssemblyLayouts(List.of(
+         new VSAssemblyLayout("CurrentSelection1", new Point(LAYOUT_X, LAYOUT_Y),
+                              new Dimension(300, 360))));
+      return layout;
+   }
+
+   private Viewsheet containerViewsheet(VizMark mark) {
+      Viewsheet vs = new Viewsheet();
+      vs.getViewsheetInfo().setVizDensity("comfortable");
+
+      SelectionListVSAssembly list = new SelectionListVSAssembly(vs, "SelectionList1");
+      list.getSelectionListInfo().setVizMark(mark);
+      list.getSelectionListInfo().initDefaultFormat();
+      list.getSelectionListInfo().setListHeight(6);
+      list.setPixelOffset(new Point(160, 230));
+      list.setPixelSize(new Dimension(300, 150));
+
+      CurrentSelectionVSAssembly container = new CurrentSelectionVSAssembly(vs, "CurrentSelection1");
+      container.getVSAssemblyInfo().setVizMark(mark);
+      container.setPixelOffset(new Point(160, 200));
+      container.setPixelSize(new Dimension(300, 360));
+
+      vs.addAssembly(list);
+      vs.addAssembly(container);
+      container.setAssemblies(new String[]{ "SelectionList1" });
+      return vs;
+   }
+
+   private int layoutHeight(Viewsheet vs, String name) {
+      return ((VSAssembly) vs.getAssembly(name)).getVSAssemblyInfo().getLayoutSize().height;
+   }
 }

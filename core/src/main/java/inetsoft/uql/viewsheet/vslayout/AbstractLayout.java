@@ -473,7 +473,11 @@ public abstract class AbstractLayout implements AssetObject {
             // If selection is drop down type and hide, get it's list height.
             int height = -1;
 
-            if(aInfo instanceof SelectionBaseVSAssemblyInfo) {
+            if(aInfo instanceof SelectionBaseVSAssemblyInfo sinfo && sinfo.getVizMark() != null) {
+               // a marked list fits its rows at its own density, as it does when opened
+               childSize.height = sinfo.getContainedListHeight();
+            }
+            else if(aInfo instanceof SelectionBaseVSAssemblyInfo) {
                height = ((SelectionBaseVSAssemblyInfo) aInfo).getListHeight();
             }
             else if(aInfo instanceof TimeSliderVSAssemblyInfo &&

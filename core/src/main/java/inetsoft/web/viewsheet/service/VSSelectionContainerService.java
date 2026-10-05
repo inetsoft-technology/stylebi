@@ -149,8 +149,10 @@ public class VSSelectionContainerService {
             contentHeight -= containerInfo.getTitleHeight();
          }
 
+         // the collapsed rows' drawn height, which follows the density in a marked container
          if(containerInfo.isShowCurrentSelection()) {
-            contentHeight -= AssetUtil.defh * containerInfo.getOutSelectionTitles().length;
+            contentHeight -= containerInfo.getOutSelectionRowHeight(AssetUtil.defh) *
+               containerInfo.getOutSelectionTitles().length;
          }
 
          final String[] children = container.getAbsoluteAssemblies();
@@ -179,8 +181,10 @@ public class VSSelectionContainerService {
             ((SelectionListVSAssemblyInfo) targetAssemblyInfo).getShowTypeValue() ==
                SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE)
          {
-            totalHeight += ((SelectionListVSAssemblyInfo) targetAssemblyInfo)
-               .getListHeight() * AssetUtil.defh;
+            // the body it opens to; a marked list's rows follow its density
+            SelectionListVSAssemblyInfo targetListInfo =
+               (SelectionListVSAssemblyInfo) targetAssemblyInfo;
+            totalHeight += targetListInfo.getContainedListHeight() - targetListInfo.getTitleHeight();
          }
          else if(targetAssemblyInfo instanceof TimeSliderVSAssemblyInfo) {
             Dimension sliderSize = targetAssemblyInfo.getLayoutSize() != null ?
@@ -211,8 +215,7 @@ public class VSSelectionContainerService {
             final Dimension size = service.getSize(selectionListInfo);
 
             if(selectionListInfo.getShowTypeValue() == SelectionListVSAssemblyInfo.DROPDOWN_SHOW_TYPE) {
-               size.height = selectionListInfo.getListHeight() * AssetUtil.defh +
-                  selectionListInfo.getTitleHeight();
+               size.height = selectionListInfo.getContainedListHeight();
                selectionListInfo.setShowTypeValue(SelectionVSAssemblyInfo.LIST_SHOW_TYPE);
             }
             //Bug #16742 should account for new added assembly which was in show status at beginning
