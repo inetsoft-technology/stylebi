@@ -322,6 +322,25 @@ class UniformSQLLeadingDotDecimalTest {
       }
    }
 
+   // the dot and the number are found next to each other by their line and column, so tabs,
+   // line breaks and comments elsewhere in the query don't change it
+   @ParameterizedTest
+   @ValueSource(strings = {
+      "select b.id\r\nfrom b\r\n\twhere b.a * .5 = 3",
+      "select b.id\n\tfrom b\n\t\twhere\tb.a\t*\t.5 = 3",
+      "-- c\nselect b.id from b /* c */ where b.a * .5 = 3",
+   })
+   void leadingDotAfterTabsAndLineBreaks(String text) throws Exception {
+      for(String type : new String[] { "default", "sql server" }) {
+         String generated = regenerate(parse(text, dataSource(type)), text);
+         assertEquals("select b.id from b where b.a*.5 = 3", generated, type);
+      }
+
+      try(Connection conn = derby()) {
+         assertEquals(List.of("6|"), rows(conn, text));
+      }
+   }
+
    // the text of every other number and of every column path is unchanged
    @ParameterizedTest
    @CsvSource(delimiter = '|', value = {
