@@ -455,7 +455,7 @@ public class DataSourceRegistry implements MessageListener {
          }
       }
 
-      return new PathClashSides(folderSide, dataSourceSide, unreadable);
+      return new PathClashSides(path, folderSide, dataSourceSide, unreadable);
    }
 
    /**
@@ -479,7 +479,9 @@ public class DataSourceRegistry implements MessageListener {
 
    // which sides of a data source and folder at the same path hold entries under the path, and
    // a data source under the path that can't be read, which counts on both sides
-   private record PathClashSides(boolean folderSide, boolean dataSourceSide, String unreadable) {
+   private record PathClashSides(String path, boolean folderSide, boolean dataSourceSide,
+                                 String unreadable)
+   {
       // refuses if the side is not empty, or if an entry can't be told apart
       void check(boolean side, String key, Object... args) {
          if(side) {
@@ -488,7 +490,7 @@ public class DataSourceRegistry implements MessageListener {
 
          if(unreadable != null) {
             throw new MessageException(Catalog.getCatalog().getString(
-               "common.datasource.pathClashUnreadable", args[0], unreadable));
+               "common.datasource.pathClashUnreadable", path, unreadable));
          }
       }
    }

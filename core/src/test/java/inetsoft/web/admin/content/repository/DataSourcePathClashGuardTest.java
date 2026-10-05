@@ -557,6 +557,17 @@ class DataSourcePathClashGuardTest {
       assertRefused(Catalog.getCatalog().getString(
          "common.datasource.pathClashUnreadable", "unF", "unF/unU"),
                     () -> registry.renameDataSourceFolder("unF", "unG"), "unF", "unG");
+
+      // the clash below a renamed folder is named, not the folder
+      addFolder("uaG");
+      addFolder("uaG/uaP");
+      addUnreadable("uaG/uaP/uaU", "uaG/uaP/uaU");
+      addSource("uaG/uaP");
+      registry.clearCache();
+
+      assertRefused(Catalog.getCatalog().getString(
+         "common.datasource.pathClashUnreadable", "uaG/uaP", "uaG/uaP/uaU"),
+                    () -> registry.renameDataSourceFolder("uaG", "uaH"), "uaG", "uaH");
    }
 
    // ---- a save of a data source with an additional connection that can't be read ----
