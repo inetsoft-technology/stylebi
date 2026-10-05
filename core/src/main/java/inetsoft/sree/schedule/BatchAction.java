@@ -420,17 +420,13 @@ public class BatchAction extends AbstractAction {
 
       for(String key : map.keySet()) {
          writer.println("<entry>");
-         writer.print("<key>");
-         writer.print("<![CDATA[" + key + "]]>");
-         writer.print("</key>");
+         writeCDATAElement(writer, "key", key);
          Object val = map.get(key);
 
          if(val instanceof DynamicParameterValue) {
             DynamicParameterValue parameterValue = (DynamicParameterValue) val;
             writer.print("<dynamicParameterValue>");
-            writer.print("<value>");
-            writer.print("<![CDATA[" + Tool.getDataString(parameterValue.getValue()) + "]]>");
-            writer.print("</value>");
+            writeCDATAElement(writer, "value", Tool.getDataString(parameterValue.getValue()));
             writer.print("<type>");
             writer.print("<![CDATA[" + parameterValue.getType() + "]]>");
             writer.print("</type>");
@@ -440,9 +436,7 @@ public class BatchAction extends AbstractAction {
             writer.print("</dynamicParameterValue>");
          }
          else {
-            writer.print("<value>");
-            writer.print("<![CDATA[" + Tool.getDataString(val) + "]]>");
-            writer.print("</value>");
+            writeCDATAElement(writer, "value", Tool.getDataString(val));
             writer.print("<valueType>");
             writer.print("<![CDATA[" + Tool.getDataType(val) + "]]>");
             writer.print("</valueType>");
@@ -452,6 +446,28 @@ public class BatchAction extends AbstractAction {
       }
 
       writer.println("</map>");
+   }
+
+   /**
+    * Write a free-text CDATA element. A character XML 1.0 can't carry is encoded and the
+    * element marked so readCDATAElement decodes it. Other text is written as before
+    * (Bug #77806).
+    */
+   private static void writeCDATAElement(PrintWriter writer, String tag, String text) {
+      boolean ctrl = Tool.hasXMLIllegalChars(text);
+      writer.print("<" + tag + (ctrl ? " " + XML_ILLEGAL_CHARS_ATTR + "=\"true\"" : "") + ">");
+      writer.print("<![CDATA[" + Tool.splitCDATAEnd(ctrl ? Tool.encodeXMLIllegalChars(text) : text) +
+                   "]]>");
+      writer.print("</" + tag + ">");
+   }
+
+   /**
+    * Read an element written by writeCDATAElement. Unmarked text is never decoded.
+    */
+   private static String readCDATAElement(Element elem) {
+      String text = Tool.getValue(elem);
+      return elem != null && "true".equals(Tool.getAttribute(elem, XML_ILLEGAL_CHARS_ATTR)) ?
+         Tool.decodeXMLIllegalChars(text) : text;
    }
 
    private void parseMap(Element elem, Map<String, Object> map) throws Exception {
@@ -464,14 +480,14 @@ public class BatchAction extends AbstractAction {
 
          Element propNode = (Element) list.item(i);
          Element keyNode = Tool.getChildNodeByTagName(propNode, "key");
-         String key = Tool.getValue(keyNode);
+         String key = readCDATAElement(keyNode);
          Element dynamicParameterValue = Tool.getChildNodeByTagName(propNode, "dynamicParameterValue");
 
          if(dynamicParameterValue != null) {
             Element valNode = Tool.getChildNodeByTagName(dynamicParameterValue, "value");
             Element typeNode = Tool.getChildNodeByTagName(dynamicParameterValue, "type");
             Element dataTypeNode = Tool.getChildNodeByTagName(dynamicParameterValue, "valueType");
-            String value = Tool.getValue(valNode);
+            String value = readCDATAElement(valNode);
             String type = Tool.getValue(typeNode);
             String dataType = Tool.getValue(dataTypeNode);
             map.put(key, new DynamicParameterValue(value, type, dataType));
@@ -480,7 +496,7 @@ public class BatchAction extends AbstractAction {
             Element valNode = Tool.getChildNodeByTagName(propNode, "value");
             Element valTypeNode = Tool.getChildNodeByTagName(propNode, "valueType");
             String valType = Tool.getValue(valTypeNode);
-            Object val = Tool.getData(valType, Tool.getValue(valNode));
+            Object val = Tool.getData(valType, readCDATAElement(valNode));
             map.put(key, val);
          }
       }
@@ -507,6 +523,12 @@ public class BatchAction extends AbstractAction {
    public String toString() {
       return "BatchAction: " + SUtil.getTaskNameWithoutOrg(taskId);
    }
+
+   /**
+    * Marks a CDATA value whose XML 1.0 illegal characters were encoded with
+    * {@link Tool#encodeXMLIllegalChars}, the same marker UniformSQL uses (Bug #77806).
+    */
+   private static final String XML_ILLEGAL_CHARS_ATTR = "ctrlEncoded";
 
    private String taskId;
    private AssetEntry queryEntry;

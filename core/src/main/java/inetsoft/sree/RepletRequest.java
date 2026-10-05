@@ -792,7 +792,7 @@ public class RepletRequest implements java.io.Serializable, Cloneable, HttpXMLSe
             val = "__NULL__";
          }
          else {
-            val = Tool.byteEncode(String.valueOf(val));
+            val = encodeStringValue(String.valueOf(val));
          }
       }
 
@@ -848,6 +848,15 @@ public class RepletRequest implements java.io.Serializable, Cloneable, HttpXMLSe
    }
 
    /**
+    * Encode a string parameter value for its CDATA section. The reader byteDecodes it, so the
+    * control characters byteEncode keeps, which XML 1.0 can't carry, are written in the
+    * ~_hex_~ form byteDecode reads back (Bug #77806). Other text is written as before.
+    */
+   private static String encodeStringValue(String val) {
+      return RepositoryEntry.encodeControlChars(Tool.byteEncode(val), true);
+   }
+
+   /**
     * Get parameter representative string.
     */
    private String getParameterString(String name, Object val) {
@@ -861,9 +870,10 @@ public class RepletRequest implements java.io.Serializable, Cloneable, HttpXMLSe
 
          buffer.append("type=\"" + dynamicParameterValue.getDataType() + "\"");
          buffer.append(">");
-         buffer.append("<value>");
 
          if(DynamicValueModel.VALUE.equals(dynamicParameterValue.getType())) {
+            buffer.append("<value>");
+
             if(val instanceof Object[]) {
                buffer.append("<parameters>");
                Object[] arr = (Object[]) val;
@@ -879,7 +889,15 @@ public class RepletRequest implements java.io.Serializable, Cloneable, HttpXMLSe
             }
          }
          else {
-            buffer.append("<![CDATA[").append(val).append("]]>");
+            // an expression or variable is read back as is (no byteDecode), so a character
+            // XML 1.0 can't carry is encoded and marked for getParameterValue (Bug #77806)
+            String text = String.valueOf(val);
+            boolean ctrl = Tool.hasXMLIllegalChars(text);
+            buffer.append("<value").append(ctrl ? " " + XML_ILLEGAL_CHARS_ATTR + "=\"true\"" : "")
+               .append(">");
+            buffer.append("<![CDATA[")
+               .append(Tool.splitCDATAEnd(ctrl ? Tool.encodeXMLIllegalChars(text) : text))
+               .append("]]>");
          }
 
          buffer.append("</value>");
@@ -949,7 +967,7 @@ public class RepletRequest implements java.io.Serializable, Cloneable, HttpXMLSe
             val = "__NULL__";
          }
          else {
-            val = Tool.byteEncode(String.valueOf(val));
+            val = encodeStringValue(String.valueOf(val));
          }
       }
 
@@ -1046,6 +1064,11 @@ public class RepletRequest implements java.io.Serializable, Cloneable, HttpXMLSe
       if(valueNode != null) {
          pvalue = Tool.getValue(valueNode);
          pvalue = pvalue != null ? pvalue : "";
+
+         // see getParameterString, unmarked text is never decoded
+         if("true".equals(Tool.getAttribute(valueNode, XML_ILLEGAL_CHARS_ATTR))) {
+            pvalue = Tool.decodeXMLIllegalChars(pvalue);
+         }
       }
 
       String dynamicType = param.getAttribute("dynamicType");
@@ -1348,6 +1371,12 @@ public class RepletRequest implements java.io.Serializable, Cloneable, HttpXMLSe
    private Vector<String> dateTimeList = new Vector<>(); // try to keep time instance type
    private transient Hashtable<String, Object> hints;
    private boolean encoding = false;
+
+   /**
+    * Marks a CDATA value whose XML 1.0 illegal characters were encoded with
+    * {@link Tool#encodeXMLIllegalChars}, the same marker UniformSQL uses (Bug #77806).
+    */
+   private static final String XML_ILLEGAL_CHARS_ATTR = "ctrlEncoded";
    private static final Object NULL = new Object();
 
    /**
