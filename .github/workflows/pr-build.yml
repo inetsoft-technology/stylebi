@@ -49,30 +49,19 @@ jobs:
       - name: Authenticate with GitHub Packages
         run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> ~/.npmrc
 
-      # the core tests run in the core-tests jobs, in parallel with this one. the tag matches
+      # the core tests run in the core-tests job, in parallel with this one. the tag matches
       # no test, so core runs none here (surefire.groups is read only by core)
       - name: Build with Maven
         run: ./mvnw --batch-mode clean install -Dsurefire.groups=ci-skip-core-tests
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # The core tests, split in two shards by package: shard 1 excludes the packages that
-  # shard 2 includes (.github/ci/core-tests-shard-*), so each class runs in exactly one shard
+  # The core tests, in parallel with the build job. Tests tagged slow are left to the daily
+  # slow-tests.yml; the surefire.forkCount JVMs in core/pom.xml run the rest at once
   core-tests:
     if: ${{ !github.event.pull_request.draft }}
-    name: core-tests (${{ matrix.shard }})
     runs-on: ubuntu-latest
-    timeout-minutes: 45
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - shard: 1
-            option: excludesFile
-            file: core-tests-shard-1.exclude
-          - shard: 2
-            option: includesFile
-            file: core-tests-shard-2.include
+    timeout-minutes: 30
 
     steps:
       - name: Checkout repository
@@ -100,20 +89,19 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Core tests, shard ${{ matrix.shard }}
-        run: >-
-          ./mvnw --batch-mode test -pl core
-          -Dsurefire.${{ matrix.option }}=$GITHUB_WORKSPACE/.github/ci/${{ matrix.file }}
+      - name: Core tests
+        run: ./mvnw --batch-mode test -pl core
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # Production runs worksheet scripts on pooled contexts (script.ws.contextPool defaults to
   # true), but the lockcycle suite runs with the pool off unless -Dlockcycle.pool=true is
-  # set. This job runs it in the production mode. It takes about 5 minutes of test time.
+  # set. This job runs it in the production mode, slow-tagged classes included. It takes about
+  # 5 minutes of test time.
   lockcycle-pool-on:
     if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
 
     steps:
       - name: Checkout repository
@@ -146,5 +134,6 @@ jobs:
           ./mvnw --batch-mode test -pl core
           -Dtest='**/lockcycle/*Test'
           -Dlockcycle.pool=true
+          '-Dsurefire.groups=core | slow'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

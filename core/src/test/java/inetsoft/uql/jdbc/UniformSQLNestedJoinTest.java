@@ -52,7 +52,7 @@ import static org.mockito.Mockito.*;
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
 @SreeHome
-@Tag("core")
+@Tag("slow")
 class UniformSQLNestedJoinTest {
    // an ANSI join data source, the sql of a query is generated with its data source
    private static JDBCDataSource ansiSource;

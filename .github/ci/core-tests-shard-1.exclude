@@ -1,7 +1,0 @@
-# Surefire excludes for core test shard 1 of pr-build.yml. Shard 1 runs every core test
-# class except the packages shard 2 runs; keep the two files complementary so every class
-# runs in exactly one shard. The default exclude **/*$* is replaced by this file, so it is
-# repeated here.
-**/*$*
-inetsoft/sree/**
-inetsoft/util/**

@@ -48,7 +48,7 @@ import static org.mockito.Mockito.mock;
                                  SQLHelperMongoRandomJoinOrderTest.Config.class },
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
-@Tag("core")
+@Tag("slow")
 class SQLHelperMongoRandomJoinOrderTest {
    @Configuration
    @Import(CredentialService.class)

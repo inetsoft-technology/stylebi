@@ -48,7 +48,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * registered one scan after its limit is "unreleased" (health DOWN), one resolved by its
  * timeout only dumps.
  */
-@Tag("core")
+@Tag("slow")
 public class StallWatchdogTest {
    @BeforeEach
    public void setUp() {

@@ -76,7 +76,7 @@ import static org.mockito.Mockito.when;
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class, LibManagerTestConfiguration.class, PluginsTestConfiguration.class, WorksheetFormulaVarEndToEndTest.TestConfig.class }, initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
-@Tag("core")
+@Tag("slow")
 class WorksheetFormulaVarEndToEndTest {
    @Configuration
    static class TestConfig {
