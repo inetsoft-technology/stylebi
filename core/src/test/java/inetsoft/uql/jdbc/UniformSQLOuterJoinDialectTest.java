@@ -330,6 +330,14 @@ class UniformSQLOuterJoinDialectTest {
       // the correlation of a structure parsed without a quoting data source is quoted by the
       // parse of its generated sql, so its round trip starts from the second generation
       if(isWhereOuterJoinRefused(type, text)) {
+         // snowflake and exasol fold the unquoted correlation a.id to A.ID, so its mix with
+         // the quoted "c"."id" is refused (Bug #77643)
+         if(type.startsWith("snowflake") || type.startsWith("exasol")) {
+            String mixed = generated;
+            assertThrows(antlr.SemanticException.class, () -> parse(mixed, ds));
+            return;
+         }
+
          generated = normalize(parse(generated, ds).getSQLString());
       }
 
