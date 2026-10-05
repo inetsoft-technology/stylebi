@@ -17,6 +17,7 @@
  */
 package inetsoft.util;
 
+import inetsoft.util.config.InetsoftConfig;
 import org.junit.jupiter.api.*;
 
 import java.util.concurrent.atomic.AtomicInteger;
@@ -32,6 +33,10 @@ import static org.junit.jupiter.api.Assertions.*;
 class LocalPasswordEncryptionMasterDecryptFailureTest {
    @BeforeEach
    void setUp() {
+      // Bug #77845: an earlier class can leave InetsoftConfig.BOOTSTRAP_INSTANCE loaded (a lazy
+      // InetsoftConfig.getInstance()), with a masterPasswordCheck that doesn't match TARGET_MASTER
+      bootstrapConfig = InetsoftConfig.BOOTSTRAP_INSTANCE;
+      InetsoftConfig.BOOTSTRAP_INSTANCE = null;
       LocalPasswordEncryption.masterPassword.set(TARGET_MASTER.toCharArray());
       target = new JcePasswordEncryption();
       foreign = ForeignMasterSecret.encrypt(SOURCE_MASTER, "s3cret");
@@ -41,6 +46,7 @@ class LocalPasswordEncryptionMasterDecryptFailureTest {
    void tearDown() {
       PasswordEncryption.setMasterDecryptFailures(null);
       LocalPasswordEncryption.masterPassword.remove();
+      InetsoftConfig.BOOTSTRAP_INSTANCE = bootstrapConfig;
    }
 
    @Test
@@ -98,4 +104,5 @@ class LocalPasswordEncryptionMasterDecryptFailureTest {
    private static final String TARGET_MASTER = "target-master-pw";
    private JcePasswordEncryption target;
    private String foreign;
+   private InetsoftConfig bootstrapConfig;
 }

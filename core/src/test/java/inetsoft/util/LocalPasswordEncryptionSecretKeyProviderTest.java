@@ -22,6 +22,7 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.classic.spi.IThrowableProxy;
 import ch.qos.logback.core.read.ListAppender;
+import inetsoft.util.config.InetsoftConfig;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -53,6 +54,10 @@ class LocalPasswordEncryptionSecretKeyProviderTest {
 
    @BeforeEach
    void setUp() {
+      // Bug #77845: an earlier class can leave InetsoftConfig.BOOTSTRAP_INSTANCE loaded (a lazy
+      // InetsoftConfig.getInstance()), with a masterPasswordCheck that doesn't match MASTER
+      bootstrapConfig = InetsoftConfig.BOOTSTRAP_INSTANCE;
+      InetsoftConfig.BOOTSTRAP_INSTANCE = null;
       LocalPasswordEncryption.masterPassword.set(MASTER.toCharArray());
       logger = (Logger) LoggerFactory.getLogger(LocalPasswordEncryption.class);
       appender = new ListAppender<>();
@@ -64,6 +69,7 @@ class LocalPasswordEncryptionSecretKeyProviderTest {
    void tearDown() {
       logger.detachAppender(appender);
       LocalPasswordEncryption.masterPassword.remove();
+      InetsoftConfig.BOOTSTRAP_INSTANCE = bootstrapConfig;
    }
 
    @ParameterizedTest
@@ -191,4 +197,5 @@ class LocalPasswordEncryptionSecretKeyProviderTest {
    private static final String PASSWORD = "s3cret";
    private Logger logger;
    private ListAppender<ILoggingEvent> appender;
+   private InetsoftConfig bootstrapConfig;
 }
