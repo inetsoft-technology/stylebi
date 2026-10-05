@@ -1445,11 +1445,57 @@ public final class XUtil {
    }
 
    /**
-    * Get all the users.
+    * Get all the users. A call a script makes itself gets only the users of the context
+    * principal's current organization (Bug #77793).
     * @return all the users.
     */
    public static IdentityID[] getUsers() {
-      return getXIdentityFinder().getUsers();
+      IdentityID[] users = getXIdentityFinder().getUsers();
+
+      if(users == null || users.length == 0 || !isScriptCall()) {
+         return users;
+      }
+
+      // the identity finder lists the users of every organization, which a sheet
+      // script of one organization must not see
+      String orgID = OrganizationManager.getInstance()
+         .getCurrentOrgID(ThreadContext.getContextPrincipal());
+
+      return Arrays.stream(users)
+         .filter(user -> user != null && Tool.equals(orgID, user.getOrgID()))
+         .toArray(IdentityID[]::new);
+   }
+
+   /**
+    * Whether the caller of a method of this class is a script itself: the classes of the
+    * call stack, innermost first, reach the GraalJS host interop that a script calls Java
+    * through before any class that is not {@code inetsoft.uql} or JDK code. Product code in
+    * between makes the call that code's. The stack decides, not
+    * {@link JavaScriptEngine#isScriptThread()}, so a script function that Java calls back
+    * after the script returned (a comparator, for example) is still the script's call.
+    */
+   private static boolean isScriptCall() {
+      return StackWalker.getInstance().walk(frames -> isScriptCall(
+         frames.map(StackWalker.StackFrame::getClassName).iterator()));
+   }
+
+   static boolean isScriptCall(Iterator<String> classes) {
+      while(classes.hasNext()) {
+         String name = classes.next();
+
+         if(name.startsWith("com.oracle.truffle.") || name.startsWith("org.graalvm.")) {
+            return true;
+         }
+
+         if(!name.startsWith("inetsoft.uql.") && !name.startsWith("java.") &&
+            !name.startsWith("javax.") && !name.startsWith("jdk.") &&
+            !name.startsWith("sun."))
+         {
+            return false;
+         }
+      }
+
+      return false;
    }
 
    /**
