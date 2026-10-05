@@ -30,6 +30,7 @@ import inetsoft.uql.asset.ExpressionValue;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.util.script.ExpressionFailedException;
 import inetsoft.util.script.ScriptSpan;
 import inetsoft.util.script.graal.pool.WorksheetScriptEnv;
 
@@ -351,8 +352,9 @@ public final class RelPipeline {
 
    /**
     * Make row {@code r} of {@code table} available. A formula error thrown on the way is
-    * recorded against the failed row of the formula lens (the last row it added) and the
-    * read resumed, as a reader that skips a failed row would.
+    * recorded against every failed row of the formula lens it reports (a batch reports all
+    * its failed rows in one exception, Testing #77123 O2), else the last row the lens added,
+    * and the read resumed, as a reader that skips a failed row would.
     */
    private static void probe(TableLens table, FormulaTableLens lens, int r,
                              Map<Integer, String> errors) throws Exception
@@ -363,15 +365,37 @@ public final class RelPipeline {
             return;
          }
          catch(RuntimeException ex) {
-            int failed = processedRows(lens);
+            int[] failed = failedRows(ex);
 
-            if(attempt > ROWS || errors.containsKey(failed) && attempt > 0) {
-               throw new IllegalStateException("no progress past row " + failed, ex);
+            if(failed.length == 0) {
+               failed = new int[] { processedRows(lens) };
             }
 
-            errors.put(failed, error(ex));
+            if(attempt > ROWS || errors.containsKey(failed[0]) && attempt > 0) {
+               throw new IllegalStateException("no progress past row " + failed[0], ex);
+            }
+
+            String error = error(ex);
+
+            for(int row : failed) {
+               errors.put(row, error);
+            }
          }
       }
+   }
+
+   /**
+    * The formula lens rows an exception reports as failed, from the expression failure in its
+    * cause chain; the lens rows are the ids of the standard table.
+    */
+   private static int[] failedRows(Throwable ex) {
+      for(int depth = 0; ex != null && depth < 16; ex = ex.getCause(), depth++) {
+         if(ex instanceof ExpressionFailedException failure) {
+            return failure.getFailedRows();
+         }
+      }
+
+      return new int[0];
    }
 
    private static List<String> condition(String formula, AssetQuerySandbox box,
