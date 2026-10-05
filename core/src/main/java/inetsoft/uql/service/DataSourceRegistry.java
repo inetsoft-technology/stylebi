@@ -2035,13 +2035,16 @@ public class DataSourceRegistry implements MessageListener {
    }
 
    /**
-    * Get all sub children of the specified path.
+    * Get all sub children of the specified path. The path ends with "/" unless it is empty.
+    * The root ("/" or "") matches every name; any other path matches the names that start
+    * with it, so a name where the path appears again deeper (F/xF/G/x for F/G) isn't listed.
     */
    private List<String> getAllSubChildren(String path, String[] names) {
       List<String> children = new ArrayList<>();
 
       for(String name : names) {
-         if("/".equals(path) && name.indexOf('/') == -1  || name.contains(path)) {
+         // Bug #77770, match by prefix, not contains
+         if("/".equals(path) || path.isEmpty() || name.startsWith(path)) {
             children.add(name);
          }
       }
