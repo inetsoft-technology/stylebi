@@ -230,11 +230,20 @@ class UniformSQLLossySourceChangeTest {
       JDBCDataSource ch = dataSource("com.clickhouse.jdbc.ClickHouseDriver",
                                      "jdbc:clickhouse://localhost:8123/x", "clickhouse", false);
       assertEquals(JDBCDataSource.JDBC_CLICKHOUSE, ch.getDatabaseType());
-      String xml = toXML(parse(text, helpers().get("h2")));
+      // parsed with the ClickHouse source so the map key access is pre-quoted before lexing
+      // (Bug #77661: without that, t.m['k'] has no dedicated subscript grammar and is
+      // ambiguous with an implicit alias, so a non-ClickHouse/Databricks dialect now refuses
+      // the parse instead of silently misreading it as t.m aliased "k")
+      String xml = toXML(parse(text, ch));
 
       // null -> ch
       UniformSQL sql = load(xml, null);
-      assertFalse(sql.isLossy());
+      // without a data source, the generic re-parse used to verify the cached text can
+      // still be safely regenerated has no CH-aware pre-quoting to fall back on, so the
+      // ambiguous t.m['k'] now refuses to parse there too (Bug #77661) and the verdict is
+      // conservatively lossy, instead of the old, incorrect non-lossy verdict that came from
+      // a misparse of t.m['k'] as t.m aliased "k"
+      assertTrue(sql.isLossy());
       sql.setDataSource(ch);
       assertTrue(sql.isLossy(), "null -> ch");
       assertFalse(XUtil.isQueryMergeable(query(sql)), "null -> ch");
@@ -243,7 +252,7 @@ class UniformSQLLossySourceChangeTest {
       sql = load(xml, ch);
       assertTrue(sql.isLossy());
       sql.setDataSource(null);
-      assertFalse(sql.isLossy());
+      assertTrue(sql.isLossy());
       sql.setDataSource(ch);
       assertTrue(sql.isLossy(), "ch -> null -> ch");
 

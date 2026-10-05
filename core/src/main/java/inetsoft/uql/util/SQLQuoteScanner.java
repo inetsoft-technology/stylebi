@@ -17,12 +17,18 @@
  */
 package inetsoft.uql.util;
 
+import java.util.Arrays;
+import java.util.Locale;
+import java.util.Set;
+import java.util.function.IntPredicate;
+
 /**
  * Finds the quoted text (string literals and quoted identifiers) and the comments of sql text
  * that is sent to the database as is, so the text scanners don't take the contents of a
  * literal for sql. The quoting rules are those of the target database, which the scanners
- * don't know, so only the rules common to the databases are applied, and text is quoted
- * only if it is quoted by the rules of each database family.
+ * don't know, so the text is scanned by the rules of each database family, and text is
+ * quoted only if it is quoted by the rules of each family, and comment only if it is inside
+ * the same comment by the rules of each family.
  */
 public final class SQLQuoteScanner {
    private SQLQuoteScanner() {
@@ -156,14 +162,16 @@ public final class SQLQuoteScanner {
     * the text is scanned by the rules of each database family, and a character is quoted
     * only if it is quoted by all of them. So no text that one of these databases reads as
     * sql is treated as quoted; such text is treated as sql, as before quoted text was found.
-    * This holds because each database has one family scan with all of its rules.
+    * This holds because each database has one family scan with all of its rules, and a
+    * family only quotes text its database doesn't read as sql (a family may also mark text
+    * quoted that its database reads as a comment, such as an informix {...} comment).
     * @return the quoted flag of each character.
     */
    public static boolean[] findQuoted(String text) {
-      boolean[] quoted = findQuoted(text, DIALECTS[0]);
+      boolean[] quoted = scan(text, DIALECTS[0], null, null);
 
       for(int d = 1; d < DIALECTS.length; d++) {
-         boolean[] quoted2 = findQuoted(text, DIALECTS[d]);
+         boolean[] quoted2 = scan(text, DIALECTS[d], null, null);
 
          for(int i = 0; i < quoted.length; i++) {
             quoted[i] = quoted[i] && quoted2[i];
@@ -174,9 +182,70 @@ public final class SQLQuoteScanner {
    }
 
    /**
-    * Find the quoted characters by the comment and quoting rules of a database family.
+    * Find the comments of the sql text, the comment side of findQuoted. A character is
+    * inside a comment only if every database family reads it inside a comment that starts
+    * at the same index, so no text that one of these databases reads as sql or as quoted
+    * text is treated as a comment.
+    * @param tag true at the index of a slash-star that opens a tag of the caller, such as a
+    *            vpm tag, which is read as two characters of sql, not as a comment. A slash-star
+    *            inside an earlier comment or quoted text is not tested.
+    * @return for each character, the index where the comment holding it starts, or -1 if
+    * the character is not inside a comment.
     */
-   private static boolean[] findQuoted(String text, int rules) {
+   public static int[] findComments(String text, IntPredicate tag) {
+      return findComments(text, tag, null);
+   }
+
+   /**
+    * Find the comments of the sql text, as findComments(text, tag), and also the characters
+    * that every database family reads inside some comment, whatever index that comment
+    * starts at in each family.
+    * @param lastStart if not null, it gets, for each character inside a comment in every
+    *                  family, the latest index where one of those comments starts, and -1 for
+    *                  the other characters. So no text that one of these databases reads as
+    *                  sql or as quoted text gets an index.
+    * @return for each character, the index where the comment holding it starts in every
+    * family, or -1.
+    */
+   public static int[] findComments(String text, IntPredicate tag, int[] lastStart) {
+      int len = text.length();
+      int[] comment = null;
+
+      for(int rules : DIALECTS) {
+         int[] comment2 = new int[len];
+         Arrays.fill(comment2, -1);
+         scan(text, rules, tag, comment2);
+
+         if(comment == null) {
+            comment = comment2;
+
+            if(lastStart != null) {
+               System.arraycopy(comment2, 0, lastStart, 0, len);
+            }
+
+            continue;
+         }
+
+         for(int i = 0; i < len; i++) {
+            if(comment[i] != comment2[i]) {
+               comment[i] = -1;
+            }
+
+            if(lastStart != null && lastStart[i] >= 0) {
+               lastStart[i] = comment2[i] < 0 ? -1 : Math.max(lastStart[i], comment2[i]);
+            }
+         }
+      }
+
+      return comment;
+   }
+
+   /**
+    * Find the quoted characters by the comment and quoting rules of a database family.
+    * @param tag the slash-stars that are not comments, or null.
+    * @param comment if not null, it gets the start of the comment holding each character.
+    */
+   private static boolean[] scan(String text, int rules, IntPredicate tag, int[] comment) {
       int len = text.length();
       boolean[] quoted = new boolean[len];
       // the kinds of quote found not closed, the later quotes of the kind are ordinary
@@ -185,9 +254,29 @@ public final class SQLQuoteScanner {
       int i = 0;
 
       while(i < len) {
+         if(tag != null && tag.test(i)) {
+            i += 2;
+            continue;
+         }
+
+         // Bug #77696, an informix {...} comment isn't sql in informix, so the family marks it
+         // quoted. It is not marked comment, since a quote in it may be a literal elsewhere
+         // (a clickhouse map {'k': 1})
+         if((rules & BRACE_COMMENT) != 0 && text.charAt(i) == '{' && !isJdbcEscape(text, i)) {
+            int end = text.indexOf('}', i + 1);
+            end = end < 0 ? len : end + 1;
+            Arrays.fill(quoted, i, end, true);
+            i = end;
+            continue;
+         }
+
          int end = skipComment(text, i, rules);
 
          if(end >= 0) {
+            if(comment != null) {
+               Arrays.fill(comment, i, end, i);
+            }
+
             i = end;
             continue;
          }
@@ -205,7 +294,9 @@ public final class SQLQuoteScanner {
             kind = c;
 
             if(unclosed.indexOf(kind) < 0) {
-               end = skipQuoted(text, i, close, isBackslash(text, i, rules));
+               // Bug #77696, a sql server [name] may hold a [ and line breaks
+               end = close == ']' ? skipBracket(text, i) :
+                  skipQuoted(text, i, close, isBackslash(text, i, rules));
             }
          }
          else if(c == '$' && (rules & DOLLAR_QUOTE) != 0) {
@@ -215,8 +306,8 @@ public final class SQLQuoteScanner {
                kind = c;
 
                if(unclosed.indexOf(kind) < 0) {
-                  int tag = text.indexOf(text.substring(i, open), open);
-                  end = tag < 0 ? -1 : tag + open - i;
+                  int tagEnd = text.indexOf(text.substring(i, open), open);
+                  end = tagEnd < 0 ? -1 : tagEnd + open - i;
                }
             }
          }
@@ -224,21 +315,17 @@ public final class SQLQuoteScanner {
             kind = 'q';
 
             if(unclosed.indexOf(kind) < 0) {
-               int tag = text.indexOf(getQClose(text.charAt(i + 2)) + "'", i + 3);
-               end = tag < 0 ? -1 : tag + 2;
+               int qend = text.indexOf(getQClose(text.charAt(i + 2)) + "'", i + 3);
+               end = qend < 0 ? -1 : qend + 2;
             }
          }
 
-         // a [ ends at a line break or another [, so it isn't scanned to the end
-         if(kind != 0 && kind != '[' && end < 0 && unclosed.indexOf(kind) < 0) {
+         if(kind != 0 && end < 0 && unclosed.indexOf(kind) < 0) {
             unclosed += kind;
          }
 
          if(end > 0) {
-            for(int j = i; j < end; j++) {
-               quoted[j] = true;
-            }
-
+            Arrays.fill(quoted, i, end, true);
             i = end;
             continue;
          }
@@ -250,6 +337,57 @@ public final class SQLQuoteScanner {
    }
 
    /**
+    * Get the end of the sql server [name] opened at start. A ]] is an escape, and the name
+    * may hold a [ and line breaks.
+    * @return the index after the closing ], or -1 if it is not closed.
+    */
+   private static int skipBracket(String text, int start) {
+      int len = text.length();
+
+      for(int i = start + 1; i < len; i++) {
+         if(text.charAt(i) == ']') {
+            if(i + 1 < len && text.charAt(i + 1) == ']') {
+               i++;
+            }
+            else {
+               return i + 1;
+            }
+         }
+      }
+
+      return -1;
+   }
+
+   /**
+    * Check if the { at start opens a jdbc escape ({d ...}, {fn ...}, {call ...}, {?= call
+    * ...}, ...), which the driver replaces, not an informix comment.
+    */
+   private static boolean isJdbcEscape(String text, int start) {
+      int len = text.length();
+      int i = start + 1;
+
+      while(i < len && Character.isWhitespace(text.charAt(i))) {
+         i++;
+      }
+
+      if(i < len && text.charAt(i) == '?') {
+         return true;
+      }
+
+      int j = i;
+
+      while(j < len && Character.isLetter(text.charAt(j))) {
+         j++;
+      }
+
+      if(j < len && Character.isDigit(text.charAt(j))) {
+         return false;
+      }
+
+      return JDBC_ESCAPES.contains(text.substring(i, j).toLowerCase(Locale.ROOT));
+   }
+
+   /**
     * Check if a backslash escapes the next character in the quoted text opened at start.
     */
    private static boolean isBackslash(String text, int start, int rules) {
@@ -257,6 +395,9 @@ public final class SQLQuoteScanner {
 
       if(c == '"') {
          return (rules & BACKSLASH_DQ) != 0;
+      }
+      else if(c == '`') {
+         return (rules & BACKTICK_BACKSLASH) != 0;
       }
       else if(c != '\'') {
          return false;
@@ -343,22 +484,32 @@ public final class SQLQuoteScanner {
    private static final int BACKSLASH_DQ = 128; // a backslash escapes in "" strings and names
    private static final int E_STRING = 256; // a backslash escapes in E'' strings only
    private static final int BRACKET = 512; // [...] is a quoted name, not an array subscript
+   private static final int BRACE_COMMENT = 1024; // {...} is a comment, unless a jdbc escape
+   private static final int BACKTICK_BACKSLASH = 2048; // a backslash escapes in `` names
+
+   // the jdbc escape keywords after a {
+   private static final Set<String> JDBC_ESCAPES =
+      Set.of("d", "t", "ts", "fn", "oj", "call", "escape", "limit");
 
    // the rules of the database families. Each database has a family with all of its rules,
    // so the text the database reads as sql is not quoted by that family's scan, and not by
-   // findQuoted. Adding a family can only make less text quoted
+   // findQuoted, and the text it reads as sql or quoted is not a comment by that family's
+   // scan, and not by findComments. A family may mark text quoted that its database reads
+   // as a comment (informix {...}), since that text isn't sql either. This invariant, not
+   // the number of families, is what keeps sql from being taken as quoted or comment
    private static final int[] DIALECTS = {
-      0, // ansi: db2, derby, informix, exasol, vertica, oracle without q quotes, ...
+      0, // ansi: db2, derby, exasol, vertica, oracle without q quotes, ...
       BRACKET, // sybase, access
       BRACKET | NESTED_COMMENT, // sql server
       BACKSLASH | BACKSLASH_DQ, // hive, impala
       BACKSLASH | BACKSLASH_DQ | NESTED_COMMENT, // spark, databricks
       BACKSLASH | BACKSLASH_DQ | HASH_COMMENT | DASH_SPACE, // mysql, mariadb
       HASH_COMMENT | DASH_SPACE, // mysql with NO_BACKSLASH_ESCAPES
-      BACKSLASH | BACKSLASH_DQ | HASH_COMMENT, // bigquery
-      BACKSLASH | BACKSLASH_DQ | HASH_COMMENT | NESTED_COMMENT, // clickhouse
+      BACKSLASH | BACKSLASH_DQ | HASH_COMMENT | BACKTICK_BACKSLASH, // bigquery
+      BACKSLASH | BACKSLASH_DQ | HASH_COMMENT | NESTED_COMMENT | BACKTICK_BACKSLASH, // clickhouse
       E_STRING | NESTED_COMMENT | DOLLAR_QUOTE, // postgresql
       Q_QUOTE, // oracle
       BACKSLASH | SLASH_COMMENT | DOLLAR_QUOTE, // snowflake
+      BRACE_COMMENT, // informix
    };
 }

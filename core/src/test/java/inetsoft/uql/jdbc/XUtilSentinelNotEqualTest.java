@@ -168,7 +168,8 @@ class XUtilSentinelNotEqualTest {
       }
    }
 
-   // the IN (subquery) is only visited on the jdbc path
+   // the IN (subquery) is visited on the jdbc path and, for the sentinel, on the vpm path
+   // (Bug #77706)
    @Test
    void subquery() throws Exception {
       String sql = SELECT + "where a.k = 1 and a.id IN " +
@@ -178,13 +179,15 @@ class XUtilSentinelNotEqualTest {
 
       try(Connection conn = connect()) {
          for(String type : TYPES) {
-            String generated = validate(parse(sql, type), NULL_VALUE, false);
-            assertEquals(rows(conn, expected), rows(conn, generated),
-                         type + "\ngenerated: " + generated);
+            for(boolean forVpm : new boolean[] { false, true }) {
+               String generated = validate(parse(sql, type), NULL_VALUE, forVpm);
+               assertEquals(rows(conn, expected), rows(conn, generated),
+                            type + " forVpm=" + forVpm + "\ngenerated: " + generated);
+            }
          }
       }
 
-      assertTrue(validate(parse(sql, "default"), NULL_VALUE, true).contains("b.x <> $(p)"));
+      assertFalse(validate(parse(sql, "default"), NULL_VALUE, true).contains("$(p)"));
    }
 
    // the operand of a truth test is rewritten in place. Only the tree is checked here, the
