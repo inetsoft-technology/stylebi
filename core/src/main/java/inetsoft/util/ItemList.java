@@ -230,10 +230,42 @@ public class ItemList implements XMLSerializable, Serializable {
    }
 
    /**
-    * Method to parse an xml segment.
+    * Method to parse an xml segment. An element item may name any
+    * XMLSerializable class, which is constructed. Parse stored or imported XML
+    * with {@link #parseXML(Element, Class)} or {@link #parseStringItems(Element)}
+    * instead, so that only the expected type is constructed.
     */
    @Override
    public void parseXML(Element tag) throws Exception {
+      parseXML(tag, XMLSerializable.class, false);
+   }
+
+   /**
+    * Parse an xml segment that holds only string items. Every element item is
+    * skipped with a warning instead of being constructed.
+    * @param tag the xml element.
+    */
+   public void parseStringItems(Element tag) throws Exception {
+      parseXML(tag, null, true);
+   }
+
+   /**
+    * Parse an xml segment, keeping only element items of the expected type. An
+    * element item that names a class of another type, or a class that can't be
+    * found, is skipped with a warning instead of being constructed.
+    * @param tag the xml element.
+    * @param expected the type of the element items, or <tt>null</tt> to read
+    *                 only string items and skip every element item.
+    */
+   public void parseXML(Element tag, Class<? extends XMLSerializable> expected)
+      throws Exception
+   {
+      parseXML(tag, expected, true);
+   }
+
+   private void parseXML(Element tag, Class<? extends XMLSerializable> expected,
+                         boolean skipInvalid) throws Exception
+   {
       clear();
 
       NodeList list = Tool.getChildNodesByTagName(tag, "item");
@@ -257,8 +289,33 @@ public class ItemList implements XMLSerializable, Serializable {
                classname = classname == null ?
                            Tool.getAttribute(node, "class") :
                            classname;
-               XMLSerializable obj =
-                  (XMLSerializable) Tool.loadSubclass(classname, XMLSerializable.class).newInstance();
+
+               if(!skipInvalid) {
+                  XMLSerializable obj =
+                     (XMLSerializable) Tool.loadSubclass(classname, expected).newInstance();
+                  obj.parseXML(node);
+                  items.add(obj);
+                  continue;
+               }
+
+               if(expected == null || classname == null) {
+                  LOG.warn("Ignoring unsupported item in list {}: {}",
+                           tag.getTagName(), Tool.cleanseCRLF(classname));
+                  continue;
+               }
+
+               Class<?> cls;
+
+               try {
+                  cls = Tool.loadSubclass(classname, expected);
+               }
+               catch(ClassNotFoundException | ClassCastException ex) {
+                  LOG.warn("Ignoring unsupported item in list {}: {}",
+                           tag.getTagName(), Tool.cleanseCRLF(classname));
+                  continue;
+               }
+
+               XMLSerializable obj = (XMLSerializable) cls.newInstance();
                obj.parseXML(node);
                items.add(obj);
             }

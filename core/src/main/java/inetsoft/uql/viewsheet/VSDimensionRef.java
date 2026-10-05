@@ -1073,7 +1073,8 @@ public class VSDimensionRef extends AbstractDataRef implements ContentObject, XD
 
       if(node != null) {
          ItemList mlist = new ItemList();
-         mlist.parseXML(node);
+         // manual order values are written as string items only
+         mlist.parseStringItems(node);
          manualOrder = new ArrayList(Arrays.asList(mlist.toArray()));
       }
 

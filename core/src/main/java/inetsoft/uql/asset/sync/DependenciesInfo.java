@@ -27,8 +27,11 @@ import com.fasterxml.jackson.databind.jsontype.TypeSerializer;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.ser.std.StdSerializer;
 import inetsoft.storage.JsonXmlTranscoder;
+import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetObject;
 import inetsoft.util.Tool;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.w3c.dom.*;
 
 import java.io.*;
@@ -105,12 +108,15 @@ public class DependenciesInfo implements RenameTransformObject, Cloneable {
                String cls = Tool.getAttribute(assetObj, "class");
 
                try {
-                  AssetObject assetObject = (AssetObject) Tool.loadSubclass(cls, AssetObject.class).newInstance();
+                  AssetObject assetObject = (AssetObject) Tool.loadSubclass(cls, AssetEntry.class).newInstance();
                   assetObject.parseXML(Tool.getFirstChildNode(assetObj));
                   dependencies.add(assetObject);
                }
                catch(ClassNotFoundException ex) {
                   // ignore
+               }
+               catch(ClassCastException ex) {
+                  LOG.warn("Ignoring unsupported dependency asset object: {}", Tool.cleanseCRLF(cls));
                }
             }
          }
@@ -127,7 +133,17 @@ public class DependenciesInfo implements RenameTransformObject, Cloneable {
             for(int i = 0; i < assetObjects.getLength(); i++) {
                Element assetObj = (Element) assetObjects.item(i);
                String cls = Tool.getAttribute(assetObj, "class");
-               AssetObject assetObject = (AssetObject) Tool.loadSubclass(cls, AssetObject.class).newInstance();
+               Class<?> assetClass;
+
+               try {
+                  assetClass = Tool.loadSubclass(cls, AssetEntry.class);
+               }
+               catch(ClassCastException ex) {
+                  LOG.warn("Ignoring unsupported embedded dependency asset object: {}", Tool.cleanseCRLF(cls));
+                  continue;
+               }
+
+               AssetObject assetObject = (AssetObject) assetClass.newInstance();
                assetObject.parseXML(Tool.getFirstChildNode(assetObj));
                embedDependencies.add(assetObject);
             }
@@ -146,6 +162,8 @@ public class DependenciesInfo implements RenameTransformObject, Cloneable {
 
    private List<AssetObject> dependencies;
    private List<AssetObject> embedDependencies;
+
+   private static final Logger LOG = LoggerFactory.getLogger(DependenciesInfo.class);
 
    static final class Serializer extends StdSerializer<DependenciesInfo> {
       public Serializer() {
