@@ -151,9 +151,12 @@ class SQLHelperTruthTestOperandTest {
 
    // an ANSI outer join operand is moved to FROM and generates as "", which must not become
    // "()". The parser refuses an outer join under IS (#77481), so the tree is built here.
+   // A *= is refused with a data source that writes ANSI joins (Bug #77548), so the sql is
+   // parsed without one
    @Test
    void emptyOperandIsNotWrapped() throws Exception {
-      UniformSQL sql = parse(SEL + "where a.id *= b.id and a.k = 1", "h2-ansi");
+      UniformSQL sql = parse(SEL + "where a.id *= b.id and a.k = 1", "default");
+      sql.setDataSource(SQLHelperNotEqualJoinTest.RowCompare.dataSource("h2-ansi"));
       XJoin join = findJoin(sql.getWhere());
       assertNotNull(join, "outer join");
       XNode parent = join.getParent();

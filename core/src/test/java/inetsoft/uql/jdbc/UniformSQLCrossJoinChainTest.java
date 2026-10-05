@@ -705,7 +705,6 @@ class UniformSQLCrossJoinChainTest {
          COLS3 + "from a full join b on a.id = b.id, c",
          COLS3 + "from a cross join b, c",
          "select x.id, a.id, b.id from x, a cross join b",
-         COLS3 + "from a, b, c where a.id = b.id(+) and b.id = c.id",
          COLS4 + "from a join b on a.id = b.id join c on b.id = c.id left join d on c.id = d.id",
          // the from clauses of leftJoinAfterFromItem with no new syntax (review r4)
          "select a.id, c.id, x.id from x, a left join c on a.id = c.id",
@@ -895,19 +894,34 @@ class UniformSQLCrossJoinChainTest {
    }
 
    /**
-    * The from clauses of leftJoinFollowedByJoinToItsRightSide and whereOuterJoinInNewSyntax
-    * with no new syntax parse. The where clause outer join regenerates as before, the inner
-    * join first and the outer join written as a RIGHT join after it (the known gap on main,
-    * review r6). The next regeneration reverses the ON, as for the B5 and B6 twins, so there's
-    * no round trip. The ON joins keep the text order, with join r on p.k = q.k, which names
-    * no new table, as a where condition (Bug #77674).
+    * The from clause of leftJoinFollowedByJoinToItsRightSide with no new syntax parses. The
+    * ON joins keep the text order, with join r on p.k = q.k, which names no new table, as a
+    * where condition (Bug #77674).
     */
    static Stream<Arguments> mainOuterJoinFollowedByJoinToItsRightSide() {
       return Stream.of(
          Arguments.of(B7_LEFT.trim(), B7_COLS + "from (d LEFT OUTER JOIN c ON d.id = c.id ) " +
-            "INNER JOIN e ON e.id = c.id , p INNER JOIN q ON p.id = q.id , r where p.k = q.k"),
-         Arguments.of(WHERE_OUTER.trim(), "select c.id, d.id, e.id from (e INNER JOIN c ON " +
-            "e.id = c.id ) RIGHT OUTER JOIN d ON d.id = c.id , p INNER JOIN q ON p.id = q.id"));
+            "INNER JOIN e ON e.id = c.id , p INNER JOIN q ON p.id = q.id , r where p.k = q.k"));
+   }
+
+   /**
+    * The from clause of whereOuterJoinInNewSyntax with no new syntax, and a where clause outer
+    * join followed by an inner join to its null-supplying table, regenerated the inner join
+    * first and the outer join as a RIGHT join after it (the known gap on main, review r6),
+    * which keeps the rows of d that the inner join removes. They are refused with a data
+    * source that writes ANSI joins (Bug #77548).
+    */
+   @ParameterizedTest
+   @ValueSource(strings = {
+      WHERE_OUTER,
+      COLS3 + "from a, b, c where a.id = b.id(+) and b.id = c.id"
+   })
+   void mainWhereOuterJoinFollowedByJoinToItsRightSideIsRefused(String text) {
+      for(String type : new String[] { "h2", "h2-ansi", "mysql-ansi" }) {
+         Exception ex = assertThrows(Exception.class, () -> parse(text, dataSource(type)));
+         assertTrue(ex.getMessage().contains("Unsupported outer join in the where clause"),
+                    type + ": " + ex.getMessage());
+      }
    }
 
    @ParameterizedTest

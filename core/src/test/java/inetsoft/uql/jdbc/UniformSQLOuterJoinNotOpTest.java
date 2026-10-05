@@ -132,14 +132,16 @@ class UniformSQLOuterJoinNotOpTest {
    /**
     * Oracle applies an OR of outer joins between the same two tables as one join
     * condition, which is the generated "ON a.id = b.id OR a.k = b.k" (compared on Oracle
-    * 23 Free). Without the ANSI option the Oracle helper keeps the (+) joins.
+    * 23 Free). Without the ANSI option the Oracle helper keeps the (+) joins. With it, the
+    * sql is refused (Bug #77548), and the structure parsed without the data source keeps
+    * the case of the select list, which the Oracle helper's parse changes.
     */
    @ParameterizedTest
    @CsvSource(delimiter = '|', value = {
       "true | select a.x from a, b where a.id = b.id(+) or a.k = b.k(+) | " +
-         "select A.X from a LEFT OUTER JOIN b ON a.id = b.id OR a.k = b.k",
+         "select a.x from a LEFT OUTER JOIN b ON a.id = b.id OR a.k = b.k",
       "true | select a.x from a, b where a.f = 1 and (a.id = b.id(+) or a.k = b.k(+)) | " +
-         "select A.X from a LEFT OUTER JOIN b ON a.id = b.id OR a.k = b.k where a.f = 1",
+         "select a.x from a LEFT OUTER JOIN b ON a.id = b.id OR a.k = b.k where a.f = 1",
       "false | select a.x from a, b where a.id = b.id(+) or a.k = b.k(+) | " +
          "select A.X from a, b where (a.id = b.id(+) or a.k = b.k(+) )",
    })
@@ -148,8 +150,19 @@ class UniformSQLOuterJoinNotOpTest {
    {
       UniformSQL sql = new UniformSQL();
       sql.setDataSource(oracle(ansi));
+
+      // a where clause outer join is refused with ansi join (Bug #77548), so its structure is
+      // parsed without the data source, and generated with it
+      if(ansi) {
+         UniformSQL refused = sql;
+         assertThrows(antlr.SemanticException.class, () -> refused.parse(
+            text, UniformSQL.PARSE_ALL, UniformSQL.PARSE_PERIOD));
+         sql = new UniformSQL();
+      }
+
       sql.parse(text, UniformSQL.PARSE_ALL, UniformSQL.PARSE_PERIOD);
       assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult());
+      sql.setDataSource(oracle(ansi));
       assertEquals(expected, normalize(sql.getSQLString()));
    }
 

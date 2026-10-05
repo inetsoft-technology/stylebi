@@ -215,7 +215,7 @@ class UniformSQLOuterJoinOuterOpConditionTest {
    })
    void outerJoinAndPlainConditionRegenerate(String text, String expected) {
       for(JDBCDataSource ds : new JDBCDataSource[] { null, GenericJDBCDataSource.create(), oracle(true) }) {
-         UniformSQL sql = parse(text, ds);
+         UniformSQL sql = parseStructure(text, ds);
          assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult(), text);
          assertEquals(expected, regenerate(sql));
       }
@@ -240,7 +240,7 @@ class UniformSQLOuterJoinOuterOpConditionTest {
       JDBCDataSource[] list = { null, GenericJDBCDataSource.create(), oracle(true) };
 
       for(int i = 0; i < list.length; i++) {
-         UniformSQL sql = parse(text, list[i]);
+         UniformSQL sql = parseStructure(text, list[i]);
          assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult(), text);
          assertEquals(i < 2 ? expected : ansi, regenerate(sql));
       }
@@ -273,6 +273,21 @@ class UniformSQLOuterJoinOuterOpConditionTest {
       UniformSQL sql = new UniformSQL();
       sql.setDataSource(ds);
       new SQLProcessor(sql).parse(text);
+      return sql;
+   }
+
+   // a where clause (+) join is refused with a data source that writes ANSI joins (Bug #77548),
+   // so its structure is parsed without one and regenerated with the data source, as the
+   // structure of sql parsed without a data source is
+   private static UniformSQL parseStructure(String text, JDBCDataSource ds) {
+      if(ds == null || !text.contains("(+)")) {
+         return parse(text, ds);
+      }
+
+      assertEquals(UniformSQL.PARSE_FAILED, parse(text, ds).getParseResult(), text);
+      UniformSQL sql = parse(text, null);
+      sql.clearSQLString();
+      sql.setDataSource(ds);
       return sql;
    }
 

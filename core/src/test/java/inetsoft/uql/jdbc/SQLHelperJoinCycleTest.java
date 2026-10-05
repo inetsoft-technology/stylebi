@@ -238,10 +238,17 @@ class SQLHelperJoinCycleTest {
    void legacyCycleKeepsTheSqlString(String text) throws Exception {
       // a legacy parsed cycle query can't be regenerated from its structure with the right
       // rows, so it is lossy: the callers that clear the sql string only do so for a query
-      // that is not lossy, and the text, which returns the right rows, is kept
+      // that is not lossy, and the text, which returns the right rows, is kept. With an outer
+      // join, the join clauses of the sql string are recorded instead (Bug #77548), and the
+      // structure is regenerated as the parsed query
       UniformSQL legacy = savedQuery(text, true);
-      assertTrue(legacy.isLossy(), text);
+      boolean outer = Arrays.stream(legacy.getJoins()).anyMatch(XJoin::isOuterJoin);
+      assertEquals(!outer, legacy.isLossy(), text);
       assertEquals(text, legacy.getSQLString());
+
+      if(outer) {
+         assertEquals(generate(parse(text, false), true), generate(legacy, true), text);
+      }
 
       // with the clauses recorded, the structure is regenerated and returns the same rows
       UniformSQL recorded = savedQuery(text, false);
