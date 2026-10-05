@@ -131,6 +131,36 @@ class VirtualAuthenticationProviderWriteFailureTest {
       assertFalse(space.exists(null, FILE_NAME));
    }
 
+   @Test
+   void securityEngineInitSurvivesFirstRunWriteFailureAndKeepsEnvPassword() throws Exception {
+      String envPassword = System.getenv("INETSOFT_ADMIN_PASSWORD");
+      assumeEnvPassword(envPassword);
+      SecurityEngine engine = SecurityEngine.getSecurity();
+      DataSpace space = DataSpace.getDataSpace();
+      space.delete(null, FILE_NAME);
+
+      FAIL_STREAM.set(true);
+      assertDoesNotThrow(engine::init);
+      AuthenticationProvider live = engine.getSecurityProvider().getAuthenticationProvider();
+      assertTrue(authenticate(live, envPassword));
+      assertFalse(space.exists(null, FILE_NAME));
+
+      // storage still failing: the change is reported and the node stays on the env password
+      ChangePasswordController controller = new ChangePasswordController(engine.getSecurityProvider());
+      assertThrows(MessageException.class,
+                   () -> controller.changePassword(request(NEW_PASSWORD), adminPrincipal()));
+      FAIL_STREAM.set(false);
+      assertTrue(authenticate(live, envPassword), "running node keeps the env password");
+      assertFalse(authenticate(live, NEW_PASSWORD));
+
+      // storage recovered: the change is saved and survives a re-init
+      engine.changePassword(null, NEW_PASSWORD);
+      engine.init();
+      AuthenticationProvider reinit = engine.getSecurityProvider().getAuthenticationProvider();
+      assertTrue(authenticate(reinit, NEW_PASSWORD));
+      assertFalse(authenticate(reinit, envPassword));
+   }
+
    private static void assumeEnvPassword(String password) {
       Assumptions.assumeTrue(password != null && !password.isEmpty(),
                              "INETSOFT_ADMIN_PASSWORD is not set");
