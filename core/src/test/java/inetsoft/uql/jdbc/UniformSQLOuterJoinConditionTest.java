@@ -110,7 +110,6 @@ class UniformSQLOuterJoinConditionTest {
       "select * from a left join b on a.id = b.id and b.x is null",
       "select * from a left join b on a.id = b.id and 1 = 1",
       "select * from a left join b on not (a.id = b.id and a.k = b.k)",
-      "select * from a left join b on (a.id = b.id) is true",
       // joins between different pairs of tables, or between unknown tables
       "select * from a left join b on a.id = b.id left join c on c.id = a.id and c.k = b.k",
       "select * from a left join b on id = bid and k = bk",
@@ -125,6 +124,18 @@ class UniformSQLOuterJoinConditionTest {
    void unsupportedOuterJoinConditionFailsCleanly(String text) {
       RecognitionException ex = assertThrows(RecognitionException.class, () -> parse(text));
       assertTrue(ex.getMessage().contains("Unsupported outer join condition"), ex.getMessage());
+
+      UniformSQL sql = new UniformSQL();
+      new SQLProcessor(sql).parse(text);
+      assertEquals(UniformSQL.PARSE_FAILED, sql.getParseResult());
+   }
+
+   // a truth test fails the parse at the IS (#77735), before the outer join is checked
+   @Test
+   void truthTestOuterJoinConditionFailsCleanly() {
+      String text = "select * from a left join b on (a.id = b.id) is true";
+      RecognitionException ex = assertThrows(RecognitionException.class, () -> parse(text));
+      assertTrue(ex.getMessage().contains("Unsupported truth test"), ex.getMessage());
 
       UniformSQL sql = new UniformSQL();
       new SQLProcessor(sql).parse(text);

@@ -4440,7 +4440,7 @@ public class SQLHelper implements KeywordProvider {
     * Check if the set is a truth test, x IS [NOT] TRUE/FALSE/UNKNOWN, as built by the
     * parser's boolean_test rule.
     */
-   static boolean isTruthTest(XSet condition) {
+   public static boolean isTruthTest(XSet condition) {
       String relation = condition.getRelation();
 
       if(relation == null || condition.getChildCount() != 2) {

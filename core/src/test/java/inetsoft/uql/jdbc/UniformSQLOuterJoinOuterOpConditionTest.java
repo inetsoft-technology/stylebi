@@ -112,10 +112,6 @@ class UniformSQLOuterJoinOuterOpConditionTest {
       "select a.x from a join b on a.id = b.id or a.k =* b.k",
       "select a.x from a join b on a.k *= b.k or a.id = b.id",
       "select a.x from a join b on a.k = b.k(+) or a.id = b.id",
-      "select a.x from a join b on (a.id = b.id(+)) is true",
-      "select a.x from a join b on (a.id = b.id(+)) is not true",
-      "select a.x from a join b on (a.k *= b.k) is false",
-      "select a.x from a join b on a.id = b.id and (a.k = b.k(+)) is true",
       "select a.x from a join b on a.id = b.id and (a.f = 1 or a.k = b.k(+))",
       "select a.x from a join b on (a.f = 1 or a.k *= b.k) and a.id = b.id",
       "select a.x from a join b on (a.id = b.id(+) or a.k = b.k(+))",
@@ -130,6 +126,18 @@ class UniformSQLOuterJoinOuterOpConditionTest {
    })
    void outerJoinInInnerJoinOnFailsCleanly(String text) {
       assertRefused(text);
+   }
+
+   // a truth test fails the parse at the IS (#77735), before the outer join is checked
+   @ParameterizedTest
+   @ValueSource(strings = {
+      "select a.x from a join b on (a.id = b.id(+)) is true",
+      "select a.x from a join b on (a.id = b.id(+)) is not true",
+      "select a.x from a join b on (a.k *= b.k) is false",
+      "select a.x from a join b on a.id = b.id and (a.k = b.k(+)) is true",
+   })
+   void outerJoinUnderTruthTestInInnerJoinOnFailsCleanly(String text) {
+      assertRefused(text, "Unsupported truth test");
    }
 
    // an outer join in a having clause, which Oracle only allows in a where clause. The
@@ -248,6 +256,10 @@ class UniformSQLOuterJoinOuterOpConditionTest {
 
    // refused with or without a data source, and whether or not it uses ANSI joins
    private static void assertRefused(String text) {
+      assertRefused(text, "Unsupported outer join condition");
+   }
+
+   private static void assertRefused(String text, String message) {
       for(JDBCDataSource ds : new JDBCDataSource[] { null, GenericJDBCDataSource.create(), oracle(true) }) {
          UniformSQL sql = parse(text, ds);
          assertEquals(UniformSQL.PARSE_FAILED, sql.getParseResult(),
@@ -258,7 +270,7 @@ class UniformSQLOuterJoinOuterOpConditionTest {
          UniformSQL sql = new UniformSQL();
          sql.parse(text, UniformSQL.PARSE_ALL, UniformSQL.PARSE_PERIOD);
       });
-      assertTrue(ex.getMessage().contains("Unsupported outer join condition"), ex.getMessage());
+      assertTrue(ex.getMessage().contains(message), ex.getMessage());
    }
 
    private static JDBCDataSource oracle(boolean ansi) {
