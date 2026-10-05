@@ -35,7 +35,6 @@ import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
-import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
@@ -52,7 +51,6 @@ import static org.junit.jupiter.api.Assertions.*;
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class },
                       initializers = ConfigurationContextInitializer.class)
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome(importResources = "ViewsheetScopeTest.vso")
 @Tag("core")
 @Tag("integration")
@@ -65,6 +63,8 @@ class VSUtilGetBookmarksScriptTest {
    private static final String ORG_B = "orgB77822";
    private static final String FOLDER = "R77822";
    private static final String SHEET = FOLDER + "/Sheet";
+   // a sheet of aliceA's own organization that she has no READ grant on
+   private static final String HIDDEN_SHEET = FOLDER + "/Hidden";
 
    // lists the bookmarks the script gets as name|owner, and mints an IdentityID for any
    // user without Java.type('...IdentityID') through a USER-scope asset identifier
@@ -81,6 +81,7 @@ class VSUtilGetBookmarksScriptTest {
    private ViewsheetScope viewsheetScope;
    private AssetEntry entryA;
    private AssetEntry entryB;
+   private AssetEntry hiddenEntryA;
    private String oldProvider;
    private Principal savedContextPrincipal;
    private Principal savedPrincipal;
@@ -107,11 +108,14 @@ class VSUtilGetBookmarksScriptTest {
          .markPermissionEdited(ResourceType.REPORT, SHEET, ORG_A)
          .setup();
 
-      entryA = saveSheet(ORG_A);
-      entryB = saveSheet(ORG_B);
+      entryA = saveSheet(SHEET, ORG_A);
+      entryB = saveSheet(SHEET, ORG_B);
+      hiddenEntryA = saveSheet(HIDDEN_SHEET, ORG_A);
       saveBookmarks(entryA, new IdentityID("aliceA", ORG_A), "AlicePrivate", "AliceShared");
       saveBookmarks(entryA, new IdentityID("annA", ORG_A), "AnnPrivate", "AnnShared");
       saveBookmarks(entryB, new IdentityID("bobB", ORG_B), "BobPrivate", "BobShared");
+      saveBookmarks(hiddenEntryA, new IdentityID("annA", ORG_A), "AnnHiddenPrivate",
+                    "AnnHiddenShared");
 
       SRPrincipal alice = builder.principalOf("aliceA", ORG_A);
       ThreadContext.setContextPrincipal(alice);
@@ -159,6 +163,18 @@ class VSUtilGetBookmarksScriptTest {
    @Test
    void ownIdOnOtherOrgSheetListsNothing() throws Exception {
       assertEquals("", run("list(V.getBookmarks(" + q(entryB) + ", id('aliceA', '" + ORG_A + "')))"));
+   }
+
+   /**
+    * The context user's own id on a sheet of her own organization that she may not read
+    * lists nothing, so the check is READ and not only the organization.
+    */
+   @Test
+   void ownIdOnUnreadableSameOrgSheetListsNothing() throws Exception {
+      assertEquals("", run("list(V.getBookmarks(" + q(hiddenEntryA) + ", id('aliceA', '" +
+                              ORG_A + "')))"));
+      assertEquals("", run("list(V.getBookmarks(" + q(hiddenEntryA) + ", id('annA', '" +
+                              ORG_A + "')))"));
    }
 
    /** A minted other-org id on that org's sheet lists nothing. */
@@ -213,6 +229,11 @@ class VSUtilGetBookmarksScriptTest {
       assertTrue(ann.contains("AnnPrivate"), ann.toString());
       assertFalse(ann.contains("AlicePrivate"), ann.toString());
       assertTrue(bob.contains("BobPrivate"), bob.toString());
+
+      // the unreadable same-org sheet has a shared bookmark, so its empty script result
+      // comes from the READ check
+      List<String> hidden = names(VSUtil.getBookmarks(hiddenEntryA, new IdentityID("aliceA", ORG_A)));
+      assertTrue(hidden.contains("AnnHiddenShared"), hidden.toString());
    }
 
    private static void assertAliceView(Object result) {
@@ -236,10 +257,10 @@ class VSUtilGetBookmarksScriptTest {
       return "'" + entry.toIdentifier() + "'";
    }
 
-   private static AssetEntry saveSheet(String orgId) throws Exception {
+   private static AssetEntry saveSheet(String path, String orgId) throws Exception {
       AssetRepository repository = AssetUtil.getAssetRepository(false);
       AssetEntry entry = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET,
-                                        SHEET, null, orgId);
+                                        path, null, orgId);
       OrganizationContextHolder.setCurrentOrgId(orgId);
 
       try {

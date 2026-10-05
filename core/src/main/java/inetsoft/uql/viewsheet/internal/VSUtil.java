@@ -6871,7 +6871,9 @@ public final class VSUtil {
 
    /**
     * Get viewsheet bookmark info. A call a script makes itself lists the bookmarks the
-    * context principal sees, and only on a viewsheet it may read (Bug #77822).
+    * context principal sees, and only on a viewsheet it may read (Bug #77822). The user the
+    * script passes is ignored without a warning, so a script that passes another user gets
+    * the context principal's bookmarks, not that user's.
     * @param aEntry the viewsheet entry.
     * @param currUser the current user, ignored on a script's own call.
     * @return bookmark infos.

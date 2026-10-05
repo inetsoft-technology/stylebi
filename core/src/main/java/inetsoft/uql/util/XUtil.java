@@ -1473,7 +1473,9 @@ public final class XUtil {
     * between makes the call that code's. The stack decides, not
     * {@link JavaScriptEngine#isScriptThread()}, so a script function that Java calls back
     * after the script returned (a comparator, for example) is still the script's call.
-    * Only meaningful when called from {@code inetsoft.uql} code, which the walk skips.
+    * Only meaningful when called from {@code inetsoft.uql} code, which the walk skips: called
+    * from any other package it always returns false, because the walk stops at that caller.
+    * {@code ScriptDataSourceAccess.isScriptAccess} applies the same rule; keep the two in step.
     */
    public static boolean isScriptCall() {
       return StackWalker.getInstance().walk(frames -> isScriptCall(
