@@ -206,9 +206,16 @@ private boolean isSameTable(String expr1, String expr2) {
       SQLHelper helper = SQLHelper.getSQLHelper(uniSql.getDataSource());
 
       for(int i = 0; i < uniSql.getTableCount(); i++) {
-         String tableName = Tool.toString(uniSql.getSelectTable(i).getName());
+         Object name = uniSql.getSelectTable(i).getName();
          String tableAlias = uniSql.getSelectTable(i).getAlias();
-         String quotedTableAlias = !Tool.equals(tableAlias, tableName) ?
+         // a derived table written without an alias has its sql as its alias. The sql always
+         // has a space (select ..), so it's only generated for an alias with a space, since
+         // generating it at each comparison is exponential with the nesting of derived
+         // tables (Bug #77791)
+         boolean aliased = name instanceof UniformSQL && tableAlias != null &&
+            !tableAlias.isEmpty() && tableAlias.indexOf(' ') < 0 ||
+            !Tool.equals(tableAlias, Tool.toString(name));
+         String quotedTableAlias = aliased ?
             XUtil.quoteAlias(tableAlias, helper) : helper.quoteTableName(tableAlias);
          String prefix = quotedTableAlias + ".";
 
@@ -219,6 +226,20 @@ private boolean isSameTable(String expr1, String expr2) {
    }
 
    return false;
+}
+
+/**
+ * Get the text of a derived table in the join text of a from clause. The text is
+ * only checked for being empty, so the sql of the subquery isn't generated, which
+ * generated each subquery again at each level of nested derived tables (Bug #77791).
+ * Generating it marked the subquery as parsed, which is kept.
+ */
+private String getDerivedTableText(Object name) {
+   if(name instanceof UniformSQL) {
+      ((UniformSQL) name).setParseResult(UniformSQL.PARSE_SUCCESS);
+   }
+
+   return "(subquery)";
 }
 
 private String getTableOp(UniformSQL sql, Object table) {
@@ -1795,6 +1816,12 @@ private void checkStatus() {
  * recorded before the body is parsed and replaced when the body matches.
  * This assumes that no listed rule calls itself again at its start token
  * without consuming a token first, which would read that recorded failure.
+ * It also assumes that a listed rule has no parameter that changes what it
+ * matches, and that no semantic predicate in it depends on anything but the
+ * tokens and the dialect, so a result holds wherever the rule is guessed.
+ * The FROM clause rules are memoized by query_spec, which every subquery
+ * starts with, and joined_table, which is guessed on the right of each join
+ * (Bug #77791).
  */
 private static final int MEMO_SEARCH_CONDITION = 0;
 private static final int MEMO_BOOLEAN_PRIMARY = 1;
@@ -1809,7 +1836,9 @@ private static final int MEMO_DATETIME_VALUE_EXP = 9;
 private static final int MEMO_INTERVAL_VALUE_EXP = 10;
 private static final int MEMO_MATCH_VALUE = 11;
 private static final int MEMO_SET_FCT_SPEC = 12;
-private static final int MEMO_RULE_COUNT = 13;
+private static final int MEMO_QUERY_SPEC = 13;
+private static final int MEMO_JOINED_TABLE = 14;
+private static final int MEMO_RULE_COUNT = 15;
 private static final Object MEMO_FAILED = new Object();
 // start token -> stop token or MEMO_FAILED, one map per rule
 private final List<Map<Token, Object>> memo = createMemo();
@@ -4259,6 +4288,12 @@ simple_table returns [XExpression exp = null]
         ;
 
 query_spec returns [XExpression exp = null]
+        {Token memoStart = LT(1); if(memoHit(MEMO_QUERY_SPEC, memoStart)) {return exp;}}
+        :
+        exp = query_spec_body {memoSuccess(MEMO_QUERY_SPEC, memoStart)}?
+        ;
+
+query_spec_body returns [XExpression exp = null]
         {
            UniformSQL subquery = new UniformSQL();
            JDBCSelection selection = new JDBCSelection();
@@ -4577,7 +4612,7 @@ table_ref [UniformSQL sql] returns [String tbref = ""]
 
         ( dc1:OPEN_PAREN tmp = derived_column_list CLOSE_PAREN {checkDerivedColumnList(sql, alias, tmp, atok, dc1); alias += "(" + tmp + ")";})? )?
         {
-        tbref = name + " " + as + " " + alias;
+        tbref = getDerivedTableText(name) + " " + as + " " + alias;
         if(sql != null) {
                 if(!alias.equals("")) {
                         sql.addTable(alias, name);
@@ -4666,7 +4701,7 @@ table_ref_nojoin [UniformSQL sql, String op] returns [String tbref = ""]
         ( (OPEN_PAREN derived_column_list)=>
         dc2:OPEN_PAREN tmp = derived_column_list CLOSE_PAREN {checkDerivedColumnList(sql, alias, tmp, atok, dc2); alias += "(" + tmp + ")";})?
         {
-        tbref = name + " " + as + " " + alias;
+        tbref = getDerivedTableText(name) + " " + as + " " + alias;
 
         if(sql != null) {
                 if(!alias.equals("")) {
@@ -4869,6 +4904,12 @@ joined_table_2 [UniformSQL sql] returns [XExpression exp = null]
         ;
 
 joined_table returns [XExpression exp = null]
+        {Token memoStart = LT(1); if(memoHit(MEMO_JOINED_TABLE, memoStart)) {return exp;}}
+        :
+        exp = joined_table_body {memoSuccess(MEMO_JOINED_TABLE, memoStart)}?
+        ;
+
+joined_table_body returns [XExpression exp = null]
         {XExpression tmp; {checkStatus();}}
         :
         (table_ref_nojoin[null, null] CROSS)=>
