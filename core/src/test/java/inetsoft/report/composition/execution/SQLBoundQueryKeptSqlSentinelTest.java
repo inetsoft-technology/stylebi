@@ -280,6 +280,9 @@ class SQLBoundQueryKeptSqlSentinelTest {
                   ES, null);
       assertExact("select a.k from a --+ hint\nwhere a.name = $(p) group by a.k order by 1",
                   ES, null);
+      // a MariaDB executable comment, which MariaDB runs
+      assertExact("select a.k from a where a.name = $(p) /*M! and a.k > 0 */ group by a.k " +
+                  "order by 1", ES, null);
       assertExact("select a.k from a where a.name = $(p) and a.k > $(@q) group by a.k " +
                   "order by 1", ES, null);
       assertExact("select a.k from a where a.name = $(p) group by a.k order by 1 " +
@@ -389,12 +392,14 @@ class SQLBoundQueryKeptSqlSentinelTest {
       assertEquals(List.of(), rows(new XNodeTableLens(node)));
    }
 
-   // the sentinel walk doesn't descend into a WHERE condition subquery yet (Bug #77706), so
-   // the rewrite changes nothing and the kept string is sent as written
+   // the sentinel in a WHERE condition subquery is rewritten too (Bug #77706)
    @Test
-   void conditionSubqueryIsNotRewritten() throws Exception {
-      assertExact("select a.k from a where a.k in (select b.k from a b where b.name = $(p)) " +
-                  "group by a.k order by 1", ES, null);
+   void conditionSubqueryIsRewritten() throws Exception {
+      String sql = "select a.k from a where a.k in (select b.k from a b where b.name = $(p)) " +
+         "group by a.k order by 1";
+      assertRows(sql, ES, null, "1", "2", "3");
+      assertRows(sql, NV, null, "1", "2");
+      assertExact(sql, "n1", null, "1");
    }
 
    // the tables of the user's sql are kept on a rewritten run, remove.useless.joinTable

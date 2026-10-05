@@ -730,9 +730,12 @@ public class VpmCondition extends VpmObject {
 
             if(prefix != null) {
                // Bug #77697, a quoted name with a doubled quote ("A""B") is not quoted by the
-               // helper, as it contains a quote, so it is quoted as it was written
-               if(column.contains("\"\"") && ncolumn.equals(prefix + column)) {
-                  ncolumn = prefix + "\"" + column + "\"";
+               // helper, as it contains a quote, so it is quoted as it was written. Bug #77768,
+               // the parser reports it without the escape (A"B) since Bug #77661, while the
+               // columns found by ColumnIterator keep it (A""B)
+               if(column.indexOf('"') >= 0 && ncolumn.equals(prefix + column)) {
+                  String escaped = column.contains("\"\"") ? column : column.replace("\"", "\"\"");
+                  ncolumn = prefix + "\"" + escaped + "\"";
                }
                // Bug #77697, a name with $ or # (amount$, emp#no) is a valid name without
                // quotes in some databases, and a quoted name is case-sensitive (oracle), so
@@ -833,6 +836,13 @@ public class VpmCondition extends VpmObject {
    private static String getNamePattern(String name, boolean bracket) {
       String quoted = Pattern.quote(String.valueOf(name));
       String pattern = "\"?" + quoted + "\"?";
+
+      // Bug #77768, the parser reports a quoted name with a doubled quote ("A""B") without
+      // the escape (A"B) since Bug #77661, and the expression has it doubled
+      if(name != null && name.indexOf('"') >= 0) {
+         pattern = "(?:\"" + Pattern.quote(name.replace("\"", "\"\"")) + "\"|" + pattern + ")";
+      }
+
       return bracket ? "(?:\\[" + quoted + "\\]|" + pattern + ")" : pattern;
    }
 

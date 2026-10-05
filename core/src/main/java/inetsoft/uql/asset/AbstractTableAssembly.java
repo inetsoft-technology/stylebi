@@ -1607,7 +1607,23 @@ public abstract class AbstractTableAssembly extends AbstractWSAssembly implement
       };
 
       iterator.addSQLListener(listener);
-      iterator.iterate();
+
+      // Bug #77695, sql the iterator can't read (a tag that is not closed) still has its
+      // variables, and the error must not escape from the dependency check
+      try {
+         iterator.iterate();
+      }
+      catch(RuntimeException ex) {
+         LOG.debug("Failed to read the sql expression, its variables are searched in the " +
+                      "lines that are not -- comments: {}", exp, ex);
+
+         for(String line : exp.split("\n")) {
+            if(!line.trim().startsWith("--")) {
+               listener.nextElement(SQLIterator.TEXT_ELEMENT, line, null);
+            }
+         }
+      }
+
       return dependends;
    }
 

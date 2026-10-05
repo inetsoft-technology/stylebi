@@ -134,11 +134,13 @@ public class XExpression implements Cloneable, Serializable, XMLSerializable {
 
          // a qualified quoted column (t."MixedCase"), only the column segment is quoted
          if(quotedColumn != null && value.endsWith("." + quotedColumn)) {
+            // escape an embedded quote char by doubling it (#77661)
             return value.substring(0, value.length() - quotedColumn.length()) + q +
-               quotedColumn + q;
+               quotedColumn.replace(q, q + q) + q;
          }
 
-         return q + value + q;
+         // escape an embedded quote char by doubling it (#77661)
+         return q + value.replace(q, q + q) + q;
       }
       else {
          throw new RuntimeException("Unsupported quote type found: " + quote);

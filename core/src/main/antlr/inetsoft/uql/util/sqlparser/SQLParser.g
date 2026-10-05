@@ -1913,15 +1913,6 @@ public boolean changeType(String targetStr, int type) {
    return false;
 }
 
-// strip quote
-String strip(String str) {
-    int last = (str != null) ? str.length() - 1 : 0;
-    return (str != null && str.length() > 1 &&
-            (str.charAt(0)=='\'' && str.charAt(last)=='\'' ||
-             str.charAt(0)=='"' && str.charAt(last)=='"'))
-        ? str.substring(1, str.length()-1) : str;
-}
-
 // the quote of the last special_identifier token (XExpression.QUOTE_*)
 private int identQuote = XExpression.QUOTE_NONE;
 // whether the last qualified_id or column_name was a plain identifier written unquoted (IDENT,
@@ -2017,10 +2008,20 @@ String quoteDot(String str) {
    SQLHelper helper = SQLHelper.getSQLHelper(dx, (Principal) null);
    String quote = helper != null ? helper.getQuote() : "\"";
 
-   if(str.indexOf(".") > 0 || preferQuote && XUtil.isSpecialName(str, true, helper) &&
-      !XUtil.shouldNotQuote(str))
+   // str is always raw (delimiter-free) here, as returned by column_name (IDENT |
+   // special_identifier | T_TIME), never an already-wrapped string, so a quote char
+   // anywhere in it - including as its own first/last character, e.g. the bracket-sourced
+   // name "ab" from input ["ab"] - needs quoting. XUtil.isSpecialName() alone won't see
+   // that case: it treats a name starting and ending with the quote char as already
+   // wrapped and passes it through (a shortcut other callers with genuinely pre-wrapped
+   // segments rely on), so check for an embedded quote char directly here too (#77661)
+   if(str.indexOf(".") > 0 || preferQuote && !XUtil.shouldNotQuote(str) &&
+      (str.contains(quote) || XUtil.isSpecialName(str, true, helper)))
    {
-      return quote + strip(str) + quote;
+      // escape an embedded quote char by doubling it, instead of stripping a would-be
+      // surrounding quote pair, which would silently drop the first/last character of a
+      // raw name that happens to be the quote char itself (#77661)
+      return quote + str.replace(quote, quote + quote) + quote;
    }
 
    return str;
@@ -2039,10 +2040,12 @@ schema_identifier returns [String schmid = ""]
 special_identifier returns [String specid = ""]
         {String tmp = ""; XExpression exp = null; identQuote = XExpression.QUOTE_NONE; {checkStatus();}}
         :
-        a:SPIDENT {tmp = a.getText();specid = tmp.substring(1, tmp.length() - 1);identQuote = XExpression.QUOTE_DOUBLE;}
+        // un-double the '""' and ']]' escapes, as "a""b" and [a]]b] are the identifiers
+        // a"b and a]b (#77661)
+        a:SPIDENT {tmp = a.getText();specid = tmp.substring(1, tmp.length() - 1).replace("\"\"", "\"");identQuote = XExpression.QUOTE_DOUBLE;}
         |c:SPIDENT2 {tmp = c.getText();specid = tmp.substring(1, tmp.length() - 1);identQuote = XExpression.QUOTE_SINGLE;}
         |d:SPIDENT_VAR {specid = d.getText();}
-        |b:SPIDENT_SQUARE {tmp = b.getText();specid = tmp.substring(1,tmp.length() - 1);}
+        |b:SPIDENT_SQUARE {tmp = b.getText();specid = tmp.substring(1,tmp.length() - 1).replace("]]", "]");}
     |h:SPIDENT_BRACKET {specid = h.getText();}
         |(DOLAR (f:IDENT|g:UNSIGNED_NUM_LIT)  {specid = "$" + ((f!=null)?f.getText():g.getText());})
         ;
@@ -2693,10 +2696,12 @@ value_exp_primary_body returns [XExpression exp = null]
         |
         // @by billh, memorize quotes in expression
         (SPIDENT)=> s:SPIDENT {
+           // un-double the '""' escape, as "a""b" is the field a"b (#77661)
            tmp = s.getText();
+           tmp = tmp.substring(1, tmp.length() - 1).replace("\"\"", "\"");
            exp.setQuote(XExpression.QUOTE_DOUBLE);
-           exp.setValue(tmp.substring(1, tmp.length() - 1), XExpression.FIELD);
-           columns.add(tmp.substring(1, tmp.length() - 1));
+           exp.setValue(tmp, XExpression.FIELD);
+           columns.add(tmp);
            hasField = true;
         }
         |
@@ -2914,7 +2919,9 @@ char_string_lit returns [String cslit = ""]
         (tmp = introducer tmp1 = char_set_spec )?
         a:STRING_LITERAL {
        cslit = tmp1 + a.getText();
-       if(tmp.length() > 0) { cslit = tmp + " " + cslit; }
+       // the introducer (e.g. "_utf8") must stay adjacent to the charset name with no space,
+       // or the regenerated SQL is rejected by MySQL
+       if(tmp.length() > 0) { cslit = tmp + cslit; }
     }
         ;
 
@@ -4174,10 +4181,15 @@ derived_column [JDBCSelection selection, UniformSQL sql]
         ;
 
 as_clause returns [String as = ""]
-        {checkStatus();}
+        {checkStatus(); boolean hasAs = false;}
         :
-        (AS)?
-        (as = column_name
+        (AS {hasAs = true;})?
+        // a bracket-quoted name ([b]) is only accepted as an alias when AS is explicit;
+        // without AS it is ambiguous with a subscript/map-key access on the preceding
+        // expression (a[1], m['key']), so require AS there instead of silently treating
+        // it as an implicit alias (#77661)
+        ({hasAs}? as = column_name
+        | {!hasAs}? as = column_name_no_subscript
         | a:STRING_LITERAL {as = a.getText();
           // un-double the '' escape, as 'it''s' is the alias it's (#77640)
           as = as.substring(1, as.length()-1).replace("''", "'"); aliasQuoted = Boolean.TRUE;}
@@ -4190,6 +4202,28 @@ column_name returns [String colname = ""]
         a:IDENT {colname = a.getText(); aliasQuoted = Boolean.FALSE; identPlain = true;}
         | colname = special_identifier {aliasQuoted = isQuotedIdentifier(first);}
         | b:T_TIME {colname = b.getText(); aliasQuoted = Boolean.FALSE; identPlain = true;}
+        ;
+
+// same as column_name, but without the SPIDENT_SQUARE ([b]) alternative - used for an
+// implicit (no AS) alias, where a bracket-quoted name would be ambiguous with a subscript
+// or map-key access on the preceding expression (#77661)
+column_name_no_subscript returns [String colname = ""]
+        {identQuote = XExpression.QUOTE_NONE; Token first = LT(1); checkStatus();}
+        :
+        a:IDENT {colname = a.getText(); aliasQuoted = Boolean.FALSE;}
+        | colname = special_identifier_no_subscript {aliasQuoted = isQuotedIdentifier(first);}
+        | b:T_TIME {colname = b.getText(); aliasQuoted = Boolean.FALSE;}
+        ;
+
+// same as special_identifier, but without the SPIDENT_SQUARE alternative (#77661)
+special_identifier_no_subscript returns [String specid = ""]
+        {String tmp = ""; identQuote = XExpression.QUOTE_NONE; {checkStatus();}}
+        :
+        a:SPIDENT {tmp = a.getText();specid = tmp.substring(1, tmp.length() - 1).replace("\"\"", "\"");identQuote = XExpression.QUOTE_DOUBLE;}
+        |c:SPIDENT2 {tmp = c.getText();specid = tmp.substring(1, tmp.length() - 1);identQuote = XExpression.QUOTE_SINGLE;}
+        |d:SPIDENT_VAR {specid = d.getText();}
+    |h:SPIDENT_BRACKET {specid = h.getText();}
+        |(DOLAR (f:IDENT|g:UNSIGNED_NUM_LIT)  {specid = "$" + ((f!=null)?f.getText():g.getText());})
         ;
 
 table_exp [UniformSQL sql]
@@ -5009,7 +5043,7 @@ direct_select_stmt_n_rows [UniformSQL sql]
         ) (SEMI)?
         */
 
-        select_stmt_single_row (SEMI)?
+        select_stmt_single_row (SEMI)? EOF
         ;
 
 //The following rules is for partially parse
@@ -5166,6 +5200,12 @@ tokens {
 //private boolean intervalFlag = false;
 private boolean intervalEnd = true;
 
+// nesting depth of the comment currently being matched by ML_COMMENT, which recurses into
+// itself for a nested "/*"; caps pathological input (e.g. thousands of nested "/*") at a
+// clean parse failure instead of a StackOverflowError
+private int mlCommentDepth = 0;
+private static final int MAX_ML_COMMENT_DEPTH = 100;
+
 private boolean isInterval() {
 	int i = 0; String tmp = "";
 	try {
@@ -5202,8 +5242,10 @@ IDENT
 			;
 
 // setCommitToPath(true) after an opening delimiter makes an unterminated delimited token a
-// lexer error, instead of filter mode silently dropping it and the rest of the text (#77640)
-SPIDENT			:	'"' {setCommitToPath(true);} (~('"'))*'"'
+// lexer error, instead of filter mode silently dropping it and the rest of the text (#77640).
+// A doubled '"' ("") inside the token is an escaped literal '"', not the closing delimiter,
+// mirroring the '''' escape in STRING_LITERAL (#77661)
+SPIDENT			:	'"' {setCommitToPath(true);} (~('"') | '"' '"')* '"'
 			;
 SPIDENT2		:	'`' {setCommitToPath(true);} ('\u0001'..'\u005f' | '\u0061'..'\ufffe')* '`'
 			;
@@ -5212,15 +5254,37 @@ SPIDENT_VAR             :    "$(" {setCommitToPath(true);} ('a'..'z'|'A'..'Z'|'_
                                   '+' | '-' |'@'|'\u0100'..'\uFFFE')* ')' ;
 
 // every character but '[' and ']', e.g. '\' or the CJK characters from U+80FE up. A '['
-// ends it, so a nested subscript (arr[idx[1]]) can't become one name (#77640)
+// ends it, so a nested subscript (arr[idx[1]]) can't become one name (#77640). A doubled
+// ']' (]]) inside the token is an escaped literal ']', not the closing delimiter,
+// mirroring the '""' escape in SPIDENT (#77661)
 SPIDENT_SQUARE		: 	'[' {setCommitToPath(true);}
-				('\u0001'..'\u005a' | '\\' | '\u005e'..'\ufffe')*
+				('\u0001'..'\u005a' | '\\' | '\u005e'..'\ufffe' | ']' ']')*
 				']'
 			;
 
-// a nested JDBC escape, e.g. {fn concat({fn ucase(a)}, b)}, is part of one token (#77640)
+// a nested JDBC escape, e.g. {fn concat({fn ucase(a)}, b)}, is part of one token (#77640). A
+// bracket-quoted segment ([..]), a quoted segment ('..'/".."/`..`), and a '--', '//' or
+// '/*..*/' comment, inside the escape body are each consumed as one unit, so a ']' in the
+// bracket segment, or a comment-opener or '}' inside the quoted segment, doesn't end the
+// escape before its real closing '}' (#77680)
 SPIDENT_BRACKET		:	'{' {setCommitToPath(true);}
-				(SPIDENT_BRACKET | '\u0001'..'\u007a' | '\u007c' | '\u007e'..'\ufffe')* '}'
+				(	options { generateAmbigWarnings=false; } :
+					SPIDENT_BRACKET
+				|	'[' (~']')* ']'
+				|	'\'' (~'\'')* '\''
+				|	'"' (~'"')* '"'
+				|	'`' (~'`')* '`'
+				|	"--" (options { generateAmbigWarnings=false; } : '\u0000'..'\u0009'|'\u000B'|'\u000C'|'\u000E'..'\uFFFE')*
+				|	"//" (options { generateAmbigWarnings=false; } : '\u0000'..'\u0009'|'\u000B'|'\u000C'|'\u000E'..'\uFFFE')*
+				|	"/*" (	options { generateAmbigWarnings=false; } :
+						{LA(2)!='/'}? '*'
+					|	'\r' '\n'	{newline();}
+					|	'\r'		{newline();}
+					|	'\n'		{newline();}
+					|	'\u0000'..'\u0009'|'\u000B'|'\u000C'|'\u000E'..'\u0029'|'\u002B'..'\uFFFE'
+				)* "*/"
+				|	'\u0001'..'\u0021' | '\u0023'..'\u0026' | '\u0028'..'\u005a' | '\\' | ']' | '\u005e'..'\u005f' | '\u0061'..'\u007a' | '\u007c' | '\u007e'..'\ufffe'
+				)* '}'
 			;
 
 WS			:	(' '
@@ -5383,22 +5447,29 @@ HEX_DIGIT
 	:	('0'..'9'|'A'..'F'|'a'..'f')
 	;
 
-// Single-line comments
+// Single-line comments. "//" is not standard SQL (and is integer division on some
+// dialects), so only "--" is recognized as a line-comment opener.
 SL_COMMENT
-	:	"//"
-		//(~('\n'|'\r'))* ('\n'|'\r'('\n')?)
-		('\u0000'..'\u0009'|'\u000B'|'\u000C'|'\u000E'..'\uFFFE')* ('\n'|'\r'('\n')?)
-		{$setType(Token.SKIP); newline();}
-		|
-		"--"
+	:	"--"
 		//(~('\n'|'\r'))* ('\n'|'\r'('\n')?)
 		('\u0000'..'\u0009'|'\u000B'|'\u000C'|'\u000E'..'\uFFFE')* ('\n'|'\r'('\n')?)
 		{$setType(Token.SKIP); newline();}
 	;
 
-// multiple-line comments
+// multiple-line comments. Nesting-aware: a "/*" inside the comment body
+// recursively invokes this same rule to consume a fully nested comment (open and close
+// delimiters included), so the outer comment only ends at the "*/" that closes the
+// outermost level, matching how PostgreSQL, Derby, SQL Server and DB2 all nest "/* */" comments.
+// mlCommentDepth caps the recursion so pathological input (thousands of nested "/*") fails
+// the parse cleanly instead of overflowing the stack.
 ML_COMMENT
-	:	"/*" {setCommitToPath(true);}
+	:	"/*" {setCommitToPath(true); mlCommentDepth++;}
+		{
+			if(mlCommentDepth > MAX_ML_COMMENT_DEPTH) {
+				mlCommentDepth = 0;
+				throw new antlr.RecognitionException("comment nested too deeply");
+			}
+		}
 		(	/*	'\r' '\n' can be matched in one alternative or by matching
 				'\r' in one iteration and '\n' in another.  I am trying to
 				handle any flavor of newline that comes in, but the language
@@ -5410,15 +5481,17 @@ ML_COMMENT
 				generateAmbigWarnings=false;
 			}
 		:
-			{ LA(2)!='/' }? '*'
+			("/*") => ML_COMMENT
+		|	{ LA(2)!='/' }? '*'
+		|	{ LA(2)!='*' }? '/'
 		|	'\r' '\n'		{newline();}
 		|	'\r'			{newline();}
 		|	'\n'			{newline();}
 		//|	~('*'|'\n'|'\r')
-		|	'\u0000'..'\u0009'|'\u000B'|'\u000C'|'\u000E'..'\u0029'|'\u002B'..'\uFFFE'
+		|	'\u0000'..'\u0009'|'\u000B'|'\u000C'|'\u000E'..'\u0029'|'\u002B'..'\u002E'|'\u0030'..'\uFFFE'
 		)*
 		"*/"
-		{$setType(Token.SKIP);}
+		{$setType(Token.SKIP); mlCommentDepth--;}
 	;
 
 EQ      :       "=" 	;
@@ -5438,3 +5511,8 @@ CONCATENATION_OP	:	"||" | "&";
 // a backslash outside a literal, a quoted name or a comment fails the parse instead of being
 // dropped by filter mode, e.g. the second escape of '\'', s, '\'' in MySQL (#77640)
 BACKSLASH	:	'\\' ;
+
+// a stray '}' or ']' outside a JDBC escape or a bracket-quoted name fails the parse instead
+// of being dropped by filter mode, e.g. a stray '}' after a complete {fn ...} escape (#77680)
+RBRACE	:	'}' ;
+RBRACKET	:	']' ;
