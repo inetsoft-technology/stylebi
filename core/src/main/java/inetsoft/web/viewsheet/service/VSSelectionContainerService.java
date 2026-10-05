@@ -164,8 +164,7 @@ public class VSSelectionContainerService {
             final Dimension childSize = service.getSize(childAssemblyInfo);
             totalHeight += childSize.height;
             final boolean sliderExpanded = childAssemblyInfo instanceof TimeSliderVSAssemblyInfo &&
-               (childSize.height !=
-                  ((TimeSliderVSAssemblyInfo) childAssemblyInfo).getTitleHeight());
+               !((TimeSliderVSAssemblyInfo) childAssemblyInfo).isCollapsedInContainer(childSize.height);
             final boolean listExpanded = childAssemblyInfo instanceof SelectionListVSAssemblyInfo &&
                ((SelectionListVSAssemblyInfo) childAssemblyInfo).getShowTypeValue() ==
                   SelectionVSAssemblyInfo.LIST_SHOW_TYPE;
@@ -190,7 +189,7 @@ public class VSSelectionContainerService {
             Dimension sliderSize = targetAssemblyInfo.getLayoutSize() != null ?
                targetAssemblyInfo.getLayoutSize() : viewsheet.getPixelSize(targetAssemblyInfo);
 
-            if(sliderSize.height == ((TimeSliderVSAssemblyInfo) targetAssemblyInfo).getTitleHeight()) {
+            if(((TimeSliderVSAssemblyInfo) targetAssemblyInfo).isCollapsedInContainer(sliderSize.height)) {
                totalHeight += ((TimeSliderVSAssemblyInfo) targetAssemblyInfo)
                   .getListHeight() * AssetUtil.defh;
             }
@@ -229,7 +228,7 @@ public class VSSelectionContainerService {
                (TimeSliderVSAssemblyInfo) changedAssembly.getVSAssemblyInfo();
             final Dimension size = service.getSize(timeSliderInfo);
 
-            if(size.height == timeSliderInfo.getTitleHeight()) {
+            if(timeSliderInfo.isCollapsedInContainer(size.height)) {
                size.height = timeSliderInfo.getListHeight() * AssetUtil.defh +
                   timeSliderInfo.getTitleHeight();
                timeSliderInfo.setHidden(false);

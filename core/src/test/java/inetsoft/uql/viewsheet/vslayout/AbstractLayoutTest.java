@@ -131,6 +131,33 @@ class AbstractLayoutTest {
       assertEquals(6 * AssetUtil.defh, layoutHeight(applied, "SelectionList1"));
    }
 
+   // stored at the old 20px lane; read as open it would take listHeight x defh
+   @Test
+   void aMarkedCollapsedSliderKeepsItsHeightInADeviceLayout() {
+      Viewsheet vs = new Viewsheet();
+      vs.getViewsheetInfo().setVizDensity("comfortable");
+
+      TimeSliderVSAssembly slider = new TimeSliderVSAssembly(vs, "RangeSlider1");
+      TimeSliderVSAssemblyInfo info = (TimeSliderVSAssemblyInfo) slider.getVSAssemblyInfo();
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      info.setListHeight(2);
+      info.setHidden(true);
+      slider.setPixelOffset(new Point(160, 230));
+      slider.setPixelSize(new Dimension(300, 20));
+
+      CurrentSelectionVSAssembly container = new CurrentSelectionVSAssembly(vs, "CurrentSelection1");
+      container.getVSAssemblyInfo().setVizMark(VizMark.MODERN_LIGHT);
+      container.setPixelOffset(new Point(160, 200));
+      container.setPixelSize(new Dimension(300, 360));
+
+      vs.addAssembly(slider);
+      vs.addAssembly(container);
+      container.setAssemblies(new String[]{ "RangeSlider1" });
+
+      Viewsheet applied = containerLayout().apply(vs);
+      assertEquals(20, layoutHeight(applied, "RangeSlider1"));
+   }
+
    private ViewsheetLayout containerLayout() {
       ViewsheetLayout layout = new ViewsheetLayout();
       layout.setVSAssemblyLayouts(List.of(

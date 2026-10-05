@@ -65,6 +65,7 @@ class TitleLaneHeightRowTest {
       assertEquals(26, marked(new SelectionTreeVSAssemblyInfo()).getTitleHeight(), "selection tree");
       assertEquals(26, marked(new CurrentSelectionVSAssemblyInfo()).getTitleHeight(), "selection container");
       assertEquals(26, marked(new CalendarVSAssemblyInfo()).getTitleHeight(), "calendar");
+      assertEquals(26, marked(new TimeSliderVSAssemblyInfo()).getTitleHeight(), "range slider");
    }
 
    @Test
@@ -72,7 +73,6 @@ class TitleLaneHeightRowTest {
       SreeEnv.setProperty("viewsheet.density", "comfortable");
       assertEquals(AssetUtil.defh, marked(new CheckBoxVSAssemblyInfo()).getTitleHeight(), "check box");
       assertEquals(AssetUtil.defh, marked(new RadioButtonVSAssemblyInfo()).getTitleHeight(), "radio button");
-      assertEquals(AssetUtil.defh, marked(new TimeSliderVSAssemblyInfo()).getTitleHeight(), "range slider");
    }
 
    @Test
