@@ -441,4 +441,6 @@ on the tier value; unmarked ones keep their own numbers, so D6 holds with no exc
 browser-versus-export disagreement on legacy rows is knowingly left in place. It predates this
 branch, and unifying it would move every existing container, which is the one thing D6 rules out.
 Whether the container's default size should grow to keep its row count at the larger tiers remains
-a separate slice.
+a separate slice. **Taken up 2026-10-05** in
+[the container density design](./2026-10-05-selection-container-density-design.md): twelve lanes at
+the tier's lane height, 300×360 / 312 / 240.
