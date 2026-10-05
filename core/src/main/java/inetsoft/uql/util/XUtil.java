@@ -728,6 +728,9 @@ public final class XUtil {
 
             break;
          case ' ':
+         case '\n':
+         case '\r':
+         case '\t':
          case '$':
          case '@':
          case '&':
@@ -769,6 +772,29 @@ public final class XUtil {
 
    public static final boolean shouldNotQuote(String str) {
       if(str.startsWith("$(") && str.endsWith(")")) {
+         return true;
+      }
+
+      // PostgreSQL positional parameter, e.g. $1, $2 -- not a quotable identifier and must
+      // stay unquoted to keep its meaning as a bind parameter marker
+      if(str.length() > 1 && str.charAt(0) == '$') {
+         boolean allDigits = true;
+
+         for(int i = 1; i < str.length(); i++) {
+            if(!Character.isDigit(str.charAt(i))) {
+               allDigits = false;
+               break;
+            }
+         }
+
+         if(allDigits) {
+            return true;
+         }
+      }
+
+      // CURRENT_DATE is a reserved ANSI SQL niladic keyword-function (no parens), not an
+      // identifier -- quoting it changes it into a quoted column reference
+      if(str.equalsIgnoreCase("current_date")) {
          return true;
       }
 
