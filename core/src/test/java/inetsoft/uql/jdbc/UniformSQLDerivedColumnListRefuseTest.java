@@ -117,6 +117,15 @@ class UniformSQLDerivedColumnListRefuseTest {
       "select x.id, y.k from a x (nolock) join b y (nolock) on x.id = y.id",
       // the hint of an aliased table is a syntax error, as before
       "select t.id from a t with (nolock)",
+      // the SQL Server table hint of an unaliased table matches the alias with and a
+      // column list. it is refused too (Bug #77492, UniformSQLTableHintRefuseTest)
+      "select id, k from a with (nolock)",
+      "select id, k from a with(nolock)",
+      "select id, k from a WITH (NOLOCK)",
+      "select id, k from a with (nolock, readpast)",
+      "select distinct id from a with (nolock)",
+      "select id from a where id in (select id from b with (nolock))",
+      "select * from a with (nolock) where id > 1",
       // a quoted with alias is a real derived column list
       "select * from (select id, k from a) \"with\"(p, q)",
       "select * from (select id, k from a) [with](p, q)",
@@ -193,47 +202,8 @@ class UniformSQLDerivedColumnListRefuseTest {
       }
    }
 
-   // a SQL Server table hint of an unaliased table (from a with (nolock)) parses as the
-   // alias with and a column list. it parses as before: the regenerated sql drops the hint
-   // and keeps the rows. qualified columns and joins of it are Bug #77492
-   @ParameterizedTest
-   @CsvSource(delimiter = '|', value = {
-      "select id, k from a with (nolock)|select id, k from a",
-      "select id, k from a with(nolock)|select id, k from a",
-      "select id, k from a WITH (NOLOCK)|select id, k from a",
-      "select id, k from a with (nolock, readpast)|select id, k from a",
-      "select distinct id from a with (nolock)|select distinct id from a",
-      "select id from a where id in (select id from b with (nolock))|" +
-         "select id from a where id in (select id from b)",
-      "select * from a with (nolock) where id > 1|select * from a where id > 1",
-   })
-   void withTableHintParses(String text, String unhinted) throws Exception {
-      for(String type : new String[] { null, "sql server", "sql server-ansi" }) {
-         JDBCDataSource ds = type == null ? null : dataSource(type);
-         UniformSQL sql = parse(text, ds);
-         assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult(), type + ": " + text);
-         assertFalse(sql.isLossy(), text);
-
-         UniformSQL processed = new UniformSQL();
-         new SQLProcessor(processed).parse(text);
-         assertEquals(UniformSQL.PARSE_SUCCESS, processed.getParseResult(), text);
-
-         sql.clearSQLString();
-         String generated = normalize(sql.getSQLString());
-
-         // Derby and HSQLDB have no table hints, so the rows of the regenerated sql are
-         // compared with the original without its hint
-         for(String url : new String[] { DERBY_URL, HSQLDB_URL }) {
-            try(Connection conn = connect(url); Statement stmt = conn.createStatement()) {
-               assertEquals(rows(stmt, unhinted), rows(stmt, generated),
-                            url + ": " + text + " -> " + generated);
-            }
-         }
-      }
-   }
-
    // with is reserved, so an unquoted with alias with a column list is not sql a database
-   // runs, and keeping it as before can't return wrong rows
+   // runs as a column list
    @ParameterizedTest
    @ValueSource(strings = {
       "select * from (select id, k from a) with (p, q)",
