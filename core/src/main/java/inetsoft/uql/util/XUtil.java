@@ -259,20 +259,44 @@ public final class XUtil {
          return query;
       }
 
-      String str = sql.getSQLString();
+      sql.setSQLString(clearComments(sql.getSQLString(), null, null, null), false);
 
-      final StringBuilder sb = new StringBuilder();
+      return query;
+   }
+
+   /**
+    * Clear the comment lines (a line whose first non-blank characters are --) and the vpm tags
+    * of a sql string that is not parsed, as clearComments(XQuery) does before the sql runs.
+    * Bug #77788, a comment line that starts inside a slash-star comment in some database and
+    * ends or changes that comment (a star-slash after the --) is kept, since the database reads
+    * it as the text of that comment. Removing it would let the comment run on to a later
+    * star-slash and hide the sql between them, such as a vpm condition. A comment line that
+    * stays inside the comment is removed as before. See SQLQuoteScanner.findCommentChanges.
+    * @param removed if not null, it gets the comment lines that are removed.
+    * @param kept if not null, it gets the comment lines that are kept.
+    * @param live if not null, it gets the kept comment lines that have sql in some database,
+    *             after the end of the comment or read as sql (mysql --x).
+    * @return the sql without the comment lines and tags.
+    */
+   public static String clearComments(String str, List<String> removed, List<String> kept,
+                                      List<String> live)
+   {
+      // the text of the sql, and the index of each comment line in lines
+      final List<Object> parts = new ArrayList<>();
+      final List<String> lines = new ArrayList<>();
+      final List<int[]> ranges = new ArrayList<>();
       SQLIterator iterator = new SQLIterator(str);
       SQLIterator.SQLListener listener = (type, value, comment) -> {
          switch(type) {
          case SQLIterator.TEXT_ELEMENT:
-            sb.append(value);
-            break;
          case SQLIterator.COLUMN_ELEMENT:
-            sb.append(value);
-            break;
          case SQLIterator.WHERE_ELEMENT:
-            sb.append(value);
+            parts.add(value);
+            break;
+         case SQLIterator.COMMENT_ELEMENT:
+            parts.add(lines.size());
+            lines.add(value);
+            ranges.add(new int[] { iterator.getLineStart(), iterator.getLineEnd() });
             break;
          default:
             // do nothing
@@ -283,9 +307,41 @@ public final class XUtil {
       iterator.addSQLListener(listener);
       iterator.iterate();
 
-      sql.setSQLString(sb.toString(), false);
+      int[] starts = ranges.stream().mapToInt(range -> range[0]).toArray();
+      int[] ends = ranges.stream().mapToInt(range -> range[1]).toArray();
+      boolean[] sqlLines = new boolean[lines.size()];
+      boolean[] changed = SQLQuoteScanner.findCommentChanges(str, starts, ends, sqlLines);
+      final StringBuilder sb = new StringBuilder();
 
-      return query;
+      for(Object part : parts) {
+         if(part instanceof String) {
+            sb.append(part);
+            continue;
+         }
+
+         int n = (Integer) part;
+         String line = lines.get(n);
+
+         if(!changed[n]) {
+            if(removed != null) {
+               removed.add(line);
+            }
+
+            continue;
+         }
+
+         sb.append(line);
+
+         if(kept != null) {
+            kept.add(line);
+         }
+
+         if(live != null && sqlLines[n]) {
+            live.add(line);
+         }
+      }
+
+      return sb.toString();
    }
 
    /**
