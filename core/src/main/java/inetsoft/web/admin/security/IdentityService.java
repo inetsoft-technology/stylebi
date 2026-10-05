@@ -1032,21 +1032,58 @@ public class IdentityService {
          Tool.addUserMessage(Catalog.getCatalog(ThreadContext.getContextPrincipal())
                                 .getString("em.security.orgMemberCleanupFailed", id.getName()));
 
-         // the cleanup may have failed before the member was removed from the provider
+         // the removal may have failed, which keeps the member and its dashboards and schedule
+         // tasks. Remove it again and, if that succeeds, run the cleanup that was skipped
+         String memberOrgId = null;
+         boolean removed = false;
+
          try {
-            if(type == Identity.USER && eprovider.getUser(id) != null) {
-               eprovider.removeUser(id);
+            if(type == Identity.USER) {
+               User user = eprovider.getUser(id);
+
+               if(user != null) {
+                  memberOrgId = user.getOrganizationID();
+                  eprovider.removeUser(id);
+                  removed = true;
+               }
             }
-            else if(type == Identity.GROUP && eprovider.getGroup(id) != null) {
-               eprovider.removeGroup(id);
+            else if(type == Identity.GROUP) {
+               Group group = eprovider.getGroup(id);
+
+               if(group != null) {
+                  memberOrgId = group.getOrganizationID();
+                  eprovider.removeGroup(id);
+                  removed = true;
+               }
             }
-            else if(type == Identity.ROLE && eprovider.getRole(id) != null) {
-               eprovider.removeRole(id);
+            else if(type == Identity.ROLE) {
+               Role role = eprovider.getRole(id);
+
+               if(role != null) {
+                  memberOrgId = role.getOrganizationID();
+                  eprovider.removeRole(id);
+                  removed = true;
+               }
             }
          }
          catch(Exception removeEx) {
             LOG.warn("Failed to remove the organization member: {}", id, removeEx);
             return false;
+         }
+
+         if(removed) {
+            String cleanupOrgId = memberOrgId != null ? memberOrgId :
+               id.orgID != null ? id.orgID : orgID;
+
+            try {
+               OrganizationManager.runInOrgScope(orgID, () -> {
+                  cleanUpRemovedIdentity(new DefaultIdentity(id, type), cleanupOrgId);
+                  return null;
+               });
+            }
+            catch(Exception cleanupEx) {
+               LOG.warn("Failed to clean up the removed organization member: {}", id, cleanupEx);
+            }
          }
       }
 
