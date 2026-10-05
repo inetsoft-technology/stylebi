@@ -1050,6 +1050,137 @@ public final class Tool extends CoreTool {
    }
 
    /**
+    * Make a string safe to write between {@code <![CDATA[} and {@code ]]>}. Every
+    * {@code ]]>} in the string is split over two adjacent CDATA sections
+    * ({@code ]]]]><![CDATA[>}). A reader that joins adjacent CDATA sections, such as
+    * {@link #getValue(Node)}, gets the original string back, so no reader change is
+    * needed. A string without {@code ]]>} is returned unchanged.
+    *
+    * @param str the string to write in a CDATA section.
+    *
+    * @return the CDATA-safe string, or null if str is null.
+    */
+   public static String splitCDATAEnd(String str) {
+      return str == null || !str.contains("]]>") ? str : str.replace("]]>", "]]]]><![CDATA[>");
+   }
+
+   /**
+    * Check whether a string contains a character that XML 1.0 can't carry in any form,
+    * not even as a character reference: a C0 control character other than TAB, LF and
+    * CR, or U+FFFE/U+FFFF.
+    *
+    * @param str the string to check.
+    *
+    * @return true if the string contains such a character.
+    */
+   public static boolean hasXMLIllegalChars(String str) {
+      if(str == null) {
+         return false;
+      }
+
+      for(int i = 0; i < str.length(); i++) {
+         if(isXMLIllegalChar(str.charAt(i))) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   private static boolean isXMLIllegalChar(char c) {
+      return c < 0x20 && c != '\t' && c != '\n' && c != '\r' || c == '￾' || c == '￿';
+   }
+
+   /**
+    * Encode the characters that XML 1.0 can't carry (see {@link #hasXMLIllegalChars})
+    * so the string can be written to XML. Each such character becomes a backslash, 'u'
+    * and four hex digits, and each backslash is doubled, so
+    * {@link #decodeXMLIllegalChars} restores the string exactly. The decoder changes
+    * backslashes, so encoded text must be marked by the writer (for example with a
+    * marker attribute) and decoded only when marked. Writers should encode only when
+    * {@link #hasXMLIllegalChars} is true, so ordinary text is written unchanged.
+    *
+    * @param str the string to encode.
+    *
+    * @return the encoded string, or null if str is null.
+    */
+   public static String encodeXMLIllegalChars(String str) {
+      if(str == null) {
+         return null;
+      }
+
+      StringBuilder buf = new StringBuilder(str.length() + 16);
+
+      for(int i = 0; i < str.length(); i++) {
+         char c = str.charAt(i);
+
+         if(c == '\\') {
+            buf.append("\\\\");
+         }
+         else if(isXMLIllegalChar(c)) {
+            buf.append(String.format("\\u%04X", (int) c));
+         }
+         else {
+            buf.append(c);
+         }
+      }
+
+      return buf.toString();
+   }
+
+   /**
+    * Decode a string encoded by {@link #encodeXMLIllegalChars}. A backslash that
+    * starts neither a doubled backslash nor a backslash, 'u' and four hex digits is kept
+    * as is.
+    *
+    * @param str the encoded string.
+    *
+    * @return the decoded string, or null if str is null.
+    */
+   public static String decodeXMLIllegalChars(String str) {
+      if(str == null || str.indexOf('\\') < 0) {
+         return str;
+      }
+
+      StringBuilder buf = new StringBuilder(str.length());
+
+      for(int i = 0; i < str.length(); i++) {
+         char c = str.charAt(i);
+
+         if(c == '\\' && i + 1 < str.length()) {
+            char next = str.charAt(i + 1);
+
+            if(next == '\\') {
+               buf.append('\\');
+               i++;
+               continue;
+            }
+
+            if(next == 'u' && i + 6 <= str.length()) {
+               int code = 0;
+               boolean hex = true;
+
+               for(int j = i + 2; j < i + 6 && hex; j++) {
+                  int digit = Character.digit(str.charAt(j), 16);
+                  hex = digit >= 0;
+                  code = code * 16 + digit;
+               }
+
+               if(hex) {
+                  buf.append((char) code);
+                  i += 5;
+                  continue;
+               }
+            }
+         }
+
+         buf.append(c);
+      }
+
+      return buf.toString();
+   }
+
+   /**
     * Replace the char in [0] with string in [1].
     * @param removeCtrl true to remove all ISO control characters.
     */

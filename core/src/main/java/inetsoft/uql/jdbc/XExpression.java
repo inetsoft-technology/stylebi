@@ -289,7 +289,7 @@ public class XExpression implements Cloneable, Serializable, XMLSerializable {
       // @by vincentx, 2004-08-17
       // handles backward compatibility of xexpression types
       if(type.equalsIgnoreCase("OTHER")) {
-          String val = Tool.getValue(node);
+          String val = getValue(node);
 
           if(XUtil.parseDate(val) != null) {
              type = VALUE;
@@ -335,7 +335,7 @@ public class XExpression implements Cloneable, Serializable, XMLSerializable {
          }
       }
       else {
-         String nval = Tool.getValue(node);
+         String nval = getValue(node);
 
          if(nval != null) {
             if(nval.indexOf(",") > 0) {
@@ -346,6 +346,19 @@ public class XExpression implements Cloneable, Serializable, XMLSerializable {
             }
          }
       }
+   }
+
+   /**
+    * Get the text of a non-field expression element, decoded if writeXML encoded it.
+    */
+   private static String getValue(Element node) {
+      String val = Tool.getValue(node);
+
+      if("true".equals(Tool.getAttribute(node, UniformSQL.XML_ILLEGAL_CHARS_ATTR))) {
+         val = Tool.decodeXMLIllegalChars(val);
+      }
+
+      return val;
    }
 
    /**
@@ -369,6 +382,34 @@ public class XExpression implements Cloneable, Serializable, XMLSerializable {
          }
       }
 
+      String exp = null;
+
+      if(!type.equals(SUBQUERY) && value != null) {
+         exp = "";
+
+         if(value instanceof Object[]) {
+            Object[] tmp = (Object[]) value;
+
+            for(int i = 0; i < tmp.length; i++) {
+               exp += (i > 0 ? "," : "") + tmp[i].toString();
+            }
+         }
+         else if(type.equals(FIELD)) {
+            exp = value.toString().trim();
+         }
+         else {
+            exp = value.toString();
+         }
+
+         // a character XML 1.0 can't carry is encoded, and marked so the reader decodes
+         // it. Other text is written as before. A field is a column name, not user text,
+         // and is not encoded (Bug #77795)
+         if(!type.equals(FIELD) && Tool.hasXMLIllegalChars(exp)) {
+            exp = Tool.encodeXMLIllegalChars(exp);
+            writer.print(" " + UniformSQL.XML_ILLEGAL_CHARS_ATTR + "=\"true\"");
+         }
+      }
+
       writer.println(">");
 
       if(type.equals(SUBQUERY)) {
@@ -377,24 +418,8 @@ public class XExpression implements Cloneable, Serializable, XMLSerializable {
       else {
          writer.print("<![CDATA[");
 
-         if(value != null) {
-            String exp = "";
-
-            if(value instanceof Object[]) {
-               Object[] tmp = (Object[]) value;
-
-               for(int i = 0; i < tmp.length; i++) {
-                  exp += (i > 0 ? "," : "") + tmp[i].toString();
-               }
-            }
-            else if(type.equals(FIELD)) {
-               exp = value.toString().trim();
-            }
-            else {
-               exp = value.toString();
-            }
-
-            writer.print(exp);
+         if(exp != null) {
+            writer.print(Tool.splitCDATAEnd(exp));
          }
 
          writer.println("]]>");
