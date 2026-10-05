@@ -20,6 +20,7 @@ package inetsoft.web.admin.content.repository;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.*;
 import inetsoft.test.*;
+import inetsoft.uql.DataSourceFolder;
 import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.service.DataSourceRegistry;
 import org.junit.jupiter.api.*;
@@ -29,6 +30,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.security.Principal;
+import java.time.LocalDateTime;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -39,6 +41,8 @@ import static org.mockito.Mockito.*;
  * Bug #77700: the registry removes the permission of a removed data source in the current
  * organization only. A data source of the same name in another organization keeps its
  * permission. The registry and the permission store are the production ones.
+ * <p>
+ * Bug #77731: the same for the permission of a subfolder of a removed data source folder.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class,
@@ -50,6 +54,8 @@ class DataSourcePermissionRemovalOrgTest {
    private static final String ORG_A = "orga";
    private static final String ORG_B = "orgb";
    private static final String DS = "orgScopedDs";
+   private static final String FOLDER = "orgScopedF";
+   private static final String SUBFOLDER = FOLDER + "/G";
    private static final String URL = "jdbc:derby:memory:bug77700org;create=true";
 
    @Autowired
@@ -80,6 +86,7 @@ class DataSourcePermissionRemovalOrgTest {
    void tearDown() {
       for(String org : new String[] { ORG_A, ORG_B }) {
          authorization.removePermission(ResourceType.DATA_SOURCE, DS, org);
+         authorization.removePermission(ResourceType.DATA_SOURCE_FOLDER, SUBFOLDER, org);
       }
 
       reset(SecurityEngine.getSecurity());
@@ -108,6 +115,34 @@ class DataSourcePermissionRemovalOrgTest {
       registry.clearCache();
       assertNotNull(registry.getDataSource(DS), "the data source of " + ORG_B);
       Permission kept = authorization.getPermission(ResourceType.DATA_SOURCE, DS, ORG_B);
+      assertNotNull(kept, "the permission of " + ORG_B + " was removed");
+      assertFalse(kept.getUserGrants(ResourceAction.READ, ORG_B).isEmpty());
+   }
+
+   // Bug #77731: the same for the permission of a subfolder of a removed folder
+   @Test
+   void removeFolderInOneOrgKeepsThePermissionOfTheOtherOrg() throws Exception {
+      for(String org : new String[] { ORG_A, ORG_B }) {
+         OrganizationContextHolder.setCurrentOrgId(org);
+         registry.init();
+         registry.setDataSourceFolder(new DataSourceFolder(FOLDER, LocalDateTime.now(), null));
+         registry.setDataSourceFolder(
+            new DataSourceFolder(SUBFOLDER, LocalDateTime.now(), null));
+         authorization.setPermission(ResourceType.DATA_SOURCE_FOLDER, SUBFOLDER, grant(org), org);
+      }
+
+      OrganizationContextHolder.setCurrentOrgId(ORG_A);
+      registry.removeDataSourceFolder(FOLDER);
+      registry.clearCache();
+
+      assertNull(registry.getDataSourceFolder(SUBFOLDER), "the subfolder of " + ORG_A);
+      assertNull(authorization.getPermission(ResourceType.DATA_SOURCE_FOLDER, SUBFOLDER, ORG_A));
+
+      OrganizationContextHolder.setCurrentOrgId(ORG_B);
+      registry.clearCache();
+      assertNotNull(registry.getDataSourceFolder(SUBFOLDER), "the subfolder of " + ORG_B);
+      Permission kept =
+         authorization.getPermission(ResourceType.DATA_SOURCE_FOLDER, SUBFOLDER, ORG_B);
       assertNotNull(kept, "the permission of " + ORG_B + " was removed");
       assertFalse(kept.getUserGrants(ResourceAction.READ, ORG_B).isEmpty());
    }

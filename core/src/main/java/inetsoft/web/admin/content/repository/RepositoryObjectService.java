@@ -507,37 +507,74 @@ public class RepositoryObjectService {
                                                           boolean force,
                                                           Principal principal)
    {
+      ConnectionStatus status = checkDataSourceDelete(dxname, force, principal);
+
+      if(status != null) {
+         return status;
+      }
+
+      removeDataSource(dxname);
+
+      return null;
+   }
+
+   /**
+    * Checks that a data source may be deleted: it has no dependencies, unless forced, and the
+    * user may delete it.
+    *
+    * @return the reason it may not be deleted, or null if it may.
+    */
+   private ConnectionStatus checkDataSourceDelete(String dxname, boolean force,
+                                                  Principal principal)
+   {
       ConnectionStatus status = checkAssetEntryDependencies(dxname, AssetEntry.Type.DATA_SOURCE, force);
 
       if(status != null) {
          return status;
       }
 
-      final ResourceType type = ResourceType.DATA_SOURCE;
-
-      if(!securityProvider.checkPermission(principal, type, dxname, ResourceAction.DELETE)) {
+      if(!securityProvider.checkPermission(
+         principal, ResourceType.DATA_SOURCE, dxname, ResourceAction.DELETE))
+      {
          return new ConnectionStatus(Catalog.getCatalog(principal).getString(
             "Permission denied to delete datasource"));
       }
 
-      dataSourceRegistry.removeDataSource(dxname);
-      securityProvider.removePermission(type, dxname);
-
       return null;
+   }
+
+   private void removeDataSource(String dxname) {
+      dataSourceRegistry.removeDataSource(dxname);
+      securityProvider.removePermission(ResourceType.DATA_SOURCE, dxname);
    }
 
    public synchronized ConnectionStatus removeDataSourceFolder(String dxname,
                                                                boolean force,
                                                                Principal principal)
    {
-      List<String> sources = dataSourceRegistry.getSubDataSourceNames(dxname);
+      // every data source and subfolder at any depth is checked before anything is deleted, as
+      // the registry deletes them all (Bug #77731)
+      List<String> sources = dataSourceRegistry.getFolderTreeDataSourceNames(dxname);
 
       for(String source : sources) {
-         ConnectionStatus status = deleteDataSource(source, force, principal);
+         ConnectionStatus status = checkDataSourceDelete(source, force, principal);
 
          if(status != null) {
             return status;
          }
+      }
+
+      for(String folder : dataSourceRegistry.getFolderTreeSubfolderNames(dxname)) {
+         if(!securityProvider.checkPermission(
+            principal, ResourceType.DATA_SOURCE_FOLDER, folder, ResourceAction.DELETE))
+         {
+            return new ConnectionStatus(Catalog.getCatalog(principal).getString(
+               "Permission denied to delete datasource folder"));
+         }
+      }
+
+      for(String source : sources) {
+         removeDataSource(source);
       }
 
       dataSourceRegistry.removeDataSourceFolder(dxname);

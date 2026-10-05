@@ -408,7 +408,8 @@ public abstract class DatasourcesBaseService {
    public void checkDataSourceFolderOuterDependencies(String fname, Principal principal)
       throws Exception
    {
-      String[] sources = repository.getSubDataSourceNames(fname);
+      // the data sources at any depth, which the folder delete deletes (Bug #77731)
+      List<String> sources = dataSourceRegistry.getFolderTreeDataSourceNames(fname);
 
       for(String source : sources) {
          // the folder delete refuses a source the user can't delete, so don't report its
@@ -418,6 +419,34 @@ public abstract class DatasourcesBaseService {
          {
             checkDataSourceOuterDependencies(source);
          }
+      }
+   }
+
+   /**
+    * Checks the DELETE permission on every data source and subfolder of a data source folder at
+    * any depth, which the folder delete deletes. The permission on the folder itself is not
+    * checked here.
+    *
+    * @throws SecurityException if the user may not delete one of them.
+    */
+   public void checkDataSourceFolderTreeDelete(String fname, Principal principal)
+      throws SecurityException
+   {
+      for(String source : dataSourceRegistry.getFolderTreeDataSourceNames(fname)) {
+         checkDelete(ResourceType.DATA_SOURCE, source, principal);
+      }
+
+      for(String folder : dataSourceRegistry.getFolderTreeSubfolderNames(fname)) {
+         checkDelete(ResourceType.DATA_SOURCE_FOLDER, folder, principal);
+      }
+   }
+
+   private void checkDelete(ResourceType type, String path, Principal principal)
+      throws SecurityException
+   {
+      if(!securityEngine.checkPermission(principal, type, path, ResourceAction.DELETE)) {
+         throw new SecurityException(
+            "Unauthorized access to resource \"" + path + "\" by user " + principal);
       }
    }
 
