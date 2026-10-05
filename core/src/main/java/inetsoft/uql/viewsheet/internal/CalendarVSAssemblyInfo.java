@@ -1207,8 +1207,7 @@ public class CalendarVSAssemblyInfo extends SelectionVSAssemblyInfo
 
       StringBuilder sb = new StringBuilder();
       String[] dates = getDates();
-      boolean dual =
-         Integer.parseInt(modeValue.getRValue() + "") == DOUBLE_CALENDAR_MODE;
+      boolean dual = getViewMode() == DOUBLE_CALENDAR_MODE;
       boolean period = isPeriod() && dual;
       boolean range = dual && !period;
 
