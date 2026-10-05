@@ -30,6 +30,8 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.DependencyHandler;
 import inetsoft.uql.asset.sync.DependencyStorageService;
+import inetsoft.uql.asset.sync.DependencyTransformer;
+import inetsoft.uql.asset.sync.RenameDependencyInfo;
 import inetsoft.uql.asset.sync.RenameTransformHandler;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.erm.vpm.VirtualPrivateModel;
@@ -99,6 +101,7 @@ class DataSourcePathClashGuardTest {
    private RepositoryObjectService objectService;
    private DataSourceBrowserService browserService;
    private DatasourcesService datasourcesService;
+   private RenameTransformHandler transformHandler;
    private Principal principal;
 
    @BeforeEach
@@ -129,7 +132,7 @@ class DataSourcePathClashGuardTest {
       RepletRegistryManager repletRegistries = mock(RepletRegistryManager.class);
       when(repletRegistries.getRegistry(nullable(IdentityID.class)))
          .thenReturn(mock(RepletRegistry.class));
-      RenameTransformHandler transformHandler = mock(RenameTransformHandler.class);
+      transformHandler = mock(RenameTransformHandler.class);
       objectService = new RepositoryObjectService(
          mock(RepletRegistryService.class), mock(ContentRepositoryTreeService.class), provider,
          permissions, repository, mock(RepositoryDashboardService.class),
@@ -165,7 +168,7 @@ class DataSourcePathClashGuardTest {
       grant(ResourceType.DATA_SOURCE, "pmA/pmX");
       clash("pmF", true, false);
 
-      assertRefused(() -> browserService.moveDataSource(new MoveCommand[] {
+      assertRefused(dataSourceNotEmpty("pmF"), () -> browserService.moveDataSource(new MoveCommand[] {
          move("pmA", "pmDest/pmA", PortalDataType.DATA_SOURCE_FOLDER),
          move("pmF", "pmDest/pmF", PortalDataType.DATA_SOURCE_FOLDER) }, principal),
                     "pmA", "pmF", "pmDest");
@@ -176,7 +179,7 @@ class DataSourcePathClashGuardTest {
       addFolder("pdDest");
       clash("pdP", true, false);
 
-      assertRefused(() -> browserService.moveDataSource(new MoveCommand[] {
+      assertRefused(folderNotEmpty("pdP"), () -> browserService.moveDataSource(new MoveCommand[] {
          move("pdP", "pdDest/pdP", PortalDataType.DATA_SOURCE) }, principal), "pdP", "pdDest");
    }
 
@@ -184,7 +187,8 @@ class DataSourcePathClashGuardTest {
    void portalFolderRenameIsRefused() {
       clash("prF", true, false);
 
-      assertRefused(() -> browserService.renameFolder("prF", "prG", "prF", "prG", principal),
+      assertRefused(dataSourceNotEmpty("prF"),
+                    () -> browserService.renameFolder("prF", "prG", "prF", "prG", principal),
                     "prF", "prG");
    }
 
@@ -192,7 +196,8 @@ class DataSourcePathClashGuardTest {
    void portalFolderDeleteIsRefused() {
       clash("pfP", true, false);
 
-      assertRefused(() -> browserService.deleteDataSourceFolder("pfP", "pfP", true, principal),
+      assertRefused(dataSourceNotEmpty("pfP"),
+                    () -> browserService.deleteDataSourceFolder("pfP", "pfP", true, principal),
                     "pfP");
    }
 
@@ -200,7 +205,8 @@ class DataSourcePathClashGuardTest {
    void portalDataSourceDeleteIsRefused() {
       clash("psP", true, false);
 
-      assertRefused(() -> datasourcesService.deleteDataSource("psP", "psP", true), "psP");
+      assertRefused(folderNotEmpty("psP"),
+                    () -> datasourcesService.deleteDataSource("psP", "psP", true), "psP");
    }
 
    // the selected delete and its dependency check: a benign data source first and then a
@@ -218,9 +224,11 @@ class DataSourcePathClashGuardTest {
          .folders(List.of())
          .build();
 
-      assertRefused(() -> controller.checkDsOuterDependenciesSelected(request, principal),
+      assertRefused(folderNotEmpty("ssP"),
+                    () -> controller.checkDsOuterDependenciesSelected(request, principal),
                     "ssOther", "ssP");
-      assertRefused(() -> controller.deleteDataSources(request, principal), "ssOther", "ssP");
+      assertRefused(folderNotEmpty("ssP"), () -> controller.deleteDataSources(request, principal),
+                    "ssOther", "ssP");
    }
 
    @Test
@@ -234,7 +242,8 @@ class DataSourcePathClashGuardTest {
          .folders(List.of(item("sfP")))
          .build();
 
-      assertRefused(() -> controller.deleteDataSources(request, principal), "sfP");
+      assertRefused(dataSourceNotEmpty("sfP"),
+                    () -> controller.deleteDataSources(request, principal), "sfP");
    }
 
    // ---- the resources of a deleted self-organization user ----
@@ -362,7 +371,7 @@ class DataSourcePathClashGuardTest {
       addSource("dmF");
       registry.clearCache();
 
-      assertRefused(() -> registry.removeDataSource("dmF"), "dmF");
+      assertRefused(folderNotEmpty("dmF"), () -> registry.removeDataSource("dmF"), "dmF");
       registry.renameDataSourceFolder("dmF", "dmG");
 
       registry.clearCache();
@@ -384,10 +393,170 @@ class DataSourcePathClashGuardTest {
       dataModel("pvF").addPartition(new XPartition("pvView"));
       registry.clearCache();
 
-      assertRefused(() -> registry.renameDataSourceFolder("vpF", "vpG"), "vpF", "vpG");
-      assertRefused(() -> registry.removeDataSourceFolder("pvF"), "pvF");
+      assertRefused(dataSourceNotEmpty("vpF"), () -> registry.renameDataSourceFolder("vpF", "vpG"),
+                    "vpF", "vpG");
+      assertRefused(dataSourceNotEmpty("pvF"), () -> registry.removeDataSourceFolder("pvF"),
+                    "pvF");
       // and the data source side doesn't keep the data source from being renamed
       assertDoesNotThrow(() -> registry.checkDataSourcePathClash("vpF"));
+   }
+
+   // ---- the way out: the folder side is listed and can be moved out (review F1) ----
+
+   // the folder's data source and subfolder are listed and moved out with their dependencies,
+   // through the EM and the portal, and then the data source can be renamed
+   @Test
+   void folderSideIsListedAndMovedOut() throws Exception {
+      addFolder("woOut");
+      clash("woP", true, true);
+      clearInvocations(transformHandler);
+
+      assertTrue(registry.getSubDataSourceNames("woP").contains("woP/woPX"),
+                 registry.getSubDataSourceNames("woP").toString());
+      assertTrue(registry.getSubDataSourceNames("woP", true).contains("woP/woPSub/woPY"));
+      assertFalse(registry.isAdditionalConnectionPath("woP/woPX"));
+      assertTrue(registry.isAdditionalConnectionPath("woP/woPAdd"));
+      assertEquals(List.of("woP/woPSub/woPY"), List.copyOf(
+         DependencyTransformer.createDatasourceFolderDependencyInfoMap(
+            registry, "woP/woPSub", "woOut/woPSub").keySet()));
+
+      objectService.moveFiles(move("woOut", tree("woP/woPX", RepositoryEntry.DATA_SOURCE)), true,
+                              principal);
+      verify(transformHandler, times(1)).addTransformTask(any(RenameDependencyInfo.class));
+      browserService.moveDataSource(new MoveCommand[] {
+         move("woP/woPSub", "woOut/woPSub", PortalDataType.DATA_SOURCE_FOLDER) }, principal);
+      verify(transformHandler, times(2)).addTransformTask(any(RenameDependencyInfo.class));
+
+      XDataSource dataSource = (XDataSource) registry.getDataSource("woP").clone();
+      dataSource.setName("woQ");
+      repository.updateDataSource(dataSource, "woP");
+      registry.removeDataSourceFolder("woP");
+
+      registry.clearCache();
+      assertStoredName("woOut/woPX", "woOut/woPX");
+      assertStoredName("woOut/woPSub/woPY", "woOut/woPSub/woPY");
+      assertStoredName("woQ/woPAdd", "woPAdd");
+      assertNotNull(perm(ResourceType.DATA_SOURCE, "woOut/woPX"));
+      assertNotNull(perm(ResourceType.DATA_SOURCE, "woQ::woPAdd"));
+      assertEquals(List.of(), state("woP"));
+   }
+
+   // the permission resource of the folder's data source is its own, not that of an additional
+   // connection of the data source (review S2)
+   @Test
+   void permissionResourceOfTheFolderSide() {
+      clash("rsP", true, true);
+
+      assertEquals("rsP/rsPX",
+                   ResourcePermissionService.getDataSourceResourceName("rsP/rsPX", registry));
+      assertEquals("rsP/rsPSub/rsPY",
+                   ResourcePermissionService.getDataSourceResourceName("rsP/rsPSub/rsPY", registry));
+      assertEquals("rsP::rsPAdd",
+                   ResourcePermissionService.getDataSourceResourceName("rsP/rsPAdd", registry));
+   }
+
+   // ---- a delete that removes both sides (review F2) ----
+
+   // a folder above a clash whose sides both hold entries: everything is deleted, with the
+   // permissions
+   @Test
+   void ancestorDeleteWithBothSides() throws Exception {
+      for(String path : new String[] { "abR", "abX", "abE" }) {
+         addFolder(path);
+         clash(path + "/" + path + "P", true, true);
+      }
+
+      registry.removeDataSourceFolder("abR");
+      repository.removeDataSourceFolder("abX");
+      assertNull(objectService.deleteNodes(
+         new TreeNodeInfo[] { node("abE", RepositoryEntry.DATA_SOURCE_FOLDER) }, principal, true,
+         false));
+
+      registry.clearCache();
+
+      for(String path : new String[] { "abR", "abX", "abE" }) {
+         assertEquals(List.of(), state(path), path);
+      }
+   }
+
+   // the folder and the data source at its path are both selected, in either order: both are
+   // deleted, with the permissions
+   @Test
+   void deleteOfBothSidesTogether() throws Exception {
+      for(String path : new String[] { "btA", "btB", "btC" }) {
+         clash(path, true, true);
+      }
+
+      assertNull(objectService.deleteNodes(new TreeNodeInfo[] {
+         node("btA", RepositoryEntry.DATA_SOURCE_FOLDER),
+         node("btA", RepositoryEntry.DATA_SOURCE) }, principal, true, false));
+      assertNull(objectService.deleteNodes(new TreeNodeInfo[] {
+         node("btB", RepositoryEntry.DATA_SOURCE),
+         node("btB", RepositoryEntry.DATA_SOURCE_FOLDER) }, principal, true, false));
+      DataSourceController controller = new DataSourceController(
+         datasourcesService, browserService, mock(DatabaseDatasourcesService.class), security,
+         mock(DataSourceStatusService.class), mock(FileSystemService.class));
+      SelectedDataSourcesRequest request = ImmutableSelectedDataSourcesRequest.builder()
+         .dataSources(List.of(item("btC")))
+         .folders(List.of(item("btC")))
+         .build();
+      controller.deleteDataSources(request, principal);
+
+      registry.clearCache();
+
+      for(String path : new String[] { "btA", "btB", "btC" }) {
+         assertEquals(List.of(), state(path), path);
+      }
+   }
+
+   // ---- additional connections stored with a path name (review F3) ----
+
+   // before Bug #77610 an additional connection could be stored with its own path. Without a
+   // clash it is still listed, and a save of the data source doesn't write it again under it
+   @Test
+   void additionalConnectionStoredWithItsOwnPath() throws Exception {
+      addParent("lgP", "lgOk");
+      registry.setObject(new AssetEntry(AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE,
+                                        "lgP/lgAdd", null),
+                         new XDataSourceWrapper(source("lgP/lgAdd")));
+      registry.clearCache();
+      List<String> before = state("lgP");
+
+      assertEquals(List.of("lgAdd", "lgOk"), new TreeSet<>(List.of(
+         ((AdditionalConnectionDataSource<?>) registry.getDataSource("lgP"))
+            .getDataSourceNames())).stream().toList());
+      repository.updateDataSource(registry.getDataSource("lgP"), "lgP");
+
+      assertEquals(before, state("lgP"));
+      assertFalse(containsDataSource("lgP/lgP/lgAdd"));
+   }
+
+   // an entry stored with another data source's path (L6 of the repro) is not listed
+   @Test
+   void entryStoredWithAnotherPathIsNotListed() {
+      addParent("opP", "opOk");
+      registry.setObject(new AssetEntry(AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE,
+                                        "opP/opX", null),
+                         new XDataSourceWrapper(source("opQ/opX")));
+      registry.clearCache();
+
+      assertEquals(List.of("opOk"), List.of(
+         ((AdditionalConnectionDataSource<?>) registry.getDataSource("opP"))
+            .getDataSourceNames()));
+   }
+
+   // ---- a member that can't be read (review minor) ----
+
+   @Test
+   void unreadableMemberIsNamed() {
+      addFolder("unF");
+      addUnreadable("unF/unU", "unF/unU");
+      addSource("unF");
+      registry.clearCache();
+
+      assertRefused(Catalog.getCatalog().getString(
+         "common.datasource.pathClashUnreadable", "unF", "unF/unU"),
+                    () -> registry.renameDataSourceFolder("unF", "unG"), "unF", "unG");
    }
 
    // ---- a save of a data source with an additional connection that can't be read ----
@@ -407,8 +576,9 @@ class DataSourcePathClashGuardTest {
       assertEquals(before, state("ubP"));
    }
 
-   // the operation must throw a MessageException and leave the stored state as it was
-   private void assertRefused(Action action, String... roots) {
+   // the operation must throw a MessageException with the message and leave the stored state as
+   // it was
+   private void assertRefused(String message, Action action, String... roots) {
       List<String> before = state(roots);
       Throwable thrown = null;
 
@@ -429,6 +599,15 @@ class DataSourcePathClashGuardTest {
                  () -> "the stored state changed (thrown: " + error + "); removed: " + removed +
                     "; added: " + added);
       assertInstanceOf(MessageException.class, thrown, "not refused");
+      assertEquals(message, thrown.getMessage());
+   }
+
+   private static String folderNotEmpty(String path) {
+      return Catalog.getCatalog().getString("common.datasource.pathClashFolderNotEmpty", path);
+   }
+
+   private static String dataSourceNotEmpty(String path) {
+      return Catalog.getCatalog().getString("common.datasource.pathClashDataSourceNotEmpty", path);
    }
 
    // the stored entries at or under the roots, with the stored names of the data sources and

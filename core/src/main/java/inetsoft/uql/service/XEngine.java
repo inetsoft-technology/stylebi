@@ -361,8 +361,9 @@ public class XEngine implements XRepository, XQueryRepository {
          for(String name : names) {
             AdditionalConnectionDataSource<?> jds = base.getDataSource(name);
 
-            // can't be read, it is left as it is
-            if(jds != null) {
+            // can't be read, or stored with a full path name (Bug #77725), which would be written
+            // at "parent/full path". It is left as it is.
+            if(jds != null && jds.getFullName() != null && jds.getFullName().indexOf('/') < 0) {
                base.addDatasource(jds);
             }
          }
@@ -916,7 +917,7 @@ public class XEngine implements XRepository, XQueryRepository {
       throws Exception
    {
       // Bug #77725, before any subfolder or data source is removed
-      getDSRegistry().checkDataSourceFolderPathClash(name);
+      getDSRegistry().checkDataSourceFolderDeletePathClash(name);
       return removeDataSourceFolder0(name, removeAnyWay);
    }
 
@@ -924,13 +925,13 @@ public class XEngine implements XRepository, XQueryRepository {
       List<String> children = getDSRegistry().getSubfolderNames(name);
 
       for(String child : children) {
-         // Bug #77725, a data source at the path of the subfolder is removed first, with its
-         // additional connections, or the subfolder's removal would be refused. The check above
-         // found nothing of the subfolder's under its path.
-         if(getDSRegistry().containObject(new AssetEntry(
-            AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE, child, null)))
-         {
-            removeDataSource(child, removeAnyWay);
+         // Bug #77725, a subfolder at the path of a data source (older data, Bug #77691) is
+         // removed together with the data source. Removed one at a time, either would be
+         // refused, as it would take the other one's entries.
+         if(getDSRegistry().isDataSourcePathClash(child)) {
+            removeMetaData(child);
+            getDSRegistry().removeDataSourceFolder(child, true);
+            continue;
          }
 
          removeDataSourceFolder0(child, removeAnyWay);

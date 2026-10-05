@@ -443,7 +443,7 @@ public abstract class DatasourcesBaseService {
 
    /**
     * Checks that a data source or a data source folder may be deleted, if a data source and a
-    * data source folder share its path or, for a folder, the path of a subfolder (Bug #77725).
+    * data source folder share its path (Bug #77725).
     *
     * @param path   the path of the data source or folder.
     * @param folder {@code true} if it is a folder.
@@ -452,7 +452,7 @@ public abstract class DatasourcesBaseService {
     */
    public void checkDeletePathClash(String path, boolean folder) {
       if(folder) {
-         dataSourceRegistry.checkDataSourceFolderPathClash(path);
+         dataSourceRegistry.checkDataSourceFolderDeletePathClash(path);
       }
       else {
          dataSourceRegistry.checkDataSourcePathClash(path);
