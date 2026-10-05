@@ -1530,7 +1530,7 @@ public class SQLHelper implements KeywordProvider {
                }
             }
          }
-         else if(isKeyword(column) && !expr && !XUtil.isNiladicKeywordFunction(column)) {
+         else if(isKeyword(column) && !expr) {
             column = XUtil.quoteAlias(column, this);
          }
          else if(!XUtil.isQualifiedName(column)) {
@@ -1772,7 +1772,7 @@ public class SQLHelper implements KeywordProvider {
             column = quotePath(column);
          }
       }
-      else if(isKeyword(column) && !XUtil.isNiladicKeywordFunction(column)) {
+      else if(isKeyword(column)) {
          column = XUtil.quoteAlias(column, this);
       }
 
@@ -3697,7 +3697,7 @@ public class SQLHelper implements KeywordProvider {
 
                sfield = quoteColumnAlias(sfield, same, part);
             }
-            else if(!aggr && !expr && isKeyword(sfield) && !XUtil.isNiladicKeywordFunction(sfield)) {
+            else if(!aggr && !expr && isKeyword(sfield)) {
                sfield = quoteAlias(sfield);
             }
             else if(!XUtil.isQualifiedName(sfield)) {
@@ -3845,8 +3845,12 @@ public class SQLHelper implements KeywordProvider {
                   column = quotePath(column, false, false, true);
                }
             }
-            else if(!expr && isKeyword(column) && !XUtil.isNiladicKeywordFunction(column)) {
+            else if(!expr && isKeyword(column)) {
                column = quoteAlias(column);
+            }
+            else if(expr && XUtil.isNiladicKeywordFunction(column)) {
+               // a niladic keyword-function (current_date) is stored as an expression so it's
+               // not quoted. It's written as is, not by its alias or index below (Bug #77763)
             }
             // @by billh, some dbs(informix) do not support to group by
             // an expression, in this case, we try using its index instead
@@ -4531,7 +4535,7 @@ public class SQLHelper implements KeywordProvider {
             str = quotePath(str, true, true, true);
          }
       }
-      else if(!expr && isKeyword(str) && !XUtil.isNiladicKeywordFunction(str)) {
+      else if(!expr && isKeyword(str)) {
          str = quoteAlias(str);
       }
       else if(!XUtil.isQualifiedName(str)) {

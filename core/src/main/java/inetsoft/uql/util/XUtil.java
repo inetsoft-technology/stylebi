@@ -792,20 +792,14 @@ public final class XUtil {
          }
       }
 
-      // a niladic keyword-function (e.g. CURRENT_DATE) is not an identifier -- quoting it
-      // changes it into a quoted column reference
-      if(isNiladicKeywordFunction(str)) {
-         return true;
-      }
-
       return false;
    }
 
    /**
     * Check if the text is a keyword-function written without parens (e.g. CURRENT_TIMESTAMP),
     * or an Oracle pseudo-column (e.g. ROWNUM, SYSDATE). It is a keyword on most databases, but
-    * it means the function, not a column, so it must not be quoted when the user wrote it
-    * unquoted (Bug #77763).
+    * written unquoted it means the function, not a column, so it must not be quoted then
+    * (Bug #77763). The same name written quoted ("user") is a column.
     */
    public static boolean isNiladicKeywordFunction(String str) {
       if(str == null) {

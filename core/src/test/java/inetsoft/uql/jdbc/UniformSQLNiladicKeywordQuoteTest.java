@@ -19,13 +19,16 @@ package inetsoft.uql.jdbc;
 
 import inetsoft.test.*;
 import inetsoft.uql.util.XUtil;
+import inetsoft.util.Tool;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.w3c.dom.Element;
 
+import java.io.*;
 import java.sql.*;
 import java.util.*;
 import java.util.regex.Pattern;
@@ -39,8 +42,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * query failed, or returned a column of that name instead of the function's value. It was
  * quoted at parse time by {@code quoteDot} (only current_date was exempt, #77664), and at
  * generation time by SQLHelper's bare-keyword branches (which also quoted current_date in the
- * select list and ORDER BY). A word the user quoted, a table column, and an alias named like a
- * keyword stay quoted.
+ * select list and ORDER BY). Now quoteDot doesn't quote such a word written unquoted, and the
+ * parser stores it in the select list as an expression (a saved flag), which the generation
+ * doesn't quote. A word the user quoted, a table column, an alias named like a keyword, and a
+ * select item of a query saved before quoted names were flagged (#77408) stay quoted.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, PluginsTestConfiguration.class,
@@ -64,7 +69,7 @@ class UniformSQLNiladicKeywordQuoteTest {
       "select t.id from t where %s = t.u",
       "select coalesce(%s, t.d) from t",
       "select max(%s) from t",
-      "select t.id from t order by %s",
+      "select %s from t order by %s",
       "select %s, count(*) from t group by %s",
       "select t.id from t where t.id in (select s.id from s where s.d < %s)",
       "select x.c from (select %s as c from t) x",
@@ -83,6 +88,13 @@ class UniformSQLNiladicKeywordQuoteTest {
 
       for(String word : WORDS) {
          for(String shape : SHAPES) {
+            // see oracleOrderByMatchesByText
+            if("oracle".equals(type) && shape.contains("order by") &&
+               !word.equals(word.toUpperCase(Locale.ROOT)))
+            {
+               continue;
+            }
+
             String text = shape.replace("%s", word);
             String generated = regenerate(text, ds);
 
@@ -111,7 +123,9 @@ class UniformSQLNiladicKeywordQuoteTest {
          assertTrue(Pattern.compile("(?i)select current_date as \"?today\"? from").matcher(generated)
                        .find(), type + ": " + generated);
 
-         generated = regenerate("select t.id from t order by current_date", ds);
+         // oracle stores an unquoted select item in upper case, see oracleOrderByMatchesByText
+         String word = "oracle".equals(type) ? "CURRENT_DATE" : "current_date";
+         generated = regenerate("select " + word + " from t order by " + word, ds);
          assertTrue(Pattern.compile("(?i)order by current_date asc").matcher(generated).find(),
                     type + ": " + generated);
       }
@@ -127,7 +141,7 @@ class UniformSQLNiladicKeywordQuoteTest {
       assertTrue(regenerate("select t.id from t where rownum <= 10", ds).endsWith("where rownum <= 10"));
       assertTrue(regenerate("select t.id from t where t.d < sysdate - 1", ds).endsWith("< sysdate-1"));
       assertTrue(regenerate("select t.id from t where t.d < SYSDATE", ds).endsWith("< SYSDATE"));
-      assertTrue(regenerate("select t.id from t order by rownum", ds).endsWith("order by rownum asc"));
+      assertTrue(regenerate("select ROWNUM from t order by ROWNUM", ds).endsWith("order by ROWNUM asc"));
    }
 
    // a word the user quoted is a column, it must stay quoted
@@ -146,7 +160,12 @@ class UniformSQLNiladicKeywordQuoteTest {
          "select t.id from t order by \"current_user\"",
          "select \"current_user\", count(*) from t group by \"current_user\"",
          "select \"user\" from t",
-         "select \"rownum\" from t"
+         "select \"rownum\" from t",
+         // a table written quoted is quoted by the keyword rule, the parser doesn't flag it
+         "select u.id from \"user\" u",
+         "select \"user\".id from \"user\"",
+         "select c.id from \"current_date\" c",
+         "select s.id from \"user\".s"
       };
 
       for(String text : texts) {
@@ -164,12 +183,16 @@ class UniformSQLNiladicKeywordQuoteTest {
 
    // an alias named like a keyword is still quoted, SQLHelper.isKeyword is unchanged
    @ParameterizedTest
-   @ValueSource(strings = { "generic", "derby", "h2", "postgresql", "sql server", "mysql" })
+   @ValueSource(strings = { "generic", "derby", "h2", "oracle", "postgresql", "sql server", "mysql" })
    void aliasNamedLikeKeywordStaysQuoted(String type) {
       JDBCDataSource ds = dataSource(type);
       String q = "mysql".equals(type) ? "`" : "\"";
 
-      for(String word : new String[] { "current_date", "current_user", "user" }) {
+      for(String word : new String[] { "current_date", "current_user", "user", "sysdate", "rowid" }) {
+         if(!"oracle".equals(type) && (word.equals("sysdate") || word.equals("rowid"))) {
+            continue;
+         }
+
          String generated = regenerate("select t.id as " + word + " from t", ds);
          assertTrue(generated.contains(" as " + q + word + q), type + ": " + generated);
       }
@@ -191,12 +214,15 @@ class UniformSQLNiladicKeywordQuoteTest {
    // a query built by the query editor or a data model qualifies its columns by table, so a
    // column named like a keyword is still quoted
    @ParameterizedTest
-   @ValueSource(strings = { "generic", "derby", "h2", "postgresql", "sql server", "mysql" })
+   @ValueSource(strings = { "generic", "derby", "h2", "oracle", "postgresql", "sql server", "mysql" })
    void editorBuiltColumnStaysQuoted(String type) {
       JDBCDataSource ds = dataSource(type);
       String q = "mysql".equals(type) ? "`" : "\"";
+      String[] words = "oracle".equals(type) ?
+         new String[] { "USER", "CURRENT_USER", "ROWID", "SYSDATE", "ROWNUM" } :
+         new String[] { "user", "current_user", "current_timestamp" };
 
-      for(String word : new String[] { "user", "current_user", "current_timestamp" }) {
+      for(String word : words) {
          String generated = normalize(editorQuery(word, ds).getSQLString());
          String col = ("postgresql".equals(type) ? q + "T3" + q : "T3") + "." + q + word + q;
 
@@ -205,6 +231,31 @@ class UniformSQLNiladicKeywordQuoteTest {
          assertTrue(generated.contains("where " + col + " = 'a'"), generated);
          assertTrue(generated.contains("group by " + col), generated);
          assertTrue(generated.endsWith("order by " + col + " asc"), generated);
+      }
+   }
+
+   // a table named like a keyword and written quoted is stored quoted, as the vpm scripts'
+   // tables array shows it (VpmHasTableScriptTest). Written unquoted, it is stored as written
+   @Test
+   void quotedTableNameIsStoredQuoted() {
+      for(String type : new String[] { "generic", "derby", "oracle", "sql server" }) {
+         JDBCDataSource ds = dataSource(type);
+         assertEquals("\"user\"", parse("select u.id from \"user\" u", ds).getSelectTable(0).getName(),
+                      type);
+         assertEquals("\"current_date\"",
+                      parse("select c.id from \"current_date\" c", ds).getSelectTable(0).getName(), type);
+      }
+   }
+
+   // a table named like a keyword, written quoted, is still read
+   @Test
+   void quotedTableRunsOnDerby() throws Exception {
+      try(Connection con = derby("q77763"); Statement st = con.createStatement()) {
+         st.execute("create table \"user\" (id int, name varchar(20))");
+         st.execute("insert into \"user\" values (1, 'a')");
+         String text = "select u.id, u.name from \"user\" u where u.id = 1";
+         String generated = regenerate(text, dataSource("derby"));
+         assertEquals(List.of("[1,a]"), rows(con, generated), generated);
       }
    }
 
@@ -231,7 +282,6 @@ class UniformSQLNiladicKeywordQuoteTest {
                                           "current_time", "localtime" })
          {
             assertTrue(XUtil.isNiladicKeywordFunction(word), word);
-            assertTrue(XUtil.shouldNotQuote(word), word);
          }
 
          assertEquals("select t.id from t where t.d < CURRENT_TIME",
@@ -259,7 +309,7 @@ class UniformSQLNiladicKeywordQuoteTest {
             "select t.id from t where t.d < current_timestamp",
             "select current_timestamp as k from t",
             "select t.id, current_date as today from t",
-            "select t.id from t order by current_date, t.id",
+            "select t.id, current_date as d from t order by current_date, t.id",
             "select t.id from t where t.id in (select s.id from s where s.d < current_timestamp)",
             "select x.c from (select current_date as c from t) x",
             "select coalesce(current_timestamp, t.d) from t",
@@ -286,6 +336,105 @@ class UniformSQLNiladicKeywordQuoteTest {
             "select t2.id from t2 where t2.\"current_date\" < current_date",
             "select t2.id, \"current_timestamp\" as k from t2"
          });
+      }
+   }
+
+   // a niladic keyword-function in order by but not in the select list has no record of being
+   // written unquoted, it's still quoted as before (known limit, an error, not wrong rows)
+   @Test
+   void standaloneOrderByIsQuotedAsBefore() {
+      assertEquals("select t.id from t order by \"current_date\" asc",
+                   regenerate("select t.id from t order by current_date", dataSource("derby")));
+   }
+
+   // oracle stores an unquoted select item in upper case, so a lower case order by item doesn't
+   // match it and has no record, it's quoted as before (known limit, like a standalone one)
+   @Test
+   void oracleOrderByMatchesByText() {
+      JDBCDataSource ds = dataSource("oracle");
+      assertEquals("select ROWNUM from t order by ROWNUM asc",
+                   regenerate("select rownum from t order by ROWNUM", ds));
+      assertEquals("select ROWNUM from t order by \"rownum\" asc",
+                   regenerate("select rownum from t order by rownum", ds));
+   }
+
+   // the record is the select column's expression flag, which is saved, so a saved and loaded
+   // query is still generated with the keyword-function
+   @Test
+   void savedQueryKeepsKeywordUnquoted() throws Exception {
+      String[][] cases = {
+         { "derby", "select t.id, current_timestamp as k from t order by current_timestamp",
+           "select current_timestamp as k, t.id from t order by current_timestamp asc" },
+         { "derby", "select current_user, count(*) from t group by current_user",
+           "select count(*), current_user from t group by current_user" },
+         { "oracle", "select sysdate from dual", "select SYSDATE from dual" },
+         { "oracle", "select rownum, t.id from t where rownum < 5",
+           "select ROWNUM, T.ID from t where rownum < 5" }
+      };
+
+      for(String[] c : cases) {
+         JDBCDataSource ds = dataSource(c[0]);
+         UniformSQL sql = load(save(parse(c[1], ds)), ds);
+         sql.clearSQLString();
+         assertEquals(c[2], normalize(sql.getSQLString()), c[1]);
+      }
+   }
+
+   // a query saved before quoted names were flagged (#77408, #77501) stores a quoted "user"
+   // column as user with no record. It must still be generated quoted, as a column
+   @ParameterizedTest
+   @ValueSource(strings = {
+      "select \"user\" from logins",
+      "select logins.id, \"user\" from logins",
+      "select \"current_user\" from logins",
+      "select logins.id, \"current_user\" as c from logins",
+      "select logins.id from logins order by \"user\" desc",
+      "select logins.id, \"user\" from logins order by \"user\" desc",
+      "select logins.id from logins order by \"current_user\" desc",
+      "select \"user\" from logins where \"user\" = 'bob'",
+      "select logins.id from logins where \"current_user\" = 'c2'",
+      "select \"user\", count(*) from logins group by \"user\"",
+      "select \"current_user\", count(*) from logins group by \"current_user\""
+   })
+   void legacyQuotedColumnIsNotReadAsKeyword(String text) throws Exception {
+      try(Connection con = derby("l77763"); Statement st = con.createStatement()) {
+         try {
+            st.execute("create table logins (id int, \"user\" varchar(20), " +
+                          "\"current_user\" varchar(20))");
+            st.execute("insert into logins values (1, 'alice', 'c1')");
+            st.execute("insert into logins values (2, 'bob', 'c2')");
+         }
+         catch(SQLException ignore) {
+            // created by an earlier case
+         }
+
+         JDBCDataSource ds = dataSource("derby");
+         String xml = toXML(parse(text, ds));
+         String legacy = xml.replaceAll("<quoted><!\\[CDATA\\[[^\\]]*\\]\\]></quoted>", "")
+            .replaceAll("<quotedColumn [^>]*/>", "")
+            .replaceAll(" quoted=\"[^\"]*\"", "")
+            .replaceAll(" quotedColumn=\"[^\"]*\"", "");
+         UniformSQL sql = load(Tool.parseXML(new StringReader(legacy)).getDocumentElement(), ds);
+
+         JDBCQuery query = new JDBCQuery();
+         query.setDataSource(ds);
+         query.setSQLDefinition(sql);
+         assertTrue(new JDBCQueryCacheNormalizer(query).isClearedSqlString(), text);
+         String generated = sql.getSQLString();
+         boolean ordered = text.contains("order by");
+         List<String> expected = rows(con, text, ordered);
+         List<String> actual;
+
+         try {
+            actual = rows(con, generated, ordered);
+         }
+         catch(SQLException ex) {
+            // a legacy group by is written unquoted on main too (an error, not wrong rows)
+            assertTrue(text.contains("group by"), text + " => " + generated + ": " + ex);
+            return;
+         }
+
+         assertEquals(expected, actual, text + " => " + generated);
       }
    }
 
@@ -355,6 +504,27 @@ class UniformSQLNiladicKeywordQuoteTest {
       return sql;
    }
 
+   private static String toXML(UniformSQL sql) {
+      StringWriter buffer = new StringWriter();
+
+      try(PrintWriter writer = new PrintWriter(buffer)) {
+         sql.writeXML(writer);
+      }
+
+      return buffer.toString();
+   }
+
+   private static Element save(UniformSQL sql) throws Exception {
+      return Tool.parseXML(new StringReader(toXML(sql))).getDocumentElement();
+   }
+
+   private static UniformSQL load(Element xml, JDBCDataSource ds) throws Exception {
+      UniformSQL sql = new UniformSQL();
+      sql.parseXML(xml);
+      sql.setDataSource(ds);
+      return sql;
+   }
+
    private static UniformSQL parse(String text, JDBCDataSource ds) {
       UniformSQL sql = new UniformSQL();
       sql.setDataSource(ds);
@@ -394,6 +564,12 @@ class UniformSQLNiladicKeywordQuoteTest {
    // rows as a sorted multiset, with columns ordered by label since regeneration can reorder
    // the select list. A date or time is reduced to its year, the value of a call to now.
    private static List<String> rows(Connection con, String query) throws SQLException {
+      return rows(con, query, false);
+   }
+
+   private static List<String> rows(Connection con, String query, boolean ordered)
+      throws SQLException
+   {
       List<String> rows = new ArrayList<>();
 
       try(Statement st = con.createStatement(); ResultSet rs = st.executeQuery(query)) {
@@ -431,7 +607,10 @@ class UniformSQLNiladicKeywordQuoteTest {
          }
       }
 
-      Collections.sort(rows);
+      if(!ordered) {
+         Collections.sort(rows);
+      }
+
       return rows;
    }
 
