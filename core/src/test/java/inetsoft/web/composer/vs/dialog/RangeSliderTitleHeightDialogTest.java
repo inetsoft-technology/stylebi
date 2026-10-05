@@ -53,7 +53,7 @@ class RangeSliderTitleHeightDialogTest {
    @Test
    void readShowsTheTierLaneAndOffersTheCheckbox() {
       SizePositionPaneModel model = new SizePositionPaneModel();
-      RangeSliderPropertyDialogService.readTitleHeight(slider(VizMark.MODERN_LIGHT), model);
+      RangeSliderPropertyDialogService.readTitleHeight(slider(VizMark.MODERN_LIGHT), model, true);
 
       assertEquals(26, model.getTitleHeight());
       assertTrue(model.getTitleHeightFollowsDensity());
@@ -62,7 +62,16 @@ class RangeSliderTitleHeightDialogTest {
    @Test
    void readOffersNoCheckboxOnAnUnmarkedSlider() {
       SizePositionPaneModel model = new SizePositionPaneModel();
-      RangeSliderPropertyDialogService.readTitleHeight(slider(null), model);
+      RangeSliderPropertyDialogService.readTitleHeight(slider(null), model, true);
+
+      assertEquals(AssetUtil.defh, model.getTitleHeight());
+      assertNull(model.getTitleHeightFollowsDensity());
+   }
+
+   @Test
+   void readOffersNoCheckboxOutsideASelectionContainer() {
+      SizePositionPaneModel model = new SizePositionPaneModel();
+      RangeSliderPropertyDialogService.readTitleHeight(slider(VizMark.MODERN_LIGHT), model, false);
 
       assertEquals(AssetUtil.defh, model.getTitleHeight());
       assertNull(model.getTitleHeightFollowsDensity());

@@ -522,12 +522,12 @@ public class TimeSliderVSAssemblyInfo extends MaxModeSelectionVSAssemblyInfo
    }
 
    /**
-    * Whether this slider is collapsed to its title lane in a selection container. Marked, the
-    * hidden flag answers, since the lane follows the density and a collapsed height stored at
-    * an earlier tier no longer equals it.
+    * Whether this slider is collapsed to its title lane in a selection container. The hidden flag
+    * answers whenever it is set, since a collapsed height stored at another tier's lane (a
+    * density change, or Revert) no longer equals the lane; unmarked falls back to the height test.
     */
    public boolean isCollapsedInContainer(int storedHeight) {
-      return getVizMark() != null ? isHidden() : storedHeight == getTitleHeight();
+      return isHidden() || getVizMark() == null && storedHeight == getTitleHeight();
    }
 
    /**

@@ -86,4 +86,11 @@ class RangeSliderTitleLaneTest {
       assertTrue(info.isCollapsedInContainer(AssetUtil.defh), "the old test, unchanged");
       assertFalse(info.isCollapsedInContainer(60));
    }
+
+   @Test
+   void anUnmarkedSliderIsCollapsedByItsHiddenFlagToo() {
+      TimeSliderVSAssemblyInfo info = slider("comfortable", null);
+      info.setHidden(true);
+      assertTrue(info.isCollapsedInContainer(30));
+   }
 }

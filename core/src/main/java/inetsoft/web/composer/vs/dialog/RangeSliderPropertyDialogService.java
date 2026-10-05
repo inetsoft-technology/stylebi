@@ -120,7 +120,7 @@ public class RangeSliderPropertyDialogService {
       Dimension size = dialogService.getAssemblySize(timeSliderAssemblyInfo, vs);
 
       if(timeSliderAssembly.getContainer() != null) {
-         readTitleHeight(timeSliderAssemblyInfo, sizePositionPaneModel);
+         readTitleHeight(timeSliderAssemblyInfo, sizePositionPaneModel, inSelectionContainer);
          sizePositionPaneModel.setContainer(true);
       }
 
@@ -421,9 +421,18 @@ public class RangeSliderPropertyDialogService {
 
    /**
     * Fill a contained slider's title height. Marked, it shows the lane it resolves and offers the
-    * follow-the-density checkbox; unmarked, its stored height and no checkbox.
+    * follow-the-density checkbox; unmarked, or outside a selection container where the title is
+    * never drawn, its stored height and no checkbox.
     */
-   static void readTitleHeight(TimeSliderVSAssemblyInfo info, SizePositionPaneModel model) {
+   static void readTitleHeight(TimeSliderVSAssemblyInfo info, SizePositionPaneModel model,
+                               boolean inSelectionContainer)
+   {
+      if(!inSelectionContainer) {
+         model.setTitleHeight(info.getTitleHeightValue());
+         model.setTitleHeightFollowsDensity(null);
+         return;
+      }
+
       model.setTitleHeight(VSDensityDefaults.titleHeight(info, info.getTitleHeightValue()));
       model.setTitleHeightFollowsDensity(
          info.getVizMark() == null ? null : !info.isUserTitleHeight());
