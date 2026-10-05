@@ -95,7 +95,9 @@ class UniformSQLQualifiedQuotedColumnTest {
                               "(t.\"MixedCase\") * 2 as d from t"));
       assertEquals("select t.\"MixedCase\" as m from t order by t.\"MixedCase\" asc",
                    regenerate("select t.\"MixedCase\" as m from t order by m"));
-      assertEquals("select t.\"MixedCase\" as b from t", regenerate("select b = t.\"MixedCase\" from t"));
+      // the T-SQL alias form, parsed on a T-SQL data source only (#77785)
+      assertEquals("select t.\"MixedCase\" as b from t",
+                   regenerate(parse("select b = t.\"MixedCase\" from t", tsqlHelpers().get("sybase"))));
       assertEquals("select cast(t.\"MixedCase\" as varchar(10)), t.\"MixedCase\" || 'x' from t",
                    regenerate("select t.\"MixedCase\" || 'x', cast(t.\"MixedCase\" as varchar(10)) from t"));
    }
@@ -244,9 +246,15 @@ class UniformSQLQualifiedQuotedColumnTest {
       String query = "select t.\"MixedCase\", b = t.\"low\", sum(t.\"MixedCase\") from t " +
          "where t.\"MixedCase\" = 1 group by t.\"MixedCase\", t.\"low\" " +
          "having max(t.\"low\") > 0 order by t.\"low\" desc";
+      // the b = expression alias form is a comparison on other dialects and is parsed on a
+      // T-SQL data source only (#77785), the other helpers use expression as b
+      Map<String, JDBCDataSource> helpers = new LinkedHashMap<>(helpers());
+      helpers.putAll(tsqlHelpers());
 
-      for(Map.Entry<String, JDBCDataSource> helper : helpers().entrySet()) {
-         UniformSQL sql = parse(query, helper.getValue());
+      for(Map.Entry<String, JDBCDataSource> helper : helpers.entrySet()) {
+         String text = tsqlHelpers().containsKey(helper.getKey()) ? query :
+            query.replace("b = t.\"low\"", "t.\"low\" as b");
+         UniformSQL sql = parse(text, helper.getValue());
          String expected = regenerate(sql);
          UniformSQL loaded = reload(sql);
          UniformSQL copy = new UniformSQL();
@@ -886,6 +894,21 @@ class UniformSQLQualifiedQuotedColumnTest {
       helpers.put("snowflake", dataSource("net.snowflake.client.jdbc.SnowflakeDriver", "jdbc:snowflake://x",
                                           "snowflake", true));
       helpers.put("exasol", dataSource("com.exasol.jdbc.EXADriver", "jdbc:exa:x", "exasol", false));
+      return helpers;
+   }
+
+   // the helpers that parse select a = b as the alias form (#77785)
+   private static Map<String, JDBCDataSource> tsqlHelpers() {
+      Map<String, JDBCDataSource> helpers = new LinkedHashMap<>();
+      helpers.put("sybase", dataSource("net.sourceforge.jtds.jdbc.Driver", "jdbc:jtds:sybase://localhost/db",
+                                       "sybase", false));
+      helpers.put("sql server", dataSource("com.microsoft.sqlserver.jdbc.SQLServerDriver",
+                                           "jdbc:sqlserver://localhost;databaseName=db", "sql server", false));
+
+      for(Map.Entry<String, JDBCDataSource> helper : helpers.entrySet()) {
+         assertEquals(helper.getKey(), SQLHelper.getSQLHelper(helper.getValue()).getSQLHelperType());
+      }
+
       return helpers;
    }
 

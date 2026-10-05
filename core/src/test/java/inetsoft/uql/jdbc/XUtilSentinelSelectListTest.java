@@ -160,10 +160,9 @@ class XUtilSentinelSelectListTest {
                       "select a.id, " + COUNT + "b.k = 'null') from a"),
          Arguments.of("select a.id, " + COUNT + "b.k <> $(p)) from a", NULL_VALUE,
                       "select a.id, " + COUNT + "b.k is not null) from a"),
-         // aliased
+         // aliased. The T-SQL form cnt = (select ...) is a comparison on these dialects, so
+         // it no longer parses on them (#77785)
          Arguments.of("select a.id, " + COUNT + "b.k = $(p)) as cnt from a", NULL_VALUE,
-                      "select a.id, " + COUNT + "b.k is null) as cnt from a"),
-         Arguments.of("select a.id, cnt = " + COUNT + "b.k = $(p)) from a", NULL_VALUE,
                       "select a.id, " + COUNT + "b.k is null) as cnt from a"),
          // an aggregate of a column
          Arguments.of("select a.id, (select max(b.id) from b where b.k = $(p)) from a",

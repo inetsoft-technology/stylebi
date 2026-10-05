@@ -2212,6 +2212,31 @@ String quoteDot(String str) {
 
    return str;
 }
+
+// true if 'name = expr' in a select list is the T-SQL alias form (select a = b means
+// select b as a). Only SQL Server and Sybase read it that way; every other dialect reads
+// it as a boolean comparison, so storing it as an alias regenerates SQL that returns the
+// constant instead (#77785). Access is a comparison dialect too, so this is narrower than
+// ColumnIterator.isBracketQuote. The dialect comes from the statement's uniSql, because a
+// subquery's own UniformSQL has no data source at parse time. Without a uniSql (the
+// value_exp/search_condition entries used by validity checks, which never regenerate) the
+// form is still accepted; with a uniSql but no data source the dialect is unknown, so the
+// form is refused and the statement runs as written.
+boolean isAliasAssignDialect() {
+   if(uniSql == null) {
+      return true;
+   }
+
+   JDBCDataSource dx = uniSql.getDataSource();
+
+   if(dx == null) {
+      return false;
+   }
+
+   SQLHelper helper = SQLHelper.getSQLHelper(dx, (Principal) null);
+   String type = helper != null ? helper.getSQLHelperType() : null;
+   return "sql server".equals(type) || "sybase".equals(type);
+}
 }
 
 schema_identifier returns [String schmid = ""]
@@ -4331,7 +4356,9 @@ correlation_name returns [String corname = ""]
 derived_column [JDBCSelection selection, UniformSQL sql]
         {String tmp = null, aliastmp = null; Boolean aliasq = null; XExpression exp; {checkStatus();}}
         :
-        (column_name EQ)=>
+        // 'name = expr' is the T-SQL alias form only on SQL Server/Sybase, a comparison
+        // elsewhere, which value_exp can't parse, so the statement fails (#77785)
+        {isAliasAssignDialect()}? (column_name EQ)=>
         // the quoting of the alias is read before value_exp, which may parse other names
         aliastmp=column_name {aliasq = aliasQuoted;}
         EQ exp=value_exp  // to support sybase gramma: select a=b, ....
