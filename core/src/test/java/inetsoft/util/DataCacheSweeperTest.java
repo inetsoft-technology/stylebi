@@ -40,7 +40,7 @@ import static org.mockito.Mockito.*;
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = BaseTestConfiguration.class, initializers = ConfigurationContextInitializer.class)
 @SreeHome()
-@Tag("core")
+@Tag("slow")
 class DataCacheSweeperTest {
    @Test
    void requestsGCAfterCriticalEviction() {

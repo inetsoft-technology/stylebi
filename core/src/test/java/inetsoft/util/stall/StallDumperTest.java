@@ -33,7 +33,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Tests the lock-stall dump writer and its 1-per-minute rate limit (bug #76967).
  */
-@Tag("core")
+@Tag("slow")
 public class StallDumperTest {
    @Test
    public void writesDumpWithReasonAndThreads() throws Exception {

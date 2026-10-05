@@ -40,7 +40,7 @@ import static org.mockito.Mockito.*;
  * a test says so. Every wait is on the end of a listener pass (see {@link #runs}), not on a status
  * write, so a "does not fire" assertion starts only after the dependency check has been made.
  */
-@Tag("core")
+@Tag("slow")
 class ScheduleTaskMultiCompletionTest {
    private SchedulerTestHarness harness;
    private final Map<String, AtomicInteger> runs = new ConcurrentHashMap<>();

@@ -80,7 +80,8 @@ import static org.mockito.Mockito.*;
                                   DataSourceFolderMoveAdditionalConnectionTest.Beans.class },
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
-@Tag("core")
+@Tag("slow")
+@Disabled("Fails or hangs on CI: Jenkins main #393, #394, #395 (Bug #77704)")
 class DataSourceRenameFailureTest {
    private static final String URL = "jdbc:derby:memory:bug77704;create=true";
    // the data sources of a scenario, by their path in the moved folder

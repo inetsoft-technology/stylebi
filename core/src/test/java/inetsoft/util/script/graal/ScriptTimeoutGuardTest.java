@@ -26,7 +26,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.*;
 
-@Tag("core")
+@Tag("slow")
 class ScriptTimeoutGuardTest {
    @Test void interruptsRunawayScript() {
       try(Context ctx = Context.newBuilder("js").build()) {

@@ -45,7 +45,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome()
-@Tag("core")
+@Tag("slow")
 public class XSwappableTableStallTest {
    @BeforeEach
    public void setUp() {

@@ -52,7 +52,7 @@ import static org.mockito.Mockito.mock;
                                  SQLHelperNotEqualJoinTest.Config.class },
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
-@Tag("core")
+@Tag("slow")
 class SQLHelperNotEqualJoinTest {
    // a data source with a real driver and URL needs the credential service, and the JDBC
    // driver types of Config to pick its SQL helper
