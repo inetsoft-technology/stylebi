@@ -2028,6 +2028,21 @@ String joinOp(String left, String op, String right) {
    return left + op + right;
 }
 
+// whether the dialect reads [name] as a delimited identifier (sql server, sybase, access),
+// where it is never a subscript, so an implicit [name] alias is unambiguous. Without a data
+// source the dialect is unknown, so this is false (#77767)
+boolean isBracketIdentifierDialect() {
+   JDBCDataSource dx = uniSql != null ? uniSql.getDataSource() : null;
+
+   if(dx == null) {
+      return false;
+   }
+
+   SQLHelper helper = SQLHelper.getSQLHelper(dx, (Principal) null);
+   return helper != null &&
+      ColumnIterator.isBracketQuote(ColumnIterator.getRules(helper.getSQLHelperType()));
+}
+
 // quote string if it contains dot
 String quoteDot(String str) {
    JDBCDataSource dx = null;
@@ -4225,14 +4240,17 @@ derived_column [JDBCSelection selection, UniformSQL sql]
         ;
 
 as_clause returns [String as = ""]
-        {checkStatus(); boolean hasAs = false;}
+        // read AS from the token, not from an action, as actions don't run while guessing
+        // but the predicates below do (#77767)
+        {checkStatus(); boolean hasAs = LA(1) == AS;}
         :
-        (AS {hasAs = true;})?
-        // a bracket-quoted name ([b]) is only accepted as an alias when AS is explicit;
-        // without AS it is ambiguous with a subscript/map-key access on the preceding
-        // expression (a[1], m['key']), so require AS there instead of silently treating
-        // it as an implicit alias (#77661)
-        ({hasAs}? as = column_name
+        (AS)?
+        // a bracket-quoted name ([b]) is only accepted as an alias when AS is explicit or
+        // on a bracket-identifier dialect; elsewhere, without AS it is ambiguous with a
+        // subscript/map-key access on the preceding expression (a[1], m['key']), so
+        // require AS there instead of silently treating it as an implicit alias (#77661,
+        // #77767)
+        ({hasAs || LA(1) == SPIDENT_SQUARE && isBracketIdentifierDialect()}? as = column_name
         | {!hasAs}? as = column_name_no_subscript
         | a:STRING_LITERAL {as = a.getText();
           // un-double the '' escape, as 'it''s' is the alias it's (#77640)
