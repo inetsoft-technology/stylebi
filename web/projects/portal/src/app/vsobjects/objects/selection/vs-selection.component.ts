@@ -646,7 +646,7 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
                break;
             case "more actions":
                VSUtil.showDropdownMenus(event.event, this.getMoreActions(),
-                  this.dropdownService, []);
+                  this.dropdownService, [], this.model.vizModern);
                break;
             }
          });

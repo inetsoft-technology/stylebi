@@ -138,6 +138,7 @@ describe("VSCalcTable - Pass 1: Interaction", () => {
             [{ id: "more-action" }],
             expect.anything(),
             [],
+            comp.model.vizModern,
          );
       });
 

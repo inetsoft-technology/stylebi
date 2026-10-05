@@ -148,6 +148,50 @@ describe("ActionsContextmenuComponent — actions setter", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Group 1b: groupDividers — opt-in styling for the dividers between groups
+// ---------------------------------------------------------------------------
+
+describe("ActionsContextmenuComponent — groupDividers", () => {
+   const twoGroups = () => [
+      new AssemblyActionGroup([makeAction({ id: () => "a" })]),
+      new AssemblyActionGroup([makeAction({ id: () => "b" })])
+   ];
+
+   async function renderPane(groupDividers?: boolean): Promise<HTMLElement> {
+      const inputs: any = { actions: twoGroups() };
+
+      if(groupDividers != null) {
+         inputs.groupDividers = groupDividers;
+      }
+
+      const { fixture } = await render(ActionsContextmenuComponent, {
+         componentInputs: inputs,
+         providers: [{ provide: FixedDropdownService, useValue: DROPDOWN_SERVICE_MOCK }],
+         schemas: [NO_ERRORS_SCHEMA],
+      });
+
+      return fixture.nativeElement;
+   }
+
+   // Every other menu in the app opens through this component and must render as before.
+   it("leaves the pane ungrouped by default", async () => {
+      const root = await renderPane();
+
+      expect(root.querySelector(".contextmenu-container").classList)
+         .not.toContain("contextmenu-grouped");
+      expect(root.querySelectorAll(".dropdown-divider").length).toBe(1);
+   });
+
+   it("marks the pane grouped when asked", async () => {
+      const root = await renderPane(true);
+
+      expect(root.querySelector(".contextmenu-container").classList)
+         .toContain("contextmenu-grouped");
+      expect(root.querySelectorAll(".dropdown-divider").length).toBe(1);
+   });
+});
+
+// ---------------------------------------------------------------------------
 // Group 2: onClick — action invocation + close emission
 // ---------------------------------------------------------------------------
 

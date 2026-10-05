@@ -17,7 +17,8 @@
 -->
 @if (visibleActions.length > 0) {
   <div
-    class="dropdown-pane contextmenu-container">
+    class="dropdown-pane contextmenu-container"
+    [class.contextmenu-grouped]="groupDividers">
     @for (group of visibleActions; track group; let _first = $first; let i = $index) {
       @if (!_first) {
         <div class="dropdown-divider"></div>

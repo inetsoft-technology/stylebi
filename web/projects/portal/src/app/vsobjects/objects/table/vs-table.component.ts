@@ -264,7 +264,7 @@ export class VSTable extends BaseTable<VSTableModel> implements OnInit, OnDestro
                break;
             case "more actions":
                VSUtil.showDropdownMenus(event.event, this.actions.getMoreActions(),
-                  this.dropdownService, []);
+                  this.dropdownService, [], this.model.vizModern);
                break;
             case "table show-format-pane":
                this.onOpenFormatPane.emit(this.model);

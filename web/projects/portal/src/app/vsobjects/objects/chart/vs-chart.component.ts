@@ -398,7 +398,7 @@ export class VSChart extends AbstractVSObject<VSChartModel>
                break;
             case "more actions":
                VSUtil.showDropdownMenus(event.event, this.getMoreActions(),
-                  this.dropdownService, []);
+                  this.dropdownService, [], this.model.vizModern);
                break;
             default:
                propertiesHandler.handleEvent(event, this.variableValues(this.getAssemblyName()), (<any> this.vsInfo).id);

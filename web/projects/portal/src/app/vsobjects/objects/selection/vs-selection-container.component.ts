@@ -163,7 +163,8 @@ export class VSSelectionContainer extends AbstractVSObject<VSSelectionContainerM
                this.toggleMaxMode();
                break;
             case "more actions":
-               VSUtil.showDropdownMenus(event.event, this.getMoreActions(), this.dropdownService);
+               VSUtil.showDropdownMenus(event.event, this.getMoreActions(), this.dropdownService,
+                  undefined, this.model.vizModern);
                break;
             }
          });

@@ -528,7 +528,8 @@ export class ChartActions extends AbstractVSActions<VSChartModel> implements Ann
              !this.isPopComponent()) && this.isActionVisibleInViewer("Show Actual Size")
       };
       const propertiesToolbar = {
-         id: () => "chart properties-toolbar",
+         // Same id as the menu entry, so the flattened kebab lists Properties once.
+         id: () => "chart properties",
          label: () => "_#(js:Properties)...",
          icon: () => "setting-icon",
          enabled: () => true,

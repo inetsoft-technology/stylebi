@@ -1839,7 +1839,7 @@ describe("ChartActions", () => {
          const ids = toolbarIds(actions.toolbarActions);
 
          expect(ids[0]).toBe("chart show-data");
-         expect(ids.slice(0, 4)).toContain("chart properties-toolbar");
+         expect(ids.slice(0, 4)).toContain("chart properties");
       });
 
       it("keeps the legacy order when the gate is off", () => {

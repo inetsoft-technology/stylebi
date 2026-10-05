@@ -80,7 +80,6 @@ export class VSChartActionHandler extends AbstractActionHandler {
          this.showLegendPropertiesDialog(event.model, variableValues);
          break;
       case "chart properties":
-      case "chart properties-toolbar":
          this.showPropertyDialog(event.model, variableValues, assetId);
          break;
       case "chart edit-script":
