@@ -534,10 +534,10 @@ public class PropertiesEngine {
          return null;
       }
 
-      return propertyNameCaseCache.computeIfAbsent(name, this::computePropertyNameCase);
+      return propertyNameCaseCache.computeIfAbsent(name, PropertiesEngine::computePropertyNameCase);
    }
 
-   private String computePropertyNameCase(String name) {
+   private static String computePropertyNameCase(String name) {
       // organization-scoped property names carry the org ID as a case-insensitive segment;
       // strip and lowercase it, then apply the case rules below to the remaining property name
       // so it matches what useAvailableOrgProperty() looks up.
@@ -579,6 +579,44 @@ public class PropertiesEngine {
     */
    public static String getOrgPropertyPrefix(String orgID) {
       return ("inetsoft.org." + orgID + ".").toLowerCase();
+   }
+
+   /**
+    * Determines if a property name is an organization override,
+    * <code>inetsoft.org.&lt;org&gt;.&lt;name&gt;</code>, of a JVM-wide setting that is always read
+    * globally. Such an override is never consulted by a property read (see
+    * {@link #getPropertyOrgScope(String)}), so storing one has no effect. A global name, without
+    * the organization prefix, is not matched.
+    *
+    * @param name the property name, as it would be passed to {@link #setProperty(String, String)}.
+    *
+    * @return <code>true</code> if the name is an organization override of a global-only setting.
+    */
+   public static boolean isExcludedOrgProperty(String name) {
+      if(name == null) {
+         return false;
+      }
+
+      // normalize the name the same way it would be stored
+      String stored = computePropertyNameCase(name);
+      String prefix = "inetsoft.org.";
+
+      if(!stored.startsWith(prefix)) {
+         return false;
+      }
+
+      // the org ID is the segment up to the first dot, as computePropertyNameCase() and the
+      // readers resolve it, and the rest must be an excluded name exactly. Matching a suffix
+      // instead would refuse real per-org properties that only end with an excluded name, such as
+      // olap.security.enabled. An org ID that contains a dot (allowed for an org that predates
+      // the ID rules) is not matched, so its override is stored as before, which is harmless.
+      int dot = stored.indexOf('.', prefix.length());
+
+      if(dot <= prefix.length()) {
+         return false;
+      }
+
+      return EXCLUDED_ORG_PROPERTIES.contains(stored.substring(dot + 1));
    }
 
    /**
@@ -1801,9 +1839,18 @@ public class PropertiesEngine {
    private final Map<String, Object> cache = new ConcurrentHashMap<>(); // cached objects
    private final Map<String, Font> fontMap = new ConcurrentHashMap<>();
    private final Map<String, String> propertyNameCaseCache = new ConcurrentHashMap<>();
+   // lower-case names of JVM-wide settings, which are always read globally, never from an
+   // inetsoft.org.<org>. override
    private static final Set<String> EXCLUDED_ORG_PROPERTIES = Set.of(
       "security.enabled", "sree.security.listeners", "security.cache", "security.cache.interval",
-      "inetsoft.sree.security.checkpermissionstrategy");
+      "inetsoft.sree.security.checkpermissionstrategy",
+      // the swapper settings
+      "swapper.critical.max.wait", "swapper.gc.min.interval", "swapper.idle.gc.interval",
+      "swapper.count", "swapper.free.ratio", "swappable.alive.period",
+      "swapper.scalingmetric.excludeeden", "ignore.swapper.memory.state",
+      // the cache directory of the swap files and the node settings it defaults from, which a
+      // swap file's writer and reader must resolve the same on any thread (Bug #77683)
+      "replet.cache.directory", "sree.home", "server.type");
    // the built-in logger levels set by initLogging(), which a removed log property resets to
    private static final Map<String, LogLevel> DEFAULT_LOG_LEVELS = Map.of(
       "inetsoft.scheduler_test", LogLevel.OFF,

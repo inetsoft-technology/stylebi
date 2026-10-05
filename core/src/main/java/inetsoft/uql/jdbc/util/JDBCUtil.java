@@ -152,6 +152,86 @@ public class JDBCUtil {
                                         JDBCDataSource xds, Principal principal)
       throws Exception
    {
+      // set to false as soon as a wildcard is found unexpandable, so a later step that throws
+      // doesn't lose it
+      boolean[] expanded = { true };
+
+      try {
+         fixUniformSQLInfo0(sql, repository, session, xds, principal, expanded);
+      }
+      finally {
+         // the record is only for the metadata step that follows the parse
+         sql.clearParsedUnquotedSegments();
+
+         // Bug #77617, a wildcard whose table columns are unknown, or whose qualifier isn't a
+         // table of the query, is not expanded, so the selection doesn't hold the columns of the
+         // sql. The sql runs as written and is never regenerated from the selection (merge, vpm
+         // and the cache normalizer check the parse). Vpm can't narrow a wildcard of a table.
+         int result = sql.getParseResult();
+
+         if((!expanded[0] || hasWildcard(sql)) && sql.hasSQLString() &&
+            (result == UniformSQL.PARSE_SUCCESS || result == UniformSQL.PARSE_PARTIALLY))
+         {
+            LOG.debug("The columns of a wildcard are unknown, the sql is not parsed: {}",
+                      sql.getSQLString());
+            sql.setParseResult(UniformSQL.PARSE_FAILED);
+            // as an unexpandable wildcard, it isn't kept for a regeneration to write
+            removeWildcards(sql);
+         }
+      }
+   }
+
+   /**
+    * Remove the wildcards left in the selection of a sql and of its derived tables.
+    */
+   private static void removeWildcards(UniformSQL sql) {
+      XSelection selection = sql.getSelection();
+
+      for(int i = selection.getColumnCount() - 1; i >= 0; i--) {
+         String path = selection.getColumn(i);
+
+         if(path != null && (path.equals("*") || path.endsWith(".*"))) {
+            selection.removeColumn(i);
+         }
+      }
+
+      for(int i = 0; i < sql.getTableCount(); i++) {
+         Object name = sql.getSelectTable(i).getName();
+
+         if(name instanceof UniformSQL) {
+            removeWildcards((UniformSQL) name);
+         }
+      }
+   }
+
+   /**
+    * Check if a wildcard is left in the selection of a sql or of its derived tables.
+    */
+   private static boolean hasWildcard(UniformSQL sql) {
+      if(UniformSQL.hasWildcard(sql.getSelection())) {
+         return true;
+      }
+
+      for(int i = 0; i < sql.getTableCount(); i++) {
+         Object name = sql.getSelectTable(i).getName();
+
+         if(name instanceof UniformSQL && hasWildcard((UniformSQL) name)) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * @param expanded set to <tt>false</tt> if a wildcard of the selection, or of a derived
+    *                 table, could not be expanded because the columns of its table are unknown.
+    */
+   private static void fixUniformSQLInfo0(UniformSQL sql, XRepository repository,
+                                          Object session, JDBCDataSource xds,
+                                          Principal principal, boolean[] expanded)
+      throws Exception
+   {
       synchronized(sql) {
          if(sql.getTableCount() <= 0 || sql.getFieldList().length > 0) {
             fixSelectionInfo(sql);
@@ -185,6 +265,12 @@ public class JDBCUtil {
                continue;
             }
 
+            // a name written with quoted segments keeps its case (#77569)
+            if(tables[i].getQuotedSegments() != null) {
+               sql.addTable(tables[i]);
+               continue;
+            }
+
             XNode tnode = SQLTypes.getSQLTypes(xds).getQualifiedTableNode(
                name.toString(),
                "true".equals(root.getAttribute("hasCatalog")),
@@ -204,6 +290,10 @@ public class JDBCUtil {
          }
       }
 
+      // the aliases of the tables whose columns are known from the metadata, not from the
+      // field list: a table whose columns are all vpm hidden has no fields but is known
+      Set<String> known = new HashSet<>();
+
       // add XFields
       try {
          for(int i = 0; i < sql.getTableCount(); i++) {
@@ -214,7 +304,19 @@ public class JDBCUtil {
 
             if(name instanceof UniformSQL) {
                UniformSQL sql1 = (UniformSQL) name;
-               fixUniformSQLInfo(sql1, repository, session, xds);
+               // the parser records the names of a derived table in the outer query
+               sql1.addParsedUnquotedSegments(sql.getParsedUnquotedSegments());
+
+               // an unexpanded wildcard of the derived table leaves its select list short, and
+               // so the fields of this query
+               try {
+                  fixUniformSQLInfo0(sql1, repository, session, xds, null, expanded);
+               }
+               finally {
+                  sql1.clearParsedUnquotedSegments();
+               }
+
+               known.add(alias);
                XSelection xSelects = sql1.getSelection();
 
                for(int j = 0; j < xSelects.getColumnCount(); j++) {
@@ -246,6 +348,10 @@ public class JDBCUtil {
                table.setAttribute("supportCatalog", root.getAttribute("supportCatalog"));
                XTypeNode cols = getTableColumns(table, repository, session, xds);
 
+               if(cols.getChildCount() > 0) {
+                  known.add(alias);
+               }
+
                for(int j = 0; j < cols.getChildCount(); j++) {
                   XTypeNode colnode = (XTypeNode) cols.getChild(j);
                   String cname = colnode.getName();
@@ -276,7 +382,10 @@ public class JDBCUtil {
       fixSelectionInfo(sql);
 
       // expand "*"
-      expandAsterisk(sql);
+      if(!expandAsterisk(sql, known)) {
+         expanded[0] = false;
+      }
+
       fixWhereInfo(sql);
       sql.syncTable();
    }
@@ -332,7 +441,7 @@ public class JDBCUtil {
 
       for(int i = 0; i < select.getColumnCount(); i++) {
          String path = select.getColumn(i);
-         XField field = sql.getFieldByPath(path);
+         XField field = getColumnField(sql, path, false);
 
          if(field == null && !path.endsWith("*") &&
             !path.equals(select.getAlias(i)))
@@ -358,24 +467,22 @@ public class JDBCUtil {
       for(int i = 0; i < xselect.getColumnCount(); i++) {
          String path = xselect.getColumn(i);
          String alias = xselect.getAlias(i);
-         boolean quoted = xselect.isQuoted(path);
+         // the flag of this column, which stays at its position (Bug #77573)
+         boolean quoted = xselect.isQuoted(i);
          String fp = getFullPathOf(sql, path, quoted);
 
          if(fp != null) {
             path = fp;
          }
 
-         XField field = sql.getFieldByPath(path, quoted);
+         // the field of the column getFullPathOf resolved, of its type
+         XField field = getColumnField(sql, path, quoted);
 
          if(field != null && field.getTable().length() > 0) {
-            String qseg = xselect.getQuotedColumn(xselect.getColumn(i));
-            xselect.setColumn(i, path);
+            // the same column qualified by its table, it keeps its quoting
+            xselect.renameColumn(i, path);
             xselect.setAlias(i, alias);
             xselect.setTable(path, field.getTable());
-
-            if(quoted) {
-               xselect.setQuoted(path, qseg);
-            }
 
             // get type
             if(xselect.getType(path) == null) {
@@ -436,7 +543,7 @@ public class JDBCUtil {
       }
 
       res = table + "." + col;
-      XField field = sql.getFieldByPath(res, quoted);
+      XField field = getColumnField(sql, res, quoted);
 
       if(field != null && field.getTable().length() > 0) {
          if(!field.getName().equals(col)) {
@@ -449,16 +556,66 @@ public class JDBCUtil {
    }
 
    /**
-    * Expand "*" in the selection
+    * Get the field of a column path. A case-sensitive helper whose database folds unquoted
+    * names to one case stores the exact name of a column, so the field of that case is
+    * preferred over one that only matches ignoring case, and a column segment written
+    * unquoted in the sql parsed last is matched in the folded case (Bug #77643).
+    * @param quoted <tt>true</tt> if the column was written as a quoted identifier.
+    */
+   private static XField getColumnField(UniformSQL sql, String path, boolean quoted) {
+      SQLHelper.IdentifierCase fold = sql.getSQLHelper().getIdentifierCase();
+
+      if(fold == SQLHelper.IdentifierCase.UNKNOWN) {
+         return sql.getFieldByPath(path, quoted);
+      }
+
+      int idx = path.lastIndexOf('.');
+      String col = path.substring(idx + 1);
+
+      // stored with the quotes of the helper ("MixedCase")
+      if(col.length() > 2 && sql.isParsedUnquotedSegment(col)) {
+         String quote = col.substring(0, 1);
+         path = path.substring(0, idx + 1) + quote +
+            fold.fold(col.substring(1, col.length() - 1)) + quote;
+      }
+
+      return sql.getFieldByPath(path, true);
+   }
+
+   /**
+    * Expand "*" in the selection with the columns of the field list.
     */
    public static void expandAsterisk(UniformSQL sql) {
+      Set<String> known = new HashSet<>();
+
+      for(int i = 0; i < sql.getTableCount(); i++) {
+         known.add(sql.getTableAlias(i));
+      }
+
+      expandAsterisk(sql, known);
+   }
+
+   /**
+    * Expand "*" in the selection. Every column of the expansion is added at the position of
+    * the wildcard, also a column the selection has elsewhere, so the selection keeps the
+    * columns of the sql in their order (Bug #77617).
+    * @param known the aliases of the tables whose columns are known.
+    * @return <tt>false</tt> if a wildcard covers a table whose columns are unknown, it is
+    * not expanded.
+    */
+   private static boolean expandAsterisk(UniformSQL sql, Set<String> known) {
       JDBCSelection select = (JDBCSelection) sql.getSelection();
       JDBCSelection newSelect = new JDBCSelection();
+      boolean expanded = true;
 
       for(int i = 0; i < select.getColumnCount(); i++) {
          String path = select.getColumn(i);
 
          if(path.equals("*")) {
+            for(int j = 0; j < sql.getTableCount(); j++) {
+               expanded &= known.contains(sql.getTableAlias(j));
+            }
+
             XField[] fields = sql.getFieldList();
 
             for(int j = 0; j < fields.length; j++) {
@@ -466,11 +623,6 @@ public class JDBCUtil {
 
                if(table.length() > 0) {
                   path = table + "." + fields[j].getName();
-
-                  if(select.contains(path)) {
-                     continue;
-                  }
-
                   newSelect.addColumn(path);
                   newSelect.setType(path, fields[j].getType());
                   newSelect.setTable(path, table);
@@ -482,17 +634,24 @@ public class JDBCUtil {
          else if(path.endsWith(".*")) {
             String table = path.substring(0, path.length() - 2);
 
-            if(sql.getTableIndex(table) >= 0) {
+            int tidx = sql.getTableIndex(table);
+
+            // a quoted alias ("x" for x), or the bare name of the one unaliased
+            // schema-qualified table it names (t for public.t), is the table it refers to.
+            // A wildcard of a table left in the selection would be regenerated as is, and
+            // vpm can't remove a hidden column from it (Bug #77617)
+            if(tidx < 0) {
+               tidx = sql.getJoinTableIndex(table);
+               table = tidx >= 0 ? sql.getTableAlias(tidx) : table;
+            }
+
+            if(tidx >= 0) {
+               expanded &= known.contains(sql.getTableAlias(tidx));
                XField[] fields = sql.getFieldList();
 
                for(int j = 0; j < fields.length; j++) {
                   if(table.equalsIgnoreCase(fields[j].getTable())) {
                      path = fields[j].getTable() + "." + fields[j].getName();
-
-                     if(select.contains(path)) {
-                        continue;
-                     }
-
                      newSelect.addColumn(path);
                      newSelect.setType(path, fields[j].getType());
                      newSelect.setTable(path, table);
@@ -510,12 +669,14 @@ public class JDBCUtil {
          newSelect.setType(path, select.getType(path));
          newSelect.setDescription(path, select.getDescription(path));
          newSelect.setTable(path, select.getTable(path));
-         newSelect.copyQuoted(path, select, path);
+         newSelect.copyQuoted(aidx, select, i);
+         newSelect.setQuotedAggregate(aidx, select.getQuotedAggregate(i));
          newSelect.setXMetaInfo(aidx, select.getXMetaInfo(i));
          newSelect.setExpression(aidx, select.isExpression(i));
       }
 
       sql.setSelection(newSelect);
+      return expanded;
    }
 
    /**
@@ -1098,7 +1259,6 @@ public class JDBCUtil {
       String quote = XUtil.getQuote(dataSource);
       JDBCSelection selection = new JDBCSelection();
       Set<String> aliases = new HashSet<>();
-      SQLHelper sqlHelper = SQLHelper.getSQLHelper(sql);
 
       for(String path : columns) {
          String table = null;
@@ -1145,7 +1305,9 @@ public class JDBCUtil {
          aliases.add(alias);
          index = selection.addColumn(path);
          selection.setTable(path, table);
-         selection.setAlias(index, selection.getValidAlias(index, alias, sqlHelper));
+         // store the name itself, a name the database can't take is replaced by an ALIAS_n
+         // each time the sql is generated and mapped back in the result (Bug #77711)
+         selection.setAlias(index, alias);
          selection.setType(path, type);
       }
 
@@ -1308,8 +1470,9 @@ public class JDBCUtil {
       if(xfn instanceof XUnaryCondition) {
          c.setValue1(getClauseValue(xfn.getExpression1(), datasource));
          Operation op = new Operation();
-         op.setName(XFilterNode.getOpName(((XUnaryCondition) xfn).getOp()));
-         op.setSymbol(((XUnaryCondition) xfn).getOp());
+         String symbol = getClauseOpSymbol(xfn, ((XUnaryCondition) xfn).getOp());
+         op.setName(XFilterNode.getOpName(symbol));
+         op.setSymbol(symbol);
          c.setOperation(op);
          c.setValue2(new ClauseValue(XExpression.VALUE));
          c.setValue3(new ClauseValue(XExpression.VALUE));
@@ -1319,8 +1482,9 @@ public class JDBCUtil {
          c.setValue2(getClauseValue(((XBinaryCondition) xfn).getExpression2(), datasource));
 
          Operation op = new Operation();
-         op.setName(XFilterNode.getOpName(((XBinaryCondition) xfn).getOp()));
-         op.setSymbol(((XBinaryCondition) xfn).getOp());
+         String symbol = getClauseOpSymbol(xfn, ((XBinaryCondition) xfn).getOp());
+         op.setName(XFilterNode.getOpName(symbol));
+         op.setSymbol(symbol);
          c.setOperation(op);
          c.setValue3(new ClauseValue(XExpression.VALUE));
       }
@@ -1330,8 +1494,9 @@ public class JDBCUtil {
          c.setValue3(getClauseValue(((XTrinaryCondition) xfn).getExpression3(), datasource));
 
          Operation op = new Operation();
-         op.setName(XFilterNode.getOpName(((XTrinaryCondition) xfn).getOp()));
-         op.setSymbol(((XTrinaryCondition) xfn).getOp());
+         String symbol = getClauseOpSymbol(xfn, ((XTrinaryCondition) xfn).getOp());
+         op.setName(XFilterNode.getOpName(symbol));
+         op.setSymbol(symbol);
          c.setOperation(op);
       }
 
@@ -1339,6 +1504,21 @@ public class JDBCUtil {
       c.setValue(xfn.toString());
 
       return c;
+   }
+
+   /**
+    * Get the operator symbol sent to the conditions pane. The parser keeps an operator as
+    * typed (e.g. "is null", "Like"), so send the canonical symbol the pane's operator list
+    * uses. "!=" is sent as "<>" for a plain condition (not a join). An operator in no
+    * operator list is kept as is.
+    */
+   private static String getClauseOpSymbol(XFilterNode xfn, String op) {
+      if("!=".equals(op) && xfn instanceof XBinaryCondition && !(xfn instanceof XJoin)) {
+         return "<>";
+      }
+
+      String symbol = XFilterNode.getCanonicalOpSymbol(op);
+      return symbol == null || symbol.isEmpty() ? op : symbol;
    }
 
    private static ClauseValue getClauseValue(XExpression xe, XDataSource dataSource) {
@@ -1504,15 +1684,23 @@ public class JDBCUtil {
 
       SQLHelper helper = SQLHelper.getSQLHelper(dataSource);
       Set<String> keys = aliasMap.keySet();
+      Map<String, String> qualifiers = new HashMap<>();
 
       for(String key : keys) {
          String newAlias = aliasMap.get(key);
          String tableName = getTableName(tables, newAlias);
          String oldAlias = getQuoteAlias(key, helper, tableName);
-         expression = expression.replaceAll(oldAlias + ".", getQuoteAlias(newAlias, helper, tableName) + ".");
+         String nalias = getQuoteAlias(newAlias, helper, tableName);
+
+         if(!oldAlias.equals(nalias)) {
+            qualifiers.put(oldAlias, nalias);
+         }
       }
 
-      return expression;
+      // a literal match at the start of an identifier, so max(a.x) and "a".x are not
+      // touched by a.x (#77569)
+      return qualifiers.isEmpty() ? expression :
+         SQLHelper.replaceQualifiers(expression, qualifiers);
    }
 
    private static String getTableName(Vector<SelectTable> tables, String alias) {

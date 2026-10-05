@@ -32,6 +32,7 @@ import inetsoft.uql.jdbc.*;
 import inetsoft.uql.jdbc.util.JDBCUtil;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.Identity;
+import inetsoft.uql.util.XUtil;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
@@ -220,6 +221,9 @@ public class DatabaseDatasourcesService {
             throw new RuntimeException("Data space folder does not exist: " + path);
          }
 
+         // Bug #77733, a name with a slash would move the folder under another parent without
+         // the checks of the move
+         Tool.checkFolderNameSeparator(model.name());
          String parent = DataSourceFolder.getParentName(path);
 
          if(parent == null) {
@@ -230,16 +234,40 @@ public class DatabaseDatasourcesService {
          }
 
          if(!Objects.requireNonNull(newPath).equals(path)) {
+            // a name with a slash is refused above (Bug #77733), kept in case the path is built
+            // otherwise: the folder must not be put into itself, with no parent left
+            if(DataSourceRegistry.isSameOrDescendantPath(path, newPath)) {
+               throw new MessageException(Catalog.getCatalog(principal).getString(
+                  "common.datasource.moveIntoItself", path));
+            }
+
+            // renaming onto a path used by a data source or another folder would merge with it
+            if(dataSourceRegistry.isDataSourcePathInUse(newPath)) {
+               throw new MessageException(Catalog.getCatalog(principal).getString(
+                  "common.datasource.moveTargetExists", newPath));
+            }
+
+            // a name with a slash is refused above (Bug #77733), kept in case the path is built
+            // otherwise: the folder must not be put under a data source
+            String dataSource = dataSourceRegistry.getDataSourceAncestor(newPath);
+
+            if(dataSource != null) {
+               throw new MessageException(Catalog.getCatalog(principal).getString(
+                  "common.datasource.moveUnderDataSource", dataSource));
+            }
+
             List<String> childrenSources = new ArrayList<>();
             DependencyTransformer.prepareChildrenSources(path, childrenSources, repository);
             RenameDependencyInfo dinfo = DependencyTransformer.createDependencyInfo(
                path, newPath, childrenSources);
-            renameTransformHandler.addTransformTask(dinfo);
             folder.setName(newPath);
 
             Permission permission =
                securityEngine.getPermission(ResourceType.DATA_SOURCE_FOLDER, path);
+            // Bug #77704, added once the folder is moved. A failed move renames the dependencies
+            // of each data source it moved, in updateDataSourceFolder.
             repository.updateDataSourceFolder(folder, path);
+            renameTransformHandler.addTransformTask(dinfo);
 
             if(permission != null) {
                securityEngine.setPermission(ResourceType.DATA_SOURCE_FOLDER, newPath, permission);
@@ -375,7 +403,7 @@ public class DatabaseDatasourcesService {
          oname = idx == -1 ? path : path.substring(idx + 1);
       }
 
-      XDataSource dataSource = repository.getDataSource(fullName);
+      XDataSource dataSource = getAdditionalConnection(fullName, repository.getDataSource(fullName));
       boolean newDataSource = false;
       Predicate<String> secretIdCheck = secretIdAuthorizer.createCheck(dataSource, principal);
       checkSecretIds(database, getAdditionals.get(), secretIdCheck);
@@ -399,7 +427,19 @@ public class DatabaseDatasourcesService {
          int index = fullName.lastIndexOf('/');
          String newPath = index == -1 ? name : fullName.substring(0, index) + "/" + name;
 
-         if(registry.getDataSourceFolder(newPath) != null) {
+         // a data source at the new path is reported as "Duplicate" above, so only check for a
+         // folder, which isn't filtered by permission (Bug #77691). newPath is the path of the
+         // data source itself if it isn't renamed. A data source that shares its path with a
+         // folder (older data) isn't saved either: a create in that folder is resolved to the
+         // data source, and would rename it.
+         if(isDataSourceFolder(newPath) || isDataSourceFolder(fullName)) {
+            return new ConnectionStatus("Duplicate Folder");
+         }
+
+         // an additional connection is saved without additional connections of its own
+         if(dataSource instanceof JDBCDataSource jdbc && jdbc.getBaseDatasource() == null &&
+            isAdditionalConnectionPathFolder(newPath, getAdditionals.get()))
+         {
             return new ConnectionStatus("Duplicate Folder");
          }
       }
@@ -408,13 +448,22 @@ public class DatabaseDatasourcesService {
          // Create the dataSource - path is the parent folder's path
          fullName = fullName.startsWith("/") ? fullName.substring(1) : fullName;
 
-         if(!fullName.isEmpty() && registry.getDataSourceFolder(fullName) == null) {
+         if(!fullName.isEmpty() && !isDataSourceFolder(fullName)) {
             return new ConnectionStatus("Invalid Folder");
          }
 
          fullName += !fullName.isEmpty() ? "/" + name : name;
 
-         if(registry.getDataSourceFolder(fullName) != null) {
+         // a data source can't be created under a data source, e.g. in a subfolder of a folder
+         // that is also a data source (Bug #77691)
+         if(registry.getDataSourceAncestor(fullName) != null) {
+            return new ConnectionStatus("Invalid Folder");
+         }
+
+         // a data source or a folder at the path, not filtered by permission (Bug #77691)
+         if(registry.isDataSourcePathInUse(fullName) ||
+            isAdditionalConnectionPathFolder(fullName, getAdditionals.get()))
+         {
             return new ConnectionStatus("Duplicate Folder");
          }
 
@@ -440,19 +489,12 @@ public class DatabaseDatasourcesService {
       }
 
       JDBCDataSource base = jdbcDataSource.getBaseDatasource();
-      String newSrcName = fullName;
-
-      if(base != null) {
-         int index = fullName.lastIndexOf('/');
-
-         if(index != -1) {
-            newSrcName = fullName.substring(index + 1);
-         }
-      }
-
       Permission oldPermission = securityEngine.getPermission(ResourceType.DATA_SOURCE, fullName);
-      JDBCDataSource newSrc =
-         getDatabase(newSrcName, database, false, false, secretIdCheck, principal);
+      // an additional connection is named and its stored password is read the way the parent's
+      // save does, through its parent
+      JDBCDataSource newSrc = base != null ?
+         getDatabase(base.getFullName(), database, false, true, secretIdCheck, principal) :
+         getDatabase(fullName, database, false, false, secretIdCheck, principal);
       boolean newSourcePermission = false;
       boolean folderPermission = false;
       int index = fullName.lastIndexOf('/');
@@ -523,6 +565,12 @@ public class DatabaseDatasourcesService {
          jdbcDataSource.setName(name);
          base.addDatasource(jdbcDataSource);
          additionalChange = true;
+
+         if(!oname.equals(name)) {
+            renameAdditionalSource(base, oname, name);
+            updateAdditionalPermissions(base.getFullName(), Collections.emptySet(),
+                                        Collections.singletonMap(oname, name));
+         }
       }
       else {
          dataSourceStatusService.updateStatus(jdbcDataSource);
@@ -572,10 +620,19 @@ public class DatabaseDatasourcesService {
                jdbcDataSource.removeDatasource(dataSourceName);
             }
 
+            // the names of the kept and renamed additional connections before this save, and the
+            // renames, by old name
+            Set<String> keptOldNames = new HashSet<>();
+            Map<String, String> renames = new LinkedHashMap<>();
+
             // add newly additional ds
             for(DatabaseDefinition ads : additionalDataSources) {
                String additionalName = ads.getName();
                String oldName = ads.getOldName();
+
+               if(oldName != null) {
+                  keptOldNames.add(oldName);
+               }
 
                if(additionalNamePasswordMap.get(oldName) != null && ads.getAuthentication() != null) {
                   AuthenticationDetails authentication = ads.getAuthentication();
@@ -595,21 +652,32 @@ public class DatabaseDatasourcesService {
 
                if(oldName != null && !oldName.equals(additionalName)) {
                   renameAdditionalSource(jdbcDataSource, oldName, additionalName);
-                  Permission permission = securityEngine.getPermission(ResourceType.DATA_SOURCE,
-                     fullName + "::" + oldName);
-
-                  if(permission != null) {
-                     securityEngine.setPermission(ResourceType.DATA_SOURCE,
-                        fullName + "::" + additionalName, permission);
-                  }
+                  renames.put(oldName, additionalName);
                }
             }
 
+            // a new additional connection has no old name, so one that has the name of a removed
+            // one is not kept. The parent was renamed above, which moved the permissions of its
+            // additional connections, so they are under its new name
+            Set<String> removedNames = new HashSet<>(additionalNamePasswordMap.keySet());
+            removedNames.removeAll(keptOldNames);
+            updateAdditionalPermissions(jdbcDataSource.getFullName(), removedNames, renames);
             refreshAdditionalSource(jdbcDataSource);
          }
       }
 
-      if(additionalChange) {
+      if(additionalChange && base != null) {
+         // base.addDatasource() saved the additional connection under its parent. Update the
+         // parent as a save of the parent does, since updating the additional connection by its
+         // path would rename it to its own name and so move it out of the parent
+         XDataSource parent = repository.getDataSource(base.getFullName());
+
+         if(parent != null) {
+            parent.setLastModified(System.currentTimeMillis());
+            repository.updateDataSource(parent, parent.getFullName(), false);
+         }
+      }
+      else if(additionalChange) {
          jdbcDataSource.setLastModified(System.currentTimeMillis());
          repository.updateDataSource(jdbcDataSource, fullName, false);
       }
@@ -624,6 +692,95 @@ public class DatabaseDatasourcesService {
       transformTables(oldDataSource, currentDataSource);
 
       return null;
+   }
+
+   /**
+    * Gets an additional connection with its base data source set. The base data source is not
+    * saved with an additional connection, so an additional connection read by its path, as the
+    * repository tree's editor does, has none once the registry cache has been cleared.
+    *
+    * @param path the path of the data source, which is parent/name for an additional connection.
+    * @param dataSource the data source read by that path.
+    *
+    * @return the additional connection read through its parent, or the data source read by the
+    *         path if it isn't an additional connection.
+    */
+   private XDataSource getAdditionalConnection(String path, XDataSource dataSource)
+      throws RemoteException
+   {
+      int index = path.lastIndexOf('/');
+
+      // a data source in a folder is saved with its path as its name, an additional connection
+      // with its name alone
+      if(index < 0 || !(dataSource instanceof AdditionalConnectionDataSource<?> additional) ||
+         additional.getBaseDatasource() != null || path.equals(dataSource.getFullName()))
+      {
+         return dataSource;
+      }
+
+      XDataSource parent = repository.getDataSource(path.substring(0, index));
+
+      if(parent instanceof AdditionalConnectionDataSource<?> base &&
+         base.getBaseDatasource() == null)
+      {
+         XDataSource result = base.getDataSource(path.substring(index + 1));
+
+         if(result != null) {
+            // the registry returns its cached instance, which this save changes
+            return (XDataSource) result.clone();
+         }
+      }
+
+      return dataSource;
+   }
+
+   /**
+    * Updates the permissions of the additional connections of a data source after they are
+    * removed or renamed. All old permissions are read before any is removed, so that swapped or
+    * chained names keep their own permissions.
+    *
+    * @param parent       the full name of the data source.
+    * @param removedNames the names of the removed additional connections.
+    * @param renames      the new names of the renamed additional connections, by old name.
+    */
+   private void updateAdditionalPermissions(String parent, Set<String> removedNames,
+                                            Map<String, String> renames)
+   {
+      if(removedNames.isEmpty() && renames.isEmpty() || !hasPermissionStore()) {
+         return;
+      }
+
+      Map<String, Permission> permissions = new HashMap<>();
+
+      for(String oldName : renames.keySet()) {
+         permissions.put(oldName, securityEngine.getPermission(ResourceType.DATA_SOURCE,
+            parent + XUtil.ADDITIONAL_DS_CONNECTOR + oldName));
+      }
+
+      Set<String> oldNames = new HashSet<>(removedNames);
+      oldNames.addAll(renames.keySet());
+
+      for(String oldName : oldNames) {
+         securityEngine.removePermission(ResourceType.DATA_SOURCE,
+            parent + XUtil.ADDITIONAL_DS_CONNECTOR + oldName);
+      }
+
+      for(Map.Entry<String, String> rename : renames.entrySet()) {
+         Permission permission = permissions.get(rename.getKey());
+
+         if(permission != null) {
+            securityEngine.setPermission(ResourceType.DATA_SOURCE,
+               parent + XUtil.ADDITIONAL_DS_CONNECTOR + rename.getValue(), permission);
+         }
+      }
+   }
+
+   /**
+    * Checks if the security provider stores permissions of its own, i.e. it is not virtual.
+    */
+   private boolean hasPermissionStore() {
+      SecurityProvider provider = securityEngine.getSecurityProvider();
+      return provider == null || !provider.isVirtual();
    }
 
    private void renameAdditionalSource(JDBCDataSource xds, String oname, String nname) {
@@ -806,6 +963,40 @@ public class DatabaseDatasourcesService {
                      return true;
                   }
                }
+            }
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Checks if a data source folder exists at a path. Unlike
+    * {@link DataSourceRegistry#getDataSourceFolder(String)}, the check isn't filtered by
+    * permission.
+    */
+   private boolean isDataSourceFolder(String path) {
+      return dataSourceRegistry.containObject(new AssetEntry(
+         AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE_FOLDER, path, null));
+   }
+
+   /**
+    * Checks if a data source folder exists at the path of one of the additional connections of a
+    * data source (Bug #77691). An additional connection is stored at the path of its data source
+    * followed by its name.
+    *
+    * @param parentPath  the path of the data source after it is saved.
+    * @param additionals the additional connections of the data source.
+    */
+   private boolean isAdditionalConnectionPathFolder(String parentPath,
+                                                    DatabaseDefinition[] additionals)
+   {
+      if(additionals != null) {
+         for(DatabaseDefinition additional : additionals) {
+            if(additional != null && additional.getName() != null &&
+               isDataSourceFolder(parentPath + "/" + additional.getName()))
+            {
+               return true;
             }
          }
       }

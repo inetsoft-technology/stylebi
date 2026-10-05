@@ -128,4 +128,37 @@ class ToolTest {
    void validDate(String validDate) {
       assertTrue(Tool.isDate(validDate), String.format("Valid date failed date check: %s", validDate));
    }
+
+   // Bug #77721, the folder path helpers that refuse a move into the folder itself or a subfolder
+   @Test
+   void isSameOrDescendantPath() {
+      assertTrue(Tool.isSameOrDescendantPath("F", "F"));
+      assertTrue(Tool.isSameOrDescendantPath("F", "F/G"));
+      assertTrue(Tool.isSameOrDescendantPath("F", "F/G/F"));
+      assertTrue(Tool.isSameOrDescendantPath("F/G", "F/G/H"));
+      assertFalse(Tool.isSameOrDescendantPath("F", "Fx"));
+      assertFalse(Tool.isSameOrDescendantPath("F", "Fx/F"));
+      assertFalse(Tool.isSameOrDescendantPath("F/G", "F"));
+      assertFalse(Tool.isSameOrDescendantPath("F", "G/F"));
+      assertFalse(Tool.isSameOrDescendantPath(null, "F"));
+      assertFalse(Tool.isSameOrDescendantPath("F", null));
+      assertFalse(Tool.isSameOrDescendantPath(null, null));
+      // paths are relative to the root, so the root "/" is not a "/"-prefix of "F"
+      assertTrue(Tool.isSameOrDescendantPath("/", "/"));
+      assertFalse(Tool.isSameOrDescendantPath("/", "F"));
+   }
+
+   @Test
+   void isDescendantPath() {
+      assertFalse(Tool.isDescendantPath("F", "F"));
+      assertTrue(Tool.isDescendantPath("F", "F/F"));
+      assertTrue(Tool.isDescendantPath("F", "F/G/F"));
+      assertFalse(Tool.isDescendantPath("F", "Fx"));
+      assertFalse(Tool.isDescendantPath("F", "Fx/F"));
+      assertFalse(Tool.isDescendantPath("F/G", "F"));
+      assertFalse(Tool.isDescendantPath(null, "F/G"));
+      assertFalse(Tool.isDescendantPath("F", null));
+      assertFalse(Tool.isDescendantPath("/", "/"));
+      assertFalse(Tool.isDescendantPath("/", "F"));
+   }
 }

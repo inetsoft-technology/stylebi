@@ -246,6 +246,8 @@ public class AvroXTableSerializer {
          data = (idx >= 0) ? data.substring(idx + 1) : data;
       }
 
-      return Tool.getPersistentData(type, data);
+      // not getPersistentData(), the cached data may hold Buddhist year digits from a Thai
+      // database, which must not be read as legacy Buddhist dates (#77605)
+      return Tool.getData(type, data, true);
    }
 }

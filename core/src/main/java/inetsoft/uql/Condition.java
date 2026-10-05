@@ -26,7 +26,7 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.*;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.*;
-import org.pojava.datetime.DateTime;
+import inetsoft.util.pojava.datetime.DateTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
@@ -1817,6 +1817,11 @@ public class Condition extends AbstractCondition {
 
          for(int k = 0; k < nlist2.getLength(); k++) {
             items[k] = Tool.getValue(nlist2.item(k), false, true, true);
+
+            // a date saved before #77605 may have a Buddhist or Japanese year
+            if(items[k] instanceof String && XSchema.isDateType(getType())) {
+               items[k] = Tool.toGregorianPersistentDate((String) items[k]);
+            }
          }
 
          return items;
@@ -1827,8 +1832,16 @@ public class Condition extends AbstractCondition {
       // @by mikec, for starting with and contains, we always use string
       // comparasion, in this case the dest value should be a string
       // if we parse it to other object, will cause the comparasion failure.
-      return (op == STARTING_WITH || op == CONTAINS || op == LIKE ||  !ctype) ?
-         val : getObject(getType(), (val == null ? "" : val));
+      if(op == STARTING_WITH || op == CONTAINS || op == LIKE ||  !ctype) {
+         return val;
+      }
+
+      // a date saved before #77605 may have a Buddhist or Japanese year
+      if(XSchema.isDateType(getType())) {
+         val = Tool.toGregorianPersistentDate(val);
+      }
+
+      return getObject(getType(), (val == null ? "" : val));
    }
 
    /**

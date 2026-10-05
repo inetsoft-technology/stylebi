@@ -223,16 +223,16 @@ public class TableFormat implements XMLSerializable, Serializable, Cloneable {
                   }
                }
                else if(format_spec.equals("FULL")) {
-                  fmt = DateFormat.getDateInstance(DateFormat.FULL, locale);
+                  fmt = Tool.createDateFormat("FULL", locale);
                }
                else if(format_spec.equals("LONG")) {
-                  fmt = DateFormat.getDateInstance(DateFormat.LONG, locale);
+                  fmt = Tool.createDateFormat("LONG", locale);
                }
                else if(format_spec.equals("MEDIUM")) {
-                  fmt = DateFormat.getDateInstance(DateFormat.MEDIUM, locale);
+                  fmt = Tool.createDateFormat("MEDIUM", locale);
                }
                else if(format_spec.equals("SHORT")) {
-                  fmt = DateFormat.getDateInstance(DateFormat.SHORT, locale);
+                  fmt = Tool.createDateFormat("SHORT", locale);
                }
                else {
                   fmt = Tool.createDateFormat(format_spec, locale);

@@ -186,7 +186,11 @@ public class VirtualPrivateModel extends VpmObject {
    }
 
    /**
-    * Check if the two tables are same
+    * Check if the two tables are same. The names are compared by their
+    * {@link #splitTableName(String) segments}, so identifier quotes and case are ignored, and
+    * a name with fewer segments matches the trailing segments of the other one, e.g.
+    * <tt>"T"</tt>, <tt>sa.t</tt> and <tt>db.sa.t</tt> are all the same as <tt>t</tt>, but
+    * <tt>"my.t"</tt> is not.
     * @hidden
     */
    public static boolean isSameTable(String tbl1, String tbl2) {
@@ -194,23 +198,109 @@ public class VirtualPrivateModel extends VpmObject {
          return false;
       }
 
-      tbl1 = tbl1.toLowerCase();
-      tbl2 = tbl2.toLowerCase();
+      // Bug #77580, the parser stores the query tables quoted by the sql helper, and the vpm
+      // table may be qualified to a different depth (db.dbo.t) than the query table (dbo.t)
+      return getTableMatch(tbl1, tbl2) > 0;
+   }
 
-      if(tbl1.equals(tbl2)) {
-         return true;
+   /**
+    * Get how closely two tables match, for picking the best of several tables that are all
+    * the {@link #isSameTable(String, String) same}.
+    * @return 0 if the tables are not the same, {@link Integer#MAX_VALUE} if their segments
+    * are equal, otherwise the number of trailing segments compared.
+    */
+   static int getTableMatch(String tbl1, String tbl2) {
+      if(tbl1 == null || tbl2 == null) {
+         return 0;
       }
 
-      boolean qualified1 = tbl1.indexOf('.') > 0;
-      boolean qualified2 = tbl2.indexOf('.') > 0;
+      return getTableMatch(splitTableName(tbl1), splitTableName(tbl2));
+   }
 
-      if(qualified1 != qualified2) {
-         tbl1= tbl1.substring(tbl1.lastIndexOf('.') + 1);
-         tbl2= tbl2.substring(tbl2.lastIndexOf('.') + 1);
-         return tbl1.equals(tbl2);
+   /**
+    * Get how closely two tables, {@link #splitTableName(String) split} into segments, match.
+    * @see #getTableMatch(String, String)
+    */
+   static int getTableMatch(String[] segments1, String[] segments2) {
+      int count = Math.min(segments1.length, segments2.length);
+
+      for(int i = 1; i <= count; i++) {
+         if(!segments1[segments1.length - i].equals(segments2[segments2.length - i])) {
+            return 0;
+         }
       }
 
-      return false;
+      return segments1.length == segments2.length ? Integer.MAX_VALUE : count;
+   }
+
+   /**
+    * Split a table name into its catalog, schema and table segments for comparing names. The
+    * name is split at the dots outside identifier quotes, and each segment is unquoted
+    * (<tt>"..."</tt>, <tt>`...`</tt> or <tt>[...]</tt>, where a doubled closing quote stands
+    * for one) and lower cased, e.g. <tt>SA."My.Table"</tt> gives <tt>[sa, my.table]</tt>. The
+    * root locale is used, since in the default locale a name may not lower case the same way
+    * (<tt>ITEMS</tt> gives <tt>&#305;tems</tt> in Turkish).
+    * @param name the table name, as stored by the sql parser or in a vpm.
+    * @return the segments, at least one, or an empty array if the name is null.
+    * @hidden
+    */
+   public static String[] splitTableName(String name) {
+      if(name == null) {
+         return new String[0];
+      }
+
+      List<String> segments = new ArrayList<>();
+      StringBuilder segment = new StringBuilder();
+
+      for(int i = 0; i < name.length(); i++) {
+         char c = name.charAt(i);
+         char close = getCloseQuote(c);
+
+         if(close != 0) {
+            i = readQuoted(name, i, close, segment) - 1;
+         }
+         else if(c == '.') {
+            segments.add(segment.toString().toLowerCase(Locale.ROOT));
+            segment.setLength(0);
+         }
+         else {
+            segment.append(c);
+         }
+      }
+
+      segments.add(segment.toString().toLowerCase(Locale.ROOT));
+      return segments.toArray(new String[0]);
+   }
+
+   /**
+    * Get the closing quote of an identifier opened by the character, or 0 if the character
+    * doesn't open a quoted identifier.
+    */
+   static char getCloseQuote(char c) {
+      return c == '"' || c == '`' ? c : c == '[' ? ']' : 0;
+   }
+
+   /**
+    * Append the unquoted text of the quoted identifier opened at start to the buffer.
+    * @return the index after the closing quote, or the text length if it isn't closed.
+    */
+   static int readQuoted(String text, int start, char close, StringBuilder buf) {
+      for(int i = start + 1; i < text.length(); i++) {
+         char c = text.charAt(i);
+
+         if(c != close) {
+            buf.append(c);
+         }
+         else if(i + 1 < text.length() && text.charAt(i + 1) == close) {
+            buf.append(c);
+            i++;
+         }
+         else {
+            return i + 1;
+         }
+      }
+
+      return text.length();
    }
 
    /**
@@ -324,10 +414,6 @@ public class VirtualPrivateModel extends VpmObject {
                            VariableTable vars, Principal user,
                            String partition, String ds, boolean isTest) throws Exception
    {
-      if(user != null && XPrincipal.SYSTEM.equals(user.getName())) {
-         return false;
-      }
-
       String script = getScript();
 
       // no script defined?
@@ -371,9 +457,8 @@ public class VirtualPrivateModel extends VpmObject {
       scope.setVariableTable(vars);
       scope.setUser(user);
 
-      StringArray tarray = new StringArray("table", tables);
       StringArray carray = new StringArray("column", columns);
-      scope.putMember("tables", tarray);
+      scope.setTables(tables);
       scope.putMember("columns", carray);
 
       if(WSExecution.getAssetQuerySandbox() != null) {

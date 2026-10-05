@@ -148,10 +148,15 @@ private int checkCnt = 0; // optimization
 private Map map = new HashMap(); // sql + table ->op
 // sql -> columns merged by an earlier LEFT/FULL JOIN USING in the current join expression
 private Map usingMerges = new IdentityHashMap();
+// sql -> the USING columns of the current join expression, each mapped to an int[]
+// {index of the table of the column, start of the join's left operand}
+private Map usingTables = new IdentityHashMap();
 private int onClauseCount = 0; // ON clauses parsed so far, in text order
 private boolean catalog = false;
 private boolean schema = true;
 private boolean preferQuote = true;
+// conditions of a (+) outer join with an op other than =, e.g. "a.id >= b.id(+)"
+private Map badOuterJoins = new IdentityHashMap();
 
 private static class TableKey {
    public TableKey(UniformSQL sql, Object table) {
@@ -201,9 +206,16 @@ private boolean isSameTable(String expr1, String expr2) {
       SQLHelper helper = SQLHelper.getSQLHelper(uniSql.getDataSource());
 
       for(int i = 0; i < uniSql.getTableCount(); i++) {
-         String tableName = Tool.toString(uniSql.getSelectTable(i).getName());
+         Object name = uniSql.getSelectTable(i).getName();
          String tableAlias = uniSql.getSelectTable(i).getAlias();
-         String quotedTableAlias = !Tool.equals(tableAlias, tableName) ?
+         // a derived table written without an alias has its sql as its alias. The sql always
+         // has a space (select ..), so it's only generated for an alias with a space, since
+         // generating it at each comparison is exponential with the nesting of derived
+         // tables (Bug #77791)
+         boolean aliased = name instanceof UniformSQL && tableAlias != null &&
+            !tableAlias.isEmpty() && tableAlias.indexOf(' ') < 0 ||
+            !Tool.equals(tableAlias, Tool.toString(name));
+         String quotedTableAlias = aliased ?
             XUtil.quoteAlias(tableAlias, helper) : helper.quoteTableName(tableAlias);
          String prefix = quotedTableAlias + ".";
 
@@ -214,6 +226,20 @@ private boolean isSameTable(String expr1, String expr2) {
    }
 
    return false;
+}
+
+/**
+ * Get the text of a derived table in the join text of a from clause. The text is
+ * only checked for being empty, so the sql of the subquery isn't generated, which
+ * generated each subquery again at each level of nested derived tables (Bug #77791).
+ * Generating it marked the subquery as parsed, which is kept.
+ */
+private String getDerivedTableText(Object name) {
+   if(name instanceof UniformSQL) {
+      ((UniformSQL) name).setParseResult(UniformSQL.PARSE_SUCCESS);
+   }
+
+   return "(subquery)";
 }
 
 private String getTableOp(UniformSQL sql, Object table) {
@@ -263,6 +289,108 @@ private void markJoins(inetsoft.uql.XNode node, int clause) {
          markJoins(node.getChild(i), clause);
       }
    }
+}
+
+/**
+ * Check that each legacy outer join of a where clause (*=, =* or (+)) can be
+ * generated in the from clause.
+ */
+private void checkWhereOuterJoinPositions(UniformSQL sql, XFilterNode node, Token tok)
+   throws SemanticException
+{
+   List joins = new ArrayList();
+   collectJoins(sql.getWhere(), joins);
+   collectJoins(node, joins);
+   checkWhereOuterJoinPositions(sql, node, true, joins, tok);
+}
+
+/**
+ * An outer join is generated in the from clause as a join condition that the
+ * where clause doesn't see, so it must also be under ANDs only (joinPos). Under
+ * a NOT set, or an OR set with other conditions, the rest of the set would lose
+ * the join (e.g. "not (a.id = b.id(+) and a.k = 1)" generated as "ON a.id = b.id
+ * where not (a.k = 1)"). An OR of outer joins only, between the same two tables
+ * that have no other join, is generated as one ON condition, "ON a.id = b.id OR
+ * a.k = b.k", as Oracle applies it. With another join on the tables it would be
+ * "ON a.k = b.k AND a.id = b.id OR ..." without the parentheses. A negated outer
+ * join itself is fine: Oracle applies "not (a.id = b.id(+))" as the join
+ * condition, which is "ON a.id <> b.id". An outer join that isn't column =
+ * column (e.g. "a.id >= b.id(+)") has no op to keep its comparison, so it was
+ * recorded in badOuterJoins and can't be represented.
+ */
+private void checkWhereOuterJoinPositions(UniformSQL sql, XFilterNode node,
+                                          boolean joinPos, List joins, Token tok)
+   throws SemanticException
+{
+   if(badOuterJoins.containsKey(node) ||
+      !joinPos && node instanceof XJoin && ((XJoin) node).isOuterJoin())
+   {
+      throw new SemanticException("Unsupported outer join condition: " + node,
+                                  getFilename(), tok.getLine(), tok.getColumn());
+   }
+
+   if(node instanceof XSet) {
+      boolean joinPos2 = joinPos && !node.isIsNot() && (node.getChildCount() <= 1 ||
+         XSet.AND.equalsIgnoreCase(((XSet) node).getRelation()) ||
+         isOuterJoinSet(sql, node, joins));
+
+      for(int i = 0; i < node.getChildCount(); i++) {
+         checkWhereOuterJoinPositions(sql, (XFilterNode) node.getChild(i), joinPos2,
+                                      joins, tok);
+      }
+   }
+}
+
+/**
+ * Check if every condition of a set is an outer join of the same type between the
+ * same two tables, and the set has all the joins of the where clause (joins)
+ * between them.
+ */
+private boolean isOuterJoinSet(UniformSQL sql, XFilterNode node, List joins) {
+   String op = null;
+   int index1 = -1;
+   int index2 = -1;
+
+   for(int i = 0; i < node.getChildCount(); i++) {
+      Object child = node.getChild(i);
+
+      if(!(child instanceof XJoin) || !((XJoin) child).isOuterJoin()) {
+         return false;
+      }
+
+      XJoin join = (XJoin) child;
+      int cindex1 = getJoinTableIndex(sql, join.getTable1(sql));
+      int cindex2 = getJoinTableIndex(sql, join.getTable2(sql));
+
+      if(cindex1 < 0 || cindex2 < 0 || cindex1 == cindex2 ||
+         op != null && (!op.equals(join.getOp()) || cindex1 != index1 || cindex2 != index2))
+      {
+         return false;
+      }
+
+      op = join.getOp();
+      index1 = cindex1;
+      index2 = cindex2;
+   }
+
+   for(int i = 0; i < joins.size(); i++) {
+      XJoin join = (XJoin) joins.get(i);
+      int jindex1 = getJoinTableIndex(sql, join.getTable1(sql));
+      int jindex2 = getJoinTableIndex(sql, join.getTable2(sql));
+      boolean inSet = false;
+
+      for(int j = 0; j < node.getChildCount() && !inSet; j++) {
+         inSet = node.getChild(j) == join;
+      }
+
+      if(!inSet && (jindex1 == index1 && jindex2 == index2 ||
+                    jindex1 == index2 && jindex2 == index1))
+      {
+         return false;
+      }
+   }
+
+   return true;
 }
 
 /**
@@ -450,7 +578,7 @@ private String getUsingJoinOp(String op) {
  * Get the name of a USING column for comparing it with other USING columns.
  */
 private String getUsingColumnKey(String column) {
-   return column.replaceAll("[\\\"`\\[\\]]", "").toLowerCase();
+   return column.replaceAll("[\\\"`\\[\\]]", "").toLowerCase(Locale.ROOT);
 }
 
 /**
@@ -495,6 +623,52 @@ private void addUsingMerges(UniformSQL sql, List columns) {
 private void clearUsingMerges(UniformSQL sql) {
    if(sql != null) {
       usingMerges.remove(sql);
+      usingTables.remove(sql);
+   }
+}
+
+/**
+ * Get the alias of the left operand table that has a column of a JOIN USING. The parser
+ * has no column metadata, so it's only known for a left operand of one table, or for a
+ * column of an earlier inner or RIGHT JOIN USING of the same left operand, whose merged
+ * column is the joined table's column. Otherwise the column could be in any table of
+ * the left operand, so the join fails the parse and the original sql runs (Bug #77490).
+ */
+private String getUsingTable(UniformSQL sql, String column, int lstart, int rstart,
+                             String jc, Token tok)
+   throws SemanticException
+{
+   if(rstart - lstart == 1) {
+      return sql.getTableAlias(lstart);
+   }
+
+   Map tables = (Map) usingTables.get(sql);
+   int[] table = tables == null ? null : (int[]) tables.get(getUsingColumnKey(column));
+
+   // a join of a nested join in the left operand has its own left operand, the other
+   // tables of this left operand may have the column too
+   if(table == null || table[1] != lstart || table[0] >= rstart) {
+      throw new SemanticException(
+         "Unsupported USING join, the left operand table of the column is unknown: " + jc,
+         getFilename(), tok.getLine(), tok.getColumn());
+   }
+
+   return sql.getTableAlias(table[0]);
+}
+
+/**
+ * Record the joined table as the table of the columns of an inner or RIGHT JOIN USING.
+ */
+private void addUsingTables(UniformSQL sql, List columns, int lstart, int rstart) {
+   Map tables = (Map) usingTables.get(sql);
+
+   if(tables == null) {
+      tables = new HashMap();
+      usingTables.put(sql, tables);
+   }
+
+   for(int i = 0; i < columns.size(); i++) {
+      tables.put(getUsingColumnKey((String) columns.get(i)), new int[] { rstart, lstart });
    }
 }
 
@@ -502,15 +676,36 @@ private void clearUsingMerges(UniformSQL sql) {
  * Refuse a derived column list (t(p, q)) of a from clause table. UniformSQL
  * has no place for the column list, so it would be kept as part of the alias
  * and regenerated as one quoted alias ("t(p,q)") without the column names.
+ * A SQL Server table hint of an unaliased table (from a with (nolock)) parses
+ * as an unquoted alias with and a column list. It is refused too: the
+ * regenerated alias "with(nolock)" hides the table name, so a qualified column
+ * fails or binds to an outer query's table (Bug #77492).
  */
 private void checkDerivedColumnList(UniformSQL sql, String alias, String columns,
-                                    Token tok)
+                                    Token aliasTok, Token tok)
    throws SemanticException
 {
    if(sql != null) {
+      boolean hint = aliasTok != null && aliasTok.getType() == IDENT &&
+         "with".equalsIgnoreCase(aliasTok.getText());
+      String kind = hint ? "table hint" : "derived column list";
+
       throw new SemanticException(
-         "Unsupported derived column list: " + alias + "(" + columns + ")",
+         "Unsupported " + kind + ": " + alias + "(" + columns + ")",
          getFilename(), tok.getLine(), tok.getColumn());
+   }
+}
+
+/**
+ * Refuse a JDBC escape used as a from clause table or as a segment of its name, e.g.
+ * from {oj t left outer join u on t.id = u.id}. UniformSQL would keep the escape as one
+ * table name, which is regenerated quoted ("{oj ...}"), so the original sql runs instead
+ * (Bug #77662).
+ */
+private void checkEscapeTable(UniformSQL sql, Token esc) throws SemanticException {
+   if(sql != null && esc != null) {
+      throw new SemanticException("Unsupported JDBC escape as a table: " + esc.getText(),
+                                  getFilename(), esc.getLine(), esc.getColumn());
    }
 }
 
@@ -612,8 +807,30 @@ private void checkRightJoins(UniformSQL sql) {
       joinOrderChecks.add(sql);
    }
    else {
-      rightJoins.remove(sql);
+      Object tok = rightJoins.remove(sql);
+
+      if(hasOuterJoin(sql.getWhere())) {
+         commaJoinGroupChecks.add(sql);
+         commaJoinGroupTokens.put(sql, tok != null ? tok : getFirstJoinToken(sql));
+      }
    }
+}
+
+/**
+ * Check if a condition has an outer join.
+ */
+private boolean hasOuterJoin(XFilterNode node) {
+   if(node instanceof XJoin) {
+      return ((XJoin) node).isOuterJoin();
+   }
+
+   for(int i = 0; node instanceof XSet && i < node.getChildCount(); i++) {
+      if(hasOuterJoin((XFilterNode) node.getChild(i))) {
+         return true;
+      }
+   }
+
+   return false;
 }
 
 /**
@@ -636,11 +853,93 @@ private boolean hasInnerJoin(XFilterNode node) {
 // queries with a RIGHT or FULL join mixed with an inner join, or with a nested
 // join on the right side of an outer join, in parse order
 private List joinOrderChecks = new ArrayList();
-// sql -> the joins of the from clause, each an Object[] {kind, left tables,
-// right tables, join conditions, where conditions before the join}
+// the other queries with an outer join, in parse order (Bug #77675)
+private List commaJoinGroupChecks = new ArrayList();
+// sql in commaJoinGroupChecks -> the token of its first RIGHT or FULL join, or of its first
+// join, to report a refusal at
+private Map commaJoinGroupTokens = new IdentityHashMap();
+// sql -> the JoinEvents of the from clause, in parse order
 private Map joinEvents = new IdentityHashMap();
 // the from clause index of the first table of each enclosing join
 private LinkedList joinStarts = new LinkedList();
+// true if the last joined_table_2 matched its parenthesized join alternative,
+// ( joined_table_2 ), and not a join whose first table is a derived table
+private boolean parenJoinedTable = false;
+// true if a from clause of the statement, at any query level, has a cross join chain
+// or a parenthesized join with no join after it, which failed to parse before
+// Bug #77495. Reset at the start of each statement
+private boolean newFromSyntax = false;
+// the queries with joins recorded before the statement, which it doesn't check. Only
+// the _debug multi-statement rule parses more than one statement with a parser, every
+// other caller creates a parser per statement
+private Set priorJoinQueries = Collections.newSetFromMap(new IdentityHashMap());
+// sql -> the first token of a where clause of the statement with an outer join (*=, =*
+// or (+)), at any query level. Reset at the start of each statement
+private Map whereOuterJoins = new IdentityHashMap();
+
+/*
+ * The outer joins that UniformSQL can't keep, and the check that refuses each. All
+ * three read the JoinEvents of the from clauses.
+ * - checkRightJoins/checkJoinOrder (Bug #77434): a RIGHT or FULL join mixed with an
+ *   inner or cross join, or a nested join on the right side of an outer join, whose
+ *   regenerated joins differ. Checked after the parse, by UniformSQL.
+ * - sub_qualified_join (Bug #77495): a join with no join condition whose right operand
+ *   is an unparenthesized nested join with a RIGHT or FULL join (parenJoinedTable), in
+ *   any statement, e.g. a join b right join c on .., a join (select ..) t right join c ..
+ * - checkNewFromOuterJoins (Bug #77495): in a statement that uses the syntax that
+ *   failed to parse before (newFromSyntax), at any query level, every RIGHT or FULL
+ *   join, wherever it is, any LEFT join after another from item (lstart > 0), any LEFT
+ *   join whose null-supplying tables a later join condition of its from clause joins,
+ *   and every outer join of a where clause (*=, =* or (+)). A LEFT join counts too,
+ *   since SQLHelper writes t LEFT JOIN (nested join) as (nested join) RIGHT OUTER JOIN
+ *   t. A RIGHT or FULL join at the start of its from clause counts as well, since
+ *   SQLHelper writes it after the other join groups when it can't keep the text order
+ *   (OuterJoinComparator), and so does a LEFT join joined by a later join. Statements
+ *   without the new syntax are not checked, so it doesn't replace the other two, which
+ *   also refuse statements that parsed before Bug #77495 but regenerated different
+ *   joins.
+ */
+
+/**
+ * A join of a from clause.
+ */
+private static class JoinEvent {
+   JoinEvent(String kind, Set left, Set right, Set before, int lstart, int rstart,
+             int rend)
+   {
+      this.kind = kind;
+      this.left = left;
+      this.right = right;
+      this.before = before;
+      this.lstart = lstart;
+      this.rstart = rstart;
+      this.rend = rend;
+   }
+
+   boolean isRightOrFull() {
+      return "R".equals(kind) || "F".equals(kind);
+   }
+
+   // I(nner), C(ross), N(atural), L(eft), R(ight) or F(ull)
+   final String kind;
+   // the sorted names of the tables of the left and right operands
+   final Set left;
+   final Set right;
+   // the where conditions added by the join condition
+   Set conds = Collections.newSetFromMap(new IdentityHashMap());
+   // the where conditions before the join
+   final Set before;
+   // the from clause index of the first table of the left operand
+   final int lstart;
+   // the from clause indexes of the first table of the right operand, and after its last
+   final int rstart;
+   final int rend;
+   // the JOIN keyword of the join, null for a cross join of two tables (cross_join)
+   Token tok;
+   // true if the join is in a parenthesized join of its from item, (c right join d on ..)
+   // join e on .. (ansi_joins)
+   boolean parenthesized;
+}
 
 /**
  * Get the queries that mix a RIGHT or FULL join with an inner join, or that
@@ -649,6 +948,102 @@ private LinkedList joinStarts = new LinkedList();
  */
 public List getJoinOrderChecks() {
    return joinOrderChecks;
+}
+
+/**
+ * Get the queries with an outer join that are not in getJoinOrderChecks. Each must be
+ * checked with checkCommaJoinGroups after the parse.
+ */
+public List getCommaJoinGroupChecks() {
+   return commaJoinGroupChecks;
+}
+
+/**
+ * Check that the regenerated sql of a query with an outer join needs at most to move its only
+ * join group with a RIGHT or FULL join outside of parentheses before its other comma separated
+ * join groups. SQLite and HSQLDB read x, c RIGHT JOIN d ON .. as (x, c) RIGHT JOIN d ON ..,
+ * and the other databases as x, (c RIGHT JOIN d ON ..), so SQLHelper writes such a group
+ * first, which every database reads the same way and which returns the rows of the parsed
+ * sql: from_clause refuses the sql of a from item after a comma with such a join, which the
+ * databases read differently (checkCommaItemJoins). A query with two or more such groups
+ * leaves one of them after a comma (in parentheses, or without them on MongoHelper), and a
+ * query with a * column puts the group in parentheses or returns its columns in another
+ * order, so such a query is refused and its sql runs as written (Bug #77675).
+ * @param notMovable true if the regenerated sql did more than move the only such group
+ * (SQLHelper.isCommaGroupsNotMovable), or couldn't be generated.
+ */
+public void checkCommaJoinGroups(UniformSQL sql, boolean notMovable) throws SemanticException {
+   if(notMovable) {
+      Token tok = (Token) rightJoins.get(sql);
+
+      if(tok == null) {
+         tok = (Token) commaJoinGroupTokens.get(sql);
+      }
+
+      throw new SemanticException(
+         "Unsupported RIGHT or FULL join group that is not the first from item",
+         getFilename(), tok == null ? 0 : tok.getLine(), tok == null ? 0 : tok.getColumn());
+   }
+}
+
+/**
+ * Check that the regenerated sql of a query with an outer join keeps the order and nesting of
+ * its joins. SQLHelper writes the joins in text order, and when a join doesn't fit it, writes
+ * them in the outer-last order, which can move an inner join to the null-supplying side of an
+ * outer join, e.g. d left join c on d.id = c.id join e on e.id = c.id as (e JOIN c) RIGHT JOIN
+ * d, which keeps the d rows that the inner join removed. Such a query is refused and its sql
+ * runs as written (Bug #77674).
+ * @param outerLast true if the regenerated sql wrote the joins in the outer-last order
+ * (SQLHelper.isOuterLastTextJoins).
+ */
+public void checkTextJoinOrder(UniformSQL sql, boolean outerLast) throws SemanticException {
+   if(outerLast) {
+      Token tok = getFirstJoinToken(sql);
+
+      throw new SemanticException(
+         "Unsupported join order, the joins can't be regenerated in the order of the sql",
+         getFilename(), tok == null ? 0 : tok.getLine(), tok == null ? 0 : tok.getColumn());
+   }
+}
+
+/**
+ * Check the outer joins of the where clauses of the statement (*=, =* or (+)), at any query
+ * level. SQLHelper writes them as ANSI joins of the from clause in the outer-last order, which
+ * can move an inner join to the null-supplying side of the outer join, e.g. b.id(+) = a.id and
+ * b.id = c.id as (b JOIN c) RIGHT OUTER JOIN a, which keeps the a rows that the inner join
+ * removed. Only Oracle without ansi join writes them as written, so the statement is refused
+ * for every other data source and its sql runs as written (Bug #77548).
+ * @param supported true if the sql helper of the data source writes them as written.
+ */
+public void checkWhereClauseOuterJoins(boolean supported) throws SemanticException {
+   if(!supported && !whereOuterJoins.isEmpty()) {
+      Token tok = null;
+
+      for(Iterator i = whereOuterJoins.values().iterator(); i.hasNext();) {
+         tok = getFirstToken(tok, (Token) i.next());
+      }
+
+      throw new SemanticException(
+         "Unsupported outer join in the where clause, the data source writes ANSI joins",
+         getFilename(), tok == null ? 0 : tok.getLine(), tok == null ? 0 : tok.getColumn());
+   }
+}
+
+/**
+ * Get the JOIN keyword of the first join recorded for a query, null if none.
+ */
+private Token getFirstJoinToken(UniformSQL sql) {
+   List events = (List) joinEvents.get(sql);
+
+   for(int i = 0; events != null && i < events.size(); i++) {
+      Token tok = ((JoinEvent) events.get(i)).tok;
+
+      if(tok != null) {
+         return tok;
+      }
+   }
+
+   return null;
 }
 
 /**
@@ -720,11 +1115,288 @@ private void startJoinEvent(UniformSQL sql, String op, int lstart, int rstart, i
       joinEvents.put(sql, events);
    }
 
-   Set conds = Collections.newSetFromMap(new IdentityHashMap());
-   addConditions(sql.getWhere(), conds);
-   events.add(new Object[] {kind, getJoinTables(sql, lstart, rstart),
-                            getJoinTables(sql, rstart, rend),
-                            Collections.newSetFromMap(new IdentityHashMap()), conds});
+   Set before = Collections.newSetFromMap(new IdentityHashMap());
+   addConditions(sql.getWhere(), before);
+   events.add(new JoinEvent(kind, getJoinTables(sql, lstart, rstart),
+                            getJoinTables(sql, rstart, rend), before, lstart, rstart, rend));
+}
+
+/**
+ * Record that a from clause of the statement has a join that failed to parse before
+ * Bug #77495, a cross join chain or a parenthesized join with no join after it.
+ */
+private void markNewFromJoin(UniformSQL sql) {
+   if(sql != null) {
+      newFromSyntax = true;
+   }
+}
+
+/**
+ * Start a statement, the from clauses of a statement are checked together by
+ * checkNewFromOuterJoins.
+ */
+private void startStatement() {
+   newFromSyntax = false;
+   priorJoinQueries.addAll(joinEvents.keySet());
+   whereOuterJoins.clear();
+}
+
+/**
+ * Record a where clause with an outer join (*=, =* or (+)) for checkNewFromOuterJoins.
+ * @param where the conditions of the where clause, before they are added to the query.
+ */
+private void addWhereOuterJoins(UniformSQL sql, XFilterNode where, Token tok) {
+   List joins = new ArrayList();
+   collectJoins(where, joins);
+
+   for(int i = 0; sql != null && i < joins.size(); i++) {
+      if(((XJoin) joins.get(i)).isOuterJoin() && !whereOuterJoins.containsKey(sql)) {
+         whereOuterJoins.put(sql, tok);
+      }
+   }
+}
+
+/**
+ * Check the outer joins of every from clause of a statement that has a cross join
+ * chain or a parenthesized join with no join after it, in any from clause at any
+ * query level. Every RIGHT or FULL join is refused, every LEFT join after another
+ * from item, every LEFT join whose null-supplying tables a later join condition of its
+ * from clause joins, and every outer join of a where clause. An outer join whose left
+ * operand doesn't start at the first table of its from clause is in a group of joined
+ * tables after another from item: a comma item, or the right operand of another join.
+ * A LEFT join is checked too, since SQLHelper writes t LEFT JOIN (nested join) as
+ * (nested join) RIGHT OUTER JOIN t, and a LEFT join group is refused whatever its
+ * right operand. SQLHelper may write such a group as a comma item after another group
+ * of joined tables, e.g. a INNER JOIN b ON .. , c RIGHT OUTER JOIN d ON .., or move the
+ * tables before it after it, e.g. when the join condition of the enclosing join
+ * doesn't join the group to the tables before it. A RIGHT or FULL join at the start of
+ * its from clause is written first only while SQLHelper keeps the text order. When it
+ * can't (generateFromClauseText returns null, e.g. for a join condition that doesn't
+ * name the table it joins), it writes the joins of a chain of joins (getLoyalJoins)
+ * in their order, and otherwise the inner joins first and the outer joins last
+ * (OuterJoinComparator), so the RIGHT or FULL join group follows a comma too. SQLite
+ * joins a comma and a JOIN left to right, as (a join b, c) right join d, so the
+ * regenerated sql returns different rows there, and it reads the original
+ * x, c right join d on .. that way too. Before Bug #77495 the whole statement failed
+ * to parse, so the original sql ran, and it still does. A statement without the new
+ * syntax is not checked, it parses as before.
+ * <p>
+ * A LEFT join at the start of its from clause is accepted unless a later join joins
+ * its null-supplying (right) tables. The inner joins first order joins the tables
+ * of the later join before the outer join, so d left join c on d.id = c.id join e on
+ * e.id = c.id is written as (e INNER JOIN c ON e.id = c.id) RIGHT OUTER JOIN d ON
+ * d.id = c.id, which keeps the d rows that the inner join drops. What SQLHelper orders
+ * are the column joins (XJoin) of the from clause: the outer joins, and the inner
+ * join conditions between two from clause tables. Any other condition of an inner
+ * join, and every condition of the where clause while the query has no outer join in
+ * its where clause (isTextJoinOrder), is written in the where clause, which applies
+ * after all the joins. So a later join counts if a column join of its condition names
+ * a table of the right operand (USING columns are column joins too, and a natural
+ * join is refused). Its right operand is then joined to the other tables only by the
+ * LEFT join's own join condition, a column join between one table of each side
+ * (getOuterJoins), and by the joins inside a nested right operand. However SQLHelper
+ * orders the joins, it adds the right operand to the joined tables with that join
+ * condition, as t LEFT OUTER JOIN c or (nested join) RIGHT OUTER JOIN t, and no join
+ * after it names c. A LEFT join commutes with an inner, cross or LEFT join that
+ * doesn't name its right operand, so every such order returns the same rows, and over
+ * one table, written after a comma, it joins the same rows too, since it adds rows only
+ * for its own tables. A nested right operand is checked by checkJoinOrder, which
+ * compares the regenerated joins (checkOuterJoinGroup).
+ * <p>
+ * An outer join of a where clause has no position, SQLHelper orders it with the
+ * inner joins of the where clause (without isTextJoinOrder), e.g. d.id = c.id(+) and
+ * e.id = c.id is written as (e INNER JOIN c ..) RIGHT OUTER JOIN d .., so it's refused.
+ * <p>
+ * Called at the end of each from clause, so it checks the joins of the from clauses
+ * parsed so far once any of them has the new syntax, and every later from clause, and
+ * at the end of each query, after its where clause.
+ */
+private void checkNewFromOuterJoins() throws SemanticException {
+   if(!newFromSyntax) {
+      return;
+   }
+
+   boolean left = false;
+   boolean leftJoined = false;
+   boolean right = false;
+   // the first JOIN keyword in the text of each refusal, whatever the order of the queries
+   // in joinEvents
+   Token firstRight = null;
+   Token firstLeft = null;
+   Token firstLeftJoined = null;
+
+   for(Iterator i = joinEvents.entrySet().iterator(); i.hasNext();) {
+      Map.Entry entry = (Map.Entry) i.next();
+      UniformSQL sql = (UniformSQL) entry.getKey();
+      List events = (List) entry.getValue();
+
+      if(priorJoinQueries.contains(sql)) {
+         continue;
+      }
+
+      for(int j = 0; j < events.size(); j++) {
+         JoinEvent event = (JoinEvent) events.get(j);
+
+         if(event.isRightOrFull() && event.lstart > 0) {
+            Token tok = (Token) rightJoins.get(sql);
+            throw new SemanticException(
+               "Unsupported RIGHT or FULL join after another from item", getFilename(),
+               tok == null ? 0 : tok.getLine(), tok == null ? 0 : tok.getColumn());
+         }
+
+         if(event.isRightOrFull()) {
+            right = true;
+            firstRight = getFirstToken(firstRight, event.tok);
+         }
+         else if("L".equals(event.kind) && event.lstart > 0) {
+            left = true;
+            firstLeft = getFirstToken(firstLeft, event.tok);
+         }
+         else if("L".equals(event.kind) && isRightOperandJoined(sql, events, j)) {
+            leftJoined = true;
+            firstLeftJoined = getFirstToken(firstLeftJoined, event.tok);
+         }
+      }
+   }
+
+   // reported after the scan, so the message doesn't depend on the scan order: a RIGHT
+   // or FULL join after another from item first, then any other RIGHT or FULL join, then
+   // a LEFT join after another from item, a LEFT join joined by a later join, and an
+   // outer join of a where clause
+   if(right) {
+      throw new SemanticException(
+         "Unsupported RIGHT or FULL join in a statement with a cross join chain or a " +
+         "parenthesized join", getFilename(), firstRight == null ? 0 : firstRight.getLine(),
+         firstRight == null ? 0 : firstRight.getColumn());
+   }
+
+   if(left) {
+      throw new SemanticException("Unsupported LEFT join after another from item",
+         getFilename(), firstLeft == null ? 0 : firstLeft.getLine(),
+         firstLeft == null ? 0 : firstLeft.getColumn());
+   }
+
+   if(leftJoined) {
+      throw new SemanticException(
+         "Unsupported LEFT join followed by a join to its right side in a statement " +
+         "with a cross join chain or a parenthesized join", getFilename(),
+         firstLeftJoined == null ? 0 : firstLeftJoined.getLine(),
+         firstLeftJoined == null ? 0 : firstLeftJoined.getColumn());
+   }
+
+   if(!whereOuterJoins.isEmpty()) {
+      Token tok = null;
+
+      for(Iterator i = whereOuterJoins.values().iterator(); i.hasNext();) {
+         tok = getFirstToken(tok, (Token) i.next());
+      }
+
+      throw new SemanticException(
+         "Unsupported outer join in the where clause of a statement with a cross join " +
+         "chain or a parenthesized join", getFilename(), tok == null ? 0 : tok.getLine(),
+         tok == null ? 0 : tok.getColumn());
+   }
+}
+
+/**
+ * Check if a join after a join of a from clause joins a table of its right operand: a
+ * column join (XJoin) of its join condition names one, or it's a natural join, whose
+ * join columns aren't known.
+ * @param events the joins of the from clause.
+ * @param index the index of the join in events.
+ */
+private boolean isRightOperandJoined(UniformSQL sql, List events, int index) {
+   JoinEvent event = (JoinEvent) events.get(index);
+
+   for(int i = index + 1; i < events.size(); i++) {
+      JoinEvent later = (JoinEvent) events.get(i);
+      List joins = new ArrayList();
+
+      if("N".equals(later.kind)) {
+         return true;
+      }
+
+      for(Iterator j = later.conds.iterator(); j.hasNext();) {
+         collectJoins((XFilterNode) j.next(), joins);
+      }
+
+      for(int j = 0; j < joins.size(); j++) {
+         XJoin join = (XJoin) joins.get(j);
+         // the same table resolution as SQLHelper uses to write the join
+         int index1 = getJoinTableIndex(sql, join.getTable1(sql));
+         int index2 = getJoinTableIndex(sql, join.getTable2(sql));
+
+         if(index1 >= event.rstart && index1 < event.rend ||
+            index2 >= event.rstart && index2 < event.rend)
+         {
+            return true;
+         }
+      }
+   }
+
+   return false;
+}
+
+/**
+ * Get the number of joins recorded for the from clause of a query.
+ */
+private int getJoinEventCount(UniformSQL sql) {
+   List events = sql == null ? null : (List) joinEvents.get(sql);
+   return events == null ? 0 : events.size();
+}
+
+/**
+ * Mark the joins of a query recorded after the first count joins as parenthesized.
+ */
+private void markParenthesizedJoinEvents(UniformSQL sql, int count) {
+   List events = sql == null ? null : (List) joinEvents.get(sql);
+
+   for(int i = count; events != null && i < events.size(); i++) {
+      ((JoinEvent) events.get(i)).parenthesized = true;
+   }
+}
+
+/**
+ * Check the joins of a from item after a comma, recorded after the first count joins of the
+ * query. A RIGHT or FULL join of the item that is not in parentheses, and whose left operand
+ * starts at the first table of the item, is refused: SQLite and HSQLDB give a comma the
+ * precedence of a JOIN and read x, c right join d on .. as (x, c) right join d on .., and
+ * the other databases as x, (c right join d on ..), which returns different rows. The
+ * parser records the second reading, and so does SQLHelper's regenerated sql (Bug #77675).
+ * An INNER or LEFT join of the item, a join in parentheses, and a join of a nested right
+ * operand (x, a join (c right join d on ..) on ..) return the same rows either way.
+ * @param start the from clause index of the first table of the item.
+ */
+private void checkCommaItemJoins(UniformSQL sql, int start, int count)
+   throws SemanticException
+{
+   List events = sql == null ? null : (List) joinEvents.get(sql);
+
+   for(int i = count; events != null && i < events.size(); i++) {
+      JoinEvent event = (JoinEvent) events.get(i);
+
+      if(event.isRightOrFull() && !event.parenthesized && event.lstart == start) {
+         Token tok = event.tok;
+         throw new SemanticException(
+            "Unsupported RIGHT or FULL join in a from item after a comma", getFilename(),
+            tok == null ? 0 : tok.getLine(), tok == null ? 0 : tok.getColumn());
+      }
+   }
+}
+
+/**
+ * Check if a RIGHT or FULL join was recorded for a query after the first count joins.
+ */
+private boolean hasRightJoinEvent(UniformSQL sql, int count) {
+   List events = sql == null ? null : (List) joinEvents.get(sql);
+
+   for(int i = count; events != null && i < events.size(); i++) {
+      if(((JoinEvent) events.get(i)).isRightOrFull()) {
+         return true;
+      }
+   }
+
+   return false;
 }
 
 private void startJoinEvent(UniformSQL sql, String op, int rstart, int rend) {
@@ -735,6 +1407,29 @@ private void startJoinEvent(UniformSQL sql, String op, int rstart, int rend) {
 }
 
 /**
+ * Set the JOIN keyword of the last join of a query, for the position of a refusal.
+ */
+private void setJoinEventToken(UniformSQL sql, Token tok) {
+   List events = sql == null ? null : (List) joinEvents.get(sql);
+
+   if(events != null && !events.isEmpty()) {
+      ((JoinEvent) events.get(events.size() - 1)).tok = tok;
+   }
+}
+
+/**
+ * Get the token of the two that is first in the text, either may be null.
+ */
+private static Token getFirstToken(Token tok1, Token tok2) {
+   if(tok1 == null || tok2 == null) {
+      return tok1 == null ? tok2 : tok1;
+   }
+
+   return tok2.getLine() < tok1.getLine() ||
+      tok2.getLine() == tok1.getLine() && tok2.getColumn() < tok1.getColumn() ? tok2 : tok1;
+}
+
+/**
  * Finish the last join of a query after its join condition, and record the
  * conditions that the join condition added to the where clause.
  */
@@ -742,12 +1437,11 @@ private void endJoinEvent(UniformSQL sql) {
    List events = sql == null ? null : (List) joinEvents.get(sql);
 
    if(events != null && !events.isEmpty()) {
-      Object[] event = (Object[]) events.get(events.size() - 1);
-      Set before = (Set) event[4];
+      JoinEvent event = (JoinEvent) events.get(events.size() - 1);
       Set conds = Collections.newSetFromMap(new IdentityHashMap());
       addConditions(sql.getWhere(), conds);
-      conds.removeAll(before);
-      event[3] = conds;
+      conds.removeAll(event.before);
+      event.conds = conds;
    }
 }
 
@@ -765,7 +1459,8 @@ private Set getJoinTables(UniformSQL sql, int start, int end) {
 }
 
 private static String getJoinName(Object name) {
-   return name == null ? "" : name.toString().replaceAll("[\\\"`\\[\\]\\s]", "").toLowerCase();
+   return name == null ? "" :
+      name.toString().replaceAll("[\\\"`\\[\\]\\s]", "").toLowerCase(Locale.ROOT);
 }
 
 /**
@@ -855,9 +1550,9 @@ public String getJoinStructure(UniformSQL sql) {
       found = false;
 
       for(int i = 0; i < events.size() && !found; i++) {
-         Object[] event = (Object[]) events.get(i);
+         JoinEvent event = (JoinEvent) events.get(i);
 
-         if(("I".equals(event[0]) || "C".equals(event[0])) && !isInnerJoin(event, events)) {
+         if(("I".equals(event.kind) || "C".equals(event.kind)) && !isInnerJoin(event, events)) {
             events.remove(i);
             found = true;
          }
@@ -867,19 +1562,19 @@ public String getJoinStructure(UniformSQL sql) {
    List keys = new ArrayList();
 
    for(int i = 0; i < events.size(); i++) {
-      Object[] event = (Object[]) events.get(i);
-      String kind = (String) event[0];
-      String left = event[1].toString();
-      String right = event[2].toString();
+      JoinEvent event = (JoinEvent) events.get(i);
+      String kind = event.kind;
+      String left = event.left.toString();
+      String right = event.right.toString();
 
       if("R".equals(kind) || !"L".equals(kind) && left.compareTo(right) > 0) {
          kind = "R".equals(kind) ? "L" : kind;
-         left = event[2].toString();
-         right = event[1].toString();
+         left = event.right.toString();
+         right = event.left.toString();
       }
 
-      where.removeAll((Set) event[3]);
-      keys.add(kind + left + right + getConditionKeys((Set) event[3]));
+      where.removeAll(event.conds);
+      keys.add(kind + left + right + getConditionKeys(event.conds));
    }
 
    Collections.sort(keys);
@@ -889,14 +1584,14 @@ public String getJoinStructure(UniformSQL sql) {
 /**
  * Check if the tables of a join are inside another join.
  */
-private static boolean isInnerJoin(Object[] event, List events) {
-   Set tables = new HashSet((Set) event[1]);
-   tables.addAll((Set) event[2]);
+private static boolean isInnerJoin(JoinEvent event, List events) {
+   Set tables = new HashSet(event.left);
+   tables.addAll(event.right);
 
    for(int i = 0; i < events.size(); i++) {
-      Object[] other = (Object[]) events.get(i);
-      Set tables2 = new HashSet((Set) other[1]);
-      tables2.addAll((Set) other[2]);
+      JoinEvent other = (JoinEvent) events.get(i);
+      Set tables2 = new HashSet(other.left);
+      tables2.addAll(other.right);
 
       if(other != event && tables2.size() > tables.size() && tables2.containsAll(tables)) {
          return true;
@@ -935,6 +1630,26 @@ private void addInnerOnJoins(UniformSQL sql, XFilterNode cond) {
 private void clearInnerOnJoins(UniformSQL sql, String outerType, String tbl2) {
    if(!"LEFT".equals(outerType) || tbl2 == null || tbl2.length() == 0) {
       innerOnJoins.remove(sql);
+   }
+}
+
+/**
+ * Check that a condition has no legacy outer join (*=, =* or (+)). It is only valid
+ * in a where clause. In an inner join ON it isn't valid on any database ((+) in an
+ * ANSI join is ORA-25156, and *= can't be mixed with ANSI joins), and in a having
+ * clause or a case it isn't a join. The generation hoisted it into an outer join
+ * anyway, which dropped it or lost its position and comparison op (e.g. "on a.id =
+ * b.id and a.k > b.k(+)" became "ON a.k = b.k where a.id = b.id"), or printed *=.
+ */
+private void checkNoOuterJoins(XFilterNode node, Token tok) throws SemanticException {
+   if(node instanceof XJoin && ((XJoin) node).isOuterJoin()) {
+      throw new SemanticException("Unsupported outer join condition: " + node,
+                                  getFilename(), tok.getLine(), tok.getColumn());
+   }
+   else if(node instanceof XSet) {
+      for(int i = 0; i < node.getChildCount(); i++) {
+         checkNoOuterJoins((XFilterNode) node.getChild(i), tok);
+      }
    }
 }
 
@@ -1101,6 +1816,12 @@ private void checkStatus() {
  * recorded before the body is parsed and replaced when the body matches.
  * This assumes that no listed rule calls itself again at its start token
  * without consuming a token first, which would read that recorded failure.
+ * It also assumes that a listed rule has no parameter that changes what it
+ * matches, and that no semantic predicate in it depends on anything but the
+ * tokens and the dialect, so a result holds wherever the rule is guessed.
+ * The FROM clause rules are memoized by query_spec, which every subquery
+ * starts with, and joined_table, which is guessed on the right of each join
+ * (Bug #77791).
  */
 private static final int MEMO_SEARCH_CONDITION = 0;
 private static final int MEMO_BOOLEAN_PRIMARY = 1;
@@ -1115,7 +1836,9 @@ private static final int MEMO_DATETIME_VALUE_EXP = 9;
 private static final int MEMO_INTERVAL_VALUE_EXP = 10;
 private static final int MEMO_MATCH_VALUE = 11;
 private static final int MEMO_SET_FCT_SPEC = 12;
-private static final int MEMO_RULE_COUNT = 13;
+private static final int MEMO_QUERY_SPEC = 13;
+private static final int MEMO_JOINED_TABLE = 14;
+private static final int MEMO_RULE_COUNT = 15;
 private static final Object MEMO_FAILED = new Object();
 // start token -> stop token or MEMO_FAILED, one map per rule
 private final List<Map<Token, Object>> memo = createMemo();
@@ -1278,24 +2001,180 @@ public boolean changeType(String targetStr, int type) {
    return false;
 }
 
-// strip quote
-String strip(String str) {
-    int last = (str != null) ? str.length() - 1 : 0;
-    return (str != null && str.length() > 1 &&
-            (str.charAt(0)=='\'' && str.charAt(last)=='\'' ||
-             str.charAt(0)=='"' && str.charAt(last)=='"'))
-        ? str.substring(1, str.length()-1) : str;
-}
-
 // the quote of the last special_identifier token (XExpression.QUOTE_*)
 private int identQuote = XExpression.QUOTE_NONE;
+// whether the last qualified_id or column_name was a plain identifier written unquoted (IDENT,
+// or the date/time keywords used as a name), see quoteSegment
+private boolean identPlain = false;
+// the column and qualifier segments of the column references of the statement, written
+// unquoted and quoted, the select aliases written unquoted and quoted, and the order/group by
+// items that are a bare unquoted name, see checkCaseTwins
+private final Set<String> plainColumns = new HashSet<>(), quotedColumns = new HashSet<>();
+private final Set<String> plainQualifiers = new HashSet<>(), quotedQualifiers = new HashSet<>();
+private final Set<String> plainAliases = new HashSet<>(), quotedAliases = new HashSet<>();
+private final Set<String> sortNames = new HashSet<>();
+// the raw segments of the last qualified_name, the token after the first token of the
+// order/group by item being parsed, and the bare name of a column_ref that is that token
+private List<String> qnameSegs = new ArrayList<>();
+private Token sortNext = null;
+private String sortName = null;
+private boolean caseTwinCheck = true;
+
+/**
+ * Set whether to refuse a statement with case twins, see checkCaseTwins. It's turned off to
+ * re-parse sql generated by a helper, which writes some names quoted in their written case.
+ */
+public void setCaseTwinCheck(boolean caseTwinCheck) {
+   this.caseTwinCheck = caseTwinCheck;
+}
+
+// record the qualifier segments and the column segment of a column_ref. A bare unquoted name
+// that is the first token of an order/group by item is kept until the end of the item
+void addColumnRefTwins() throws TokenStreamException {
+   int last = qnameSegs.size() - 1;
+
+   for(int i = 0; i <= last; i++) {
+      final int seg = i;
+      boolean quoted = qnameQuoted != null && Arrays.stream(qnameQuoted).anyMatch(q -> q == seg);
+
+      if(i < last || LA(1) == DOT) {
+         addCaseTwin(plainQualifiers, quotedQualifiers, qnameSegs.get(i), quoted);
+      }
+      else if(!quoted && identPlain && last == 0 && sortNext != null && LT(1) == sortNext) {
+         sortName = qnameSegs.get(i);
+      }
+      else if(quoted || identPlain) {
+         addCaseTwin(plainColumns, quotedColumns, qnameSegs.get(i), quoted);
+      }
+   }
+}
+
+// a bare unquoted name that is a whole order/group by item may name a select alias, any other
+// name in the item is a column
+void addSortName(Token next, Token outerNext, String outerName) throws TokenStreamException {
+   if(sortName != null) {
+      (LT(1) == next ? sortNames : plainColumns).add(sortName);
+   }
+
+   sortNext = outerNext;
+   sortName = outerName;
+}
+
+void addAliasTwin(String alias, Boolean quoted) {
+   if(quoted != null) {
+      addCaseTwin(plainAliases, quotedAliases, alias, quoted);
+   }
+}
+
+void addCaseTwin(Set<String> plain, Set<String> quoted, String name, boolean isQuoted) {
+   if(name != null && !name.isEmpty()) {
+      (isQuoted ? quoted : plain).add(name);
+   }
+}
+
+/**
+ * Refuse a statement that writes one name both unquoted and quoted, e.g. "MixedCase" and
+ * MixedCase, on a database that folds the unquoted name to another case. The two name
+ * different columns, but a case-sensitive helper stores both as "MixedCase" (Bug #77643).
+ * Column and qualifier segments are compared separately. A quoted select alias is compared
+ * with a bare order/group by name, which isn't a column when it names an unquoted alias.
+ */
+void checkCaseTwins() throws SemanticException {
+   if(!caseTwinCheck || uniSql == null || uniSql.getDataSource() == null) {
+      return;
+   }
+
+   SQLHelper.IdentifierCase fold =
+      SQLHelper.getSQLHelper(uniSql.getDataSource(), (Principal) null).getIdentifierCase();
+
+   if(fold == SQLHelper.IdentifierCase.UNKNOWN) {
+      return;
+   }
+
+   for(String name : sortNames) {
+      if(plainAliases.stream().noneMatch(a -> fold.fold(a).equals(fold.fold(name)))) {
+         plainColumns.add(name);
+      }
+   }
+
+   String twin = java.util.stream.Stream.of(getCaseTwin(plainColumns, quotedColumns, fold),
+                           getCaseTwin(plainQualifiers, quotedQualifiers, fold),
+                           getCaseTwin(sortNames, quotedAliases, fold))
+      .filter(Objects::nonNull).findFirst().orElse(null);
+
+   if(twin != null) {
+      throw new SemanticException("Unsupported name written both quoted and unquoted, which " +
+         "the database reads as two different names: \"" + twin + "\" and " + twin,
+         getFilename(), 0, 0);
+   }
+}
+
+// get a name written unquoted and quoted that the database folds to another case
+private static String getCaseTwin(Set<String> plain, Set<String> quoted,
+                                  SQLHelper.IdentifierCase fold)
+{
+   return plain.stream().filter(n -> quoted.contains(n) && !fold.fold(n).equals(n))
+      .findFirst().orElse(null);
+}
 // the quote and the as-written segment of a quoted column in the last column_ref
 private int colrefQuote = XExpression.QUOTE_NONE;
 private String colrefColumn = null;
 // the last segment of the last qualified_name
 private int lastSegQuote = XExpression.QUOTE_NONE;
+// whether the last column_name or as_clause was a quoted identifier, null if not known
+// (a variable or placeholder such as $(x)), see JDBCSelection.isAliasQuoted
+private Boolean aliasQuoted = null;
+
+// whether a special_identifier token is a quoted identifier, null if it is a variable or a
+// placeholder ($(x), {x}, $x)
+Boolean isQuotedIdentifier(Token token) {
+   int type = token == null ? 0 : token.getType();
+   return type == SPIDENT || type == SPIDENT2 || type == SPIDENT_SQUARE ? Boolean.TRUE : null;
+}
+
+// the quoting of the last group by field and of the fields of the last group by list, see
+// UniformSQL.setGroupBy(Object[], String[])
+private String lastGroupQuote = null;
+private Vector lastGroupQuotes = null;
 private int lastSegStart = 0;
 private String lastSeg = null;
+// the text of the last function and, if its only argument is a qualified quoted column
+// (sum(t."MixedCase")), the column segment as written
+private String funcText = null;
+private String funcQuotedColumn = null;
+// the indexes of the segments written quoted ("a", `a` or [a]) in the last qualified_name
+private int[] qnameQuoted = null;
+// the first segment of the last qualified_name that is a JDBC escape ({oj ...}), or null
+private Token qnameEscape = null;
+// the indexes of the segments written quoted in the qualifier of the last column_ref,
+// and the column_ref text and quoted segments of the last field parsed as a value
+private int[] colrefQuoted = null;
+private String fieldText = null;
+private int[] fieldQuoted = null;
+
+// check if the next token is a quoted identifier, and add the segment index if it is
+void addQuotedSegment(List<Integer> segs, int seg) throws TokenStreamException {
+   int type = LA(1);
+
+   if(type == SPIDENT || type == SPIDENT2 || type == SPIDENT_SQUARE) {
+      segs.add(seg);
+   }
+}
+
+// check if the next token is a JDBC escape, and keep the first one
+Token escapeSegment(Token esc) throws TokenStreamException {
+   return esc == null && LA(1) == SPIDENT_BRACKET ? LT(1) : esc;
+}
+
+int[] toQuotedSegments(List<Integer> segs) {
+   return segs.isEmpty() ? null : segs.stream().mapToInt(Integer::intValue).toArray();
+}
+
+// get the quoted column segment of an aggregate parsed as the whole expression
+String getFuncQuotedColumn(XExpression exp) {
+   return funcQuotedColumn != null && XExpression.EXPRESSION.equals(exp.getType()) &&
+      funcText != null && funcText.equals(exp.toString()) ? funcQuotedColumn : null;
+}
 
 // a quoted column segment without a dot is stored without its quotes and flagged
 String quoteColumn(String col) {
@@ -1305,7 +2184,48 @@ String quoteColumn(String col) {
       return col;
    }
 
-   return quoteDot(col);
+   return quoteSegment(col);
+}
+
+// quote the last segment of a qualified_name or a column_ref, see quoteDot. A segment written
+// as a plain identifier and stored with quotes (by a case-sensitive helper) is recorded, see
+// UniformSQL.isParsedUnquotedSegment. The last segment of a qualified_name is also recorded
+// when it's a table, which a column lookup never asks for
+String quoteSegment(String str) {
+   boolean plain = identPlain;
+   String quoted = quoteDot(str);
+
+   if(plain && uniSql != null && !quoted.equals(str)) {
+      uniSql.addParsedUnquotedSegment(quoted);
+   }
+
+   return quoted;
+}
+
+// join the text of a binary operator and its operands. A right operand that starts with a
+// unary minus (factor writes "- 1") is separated from a "-" operator by a space, because
+// "x-- 1" would be read as a line comment when the SQL is regenerated (#77754)
+String joinOp(String left, String op, String right) {
+   if(op.endsWith("-") && right != null && right.startsWith("-")) {
+      return left + op + " " + right;
+   }
+
+   return left + op + right;
+}
+
+// whether the dialect reads [name] as a delimited identifier (sql server, sybase, access),
+// where it is never a subscript, so an implicit [name] alias is unambiguous. Without a data
+// source the dialect is unknown, so this is false (#77767)
+boolean isBracketIdentifierDialect() {
+   JDBCDataSource dx = uniSql != null ? uniSql.getDataSource() : null;
+
+   if(dx == null) {
+      return false;
+   }
+
+   SQLHelper helper = SQLHelper.getSQLHelper(dx, (Principal) null);
+   return helper != null &&
+      ColumnIterator.isBracketQuote(ColumnIterator.getRules(helper.getSQLHelperType()));
 }
 
 // quote string if it contains dot
@@ -1319,13 +2239,52 @@ String quoteDot(String str) {
    SQLHelper helper = SQLHelper.getSQLHelper(dx, (Principal) null);
    String quote = helper != null ? helper.getQuote() : "\"";
 
-   if(str.indexOf(".") > 0 || preferQuote && XUtil.isSpecialName(str, true, helper) &&
-      !XUtil.shouldNotQuote(str))
+   // str is always raw (delimiter-free) here, as returned by column_name (IDENT |
+   // special_identifier | T_TIME), never an already-wrapped string, so a quote char
+   // anywhere in it - including as its own first/last character, e.g. the bracket-sourced
+   // name "ab" from input ["ab"] - needs quoting. XUtil.isSpecialName() alone won't see
+   // that case: it treats a name starting and ending with the quote char as already
+   // wrapped and passes it through (a shortcut other callers with genuinely pre-wrapped
+   // segments rely on), so check for an embedded quote char directly here too (#77661)
+   // a niladic keyword-function (current_date) written unquoted is not a column, a name
+   // written quoted ("user") is (Bug #77763)
+   boolean niladic = identPlain && XUtil.isNiladicKeywordFunction(str);
+
+   if(str.indexOf(".") > 0 || preferQuote && !XUtil.shouldNotQuote(str) && !niladic &&
+      (str.contains(quote) || XUtil.isSpecialName(str, true, helper)))
    {
-      return quote + strip(str) + quote;
+      // escape an embedded quote char by doubling it, instead of stripping a would-be
+      // surrounding quote pair, which would silently drop the first/last character of a
+      // raw name that happens to be the quote char itself (#77661)
+      return quote + str.replace(quote, quote + quote) + quote;
    }
 
    return str;
+}
+
+// true if 'name = expr' in a select list is the T-SQL alias form (select a = b means
+// select b as a). Only SQL Server and Sybase read it that way; every other dialect reads
+// it as a boolean comparison, so storing it as an alias regenerates SQL that returns the
+// constant instead (#77785). Access is a comparison dialect too, so this is narrower than
+// ColumnIterator.isBracketQuote. The dialect comes from the statement's uniSql, because a
+// subquery's own UniformSQL has no data source at parse time. Without a uniSql (the
+// value_exp/search_condition entries used by validity checks, which never regenerate) the
+// form is still accepted; with a uniSql but no data source the dialect is unknown, so the
+// form is refused and the statement runs as written.
+boolean isAliasAssignDialect() {
+   if(uniSql == null) {
+      return true;
+   }
+
+   JDBCDataSource dx = uniSql.getDataSource();
+
+   if(dx == null) {
+      return false;
+   }
+
+   SQLHelper helper = SQLHelper.getSQLHelper(dx, (Principal) null);
+   String type = helper != null ? helper.getSQLHelperType() : null;
+   return "sql server".equals(type) || "sybase".equals(type);
 }
 }
 
@@ -1341,10 +2300,12 @@ schema_identifier returns [String schmid = ""]
 special_identifier returns [String specid = ""]
         {String tmp = ""; XExpression exp = null; identQuote = XExpression.QUOTE_NONE; {checkStatus();}}
         :
-        a:SPIDENT {tmp = a.getText();specid = tmp.substring(1, tmp.length() - 1);identQuote = XExpression.QUOTE_DOUBLE;}
+        // un-double the '""' and ']]' escapes, as "a""b" and [a]]b] are the identifiers
+        // a"b and a]b (#77661)
+        a:SPIDENT {tmp = a.getText();specid = tmp.substring(1, tmp.length() - 1).replace("\"\"", "\"");identQuote = XExpression.QUOTE_DOUBLE;}
         |c:SPIDENT2 {tmp = c.getText();specid = tmp.substring(1, tmp.length() - 1);identQuote = XExpression.QUOTE_SINGLE;}
         |d:SPIDENT_VAR {specid = d.getText();}
-        |b:SPIDENT_SQUARE {tmp = b.getText();specid = tmp.substring(1,tmp.length() - 1);}
+        |b:SPIDENT_SQUARE {tmp = b.getText();specid = tmp.substring(1,tmp.length() - 1).replace("]]", "]");}
     |h:SPIDENT_BRACKET {specid = h.getText();}
         |(DOLAR (f:IDENT|g:UNSIGNED_NUM_LIT)  {specid = "$" + ((f!=null)?f.getText():g.getText());})
         ;
@@ -1422,7 +2383,17 @@ boolean_test returns [XFilterNode node = null]
         ( a:IS {relation = a.getText();}( b:NOT {relation += " " + b.getText();})?
         str = truth_value
         {XExpression exp = new XExpression(); exp.setValue(str,XExpression.EXPRESSION);
-        uc.setExpression1(exp); uc.setOp("");}
+        uc.setExpression1(exp); uc.setOp("");
+        // the condition pane and the sentinel/unset-parameter rewriting can't handle
+        // a truth test, so a statement (uniSql) with one at any query level fails to
+        // parse. Throw here, before the condition is combined into a WHERE/ON/HAVING
+        // tree, since a failed parse keeps what was stored and the query editor builds
+        // its condition pane from it. Expression and VPM condition text (no statement)
+        // still accept it
+        if(uniSql != null) {
+           throw new SemanticException("Unsupported truth test: " + relation + " " + str,
+                                       getFilename(), a.getLine(), a.getColumn());
+        }}
         )?
         {if(!relation.equals("")) {
                 node = new XSet(relation);
@@ -1507,7 +2478,7 @@ predicate_body returns [XFilterNode node = null]
 
 comp_predicate returns [XFilterNode xnode = null]
         {XExpression exp1, exp2; String op; XBinaryCondition node;
-        boolean isOracleLeftJoin = false; {checkStatus();}}
+        boolean isOracleLeftJoin = false; Token start = LT(1); {checkStatus();}}
         :
         exp1 = row_value_constructor op = comp_op exp2 = row_value_constructor
         ((OJ)=>OJ {isOracleLeftJoin = true;}|)
@@ -1517,7 +2488,10 @@ comp_predicate returns [XFilterNode xnode = null]
                 op = "=*";
         }
 
-        // left outer join?
+        // left outer join? the outer join op can't keep another comparison op,
+        // so such a condition is refused if it is in a where clause
+        boolean badOuterJoin = isOracleLeftJoin && !op.equals("=");
+
         if(isOracleLeftJoin == true) {
                 op = "*=";
         }
@@ -1533,11 +2507,26 @@ comp_predicate returns [XFilterNode xnode = null]
                 node = new XJoin();
         }
         else {
+                // an outer join op on a condition that isn't a join between two
+                // tables, such as b.code(+) = 'X', is a filter of the outer join.
+                // the model has no place for it, and generating it with = would
+                // give different rows, so refuse it and the original sql runs
+                if(op.equals("*=") || op.equals("=*")) {
+                        throw new SemanticException("Unsupported outer join condition: " +
+                           exp1 + " " + op + " " + exp2,
+                           getFilename(), start.getLine(), start.getColumn());
+                }
+
                 node = new XBinaryCondition();
         }
 
         node.setExpression1(exp1);
-        node.setOp(op); node.setExpression2(exp2); xnode = node;}
+        node.setOp(op); node.setExpression2(exp2); xnode = node;
+
+        if(badOuterJoin) {
+                badOuterJoins.put(node, Boolean.TRUE);
+        }
+        }
         ;
 
 comp_op returns [String op = ""]
@@ -1687,11 +2676,21 @@ null_predicate returns [XFilterNode xnode = null]
         ;
 
 quantified_comp_predicate returns [XFilterNode xnode =null]
-        {XExpression exp1, exp2, tmp; String op, str; XBinaryCondition node; {checkStatus();}}
+        {XExpression exp1, exp2, tmp; String op, str; XBinaryCondition node;
+        Token start = LT(1); {checkStatus();}}
         :
         exp1 = row_value_constructor op = comp_op str = quantifier tmp = table_subquery
 
         {exp2 = new XExpression(); exp2.setValue(str + " " + tmp, XExpression.EXPRESSION);
+
+        // an outer join op against a subquery can't be represented, the same as
+        // in comp_predicate. (+)= isn't converted to =* here, so check it too
+        if(op.equals("*=") || op.equals("=*") || op.equals("(+)=")) {
+                throw new SemanticException("Unsupported outer join condition: " +
+                   exp1 + " " + op + " " + exp2,
+                   getFilename(), start.getLine(), start.getColumn());
+        }
+
         node = new XBinaryCondition(); node.setExpression1(exp1);
         node.setExpression2(exp2); node.setOp(op); xnode = node;}
         ;
@@ -1876,16 +2875,16 @@ num_value_exp_body returns [XExpression exp = null]
         //(PLUS)=>
         a:PLUS  tmp1 = num_value_exp
         {exp = new XExpression();
-        exp.setValue(tmp.getQuotedValue() + a.getText() + tmp1.getQuotedValue(), XExpression.EXPRESSION);}
+        exp.setValue(joinOp(tmp.getQuotedValue(), a.getText(), tmp1.getQuotedValue()), XExpression.EXPRESSION);}
         |
         //(MINUS)=>
         b:MINUS tmp1 = num_value_exp
         {exp = new XExpression();
-        exp.setValue(tmp.getQuotedValue() + b.getText() + tmp1.getQuotedValue(), XExpression.EXPRESSION);}
+        exp.setValue(joinOp(tmp.getQuotedValue(), b.getText(), tmp1.getQuotedValue()), XExpression.EXPRESSION);}
         |
         c:COLON_EQU tmp1 = num_value_exp
         {exp = new XExpression();
-        exp.setValue(tmp.getQuotedValue() + c.getText() + tmp1.getQuotedValue(), XExpression.EXPRESSION);}
+        exp.setValue(joinOp(tmp.getQuotedValue(), c.getText(), tmp1.getQuotedValue()), XExpression.EXPRESSION);}
         )?
         {if(exp == null) {exp = tmp;}}
         ;
@@ -1899,7 +2898,7 @@ term returns [XExpression exp = null]
         (a:STAR  tmp1 = term)
         {
            exp = new XExpression();
-           exp.setValue(tmp.getQuotedValue() + a.getText() + tmp1.getQuotedValue(),
+           exp.setValue(joinOp(tmp.getQuotedValue(), a.getText(), tmp1.getQuotedValue()),
            XExpression.EXPRESSION);
         }
         |
@@ -1907,26 +2906,53 @@ term returns [XExpression exp = null]
         (b:DIV  tmp1 = term)
         {
            exp = new XExpression();
-           exp.setValue(tmp.getQuotedValue() + b.getText() + tmp1.getQuotedValue(), XExpression.EXPRESSION);
+           exp.setValue(joinOp(tmp.getQuotedValue(), b.getText(), tmp1.getQuotedValue()), XExpression.EXPRESSION);
+        }
+        |
+        (c:PERCENT  tmp1 = term)
+        {
+           exp = new XExpression();
+           exp.setValue(joinOp(tmp.getQuotedValue(), c.getText(), tmp1.getQuotedValue()), XExpression.EXPRESSION);
+        }
+        |
+        (d:CARET  tmp1 = term)
+        {
+           exp = new XExpression();
+           exp.setValue(joinOp(tmp.getQuotedValue(), d.getText(), tmp1.getQuotedValue()), XExpression.EXPRESSION);
         })?
         {if(exp == null){exp = tmp;}}
         ;
 
 factor returns [XExpression exp = null]
-        {String prefix = null; XExpression tmp; {checkStatus();}}
+        {String prefix = null; boolean dotNum = false; XExpression tmp; {checkStatus();}}
         :
         (a:PLUS {prefix = a.getText();}| b:MINUS {prefix = b.getText();}|
          c:DOT {
-            if(uniSql != null && uniSql.getDataSource() != null &&
-               uniSql.getDataSource().getDatabaseType() == JDBCDataSource.JDBC_SQLSERVER) {
+            // the lexer has no token for a number that starts with a dot, so .5 is DOT and 5.
+            // it is kept as .5 on every database. the check runs after the DOT is matched, so
+            // LT(1) is the token after it (Bug #77778)
+            Token num = LT(1);
+            dotNum = num.getType() == UNSIGNED_NUM_LIT && num.getText().indexOf('.') < 0 &&
+               num.getLine() == c.getLine() && num.getColumn() == c.getColumn() + 1;
+
+            // anything else after the dot (.a, .(5), .5.5, . 5) is not valid sql. refuse it so
+            // the original sql runs, instead of a regeneration that changes it
+            if(!dotNum && uniSql != null) {
+               throw new SemanticException("Unsupported expression after '.'",
+                                           getFilename(), c.getLine(), c.getColumn());
             }
-            else {
-               prefix = c.getText();
-            }
-         })? tmp = num_primary
+
+            prefix = c.getText();
+         }|
+         d:TILDE {prefix = d.getText();}
+         )? tmp = num_primary
         {
            if(prefix == null) {
               exp = tmp;
+           }
+           else if(dotNum) {
+              exp = new XExpression();
+              exp.setValue(prefix + tmp.getQuotedValue(), XExpression.EXPRESSION);
            }
            else {
               exp = new XExpression();
@@ -1967,10 +2993,13 @@ value_exp_primary_body returns [XExpression exp = null]
         |
         // @by billh, memorize quotes in expression
         (SPIDENT)=> s:SPIDENT {
+           // un-double the '""' escape, as "a""b" is the field a"b (#77661)
            tmp = s.getText();
+           tmp = tmp.substring(1, tmp.length() - 1).replace("\"\"", "\"");
            exp.setQuote(XExpression.QUOTE_DOUBLE);
-           exp.setValue(tmp.substring(1, tmp.length() - 1), XExpression.FIELD);
-           columns.add(tmp.substring(1, tmp.length() - 1));
+           exp.setValue(tmp, XExpression.FIELD);
+           addCaseTwin(plainColumns, quotedColumns, tmp, true);
+           columns.add(tmp);
            hasField = true;
         }
         |
@@ -1994,6 +3023,8 @@ value_exp_primary_body returns [XExpression exp = null]
            }
            else {
               exp.setValue(tmp, XExpression.FIELD);
+              fieldText = tmp;
+              fieldQuoted = colrefQuoted;
 
               // a qualified quoted column (t."MixedCase"), stored without its quotes
               if(colrefQuote != XExpression.QUOTE_NONE) {
@@ -2186,7 +3217,9 @@ char_string_lit returns [String cslit = ""]
         (tmp = introducer tmp1 = char_set_spec )?
         a:STRING_LITERAL {
        cslit = tmp1 + a.getText();
-       if(tmp.length() > 0) { cslit = tmp + " " + cslit; }
+       // the introducer (e.g. "_utf8") must stay adjacent to the charset name with no space,
+       // or the regenerated SQL is rejected by MySQL
+       if(tmp.length() > 0) { cslit = tmp + cslit; }
     }
         ;
 
@@ -2274,12 +3307,15 @@ column_ref returns [String colref = ""]
         {String tmp; colrefQuote = XExpression.QUOTE_NONE; colrefColumn = null;}
         :
         // "order" and "simple" might be used as a table name
-        a:ORDER DOT tmp = column_name {colref = a.getText() + "." + quoteColumn(tmp);}
+        a:ORDER DOT tmp = column_name {colref = a.getText() + "." + quoteColumn(tmp); colrefQuoted = null;}
         |
-        b:SIMPLE DOT tmp = column_name {colref = b.getText() + "." + quoteColumn(tmp);}
+        b:SIMPLE DOT tmp = column_name {colref = b.getText() + "." + quoteColumn(tmp); colrefQuoted = null;}
         |
         colref = table_name
         {
+           colrefQuoted = qnameQuoted;
+           addColumnRefTwins();
+
            // the last segment of a qualified table_name is the column when no DOT follows
            if(LA(1) != DOT && lastSegQuote != XExpression.QUOTE_NONE && lastSegStart > 0 &&
               lastSeg.length() > 0 && lastSeg.indexOf('.') < 0)
@@ -2289,7 +3325,14 @@ column_ref returns [String colref = ""]
               colrefColumn = lastSeg;
            }
         }
-        (DOT tmp = column_name {colref += "." + quoteColumn(tmp);})?
+        (DOT tmp = column_name
+         {
+            if(identPlain || identQuote != XExpression.QUOTE_NONE) {
+               addCaseTwin(plainColumns, quotedColumns, tmp, !identPlain);
+            }
+
+            colref += "." + quoteColumn(tmp);
+         })?
         ;
 
 set_fct_spec returns [String setfct = ""]
@@ -2326,13 +3369,18 @@ set_fct_type returns [String setfcttype = ""]
         ;
 */
 function returns [String func = ""]
-        {String tmp = ""; String distinct = ""; String str; XExpression exp; XFilterNode tnode; {checkStatus();}}
+        {String tmp = ""; String distinct = ""; String str; XExpression exp; XFilterNode tnode; String qcol = null; {checkStatus();}}
         :
         func = function_name OPEN_PAREN
         (
          (
          ((DISTINCT)? value_exp (COMMA|CLOSE_PAREN))=>
-         (DISTINCT {distinct = "distinct ";})? exp = value_exp {tmp = distinct + exp.getQuotedValue();}
+         (DISTINCT {distinct = "distinct ";})? exp = value_exp
+         {
+            tmp = distinct + exp.getQuotedValue();
+            // a qualified quoted column (t."MixedCase") as the only argument, see #77578
+            qcol = exp.isQuotedField() ? exp.getQuotedColumn() : null;
+         }
          |
          (boolean_term (COMMA|CLOSE_PAREN))=>
          tnode = boolean_term {tmp = tnode.toString();}
@@ -2342,10 +3390,10 @@ function returns [String func = ""]
          ( COMMA
           (
           (value_exp (COMMA|CLOSE_PAREN))=>
-          exp = value_exp {tmp += "," + exp.getQuotedValue();}
+          exp = value_exp {tmp += "," + exp.getQuotedValue(); qcol = null;}
           |
           (boolean_term (COMMA|CLOSE_PARENT))=>
-          tnode = boolean_term {tmp += "," + tnode.toString();}
+          tnode = boolean_term {tmp += "," + tnode.toString(); qcol = null;}
           )
          )*
         )? CLOSE_PAREN
@@ -2353,7 +3401,8 @@ function returns [String func = ""]
         (
         OVER
         OPEN_PAREN tmp = analytic_clause CLOSE_PAREN
-        {func += " over (" + tmp + ")";})?
+        {func += " over (" + tmp + ")"; qcol = null;})?
+        {funcText = func; funcQuotedColumn = qcol;}
         ;
 
 analytic_clause returns [String ret = ""]
@@ -2484,7 +3533,7 @@ searched_case returns [String searchcase = ""]
 searched_when_clause returns [String searchwhen = ""]
         {String tmp,tmp1; XFilterNode node; {checkStatus();}}
         :
-        a:WHEN node = search_condition b:THEN tmp1 = result
+        a:WHEN node = search_condition {checkNoOuterJoins(node, a);} b:THEN tmp1 = result
         {SQLHelper helper = SQLHelper.getSQLHelper(this.uniSql);
          String condition = helper.generateConditions(node);
         searchwhen = a.getText() + " " + condition + " " + b.getText() + " " + tmp1;}
@@ -2518,19 +3567,20 @@ domain_name returns [String domainname = ""]
         ;
 
 schema_name returns [String schemaname = ""]
-        {checkStatus();}
+        // a quoted schema name isn't plain, see quoteDot (Bug #77763)
+        {identPlain = false; checkStatus();}
         :
-        a:IDENT {schemaname = a.getText();}
+        a:IDENT {schemaname = a.getText(); identPlain = true;}
         | schemaname = special_identifier
         ;
 
 qualified_id returns [String qid = ""]
-        {identQuote = XExpression.QUOTE_NONE;}
+        {identQuote = XExpression.QUOTE_NONE; identPlain = false;}
         :
-        (a:IDENT {qid = a.getText();}
+        (a:IDENT {qid = a.getText(); identPlain = true;}
         | qid = special_identifier
-        | b:T_TIME {qid = b.getText();}
-        | c:T_DATE {qid = c.getText();})
+        | b:T_TIME {qid = b.getText(); identPlain = true;}
+        | c:T_DATE {qid = c.getText(); identPlain = true;})
         ;
 
 data_type returns [String datatype = ""]
@@ -2959,13 +4009,13 @@ datetime_value_exp_body returns [String dve = ""]
         {String tmp, tmp1; {checkStatus();}}
         :
         (interval_value_exp PLUS)=>
-        tmp = interval_value_exp a:PLUS tmp1 = datetime_term {dve = tmp + a.getText() + tmp1;}
+        tmp = interval_value_exp a:PLUS tmp1 = datetime_term {dve = joinOp(tmp, a.getText(), tmp1);}
         |
         (interval_term PLUS)=>
-        tmp = interval_term b:PLUS tmp1 = datetime_value_exp {dve = tmp + b.getText() + tmp1;}
+        tmp = interval_term b:PLUS tmp1 = datetime_value_exp {dve = joinOp(tmp, b.getText(), tmp1);}
         |
         (interval_term MINUS )=>
-        tmp = interval_term c:MINUS tmp1 = datetime_value_exp {dve = tmp + c.getText() + tmp1;}
+        tmp = interval_term c:MINUS tmp1 = datetime_value_exp {dve = joinOp(tmp, c.getText(), tmp1);}
         | dve = datetime_term
         ;
 
@@ -3058,15 +4108,15 @@ interval_value_exp_body returns [String ive = ""]
         :
         (interval_term_1 PLUS )=>
         tmp = interval_term_1 a:PLUS  tmp1 = interval_value_exp_1
-        {ive = tmp + a.getText() + tmp1;}
+        {ive = joinOp(tmp, a.getText(), tmp1);}
         |
         (interval_term_1 MINUS )=>
         tmp = interval_term_1 b:MINUS  tmp1 = interval_value_exp_1
-        {ive = tmp + b.getText() + tmp1;}
+        {ive = joinOp(tmp, b.getText(), tmp1);}
         |
         (OPEN_PAREN datetime_value_exp)=>
         OPEN_PAREN tmp = datetime_value_exp c:MINUS tmp1 = datetime_term CLOSE_PAREN tmp2 = interval_qualifier
-        {ive = "(" + tmp + c.getText() + tmp1 + ") " + tmp2;}
+        {ive = "(" + joinOp(tmp, c.getText(), tmp1) + ") " + tmp2;}
         | ive = interval_term
         ;
 
@@ -3074,13 +4124,13 @@ interval_term returns [String it = ""]
         {String tmp1; XExpression exp; {checkStatus();}}
         :
         (factor STAR ) =>
-        exp = factor a:STAR tmp1 = interval_term_2 {it = exp.toQuotedString() + a.getText() + tmp1;}
+        exp = factor a:STAR tmp1 = interval_term_2 {it = joinOp(exp.toQuotedString(), a.getText(), tmp1);}
         |
         (factor DIV )=>
-        exp = factor b:DIV tmp1 = interval_term_2 {it = exp.toQuotedString() + b.getText() + tmp1;}
+        exp = factor b:DIV tmp1 = interval_term_2 {it = joinOp(exp.toQuotedString(), b.getText(), tmp1);}
         |
         (term STAR)=>
-        exp = term c:STAR tmp1 = interval_factor {it = exp.toQuotedString() + c.getText() + tmp1;}
+        exp = term c:STAR tmp1 = interval_factor {it = joinOp(exp.toQuotedString(), c.getText(), tmp1);}
         | it = interval_factor
         ;
 
@@ -3238,6 +4288,12 @@ simple_table returns [XExpression exp = null]
         ;
 
 query_spec returns [XExpression exp = null]
+        {Token memoStart = LT(1); if(memoHit(MEMO_QUERY_SPEC, memoStart)) {return exp;}}
+        :
+        exp = query_spec_body {memoSuccess(MEMO_QUERY_SPEC, memoStart)}?
+        ;
+
+query_spec_body returns [XExpression exp = null]
         {
            UniformSQL subquery = new UniformSQL();
            JDBCSelection selection = new JDBCSelection();
@@ -3312,12 +4368,16 @@ table_name returns [String tname = ""]
         ;
 
 qualified_name returns [String qname = ""]
-        {String tmp = ""; }
+        {String tmp = ""; int seg = 0; List<Integer> qsegs = new ArrayList<>(); List<String> segs = new ArrayList<>(); Token esc = null; }
         :
-        ((catalog_name DOT)=> tmp = catalog_name DOT {qname += quoteDot(tmp) + ".";}
-        ( (~DOT)=> tmp = schema_name DOT {qname+=quoteDot(tmp)+".";}| DOT {qname+=".";})?
+        ((catalog_name DOT)=> {addQuotedSegment(qsegs, seg); esc = escapeSegment(esc);}
+        tmp = catalog_name DOT {qname += quoteDot(tmp) + "."; seg++; segs.add(tmp);}
+        ( (~DOT)=> {addQuotedSegment(qsegs, seg); esc = escapeSegment(esc);}
+        tmp = schema_name DOT {qname+=quoteDot(tmp)+"."; seg++; segs.add(tmp);}| DOT {qname+="."; seg++; segs.add("");})?
         )?
-        tmp = qualified_id {lastSegStart = qname.length(); lastSegQuote = identQuote; lastSeg = tmp; qname += quoteDot(tmp);}
+        {addQuotedSegment(qsegs, seg); esc = escapeSegment(esc);}
+        tmp = qualified_id {lastSegStart = qname.length(); lastSegQuote = identQuote; lastSeg = tmp; qname += quoteSegment(tmp);
+                            qnameQuoted = toQuotedSegments(qsegs); segs.add(tmp); qnameSegs = segs; qnameEscape = esc;}
         ;
 
 catalog_name returns [String catname = ""]
@@ -3349,19 +4409,29 @@ correlation_name returns [String corname = ""]
         ;
 
 derived_column [JDBCSelection selection, UniformSQL sql]
-        {String tmp = null, aliastmp = null; XExpression exp; {checkStatus();}}
+        {String tmp = null, aliastmp = null; Boolean aliasq = null; XExpression exp; {checkStatus();}}
         :
-        (column_name EQ)=>
-        aliastmp=column_name EQ exp=value_exp  // to support sybase gramma: select a=b, ....
+        // 'name = expr' is the T-SQL alias form only on SQL Server/Sybase, a comparison
+        // elsewhere, which value_exp can't parse, so the statement fails (#77785)
+        {isAliasAssignDialect()}? (column_name EQ)=>
+        // the quoting of the alias is read before value_exp, which may parse other names
+        aliastmp=column_name {aliasq = aliasQuoted;}
+        EQ exp=value_exp  // to support sybase gramma: select a=b, ....
         {
            tmp = exp.toString();
            selection.addColumn(tmp);
            selection.setAlias(selection.getColumnCount() - 1,aliastmp);
+           selection.setAliasQuoted(selection.getColumnCount() - 1, aliasq);
+           addAliasTwin(aliastmp, aliasq);
 
            // a quoted identifier ("x y" or t."x y"), stored without its quotes
            if(exp.isQuotedField()) {
-              selection.setQuoted(tmp, exp.getQuotedColumn());
+              selection.setQuoted(selection.getColumnCount() - 1, exp.getQuotedColumn());
            }
+
+           // an aggregate of a qualified quoted column (sum(t."MixedCase"))
+           selection.setQuotedAggregate(selection.getColumnCount() - 1,
+              getFuncQuotedColumn(exp));
         }
         |
         exp = value_exp
@@ -3378,15 +4448,21 @@ derived_column [JDBCSelection selection, UniformSQL sql]
        {
               String[] parts = Tool.splitWithDelim(tmp, ".", '"');
               StringBuilder builder = new StringBuilder();
+              // the qualifier segments written quoted ("a".id) are stored without their quotes.
+              // A qualifier with a quoted segment keeps its case, so it is still the name of
+              // its table ("s".a.id for "s".a), the database folds its other segments
+              int[] quotedSegs = tmp.equals(fieldText) ? fieldQuoted : null;
 
               for(int i = 0; i < parts.length; i++) {
                 String part = parts[i];
 
-                if(part.startsWith("\"") && part.endsWith("\"")) {
+                if(part.startsWith("\"") && part.endsWith("\"") ||
+                   quotedSegs != null && i < parts.length - 1)
+                {
                   builder.append(part);
                 }
                 else {
-                  builder.append(part.toUpperCase());
+                  builder.append(part.toUpperCase(Locale.ROOT));
                 }
 
                 if(i < parts.length - 1) {
@@ -3399,33 +4475,83 @@ derived_column [JDBCSelection selection, UniformSQL sql]
 
            selection.addColumn(tmp);
 
+           // by position, two columns may have the same text (Bug #77573)
            if(quotedField) {
-              selection.setQuoted(tmp, exp.getQuotedColumn());
+              selection.setQuoted(selection.getColumnCount() - 1, exp.getQuotedColumn());
            }
+           // a niladic keyword-function written unquoted (current_date) is not a column, so
+           // it's not quoted as a keyword when generated. A model saved before quoted names
+           // were flagged (#77408) has no such record and keeps the quoting (Bug #77763)
+           else if(exp.getQuote() == XExpression.QUOTE_NONE &&
+                   XUtil.isNiladicKeywordFunction(tmp))
+           {
+              selection.setExpression(selection.getColumnCount() - 1, true);
+           }
+
+           // an aggregate of a qualified quoted column (sum(t."MixedCase")), the stored
+           // text can't show the quotes on a case-sensitive helper, see #77578
+           selection.setQuotedAggregate(selection.getColumnCount() - 1,
+              getFuncQuotedColumn(exp));
         }
 
         (//(as_clause)=>        //remove the prediction if don't use subquery_select_list
         aliastmp = as_clause
-        {selection.setAlias(selection.getColumnCount()-1,aliastmp);}
+        {
+           selection.setAlias(selection.getColumnCount()-1,aliastmp);
+           // whether the alias was quoted (as "A") or not (as A), see #77616
+           selection.setAliasQuoted(selection.getColumnCount() - 1, aliasQuoted);
+           addAliasTwin(aliastmp, aliasQuoted);
+        }
         )?
         ;
 
 as_clause returns [String as = ""]
-        {checkStatus();}
+        // read AS from the token, not from an action, as actions don't run while guessing
+        // but the predicates below do (#77767)
+        {checkStatus(); boolean hasAs = LA(1) == AS;}
         :
         (AS)?
-        (as = column_name
+        // a bracket-quoted name ([b]) is only accepted as an alias when AS is explicit or
+        // on a bracket-identifier dialect; elsewhere, without AS it is ambiguous with a
+        // subscript/map-key access on the preceding expression (a[1], m['key']), so
+        // require AS there instead of silently treating it as an implicit alias (#77661,
+        // #77767)
+        ({hasAs || LA(1) == SPIDENT_SQUARE && isBracketIdentifierDialect()}? as = column_name
+        | {!hasAs}? as = column_name_no_subscript
         | a:STRING_LITERAL {as = a.getText();
-          as = as.substring(1, as.length()-1);}
-        | b:T_DATE { as = b.getText(); })
+          // un-double the '' escape, as 'it''s' is the alias it's (#77640)
+          as = as.substring(1, as.length()-1).replace("''", "'"); aliasQuoted = Boolean.TRUE;}
+        | b:T_DATE { as = b.getText(); aliasQuoted = Boolean.FALSE;})
         ;
 
 column_name returns [String colname = ""]
-        {identQuote = XExpression.QUOTE_NONE; checkStatus();}
+        {identQuote = XExpression.QUOTE_NONE; identPlain = false; Token first = LT(1); checkStatus();}
         :
-        a:IDENT {colname = a.getText();}
-        | colname = special_identifier
-        | b:T_TIME {colname = b.getText();}
+        a:IDENT {colname = a.getText(); aliasQuoted = Boolean.FALSE; identPlain = true;}
+        | colname = special_identifier {aliasQuoted = isQuotedIdentifier(first);}
+        | b:T_TIME {colname = b.getText(); aliasQuoted = Boolean.FALSE; identPlain = true;}
+        ;
+
+// same as column_name, but without the SPIDENT_SQUARE ([b]) alternative - used for an
+// implicit (no AS) alias, where a bracket-quoted name would be ambiguous with a subscript
+// or map-key access on the preceding expression (#77661)
+column_name_no_subscript returns [String colname = ""]
+        {identQuote = XExpression.QUOTE_NONE; Token first = LT(1); checkStatus();}
+        :
+        a:IDENT {colname = a.getText(); aliasQuoted = Boolean.FALSE;}
+        | colname = special_identifier_no_subscript {aliasQuoted = isQuotedIdentifier(first);}
+        | b:T_TIME {colname = b.getText(); aliasQuoted = Boolean.FALSE;}
+        ;
+
+// same as special_identifier, but without the SPIDENT_SQUARE alternative (#77661)
+special_identifier_no_subscript returns [String specid = ""]
+        {String tmp = ""; identQuote = XExpression.QUOTE_NONE; {checkStatus();}}
+        :
+        a:SPIDENT {tmp = a.getText();specid = tmp.substring(1, tmp.length() - 1).replace("\"\"", "\"");identQuote = XExpression.QUOTE_DOUBLE;}
+        |c:SPIDENT2 {tmp = c.getText();specid = tmp.substring(1, tmp.length() - 1);identQuote = XExpression.QUOTE_SINGLE;}
+        |d:SPIDENT_VAR {specid = d.getText();}
+    |h:SPIDENT_BRACKET {specid = h.getText();}
+        |(DOLAR (f:IDENT|g:UNSIGNED_NUM_LIT)  {specid = "$" + ((f!=null)?f.getText():g.getText());})
         ;
 
 table_exp [UniformSQL sql]
@@ -3433,40 +4559,50 @@ table_exp [UniformSQL sql]
         :
         (from_clause[sql] {moveOuterPairJoins(sql);})?
         ( {wtok = LT(1);} where = where_clause {checkWhereOuterJoins(sql, where, wtok);
+        // checked before whereOuterPairJoins() turns joins into plain conditions
+        checkWhereOuterJoinPositions(sql, where, wtok);
+        addWhereOuterJoins(sql, where, wtok);
         where = whereOuterPairJoins(sql, where); where.setClause(XFilterNode.WHERE); markJoins(where, XJoin.WHERE_CLAUSE); sql.combineWhereByAnd(where);})?
         ( group_by_clause[sql] )?
         {if(sql != null) {checkOuterJoinTables(sql, LT(1));}}
         ( having = having_clause {having.setClause(XFilterNode.HAVING); sql.setHaving(having);})?
         ((ORDER BY)=> nouse = order_by_clause[sql] )?
         {checkRightJoins(sql);}
+        // after the where clause, which may have an outer join (Bug #77495)
+        {checkNewFromOuterJoins();}
         ;
 
 from_clause [UniformSQL sql]
-        {String tmp; {checkStatus();}}
+        {String tmp; int start = 0; int events = 0; {checkStatus();}}
         :
-        FROM tmp = table_ref[sql] ( COMMA {clearUsingMerges(sql);} tmp = table_ref[sql] )*
+        FROM tmp = table_ref[sql] ( COMMA {clearUsingMerges(sql);}
+          {start = sql == null ? 0 : sql.getTableCount(); events = getJoinEventCount(sql);}
+          tmp = table_ref[sql] {checkCommaItemJoins(sql, start, events);} )*
+        {checkNewFromOuterJoins();}
         ;
 
 ansi_joins [UniformSQL sql] returns [String str = ""]
-     {String tmp, tmp2; XExpression exp; {checkStatus();}}
+     {String tmp, tmp2; XExpression exp; boolean join = false; int pevents = 0; {checkStatus();}}
      :
-         (table_ref_nojoin[null, null] CROSS)=>
-        exp = cross_join[sql] { str = exp.toString(); }
-     |
+        // a cross join is a qualified join, so it can be followed by more joins and its
+        // left operand starts at the first table of the join (Bug #77495)
          (table_ref_nojoin[null, null] join_hint)=>
         exp = qualified_join[sql] { str = exp.toString(); }
-     | {pushJoinStart(sql);} OPEN_PAREN tmp = ansi_joins[sql] CLOSE_PAREN
-        tmp2 = sub_qualified_join[sql] { str = "(" + tmp + ") " + tmp2;}
-        {popJoinStart();}
+     | {pushJoinStart(sql); pevents = getJoinEventCount(sql);} OPEN_PAREN tmp = ansi_joins[sql] CLOSE_PAREN
+       { str = "(" + tmp + ")"; markParenthesizedJoinEvents(sql, pevents);}
+        // redundant parentheses, ((a join b on ..)) or a parenthesized from clause, have no
+        // join after the closing parenthesis
+        ((sub_qualified_join[null])=> tmp2 = sub_qualified_join[sql] { str += " " + tmp2; join = true;})?
+        {if(!join) {markNewFromJoin(sql);} popJoinStart();}
 ;
 
 table_ref [UniformSQL sql] returns [String tbref = ""]
-        {Object name; String alias = "", tmp,as = ""; XExpression exp; {checkStatus();}}
+        {Object name; String alias = "", tmp,as = ""; Token atok = null; XExpression exp; int[] quoted = null; {checkStatus();}}
         :
      (ansi_joins[null])=> tbref = ansi_joins[sql]
         | name = derived_table
         (( b:AS {as = b.getText();})?
-        alias = correlation_name
+        {atok = LT(1);} alias = correlation_name
 
         {
            if(alias.startsWith("$(@") && alias.endsWith(")")) {
@@ -3474,9 +4610,9 @@ table_ref [UniformSQL sql] returns [String tbref = ""]
            }
         }
 
-        ( dc1:OPEN_PAREN tmp = derived_column_list CLOSE_PAREN {checkDerivedColumnList(sql, alias, tmp, dc1); alias += "(" + tmp + ")";})? )?
+        ( dc1:OPEN_PAREN tmp = derived_column_list CLOSE_PAREN {checkDerivedColumnList(sql, alias, tmp, atok, dc1); alias += "(" + tmp + ")";})? )?
         {
-        tbref = name + " " + as + " " + alias;
+        tbref = getDerivedTableText(name) + " " + as + " " + alias;
         if(sql != null) {
                 if(!alias.equals("")) {
                         sql.addTable(alias, name);
@@ -3487,10 +4623,10 @@ table_ref [UniformSQL sql] returns [String tbref = ""]
         }
         }
         |
-        name = table_name
+        name = table_name {quoted = qnameQuoted; checkEscapeTable(sql, qnameEscape);}
         (
          ( a:AS {as = a.getText();})?
-         alias = correlation_name
+         {atok = LT(1);} alias = correlation_name
 
          {
             if(alias.startsWith("$(@") && alias.endsWith(")")) {
@@ -3498,38 +4634,45 @@ table_ref [UniformSQL sql] returns [String tbref = ""]
             }
          }
 
-         ( dc2:OPEN_PAREN tmp = derived_column_list CLOSE_PAREN {checkDerivedColumnList(sql, alias, tmp, dc2); alias += "(" + tmp + ")";})?
+         ( dc2:OPEN_PAREN tmp = derived_column_list CLOSE_PAREN {checkDerivedColumnList(sql, alias, tmp, atok, dc2); alias += "(" + tmp + ")";})?
         )?
         {
          tbref = name + " " + as + " " + alias;
 
          if(sql != null) {
+                 SelectTable stable;
+
                  if(!alias.equals("")) {
-                        sql.addTable(alias, name);
+                        stable = sql.addTable(alias, name);
                  }
                  else {
-                        sql.addTable(name);
+                        stable = sql.addTable(name);
+                 }
+
+                 // the name segments written quoted, the name is stored without their quotes
+                 if(stable != null) {
+                        stable.setQuotedSegments(quoted);
                  }
          }
          }
         ;
 
 table_ref_nojoin [UniformSQL sql, String op] returns [String tbref = ""]
-        {Object name; String alias = "", tmp,as = ""; {checkStatus();}}
+        {Object name; String alias = "", tmp,as = ""; Token atok = null; int[] quoted = null; SelectTable stable; {checkStatus();}}
         :
-        name = table_name
+        name = table_name {quoted = qnameQuoted; checkEscapeTable(sql, qnameEscape);}
         (
          ( a:AS {as = a.getText();})?
-         alias = correlation_name
+         {atok = LT(1);} alias = correlation_name
          ( (OPEN_PAREN derived_column_list)=>
-         dc1:OPEN_PAREN tmp = derived_column_list CLOSE_PAREN {checkDerivedColumnList(sql, alias, tmp, dc1); alias += "(" + tmp + ")";})?
+         dc1:OPEN_PAREN tmp = derived_column_list CLOSE_PAREN {checkDerivedColumnList(sql, alias, tmp, atok, dc1); alias += "(" + tmp + ")";})?
         )?
         {
          tbref = name + " " + as + " " + alias;
 
          if(sql != null) {
                  if(!alias.equals("")) {
-                        sql.addTable(alias, name);
+                        stable = sql.addTable(alias, name);
 
                         if(op != null && op.trim().length() > 0) {
                            clearTableOps();
@@ -3538,22 +4681,27 @@ table_ref_nojoin [UniformSQL sql, String op] returns [String tbref = ""]
                         }
                  }
                  else {
-                        sql.addTable(name);
+                        stable = sql.addTable(name);
 
                         if(op != null && op.trim().length() > 0) {
                            clearTableOps();
                            setTableOp(sql, name, op.trim());
                         }
                  }
+
+                 // the name segments written quoted, the name is stored without their quotes
+                 if(stable != null) {
+                        stable.setQuotedSegments(quoted);
+                 }
          }
          }
         | name = derived_table
         ( b:AS {as = b.getText();})?
-        alias = correlation_name
+        {atok = LT(1);} alias = correlation_name
         ( (OPEN_PAREN derived_column_list)=>
-        dc2:OPEN_PAREN tmp = derived_column_list CLOSE_PAREN {checkDerivedColumnList(sql, alias, tmp, dc2); alias += "(" + tmp + ")";})?
+        dc2:OPEN_PAREN tmp = derived_column_list CLOSE_PAREN {checkDerivedColumnList(sql, alias, tmp, atok, dc2); alias += "(" + tmp + ")";})?
         {
-        tbref = name + " " + as + " " + alias;
+        tbref = getDerivedTableText(name) + " " + as + " " + alias;
 
         if(sql != null) {
                 if(!alias.equals("")) {
@@ -3600,6 +4748,7 @@ derived_table returns [Object dt = ""]
 group_by_clause [UniformSQL sql]
         {
          Vector group = new Vector();
+         Vector gquotes = null;
          Vector tmp;
          Token gstart = null;
          sql.setGroupByAll(false);
@@ -3611,6 +4760,7 @@ group_by_clause [UniformSQL sql]
         (
         (grouping_column_ref_list[sql])=>
         group = grouping_column_ref_list[sql]
+        {gquotes = lastGroupQuotes;}
         |(OPEN_PAREN CLOSE_PAREN)=>
         OPEN_PAREN CLOSE_PAREN
         // grouping sets (ROLLUP, CUBE, GROUPING SETS, or a list of grouping sets)
@@ -3648,7 +4798,11 @@ group_by_clause [UniformSQL sql]
            }
         }
         )?
-        {sql.setGroupBy(group.toArray());}
+        {
+           // the quoting of each field, two fields may have the same text (Bug #77573)
+           sql.setGroupBy(group.toArray(), gquotes == null || gquotes.size() != group.size() ?
+              null : (String[]) gquotes.toArray(new String[0]));
+        }
         ;
 
 grouping_set_list
@@ -3671,24 +4825,31 @@ grouping_set
         ;
 
 grouping_column_ref_list [UniformSQL sql] returns [Vector glist = new Vector()]
-        {String tmp; {checkStatus();}}
+        {String tmp; Vector quotes = new Vector(); {checkStatus();}}
         :
-        tmp = grouping_column_ref[sql] {glist.add(tmp);}
-        (COMMA tmp = grouping_column_ref[sql] {glist.add(tmp);})*
+        tmp = grouping_column_ref[sql] {glist.add(tmp); quotes.add(lastGroupQuote);}
+        (COMMA tmp = grouping_column_ref[sql] {glist.add(tmp); quotes.add(lastGroupQuote);})*
+        {lastGroupQuotes = quotes;}
         ;
 
 grouping_column_ref [UniformSQL sql] returns [String gcol = ""]
-        {String tmp; XExpression exp = null; {checkStatus();}}
+        {String tmp; XExpression exp = null; Token next = null, outerNext = null; String outerName = null; {checkStatus();}}
         :
         //gcol = column_ref ( tmp = collate_clause {gcol += " " + tmp;})?
+        {next = LT(2); outerNext = sortNext; outerName = sortName; sortNext = next; sortName = null;}
         exp= value_exp
         {
+           addSortName(next, outerNext, outerName);
            gcol = exp.toString();
 
            // a quoted identifier ("x y" or t."x y"), stored without its quotes
            if(sql != null && exp.isQuotedField()) {
               sql.setQuotedField(gcol, exp.getQuotedColumn());
            }
+
+           // the quoting of this field, see UniformSQL.setGroupBy(Object[], String[])
+           lastGroupQuote = !exp.isQuotedField() ? null :
+              exp.getQuotedColumn() == null ? "" : exp.getQuotedColumn();
         }//( tmp = collate_clause {gcol += " " + tmp;})?
         //|a:UNSIGNED_NUM_LIT {gcol = a.getText();}
         ;
@@ -3696,7 +4857,7 @@ grouping_column_ref [UniformSQL sql] returns [String gcol = ""]
 having_clause returns [XFilterNode having = null]
         {checkStatus();}
         :
-        HAVING having = search_condition
+        a:HAVING having = search_condition {checkNoOuterJoins(having, a);}
         ;
 
 table_value_constructor returns [XExpression exp = null]
@@ -3733,15 +4894,22 @@ joined_table_2 [UniformSQL sql] returns [XExpression exp = null]
         {XExpression tmp; {checkStatus();}}
         :
         (table_ref_nojoin[null, null] CROSS)=>
-        exp = cross_join[sql]
+        exp = cross_join[sql] {parenJoinedTable = false;}
         |
         (table_ref_nojoin[null, null])=>
-        exp = qualified_join[sql]
+        exp = qualified_join[sql] {parenJoinedTable = false;}
         | OPEN_PAREN tmp = joined_table_2[sql] CLOSE_PAREN
-        {exp = new XExpression(); exp.setValue("("+tmp.toString()+")",XExpression.EXPRESSION); }
+        {exp = new XExpression(); exp.setValue("("+tmp.toString()+")",XExpression.EXPRESSION);
+         parenJoinedTable = true;}
         ;
 
 joined_table returns [XExpression exp = null]
+        {Token memoStart = LT(1); if(memoHit(MEMO_JOINED_TABLE, memoStart)) {return exp;}}
+        :
+        exp = joined_table_body {memoSuccess(MEMO_JOINED_TABLE, memoStart)}?
+        ;
+
+joined_table_body returns [XExpression exp = null]
         {XExpression tmp; {checkStatus();}}
         :
         (table_ref_nojoin[null, null] CROSS)=>
@@ -3779,8 +4947,26 @@ qualified_join [UniformSQL sql] returns [XExpression exp = null]
 
 sub_qualified_join [UniformSQL sql] returns [String str = ""]
         { int rstart = sql == null ? 0 : sql.getTableCount(); int rend = 0;
-          String tbl2=""; String tmp; String op = ""; String table = ""; XExpression exp = null; int first = 0; boolean spec = false; {checkStatus();}}
+          String tbl2=""; String tmp; String op = ""; String table = ""; XExpression exp = null; int first = 0; boolean spec = false;
+          int events = 0; Token otok = null; boolean paren = false; {checkStatus();}}
         :
+        // a cross join has no join condition and is recorded with no XJoin. Its right
+        // operand is one table, so it's never nested and the cross join is left
+        // associative, as in every database (Bug #77495)
+        x:CROSS y:JOIN table = table_ref_nojoin[sql, null]
+        {str = x.getText() + " " + y.getText() + " " + table;
+         rend = sql == null ? 0 : sql.getTableCount();
+         addJoinType(sql, "CROSS JOIN", y);
+         startJoinEvent(sql, "CROSS JOIN", rstart, rend);
+         // a cross join of two tables, a cross join b, parsed before as cross_join
+         first = joinStarts.isEmpty() ? 0 : ((Integer) joinStarts.getFirst()).intValue();
+
+         if(rstart - first != 1) {
+            markNewFromJoin(sql);
+         }}
+        ((sub_qualified_join[sql])=> tmp = sub_qualified_join[sql]
+         {str += " " + tmp; markNewFromJoin(sql);})?
+        |
         (
          (
           ( c:NATURAL {
@@ -3800,15 +4986,18 @@ sub_qualified_join [UniformSQL sql] returns [String str = ""]
         )
         (
           ((joined_table)=>
-            ({first = sql == null ? 0 : sql.getTableCount();}
-             exp = joined_table_2[sql] {str += exp.toString(); setJoinedTableOps(sql, first, op);})
+            ({first = sql == null ? 0 : sql.getTableCount(); events = getJoinEventCount(sql);
+              otok = LT(1);}
+             exp = joined_table_2[sql] {str += exp.toString(); setJoinedTableOps(sql, first, op);
+                                        paren = parenJoinedTable;})
             |(table = table_ref_nojoin[sql, op] {str += " " + table;
                                                  tbl2 = table;
                                                  tbl2 = tbl2.trim();})
           )
           {rend = sql == null ? 0 : sql.getTableCount();}
           {addJoinType(sql, op, d);
-           startJoinEvent(sql, c != null ? "NATURAL " + op : op, rstart, rend);}
+           startJoinEvent(sql, c != null ? "NATURAL " + op : op, rstart, rend);
+           setJoinEventToken(sql, d);}
           ( (join_spec[null, "", "", 0, 0])=>
             tmp = join_spec[sql, op, tbl2, rstart, rend] {str += " " + tmp; spec = true;}
             {endJoinEvent(sql);}
@@ -3829,6 +5018,23 @@ sub_qualified_join [UniformSQL sql] returns [String str = ""]
                                           d.getLine(), d.getColumn());
             }
           }
+          {
+            // a join with no join condition whose right operand is an unparenthesized
+            // nested join, e.g. a join b right join c on b.id = c.id. It's recorded as
+            // a join (b right join c), which is how H2 reads it, but MySQL and SQLite read
+            // it as (a join b) right join c, so the regenerated sql may return different
+            // rows. Only a RIGHT or FULL join in the nested join can change the rows.
+            // The nested join is parenthesized only if joined_table_2 matched its
+            // ( joined_table_2 ) alternative. A nested join that starts with a derived
+            // table, a join (select ..) t right join c on .., also starts with (
+            if(sql != null && exp != null && !spec && !isOuterJoinType(op) && !paren &&
+               hasRightJoinEvent(sql, events))
+            {
+              throw new SemanticException(
+                 "Unsupported RIGHT or FULL join after a join without a join condition",
+                 getFilename(), otok.getLine(), otok.getColumn());
+            }
+          }
           // exp is only set when the right operand is a nested join
           {if(exp != null) {checkOuterJoinGroup(sql, op, d);}}
         )
@@ -3839,6 +5045,7 @@ join_hint
         :
         (NATURAL)? (tmp=join_type)? JOIN
         |(OJ EQ)
+        |CROSS JOIN
         ;
 
 join_type returns [String jt = ""]
@@ -3900,6 +5107,7 @@ join_condition [UniformSQL sql, String op, String tbl2, int rstart, int rend] re
               clearInnerOnJoins(sql, outerType, tbl2);
            }
            else {
+              checkNoOuterJoins(tmp, a);
               addInnerOnJoins(sql, tmp);
            }
 
@@ -3928,8 +5136,8 @@ named_columns_join [UniformSQL sql, String op, String tbl2, int rstart, int rend
              uniSql.setLossy(true);
           }
 
-          // the join is between the last table of the left operand and the joined
-          // table, so the joined table (rstart to rend) must be a single table
+          // the join is between a table of the left operand and the joined table,
+          // so the joined table (rstart to rend) must be a single table
           if(rend - rstart != 1) {
              throw new SemanticException(
                 "Unsupported USING join, the joined table is a nested join: " + jc,
@@ -3939,7 +5147,7 @@ named_columns_join [UniformSQL sql, String op, String tbl2, int rstart, int rend
           checkUsingMerges(sql, list, jc, a);
 
           if(rstart >= 1) {
-           String t1 = sql.getTableAlias(rstart - 1);
+           int lstart = joinStarts.isEmpty() ? 0 : ((Integer) joinStarts.getFirst()).intValue();
            String t2 = sql.getTableAlias(rstart);
            String outerOp = getUsingJoinOp(op);
            String joinOp = outerOp == null ? "=" : outerOp;
@@ -3950,6 +5158,7 @@ named_columns_join [UniformSQL sql, String op, String tbl2, int rstart, int rend
            node.setName(getUniqueName());
 
            if(list.size() == 1) {
+                String t1 = getUsingTable(sql, (String) list.elementAt(0), lstart, rstart, jc, a);
                 e1 = new XExpression(t1+"."+(String)list.elementAt(0),
                                         XExpression.FIELD);
                 e2 = new XExpression(t2+"."+(String)list.elementAt(0),
@@ -3961,6 +5170,8 @@ named_columns_join [UniformSQL sql, String op, String tbl2, int rstart, int rend
            else {
                 ((XSet)node).setRelation(XSet.AND);
                 for(int i = 0; i < list.size(); i++) {
+                        String t1 = getUsingTable(sql, (String) list.elementAt(i), lstart,
+                                                  rstart, jc, a);
                         e1 = new XExpression(t1+"."+(String)list.elementAt(i),
                                                 XExpression.FIELD);
                         e2 = new XExpression(t2+"."+(String)list.elementAt(i),
@@ -3978,6 +5189,10 @@ named_columns_join [UniformSQL sql, String op, String tbl2, int rstart, int rend
            // the coalesce of both, a later USING of the column can't be represented
            if("*=".equals(outerOp) || "*=*".equals(outerOp)) {
               addUsingMerges(sql, list);
+           }
+           // an inner or RIGHT join merges the column to the joined table's column
+           else {
+              addUsingTables(sql, list, lstart, rstart);
            }
 
            // a RIGHT or FULL join makes the tables before it null supplying, so the
@@ -4048,21 +5263,37 @@ sort_spec [UniformSQL sql] returns [String ret = ""]
         //( tmp = collate_clause )?
         ( order = ordering_spec )?
         {
-         try {
-           field = Integer.valueOf(exp.toString());
+         // a quoted identifier ("1") is a column, not an ordinal
+         if(exp.isQuotedField()) {
+           field = exp.toString();
          }
-         catch(Exception e) {
-           field = new String(exp.toString());
-
-           // a quoted identifier ("x y" or t."x y"), stored without its quotes
-           if(sql != null && exp.isQuotedField()) {
-              sql.setQuotedField((String) field, exp.getQuotedColumn());
+         else {
+           try {
+             field = Integer.valueOf(exp.toString());
+           }
+           catch(Exception e) {
+             field = new String(exp.toString());
            }
          }
 
          if(sql != null)
          {
-          sql.setOrderBy(field, order);
+          // a quoted identifier ("x y" or t."x y"), stored without its quotes
+          if(exp.isQuotedField()) {
+             sql.setQuotedField((String) field, exp.getQuotedColumn());
+          }
+
+          // each item keeps its own quoting and direction. A later item of the same text and
+          // quoting sorts on the same key, so the first decides the direction, as in sql
+          // (Bug #77573)
+          boolean added = sql.addOrderBy(field, order, exp.isQuotedField(),
+                                         exp.getQuotedColumn());
+
+          // an aggregate of a qualified quoted column (sum(t."MixedCase")), see #77578. A
+          // dropped item doesn't change the record of the item kept
+          if(added && field instanceof String) {
+             sql.setQuotedAggregate((String) field, getFuncQuotedColumn(exp));
+          }
          }
 
          // the text is used without the sql, e.g. in an over (order by ...) clause
@@ -4071,9 +5302,11 @@ sort_spec [UniformSQL sql] returns [String ret = ""]
         ;
 
 sort_key returns [XExpression exp = null]
-        {checkStatus();}
+        {Token next = null, outerNext = null; String outerName = null; checkStatus();}
         :
+        {next = LT(2); outerNext = sortNext; outerName = sortName; sortNext = next; sortName = null;}
         exp = value_exp
+        {addSortName(next, outerNext, outerName);}
         ;
 
 ordering_spec returns [String order = null]
@@ -4087,6 +5320,7 @@ ordering_spec returns [String order = null]
 select_stmt_single_row_debug
         {JDBCSelection selection; String tmp; {checkStatus();}}
         :
+        {startStatement();}
         SELECT
         ( tmp = set_quantifier
         {if(tmp.equalsIgnoreCase("all")){
@@ -4124,6 +5358,7 @@ direct_select_stmt_n_rows_debug [UniformSQL sql]
 select_stmt_single_row
         {JDBCSelection selection; String tmp; {checkStatus();}}
         :
+        {startStatement();}
         SELECT
         ( tmp = set_quantifier
         {if(tmp.trim().equalsIgnoreCase("all")){
@@ -4146,7 +5381,7 @@ direct_select_stmt_n_rows [UniformSQL sql]
         ) (SEMI)?
         */
 
-        select_stmt_single_row (SEMI)?
+        select_stmt_single_row (SEMI)? EOF {checkCaseTwins();}
         ;
 
 //The following rules is for partially parse
@@ -4168,6 +5403,7 @@ only_select [UniformSQL sql] //only parse select clause
 only_select_from [UniformSQL sql] //only parse select clause and from clause
         {JDBCSelection selection; String tmp; this.uniSql = sql; {checkStatus();}}
         :
+        {startStatement();}
         SELECT
         ( tmp = set_quantifier
         {if(tmp.trim().equalsIgnoreCase("all")){
@@ -4302,6 +5538,12 @@ tokens {
 //private boolean intervalFlag = false;
 private boolean intervalEnd = true;
 
+// nesting depth of the comment currently being matched by ML_COMMENT, which recurses into
+// itself for a nested "/*"; caps pathological input (e.g. thousands of nested "/*") at a
+// clean parse failure instead of a StackOverflowError
+private int mlCommentDepth = 0;
+private static final int MAX_ML_COMMENT_DEPTH = 100;
+
 private boolean isInterval() {
 	int i = 0; String tmp = "";
 	try {
@@ -4337,24 +5579,50 @@ IDENT
 			:	('a'..'z'|'A'..'Z'|'\u0100'..'\uFFFE'|'@') ('a'..'z'|'A'..'Z'|'\u0100'..'\uFFFE'|'_'|'0'..'9')*
 			;
 
-SPIDENT			:	'"'(~('"'))*'"'
+// setCommitToPath(true) after an opening delimiter makes an unterminated delimited token a
+// lexer error, instead of filter mode silently dropping it and the rest of the text (#77640).
+// A doubled '"' ("") inside the token is an escaped literal '"', not the closing delimiter,
+// mirroring the '''' escape in STRING_LITERAL (#77661)
+SPIDENT			:	'"' {setCommitToPath(true);} (~('"') | '"' '"')* '"'
 			;
-SPIDENT2		:	'`' ('\u0001'..'\u005f' | '\u0061'..'\ufffe')* '`'
+SPIDENT2		:	'`' {setCommitToPath(true);} ('\u0001'..'\u005f' | '\u0061'..'\ufffe')* '`'
 			;
 
-SPIDENT_VAR             :    "$(" ('a'..'z'|'A'..'Z'|'_'|'0'..'9'|' '|
+SPIDENT_VAR             :    "$(" {setCommitToPath(true);} ('a'..'z'|'A'..'Z'|'_'|'0'..'9'|' '|
                                   '+' | '-' |'@'|'\u0100'..'\uFFFE')* ')' ;
 
-//have not include all chinese character
-SPIDENT_SQUARE		: 	'['
-				(('\u0001'..'\u005a'|('\u005E'..'\u7fff')
-				|('\u8001'..'\u803f')|('\u8041'..'\u807f')
-				|('\u8081'..'\u80bf')|('\u80c1'..'\u80fd')
-				))*
+// every character but '[' and ']', e.g. '\' or the CJK characters from U+80FE up. A '['
+// ends it, so a nested subscript (arr[idx[1]]) can't become one name (#77640). A doubled
+// ']' (]]) inside the token is an escaped literal ']', not the closing delimiter,
+// mirroring the '""' escape in SPIDENT (#77661)
+SPIDENT_SQUARE		: 	'[' {setCommitToPath(true);}
+				('\u0001'..'\u005a' | '\\' | '\u005e'..'\ufffe' | ']' ']')*
 				']'
 			;
 
-SPIDENT_BRACKET		:	'{' ('\u0001'..'\u007a' | '\u007c' | '\u007e'..'\ufffe')* '}'
+// a nested JDBC escape, e.g. {fn concat({fn ucase(a)}, b)}, is part of one token (#77640). A
+// bracket-quoted segment ([..]), a quoted segment ('..'/".."/`..`), and a '--', '//' or
+// '/*..*/' comment, inside the escape body are each consumed as one unit, so a ']' in the
+// bracket segment, or a comment-opener or '}' inside the quoted segment, doesn't end the
+// escape before its real closing '}' (#77680)
+SPIDENT_BRACKET		:	'{' {setCommitToPath(true);}
+				(	options { generateAmbigWarnings=false; } :
+					SPIDENT_BRACKET
+				|	'[' (~']')* ']'
+				|	'\'' (~'\'')* '\''
+				|	'"' (~'"')* '"'
+				|	'`' (~'`')* '`'
+				|	"--" (options { generateAmbigWarnings=false; } : '\u0000'..'\u0009'|'\u000B'|'\u000C'|'\u000E'..'\uFFFE')*
+				|	"//" (options { generateAmbigWarnings=false; } : '\u0000'..'\u0009'|'\u000B'|'\u000C'|'\u000E'..'\uFFFE')*
+				|	"/*" (	options { generateAmbigWarnings=false; } :
+						{LA(2)!='/'}? '*'
+					|	'\r' '\n'	{newline();}
+					|	'\r'		{newline();}
+					|	'\n'		{newline();}
+					|	'\u0000'..'\u0009'|'\u000B'|'\u000C'|'\u000E'..'\u0029'|'\u002B'..'\uFFFE'
+				)* "*/"
+				|	'\u0001'..'\u0021' | '\u0023'..'\u0026' | '\u0028'..'\u005a' | '\\' | ']' | '\u005e'..'\u005f' | '\u0061'..'\u007a' | '\u007c' | '\u007e'..'\ufffe'
+				)* '}'
 			;
 
 WS			:	(' '
@@ -4399,6 +5667,8 @@ DATE
 	'-'
 	(('0'|'1'|'2')('0'..'9')|('3')('0'|'1'))
 	'\''
+	// not the start of a '' escape, e.g. '2020-01-01''s data' is a string literal (#77640)
+	{LA(1) != '\''}?
 	;
 
 //Time format should be 'hh:mm:ss[.[nnnnnn]][<time zone interval>]'
@@ -4414,6 +5684,8 @@ TIME
 	(('0'..'5')('0'..'9')|('6')('0'|'1'))	//ss
 	('.'(('0'..'9'))*)?
 	'\''
+	// not the start of a '' escape (#77640)
+	{LA(1) != '\''}?
 	);
 
 
@@ -4425,7 +5697,8 @@ STRING_LITERAL
 	 TIME { _ttype = TIME; }
 	|(DATE)=>
 	 DATE { _ttype = DATE; }
-	| {isInterval() == false}? '\'' (~('\''|'"'))* '\''
+	// a literal may contain '"' and the '' escape (#77640)
+	| {isInterval() == false}? '\'' {setCommitToPath(true);} (~('\'') | '\'' '\'')* '\''
 	| '\'' { _ttype = SINGLE_QUOTE; }
 	;
 
@@ -4512,22 +5785,29 @@ HEX_DIGIT
 	:	('0'..'9'|'A'..'F'|'a'..'f')
 	;
 
-// Single-line comments
+// Single-line comments. "//" is not standard SQL (and is integer division on some
+// dialects), so only "--" is recognized as a line-comment opener.
 SL_COMMENT
-	:	"//"
-		//(~('\n'|'\r'))* ('\n'|'\r'('\n')?)
-		('\u0000'..'\u0009'|'\u000B'|'\u000C'|'\u000E'..'\uFFFE')* ('\n'|'\r'('\n')?)
-		{$setType(Token.SKIP); newline();}
-		|
-		"--"
+	:	"--"
 		//(~('\n'|'\r'))* ('\n'|'\r'('\n')?)
 		('\u0000'..'\u0009'|'\u000B'|'\u000C'|'\u000E'..'\uFFFE')* ('\n'|'\r'('\n')?)
 		{$setType(Token.SKIP); newline();}
 	;
 
-// multiple-line comments
+// multiple-line comments. Nesting-aware: a "/*" inside the comment body
+// recursively invokes this same rule to consume a fully nested comment (open and close
+// delimiters included), so the outer comment only ends at the "*/" that closes the
+// outermost level, matching how PostgreSQL, Derby, SQL Server and DB2 all nest "/* */" comments.
+// mlCommentDepth caps the recursion so pathological input (thousands of nested "/*") fails
+// the parse cleanly instead of overflowing the stack.
 ML_COMMENT
-	:	"/*"
+	:	"/*" {setCommitToPath(true); mlCommentDepth++;}
+		{
+			if(mlCommentDepth > MAX_ML_COMMENT_DEPTH) {
+				mlCommentDepth = 0;
+				throw new antlr.RecognitionException("comment nested too deeply");
+			}
+		}
 		(	/*	'\r' '\n' can be matched in one alternative or by matching
 				'\r' in one iteration and '\n' in another.  I am trying to
 				handle any flavor of newline that comes in, but the language
@@ -4539,15 +5819,17 @@ ML_COMMENT
 				generateAmbigWarnings=false;
 			}
 		:
-			{ LA(2)!='/' }? '*'
+			("/*") => ML_COMMENT
+		|	{ LA(2)!='/' }? '*'
+		|	{ LA(2)!='*' }? '/'
 		|	'\r' '\n'		{newline();}
 		|	'\r'			{newline();}
 		|	'\n'			{newline();}
 		//|	~('*'|'\n'|'\r')
-		|	'\u0000'..'\u0009'|'\u000B'|'\u000C'|'\u000E'..'\u0029'|'\u002B'..'\uFFFE'
+		|	'\u0000'..'\u0009'|'\u000B'|'\u000C'|'\u000E'..'\u0029'|'\u002B'..'\u002E'|'\u0030'..'\uFFFE'
 		)*
 		"*/"
-		{$setType(Token.SKIP);}
+		{$setType(Token.SKIP); mlCommentDepth--;}
 	;
 
 EQ      :       "=" 	;
@@ -4563,3 +5845,22 @@ OJ	:	"(+)"	;	//oracle join
 COLON_EQU	:	":=";
 
 CONCATENATION_OP	:	"||" | "&";
+
+// a backslash outside a literal, a quoted name or a comment fails the parse instead of being
+// dropped by filter mode, e.g. the second escape of '\'', s, '\'' in MySQL (#77640)
+BACKSLASH	:	'\\' ;
+
+// a stray '}' or ']' outside a JDBC escape or a bracket-quoted name fails the parse instead
+// of being dropped by filter mode, e.g. a stray '}' after a complete {fn ...} escape (#77680)
+RBRACE	:	'}' ;
+RBRACKET	:	']' ;
+
+PERCENT	:	'%'	;	//modulo
+CARET	:	'^'	;	//bitwise xor / power, dialect-dependent
+TILDE	:	'~'	;	//bitwise not (unary)
+// '#' can't safely be a binary operator: it means different things per dialect (a comment
+// opener in MySQL, part of a valid identifier in Oracle/SQL Server, XOR only in PostgreSQL),
+// and the parser has no dialect context to disambiguate. Keep it as a real token that no
+// parser rule accepts, the same pattern as BACKSLASH above, so '#' fails the parse with a
+// clear error instead of being silently dropped by filter mode (#77659).
+HASH	:	'#'	;

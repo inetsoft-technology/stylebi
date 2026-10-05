@@ -34,6 +34,14 @@ public class ClickhouseHelper extends SQLHelper {
       return "clickhouse";
    }
 
+   /**
+    * Clickhouse names are case-sensitive, see SQLHelper.isAliasCaseInsensitive (Bug #77644).
+    */
+   @Override
+   public boolean isAliasCaseInsensitive() {
+      return false;
+   }
+
    @Override
    protected String transformDate(String str) {
       str = str.trim();

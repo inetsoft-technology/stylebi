@@ -93,7 +93,7 @@ public class SheetService {
 
       String unknown = Catalog.getCatalog().getString("Unknown");
 
-      SimpleDateFormat format = new SimpleDateFormat(SreeEnv.getProperty("format.date.time"));
+      SimpleDateFormat format = Tool.createGregorianDateFormat(SreeEnv.getProperty("format.date.time"));
       format.setTimeZone(TimeZone.getTimeZone(timeZone));
       String created = entry.getCreatedUsername() == null ?
          unknown : entry.getCreatedUsername();

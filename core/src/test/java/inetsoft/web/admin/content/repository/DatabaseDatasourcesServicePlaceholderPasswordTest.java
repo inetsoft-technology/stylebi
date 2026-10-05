@@ -218,13 +218,15 @@ class DatabaseDatasourcesServicePlaceholderPasswordTest {
    }
 
    @Test
-   void saveOfChildRefusesPasswordOfSameNamedTopLevelSourceWithoutWrite() throws Exception {
-      // editing "db/child" directly looks the placeholder up by the child's own name
-      JDBCDataSource parent = mock(JDBCDataSource.class);
+   void saveOfChildRefusesItsStoredPasswordWithoutWriteOnItsParent() throws Exception {
+      // editing "db/child" directly reads the placeholder's password through the parent, as a
+      // save of the parent does, and never from a top-level data source called child
+      JDBCDataSource parent = storeParentWithChild("db", "child", "child-secret");
       JDBCDataSource child = storeSource("db/child", null);
       when(child.getBaseDatasource()).thenReturn(parent);
       storeSource("child", "top-level-secret");
       grantWrite("db/child");
+      grantWrite("child");
 
       assertThrows(java.lang.SecurityException.class, () -> service.saveDatabase(
          "db/child", settings(placeholderDefinition("child")), ActionRecord.ACTION_NAME_EDIT,
@@ -233,6 +235,27 @@ class DatabaseDatasourcesServicePlaceholderPasswordTest {
       verify(child, never()).setCredential(any());
       verify(parent, never()).addDatasource(any());
       verify(repository, never()).updateDataSource(any(), any(), anyBoolean());
+   }
+
+   @Test
+   void saveOfChildWithWriteOnItsParentReusesItsOwnPassword() throws Exception {
+      JDBCDataSource parent = storeParentWithChild("db", "child", "child-secret");
+      when(parent.getDataSourceNames()).thenReturn(new String[0]);
+      JDBCDataSource child = storeSource("db/child", null);
+      when(child.getBaseDatasource()).thenReturn(parent);
+      storeSource("child", "top-level-secret");
+      grantWrite("db");
+      grantWrite("db/child");
+
+      service.saveDatabase(
+         "db/child", settings(placeholderDefinition("child")), ActionRecord.ACTION_NAME_EDIT,
+         principal);
+
+      verify(child).setCredential(argThat(c -> "child-secret".equals(c.getPassword())));
+      verify(parent).addDatasource(child);
+      // the parent is updated, not the child by its path
+      verify(repository).updateDataSource(parent, "db", false);
+      verify(repository, never()).updateDataSource(eq(child), anyString(), anyBoolean());
    }
 
    @Test

@@ -38,6 +38,14 @@ public class ExasolHelper extends SQLHelper {
       return true;
    }
 
+   /**
+    * Exasol folds an unquoted identifier to upper case.
+    */
+   @Override
+   public IdentifierCase getIdentifierCase() {
+      return IdentifierCase.UPPER;
+   }
+
    @Override
    protected String getTableWithLimit(String tbl, int maxrows) {
       StringBuilder buffer = new StringBuilder();

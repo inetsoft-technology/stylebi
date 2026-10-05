@@ -26,10 +26,12 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.jdbc.util.JDBCUtil;
+import inetsoft.uql.tabular.TabularDataSource;
 import inetsoft.uql.xmla.XMLADataSource;
 import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
 import inetsoft.util.credential.CredentialService;
+import inetsoft.util.credential.CredentialType;
 import inetsoft.web.admin.content.repository.DatabaseDatasourcesService;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -70,7 +72,7 @@ class DataSourceRegistryConnectionTestQueryTest {
    private Comparator<String> entryOrder;
 
    @BeforeEach
-   void setUp() {
+   void setUp() throws Exception {
       oldContext = ThreadContext.getContextPrincipal();
       ThreadContext.setContextPrincipal(null);
       sources = new HashMap<>();
@@ -89,7 +91,9 @@ class DataSourceRegistryConnectionTestQueryTest {
       doAnswer(inv -> inv.getArgument(1) == AssetEntry.Type.DATA_SOURCE ?
          entries(inv.getArgument(0)) : new AssetEntry[0])
          .when(registry).getEntries(anyString(), any(AssetEntry.Type.class));
-      doAnswer(inv -> sources.containsKey(inv.<AssetEntry>getArgument(0).getPath()))
+      // only data sources are stored, a folder at the path of one isn't (Bug #77725)
+      doAnswer(inv -> inv.<AssetEntry>getArgument(0).getType() == AssetEntry.Type.DATA_SOURCE &&
+         sources.containsKey(inv.<AssetEntry>getArgument(0).getPath()))
          .when(registry).containObject(any(AssetEntry.class));
       doAnswer(inv -> {
          if(inv.getArgument(2) == AssetEntry.Type.DATA_SOURCE) {
@@ -111,6 +115,21 @@ class DataSourceRegistryConnectionTestQueryTest {
          return null;
       }).when(registry).renameObjects(anyString(), anyString(), anyBoolean(), anyBoolean());
       doNothing().when(registry).renameObjects(anyString(), anyString());
+      // Bug #77704, a rename moves the objects of a data source in one batch
+      doAnswer(inv -> {
+         for(DataSourceRegistry.EntryMove move :
+             inv.<List<DataSourceRegistry.EntryMove>>getArgument(0))
+         {
+            if(move.oentry().isDataSource()) {
+               sources.put(move.nentry().getPath(), sources.remove(move.oentry().getPath()));
+            }
+         }
+
+         return null;
+      }).when(registry).moveEntries(anyList());
+      doReturn(false).when(registry).createMoveTargetFolder(any(DataSourceFolder.class),
+                                                             anyString());
+
       doAnswer(inv -> sources.remove(inv.<AssetEntry>getArgument(0).getPath()))
          .when(registry).removeObject(any(AssetEntry.class));
       doAnswer(inv -> {
@@ -225,6 +244,116 @@ class DataSourceRegistryConnectionTestQueryTest {
       assertNull(JDBCUtil.getConnectionTestQuery("f/ds"));
       assertNull(JDBCUtil.getConnectionTestQuery("add1"),
                  "the additional connection's connection test query was left behind");
+   }
+
+   // Bug #77561: deleting an additional connection node in EM Content > Repository removes the
+   // registry path parent/name, while the test query is kept under the name alone
+   @Test
+   void removeAdditionalConnectionRemovesItsKey() {
+      asOrg("orga");
+      addSource("ds");
+      addSource("ds/add1");
+      JDBCUtil.setConnectionTestQuery("ds", "SELECT A");
+      JDBCUtil.setConnectionTestQuery("add1", "SELECT ADD1");
+
+      registry.removeDataSource("ds/add1");
+
+      assertEquals(Set.of("ds"), sources.keySet());
+      assertNull(JDBCUtil.getConnectionTestQuery("add1"),
+                 "the additional connection's connection test query was left behind");
+      assertEquals("SELECT A", JDBCUtil.getConnectionTestQuery("ds"),
+                   "the parent data source's connection test query was removed");
+   }
+
+   @Test
+   void removeAdditionalConnectionKeepsTheKeyOfADataSourceOfThatName() {
+      asOrg("orga");
+      addSource("ds");
+      addSource("ds/add2");
+      addSource("add2");
+      JDBCUtil.setConnectionTestQuery("add2", "SELECT ADD2");
+
+      registry.removeDataSource("ds/add2");
+
+      assertEquals("SELECT ADD2", JDBCUtil.getConnectionTestQuery("add2"),
+                   "the test query of another data source was removed");
+   }
+
+   @Test
+   void removeDataSourceInAFolderIsNotTakenForAnAdditionalConnection() {
+      asOrg("orga");
+      addSource("f/ds");
+      addSource("ds");
+      JDBCUtil.setConnectionTestQuery("f/ds", "SELECT FDS");
+      JDBCUtil.setConnectionTestQuery("ds", "SELECT DS");
+
+      registry.removeDataSource("f/ds");
+
+      assertNull(JDBCUtil.getConnectionTestQuery("f/ds"));
+      assertEquals("SELECT DS", JDBCUtil.getConnectionTestQuery("ds"),
+                   "the test query of another data source was removed");
+   }
+
+   // no data source named ds exists, so only the folder check keeps the key of q's additional
+   // connection ds
+   @Test
+   void removeDataSourceInAFolderKeepsTheKeyOfAnAdditionalConnectionOfThatName() {
+      asOrg("orga");
+      addSource("f/ds");
+      addSource("q");
+      addSource("q/ds");
+      JDBCUtil.setConnectionTestQuery("ds", "SELECT DS");
+
+      registry.removeDataSource("f/ds");
+
+      assertEquals("SELECT DS", JDBCUtil.getConnectionTestQuery("ds"),
+                   "the test query of another data source's additional connection was removed");
+   }
+
+   @Test
+   void removeAdditionalConnectionThenItsParentRemovesTheKeys() {
+      asOrg("orga");
+      addSource("ds");
+      addSource("ds/add1");
+      JDBCUtil.setConnectionTestQuery("ds", "SELECT A");
+      JDBCUtil.setConnectionTestQuery("add1", "SELECT ADD1");
+
+      registry.removeDataSource("ds/add1");
+      registry.removeDataSource("ds");
+
+      assertTrue(sources.isEmpty());
+      assertNull(JDBCUtil.getConnectionTestQuery("ds"));
+      assertNull(JDBCUtil.getConnectionTestQuery("add1"));
+   }
+
+   @Test
+   void removeParentThenItsAdditionalConnectionRemovesTheKeys() {
+      asOrg("orga");
+      addSource("ds");
+      addSource("ds/add1");
+      JDBCUtil.setConnectionTestQuery("ds", "SELECT A");
+      JDBCUtil.setConnectionTestQuery("add1", "SELECT ADD1");
+
+      registry.removeDataSource("ds");
+      registry.removeDataSource("ds/add1");
+
+      assertTrue(sources.isEmpty());
+      assertNull(JDBCUtil.getConnectionTestQuery("ds"));
+      assertNull(JDBCUtil.getConnectionTestQuery("add1"));
+   }
+
+   @Test
+   void removeTabularAdditionalConnectionDoesNotRemoveTheKey() {
+      asOrg("orga");
+      sources.put("t", new TestTabularDataSource());
+      sources.put("t/add1", new TestTabularDataSource());
+      JDBCUtil.setConnectionTestQuery("add1", "SELECT ADD1");
+
+      registry.removeDataSource("t/add1");
+
+      assertFalse(sources.containsKey("t/add1"));
+      assertEquals("SELECT ADD1", JDBCUtil.getConnectionTestQuery("add1"),
+                   "the removal of a tabular additional connection changed a JDBC test query");
    }
 
    @Test
@@ -347,6 +476,17 @@ class DataSourceRegistryConnectionTestQueryTest {
          "removeLegacyTestQuery", String.class, String.class);
       method.setAccessible(true);
       method.invoke(service, oldSource, newSource);
+   }
+
+   static class TestTabularDataSource extends TabularDataSource<TestTabularDataSource> {
+      TestTabularDataSource() {
+         super("test", TestTabularDataSource.class);
+      }
+
+      @Override
+      protected CredentialType getCredentialType() {
+         return null;
+      }
    }
 
    // JDBCDataSource's constructor needs the CredentialService bean, whose constructor is

@@ -593,6 +593,13 @@ public final class ScriptHostAccess {
                                      Double::longValue,
                                      HostAccess.TargetMappingPrecedence.LOWEST);
 
+               // Bug #77521: classFilter() is consulted only when a script looks a
+               // class up by name. A Class value an allowed API returns (or an
+               // instance of the class) gives a script the class's public members,
+               // statics and constructors, with no name check. So every class
+               // refused by exact name is also denied here by type.
+               denyBlockedClasses(builder);
+
                // A graph object a script holds is a HostBeanProxy (a ProxyObject),
                // which GraalJS cannot convert to its Java type on its own, so it
                // failed every hand-off whose receiver is not itself a
@@ -681,6 +688,45 @@ public final class ScriptHostAccess {
       final boolean comOrgF = comOrg;
 
       return classFilter(extra, customPkgsF, comOrgF);
+   }
+
+   /**
+    * Denies, by type, every class of {@link #BLOCKED_CLASSES} on the class path, so
+    * the name block holds for a class value or an instance a script gets from an
+    * allowed API. A name that doesn't load (e.g. a class removed from the JDK) is
+    * skipped. (Bug #77521)
+    */
+   private static void denyBlockedClasses(HostAccess.Builder builder) {
+      for(String name : BLOCKED_CLASSES) {
+         Class<?> type;
+
+         try {
+            type = Class.forName(name, false, ScriptHostAccess.class.getClassLoader());
+         }
+         catch(ClassNotFoundException | LinkageError ignore) {
+            continue;
+         }
+
+         builder.denyAccess(type);
+      }
+   }
+
+   /** The classes refused by exact name, for tests. */
+   static Set<String> blockedClasses() {
+      return BLOCKED_CLASSES;
+   }
+
+   /**
+    * Whether a class value may be handed to a script: when the class filter would
+    * admit the class by name. A primitive type is not a class and is always
+    * allowed, as in {@code Java.type}. (Bug #77521)
+    */
+   static boolean isClassValueVisible(Class<?> type, Predicate<String> filter) {
+      while(type.isArray()) {
+         type = type.getComponentType();
+      }
+
+      return type.isPrimitive() || filter.test(type.getName());
    }
 
    /**

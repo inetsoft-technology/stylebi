@@ -18,9 +18,7 @@
 
 package inetsoft.util;
 
-import inetsoft.util.swap.XSwapUtil;
 import inetsoft.util.swap.XSwapper;
-import jakarta.annotation.PostConstruct;
 import org.awaitility.Awaitility;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,14 +42,8 @@ public class DataCacheSweeper {
       return ConfigurationContext.getContext().getSpringBean(DataCacheSweeper.class);
    }
 
-   @PostConstruct
-   public void initialize() {
-      doGC = XSwapUtil.isParallelGC();
-   }
-
    @Scheduled(initialDelay = 10_000L, fixedDelay = 10_000L)
    public void sweep() {
-      AtomicBoolean changed = new AtomicBoolean(false);
       long now = System.currentTimeMillis();
 
       try {
@@ -63,7 +55,7 @@ public class DataCacheSweeper {
 
          for(DataCache<?, ?> cache : caches) {
             if(now > cache.lastCheck + 60000) {
-               changed.set(cache.checkTimeout() || changed.get());
+               cache.checkTimeout();
             }
          }
       }
@@ -72,15 +64,20 @@ public class DataCacheSweeper {
       }
 
       AtomicLong minage = new AtomicLong(4000L);
+      // only entries evicted for critical memory, not the timed out ones, are worth a full gc
+      AtomicBoolean evicted = new AtomicBoolean(false);
 
-      Awaitility.await()
-         .pollDelay(200L, TimeUnit.MILLISECONDS)
-         .until(() -> sweep(changed, minage));
-
-      // call gc() so table lens will be disposed, and the swap files
-      // cleaned up immediately
-      if(doGC && changed.get()) {
-         System.gc();
+      try {
+         Awaitility.await()
+            .pollDelay(200L, TimeUnit.MILLISECONDS)
+            .until(() -> sweep(evicted, minage));
+      }
+      finally {
+         // call gc() so table lens will be disposed, and the swap files
+         // cleaned up immediately. the swapper throttles it.
+         if(evicted.get()) {
+            swapper.requestGC();
+         }
       }
    }
 
@@ -90,7 +87,7 @@ public class DataCacheSweeper {
       }
    }
 
-   private boolean sweep(AtomicBoolean changed, AtomicLong minage) {
+   private boolean sweep(AtomicBoolean evicted, AtomicLong minage) {
       if(swapper.getMemoryState() > XSwapper.CRITICAL_MEM) {
          return true;
       }
@@ -104,7 +101,7 @@ public class DataCacheSweeper {
          }
 
          for(DataCache<?, ?> cache : caches) {
-            changed.set(cache.sweep(minage.get()) || changed.get());
+            evicted.set(cache.sweep(minage.get()) || evicted.get());
             nremain += cache.cachemap.size();
          }
 
@@ -123,7 +120,6 @@ public class DataCacheSweeper {
 
    private final XSwapper swapper;
    private final DataCache.CacheSet cacheSet = new DataCache.CacheSet();
-   private boolean doGC;
 
    private static final Logger LOG = LoggerFactory.getLogger(DataCacheSweeper.class);
 }

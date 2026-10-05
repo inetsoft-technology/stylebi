@@ -1816,7 +1816,8 @@ public class AssetEntry implements AssetObject, Comparable<AssetEntry>, DataSeri
    @Override
    public void parseXML(Element elem, boolean isImportAsSiteAdmin) throws Exception {
       this.scope = Integer.parseInt(Tool.getAttribute(elem, "scope"));
-      this.type = Type.forId(Integer.parseInt(Tool.getAttribute(elem, "type")));
+      int typeId = Integer.parseInt(Tool.getAttribute(elem, "type"));
+      this.type = Type.forId(typeId);
       this.user = IdentityID.getIdentityIDFromKey(Tool.getChildValueByTagName(elem, "user"));
       this.orgID = Tool.getChildValueByTagName(elem, "organizationID");
 
@@ -1833,6 +1834,15 @@ public class AssetEntry implements AssetObject, Comparable<AssetEntry>, DataSeri
 
       Element pathnode = Tool.getChildNodeByTagName(elem, "path");
       this.path = Tool.getValue(pathnode, true);
+
+      // same rule as the constructor: a type id this build doesn't know (e.g. one added in a
+      // newer build) becomes UNKNOWN instead of null, which would NPE in hashCode/writeXML
+      if(this.type == null) {
+         LOG.warn("Asset entry has unknown type id {}, treating it as UNKNOWN (saving it " +
+                     "writes type id {}): scope={}, path={}, orgID={}",
+                  typeId, Type.UNKNOWN.id, scope, path, orgID);
+         this.type = Type.UNKNOWN;
+      }
 
       this.alias = Tool.getChildValueByTagName(elem, "alias");
 

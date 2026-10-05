@@ -920,6 +920,10 @@ public abstract class RuntimeSheet {
          AbstractSheet sheet;
          XSwappableSheet swappable = values.get(index);
 
+         if(!disposed) {
+            swappable.waitForSwapIn();
+         }
+
          synchronized(swappable) {
             if(!disposed) {
                swappable.access();
@@ -1031,6 +1035,15 @@ public abstract class RuntimeSheet {
          }
       }
 
+      /**
+       * Wait for memory before the swapped sheet is read back, outside of the lock.
+       */
+      void waitForSwapIn() {
+         if(!valid) {
+            getSwapper().waitForMemory();
+         }
+      }
+
       @Override
       public double getSwapPriority() {
          if(disposed || !completed || !valid || !isSwappable()) {
@@ -1067,6 +1080,7 @@ public abstract class RuntimeSheet {
          File file = getFile(prefix + ".tdat");
 
          if(!file.exists()) {
+            LOG.warn("Swap file for sheet is missing, the sheet is no longer available: {}", file);
             return;
          }
 

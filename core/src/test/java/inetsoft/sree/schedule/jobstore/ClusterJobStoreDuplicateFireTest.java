@@ -59,7 +59,7 @@ import static org.mockito.Mockito.*;
  * production ones scaled by 1/10: acquire horizon (idleWaitTime) 20 s -> 2 s, misfire threshold
  * 5 s -> 0.5 s, gap between the AT conditions 60 s -> 6 s.
  */
-@Tag("core")
+@Tag("slow")
 class ClusterJobStoreDuplicateFireTest {
    @BeforeEach
    void setUp() {

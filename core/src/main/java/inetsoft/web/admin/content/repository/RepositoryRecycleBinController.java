@@ -203,7 +203,7 @@ public class RepositoryRecycleBinController {
                                                AssetEntry[] entries, RecycleBin recycleBin,
                                                Principal principal, String timeZone)
    {
-      SimpleDateFormat format = new SimpleDateFormat(SreeEnv.getProperty("format.date.time"));
+      SimpleDateFormat format = Tool.createGregorianDateFormat(SreeEnv.getProperty("format.date.time"));
       format.setTimeZone(timeZone.isEmpty() ? TimeZone.getDefault() : TimeZone.getTimeZone(timeZone));
 
       for(AssetEntry entry : entries) {
@@ -246,7 +246,7 @@ public class RepositoryRecycleBinController {
       @RequestParam(value = "timeZone", required = false, defaultValue = "") String timeZone)
    {
       RecycleBin.Entry entry = recycleBin.getEntry(path);
-      SimpleDateFormat format = new SimpleDateFormat(SreeEnv.getProperty("format.date.time"));
+      SimpleDateFormat format = Tool.createGregorianDateFormat(SreeEnv.getProperty("format.date.time"));
       format.setTimeZone(timeZone.isEmpty() ? TimeZone.getDefault() : TimeZone.getTimeZone(timeZone));
 
       return RepositoryRecycleBinEntryModel.builder()

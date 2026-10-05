@@ -145,7 +145,15 @@ class UniformSQLSchemaQualifiedJoinTest {
    void whereOuterJoinMixedQualifiersKeepFilterInWhere(String helper, String text, String expected)
       throws Exception
    {
-      UniformSQL sql = parse(text, helper);
+      // a where clause outer join is refused with a data source that writes ANSI joins (Bug
+      // #77548), so its structure is parsed without one, and generated with the data source
+      if(dataSource(helper) != null) {
+         assertThrows(antlr.SemanticException.class, () -> parse(text, helper));
+      }
+
+      UniformSQL sql = parse(text, DEFAULT);
+      sql.setDataSource(dataSource(helper));
+
       // the sql first: it is what runs, and what main got wrong
       assertEquals(expected, regenerate(sql));
       assertRoundTrip(sql, helper);
@@ -170,9 +178,10 @@ class UniformSQLSchemaQualifiedJoinTest {
          // one side qualified as written in FROM
          Arguments.of("select * from s.a left join s.b on s.a.id = b.id",
                       "s.a *= s.b", "select * from s.a LEFT OUTER JOIN s.b ON s.a.id = b.id"),
-         // quoted names
+         // quoted names keep their quotes (#77569)
          Arguments.of("select * from \"s\".\"a\" left join \"s\".\"b\" on \"a\".id = \"b\".id",
-                      "s.a *= s.b", "select * from s.a LEFT OUTER JOIN s.b ON a.id = b.id"),
+                      "s.a *= s.b",
+                      "select * from \"s\".\"a\" LEFT OUTER JOIN \"s\".\"b\" ON \"a\".id = \"b\".id"),
          // catalog.schema.table qualified by the table or by schema.table
          Arguments.of("select * from c.s.a left join c.s.b on a.id = b.id",
                       "c.s.a *= c.s.b", "select * from c.s.a LEFT OUTER JOIN c.s.b ON a.id = b.id"),
@@ -377,7 +386,8 @@ class UniformSQLSchemaQualifiedJoinTest {
                          "\"b\".\"id\" ) RIGHT OUTER JOIN \"s\".\"a\" ON \"a\".\"id\" = \"x\".\"pid\""),
          Arguments.of(POSTGRESQL_ANSI,
                       "select * from s.a left join (s.b join s.a x on x.id = b.id) on a.id = x.pid",
-                      "select * from (\"s\".\"a\" x INNER JOIN \"s\".\"b\" ON \"x\".\"id\" = " +
+                      // Bug #77546, the nested join's tables are in from order
+                      "select * from (\"s\".\"b\" INNER JOIN \"s\".\"a\" x ON \"x\".\"id\" = " +
                          "\"b\".\"id\" ) RIGHT OUTER JOIN \"s\".\"a\" ON \"a\".\"id\" = \"x\".\"pid\"")
       );
    }

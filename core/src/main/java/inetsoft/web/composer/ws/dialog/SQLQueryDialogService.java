@@ -175,7 +175,7 @@ public class SQLQueryDialogService {
                                        vars, commandDispatcher);
             }
             else {
-               setUpTable(assembly, model, model.getDataSource(), vars, principal);
+               setUpTable(ws, assembly, model, model.getDataSource(), vars, principal);
             }
          }
          else {
@@ -200,7 +200,7 @@ public class SQLQueryDialogService {
                                        vars, commandDispatcher);
             }
             else {
-               setUpTable(assembly, model, model.getDataSource(), vars, principal);
+               setUpTable(ws, assembly, model, model.getDataSource(), vars, principal);
             }
          }
          else {
@@ -210,6 +210,13 @@ public class SQLQueryDialogService {
          fixGrouping(assembly, aginfo);
          WorksheetEventUtil.loadTableData(rws, name, true, true);
          WorksheetEventUtil.refreshAssembly(rws, name, true, commandDispatcher, principal);
+      }
+
+      // after an Apply the table has the columns of this edit, so another OK maps the
+      // columns from these names, not from the names when the dialog was opened (Bug #77711)
+      if(!model.isCloseDialog()) {
+         queryManagerService.resetAliasMapping(
+            model.getRuntimeId(), ((SQLBoundTableAssemblyInfo) assembly.getInfo()).getQuery());
       }
 
       if(model.isMashUpData()) {
@@ -233,7 +240,8 @@ public class SQLQueryDialogService {
       return null;
    }
 
-   private void setUpTable(SQLBoundTableAssembly assembly, SQLQueryDialogModel sqlQueryDialogModel,
+   private void setUpTable(Worksheet ws, SQLBoundTableAssembly assembly,
+                           SQLQueryDialogModel sqlQueryDialogModel,
                            String dataSource, VariableTable vars, Principal principal)
       throws Exception
    {
@@ -250,6 +258,7 @@ public class SQLQueryDialogService {
       query.setSQLDefinition(sql);
       SQLBoundTableAssemblyInfo info = (SQLBoundTableAssemblyInfo) assembly
          .getInfo();
+      JDBCQuery oldQuery = info.getQuery();
       info.setQuery(query);
       SourceInfo sinfo = new SourceInfo(SourceInfo.DATASOURCE, dataSource,
                                         dataSource);
@@ -262,10 +271,34 @@ public class SQLQueryDialogService {
       RuntimeQueryService.RuntimeXQuery runtimeQuery =
          queryManagerService.getRuntimeQuery(sqlQueryDialogModel.getRuntimeId());
       Map<String, String> aliasMapping = runtimeQuery == null ? null : runtimeQuery.getAliasMapping();
+
+      Map<String, String> renamed = new HashMap<>();
+
+      // a column of the old query stored with a generated alias is renamed to its name
+      // (Bug #77711). The mapping is relative to the assembly's query, which this replaces,
+      // so it is not kept for another OK of the dialog
+      if(aliasMapping != null && oldQuery != null) {
+         aliasMapping = new HashMap<>(aliasMapping);
+         queryManagerService.mapRebuiltColumnAliases(oldQuery, sql, aliasMapping);
+         aliasMapping.forEach((oldAlias, alias) -> {
+            if(!Tool.equals(oldAlias, alias)) {
+               renamed.put(oldAlias, alias);
+            }
+         });
+      }
+
+      ColumnSelection oldColumns = (ColumnSelection) Tool.clone(assembly.getColumnSelection());
       ColumnSelection selection =
          queryManagerService.getColumnSelection(query, vars, assembly, getSession(), aliasMapping);
       assembly.setColumnSelection(selection);
       assembly.setSQLEdited(false);
+
+      // the conditions on a renamed column, and the other assemblies of the worksheet that
+      // use it, follow it as on an OK of the advanced mode, or they would lose the column
+      if(!renamed.isEmpty()) {
+         updateSqlBoundAssemblyCondition(assembly, selection, renamed);
+         renameColumnRef(ws, oldColumns, assembly, renamed);
+      }
    }
 
    private void setUpTableWithSQLString(SQLBoundTableAssembly assembly, SQLQueryDialogModel model,
@@ -462,6 +495,11 @@ public class SQLQueryDialogService {
                String newAlias = aliasMapping.get(attr);
                DataRef newCol = selection.getAttribute(newAlias);
 
+               // not a column the mapping knows, it is validated as it is
+               if(newCol == null) {
+                  continue;
+               }
+
                if(ref instanceof ColumnRef) {
                   conditionItem.setAttribute(newCol);
                }
@@ -528,6 +566,12 @@ public class SQLQueryDialogService {
 
          ColumnRef originalRef = (ColumnRef) oldColumns.getAttribute(original);
          ColumnRef newRef = (ColumnRef) columnSelection.getAttribute(aliasMapping.get(original));
+
+         // a column the table doesn't have (any more) has nothing to rename
+         if(originalRef == null || newRef == null) {
+            continue;
+         }
+
          RenameColumnController.renameTableColumn(ws, assembly, originalRef, newRef);
       }
    }

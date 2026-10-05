@@ -1057,6 +1057,13 @@ public class SelectionTreeVSAssembly extends AbstractSelectionVSAssembly
          snode = Tool.getFirstChildNode(snode);
          CompositeSelectionValue cval = new CompositeSelectionValue();
          cval.parseXML(snode);
+
+         // a date saved before #77605 may have a Buddhist or Japanese year. the levels of an
+         // id mode tree are not columns, and its values are ids
+         if(!isIDMode()) {
+            cval.toGregorianPersistentDates(getDataRefs());
+         }
+
          this.cval = cval;
       }
       else {

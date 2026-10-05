@@ -207,10 +207,14 @@ public class TimeSliderSelection {
          Date endDate = null;
 
          try {
-            firstSelectedDate = (Date) valuefmt.parseObject(firstSelected.getValue());
-            lastSelectedDate = (Date) valuefmt.parseObject(lastSelected.getValue());
-            startDate = (Date) valuefmt.parseObject(startVal.getValue());
-            endDate = (Date) valuefmt.parseObject(endVal.getValue());
+            // a date saved before #77605 may have a Buddhist or Japanese year
+            firstSelectedDate = (Date) valuefmt.parseObject(
+               Tool.toGregorianPersistentDate(firstSelected.getValue()));
+            lastSelectedDate = (Date) valuefmt.parseObject(
+               Tool.toGregorianPersistentDate(lastSelected.getValue()));
+            startDate = (Date) valuefmt.parseObject(
+               Tool.toGregorianPersistentDate(startVal.getValue()));
+            endDate = (Date) valuefmt.parseObject(Tool.toGregorianPersistentDate(endVal.getValue()));
          }
          catch(Exception e) {
             LOG.warn("dates not parsed correctly, selectionList readxml may fail:" + e);

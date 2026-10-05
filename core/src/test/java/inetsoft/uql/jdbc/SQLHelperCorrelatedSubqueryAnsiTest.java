@@ -96,11 +96,12 @@ class SQLHelperCorrelatedSubqueryAnsiTest {
          "EXISTS ( select 1 from b x LEFT OUTER JOIN c y ON x.id = y.id where x.id = a.id)",
       "exists (select 1 from a a2 left join b on a2.id = b.id where a2.id = a.id)|" +
          "EXISTS ( select 1 from a a2 LEFT OUTER JOIN b ON a2.id = b.id where a2.id = a.id)",
-      // quoted names, the column quotes are kept (#77558), the table quotes are still
-      // dropped on a case-folding database (#77569)
+      // quoted names, the column quotes are kept (#77558), and so are the table quotes
+      // (#77569). The outer table a is not quoted, so neither is its qualifier
       "exists (select 1 from \"b\" left join \"c\" on \"b\".\"id\" = \"c\".\"id\" where " +
          "\"b\".\"id\" = \"a\".\"id\")|" +
-         "EXISTS ( select 1 from b LEFT OUTER JOIN c ON b.\"id\" = c.\"id\" where b.\"id\" = a.\"id\")",
+         "EXISTS ( select 1 from \"b\" LEFT OUTER JOIN \"c\" ON \"b\".\"id\" = \"c\".\"id\" " +
+         "where \"b\".\"id\" = a.\"id\")",
       // the correlation is in a derived table's outer level
       "exists (select 1 from (select b.id bid from b left join c on b.id = c.id) t where " +
          "t.bid = a.id)|EXISTS ( select 1 from ( select b.id as bid from b LEFT OUTER JOIN c " +
@@ -265,7 +266,137 @@ class SQLHelperCorrelatedSubqueryAnsiTest {
       assertEquals(0, diffCount(text, generate(text, dataSource("derby-ansi")), 120), text);
    }
 
+   // Bug #77633, a subquery nested in a subquery operand was hidden at a wrong position when
+   // its operand had a ( before it (count(*), abs(x.k), a literal with "(select"), and a
+   // ___SUBQUERY__ placeholder was left in the generated SQL
+   @ParameterizedTest
+   @CsvSource(delimiter = '|', quoteCharacter = '"', value = {
+      "select a.id from a where a.id in (select x.id from b x group by x.id having count(*) > " +
+         "(select count(*) from c))|select a.id from a where a.id IN ( select x.id from b x " +
+         "group by x.id having count(*) > ( select count(*) from c))",
+      "select a.id from a where a.id in (select x.id from b x where abs(x.k) in (select c.k " +
+         "from c))|select a.id from a where a.id IN ( select x.id from b x where abs(x.k) IN " +
+         "( select c.k from c))",
+      // two and three levels
+      "select a.id from a where a.id in (select x.id from b x where abs(x.k) in (select c.k " +
+         "from c) and abs(x.j) in (select c.j from c))|select a.id from a where a.id IN ( " +
+         "select x.id from b x where abs(x.k) IN ( select c.k from c) and abs(x.j) IN ( " +
+         "select c.j from c))",
+      "select a.id from a where a.id in (select x.id from b x where abs(x.k) in (select c.k " +
+         "from c where abs(c.j) in (select b.j from b)))|select a.id from a where a.id IN ( " +
+         "select x.id from b x where abs(x.k) IN ( select c.k from c where abs(c.j) IN ( " +
+         "select b.j from b)))",
+      // a literal with (select in it
+      "select a.id from a where a.id in (select x.id from b x where x.j <> 7 and 'f(select y' " +
+         "<> 'z' and abs(x.k) in (select c.k from c))|select a.id from a where a.id IN ( " +
+         "select x.id from b x where x.j <> 7 and 'f(select y' <> 'z' and abs(x.k) IN ( " +
+         "select c.k from c))",
+      // correlated to the outer query
+      "select a.id from a where a.id in (select x.id from b x where abs(x.k) in (select c.k " +
+         "from c where c.id = a.id))|select a.id from a where a.id IN ( select x.id from b x " +
+         "where abs(x.k) IN ( select c.k from c where c.id = a.id))",
+      // a scalar operand, exists, a top-level having, not in with a literal paren
+      "select a.id from a where (select max(c.k) from c where abs(c.j) in (select b.j from b)) " +
+         "> a.k|select a.id from a where ( select max(c.k) from c where abs(c.j) IN ( select " +
+         "b.j from b)) > a.k",
+      "select a.id from a where exists (select 1 from c group by c.k having max(c.k) > " +
+         "(select min(b.k) from b))|select a.id from a where EXISTS ( select 1 from c group by " +
+         "c.k having max(c.k) > ( select min(b.k) from b))",
+      "select a.id from a group by a.id having count(*) > (select count(*) from c where " +
+         "abs(c.k) in (select b.k from b))|select a.id from a group by a.id having count(*) > " +
+         "( select count(*) from c where abs(c.k) IN ( select b.k from b))",
+      "select a.id from a where a.id not in (select x.id from b x where x.id is not null and " +
+         "abs(x.k) in (select c.k from c where 'x)' <> 'y'))|select a.id from a where not " +
+         "(a.id IN ( select x.id from b x where x.id is not null and abs(x.k) IN ( select c.k " +
+         "from c where 'x)' <> 'y')))",
+   })
+   void nestedSubqueryNotLeaked(String text, String expected) throws Exception {
+      assertEquals(expected, generate(text, dataSource("derby")));
+
+      for(String type : new String[] { "default", "derby", "h2", "oracle", "postgresql" }) {
+         JDBCDataSource ds = dataSource(type);
+         String generated = generate(text, ds);
+         assertFalse(generated.contains("___SUBQUERY__"), type + ": " + generated);
+
+         // the postgresql text isn't stable, abs(c.k) becomes abs("c".k) when it's generated
+         // again, also without a nested subquery
+         if(!type.equals("postgresql")) {
+            assertEquals(generated, generate(generated, ds), "round trip " + type);
+         }
+      }
+
+      assertEquals(0, diffCount(text, generate(text, dataSource("derby")), 120), text);
+   }
+
+   // with the input max rows the tables are wrapped in subqueries, the offsets moved and two
+   // nested subqueries still leaked
+   @ParameterizedTest
+   @CsvSource(delimiter = '|', quoteCharacter = '"', value = {
+      "select a.id from a where a.id in (select x.id from b x where abs(x.k) in (select c.k " +
+         "from c) and abs(x.j) in (select c.j from c))|select a.id from ( select * from a " +
+         "fetch first 1000 rows only) a where a.id IN ( select x.id from ( select * from b " +
+         "fetch first 1000 rows only) x where abs(x.k) IN ( select c.k from ( select * from c " +
+         "fetch first 1000 rows only) c) and abs(x.j) IN ( select c.j from ( select * from c " +
+         "fetch first 1000 rows only) c))",
+      "select a.id from a where a.id in (select x.id from b x where abs(x.k) in (select c.k " +
+         "from c where c.id = a.id))|select a.id from ( select * from a fetch first 1000 rows " +
+         "only) a where a.id IN ( select x.id from ( select * from b fetch first 1000 rows " +
+         "only) x where abs(x.k) IN ( select c.k from ( select * from c fetch first 1000 rows " +
+         "only) c where c.id = a.id))",
+   })
+   void nestedSubqueryNotLeakedWithMaxRows(String text, String expected) throws Exception {
+      assertEquals(expected, generate(text, dataSource("derby"), "1000"));
+
+      for(String type : new String[] { "default", "h2", "oracle", "postgresql" }) {
+         String generated = generate(text, dataSource(type), "1000");
+         assertFalse(generated.contains("___SUBQUERY__"), type + ": " + generated);
+      }
+
+      assertEquals(0, diffCount(text, expected, 120), text);
+   }
+
+   // the subqueries that were hidden right before #77633 are generated the same, and the
+   // names of the outer query in a subquery operand are still replaced
+   @ParameterizedTest
+   @CsvSource(delimiter = '|', quoteCharacter = '`', value = {
+      "select a.id from a group by a.id having count(*) > (select count(*) from c)|" +
+         "select a.id from a group by a.id having count(*) > ( select count(*) from c)|" +
+         "select \"a\".\"id\" from \"a\" group by \"a\".\"id\" having count(*) > ( select " +
+         "count(*) from \"c\")",
+      "select a.id from a where a.id in (select x.id from b x where x.k in (select c.k from " +
+         "c))|select a.id from a where a.id IN ( select x.id from b x where x.k IN ( select " +
+         "c.k from c))|select \"a\".\"id\" from \"a\" where \"a\".\"id\" IN ( select x.\"id\" " +
+         "from \"b\" x where x.\"k\" IN ( select \"c\".\"k\" from \"c\"))",
+      "select a.id from a where abs(a.k) in (select c.k from c)|select a.id from a where " +
+         "abs(a.k) IN ( select c.k from c)|select \"a\".\"id\" from \"a\" where abs(a.k) IN " +
+         "( select \"c\".\"k\" from \"c\")",
+      "select a.id from a where a.id in (select x.id from b x where x.k = a.k)|select a.id " +
+         "from a where a.id IN ( select x.id from b x where x.k = a.k)|select \"a\".\"id\" " +
+         "from \"a\" where \"a\".\"id\" IN ( select x.\"id\" from \"b\" x where x.\"k\" = a.k)",
+      "select a.id from a where a.k in (select c.k from c) and a.j in (select b.j from b)|" +
+         "select a.id from a where a.k IN ( select c.k from c) and a.j IN ( select b.j from b)|" +
+         "select \"a\".\"id\" from \"a\" where \"a\".\"k\" IN ( select \"c\".\"k\" from " +
+         "\"c\") and \"a\".\"j\" IN ( select \"b\".\"j\" from \"b\")",
+      "select a.id from a where (select max(c.k) from c) > a.k and a.j in (select b.j from b)|" +
+         "select a.id from a where ( select max(c.k) from c) > a.k and a.j IN ( select b.j " +
+         "from b)|select \"a\".\"id\" from \"a\" where ( select max(\"c\".\"k\") from \"c\") " +
+         "> \"a\".\"k\" and \"a\".\"j\" IN ( select \"b\".\"j\" from \"b\")",
+   })
+   void subqueryWithoutLeakUnchanged(String text, String derby, String postgresql)
+      throws Exception
+   {
+      assertEquals(derby, generate(text, dataSource("derby")));
+      assertEquals(derby, generate(text, dataSource("h2")));
+      assertEquals(postgresql, generate(text, dataSource("postgresql")));
+   }
+
    private static String generate(String text, JDBCDataSource ds) throws Exception {
+      return generate(text, ds, null);
+   }
+
+   private static String generate(String text, JDBCDataSource ds, String inputMaxRows)
+      throws Exception
+   {
       UniformSQL sql = new UniformSQL();
       // Bug #77434 refuses a RIGHT or FULL join mixed with an inner join (here the
       // correlation) without a data source
@@ -274,6 +405,11 @@ class SQLHelperCorrelatedSubqueryAnsiTest {
       assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult(), text);
       assertFalse(sql.isLossy(), text);
       sql.setDataSource(ds);
+
+      if(inputMaxRows != null) {
+         sql.setHint(UniformSQL.HINT_INPUT_MAXROWS, inputMaxRows);
+      }
+
       sql.clearSQLString();
       return sql.getSQLString().replaceAll("\\s+", " ").trim();
    }

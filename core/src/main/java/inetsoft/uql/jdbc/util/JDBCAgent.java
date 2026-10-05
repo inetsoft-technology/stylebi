@@ -353,7 +353,9 @@ public class JDBCAgent extends XAgent {
             tname = table;
          }
          else {
-            tname = usql != null ?
+            // keep the quotes of a table name written quoted in the parsed sql
+            String qname = helper.quoteQuotedSegments(stable);
+            tname = qname != null ? qname : usql != null ?
                helper.quoteTableName(table) : XUtil.quoteName(table, helper);
          }
 
@@ -519,7 +521,10 @@ public class JDBCAgent extends XAgent {
                      talias = Tool.equals(talias, tname) ? null : talias;
 
                      if(tname instanceof String) {
-                        tname = helper.quoteTableName((String) tname);
+                        // keep the quotes of a table name written quoted in the parsed sql
+                        String qname = stable != null && tname.equals(stable.getName()) ?
+                           helper.quoteQuotedSegments(stable) : null;
+                        tname = qname != null ? qname : helper.quoteTableName((String) tname);
                         talias = talias == null ? null :
                            helper.quoteTableAlias(talias);
                      }

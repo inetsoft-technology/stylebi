@@ -4294,7 +4294,8 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
             Element vnode = Tool.getChildNodeByTagName(inode, "value");
             String name = Tool.getValue(nnode);
             String val = Tool.getValue(vnode);
-            byte[] bytes = Encoder.decodeAsciiHex(val);
+            // a zero-byte image is saved with an empty value, load it back as an empty image
+            byte[] bytes = val == null ? new byte[0] : Encoder.decodeAsciiHex(val);
             imgmap.put(name, bytes);
          }
       }

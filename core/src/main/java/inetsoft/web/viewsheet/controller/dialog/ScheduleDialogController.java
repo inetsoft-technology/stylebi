@@ -20,6 +20,7 @@ package inetsoft.web.viewsheet.controller.dialog;
 import inetsoft.sree.schedule.TimeRange;
 import inetsoft.sree.security.*;
 import inetsoft.util.Catalog;
+import inetsoft.util.Tool;
 import inetsoft.web.admin.schedule.model.TimeZoneModel;
 import inetsoft.web.factory.RemainingPath;
 import inetsoft.web.portal.model.CSVConfigModel;
@@ -90,7 +91,7 @@ public class ScheduleDialogController {
       boolean currentBookmark = true;
 
       if(bookmarkEnabled) {
-         DateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+         DateFormat formatter = Tool.createGregorianDateFormat("yyyy-MM-dd HH:mm:ss");
          Date now = Calendar.getInstance().getTime();
          bookmarkName = formatter.format(now);
          currentBookmark = false;

@@ -32,7 +32,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
-import java.security.Principal;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -81,7 +80,6 @@ class LogicalModelPermissionRekeyOrgTest {
          authorization.removePermission(ResourceType.QUERY, NEW_KEY, org);
       }
 
-      reset(SecurityEngine.getSecurity());
       OrganizationContextHolder.clear();
       SreeEnv.remove("security.enabled");
       SreeEnv.remove("security.users.multiTenant");
@@ -107,11 +105,9 @@ class LogicalModelPermissionRekeyOrgTest {
       when(dataSourceService.getDataModel(DS)).thenReturn(dataModel);
       when(dataSourceService.getModelAssetEntry(any())).thenAnswer(i -> i.getArgument(0));
 
-      // only the access check is stubbed, the permission store is the production one (the
-      // engine bean is a spy of a real SecurityEngine)
+      // the permission store is the production one; the access check goes to the mocked
+      // AssetRepository, so the shared engine spy is not stubbed
       SecurityEngine engine = SecurityEngine.getSecurity();
-      doReturn(true).when(engine).checkPermission(any(Principal.class), any(ResourceType.class),
-                                                  anyString(), any(ResourceAction.class));
       LogicalModelService service = new LogicalModelService(
          engine, repository, dataSourceService, mock(DataRefModelFactoryService.class),
          mock(LogicalModelTreeService.class), mock(AssetRepository.class),

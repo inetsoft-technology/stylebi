@@ -28,6 +28,7 @@ import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.ExpressionFailedException;
 import inetsoft.util.stall.LockStallException;
+import inetsoft.util.swap.SwapFileReadException;
 import inetsoft.util.swap.XSwappableIntList;
 import inetsoft.util.swap.XSwapper;
 import org.slf4j.Logger;
@@ -225,6 +226,14 @@ public class SortFilter extends AbstractTableLens
 
          if(stall != null) {
             throw stall;
+         }
+
+         // a swap file read failure must not look like an empty table either; the fragment
+         // already logged the read failure (bug #77651)
+         SwapFileReadException swapFailure = SwapFileReadException.find(ex);
+
+         if(swapFailure != null) {
+            throw swapFailure;
          }
 
          LOG.error("Failed to process sort filter", ex);

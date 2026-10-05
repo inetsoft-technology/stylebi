@@ -531,9 +531,7 @@ public class DataSetService {
     * Gregorian here only fixes the displayed year.
     */
    private static SimpleDateFormat gregorianDateFormat() {
-      SimpleDateFormat format = new SimpleDateFormat(SreeEnv.getProperty("format.date.time"));
-      format.setCalendar(new GregorianCalendar());
-      return format;
+      return Tool.createGregorianDateFormat(SreeEnv.getProperty("format.date.time"));
    }
 
    /**
@@ -652,6 +650,8 @@ public class DataSetService {
       newName = SUtil.removeControlChars(newName);
 
       try {
+         // Bug #77733, a name with a slash would build a path under another parent
+         Tool.checkFolderNameSeparator(newName);
          String oldPath = info.path();
          IdentityID user = getUser(principal, scope);
 

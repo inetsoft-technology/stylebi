@@ -324,7 +324,7 @@ public class SQLHelper implements KeywordProvider {
          }
 
          if(product != null) {
-            String name = product.toLowerCase();
+            String name = product.toLowerCase(Locale.ROOT);
 
             if(name.contains("access")) {
                type = "access";
@@ -371,10 +371,10 @@ public class SQLHelper implements KeywordProvider {
          type = "access";
       }
       else if(StringUtils.isEmpty(type)){
-         type = dx.getDatabaseTypeString().toLowerCase();
+         type = dx.getDatabaseTypeString().toLowerCase(Locale.ROOT);
       }
 
-      dx.setRuntimeProductName(type == null ? null : type.toLowerCase());
+      dx.setRuntimeProductName(type == null ? null : type.toLowerCase(Locale.ROOT));
       return dx.getRuntimeProductName();
    }
 
@@ -753,6 +753,9 @@ public class SQLHelper implements KeywordProvider {
       vJoin = null;
       textJoinOrder = null;
       ansiWhereJoins = null;
+      commaGroupsChanged = false;
+      commaGroupsNotMovable = false;
+      outerLastTextJoins = false;
 
       // make sure the table aliases don't exceed database limit
       fixTableAliases();
@@ -805,7 +808,7 @@ public class SQLHelper implements KeywordProvider {
          return "";
       }
 
-      String where = generateWhereClause();
+      String where = appendRownumLimit(generateWhereClause());
       String groupby = generateGroupByClause();
       String having = generateHavingClause();
       String orderby = generateOrderByClause();
@@ -845,7 +848,7 @@ public class SQLHelper implements KeywordProvider {
       String where = generateWhereClause();
       String from = generateFromClause();
       // join conditions the ANSI FROM clause couldn't write in an ON
-      where = appendAnsiWhereJoins(where);
+      where = appendRownumLimit(appendAnsiWhereJoins(where));
       String groupby = generateGroupByClause();
       String having = generateHavingClause();
       String orderby = generateOrderByClause();
@@ -874,34 +877,56 @@ public class SQLHelper implements KeywordProvider {
     */
    private String appendLimitClause(String sql) {
       if(uniformSql.hasVPMCondition() && inpmaxrows > 0) {
-         // Use subquery to check if we should limit the table
-         String subquery = getTableWithLimit(sql, inpmaxrows);
+         // The row limit syntax of the database, taken from the limited table query of a
+         // placeholder table, so the names and literals of the sql can't change it. (#77698)
+         String subquery = getTableWithLimit(LIMIT_PLACEHOLDER, inpmaxrows);
 
+         // The sql is not searched for an existing limit: names and literals contain the
+         // keywords (credit_limit, 'no limit'). The statement has no limit clause of its own
+         // here: generateMaxRowsClause() runs only if outmaxrows > 0, and the parser refuses
+         // limit and fetch first. A derived table's own limit doesn't limit this statement,
+         // and a second rownum condition is still valid sql. The one limit the statement can
+         // start with is a top select option (getSelectionOption()). (#77698)
          if(subquery != null) {
-            if(isKeyword("limit") && !sql.contains("limit") && subquery.contains("limit")) {
+            if(isKeyword("limit") && subquery.contains("limit")) {
                sql += " limit " + inpmaxrows;
             }
-            else if(isKeyword("top") && sql.startsWith("select") && !sql.contains("select top")) {
+            else if(isKeyword("top") && sql.startsWith("select") &&
+               !SELECT_TOP.matcher(sql).lookingAt())
+            {
                sql = sql.replaceFirst("select", "select top " + inpmaxrows);
             }
-            else if(subquery.contains("fetch first") && !sql.contains("fetch first")) {
+            else if(subquery.contains("fetch first")) {
                sql += " fetch first " + inpmaxrows + " rows only";
             }
-            else if(this instanceof OracleSQLHelper && subquery.contains(" where rownum <= ") &&
-               !sql.contains(" where rownum <= "))
-            {
-               String where = generateWhereClause();
-               String newWhere = where.replace(WHERE, WHERE + " (");
-               newWhere += ") AND rownum <= " + inpmaxrows;
-
-               if(sql.contains(where)) {
-                  sql = sql.replace(where, newWhere);
-               }
-            }
+            // rownum (oracle) is added to the where clause by appendRownumLimit()
          }
       }
 
       return sql;
+   }
+
+   /**
+    * Add the input row limit of the queries affected by vpm conditions to the where clause
+    * of this statement, if the database limits rows with rownum (oracle). The where clause
+    * is wrapped when it is generated, not searched for in the generated sql, so the where of
+    * a subquery or a derived table, and a literal containing where, are left alone. A
+    * statement without a where clause is not limited. (#77698)
+    */
+   private String appendRownumLimit(String where) {
+      if(outmaxrows > 0 || !uniformSql.hasVPMCondition() || inpmaxrows <= 0 ||
+         !(this instanceof OracleSQLHelper) || where == null || !where.startsWith(WHERE))
+      {
+         return where;
+      }
+
+      String subquery = getTableWithLimit(LIMIT_PLACEHOLDER, inpmaxrows);
+
+      if(subquery == null || !subquery.contains(" where rownum <= ")) {
+         return where;
+      }
+
+      return WHERE + " (" + where.substring(WHERE.length()) + ") AND rownum <= " + inpmaxrows;
    }
 
    /**
@@ -921,16 +946,14 @@ public class SQLHelper implements KeywordProvider {
          sub.setDataSource(uniformSql.getDataSource());
          sub.setParent(uniformSql);
          sb.append(BRACKET);
-         sb.append(getSubQueryString(table, sub));
-         sb.append(")");
+         sb.append(closeSubquery(getSubQueryString(table, sub), sub.hasSQLString()));
       }
       // name is a string?
       else {
          // @by rundaz, if the table is a subquery, it shouldn't be quoted
          if(XUtil.isSubQuery(namestr)) {
             sb.append(BRACKET);
-            sb.append(namestr);
-            sb.append(")");
+            sb.append(closeSubquery(namestr, true));
          }
          else if(JDBCDataSource.INFORMIX.equalsIgnoreCase(table.getSchema())) {
             // fix bug#9381. The from statement of informix database not support be quoted.
@@ -938,8 +961,14 @@ public class SQLHelper implements KeywordProvider {
          }
          else {
             String quote = getQuote();
+            String qname = quoteQuotedSegments(table, namestr);
 
-            fixTableName(namestr, sb, quote, true);
+            if(qname != null) {
+               sb.append(qname);
+            }
+            else {
+               fixTableName(namestr, sb, quote, true);
+            }
          }
       }
 
@@ -1022,6 +1051,58 @@ public class SQLHelper implements KeywordProvider {
 
       matcher.appendTail(result);
       return result + tail;
+   }
+
+   /**
+    * Close a subquery text with a paren. Bug #77753, a kept sql string (the user's text, not
+    * regenerated) may end in a line comment, which would comment out a paren on the same
+    * line, so the paren goes on a new line then. Regenerated text holds no user comment.
+    * @param kept true if the text is a kept sql string.
+    */
+   private static String closeSubquery(String text, boolean kept) {
+      return kept && endsInLineComment(text) ? text + "\n)" : text + ")";
+   }
+
+   /**
+    * Check if the last line of the text holds a line comment: a --, a # (mysql, bigquery,
+    * clickhouse) or a // (snowflake), outside quotes, at the start of the line or after a
+    * space. A -- glued to the text before it starts a comment too, but it is what the parser
+    * writes for x - -1 (#77754, saved models keep it), not a comment the user meant, so it is
+    * not counted and the query stays a syntax error instead of losing the rest of the line.
+    */
+   private static boolean endsInLineComment(String text) {
+      int start = text.lastIndexOf('\n') + 1;
+      int len = text.length();
+      boolean[] quoted = null;
+
+      for(int i = start; i < len; i++) {
+         char c = text.charAt(i);
+         char next = i + 1 < len ? text.charAt(i + 1) : 0;
+         boolean dash = c == '-' && next == '-';
+
+         if(!dash && c != '#' && (c != '/' || next != '/')) {
+            continue;
+         }
+
+         if(quoted == null) {
+            quoted = SQLQuoteScanner.findQuoted(text);
+         }
+
+         if(quoted[i]) {
+            continue;
+         }
+
+         if(i == start || Character.isWhitespace(text.charAt(i - 1))) {
+            return true;
+         }
+
+         // a glued -- comments out the rest of the line, a glued # or // may be a name
+         if(dash) {
+            return false;
+         }
+      }
+
+      return false;
    }
 
    /**
@@ -1370,6 +1451,14 @@ public class SQLHelper implements KeywordProvider {
          String subalias = getValidSubAlias(table, subCol);
          String alias = ((JDBCSelection) xselect).getValidAlias(xIdx, this);
          boolean aliasNull = alias == null || alias.equals(column);
+         // the sql of the column for the parameter values of this run, e.g. a scalar subquery
+         // with a sentinel parameter rewritten (Bug #77620), is generated as the text of the
+         // column is. Its name, table and alias are those of the column text.
+         String runSql = ((JDBCSelection) xselect).getColumnSQL(xIdx);
+
+         if(runSql != null) {
+            column = runSql;
+         }
 
          if(subalias != null) {
             // use the same quote logic for subalias
@@ -1394,22 +1483,25 @@ public class SQLHelper implements KeywordProvider {
             column = updateExpressionWithSubAlias(column);
          }
          else {
-            column = getValidAggregate(column);
+            column = getValidAggregate(column,
+               ((JDBCSelection) xselect).getQuotedAggregate(xIdx));
          }
 
          String ocolumn = xselect.getOriginalColumn(xIdx);
 
          // a quoted identifier (e.g. "x y") parsed from the sql is stored without its
-         // quotes, restore them so the generated sql refers to the same column
+         // quotes, restore them so the generated sql refers to the same column. The flag
+         // is per column, two columns may have the same path (Bug #77573)
          if(!expr && table == null && subalias == null &&
-            ((JDBCSelection) xselect).isQuoted(xselect.getColumn(xIdx)))
+            ((JDBCSelection) xselect).isQuoted(xIdx))
          {
             String qname = xselect.getColumn(xIdx);
-            String qseg = ((JDBCSelection) xselect).getQuotedColumn(qname);
+            String qseg = ((JDBCSelection) xselect).getQuotedColumn(xIdx);
 
-            // a qualified quoted column (t."MixedCase") quotes only its column segment
+            // a qualified quoted column (t."MixedCase") quotes only its column segment.
+            // escape an embedded quote char by doubling it (#77661)
             column = qseg != null ? quoteIdentifier(qname, column, qseg) :
-               getQuote() + column + getQuote();
+               getQuote() + column.replace(getQuote(), getQuote() + getQuote()) + getQuote();
          }
          else if(uniformSql.isTableColumn(column) && subalias == null && !expr) {
             // @by larryl, if this is a table column and the original column is
@@ -1446,10 +1538,10 @@ public class SQLHelper implements KeywordProvider {
          }
 
          if(!expr && table != null && subalias == null &&
-            ((JDBCSelection) xselect).isQuoted(xselect.getColumn(xIdx)))
+            ((JDBCSelection) xselect).isQuoted(xIdx))
          {
             column = quoteIdentifier(xselect.getColumn(xIdx), column,
-               ((JDBCSelection) xselect).getQuotedColumn(xselect.getColumn(xIdx)));
+               ((JDBCSelection) xselect).getQuotedColumn(xIdx));
          }
 
          // if table changed to a subquery, replace reference to table to alias
@@ -1471,8 +1563,8 @@ public class SQLHelper implements KeywordProvider {
 
             // duplicate is true if the alias has the same name as column
             if(ocolumn != null) {
-               String cstr = ocolumn.toLowerCase();
-               String astr = alias.toLowerCase();
+               String cstr = ocolumn.toLowerCase(Locale.ROOT);
+               String astr = alias.toLowerCase(Locale.ROOT);
 
                same = cstr.equals(astr);
                part = cstr.endsWith("." + astr);
@@ -1557,6 +1649,14 @@ public class SQLHelper implements KeywordProvider {
       final XSelection xselect = uniformSql.getSelection();
 
       for(int i = 0; i < xselect.getColumnCount(); i++) {
+         String alias = xselect.getAlias(i);
+
+         // a column with a valid alias of its own is output by that alias, no generated
+         // name stands for it (Bug #77714)
+         if(alias != null && !alias.isEmpty() && isValidAlias(alias)) {
+            continue;
+         }
+
          String column = xselect.getColumn(i);
          String table = uniformSql.getTable(column);
          String subCol = uniformSql.getColumnFromPath(column);
@@ -1703,8 +1803,11 @@ public class SQLHelper implements KeywordProvider {
 
    /**
     * Get valid aggregate to replace very long column with alias.
+    * @param qcol the column segment, as written, of the qualified quoted column that is the
+    *             only argument of the aggregate (MixedCase for sum(t."MixedCase")), recorded
+    *             by the parser, or <tt>null</tt> if not recorded.
     */
-   private String getValidAggregate(String aggregate) {
+   private String getValidAggregate(String aggregate, String qcol) {
       XSelection selection = uniformSql.getSelection();
       String bcol = selection.getBaseColumn(aggregate);
 
@@ -1722,20 +1825,50 @@ public class SQLHelper implements KeywordProvider {
       String path = pair[1];
       String npath = XUtil.removeQuote(path);
       String table = uniformSql.getTable(npath, false);
-      String column = uniformSql.getColumnFromPath(npath);
+
+      // the column was written quoted (sum(t."MixedCase")), keep it as written on every
+      // helper. The stored text is the same as the unquoted one on a case-sensitive helper,
+      // and the column found ignoring case may be another column (MIXEDCASE), see #77578
+      if(qcol != null && (table == null || !npath.endsWith("." + qcol))) {
+         qcol = null;
+      }
+
+      String column = qcol != null ? qcol : uniformSql.getColumnFromPath(npath);
       String alias = getValidSubAlias(table, column);
 
       if(table == null || alias == null) {
+         if(qcol != null) {
+            return form + getQuotedTableName(table, true) + "." + getQuote() + qcol +
+               getQuote() + ')';
+         }
+
          if(table != null && column != null) {
             // keep a quoted column segment as written (sum(t."MixedCase")), the column found
             // ignoring case may be another column (MIXEDCASE). Only if the stored text can't have
             // come from a parser that quotes every segment (a case-sensitive helper, generating
             // here or where the sql was parsed): there an unquoted sum(t.MixedCase) is stored as
             // sum("t"."MixedCase") and must keep the metadata case repair. A quoted
-            // sum(t."MixedCase") gets the same repair there, see #77578
-            String qcol = isCaseSensitive() ? null : getQuotedSegment(path, column);
-            return form + getQuotedTableName(table, true) + "." +
-               (qcol != null ? getQuote() + qcol + getQuote() : quoteColumnAlias(column)) + ')';
+            // sum(t."MixedCase") is told apart only by the parser's record above (#77578)
+            String qseg = isCaseSensitive() ? null : getQuotedSegment(path, column);
+            String qcolumn;
+
+            if(qseg != null) {
+               // escape an embedded quote char by doubling it (#77661)
+               qcolumn = getQuote() + qseg.replace(getQuote(), getQuote() + getQuote()) +
+                  getQuote();
+            }
+            // a column of a physical table written unquoted. The alias rule (always quoted on
+            // oracle) would name another column (max(a."v")), see #77646. A column of a derived
+            // table may be the inner select's alias, which is quoted with the alias rule there,
+            // and on a case-sensitive helper the column may have been written quoted
+            else if(!isCaseSensitive() && !(uniformSql.getTableName(table) instanceof UniformSQL)) {
+               qcolumn = quoteAggregateColumn(column);
+            }
+            else {
+               qcolumn = quoteColumnAlias(column);
+            }
+
+            return form + getQuotedTableName(table, true) + "." + qcolumn + ')';
          }
 
          if(XUtil.isQualifiedName(npath)) {
@@ -1814,11 +1947,44 @@ public class SQLHelper implements KeywordProvider {
          return null;
       }
 
-      if(uniformSql.isTableColumn(column) || XUtil.isQualifiedName(column)) {
+      // an unquoted - or & is an operator, not part of a column name (Bug #77642)
+      if(uniformSql.isTableColumn(column) ||
+         XUtil.isQualifiedName(column) && !isOperatorText(column))
+      {
          return new String[] {form, column};
       }
 
       return null;
+   }
+
+   /**
+    * Check if the text contains an operator that XUtil.isQualifiedName accepts as a name
+    * character: a - or & outside a quoted ("", ``, []) segment. The parser keeps a column
+    * whose name contains one of them quoted, so outside quotes it is always an operator.
+    */
+   private static boolean isOperatorText(String text) {
+      char close = 0;
+
+      for(int i = 0; i < text.length(); i++) {
+         char c = text.charAt(i);
+
+         if(close != 0) {
+            if(c == close) {
+               close = 0;
+            }
+         }
+         else if(c == '"' || c == '`') {
+            close = c;
+         }
+         else if(c == '[') {
+            close = ']';
+         }
+         else if(c == '-' || c == '&') {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    /**
@@ -1897,7 +2063,7 @@ public class SQLHelper implements KeywordProvider {
 
       if(ostr != null) {
          sqlstr = sqlstr.replaceFirst(quoteTableName(str),
-            "(" + ostr + ") " + str);
+            "(" + closeSubquery(ostr, true) + " " + str);
       }
 
       UniformSQL sql = new UniformSQL();
@@ -2096,6 +2262,9 @@ public class SQLHelper implements KeywordProvider {
       // preferred since it will guarantee all A records are returned.
       else {
          if(vJoin != null) {
+            // joins parsed from sql text lose the order and nesting of the text here, which
+            // the parse checks refuse (isOuterLastTextJoins, Bug #77674)
+            outerLastTextJoins = outerLastTextJoins || isTextJoinOrder();
             vJoin.sort(new OuterJoinComparator());
          }
       }
@@ -2228,6 +2397,11 @@ public class SQLHelper implements KeywordProvider {
       List<XJoin> pending = new ArrayList<>();
       // true if the last join step is a right join that the pending conditions go into
       boolean lastRight = false;
+      // the [start, end] of each comma separated group in from, and if it has a RIGHT or FULL
+      // join step outside of parentheses
+      List<int[]> groupRanges = new ArrayList<>();
+      List<Boolean> groupRightOrFull = new ArrayList<>();
+      boolean rightOrFull = false;
 
       for(int i = 0; i < count; i++) {
          if(joinCount >= jsize) {
@@ -2274,6 +2448,7 @@ public class SQLHelper implements KeywordProvider {
                   top = from.length();
                }
 
+               rightOrFull = false;
                boolean newTables = true;
                XJoin previousJoin = null;
 
@@ -2334,6 +2509,7 @@ public class SQLHelper implements KeywordProvider {
                      appendJoinClause(from, join, op, tableOne, tableTwo, top, previousJoin);
 
                      if(newTables) {
+                        rightOrFull = isTopRightOrFull(rightOrFull, op, tableOne == null);
                         lastJoin = join;
                         lastTable = (SelectTable) (traverse ? table1[1] : table2[1]);
                         lastTablePreserved = isPreservedTable(join, traverse);
@@ -2398,6 +2574,8 @@ public class SQLHelper implements KeywordProvider {
                   }
 
                   pending.clear();
+                  groupRanges.add(new int[] { top, from.length() });
+                  groupRightOrFull.add(rightOrFull);
 
                   // if we reach here that means no related joins found
                   // moved ahead to find other groups
@@ -2408,7 +2586,146 @@ public class SQLHelper implements KeywordProvider {
          }
       }
 
+      List<String> groups = new ArrayList<>();
+
+      for(int[] range : groupRanges) {
+         groups.add(from.substring(range[0], range[1]));
+      }
+
+      // the groups are separated by commas only, see generateFromClauseText
+      if(String.join(COMMA_GAP, groups).contentEquals(from)) {
+         from = new StringBuilder(String.join(COMMA_GAP, orderCommaGroups(groups, groupRightOrFull)));
+      }
+
       return finishFromClause(from, usedtables, count);
+   }
+
+   /**
+    * Check if a join group has a RIGHT or FULL join step outside of parentheses, after a
+    * step is added to it.
+    * @param rightOrFull if the group had one before the step.
+    * @param op the ANSI join of the step.
+    * @param joinsGroup true if the step joins a table to the group, false if it starts the
+    * group. appendJoinClause puts the group before such a step in parentheses, unless the
+    * database doesn't support them (MongoHelper).
+    */
+   private boolean isTopRightOrFull(boolean rightOrFull, String op, boolean joinsGroup) {
+      if(joinsGroup && isJoinParenthesesSupported()) {
+         rightOrFull = false;
+      }
+
+      return rightOrFull || isRightOrFullJoin(op);
+   }
+
+   private static boolean isRightOrFullJoin(String op) {
+      return " RIGHT OUTER JOIN ".equals(op) || " FULL OUTER JOIN ".equals(op);
+   }
+
+   /**
+    * Order the comma separated join groups of a from clause so no group after a comma has a
+    * RIGHT or FULL join outside of parentheses. SQLite and HSQLDB give a comma and a JOIN the
+    * same precedence and read x, c RIGHT OUTER JOIN d ON .. as (x, c) RIGHT OUTER JOIN d ON ..,
+    * which null-extends the rows of x once instead of joining every row of x, so it returns
+    * different rows than x, (c RIGHT OUTER JOIN d ON ..), the way the other databases read it.
+    * An INNER or LEFT join of a group after a comma returns the same rows either way, since
+    * its condition only names the tables of its group (Bug #77675).
+    * <p>
+    * The first such group is moved before the other groups, which returns the same rows,
+    * as the groups are independent. Any other such group is put in parentheses, e.g. a FULL
+    * join group after another FULL join group. When the select list has a * column, every
+    * such group after the first group is put in parentheses instead of moving one, which would
+    * change the order of its columns. A database without join parentheses (MongoHelper)
+    * gets only the move.
+    * @param groups the text of each group, in from order.
+    * @param rightOrFull for each group, if it has a RIGHT or FULL join outside of parentheses.
+    * @return the groups in their new order.
+    */
+   private List<String> orderCommaGroups(List<String> groups, List<Boolean> rightOrFull) {
+      int first = rightOrFull.indexOf(Boolean.TRUE);
+
+      if(first < 0 || first == 0 && rightOrFull.lastIndexOf(Boolean.TRUE) == 0) {
+         return groups;
+      }
+
+      boolean parens = isJoinParenthesesSupported();
+      boolean star = isStarSelected();
+      boolean move = !parens || !star;
+      List<String> ordered = new ArrayList<>();
+
+      if(move) {
+         ordered.add(groups.get(first));
+      }
+
+      for(int i = 0; i < groups.size(); i++) {
+         if(move && i == first) {
+            continue;
+         }
+
+         boolean nested = parens && rightOrFull.get(i) && !ordered.isEmpty();
+         ordered.add(nested ? "(" + groups.get(i) + ")" : groups.get(i));
+      }
+
+      commaGroupsChanged = true;
+      // moving the only such group returns the same rows and columns, anything else leaves a
+      // group after a comma (in parentheses, or not on MongoHelper) or changes the order of
+      // the * columns
+      commaGroupsNotMovable = star || rightOrFull.indexOf(Boolean.TRUE) !=
+         rightOrFull.lastIndexOf(Boolean.TRUE);
+      return ordered;
+   }
+
+   /**
+    * Check if the select list has a * column (* or t.*), whose columns are in from order.
+    */
+   private boolean isStarSelected() {
+      XSelection selection = uniformSql.getSelection();
+      int count = selection == null ? 0 : selection.getColumnCount();
+
+      if(count == 0) {
+         return true;
+      }
+
+      for(int i = 0; i < count; i++) {
+         String column = selection.getColumn(i);
+
+         if(column != null && (column.trim().equals("*") || column.trim().endsWith(".*"))) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Check if the last generated sql moved or parenthesized a comma separated join group of a
+    * from clause (orderCommaGroups), which needs the joins of the query to be independent of
+    * the order of its from items. A parsed query isn't: SQLite reads the commas of the
+    * original sql with the precedence of a JOIN (Bug #77675).
+    */
+   public boolean isCommaGroupsChanged() {
+      return commaGroupsChanged;
+   }
+
+   /**
+    * Check if the last generated sql changed the comma separated join groups of a from clause
+    * (isCommaGroupsChanged) other than by moving its only group with a RIGHT or FULL join
+    * outside of parentheses to the front: it has two or more such groups, so one of them is
+    * still after a comma (in parentheses, or without them on MongoHelper), or its select list
+    * has a * column, so the group is put in parentheses or its columns are reordered.
+    */
+   public boolean isCommaGroupsNotMovable() {
+      return commaGroupsNotMovable;
+   }
+
+   /**
+    * Check if the last generated sql wrote joins parsed from sql text in the outer-last order
+    * (OuterJoinComparator) because they didn't fit the text order or one chain. That order can
+    * move an inner join to the null-supplying side of an outer join of the text, e.g.
+    * d left join c on d.id = c.id join e on e.id = c.id is written as
+    * (e JOIN c) RIGHT JOIN d, which keeps the d rows that the inner join removed (Bug #77674).
+    */
+   public boolean isOuterLastTextJoins() {
+      return outerLastTextJoins;
    }
 
    /**
@@ -2481,8 +2798,23 @@ public class SQLHelper implements KeywordProvider {
     * where clause joins as where conditions (comma separated tables) and can
     * join parenthesized groups of joined tables, e.g.
     * (a join b) left join (c join d) on b.id = c.id.
+    * A helper that returns false gets the outer-last join order for parsed
+    * joins too, which can put an inner join on the null-supplying side of an
+    * outer join and return wrong rows (#77581). A helper that can't write
+    * parentheses overrides appendJoinClause and isJoinParenthesesSupported
+    * instead, as MongoHelper does.
     */
    protected boolean isTextJoinOrderSupported() {
+      return true;
+   }
+
+   /**
+    * Check if the database supports parentheses around joined tables in the
+    * from clause. Without them (MongoHelper), a text order join between two
+    * groups of tables is written as one flat chain when that keeps its meaning,
+    * and otherwise only its right group is parenthesized.
+    */
+   protected boolean isJoinParenthesesSupported() {
       return true;
    }
 
@@ -2536,34 +2868,41 @@ public class SQLHelper implements KeywordProvider {
       List<List<XJoin>> steps = new ArrayList<>(onClauses.values());
       steps.addAll(pairs.values());
       List<TextJoinGroup> groups = new ArrayList<>();
+      // the joins written in the where clause, added once the whole from clause fits, since
+      // the matrix walk of the old order writes its own
+      List<XJoin> whereJoins = new ArrayList<>();
 
       for(List<XJoin> step : steps) {
-         if(!appendTextJoinStep(groups, step, joinTables)) {
+         if(!appendTextJoinStep(groups, step, joinTables, whereJoins)) {
             return null;
          }
       }
 
-      StringBuilder from = new StringBuilder();
+      whereJoins.forEach(this::addAnsiWhereJoin);
+
       Set<Object> usedtables = new HashSet<>();
+      List<String> texts = new ArrayList<>();
+      List<Boolean> rightOrFull = new ArrayList<>();
 
       for(TextJoinGroup group : groups) {
-         if(from.length() > 0) {
-            from.append(COMMA_GAP);
-         }
-
-         from.append(group.text);
+         texts.add(group.text.toString());
+         rightOrFull.add(group.rightOrFull);
          usedtables.addAll(group.tables);
       }
 
+      StringBuilder from =
+         new StringBuilder(String.join(COMMA_GAP, orderCommaGroups(texts, rightOrFull)));
       return finishFromClause(from, usedtables, count);
    }
 
    /**
     * Add one join step to the text order groups.
+    * @param whereJoins the joins to write in the where clause.
     * @return <tt>false</tt> if the step doesn't fit a text order form.
     */
    private boolean appendTextJoinStep(List<TextJoinGroup> groups, List<XJoin> step,
-                                      Map<XJoin, Object[][]> joinTables)
+                                      Map<XJoin, Object[][]> joinTables,
+                                      List<XJoin> whereJoins)
    {
       // the conditions of the step are written as one AND list, so they must
       // be ANDed in the ON, e.g. not on b.id = c.id and (a.x = c.x or ...)
@@ -2613,10 +2952,22 @@ public class SQLHelper implements KeywordProvider {
             return false;
          }
 
+         Object[][] tables = joinTables.get(anchor);
+         // a parsed join is written with its tables in from order, e.g.
+         // a join b on b.id = a.id is a INNER JOIN b, not b INNER JOIN a. Not on a
+         // helper without join parentheses (MongoHelper), whose flat group joins
+         // (appendFlatGroupJoins) depend on the group's first table being table1
+         boolean traverse = isJoinParenthesesSupported() &&
+            (anchor.isOnClauseJoin() || anchor.isWhereClauseJoin()) &&
+            getSelectTableIndex(tables[0][1]) > getSelectTableIndex(tables[1][1]);
          group = new TextJoinGroup();
-         appendTextJoins(group, step, anchor, getAnsiJoin(anchor.getOp(), false),
-                         (String) joinTables.get(anchor)[0][0],
-                         (String) joinTables.get(anchor)[1][0]);
+         String op = getAnsiJoin(anchor.getOp(), traverse);
+         group.first = tables[traverse ? 1 : 0][1];
+         group.firstName = (String) tables[traverse ? 1 : 0][0];
+         group.leftDeep = isInnerOrLeftJoin(op);
+         group.rightOrFull = isRightOrFullJoin(op);
+         appendTextJoins(group, step, anchor, op, group.firstName,
+                         (String) tables[traverse ? 0 : 1][0]);
          groups.add(group);
       }
       else if(newTables.size() == 1 && joined.size() == 1) {
@@ -2631,8 +2982,10 @@ public class SQLHelper implements KeywordProvider {
          // the other side, e.g. a *= b adding a is b RIGHT OUTER JOIN a
          boolean traverse = table.equals(joinTables.get(anchor)[0][1]);
          group = joined.iterator().next();
-         appendTextJoins(group, step, anchor, getAnsiJoin(anchor.getOp(), traverse), null,
-                         names.get(table));
+         String op = getAnsiJoin(anchor.getOp(), traverse);
+         group.leftDeep = group.leftDeep && isInnerOrLeftJoin(op);
+         group.rightOrFull = isTopRightOrFull(group.rightOrFull, op, true);
+         appendTextJoins(group, step, anchor, op, null, names.get(table));
       }
       else if(newTables.isEmpty() && joined.size() == 2) {
          XJoin anchor = null;
@@ -2653,16 +3006,63 @@ public class SQLHelper implements KeywordProvider {
          TextJoinGroup left = findTextJoinGroup(groups, joinTables.get(anchor)[0][1]);
          TextJoinGroup right = findTextJoinGroup(groups, joinTables.get(anchor)[1][1]);
 
+         boolean parens = isJoinParenthesesSupported();
+
+         // a helper that can't write parentheses (MongoHelper, 56305) writes an
+         // inner join of a group and a flat chain of inner and left joins as one
+         // chain when that keeps its meaning (#77581), e.g.
+         // a join b .. join (c left join d on c.id = d.id) on b.id = c.id is
+         // a join b .. join c on b.id = c.id left join d on c.id = d.id
+         if(!parens && !anchor.isOuterJoin()) {
+            group = appendFlatGroupJoins(groups, step, joinTables, names.keySet(), left, right);
+
+            if(group == null) {
+               group = appendFlatGroupJoins(groups, step, joinTables, names.keySet(), right,
+                                            left);
+            }
+
+            if(group != null) {
+               // the joins of the right group follow the inner join step without parentheses
+               group.rightOrFull = left.rightOrFull || right.rightOrFull;
+               group.tables.addAll(names.keySet());
+               return true;
+            }
+         }
+
          // the parser only reads a joined table on the right of a join as one
          // flat chain, e.g. a left join (c join d on .. join e on ..) on ..
+         // Without parentheses support (MongoHelper), the left group is written
+         // without them, as joins are left associative, and the right group
+         // keeps them, since no flat chain keeps the meaning of
+         // a join b .. left join (c join d ..) on b.id = c.id: the unity driver
+         // may reject them (56305), where the outer-last order joins d to the
+         // null-extended rows of c and returns wrong rows (#77581)
          group = new TextJoinGroup();
-         appendTextJoins(group, step, anchor, getAnsiJoin(anchor.getOp(), false),
-                         "(" + left.text + ")", "(" + right.flat + ")");
+         group.leftDeep = false;
+         String op = getAnsiJoin(anchor.getOp(), false);
+         // the left group is in parentheses, or written without them (MongoHelper), the
+         // right group always is
+         group.rightOrFull = isRightOrFullJoin(op) || !parens && left.rightOrFull;
+         appendTextJoins(group, step, anchor, op,
+                         parens ? "(" + left.text + ")" : left.text.toString(),
+                         "(" + right.flat + ")");
          group.tables.addAll(left.tables);
          group.tables.addAll(right.tables);
          groups.remove(left);
          groups.remove(right);
          groups.add(group);
+      }
+      // an inner join ON that names only tables of one group adds no table, e.g. r in
+      // p join q on p.id = q.id join r on p.k = q.k, which is a comma item. It is a condition
+      // of the group, the same in the where clause as long as no later join null-extends the
+      // group. The parse fails when a later join does, because the regenerated joins then
+      // differ (Bug #77515, #77674). Not a join added in the query editor, which has no ON and
+      // no such check
+      else if(newTables.isEmpty() && joined.size() == 1 && !outer &&
+              step.get(0).isOnClauseJoin())
+      {
+         whereJoins.addAll(step);
+         return true;
       }
       else {
          return false;
@@ -2697,6 +3097,19 @@ public class SQLHelper implements KeywordProvider {
       }
 
       return null;
+   }
+
+   /**
+    * Get the from clause index of a select table.
+    */
+   private int getSelectTableIndex(Object table) {
+      for(int i = 0; i < uniformSql.getTableCount(); i++) {
+         if(uniformSql.getSelectTable(i) == table) {
+            return i;
+         }
+      }
+
+      return -1;
    }
 
    /**
@@ -2757,6 +3170,60 @@ public class SQLHelper implements KeywordProvider {
       // the same joins as one chain without the left-deep parentheses
       private final StringBuilder flat = new StringBuilder();
       private final Set<Object> tables = new HashSet<>();
+      // the first table of the chain and its name in the from clause
+      private Object first;
+      private String firstName;
+      // true if the chain has only inner and left joins and no nested group
+      private boolean leftDeep;
+      // true if the group has a RIGHT or FULL join step outside of parentheses
+      private boolean rightOrFull;
+   }
+
+   /**
+    * Write an inner join step between two text order groups as one flat chain:
+    * the joins of the right group follow the step, which joins its first table,
+    * e.g. a join b .. join (c left join d on c.id = d.id) on b.id = c.id is
+    * a join b .. join c on b.id = c.id left join d on c.id = d.id. It keeps the
+    * meaning when the step only references the left group and the first table
+    * of the right group, and the right group is a chain of inner and left joins
+    * (each joining a table to the tables before it).
+    * @return the left group with the right group appended, or <tt>null</tt> if
+    * the step can't be written this way.
+    */
+   private TextJoinGroup appendFlatGroupJoins(List<TextJoinGroup> groups, List<XJoin> step,
+                                              Map<XJoin, Object[][]> joinTables,
+                                              Set<Object> stepTables, TextJoinGroup left,
+                                              TextJoinGroup right)
+   {
+      if(!right.leftDeep || right.first == null) {
+         return null;
+      }
+
+      for(Object table : stepTables) {
+         if(!left.tables.contains(table) && !table.equals(right.first)) {
+            return null;
+         }
+      }
+
+      XJoin anchor = findAnchorJoin(step, joinTables, right.first, null);
+
+      if(anchor == null) {
+         return null;
+      }
+
+      appendTextJoins(left, step, anchor, getAnsiJoin(anchor.getOp(), false), null,
+                      right.firstName);
+      // the joins of the right group after its first table
+      String rest = right.flat.substring(right.firstName.length());
+      left.text.append(rest);
+      left.flat.append(rest);
+      left.tables.addAll(right.tables);
+      groups.remove(right);
+      return left;
+   }
+
+   private static boolean isInnerOrLeftJoin(String op) {
+      return " INNER JOIN ".equals(op) || " LEFT OUTER JOIN ".equals(op);
    }
 
    /**
@@ -3013,7 +3480,9 @@ public class SQLHelper implements KeywordProvider {
       String tname = left ? join.getTable1(uniformSql) : join.getTable2(uniformSql);
       int index = uniformSql.getJoinTableIndex(tname);
       SelectTable stable = (index >= 0) ? uniformSql.getSelectTable(index) : null;
-      String table = stable != null ? generateTableClause(stable) : quoteTableName(tname);
+      String qname = stable != null ? null : quoteQuotedSegments(tname);
+      String table = stable != null ? generateTableClause(stable) :
+         qname != null ? qname : quoteTableName(tname);
 
       result[0] = table;
       result[1] = stable;
@@ -3088,27 +3557,68 @@ public class SQLHelper implements KeywordProvider {
    }
 
    /**
+    * Two select aggregates may have the same text but different spellings (sum(t.MixedCase)
+    * and sum(t."MixedCase") on a case-sensitive helper). An order by aggregate replaced by the
+    * alias of a select column is sorted by the one of the same spelling, or by itself if none.
+    * An order by aggregate without a record (e.g. set in the sort pane, or saved before it was
+    * recorded) is not "unquoted": it is moved only to a select column without a record of the
+    * same text, and otherwise keeps the alias getOrderByColumn found, as before #77578.
+    * @param field the order by field.
+    * @param sfield the field returned by getOrderByColumn.
+    * @param qagg the quoted column recorded for the order by aggregate.
+    */
+   private String getOrderByAggregateAlias(JDBCSelection xselect, String field, String sfield,
+                                           String qagg)
+   {
+      int idx = xselect.indexOfColumn(field);
+
+      if(idx < 0 || sfield.equals(field) || !sfield.equals(xselect.getAlias(idx)) ||
+         Objects.equals(qagg, xselect.getQuotedAggregate(idx)))
+      {
+         return sfield;
+      }
+
+      for(int i = 0; i < xselect.getColumnCount(); i++) {
+         if(i != idx && field.equals(xselect.getColumn(i)) &&
+            Objects.equals(qagg, xselect.getQuotedAggregate(i)))
+         {
+            String alias = xselect.getAlias(i);
+            return alias != null && !alias.isEmpty() ? alias : field;
+         }
+      }
+
+      return qagg != null ? field : sfield;
+   }
+
+   /**
     * Generate order by clause of SQL condition.
     * @return order by clause.
     */
    public String generateOrderByClause() {
       StringBuilder sort = new StringBuilder();
       JDBCSelection xselect = (JDBCSelection) uniformSql.getSelection();
-      Object[] orderField = uniformSql.getOrderByFields();
+      // each item with its own direction and quoting, two items may have the same text
+      // ("MixedCase" and MixedCase, Bug #77573)
+      OrderByItem[] orderItems = uniformSql.getOrderByItems();
       Object field;
       String order;
       Set<String> ordered = new HashSet<>();
       sort.append(ORDER_BY);
 
-      for(int i = 0; orderField != null && i < orderField.length; i++) {
-         field = orderField[i];
-         order = uniformSql.getOrderBy(field);
+      for(int i = 0; i < orderItems.length; i++) {
+         field = orderItems[i].getField();
+         order = orderItems[i].getOrder();
          String sfield;
 
          if(field instanceof String) {
             sfield = (String) field;
-            String qname = getQuotedName(sfield);
+            String qname = getQuotedName(sfield, uniformSql.isQuotedOrderBy(i));
+            String qseg = getQuotedSegment(sfield, qname, uniformSql.getQuotedOrderByColumn(i));
+            // an order by aggregate of a qualified quoted column (sum(t."MixedCase"))
+            String qagg = uniformSql.getQuotedAggregate(sfield);
+            String ofield = sfield;
             sfield = getOrderByColumn(sfield);
+            sfield = getOrderByAggregateAlias(xselect, ofield, sfield, qagg);
 
             // some dbms (embedded derby) does not support sorting on field
             // in some cases. Here we try using its alias to work around
@@ -3152,6 +3662,8 @@ public class SQLHelper implements KeywordProvider {
 
                if(!supportsAliasSorting()) {
                   sfield = xselect.getAliasColumn(xselect.getOriginalAlias(alias));
+                  // the alias is sorted by its select column
+                  qagg = index >= 0 ? xselect.getQuotedAggregate(index) : null;
                }
             }
 
@@ -3162,22 +3674,23 @@ public class SQLHelper implements KeywordProvider {
             }
 
             if(!xselect.isAlias(sfield)) {
-               sfield = getValidAggregate(sfield);
+               sfield = getValidAggregate(sfield, qagg);
             }
 
             if(uniformSql.isTableColumn(sfield) || uniformSql.isOrderDBField(sfield)) {
                sfield = quotePath(sfield, false, false, true);
             }
-            // orderby column might be an alias
-            else if(xselect.isAlias(sfield) || sfield.startsWith("ALIAS_")) {
+            // orderby column might be an alias, or an alias generated by JDBCSelection, not
+            // a column or an expression that just starts with ALIAS_
+            else if(xselect.isAlias(sfield) || GENERATED_ALIAS.matcher(sfield).matches()) {
                boolean same = false;
                boolean part = false;
                String oalias = xselect.getOriginalAlias(sfield);
                String ocolumn = xselect.getAliasColumn(oalias);
 
                if(ocolumn != null) {
-                  String cstr = ocolumn.toLowerCase();
-                  String astr = sfield.toLowerCase();
+                  String cstr = ocolumn.toLowerCase(Locale.ROOT);
+                  String astr = sfield.toLowerCase(Locale.ROOT);
                   same = cstr.equals(astr);
                   part = cstr.endsWith("." + astr);
                }
@@ -3192,7 +3705,27 @@ public class SQLHelper implements KeywordProvider {
             }
 
             if(qname != null) {
-               sfield = quoteIdentifier(qname, sfield, getQuotedSegment(qname));
+               sfield = quoteIdentifier(qname, sfield, qseg);
+            }
+
+            // the sql of the item for the parameter values of this run, e.g. a scalar
+            // subquery with a sentinel parameter rewritten (Bug #77706), in place of its text.
+            // The text was matched to the select list above.
+            String runSql = uniformSql.getOrderBySQL(i);
+
+            if(runSql != null) {
+               sfield = sfield.replace(ofield, runSql);
+            }
+            // the item resolved to a select column whose text is put in its place (an alias
+            // sorted by its column without alias sorting, or access's getOrderByColumn): the
+            // sql of that column for this run. An item generated as the alias has no text of
+            // the column to replace.
+            else if(index >= 0) {
+               String colSql = xselect.getColumnSQL(index);
+
+               if(colSql != null) {
+                  sfield = sfield.replace(xselect.getColumn(index), colSql);
+               }
             }
 
             // table changed to a subquery, replace reference to table to alias
@@ -3207,6 +3740,7 @@ public class SQLHelper implements KeywordProvider {
             sfield = field.toString();
          }
 
+         // a key already generated is redundant, the first decides the direction as in sql
          if(ordered.contains(sfield)) {
             continue;
          }
@@ -3225,12 +3759,15 @@ public class SQLHelper implements KeywordProvider {
          ordered.add(sfield);
       }
 
-      if(orderField != null && orderField.length > 0) {
+      if(orderItems.length > 0) {
          return sort.toString();
       }
 
       return "";
    }
+
+   // the alias JDBCSelection generates for a column whose alias isn't valid
+   private static final Pattern GENERATED_ALIAS = Pattern.compile("ALIAS_\\d+");
 
    /**
     * Get the column name for a column alias.
@@ -3265,7 +3802,10 @@ public class SQLHelper implements KeywordProvider {
          Object sfield = groupField[i];
 
          if(sfield instanceof String) {
-            String qname = getQuotedName((String) sfield);
+            // the quoting of this field, two fields may have the same text (Bug #77573)
+            String qname = getQuotedName((String) sfield, uniformSql.isQuotedGroupBy(i));
+            String qseg = getQuotedSegment((String) sfield, qname,
+               uniformSql.getQuotedGroupByColumn(i));
             String column = xselect.getAliasColumn((String) sfield);
             column = column == null ? (String) sfield : column;
             String table = uniformSql.getTable(column);
@@ -3290,7 +3830,8 @@ public class SQLHelper implements KeywordProvider {
             }
 
             if(uniformSql.isTableColumn(column) ||
-               XUtil.isQualifiedName(column) && (!expr || aliased) || uniformSql.isGroupDBField(column))
+               XUtil.isQualifiedName(column) && !isOperatorText(column) && (!expr || aliased) ||
+               uniformSql.isGroupDBField(column))
             {
                String quote = getQuote();
 
@@ -3306,6 +3847,10 @@ public class SQLHelper implements KeywordProvider {
             }
             else if(!expr && isKeyword(column)) {
                column = quoteAlias(column);
+            }
+            else if(expr && XUtil.isNiladicKeywordFunction(column)) {
+               // a niladic keyword-function (current_date) is stored as an expression so it's
+               // not quoted. It's written as is, not by its alias or index below (Bug #77763)
             }
             // @by billh, some dbs(informix) do not support to group by
             // an expression, in this case, we try using its index instead
@@ -3340,7 +3885,7 @@ public class SQLHelper implements KeywordProvider {
             }
 
             if(qname != null) {
-               column = quoteIdentifier(qname, column, getQuotedSegment(qname));
+               column = quoteIdentifier(qname, column, qseg);
             }
 
             // if table changed to a subquery, replace table by alias
@@ -3616,8 +4161,16 @@ public class SQLHelper implements KeywordProvider {
          if(having && expression2.getValue() instanceof UniformSQL &&
             ((UniformSQL)expression2.getValue()).getSelection().getColumnCount() == 1)
          {
-            XSelection sec = ((UniformSQL)expression2.getValue()).getSelection();
+            UniformSQL subSql = (UniformSQL) expression2.getValue();
+            XSelection sec = subSql.getSelection();
             String alias = sec.getAlias(0);
+
+            // a generated subquery names its column by the alias generateSelectClause just
+            // emitted for it when str2 was built (an ALIAS_n for a name the database can't
+            // take), a kept sql text by the stored alias (Bug #77711)
+            if(alias != null && !subSql.hasSQLString() && sec instanceof JDBCSelection) {
+               alias = ((JDBCSelection) sec).getValidAlias(0, this);
+            }
 
             if(alias != null) {
                str2 = "(select " + XUtil.quoteAlias(alias, this) + " from" +
@@ -3650,7 +4203,10 @@ public class SQLHelper implements KeywordProvider {
             }
             else if(Tool.equals(str2, ("'" + XConstants.CONDITION_NULL_VALUE + "'"))) {
                buffer.append(str1);
-               buffer.append(" IS NULL");
+               // <> and != carry a negation, the not ( ) wrapper comes from isNot
+               String trimmedOp = op == null ? "" : op.trim();
+               buffer.append("<>".equals(trimmedOp) || "!=".equals(trimmedOp) ?
+                  " IS NOT NULL" : " IS NULL");
             }
             else if(Tool.equals(str2, ("'" + XConstants.CONDITION_EMPTY_STRING + "'"))) {
                buffer.append(str1);
@@ -3731,8 +4287,8 @@ public class SQLHelper implements KeywordProvider {
       // a != is written in place, as before != had an ANSI join, except for a != the parser
       // found in an inner join ON of a query in text join order, which stays in that ON so
       // it's kept on the null-supplying side of an outer join. A != in WHERE, from a query
-      // saved before the clause was recorded, or without text join order (no outer join, or
-      // MongoHelper) can't move a predicate out of an outer join, and moving it into the
+      // saved before the clause was recorded, or without text join order (e.g. no outer
+      // join) can't move a predicate out of an outer join, and moving it into the
       // from clause there can join a table twice
       if("!=".equals(join.getOp()) && !(join.isOnClauseJoin() && isTextJoinOrder())) {
          return false;
@@ -3804,9 +4360,13 @@ public class SQLHelper implements KeywordProvider {
       childCount = condition.getChildCount();
       // the children of this set are in a join position
       final boolean joinPosition = ansiJoinPosition;
+      // IS binds tighter than NOT, so the operand of x IS [NOT] TRUE/FALSE/UNKNOWN
+      // must be grouped or a negated operand negates the whole test
+      final boolean truthTest = isTruthTest(condition);
 
       for(int i = 0; i < childCount; i++) {
          String tmpStr = "";
+         boolean wrapped = false;
          node = condition.getChild(i);
          ansiJoinPosition = joinPosition;
 
@@ -3827,6 +4387,7 @@ public class SQLHelper implements KeywordProvider {
                if(!relation.equals(((XSet) node).getRelation()) || ((XSet) node).isGroup()) {
                   if(!childStr.equals("")) {
                      tmpStr = "(" + childStr + ")";
+                     wrapped = true;
                   }
                }
                else {
@@ -3835,6 +4396,7 @@ public class SQLHelper implements KeywordProvider {
             }
             else if(node instanceof XExpressionCondition) {
                tmpStr = "(" + buildConditionString((XExpressionCondition) node) + ")";
+               wrapped = true;
             }
             else if(node instanceof XUnaryCondition) {
                tmpStr = buildConditionString((XUnaryCondition) node);
@@ -3848,6 +4410,11 @@ public class SQLHelper implements KeywordProvider {
          }
          else {
             tmpStr = node.toString();
+         }
+
+         // an ansi outer join operand prints as "" and must stay empty
+         if(truthTest && i == 0 && !wrapped && !tmpStr.isEmpty()) {
+            tmpStr = "(" + tmpStr + ")";
          }
 
          buffer.append(tmpStr);
@@ -3871,6 +4438,47 @@ public class SQLHelper implements KeywordProvider {
       }
 
       return str;
+   }
+
+   /**
+    * Check if the set is a truth test, x IS [NOT] TRUE/FALSE/UNKNOWN, as built by the
+    * parser's boolean_test rule.
+    */
+   public static boolean isTruthTest(XSet condition) {
+      String relation = condition.getRelation();
+
+      if(relation == null || condition.getChildCount() != 2) {
+         return false;
+      }
+
+      relation = relation.trim();
+
+      // most sets are and/or, skip the regex for them
+      if(!relation.regionMatches(true, 0, "is", 0, 2)) {
+         return false;
+      }
+
+      relation = relation.replaceAll("\\s+", " ");
+
+      if(!relation.equalsIgnoreCase("is") && !relation.equalsIgnoreCase("is not")) {
+         return false;
+      }
+
+      if(!(condition.getChild(1) instanceof XUnaryCondition truth)) {
+         return false;
+      }
+
+      String op = truth.getOp();
+      XExpression exp = truth.getExpression1();
+
+      if((op != null && !op.trim().isEmpty()) || exp == null || exp.getValue() == null) {
+         return false;
+      }
+
+      String value = exp.getValue().toString().trim();
+
+      return value.equalsIgnoreCase("true") || value.equalsIgnoreCase("false") ||
+         value.equalsIgnoreCase("unknown");
    }
 
    /**
@@ -3970,6 +4578,8 @@ public class SQLHelper implements KeywordProvider {
             sql.setParent(uniformSql);
          }
 
+         // a correlated column of a quoted outer table is quoted as the table (#77569)
+         sql.setOuterSQL(uniformSql);
          sql.clearCachedString();
 
          if(sql.getDataSource() == null) {
@@ -3983,15 +4593,22 @@ public class SQLHelper implements KeywordProvider {
 
          // subquery needs to be quoted consistently
          sql.setHint(UniformSQL.HINT_INPUT_MAXROWS, inpmaxrows + "");
-         str = BRACKET + (isFormatSQL ? sql.toString().trim() : sql.toString())
-            + ")";
 
-         // if table changed to a subquery, replace reference to table to alias
+         try {
+            str = BRACKET + closeSubquery(isFormatSQL ? sql.toString().trim() : sql.toString(),
+                                          sql.hasSQLString());
+         }
+         finally {
+            sql.setOuterSQL(null);
+         }
+
+         // if table changed to a subquery, replace reference to table to alias. The subquery
+         // quoted its own qualifiers, with this query as its outer query
          if(isTableSubquery()) {
-            str = replaceTableByAlias(true, str);
+            str = replaceTableByAlias(true, str, false, false);
          }
          else {
-            str = replaceTableByAlias(false, str);
+            str = replaceTableByAlias(false, str, false, false);
          }
       }
       else if(type.equals(XExpression.EXPRESSION) && value != null) {
@@ -4097,6 +4714,48 @@ public class SQLHelper implements KeywordProvider {
    }
 
    /**
+    * Get the case the database folds an unquoted identifier to, if the helper is of a database
+    * that always folds to one case. The stored name of a column on such a database is its
+    * exact name, see JDBCUtil.getFullPathOf (Bug #77643).
+    */
+   public IdentifierCase getIdentifierCase() {
+      return IdentifierCase.UNKNOWN;
+   }
+
+   /**
+    * Check if the database either ignores the case of a name or folds an unquoted name to
+    * upper case (e.g. oracle, h2, derby, mysql, sql server). An unquoted order by name then
+    * resolves to a select alias written unquoted in any case, or written quoted in upper case
+    * (Bug #77644). A database with case-sensitive names (e.g. clickhouse, sybase ase) or one
+    * that folds to lower case doesn't.
+    */
+   public boolean isAliasCaseInsensitive() {
+      return !isCaseSensitive();
+   }
+
+   /**
+    * The case a database folds an unquoted identifier to.
+    */
+   public enum IdentifierCase {
+      UPPER, LOWER, UNKNOWN;
+
+      /**
+       * Fold an identifier written unquoted. Only a plain ascii name is folded, postgresql
+       * folds ascii letters only, any other name is kept as written.
+       */
+      public String fold(String name) {
+         if(this == UNKNOWN || name == null || !PLAIN_IDENTIFIER.matcher(name).matches()) {
+            return name;
+         }
+
+         return this == UPPER ? name.toUpperCase(Locale.ROOT) : name.toLowerCase(Locale.ROOT);
+      }
+   }
+
+   // a name the database folds when it's written unquoted
+   private static final Pattern PLAIN_IDENTIFIER = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
+
+   /**
     * The alias has special character should be quoted as "alias".
     */
    protected String quoteColumnAlias(String alias) {
@@ -4122,6 +4781,14 @@ public class SQLHelper implements KeywordProvider {
    }
 
    /**
+    * Quote the column of a physical table written unquoted as the only argument of a
+    * function (sum(t.col)), only if needed.
+    */
+   protected String quoteAggregateColumn(String column) {
+      return quoteColumnPartAlias(column);
+   }
+
+   /**
     * Quote table name.
     * @param name the specified table name to be quoted.
     */
@@ -4135,6 +4802,11 @@ public class SQLHelper implements KeywordProvider {
     */
    protected String getQuotedTableName(String name, boolean selectClause) {
       String quote = getQuote();
+      String qname = quoteQuotedSegments(name);
+
+      if(qname != null) {
+         return qname;
+      }
 
       if(name.contains(quote)) {
          return name;
@@ -4265,6 +4937,255 @@ public class SQLHelper implements KeywordProvider {
       return sb.toString();
    }
 
+   /**
+    * Quote the segments of a table name that were written as quoted identifiers ("a", `a`
+    * or [a]) in the parsed sql. The parser stores them without their quotes, so a quoted
+    * lowercase name would otherwise be read as another table on a database that folds
+    * unquoted names to uppercase (#77569).
+    * @param name a table name, or the table name used as a qualifier.
+    * @return the name with its quoted segments quoted, or <tt>null</tt> if the name is not
+    * the name of exactly one table with quoted segments.
+    */
+   private String quoteQuotedSegments(String name) {
+      if(name == null || uniformSql == null) {
+         return null;
+      }
+
+      SelectTable found = null;
+      boolean same = true;
+
+      for(int i = 0; i < uniformSql.getTableCount(); i++) {
+         SelectTable table = uniformSql.getSelectTable(i);
+
+         if(!name.equals(table.getName())) {
+            continue;
+         }
+
+         // a table without an alias is named by its name
+         if(name.equals(table.getAlias())) {
+            found = table;
+            same = true;
+            break;
+         }
+
+         // several aliases of one table (a self join) written the same way
+         same = same && (found == null ||
+            Arrays.equals(found.getQuotedSegments(), table.getQuotedSegments()));
+         found = table;
+      }
+
+      return found != null && same ? quoteQuotedSegments(found, name) : null;
+   }
+
+   /**
+    * Quote the name of a table, keeping the quotes of the segments that were written as
+    * quoted identifiers ("a", `a` or [a]) in the parsed sql (#77569).
+    * @param table the table.
+    * @return the quoted name, or <tt>null</tt> if no segment of the name was written quoted,
+    * which leaves the name to the usual table name quoting.
+    */
+   public String quoteQuotedSegments(SelectTable table) {
+      return table != null && table.getName() instanceof String ?
+         quoteQuotedSegments(table, (String) table.getName()) : null;
+   }
+
+   /**
+    * Quote the segments of a table name that were written as quoted identifiers in the
+    * parsed sql. The other segments are quoted as by quoteName.
+    * @param table the table.
+    * @param name the table name.
+    * @return the name with its quoted segments quoted, or <tt>null</tt> if no segment
+    * needs quotes, which leaves the name to the usual table name quoting.
+    */
+   private String quoteQuotedSegments(SelectTable table, String name) {
+      String quote = getQuote();
+
+      // the sql generated while parsing is stored as text, without the quotes
+      if(UniformSQL.isUnquoted() || table == null || table.getQuotedSegments() == null ||
+         quote == null || quote.isEmpty() || !name.equals(table.getName()))
+      {
+         return null;
+      }
+
+      List<String> segs = splitTableName(name);
+      StringBuilder sb = new StringBuilder();
+      boolean quoted = false;
+
+      for(int i = 0; i < segs.size(); i++) {
+         String seg = segs.get(i);
+
+         if(i > 0) {
+            sb.append('.');
+         }
+
+         // a segment the parser quoted again (e.g. "My A" or any name on a case-sensitive
+         // helper) is already stored quoted
+         if(seg.isEmpty() || isQuotedTableSegment(seg) || seg.contains(quote)) {
+            sb.append(seg);
+         }
+         else if(table.isQuotedSegment(i)) {
+            sb.append(quote).append(seg).append(quote);
+            quoted = true;
+         }
+         else if(XUtil.isSpecialName(seg, true, this)) {
+            sb.append(quote).append(seg).append(quote);
+         }
+         else {
+            sb.append(seg);
+         }
+      }
+
+      return quoted ? sb.toString() : null;
+   }
+
+   /**
+    * Quote a column qualified by the last segments of the name of a table with quoted
+    * segments, e.g. a.id for "S"."a" written as "a".id (#77569).
+    * @param tname the table of the column.
+    * @param path the column.
+    * @return the quoted column, or <tt>null</tt> if the qualifier is not the end of the table
+    * name, or none of its segments was written quoted.
+    */
+   private String quoteQualifierSuffix(String tname, String path) {
+      int index = uniformSql.getTableIndex(tname);
+      SelectTable table = index >= 0 ? uniformSql.getSelectTable(index) : null;
+
+      if(UniformSQL.isUnquoted() || table == null || table.getQuotedSegments() == null ||
+         !tname.equals(table.getName()) || !tname.equals(table.getAlias()))
+      {
+         return null;
+      }
+
+      List<String> segs = splitTableName(tname);
+
+      for(int start = 1; start < segs.size(); start++) {
+         String qualifier = String.join(".", segs.subList(start, segs.size()));
+         String column = path.startsWith(qualifier + ".") ?
+            path.substring(qualifier.length() + 1) : null;
+
+         // the qualifier is not another table, and the rest is one column segment
+         if(column == null || column.isEmpty() || splitTableName(column).size() > 1 ||
+            uniformSql.getTableIndex(qualifier) >= 0)
+         {
+            continue;
+         }
+
+         String quote = getQuote();
+         StringBuilder sb = new StringBuilder();
+         boolean quoted = false;
+
+         for(int i = start; i < segs.size(); i++) {
+            String seg = segs.get(i);
+            boolean quoteSeg = table.isQuotedSegment(i) && !seg.isEmpty() &&
+               !isQuotedTableSegment(seg) && !seg.contains(quote);
+            sb.append(quoteSeg ? quote + seg + quote : seg).append('.');
+            quoted = quoted || quoteSeg;
+         }
+
+         return quoted ? sb + XUtil.quoteNameSegment(column, this) : null;
+      }
+
+      return null;
+   }
+
+   /**
+    * Quote a correlated column of a subquery whose qualifier names a table of an outer query
+    * that was written with quoted segments, e.g. "c".id in exists (select 1 from C where
+    * C.id = "c".id). The qualifier is stored without its quotes, and the subquery may have a
+    * table of the same name in another case (#77569).
+    * @return the quoted column, or <tt>null</tt> if the qualifier names a table of this
+    * query, or no quoted outer table.
+    */
+   private String quoteOuterQualifier(String path) {
+      UniformSQL outer = uniformSql.getOuterSQL();
+      List<String> segs = splitTableName(path);
+
+      if(outer == null || segs.size() < 2 || hasTable(uniformSql, path, segs)) {
+         return null;
+      }
+
+      String column = segs.get(segs.size() - 1);
+      String qualifier = path.substring(0, path.length() - column.length() - 1);
+
+      for(UniformSQL sql = outer; sql != null; sql = sql.getOuterSQL()) {
+         for(int i = 0; i < sql.getTableCount(); i++) {
+            SelectTable table = sql.getSelectTable(i);
+
+            // only a table without an alias is named by its name
+            if(qualifier.equals(table.getAlias()) && qualifier.equals(table.getName())) {
+               String qtable = quoteQuotedSegments(table, qualifier);
+               return qtable == null ? null : qtable + "." + XUtil.quoteNameSegment(column, this);
+            }
+         }
+
+         if(hasTable(sql, path, segs)) {
+            return null;
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * Check if the qualifier of a column is the alias or the name of a table of a query.
+    */
+   private static boolean hasTable(UniformSQL sql, String path, List<String> segs) {
+      String column = segs.get(segs.size() - 1);
+      String qualifier = path.substring(0, path.length() - column.length() - 1);
+
+      for(int i = 0; i < sql.getTableCount(); i++) {
+         SelectTable table = sql.getSelectTable(i);
+
+         if(qualifier.equals(table.getAlias()) || qualifier.equals(table.getName())) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Split a table name at the dots that are not inside a quoted segment.
+    */
+   private static List<String> splitTableName(String name) {
+      List<String> segs = new ArrayList<>();
+      int start = 0;
+      char close = 0;
+
+      for(int i = 0; i < name.length(); i++) {
+         char c = name.charAt(i);
+
+         if(close != 0) {
+            if(c == close) {
+               close = 0;
+            }
+         }
+         else if(c == '"' || c == '`') {
+            close = c;
+         }
+         else if(c == '[') {
+            close = ']';
+         }
+         else if(c == '.') {
+            segs.add(name.substring(start, i));
+            start = i + 1;
+         }
+      }
+
+      segs.add(name.substring(start));
+      return segs;
+   }
+
+   /**
+    * Check if a table name segment is quoted.
+    */
+   private static boolean isQuotedTableSegment(String seg) {
+      int last = seg.length() - 1;
+      return last > 0 && (seg.charAt(0) == '"' && seg.charAt(last) == '"' ||
+         seg.charAt(0) == '`' && seg.charAt(last) == '`' ||
+         seg.charAt(0) == '[' && seg.charAt(last) == ']');
+   }
+
    protected void processCatalog(StringBuilder sb, String catalog,
                                  boolean selectClause) {
       sb.append(XUtil.quoteAlias(catalog, this));
@@ -4339,8 +5260,16 @@ public class SQLHelper implements KeywordProvider {
       else if(!physical && uniformSql.getSelection().isAlias(path)) {
          return quoteColumnAlias(path);
       }
+
+      // a correlated column of a quoted outer table ("c".id)
+      String outerPath = quoteOuterQualifier(path);
+
+      if(outerPath != null) {
+         return outerPath;
+      }
+
       // table column?
-      else if(force || uniformSql.isTableColumn(path)) {
+      if(force || uniformSql.isTableColumn(path)) {
          String tname = uniformSql.getTable(path);
 
          if(tname != null && tname.length() > 0) {
@@ -4363,6 +5292,13 @@ public class SQLHelper implements KeywordProvider {
                cpart = path.substring(alias.length() + 1);
             }
             else {
+               // a qualifier written as the end of the table name, e.g. "a".id for "S"."a"
+               String qpath = quoteQualifierSuffix(tname, path);
+
+               if(qpath != null) {
+                  return qpath;
+               }
+
                tpart = null;
                cpart = path;
             }
@@ -4450,7 +5386,8 @@ public class SQLHelper implements KeywordProvider {
          Object tname = uniformSql.getTableName(table);
 
          if(table.equals(tname)) {
-            return quoteTableName(table, selectClause) + "." +
+            String qtable = quoteQuotedSegments(table);
+            return (qtable != null ? qtable : quoteTableName(table, selectClause)) + "." +
                XUtil.quoteAlias(col, this);
          }
          else if(uniformSql.getTableIndex(table) >= 0) {
@@ -4469,29 +5406,60 @@ public class SQLHelper implements KeywordProvider {
    /**
     * Get the name to quote for a group by or order by field written as a quoted identifier
     * (e.g. "x y"), directly or through the alias of a quoted select column.
+    * @param quoted <tt>true</tt> if the group by or order by field itself was written as a
+    *               quoted identifier.
     * @return the unquoted name, or <tt>null</tt> if the field is not quoted.
     */
-   private String getQuotedName(String field) {
+   private String getQuotedName(String field, boolean quoted) {
       JDBCSelection xselect = (JDBCSelection) uniformSql.getSelection();
-      String column = xselect.getAliasColumn(field);
+      int idx = getAliasIndex(xselect, field);
 
-      // an alias is generated as its column, which decides the quoting
-      if(column != null && !column.equals(field)) {
-         return !xselect.isExpression(column) && xselect.isQuoted(column) ? column : null;
+      // an alias is generated as its column, which decides the quoting. By position, two
+      // columns may have the same path (Bug #77573)
+      if(idx >= 0) {
+         return !xselect.isExpression(idx) && xselect.isQuoted(idx) ?
+            xselect.getColumn(idx) : null;
       }
 
-      return uniformSql.isQuotedField(field) ? field : null;
+      return quoted ? field : null;
    }
 
    /**
-    * Get the column segment, as written, of a group by, order by or select name written as
-    * a qualified quoted identifier (t."MixedCase").
+    * Get the column segment, as written, of a group by or order by field written as a
+    * qualified quoted identifier (t."MixedCase").
+    * @param field the group by or order by field.
+    * @param qname the name to quote, from getQuotedName.
+    * @param segment the segment recorded for the field itself.
     * @return the segment, or <tt>null</tt> if the name is not a qualified quoted identifier.
     */
-   private String getQuotedSegment(String name) {
-      String seg = uniformSql.getQuotedFieldColumn(name);
-      return seg != null ? seg :
-         ((JDBCSelection) uniformSql.getSelection()).getQuotedColumn(name);
+   private String getQuotedSegment(String field, String qname, String segment) {
+      if(qname == null) {
+         return null;
+      }
+
+      JDBCSelection xselect = (JDBCSelection) uniformSql.getSelection();
+      int idx = getAliasIndex(xselect, field);
+
+      if(idx >= 0) {
+         return xselect.getQuotedColumn(idx);
+      }
+
+      return segment != null ? segment : xselect.getQuotedColumn(qname);
+   }
+
+   /**
+    * Get the index of the select column a group by or order by field references by its
+    * alias.
+    * @return the index, or -1 if the field is not an alias other than its column.
+    */
+   private static int getAliasIndex(XSelection xselect, String field) {
+      for(int i = 0; i < xselect.getColumnCount(); i++) {
+         if(field.equals(xselect.getAlias(i)) && !field.equals(xselect.getColumn(i))) {
+            return i;
+         }
+      }
+
+      return -1;
    }
 
    /**
@@ -4522,7 +5490,9 @@ public class SQLHelper implements KeywordProvider {
          column = name.substring(dot + 1);
       }
 
-      String quoted = getQuote() + column + getQuote();
+      // escape an embedded quote char by doubling it (#77661)
+      String quoted = getQuote() + column.replace(getQuote(), getQuote() + getQuote()) +
+         getQuote();
 
       if(str.equals(column)) {
          return quoted;
@@ -4913,6 +5883,17 @@ public class SQLHelper implements KeywordProvider {
     * Replace the references to a table with a new alias.
     */
    private String replaceTableByAlias(boolean subQuery, String expr, boolean ignoreNotChangeAlias) {
+      return replaceTableByAlias(subQuery, expr, ignoreNotChangeAlias, true);
+   }
+
+   /**
+    * Replace the references to a table with a new alias.
+    * @param quoteSubqueries <tt>true</tt> to also quote the qualifiers of quoted tables in the
+    * text of the subqueries in the expression, see quoteQualifiers.
+    */
+   private String replaceTableByAlias(boolean subQuery, String expr, boolean ignoreNotChangeAlias,
+                                      boolean quoteSubqueries)
+   {
       Map<String, String> subquerymap = new HashMap<>();
       final HashSet<String> subqueryAliases = new HashSet<>();
 
@@ -4960,10 +5941,154 @@ public class SQLHelper implements KeywordProvider {
          }
       } while(subQuery && (sql = sql.getParent()) != null);
 
+      // a table written quoted ("a") is stored without its quotes in the expression text, as
+      // before, so every reader of the text sees the same text, and is quoted here (#77569)
+      Map<String, String> qualifiers = getQuotedQualifiers();
+
+      if(!qualifiers.isEmpty()) {
+         expr = quoteQualifiers(expr, qualifiers);
+
+         // a scalar subquery of the select list is stored as text, its references to the
+         // tables of this query are quoted here
+         if(quoteSubqueries) {
+            subquerymap.replaceAll((key, sub) -> quoteQualifiers(sub, qualifiers));
+         }
+      }
+
       // restore the subquery in the expression
       expr = restoreSubqueries(expr, subquerymap);
 
       return expr;
+   }
+
+   /**
+    * Get the qualifiers to quote in expression text: the names of the tables of this query,
+    * and of its outer queries, written with quoted segments ("a", "S"."a"), and the ends of
+    * such names ("a" for "S"."a"). The name of a table of an inner query hides the same name
+    * in an outer query.
+    * @return the qualifiers as stored, mapped to the quoted qualifiers.
+    */
+   private Map<String, String> getQuotedQualifiers() {
+      Map<String, String> qualifiers = new HashMap<>();
+
+      // a table changed to a subquery is referred to by its alias, which is not quoted.
+      // The sql generated while parsing is stored as text, without the quotes
+      if(isTableSubquery() || UniformSQL.isUnquoted()) {
+         return qualifiers;
+      }
+
+      Set<String> hidden = new HashSet<>();
+
+      for(UniformSQL sql = uniformSql; sql != null; sql = sql.getOuterSQL()) {
+         List<String> names = new ArrayList<>();
+
+         for(int i = 0; i < sql.getTableCount(); i++) {
+            SelectTable table = sql.getSelectTable(i);
+            Object name = table.getName();
+
+            if(table.getAlias() != null) {
+               names.add(table.getAlias());
+            }
+
+            if(name instanceof String) {
+               names.add((String) name);
+            }
+
+            // only a table without an alias is named by its name
+            if(table.getQuotedSegments() == null || !(name instanceof String) ||
+               !name.equals(table.getAlias()) || hidden.contains(name))
+            {
+               continue;
+            }
+
+            String qname = quoteQuotedSegments(table, (String) name);
+
+            if(qname == null) {
+               continue;
+            }
+
+            qualifiers.putIfAbsent((String) name, qname);
+            List<String> segs = splitTableName((String) name);
+            List<String> qsegs = splitTableName(qname);
+
+            for(int start = 1; qsegs.size() == segs.size() && start < segs.size(); start++) {
+               String suffix = String.join(".", segs.subList(start, segs.size()));
+               String qsuffix = String.join(".", qsegs.subList(start, qsegs.size()));
+
+               if(!suffix.equals(qsuffix) && sql.getTableIndex(suffix) < 0 &&
+                  !hidden.contains(suffix))
+               {
+                  qualifiers.putIfAbsent(suffix, qsuffix);
+               }
+            }
+         }
+
+         hidden.addAll(names);
+      }
+
+      return qualifiers;
+   }
+
+   /**
+    * Replace the qualifiers in expression text that are written at the start of an
+    * identifier, outside quotes and string literals, and followed by a dot. All the
+    * qualifiers are replaced in one pass, so a qualifier is never replaced twice.
+    * @param qualifiers the qualifiers mapped to their replacements.
+    */
+   public static String replaceQualifiers(String expr, Map<String, String> qualifiers) {
+      return quoteQualifiers(expr, qualifiers);
+   }
+
+   /**
+    * Quote the qualifiers in expression text that are written at the start of an identifier,
+    * outside quotes and string literals, and followed by a dot.
+    */
+   private static String quoteQualifiers(String expr, Map<String, String> qualifiers) {
+      List<String> names = new ArrayList<>(qualifiers.keySet());
+      names.sort((a, b) -> b.length() - a.length());
+      StringBuilder sb = new StringBuilder();
+      char close = 0;
+
+      for(int i = 0; i < expr.length(); i++) {
+         char c = expr.charAt(i);
+
+         if(close != 0) {
+            if(c == close) {
+               close = 0;
+            }
+
+            sb.append(c);
+            continue;
+         }
+
+         char prev = i > 0 ? expr.charAt(i - 1) : ' ';
+         boolean start = !Character.isUnicodeIdentifierPart(prev) && prev != '.' &&
+            prev != '"' && prev != '`' && prev != ']' && prev != '$' && prev != '@';
+         String found = null;
+
+         for(int j = 0; start && found == null && j < names.size(); j++) {
+            if(expr.startsWith(names.get(j) + ".", i)) {
+               found = names.get(j);
+            }
+         }
+
+         if(found != null) {
+            sb.append(qualifiers.get(found)).append('.');
+            i += found.length();
+            continue;
+         }
+
+         if(c == '"' || c == '`' || c == '\'') {
+            close = c;
+         }
+         else if(c == '[') {
+            close = ']';
+         }
+
+         sb.append(c);
+      }
+
+      return sb.toString();
    }
 
    /**
@@ -4995,16 +6120,19 @@ public class SQLHelper implements KeywordProvider {
     * subquery string in the map.
     */
    private String hideSubqueries(String expr, Map<String,String> subquerymap) {
-      String[] arr = pattern.split(expr);
+      Matcher matcher = pattern.matcher(expr);
+      boolean found = matcher.find();
 
-      if(arr != null) {
-         arr = Arrays.stream(arr)
-            .filter(str -> !Tool.isEmptyString(str))
-            .toArray(String[]::new);
+      // the expression itself is a subquery (a subquery operand), it's not hidden so the
+      // names of the outer query in it are still replaced, only the subqueries in it are
+      // hidden. The match position is used, not the length of a split piece, which is short
+      // by the leading match and hid a wrong region (77633)
+      if(found && expr.substring(0, matcher.start()).isBlank()) {
+         found = matcher.find();
       }
 
-      if(arr.length > 1) {
-         int s1 = arr[0].length(); // starting position of the subquery
+      if(found) {
+         int s1 = matcher.start(); // starting position of the subquery
          int s2 = findClosingParen(expr, s1);
          String key = "___SUBQUERY__" + subquerymap.size() + "_inetsoft_";
 
@@ -5570,6 +6698,15 @@ public class SQLHelper implements KeywordProvider {
    private List<String> ansiWhereJoins = null;
    // true to generate the ANSI FROM clause without writing joins as cycle conditions
    private boolean noCycleConditions = false;
+   // true if this generation moved or parenthesized a comma separated join group, see
+   // orderCommaGroups (Bug #77675)
+   private boolean commaGroupsChanged = false;
+   // true if commaGroupsChanged did more than move the only RIGHT or FULL join group to the
+   // front, see isCommaGroupsNotMovable (Bug #77675)
+   private boolean commaGroupsNotMovable = false;
+   // true if this generation wrote parsed joins in the outer-last order, see
+   // isOuterLastTextJoins (Bug #77674)
+   private boolean outerLastTextJoins = false;
    private Map<String, String> aliasmap = null; // old table alias -> new alias
    private String version = "";
    private boolean isFormatSQL; //for test auto case. Test will not format sql.
@@ -5578,6 +6715,12 @@ public class SQLHelper implements KeywordProvider {
    // Matches map key access expressions like m['key2'] (ClickHouse/Databricks)
    private static final Pattern MAP_KEY_ACCESS =
       Pattern.compile("([^\\s\\[\\]]+)\\[\\s*'([^\\s']+)'\\s*\\]");
+   // the table of the limited table query that gives the row limit syntax of the database
+   // (appendLimitClause()). Not a name a statement uses, and without a limit keyword.
+   private static final String LIMIT_PLACEHOLDER = "inetsoft_placeholder";
+   // a generated select clause with a top option (getSelectionOption())
+   private static final Pattern SELECT_TOP =
+      Pattern.compile("select(\\s+(distinct|all))?\\s+top\\s");
    // Maps "tableAlias.originalColExpr" -> safe alias used in the inner query
    private final Map<String, String> subQueryMapKeyAliases = new HashMap<>();
 

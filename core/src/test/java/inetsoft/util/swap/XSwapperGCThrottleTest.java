@@ -72,6 +72,35 @@ class XSwapperGCThrottleTest {
       assertEquals(4, gcs.get());
    }
 
+   /**
+    * Bug #77591: requestGC(), which DataCacheSweeper calls, shares the sweep's throttle and
+    * back-off, so it can't add collections on top of the swapper's own.
+    */
+   @Test
+   void requestGCSharesThrottleAndBackOff() {
+      final AtomicInteger gcs = new AtomicInteger();
+      final XSwapper swapper = createSwapper(gcs, 0L);
+      doReturn(XSwapper.CRITICAL_MEM).when(swapper).getMemoryState();
+
+      // the swapper's own sweep just collected
+      assertTrue(swapper.doGC(false));
+      assertFalse(swapper.requestGC(), "request inside the interval was not throttled");
+      assertEquals(1, gcs.get());
+
+      // still critical, so the back-off (20s) holds off the request, but not a waiter
+      advance(15000L);
+      assertFalse(swapper.requestGC(), "back-off was not applied to the request");
+      assertTrue(swapper.doGC(true));
+      assertEquals(2, gcs.get());
+
+      // a request that runs claims the slot for every other caller
+      doReturn(XSwapper.GOOD_MEM).when(swapper).getMemoryState();
+      advance(40000L);
+      assertTrue(swapper.requestGC(), "request was throttled past the back-off");
+      assertFalse(swapper.doGC(true), "request did not claim the shared slot");
+      assertEquals(3, gcs.get());
+   }
+
    @Test
    void spacingScalesWithPauseForWaitersToo() {
       final AtomicInteger gcs = new AtomicInteger();

@@ -518,7 +518,10 @@ export class QueryFieldsPaneComponent implements OnInit, OnChanges {
       dialog.title = add ? "_#(js:Add Expression)" : "_#(js:Edit Expression)";
       dialog.runtimeId = this.runtimeId;
       let selectedFieldTreeNode = this.getSelectedFieldTreeNode();
-      dialog.expression = add ? null : selectedFieldTreeNode ?
+      // a column written as a quoted identifier starts from its quoted spelling, the name
+      // and the tree don't show the quotes (Bug #77573)
+      dialog.expression = add ? null : this.selectedField?.quotedName ?
+         this.selectedField.quotedName : selectedFieldTreeNode ?
          getFieldFullName(selectedFieldTreeNode, true) : this.selectedField.name;
    }
 

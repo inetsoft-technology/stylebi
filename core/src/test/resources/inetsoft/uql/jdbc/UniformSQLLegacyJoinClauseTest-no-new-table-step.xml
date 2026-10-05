@@ -1,0 +1,124 @@
+<uniform_sql parse="true">
+<table>
+<alias><![CDATA[a]]></alias>
+<name><![CDATA[a]]></name>
+<issql><![CDATA[false]]></issql>
+<xlocation><![CDATA[-1]]></xlocation>
+<ylocation><![CDATA[-1]]></ylocation>
+<xScroll><![CDATA[0]]></xScroll>
+<yScroll><![CDATA[0]]></yScroll>
+</table>
+<table>
+<alias><![CDATA[b]]></alias>
+<name><![CDATA[b]]></name>
+<issql><![CDATA[false]]></issql>
+<xlocation><![CDATA[-1]]></xlocation>
+<ylocation><![CDATA[-1]]></ylocation>
+<xScroll><![CDATA[0]]></xScroll>
+<yScroll><![CDATA[0]]></yScroll>
+</table>
+<table>
+<alias><![CDATA[c]]></alias>
+<name><![CDATA[c]]></name>
+<issql><![CDATA[false]]></issql>
+<xlocation><![CDATA[-1]]></xlocation>
+<ylocation><![CDATA[-1]]></ylocation>
+<xScroll><![CDATA[0]]></xScroll>
+<yScroll><![CDATA[0]]></yScroll>
+</table>
+<table>
+<alias><![CDATA[r]]></alias>
+<name><![CDATA[r]]></name>
+<issql><![CDATA[false]]></issql>
+<xlocation><![CDATA[-1]]></xlocation>
+<ylocation><![CDATA[-1]]></ylocation>
+<xScroll><![CDATA[0]]></xScroll>
+<yScroll><![CDATA[0]]></yScroll>
+</table>
+<column>
+<![CDATA[a.id]]>
+<alias><![CDATA[]]></alias>
+<type><![CDATA[]]></type>
+<table><![CDATA[]]></table>
+<description><![CDATA[]]></description>
+<isExp><![CDATA[false]]></isExp>
+</column>
+<column>
+<![CDATA[b.id]]>
+<alias><![CDATA[]]></alias>
+<type><![CDATA[]]></type>
+<table><![CDATA[]]></table>
+<description><![CDATA[]]></description>
+<isExp><![CDATA[false]]></isExp>
+</column>
+<column>
+<![CDATA[c.id]]>
+<alias><![CDATA[]]></alias>
+<type><![CDATA[]]></type>
+<table><![CDATA[]]></table>
+<description><![CDATA[]]></description>
+<isExp><![CDATA[false]]></isExp>
+</column>
+<column>
+<![CDATA[r.id]]>
+<alias><![CDATA[]]></alias>
+<type><![CDATA[]]></type>
+<table><![CDATA[]]></table>
+<description><![CDATA[]]></description>
+<isExp><![CDATA[false]]></isExp>
+</column>
+<where>
+<XSet relation="and" isnot="false" group="false" clause="where">
+<XSet relation="and" isnot="false" group="false" clause="">
+<XSet relation="and" isnot="false" group="false" clause="">
+<XJoin isnot="false" clause="" containsNull="false">
+<expression1>
+<expression type="Field">
+<![CDATA[a.id]]>
+</expression>
+</expression1>
+<expression2>
+<expression type="Field">
+<![CDATA[b.id]]>
+</expression>
+</expression2>
+<op><![CDATA[*=]]></op>
+</XJoin>
+</XSet>
+<XSet relation="or" isnot="false" group="false" clause="">
+</XSet>
+</XSet>
+<XJoin isnot="false" clause="" containsNull="false">
+<expression1>
+<expression type="Field">
+<![CDATA[b.id]]>
+</expression>
+</expression1>
+<expression2>
+<expression type="Field">
+<![CDATA[c.id]]>
+</expression>
+</expression2>
+<op><![CDATA[*=]]></op>
+</XJoin>
+<XJoin isnot="false" clause="" containsNull="false">
+<expression1>
+<expression type="Field">
+<![CDATA[b.k]]>
+</expression>
+</expression1>
+<expression2>
+<expression type="Field">
+<![CDATA[a.k]]>
+</expression>
+</expression2>
+<op><![CDATA[=]]></op>
+</XJoin>
+</XSet>
+</where>
+<sortby></sortby>
+<groupby></groupby>
+<having>
+</having>
+<sqlstring parseResult="0"><![CDATA[select a.id, b.id, c.id, r.id from a left join b on a.id = b.id left join c on b.id = c.id join r on b.k = a.k]]></sqlstring>
+</uniform_sql>

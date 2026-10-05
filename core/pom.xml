@@ -45,6 +45,15 @@
       reporting a green "Tests run: 0".
     -->
     <surefire.groups>core</surefire.groups>
+    <!--
+      The test JVMs surefire runs at once. Each one has its own working directory and sree.home
+      (test-workdir-N), and gets the test classes one at a time, so a class's static state is
+      only shared with the classes that land in the same JVM. Two fit the 4 vCPU / 16 GB CI
+      runners (2g heap each); more would starve the timing-sensitive slow tests of CPU.
+    -->
+    <surefire.forkCount>2</surefire.forkCount>
+    <!-- The default timeout of every test and lifecycle method, a JUnit duration. -->
+    <surefire.testTimeout>5 m</surefire.testTimeout>
   </properties>
 
   <dependencyManagement>
@@ -320,12 +329,6 @@
     <dependency>
       <groupId>at.favre.lib</groupId>
       <artifactId>bcrypt</artifactId>
-      <scope>compile</scope>
-    </dependency>
-
-    <dependency>
-      <groupId>org.pojava</groupId>
-      <artifactId>org.pojava.datetime</artifactId>
       <scope>compile</scope>
     </dependency>
 
@@ -1005,7 +1008,10 @@
         <version>3.2.5</version>
         <configuration>
           <groups>${surefire.groups}</groups>
-          <workingDirectory>${project.build.directory}/test-workdir</workingDirectory>
+          <forkCount>${surefire.forkCount}</forkCount>
+          <!-- a hang that the test timeout cannot interrupt fails the build, not the CI job -->
+          <forkedProcessTimeoutInSeconds>1800</forkedProcessTimeoutInSeconds>
+          <workingDirectory>${project.build.directory}/test-workdir-${surefire.forkNumber}</workingDirectory>
           <argLine>-Xmx2g --add-opens=java.base/jdk.internal.access=ALL-UNNAMED --add-opens=java.base/jdk.internal.misc=ALL-UNNAMED --add-opens=java.base/sun.nio.ch=ALL-UNNAMED --add-opens=java.base/sun.util.calendar=ALL-UNNAMED --add-opens=java.management/com.sun.jmx.mbeanserver=ALL-UNNAMED --add-opens=jdk.internal.jvmstat/sun.jvmstat.monitor=ALL-UNNAMED --add-opens=java.base/sun.reflect.generics.reflectiveObjects=ALL-UNNAMED --add-opens=jdk.management/com.sun.management.internal=ALL-UNNAMED --add-opens=java.base/java.io=ALL-UNNAMED --add-opens=java.base/java.nio=ALL-UNNAMED --add-opens=java.base/java.net=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.util.concurrent=ALL-UNNAMED --add-opens=java.base/java.util.concurrent.locks=ALL-UNNAMED --add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-UNNAMED --add-opens=java.base/java.math=ALL-UNNAMED --add-opens=java.sql/java.sql=ALL-UNNAMED --add-opens=java.base/java.lang.reflect=ALL-UNNAMED --add-opens=java.base/java.time=ALL-UNNAMED --add-opens=java.base/java.text=ALL-UNNAMED --add-opens=java.management/sun.management=ALL-UNNAMED --add-opens=java.desktop/java.awt=ALL-UNNAMED --add-opens=java.desktop/java.beans=ALL-UNNAMED -Djava.awt.headless=true -Duser.language=en -Duser.country=US -Duser.timezone=America/New_York</argLine>
           <environmentVariables>
             <INETSOFT_ADMIN_PASSWORD>Test@Admin1</INETSOFT_ADMIN_PASSWORD>
@@ -1015,10 +1021,11 @@
             <kryo.unsafe>false</kryo.unsafe>
             <show.license.exception>true</show.license.exception>
             <inetsoft.sree.internal.cluster.implementation>inetsoft.sree.internal.cluster.MockCluster</inetsoft.sree.internal.cluster.implementation>
-            <sree.home>${project.build.directory}/test-workdir</sree.home>
+            <sree.home>${project.build.directory}/test-workdir-${surefire.forkNumber}</sree.home>
             <jdbc.driver.dir>${project.build.directory}/jdbc-drivers</jdbc.driver.dir>
             <junit.jupiter.extensions.autodetection.enabled>true</junit.jupiter.extensions.autodetection.enabled>
             <junit.jupiter.extensions.autodetection.include>inetsoft.test.SreeHomeExtension,inetsoft.test.lockorder.LockOrderExtension</junit.jupiter.extensions.autodetection.include>
+            <junit.jupiter.execution.timeout.default>${surefire.testTimeout}</junit.jupiter.execution.timeout.default>
             <!--
               The following settings are because there are tests of date formatting and parsing
               and the assertions can be flaky if the time zone or locale changes. More substantial

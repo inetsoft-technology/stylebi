@@ -20,6 +20,7 @@ package inetsoft.uql.viewsheet;
 import inetsoft.report.TableDataPath;
 import inetsoft.uql.ConditionList;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
@@ -490,6 +491,13 @@ public class SelectionListVSAssembly extends AbstractSelectionVSAssembly
          snode = Tool.getFirstChildNode(snode);
          SelectionList slist = new SelectionList();
          slist.parseXML(snode);
+         DataRef ref = getDataRef();
+
+         // a date saved before #77605 may have a Buddhist or Japanese year
+         if(ref != null && XSchema.isDateType(ref.getDataType())) {
+            slist.toGregorianPersistentDates();
+         }
+
          this.slist = slist;
       }
       else {

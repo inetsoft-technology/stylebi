@@ -20,6 +20,7 @@ package inetsoft.report.lens;
 
 import inetsoft.test.*;
 import inetsoft.uql.XTable;
+import inetsoft.util.swap.SwapFileReadException;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,6 +28,9 @@ import org.junit.jupiter.api.Tag;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+
+import java.io.File;
+import java.io.IOException;
 
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -40,5 +44,46 @@ public class SelfJoinTableLensTest {
       originalTable.addJoin(1, SelfJoinTableLens.NOT_EQUAL_JOIN, 2);
       XTable deserializedTable = TestSerializeUtils.serializeAndDeserialize(originalTable);
       Assertions.assertEquals(SelfJoinTableLens.class, deserializedTable.getClass());
+   }
+
+   /**
+    * A swap file read failure of the base escapes the join instead of silently leaving the
+    * join looking complete with only the matches found before the failure (bug #77651).
+    */
+   @Test
+   public void baseSwapFileReadFailureEscapesTheJoin() {
+      SwapFileReadException failure =
+         new SwapFileReadException(new File("does-not-exist.dat"), new IOException("gone"));
+      FailingBase base = new FailingBase(failure, 5);
+      SelfJoinTableLens lens = new SelfJoinTableLens(base);
+      lens.addJoin(0, SelfJoinTableLens.INNER_JOIN, 1);
+
+      Assertions.assertSame(failure, Assertions.assertThrows(
+         SwapFileReadException.class, () -> lens.moreRows(XTable.EOT)));
+   }
+
+   /**
+    * A base whose data rows from {@code failAtRow} on fail with {@code failure}. Rows before
+    * that match the join (col0 == col1).
+    */
+   private static final class FailingBase extends DefaultTableLens {
+      FailingBase(RuntimeException failure, int failAtRow) {
+         super(new Object[][] {
+            { "id", "value" }, { 1, 1 }, { 2, 2 }, { 3, 3 }, { 4, 4 }, { 5, 5 }, { 6, 6 } });
+         this.failure = failure;
+         this.failAtRow = failAtRow;
+      }
+
+      @Override
+      public boolean moreRows(int row) {
+         if(row >= failAtRow) {
+            throw failure;
+         }
+
+         return super.moreRows(row);
+      }
+
+      private final RuntimeException failure;
+      private final int failAtRow;
    }
 }

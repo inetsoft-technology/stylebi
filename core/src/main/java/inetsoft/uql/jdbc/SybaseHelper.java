@@ -38,6 +38,15 @@ public class SybaseHelper extends SQLHelper {
    }
 
    /**
+    * Sybase ase names are case-sensitive with the default sort order, see
+    * SQLHelper.isAliasCaseInsensitive (Bug #77644).
+    */
+   @Override
+   public boolean isAliasCaseInsensitive() {
+      return false;
+   }
+
+   /**
     * Get the function used for converting to lower case.
     */
    public String getDbLowerCaseFunction() {

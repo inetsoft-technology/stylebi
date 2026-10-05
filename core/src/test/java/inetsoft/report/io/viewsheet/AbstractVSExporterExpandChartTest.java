@@ -35,6 +35,7 @@ import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.util.DataSpace;
 import inetsoft.util.FileSystemService;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -77,6 +78,7 @@ import static org.mockito.Mockito.*;
 @SreeHome(importResources = "/inetsoft/graph/GraphRenderTest.zip")
 @Tag("core")
 @Tag("integration")
+@Disabled("Fails depending on the classes run before it: Jenkins main #358, #363, #389 (Bug #77829)")
 class AbstractVSExporterExpandChartTest {
    // Excel/PowerPoint (supportChartSlices), chart small enough for the normal path
    @Test

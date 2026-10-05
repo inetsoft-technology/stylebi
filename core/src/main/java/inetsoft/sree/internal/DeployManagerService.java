@@ -62,6 +62,7 @@ import java.nio.file.Files;
 import java.security.Principal;
 import java.sql.Timestamp;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -329,10 +330,16 @@ public class DeployManagerService {
       throws Exception
    {
       PasswordEncryption.setDecryptForceLocal(true);
+      // Bug #77628, count the secrets that could not be decrypted with this server's master
+      // password, they are imported as their encrypted value and must be re-entered
+      AtomicInteger decryptFailures = new AtomicInteger();
+      PasswordEncryption.setMasterDecryptFailures(decryptFailures);
+      Set<String> undecryptableAssets = new LinkedHashSet<>();
 
       try {
          importAssets0(overwriting, order, info, desktop, principal, ignoreList, actionRecord,
-            failedList, targetFolderInfo, ignoreUserAssets, bookmarkResolutions);
+            failedList, targetFolderInfo, ignoreUserAssets, bookmarkResolutions,
+            undecryptableAssets);
          Set<String> ignoredQueries = info.getIgnoredQueries();
 
          if(!ignoredQueries.isEmpty()) {
@@ -341,9 +348,20 @@ public class DeployManagerService {
             String msg = ignoredQueries.size() > 1 ? "em.import.ignoredQueries" : "em.import.ignoredQuery";
             failedList.add(catalog.getString(msg, queries));
          }
+
+         if(decryptFailures.get() > 0) {
+            // a warning, not a failure, the assets are imported
+            Catalog catalog = Catalog.getCatalog();
+            String msg = undecryptableAssets.isEmpty() ?
+               catalog.getString("em.import.undecryptableSecrets") :
+               catalog.getString("em.import.undecryptableSecrets.assets",
+                                 String.join(", ", undecryptableAssets));
+            info.getImportWarnings().add(msg);
+         }
       }
       finally {
          PasswordEncryption.setDecryptForceLocal(false);
+         PasswordEncryption.setMasterDecryptFailures(null);
       }
    }
 
@@ -356,7 +374,8 @@ public class DeployManagerService {
                               List<String> failedList,
                               ImportTargetFolderInfo targetFolderInfo,
                               List<String> ignoreUserAssets,
-                              Map<String, Boolean> bookmarkResolutions)
+                              Map<String, Boolean> bookmarkResolutions,
+                              Set<String> undecryptableAssets)
       throws Exception
    {
       List<AssetEntry> vss = new ArrayList<>();
@@ -604,6 +623,9 @@ public class DeployManagerService {
                   changeAssetMap.put(entry, getAssetObjectByAsset(nAsset));
                }
 
+               AtomicInteger decryptFailures = PasswordEncryption.getMasterDecryptFailures();
+               int decryptFailuresBefore = decryptFailures == null ? 0 : decryptFailures.get();
+
                try {
                   IS_IMPORTING.set(true);
                   importAsset(file, nAsset, ignoreSub, failedList, embeddedTables,
@@ -612,6 +634,10 @@ public class DeployManagerService {
                }
                finally {
                   IS_IMPORTING.remove();
+               }
+
+               if(decryptFailures != null && decryptFailures.get() > decryptFailuresBefore) {
+                  undecryptableAssets.add((nAsset != null ? nAsset : asset).getPath());
                }
             }
 
@@ -642,7 +668,14 @@ public class DeployManagerService {
                AssetContent.ALL);
             ViewsheetSandbox box = new ViewsheetSandbox(vs,
                Viewsheet.SHEET_DESIGN_MODE, null, false, entry);
-            box.updateAssemblies();
+
+            // Bug #77609: the sandbox is only needed for updateAssemblies()
+            try {
+               box.updateAssemblies();
+            }
+            finally {
+               box.dispose();
+            }
          }
       }
       catch(Throwable e) {

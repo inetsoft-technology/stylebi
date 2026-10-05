@@ -110,8 +110,26 @@ class UniformSQLDerivedColumnListRefuseTest {
 
    // refused shapes that only some databases run
    private static final String[] REFUSED_PARSE_ONLY = {
-      // an old SQL Server table hint matches a derived column list
+      // the deprecated SQL Server table hint of an aliased table matches a derived column
+      // list, qualified (broken on regeneration before) or not
       "select t.id from a t (nolock)",
+      "select id, k from a t (nolock)",
+      "select x.id, y.k from a x (nolock) join b y (nolock) on x.id = y.id",
+      // the hint of an aliased table is a syntax error, as before
+      "select t.id from a t with (nolock)",
+      // the SQL Server table hint of an unaliased table matches the alias with and a
+      // column list. it is refused too (Bug #77492, UniformSQLTableHintRefuseTest)
+      "select id, k from a with (nolock)",
+      "select id, k from a with(nolock)",
+      "select id, k from a WITH (NOLOCK)",
+      "select id, k from a with (nolock, readpast)",
+      "select distinct id from a with (nolock)",
+      "select id from a where id in (select id from b with (nolock))",
+      "select * from a with (nolock) where id > 1",
+      // a quoted with alias is a real derived column list
+      "select * from (select id, k from a) \"with\"(p, q)",
+      "select * from (select id, k from a) [with](p, q)",
+      "select * from a as \"WITH\"(p, q)",
       "select a.id from a where a.k = (select max(t.p) from (select k from b) t(p))",
       // Derby rejects a qualified ORDER BY column of a column list
       "select t.p from (select id, k from a) t(p, q) order by t.p",
@@ -164,11 +182,11 @@ class UniformSQLDerivedColumnListRefuseTest {
                  ex.getMessage());
    }
 
-   // the original sql runs unchanged on the data cache path and returns its own rows and
-   // column names. the select * shape returned ID, K instead of P, Q before the fix
+   // the data cache path sends the original sql unchanged. before the fix it parsed, so the
+   // normalizer sent the regenerated sql (the select * shape returned ID, K instead of P, Q)
    @ParameterizedTest
    @MethodSource("refusedRows")
-   void originalSqlRuns(String text) throws Exception {
+   void originalSqlIsSent(String text) throws Exception {
       UniformSQL sql = parseAsync(text);
       assertEquals(UniformSQL.PARSE_FAILED, sql.getParseResult(), text);
 
@@ -176,30 +194,26 @@ class UniformSQLDerivedColumnListRefuseTest {
       query.setSQLDefinition(sql);
       JDBCQueryCacheNormalizer normalizer = new JDBCQueryCacheNormalizer(query);
       assertFalse(normalizer.isClearedSqlString(), text);
-      String sent = sql.getSQLString();
-      assertEquals(text, sent);
+      assertEquals(text, sql.getSQLString());
 
-      // Derby rejects a few qualified references to a column list (DISTINCT t.p), so the
-      // sent sql only has to do what the original does there. HSQLDB runs every shape
-      for(String url : new String[] { DERBY_URL, HSQLDB_URL }) {
-         try(Connection conn = connect(url); Statement stmt = conn.createStatement()) {
-            List<String> expected = rowsOrError(stmt, text);
-
-            if(url.equals(HSQLDB_URL)) {
-               assertNotNull(expected, url + ": " + text);
-            }
-
-            assertEquals(expected, rowsOrError(stmt, sent), url + ": " + text);
-         }
+      // the shape is sql a database runs
+      try(Connection conn = connect(HSQLDB_URL); Statement stmt = conn.createStatement()) {
+         rows(stmt, text);
       }
    }
 
-   private static List<String> rowsOrError(Statement stmt, String query) {
-      try {
-         return rows(stmt, query);
-      }
-      catch(SQLException ex) {
-         return null;
+   // with is reserved, so an unquoted with alias with a column list is not sql a database
+   // runs as a column list
+   @ParameterizedTest
+   @ValueSource(strings = {
+      "select * from (select id, k from a) with (p, q)",
+      "select * from a with (p, q)",
+   })
+   void withAliasIsNotSql(String text) throws Exception {
+      for(String url : new String[] { DERBY_URL, HSQLDB_URL }) {
+         try(Connection conn = connect(url); Statement stmt = conn.createStatement()) {
+            assertThrows(SQLException.class, () -> rows(stmt, text), url + ": " + text);
+         }
       }
    }
 
@@ -288,8 +302,8 @@ class UniformSQLDerivedColumnListRefuseTest {
    }
 
    // the syntax checks of a parse with no model (a predicate) don't refuse the list.
-   // XUtil.isSQLExpressionValid parses with the model, so it reports a scalar subquery with
-   // a derived column list invalid until Bug #77493 makes it check the syntax only
+   // XUtil.isSQLExpressionValid falls back to this parse on a refusal (Bug #77493), so a
+   // scalar subquery with a derived column list stays valid (SQLExpressionValidityRefusalTest)
    @Test
    void guessParseDoesNotRefuse() throws Exception {
       SQLParser parser = new SQLParser(new SQLLexer(new StringReader(
@@ -384,6 +398,10 @@ class UniformSQLDerivedColumnListRefuseTest {
       case "h2" -> {
          ds.setDriver("org.h2.Driver");
          ds.setURL("jdbc:h2:mem:test");
+      }
+      case "sql server" -> {
+         ds.setDriver("com.microsoft.sqlserver.jdbc.SQLServerDriver");
+         ds.setURL("jdbc:sqlserver://localhost:1433;databaseName=test");
       }
       case "postgresql" -> {
          ds.setDriver("org.postgresql.Driver");

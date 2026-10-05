@@ -44,7 +44,7 @@ import static org.junit.jupiter.api.Assertions.*;
                                  SQLHelperNotEqualJoinTest.Config.class },
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
-@Tag("core")
+@Tag("slow")
 class SQLParserDoubleNegationTest {
    private static final String SEL = "select a.id ai, a.k ak, a.s az, b.id bi, b.k bk ";
    private static final String SEL_A = "select a.id ai, a.k ak, a.s az from a ";

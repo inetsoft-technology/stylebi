@@ -979,6 +979,12 @@ public class TimeSliderVSAssembly extends AbstractSelectionVSAssembly
          snode = Tool.getFirstChildNode(snode);
          SelectionList slist = new SelectionList();
          slist.parseXML(snode);
+
+         // a date saved before #77605 may have a Buddhist or Japanese year
+         if(getTimeSliderInfo().isPersistentDateValue()) {
+            slist.toGregorianPersistentDates();
+         }
+
          setStateSelectionList(slist);
       }
       else {

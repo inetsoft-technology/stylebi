@@ -52,12 +52,14 @@ import static inetsoft.util.AbstractPasswordEncryption.MASTER_PREFIX;
       vertical = true,
       colspan = 2,
       elements = {
-         @View2(value = "clientId", visibleMethod = "useCredentialForOauth"),
-         @View2(value = "clientSecret", visibleMethod = "useCredentialForOauth"),
+         @View2(value = "clientId", visibleMethod = "useCredentialForOauthClient"),
+         @View2(value = "clientSecret", visibleMethod = "useCredentialForOauthClient"),
          @View2(value = "authorizationUri", visibleMethod = "useCredentialForOauth"),
-         @View2(value = "tokenUri", visibleMethod = "useCredentialForOauth"),
-         @View2(value = "scope", visibleMethod = "useCredentialForOauth"),
+         @View2(value = "tokenUri", visibleMethod = "useCredentialForOauthClient"),
+         @View2(value = "scope", visibleMethod = "useCredentialForOauthClient"),
          @View2(value = "oauthFlags", visibleMethod = "useCredentialForOauth"),
+         @View2(value = "clientAuthMethod", visibleMethod = "isOauthClientCredentials"),
+         @View2(value = "audience", visibleMethod = "isOauthClientCredentials"),
          @View2(
             type = ViewType.BUTTON,
             text = "Authorize",
@@ -125,7 +127,8 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
       }
 
       AuthType type = getAuthType();
-      return type == AuthType.BASIC || type == AuthType.OAUTH;
+      return type == AuthType.BASIC || type == AuthType.OAUTH ||
+         type == AuthType.OAUTH_CLIENT_CREDENTIALS;
    }
 
    @Override
@@ -143,8 +146,9 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
    }
 
    @Property(label="Authentication")
-   @PropertyEditor(tags={"NONE", "BASIC", "OAUTH", "TWO_STEP", "KERBEROS"},
-                   labels={"None", "Basic", "OAuth2/OpenID Connect", "Two-Step Token", "Kerberos"})
+   @PropertyEditor(tags={"NONE", "BASIC", "OAUTH", "OAUTH_CLIENT_CREDENTIALS", "TWO_STEP", "KERBEROS"},
+                   labels={"None", "Basic", "OAuth2/OpenID Connect", "OAuth2 Client Credentials",
+                           "Two-Step Token", "Kerberos"})
    public AuthType getAuthType() {
       return authType;
    }
@@ -444,6 +448,18 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
       return super.useCredential() && isOauth();
    }
 
+   public boolean isOauthClientCredentials() {
+      return getAuthType() == AuthType.OAUTH_CLIENT_CREDENTIALS;
+   }
+
+   /**
+    * @return true if the client ID, secret, token URI and scope are entered in the data source
+    *         for either of the OAuth authentication types.
+    */
+   public boolean useCredentialForOauthClient() {
+      return super.useCredential() && (isOauth() || isOauthClientCredentials());
+   }
+
    public boolean useCredentialForBasicAuth() {
       return super.useCredential() && isBasicAuth();
    }
@@ -637,6 +653,35 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
       this.tokenExpiration = tokenExpiration;
    }
 
+   /**
+    * How the client ID and secret are sent to the token endpoint for the client credentials grant.
+    */
+   @Property(label = "Client Authentication")
+   @PropertyEditor(tags = {"BASIC", "POST"},
+                   labels = {"HTTP Basic Header", "Request Body"},
+                   dependsOn = "authType")
+   public ClientAuthMethod getClientAuthMethod() {
+      return clientAuthMethod;
+   }
+
+   public void setClientAuthMethod(ClientAuthMethod clientAuthMethod) {
+      this.clientAuthMethod = clientAuthMethod;
+   }
+
+   /**
+    * The optional audience parameter of the client credentials token request, required by some
+    * authorization servers to identify the API that the token is for.
+    */
+   @Property(label = "Audience")
+   @PropertyEditor(dependsOn = "authType")
+   public String getAudience() {
+      return audience;
+   }
+
+   public void setAudience(String audience) {
+      this.audience = audience;
+   }
+
    public void updateTokens(Tokens tokens) {
       setAccessToken(tokens.accessToken());
       setRefreshToken(tokens.refreshToken());
@@ -739,6 +784,14 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
          writer.format("<oauthFlags><![CDATA[%s]]></oauthFlags>%n", oauthFlags);
       }
 
+      if(clientAuthMethod != null) {
+         writer.format("<clientAuthMethod>%s</clientAuthMethod>%n", clientAuthMethod);
+      }
+
+      if(audience != null) {
+         writer.format("<audience><![CDATA[%s]]></audience>%n", audience);
+      }
+
       //zoho datasource writes tokenExpiration directly
       if(!(this instanceof ZohoCRMDataSource)) {
          writer.format("<tokenExpiration>%d</tokenExpiration>%n", tokenExpiration);
@@ -815,6 +868,9 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
       tokenUri = Tool.getChildValueByTagName(root, "tokenUri");
       scope = Tool.getChildValueByTagName(root, "scope");
       oauthFlags = Tool.getChildValueByTagName(root, "oauthFlags");
+      clientAuthMethod = parseClientAuthMethod(
+         Tool.getChildValueByTagName(root, "clientAuthMethod"));
+      audience = Tool.getChildValueByTagName(root, "audience");
       String val = Tool.getChildValueByTagName(root, "accessToken");
 
       if(val != null) {
@@ -845,6 +901,26 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
       }
    }
 
+   /**
+    * Parses the saved client authentication method, defaulting to BASIC for data sources saved
+    * before it existed and for a value this version doesn't know, so that the data source still
+    * loads.
+    */
+   private ClientAuthMethod parseClientAuthMethod(String value) {
+      if(value == null || value.isEmpty() || "null".equals(value)) {
+         return ClientAuthMethod.BASIC;
+      }
+
+      try {
+         return ClientAuthMethod.valueOf(value);
+      }
+      catch(IllegalArgumentException e) {
+         LOG.warn("Unknown client authentication method {} for data source {}, using BASIC",
+                  value, getFullName());
+         return ClientAuthMethod.BASIC;
+      }
+   }
+
    protected void refreshTokens() {
       refreshTokens(false);
    }
@@ -854,6 +930,8 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
          return;
       }
 
+      Tokens tokens;
+
       try {
          String flags = getOauthFlags();
          Set<String> flagsSet = new HashSet<>();
@@ -862,9 +940,9 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
             flagsSet.addAll(Arrays.asList(getOauthFlags().split(" ")));
          }
 
-         Tokens tokens = AuthorizationClient.refresh(getServiceName(),
-                                                     getRefreshToken(), getClientId(), getClientSecret(), getTokenUri(), flagsSet,
-                                                     useBasicAuth, null);
+         tokens = AuthorizationClient.refresh(getServiceName(),
+                                              getRefreshToken(), getClientId(), getClientSecret(), getTokenUri(), flagsSet,
+                                              useBasicAuth, null);
          updateTokens(tokens);
       }
       catch(Exception e) {
@@ -874,7 +952,9 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
 
       if(this.getFullName() != null) {
          try {
-            XRepository.getRepository().updateDataSource(this, getFullName());
+            // Bug #77692, save the tokens onto the stored definition, not this runtime instance
+            // whose variables may have been replaced with the values of the query
+            XRepository.getRepository().updateDataSourceTokens(this, tokens);
          }
          catch(Exception e) {
             LOG.warn("Failed to save data source after refreshing token", e);
@@ -923,7 +1003,9 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
          Objects.equals(authorizationUri, that.authorizationUri) &&
          Objects.equals(tokenUri, that.tokenUri) &&
          Objects.equals(scope, that.scope) &&
-         Objects.equals(oauthFlags, that.oauthFlags);
+         Objects.equals(oauthFlags, that.oauthFlags) &&
+         clientAuthMethod == that.clientAuthMethod &&
+         Objects.equals(audience, that.audience);
    }
 
    @Override
@@ -978,5 +1060,7 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
    private String accessToken;
    private String refreshToken;
    private long tokenExpiration;
+   private ClientAuthMethod clientAuthMethod = ClientAuthMethod.BASIC;
+   private String audience;
    private static final Logger LOG = LoggerFactory.getLogger(AbstractRestDataSource.class);
 }

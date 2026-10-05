@@ -26,6 +26,8 @@ import inetsoft.uql.erm.XLogicalModel;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.Config;
 import inetsoft.util.FileSystemService;
+import inetsoft.util.MessageException;
+import inetsoft.web.admin.security.ConnectionStatus;
 import inetsoft.web.admin.content.repository.DatabaseDatasourcesService;
 import inetsoft.web.portal.model.database.StringWrapper;
 import inetsoft.web.portal.model.database.events.CheckDependenciesEvent;
@@ -68,6 +70,7 @@ class DataSourceDeletePermissionTest {
    private final Set<String> grants = new HashSet<>();
 
    private XRepository repository;
+   private DataSourceRegistry registry;
    private DatasourcesService datasourcesService;
    private DataSourceBrowserService browserService;
    private DataSourceController controller;
@@ -85,11 +88,12 @@ class DataSourceDeletePermissionTest {
       when(repository.getDataModel(DS)).thenReturn(model);
       XDataModel otherModel = dataModel("OtherLM", "Hidden/OtherWorksheet");
       when(repository.getDataModel(OTHER_DS)).thenReturn(otherModel);
-      when(repository.getSubDataSourceNames(FOLDER)).thenReturn(new String[] { DS, OTHER_DS });
+      registry = mock(DataSourceRegistry.class);
+      when(registry.getFolderTreeDataSourceNames(FOLDER)).thenReturn(List.of(DS, OTHER_DS));
 
       datasourcesService = spy(new DatasourcesService(
-         repository, securityEngine, mock(DataSourceStatusService.class),
-         mock(DataSourceRegistry.class), mock(Config.class)));
+         repository, securityEngine, mock(DataSourceStatusService.class), registry,
+         mock(Config.class)));
       doReturn(null).when(datasourcesService).deleteDataSource(any(), any(), anyBoolean());
       browserService = mock(DataSourceBrowserService.class);
       controller = new DataSourceController(
@@ -137,7 +141,7 @@ class DataSourceDeletePermissionTest {
       grant(ResourceType.DATA_SOURCE, DS, ResourceAction.DELETE);
 
       assertDenied(() -> controller.checkDsFolderOuterDependencies(folderEvent(), principal));
-      verify(repository, never()).getSubDataSourceNames(anyString());
+      verify(registry, never()).getFolderTreeDataSourceNames(anyString());
       verify(repository, never()).getDataModel(anyString());
    }
 
@@ -157,7 +161,7 @@ class DataSourceDeletePermissionTest {
    void folderDependencies_withFolderDelete_omitsTextOfDeniedSourceListedFirst() throws Exception {
       // the first source with dependencies ends the scan, so put the denied one first to show
       // that its text is skipped rather than merely never reached
-      when(repository.getSubDataSourceNames(FOLDER)).thenReturn(new String[] { OTHER_DS, DS });
+      when(registry.getFolderTreeDataSourceNames(FOLDER)).thenReturn(List.of(OTHER_DS, DS));
       grant(ResourceType.DATA_SOURCE_FOLDER, FOLDER, ResourceAction.DELETE);
       grant(ResourceType.DATA_SOURCE, DS, ResourceAction.DELETE);
 
@@ -185,7 +189,7 @@ class DataSourceDeletePermissionTest {
 
       assertDenied(() -> controller.checkDsOuterDependenciesSelected(
          request(List.of(item("ds", DS)), List.of(item(FOLDER, FOLDER))), principal));
-      verify(repository, never()).getSubDataSourceNames(anyString());
+      verify(registry, never()).getFolderTreeDataSourceNames(anyString());
       verify(repository, never()).getDataModel(anyString());
    }
 
@@ -226,6 +230,7 @@ class DataSourceDeletePermissionTest {
    @Test
    void deleteSelected_withDelete_deletesAll() throws Exception {
       grant(ResourceType.DATA_SOURCE, DS, ResourceAction.DELETE);
+      grant(ResourceType.DATA_SOURCE, OTHER_DS, ResourceAction.DELETE);
       grant(ResourceType.DATA_SOURCE_FOLDER, FOLDER, ResourceAction.DELETE);
 
       controller.deleteDataSources(
@@ -233,6 +238,35 @@ class DataSourceDeletePermissionTest {
 
       verify(datasourcesService).deleteDataSource(eq(DS), any(), eq(true));
       verify(browserService).deleteDataSourceFolder(eq(FOLDER), any(), eq(true), eq(principal));
+   }
+
+   // Bug #77731: a data source in the selected folder that the user can't delete refuses the
+   // whole selection, before anything is deleted
+   @Test
+   void deleteSelected_withoutNestedSourceDelete_deletesNothing() throws Exception {
+      grant(ResourceType.DATA_SOURCE, DS, ResourceAction.DELETE);
+      grant(ResourceType.DATA_SOURCE_FOLDER, FOLDER, ResourceAction.DELETE);
+      grant(ResourceType.DATA_SOURCE, ROOT_DS, ResourceAction.DELETE);
+
+      assertDenied(() -> controller.deleteDataSources(
+         request(List.of(item("ds", ROOT_DS)), List.of(item(FOLDER, FOLDER))), principal));
+      verify(datasourcesService, never()).deleteDataSource(any(), any(), anyBoolean());
+      verify(browserService, never()).deleteDataSourceFolder(any(), any(), anyBoolean(), any());
+   }
+
+   // Bug #77731: a folder delete refused after the check isn't reported as a success
+   @Test
+   void deleteSelected_folderDeleteRefused_throws() throws Exception {
+      grant(ResourceType.DATA_SOURCE, DS, ResourceAction.DELETE);
+      grant(ResourceType.DATA_SOURCE, OTHER_DS, ResourceAction.DELETE);
+      grant(ResourceType.DATA_SOURCE_FOLDER, FOLDER, ResourceAction.DELETE);
+      when(browserService.deleteDataSourceFolder(eq(FOLDER), any(), eq(true), eq(principal)))
+         .thenReturn(new ConnectionStatus("Permission denied to delete datasource folder"));
+
+      MessageException thrown = assertThrows(MessageException.class, () ->
+         controller.deleteDataSources(request(List.of(), List.of(item(FOLDER, FOLDER))),
+                                      principal));
+      assertEquals("Permission denied to delete datasource folder", thrown.getMessage());
    }
 
    private static XDataModel dataModel(String lmName, Object dependency) {

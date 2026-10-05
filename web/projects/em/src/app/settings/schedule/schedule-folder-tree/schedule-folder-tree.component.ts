@@ -359,8 +359,9 @@ export class ScheduleFolderTreeComponent implements OnInit, OnDestroy {
    }
 
    /**
-    * Whether the searchNode is descendant of root node.
-    * @param root
+    * Whether the searchNode is one of the parents or a descendant of one. Bug #77705, a sibling
+    * whose name starts with the same text, e.g. "Fx" for "F", is not a descendant.
+    * @param parents
     * @param searchNode
     */
    private isDescendant(parents: RepositoryTreeNode[], searchNode: RepositoryTreeNode): boolean {
@@ -369,7 +370,7 @@ export class ScheduleFolderTreeComponent implements OnInit, OnDestroy {
       }
 
       return parents.some(parent => !!searchNode && !!parent && !!searchNode.path
-         && searchNode.path.startsWith(parent.path));
+         && (searchNode.path === parent.path || searchNode.path.startsWith(parent.path + "/")));
    }
 
    excludeCurrentPath(parent: RepositoryTreeNode, originalPaths: string[]): void {

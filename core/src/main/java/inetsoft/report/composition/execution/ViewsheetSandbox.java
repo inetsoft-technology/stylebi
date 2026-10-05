@@ -5943,10 +5943,6 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     * Remove and recreate the MV for this viewsheet.
     */
    private void recreateMVOnDemand() {
-      // make sure the mapped buffers are collected since it's probably
-      // already open when the recreating mv is triggered
-      System.gc();
-
       MVManager mgr = MVManager.getManager();
       String vsId = entry.toIdentifier();
       MVDef[] marr = mgr.list(false, def -> !def.isWSMV());

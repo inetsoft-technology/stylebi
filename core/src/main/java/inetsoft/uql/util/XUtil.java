@@ -242,6 +242,40 @@ public final class XUtil {
     * @return the new query after the process.
     */
    public static XQuery clearComments(XQuery query) {
+      return clearComments(query, null);
+   }
+
+   /**
+    * Clear the comments in the sql statement of a query that is executed. Bug #77788, a comment
+    * line (first non-blank characters --) that starts inside a slash-star comment in some
+    * database and ends or changes that comment (a star-slash after the --) is the text of that
+    * comment to the database. Removing it would let the comment run on to a later star-slash
+    * and hide the sql between them, such as a vpm condition or the where clause, and keeping
+    * it would run sql the vpm didn't read, so the query fails instead.
+    * See SQLQuoteScanner.findCommentChanges.
+    * @param query the specified query to modify.
+    * @return the new query after the process.
+    * @throws SQLException if a comment line ends or changes a slash-star comment.
+    */
+   public static XQuery clearCommentsToExecute(XQuery query) throws SQLException {
+      List<String> closing = new ArrayList<>();
+      XQuery result = clearComments(query, closing);
+
+      if(!closing.isEmpty()) {
+         throw new SQLException("The query " + query.getName() + " can't be run: its -- " +
+            "comment line \"" + closing.get(0).trim() + "\" ends a /* */ comment, which the " +
+            "databases read differently. Move the */ off the -- line.");
+      }
+
+      return result;
+   }
+
+   /**
+    * Clear the comments in the sql statement of a query.
+    * @param closing if not null, it gets the comment lines that end or change a slash-star
+    *                comment.
+    */
+   private static XQuery clearComments(XQuery query, List<String> closing) {
       if(!(query instanceof JDBCQuery)) {
          return query;
       }
@@ -262,6 +296,8 @@ public final class XUtil {
       String str = sql.getSQLString();
 
       final StringBuilder sb = new StringBuilder();
+      final List<String> lines = new ArrayList<>();
+      final List<int[]> ranges = new ArrayList<>();
       SQLIterator iterator = new SQLIterator(str);
       SQLIterator.SQLListener listener = (type, value, comment) -> {
          switch(type) {
@@ -274,6 +310,13 @@ public final class XUtil {
          case SQLIterator.WHERE_ELEMENT:
             sb.append(value);
             break;
+         case SQLIterator.COMMENT_ELEMENT:
+            if(closing != null) {
+               lines.add(value);
+               ranges.add(new int[] { iterator.getLineStart(), iterator.getLineEnd() });
+            }
+
+            break;
          default:
             // do nothing
             break;
@@ -282,6 +325,18 @@ public final class XUtil {
 
       iterator.addSQLListener(listener);
       iterator.iterate();
+
+      if(closing != null) {
+         boolean[] changed = SQLQuoteScanner.findCommentChanges(
+            str, ranges.stream().mapToInt(range -> range[0]).toArray(),
+            ranges.stream().mapToInt(range -> range[1]).toArray());
+
+         for(int i = 0; i < changed.length; i++) {
+            if(changed[i]) {
+               closing.add(lines.get(i));
+            }
+         }
+      }
 
       sql.setSQLString(sb.toString(), false);
 
@@ -665,6 +720,13 @@ public final class XUtil {
                                              KeywordProvider provider) {
       String quote = provider == null ? "\"" : provider.getQuote();
 
+      // a name that already looks fully wrapped (e.g. a qualified-name segment a caller
+      // re-quotes, like "id" built while assembling "a"."id") is passed through as-is. This
+      // is ambiguous with a raw name whose own first and last character both happen to be
+      // the quote char (#77661), but callers throughout this codebase rely on this shortcut
+      // for already-wrapped segments far more than the rare literal case needs it covered
+      // here; the one confirmed raw-content case (quoteDot, SQLParser.g) checks for an
+      // embedded quote itself before ever reaching this method.
       if(str.startsWith(quote) && str.endsWith(quote) && str.length() > 1) {
          return false;
       }
@@ -690,21 +752,28 @@ public final class XUtil {
    public static final boolean isSpecial(String str, boolean quoteKeyword,
                                          KeywordProvider provider) {
       int length = str.length();
-      str = str.toLowerCase();
       provider = provider == null ? new SQLHelper() : provider;
       String quote = provider.getQuote();
 
-      // check for sql keyword
-      if(quoteKeyword && provider.isKeyword(str)) {
+      // check for sql keyword. Only the lookup is folded, the checks below are case
+      // insensitive, and a fold can change the length (İ lower-cases to i and U+0307)
+      if(quoteKeyword && provider.isKeyword(str.toLowerCase(Locale.ROOT))) {
          return true;
       }
 
+      // see isSpecialName()'s comment on this same shortcut
       if(str.startsWith(quote) && str.endsWith(quote) && length > 1) {
          return false;
       }
 
       for(int i = 0; i < length; i++) {
          char ic = str.charAt(i);
+
+         // an embedded quote char must be quoted (and escaped on wrap) so it isn't read as
+         // the closing delimiter when the wrapped name is reparsed (#77661)
+         if(quote.indexOf(ic) >= 0) {
+            return true;
+         }
 
          switch(ic) {
          case '_': // quote alias with '_' as the first char for oracle
@@ -714,6 +783,9 @@ public final class XUtil {
 
             break;
          case ' ':
+         case '\n':
+         case '\r':
+         case '\t':
          case '$':
          case '@':
          case '&':
@@ -758,8 +830,52 @@ public final class XUtil {
          return true;
       }
 
+      // PostgreSQL positional parameter, e.g. $1, $2 -- not a quotable identifier and must
+      // stay unquoted to keep its meaning as a bind parameter marker
+      if(str.length() > 1 && str.charAt(0) == '$') {
+         boolean allDigits = true;
+
+         for(int i = 1; i < str.length(); i++) {
+            if(!Character.isDigit(str.charAt(i))) {
+               allDigits = false;
+               break;
+            }
+         }
+
+         if(allDigits) {
+            return true;
+         }
+      }
+
       return false;
    }
+
+   /**
+    * Check if the text is a keyword-function written without parens (e.g. CURRENT_TIMESTAMP),
+    * or an Oracle pseudo-column (e.g. ROWNUM, SYSDATE). It is a keyword on most databases, but
+    * written unquoted it means the function, not a column, so it must not be quoted then
+    * (Bug #77763). The same name written quoted ("user") is a column.
+    */
+   public static boolean isNiladicKeywordFunction(String str) {
+      if(str == null) {
+         return false;
+      }
+
+      for(String word : NILADIC_KEYWORD_FUNCTIONS) {
+         if(word.equalsIgnoreCase(str)) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   private static final String[] NILADIC_KEYWORD_FUNCTIONS = {
+      "current_date", "current_time", "current_timestamp", "localtime", "localtimestamp",
+      "current_user", "session_user", "system_user", "user",
+      // Oracle pseudo-columns, not keywords on the other databases
+      "rownum", "sysdate", "rowid"
+   };
 
    /**
     * Quote one name segment.
@@ -800,7 +916,10 @@ public final class XUtil {
          return name;
       }
 
-      return isSpecial || name.indexOf('.') >= 0 ? quote + name + quote : name;
+      // escape an embedded quote char by doubling it, so it isn't read as the closing
+      // delimiter when the wrapped name is reparsed (#77661)
+      return isSpecial || name.indexOf('.') >= 0 ?
+         quote + name.replace(quote, quote + quote) + quote : name;
    }
 
    /**
@@ -838,7 +957,8 @@ public final class XUtil {
          }
 
          if(isSpecialName(arr[i], quoteKeyword, provider)) {
-            str.append(quote + arr[i] + quote);
+            // escape an embedded quote char by doubling it (#77661)
+            str.append(quote).append(arr[i].replace(quote, quote + quote)).append(quote);
          }
          else {
             str.append(arr[i]);
@@ -873,8 +993,9 @@ public final class XUtil {
          return alias;
       }
 
+      // escape an embedded quote char by doubling it (#77661)
       return quote == null || " ".equals(quote) || "".equals(quote) ?
-         alias : quote + alias + quote;
+         alias : quote + alias.replace(quote, quote + quote) + quote;
    }
 
    public static String getQuote(JDBCDataSource xds) {
@@ -1324,11 +1445,60 @@ public final class XUtil {
    }
 
    /**
-    * Get all the users.
+    * Get all the users. A call a script makes itself gets only the users of the context
+    * principal's current organization (Bug #77793).
     * @return all the users.
     */
    public static IdentityID[] getUsers() {
-      return getXIdentityFinder().getUsers();
+      IdentityID[] users = getXIdentityFinder().getUsers();
+
+      if(users == null || users.length == 0 || !isScriptCall()) {
+         return users;
+      }
+
+      // the identity finder lists the users of every organization, which a sheet
+      // script of one organization must not see
+      String orgID = OrganizationManager.getInstance()
+         .getCurrentOrgID(ThreadContext.getContextPrincipal());
+
+      return Arrays.stream(users)
+         .filter(user -> user != null && Tool.equals(orgID, user.getOrgID()))
+         .toArray(IdentityID[]::new);
+   }
+
+   /**
+    * Whether the caller of an {@code inetsoft.uql} method is a script itself: the classes of
+    * the call stack, innermost first, reach the GraalJS host interop that a script calls Java
+    * through before any class that is not {@code inetsoft.uql} or JDK code. Product code in
+    * between makes the call that code's. The stack decides, not
+    * {@link JavaScriptEngine#isScriptThread()}, so a script function that Java calls back
+    * after the script returned (a comparator, for example) is still the script's call.
+    * Only meaningful when called from {@code inetsoft.uql} code, which the walk skips: called
+    * from any other package it always returns false, because the walk stops at that caller.
+    * {@code ScriptDataSourceAccess.isScriptAccess} applies the same rule; keep the two in step.
+    */
+   public static boolean isScriptCall() {
+      return StackWalker.getInstance().walk(frames -> isScriptCall(
+         frames.map(StackWalker.StackFrame::getClassName).iterator()));
+   }
+
+   static boolean isScriptCall(Iterator<String> classes) {
+      while(classes.hasNext()) {
+         String name = classes.next();
+
+         if(name.startsWith("com.oracle.truffle.") || name.startsWith("org.graalvm.")) {
+            return true;
+         }
+
+         if(!name.startsWith("inetsoft.uql.") && !name.startsWith("java.") &&
+            !name.startsWith("javax.") && !name.startsWith("jdk.") &&
+            !name.startsWith("sun."))
+         {
+            return false;
+         }
+      }
+
+      return false;
    }
 
    /**
@@ -2400,23 +2570,35 @@ public final class XUtil {
     */
    private static boolean isTableUsedInWhere(XFilterNode filter, Object tname,
                                              String talias, SQLHelper helper) {
+      return isTableUsedInWhere(filter, tname, talias, helper, false);
+   }
+
+   /**
+    * Check if table is used in the specified filter.
+    * @param negated true if the filter is under a negated set.
+    */
+   private static boolean isTableUsedInWhere(XFilterNode filter, Object tname,
+                                             String talias, SQLHelper helper,
+                                             boolean negated) {
       if(filter == null) {
          return false;
       }
 
       if(filter instanceof XSet) {
          XSet set = (XSet) filter;
+         negated = negated || set.isIsNot();
 
          for(int i = 0; i < set.getChildCount(); i++) {
             XFilterNode node = (XFilterNode) set.getChild(i);
 
-            if(isTableUsedInWhere(node, tname, talias, helper)) {
+            if(isTableUsedInWhere(node, tname, talias, helper, negated)) {
                return true;
             }
          }
       }
-      // join? do not consider it
-      else if(filter instanceof XJoin) {
+      // join? do not consider it, unless it's under a negated set, where it's
+      // a condition, e.g. "not (a.id = b.k and a.k = 1)"
+      else if(filter instanceof XJoin && !negated) {
          return false;
       }
       else if(filter instanceof XUnaryCondition) {
@@ -2653,38 +2835,157 @@ public final class XUtil {
                                             VariableTable params, boolean include,
                                             boolean forVpm)
    {
+      JDBCDataSource source = null;
+
+      for(UniformSQL sql = usql; sql != null && source == null; sql = sql.getParent()) {
+         source = sql.getDataSource();
+      }
+
+      return validateConditions0(query, usql, params, include, !forVpm, source);
+   }
+
+   /**
+    * Rewrite only the sentinel parameters (NULL_VALUE, EMPTY_STRING and NULL_STRING) of a
+    * query, in place, and tell whether the sql generated from it changed.
+    * <ul>
+    * <li>The query must be a private copy whose structure is the whole query: parsed, not
+    * lossy, with its sql string cleared ({@link UniformSQL#clearSQLString}). A query that
+    * still holds a sql string is not changed and <tt>false</tt> is returned, as
+    * {@link #validateConditions} returns early for it.</li>
+    * <li>Only the sentinel rewrite runs. A condition with a parameter that has no value is
+    * kept, the parameter binds SQL NULL (the same as <tt>forVpm = true</tt>).</li>
+    * <li>The positions rewritten are the ones {@link #validateConditions} rewrites when it
+    * keeps the unset conditions: the WHERE/HAVING comparison operands, FROM derived tables,
+    * select-list scalar subqueries and the subqueries of WHERE/HAVING conditions (e.g.
+    * <tt>x in (select ...)</tt>).</li>
+    * <li>Whether anything is rewritten is decided by comparing the sql generated before and
+    * after the rewrite, so the result is <tt>true</tt> exactly when the sql sent to the
+    * database changes, whatever position the rewrite reached.</li>
+    * </ul>
+    * @param usql the private copy of the query to rewrite.
+    * @param params the parameter values.
+    * @return <tt>true</tt> if the generated sql changed.
+    */
+   public static boolean rewriteSentinels(UniformSQL usql, VariableTable params) {
+      if(usql == null || params == null || usql.hasSQLString()) {
+         return false;
+      }
+
+      JDBCDataSource source = null;
+
+      for(UniformSQL sql = usql; sql != null && source == null; sql = sql.getParent()) {
+         source = sql.getDataSource();
+      }
+
+      String before = usql.getSQLString();
+      validateConditions0(null, usql, params, true, false, source);
+      usql.clearCachedString();
+      return !Tool.equals(before, usql.getSQLString());
+   }
+
+   /**
+    * Check if the sql refers to a parameter, as <tt>$(name)</tt> anywhere in the text (quoted
+    * or not), whose value is a sentinel (NULL_VALUE, EMPTY_STRING or NULL_STRING, or a
+    * one-element array of one). An embedded <tt>$(@name)</tt> is not counted. It's a cheap
+    * superset check that doesn't depend on which operand shapes the rewrite handles.
+    */
+   public static boolean hasSentinelParameter(String sql, VariableTable params) {
+      if(sql == null || params == null || !sql.contains("$(")) {
+         return false;
+      }
+
+      Matcher matcher = SQL_PARAMETER.matcher(sql);
+
+      while(matcher.find()) {
+         if(getSpecificValue(params, matcher.group(1)) != null) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Check if the sql has a comment the database runs or reads: an optimizer hint
+    * (<tt>/*+</tt>, <tt>--+</tt>) or a MySQL/MariaDB executable comment (<tt>/*!</tt>,
+    * <tt>/*M!</tt>). The sql generated from a parsed query drops comments, so sql with one of
+    * these must be sent as written.
+    */
+   public static boolean hasExecutableComment(String sql) {
+      return sql != null && (sql.contains("/*+") || sql.contains("--+") ||
+         sql.contains("/*!") || sql.contains("/*M!"));
+   }
+
+   // the sql with each run of white space as one space. A literal is generated as written, so
+   // two generations of the same literal are changed the same way.
+   private static String normalizeSpaces(String sql) {
+      return sql == null ? null : sql.replaceAll("\\s+", " ").trim();
+   }
+
+   // a $(name) reference anywhere in sql text, quoted or not (not $(@name)), for
+   // hasSentinelParameter. Kept apart from the operand patterns (SPECIFIC_VARIABLE etc.) so
+   // that a change to them doesn't narrow the check.
+   private static final Pattern SQL_PARAMETER = Pattern.compile("\\$\\(([^()$@]+)\\)");
+
+   /**
+    * Rewrite the conditions with a sentinel parameter, and remove the conditions with a
+    * parameter without a value.
+    * @param removeUnset <tt>false</tt> to keep the conditions with a parameter without a value.
+    * @param source the data source of the query, which a derived table or subquery gets when
+    * it's generated.
+    */
+   private static boolean validateConditions0(XQuery query, UniformSQL usql,
+                                              VariableTable params, boolean include,
+                                              boolean removeUnset, JDBCDataSource source)
+   {
       if(usql.hasSQLString()) {
          return false;
       }
 
+      if(usql.getDataSource() != null) {
+         source = usql.getDataSource();
+      }
+
       boolean changed = false;
-      // a condition was rewritten for a NULL_VALUE/EMPTY_STRING/NULL_STRING parameter
-      boolean specific = false;
       SelectTable[] tables = usql.getSelectTable();
 
       for(int i = 0; i < tables.length; i++) {
          Object table = tables[i].getName();
 
          if(table instanceof UniformSQL) {
-            changed = validateConditions(query, (UniformSQL) table, params, include, forVpm) ||
-               changed;
+            changed = validateConditions0(query, (UniformSQL) table, params, include,
+                                          removeUnset, source) || changed;
          }
       }
 
+      validateSelectList(query, usql, params, include, removeUnset, source);
+      validateOrderBy(query, usql, params, include, removeUnset, source);
+
+      // the operands with subqueries rewritten by processSpecificCondition
+      Map<XExpression, OperandInfo> operands = new IdentityHashMap<>();
       XFilterNode condition = usql.getWhere();
 
-      if(condition instanceof XBinaryCondition || condition instanceof XSet) {
-         if(processSpecificCondition(usql, condition, params, false)) {
-            specific = true;
+      if(condition instanceof XBinaryCondition || condition instanceof XTrinaryCondition ||
+         condition instanceof XSet)
+      {
+         if(processSpecificCondition(query, usql, condition, params, include, removeUnset,
+                                     false, source, operands))
+         {
             // a bare condition root is replaced, continue with the live tree
             condition = usql.getWhere();
          }
       }
 
+      // the removing pass walks the condition subqueries in removeNoParamConditions
+      if(!removeUnset) {
+         rewriteConditionSubqueries(query, condition, params, include, source);
+      }
+
       // don't remove null paramter for vpm conditions, then variables in vpm condition
       // will not to be removed.
-      if(!forVpm) {
-         ChangedInfo info = removeNoParamConditions(query, condition, params, include);
+      if(removeUnset) {
+         ChangedInfo info = removeNoParamConditions(query, condition, params, include,
+                                                    operands);
          changed = info.changed || changed;
 
          if(info.empty) {
@@ -2697,33 +2998,279 @@ public final class XUtil {
 
       condition = usql.getHaving();
 
-      if(condition instanceof XBinaryCondition || condition instanceof XSet) {
-         if(processSpecificCondition(usql, condition, params, true)) {
-            specific = true;
+      if(condition instanceof XBinaryCondition || condition instanceof XTrinaryCondition ||
+         condition instanceof XSet)
+      {
+         if(processSpecificCondition(query, usql, condition, params, include, removeUnset,
+                                     true, source, operands))
+         {
             condition = usql.getHaving();
          }
       }
 
-      if(!forVpm) {
-         ChangedInfo info = removeNoParamConditions(query, condition, params, include);
+      if(!removeUnset) {
+         rewriteConditionSubqueries(query, condition, params, include, source);
+      }
+
+      if(removeUnset) {
+         ChangedInfo info = removeNoParamConditions(query, condition, params, include,
+                                                    operands);
          changed = info.changed || changed;
 
          if(info.empty) {
             usql.setHaving(null);
          }
          else if(condition instanceof XSet && condition.getChildCount() == 1) {
-            usql.setHaving((XFilterNode) condition.getChild(0));
+            XFilterNode child = (XFilterNode) condition.getChild(0);
+
+            // keep the negation of the removed set, not (y and <unset>) is not (y)
+            if(condition.isIsNot()) {
+               child.setIsNot(!child.isIsNot());
+            }
+
+            usql.setHaving(child);
             changed = true;
          }
       }
 
-      // the sentinel rewrite is not reported as changed, isNullParam() treats a changed
-      // sub-query as one without a condition. Only drop the cached sql string.
-      if(changed || specific) {
-         usql.clearCachedString();
-      }
+      // always drop the cached sql string. A sentinel rewrite is not reported as changed
+      // (isNullParam() treats a changed sub-query as one without a condition), so a cached
+      // ancestor of a rewritten derived table would otherwise keep the old string.
+      usql.clearCachedString();
 
       return changed;
+   }
+
+   /**
+    * Rewrite the sentinel parameters in the scalar subqueries of the select list. The parser
+    * keeps such a subquery as the text of its column, which names the column and orders the
+    * columns of the sorted sql, so the text is kept and the rewritten subquery is generated in
+    * its place (Bug #77620). The condition of an unset parameter is removed only if the
+    * subquery returns one row anyway (see rewriteSubqueryText).
+    */
+   private static void validateSelectList(XQuery query, UniformSQL usql, VariableTable params,
+                                          boolean include, boolean removeUnset,
+                                          JDBCDataSource source)
+   {
+      if(!(usql.getSelection() instanceof JDBCSelection)) {
+         return;
+      }
+
+      JDBCSelection selection = (JDBCSelection) usql.getSelection();
+
+      for(int i = 0; i < selection.getColumnCount(); i++) {
+         // the sql of an earlier run is for other parameter values
+         selection.setColumnSQL(i, null);
+         String sql = rewriteSubqueryText(query, selection.getColumn(i), params, include,
+                                          removeUnset, source);
+
+         if(sql != null) {
+            selection.setColumnSQL(i, sql);
+         }
+      }
+   }
+
+   /**
+    * Rewrite the sentinel parameters in the scalar subqueries of the order by list. The parser
+    * keeps such a subquery as the text of its item, which is matched to the select list and
+    * orders the columns of the sorted sql, so the text is kept and the rewritten subquery is
+    * generated in its place (Bug #77706). It is rewritten as the same subquery in the select
+    * list is, an unset parameter included.
+    */
+   private static void validateOrderBy(XQuery query, UniformSQL usql, VariableTable params,
+                                       boolean include, boolean removeUnset,
+                                       JDBCDataSource source)
+   {
+      Object[] fields = usql.getOrderByFields();
+
+      for(int i = 0; fields != null && i < fields.length; i++) {
+         // the sql of an earlier run is for other parameter values
+         usql.setOrderBySQL(i, null);
+
+         if(!(fields[i] instanceof String)) {
+            continue;
+         }
+
+         String sql = rewriteSubqueryText(query, (String) fields[i], params, include,
+                                          removeUnset, source);
+
+         if(sql != null) {
+            usql.setOrderBySQL(i, sql);
+         }
+      }
+   }
+
+   /**
+    * Rewrite the sentinel parameters in the subqueries of the conditions, e.g.
+    * <tt>x in (select ...)</tt>, <tt>exists (select ...)</tt> or <tt>x = (select ...)</tt>,
+    * for the pass that keeps the conditions with an unset parameter (a VPM condition, a
+    * select-list or order by subquery that is not single-row, {@link #rewriteSentinels}). The
+    * pass that removes them reaches these subqueries in removeNoParamConditions. A condition
+    * is never removed here, in a VPM condition that would drop a row-security filter
+    * (Bug #77706).
+    * <p>
+    * A subquery kept as a sql string (a VPM condition's subquery is saved unparsed) is parsed
+    * into a copy, and replaced by the copy only if the rewrite changes its sql. The string is
+    * kept as it is when it has no sentinel parameter, isn't parsed completely, embeds a
+    * parameter (<tt>$(@name)</tt>), has an optimizer hint or a MySQL/MariaDB executable
+    * comment, which the generated sql would drop ({@link #hasExecutableComment}), or when the
+    * generated sql doesn't parse back to itself. Other comments are dropped from a rewritten
+    * subquery.
+    */
+   private static void rewriteConditionSubqueries(XQuery query, XNode node,
+                                                  VariableTable params, boolean include,
+                                                  JDBCDataSource source)
+   {
+      if(node instanceof XSet) {
+         for(int i = 0; i < node.getChildCount(); i++) {
+            rewriteConditionSubqueries(query, node.getChild(i), params, include, source);
+         }
+      }
+      else if(node instanceof XUnaryCondition) {
+         XUnaryCondition una = (XUnaryCondition) node;
+         XExpression exp = rewriteConditionSubquery(query, una.getExpression1(), params,
+                                                    include, source);
+
+         if(exp != null) {
+            una.setExpression1(exp);
+         }
+      }
+      else if(node instanceof XBinaryCondition) {
+         XBinaryCondition bin = (XBinaryCondition) node;
+         XExpression exp = rewriteConditionSubquery(query, bin.getExpression1(), params,
+                                                    include, source);
+
+         if(exp != null) {
+            bin.setExpression1(exp);
+         }
+
+         exp = rewriteConditionSubquery(query, bin.getExpression2(), params, include, source);
+
+         if(exp != null) {
+            bin.setExpression2(exp);
+         }
+      }
+      else if(node instanceof XTrinaryCondition) {
+         XTrinaryCondition tri = (XTrinaryCondition) node;
+         XExpression exp = rewriteConditionSubquery(query, tri.getExpression1(), params,
+                                                    include, source);
+
+         if(exp != null) {
+            tri.setExpression1(exp);
+         }
+
+         exp = rewriteConditionSubquery(query, tri.getExpression2(), params, include, source);
+
+         if(exp != null) {
+            tri.setExpression2(exp);
+         }
+
+         exp = rewriteConditionSubquery(query, tri.getExpression3(), params, include, source);
+
+         if(exp != null) {
+            tri.setExpression3(exp);
+         }
+      }
+   }
+
+   /**
+    * Rewrite the parameters in the text of a scalar subquery that the parser keeps as text
+    * (a select list column or an order by item). Every such text goes through here, so the
+    * same subquery in the select list and the order by list gets the same sql.
+    * <p>
+    * The sentinel parameters are rewritten. If removeUnset, the conditions with a parameter
+    * without a value are removed only if the subquery returns one row anyway (isSingleRow,
+    * e.g. select count(*) from ... without group by). In any other subquery the condition is
+    * kept and the parameter is bound as NULL, removing it could make the subquery return more
+    * than one row (Bug #77706).
+    * @param text the text, as the parser generates it.
+    * @param removeUnset <tt>false</tt> to keep the conditions with a parameter without a value.
+    * @return the rewritten sql of the subquery, or <tt>null</tt> if the text isn't such a
+    * subquery or is not changed.
+    */
+   private static String rewriteSubqueryText(XQuery query, String text, VariableTable params,
+                                             boolean include, boolean removeUnset,
+                                             JDBCDataSource source)
+   {
+      if(text == null || !text.contains("$(")) {
+         return null;
+      }
+
+      UniformSQL sub = UniformSQL.parseSelectListSubquery(text, source);
+
+      if(sub == null) {
+         return null;
+      }
+
+      // not reported as changed: the change is in a select column or an order by item, which
+      // doesn't decide if the enclosing query (e.g. an IN subquery) still has a condition
+      validateConditions0(query, sub, params, include, removeUnset && isSingleRow(sub),
+                          source);
+      String sql = UniformSQL.getSelectListSubqueryText(sub);
+      return sql.equals(text) ? null : sql;
+   }
+
+   /**
+    * Rewrite the sentinel parameters of a condition operand that is a subquery, keeping the
+    * conditions with an unset parameter.
+    * @return a new operand holding the rewritten copy of a subquery kept as a sql string, or
+    * <tt>null</tt> if the operand is kept (a parsed subquery is rewritten in place).
+    */
+   private static XExpression rewriteConditionSubquery(XQuery query, XExpression exp,
+                                                       VariableTable params, boolean include,
+                                                       JDBCDataSource source)
+   {
+      if(exp == null || !(exp.getValue() instanceof UniformSQL)) {
+         return null;
+      }
+
+      UniformSQL sub = (UniformSQL) exp.getValue();
+
+      if(!sub.hasSQLString()) {
+         validateConditions0(query, sub, params, include, false, source);
+         return null;
+      }
+
+      String sql = sub.getSQLString();
+
+      if(sql.contains("$(@") || !hasSentinelParameter(sql, params) ||
+         hasExecutableComment(sql))
+      {
+         return null;
+      }
+
+      try {
+         JDBCDataSource ds = sub.getDataSource() != null ? sub.getDataSource() : source;
+         UniformSQL copy = UniformSQL.parseSubquery(sql, ds);
+
+         if(copy == null || !rewriteSentinels(copy, params)) {
+            return null;
+         }
+
+         // the generated sql must mean what the structure does. A generated text that parses
+         // to another structure (e.g. a - -1 generated as a-- 1, which comments out the rest
+         // of the line) could drop a row-security predicate, keep the sql as written. The
+         // generator pads some operators, so the texts are compared without the extra spaces.
+         String generated = copy.getSQLString();
+         UniformSQL reparsed = UniformSQL.parseSubquery(generated, ds);
+
+         if(reparsed == null || !normalizeSpaces(generated).equals(
+            normalizeSpaces(reparsed.getSQLString())))
+         {
+            LOG.debug("The rewritten subquery doesn't parse to itself, the sql is sent as " +
+                      "written: {}", sql);
+            return null;
+         }
+
+         XExpression nexp = (XExpression) exp.clone();
+         nexp.setValue(copy, exp.getType());
+         return nexp;
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to rewrite the sentinel parameters of a subquery, the sql is " +
+                   "sent as written: {}", sql, ex);
+         return null;
+      }
    }
 
    /**
@@ -2736,12 +3283,13 @@ public final class XUtil {
     * special value, then process it.
     * @return true if a condition is rewritten.
     */
-   private static boolean processSpecificCondition(UniformSQL usql,
-      XFilterNode condition, VariableTable params, boolean isHaving)
+   private static boolean processSpecificCondition(XQuery query, UniformSQL usql,
+      XFilterNode condition, VariableTable params, boolean include, boolean removeUnset,
+      boolean isHaving, JDBCDataSource source, Map<XExpression, OperandInfo> operands)
    {
-      if(condition instanceof XBinaryCondition) {
-         XBinaryCondition filterNode =
-            createSpecificCondition((XBinaryCondition) condition, params);
+      if(condition instanceof XBinaryCondition || condition instanceof XTrinaryCondition) {
+         XFilterNode filterNode = processSpecificCondition(query, condition, params, include,
+                                                           removeUnset, source, operands);
 
          if(filterNode == null) {
             return false;
@@ -2758,7 +3306,8 @@ public final class XUtil {
          return true;
       }
       else if(condition instanceof XSet) {
-         return processSpecificCondition((XSet) condition, params);
+         return processSpecificCondition(query, (XSet) condition, params, include,
+                                         removeUnset, source, operands);
       }
 
       return false;
@@ -2768,15 +3317,20 @@ public final class XUtil {
     * Replace the conditions in the set (and nested sets) that use a parameter with a
     * special value, at the same position.
     */
-   private static boolean processSpecificCondition(XSet set, VariableTable params) {
+   private static boolean processSpecificCondition(XQuery query, XSet set,
+                                                   VariableTable params, boolean include,
+                                                   boolean removeUnset,
+                                                   JDBCDataSource source,
+                                                   Map<XExpression, OperandInfo> operands)
+   {
       boolean changed = false;
 
       for(int i = 0; i < set.getChildCount(); i++) {
          XNode node = set.getChild(i);
 
-         if(node instanceof XBinaryCondition) {
-            XBinaryCondition filterNode =
-               createSpecificCondition((XBinaryCondition) node, params);
+         if(node instanceof XBinaryCondition || node instanceof XTrinaryCondition) {
+            XFilterNode filterNode = processSpecificCondition(
+               query, (XFilterNode) node, params, include, removeUnset, source, operands);
 
             if(filterNode != null) {
                set.setChild(i, filterNode);
@@ -2784,7 +3338,8 @@ public final class XUtil {
             }
          }
          else if(node instanceof XSet) {
-            changed = processSpecificCondition((XSet) node, params) || changed;
+            changed = processSpecificCondition(query, (XSet) node, params, include,
+                                               removeUnset, source, operands) || changed;
          }
       }
 
@@ -2792,49 +3347,711 @@ public final class XUtil {
    }
 
    /**
-    * Create the condition replacing a condition whose parameter has a special value.
-    * @return the new condition, or null if the condition doesn't use a special value.
+    * Rewrite the parameters of a binary or trinary condition: in the subqueries of its
+    * expression operands (Bug #77706), then the sentinels in the condition itself.
+    * @return the new condition, or null if nothing is rewritten.
     */
-   private static XBinaryCondition createSpecificCondition(XBinaryCondition bin,
-                                                           VariableTable params)
+   private static XFilterNode processSpecificCondition(XQuery query, XFilterNode node,
+                                                       VariableTable params,
+                                                       boolean include,
+                                                       boolean removeUnset,
+                                                       JDBCDataSource source,
+                                                       Map<XExpression, OperandInfo> operands)
    {
-      String op = bin.getOp();
-      String value = bin.getExpression2().toString().trim();
+      XFilterNode node2 = rewriteOperandSubqueries(query, node, params, include, removeUnset,
+                                                   source, operands);
+      XFilterNode filterNode = createSpecificCondition(node2 == null ? node : node2, params);
+      return filterNode != null ? filterNode : node2;
+   }
 
-      if(!value.startsWith("$(")) {
+   /**
+    * Rewrite the parameters in the subqueries of the expression operands of a condition,
+    * e.g. a.id = 0 + (select ...) or a.id = ANY (select ...). The parser keeps such a
+    * subquery only as the text of the operand, so no condition walk sees it (Bug #77706).
+    * The sentinel parameters are rewritten. If removeUnset, the conditions with a parameter
+    * without a value are removed from the subqueries too, in the same parsed subquery:
+    * <ul>
+    * <li>ANY/SOME/ALL (select ...) is handled as IN (select ...): the condition of the
+    * parameter is removed from the subquery, and the whole condition is dropped if the
+    * subquery has no condition left.</li>
+    * <li>A scalar subquery that returns one row anyway (isSingleRow) has the condition of the
+    * parameter removed, and the condition is kept.</li>
+    * <li>Any other scalar subquery keeps the condition of the parameter, which is NULL, and
+    * the condition is kept. Removing it could make the subquery return more than one row.
+    * </li>
+    * </ul>
+    * A parameter without a value outside the subqueries drops the whole condition, as for any
+    * other operand, which removeNoParamConditions checks with the operand text without the
+    * subqueries.
+    * @param operands the information of the operands with subqueries, filled in for
+    * removeNoParamConditions, by the operand in the returned (or the given) condition.
+    * @return a copy of the condition with the rewritten operands, or null if nothing is
+    * rewritten.
+    */
+   private static XFilterNode rewriteOperandSubqueries(XQuery query, XFilterNode node,
+                                                       VariableTable params,
+                                                       boolean include,
+                                                       boolean removeUnset,
+                                                       JDBCDataSource source,
+                                                       Map<XExpression, OperandInfo> operands)
+   {
+      OperandSubqueries[] subqueries = getOperandSubqueries(query, node, params, include,
+                                                            source);
+
+      if(subqueries == null) {
          return null;
       }
 
-      value = value.substring(2, value.lastIndexOf(')'));
+      XExpression[] exps = getOperands(node);
+      OperandInfo[] infos = new OperandInfo[exps.length];
+      boolean changed = false;
+
+      for(int i = 0; i < subqueries.length; i++) {
+         OperandSubqueries operand = subqueries[i];
+
+         if(operand == null) {
+            continue;
+         }
+
+         boolean quantified = operand.isQuantified();
+         OperandInfo info = infos[i] = new OperandInfo(operand.getOuterText());
+
+         for(UniformSQL sub : operand.subs) {
+            validateConditions0(query, sub, params, include, false, source);
+
+            if(!removeUnset) {
+               continue;
+            }
+
+            if(quantified) {
+               if(validateConditions0(query, sub, params, include, true, source)) {
+                  info.changed = true;
+                  info.empty = info.empty || !hasCondition(sub);
+               }
+            }
+            else if(isSingleRow(sub)) {
+               info.changed = validateConditions0(query, sub, params, include, true, source) ||
+                  info.changed;
+            }
+         }
+
+         String text = operand.getText();
+
+         if(!text.equals(operand.text)) {
+            exps[i] = new XExpression(text, exps[i].getType());
+            changed = true;
+         }
+      }
+
+      XFilterNode copy = changed ? copyCondition(node, exps) : null;
+
+      // the operands of the condition in the tree, a changed operand is in the copy
+      if(copy != null || !changed) {
+         for(int i = 0; i < infos.length; i++) {
+            if(infos[i] != null) {
+               operands.put(exps[i], infos[i]);
+            }
+         }
+      }
+
+      return copy;
+   }
+
+   /**
+    * Check if a parameter without a value is in an operand of a condition. For an operand
+    * with subqueries handled by rewriteOperandSubqueries, only the text outside the
+    * subqueries is checked.
+    */
+   private static boolean isNullParam(XQuery query, String op, XExpression exp,
+                                      VariableTable params, boolean include,
+                                      Map<XExpression, OperandInfo> operands)
+   {
+      OperandInfo operand = exp == null ? null : operands.get(exp);
+
+      return operand != null ? isNullParam(query, op, operand.outerText, params, include) :
+         isNullParam(query, op, exp, params, include);
+   }
+
+   /**
+    * Report the conditions without a value that rewriteOperandSubqueries removed from the
+    * subqueries of the operands of a condition.
+    */
+   private static void checkOperandSubqueries(ChangedInfo info,
+                                              Map<XExpression, OperandInfo> operands,
+                                              XExpression... exps)
+   {
+      for(XExpression exp : exps) {
+         OperandInfo operand = exp == null ? null : operands.get(exp);
+
+         if(operand != null) {
+            info.changed = info.changed || operand.changed;
+            info.empty = info.empty || operand.empty;
+         }
+      }
+   }
+
+   /**
+    * Get the subqueries of the expression operands of a binary or trinary condition.
+    * @return the subqueries of each operand (null for an operand without one), or null if
+    * no operand has a subquery to rewrite.
+    */
+   private static OperandSubqueries[] getOperandSubqueries(XQuery query, XFilterNode node,
+                                                           VariableTable params,
+                                                           boolean include,
+                                                           JDBCDataSource source)
+   {
+      if(node instanceof XJoin) {
+         return null;
+      }
+
+      String op = node instanceof XTrinaryCondition ? ((XTrinaryCondition) node).getOp() :
+         node instanceof XBinaryCondition ? ((XBinaryCondition) node).getOp() : null;
+      XExpression[] exps = getOperands(node);
+      OperandSubqueries[] operands = new OperandSubqueries[exps.length];
+      boolean found = false;
+
+      for(int i = 0; i < exps.length; i++) {
+         operands[i] = getOperandSubqueries(query, op, exps[i], params, include, source);
+         found = found || operands[i] != null;
+      }
+
+      return found ? operands : null;
+   }
+
+   /**
+    * Get the subqueries of the text of an expression operand that have a parameter with a
+    * sentinel value or without a value.
+    * @return the subqueries, or null if the operand has none, or if one of them can't be
+    * parsed and generated as it is written, so the operand is left as it is.
+    */
+   private static OperandSubqueries getOperandSubqueries(XQuery query, String op,
+                                                         XExpression exp,
+                                                         VariableTable params,
+                                                         boolean include,
+                                                         JDBCDataSource source)
+   {
+      if(exp == null || !XExpression.EXPRESSION.equals(exp.getType()) ||
+         !(exp.getValue() instanceof String))
+      {
+         return null;
+      }
+
+      String text = (String) exp.getValue();
+
+      if(!text.contains("$(")) {
+         return null;
+      }
+
+      OperandSubqueries operand = new OperandSubqueries(text);
+
+      for(int[] span : findSubqueries(text)) {
+         String subText = text.substring(span[0], span[1]);
+
+         // nothing to rewrite or remove, the subquery isn't parsed
+         if(!subText.contains("$(") || !hasSpecificParameter(subText, params) &&
+            !isNullParam(query, op, subText, params, include))
+         {
+            continue;
+         }
+
+         // the same check as for a select list subquery: parsed, not lossy, and generated
+         // to the same text
+         UniformSQL sub = UniformSQL.parseSelectListSubquery(subText, source);
+
+         if(sub == null) {
+            LOG.debug("The subquery of the operand is left as it is: {}", text);
+            return null;
+         }
+
+         operand.spans.add(span);
+         operand.subs.add(sub);
+      }
+
+      return operand.spans.isEmpty() ? null : operand;
+   }
+
+   /**
+    * Check if a parameter in the text has a sentinel value.
+    */
+   private static boolean hasSpecificParameter(String text, VariableTable params) {
+      Matcher matcher = PARAMETER.matcher(text);
+
+      while(matcher.find()) {
+         if(getSpecificValue(params, matcher.group(1).trim()) != null) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   private static XExpression[] getOperands(XFilterNode node) {
+      if(node instanceof XTrinaryCondition) {
+         XTrinaryCondition tri = (XTrinaryCondition) node;
+         return new XExpression[] { tri.getExpression1(), tri.getExpression2(),
+                                    tri.getExpression3() };
+      }
+      else if(node instanceof XBinaryCondition) {
+         XBinaryCondition bin = (XBinaryCondition) node;
+         return new XExpression[] { bin.getExpression1(), bin.getExpression2() };
+      }
+
+      return new XExpression[0];
+   }
+
+   /**
+    * Copy a condition with other operands. The condition and its operands are not changed,
+    * they may be shared with the query that the validated query is a copy of.
+    */
+   private static XFilterNode copyCondition(XFilterNode node, XExpression[] exps) {
+      XFilterNode copy = (XFilterNode) node.clone();
+
+      if(copy instanceof XTrinaryCondition) {
+         XTrinaryCondition tri = (XTrinaryCondition) copy;
+         tri.setExpression1(exps[0]);
+         tri.setExpression2(exps[1]);
+         tri.setExpression3(exps[2]);
+      }
+      else if(copy instanceof XBinaryCondition) {
+         XBinaryCondition bin = (XBinaryCondition) copy;
+         bin.setExpression1(exps[0]);
+         bin.setExpression2(exps[1]);
+      }
+
+      return copy;
+   }
+
+   /**
+    * Find the subqueries, (select ...), in the text of an expression, e.g. the operand
+    * 0 + (select ...) or ANY (select ...) of a condition, which the parser keeps as text.
+    * String literals, quoted names and comments are skipped, so a parenthesis or a select in
+    * them is not taken for sql. A subquery inside a found subquery is not returned, it is
+    * part of the found one.
+    * @param text the text of the expression.
+    * @return the start (the open parenthesis) and the end (after the close parenthesis) of
+    * each subquery, in order, or an empty list if there is none.
+    */
+   static List<int[]> findSubqueries(String text) {
+      List<int[]> spans = new ArrayList<>();
+      int len = text.length();
+
+      for(int i = 0; i < len; i++) {
+         int skip = skipQuotedOrComment(text, i);
+
+         if(skip > i) {
+            i = skip - 1;
+         }
+         else if(text.charAt(i) == '(' && isSelectAt(text, i + 1)) {
+            int end = findCloseParen(text, i);
+
+            if(end < 0) {
+               break;
+            }
+
+            spans.add(new int[] { i, end });
+            i = end - 1;
+         }
+      }
+
+      return spans;
+   }
+
+   /**
+    * Check if a subquery is guaranteed to return exactly one row: its select list is one
+    * column that is exactly one aggregate call, count/sum/max/min/avg(...), and it has no
+    * GROUP BY. The check is conservative. These are not single-row, though some of them
+    * return one row: an aggregate in an expression (count(*) + 1, coalesce(max(x), 0),
+    * max(x) - min(x)), and a subquery with HAVING (which may return no row). A window
+    * aggregate, max(x) over (...), returns a row for each row and is not single-row.
+    * @param sub the parsed subquery.
+    */
+   static boolean isSingleRow(UniformSQL sub) {
+      XSelection selection = sub == null ? null : sub.getSelection();
+
+      if(selection == null || selection.getColumnCount() != 1) {
+         return false;
+      }
+
+      Object[] groupBy = sub.getGroupBy();
+
+      if(sub.isGroupByAll() || groupBy != null && groupBy.length > 0 ||
+         sub.getHaving() != null)
+      {
+         return false;
+      }
+
+      String column = selection.getColumn(0);
+
+      if(column == null) {
+         return false;
+      }
+
+      column = column.trim();
+      Matcher matcher = AGGREGATE_CALL.matcher(column);
+
+      // the parenthesis of the call closes the column, nothing (e.g. OVER (...)) follows it
+      return matcher.lookingAt() &&
+         findCloseParen(column, matcher.end() - 1) == column.length();
+   }
+
+   /**
+    * Check if a select keyword is at the index, after optional white space.
+    */
+   private static boolean isSelectAt(String text, int index) {
+      while(index < text.length() && Character.isWhitespace(text.charAt(index))) {
+         index++;
+      }
+
+      int end = index + 6;
+      return text.regionMatches(true, index, "select", 0, 6) &&
+         (end >= text.length() || !Character.isLetterOrDigit(text.charAt(end)) &&
+          text.charAt(end) != '_' && text.charAt(end) != '$');
+   }
+
+   /**
+    * Find the parenthesis closing the one at the index, skipping the quoted text and the
+    * comments.
+    * @return the index after the close parenthesis, or -1 if it isn't closed.
+    */
+   private static int findCloseParen(String text, int open) {
+      int depth = 0;
+
+      for(int i = open; i < text.length(); i++) {
+         int skip = skipQuotedOrComment(text, i);
+
+         if(skip > i) {
+            i = skip - 1;
+            continue;
+         }
+
+         char c = text.charAt(i);
+
+         if(c == '(') {
+            depth++;
+         }
+         else if(c == ')' && --depth == 0) {
+            return i + 1;
+         }
+      }
+
+      return -1;
+   }
+
+   /**
+    * Get the end of the string literal, quoted name or comment starting at the index.
+    * @return the index after it (the text length if it isn't closed), or the index if none
+    * starts there.
+    */
+   private static int skipQuotedOrComment(String text, int index) {
+      char c = text.charAt(index);
+
+      if(c == '\'' || c == '"' || c == '`') {
+         int end = SQLQuoteScanner.skipQuoted(text, index, c, false);
+         return end < 0 ? text.length() : end;
+      }
+      else if(c == '[') {
+         // a [ that doesn't open a name (an array subscript) is an ordinary character
+         int end = SQLQuoteScanner.skipQuoted(text, index, ']', false);
+         return end < 0 ? index : end;
+      }
+
+      int end = SQLQuoteScanner.skipComment(text, index);
+      return end < 0 ? index : end;
+   }
+
+   /**
+    * The subqueries in the text of an expression operand of a condition.
+    */
+   private static final class OperandSubqueries {
+      OperandSubqueries(String text) {
+         this.text = text;
+      }
+
+      /**
+       * Get the operand text with the generated text of each subquery in its place.
+       */
+      String getText() {
+         StringBuilder sb = new StringBuilder(text);
+
+         for(int i = spans.size() - 1; i >= 0; i--) {
+            int[] span = spans.get(i);
+            sb.replace(span[0], span[1], UniformSQL.getSelectListSubqueryText(subs.get(i)));
+         }
+
+         return sb.toString();
+      }
+
+      /**
+       * Get the operand text without the subqueries, with the parameters outside them.
+       */
+      String getOuterText() {
+         StringBuilder sb = new StringBuilder(text);
+
+         for(int i = spans.size() - 1; i >= 0; i--) {
+            int[] span = spans.get(i);
+            sb.replace(span[0], span[1], "()");
+         }
+
+         return sb.toString();
+      }
+
+      /**
+       * Check if the operand is a quantified subquery, ANY|SOME|ALL (select ...).
+       */
+      boolean isQuantified() {
+         if(spans.size() != 1) {
+            return false;
+         }
+
+         int start = 0;
+
+         while(start < text.length() && Character.isWhitespace(text.charAt(start))) {
+            start++;
+         }
+
+         Matcher matcher = QUANTIFIED_OPERAND.matcher(text).region(start, text.length());
+         int[] span = spans.get(0);
+         return matcher.lookingAt() && matcher.end() <= span[0] &&
+            text.substring(matcher.end(), span[0]).isBlank() &&
+            text.substring(span[1]).isBlank();
+      }
+
+      final String text;
+      final List<int[]> spans = new ArrayList<>();
+      final List<UniformSQL> subs = new ArrayList<>();
+   }
+
+   /**
+    * An expression operand with subqueries, rewritten by rewriteOperandSubqueries.
+    */
+   private static final class OperandInfo {
+      OperandInfo(String outerText) {
+         this.outerText = outerText;
+      }
+
+      // the operand text without the subqueries
+      final String outerText;
+      // a condition without a value is removed from a subquery
+      boolean changed;
+      // a quantified subquery has no condition left, the condition is dropped as for IN
+      boolean empty;
+   }
+
+   // a parameter, $(name) or $(@name)
+   private static final Pattern PARAMETER = Pattern.compile("\\$\\(@?([^()]+)\\)");
+   // an aggregate call at the start of a select list column
+   private static final Pattern AGGREGATE_CALL =
+      Pattern.compile("(count|sum|max|min|avg)\\s*\\(", Pattern.CASE_INSENSITIVE);
+
+   /**
+    * Create the condition replacing a condition whose parameter has a special value.
+    * The parameter may be the right operand (a.id = $(p)), the only item of an IN list
+    * (a.id IN ($(p))), the left operand of a comparison ($(p) = a.id), a BETWEEN bound or
+    * the subject of a BETWEEN. The operand must be exactly the parameter, $(p) or the
+    * string literal '$(p)'; an operand that only contains it, e.g. $(p) || 'x', is kept.
+    * When both operands are parameters, the right one is checked first.
+    * @return the new condition, or null if the condition doesn't use a special value.
+    */
+   private static XFilterNode createSpecificCondition(XFilterNode node, VariableTable params) {
+      XFilterNode filterNode = node instanceof XTrinaryCondition ?
+         createSpecificCondition((XTrinaryCondition) node, params) :
+         createSpecificCondition((XBinaryCondition) node, params);
+
+      if(filterNode != null) {
+         filterNode.setName(node.getName());
+      }
+
+      return filterNode;
+   }
+
+   private static XFilterNode createSpecificCondition(XBinaryCondition bin,
+                                                      VariableTable params)
+   {
+      String op = bin.getOp();
+      String trimmedOp = op == null ? "" : op.trim();
+      // <> and != carry their negation in the op, which is dropped by IS NULL,
+      // e.g. "a.id <> $(p)" -> "not (a.id IS NULL)" and
+      // "not (a.id <> $(p))" -> "a.id IS NULL"
+      boolean opNot = "<>".equals(trimmedOp) || "!=".equals(trimmedOp);
+      String value = bin.getExpression2().toString().trim();
       XBinaryCondition filterNode = null;
 
-      try {
-         Object val = params.get(value);
+      Matcher matcher = SPECIFIC_RIGHT_OPERAND.matcher(value);
 
-         if(Tool.equals(val, (XConstants.CONDITION_NULL_VALUE))) {
-            filterNode = new XBinaryCondition(bin.getExpression1(),
-               new XExpression("IS NULL", XExpression.VALUE), "");
+      // the right operand, e.g. a.id = $(p), or a.name LIKE $(p) ESCAPE '!', whose escape
+      // character can't occur in '' or 'null'
+      if(matcher.matches()) {
+         String sentinel = getSpecificValue(params, getParameterName(matcher));
+
+         if(XConstants.CONDITION_NULL_VALUE.equals(sentinel)) {
+            filterNode = createIsNull(bin.getExpression1(), bin.isIsNot() != opNot);
          }
-         else if(Tool.equals(val, (XConstants.CONDITION_EMPTY_STRING))) {
+         else if(sentinel != null) {
             filterNode = new XBinaryCondition(bin.getExpression1(),
-               new XExpression("''", XExpression.VALUE), op);
+                                              getSpecificLiteral(sentinel), op);
+            filterNode.setIsNot(bin.isIsNot());
          }
-         else if(Tool.equals(val, (XConstants.CONDITION_NULL_STRING))) {
-            filterNode = new XBinaryCondition(bin.getExpression1(),
-               new XExpression("'null'", XExpression.VALUE), op);
+      }
+
+      if(filterNode != null || bin instanceof XJoin) {
+         return filterNode;
+      }
+
+      matcher = SPECIFIC_IN_LIST.matcher(value);
+
+      // the only item of an IN list, e.g. a.id IN ($(p)). IN (NULL) is never true, so
+      // NULL_VALUE means IS NULL, as for the ONE_OF condition
+      if(matcher.matches()) {
+         String sentinel = getSpecificValue(params, getParameterName(matcher));
+
+         if(XConstants.CONDITION_NULL_VALUE.equals(sentinel)) {
+            return createIsNull(bin.getExpression1(), bin.isIsNot() != opNot);
+         }
+         else if(sentinel != null) {
+            XExpression list = new XExpression(
+               "(" + getSpecificLiteral(sentinel).getValue() + ")", XExpression.EXPRESSION);
+            filterNode = new XBinaryCondition(bin.getExpression1(), list, op);
+            filterNode.setIsNot(bin.isIsNot());
+            return filterNode;
+         }
+      }
+
+      matcher = SPECIFIC_VARIABLE.matcher(bin.getExpression1().toString().trim());
+
+      // the left operand, e.g. $(p) = a.id
+      if(matcher.matches()) {
+         String sentinel = getSpecificValue(params, getParameterName(matcher));
+
+         // IS NULL on the right operand only means the same for a plain comparison, not
+         // for $(p) IN (...), $(p) = ANY (select ...) or $(p) LIKE a.col ESCAPE '!'
+         if(XConstants.CONDITION_NULL_VALUE.equals(sentinel)) {
+            if(COMPARISON_OPS.contains(trimmedOp) &&
+               !QUANTIFIED_OPERAND.matcher(value).lookingAt())
+            {
+               filterNode = createIsNull(bin.getExpression2(), bin.isIsNot() != opNot);
+            }
+         }
+         // keep the operand order, < and > would have to be mirrored
+         else if(sentinel != null) {
+            filterNode = new XBinaryCondition(getSpecificLiteral(sentinel),
+                                              bin.getExpression2(), op);
+            filterNode.setIsNot(bin.isIsNot());
+         }
+      }
+
+      return filterNode;
+   }
+
+   /**
+    * Create the condition replacing a BETWEEN with a bound whose parameter has a special
+    * value. A NULL_VALUE bound means IS NULL for the whole condition, as for the BETWEEN
+    * condition, and the other bound is dropped with it. The other values replace the bound.
+    * An EMPTY_STRING or NULL_STRING subject, e.g. $(p) BETWEEN a.low AND a.high, is
+    * replaced too. A NULL_VALUE subject is kept, and so is the subject of the IS NULL a
+    * NULL_VALUE bound creates.
+    */
+   private static XFilterNode createSpecificCondition(XTrinaryCondition tri,
+                                                      VariableTable params)
+   {
+      String low = getSpecificValue(params, tri.getExpression2());
+      String high = getSpecificValue(params, tri.getExpression3());
+      String subject = getSpecificValue(params, tri.getExpression1());
+
+      if(XConstants.CONDITION_NULL_VALUE.equals(subject)) {
+         subject = null;
+      }
+
+      if(low == null && high == null && subject == null) {
+         return null;
+      }
+
+      if(XConstants.CONDITION_NULL_VALUE.equals(low) ||
+         XConstants.CONDITION_NULL_VALUE.equals(high))
+      {
+         return createIsNull(tri.getExpression1(), tri.isIsNot());
+      }
+
+      XTrinaryCondition filterNode = new XTrinaryCondition(
+         subject == null ? tri.getExpression1() : getSpecificLiteral(subject),
+         low == null ? tri.getExpression2() : getSpecificLiteral(low),
+         high == null ? tri.getExpression3() : getSpecificLiteral(high), tri.getOp());
+      filterNode.setIsNot(tri.isIsNot());
+      return filterNode;
+   }
+
+   private static XBinaryCondition createIsNull(XExpression exp, boolean isNot) {
+      XBinaryCondition filterNode =
+         new XBinaryCondition(exp, new XExpression("IS NULL", XExpression.VALUE), "");
+      filterNode.setIsNot(isNot);
+      return filterNode;
+   }
+
+   private static XExpression getSpecificLiteral(String sentinel) {
+      return new XExpression(XConstants.CONDITION_EMPTY_STRING.equals(sentinel) ? "''" :
+                                "'null'", XExpression.VALUE);
+   }
+
+   /**
+    * Get the special value of the parameter if the expression is exactly the parameter.
+    */
+   private static String getSpecificValue(VariableTable params, XExpression exp) {
+      Matcher matcher = exp == null ? null :
+         SPECIFIC_VARIABLE.matcher(exp.toString().trim());
+      return matcher != null && matcher.matches() ?
+         getSpecificValue(params, getParameterName(matcher)) : null;
+   }
+
+   /**
+    * Get the parameter name matched by one of the operand patterns, from $(name) or from
+    * the string literal '$(name)'.
+    */
+   private static String getParameterName(Matcher matcher) {
+      return matcher.group(1) != null ? matcher.group(1) : matcher.group(2);
+   }
+
+   /**
+    * Get the special value of the parameter, NULL_VALUE, EMPTY_STRING or NULL_STRING.
+    * A parameter with one value is the same as the value, as in Condition.
+    * @return the special value, or null if the parameter doesn't have one.
+    */
+   private static String getSpecificValue(VariableTable params, String name) {
+      try {
+         Object val = params.get(name);
+
+         if(val instanceof Object[] && ((Object[]) val).length == 1) {
+            val = ((Object[]) val)[0];
+         }
+
+         if(Tool.equals(val, XConstants.CONDITION_NULL_VALUE) ||
+            Tool.equals(val, XConstants.CONDITION_EMPTY_STRING) ||
+            Tool.equals(val, XConstants.CONDITION_NULL_STRING))
+         {
+            return (String) val;
          }
       }
       catch(Exception e) {
       }
 
-      if(filterNode != null) {
-         // keep the negation, e.g. "not (a.id = $(p))" -> "not (a.id IS NULL)"
-         filterNode.setIsNot(bin.isIsNot());
-         filterNode.setName(bin.getName());
-      }
-
-      return filterNode;
+      return null;
    }
+
+   // a parameter, $(name), or a string literal that is only a parameter, '$(name)' or
+   // '$(@name)', whose value VarSQL puts between the quotes. An embedded $(@name) outside
+   // quotes is sql text and is never matched.
+   private static final String SPECIFIC_PARAMETER =
+      "(?:\\$\\(([^()$@]+)\\)|'\\$\\(@?([^()$@']+)\\)')";
+   // an operand that is exactly a parameter, and an IN list of only a parameter
+   private static final Pattern SPECIFIC_VARIABLE = Pattern.compile(SPECIFIC_PARAMETER);
+   private static final Pattern SPECIFIC_IN_LIST =
+      Pattern.compile("\\(\\s*" + SPECIFIC_PARAMETER + "\\s*\\)");
+   // the right operand, which the parser also gives the ESCAPE clause of a LIKE
+   private static final Pattern SPECIFIC_RIGHT_OPERAND = Pattern.compile(
+      SPECIFIC_PARAMETER + "(?:\\s+escape\\s+'(?:[^']|'')*')?", Pattern.CASE_INSENSITIVE);
+   // the right operand of a quantified comparison, e.g. $(p) = ANY (select ...)
+   private static final Pattern QUANTIFIED_OPERAND =
+      Pattern.compile("(any|some|all)\\b", Pattern.CASE_INSENSITIVE);
+   private static final Set<String> COMPARISON_OPS =
+      Set.of("=", "<>", "!=", "<", ">", "<=", ">=");
 
    /**
     * Check if condition has param without value;
@@ -2846,6 +4063,18 @@ public final class XUtil {
     */
    public static ChangedInfo removeNoParamConditions(XQuery query, XFilterNode condition,
                                                      VariableTable params, boolean include) {
+      return removeNoParamConditions(query, condition, params, include,
+                                     Collections.emptyMap());
+   }
+
+   /**
+    * Check if condition has param without value.
+    * @param operands the operands with subqueries rewritten by rewriteOperandSubqueries.
+    */
+   private static ChangedInfo removeNoParamConditions(XQuery query, XFilterNode condition,
+                                                      VariableTable params, boolean include,
+                                                      Map<XExpression, OperandInfo> operands)
+   {
       ChangedInfo info = new ChangedInfo();
 
       if(condition == null) {
@@ -2855,9 +4084,28 @@ public final class XUtil {
       if(condition instanceof XSet) {
          XSet set = (XSet) condition;
 
+         // x IS [NOT] TRUE/FALSE/UNKNOWN is not a junction, the truth value alone is not a
+         // condition. Remove the whole truth test if its operand is removed (#77738). Check
+         // before the loop, since a set with one child left is not a truth test
+         if(SQLHelper.isTruthTest(set)) {
+            ChangedInfo oinfo = removeNoParamConditions(query, (XFilterNode) set.getChild(0),
+                                                        params, include, operands);
+
+            if(oinfo.empty) {
+               info.empty = true;
+               info.changed = true;
+            }
+            else {
+               info.changed = oinfo.changed;
+            }
+
+            return info;
+         }
+
          for(int i = 0; i < set.getChildCount(); i++) {
             XFilterNode node = (XFilterNode) set.getChild(i);
-            ChangedInfo sinfo = removeNoParamConditions(query, node, params, include);
+            ChangedInfo sinfo = removeNoParamConditions(query, node, params, include,
+                                                        operands);
             info.changed = sinfo.changed || info.changed;
 
             if(sinfo.empty) {
@@ -2886,6 +4134,12 @@ public final class XUtil {
                      if(!(child instanceof XSet) ||
                         Objects.equals(relation, ((XSet) child).getRelation()))
                      {
+                        // keep the negation of this set on the child, not (y and <unset>)
+                        // is not (y)
+                        if(set.isIsNot()) {
+                           ((XFilterNode) child).setIsNot(!((XFilterNode) child).isIsNot());
+                        }
+
                         parent.setChild(i, child);
                         info.changed = true;
                         break;
@@ -2905,13 +4159,15 @@ public final class XUtil {
          XBinaryCondition bin = (XBinaryCondition) condition;
          String op = bin.getOp();
 
-         if(isNullParam(query, op, bin.getExpression1(), params, include) ||
-            isNullParam(query, op, bin.getExpression2(), params, include))
+         if(isNullParam(query, op, bin.getExpression1(), params, include, operands) ||
+            isNullParam(query, op, bin.getExpression2(), params, include, operands))
          {
             info.empty = !hasSubQueryCondition(bin);
             info.changed = true;
             return info;
          }
+
+         checkOperandSubqueries(info, operands, bin.getExpression1(), bin.getExpression2());
       }
       else if(condition instanceof XUnaryCondition) {
          XUnaryCondition una = (XUnaryCondition) condition;
@@ -2927,14 +4183,17 @@ public final class XUtil {
          XTrinaryCondition tri = (XTrinaryCondition) condition;
          String op = tri.getOp();
 
-         if(isNullParam(query, op, tri.getExpression1(), params, include) ||
-            isNullParam(query, op, tri.getExpression2(), params, include) ||
-            isNullParam(query, op, tri.getExpression3(), params, include))
+         if(isNullParam(query, op, tri.getExpression1(), params, include, operands) ||
+            isNullParam(query, op, tri.getExpression2(), params, include, operands) ||
+            isNullParam(query, op, tri.getExpression3(), params, include, operands))
          {
             info.empty = !hasSubQueryCondition(tri);
             info.changed = true;
             return info;
          }
+
+         checkOperandSubqueries(info, operands, tri.getExpression1(), tri.getExpression2(),
+                                tri.getExpression3());
       }
 
       return info;
@@ -4812,7 +6071,9 @@ public final class XUtil {
             }
          }
 
-         names = repository.getSubfolderNames(parent);
+         // the root folder is sent as "" or "/", but only null lists the root folders
+         names = repository.getSubfolderNames(
+            "".equals(parent) || "/".equals(parent) ? null : parent);
 
          for(String name : names) {
             name = DataSourceFolder.getDisplayName(name);

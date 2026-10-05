@@ -23,9 +23,9 @@ package inetsoft.sree.web.dashboard;
  * global registries (R_g). The lock order is D -> M -> R_u -> R_g.
  *
  * The interleavings are driven with a Mockito spy on the DataSpace bean, which parks a reload in
- * getInputStream() (between reset() and parseXML(), holding the registry lock), and by invoking
- * the registry's private change listener directly on a named thread instead of waiting for the
- * asynchronous BlobStorageEvent delivery. A thread is only let go once the other thread is seen
+ * getInputStream() (holding the registry lock), and by invoking the registry's private change
+ * listener directly on a named thread instead of waiting for the asynchronous BlobStorageEvent
+ * delivery. A thread is only let go once the other thread is seen
  * blocked on the expected lock owner (ThreadMXBean), so no step depends on timing. The racing
  * actions run on daemon threads with a bounded wait, and a deadlock fails the test instead of
  * hanging the suite. Each test gets a fresh context, so a deadlocked thread can't leave a monitor
@@ -49,6 +49,7 @@ import inetsoft.util.FileVersions;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.stubbing.Answer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.context.ApplicationEventPublisher;
@@ -68,14 +69,13 @@ import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(SpringExtension.class)
@@ -102,7 +102,8 @@ class DashboardRegistryConcurrencyTest {
    private SecurityEngine securityEngine;
 
    private SecurityTestDataBuilder builder;
-   private final List<Thread> threads = new ArrayList<>();
+   // read by the spy's answer on other threads (BlobStorageEvent) while the test adds to it
+   private final List<Thread> threads = new CopyOnWriteArrayList<>();
 
    @BeforeEach
    void setUp() {
@@ -112,8 +113,12 @@ class DashboardRegistryConcurrencyTest {
 
    @AfterEach
    void tearDown() {
+      LOAD_HOOK.set(null);
       threads.forEach(Thread::interrupt);
       threads.clear();
+      // Bug #77748, a change event still queued when this context is closed must not reach the
+      // next test's context while it is refreshing
+      DashboardRegistryTestSupport.quiesce(registryManager, dataSpace);
       OrganizationContextHolder.clear();
 
       if(builder != null) {
@@ -842,15 +847,23 @@ class DashboardRegistryConcurrencyTest {
    }
 
    /**
-    * Parks the next load of a file by a thread started by this test, between the registry's
-    * reset() and parseXML(), with the registry locked. The parked load reads {@code content}
-    * if it is not null, otherwise the file.
+    * Parks the next load of a file by a thread started by this test, in getInputStream() with
+    * the registry locked. The parked load reads {@code content} if it is not null, otherwise the
+    * file.
+    *
+    * Bug #77564. This only sets the hook that the spy was stubbed with before it was published
+    * (see {@link Config#dataSpaceSpy()}). Stubbing the spy here would race with the
+    * BlobStorageEvent thread delivering the change events of an earlier save(): a call on the
+    * spy from that thread between doAnswer().when() and getInputStream() takes the stubbing and
+    * fails this thread with UnfinishedStubbingException.
     */
-   private ParkedLoad parkLoad(String path, byte[] content) throws IOException {
+   private ParkedLoad parkLoad(String path, byte[] content) {
       ParkedLoad parked = new ParkedLoad();
 
-      doAnswer(inv -> {
-         if(threads.contains(Thread.currentThread()) && parked.parked.getCount() > 0) {
+      LOAD_HOOK.set(inv -> {
+         if(inv.getArgument(0) == null && path.equals(inv.getArgument(1)) &&
+            threads.contains(Thread.currentThread()) && parked.parked.getCount() > 0)
+         {
             parked.parked.countDown();
             await(parked.release);
 
@@ -860,10 +873,13 @@ class DashboardRegistryConcurrencyTest {
          }
 
          return inv.callRealMethod();
-      }).when(dataSpace).getInputStream(isNull(), eq(path));
+      });
 
       return parked;
    }
+
+   // the answer of the spy's getInputStream(), the real method if not set
+   private static final AtomicReference<Answer<Object>> LOAD_HOOK = new AtomicReference<>();
 
    private static final class ParkedLoad {
       void awaitParked() {
@@ -1044,7 +1060,25 @@ class DashboardRegistryConcurrencyTest {
          return new BeanPostProcessor() {
             @Override
             public Object postProcessAfterInitialization(Object bean, String beanName) {
-               return bean instanceof DataSpace ? spy(bean) : bean;
+               if(!(bean instanceof DataSpace)) {
+                  return bean;
+               }
+
+               // stub before the spy is published, no other thread can call it yet
+               LOAD_HOOK.set(null);
+               DataSpace spy = (DataSpace) spy(bean);
+
+               try {
+                  doAnswer(inv -> {
+                     Answer<Object> hook = LOAD_HOOK.get();
+                     return hook == null ? inv.callRealMethod() : hook.answer(inv);
+                  }).when(spy).getInputStream(any(), any());
+               }
+               catch(IOException e) {
+                  throw new UncheckedIOException(e);
+               }
+
+               return spy;
             }
          };
       }

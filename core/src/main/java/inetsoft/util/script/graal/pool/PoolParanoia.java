@@ -83,12 +83,33 @@ public final class PoolParanoia {
 
    /**
     * Compare a cleaned context's global with its baseline, without changing it.
+    * <p>
+    * A caller's cancel is kept (bug #77568), as in {@link Slot#clean()}: the release runs
+    * this check right after the clean has set the caller's interrupt flag again, and Graal
+    * turns a set flag into "Thread was interrupted." at the check's first guest safepoint
+    * poll, clearing the flag. The flag is cleared while the check runs and set again after;
+    * a cancel that lands during the check stops it, is re-asserted, and makes the check
+    * inconclusive, unless the check's own timeout interrupted it.
     *
     * @return the mismatching keys, empty if the global is at its baseline; a single
     *         {@link #INCONCLUSIVE_PREFIX} entry if the check was interrupted before it
     *         could tell.
     */
    static List<String> verify(Context context, CleanHelper cleaner) {
+      boolean wasInterrupted = Thread.interrupted();
+
+      try {
+         return verify0(context, cleaner);
+      }
+      finally {
+         // only ever set the flag here, so a cancel that landed during the check is kept
+         if(wasInterrupted) {
+            Thread.currentThread().interrupt();
+         }
+      }
+   }
+
+   private static List<String> verify0(Context context, CleanHelper cleaner) {
       VERIFIES.incrementAndGet();
       ScriptTimeoutGuard.Guard guard = GUARD.guard(context, verifyTimeout);
       List<String> keys;
@@ -97,6 +118,7 @@ public final class PoolParanoia {
          keys = cleaner.verify();
       }
       catch(RuntimeException ex) {
+         ScriptTimeoutGuard.keepCancel(ex, guard);
          return List.of((inconclusive(ex) || guard.interruptTimedOut() ?
             INCONCLUSIVE_PREFIX : "<verify failed: ") + ex.getMessage() + ">");
       }

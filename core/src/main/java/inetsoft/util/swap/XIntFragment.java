@@ -89,7 +89,14 @@ public final class XIntFragment extends XSwappable {
 
       if(!valid) {
          DEBUG_LOG.debug("Validate swapped data: %s", this);
-         validate0(false);
+
+         getSwapper().waitForMemory();
+
+         synchronized(this) {
+            if(!valid) {
+               validate0(false);
+            }
+         }
       }
    }
 
@@ -121,26 +128,6 @@ public final class XIntFragment extends XSwappable {
       }
 
       return pos;
-   }
-
-   /**
-    * set new size to this int fragment.
-    */
-   public synchronized void size(char size) {
-      if(size < 0 || size >= pos) {
-         return;
-      }
-
-      if(disposed) {
-         return;
-      }
-
-      if(!valid) {
-         validate0(true);
-      }
-
-      completed = false;
-      pos = size;
    }
 
    /**
@@ -180,6 +167,24 @@ public final class XIntFragment extends XSwappable {
    private synchronized void validate0(boolean reset) {
       File file = getFile(prefix + ".tdat");
 
+      if(disposed) {
+         valid = true;
+         return;
+      }
+
+      // swap0() failed before the data was dropped, so the data in memory is still the only
+      // good copy. remove the partial swap file to have the data written again on the next swap.
+      // rewriteRequired is the actual correctness guarantee here, independent of whether the
+      // delete below succeeds: deleteFile() can fall back to a delayed/queued delete that fires
+      // after a later swap recreates this same filename (the sub-problem 2/3 race), so swap0()
+      // must not depend on it succeeding.
+      if(arr != null) {
+         valid = true;
+         rewriteRequired = true;
+         deleteFile(file);
+         return;
+      }
+
       RandomAccessFile fin = null;
       FileChannel channel = null;
       ByteBuffer buf = null;
@@ -202,21 +207,29 @@ public final class XIntFragment extends XSwappable {
          //XSwapUtil.flip(buf)
 
          if(disposed) {
+            valid = true;
             return;
          }
 
          validate(buf);
-         file = null;
-      }
-      catch(FileNotFoundException ex) {
-         return;
+         // a full, successful read-back proves the on-disk file is actually correct, so
+         // any earlier failed-write stub it may have been is no longer a concern
+         rewriteRequired = false;
+         valid = true;
       }
       catch(Exception ex) {
+         // reaching here means arr was already null (the arr != null fast path above returns
+         // before this point), so there is no in-memory copy left to fall back on: returning 0
+         // for every row would silently map the rows to the header row. keep the fragment
+         // invalid so a later access tries the file again (recovers from a transient failure,
+         // e.g. EACCES/EMFILE) and the swapper never writes the empty state back over the swap
+         // file; fail loudly instead of silently substituting wrong data
+         pos = 0;
          LOG.error("Failed to read swap file: " + file, ex);
+         throw new SwapFileReadException(file, ex);
       }
       finally {
          buf = null;
-         valid = true;
 
          try {
             if(channel != null) {
@@ -235,7 +248,16 @@ public final class XIntFragment extends XSwappable {
       }
 
       if(reset) {
-         file.delete();
+         deleteFile(file);
+      }
+   }
+
+   /**
+    * Delete a swap file.
+    */
+   private static void deleteFile(File file) {
+      if(file.exists() && !file.delete()) {
+         FileSystemService.getInstance().remove(file, 30000);
       }
    }
 
@@ -274,8 +296,12 @@ public final class XIntFragment extends XSwappable {
       FileChannel channel = null;
 
       try {
-         if(!file.exists()) {
+         // reuse-without-rewrite only applies to a file that's actually a durable copy of the
+         // current array; a stub left by a previous failed write (rewriteRequired) must always
+         // be (re)written, even if it still physically exists - see validate0()
+         if(!file.exists() || rewriteRequired) {
             fout = new RandomAccessFile(file, "rw");
+            fout.setLength(0);
             channel = fout.getChannel();
             getSwapper().waitForMemory();
             buf = ByteBuffer.allocate((int) len);
@@ -285,7 +311,7 @@ public final class XIntFragment extends XSwappable {
             return;
          }
 
-         invalidate(buf);
+         serialize(buf);
 
          if(isCountRW && buf != null) {
             monitor.countWrite(buf.position(), XSwappableMonitor.DATA);
@@ -295,8 +321,20 @@ public final class XIntFragment extends XSwappable {
          if(buf != null) {
             XSwapUtil.flip(buf);
             buf = XSwapUtil.compressByteBuffer(buf);
+
+            if(testBeforeWrite != null) {
+               testBeforeWrite.run();
+            }
+
             channel.write(buf);
          }
+
+         // only drop the in-memory array once the write above has actually
+         // succeeded; if channel.write() threw, control never reaches here and
+         // arr/pos are preserved so the data isn't silently lost
+         arr = null;
+         pos = 0;
+         rewriteRequired = false;
 
          file = null;
       }
@@ -372,7 +410,17 @@ public final class XIntFragment extends XSwappable {
     * @param val the specified int value.
     */
    public void add(int val) {
-      // disposed?
+      if(disposed) {
+         return;
+      }
+
+      // a completed fragment may have been swapped out (arr == null) or swapped and read
+      // back (the next swap reuses the old swap file), so a value added now would be lost
+      if(completed) {
+         throw new IllegalStateException(
+            "Cannot add a value to a completed swappable fragment: " + prefix);
+      }
+
       if(arr == null) {
          return;
       }
@@ -441,23 +489,30 @@ public final class XIntFragment extends XSwappable {
     * @return next position if any, <tt>-1</tt> otherwise.
     */
    private int validate(ByteBuffer buf) {
-      pos = XSwapUtil.readChar(buf);
-      int[] arr = new int[pos];
+      // read fully into locals first and only commit pos/arr together, once reading has
+      // completed without throwing - a mid-read failure must leave the fields exactly as
+      // they were (the still-intact array a failed swap0() write may have preserved), not
+      // a new pos paired with the old, differently-sized arr
+      char newPos = XSwapUtil.readChar(buf);
+      int[] newArr = new int[newPos];
 
-      for(int i = 0; i < pos; i++) {
-         arr[i] = XSwapUtil.readInt(buf);
+      for(int i = 0; i < newPos; i++) {
+         newArr[i] = XSwapUtil.readInt(buf);
       }
 
-      this.arr = arr;
+      pos = newPos;
+      arr = newArr;
       return -1;
    }
 
    /**
-    * Invalidate this fragment to a byte buffer.
+    * Serialize this fragment into a byte buffer. Does not touch arr/pos; the
+    * caller is responsible for dropping them only after the buffer has been
+    * durably written.
     * @param buf the specified byte buffer.
     * @return next position if any, <tt>-1</tt> otherwise.
     */
-   private int invalidate(ByteBuffer buf) {
+   private int serialize(ByteBuffer buf) {
       if(buf != null) {
          XSwapUtil.writeChar(buf, pos);
 
@@ -466,8 +521,6 @@ public final class XIntFragment extends XSwappable {
          }
       }
 
-      arr = null;
-      pos = 0;
       return -1;
    }
 
@@ -484,6 +537,13 @@ public final class XIntFragment extends XSwappable {
    private boolean lastValid;
    private boolean completed; // completed flag
    private boolean disposed; // disposed flag
+   // true when the swap file on disk is a stub left by a failed write, not a durable copy
+   // of arr; forces the next swap0() to rewrite it even though it still exists
+   private boolean rewriteRequired;
+   // test-only hook: when set, invoked immediately before the real durable write, so tests can
+   // force a write failure deterministically without relying on platform-specific file locking
+   // or permission semantics (which differ between Windows and Linux/CI). No-op in production.
+   transient Runnable testBeforeWrite;
    private AtomicInteger holding = new AtomicInteger(0); // suspend swapping
    private transient XSwappableMonitor monitor;
    private transient boolean isCountHM;
