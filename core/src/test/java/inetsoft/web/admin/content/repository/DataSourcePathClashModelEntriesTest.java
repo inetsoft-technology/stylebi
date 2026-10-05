@@ -787,6 +787,123 @@ class DataSourcePathClashModelEntriesTest {
                   copy.contains("LOGIC_MODEL anG/Copy of anP/mLm"), "copy: " + copy);
    }
 
+   // r1 important-1 (a): the delete of folder ndF together with data source ndF, where data
+   // source ndF/s of the folder is a clash itself and models that can't be read are under data
+   // sources of both folders, removes everything, models of both data sources and grants too
+   @Test
+   void deleteTogetherNestedClashWithUnreadableModels() {
+      seedUnreadableModels("ndF");
+      addParent("ndF/s", "sAdd");
+      grant(ResourceType.DATA_SOURCE, "ndF/s");
+      addFolder("ndF/s");
+      addSource("ndF/s/y");
+      setUnreadableModel("ndF/s/y/bad");
+      addLogicalModel("ndF", "s");
+      model("ndF").getLogicalModel("s").addLogicalModel(new XLogicalModel("se"), true);
+      registry.clearCache();
+      assertTrue(registry.getDataSourcePathClashes().contains("ndF/s"), "not seeded: ndF/s");
+
+      registry.removeDataSourceFolder("ndF", true);
+
+      assertEquals(List.of(), state("ndF"));
+   }
+
+   // r1 important-1 (a): deleting data source lcF/x and subfolder lcF/S on their own leaves
+   // the models that can't be told apart. While they are there, the data source or the folder
+   // alone is refused, and the delete of both together removes them
+   @Test
+   void unreadableModelsLeftByDeletesAreRemovedWithBothSides() throws Exception {
+      seedUnreadableModels("lcF");
+
+      repository.removeDataSource("lcF/x", true);
+      registry.removeDataSourceFolder("lcF/S");
+
+      assertEquals(List.of("DATA_MODEL lcF [lcF [S/y/lm, x]]", "DATA_SOURCE lcF [lcF]",
+                           "DATA_SOURCE lcF/lcFAdd [lcFAdd]", "DATA_SOURCE_FOLDER lcF",
+                           "EXTENDED_LOGIC_MODEL lcF/x/e", "LOGIC_MODEL lcF/S/y/bad",
+                           "LOGIC_MODEL lcF/S/y/lm", "LOGIC_MODEL lcF/x", "LOGIC_MODEL lcF/x/bad",
+                           "PARTITION lcF/x/pbad", "grant DATA_SOURCE_FOLDER|lcF",
+                           "grant DATA_SOURCE|lcF", "grant DATA_SOURCE|lcF::lcFAdd"),
+                   state("lcF"));
+      List<String> before = state("lcF");
+      assertThrows(MessageException.class, () -> registry.removeDataSourceFolder("lcF"));
+      assertThrows(MessageException.class, () -> repository.removeDataSource("lcF", true));
+      assertEquals(before, state("lcF"));
+
+      emService().removeDataSourceFolder("lcF", true, principal, true);
+
+      assertEquals(List.of(), state("lcF"));
+   }
+
+   // R1b, the folder move through XEngine (EM and portal folder rename): moving subfolder mxF/G
+   // out of clash folder mxF leaves data source mxF's entries stored under the subfolder's
+   // path, the extended model of its model "G" and its models "G/y/lm" (with an extended model)
+   // and "G/H/z/m2", and moves the folder's data sources with their own models
+   @Test
+   void xengineMoveSubfolderOutOfClashKeepsPsEntries() throws Exception {
+      clash("mxF", false, false);
+      addFolder("mxF/G");
+      addSource("mxF/G/y");
+      addLogicalModel("mxF/G/y", "own");
+      model("mxF/G/y").getLogicalModel("own").addLogicalModel(new XLogicalModel("oe"), true);
+      addFolder("mxF/G/H");
+      addSource("mxF/G/H/z");
+      addLogicalModel("mxF", "G");
+      model("mxF").getLogicalModel("G").addLogicalModel(new XLogicalModel("ext"), true);
+      addLogicalModel("mxF", "G/y/lm");
+      model("mxF").getLogicalModel("G/y/lm").addLogicalModel(new XLogicalModel("le"), true);
+      addLogicalModel("mxF", "G/H/z/m2");
+      addFolder("mxQ");
+      List<String> before = state("mxF", "mxQ");
+
+      repository.updateDataSourceFolder(
+         new DataSourceFolder("mxQ/G", LocalDateTime.now(), null), "mxF/G");
+
+      List<String> after = state("mxF", "mxQ");
+      assertEquals(List.of("DATA_MODEL mxF/G/H/z [mxF/G/H/z []]",
+                           "DATA_MODEL mxF/G/y [mxF/G/y [own]]",
+                           "DATA_SOURCE mxF/G/H/z [mxF/G/H/z]", "DATA_SOURCE mxF/G/y [mxF/G/y]",
+                           "DATA_SOURCE_FOLDER mxF/G", "DATA_SOURCE_FOLDER mxF/G/H",
+                           "EXTENDED_LOGIC_MODEL mxF/G/y/own/oe", "LOGIC_MODEL mxF/G/y/own"),
+                   diff(before, after));
+      assertEquals(List.of("DATA_MODEL mxQ/G/H/z [mxQ/G/H/z []]",
+                           "DATA_MODEL mxQ/G/y [mxQ/G/y [own]]",
+                           "DATA_SOURCE mxQ/G/H/z [mxQ/G/H/z]", "DATA_SOURCE mxQ/G/y [mxQ/G/y]",
+                           "DATA_SOURCE_FOLDER mxQ/G", "DATA_SOURCE_FOLDER mxQ/G/H",
+                           "EXTENDED_LOGIC_MODEL mxQ/G/y/own/oe", "LOGIC_MODEL mxQ/G/y/own"),
+                   diff(after, before));
+      assertEquals(List.of("G", "G/H/z/m2", "G/y/lm"),
+                   List.of(model("mxF").getLogicalModelNames()));
+      assertEquals(List.of("le"),
+                   List.of(model("mxF").getLogicalModel("G/y/lm").getLogicalModelNames()));
+   }
+
+   // clash P with data source P/x of the folder (its own model, extended model and VPM, and a
+   // logical model and a physical view under it that can't be read), subfolder P/S with data
+   // source P/S/y and a model under it that can't be read, P's model "x" with an extended model
+   // at P/x/e, and P's model "S/y/lm"
+   private void seedUnreadableModels(String p) {
+      clash(p, false, false);
+      addSource(p + "/x");
+      grant(ResourceType.DATA_SOURCE, p + "/x");
+      addLogicalModel(p + "/x", "own");
+      model(p + "/x").getLogicalModel("own").addLogicalModel(new XLogicalModel("oe"), true);
+      model(p + "/x").addVirtualPrivateModel(new VirtualPrivateModel("v"), true);
+      setUnreadableModel(p + "/x/bad");
+      registry.setObject(new AssetEntry(AssetRepository.QUERY_SCOPE, AssetEntry.Type.PARTITION,
+                                        p + "/x/pbad", null),
+                         new DataSourceFolder("pbad", LocalDateTime.now(), null));
+      addFolder(p + "/S");
+      grant(ResourceType.DATA_SOURCE_FOLDER, p + "/S");
+      addSource(p + "/S/y");
+      grant(ResourceType.DATA_SOURCE, p + "/S/y");
+      setUnreadableModel(p + "/S/y/bad");
+      addLogicalModel(p, "x");
+      model(p).getLogicalModel("x").addLogicalModel(new XLogicalModel("e"), true);
+      addLogicalModel(p, "S/y/lm");
+      registry.clearCache();
+   }
+
    private static List<String> extendedModels(LogicalModel model) {
       return model.getExtendModels().stream().map(LogicalModel::getName).toList();
    }
