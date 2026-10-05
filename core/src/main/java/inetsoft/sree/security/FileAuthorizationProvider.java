@@ -283,9 +283,10 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
       // the sessions of a removed or renamed organization).
       //
       // The caller holds the authentication provider's lock. After the first put that times out
-      // (a hung backend), the remaining puts are still submitted, but are not waited on, so the
-      // whole cleanup waits at most one put timeout, as it did before. Those keys are reported as
-      // not confirmed, because a put that was not waited on, or that timed out, may still land.
+      // (a hung backend), the remaining puts are still submitted but are not waited on, so a hung
+      // backend costs at most one put timeout, as before. Puts that are slow but complete within
+      // the timeout are still waited on one by one. Keys whose put timed out or was not waited on
+      // are reported as not confirmed, because such a put may still land.
       List<String> failedKeys = new ArrayList<>();
       List<String> unconfirmedKeys = new ArrayList<>();
       Exception firstFailure = null;
