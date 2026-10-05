@@ -33,9 +33,11 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import java.io.*;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
@@ -97,6 +99,83 @@ class BlobStorageTest {
          assertTrue(thrown.getMessage().contains("directory"),
                     "Expected message to mention 'directory', got: " + thrown.getMessage());
          verify(mockCluster).unlockRead(anyString());
+      }
+   }
+
+   /**
+    * Bugs #77759, #77760. close() only shuts the event executor down, so an event that is queued
+    * when the storage is closed still runs later. awaitClosedEventExecutors() waits for it.
+    */
+   @Test
+   void awaitClosedEventExecutors_waitsForAnEventQueuedAtClose() throws Exception {
+      InMemoryKeyValueStorage<Blob<Serializable>> keyValueStorage = new InMemoryKeyValueStorage<>();
+      BlobStorage<Serializable> storage =
+         new TestBlobStorage("test-store", keyValueStorage, mockCluster);
+      AtomicBoolean ran = new AtomicBoolean();
+      storage.addListener(new RunListener(() -> {
+         try {
+            Thread.sleep(200L);
+         }
+         catch(InterruptedException e) {
+            Thread.currentThread().interrupt();
+         }
+
+         ran.set(true);
+      }));
+
+      // delivered to the blob storage's listener synchronously, which queues it
+      keyValueStorage.remotePut("some/dir", directoryBlob, true);
+      storage.close();
+
+      assertTrue(BlobStorage.awaitClosedEventExecutors(10L, TimeUnit.SECONDS));
+      assertTrue(ran.get(), "the event queued at close did not run");
+   }
+
+   /**
+    * An event that does not finish in time is reported once, and is not waited for again.
+    */
+   @Test
+   void awaitClosedEventExecutors_timesOutForAnEventThatDoesNotFinish() throws Exception {
+      InMemoryKeyValueStorage<Blob<Serializable>> keyValueStorage = new InMemoryKeyValueStorage<>();
+      BlobStorage<Serializable> storage =
+         new TestBlobStorage("test-store", keyValueStorage, mockCluster);
+      CountDownLatch release = new CountDownLatch(1);
+      storage.addListener(new RunListener(() -> {
+         try {
+            release.await(10L, TimeUnit.SECONDS);
+         }
+         catch(InterruptedException e) {
+            Thread.currentThread().interrupt();
+         }
+      }));
+
+      try {
+         keyValueStorage.remotePut("some/dir", directoryBlob, true);
+         storage.close();
+
+         assertFalse(BlobStorage.awaitClosedEventExecutors(200L, TimeUnit.MILLISECONDS));
+         assertTrue(BlobStorage.awaitClosedEventExecutors(0L, TimeUnit.MILLISECONDS),
+                    "an executor that timed out must not be waited for again");
+      }
+      finally {
+         release.countDown();
+      }
+   }
+
+   private record RunListener(Runnable action) implements BlobStorage.Listener<Serializable> {
+      @Override
+      public void blobAdded(BlobStorage.Event<Serializable> event) {
+         action.run();
+      }
+
+      @Override
+      public void blobUpdated(BlobStorage.Event<Serializable> event) {
+         action.run();
+      }
+
+      @Override
+      public void blobRemoved(BlobStorage.Event<Serializable> event) {
+         action.run();
       }
    }
 

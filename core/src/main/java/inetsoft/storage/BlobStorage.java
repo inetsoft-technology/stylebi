@@ -624,6 +624,13 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
    @Override
    public void close() throws Exception {
       eventExecutor.shutdown();
+      // the events already queued still run after the shutdown, on the event thread, and are not
+      // waited for here. The executor is kept until they have run, see awaitClosedEventExecutors()
+      CLOSED_EVENT_EXECUTORS.removeIf(ExecutorService::isTerminated);
+
+      if(!eventExecutor.isTerminated()) {
+         CLOSED_EVENT_EXECUTORS.add(eventExecutor);
+      }
 
       // Guard against double-close: when KeyValueStorageManager LRU-evicts the inner
       // LocalKeyValueStorage, its close() is already called by the eviction listener.
@@ -639,6 +646,37 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
 
    public boolean isClosed() {
       return isClosed || storage.isClosed();
+   }
+
+   /**
+    * Waits until the event executors of the closed blob storages have run the events that were
+    * queued when they were closed. Tests call it through {@code BlobStorageTestSupport} at a
+    * Spring context boundary, so that a closed context's listeners cannot look up beans in the
+    * next context. Production code never calls it.
+    *
+    * @param timeout the maximum time to wait for all the executors.
+    * @param unit    the unit of the timeout.
+    *
+    * @return {@code true} if all the executors terminated, or {@code false} if the timeout
+    *         elapsed first. The executors are no longer waited for after a timeout.
+    */
+   static boolean awaitClosedEventExecutors(long timeout, TimeUnit unit)
+      throws InterruptedException
+   {
+      long deadline = System.nanoTime() + unit.toNanos(timeout);
+
+      for(ExecutorService executor : CLOSED_EVENT_EXECUTORS) {
+         long remaining = Math.max(deadline - System.nanoTime(), 0L);
+
+         if(!executor.awaitTermination(remaining, TimeUnit.NANOSECONDS)) {
+            CLOSED_EVENT_EXECUTORS.clear();
+            return false;
+         }
+
+         CLOSED_EVENT_EXECUTORS.remove(executor);
+      }
+
+      return true;
    }
 
    /**
@@ -705,6 +743,9 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
    private volatile boolean isClosed = false;
    private final ExecutorService eventExecutor =
       Executors.newSingleThreadExecutor(r -> new GroupedThread(r, "BlobStorageEvent"));
+   // the event executors of the closed storages that may still be running queued events
+   private static final Set<ExecutorService> CLOSED_EVENT_EXECUTORS =
+      ConcurrentHashMap.newKeySet();
    private static final Logger LOG = LoggerFactory.getLogger(BlobStorage.class);
 
    private final KeyValueStorage.Listener<Blob<T>> listener = new KeyValueStorage.Listener<>() {
