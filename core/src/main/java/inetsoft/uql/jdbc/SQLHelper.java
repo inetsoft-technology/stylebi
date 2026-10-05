@@ -1530,7 +1530,7 @@ public class SQLHelper implements KeywordProvider {
                }
             }
          }
-         else if(isKeyword(column) && !expr) {
+         else if(isKeyword(column) && !expr && !XUtil.isNiladicKeywordFunction(column)) {
             column = XUtil.quoteAlias(column, this);
          }
          else if(!XUtil.isQualifiedName(column)) {
@@ -1772,7 +1772,7 @@ public class SQLHelper implements KeywordProvider {
             column = quotePath(column);
          }
       }
-      else if(isKeyword(column)) {
+      else if(isKeyword(column) && !XUtil.isNiladicKeywordFunction(column)) {
          column = XUtil.quoteAlias(column, this);
       }
 
@@ -3697,7 +3697,7 @@ public class SQLHelper implements KeywordProvider {
 
                sfield = quoteColumnAlias(sfield, same, part);
             }
-            else if(!aggr && !expr && isKeyword(sfield)) {
+            else if(!aggr && !expr && isKeyword(sfield) && !XUtil.isNiladicKeywordFunction(sfield)) {
                sfield = quoteAlias(sfield);
             }
             else if(!XUtil.isQualifiedName(sfield)) {
@@ -3845,7 +3845,7 @@ public class SQLHelper implements KeywordProvider {
                   column = quotePath(column, false, false, true);
                }
             }
-            else if(!expr && isKeyword(column)) {
+            else if(!expr && isKeyword(column) && !XUtil.isNiladicKeywordFunction(column)) {
                column = quoteAlias(column);
             }
             // @by billh, some dbs(informix) do not support to group by
@@ -4531,7 +4531,7 @@ public class SQLHelper implements KeywordProvider {
             str = quotePath(str, true, true, true);
          }
       }
-      else if(!expr && isKeyword(str)) {
+      else if(!expr && isKeyword(str) && !XUtil.isNiladicKeywordFunction(str)) {
          str = quoteAlias(str);
       }
       else if(!XUtil.isQualifiedName(str)) {
