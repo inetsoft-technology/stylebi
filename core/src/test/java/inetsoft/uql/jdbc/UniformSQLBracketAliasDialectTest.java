@@ -264,6 +264,55 @@ class UniformSQLBracketAliasDialectTest {
       assertTrue(XUtil.isSQLExpressionValid("(select top 1 a as [b] from t)"));
    }
 
+   // a syntactic predicate guessing across a subquery reaches as_clause in guess mode too, so
+   // the AS check that guess mode couldn't see also failed full parses of AS [m] in a
+   // subquery, on every dialect, or folded the outer alias into the column text
+   @Test
+   void explicitBracketAliasInGuessedSubquery() {
+      String[] texts = {
+         "select x from t where (select max(a) as [m] from u) > 1",
+         "select (select max(a) as [m] from u) y from t",
+         "select coalesce((select max(a) as [m] from u), 0) y from t",
+         "select (select max(a) as [m] from u) || 'x' y from t",
+         "select (select max(a) as [m] from u) + 1 as y from t",
+      };
+      List<Executable> rows = new ArrayList<>();
+
+      for(String source : new String[] { "postgresql", "none", "mssql" }) {
+         JDBCDataSource ds = dataSource(source);
+
+         for(String text : texts) {
+            rows.add(() -> {
+               String label = source + ": " + text;
+               UniformSQL bracket = parseOrFail(text, ds, label);
+               String plain = text.replace("as [m]", "as m");
+               UniformSQL explicit = parseOrFail(plain, ds, label + " (as m)");
+               int count = explicit.getSelection().getColumnCount();
+
+               assertEquals(count, bracket.getSelection().getColumnCount(), label);
+
+               for(int i = 0; i < count; i++) {
+                  assertEquals(explicit.getSelection().getColumn(i),
+                               bracket.getSelection().getColumn(i), label);
+                  assertEquals(explicit.getSelection().getAlias(i),
+                               bracket.getSelection().getAlias(i), label);
+                  assertEquals(((JDBCSelection) explicit.getSelection()).isAliasQuoted(i),
+                               ((JDBCSelection) bracket.getSelection()).isAliasQuoted(i), label);
+               }
+
+               assertEquals(lossy(plain, ds), lossy(text, ds), label);
+
+               String generated = regenerate(bracket);
+               assertEquals(regenerate(explicit), generated, label);
+               assertEquals(generated, regenerate(parseOrFail(generated, ds, label + " -> " +
+                                                              generated)), label);
+            });
+         }
+      }
+
+      assertAll(rows);
+   }
+
    private static UniformSQL parseOrFail(String text, JDBCDataSource ds, String label) {
       UniformSQL sql = new UniformSQL();
       sql.setDataSource(ds);
