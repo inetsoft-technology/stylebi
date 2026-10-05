@@ -6870,9 +6870,12 @@ public final class VSUtil {
    }
 
    /**
-    * Get viewsheet bookmark info.
+    * Get viewsheet bookmark info. A call a script makes itself lists the bookmarks the
+    * context principal sees, and only on a viewsheet it may read (Bug #77822). The user the
+    * script passes is ignored without a warning, so a script that passes another user gets
+    * the context principal's bookmarks, not that user's.
     * @param aEntry the viewsheet entry.
-    * @param currUser the current user.
+    * @param currUser the current user, ignored on a script's own call.
     * @return bookmark infos.
     */
    public static VSBookmarkInfo[] getBookmarks(AssetEntry aEntry, IdentityID currUser) {
@@ -6880,11 +6883,34 @@ public final class VSUtil {
          return new VSBookmarkInfo[0];
       }
 
+      AssetRepository rep = AssetUtil.getAssetRepository(false);
+
+      if(XUtil.isScriptCall()) {
+         // a script controls both the entry and the user, so neither can be trusted
+         Principal principal = ThreadContext.getContextPrincipal();
+
+         if(principal == null) {
+            return new VSBookmarkInfo[0];
+         }
+
+         try {
+            rep.checkAssetPermission(principal, aEntry, ResourceAction.READ);
+         }
+         catch(MessageException ex) {
+            return new VSBookmarkInfo[0];
+         }
+         catch(Exception ex) {
+            LOG.warn("Failed to check viewsheet permission: {}", aEntry, ex);
+            return new VSBookmarkInfo[0];
+         }
+
+         currUser = IdentityID.getIdentityIDFromKey(principal.getName());
+      }
+
       if(currUser == null || currUser.name.length() == 0) {
          return new VSBookmarkInfo[0];
       }
 
-      AssetRepository rep = AssetUtil.getAssetRepository(false);
       List<VSBookmarkInfo> bookmarks = new ArrayList<>();
 
       try {
@@ -6909,7 +6935,7 @@ public final class VSUtil {
             getUserBookmarks(rep, aEntry, user, currUser, bookmarks);
          }
 
-         boolean contain = Arrays.stream(users).anyMatch(user -> Tool.equals(user, currUser));
+         boolean contain = Arrays.asList(users).contains(currUser);
 
          if(users.length == 0 || !contain) {
             getUserBookmarks(rep, aEntry, currUser, currUser, bookmarks);

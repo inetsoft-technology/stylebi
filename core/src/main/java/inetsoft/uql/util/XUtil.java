@@ -1467,14 +1467,17 @@ public final class XUtil {
    }
 
    /**
-    * Whether the caller of a method of this class is a script itself: the classes of the
-    * call stack, innermost first, reach the GraalJS host interop that a script calls Java
+    * Whether the caller of an {@code inetsoft.uql} method is a script itself: the classes of
+    * the call stack, innermost first, reach the GraalJS host interop that a script calls Java
     * through before any class that is not {@code inetsoft.uql} or JDK code. Product code in
     * between makes the call that code's. The stack decides, not
     * {@link JavaScriptEngine#isScriptThread()}, so a script function that Java calls back
     * after the script returned (a comparator, for example) is still the script's call.
+    * Only meaningful when called from {@code inetsoft.uql} code, which the walk skips: called
+    * from any other package it always returns false, because the walk stops at that caller.
+    * {@code ScriptDataSourceAccess.isScriptAccess} applies the same rule; keep the two in step.
     */
-   private static boolean isScriptCall() {
+   public static boolean isScriptCall() {
       return StackWalker.getInstance().walk(frames -> isScriptCall(
          frames.map(StackWalker.StackFrame::getClassName).iterator()));
    }
