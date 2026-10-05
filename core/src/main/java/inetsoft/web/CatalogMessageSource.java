@@ -30,19 +30,43 @@ import java.util.Locale;
 public class CatalogMessageSource extends AbstractMessageSource {
    @Override
    protected String resolveCodeWithoutArguments(String code, Locale locale) {
-      return getCatalog(locale).getString(code);
+      return resolve(code, locale);
    }
 
    @Override
    protected MessageFormat resolveCode(String code, Locale locale) {
       MessageFormat format = null;
-      String value = getCatalog(locale).getString(code);
+      String value = resolve(code, locale);
 
       if(value != null) {
          format = new MessageFormat(value);
       }
 
       return format;
+   }
+
+   /**
+    * Resolves a message code against the catalog. An unknown code normally resolves to the
+    * code itself, but an unknown {@code problemDetail.*} code resolves to {@code null}. Spring's
+    * {@link org.springframework.web.ErrorResponse#updateAndGetBody} asks for those codes with no
+    * default message and keeps the exception's own type, title and detail only when the lookup
+    * returns {@code null}; echoing the code would replace the detail with the raw code.
+    *
+    * @param code   the message code.
+    * @param locale the locale.
+    *
+    * @return the message, or {@code null} for an unknown {@code problemDetail.*} code.
+    */
+   private String resolve(String code, Locale locale) {
+      Catalog catalog = getCatalog(locale);
+
+      if(code != null && code.startsWith(PROBLEM_DETAIL_PREFIX) &&
+         catalog.getIDString(code) == null)
+      {
+         return null;
+      }
+
+      return catalog.getString(code);
    }
 
    /**
@@ -62,4 +86,6 @@ public class CatalogMessageSource extends AbstractMessageSource {
          ThreadContext.setLocale(null);
       }
    }
+
+   private static final String PROBLEM_DETAIL_PREFIX = "problemDetail.";
 }
