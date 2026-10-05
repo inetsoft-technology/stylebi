@@ -192,7 +192,7 @@ class IdentityServiceOrgMemberRemovalTest {
 
       for(IdentityID id : List.of(bob, carol)) {
          verify(scheduleManager).identityRemoved(argThat(i -> id.equals(i.getIdentityID())),
-                                                 eq(provider));
+                                                 eq(ORG_A));
          verify(dashboardManager).setDashboards(
             argThat(i -> i != null && id.equals(i.getIdentityID())), isNull());
          verify(repletRegistryManager).removeUser(id);
@@ -202,11 +202,11 @@ class IdentityServiceOrgMemberRemovalTest {
       }
 
       verify(scheduleManager).identityRemoved(argThat(i -> sales.equals(i.getIdentityID())),
-                                              eq(provider));
+                                              eq(ORG_A));
       verify(scheduleManager).identityRemoved(argThat(i -> analyst.equals(i.getIdentityID())),
-                                              eq(provider));
+                                              eq(ORG_A));
       verify(scheduleManager, never())
-         .identityRemoved(argThat(i -> alice.equals(i.getIdentityID())), any());
+         .identityRemoved(argThat(i -> alice.equals(i.getIdentityID())), nullable(String.class));
       userEnv.verify(() -> UserEnv.removeUser(alice), never());
 
       // user-scoped assets of both dropped users
@@ -249,9 +249,19 @@ class IdentityServiceOrgMemberRemovalTest {
       IdentityID bob = addUser("bob", ORG_A);
       IdentityID carol = addUser("carol", ORG_A);
       IdentityID sales = addGroup("sales", ORG_A);
-      doThrow(new RuntimeException("Failed to save dashboard"))
-         .when(dashboardManager).setDashboards(argThat(i -> i != null && (
-            bob.equals(i.getIdentityID()) || sales.equals(i.getIdentityID()))), isNull());
+      // the dashboards are cleaned up best-effort after the removal (Bug #77797), so the failures
+      // are injected into steps that still fail the cleanup
+      doAnswer(inv -> {
+         when(provider.getUser(bob)).thenReturn(null);
+         return null;
+      }).when(provider).removeUser(bob);
+      doAnswer(inv -> {
+         when(provider.getGroup(sales)).thenReturn(null);
+         return null;
+      }).when(provider).removeGroup(sales);
+      userEnv.when(() -> UserEnv.removeUser(bob)).thenThrow(new RuntimeException("storage down"));
+      doThrow(new RuntimeException("Failed to update permissions")).when(service)
+         .updateIdentityPermissions(anyInt(), eq(sales), any(), any(), any(), anyBoolean());
 
       updateMembers(ORG_A, ORG_A);
 
@@ -327,13 +337,13 @@ class IdentityServiceOrgMemberRemovalTest {
 
       verify(provider).removeUser(bob);
       verify(scheduleManager).identityRemoved(argThat(i -> bob.equals(i.getIdentityID())),
-                                              eq(provider));
+                                              eq(ORG_A));
       assertEquals(List.of("alice"), aTheme.getUsers());
 
       verify(provider).setUser(eq(movedAlice), any(User.class));
       verify(provider).removeUser(alice);
       verify(scheduleManager, never()).identityRemoved(
-         argThat(i -> "alice".equals(i.getIdentityID().getName())), any());
+         argThat(i -> "alice".equals(i.getIdentityID().getName())), nullable(String.class));
       verify(repletRegistryManager, never()).removeUser(alice);
       userEnv.verify(() -> UserEnv.removeUser(alice), never());
       autoSave.verify(() -> AutoSaveUtils.deleteUserAutoSaveFiles(alice), never());
@@ -355,7 +365,7 @@ class IdentityServiceOrgMemberRemovalTest {
       verify(provider, never()).removeUser(admin);
       verify(authenticationService, never()).logout(eq(adminSession), anyBoolean());
       verify(scheduleManager, never()).identityRemoved(
-         argThat(i -> admin.equals(i.getIdentityID())), any());
+         argThat(i -> admin.equals(i.getIdentityID())), nullable(String.class));
       verify(provider).removeUser(bob);
       UserMessage message = Tool.getUserMessage();
       assertNotNull(message);

@@ -487,7 +487,7 @@ public class IdentityService {
     * rename carries over. Only the editable FS* identities are updated.
     */
    private void removeGlobalRoleFromMembers(EditableAuthenticationProvider eprovider,
-                                            IdentityID roleId)
+                                            IdentityID roleId, List<Identity> stripped)
    {
       for(IdentityID userId : eprovider.getUsers()) {
          User user = eprovider.getUser(userId);
@@ -495,6 +495,7 @@ public class IdentityService {
          if(user instanceof FSUser fsUser && Arrays.asList(user.getRoles()).contains(roleId)) {
             fsUser.setRoles(Tool.remove(user.getRoles(), roleId));
             eprovider.setUser(userId, user);
+            stripped.add(new DefaultIdentity(userId, Identity.USER));
          }
       }
 
@@ -504,6 +505,7 @@ public class IdentityService {
          if(group instanceof FSGroup fsGroup && Arrays.asList(group.getRoles()).contains(roleId)) {
             fsGroup.setRoles(Tool.remove(group.getRoles(), roleId));
             eprovider.setGroup(groupId, group);
+            stripped.add(new DefaultIdentity(groupId, Identity.GROUP));
          }
       }
 
@@ -515,6 +517,7 @@ public class IdentityService {
          {
             fsRole.setRoles(Tool.remove(role.getRoles(), roleId));
             eprovider.setRole(otherId, role);
+            stripped.add(new DefaultIdentity(otherId, Identity.ROLE));
          }
       }
    }
@@ -587,11 +590,12 @@ public class IdentityService {
       Identity oid = oID == null ? null : new DefaultIdentity(oID, type);
 
       if(oID == null) {
-         dmanager.setDashboards(nid, null);
-         smanager.identityRemoved(identity, eprovider);
-
-         if(type == Identity.ROLE && identityId.orgID == null) {
-            removeGlobalRoleFromMembers(eprovider, identityId);
+         // a deleted user, group or role is cleaned up in removeIdentity(), after it has been
+         // removed from the provider, so a failed removal keeps its tasks, dashboards and
+         // memberships
+         if(type == Identity.ORGANIZATION) {
+            dmanager.setDashboards(nid, null);
+            smanager.identityRemoved(identity, eprovider);
          }
       }
       else {
@@ -609,15 +613,14 @@ public class IdentityService {
       if(identity.getType() == Identity.USER) {
          //AssetRepository rep = AssetUtil.getAssetRepository(false);
          if(oID == null) {
-            //delete user identityId inside of permissions
-            repletRegistryManager.removeUser(identityId);
-            //rep.removeUser(identityId);
-            dashboardRegistryManager.clear(identityId);
             // read before the user is removed. A user stored without an organization belongs to
             // the default organization, so its organization is never null, which would match
             // every organization's themes
             User user = eprovider.getUser(identityId);
-            eprovider.removeUser(identityId);
+            String userOrgId = user != null ? user.getOrganizationID() :
+               identityId.orgID != null ? identityId.orgID : Organization.getDefaultOrganizationID();
+            removeIdentity(eprovider, identity, userOrgId, () -> eprovider.removeUser(identityId));
+            //delete user identityId inside of permissions
             updateIdentityPermissions(type, identityId, null, identityId.orgID, identityId.orgID,true);
             removeUserScopedAssets(identity);
             UserEnv.removeUser(identityId);
@@ -711,7 +714,7 @@ public class IdentityService {
             if(type == Identity.GROUP) {
                //delete group identityId inside of permissions
                String orgId = eprovider.getGroup(identityId).getOrganizationID();
-               eprovider.removeGroup(identityId);
+               removeIdentity(eprovider, identity, orgId, () -> eprovider.removeGroup(identityId));
                updateIdentityPermissions(type, identityId, null, orgId, orgId, true);
                updatePrincipalGroup(oID, identityId);
                removeIdentityFromThemes(identityId, orgId, CustomTheme::getGroups);
@@ -719,7 +722,7 @@ public class IdentityService {
             else {
                //delete role identityId inside of permissions
                String orgId = eprovider.getRole(identityId).getOrganizationID();
-               eprovider.removeRole(identityId);
+               removeIdentity(eprovider, identity, orgId, () -> eprovider.removeRole(identityId));
                updateIdentityPermissions(type, identityId, null, orgId, orgId, true);
                // a global role (null organization) is removed from every organization's themes
                removeIdentityFromThemes(identityId, orgId, CustomTheme::getRoles);
@@ -759,6 +762,155 @@ public class IdentityService {
                   eprovider.removeRole(oID);
                }
             }
+         }
+      }
+   }
+
+   /**
+    * Removes a deleted user, group or role from the provider, then clears its dashboards, schedule
+    * tasks and (for a user) portal registry. The cleanup runs only once the identity is gone, so
+    * that a failed removal, which tells the admin to delete the identity again, keeps them. A
+    * global role is first removed from the members of every organization (Bug #77354: a failed
+    * member update keeps the role), and is given back to those members if the role is kept.
+    *
+    * @param orgId the organization of the identity, read before it is removed.
+    * @param remove removes the identity from the provider.
+    */
+   private void removeIdentity(EditableAuthenticationProvider eprovider, Identity identity,
+                               String orgId, Runnable remove)
+   {
+      IdentityID identityId = identity.getIdentityID();
+      int type = identity.getType();
+      List<Identity> strippedMembers = new ArrayList<>();
+
+      try {
+         if(type == Identity.ROLE && identityId.orgID == null) {
+            removeGlobalRoleFromMembers(eprovider, identityId, strippedMembers);
+         }
+
+         remove.run();
+      }
+      catch(RuntimeException ex) {
+         // the removal can fail after the identity was removed, e.g. on a storage timeout or a
+         // failing change listener. It cannot be deleted again then, so it is cleaned up now.
+         if(identityExists(eprovider, identityId, type)) {
+            restoreGlobalRoleMembers(eprovider, identityId, strippedMembers, ex);
+            throw ex;
+         }
+
+         LOG.warn("Removing the identity {} failed, but it is no longer in the provider, " +
+                     "cleaning it up", identityId, ex);
+      }
+
+      cleanUpRemovedIdentity(identity, orgId);
+   }
+
+   private boolean identityExists(EditableAuthenticationProvider eprovider, IdentityID identityId,
+                                  int type)
+   {
+      try {
+         return switch(type) {
+            case Identity.USER -> eprovider.getUser(identityId) != null;
+            case Identity.GROUP -> eprovider.getGroup(identityId) != null;
+            default -> eprovider.getRole(identityId) != null;
+         };
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to check whether the identity {} still exists", identityId, e);
+         // assume it does, so its tasks and dashboards are kept
+         return true;
+      }
+   }
+
+   /**
+    * Gives a global role whose removal failed back to the members it was removed from. This is
+    * best-effort: a failure is logged and attached to the removal error, which is reported.
+    */
+   private void restoreGlobalRoleMembers(EditableAuthenticationProvider eprovider,
+                                         IdentityID roleId, List<Identity> members,
+                                         RuntimeException removalError)
+   {
+      for(Identity member : members) {
+         IdentityID memberId = member.getIdentityID();
+
+         try {
+            if(member.getType() == Identity.USER) {
+               User user = eprovider.getUser(memberId);
+
+               if(user instanceof FSUser fsUser && !Arrays.asList(user.getRoles()).contains(roleId)) {
+                  fsUser.setRoles(addRole(user.getRoles(), roleId));
+                  eprovider.setUser(memberId, user);
+               }
+            }
+            else if(member.getType() == Identity.GROUP) {
+               Group group = eprovider.getGroup(memberId);
+
+               if(group instanceof FSGroup fsGroup &&
+                  !Arrays.asList(group.getRoles()).contains(roleId))
+               {
+                  fsGroup.setRoles(addRole(group.getRoles(), roleId));
+                  eprovider.setGroup(memberId, group);
+               }
+            }
+            else {
+               Role role = eprovider.getRole(memberId);
+
+               if(role instanceof FSRole fsRole && !Arrays.asList(role.getRoles()).contains(roleId)) {
+                  fsRole.setRoles(addRole(role.getRoles(), roleId));
+                  eprovider.setRole(memberId, role);
+               }
+            }
+         }
+         catch(Exception e) {
+            LOG.error("Failed to give the global role {} back to {} after its removal failed",
+                      roleId, memberId, e);
+            removalError.addSuppressed(e);
+         }
+      }
+   }
+
+   private static IdentityID[] addRole(IdentityID[] roles, IdentityID roleId) {
+      IdentityID[] result = Arrays.copyOf(roles, roles.length + 1);
+      result[roles.length] = roleId;
+      return result;
+   }
+
+   /**
+    * Clears the dashboards, schedule tasks and portal registry of a user, group or role that
+    * has been removed from the provider. A failure is only logged, because the identity is
+    * already gone and the rest of its cleanup must not be skipped.
+    */
+   private void cleanUpRemovedIdentity(Identity identity, String orgId) {
+      IdentityID identityId = identity.getIdentityID();
+      Identity nid = new DefaultIdentity(identityId, identity.getType());
+
+      try {
+         dashboardManager.setDashboards(nid, null);
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to remove the dashboards of the deleted identity {}", identityId, e);
+      }
+
+      try {
+         scheduleManager.identityRemoved(identity, orgId);
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to update the schedule tasks of the deleted identity {}", identityId, e);
+      }
+
+      if(identity.getType() == Identity.USER) {
+         try {
+            repletRegistryManager.removeUser(identityId);
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to remove the portal registry of the deleted user {}", identityId, e);
+         }
+
+         try {
+            dashboardRegistryManager.clear(identityId);
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to clear the dashboard registry of the deleted user {}", identityId, e);
          }
       }
    }
