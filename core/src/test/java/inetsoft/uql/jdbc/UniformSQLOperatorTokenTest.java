@@ -35,6 +35,14 @@ import static org.junit.jupiter.api.Assertions.*;
  * remaining tokens still formed a valid statement (e.g. {@code select a % b from t} collapsed to
  * {@code select a b from t}, parsed as column {@code a} aliased {@code b}), so parsing reported
  * {@code PARSE_SUCCESS} while silently changing the query's meaning.
+ *
+ * <p>{@code #} is deliberately NOT wired into the grammar as a binary operator (review round 2
+ * of PR #6240, bug #77659): the parser has no dialect context, and {@code #} means different
+ * things per database (a comment opener in MySQL, part of a valid identifier in Oracle/SQL
+ * Server, XOR only in PostgreSQL), so treating it as one true operator is wrong for most
+ * dialects. {@code HASH} stays a real lexer token that no parser rule accepts, the same pattern
+ * as {@code BACKSLASH} (#77640), so {@code #} still fails the parse with a clear error instead
+ * of silently vanishing via the catch-all.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -81,15 +89,10 @@ class UniformSQLOperatorTokenTest {
    }
 
    @Test
-   void hashOperatorIsPreservedNotTreatedAsAlias() throws Exception {
+   void hashOperatorIsPreservedNotTreatedAsAlias() {
       UniformSQL sql = new UniformSQL();
-      sql.parse("select a, b # c from t", UniformSQL.PARSE_ALL, UniformSQL.PARSE_PERIOD);
+      new SQLProcessor(sql).parse("select a, b # c from t");
 
-      assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult());
-      XSelection selection = sql.getSelection();
-      assertEquals(2, selection.getColumnCount());
-      assertNull(selection.getAlias(1));
-      assertTrue(selection.getColumn(1).contains("#"));
-      assertTrue(sql.getSQLString().contains("#"));
+      assertEquals(UniformSQL.PARSE_FAILED, sql.getParseResult());
    }
 }
