@@ -1896,11 +1896,44 @@ public class SQLHelper implements KeywordProvider {
          return null;
       }
 
-      if(uniformSql.isTableColumn(column) || XUtil.isQualifiedName(column)) {
+      // an unquoted - or & is an operator, not part of a column name (Bug #77642)
+      if(uniformSql.isTableColumn(column) ||
+         XUtil.isQualifiedName(column) && !isOperatorText(column))
+      {
          return new String[] {form, column};
       }
 
       return null;
+   }
+
+   /**
+    * Check if the text contains an operator that XUtil.isQualifiedName accepts as a name
+    * character: a - or & outside a quoted ("", ``, []) segment. The parser keeps a column
+    * whose name contains one of them quoted, so outside quotes it is always an operator.
+    */
+   private static boolean isOperatorText(String text) {
+      char close = 0;
+
+      for(int i = 0; i < text.length(); i++) {
+         char c = text.charAt(i);
+
+         if(close != 0) {
+            if(c == close) {
+               close = 0;
+            }
+         }
+         else if(c == '"' || c == '`') {
+            close = c;
+         }
+         else if(c == '[') {
+            close = ']';
+         }
+         else if(c == '-' || c == '&') {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    /**
@@ -3713,7 +3746,8 @@ public class SQLHelper implements KeywordProvider {
             }
 
             if(uniformSql.isTableColumn(column) ||
-               XUtil.isQualifiedName(column) && (!expr || aliased) || uniformSql.isGroupDBField(column))
+               XUtil.isQualifiedName(column) && !isOperatorText(column) && (!expr || aliased) ||
+               uniformSql.isGroupDBField(column))
             {
                String quote = getQuote();
 
