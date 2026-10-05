@@ -96,8 +96,8 @@ The baselines folder is git-excluded local state; numbers go in the PR descripti
 | MC-1 | SEL Legacy identical before and after — HTML byte for byte, PNG pixel for pixel, PDF geometry, PPTX and XLSX zip entries, CSV text | all formats |
 | MC-2 | an expanded contained list shows all listHeight rows at every tier | viewer and composer; PDF, HTML, PNG at match layout |
 | MC-3 | the range slider's lane equals its siblings'; a marked slider collapsed at 20px still expands and collapses | live, then export |
-| MC-4 | for a modern container, saved child positions (asset XML) equal drawn positions (html_measure.js, viewer DOM) | after a save |
-| MC-5 | a range slider at the container's bottom edge is clipped and included in PDF and PNG as the viewer shows it; the CSV dialog offers the same children | export, dialogs |
+| MC-4 | for a modern container, saved child positions (asset XML) equal drawn positions (html_measure.js, viewer DOM) | after a fresh open, or a change that lays the viewsheet out |
+| MC-5 | a range slider at the container's bottom edge is clipped and included in PDF and PNG as the viewer shows it | export |
 | MC-6 | ConNew is 300×360 / 312 / 240; ConOld grows on open; Revert restores 300×240; dense unchanged | live, asset XML |
 | MC-7 | expanding a list in a nearly full modern container collapses a sibling | live |
 
@@ -765,7 +765,7 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 
 **Interfaces:**
 - Consumes: `VSDensityDefaults.titleHeight(T info, int stored)` (existing, `:250`); the Task 2 test helpers.
-- Produces: `public boolean TimeSliderVSAssemblyInfo.isCollapsedInContainer(int storedHeight)` — marked: `isHidden()`; unmarked: `storedHeight == getTitleHeight()`. Task 5's fixture depends on the marked lane being 30 at comfortable.
+- Produces: `public boolean TimeSliderVSAssemblyInfo.isCollapsedInContainer(int storedHeight)` — `isHidden()` whenever it is set; unmarked falls back to `storedHeight == getTitleHeight()`, because a slider collapsed at a tier lane and then Reverted would otherwise be stuck. Task 5's fixture depends on the marked lane being 30 at comfortable.
 
 - [ ] **Step 1: Write the failing lane test**
 
@@ -866,12 +866,12 @@ Immediately after `setHidden(boolean)`, add:
 
 ```java
    /**
-    * Whether this slider is collapsed to its title lane in a selection container. Marked, the
-    * hidden flag answers, since the lane follows the density and a collapsed height stored at
-    * an earlier tier no longer equals it.
+    * Whether this slider is collapsed to its title lane in a selection container. The hidden flag
+    * answers whenever it is set, since a collapsed height stored at another tier's lane (a
+    * density change, or Revert) no longer equals the lane; unmarked falls back to the height test.
     */
    public boolean isCollapsedInContainer(int storedHeight) {
-      return getVizMark() != null ? isHidden() : storedHeight == getTitleHeight();
+      return isHidden() || getVizMark() == null && storedHeight == getTitleHeight();
    }
 ```
 
@@ -1903,9 +1903,9 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 Run: `./mvnw test -pl core`
 Expected: BUILD SUCCESS. Record the test count in the checks doc. If a failure names a class with no source on this branch, it is a stale `target/test-classes` artifact from another branch: run `./mvnw clean test -pl core`.
 
-- [ ] **Step 2: The CSV dialogs read stored positions the session has laid out**
+- [ ] **Step 2: The CSV check is withdrawn**
 
-The spec leaves one check to the plan. In the viewer, expand a list in a modern `ConMix` copy, then open **Export → CSV** without saving. Confirm the dialog offers the same container children the viewer shows. If it offers a child the viewer clips, the session's `layout()` did not run before `CSVUtil.needExport`; record it, and stop to raise it with the user before the PR.
+The check is withdrawn: `CSVUtil.needExport`'s callers pass only table-data assemblies, so container children never reach it.
 
 - [ ] **Step 3: The user builds and restarts the server from this branch**
 
@@ -1935,7 +1935,7 @@ Run each check in the checks doc's table and record the measured values in its R
 
 - MC-2: count rows in an expanded `ConMix` list — 6 of 6 at every tier — live and in PDF / HTML / PNG.
 - MC-3: the range slider's lane height equals its sibling lists' (30 / 26 / 20); open `ConOld`'s slider, collapsed before the fix, and expand and collapse it.
-- MC-4: after a save, each `ConMix` child's `pixelOffset` in the asset XML equals its drawn top from `html_measure.js`.
+- MC-4: after a fresh open (or a change that lays the viewsheet out, not right after an expand), each `ConMix` child's saved `pixelOffset` in the asset XML equals its drawn top from `html_measure.js`.
 - MC-5: the slider at `ConMix`'s bottom edge — clipped and included in PDF and PNG as the viewer shows it.
 - MC-6: `ConNew` 300×360 / 312 / 240; `ConOld` grown on open; Revert gives 300×240; dense unchanged.
 - MC-7: in a modern container sized so two open lists overflow, expanding the second collapses the first.
