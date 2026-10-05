@@ -3964,10 +3964,12 @@ public class IdentityService {
       Set<Permission.PermissionIdentity> grants = new HashSet<>();
 
       if(orgScopedGrants != null) {
-         // remove identity
-         if(newIdentityID == null && orgScopedGrants.contains(oldIdentityID)) {
+         // remove identity, keep every other grantee. The grants are PermissionIdentity
+         // objects, so compare the name and organization rather than the IdentityID itself.
+         if(newIdentityID == null) {
             orgScopedGrants.stream()
-               .filter(identityID -> !Tool.equals(identityID, oldIdentityID))
+               .filter(identityID -> !(Tool.equals(identityID.getName(), oldIdentityID.getName()) &&
+                  Tool.equals(identityID.getOrganizationID(), oldIdentityID.getOrgID())))
                .forEach(identityID -> grants.add(identityID));
          }
          // sync id
