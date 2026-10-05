@@ -524,7 +524,7 @@ public class CoordinateHelper {
     * Get viewsheet assembly size.
     */
    public static Dimension getAssemblySize(VSAssembly assembly, Dimension size) {
-      // a selection container child's drawn height, which the container owns
+      // the drawn height is the rule the selection container owns, also for a standalone slider or list
       if(assembly instanceof TimeSliderVSAssembly || assembly instanceof SelectionListVSAssembly) {
          return new Dimension(assembly.getPixelSize().width,
                               CurrentSelectionVSAssembly.getDrawnHeight(assembly));

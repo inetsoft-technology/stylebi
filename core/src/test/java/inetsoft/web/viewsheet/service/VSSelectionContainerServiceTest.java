@@ -181,6 +181,18 @@ class VSSelectionContainerServiceTest {
       assertEquals(2 * AssetUtil.defh + 30, info.getPixelSize().height);
    }
 
+   // hidden at the comfortable lane of 30, then Reverted so the lane reads 20
+   @Test
+   void aRevertedSliderCollapsedAtTheTierLaneStillExpands() throws Exception {
+      container(null, 800, "RangeSlider1");
+      TimeSliderVSAssemblyInfo info = slider("RangeSlider1", null, true, 30);
+
+      service.applySelection(rvs, "RangeSlider1", false, dispatcher, "");
+
+      assertFalse(info.isHidden(), "the click opens it");
+      assertEquals(2 * AssetUtil.defh + AssetUtil.defh, info.getPixelSize().height);
+   }
+
    @Test
    void aMarkedSliderCollapsesToItsLane() throws Exception {
       container(VizMark.MODERN_LIGHT, 800, "RangeSlider1");
