@@ -86,7 +86,7 @@ public class ExpressionValue implements AssetObject {
 
       if(expression != null) {
          writer.print("<expression>");
-         writer.print("<![CDATA[" + expression + "]]>");
+         writer.print("<![CDATA[" + Tool.splitCDATAEnd(expression) + "]]>");
          writer.println("</expression>");
       }
 

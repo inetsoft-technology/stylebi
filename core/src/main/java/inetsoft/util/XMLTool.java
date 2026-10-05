@@ -185,7 +185,8 @@ public class XMLTool {
          break;
       case Node.CDATA_SECTION_NODE:
          fOut.print("<![CDATA[");
-         fOut.print(node.getNodeValue());
+         // a CDATA node created by a DOM edit (e.g. a rename transform) may hold ]]>
+         fOut.print(Tool.splitCDATAEnd(node.getNodeValue()));
          fOut.print("]]>");
          fOut.flush();
          break;

@@ -927,7 +927,7 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
 
       if(desc != null) {
          writer.print("<description>");
-         writer.print("<![CDATA[" + desc + "]]>");
+         writer.print("<![CDATA[" + Tool.splitCDATAEnd(desc) + "]]>");
          writer.println("</description>");
       }
 
@@ -984,7 +984,7 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
       }
 
       if(script != null) {
-         writer.print("<script><![CDATA[" + script + "]]></script>");
+         writer.print("<script><![CDATA[" + Tool.splitCDATAEnd(script) + "]]></script>");
       }
 
       fmtInfo.writeXML(writer);
