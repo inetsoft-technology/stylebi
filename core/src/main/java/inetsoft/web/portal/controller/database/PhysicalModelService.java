@@ -36,11 +36,19 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.awt.*;
 import java.io.FileNotFoundException;
 import java.security.Principal;
+import java.sql.SQLDataException;
+import java.sql.SQLException;
+import java.sql.SQLNonTransientConnectionException;
+import java.sql.SQLRecoverableException;
+import java.sql.SQLSyntaxErrorException;
+import java.sql.SQLTransientException;
 import java.util.List;
 import java.util.*;
 
@@ -656,10 +664,29 @@ public class PhysicalModelService {
       dataSourceService.checkDataModelEditPermission(dataSource, additional, principal);
 
       if(sql == null || (sql = sql.trim()).isEmpty()) {
-         throw new Exception("The SQL statement is empty");
+         throw new ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
+            Catalog.getCatalog().getString("data.physicalmodel.inlineViewQueryRequired"));
       }
 
-      XNode node = executeSQLQuery(sql, dataSource, additional, principal);
+      XNode node;
+
+      try {
+         node = executeSQLQuery(sql, dataSource, additional, principal);
+      }
+      catch(Exception ex) {
+         // only a database rejection of the user's own SQL is a bad request; outages, timeouts,
+         // cancels, a missing data source and anything unknown keep their existing handling
+         if(!isUserSqlError(ex)) {
+            throw ex;
+         }
+
+         LOG.debug("Inline view SQL rejected by the database: {}", sql, ex);
+         throw new ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
+            Catalog.getCatalog().getString("data.physicalmodel.inlineViewQueryInvalid"), ex);
+      }
+
       XNodeTableLens lens = new XNodeTableLens(node);
       Set<String> columns = new LinkedHashSet<>();
 
@@ -667,7 +694,8 @@ public class PhysicalModelService {
          String column = lens.getColumnIdentifier(i);
 
          if(columns.contains(column)) {
-            throw new Exception(
+            throw new ResponseStatusException(
+               HttpStatus.BAD_REQUEST,
                Catalog.getCatalog().getString("data.physicalmodel.inlineViewColumnDuplicate"));
          }
 
@@ -675,6 +703,61 @@ public class PhysicalModelService {
       }
 
       return new ArrayList<>(columns);
+   }
+
+   /**
+    * Determines if an exception thrown while executing an inline view query means that the
+    * database rejected the user's SQL (bad syntax, unknown table/column/function, or a data
+    * error in an expression), as opposed to a connection failure, timeout, cancel or other
+    * server-side problem. This is an allowlist: anything not recognized is not a user error.
+    *
+    * @param ex the exception thrown by the query execution.
+    *
+    * @return {@code true} if the exception is caused by the user's SQL.
+    */
+   static boolean isUserSqlError(Throwable ex) {
+      // JDBCHandler wraps expression/syntax errors, so look through exactly one layer of it. Other
+      // cause chains are not walked, because connection pools wrap driver connect errors whose
+      // states could otherwise look like user errors.
+      if(ex instanceof SQLExpressionFailedException) {
+         ex = ex.getCause();
+      }
+
+      if(!(ex instanceof SQLException sqlEx)) {
+         return false;
+      }
+
+      // checked before the state, because an outage may have a null or vendor-specific state
+      if(sqlEx instanceof SQLTransientException || sqlEx instanceof SQLRecoverableException ||
+         sqlEx instanceof SQLNonTransientConnectionException)
+      {
+         return false;
+      }
+
+      if(sqlEx instanceof SQLSyntaxErrorException || sqlEx instanceof SQLDataException) {
+         return true;
+      }
+
+      String state = sqlEx.getSQLState();
+
+      if(state == null) {
+         return false;
+      }
+
+      // class 42: syntax error or access rule violation, class 22: data exception,
+      // 37000: ODBC-2 syntax error
+      if(state.startsWith("42") || state.startsWith("22") || "37000".equals(state)) {
+         return true;
+      }
+
+      // In its default (non-X/Open) mode, the SQL Server driver reports most server errors as
+      // "S" + the zero-padded server error state, so S0001/S0002/S0022 say nothing about the error
+      // category on their own. Only accept them for the server error numbers that mean bad SQL.
+      if("S0001".equals(state) || "S0002".equals(state) || "S0022".equals(state)) {
+         return SQL_SERVER_USER_ERROR_CODES.contains(sqlEx.getErrorCode());
+      }
+
+      return false;
    }
 
    /**
@@ -1063,5 +1146,10 @@ public class PhysicalModelService {
    private final DataSourceService dataSourceService;
    private final XSessionManager xSessionManager;
 
+   // SQL Server error numbers for invalid object name (208), invalid column name (207), incorrect
+   // syntax (102, 156), multi-part identifier could not be bound (4104), not a recognized function
+   // (195) and column not in the select list GROUP BY (8120)
+   private static final Set<Integer> SQL_SERVER_USER_ERROR_CODES =
+      Set.of(208, 207, 102, 156, 4104, 195, 8120);
    private static final Logger LOG = LoggerFactory.getLogger(PhysicalModelService.class);
 }
