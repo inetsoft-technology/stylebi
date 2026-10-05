@@ -595,28 +595,34 @@ class UniformSQLSyncOrdinalTest {
          // a column created unquoted is in the folded case
          String a = "postgresql".equals(key) ? "a" : "A";
 
-         for(String as : new String[] { alias, "\"" + alias + "\"" }) {
-            // t has a column a, u doesn't
-            for(String[] meta : new String[][] { { "id", "k", a }, { "id", "k" } }) {
-               UniformSQL usql = fixedWithoutAliasQuoting(
-                  "select id as " + as + " from t order by " + alias + " desc", key, meta);
-               assertEquals("[]", orderBy(usql), key + " " + as);
+         // the quoted alias and the unquoted reference are two names, the regenerated
+         // reference would be the alias, so the query is refused (Bug #77643)
+         UniformSQL refused = new UniformSQL();
+         refused.setDataSource(helper(key));
+         assertThrows(antlr.SemanticException.class, () -> refused.parse(
+            "select id as \"" + alias + "\" from t order by " + alias + " desc",
+            UniformSQL.PARSE_ALL, UniformSQL.PARSE_PERIOD), key);
 
-               usql = fixedWithoutAliasQuoting("select id as " + as + ", k from t order by " + alias + " desc, 2",
-                            key, meta);
-               assertEquals("[2:asc]", orderBy(usql), key + " " + as);
-               assertNull(JDBCQueryCacheNormalizer.generateSortedColumnMap(usql), key);
-            }
+         // t has a column a, u doesn't
+         for(String[] meta : new String[][] { { "id", "k", a }, { "id", "k" } }) {
+            UniformSQL usql = fixedWithoutAliasQuoting(
+               "select id as " + alias + " from t order by " + alias + " desc", key, meta);
+            assertEquals("[]", orderBy(usql), key + " " + alias);
 
-            // the table column first
-            String generated = regenerate(fixedWithoutAliasQuoting("select id as " + as + ", count(*) from t " +
-                                                "group by " + alias, key, "id", "k", a));
-            assertTrue(generated.endsWith("group by \"t\"." + a), key + " " + generated);
-
-            generated = regenerate(fixedWithoutAliasQuoting("select id as " + as + ", count(*) from t " +
-                                         "group by " + alias, key, "id", "k"));
-            assertFalse(generated.contains(" group by "), key + " " + generated);
+            usql = fixedWithoutAliasQuoting("select id as " + alias + ", k from t order by " + alias + " desc, 2",
+                         key, meta);
+            assertEquals("[2:asc]", orderBy(usql), key + " " + alias);
+            assertNull(JDBCQueryCacheNormalizer.generateSortedColumnMap(usql), key);
          }
+
+         // the table column first
+         String generated = regenerate(fixedWithoutAliasQuoting("select id as " + alias + ", count(*) from t " +
+                                             "group by " + alias, key, "id", "k", a));
+         assertTrue(generated.endsWith("group by \"t\"." + a), key + " " + generated);
+
+         generated = regenerate(fixedWithoutAliasQuoting("select id as " + alias + ", count(*) from t " +
+                                      "group by " + alias, key, "id", "k"));
+         assertFalse(generated.contains(" group by "), key + " " + generated);
       }
    }
 

@@ -117,10 +117,18 @@ class UniformSQLUnaliasedTableRenameTest {
    void renameKeepsQuotedAndUnquotedTwins() throws Exception {
       String query = "select q.\"MixedCase\", q.MixedCase as b from q";
 
+      // both spellings of the name are refused where they are two names (Bug #77643), the
+      // sql runs as written and isn't renamed
       for(String helper : QUOTING) {
+         UniformSQL sql = new UniformSQL();
+         sql.setDataSource(dataSource(helper));
+         assertThrows(antlr.SemanticException.class,
+                      () -> sql.parse(query, UniformSQL.PARSE_ALL, UniformSQL.PARSE_PERIOD), helper);
+      }
+
+      for(String helper : CONTROLS) {
          String generated = rename(helper, query, "q", "x");
-         // both columns are kept under the new name. The open step already binds the
-         // unquoted twin to the only column of that name in the metadata, "MixedCase".
+         // both columns are kept under the new name
          assertTrue(generated.contains("x.\"MixedCase\""), helper + " -> " + generated);
          assertTrue(generated.matches(".* as \"?b\"? from .*"), helper + " -> " + generated);
          assertEquals(2, generated.split(" x\\.").length - 1, helper + " -> " + generated);
