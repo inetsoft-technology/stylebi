@@ -400,6 +400,15 @@ public class RepositoryTreeController {
                     registry.getFolderAlias(entry.getPath()) : null;
             boolean reAlias = oalias != null && !"".equals(oalias);
 
+            // Bug #77733, a folder rename that isn't an alias change builds the new path from
+            // the name, a name with a slash would move the folder under another parent
+            if(entry.isFolder() && !reAlias && Tool.containsPathSeparator(newName)) {
+               MessageCommand messageCommand = new MessageCommand();
+               messageCommand.setMessage(Tool.getInvalidFolderNameMessage());
+               messageCommand.setType(MessageCommand.Type.ERROR);
+               return messageCommand;
+            }
+
             if(SUtil.isDuplicatedRepositoryPath(newPath, pId, -1) && !reAlias) {
                MessageCommand messageCommand = new MessageCommand();
                messageCommand.setMessage(catalog.getString("em.schedule.action.dupFolder"));
@@ -663,6 +672,15 @@ public class RepositoryTreeController {
          registry.setFolderDescription(npath, description);
          registry.save();
          return null;
+      }
+
+      // Bug #77733, a name with a slash would create the folder under another parent than the
+      // one the permission is checked on
+      if(Tool.containsPathSeparator(name)) {
+         MessageCommand messageCommand = new MessageCommand();
+         messageCommand.setMessage(Tool.getInvalidFolderNameMessage());
+         messageCommand.setType(MessageCommand.Type.ERROR);
+         return messageCommand;
       }
 
       String path = "/".equals(entry.getPath()) ? name : (entry.getPath() + "/" + name);

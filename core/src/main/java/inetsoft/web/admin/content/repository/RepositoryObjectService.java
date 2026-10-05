@@ -782,6 +782,10 @@ public class RepositoryObjectService {
                                               ActionRecord.OBJECT_TYPE_FOLDER);
          String newFolderName = parentInfo.getFolderName();
 
+         // Bug #77733, a name with a slash would create the folder under another parent than the
+         // one the permission is checked on
+         Tool.checkFolderNameSeparator(newFolderName);
+
          if(type == RepositoryEntry.DATA_SOURCE_FOLDER) {
             String dsParent = parentFolder == null || parentFolder.isEmpty() ? "/" : parentFolder;
 

@@ -105,6 +105,23 @@ public class RenameAssetController {
 
       String name = event.newName();
       boolean reAlias = entry.getAlias() != null && entry.getAlias().length() > 0;
+
+      // Bug #77733, a folder rename that isn't an alias change builds the new path from the
+      // name, a name with a separator would move the folder under another parent. A report
+      // folder is always passed on as a path, RepletEngine decides from its own registry alias
+      // whether it is an alias change.
+      if(entry.isFolder() && (!reAlias || entry.isRepositoryFolder()) &&
+         Tool.containsPathSeparator(SUtil.removeControlChars(name),
+                                    entry.isTableStyleFolder() ?
+                                       new char[] { LibManager.SEPARATOR.charAt(0) } :
+                                       new char[0]))
+      {
+         MessageCommand messageCommand = new MessageCommand();
+         messageCommand.setMessage(Tool.getInvalidFolderNameMessage());
+         messageCommand.setType(MessageCommand.Type.ERROR);
+         return messageCommand;
+      }
+
       String path;
 
       if(entry.getParent().isRoot()) {

@@ -221,6 +221,9 @@ public class DatabaseDatasourcesService {
             throw new RuntimeException("Data space folder does not exist: " + path);
          }
 
+         // Bug #77733, a name with a slash would move the folder under another parent without
+         // the checks of the move
+         Tool.checkFolderNameSeparator(model.name());
          String parent = DataSourceFolder.getParentName(path);
 
          if(parent == null) {

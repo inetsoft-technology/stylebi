@@ -731,9 +731,10 @@ class DataSourceMoveTargetExistsTest {
          mock(ResourcePermissionService.class), mock(DataSourceStatusService.class),
          mock(IgniteSessionRepository.class), registry, transforms);
 
+      // since Bug #77733 a name with a slash is refused before the path is built
       MessageException ex = assertThrows(MessageException.class,
          () -> browser.renameFolder("srF", "srF/Z", null, null, principal));
-      assertTrue(ex.getMessage().contains("srF"), ex.getMessage());
+      assertEquals(Tool.getInvalidFolderNameMessage(), ex.getMessage());
       assertThrows(MessageException.class,
          () -> browser.renameFolder("srP/srF", "srF/Z", null, null, principal));
       assertThrows(MessageException.class,

@@ -32,6 +32,7 @@ import inetsoft.uql.asset.sync.RenameTransformHandler;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.util.IndexedStorage;
 import inetsoft.util.MessageException;
+import inetsoft.util.Tool;
 import inetsoft.util.log.LogManager;
 import inetsoft.web.RecycleBin;
 import inetsoft.web.RecycleUtils;
@@ -394,12 +395,13 @@ class FolderMoveIntoItselfTest {
          .build();
       MessageCommand[] result = new MessageCommand[1];
 
-      // POST /api/portal/tree/rename with a "/" in the new name: R -> R/G/R
+      // POST /api/portal/tree/rename with a "/" in the new name: R -> R/G/R. Since Bug #77733
+      // the endpoint refuses any name with a "/" before it reaches the registry primitive
       allowAll(() -> result[0] = portalController().renameRepositoryEntry(event, admin()));
 
       assertNotNull(result[0], "no message was returned for the refused rename");
       assertEquals(MessageCommand.Type.ERROR, result[0].getType());
-      assertRefusal(new Exception(result[0].getMessage()));
+      assertEquals(Tool.getInvalidFolderNameMessage(), result[0].getMessage());
       assertEquals(before, folders(registry(), n));
    }
 
