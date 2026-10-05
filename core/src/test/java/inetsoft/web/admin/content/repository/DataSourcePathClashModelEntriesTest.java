@@ -1173,6 +1173,129 @@ class DataSourcePathClashModelEntriesTest {
       return move;
    }
 
+   // verify r4: the portal editor renames clash data source erF, whose folder holds nothing, but
+   // a model under it can't be told apart, and renames one of its additional connections.
+   // Refused before anything is written: no additional connection under the new name, and no
+   // grant moved
+   @Test
+   void portalEditorRenameOfClashDataSourceWithUnreadableModel() throws Exception {
+      addFolder("erF");
+      editorParent("erF");
+      setUnreadableModel("erF/a/bad");
+      assertTrue(registry.getDataSourcePathClashes().contains("erF"), "not seeded");
+      List<String> before = state("erF", "erG");
+
+      assertThrows(MessageException.class, () -> editorSave("erF", "erG", ""));
+      assertEquals(before, state("erF", "erG"));
+   }
+
+   // verify r4: a save of clash data source esF in the portal editor without a new name still
+   // renames its additional connection and moves the grant, and leaves the folder's data source
+   @Test
+   void portalEditorSaveOfClashDataSourceWithoutRename() throws Exception {
+      addFolder("esF");
+      addSource("esF/m");
+      grant(ResourceType.DATA_SOURCE, "esF/m");
+      editorParent("esF");
+      setUnreadableModel("esF/m/bad");
+      List<String> before = state("esF");
+
+      editorSave("esF", "esF", "");
+
+      List<String> after = state("esF");
+      assertEquals(List.of("DATA_SOURCE esF/esFr1 [esFr1]", "grant DATA_SOURCE|esF::esFr1"),
+                   diff(before, after));
+      assertEquals(List.of("DATA_SOURCE esF/esFr2 [esFr2]", "grant DATA_SOURCE|esF::esFr2"),
+                   diff(after, before));
+   }
+
+   // verify r4: without a clash the portal editor renames a data source with its additional
+   // connections, renames one of them, and moves their grants
+   @Test
+   void portalEditorRenameWithoutClash() throws Exception {
+      editorParent("enP");
+
+      editorSave("enP", "enQ", "");
+
+      List<String> after = state("enP", "enQ");
+      assertTrue(after.containsAll(List.of(
+         "DATA_SOURCE enQ [enQ]", "DATA_SOURCE enQ/enPk1 [enPk1]",
+         "DATA_SOURCE enQ/enPr2 [enPr2]", "grant DATA_SOURCE|enQ",
+         "grant DATA_SOURCE|enQ::enPk1", "grant DATA_SOURCE|enQ::enPr2")),
+                 "" + after);
+      assertTrue(after.stream().noneMatch(line -> line.contains(" enP") ||
+         line.contains("|enP")), "" + after);
+   }
+
+   // verify r4: the portal XMLA editor, which saves through the same method, refuses a rename of
+   // clash data source exF and renames one without a clash with its domain
+   @Test
+   void portalXmlaEditorRename() throws Exception {
+      addFolder("exF");
+      addSource("exF/m");
+      xmlaSource("exF");
+      List<String> before = state("exF", "exG");
+
+      assertThrows(MessageException.class, () -> xmlaRename("exF", "exG"));
+      assertEquals(before, state("exF", "exG"));
+
+      xmlaSource("exP");
+      xmlaRename("exP", "exQ");
+
+      // (the old domain exP is also left behind, the same without the fix: not checked here)
+      List<String> after = state("exP", "exQ");
+      assertTrue(after.containsAll(
+         List.of("DATA_SOURCE exQ [exQ]", "DOMAIN exQ", "grant DATA_SOURCE|exQ")), "" + after);
+      assertTrue(after.stream().noneMatch(
+         line -> line.startsWith("DATA_SOURCE exP") || line.startsWith("grant DATA_SOURCE|exP")),
+                 "" + after);
+   }
+
+   // a tabular data source with additional connections <path>k1 and <path>r1 (names unique
+   // across tests, the editor checks them against the other data sources), and grants of all
+   private void editorParent(String path) {
+      tabParent(path, path + "k1", path + "r1");
+      grant(ResourceType.DATA_SOURCE, path);
+      grant(ResourceType.DATA_SOURCE, path + "::" + path + "k1");
+      grant(ResourceType.DATA_SOURCE, path + "::" + path + "r1");
+   }
+
+   // a save in the portal data source editor of data source <name> (seeded by editorParent) that
+   // keeps additional connection <name>k1 and renames <name>r1 to <name>r2
+   private void editorSave(String name, String newName, String parentPath) throws Exception {
+      DataSourceDefinition definition = tabularDefinition(newName, parentPath);
+      DataSourceDefinition renamed = tabularDefinition(name + "r2", null);
+      renamed.setOldName(name + "r1");
+      definition.setAdditionalConnections(
+         new ArrayList<>(List.of(tabularDefinition(name + "k1", null), renamed)));
+      new DatasourcesService(repository, security, mock(DataSourceStatusService.class), registry,
+                             inetsoft.uql.util.Config.getConfig())
+         .updateDataSource(name, definition, principal);
+   }
+
+   private void xmlaSource(String path) {
+      XMLADataSource dataSource = new XMLADataSource();
+      dataSource.setName(path);
+      registry.setDataSource(dataSource, false);
+      Domain domain = new Domain();
+      domain.setDataSource(path);
+      registry.setDomain(domain);
+      grant(ResourceType.DATA_SOURCE, path);
+      registry.clearCache();
+   }
+
+   private void xmlaRename(String name, String newName) throws Exception {
+      inetsoft.web.portal.service.datasource.XmlaDatasourceService service =
+         new inetsoft.web.portal.service.datasource.XmlaDatasourceService(
+            repository, security, mock(DataSourceStatusService.class), registry,
+            inetsoft.uql.util.Config.getConfig(), mock(inetsoft.uql.asset.DependencyHandler.class),
+            mock(inetsoft.report.XSessionManager.class));
+      inetsoft.web.portal.data.DataSourceXmlaDefinition definition =
+         service.getDataSourceModel(name, principal);
+      definition.setName(newName);
+      service.updateDataSource(name, definition, principal);
+   }
+
    private static List<String> extendedModels(LogicalModel model) {
       return model.getExtendModels().stream().map(LogicalModel::getName).toList();
    }
