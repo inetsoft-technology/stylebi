@@ -296,11 +296,8 @@ public class SelectionListPropertyDialogService {
       else if(showType != oldShowType) {
          // the rows a marked list draws follow the density and sit inside its card inset; both
          // reduce to the stored cell height and zero for an unmarked list
-         Insets inset = selectionListAssemblyInfo.getPadding();
-         int insetY = inset == null ? 0 : inset.top + inset.bottom;
          size.height = selectionListAssemblyInfo.getTitleHeight() +
-            selectionListAssemblyInfo.getListHeight() *
-               selectionListAssemblyInfo.getEffectiveCellHeight() + insetY;
+            selectionListAssemblyInfo.getListBodyHeight();
       }
 
       VSAssembly container = selectionListAssembly.getContainer();
