@@ -79,14 +79,13 @@ A bookmark captures the result: the container's state writes each child's whole 
 | HTML — `HTMLCoordinateHelper.adjustChildAssemblyPosition` | rebuilds positions with `getOutSelectionRowHeight` |
 | Match-layout clip — `AbstractVSExporter.prepareAssembly:1944` | the **computed** top for a marked selection list only (`:1919-1928`); the **stored** top for anything else |
 | Export inclusion — `AbstractVSExporter.needExport:2685` | same helper, same split |
-| `CSVUtil.needExport:222` | the **stored** top, for every child. Called by the Export, Email and Schedule dialogs and `VSExportService:185` to decide which assemblies to offer for CSV |
+| `CSVUtil.needExport:222` | the **stored** top, but its five callers (`ExportDialogService:95`, `EmailDialogService:99`, `ScheduleDialogService:235`, `ScheduleTaskActionService:346`, `VSExportService:185`) pass only table-data assemblies, so it never sees a container child |
 | Browser | none (2.1) |
 | Print layout | none — `VsToReportConverter` returns early for a contained list (`:1844`) or tree (`:1891`) |
 | Viewsheet bounds and grid | none — the loops at `Viewsheet:1683`, `:2696`, `:2751` skip contained children |
 
 So for a modern container, a range slider child is clipped and included by a stored top that is 10px
-too high per lane above it at comfortable (6px at compact, 0 at dense), and CSV offers children by the
-same stale value.
+too high per lane above it at comfortable (6px at compact, 0 at dense).
 
 ### 2.4 The range slider's title lane
 
@@ -99,6 +98,7 @@ same stale value.
   types, check box and radio button, have one (`CheckBoxVSAssemblyInfo:474-480`).
 - Four sites decide whether a contained slider is collapsed by comparing its stored height with
   `getTitleHeight()`: `VSSelectionContainerService:164-166`, `:189`, `:229`, and `AbstractLayout:480`.
+  These are the sites the change covers; §10 lists other readers left alone.
 - The range slider is not in `ANCHORED_ASSEMBLY_TYPES` (`mini-toolbar.service.ts:42-63`), and a
   container's children never draw their own strip.
 
@@ -158,10 +158,10 @@ height until its next expand, the same staleness every stored size has.
   resolver the other nine types use. Resolution is at read time: a marked slider whose author has not
   set a height takes 30 / 26 / 20; an author-set or unmarked slider keeps its stored height. Existing
   marked sliders take the lane on their next render, which is how every other type joined the row.
-- **Collapsed-or-expanded uses `isHidden()` for a marked slider** at the four sites in 2.4. Without
+- **Collapsed-or-expanded uses `isHidden()` whenever it is set** at the four sites in 2.4. Without
   it, a marked slider collapsed at a stored 20px reads as expanded once its lane is 30, and clicking
   it to expand falls through both branches at `VSSelectionContainerService:229-237` and does nothing.
-  Unmarked sliders keep the height comparison. `GroupingService:150` already uses `isHidden()`.
+  Unmarked sliders keep the height comparison as a fallback, because a slider collapsed at a tier lane and then Reverted would otherwise be stuck. `GroupingService:150` already uses `isHidden()`.
 - **The slider's body is unchanged.** `listHeight × defh` at `:189-191` and `:230` is the track's
   height, not rows, so only the title term moves.
 - Check box and radio button stay excluded, for their documented reason.
@@ -180,9 +180,9 @@ height until its next expand, the same staleness every stored size has.
   export's numbers do not change.
 - `layout()` stacks children by `getChildTop` when **the container** is marked. An unmarked container
   keeps the loop at `:158-190` exactly.
-- **Readers are not edited.** For a modern container, `prepareAssembly`, `needExport` and
-  `CSVUtil.needExport` now read stored positions that match the drawing, which fixes the range
-  slider's clip and inclusion and the CSV offer. The exporter's list-only rule (`:1919-1928`) stays: it
+- **Readers are not edited.** For a modern container, `prepareAssembly` and `needExport`
+  now read stored positions that match the drawing, which fixes the range
+  slider's clip and inclusion. The exporter's list-only rule (`:1919-1928`) stays: it
   still covers a modern list inside a legacy container.
 
 ### D6 — The default size keeps twelve lanes
@@ -222,7 +222,7 @@ The overflow estimate's `size.height − 40` (`:145`) is a pre-existing allowanc
 ## 5. The range slider's lane in detail (D4)
 
 - `TimeSliderVSAssemblyInfo:428-429` returns `VSDensityDefaults.titleHeight(this, titleInfo.getTitleHeight())`.
-- `isHidden()` replaces the height comparison for a marked slider at `VSSelectionContainerService:164-166`,
+- `isHidden()` answers whenever it is set, in place of the height comparison, at `VSSelectionContainerService:164-166`,
   `:189`, `:229` and `AbstractLayout:480`.
 - A contained slider's drawn height grows by 10 / 6 / 0 (`VSRangeSliderModel:127`). Export's
   `getAssemblySize` already counts the lane, and `layout()` will through D5.
@@ -307,8 +307,8 @@ Each tier copy (`SEL Modern Comfortable / Compact / Dense`) and `SEL Legacy` gai
 | MC-1 | `SEL Legacy` identical before and after — HTML byte for byte, PNG pixel for pixel, PDF geometry, PPTX and XLSX zip entries, CSV text | all formats |
 | MC-2 | an expanded contained list shows all `listHeight` rows at every tier | viewer and composer; PDF, HTML, PNG at match layout |
 | MC-3 | the range slider's lane equals its siblings'; a marked slider collapsed at 20px still expands and collapses | live, then export |
-| MC-4 | for a modern container, saved child positions (asset XML) equal drawn positions (`html_measure.js`, viewer DOM) | after a save |
-| MC-5 | a range slider at the container's bottom edge is clipped and included in PDF and PNG as the viewer shows it; the CSV dialog offers the same children | export, dialogs |
+| MC-4 | for a modern container, saved child positions (asset XML) equal drawn positions (`html_measure.js`, viewer DOM) | after a fresh open, or a change that lays the viewsheet out |
+| MC-5 | a range slider at the container's bottom edge is clipped and included in PDF and PNG as the viewer shows it | export |
 | MC-6 | `ConNew` is 300×360 / 312 / 240; `ConOld` grows on open; Revert restores 300×240; dense unchanged | live, asset XML |
 | MC-7 | expanding a list in a nearly full modern container collapses a sibling | live |
 
@@ -320,7 +320,8 @@ Device layout is covered by a unit test only; the fixture has no device layout.
   undoable and a Save persists it.
 - **A pre-fix bookmark restores the old expanded height** until the next expand (D3).
 - **Existing marked range sliders take the lane on their next render** (D4), growing each container
-  that holds one by 10 / 6 / 0 px per slider.
+  that holds one by 10 / 6 / 0 px at once. The stored expanded height already includes the lane and `VSRangeSliderModel:127` adds it again (a pre-existing double count, §10), so a slider grows by 20 / 12 / 0 px after its next expand.
+- **XLSX shifts a standalone range slider too.** `PoiExcelVSExporter.getAnchorPosition` shifts every TimeSlider's anchor by `getTitleHeight()`, so a modern standalone slider lands 10 / 6 / 0 px lower in XLSX. Limiting the shift to contained sliders would move legacy XLSX output, and Excel quantises to rows.
 - **Existing marked containers at exactly 300×240 grow on their first open** (D6) and can overlap what
   sits below them — the same cost the selection family accepted for standalone lists.
 - **An author who sized a marked container to exactly 300×312 or 300×360** is treated as seeded and
@@ -330,7 +331,7 @@ Device layout is covered by a unit test only; the fixture has no device layout.
 
 - **`layout()`'s legacy mismatches.** An unmarked container's stored stack ignores a range slider's
   title and a collapsed dropdown's height. Fixing it would move unmarked exports through
-  `prepareAssembly`, `needExport` and `CSVUtil`.
+  `prepareAssembly` and `needExport`.
 - **A container with a hidden title.** Export always counts the title (`getContainerChildTop`); the
   viewer omits it (`getBodyTop()`). D5 moves the rule without changing that.
 - **A contained range slider with a hidden title.** Export counts its lane only when its title is
@@ -340,10 +341,9 @@ Device layout is covered by a unit test only; the fixture has no device layout.
   §11 of the selection family design.
 - **The range slider's body**, and the size `ComposerVSSelectionListService.convertToRangeSlider`
   gives a converted slider: a track, not rows.
+- **Other height-based slider checks are not switched to the hidden flag.** `PDFVSExporter:726`, `PPTVSExporter:757` and the SVG exporter decide whether to draw the track by comparing height with the lane; a hidden slider stored at a larger lane draws a zero-height image, which is harmless. `ComposerAdhocFilterService:612` (`size.height <= defh`) treats a marked collapsed slider as open-sized, as it already did for marked lists.
 - **The container's card inset** — declined, D1.
 
 ## 11. Open items
 
-None. One check belongs to the plan rather than the design: confirm that the session's `layout()` has
-run on the runtime viewsheet before the Export, Email and Schedule dialogs call `CSVUtil.needExport`,
-so that D5's stored positions are the ones it reads.
+None.
