@@ -373,6 +373,10 @@ public final class ScriptHostAccess {
                   //   whose public statics reach getNamedGroupAssembly)
                   .denyAccess(inetsoft.uql.asset.sync.DependencyTool.class)
                   .denyAccess(inetsoft.report.LayoutTool.class)
+                  // ReportWorksheetProcessor, the only implementor, runs a stored
+                  // worksheet for a minted entry (a null user loads it unchecked) and
+                  // returns its data; XUtil.runQuery checks permission before using it
+                  .denyAccess(inetsoft.uql.asset.WorksheetProcessor.class)
                   // - storage services keyed by an org id the caller passes
                   .denyAccess(inetsoft.report.LibManagerProvider.class)
                   .denyAccess(inetsoft.report.LibManager.class)

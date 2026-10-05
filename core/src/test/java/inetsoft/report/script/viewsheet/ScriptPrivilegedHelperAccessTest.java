@@ -21,6 +21,7 @@ package inetsoft.report.script.viewsheet;
 import inetsoft.report.LibManager;
 import inetsoft.report.LibManagerProvider;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.execution.ReportWorksheetProcessor;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.*;
@@ -28,11 +29,14 @@ import inetsoft.sree.security.support.SecurityTestDataBuilder;
 import inetsoft.storage.KeyValueStorageManager;
 import inetsoft.test.*;
 import inetsoft.uql.ConditionList;
+import inetsoft.uql.VariableTable;
 import inetsoft.uql.XPrincipal;
+import inetsoft.uql.XTable;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.sync.DependenciesInfo;
 import inetsoft.uql.asset.sync.DependencyStorageService;
+import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.uql.viewsheet.BookmarkLockManager;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.vslayout.DeviceInfo;
@@ -76,6 +80,8 @@ class ScriptPrivilegedHelperAccessTest {
    private static final String ORG_B = "orgB77828";
    private static final String ANN_VS = "4^128^annA~;~" + ORG_A + "^AnnPrivVs^" + ORG_A;
    private static final String BOB_WS = "4^2^bobB~;~" + ORG_B + "^BobPrivWs^" + ORG_B;
+   private static final String WS_PATH = "Ws77828";
+   private static final String WS_SECRET = "SECRET-orgB-ws-row";
    private static final String DEPENDENCY_KEY = "key77828";
    private static final String TABLE_PATH = "t77828/table";
    private static final String DEVICE_ID = "device77828";
@@ -207,6 +213,32 @@ class ScriptPrivilegedHelperAccessTest {
                            ".getCache().getLocalEntries().size()"));
    }
 
+   /**
+    * Another org's worksheet data can't be read through ReportWorksheetProcessor, which
+    * loads the sheet without a permission check for a null user. Java callers
+    * (XUtil.runQuery, BrowsedData) still run it.
+    */
+   @Test
+   void worksheetProcessorRefused() throws Exception {
+      AssetEntry wsEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+                                          AssetEntry.Type.WORKSHEET, WS_PATH, null, ORG_B);
+      String call = ".execute(AE.createAssetEntry('" + wsEntry.toIdentifier() + "')," +
+         " new (Java.type('inetsoft.uql.VariableTable'))(), null);" +
+         " '' + t.getObject(1, 0)";
+      Object result = run("var t = new (Java.type(" +
+         "'inetsoft.report.composition.execution.ReportWorksheetProcessor'))()" + call);
+
+      assertInstanceOf(String.class, result, String.valueOf(result));
+      assertTrue(((String) result).startsWith("error: "), String.valueOf(result));
+      assertFalse(((String) result).contains(WS_SECRET), String.valueOf(result));
+
+      // a Java caller still runs the worksheet
+      XTable table = new ReportWorksheetProcessor().execute(wsEntry, new VariableTable(), null);
+      assertNotNull(table);
+      assertTrue(table.moreRows(1));
+      assertEquals(WS_SECRET, table.getObject(1, 0));
+   }
+
    /** Library functions are installed from Java and still run. */
    @Test
    void libraryFunctionStillRuns() throws Exception {
@@ -262,12 +294,21 @@ class ScriptPrivilegedHelperAccessTest {
       }
    }
 
-   // org B's dependency row and embedded table, and a device
+   // org B's worksheet, dependency row and embedded table, and a device
    private static void seedOrgB() throws Exception {
       OrganizationContextHolder.setCurrentOrgId(ORG_B);
 
       try {
          DependencyStorageService.getInstance().put(DEPENDENCY_KEY, new DependenciesInfo());
+         Worksheet ws = new Worksheet();
+         EmbeddedTableAssembly table = new EmbeddedTableAssembly(ws, "E1");
+         table.setEmbeddedData(new XEmbeddedTable(
+            new String[] { "string" }, new Object[][] { { "col" }, { WS_SECRET } }));
+         ws.addAssembly(table);
+         ws.setPrimaryAssembly("E1");
+         AssetUtil.getAssetRepository(false).setSheet(
+            new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, WS_PATH,
+                           null, ORG_B), ws, null, true);
          EmbeddedTableStorage.getInstance().writeTable(TABLE_PATH, new ByteArrayInputStream(
             "SECRET-orgB-embedded-data".getBytes(StandardCharsets.UTF_8)));
       }

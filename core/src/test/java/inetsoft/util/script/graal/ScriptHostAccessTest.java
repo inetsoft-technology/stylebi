@@ -310,7 +310,10 @@ class ScriptHostAccessTest {
          Arguments.of(inetsoft.uql.asset.UpdateAssetDependenciesHandler.class, "rebuild"),
          Arguments.of(inetsoft.uql.asset.DependencyHandler.class,
                       "updateDashboardDependencies"),
-         Arguments.of(inetsoft.report.internal.MVInfoClient.class, "getDataRefreshedTime"));
+         Arguments.of(inetsoft.report.internal.MVInfoClient.class, "getDataRefreshedTime"),
+         Arguments.of(inetsoft.uql.asset.WorksheetProcessor.class, "execute"),
+         Arguments.of(inetsoft.report.composition.execution.ReportWorksheetProcessor.class,
+                      "execute"));
    }
 
    @ParameterizedTest(name = "{0}.{1}")
