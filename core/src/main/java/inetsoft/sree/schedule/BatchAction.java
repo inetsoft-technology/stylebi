@@ -333,7 +333,8 @@ public class BatchAction extends AbstractAction {
       writer.print("<Action type=\"Batch\" class=\"");
       writer.print(getClass().getName());
       writer.print("\" ");
-      writer.print("taskId=\"" + byteEncode(taskId) + "\" ");
+      // a task name may contain & < " (Bug #77807)
+      writer.print("taskId=\"" + (taskId == null ? null : Tool.escape(byteEncode(taskId))) + "\" ");
       writer.println(">");
 
       if(queryEntry != null) {
