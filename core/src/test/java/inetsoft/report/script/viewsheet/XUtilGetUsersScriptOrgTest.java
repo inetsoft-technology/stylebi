@@ -146,6 +146,35 @@ class XUtilGetUsersScriptOrgTest {
       assertTrue(users.contains(new IdentityID("carolB", ORG_B)), users.toString());
    }
 
+   /**
+    * Single-tenant: every user is in the default organization, so a script still gets
+    * the same full list as Java callers.
+    */
+   @Test
+   void singleTenantScriptGetsFullList() throws Exception {
+      builder.teardown();
+      String hostOrg = Organization.getDefaultOrganizationID();
+      builder = SecurityTestDataBuilder.create()
+         .withMultiTenant("false")
+         .addUser("daveH77793", hostOrg, "password")
+         .addUser("erinH77793", hostOrg, "password")
+         .setup();
+      SRPrincipal dave = builder.principalOf("daveH77793", hostOrg);
+      ThreadContext.setContextPrincipal(dave);
+      ThreadContext.setPrincipal(dave);
+
+      List<String> expected = Arrays.stream(XUtil.getUsers())
+         .map(u -> u.getName() + "@" + u.getOrgID()).sorted().toList();
+      Object result = run(LIST + "list(Java.type('inetsoft.uql.util.XUtil').getUsers())");
+
+      assertInstanceOf(String.class, result, String.valueOf(result));
+      List<String> actual = Arrays.stream(((String) result).split(",")).sorted().toList();
+
+      assertTrue(expected.contains("daveH77793@" + hostOrg), expected.toString());
+      assertTrue(expected.contains("erinH77793@" + hostOrg), expected.toString());
+      assertEquals(expected, actual);
+   }
+
    private static void assertOwnOrgOnly(Object result) {
       assertInstanceOf(String.class, result, String.valueOf(result));
       List<String> users = Arrays.asList(((String) result).split(","));
