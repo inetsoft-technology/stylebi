@@ -441,6 +441,24 @@ public abstract class DatasourcesBaseService {
       }
    }
 
+   /**
+    * Checks that a data source or a data source folder may be deleted, if a data source and a
+    * data source folder share its path or, for a folder, the path of a subfolder (Bug #77725).
+    *
+    * @param path   the path of the data source or folder.
+    * @param folder {@code true} if it is a folder.
+    *
+    * @throws MessageException if the delete would delete the other one's entries.
+    */
+   public void checkDeletePathClash(String path, boolean folder) {
+      if(folder) {
+         dataSourceRegistry.checkDataSourceFolderPathClash(path);
+      }
+      else {
+         dataSourceRegistry.checkDataSourcePathClash(path);
+      }
+   }
+
    private void checkDelete(ResourceType type, String path, Principal principal)
       throws SecurityException
    {
