@@ -220,6 +220,13 @@ class OracleSQLHelper extends SQLHelper {
     */
    @Override
    protected String quoteAggregateColumn(String column) {
+      // the special character check only knows ascii, and oracle allows only alphanumeric
+      // characters and _ $ # unquoted (a＿b is invalid). Quote a non-ascii name as written,
+      // as before #77646 (#77686)
+      if(column.chars().anyMatch(c -> c > 0x7F)) {
+         return quoteColumnAlias(column);
+      }
+
       // check the lower case name, the keyword check lower cases it in the default locale,
       // which misses SIZE in a turkish locale (sıze)
       String lower = column.toLowerCase(Locale.ROOT);
