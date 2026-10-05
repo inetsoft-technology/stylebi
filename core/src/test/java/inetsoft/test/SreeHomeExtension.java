@@ -22,6 +22,7 @@ import inetsoft.sree.*;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.MockCluster;
 import inetsoft.sree.security.*;
+import inetsoft.storage.BlobStorageTestSupport;
 import inetsoft.uql.XPrincipal;
 import inetsoft.util.*;
 import inetsoft.util.config.InetsoftConfig;
@@ -43,7 +44,7 @@ import java.security.Principal;
 import java.util.*;
 import java.util.stream.Collectors;
 
-public class SreeHomeExtension implements BeforeAllCallback, AfterAllCallback {
+public class SreeHomeExtension implements BeforeAllCallback, AfterAllCallback, BeforeEachCallback {
    @Override
    public void beforeAll(ExtensionContext context) throws Exception {
       if(deadlockThreadDump != null) {
@@ -51,6 +52,13 @@ public class SreeHomeExtension implements BeforeAllCallback, AfterAllCallback {
             "Cleanup is stalled. Thread dump:\n" + deadlockThreadDump);
       }
 
+      String testClassName = context.getRequiredTestClass().getName();
+      currentTestClassName = testClassName;
+      // a load of a context without this extension, which nobody failed yet
+      String pendingError = takePendingBarrierError();
+      // the change events still queued in the closed contexts run first, before the values of
+      // the previous class are cleared and before this class's context is installed
+      String barrierError = BlobStorageTestSupport.awaitEventBarrier();
       ExtensionContext.Store store = context.getStore(NAMESPACE);
 
       // the values in the configuration context outlive the application context, e.g. the
@@ -66,6 +74,15 @@ public class SreeHomeExtension implements BeforeAllCallback, AfterAllCallback {
       }
 
       previousApplicationContext = null;
+
+      if(barrierError != null) {
+         throw new Exception(
+            testClassName + " (after " + previousTestClassName + "): " + barrierError);
+      }
+
+      if(pendingError != null) {
+         throw new Exception(testClassName + ": an earlier context load failed. " + pendingError);
+      }
 
       System.setProperty(
          "inetsoft.sree.internal.cluster.implementation", MockCluster.class.getName());
@@ -154,9 +171,23 @@ public class SreeHomeExtension implements BeforeAllCallback, AfterAllCallback {
       SreeEnv.init();
    }
 
+   @Override
+   public void beforeEach(ExtensionContext context) throws Exception {
+      // a context per test method is loaded before this callback
+      String pendingError = takePendingBarrierError();
+
+      if(pendingError != null) {
+         throw new Exception(
+            context.getRequiredTestClass().getName() + "#" +
+            context.getRequiredTestMethod().getName() + ": " + pendingError);
+      }
+   }
+
    @SuppressWarnings("unchecked")
    @Override
    public void afterAll(ExtensionContext context) throws Exception {
+      previousTestClassName = currentTestClassName;
+      currentTestClassName = null;
       ExtensionContext.Store store = context.getStore(NAMESPACE);
       MVSupportService mvSupport = store.remove(MV_SUPPORT, MVSupportService.class);
       List<String> mvNames = store.remove(MV_NAMES, List.class);
@@ -399,6 +430,33 @@ public class SreeHomeExtension implements BeforeAllCallback, AfterAllCallback {
       }
    }
 
+   /**
+    * Records that the change events of the closed contexts did not run before a context was
+    * installed. The next test or test class fails with the message.
+    */
+   static void setPendingBarrierError(String message) {
+      pendingBarrierError = message;
+   }
+
+   /**
+    * Removes the error recorded by {@link #setPendingBarrierError(String)}.
+    *
+    * @return the error, or {@code null} if none was recorded.
+    */
+   static String takePendingBarrierError() {
+      String message = pendingBarrierError;
+      pendingBarrierError = null;
+      return message;
+   }
+
+   /**
+    * Gets the name of the test class that is running, for messages.
+    */
+   static String getCurrentTestClassName() {
+      String name = currentTestClassName;
+      return name == null ? "a test class without @SreeHome" : name;
+   }
+
 //   private void writeConfig(Path home) {
 //      Path configFile = home.resolve("inetsoft.yaml");
 //      InetsoftConfig.BOOTSTRAP_INSTANCE = InetsoftConfig.load(configFile);
@@ -415,6 +473,9 @@ public class SreeHomeExtension implements BeforeAllCallback, AfterAllCallback {
    private static final String CLUSTER_DIR = "ClusterDir";
    private static final String APPLICATION_CONTEXT = "ApplicationContext";
    private static String deadlockThreadDump;
+   private static volatile String pendingBarrierError;
+   private static volatile String currentTestClassName;
+   private static String previousTestClassName;
    // the application context of the last test class, whose values are cleared once it is closed
    private static ApplicationContext previousApplicationContext;
 }

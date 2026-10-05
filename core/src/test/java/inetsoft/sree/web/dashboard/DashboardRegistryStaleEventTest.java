@@ -27,16 +27,23 @@ package inetsoft.sree.web.dashboard;
  * post-processors: DashboardRegistryConcurrencyTest then saw a DataSpace that is not the spy, and
  * a SecurityEngine whose @PostConstruct never ran.
  *
+ * Bugs #77759, #77760. The events still queued in a closed context now run before the next
+ * context is installed (ConfigurationContextInitializer, SreeHomeExtension), so they can no longer
+ * be delivered in the next context. That barrier is what this test guards. quiesce() in tearDown
+ * only keeps a late delivery from reloading a registry against the closing context.
+ *
  * The first method holds the event thread on a gate and queues a registry change behind it. A
- * bean factory post-processor of the second method's context, which runs in that window, opens
- * the gate and waits for the event thread to finish. The second method then checks that its
- * context was not touched. No step depends on timing, every wait is bounded.
+ * bean factory post-processor of the second method's context, which runs in that window, records
+ * whether the change was delivered, opens the gate and waits for the event thread. The gate also
+ * opens by itself after GATE_SECONDS, which is what lets the wait for the closed context's events
+ * end before this context is installed. Without that wait the test fails as long as the next
+ * context reaches its post-processor within GATE_SECONDS; on a very slow runner it can pass
+ * without it.
  */
 
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.*;
-import inetsoft.storage.BlobStorage;
-import inetsoft.storage.KeyValueStorage;
+import inetsoft.storage.BlobStorageTestSupport;
 import inetsoft.test.*;
 import inetsoft.util.ConfigurationContext;
 import inetsoft.util.DataSpace;
@@ -51,8 +58,6 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -109,6 +114,7 @@ class DashboardRegistryStaleEventTest {
       // records the delivery of the registry change without looking up any bean
       dataSpace.addChangeListener(null, registry.getPath(), e -> {
          deliveredTo = ConfigurationContext.getContext().getApplicationContext();
+         delivered = true;
       });
 
       String gatePath = SreeEnv.getPath("$(sree.home)/portal/dashstale_gate.txt");
@@ -120,7 +126,7 @@ class DashboardRegistryStaleEventTest {
             held.countDown();
 
             try {
-               gate.await(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+               gate.await(GATE_SECONDS, TimeUnit.SECONDS);
             }
             catch(InterruptedException ex) {
                Thread.currentThread().interrupt();
@@ -130,11 +136,14 @@ class DashboardRegistryStaleEventTest {
       dataSpace.withOutputStream(null, gatePath, out -> out.write('x'));
       assertTrue(held.await(TIMEOUT_SECONDS, TimeUnit.SECONDS),
                  "the BlobStorageEvent thread never reached the gate");
+      // only a delivery after the gate counts
+      delivered = false;
 
       // The write's event reaches the BlobStorageEvent thread through an OnDemand thread. A
       // key-value listener ordered after BlobStorage's own sees the event once it is queued.
       CountDownLatch queued = new CountDownLatch(1);
-      addLastListener(dataSpace, dataSpace.getPath(null, registry.getPath()), queued);
+      BlobStorageTestSupport.addLastListener(
+         dataSpace, dataSpace.getPath(null, registry.getPath()), queued);
 
       // queued behind the gate, so it is still queued when this context is closed
       String xml = "<?xml version=\"1.0\"?><dashboardRegistry><Version>13.1</Version>" +
@@ -148,59 +157,20 @@ class DashboardRegistryStaleEventTest {
 
    @Test
    @Order(2)
-   void nextContext_notTouchedByTheStaleDelivery() {
+   void nextContext_installedAfterTheQueuedChangeRan() {
       assumeTrue(releasedInRefresh, "runs after registryChangeQueuedBehindBusyEventThread only");
 
       assertAll(
-         () -> assertFalse(eventThreadAlive, "the BlobStorageEvent thread did not finish"),
-         () -> assertSame(applicationContext, deliveredTo,
-                          "the stale change is delivered while this context is refreshing"),
+         () -> assertTrue(deliveredBeforeRefresh,
+                          "the queued change must be delivered before this context is installed"),
+         () -> assertNotSame(applicationContext, deliveredTo,
+                             "the queued change must not be delivered in this context"),
          () -> assertEquals(List.of(), createdByEventThread,
                             "beans created by the BlobStorageEvent thread before the bean " +
                             "post-processors were registered"),
          () -> assertTrue(mockingDetails(dataSpace).isSpy(), "the DataSpace bean must be the spy"),
          () -> assertNotNull(securityEngine.getSecurityProvider(),
                              "the SecurityEngine must be initialized (@PostConstruct)"));
-   }
-
-   /**
-    * Adds a listener to the key-value storage of the data space's blob storage that is called
-    * after the blob storage's own listener, which queues the change on the BlobStorageEvent
-    * thread. Both are called one after the other, in hash code order, by one OnDemand thread.
-    */
-   @SuppressWarnings({ "unchecked", "rawtypes" })
-   private static void addLastListener(DataSpace dataSpace, String key, CountDownLatch queued)
-      throws ReflectiveOperationException
-   {
-      Field field = DataSpace.class.getDeclaredField("blobStorage");
-      field.setAccessible(true);
-      Object blobStorage = field.get(dataSpace);
-      Method method = BlobStorage.class.getDeclaredMethod("getStorage");
-      method.setAccessible(true);
-      KeyValueStorage storage = (KeyValueStorage) method.invoke(blobStorage);
-
-      storage.addListener(new KeyValueStorage.Listener() {
-         @Override
-         public void entryAdded(KeyValueStorage.Event event) {
-            entryUpdated(event);
-         }
-
-         @Override
-         public void entryUpdated(KeyValueStorage.Event event) {
-            if(key.equals(event.getKey())) {
-               queued.countDown();
-            }
-         }
-
-         @Override
-         public void entryRemoved(KeyValueStorage.Event event) {
-         }
-
-         @Override
-         public int hashCode() {
-            return Integer.MAX_VALUE;
-         }
-      });
    }
 
    @Configuration
@@ -217,6 +187,7 @@ class DashboardRegistryStaleEventTest {
             }
 
             releaseInNextContext = false;
+            deliveredBeforeRefresh = delivered;
             gate.countDown();
 
             try {
@@ -226,7 +197,6 @@ class DashboardRegistryStaleEventTest {
                Thread.currentThread().interrupt();
             }
 
-            eventThreadAlive = thread.isAlive();
             createdByEventThread = BEANS.stream().filter(beanFactory::containsSingleton).toList();
             releasedInRefresh = true;
          };
@@ -236,13 +206,15 @@ class DashboardRegistryStaleEventTest {
    // the beans that DashboardRegistryManager.getInstance() creates in a refreshing context
    private static final List<String> BEANS =
       List.of("dashboardRegistryManager", "securityEngine", "dataSpace");
+   private static final int GATE_SECONDS = 1;
    private static final int TIMEOUT_SECONDS = 30;
 
    private static volatile CountDownLatch gate;
    private static volatile Thread eventThread;
    private static volatile boolean releaseInNextContext;
    private static volatile boolean releasedInRefresh;
-   private static volatile boolean eventThreadAlive;
+   private static volatile boolean delivered;
+   private static volatile boolean deliveredBeforeRefresh;
    private static volatile ApplicationContext deliveredTo;
    private static volatile List<String> createdByEventThread = List.of();
 }
