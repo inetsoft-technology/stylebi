@@ -247,10 +247,12 @@ public class SelectTable implements Serializable, Cloneable {
       if(obj instanceof SelectTable) {
          SelectTable tbl = (SelectTable) obj;
 
-         return (name == tbl.name ||
-               name != null && tbl.name != null && name.equals(tbl.name)) &&
-            (alias == tbl.alias ||
-            alias != null && tbl.alias != null && alias.equals(tbl.alias));
+         // the alias is compared first, since comparing derived tables generates their sql,
+         // which made parsing nested derived tables exponential (Bug #77791)
+         return (alias == tbl.alias ||
+            alias != null && tbl.alias != null && alias.equals(tbl.alias)) &&
+            (name == tbl.name ||
+               name != null && tbl.name != null && name.equals(tbl.name));
       }
 
       return false;
