@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.asset.sync;
 
+import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.store.port.TransformerUtil;
 import inetsoft.sree.web.dashboard.*;
 import inetsoft.uql.asset.AssetEntry;
@@ -118,7 +119,11 @@ public class DashboardAssetDependencyTransformer extends DependencyTransformer {
             continue;
          }
 
-         entryNode.setAttribute("identifier", Tool.byteEncode(info.getNewName()));
+         // byteEncode leaves control chars as is, which XML can't hold. Encode them the way
+         // ViewsheetEntry.writeXML does, without its Tool.escape: the DOM serializer escapes
+         // the attribute (Bug #77808).
+         entryNode.setAttribute("identifier", RepositoryEntry.encodeControlChars(
+            Tool.byteEncode(info.getNewName()), false));
 
          try {
             AssetEntry assetEntry = AssetEntry.createAssetEntry(info.getNewName());
@@ -127,7 +132,10 @@ public class DashboardAssetDependencyTransformer extends DependencyTransformer {
                Element path = getChildNode(entryNode, "path");
 
                if(path != null) {
-                  replaceCDATANode(path, assetEntry.getPath());
+                  // byte-encoded like RepositoryEntry.writeContents, as parseContents
+                  // byte-decodes it (Bug #77808)
+                  replaceCDATANode(path, RepositoryEntry.encodeControlChars(
+                     Tool.byteEncode(assetEntry.getPath()), true));
                }
 
                Element owner = getChildNode(entryNode, "owner");
