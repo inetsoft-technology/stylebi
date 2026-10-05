@@ -4462,7 +4462,8 @@ derived_column [JDBCSelection selection, UniformSQL sql]
                   builder.append(part);
                 }
                 else {
-                  builder.append(part.toUpperCase(Locale.ROOT));
+                  // as oracle folds it, per code point (Bug #77821)
+                  builder.append(SQLHelper.upperCaseIdentifier(part));
                 }
 
                 if(i < parts.length - 1) {

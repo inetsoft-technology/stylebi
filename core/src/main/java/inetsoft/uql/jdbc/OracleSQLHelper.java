@@ -220,17 +220,13 @@ class OracleSQLHelper extends SQLHelper {
     */
    @Override
    protected String quoteAggregateColumn(String column) {
-      // the special character check only knows ascii, and oracle allows only alphanumeric
-      // characters and _ $ # unquoted (a＿b is invalid). Quote a non-ascii name as written,
-      // as before #77646 (#77686)
-      if(column.chars().anyMatch(c -> c > 0x7F)) {
-         return quoteColumnAlias(column);
-      }
-
-      // check the lower case name, the keyword check lower cases it in the default locale,
-      // which misses SIZE in a turkish locale (sıze)
+      // a non-ascii name is treated as an ascii one: oracle folds it unquoted too, so quoting
+      // it as written names another column (Bug #77821, a＿b is valid unquoted on oracle).
+      // Check the lower case name, the keyword check lower cases it in the default locale,
+      // which misses SIZE in a turkish locale (sıze). Upper case it as oracle folds it, per
+      // code point (straße is STRAßE, not STRASSE)
       String lower = column.toLowerCase(Locale.ROOT);
-      String upper = column.toUpperCase(Locale.ROOT);
+      String upper = upperCaseIdentifier(column);
 
       // the keywords miss some reserved words (MODE, START, UID), always quoted before #77646
       if(!RESERVED_WORDS.contains(upper) && XUtil.quoteAlias(lower, this).equals(lower)) {
