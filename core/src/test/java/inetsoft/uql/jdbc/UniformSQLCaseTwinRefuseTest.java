@@ -154,6 +154,11 @@ class UniformSQLCaseTwinRefuseTest {
       assertParsed("select id, k as \"A\" from t order by A", "snowflake", "exasol");
       assertRefused("select id, k as \"a\" from t order by a", "snowflake", "exasol");
       assertParsed("select id, k as \"a\" from t order by a", "postgresql");
+      assertParsed("select name as \"NAME\" from emp order by NAME", "snowflake", "exasol");
+      assertParsed("select name as \"name\" from emp order by name", "postgresql");
+      // the same name on the database, a known over-refusal that costs only vpm
+      assertRefused("select name as \"NAME\" from emp order by NAME", "postgresql");
+      assertRefused("select name as \"name\" from emp order by name", "snowflake", "exasol");
    }
 
    /**
@@ -192,7 +197,11 @@ class UniformSQLCaseTwinRefuseTest {
       "select \"MixedCase\", mixedcase as b from t",
       "select \"NAME\", name as b from t",
       "select \"t\".*, t2.x from \"t\", t2",
-      "select \"A\".id, a.id from \"A\", a where \"A\".id = a.id"
+      "select \"A\".id, a.id from \"A\", a where \"A\".id = a.id",
+      "select id as A from t order by a",
+      "select coalesce(nickname, name) as \"Name\" from emp order by \"Name\"",
+      "select k as \"MixedCase\" from t order by 1",
+      "select e.k as \"K\" from emp e order by e.K"
    })
    void otherNamesAreParsed(String text) throws Exception {
       assertParsed(text, FOLDING);
