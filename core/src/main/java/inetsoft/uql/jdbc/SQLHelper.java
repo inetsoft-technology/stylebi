@@ -4756,6 +4756,18 @@ public class SQLHelper implements KeywordProvider {
    private static final Pattern PLAIN_IDENTIFIER = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
 
    /**
+    * Get the upper case of an identifier written unquoted, as oracle folds it: the simple
+    * per-code-point mapping, which doesn't depend on the locale. String.toUpperCase applies
+    * the full mapping instead, which maps ß to SS and a ligature to several letters, so
+    * it names a column that doesn't exist (Bug #77821).
+    */
+   public static String upperCaseIdentifier(String name) {
+      StringBuilder buf = new StringBuilder(name.length());
+      name.codePoints().forEach(cp -> buf.appendCodePoint(Character.toUpperCase(cp)));
+      return buf.toString();
+   }
+
+   /**
     * The alias has special character should be quoted as "alias".
     */
    protected String quoteColumnAlias(String alias) {
