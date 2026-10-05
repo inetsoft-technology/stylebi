@@ -372,18 +372,36 @@ public final class PoolTestSupport {
    }
 
    /**
-    * Hold {@code slot} (from {@link #currentSlot}, idle now) on {@code executor}'s thread, as
-    * the pool's evictor or a take-over does for a moment, until the returned task is run.
+    * Hold {@code slot} (from {@link #currentSlot}, idle now) on a dedicated thread, as the
+    * pool's evictor or a take-over does for a moment, until the returned task is run. The slot's
+    * lock is owned by a thread, so the hold and the release both run on that one thread; the
+    * thread ends once the release runs (or the hold fails).
     */
-   public static Runnable holdElsewhere(Object slot, ExecutorService executor) throws Exception {
+   public static Runnable holdElsewhere(Object slot) throws Exception {
       Slot held = (Slot) slot;
-      assertTrue(executor.submit(held::tryAcquire).get(10, TimeUnit.SECONDS), "not idle");
+      ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
+         Thread thread = new Thread(r, "hold-elsewhere");
+         thread.setDaemon(true);
+         return thread;
+      });
+
+      try {
+         assertTrue(executor.submit(held::tryAcquire).get(10, TimeUnit.SECONDS), "not idle");
+      }
+      catch(Throwable ex) {
+         executor.shutdownNow();
+         throw ex;
+      }
+
       return () -> {
          try {
             executor.submit(held::release).get(10, TimeUnit.SECONDS);
          }
          catch(Exception ex) {
             throw new IllegalStateException(ex);
+         }
+         finally {
+            executor.shutdown();
          }
       };
    }
