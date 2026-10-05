@@ -194,8 +194,10 @@ public class XPartition implements Cloneable, Serializable, XMLSerializable, XML
 
       try {
          String path = getDataModel().getDataSource() + "/" + getName() + "/";
-         AssetEntry[] entries =
-                 getRegistry().getEntries(path, AssetEntry.Type.EXTENDED_PARTITION);
+         // Bug #77820, not the views of a data source of a folder at the path of the data
+         // source
+         AssetEntry[] entries = getRegistry().getDataSourceEntries(
+                 getDataModel().getDataSource(), path, AssetEntry.Type.EXTENDED_PARTITION, false);
          result = new String[entries.length];
 
          for(int i = 0; i < entries.length; i++) {
