@@ -35,6 +35,7 @@ import inetsoft.util.dep.XAssetConfig;
 import inetsoft.util.dep.XDataSourceAsset;
 import inetsoft.web.admin.content.repository.model.MoveCopyTreeNodesRequest;
 import inetsoft.web.portal.controller.database.DataSourceService;
+import inetsoft.web.portal.data.*;
 import inetsoft.web.portal.model.database.LogicalModel;
 import inetsoft.web.portal.model.database.PhysicalModel;
 import org.junit.jupiter.api.*;
@@ -945,6 +946,180 @@ class DataSourcePathClashModelEntriesTest {
       model(p).getLogicalModel("x").addLogicalModel(new XLogicalModel("e"), true);
       addLogicalModel(p, "S/y/lm");
       registry.clearCache();
+   }
+
+   // verify r3: every folder and data source move entry point (XEngine, registry, EM, portal),
+   // with several member names and an entry that can't be told apart from clash P's (a logical
+   // model, a physical view, a VPM, one in a nested subfolder) under one member of subfolder
+   // P/G: each is refused before anything is moved, whatever order the members are moved in
+   @Test
+   void everyMoveOfFolderUnderClashWithUnreadableEntryIsRefusedUntouched() throws Exception {
+      List<String> failed = new ArrayList<>();
+      int count = 0;
+
+      for(int shape = 0; shape < 4; shape++) {
+         for(String operation : MOVES) {
+            String p = "ur" + count++ + "P";
+            String q = p + "Q";
+            clash(p, false, false);
+            addFolder(p + "/G");
+            addFolder(p + "/G/H");
+            addFolder(q);
+            List<String> members = switch(shape) {
+               case 0 -> List.of("a", "y", "m", "b2", "zz");
+               case 1 -> List.of("q1", "q2", "q3", "q4", "q5", "q6");
+               case 2 -> List.of("a", "b", "H/z");
+               default -> List.of("k", "c", "w");
+            };
+
+            for(String member : members) {
+               addSource(p + "/G/" + member);
+               addLogicalModel(p + "/G/" + member, "own");
+            }
+
+            String last = members.get(members.size() - 1);
+            AssetEntry.Type type = shape == 1 ? AssetEntry.Type.PARTITION :
+               shape == 3 ? AssetEntry.Type.VPM : AssetEntry.Type.LOGIC_MODEL;
+            // under the last member, the one a data source rename renames
+            setUnreadableEntry(type, p + "/G/" + last + "/bad");
+            List<String> before = state(p, q);
+            Throwable thrown = null;
+
+            try {
+               move(operation, p, q, members);
+            }
+            catch(Throwable e) {
+               thrown = e;
+            }
+
+            List<String> after = state(p, q);
+
+            if(!(thrown instanceof MessageException) || !before.equals(after)) {
+               failed.add(shape + " " + operation + ": " + thrown + ", removed " +
+                          diff(before, after) + ", added " + diff(after, before));
+            }
+         }
+      }
+
+      assertEquals(List.of(), failed);
+   }
+
+   // verify r3: without a clash the same entry points refuse nothing, also with a model that
+   // can't be read, and move everything
+   @Test
+   void everyMoveWithoutClashIsDone() throws Exception {
+      List<String> failed = new ArrayList<>();
+      int count = 0;
+
+      for(String operation : MOVES) {
+         String p = "nm" + count++ + "P";
+         String q = p + "Q";
+         addFolder(p);
+         addFolder(p + "/G");
+         addFolder(p + "/G/H");
+         addFolder(q);
+         List<String> members = List.of("a", "y", "H/z");
+
+         for(String member : members) {
+            addSource(p + "/G/" + member);
+            addLogicalModel(p + "/G/" + member, "own");
+         }
+
+         model(p + "/G/a").getLogicalModel("own").addLogicalModel(new XLogicalModel("e"), true);
+         addLogicalModel(p + "/G/y", "s/l");
+         setUnreadableEntry(AssetEntry.Type.LOGIC_MODEL, p + "/G/H/z/bad");
+         List<String> before = state(p, q);
+         Throwable thrown = null;
+
+         try {
+            move(operation, p, q, members);
+         }
+         catch(Throwable e) {
+            thrown = e;
+         }
+
+         List<String> after = state(p, q);
+         // what is moved: subfolder G, the members, or member H/z
+         String moved = operation.equals("dataSourceRename") ? p + "/G/H/z" : p + "/G";
+         List<String> left = after.stream()
+            .filter(line -> !line.startsWith("grant") && !line.startsWith("DATA_SOURCE_FOLDER"))
+            .filter(line -> Tool.isSameOrDescendantPath(moved, line.split(" ")[1]))
+            .toList();
+
+         if(thrown != null || !left.isEmpty() || diff(after, before).isEmpty()) {
+            failed.add(operation + ": " + thrown + ", left " + left);
+         }
+      }
+
+      assertEquals(List.of(), failed);
+   }
+
+   private static final List<String> MOVES = List.of(
+      "xengineFolderMove", "xengineFolderRename", "portalFolderRename", "registryFolderRename",
+      "emFolderMove", "portalFolderMove", "portalDataSources", "emDataSources",
+      "dataSourceRename");
+
+   // a move of subfolder p/G to q, a rename of it to p/H2, a move of its members to q, or a
+   // rename of its last member
+   private void move(String operation, String p, String q, List<String> members)
+      throws Exception
+   {
+      String last = members.get(members.size() - 1);
+
+      switch(operation) {
+      case "xengineFolderMove" -> repository.updateDataSourceFolder(
+         new DataSourceFolder(q + "/G", LocalDateTime.now(), null), p + "/G");
+      case "xengineFolderRename" -> repository.updateDataSourceFolder(
+         new DataSourceFolder(p + "/H2", LocalDateTime.now(), null), p + "/G");
+      case "portalFolderRename" ->
+         browserService().renameFolder(p + "/G", "H2", p + "/G", p + "/H2", principal);
+      case "registryFolderRename" -> registry.renameDataSourceFolder(p + "/G", q + "/G");
+      case "emFolderMove" -> emService().moveFiles(MoveCopyTreeNodesRequest.builder()
+         .source(List.of(treeNode(p + "/G", inetsoft.sree.RepositoryEntry.DATA_SOURCE_FOLDER)))
+         .destination(treeNode(q, inetsoft.sree.RepositoryEntry.DATA_SOURCE_FOLDER))
+         .build(), true, principal);
+      case "portalFolderMove" -> browserService().moveDataSource(new MoveCommand[] {
+         moveCommand(p + "/G", q + "/G", PortalDataType.DATA_SOURCE_FOLDER) }, principal);
+      case "portalDataSources" -> browserService().moveDataSource(members.stream()
+         .map(member -> moveCommand(p + "/G/" + member, q + "/" + member.replace('/', '_'),
+                                    PortalDataType.DATA_SOURCE))
+         .toArray(MoveCommand[]::new), principal);
+      case "emDataSources" -> emService().moveFiles(MoveCopyTreeNodesRequest.builder()
+         .source(members.stream()
+                    .map(member -> treeNode(p + "/G/" + member,
+                                            inetsoft.sree.RepositoryEntry.DATA_SOURCE))
+                    .toList())
+         .destination(treeNode(q, inetsoft.sree.RepositoryEntry.DATA_SOURCE_FOLDER))
+         .build(), true, principal);
+      default -> {
+         XDataSource dataSource = (XDataSource) registry.getDataSource(p + "/G/" + last).clone();
+         dataSource.setName(p + "/G/" + last + "R");
+         repository.updateDataSource(dataSource, p + "/G/" + last);
+      }
+      }
+   }
+
+   // an entry whose stored object is not what its type says
+   private void setUnreadableEntry(AssetEntry.Type type, String path) {
+      registry.setObject(new AssetEntry(AssetRepository.QUERY_SCOPE, type, path, null),
+                         new DataSourceFolder("bad", LocalDateTime.now(), null));
+      registry.clearCache();
+   }
+
+   private DataSourceBrowserService browserService() throws Exception {
+      return new DataSourceBrowserService(
+         security, emService(), repository, mock(DataSourceService.class), registry,
+         mock(inetsoft.uql.util.Config.class),
+         mock(inetsoft.uql.asset.sync.RenameTransformHandler.class));
+   }
+
+   private static MoveCommand moveCommand(String oname, String nname, PortalDataType type) {
+      MoveCommand move = new MoveCommand();
+      move.setOldPath(oname);
+      move.setPath(nname);
+      move.setName(nname.substring(nname.lastIndexOf('/') + 1));
+      move.setType(type.name());
+      return move;
    }
 
    private static List<String> extendedModels(LogicalModel model) {
