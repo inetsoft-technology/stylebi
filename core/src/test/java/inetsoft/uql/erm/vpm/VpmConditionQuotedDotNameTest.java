@@ -103,8 +103,8 @@ class VpmConditionQuotedDotNameTest {
          Arguments.of(MYSQL, "T.`A.B` between 1 and 2", "o.`A.B` between 1 and 2"),
          Arguments.of(MYSQL, "T.\"A\"\"B\" + T.C", "o.\"A\"\"B\" + o.C"),
          // the parser reports the name "A" as T."A", which is not split as a quoted name
-         // (not replaced, as before Bug #77782), ColumnIterator reports it as written
-         Arguments.of(POSTGRESQL, "T.\"\"\"A\"\"\"", "T.\"\"\"A\"\"\""),
+         // (Bug #77787, it is the raw name), ColumnIterator reports it as written
+         Arguments.of(POSTGRESQL, "T.\"\"\"A\"\"\"", "o.\"\"\"A\"\"\""),
          Arguments.of(POSTGRESQL, "T.\"\"\"A\"\"\" between 1 and 2",
                       "o.\"\"\"A\"\"\" between 1 and 2"));
    }

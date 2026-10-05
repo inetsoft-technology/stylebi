@@ -705,24 +705,41 @@ public class VpmCondition extends VpmObject {
 
       boolean bracket = ColumnIterator.isBracketQuote(rules);
       columns = columns.clone();
+      // true if the last name of a column is the raw name, as the parser reports it
+      boolean[] raws = new boolean[columns.length];
+      Arrays.fill(raws, parsed);
 
       // Bug #77697, a bracket quoted name ([T].[A]) is the name, as the parser reports it.
       // Bug #77782, a name with a dot ([A.B]) is quoted in double quotes, as the parser
       // reports it ("A.B"), so it is not split at its dot
       if(bracket) {
          for(int i = 0; i < columns.length; i++) {
-            columns[i] = BRACKET_NAME.matcher(columns[i]).replaceAll(m -> {
-               String name = m.group(1);
-               return Matcher.quoteReplacement(name.indexOf('.') < 0 ? name :
-                  "\"" + name.replace("\"", "\"\"") + "\"");
-            });
+            Matcher matcher = BRACKET_NAME.matcher(columns[i]);
+            int len = columns[i].length();
+            StringBuilder result = new StringBuilder();
+
+            while(matcher.find()) {
+               String name = matcher.group(1);
+
+               // Bug #77787, a last name with a quote (["A"]) is the raw name, as the parser
+               // reports it, not the quoted name A of T."A"
+               if(matcher.end() == len && name.indexOf('"') >= 0) {
+                  raws[i] = true;
+               }
+
+               matcher.appendReplacement(result, Matcher.quoteReplacement(
+                  name.indexOf('.') < 0 ? name : "\"" + name.replace("\"", "\"\"") + "\""));
+            }
+
+            matcher.appendTail(result);
+            columns[i] = result.toString();
          }
       }
 
       String[] ncolumns = new String[columns.length];
 
       for(int i = 0; i < columns.length; i++) {
-         ncolumns[i] = getColumn(columns[i], tables, taliases, target, sql);
+         ncolumns[i] = getColumn(columns[i], tables, taliases, target, sql, raws[i]);
       }
 
       for(int i = 0; i < columns.length; i++) {
@@ -730,8 +747,11 @@ public class VpmCondition extends VpmObject {
          // XUtil, which leaves a fragment with the closing quote (T."A and B"), so it is
          // split outside the quotes
          String[] dotted = splitQuotedDotColumn(columns[i]);
+         // Bug #77787, a raw name is not unquoted, T."A" is the name "A" (written """A""")
+         boolean raw = raws[i] && dotted == null;
          String table = dotted != null ? dotted[0] : XUtil.getTablePart(columns[i]);
-         String column = dotted != null ? dotted[1] : XUtil.getColumnPart(columns[i]);
+         String column = dotted != null ? dotted[1] :
+            raw ? getRawColumnPart(columns[i]) : XUtil.getColumnPart(columns[i]);
          // the column as written in the field
          String wcolumn = dotted != null ? dotted[2] : column;
          String ncolumn = ncolumns[i];
@@ -771,7 +791,7 @@ public class VpmCondition extends VpmObject {
                // Bug #77782, a name reported by the parser is escaped even if it contains a
                // doubled quote (A""B of "A""""B"), a column found by ColumnIterator is not
                if(column.indexOf('"') >= 0 && ncolumn.equals(prefix + column)) {
-                  String escaped = !parsed && column.contains("\"\"") ?
+                  String escaped = !raws[i] && column.contains("\"\"") ?
                      column : column.replace("\"", "\"\"");
                   ncolumn = prefix + "\"" + escaped + "\"";
                }
@@ -799,7 +819,7 @@ public class VpmCondition extends VpmObject {
             // Bug #77782, a bracket quoted column with a dot isn't matched without its
             // replacement in brackets, ncolumn is not in brackets ("A.B", `"A.B"`)
             String rreg = "(?<![\\w$.])" + getNamePattern(table, bracket) + "\\." +
-               getNamePattern(column, bracket && (dotted == null || bcolumn != null)) +
+               getNamePattern(column, bracket && (dotted == null || bcolumn != null), raw) +
                "(?![\\w$])(?!\\.)";
             exp = replaceOutsideLiterals(
                exp, Pattern.compile(rreg, Pattern.UNICODE_CHARACTER_CLASS), ncolumn, bcolumn,
@@ -950,12 +970,25 @@ public class VpmCondition extends VpmObject {
     * Get the regular expression of a name that may be quoted.
     */
    private static String getNamePattern(String name, boolean bracket) {
+      return getNamePattern(name, bracket, false);
+   }
+
+   /**
+    * Get the regular expression of a name that may be quoted.
+    * @param raw true if the name is the raw name, as the parser reports it.
+    */
+   private static String getNamePattern(String name, boolean bracket, boolean raw) {
       String quoted = Pattern.quote(String.valueOf(name));
       String pattern = "\"?" + quoted + "\"?";
 
+      // Bug #77787, a raw name with a quote is written only quoted with the quote doubled
+      // ("""C""" of "C"), the name as written ("C") is another column (C)
+      if(raw && name != null && name.indexOf('"') >= 0) {
+         pattern = "\"" + Pattern.quote(name.replace("\"", "\"\"")) + "\"";
+      }
       // Bug #77768, the parser reports a quoted name with a doubled quote ("A""B") without
       // the escape (A"B) since Bug #77661, and the expression has it doubled
-      if(name != null && name.indexOf('"') >= 0) {
+      else if(name != null && name.indexOf('"') >= 0) {
          pattern = "(?:\"" + Pattern.quote(name.replace("\"", "\"\"")) + "\"|" + pattern + ")";
       }
 
@@ -1070,8 +1103,29 @@ public class VpmCondition extends VpmObject {
       return result.toString();
    }
 
+   /**
+    * Get the last name of a raw column (T."A" of the name "A"), without unquoting it as
+    * XUtil.getColumnPart() does.
+    */
+   private static String getRawColumnPart(String field) {
+      int index = field.lastIndexOf('.');
+
+      return index >= 0 && index < field.length() - 1 ?
+         field.substring(index + 1) : XUtil.getColumnPart(field);
+   }
+
    private String getColumn(Object value, String[] tables,
                             String[] taliases, int target, UniformSQL sql)
+   {
+      return getColumn(value, tables, taliases, target, sql, false);
+   }
+
+   /**
+    * @param raw true if the last name of the column is the raw name, as the parser reports
+    *            it (T."A" of the name "A").
+    */
+   private String getColumn(Object value, String[] tables,
+                            String[] taliases, int target, UniformSQL sql, boolean raw)
    {
       // Object value = exp.getValue();
 
@@ -1136,8 +1190,11 @@ public class VpmCondition extends VpmObject {
 
       if(!alias.equals(tpart) || find_step == 1) {
          // a quoted column with a dot is kept as written, it is quoted already
-         String cpart = dotted != null ? dotted[2] : find_step != 1 ?
-            XUtil.getColumnPart(field) : field.substring(tpart.length() + 1);
+         // Bug #77787, a raw name is not unquoted (T."A" of the name "A"), it is escaped
+         // and quoted by replaceColumnTableName()
+         String cpart = dotted != null ? dotted[2] : find_step == 1 ?
+            field.substring(tpart.length() + 1) :
+            raw ? getRawColumnPart(field) : XUtil.getColumnPart(field);
 
          if(find_step == 1 && dotted == null) {
             SQLHelper helper = SQLHelper.getSQLHelper(sql);
