@@ -36,6 +36,7 @@ import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.asset.TableAssembly;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.CalcTableVSAssembly;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.CrosstabVSAssembly;
@@ -55,6 +56,7 @@ import inetsoft.uql.viewsheet.graph.RadarChartInfo;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
+import inetsoft.util.Catalog;
 import inetsoft.util.CoreTool;
 import inetsoft.util.UserMessage;
 import inetsoft.web.adhoc.model.FormatInfoModel;
@@ -338,13 +340,22 @@ public class ViewsheetFormatService {
 
       String type = model.getFormat();
       String spec = model.getFormatSpec();
+      String dateSpec = model.getDateSpec();
+
+      // A DateFormat whose explicit dateSpec is neither a named style nor "Custom" is a pattern
+      // in its own right: the painter stores dateSpec as the pattern. Validate it the same way.
+      if(XConstants.DATE_FORMAT.equals(type) && dateSpec != null && !dateSpec.isBlank() &&
+         !CUSTOM_DATE_SPEC.equals(dateSpec) && namedDateStyle(dateSpec) == null)
+      {
+         spec = dateSpec;
+      }
 
       if(type == null || spec == null || spec.isEmpty()) {
          return;
       }
 
       boolean dateLike = XConstants.DATE_FORMAT.equals(type) &&
-         CUSTOM_DATE_SPEC.equals(model.getDateSpec()) ||
+         (dateSpec == null || !NAMED_DATE_STYLES.contains(dateSpec)) ||
          XConstants.TIME_FORMAT.equals(type) || XConstants.TIMEINSTANT_FORMAT.equals(type);
 
       try {
@@ -708,12 +719,20 @@ public class ViewsheetFormatService {
          // Stale messages from an earlier request on this pooled thread are not this call's.
          CoreTool.clearUserMessage();
 
+         Set<String> engineMessages = new LinkedHashSet<>();
+
          try {
             painter.setFormat(runtimeId, event, user, dispatcher, linkUri);
          }
          finally {
-            drainUserMessages(warnings);
+            drainUserMessages(engineMessages);
          }
+
+         if("object".equals(target)) {
+            dropUntrueStringColumnWarning(engineMessages, rvs, request.assemblies(), user);
+         }
+
+         warnings.addAll(engineMessages);
 
          if(requested != null && !"text".equals(target)) {
             readBack(rvs, request.assemblies(), target, event, requested, warnings);
@@ -746,6 +765,70 @@ public class ViewsheetFormatService {
       }
 
       return paths;
+   }
+
+   /**
+    * Bug #77597 review: the painter's "Format applied to a string column" warning is true for
+    * an {@code object} write only when the table really has a string column.
+    *
+    * <p>{@code FormatPainterService.isFormattedStringColumn} tests the data type of the path
+    * being written. For a whole-object write that path is {@code VSAssemblyInfo.OBJECTPATH},
+    * whose data type is the {@code TableDataPath} constructor default, {@code string} -- not a
+    * column's type -- so the painter raises it on every whole-object value format to a Table,
+    * an all-numeric one included. The Composer shares that engine, so it is left unchanged and
+    * the message is checked here instead: it is passed on only when one of the named Tables has
+    * a visible string-typed column in its binding. {@code data}/{@code header} writes are not
+    * filtered: their paths come from the lens and carry the real column type.
+    */
+   private static void dropUntrueStringColumnWarning(Set<String> messages, RuntimeViewsheet rvs,
+                                                     List<String> assemblies, Principal user)
+   {
+      if(messages.isEmpty()) {
+         return;
+      }
+
+      String warning = Catalog.getCatalog(user).getString("composer.stringColumnFormat");
+
+      if(warning == null || !messages.contains(warning.trim()) ||
+         hasVisibleStringColumn(rvs, assemblies))
+      {
+         return;
+      }
+
+      messages.remove(warning.trim());
+   }
+
+   /** Whether any named assembly is a Table whose binding has a visible string column. */
+   private static boolean hasVisibleStringColumn(RuntimeViewsheet rvs, List<String> assemblies) {
+      Viewsheet viewsheet = rvs == null ? null : rvs.getViewsheet();
+
+      if(viewsheet == null) {
+         return false;
+      }
+
+      for(String name : assemblies) {
+         if(!(viewsheet.getAssembly(name) instanceof TableVSAssembly table) ||
+            table.getColumnSelection() == null)
+         {
+            continue;
+         }
+
+         ColumnSelection columns = table.getColumnSelection();
+
+         for(int i = 0; i < columns.getAttributeCount(); i++) {
+            DataRef ref = columns.getAttribute(i);
+
+            if(ref instanceof ColumnRef column && !column.isVisible()) {
+               continue;
+            }
+
+            if(ref != null && XSchema.STRING.equals(ref.getDataType())) {
+               return true;
+            }
+         }
+      }
+
+      return false;
    }
 
    /** Moves the Composer format engine's user messages (Tool.addUserMessage) into warnings. */

@@ -192,11 +192,50 @@ class ViewsheetFormatServiceDateRenderTest {
                    "not the yyyy-MM-dd default 2026-01-01");
    }
 
+   /**
+    * Review round 1: through the real painter, a whole-object value format to a Table raises
+    * "Format applied to a string column" whatever the columns are (OBJECTPATH's data type is
+    * the constructor default "string"). The response now carries it only when it is true.
+    */
+   @Test
+   void theStringColumnWarningIsAbsentWhenTheTableHasNoStringColumn() throws Exception {
+      TableVSAssembly table = new TableVSAssembly(viewsheet, "TableView1");
+      ColumnSelection columns = new ColumnSelection();
+      columns.addAttribute(column("Revenue", XSchema.INTEGER));
+      columns.addAttribute(column("Unit Price", XSchema.DOUBLE));
+      table.setColumnSelection(columns);
+      viewsheet.addAssembly(table);
+
+      ViewsheetFormatService.FormatResult result = setFormatResult(
+         "{\"assemblies\":[\"TableView1\"],\"format\":" +
+         "{\"format\":\"DecimalFormat\",\"formatSpec\":\"#,##0\"}}");
+
+      assertEquals(List.of(), result.warnings());
+      assertEquals("DecimalFormat", table.getFormatInfo().getFormat(VSAssemblyInfo.OBJECTPATH)
+         .getUserDefinedFormat().getFormatValue(), "the format itself was still applied");
+   }
+
+   @Test
+   void theStringColumnWarningIsKeptWhenTheTableHasAStringColumn() throws Exception {
+      table(false);
+
+      ViewsheetFormatService.FormatResult result = setFormatResult(
+         "{\"assemblies\":[\"TableView1\"],\"format\":" + MMM_DD + "}");
+
+      String warning = inetsoft.util.Catalog.getCatalog(() -> "admin")
+         .getString("composer.stringColumnFormat");
+      assertEquals(List.of(warning), result.warnings());
+   }
+
    private void setFormat(String json) throws Exception {
-      service.setFormat("tok", () -> "admin",
-                        new ObjectMapper().readValue(json,
-                                                     ViewsheetFormatService.FormatRequest.class),
-                        "");
+      setFormatResult(json);
+   }
+
+   private ViewsheetFormatService.FormatResult setFormatResult(String json) throws Exception {
+      return service.setFormat("tok", () -> "admin",
+                               new ObjectMapper().readValue(
+                                  json, ViewsheetFormatService.FormatRequest.class),
+                               "");
    }
 
    private TableVSAssembly table(boolean numeric) throws Exception {

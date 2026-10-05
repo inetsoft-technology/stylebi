@@ -1599,6 +1599,23 @@ class ViewsheetFormatServiceTest {
       assertTrue(thrown.getMessage().contains("#,##0.0.0"), thrown.getMessage());
    }
 
+   /** Review round 1: a pattern sent in dateSpec itself is validated like formatSpec. */
+   @Test
+   void anIllegalPatternSentAsTheDateSpecIsRefusedToo() {
+      // The painter uses a non-named, non-Custom dateSpec as the pattern itself.
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> parsed("{\"format\":\"DateFormat\",\"dateSpec\":\"MMM qq yyyy\"}"));
+
+      assertTrue(thrown.getMessage().contains("MMM qq yyyy"), thrown.getMessage());
+   }
+
+   @Test
+   void aLegalPatternSentAsTheDateSpecIsAccepted() throws Exception {
+      assertEquals("MM/dd/yyyy",
+                   parsed("{\"format\":\"DateFormat\",\"dateSpec\":\"MM/dd/yyyy\"}").getDateSpec());
+   }
+
    /** A typo that is still a legal pattern is accepted, as the Composer would accept it. */
    @Test
    void aLegalButOddDatePatternIsAccepted() throws Exception {
