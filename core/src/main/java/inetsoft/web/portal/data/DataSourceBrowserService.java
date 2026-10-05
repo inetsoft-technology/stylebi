@@ -24,6 +24,8 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
 import inetsoft.uql.*;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.ConfirmException;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.asset.sync.*;
@@ -756,6 +758,12 @@ public class DataSourceBrowserService {
                }
 
                XDataSource ds = repository.getDataSource(oname);
+
+               // Bug #77727, it could be loaded when the items were checked
+               if(ds == null) {
+                  throw new MessageException(getUnloadableMoveMessage(oname, principal));
+               }
+
                removeDefaultMetaDataProviderCache(ds);
                ds.setName(nname);
 
@@ -848,6 +856,16 @@ public class DataSourceBrowserService {
          }
       }
 
+      // Bug #77727, a data source that can't be loaded (its connector isn't installed or its
+      // definition is damaged) is moved only with its folder
+      for(MoveCommand item : items) {
+         if(!PortalDataType.DATA_SOURCE_FOLDER.name().equals(item.getType()) &&
+            registry.getDataSource(item.getOldPath()) == null)
+         {
+            throw new MessageException(getUnloadableMoveMessage(item.getOldPath(), principal));
+         }
+      }
+
       Set<String> targets = new HashSet<>();
 
       for(MoveCommand item : items) {
@@ -879,6 +897,20 @@ public class DataSourceBrowserService {
                "common.datasource.moveUnderDataSource", dataSource));
          }
       }
+   }
+
+   /**
+    * Gets the message that refuses the move of a data source that can't be loaded on its own, or
+    * that is no longer stored.
+    */
+   private String getUnloadableMoveMessage(String path, Principal principal) {
+      if(!dataSourceRegistry.containObject(new AssetEntry(
+         AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE, path, null)))
+      {
+         return Catalog.getCatalog(principal).getString("data.datasources.findDataSourceError");
+      }
+
+      return Catalog.getCatalog(principal).getString("common.datasource.moveUnloadable", path);
    }
 
    private void removeDefaultMetaDataProviderCache(XDataSource ds) throws Exception {

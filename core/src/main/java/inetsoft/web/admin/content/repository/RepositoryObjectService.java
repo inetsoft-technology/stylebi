@@ -932,6 +932,19 @@ public class RepositoryObjectService {
          }
       }
 
+      // Bug #77727, a data source that can't be loaded (its connector isn't installed or its
+      // definition is damaged) is moved only with its folder. Check all nodes before moving any
+      // of them.
+      for(int i = 0; i < pathFroms.length; i++) {
+         int typeFrom = Integer.parseInt(typeFroms[i]);
+
+         if((typeFrom & RepositoryEntry.DATA_SOURCE) == RepositoryEntry.DATA_SOURCE &&
+            dataSourceRegistry.getDataSource(pathFroms[i]) == null)
+         {
+            throw new MessageException(getUnloadableMoveMessage(pathFroms[i], principal));
+         }
+      }
+
       // a data source or data source folder moved onto a path that is already used by a data
       // source or a data source folder would overwrite or merge with it. Check all nodes before
       // moving any of them.
@@ -1055,6 +1068,15 @@ public class RepositoryObjectService {
             String name = pindex < 0 ? pathFrom : pathFrom.substring(pindex + 1);
             String newPath = "/".equals(pathTo) ? name : pathTo + "/" + name;
             XDataSource ds = xRepository.getDataSource(pathFrom);
+
+            // Bug #77727, it could be loaded when the nodes were checked
+            if(ds == null) {
+               MessageException ex =
+                  new MessageException(getUnloadableMoveMessage(pathFrom, principal));
+               auditMoveFailure(actionRecord, ex, fullPathTo, principal);
+               throw ex;
+            }
+
             RenameDependencyInfo dinfo = DependencyTransformer.createDependencyInfo(
                pathFrom, newPath);
             ds.setName(newPath);
@@ -1434,6 +1456,20 @@ public class RepositoryObjectService {
          actionRecord.setActionError(ex.getMessage() + ", Target Entry: " + fullPathTo);
          Audit.getInstance().auditAction(actionRecord, principal);
       }
+   }
+
+   /**
+    * Gets the message that refuses the move of a data source that can't be loaded on its own, or
+    * that is no longer stored.
+    */
+   private String getUnloadableMoveMessage(String path, Principal principal) {
+      if(!dataSourceRegistry.containObject(new AssetEntry(
+         AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE, path, null)))
+      {
+         return Catalog.getCatalog(principal).getString("data.datasources.findDataSourceError");
+      }
+
+      return Catalog.getCatalog(principal).getString("common.datasource.moveUnloadable", path);
    }
 
    private String getMoveErrorMesssage(Map<String, List<String>> infos) {
