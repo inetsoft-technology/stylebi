@@ -428,7 +428,7 @@ public class TimeSliderVSAssemblyInfo extends MaxModeSelectionVSAssemblyInfo
     */
    @Override
    public int getTitleHeight() {
-      return titleInfo.getTitleHeight();
+      return VSDensityDefaults.titleHeight(this, titleInfo.getTitleHeight());
    }
 
    /**
@@ -519,6 +519,15 @@ public class TimeSliderVSAssemblyInfo extends MaxModeSelectionVSAssemblyInfo
     */
    public void setHidden(boolean hidden) {
       this.hidden = hidden;
+   }
+
+   /**
+    * Whether this slider is collapsed to its title lane in a selection container. Marked, the
+    * hidden flag answers, since the lane follows the density and a collapsed height stored at
+    * an earlier tier no longer equals it.
+    */
+   public boolean isCollapsedInContainer(int storedHeight) {
+      return getVizMark() != null ? isHidden() : storedHeight == getTitleHeight();
    }
 
    /**

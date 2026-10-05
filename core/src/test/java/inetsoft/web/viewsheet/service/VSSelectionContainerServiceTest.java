@@ -22,6 +22,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
@@ -167,6 +168,67 @@ class VSSelectionContainerServiceTest {
       service.applySelection(rvs, "SelectionList2", false, dispatcher, "");
 
       assertEquals(30, open.getPixelSize().height, "the open sibling collapses to make room");
+   }
+
+   @Test
+   void aMarkedSliderCollapsedAtTheOldLaneStillExpands() throws Exception {
+      container(VizMark.MODERN_LIGHT, 800, "RangeSlider1");
+      TimeSliderVSAssemblyInfo info = slider("RangeSlider1", VizMark.MODERN_LIGHT, true, 20);
+
+      service.applySelection(rvs, "RangeSlider1", false, dispatcher, "");
+
+      assertFalse(info.isHidden(), "the click opens it");
+      assertEquals(2 * AssetUtil.defh + 30, info.getPixelSize().height);
+   }
+
+   @Test
+   void aMarkedSliderCollapsesToItsLane() throws Exception {
+      container(VizMark.MODERN_LIGHT, 800, "RangeSlider1");
+      TimeSliderVSAssemblyInfo info = slider("RangeSlider1", VizMark.MODERN_LIGHT, false, 70);
+
+      service.applySelection(rvs, "RangeSlider1", true, dispatcher, "");
+
+      assertTrue(info.isHidden());
+      assertEquals(30, info.getPixelSize().height);
+   }
+
+   @Test
+   void anAuthorLaneStillExpands() throws Exception {
+      container(VizMark.MODERN_LIGHT, 800, "RangeSlider1");
+      TimeSliderVSAssemblyInfo info = slider("RangeSlider1", VizMark.MODERN_LIGHT, true, 25);
+      info.setTitleHeightValue(25);
+      info.setUserTitleHeight(true);
+
+      service.applySelection(rvs, "RangeSlider1", false, dispatcher, "");
+
+      assertFalse(info.isHidden());
+      assertEquals(2 * AssetUtil.defh + 25, info.getPixelSize().height, "the pinned lane is kept");
+   }
+
+   // read as open, the overflow estimate would collapse it again and store it at 30
+   @Test
+   void aCollapsedMarkedSliderIsNotCollapsedAgainForRoom() throws Exception {
+      container(VizMark.MODERN_LIGHT, 500, "RangeSlider1", "SelectionList1", "SelectionList2");
+      TimeSliderVSAssemblyInfo slider = slider("RangeSlider1", VizMark.MODERN_LIGHT, true, 20);
+      SelectionListVSAssembly open = list("SelectionList1", VizMark.MODERN_LIGHT, true, 230);
+      list("SelectionList2", VizMark.MODERN_LIGHT, false, 30);
+
+      service.applySelection(rvs, "SelectionList2", false, dispatcher, "");
+
+      assertEquals(30, open.getPixelSize().height, "the open list makes the room");
+      assertEquals(20, slider.getPixelSize().height, "the collapsed slider is left alone");
+      assertTrue(slider.isHidden());
+   }
+
+   TimeSliderVSAssemblyInfo slider(String name, VizMark mark, boolean hidden, int height) {
+      TimeSliderVSAssembly slider = new TimeSliderVSAssembly(vs, name);
+      vs.addAssembly(slider);
+      TimeSliderVSAssemblyInfo info = (TimeSliderVSAssemblyInfo) slider.getVSAssemblyInfo();
+      info.setVizMark(mark);
+      info.setListHeight(2);
+      info.setHidden(hidden);
+      info.setPixelSize(new Dimension(300, height));
+      return info;
    }
 
    CurrentSelectionVSAssembly container(VizMark mark, int height, String... children) {

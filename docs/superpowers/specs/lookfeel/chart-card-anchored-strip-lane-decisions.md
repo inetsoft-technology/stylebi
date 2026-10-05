@@ -298,6 +298,14 @@ font height — `Math.max(info.getTitleHeight(), Common.getHeight(format0.getFon
 lane cannot clip the title, and the navigation and range band is a separate header (`header2H`,
 `paintRangeTitle` `:166`), not part of the title lane. 36 is a legacy default, not a layout requirement.
 
+**Amended 2026-10-05: the range slider joins the row too.** §05's exclusion of `TimeSlider` had no
+mechanical reason behind it, unlike check box and radio button, and a range slider shows its title only
+inside a selection container — where every sibling and every collapsed row already takes the lane. It
+resolves through `VSDensityDefaults.titleHeight(this, stored)` like the other types. Because a
+collapsed slider's stored height can no longer be compared with its lane, a marked slider is judged
+collapsed by its hidden flag (`TimeSliderVSAssemblyInfo.isCollapsedInContainer`). See
+[the container density design](./2026-10-05-selection-container-density-design.md) D4.
+
 **Existing calendars do not change, and that is the mark's doing rather than this decision's.**
 [Seeded-value decisions](./seeded-value-reversibility-decisions.md) decision 4 keys the density heights off
 the assembly's mark, and decision 2 says an unmarked assembly is never touched by anything automatic. So a

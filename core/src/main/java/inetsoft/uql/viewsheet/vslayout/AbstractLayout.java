@@ -481,7 +481,7 @@ public abstract class AbstractLayout implements AssetObject {
                height = ((SelectionBaseVSAssemblyInfo) aInfo).getListHeight();
             }
             else if(aInfo instanceof TimeSliderVSAssemblyInfo &&
-               ((TimeSliderVSAssemblyInfo) aInfo).getTitleHeight() != childSize.getHeight())
+               !((TimeSliderVSAssemblyInfo) aInfo).isCollapsedInContainer(childSize.height))
             {
                height = ((TimeSliderVSAssemblyInfo) aInfo).getListHeight();
             }
