@@ -400,7 +400,7 @@ public class DataSourceRegistry implements MessageListener {
 
       boolean folderSide = false;
       boolean dataSourceSide = false;
-      String unreadable = null;
+      AssetEntry unreadable = null;
 
       for(AssetEntry entry : getEntries(path + "/")) {
          // the root folder may list a missing asset (bug #60767)
@@ -411,7 +411,7 @@ public class DataSourceRegistry implements MessageListener {
          Boolean side = getPathClashSide(path, entry);
 
          if(side == null) {
-            unreadable = unreadable == null ? entry.getPath() : unreadable;
+            unreadable = unreadable == null ? entry : unreadable;
          }
          else if(side) {
             dataSourceSide = true;
@@ -557,21 +557,29 @@ public class DataSourceRegistry implements MessageListener {
    public AssetEntry[] getDataSourceEntries(String dataSource, String prefix,
                                             AssetEntry.Type type, boolean refuse)
    {
+      return getDataSourceEntries(dataSource, prefix, type, refuse, refuse);
+   }
+
+   /**
+    * Gets the entries under a prefix that belong to a data source, see
+    * {@link #getDataSourceEntries(String, String, AssetEntry.Type, boolean)}.
+    *
+    * @param refuse      {@code true} to throw if an entry can't be read to tell whether it is
+    *                    on the data source's side of its own path, {@code false} to leave it out.
+    * @param refuseAbove {@code true} to throw if an entry can't be read to tell whether it
+    *                    belongs to a data source at a path above, {@code false} to leave it out.
+    */
+   private AssetEntry[] getDataSourceEntries(String dataSource, String prefix,
+                                             AssetEntry.Type type, boolean refuse,
+                                             boolean refuseAbove)
+   {
       AssetEntry[] entries = type == null ? getEntries(prefix) : getEntries(prefix, type);
 
       if(entries.length == 0) {
          return entries;
       }
 
-      List<String> clashes = new ArrayList<>();
-
-      for(int index = dataSource.indexOf('/'); index > 0;
-          index = dataSource.indexOf('/', index + 1))
-      {
-         if(isDataSourcePathClash(dataSource.substring(0, index))) {
-            clashes.add(dataSource.substring(0, index));
-         }
-      }
+      List<String> clashes = getDataSourcePathClashesAbove(dataSource);
 
       if(isDataSourcePathClash(dataSource)) {
          clashes.add(dataSource);
@@ -594,9 +602,8 @@ public class DataSourceRegistry implements MessageListener {
             Boolean side = getPathClashSide(clash, entry);
 
             if(side == null) {
-               if(refuse) {
-                  throw new MessageException(Catalog.getCatalog().getString(
-                     "common.datasource.pathClashUnreadable", clash, entry.getPath()));
+               if(clash.equals(dataSource) ? refuse : refuseAbove) {
+                  throw unreadableException(clash, entry);
                }
 
                continue entries;
@@ -612,6 +619,59 @@ public class DataSourceRegistry implements MessageListener {
       }
 
       return result.toArray(new AssetEntry[0]);
+   }
+
+   // the paths above a path that a data source and a data source folder share, the top first
+   private List<String> getDataSourcePathClashesAbove(String path) {
+      List<String> clashes = new ArrayList<>();
+
+      for(int index = path.indexOf('/'); index > 0; index = path.indexOf('/', index + 1)) {
+         if(isDataSourcePathClash(path.substring(0, index))) {
+            clashes.add(path.substring(0, index));
+         }
+      }
+
+      return clashes;
+   }
+
+   /**
+    * Bug #77820, gets the entries under a path that belong to a data source at a path above it
+    * that a data source folder shares (older data, Bug #77691), e.g. the extended models of a
+    * model "G" of data source "P", stored under the path of folder "P/G". A move of the folder
+    * at the path leaves them.
+    *
+    * @throws MessageException if an entry can't be read to tell whose it is. Thrown before
+    *                          anything is written.
+    */
+   private Set<AssetEntry> getDataSourceEntriesAbove(String path) {
+      List<String> clashes = getDataSourcePathClashesAbove(path);
+      Set<AssetEntry> result = new HashSet<>();
+
+      if(clashes.isEmpty()) {
+         return result;
+      }
+
+      for(AssetEntry entry : getEntries(path + "/")) {
+         // the root folder may list a missing asset (bug #60767)
+         if(!containObject(entry)) {
+            continue;
+         }
+
+         for(String clash : clashes) {
+            Boolean side = getPathClashSide(clash, entry);
+
+            if(side == null) {
+               throw unreadableException(clash, entry);
+            }
+
+            if(side) {
+               result.add(entry);
+               break;
+            }
+         }
+      }
+
+      return result;
    }
 
    /**
@@ -636,7 +696,7 @@ public class DataSourceRegistry implements MessageListener {
    // which sides of a data source and folder at the same path hold entries under the path, and
    // a data source under the path that can't be read, which counts on both sides
    private record PathClashSides(String path, boolean folderSide, boolean dataSourceSide,
-                                 String unreadable)
+                                 AssetEntry unreadable)
    {
       // refuses if the side is not empty, or if an entry can't be told apart
       void check(boolean side, String key, Object... args) {
@@ -645,10 +705,20 @@ public class DataSourceRegistry implements MessageListener {
          }
 
          if(unreadable != null) {
-            throw new MessageException(Catalog.getCatalog().getString(
-               "common.datasource.pathClashUnreadable", path, unreadable));
+            throw unreadableException(path, unreadable);
          }
       }
+   }
+
+   /**
+    * Gets the refusal of an operation on a data source or folder at a path they share, for an
+    * entry under the path that can't be read to tell which of them it belongs to.
+    */
+   private static MessageException unreadableException(String path, AssetEntry entry) {
+      return new MessageException(Catalog.getCatalog().getString(
+         entry.getType() == AssetEntry.Type.DATA_SOURCE ?
+            "common.datasource.pathClashUnreadable" :
+            "common.datasource.pathClashUnreadableModel", path, entry.getPath()));
    }
 
    /**
@@ -1079,7 +1149,9 @@ public class DataSourceRegistry implements MessageListener {
       checkDataSourcePathClash(dxname);
       // Bug #77820, a data source of a folder at the path of the data source above it has the
       // extended models of that data source's models stored under its path
-      AssetEntry[] children = getDataSourceEntries(dxname, dxname + "/", null, true);
+      // Bug #77820, one that can't be told apart from a data source above is left: nothing that
+      // may be that data source's is lost, and a delete of both sides at its path removes it
+      AssetEntry[] children = getDataSourceEntries(dxname, dxname + "/", null, true, false);
 
       try {
          // read before the data source and its additional connections are removed. The test
@@ -1827,6 +1899,9 @@ public class DataSourceRegistry implements MessageListener {
       checkDSFolderRenamePermission(oname);
       // Bug #77725, before anything is written
       checkDataSourceFolderPathClash(oname);
+      // Bug #77820, the entries of a data source above stored under the path of the folder stay,
+      // and one that can't be told apart is refused before anything is written
+      Set<AssetEntry> aboveEntries = getDataSourceEntriesAbove(oname);
       // Bug #77704, a failed write stops the rename and is thrown, with the data sources moved
       // before it. The folders created for the move are removed again if nothing was moved in.
       Map<String, String> moved = new LinkedHashMap<>();
@@ -1929,8 +2004,9 @@ public class DataSourceRegistry implements MessageListener {
 
          // the rest, e.g. a data source that can't be loaded, before the old folders are gone
          current = oname;
-         List<EntryMove> rest = createMoves(oname + "/", nname + "/", false, false,
-                                            Set.of(allFolderChildren));
+         Set<AssetEntry> skipped = new HashSet<>(aboveEntries);
+         skipped.addAll(Arrays.asList(allFolderChildren));
+         List<EntryMove> rest = createMoves(oname + "/", nname + "/", false, false, skipped);
 
          try {
             moveEntries(rest);
@@ -2376,7 +2452,8 @@ public class DataSourceRegistry implements MessageListener {
 
       // Bug #77820, not the data sources and subfolders of a folder at the same path. Before
       // the try, which only logs a failure
-      AssetEntry[] children = getDataSourceEntries(datasource, datasource + "/", null, true);
+      AssetEntry[] children =
+         getDataSourceEntries(datasource, datasource + "/", null, true, false);
 
       try {
          // read before the additional connections of the data source are removed below

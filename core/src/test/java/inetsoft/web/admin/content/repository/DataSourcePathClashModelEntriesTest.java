@@ -121,6 +121,9 @@ class DataSourcePathClashModelEntriesTest {
    void removeDataModelKeepsFolderSide() {
       clash("smF", true, true);
       addLogicalModel("smF", "smLm");
+      // a grant of an additional connection named like the data source smF/smFX of the folder,
+      // which the data source has none of: not removed
+      grant(ResourceType.DATA_SOURCE, "smF::smFX");
       List<String> before = state("smF");
 
       ((XEngine) repository).removeDataModel("smF");
@@ -423,6 +426,127 @@ class DataSourcePathClashModelEntriesTest {
       assertEquals(before, state("urF"));
    }
 
+   // r1 important-1 (a): the EM delete of folder udF together with data source udF, with a
+   // model that can't be read under data source udF/udX of the folder. It is deleted completely,
+   // never partly (it stopped after deleting udF/udA)
+   @Test
+   void emDeleteTogetherWithUnreadableModel() throws Exception {
+      seedUnreadableMember("udF");
+
+      Throwable thrown = null;
+
+      try {
+         emService().removeDataSourceFolder("udF", true, principal, true);
+      }
+      catch(Throwable e) {
+         thrown = e;
+      }
+
+      assertNull(thrown, "the delete was refused or failed: " + thrown + ", left " + state("udF"));
+      assertEquals(List.of(), state("udF"));
+   }
+
+   // r1 important-1 (a), the registry's own delete-together
+   @Test
+   void registryDeleteTogetherWithUnreadableModel() {
+      seedUnreadableMember("rdF");
+
+      registry.removeDataSourceFolder("rdF", true);
+
+      assertEquals(List.of(), state("rdF"));
+   }
+
+   // r1 important-1 (a), a folder above a clash deleted through XEngine, which deletes the clash
+   // folder together with its data source
+   @Test
+   void xengineDeleteFolderAboveClashWithUnreadableModel() throws Exception {
+      addFolder("xdG");
+      seedUnreadableMember("xdG/xdF");
+
+      ((XEngine) repository).removeDataSourceFolder("xdG");
+
+      assertEquals(List.of(), state("xdG"));
+   }
+
+   // r1 important-1 (a): deleting data source udF/udX on its own leaves the model that can't be
+   // told apart (it may be data source udF's model "udX/bad") and deletes the rest
+   @Test
+   void deleteFolderDataSourceLeavesUnreadableModel() throws Exception {
+      seedUnreadableMember("ulF");
+      List<String> before = state("ulF");
+
+      repository.removeDataSource("ulF/ulX", true);
+
+      assertEquals(List.of("DATA_MODEL ulF/ulX [ulF/ulX [own]]", "DATA_SOURCE ulF/ulX [ulF/ulX]",
+                           "LOGIC_MODEL ulF/ulX/own"), diff(before, state("ulF")));
+   }
+
+   // r1 important-1 (b): moving subfolder mvF/G of clash folder mvF out of it, with a model that
+   // can't be read under data source mvF/G/y, is refused before anything is moved (it may be
+   // data source mvF's model "G/y/lm"), never half done
+   @Test
+   void moveSubfolderOutOfClashWithUnreadableModel() {
+      clash("mvF", false, false);
+      addFolder("mvF/G");
+      addSource("mvF/G/a");
+      addSource("mvF/G/y");
+      setUnreadableModel("mvF/G/y/lm");
+      addFolder("mvQ");
+      List<String> before = state("mvF", "mvQ");
+
+      assertThrows(MessageException.class,
+                   () -> registry.renameDataSourceFolder("mvF/G", "mvQ/G"));
+      assertEquals(before, state("mvF", "mvQ"));
+   }
+
+   // moving subfolder mgF/G out of clash folder mgF leaves the clash data source's own entries
+   // stored under the subfolder's path: the extended model of its model "G" and its model
+   // "G/y/lm", and moves the folder's
+   @Test
+   void moveSubfolderOutOfClashKeepsPsEntries() {
+      clash("mgF", false, false);
+      addFolder("mgF/G");
+      addSource("mgF/G/y");
+      addLogicalModel("mgF/G/y", "own");
+      addLogicalModel("mgF", "G");
+      registry.getDataModel("mgF").getLogicalModel("G")
+         .addLogicalModel(new XLogicalModel("ext"), true);
+      addLogicalModel("mgF", "G/y/lm");
+      addFolder("mgQ");
+      List<String> before = state("mgF", "mgQ");
+
+      registry.renameDataSourceFolder("mgF/G", "mgQ/G");
+
+      List<String> after = state("mgF", "mgQ");
+      assertEquals(List.of("DATA_MODEL mgF/G/y [mgF/G/y [own]]", "DATA_SOURCE mgF/G/y [mgF/G/y]",
+                           "DATA_SOURCE_FOLDER mgF/G", "LOGIC_MODEL mgF/G/y/own"),
+                   diff(before, after));
+      assertEquals(List.of("DATA_MODEL mgQ/G/y [mgQ/G/y [own]]", "DATA_SOURCE mgQ/G/y [mgQ/G/y]",
+                           "DATA_SOURCE_FOLDER mgQ/G", "LOGIC_MODEL mgQ/G/y/own"),
+                   diff(after, before));
+   }
+
+   // r1 minor: a slash-named model of P at depth 2 is the data source's side in the #77725
+   // guards: P may be deleted on its own, the folder may not; one that can't be read refuses
+   // both, with the model wording
+   @Test
+   void guardsCountSlashNamedModelOnDataSourceSide() {
+      addFolder("gsF");
+      addSource("gsF");
+      addLogicalModel("gsF", "a/b");
+      registry.clearCache();
+
+      assertDoesNotThrow(() -> registry.checkDataSourcePathClash("gsF"));
+      assertThrows(MessageException.class,
+                   () -> registry.checkDataSourceFolderDeletePathClash("gsF"));
+
+      setUnreadableModel("gsF/c/d");
+      MessageException e = assertThrows(MessageException.class,
+                                        () -> registry.checkDataSourcePathClash("gsF"));
+      assertTrue(e.getMessage().contains("gsF/c/d") && !e.getMessage().contains("connector"),
+                 e.getMessage());
+   }
+
    // no clash: model names with "/" are listed, renamed and removed as before, and the portal
    // lists such a view and VPM (it threw an NPE: the entry name is only the last part)
    @Test
@@ -669,6 +793,46 @@ class DataSourcePathClashModelEntriesTest {
 
    private DataSourceService portal() {
       return new DataSourceService(mock(AssetRepository.class), security, repository, registry);
+   }
+
+   // clash P with data sources P/udA and P/udX of the folder, a readable model of P/udX and one
+   // under P/udX that can't be read
+   private void seedUnreadableMember(String path) {
+      String name = path.substring(path.lastIndexOf('/') + 1);
+      String member = path + "/" + name.substring(0, 2) + "X";
+      clash(path, false, false);
+      addSource(path + "/" + name.substring(0, 2) + "A");
+      addSource(member);
+      addLogicalModel(member, "own");
+      setUnreadableModel(member + "/bad");
+   }
+
+   // a logical model entry whose stored object is not a model
+   private void setUnreadableModel(String path) {
+      registry.setObject(new AssetEntry(AssetRepository.QUERY_SCOPE, AssetEntry.Type.LOGIC_MODEL,
+                                        path, null),
+                         new DataSourceFolder("bad", LocalDateTime.now(), null));
+      registry.clearCache();
+      assertTrue(state(path).contains("LOGIC_MODEL " + path), "not seeded: " + path);
+   }
+
+   private RepositoryObjectService emService() throws Exception {
+      SecurityProvider provider = mock(SecurityProvider.class);
+      when(provider.checkPermission(any(), any(), anyString(), any())).thenReturn(true);
+      inetsoft.sree.RepletRegistryManager repletRegistries =
+         mock(inetsoft.sree.RepletRegistryManager.class);
+      when(repletRegistries.getRegistry(nullable(IdentityID.class)))
+         .thenReturn(mock(inetsoft.sree.RepletRegistry.class));
+      return new RepositoryObjectService(
+         mock(RepletRegistryService.class),
+         mock(ContentRepositoryTreeService.class), provider,
+         mock(ResourcePermissionService.class), repository,
+         mock(RepositoryDashboardService.class),
+         mock(inetsoft.web.admin.content.database.model.DataModelFolderManagerService.class),
+         registry, mock(inetsoft.report.LibManagerProvider.class),
+         mock(inetsoft.web.RecycleBin.class), mock(inetsoft.uql.asset.DependencyHandler.class),
+         mock(inetsoft.uql.asset.sync.RenameTransformHandler.class), repletRegistries,
+         mock(inetsoft.sree.web.dashboard.DashboardRegistryManager.class));
    }
 
    private void importOverwrite(String path) throws Exception {
