@@ -745,8 +745,20 @@ public class VpmCondition extends VpmObject {
             // A quoted column with a dot is quoted already (o."A.B"), and is used as it is
             String prefix = rawPrefix == null || dotted != null ? null :
                getTablePrefix(ncolumn, column, helper);
-            // a bracket quoted column ([Customer's]) stays quoted, the helper may not quote it
+            // Bug #77782, the helper doesn't quote the table of a quoted column with a dot,
+            // as it contains a quote ("my alias"."A.B"), so the table is quoted as the
+            // helper quotes it with a column that needs no quotes
+            String dprefix = rawPrefix == null || dotted == null ? null : getTablePrefix(
+               helper.buildFieldExpression(rawPrefix + "x", false), "x", helper);
+
+            if(dprefix != null) {
+               ncolumn = dprefix + wcolumn;
+            }
+
+            // a bracket quoted column ([Customer's]) stays quoted, the helper may not quote it.
+            // A bracket quoted column with a dot is kept as written without the quoted table
             String bcolumn = !bracket || rawPrefix == null ? null :
+               dotted != null ? (dprefix == null ? null : dprefix + "[" + column + "]") :
                (prefix != null ? prefix : rawPrefix) + "[" + column + "]";
             // the replacement of a column written without quotes, or null to use ncolumn
             String ucolumn = null;
@@ -784,8 +796,11 @@ public class VpmCondition extends VpmObject {
             // (a unicode name, e.g. a chinese table name, is a name too)
             // Bug #77697, a name starting with the column name (T.AB, T.A$X, T.A.C) is not the
             // column, and a name may be quoted in brackets
+            // Bug #77782, a bracket quoted column with a dot isn't matched without its
+            // replacement in brackets, ncolumn is not in brackets ("A.B", `"A.B"`)
             String rreg = "(?<![\\w$.])" + getNamePattern(table, bracket) + "\\." +
-               getNamePattern(column, bracket) + "(?![\\w$])(?!\\.)";
+               getNamePattern(column, bracket && (dotted == null || bcolumn != null)) +
+               "(?![\\w$])(?!\\.)";
             exp = replaceOutsideLiterals(
                exp, Pattern.compile(rreg, Pattern.UNICODE_CHARACTER_CLASS), ncolumn, bcolumn,
                ucolumn, rules);
@@ -801,8 +816,9 @@ public class VpmCondition extends VpmObject {
     * reports it as written. A quoted name without a dot is not split here, since the parser
     * reports a name without its quotes, and a name may start and end with a quote (T."A" is
     * the name "A" when reported by the parser).
-    * @return the table part, the column name without the quotes and escapes, and the
-    * column as written, or null if the last name isn't a quoted name with a dot.
+    * @return the table part, without the quotes if it is one quoted name ("T" of
+    * "T"."A.B", as XUtil.getTablePart()), the column name without the quotes and escapes,
+    * and the column as written, or null if the last name isn't a quoted name with a dot.
     */
    private static String[] splitQuotedDotColumn(String field) {
       if(field == null || !field.endsWith("\"")) {
@@ -812,6 +828,8 @@ public class VpmCondition extends VpmObject {
       int len = field.length();
       // the start of the last name
       int segment = 0;
+      // the end of the first name if it is quoted, or -1
+      int quotedEnd = -1;
       int i = 0;
 
       while(i < len) {
@@ -830,6 +848,10 @@ public class VpmCondition extends VpmObject {
             // not closed, or text after the closing quote
             if(end >= len || end + 1 < len && field.charAt(end + 1) != '.') {
                return null;
+            }
+
+            if(i == 0) {
+               quotedEnd = end + 1;
             }
 
             i = end + 1;
@@ -854,7 +876,13 @@ public class VpmCondition extends VpmObject {
          return null;
       }
 
-      return new String[] { field.substring(0, segment - 1), name, written };
+      String table = field.substring(0, segment - 1);
+
+      if(quotedEnd == table.length()) {
+         table = table.substring(1, table.length() - 1).replace("\"\"", "\"");
+      }
+
+      return new String[] { table, name, written };
    }
 
    /**
@@ -1052,7 +1080,9 @@ public class VpmCondition extends VpmObject {
       }
 
       String field = (String) value;
-      String tpart = XUtil.getTablePart(field);
+      // Bug #77782, a quoted column with a dot (T."A.B") is not split at its last dot
+      String[] dotted = splitQuotedDotColumn(field);
+      String tpart = dotted != null ? dotted[0] : XUtil.getTablePart(field);
 
       if(tpart == null) {
          return null;
@@ -1105,10 +1135,11 @@ public class VpmCondition extends VpmObject {
       String nfield = null;
 
       if(!alias.equals(tpart) || find_step == 1) {
-         String cpart = find_step != 1 ?
+         // a quoted column with a dot is kept as written, it is quoted already
+         String cpart = dotted != null ? dotted[2] : find_step != 1 ?
             XUtil.getColumnPart(field) : field.substring(tpart.length() + 1);
 
-         if(find_step == 1) {
+         if(find_step == 1 && dotted == null) {
             SQLHelper helper = SQLHelper.getSQLHelper(sql);
             cpart = XUtil.quoteAlias(cpart, helper);
          }

@@ -96,9 +96,9 @@ class VpmConditionQuotedDotNameTest {
          Arguments.of(SQL_SERVER, "T.[A.B] + T.C", "o.[A.B] + o.C"),
          Arguments.of(SQL_SERVER, "T.[A.B] between 1 and 2", "o.[A.B] between 1 and 2"),
          Arguments.of(SQL_SERVER, "[T].[A.B] + T.C", "o.[A.B] + o.C"),
-         // mysql quotes the column with a dot in backquotes. A backquoted column with a dot
-         // reported by the parser is not found, as before Bug #77782
-         Arguments.of(MYSQL, "T.\"A.B\" + T.C", "o.`\"A.B\"` + o.C"),
+         // a quoted column with a dot is kept as written (it was "A.B" in backquotes). A
+         // backquoted column with a dot reported by the parser is not found, as before
+         Arguments.of(MYSQL, "T.\"A.B\" + T.C", "o.\"A.B\" + o.C"),
          Arguments.of(MYSQL, "T.`A.B` + T.C", "T.`A.B` + o.C"),
          Arguments.of(MYSQL, "T.`A.B` between 1 and 2", "o.`A.B` between 1 and 2"),
          Arguments.of(MYSQL, "T.\"A\"\"B\" + T.C", "o.\"A\"\"B\" + o.C"),
@@ -117,10 +117,74 @@ class VpmConditionQuotedDotNameTest {
       assertEquals(expected + " = 1", evaluate(exp, product));
    }
 
+   static Stream<Arguments> queries() {
+      String[] t = { "T" };
+      String[] od = { "Order Details" };
+      String[] ta = { "T", "A" };
+      String[] oa = { "o", "a" };
+      String[] st = { "S.T" };
+
+      return Stream.of(
+         // access quotes a column with a dot in backquotes, a bracket quoted column stays
+         // in brackets, and isn't replaced when the alias is the table
+         Arguments.of(ACCESS, "T", t, new String[] { "T" }, "T.[A.B] between 1 and 2",
+                      "T.[A.B] between 1 and 2"),
+         Arguments.of(ACCESS, "T", t, new String[] { "o" }, "T.[A.B] + 1", "o.[A.B] + 1"),
+         Arguments.of(ACCESS, "T", t, new String[] { "o" }, "T.[A] + T.[A.B] + 1",
+                      "o.[A] + o.[A.B] + 1"),
+         Arguments.of(ACCESS, "T", t, new String[] { "o" }, "T.[A.B] between 1 and 2",
+                      "o.[A.B] between 1 and 2"),
+         // a table without an alias, or with the table name as the alias, is not replaced
+         Arguments.of(SQL_SERVER, "Order Details", od, new String[] { "" },
+                      "[Order Details].[A.B] + 1", "[Order Details].[A.B] + 1"),
+         Arguments.of(SQL_SERVER, "Order Details", od, new String[] { "Order Details" },
+                      "[Order Details].[A.B] between 1 and 2",
+                      "[Order Details].[A.B] between 1 and 2"),
+         Arguments.of(SQL_SERVER, "Order Details", od, new String[] { "" },
+                      "[Order Details].[A] + 1", "[Order Details].[A] + 1"),
+         Arguments.of(POSTGRESQL, "Order Details", od, new String[] { "" },
+                      "\"Order Details\".\"A.B\" || 1", "\"Order Details\".\"A.B\" || 1"),
+         // an alias that needs quotes is quoted as with a column without a dot
+         Arguments.of(SQL_SERVER, "T", t, new String[] { "my alias" }, "T.[A.B] + T.A",
+                      "\"my alias\".[A.B] + \"my alias\".A"),
+         Arguments.of(SQL_SERVER, "T", t, new String[] { "my alias" },
+                      "T.[A.B] between 1 and 2", "\"my alias\".[A.B] between 1 and 2"),
+         Arguments.of(POSTGRESQL, "T", t, new String[] { "my alias" }, "T.\"A.B\" || T.A",
+                      "\"my alias\".\"A.B\" || \"my alias\".\"A\""),
+         Arguments.of(POSTGRESQL, "T", t, new String[] { "my alias" },
+                      "T.\"A.B\" between 1 and 2", "\"my alias\".\"A.B\" between 1 and 2"),
+         // the table of the column, not a table named as the start of the column (A of "A.B")
+         Arguments.of(POSTGRESQL, "T", ta, oa, "T.\"A.B\" || 1", "o.\"A.B\" || 1"),
+         Arguments.of(POSTGRESQL, "T", ta, oa, "T.\"A.B\" between 1 and 2",
+                      "o.\"A.B\" between 1 and 2"),
+         Arguments.of(SQL_SERVER, "T", ta, oa, "T.[A.B] + 1", "o.[A.B] + 1"),
+         Arguments.of(SQL_SERVER, "T", ta, oa, "T.[A.B] between 1 and 2",
+                      "o.[A.B] between 1 and 2"),
+         // a quoted table with a dot
+         Arguments.of(POSTGRESQL, "S.T", st, new String[] { "o" }, "\"S.T\".\"A.B\" || 1",
+                      "o.\"A.B\" || 1"));
+   }
+
+   @ParameterizedTest
+   @MethodSource("queries")
+   void tableOfQuotedNameIsReplacedInQuery(String product, String table, String[] tables,
+                                           String[] aliases, String exp, String expected)
+      throws Exception
+   {
+      assertEquals(expected + " = 1", evaluate(exp, product, table, tables, aliases));
+   }
+
    private static String evaluate(String exp, String product) throws Exception {
+      return evaluate(exp, product, "T", new String[] { "T" }, new String[] { "o" });
+   }
+
+   private static String evaluate(String exp, String product, String table, String[] tables,
+                                  String[] aliases)
+      throws Exception
+   {
       VpmCondition cond = new VpmCondition("cond");
       cond.setType(VpmCondition.TABLE);
-      cond.setTable("T");
+      cond.setTable(table);
       cond.setCondition(new XBinaryCondition(new XExpression(exp, XExpression.EXPRESSION),
                                              new XExpression("1", XExpression.VALUE), "="));
       JDBCDataSource source = null;
@@ -132,8 +196,8 @@ class VpmConditionQuotedDotNameTest {
       }
 
       XPrincipal user = new XPrincipal(new IdentityID("viewer", null));
-      return cond.evaluate(null, new String[] { "T" }, new String[] { "o" },
-                           new String[0], source, new VariableTable(), user, false);
+      return cond.evaluate(null, tables, aliases, new String[0], source,
+                           new VariableTable(), user, false);
    }
 
    private static final String POSTGRESQL = "postgresql";
@@ -141,6 +205,7 @@ class VpmConditionQuotedDotNameTest {
    private static final String SQL_SERVER = "sql server";
    private static final String H2 = "h2";
    private static final String MYSQL = "mysql";
+   private static final String ACCESS = "access";
 
    @Configuration
    static class TestConfig {
