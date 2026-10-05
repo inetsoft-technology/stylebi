@@ -169,7 +169,8 @@ public class IndividualAssetBackupAction implements ScheduleAction, HttpXMLSeria
       for(XAsset asset : assets) {
          writer.println("<XAsset type=\"" + asset.getType() + "\" path=\"" +
                            byteEncode(asset.getPath()) + "\" user=\"" +
-                           (asset.getUser() != null ? asset.getUser().convertToKey() : "") + "\">");
+                           (asset.getUser() != null ? Tool.escape(asset.getUser().convertToKey()) : "") +
+                           "\">");
          writer.println("</XAsset>");
       }
 

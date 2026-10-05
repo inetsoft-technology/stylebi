@@ -242,7 +242,12 @@ class EmailInfo implements Cloneable, Serializable, HttpXMLSerializable {
       writer.println(">");
 
       if(message != null) {
-         writer.println("<message><![CDATA[" + message.replace("]]>", "]]]]><![CDATA[>") + "]]></message>");
+         // a character XML 1.0 can't carry is encoded and marked so parseXML decodes it.
+         // Other text is written as before (Bug #77806)
+         boolean ctrl = Tool.hasXMLIllegalChars(message);
+         String text = ctrl ? Tool.encodeXMLIllegalChars(message) : message;
+         writer.println("<message" + (ctrl ? " " + XML_ILLEGAL_CHARS_ATTR + "=\"true\"" : "") +
+                        "><![CDATA[" + Tool.splitCDATAEnd(text) + "]]></message>");
       }
 
       if(getFileFormat() != null && getFileFormat().equals("CSV") && getCSVConfig() != null) {
@@ -291,6 +296,11 @@ class EmailInfo implements Cloneable, Serializable, HttpXMLSerializable {
 
       if(messageNode != null) {
          message = Tool.getValue(messageNode);
+
+         // see writeXML, unmarked text is never decoded
+         if("true".equals(Tool.getAttribute(messageNode, XML_ILLEGAL_CHARS_ATTR))) {
+            message = Tool.decodeXMLIllegalChars(message);
+         }
       }
       else if(tag.hasAttribute("message")) {
          // legacy: message was stored as an XML attribute before being moved to a child element
@@ -521,6 +531,12 @@ class EmailInfo implements Cloneable, Serializable, HttpXMLSerializable {
 
       return null;
    }
+
+   /**
+    * Marks a CDATA value whose XML 1.0 illegal characters were encoded with
+    * {@link Tool#encodeXMLIllegalChars}, the same marker UniformSQL uses (Bug #77806).
+    */
+   private static final String XML_ILLEGAL_CHARS_ATTR = "ctrlEncoded";
 
    private String emails = "";
    private String from = "stylereport@inetsoft.com";
