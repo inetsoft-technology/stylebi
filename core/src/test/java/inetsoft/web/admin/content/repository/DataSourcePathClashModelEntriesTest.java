@@ -34,6 +34,7 @@ import inetsoft.util.Tool;
 import inetsoft.util.dep.XAssetConfig;
 import inetsoft.util.dep.XDataSourceAsset;
 import inetsoft.web.portal.controller.database.DataSourceService;
+import inetsoft.web.portal.model.database.LogicalModel;
 import inetsoft.web.portal.model.database.PhysicalModel;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -474,6 +475,196 @@ class DataSourcePathClashModelEntriesTest {
       repository.removeDataSource("ncF/ncZ", true);
 
       assertEquals(List.of("DATA_SOURCE_FOLDER ncF"), state("ncF"));
+   }
+
+   // nested clash: data source nP/s of folder nP is a clash itself (folder nP/s holds nP/s/y).
+   // P's logical model "s" has its extended model at nP/s/e, under data source nP/s. Each data
+   // source lists, renames and removes only its own entries
+   @Test
+   void nestedClash() throws Exception {
+      clash("nP", false, false);
+      addParent("nP/s", "sAdd");
+      grant(ResourceType.DATA_SOURCE, "nP/s");
+      grant(ResourceType.DATA_SOURCE, "nP/s::sAdd");
+      addFolder("nP/s");
+      addSource("nP/s/y");
+      grant(ResourceType.DATA_SOURCE, "nP/s/y");
+      addLogicalModel("nP", "s");
+      model("nP").getLogicalModel("s").addLogicalModel(new XLogicalModel("e"), true);
+      addLogicalModel("nP/s", "lm");
+      model("nP/s").getLogicalModel("lm").addLogicalModel(new XLogicalModel("le"), true);
+      addLogicalModel("nP/s/y", "ym");
+      registry.clearCache();
+      assertTrue(registry.getDataSourcePathClashes().contains("nP/s"), "not seeded: nP/s");
+
+      assertEquals(List.of("s"), List.of(model("nP").getLogicalModelNames()));
+      assertEquals(List.of("e"), List.of(model("nP").getLogicalModel("s").getLogicalModelNames()));
+      assertEquals(List.of("lm"), List.of(model("nP/s").getLogicalModelNames()));
+      assertEquals(List.of("le"),
+                   List.of(model("nP/s").getLogicalModel("lm").getLogicalModelNames()));
+      assertEquals(List.of("ym"), List.of(model("nP/s/y").getLogicalModelNames()));
+      assertEquals(List.of("e"), extendedModels(portal().getLogicalModels("nP", null, principal,
+                                                                          false).get(0)));
+      assertEquals(List.of("le"), extendedModels(
+         portal().getLogicalModels("nP/s", null, principal, false).get(0)));
+
+      List<String> before = state("nP");
+      model("nP").renameLogicalModel("s", "s2", null);
+      List<String> after = state("nP");
+
+      assertEquals(List.of("DATA_MODEL nP [nP [s]]", "EXTENDED_LOGIC_MODEL nP/s/e",
+                           "LOGIC_MODEL nP/s"), diff(before, after));
+      assertEquals(List.of("DATA_MODEL nP [nP [s2]]", "EXTENDED_LOGIC_MODEL nP/s2/e",
+                           "LOGIC_MODEL nP/s2"), diff(after, before));
+      model("nP").renameLogicalModel("s2", "s", null);
+
+      before = state("nP");
+      ((XEngine) repository).removeDataModel("nP/s");
+
+      assertEquals(List.of("DATA_MODEL nP/s [nP/s [lm]]", "DATA_SOURCE nP/s/sAdd [sAdd]",
+                           "EXTENDED_LOGIC_MODEL nP/s/lm/le", "LOGIC_MODEL nP/s/lm",
+                           "grant DATA_SOURCE|nP/s::sAdd"), diff(before, state("nP")));
+
+      before = state("nP");
+      repository.removeDataSource("nP/s/y", true);
+
+      assertEquals(List.of("DATA_MODEL nP/s/y [nP/s/y [ym]]", "DATA_SOURCE nP/s/y [nP/s/y]",
+                           "LOGIC_MODEL nP/s/y/ym", "grant DATA_SOURCE|nP/s/y"),
+                   diff(before, state("nP")));
+   }
+
+   // A1: P's logical model and physical view named like subfolders ("Sales", "East") are
+   // renamed and removed without the subfolders' data sources and their models
+   @Test
+   void modelNamedLikeSubfolderRenameAndRemove() {
+      clash("sfF", false, false);
+      addFolder("sfF/Sales");
+      addSource("sfF/Sales/y");
+      addLogicalModel("sfF/Sales/y", "m");
+      model("sfF/Sales/y").getLogicalModel("m").addLogicalModel(new XLogicalModel("e"), true);
+      addFolder("sfF/East");
+      addSource("sfF/East/z");
+      addPartition("sfF/East/z", "p");
+      model("sfF/East/z").getPartition("p").addPartition(new XPartition("pe"), false);
+      addLogicalModel("sfF", "Sales");
+      model("sfF").getLogicalModel("Sales").addLogicalModel(new XLogicalModel("own"), true);
+      addPartition("sfF", "East");
+      model("sfF").getPartition("East").addPartition(new XPartition("pown"), false);
+      registry.clearCache();
+      assertEquals(List.of("own"),
+                   List.of(model("sfF").getLogicalModel("Sales").getLogicalModelNames()));
+      assertEquals(List.of("pown"), List.of(model("sfF").getPartition("East").getPartitionNames()));
+      List<String> before = state("sfF");
+
+      model("sfF").renameLogicalModel("Sales", "S2", null);
+      model("sfF").renamePartition("East", "E2", null);
+
+      List<String> after = state("sfF");
+      assertEquals(List.of("DATA_MODEL sfF [sfF [Sales]]", "EXTENDED_LOGIC_MODEL sfF/Sales/own",
+                           "EXTENDED_PARTITION sfF/East/pown", "LOGIC_MODEL sfF/Sales",
+                           "PARTITION sfF/East"), diff(before, after));
+      assertEquals(List.of("DATA_MODEL sfF [sfF [S2]]", "EXTENDED_LOGIC_MODEL sfF/S2/own",
+                           "EXTENDED_PARTITION sfF/E2/pown", "LOGIC_MODEL sfF/S2",
+                           "PARTITION sfF/E2"), diff(after, before));
+
+      model("sfF").removeLogicalModel("S2", true);
+      model("sfF").removePartition("E2");
+
+      assertEquals(List.of("DATA_MODEL sfF [sfF [S2]]", "EXTENDED_LOGIC_MODEL sfF/S2/own",
+                           "EXTENDED_PARTITION sfF/E2/pown", "LOGIC_MODEL sfF/S2",
+                           "PARTITION sfF/E2"), diff(after, state("sfF")));
+   }
+
+   // A2: P's logical model "x/lm" has its extended model at seF/x/lm/e, under data source seF/x
+   // of the folder, which has its own model, extended model and VPM. Deleting seF/x keeps P's
+   @Test
+   void slashNamedModelWithExtendedModelOnClash() throws Exception {
+      clash("seF", false, false);
+      addSource("seF/x");
+      addLogicalModel("seF/x", "own");
+      model("seF/x").getLogicalModel("own").addLogicalModel(new XLogicalModel("oe"), true);
+      addLogicalModel("seF", "x/lm");
+      model("seF").getLogicalModel("x/lm").addLogicalModel(new XLogicalModel("e"), true);
+      model("seF").addVirtualPrivateModel(new VirtualPrivateModel("x"), true);
+      model("seF/x").addVirtualPrivateModel(new VirtualPrivateModel("v"), true);
+      registry.clearCache();
+
+      assertEquals(List.of("x/lm"), List.of(model("seF").getLogicalModelNames()));
+      assertEquals(List.of("e"),
+                   List.of(model("seF").getLogicalModel("x/lm").getLogicalModelNames()));
+      assertEquals(List.of("own"), List.of(model("seF/x").getLogicalModelNames()));
+      assertEquals(List.of("oe"),
+                   List.of(model("seF/x").getLogicalModel("own").getLogicalModelNames()));
+      assertEquals(List.of("x"), List.of(model("seF").getVirtualPrivateModelNames()));
+      assertEquals(List.of("v"), List.of(model("seF/x").getVirtualPrivateModelNames()));
+      assertEquals(1, portal().getVpmBrowseModel("seF", principal).getItems().length);
+      assertEquals(1, portal().getVpmBrowseModel("seF/x", principal).getItems().length);
+      assertEquals(List.of("e"), extendedModels(portal().getLogicalModels("seF", null, principal,
+                                                                          false).get(0)));
+      List<String> before = state("seF");
+
+      repository.removeDataSource("seF/x", true);
+
+      assertEquals(List.of("DATA_MODEL seF/x [seF/x [own]]", "DATA_SOURCE seF/x [seF/x]",
+                           "EXTENDED_LOGIC_MODEL seF/x/own/oe", "LOGIC_MODEL seF/x/own",
+                           "VPM seF/x/v"), diff(before, state("seF")));
+   }
+
+   // R1b: P's logical model "x" has extended model "e" at mbF/x/e, and data source mbF/x of the
+   // folder has logical model "e" at the same path with extended model "f" at mbF/x/e/f.
+   // Renaming mbF/x moves its own and leaves P's
+   @Test
+   void renameFolderDataSourceWithExtendedModelsOnBothSides() throws Exception {
+      clash("mbF", false, false);
+      addSource("mbF/x");
+      addLogicalModel("mbF", "x");
+      model("mbF").getLogicalModel("x").addLogicalModel(new XLogicalModel("e"), true);
+      addLogicalModel("mbF/x", "e");
+      model("mbF/x").getLogicalModel("e").addLogicalModel(new XLogicalModel("f"), true);
+      registry.clearCache();
+      assertEquals(List.of("e"), List.of(model("mbF").getLogicalModel("x").getLogicalModelNames()));
+      assertEquals(List.of("f"),
+                   List.of(model("mbF/x").getLogicalModel("e").getLogicalModelNames()));
+      List<String> before = state("mbF");
+      XDataSource ds = (XDataSource) registry.getDataSource("mbF/x").clone();
+      ds.setName("mbF/z");
+
+      repository.updateDataSource(ds, "mbF/x");
+
+      List<String> after = state("mbF");
+      assertEquals(List.of("DATA_MODEL mbF/x [mbF/x [e]]", "DATA_SOURCE mbF/x [mbF/x]",
+                           "EXTENDED_LOGIC_MODEL mbF/x/e/f", "LOGIC_MODEL mbF/x/e"),
+                   diff(before, after));
+      assertEquals(List.of("DATA_MODEL mbF/z [mbF/z [e]]", "DATA_SOURCE mbF/z [mbF/z]",
+                           "EXTENDED_LOGIC_MODEL mbF/z/e/f", "LOGIC_MODEL mbF/z/e"),
+                   diff(after, before));
+      assertEquals(List.of("e"), List.of(model("mbF").getLogicalModel("x").getLogicalModelNames()));
+   }
+
+   // R2: a copy of a folder above a clash anF/anP copies data source anF/anP with its own
+   // logical model only, not the model of data source anF/anP/anX of the folder
+   @Test
+   void copyOfFolderAboveClash() throws Exception {
+      addFolder("anF");
+      clash("anF/anP", false, false);
+      addSource("anF/anP/anX");
+      addLogicalModel("anF/anP/anX", "mLm");
+      addLogicalModel("anF/anP", "pLm");
+
+      repository.updateDataSourceFolder(
+         new DataSourceFolder("anG", LocalDateTime.now(), null), "anF", true);
+
+      List<String> copy = state("anG");
+      assertTrue(copy.contains("DATA_MODEL anG/Copy of anP [anG/Copy of anP [pLm]]"),
+                 "copy: " + copy);
+      assertTrue(copy.contains("DATA_MODEL anG/anP/Copy of anX [anG/anP/Copy of anX [mLm]]"),
+                 "copy: " + copy);
+      assertFalse(copy.contains("LOGIC_MODEL anG/Copy of anP/anX/mLm") ||
+                  copy.contains("LOGIC_MODEL anG/Copy of anP/mLm"), "copy: " + copy);
+   }
+
+   private static List<String> extendedModels(LogicalModel model) {
+      return model.getExtendModels().stream().map(LogicalModel::getName).toList();
    }
 
    private DataSourceService portal() {
