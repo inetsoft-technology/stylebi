@@ -945,16 +945,14 @@ public class SQLHelper implements KeywordProvider {
          sub.setDataSource(uniformSql.getDataSource());
          sub.setParent(uniformSql);
          sb.append(BRACKET);
-         sb.append(getSubQueryString(table, sub));
-         sb.append(")");
+         sb.append(closeSubquery(getSubQueryString(table, sub), sub.hasSQLString()));
       }
       // name is a string?
       else {
          // @by rundaz, if the table is a subquery, it shouldn't be quoted
          if(XUtil.isSubQuery(namestr)) {
             sb.append(BRACKET);
-            sb.append(namestr);
-            sb.append(")");
+            sb.append(closeSubquery(namestr, true));
          }
          else if(JDBCDataSource.INFORMIX.equalsIgnoreCase(table.getSchema())) {
             // fix bug#9381. The from statement of informix database not support be quoted.
@@ -1052,6 +1050,58 @@ public class SQLHelper implements KeywordProvider {
 
       matcher.appendTail(result);
       return result + tail;
+   }
+
+   /**
+    * Close a subquery text with a paren. Bug #77753, a kept sql string (the user's text, not
+    * regenerated) may end in a line comment, which would comment out a paren on the same
+    * line, so the paren goes on a new line then. Regenerated text holds no user comment.
+    * @param kept true if the text is a kept sql string.
+    */
+   private static String closeSubquery(String text, boolean kept) {
+      return kept && endsInLineComment(text) ? text + "\n)" : text + ")";
+   }
+
+   /**
+    * Check if the last line of the text holds a line comment: a --, a # (mysql, bigquery,
+    * clickhouse) or a // (snowflake), outside quotes, at the start of the line or after a
+    * space. A -- glued to the text before it starts a comment too, but it is what the parser
+    * writes for x - -1 (#77754, saved models keep it), not a comment the user meant, so it is
+    * not counted and the query stays a syntax error instead of losing the rest of the line.
+    */
+   private static boolean endsInLineComment(String text) {
+      int start = text.lastIndexOf('\n') + 1;
+      int len = text.length();
+      boolean[] quoted = null;
+
+      for(int i = start; i < len; i++) {
+         char c = text.charAt(i);
+         char next = i + 1 < len ? text.charAt(i + 1) : 0;
+         boolean dash = c == '-' && next == '-';
+
+         if(!dash && c != '#' && (c != '/' || next != '/')) {
+            continue;
+         }
+
+         if(quoted == null) {
+            quoted = SQLQuoteScanner.findQuoted(text);
+         }
+
+         if(quoted[i]) {
+            continue;
+         }
+
+         if(i == start || Character.isWhitespace(text.charAt(i - 1))) {
+            return true;
+         }
+
+         // a glued -- comments out the rest of the line, a glued # or // may be a name
+         if(dash) {
+            return false;
+         }
+      }
+
+      return false;
    }
 
    /**
@@ -1979,7 +2029,7 @@ public class SQLHelper implements KeywordProvider {
 
       if(ostr != null) {
          sqlstr = sqlstr.replaceFirst(quoteTableName(str),
-            "(" + ostr + ") " + str);
+            "(" + closeSubquery(ostr, true) + " " + str);
       }
 
       UniformSQL sql = new UniformSQL();
@@ -4473,8 +4523,8 @@ public class SQLHelper implements KeywordProvider {
          sql.setHint(UniformSQL.HINT_INPUT_MAXROWS, inpmaxrows + "");
 
          try {
-            str = BRACKET + (isFormatSQL ? sql.toString().trim() : sql.toString())
-               + ")";
+            str = BRACKET + closeSubquery(isFormatSQL ? sql.toString().trim() : sql.toString(),
+                                          sql.hasSQLString());
          }
          finally {
             sql.setOuterSQL(null);
