@@ -58,11 +58,11 @@ import static org.mockito.Mockito.when;
  * script-execution lock -- with the context pool off. The pool has been on by default since
  * #77123 (merged the same day as this fix), which already incidentally prevents this deadlock in
  * the default configuration (the pool removes the shared execution lock entirely, per
- * {@code WorksheetScriptEnv.getExecutionLock()}); this suite still runs pool off unless
- * {@code -Dlockcycle.pool=true}, since {@code script.ws.contextPool=false} remains a supported,
- * documented configuration and the deadlock is real for anyone running it: it never resolves
- * by itself, {@code stall.watchdog.mode=alert} only reports it, and the default fail mode
- * (Feature #77123) can only break it by failing one of the two queries. Unlike
+ * {@code WorksheetScriptEnv.getExecutionLock()}); the daily slow-tests workflow runs this
+ * suite with {@code -Dlockcycle.pool=false}, since {@code script.ws.contextPool=false} remains
+ * a supported, documented configuration and the deadlock is real for anyone running it: it
+ * never resolves by itself, {@code stall.watchdog.mode=alert} only reports it, and the default
+ * fail mode (Feature #77123) can only break it by failing one of the two queries. Unlike
  * {@link SubQueryConditionWorksheetCycleTest}, this needs no
  * sub-query, {@code Distinct}, or async worker: table A has its own plain JavaScript expression
  * column, which alone forces {@code AssetQuery}'s type probe
@@ -110,8 +110,8 @@ public class EmbeddedTableScriptLockCycleTest {
       harness = new LockCycleHarness();
 
       // the sandbox of this class is real, so -Dlockcycle.pool reaches it through the property
-      // its env is chosen by; set it either way, since the pool is on by default (#77123) and
-      // this suite runs pool off unless -Dlockcycle.pool=true
+      // its env is chosen by; set it either way, so -Dlockcycle.pool=false runs it pool off
+      // although the pool is on by default (#77123)
       SreeEnv.setProperty(PoolConfig.ENABLED, Boolean.toString(POOL));
    }
 
