@@ -3137,11 +3137,20 @@ public class DataSourceRegistry implements MessageListener {
 
       Permission permission = engine.getPermission(type, oldResource);
 
-      // Bug #77704, removed from the old key only once it can be read back under the new one.
-      // The authorization provider logs a failed save instead of throwing it.
+      // Bug #77704, removed from the old key only once it can be read back under the new one,
+      // which is checked since a save may fail without an error.
       if(permission != null && !oldResource.equals(newResource)) {
          savePermission(engine, type, newResource, permission);
-         engine.removePermission(type, oldResource);
+
+         // Bug #77798, the permission is in place under the new key, so a failed removal of the
+         // old key only leaves it stale, which is logged and doesn't stop the rename or move
+         try {
+            engine.removePermission(type, oldResource);
+         }
+         catch(RuntimeException e) {
+            LOG.error("Failed to remove the permission of {} {} after it was moved to {}",
+                      type, oldResource, newResource, e);
+         }
 
          if(engine.getPermission(type, oldResource) != null) {
             LOG.warn("Failed to remove the permission of {} {} after it was moved to {}",
@@ -3151,8 +3160,8 @@ public class DataSourceRegistry implements MessageListener {
    }
 
    /**
-    * Saves a permission and checks that it can be read back, since the authorization provider
-    * logs a failed save instead of throwing it.
+    * Saves a permission and checks that it can be read back, in case the save is lost without
+    * an error.
     *
     * @throws UncheckedIOException if it isn't saved.
     */
