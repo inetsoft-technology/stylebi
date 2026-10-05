@@ -4794,13 +4794,17 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          where = newRoot;
       }
       else {
+         // a negated set, e.g. "not (a.k = 1 and b.k = 2)", is not a junction
+         // the new condition can join, it would be negated with the set
          if(where instanceof XSet &&
-            ((XSet) where).getRelation().equals(relation))
+            ((XSet) where).getRelation().equals(relation) &&
+            !((XSet) where).isIsNot())
          {
             where.addChild(condition);
          }
          else if(condition instanceof XSet &&
-            ((XSet) condition).getRelation().equals(relation))
+            ((XSet) condition).getRelation().equals(relation) &&
+            !((XSet) condition).isIsNot())
          {
             condition.addChild(where);
             where = condition;
