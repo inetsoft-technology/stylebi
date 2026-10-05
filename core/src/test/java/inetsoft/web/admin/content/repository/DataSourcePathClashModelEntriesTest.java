@@ -33,6 +33,7 @@ import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
 import inetsoft.util.dep.XAssetConfig;
 import inetsoft.util.dep.XDataSourceAsset;
+import inetsoft.web.admin.content.repository.model.MoveCopyTreeNodesRequest;
 import inetsoft.web.portal.controller.database.DataSourceService;
 import inetsoft.web.portal.model.database.LogicalModel;
 import inetsoft.web.portal.model.database.PhysicalModel;
@@ -499,6 +500,48 @@ class DataSourcePathClashModelEntriesTest {
       assertEquals(before, state("mvF", "mvQ"));
    }
 
+   // verify r2: the EM and portal folder move (XEngine.updateDataSourceFolder) of subfolder G out
+   // of clash folder v5F, with a model that can't be read under v5F/G/y, is refused before
+   // anything is moved (it moved v5F/G/a first and then stopped)
+   @Test
+   void xengineMoveSubfolderOutOfClashWithUnreadableModel() {
+      seedUnreadableSubfolder("v5F");
+      addFolder("v5Q");
+      List<String> before = state("v5F", "v5Q");
+
+      assertThrows(MessageException.class, () -> repository.updateDataSourceFolder(
+         new DataSourceFolder("v5Q/G", LocalDateTime.now(), null), "v5F/G"));
+      assertEquals(before, state("v5F", "v5Q"));
+   }
+
+   // verify r2, the same for a rename of the subfolder inside the clash folder
+   @Test
+   void xengineRenameSubfolderInClashWithUnreadableModel() {
+      seedUnreadableSubfolder("v5bF");
+      List<String> before = state("v5bF");
+
+      assertThrows(MessageException.class, () -> repository.updateDataSourceFolder(
+         new DataSourceFolder("v5bF/H", LocalDateTime.now(), null), "v5bF/G"));
+      assertEquals(before, state("v5bF"));
+   }
+
+   // r2 sweep: an EM move of two data sources of clash folder emF, the second with a model that
+   // can't be read, is refused before anything is moved
+   @Test
+   void emMoveDataSourcesOutOfClashWithUnreadableModel() throws Exception {
+      seedUnreadableMember("emF");
+      addFolder("emQ");
+      List<String> before = state("emF", "emQ");
+
+      assertThrows(MessageException.class, () -> emService().moveFiles(
+         MoveCopyTreeNodesRequest.builder()
+            .source(List.of(treeNode("emF/emA", inetsoft.sree.RepositoryEntry.DATA_SOURCE),
+                            treeNode("emF/emX", inetsoft.sree.RepositoryEntry.DATA_SOURCE)))
+            .destination(treeNode("emQ", inetsoft.sree.RepositoryEntry.DATA_SOURCE_FOLDER))
+            .build(), true, principal));
+      assertEquals(before, state("emF", "emQ"));
+   }
+
    // moving subfolder mgF/G out of clash folder mgF leaves the clash data source's own entries
    // stored under the subfolder's path: the extended model of its model "G" and its model
    // "G/y/lm", and moves the folder's
@@ -924,6 +967,25 @@ class DataSourcePathClashModelEntriesTest {
       setUnreadableModel(member + "/bad");
    }
 
+   // clash P with subfolder P/G holding data sources P/G/a and P/G/y, and a model under P/G/y
+   // that can't be read
+   private void seedUnreadableSubfolder(String path) {
+      clash(path, false, false);
+      addFolder(path + "/G");
+      addSource(path + "/G/a");
+      addSource(path + "/G/y");
+      setUnreadableModel(path + "/G/y/lm");
+   }
+
+   private static ContentRepositoryTreeNode treeNode(String path, int type) {
+      int index = path.lastIndexOf('/');
+      return ContentRepositoryTreeNode.builder()
+         .label(index < 0 ? path : path.substring(index + 1))
+         .path(path)
+         .type(type)
+         .build();
+   }
+
    // a logical model entry whose stored object is not a model
    private void setUnreadableModel(String path) {
       registry.setObject(new AssetEntry(AssetRepository.QUERY_SCOPE, AssetEntry.Type.LOGIC_MODEL,
@@ -940,10 +1002,13 @@ class DataSourcePathClashModelEntriesTest {
          mock(inetsoft.sree.RepletRegistryManager.class);
       when(repletRegistries.getRegistry(nullable(IdentityID.class)))
          .thenReturn(mock(inetsoft.sree.RepletRegistry.class));
+      ResourcePermissionService permissions = mock(ResourcePermissionService.class);
+      when(permissions.getRepositoryResourceType(anyInt(), anyString())).thenAnswer(
+         inv -> new Resource(ResourceType.DATA_SOURCE_FOLDER, inv.<String>getArgument(1)));
       return new RepositoryObjectService(
          mock(RepletRegistryService.class),
          mock(ContentRepositoryTreeService.class), provider,
-         mock(ResourcePermissionService.class), repository,
+         permissions, repository,
          mock(RepositoryDashboardService.class),
          mock(inetsoft.web.admin.content.database.model.DataModelFolderManagerService.class),
          registry, mock(inetsoft.report.LibManagerProvider.class),

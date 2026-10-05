@@ -306,9 +306,9 @@ public class XEngine implements XRepository, XQueryRepository {
       boolean nameChanged = oname != null && !Tool.equals(oname, dx.getFullName());
       boolean changed = odx != null && (!Tool.equals(dx, odx) || dx.getLastModified() != odx.getLastModified());
 
-      // Bug #77725, before the meta data is removed
+      // Bug #77725, Bug #77820, before the meta data is removed
       if(nameChanged) {
-         getDSRegistry().checkDataSourcePathClash(oname);
+         getDSRegistry().checkDataSourceMovePathClash(oname);
       }
 
       if(nameChanged || changed) {

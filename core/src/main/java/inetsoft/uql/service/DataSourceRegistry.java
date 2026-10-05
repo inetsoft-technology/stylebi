@@ -317,6 +317,24 @@ public class DataSourceRegistry implements MessageListener {
    }
 
    /**
+    * Checks that a data source may be renamed or moved, as
+    * {@link #checkDataSourcePathClash(String)}, and that every entry under its path can be told
+    * apart from the entries of a data source above it at a path a data source folder shares
+    * (Bug #77820). Thrown before anything is written, so that a move of several data sources is
+    * refused before the first one is moved. A delete doesn't need the latter: it leaves an entry
+    * that can't be told apart.
+    *
+    * @param path the path of the data source.
+    *
+    * @throws MessageException if a folder at the path holds data sources or subfolders, or if an
+    *                          entry under the path can't be read to tell whose it is.
+    */
+   public void checkDataSourceMovePathClash(String path) {
+      checkDataSourcePathClash(path);
+      getDataSourceEntriesAbove(path);
+   }
+
+   /**
     * Checks that a data source folder may be renamed or moved: if a data source has the same path
     * (Bug #77691), its additional connections and data models are stored under the path of the
     * folder and would be moved with it, and a folder below it with a data source at its path
@@ -325,12 +343,18 @@ public class DataSourceRegistry implements MessageListener {
     *
     * @param path the path of the folder.
     *
+    * Bug #77820, also checked: every entry under the folder can be told apart from the entries of
+    * a data source above it at a path a data source folder shares, so that a move that moves the
+    * folder's data sources one at a time doesn't stop after the first ones.
+    *
     * @throws MessageException if a data source at the path has additional connections or data
     *                          models, or a data source at the path of a folder below it has a
-    *                          folder that holds data sources or subfolders.
+    *                          folder that holds data sources or subfolders, or an entry under
+    *                          the folder can't be read to tell whose it is.
     */
    public void checkDataSourceFolderPathClash(String path) {
       checkDataSourceFolderDeletePathClash(path);
+      getDataSourceEntriesAbove(path);
 
       AssetEntry[] subfolders = getEntries(path + "/", AssetEntry.Type.DATA_SOURCE_FOLDER);
       Arrays.sort(subfolders, Comparator.comparing(AssetEntry::getPath));
@@ -1529,8 +1553,9 @@ public class DataSourceRegistry implements MessageListener {
             "security.nopermission.write", "datasource"));
       }
 
-      // Bug #77725, a folder at the path would have its data sources moved under the new name
-      checkDataSourcePathClash(oname);
+      // Bug #77725, a folder at the path would have its data sources moved under the new name.
+      // Bug #77820, an entry that can't be told apart from a data source above
+      checkDataSourceMovePathClash(oname);
       // Bug #77820, a data source of a folder at the path of the data source above it has the
       // extended models of that data source's models stored under its path, which stay
       Set<AssetEntry> skipped = new HashSet<>(Arrays.asList(getEntries(oname + "/")));
@@ -1899,8 +1924,8 @@ public class DataSourceRegistry implements MessageListener {
       checkDSFolderRenamePermission(oname);
       // Bug #77725, before anything is written
       checkDataSourceFolderPathClash(oname);
-      // Bug #77820, the entries of a data source above stored under the path of the folder stay,
-      // and one that can't be told apart is refused before anything is written
+      // Bug #77820, the entries of a data source above stored under the path of the folder stay
+      // (one that can't be told apart was refused by the check above)
       Set<AssetEntry> aboveEntries = getDataSourceEntriesAbove(oname);
       // Bug #77704, a failed write stops the rename and is thrown, with the data sources moved
       // before it. The folders created for the move are removed again if nothing was moved in.
