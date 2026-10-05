@@ -638,6 +638,9 @@ public class VpmCondition extends VpmObject {
          SQLParser parser = null;
          String[] fields = null;
          String dbType = helper.getSQLHelperType();
+         // true if the fields are reported by the parser (raw names), false if found by
+         // ColumnIterator (as written)
+         boolean parsed = false;
 
          try {
             SQLLexer lexer = new SQLLexer(new java.io.StringReader(str));
@@ -651,11 +654,13 @@ public class VpmCondition extends VpmObject {
             // expression is iterated as when the parser fails
             if(parser.LA(1) == antlr.Token.EOF_TYPE) {
                fields = parser.getColumns();
+               parsed = fields != null;
             }
          }
          // a timeout, or a construct the parser refuses in a subquery
          catch(Exception ex) {
             fields = null;
+            parsed = false;
          }
 
          if(fields == null) {
@@ -677,7 +682,7 @@ public class VpmCondition extends VpmObject {
 
          value = replaceColumnTableName((String) value, fields, tables,
                                         taliases, target, sql, helper,
-                                        ColumnIterator.getRules(dbType));
+                                        ColumnIterator.getRules(dbType), parsed);
          exp.setValue(value, exp.getType());
       }
    }
@@ -685,10 +690,14 @@ public class VpmCondition extends VpmObject {
    /**
     * Replace the table of each column of an expression by the table alias.
     * @param rules the quoting and comment rules of the database (ColumnIterator.getRules()).
+    * @param parsed true if the columns are reported by the parser, which reports a name
+    *               without its quotes and escapes (A"B), false if they are found by
+    *               ColumnIterator, which reports them as written ("A""B").
     */
    private String replaceColumnTableName(String exp, String[] columns,
                                          String[] tables, String[] taliases, int target,
-                                         UniformSQL sql, SQLHelper helper, int rules)
+                                         UniformSQL sql, SQLHelper helper, int rules,
+                                         boolean parsed)
    {
       if(columns == null || columns.length <= 0) {
          return exp;
@@ -697,10 +706,16 @@ public class VpmCondition extends VpmObject {
       boolean bracket = ColumnIterator.isBracketQuote(rules);
       columns = columns.clone();
 
-      // Bug #77697, a bracket quoted name ([T].[A]) is the name, as the parser reports it
+      // Bug #77697, a bracket quoted name ([T].[A]) is the name, as the parser reports it.
+      // Bug #77782, a name with a dot ([A.B]) is quoted in double quotes, as the parser
+      // reports it ("A.B"), so it is not split at its dot
       if(bracket) {
          for(int i = 0; i < columns.length; i++) {
-            columns[i] = BRACKET_NAME.matcher(columns[i]).replaceAll("$1");
+            columns[i] = BRACKET_NAME.matcher(columns[i]).replaceAll(m -> {
+               String name = m.group(1);
+               return Matcher.quoteReplacement(name.indexOf('.') < 0 ? name :
+                  "\"" + name.replace("\"", "\"\"") + "\"");
+            });
          }
       }
 
@@ -711,17 +726,25 @@ public class VpmCondition extends VpmObject {
       }
 
       for(int i = 0; i < columns.length; i++) {
-         String table = XUtil.getTablePart(columns[i]);
-         String column = XUtil.getColumnPart(columns[i]);
+         // Bug #77782, a quoted column with a dot ("A.B") is split at its last dot by
+         // XUtil, which leaves a fragment with the closing quote (T."A and B"), so it is
+         // split outside the quotes
+         String[] dotted = splitQuotedDotColumn(columns[i]);
+         String table = dotted != null ? dotted[0] : XUtil.getTablePart(columns[i]);
+         String column = dotted != null ? dotted[1] : XUtil.getColumnPart(columns[i]);
+         // the column as written in the field
+         String wcolumn = dotted != null ? dotted[2] : column;
          String ncolumn = ncolumns[i];
 
          if(ncolumn != null) {
             // the table part of the column before the helper quotes it (o. of o.A)
-            String rawPrefix = ncolumn.endsWith("." + column) ?
-               ncolumn.substring(0, ncolumn.length() - column.length()) : null;
+            String rawPrefix = ncolumn.endsWith("." + wcolumn) ?
+               ncolumn.substring(0, ncolumn.length() - wcolumn.length()) : null;
             ncolumn = helper.buildFieldExpression(ncolumn, false);
-            // the table part as the helper quotes it ("Order Details". of "Order Details".A)
-            String prefix = rawPrefix == null ? null : getTablePrefix(ncolumn, column, helper);
+            // the table part as the helper quotes it ("Order Details". of "Order Details".A).
+            // A quoted column with a dot is quoted already (o."A.B"), and is used as it is
+            String prefix = rawPrefix == null || dotted != null ? null :
+               getTablePrefix(ncolumn, column, helper);
             // a bracket quoted column ([Customer's]) stays quoted, the helper may not quote it
             String bcolumn = !bracket || rawPrefix == null ? null :
                (prefix != null ? prefix : rawPrefix) + "[" + column + "]";
@@ -733,8 +756,11 @@ public class VpmCondition extends VpmObject {
                // helper, as it contains a quote, so it is quoted as it was written. Bug #77768,
                // the parser reports it without the escape (A"B) since Bug #77661, while the
                // columns found by ColumnIterator keep it (A""B)
+               // Bug #77782, a name reported by the parser is escaped even if it contains a
+               // doubled quote (A""B of "A""""B"), a column found by ColumnIterator is not
                if(column.indexOf('"') >= 0 && ncolumn.equals(prefix + column)) {
-                  String escaped = column.contains("\"\"") ? column : column.replace("\"", "\"\"");
+                  String escaped = !parsed && column.contains("\"\"") ?
+                     column : column.replace("\"", "\"\"");
                   ncolumn = prefix + "\"" + escaped + "\"";
                }
                // Bug #77697, a name with $ or # (amount$, emp#no) is a valid name without
@@ -767,6 +793,68 @@ public class VpmCondition extends VpmObject {
       }
 
       return exp;
+   }
+
+   /**
+    * Split a column whose last name is quoted in double quotes and contains a dot
+    * (T."A.B", T."A"".B"). The parser quotes a name with a dot this way, and ColumnIterator
+    * reports it as written. A quoted name without a dot is not split here, since the parser
+    * reports a name without its quotes, and a name may start and end with a quote (T."A" is
+    * the name "A" when reported by the parser).
+    * @return the table part, the column name without the quotes and escapes, and the
+    * column as written, or null if the last name isn't a quoted name with a dot.
+    */
+   private static String[] splitQuotedDotColumn(String field) {
+      if(field == null || !field.endsWith("\"")) {
+         return null;
+      }
+
+      int len = field.length();
+      // the start of the last name
+      int segment = 0;
+      int i = 0;
+
+      while(i < len) {
+         char c = field.charAt(i);
+
+         // a quoted name, skip to its closing quote
+         if(c == '"' && i == segment) {
+            int end = i + 1;
+
+            while(end < len && (field.charAt(end) != '"' ||
+               end + 1 < len && field.charAt(end + 1) == '"'))
+            {
+               end += field.charAt(end) == '"' ? 2 : 1;
+            }
+
+            // not closed, or text after the closing quote
+            if(end >= len || end + 1 < len && field.charAt(end + 1) != '.') {
+               return null;
+            }
+
+            i = end + 1;
+         }
+         else if(c == '.') {
+            segment = ++i;
+         }
+         else {
+            i++;
+         }
+      }
+
+      String written = field.substring(segment);
+
+      if(segment == 0 || written.length() < 2 || written.charAt(0) != '"') {
+         return null;
+      }
+
+      String name = written.substring(1, written.length() - 1).replace("\"\"", "\"");
+
+      if(name.indexOf('.') < 0) {
+         return null;
+      }
+
+      return new String[] { field.substring(0, segment - 1), name, written };
    }
 
    /**
