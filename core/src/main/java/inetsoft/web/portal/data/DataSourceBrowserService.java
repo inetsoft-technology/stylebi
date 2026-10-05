@@ -442,9 +442,6 @@ public class DataSourceBrowserService {
                "common.datasource.moveUnderDataSource", dataSource));
          }
 
-         // Bug #77725, a data source at the path of the folder or of a subfolder
-         dataSourceRegistry.checkDataSourceFolderPathClash(path);
-
          List<String> childrenSources = new ArrayList<>();
          DependencyTransformer.prepareChildrenSources(path, childrenSources, repository);
          RenameDependencyInfo dinfo = DependencyTransformer.createDependencyInfo(
@@ -898,20 +895,6 @@ public class DataSourceBrowserService {
          if(dataSource != null) {
             throw new MessageException(Catalog.getCatalog(principal).getString(
                "common.datasource.moveUnderDataSource", dataSource));
-         }
-      }
-
-      // Bug #77725, a data source or folder whose path is shared by the other one
-      for(MoveCommand item : items) {
-         if(Objects.equals(item.getPath(), item.getOldPath())) {
-            continue;
-         }
-
-         if(PortalDataType.DATA_SOURCE_FOLDER.name().equals(item.getType())) {
-            registry.checkDataSourceFolderPathClash(item.getOldPath());
-         }
-         else {
-            registry.checkDataSourcePathClash(item.getOldPath());
          }
       }
    }

@@ -61,13 +61,11 @@ public abstract class AdditionalConnectionDataSource<SELF extends AdditionalConn
 
    /**
     * Get names of additional connections. An additional connection is stored one level under
-    * its data source, so a deeper entry is never one. An entry is only listed if it can be read
-    * and its stored name is a bare name, which is only the case for an additional connection. If
-    * a data source folder has the path of this data source (legacy data, Bug #77691), the data
-    * sources in that folder are stored at the same paths as additional connections, and older
-    * data or a data source renamed onto such a folder may have one stored there without a folder
-    * (Bug #77725). An entry that is not listed is not removed or re-added when this data source
-    * is saved.
+    * its data source, so a deeper entry is never one. If a data source folder has the path of this
+    * data source (legacy data, Bug #77691), the data sources in that folder are stored at the same
+    * paths as additional connections. Then an entry is only listed if it can be read and its stored
+    * name is a bare name, which is only the case for an additional connection. An entry that is
+    * not listed is not removed or re-added when this data source is saved.
     */
    public String[] getDataSourceNames() {
       String[] names = null;
@@ -76,12 +74,14 @@ public abstract class AdditionalConnectionDataSource<SELF extends AdditionalConn
          String prefix = getFullName() + "/";
          AssetEntry[] entries = getRegistry().getEntries(prefix,
                                                          AssetEntry.Type.DATA_SOURCE);
+         boolean folderAtPath = getRegistry().containObject(new AssetEntry(
+            AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE_FOLDER, getFullName(), null));
          List<String> list = new ArrayList<>();
 
          for(AssetEntry entry : entries) {
             String name = entry.getPath().substring(prefix.length());
 
-            if(name.indexOf('/') < 0 && isAdditionalConnectionEntry(entry)) {
+            if(name.indexOf('/') < 0 && (!folderAtPath || isAdditionalConnectionEntry(entry))) {
                list.add(name);
             }
          }

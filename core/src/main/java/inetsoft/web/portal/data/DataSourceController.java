@@ -493,15 +493,6 @@ public class DataSourceController {
       for(SelectedDataSourceItem f : request.folders()) {
          datasourcesService.checkDataSourceFolderTreeDelete(f.path(), principal);
       }
-
-      // Bug #77725, a data source or folder whose path is shared by the other one
-      for(SelectedDataSourceItem d : request.dataSources()) {
-         datasourcesService.checkDeletePathClash(d.path(), false);
-      }
-
-      for(SelectedDataSourceItem f : request.folders()) {
-         datasourcesService.checkDeletePathClash(f.path(), true);
-      }
    }
 
    private void checkDeletePermission(ResourceType type, String path, Principal principal)
