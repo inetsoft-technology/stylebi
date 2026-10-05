@@ -17,9 +17,12 @@
  */
 package inetsoft.uql.asset.sync;
 
+import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetObject;
 import inetsoft.util.Tool;
 import inetsoft.util.XMLSerializable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
@@ -226,7 +229,17 @@ public class RenameDependencyInfo implements Serializable, XMLSerializable {
          }
 
          String cls = Tool.getAttribute(assetNode, "class");
-         AssetObject assetObj = (AssetObject) Tool.loadSubclass(cls, AssetObject.class).newInstance();
+         Class<?> assetClass;
+
+         try {
+            assetClass = Tool.loadSubclass(cls, AssetEntry.class);
+         }
+         catch(ClassCastException ex) {
+            LOG.warn("Ignoring unsupported rename dependency asset object: {}", cls);
+            continue;
+         }
+
+         AssetObject assetObj = (AssetObject) assetClass.newInstance();
 
          NodeList list = assetNode.getChildNodes();
 
@@ -289,4 +302,6 @@ public class RenameDependencyInfo implements Serializable, XMLSerializable {
    private List<RenameInfo> rinfos = new ArrayList<>();
    private Map<AssetObject, List<RenameInfo>> map = new HashMap<>();
    private Map<AssetObject, File> assetFileMap = new HashMap<>();
+
+   private static final Logger LOG = LoggerFactory.getLogger(RenameDependencyInfo.class);
 }
