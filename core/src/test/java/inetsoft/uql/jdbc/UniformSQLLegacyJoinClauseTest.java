@@ -205,8 +205,40 @@ class UniformSQLLegacyJoinClauseTest {
       String text = loaded.getSQLString();
       assertLegacy(loaded);
 
+      // the joins don't match the parse of the text, so the text is kept
       String executed = normalize(loaded.clone());
-      assertSameRows(text, executed == null ? text : executed);
+      assertNull(executed, executed);
+      assertTrue(loaded.isLossy());
+      assertLegacy(loaded);
+   }
+
+   @Test
+   void legacyJoinsInAHavingSubqueryGetTheirClauses() throws Exception {
+      String text = "select g.id, g.k from g group by g.id, g.k having count(*) < (select " +
+         "count(*) from d left join c on d.id = c.id left join f on d.id = f.id " +
+         "join e on e.id = c.id)";
+      UniformSQL loaded = loadLegacy(text, true);
+      assertLegacy(subquery(loaded.getHaving()));
+
+      String executed = normalize(loaded.clone());
+      assertNotNull(executed);
+      assertSameRows(text, executed);
+      assertFalse(loaded.isLossy());
+      assertEquals(clauses(subquery(parse(text).getHaving())),
+                   clauses(subquery(loaded.getHaving())));
+   }
+
+   @Test
+   void duplicateLegacyJoinsKeepTheSqlString() throws Exception {
+      // the no new table step repeats a condition of the f-b join, so two joins of the parse
+      // have the same key and can't be matched one to one
+      String text = "select b.id, d.id, f.id, r.id from f join b on f.id = b.id and f.k = b.k " +
+         "left join d on b.id = d.id join r on f.k = b.k";
+      UniformSQL loaded = loadLegacy(text, true);
+
+      assertTrue(loaded.isLossy());
+      assertLegacy(loaded);
+      assertNull(normalize(loadLegacy(text, true)));
    }
 
    @Test
@@ -357,6 +389,12 @@ class UniformSQLLegacyJoinClauseTest {
          ((XUnaryCondition) node).getExpression1().getValue() instanceof UniformSQL)
       {
          return (UniformSQL) ((XUnaryCondition) node).getExpression1().getValue();
+      }
+
+      if(node instanceof XBinaryCondition &&
+         ((XBinaryCondition) node).getExpression2().getValue() instanceof UniformSQL)
+      {
+         return (UniformSQL) ((XBinaryCondition) node).getExpression2().getValue();
       }
 
       for(int i = 0; i < node.getChildCount(); i++) {
