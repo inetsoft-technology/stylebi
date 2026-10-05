@@ -436,7 +436,8 @@ public class JDBCHandler extends XHandler {
          xquery = (JDBCQuery) VpmProcessor.getInstance().applyHiddenColumns(xquery, params, user);
       }
 
-      xquery = (JDBCQuery) XUtil.clearComments(xquery);
+      // Bug #77788, a -- line that ends a slash-star comment fails the query
+      xquery = (JDBCQuery) XUtil.clearCommentsToExecute(xquery);
       // a parsed query that keeps its sql string isn't validated, rewrite its sentinel
       // parameters on a copy generated from the structure (Bug #77708)
       final boolean keptSqlRewritten = rewriteKeptSqlSentinels(xquery, params);

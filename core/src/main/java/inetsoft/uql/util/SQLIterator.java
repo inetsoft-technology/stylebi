@@ -109,6 +109,22 @@ public class SQLIterator {
    }
 
    /**
+    * Get the index in the sql of the line of the current COMMENT_ELEMENT event, for a
+    * listener.
+    */
+   public int getLineStart() {
+      return lineStart;
+   }
+
+   /**
+    * Get the index in the sql after the line (and its line break) of the current
+    * COMMENT_ELEMENT event, for a listener.
+    */
+   public int getLineEnd() {
+      return lineEnd;
+   }
+
+   /**
     * Iterate the sql string.
     */
    public void iterate() {
@@ -146,6 +162,8 @@ public class SQLIterator {
             if(pos + 1 < end && sql.charAt(pos) == '-' &&
                sql.charAt(pos + 1) == '-')
             {
+               lineStart = start;
+               lineEnd = end;
                fireEvent(COMMENT_ELEMENT, line, null);
                line = sql.substring(pos + 2, end);
                iterateCommentLine(line);
@@ -186,6 +204,8 @@ public class SQLIterator {
          if(pos + 1 < end && sql.charAt(pos) == '-' &&
             sql.charAt(pos + 1) == '-')
          {
+            lineStart = start;
+            lineEnd = end;
             fireEvent(COMMENT_ELEMENT, line, null);
             line = sql.substring(pos + 2, end);
             iterateCommentLine(line);
@@ -599,5 +619,7 @@ public class SQLIterator {
    // the latest start of the comments holding each character in every database family, or -1
    private int[] lastCommentStart;
    private Map<String, Integer> lastCloser; // see isClosedColumnOpener
+   private int lineStart; // the start of the line of the current comment line event
+   private int lineEnd; // the end of the line of the current comment line event
    private List listeners; // sql listeners
 }

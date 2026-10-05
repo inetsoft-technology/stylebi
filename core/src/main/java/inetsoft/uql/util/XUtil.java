@@ -242,6 +242,40 @@ public final class XUtil {
     * @return the new query after the process.
     */
    public static XQuery clearComments(XQuery query) {
+      return clearComments(query, null);
+   }
+
+   /**
+    * Clear the comments in the sql statement of a query that is executed. Bug #77788, a comment
+    * line (first non-blank characters --) that starts inside a slash-star comment in some
+    * database and ends or changes that comment (a star-slash after the --) is the text of that
+    * comment to the database. Removing it would let the comment run on to a later star-slash
+    * and hide the sql between them, such as a vpm condition or the where clause, and keeping
+    * it would run sql the vpm didn't read, so the query fails instead.
+    * See SQLQuoteScanner.findCommentChanges.
+    * @param query the specified query to modify.
+    * @return the new query after the process.
+    * @throws SQLException if a comment line ends or changes a slash-star comment.
+    */
+   public static XQuery clearCommentsToExecute(XQuery query) throws SQLException {
+      List<String> closing = new ArrayList<>();
+      XQuery result = clearComments(query, closing);
+
+      if(!closing.isEmpty()) {
+         throw new SQLException("The query " + query.getName() + " can't be run: its -- " +
+            "comment line \"" + closing.get(0).trim() + "\" ends a /* */ comment, which the " +
+            "databases read differently. Move the */ off the -- line.");
+      }
+
+      return result;
+   }
+
+   /**
+    * Clear the comments in the sql statement of a query.
+    * @param closing if not null, it gets the comment lines that end or change a slash-star
+    *                comment.
+    */
+   private static XQuery clearComments(XQuery query, List<String> closing) {
       if(!(query instanceof JDBCQuery)) {
          return query;
       }
@@ -262,6 +296,8 @@ public final class XUtil {
       String str = sql.getSQLString();
 
       final StringBuilder sb = new StringBuilder();
+      final List<String> lines = new ArrayList<>();
+      final List<int[]> ranges = new ArrayList<>();
       SQLIterator iterator = new SQLIterator(str);
       SQLIterator.SQLListener listener = (type, value, comment) -> {
          switch(type) {
@@ -274,6 +310,13 @@ public final class XUtil {
          case SQLIterator.WHERE_ELEMENT:
             sb.append(value);
             break;
+         case SQLIterator.COMMENT_ELEMENT:
+            if(closing != null) {
+               lines.add(value);
+               ranges.add(new int[] { iterator.getLineStart(), iterator.getLineEnd() });
+            }
+
+            break;
          default:
             // do nothing
             break;
@@ -282,6 +325,18 @@ public final class XUtil {
 
       iterator.addSQLListener(listener);
       iterator.iterate();
+
+      if(closing != null) {
+         boolean[] changed = SQLQuoteScanner.findCommentChanges(
+            str, ranges.stream().mapToInt(range -> range[0]).toArray(),
+            ranges.stream().mapToInt(range -> range[1]).toArray());
+
+         for(int i = 0; i < changed.length; i++) {
+            if(changed[i]) {
+               closing.add(lines.get(i));
+            }
+         }
+      }
 
       sql.setSQLString(sb.toString(), false);
 

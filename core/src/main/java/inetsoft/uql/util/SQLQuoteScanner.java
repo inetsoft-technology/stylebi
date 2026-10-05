@@ -241,6 +241,90 @@ public final class SQLQuoteScanner {
    }
 
    /**
+    * Bug #77788, find the lines of the sql text that start inside a slash-star comment in some
+    * database family and change that comment: a star-slash on the line ends it, or, where
+    * comments nest, the line leaves it at another depth. Removing such a line changes how that
+    * family reads the text after it (the comment runs on to a later star-slash). A line that
+    * stays inside the comment in every family, or is a -- comment in them, doesn't.
+    * @param starts the start of each line, in order.
+    * @param ends the end of each line (after its line break), not after the next line start.
+    * @return true for each such line.
+    */
+   public static boolean[] findCommentChanges(String text, int[] starts, int[] ends) {
+      int len = text.length();
+      boolean[] changed = new boolean[starts.length];
+
+      if(starts.length == 0) {
+         return changed;
+      }
+
+      int[] comment = new int[len];
+      // the depth of the slash-star comments before each character is read, and at the end
+      int[] depth = new int[len + 1];
+
+      for(int rules : DIALECTS) {
+         Arrays.fill(comment, -1);
+         Arrays.fill(depth, 0);
+         scan(text, rules, null, comment);
+         boolean nested = (rules & NESTED_COMMENT) != 0;
+
+         for(int i = 0; i < len; i++) {
+            if(comment[i] != i || !text.startsWith("/*", i)) {
+               continue;
+            }
+
+            int end = i + 1;
+
+            while(end < len && comment[end] == i) {
+               end++;
+            }
+
+            // the comment as skipComment reads it, so it ends at the end found by the scan
+            int d = 0;
+            int j = i;
+
+            while(j < end) {
+               if(j + 1 < end && text.charAt(j) == '/' && text.charAt(j + 1) == '*' &&
+                  (d == 0 || nested))
+               {
+                  depth[j] = depth[j + 1] = d++;
+                  j += 2;
+               }
+               else if(j + 1 < end && text.charAt(j) == '*' && text.charAt(j + 1) == '/' &&
+                  d > 0)
+               {
+                  depth[j] = depth[j + 1] = d--;
+                  j += 2;
+               }
+               else {
+                  depth[j++] = d;
+               }
+            }
+
+            if(end == len) {
+               depth[len] = d;
+            }
+
+            i = end - 1;
+         }
+
+         for(int n = 0; n < starts.length; n++) {
+            int s = starts[n];
+            int e = ends[n];
+            boolean change = depth[s] > 0 && depth[e] != depth[s];
+
+            for(int j = s; depth[s] > 0 && j < e && !change; j++) {
+               change = depth[j] == 0;
+            }
+
+            changed[n] = changed[n] || change;
+         }
+      }
+
+      return changed;
+   }
+
+   /**
     * Find the quoted characters by the comment and quoting rules of a database family.
     * @param tag the slash-stars that are not comments, or null.
     * @param comment if not null, it gets the start of the comment holding each character.
