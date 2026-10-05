@@ -2282,7 +2282,17 @@ boolean_test returns [XFilterNode node = null]
         ( a:IS {relation = a.getText();}( b:NOT {relation += " " + b.getText();})?
         str = truth_value
         {XExpression exp = new XExpression(); exp.setValue(str,XExpression.EXPRESSION);
-        uc.setExpression1(exp); uc.setOp("");}
+        uc.setExpression1(exp); uc.setOp("");
+        // the condition pane and the sentinel/unset-parameter rewriting can't handle
+        // a truth test, so a statement (uniSql) with one at any query level fails to
+        // parse. Throw here, before the condition is combined into a WHERE/ON/HAVING
+        // tree, since a failed parse keeps what was stored and the query editor builds
+        // its condition pane from it. Expression and VPM condition text (no statement)
+        // still accept it
+        if(uniSql != null) {
+           throw new SemanticException("Unsupported truth test: " + relation + " " + str,
+                                       getFilename(), a.getLine(), a.getColumn());
+        }}
         )?
         {if(!relation.equals("")) {
                 node = new XSet(relation);

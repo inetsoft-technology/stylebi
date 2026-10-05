@@ -138,9 +138,11 @@ class UniformSQLOrJoinRebuildTest {
       }
    }
 
-   // a truth test is an XSet with relation "is"/"is not"; the condition pane can't load one
-   // and a saved one can't be generated (separate defects), so these use the link edits on a
-   // raw tree. The parameter is the where clause, then the kept truth test as generated.
+   // a truth test is an XSet with relation "is"/"is not"; the condition pane can't load one,
+   // so these use the link edits. A statement with a truth test fails to parse (#77735), so
+   // the tree is the one of a parse saved before that, raw and after an XML round trip, which
+   // reads the empty op of the truth value back as "" again. The parameter is the where
+   // clause, then the kept truth test as generated.
    @ParameterizedTest
    @ValueSource(strings = {
       "(a.id = b.k) is not true|where ((a.id = b.k) is not true)",
@@ -149,10 +151,11 @@ class UniformSQLOrJoinRebuildTest {
    })
    void linkEditKeepsTheComparisonUnderATruthTest(String param) throws Exception {
       String[] parts = param.split("\\|");
-      String text = SEL + "from a, b where " + parts[0];
-      String generated = generate(rejoin(parse(text, "raw")), dataSource("h2"));
 
-      assertTrue(generated.endsWith(" from a, b " + parts[1]), generated);
+      for(String mode : new String[] { "raw", "saved" }) {
+         String generated = generate(rejoin(parseTruthTest(parts[0], mode)), dataSource("h2"));
+         assertTrue(generated.endsWith(" from a, b " + parts[1]), mode + ": " + generated);
+      }
    }
 
    // fixUniformSQLInfo skips fixWhereInfo when the metadata lookup throws (database down), so
@@ -254,6 +257,46 @@ class UniformSQLOrJoinRebuildTest {
       UniformSQL loaded = new UniformSQL();
       loaded.parseXML(Tool.parseXML(new StringReader(buffer.toString())).getDocumentElement());
       return loaded;
+   }
+
+   // the statement without its where clause, with the where clause parsed as condition text,
+   // as the statement parse built it before the refusal
+   private static UniformSQL parseTruthTest(String where, String mode) throws Exception {
+      UniformSQL refused = new UniformSQL();
+      new SQLProcessor(refused).parse(SEL + "from a, b where " + where);
+      assertEquals(UniformSQL.PARSE_FAILED, refused.getParseResult(), where);
+
+      UniformSQL sql = parse(SEL + "from a, b", "raw");
+      XFilterNode condition = new inetsoft.uql.util.sqlparser.SQLParser(
+         new inetsoft.uql.util.sqlparser.SQLLexer(new StringReader(where))).search_condition();
+      condition.setClause(XFilterNode.WHERE);
+      markJoins(condition);
+      sql.combineWhereByAnd(condition);
+
+      if(!"saved".equals(mode)) {
+         return sql;
+      }
+
+      StringWriter buffer = new StringWriter();
+
+      try(PrintWriter writer = new PrintWriter(buffer)) {
+         sql.writeXML(writer);
+      }
+
+      UniformSQL loaded = new UniformSQL();
+      loaded.parseXML(Tool.parseXML(new StringReader(buffer.toString())).getDocumentElement());
+      return loaded;
+   }
+
+   private static void markJoins(XNode node) {
+      if(node instanceof XJoin join) {
+         join.setJoinClause(XJoin.WHERE_CLAUSE);
+      }
+      else if(node instanceof XSet) {
+         for(int i = 0; i < node.getChildCount(); i++) {
+            markJoins(node.getChild(i));
+         }
+      }
    }
 
    // QueryGraphModelService.processEditJoin/processDeleteJoins/processRenameJoins, when the

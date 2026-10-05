@@ -19,6 +19,8 @@ package inetsoft.uql.jdbc;
 
 import inetsoft.test.*;
 import inetsoft.uql.XNode;
+import inetsoft.uql.util.sqlparser.SQLLexer;
+import inetsoft.uql.util.sqlparser.SQLParser;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,6 +30,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.io.StringReader;
 import java.sql.*;
 import java.util.*;
 
@@ -39,6 +42,11 @@ import static org.junit.jupiter.api.Assertions.*;
  * not (a.k = 1) is true, which negates the whole test and returns different rows when the
  * operand is null. A same-relation nested test, ((a.k = 1) is true) is true, was generated
  * as a.k = 1 is true is true, which doesn't parse. The operand is now always parenthesized.
+ * <p>
+ * A statement with a truth test fails to parse now (#77735), so a truth-test tree comes only
+ * from a parse saved before that, or from condition text. {@link #parse} builds the tree a
+ * statement parse built before the refusal: it parses the statement without its WHERE and
+ * HAVING, and those as conditions.
  * <p>
  * Derby has no IS TRUE and HSQLDB evaluates null IS TRUE as null, so the rows are compared
  * on PostgreSQL only, in {@link #samePostgresRows}, which runs when the system property
@@ -87,8 +95,7 @@ class SQLHelperTruthTestOperandTest {
          // position: under AND and OR, in a join ON, after an outer join, in a subquery
          SEL_A + "where (not (a.k = 1)) is not true and a.id is not null",
          SEL_A + "where a.id = 0 or (not (a.k = 1)) is not true",
-         "select a.id ai, a.k ak, b.id bi, b.k bk from a join b on a.id = b.id and " +
-            "(not (a.k = b.k)) is not true",
+         SEL + "where a.id = b.id and (not (a.k = b.k)) is not true",
          "select a.id ai, a.k ak, b.id bi, b.k bk from a left join b on a.id = b.id " +
             "where (not (b.k = 1)) is not true",
          SEL_A + "where a.k in (select b.k from b where (not (b.id = 1)) is true)",
@@ -153,7 +160,7 @@ class SQLHelperTruthTestOperandTest {
    // "()". The parser refuses an outer join under IS (#77481), so the tree is built here.
    @Test
    void emptyOperandIsNotWrapped() throws Exception {
-      UniformSQL sql = parse(SEL + "where a.id *= b.id and a.k = 1", "h2-ansi");
+      UniformSQL sql = parseStatement(SEL + "where a.id *= b.id and a.k = 1", "h2-ansi");
       XJoin join = findJoin(sql.getWhere());
       assertNotNull(join, "outer join");
       XNode parent = join.getParent();
@@ -198,7 +205,49 @@ class SQLHelperTruthTestOperandTest {
       }
    }
 
+   // the statement itself is refused, see the class comment. The shapes have no WHERE or
+   // HAVING keyword before the outer one, and none after the HAVING.
    private static UniformSQL parse(String text, String type) throws Exception {
+      UniformSQL refused = new UniformSQL();
+      new SQLProcessor(refused).parse(text);
+      assertEquals(UniformSQL.PARSE_FAILED, refused.getParseResult(), text);
+
+      String statement = text;
+      String where = null;
+      String having = null;
+      int index = statement.toLowerCase(Locale.ROOT).indexOf(" having ");
+
+      if(index >= 0) {
+         having = statement.substring(index + 8);
+         statement = statement.substring(0, index);
+      }
+
+      index = statement.toLowerCase(Locale.ROOT).indexOf(" where ");
+
+      if(index >= 0) {
+         where = statement.substring(index + 7);
+         statement = statement.substring(0, index);
+      }
+
+      UniformSQL sql = parseStatement(statement, type);
+
+      if(where != null) {
+         XFilterNode condition = condition(where);
+         condition.setClause(XFilterNode.WHERE);
+         markJoins(condition);
+         sql.combineWhereByAnd(condition);
+      }
+
+      if(having != null) {
+         XFilterNode condition = condition(having);
+         condition.setClause(XFilterNode.HAVING);
+         sql.setHaving(condition);
+      }
+
+      return sql;
+   }
+
+   private static UniformSQL parseStatement(String text, String type) throws Exception {
       UniformSQL sql = new UniformSQL();
 
       if(!"default".equals(type)) {
@@ -209,6 +258,22 @@ class SQLHelperTruthTestOperandTest {
       assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult(), text);
       assertFalse(sql.isLossy(), text);
       return sql;
+   }
+
+   private static XFilterNode condition(String text) throws Exception {
+      return new SQLParser(new SQLLexer(new StringReader(text))).search_condition();
+   }
+
+   // as the parser marks the joins of a where clause
+   private static void markJoins(XNode node) {
+      if(node instanceof XJoin join) {
+         join.setJoinClause(XJoin.WHERE_CLAUSE);
+      }
+      else if(node instanceof XSet) {
+         for(int i = 0; i < node.getChildCount(); i++) {
+            markJoins(node.getChild(i));
+         }
+      }
    }
 
    private static String generate(String text, String type) throws Exception {

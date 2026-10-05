@@ -2896,7 +2896,14 @@ public final class XUtil {
             usql.setHaving(null);
          }
          else if(condition instanceof XSet && condition.getChildCount() == 1) {
-            usql.setHaving((XFilterNode) condition.getChild(0));
+            XFilterNode child = (XFilterNode) condition.getChild(0);
+
+            // keep the negation of the removed set, not (y and <unset>) is not (y)
+            if(condition.isIsNot()) {
+               child.setIsNot(!child.isIsNot());
+            }
+
+            usql.setHaving(child);
             changed = true;
          }
       }
@@ -3952,6 +3959,24 @@ public final class XUtil {
       if(condition instanceof XSet) {
          XSet set = (XSet) condition;
 
+         // x IS [NOT] TRUE/FALSE/UNKNOWN is not a junction, the truth value alone is not a
+         // condition. Remove the whole truth test if its operand is removed (#77738). Check
+         // before the loop, since a set with one child left is not a truth test
+         if(SQLHelper.isTruthTest(set)) {
+            ChangedInfo oinfo = removeNoParamConditions(query, (XFilterNode) set.getChild(0),
+                                                        params, include, operands);
+
+            if(oinfo.empty) {
+               info.empty = true;
+               info.changed = true;
+            }
+            else {
+               info.changed = oinfo.changed;
+            }
+
+            return info;
+         }
+
          for(int i = 0; i < set.getChildCount(); i++) {
             XFilterNode node = (XFilterNode) set.getChild(i);
             ChangedInfo sinfo = removeNoParamConditions(query, node, params, include,
@@ -3984,6 +4009,12 @@ public final class XUtil {
                      if(!(child instanceof XSet) ||
                         Objects.equals(relation, ((XSet) child).getRelation()))
                      {
+                        // keep the negation of this set on the child, not (y and <unset>)
+                        // is not (y)
+                        if(set.isIsNot()) {
+                           ((XFilterNode) child).setIsNot(!((XFilterNode) child).isIsNot());
+                        }
+
                         parent.setChild(i, child);
                         info.changed = true;
                         break;

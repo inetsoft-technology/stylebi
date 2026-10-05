@@ -22,6 +22,8 @@ import inetsoft.uql.VariableTable;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.XNode;
 import inetsoft.uql.util.XUtil;
+import inetsoft.uql.util.sqlparser.SQLLexer;
+import inetsoft.uql.util.sqlparser.SQLParser;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -31,6 +33,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.io.StringReader;
 import java.sql.*;
 import java.util.*;
 import java.util.stream.Stream;
@@ -44,7 +47,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * not (a.id IS NULL). A literal a.id &lt;&gt; 'NULL_VALUE' was generated as a.id IS NULL too.
  * The other operators (&gt;, &lt;, &gt;=, &lt;=, LIKE) still mean IS NULL.
  * <p>
- * Every case parses a new query, the rewrite changes the tree in place (#77606).
+ * Every case parses a new query, the rewrite changes the tree in place (#77606). A statement
+ * with a truth test fails to parse now (#77735), so the truth-test cases build the tree of a
+ * saved parse, see {@link #parseTruthTest}.
  * The rows of IS [NOT] UNKNOWN shapes are compared on PostgreSQL only, Derby has no IS
  * UNKNOWN, in {@link #samePostgresRows}, which runs when the system property
  * sentinel.pg.url names a database, e.g.
@@ -195,16 +200,16 @@ class XUtilSentinelNotEqualTest {
    @Test
    void truthTestOperand() throws Exception {
       String[][] cases = {
-         { SELECT + "where (a.id <> $(p)) is true", "true" },
-         { SELECT + "where (a.id != $(p)) is not false", "true" },
-         { SELECT + "where (not (a.id <> $(p))) is true", "false" },
-         { SELECT + "where (a.id = $(p)) is unknown", "false" },
-         { SELECT + "where not ((a.id <> $(p)) is true)", "true" },
+         { "(a.id <> $(p)) is true", "true" },
+         { "(a.id != $(p)) is not false", "true" },
+         { "(not (a.id <> $(p))) is true", "false" },
+         { "(a.id = $(p)) is unknown", "false" },
+         { "not ((a.id <> $(p)) is true)", "true" },
       };
 
       for(String[] c : cases) {
          for(boolean forVpm : new boolean[] { false, true }) {
-            UniformSQL usql = parse(c[0], "default");
+            UniformSQL usql = parseTruthTest(c[0], "default");
             validate(usql, NULL_VALUE, forVpm);
             XSet test = findTruthTest(usql.getWhere());
             assertNotNull(test, c[0]);
@@ -221,7 +226,7 @@ class XUtilSentinelNotEqualTest {
    void truthTestUnknownText() throws Exception {
       for(boolean forVpm : new boolean[] { false, true }) {
          assertEndsWith("where ((not (a.id IS NULL)) is unknown)",
-                        validate(parse(SELECT + "where (a.id <> $(p)) is unknown", "default"),
+                        validate(parseTruthTest("(a.id <> $(p)) is unknown", "default"),
                                  NULL_VALUE, forVpm));
       }
    }
@@ -254,7 +259,7 @@ class XUtilSentinelNotEqualTest {
 
             for(String type : new String[] { "default", "oracle", "oracle-ansi" }) {
                for(boolean forVpm : new boolean[] { false, true }) {
-                  String generated = validate(parse(SELECT + "where " + shape[0], type),
+                  String generated = validate(parseTruthTest(shape[0], type),
                                               NULL_VALUE, forVpm);
 
                   // oracle non-ansi has no literal NULL_VALUE branch
@@ -446,6 +451,23 @@ class XUtilSentinelNotEqualTest {
 
       sql.parse(text, UniformSQL.PARSE_ALL, UniformSQL.PARSE_PERIOD);
       assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult(), text);
+      sql.clearSQLString();
+      return sql;
+   }
+
+   // SELECT with a where condition that has a truth test. The statement fails to parse
+   // (#77735), the tree a statement parse built before that comes from a saved parse, so
+   // the condition is parsed as condition text and added to the parsed SELECT
+   private static UniformSQL parseTruthTest(String where, String type) throws Exception {
+      UniformSQL refused = new UniformSQL();
+      new SQLProcessor(refused).parse(SELECT + "where " + where);
+      assertEquals(UniformSQL.PARSE_FAILED, refused.getParseResult(), where);
+
+      UniformSQL sql = parse(SELECT, type);
+      XFilterNode condition =
+         new SQLParser(new SQLLexer(new StringReader(where))).search_condition();
+      condition.setClause(XFilterNode.WHERE);
+      sql.combineWhereByAnd(condition);
       sql.clearSQLString();
       return sql;
    }

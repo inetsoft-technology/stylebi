@@ -19,7 +19,10 @@ package inetsoft.uql.jdbc;
 
 import antlr.RecognitionException;
 import inetsoft.test.*;
+import inetsoft.uql.XNode;
 import inetsoft.uql.XRepository;
+import inetsoft.uql.util.sqlparser.SQLLexer;
+import inetsoft.uql.util.sqlparser.SQLParser;
 import inetsoft.util.Plugins;
 import inetsoft.util.credential.CredentialService;
 import org.junit.jupiter.api.Tag;
@@ -32,6 +35,8 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.io.StringReader;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 
@@ -41,6 +46,10 @@ import static org.mockito.Mockito.mock;
  * the from clause and lose the IS ("LEFT OUTER JOIN d ON .. where (true)"), so it fails
  * the parse and the original sql runs. An inner join there must stay in the where clause
  * with its IS, also on the ANSI generation path.
+ * <p>
+ * Bug #77735, a statement with a truth test fails to parse now, at the IS, before the
+ * outer join is checked. A saved parse still has the inner join under IS, which must be
+ * generated as before.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, PluginsTestConfiguration.class,
@@ -84,7 +93,7 @@ class UniformSQLOuterJoinIsTest {
    })
    void outerJoinUnderIsFailsCleanly(String text) throws Exception {
       RecognitionException ex = assertThrows(RecognitionException.class, () -> parse(text));
-      assertTrue(ex.getMessage().contains("Unsupported outer join condition"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("Unsupported truth test"), ex.getMessage());
 
       for(String type : new String[] { null, "h2-ansi", "derby-ansi" }) {
          UniformSQL sql = new UniformSQL();
@@ -118,19 +127,50 @@ class UniformSQLOuterJoinIsTest {
    })
    void innerJoinUnderIsStaysInWhere(String tail) throws Exception {
       String text = "select a.id ai, a.k ak, b.id bi, b.k bk from a, b " + tail;
+      UniformSQL refused = new UniformSQL();
+      new SQLProcessor(refused).parse(text);
+      assertEquals(UniformSQL.PARSE_FAILED, refused.getParseResult());
 
       for(String type : new String[] { null, "h2", "h2-ansi", "derby-ansi" }) {
          JDBCDataSource ds = type == null ? null :
             SQLHelperWhereOrOuterJoinTest.RowCompare.dataSource(type);
-         String generated = SQLHelperWhereOrOuterJoinTest.generate(text, ds);
+         String generated = generateSaved(text, ds);
          String lower = generated.toLowerCase();
 
          assertFalse(lower.contains(" join "), type + ": " + generated);
          assertTrue(lower.contains(" is "), type + ": " + generated);
          assertFalse(lower.contains("(true)"), type + ": " + generated);
          // round trip: the regenerated sql parses and regenerates to itself
-         assertEquals(generated, SQLHelperWhereOrOuterJoinTest.generate(generated, ds),
-                      type + " round trip");
+         assertEquals(generated, generateSaved(generated, ds), type + " round trip");
+      }
+   }
+
+   // the tree of a parse saved before the refusal: the statement without its where clause,
+   // and the where clause parsed as condition text, as the statement parse built it
+   private static String generateSaved(String text, JDBCDataSource ds) throws Exception {
+      int index = text.indexOf(" where ");
+      UniformSQL sql = new UniformSQL();
+      sql.parse(text.substring(0, index), UniformSQL.PARSE_ALL, UniformSQL.PARSE_PERIOD);
+      assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult(), text);
+
+      XFilterNode where = new SQLParser(new SQLLexer(new StringReader(
+         text.substring(index + 7)))).search_condition();
+      where.setClause(XFilterNode.WHERE);
+      markJoins(where);
+      sql.combineWhereByAnd(where);
+      sql.setDataSource(ds);
+      sql.clearSQLString();
+      return sql.getSQLString().replaceAll("\\s+", " ").trim();
+   }
+
+   private static void markJoins(XNode node) {
+      if(node instanceof XJoin join) {
+         join.setJoinClause(XJoin.WHERE_CLAUSE);
+      }
+      else if(node instanceof XSet) {
+         for(int i = 0; i < node.getChildCount(); i++) {
+            markJoins(node.getChild(i));
+         }
       }
    }
 
