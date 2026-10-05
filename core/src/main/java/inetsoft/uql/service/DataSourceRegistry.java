@@ -792,6 +792,9 @@ public class DataSourceRegistry implements MessageListener {
             "Permission denied to delete datasource folder"));
       }
 
+      // the folders whose removal was tried, whose permissions are removed if they are gone
+      List<AssetEntry> removedFolders = new ArrayList<>();
+
       try {
          AssetEntry[] allDSChildren =
             getEntries(name + "/", AssetEntry.Type.DATA_SOURCE);
@@ -800,6 +803,9 @@ public class DataSourceRegistry implements MessageListener {
          // a data source before its additional connections, which removeDataSource reads to
          // remove their connection test queries
          Arrays.sort(allDSChildren, Comparator.comparing(AssetEntry::getPath));
+         // a subfolder before its parent, so that a failure stops with the parent still listed
+         Arrays.sort(allFolderChildren,
+                     Comparator.comparing(AssetEntry::getPath).reversed());
 
          for(AssetEntry entry : allDSChildren) {
             removeDataSource(entry.getPath());
@@ -813,16 +819,107 @@ public class DataSourceRegistry implements MessageListener {
             }
 
             removeObject(entry);
+            removedFolders.add(entry);
          }
 
          AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
                                            AssetEntry.Type.DATA_SOURCE_FOLDER, name, null);
+
+         // only when there is a folder at the path, as for the permission of a data source
+         if(containObject(entry)) {
+            removedFolders.add(entry);
+         }
+
          removeObject(entry);
       }
       catch(Exception e) {
          LOG.error(
             "Failed to remove datasource folder: " + name, e);
       }
+
+      // the permissions of the removed folders, so that a folder created later at the path of
+      // one doesn't get it. A folder that is still listed keeps its permission (Bug #77731)
+      removePermissions(ResourceType.DATA_SOURCE_FOLDER, getUnlistedPaths(removedFolders));
+   }
+
+   /**
+    * Gets the paths of the entries that the stored index of the registry doesn't list. The index
+    * is read from the storage, not from the cache: removeObject removes the entry from the
+    * cached index before it saves it, so after a failed save the cached index no longer lists an
+    * entry that the stored one still lists. Nothing is returned if the index can't be read.
+    */
+   private List<String> getUnlistedPaths(List<AssetEntry> entries) {
+      List<String> paths = new ArrayList<>();
+
+      if(entries.isEmpty()) {
+         return paths;
+      }
+
+      AssetFolder root;
+
+      try {
+         root = (AssetFolder) indexedStorage.getXMLSerializable(getRootIdentifier(), null);
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to read the data source index, the permissions are kept", e);
+         return paths;
+      }
+      finally {
+         indexedStorage.close();
+      }
+
+      if(root == null) {
+         return paths;
+      }
+
+      for(AssetEntry entry : entries) {
+         if(!root.containsEntry(entry)) {
+            paths.add(entry.getPath());
+         }
+      }
+
+      return paths;
+   }
+
+   /**
+    * Gets the full paths of the data sources in a data source folder and in its subfolders at
+    * any depth, without their additional connections, sorted.
+    * <p>
+    * An additional connection is a data source entry whose parent path is a data source entry
+    * of the folder, the rule of renameDataSourceFolder. Only entries under the folder are
+    * consulted, so a data source at the path of the folder itself doesn't hide any.
+    */
+   public List<String> getFolderTreeDataSourceNames(String folder) {
+      Set<String> paths = new HashSet<>();
+
+      for(AssetEntry entry : getEntries(folder + "/", AssetEntry.Type.DATA_SOURCE)) {
+         paths.add(entry.getPath());
+      }
+
+      List<String> names = new ArrayList<>();
+
+      for(String path : paths) {
+         if(!paths.contains(path.substring(0, path.lastIndexOf('/')))) {
+            names.add(path);
+         }
+      }
+
+      Collections.sort(names);
+      return names;
+   }
+
+   /**
+    * Gets the full paths of the subfolders of a data source folder at any depth, sorted.
+    */
+   public List<String> getFolderTreeSubfolderNames(String folder) {
+      List<String> names = new ArrayList<>();
+
+      for(AssetEntry entry : getEntries(folder + "/", AssetEntry.Type.DATA_SOURCE_FOLDER)) {
+         names.add(entry.getPath());
+      }
+
+      Collections.sort(names);
+      return names;
    }
 
    /**
@@ -1155,6 +1252,14 @@ public class DataSourceRegistry implements MessageListener {
     * created later with the same name doesn't get them.
     */
    private void removeDataSourcePermissions(List<String> resources) {
+      removePermissions(ResourceType.DATA_SOURCE, resources);
+   }
+
+   /**
+    * Removes the permissions of removed resources of a type, so that one created later with the
+    * same name doesn't get them.
+    */
+   private void removePermissions(ResourceType type, List<String> resources) {
       if(resources.isEmpty()) {
          return;
       }
@@ -1168,10 +1273,10 @@ public class DataSourceRegistry implements MessageListener {
 
       for(String resource : resources) {
          try {
-            engine.removePermission(ResourceType.DATA_SOURCE, resource);
+            engine.removePermission(type, resource);
          }
          catch(Exception e) {
-            LOG.warn("Failed to remove the permission of data source {}", resource, e);
+            LOG.warn("Failed to remove the permission of {} {}", type, resource, e);
          }
       }
    }

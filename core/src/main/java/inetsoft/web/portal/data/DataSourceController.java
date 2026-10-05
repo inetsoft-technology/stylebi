@@ -380,7 +380,13 @@ public class DataSourceController {
 
       for (SelectedDataSourceItem f : request.folders()) {
          String fullPath = Util.getObjectFullPath(RepositoryEntry.DATA_SOURCE_FOLDER, f.path(), principal);
-         dataSourceBrowserService.deleteDataSourceFolder(f.path(), fullPath, true, principal);
+         ConnectionStatus status =
+            dataSourceBrowserService.deleteDataSourceFolder(f.path(), fullPath, true, principal);
+
+         // refused after the check, e.g. a permission changed since, so don't report success
+         if(status != null) {
+            throw new MessageException(status.getStatus());
+         }
       }
    }
 
@@ -469,7 +475,8 @@ public class DataSourceController {
    }
 
    /**
-    * Checks the DELETE permission on every selected data source and folder.
+    * Checks the DELETE permission on every selected data source and folder, and on every data
+    * source and subfolder of a selected folder at any depth, which the folder delete deletes.
     */
    private void checkDeletePermission(SelectedDataSourcesRequest request, Principal principal)
       throws SecurityException
@@ -480,6 +487,11 @@ public class DataSourceController {
 
       for(SelectedDataSourceItem f : request.folders()) {
          checkDeletePermission(ResourceType.DATA_SOURCE_FOLDER, f.path(), principal);
+      }
+
+      // Bug #77731
+      for(SelectedDataSourceItem f : request.folders()) {
+         datasourcesService.checkDataSourceFolderTreeDelete(f.path(), principal);
       }
    }
 
