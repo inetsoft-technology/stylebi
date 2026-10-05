@@ -192,7 +192,7 @@ class IdentityServiceOrgMemberRemovalTest {
 
       for(IdentityID id : List.of(bob, carol)) {
          verify(scheduleManager).identityRemoved(argThat(i -> id.equals(i.getIdentityID())),
-                                                 eq(provider));
+                                                 eq(ORG_A));
          verify(dashboardManager).setDashboards(
             argThat(i -> i != null && id.equals(i.getIdentityID())), isNull());
          verify(repletRegistryManager).removeUser(id);
@@ -202,11 +202,11 @@ class IdentityServiceOrgMemberRemovalTest {
       }
 
       verify(scheduleManager).identityRemoved(argThat(i -> sales.equals(i.getIdentityID())),
-                                              eq(provider));
+                                              eq(ORG_A));
       verify(scheduleManager).identityRemoved(argThat(i -> analyst.equals(i.getIdentityID())),
-                                              eq(provider));
+                                              eq(ORG_A));
       verify(scheduleManager, never())
-         .identityRemoved(argThat(i -> alice.equals(i.getIdentityID())), any());
+         .identityRemoved(argThat(i -> alice.equals(i.getIdentityID())), nullable(String.class));
       userEnv.verify(() -> UserEnv.removeUser(alice), never());
 
       // user-scoped assets of both dropped users
@@ -249,9 +249,19 @@ class IdentityServiceOrgMemberRemovalTest {
       IdentityID bob = addUser("bob", ORG_A);
       IdentityID carol = addUser("carol", ORG_A);
       IdentityID sales = addGroup("sales", ORG_A);
-      doThrow(new RuntimeException("Failed to save dashboard"))
-         .when(dashboardManager).setDashboards(argThat(i -> i != null && (
-            bob.equals(i.getIdentityID()) || sales.equals(i.getIdentityID()))), isNull());
+      // the dashboards are cleaned up best-effort after the removal (Bug #77797), so the failures
+      // are injected into steps that still fail the cleanup
+      doAnswer(inv -> {
+         when(provider.getUser(bob)).thenReturn(null);
+         return null;
+      }).when(provider).removeUser(bob);
+      doAnswer(inv -> {
+         when(provider.getGroup(sales)).thenReturn(null);
+         return null;
+      }).when(provider).removeGroup(sales);
+      userEnv.when(() -> UserEnv.removeUser(bob)).thenThrow(new RuntimeException("storage down"));
+      doThrow(new RuntimeException("Failed to update permissions")).when(service)
+         .updateIdentityPermissions(anyInt(), eq(sales), any(), any(), any(), anyBoolean());
 
       updateMembers(ORG_A, ORG_A);
 
@@ -304,6 +314,12 @@ class IdentityServiceOrgMemberRemovalTest {
       updateMembers(ORG_A, ORG_A);
 
       verify(provider, times(1)).removeUser(bob);
+      // the cleanup ran with the removal and is not repeated
+      verify(scheduleManager, times(1))
+         .identityRemoved(argThat(i -> bob.equals(i.getIdentityID())), eq(ORG_A));
+      verify(dashboardManager, times(1)).setDashboards(
+         argThat(i -> i != null && bob.equals(i.getIdentityID())), isNull());
+      verify(repletRegistryManager, times(1)).removeUser(bob);
       verify(authenticationService).logout(bobSession, true);
       verify(cluster).sendMessage(any(IdentityChangedMessage.class));
       verify(favoritesService).removeFavorites(
@@ -311,6 +327,70 @@ class IdentityServiceOrgMemberRemovalTest {
       UserMessage message = Tool.getUserMessage();
       assertNotNull(message);
       assertTrue(message.getMessage().contains("bob"), message.getMessage());
+   }
+
+   // Bug #77797: when the first removal fails, the delete keeps the member's dashboards, schedule
+   // tasks and portal registry. The retry then removes the member, so that cleanup must run once,
+   // in the edited organization's scope
+   @Test
+   void firstRemoveFails_retrySucceeds_cleanupRunsOnce() throws Exception {
+      when(organizationManager.getCurrentOrgID()).thenReturn(HOST_ORG);
+      IdentityID bob = addUser("bob", ORG_A);
+      IdentityID sales = addGroup("sales", ORG_A);
+      List<String> dashboardOrgs = new ArrayList<>();
+      doAnswer(inv -> {
+         dashboardOrgs.add(OrganizationContextHolder.getCurrentOrgId());
+         return null;
+      }).when(dashboardManager).setDashboards(any(), isNull());
+      doThrow(new RuntimeException("storage timeout"))
+         .doAnswer(inv -> {
+            when(provider.getUser(bob)).thenReturn(null);
+            return null;
+         })
+         .when(provider).removeUser(bob);
+      doThrow(new RuntimeException("storage timeout"))
+         .doAnswer(inv -> {
+            when(provider.getGroup(sales)).thenReturn(null);
+            return null;
+         })
+         .when(provider).removeGroup(sales);
+
+      updateMembers(ORG_A, ORG_A);
+
+      verify(provider, times(2)).removeUser(bob);
+      verify(provider, times(2)).removeGroup(sales);
+
+      for(IdentityID id : List.of(bob, sales)) {
+         verify(scheduleManager, times(1))
+            .identityRemoved(argThat(i -> id.equals(i.getIdentityID())), eq(ORG_A));
+         verify(dashboardManager, times(1)).setDashboards(
+            argThat(i -> i != null && id.equals(i.getIdentityID())), isNull());
+      }
+
+      verify(repletRegistryManager, times(1)).removeUser(bob);
+      verify(dashboardRegistryManager, times(1)).clear(bob);
+      assertEquals(List.of(ORG_A, ORG_A), dashboardOrgs);
+      verify(cluster, times(2)).sendMessage(any(IdentityChangedMessage.class));
+      UserMessage message = Tool.getUserMessage();
+      assertNotNull(message);
+      assertTrue(message.getMessage().contains("bob"), message.getMessage());
+   }
+
+   // when the retry fails too, the member is kept and so are its tasks and dashboards
+   @Test
+   void firstRemoveAndRetryFail_noCleanup() throws Exception {
+      IdentityID bob = addUser("bob", ORG_A);
+      doThrow(new RuntimeException("provider unavailable")).when(provider).removeUser(bob);
+
+      updateMembers(ORG_A, ORG_A);
+
+      verify(provider, times(2)).removeUser(bob);
+      verify(scheduleManager, never())
+         .identityRemoved(argThat(i -> bob.equals(i.getIdentityID())), nullable(String.class));
+      verify(dashboardManager, never()).setDashboards(any(), isNull());
+      verify(repletRegistryManager, never()).removeUser(bob);
+      verify(cluster, never()).sendMessage(any(IdentityChangedMessage.class));
+      assertNotNull(Tool.getUserMessage());
    }
 
    // with an organization id change, a kept user is moved to the new id and must not be cleaned,
@@ -327,13 +407,13 @@ class IdentityServiceOrgMemberRemovalTest {
 
       verify(provider).removeUser(bob);
       verify(scheduleManager).identityRemoved(argThat(i -> bob.equals(i.getIdentityID())),
-                                              eq(provider));
+                                              eq(ORG_A));
       assertEquals(List.of("alice"), aTheme.getUsers());
 
       verify(provider).setUser(eq(movedAlice), any(User.class));
       verify(provider).removeUser(alice);
       verify(scheduleManager, never()).identityRemoved(
-         argThat(i -> "alice".equals(i.getIdentityID().getName())), any());
+         argThat(i -> "alice".equals(i.getIdentityID().getName())), nullable(String.class));
       verify(repletRegistryManager, never()).removeUser(alice);
       userEnv.verify(() -> UserEnv.removeUser(alice), never());
       autoSave.verify(() -> AutoSaveUtils.deleteUserAutoSaveFiles(alice), never());
@@ -355,7 +435,7 @@ class IdentityServiceOrgMemberRemovalTest {
       verify(provider, never()).removeUser(admin);
       verify(authenticationService, never()).logout(eq(adminSession), anyBoolean());
       verify(scheduleManager, never()).identityRemoved(
-         argThat(i -> admin.equals(i.getIdentityID())), any());
+         argThat(i -> admin.equals(i.getIdentityID())), nullable(String.class));
       verify(provider).removeUser(bob);
       UserMessage message = Tool.getUserMessage();
       assertNotNull(message);
