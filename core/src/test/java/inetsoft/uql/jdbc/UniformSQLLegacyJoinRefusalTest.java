@@ -210,6 +210,22 @@ class UniformSQLLegacyJoinRefusalTest {
       }
    }
 
+   @Test
+   void postgresqlQuotedSaveIsRecordedUnderTurkishLocale() throws Exception {
+      // the names are folded with Locale.ROOT, "ID" isn't folded to a dotless "ıd"
+      Locale locale = Locale.getDefault();
+
+      try {
+         Locale.setDefault(new Locale("tr", "TR"));
+         UniformSQL sql = savedFixture(PG_QUOTED_UPPER, "postgresql", dataSource("postgresql"));
+         assertFalse(sql.isLossy());
+         assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult());
+      }
+      finally {
+         Locale.setDefault(locale);
+      }
+   }
+
    @ParameterizedTest
    @ValueSource(strings = {
       PG_ORIENTATION_QUOTED,
