@@ -242,6 +242,40 @@ public final class XUtil {
     * @return the new query after the process.
     */
    public static XQuery clearComments(XQuery query) {
+      return clearComments(query, null);
+   }
+
+   /**
+    * Clear the comments in the sql statement of a query that is executed. Bug #77788, a comment
+    * line (first non-blank characters --) that starts inside a slash-star comment in some
+    * database and ends or changes that comment (a star-slash after the --) is the text of that
+    * comment to the database. Removing it would let the comment run on to a later star-slash
+    * and hide the sql between them, such as a vpm condition or the where clause, and keeping
+    * it would run sql the vpm didn't read, so the query fails instead.
+    * See SQLQuoteScanner.findCommentChanges.
+    * @param query the specified query to modify.
+    * @return the new query after the process.
+    * @throws SQLException if a comment line ends or changes a slash-star comment.
+    */
+   public static XQuery clearCommentsToExecute(XQuery query) throws SQLException {
+      List<String> closing = new ArrayList<>();
+      XQuery result = clearComments(query, closing);
+
+      if(!closing.isEmpty()) {
+         throw new SQLException("The query " + query.getName() + " can't be run: its -- " +
+            "comment line \"" + closing.get(0).trim() + "\" ends a /* */ comment, which the " +
+            "databases read differently. Move the */ off the -- line.");
+      }
+
+      return result;
+   }
+
+   /**
+    * Clear the comments in the sql statement of a query.
+    * @param closing if not null, it gets the comment lines that end or change a slash-star
+    *                comment.
+    */
+   private static XQuery clearComments(XQuery query, List<String> closing) {
       if(!(query instanceof JDBCQuery)) {
          return query;
       }
@@ -259,44 +293,29 @@ public final class XUtil {
          return query;
       }
 
-      sql.setSQLString(clearComments(sql.getSQLString(), null, null, null), false);
+      String str = sql.getSQLString();
 
-      return query;
-   }
-
-   /**
-    * Clear the comment lines (a line whose first non-blank characters are --) and the vpm tags
-    * of a sql string that is not parsed, as clearComments(XQuery) does before the sql runs.
-    * Bug #77788, a comment line that starts inside a slash-star comment in some database and
-    * ends or changes that comment (a star-slash after the --) is kept, since the database reads
-    * it as the text of that comment. Removing it would let the comment run on to a later
-    * star-slash and hide the sql between them, such as a vpm condition. A comment line that
-    * stays inside the comment is removed as before. See SQLQuoteScanner.findCommentChanges.
-    * @param removed if not null, it gets the comment lines that are removed.
-    * @param kept if not null, it gets the comment lines that are kept.
-    * @param live if not null, it gets the kept comment lines that have sql in some database,
-    *             after the end of the comment or read as sql (mysql --x).
-    * @return the sql without the comment lines and tags.
-    */
-   public static String clearComments(String str, List<String> removed, List<String> kept,
-                                      List<String> live)
-   {
-      // the text of the sql, and the index of each comment line in lines
-      final List<Object> parts = new ArrayList<>();
+      final StringBuilder sb = new StringBuilder();
       final List<String> lines = new ArrayList<>();
       final List<int[]> ranges = new ArrayList<>();
       SQLIterator iterator = new SQLIterator(str);
       SQLIterator.SQLListener listener = (type, value, comment) -> {
          switch(type) {
          case SQLIterator.TEXT_ELEMENT:
+            sb.append(value);
+            break;
          case SQLIterator.COLUMN_ELEMENT:
+            sb.append(value);
+            break;
          case SQLIterator.WHERE_ELEMENT:
-            parts.add(value);
+            sb.append(value);
             break;
          case SQLIterator.COMMENT_ELEMENT:
-            parts.add(lines.size());
-            lines.add(value);
-            ranges.add(new int[] { iterator.getLineStart(), iterator.getLineEnd() });
+            if(closing != null) {
+               lines.add(value);
+               ranges.add(new int[] { iterator.getLineStart(), iterator.getLineEnd() });
+            }
+
             break;
          default:
             // do nothing
@@ -307,41 +326,21 @@ public final class XUtil {
       iterator.addSQLListener(listener);
       iterator.iterate();
 
-      int[] starts = ranges.stream().mapToInt(range -> range[0]).toArray();
-      int[] ends = ranges.stream().mapToInt(range -> range[1]).toArray();
-      boolean[] sqlLines = new boolean[lines.size()];
-      boolean[] changed = SQLQuoteScanner.findCommentChanges(str, starts, ends, sqlLines);
-      final StringBuilder sb = new StringBuilder();
+      if(closing != null) {
+         boolean[] changed = SQLQuoteScanner.findCommentChanges(
+            str, ranges.stream().mapToInt(range -> range[0]).toArray(),
+            ranges.stream().mapToInt(range -> range[1]).toArray());
 
-      for(Object part : parts) {
-         if(part instanceof String) {
-            sb.append(part);
-            continue;
-         }
-
-         int n = (Integer) part;
-         String line = lines.get(n);
-
-         if(!changed[n]) {
-            if(removed != null) {
-               removed.add(line);
+         for(int i = 0; i < changed.length; i++) {
+            if(changed[i]) {
+               closing.add(lines.get(i));
             }
-
-            continue;
-         }
-
-         sb.append(line);
-
-         if(kept != null) {
-            kept.add(line);
-         }
-
-         if(live != null && sqlLines[n]) {
-            live.add(line);
          }
       }
 
-      return sb.toString();
+      sql.setSQLString(sb.toString(), false);
+
+      return query;
    }
 
    /**

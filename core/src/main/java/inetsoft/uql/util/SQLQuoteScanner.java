@@ -248,13 +248,9 @@ public final class SQLQuoteScanner {
     * stays inside the comment in every family, or is a -- comment in them, doesn't.
     * @param starts the start of each line, in order.
     * @param ends the end of each line (after its line break), not after the next line start.
-    * @param live if not null, it gets true for each such line that has text outside a comment
-    *             (not blank) in some family, the sql after the end of the comment.
     * @return true for each such line.
     */
-   public static boolean[] findCommentChanges(String text, int[] starts, int[] ends,
-                                              boolean[] live)
-   {
+   public static boolean[] findCommentChanges(String text, int[] starts, int[] ends) {
       int len = text.length();
       boolean[] changed = new boolean[starts.length];
 
@@ -265,8 +261,6 @@ public final class SQLQuoteScanner {
       int[] comment = new int[len];
       // the depth of the slash-star comments before each character is read, and at the end
       int[] depth = new int[len + 1];
-      // the lines with text outside a comment in some family
-      boolean[] code = live != null ? new boolean[starts.length] : null;
 
       for(int rules : DIALECTS) {
          Arrays.fill(comment, -1);
@@ -325,17 +319,6 @@ public final class SQLQuoteScanner {
 
             changed[n] = changed[n] || change;
          }
-
-         // a family that doesn't read the line in that comment may read it as sql (mysql --x)
-         for(int n = 0; code != null && n < starts.length; n++) {
-            for(int j = starts[n]; j < ends[n] && !code[n]; j++) {
-               code[n] = comment[j] < 0 && text.charAt(j) > ' ';
-            }
-         }
-      }
-
-      for(int n = 0; live != null && n < starts.length; n++) {
-         live[n] = changed[n] && code[n];
       }
 
       return changed;
