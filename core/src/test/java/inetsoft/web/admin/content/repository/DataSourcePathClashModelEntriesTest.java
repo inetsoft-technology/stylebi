@@ -35,6 +35,9 @@ import inetsoft.util.dep.XAssetConfig;
 import inetsoft.util.dep.XDataSourceAsset;
 import inetsoft.web.admin.content.repository.model.MoveCopyTreeNodesRequest;
 import inetsoft.web.portal.controller.database.DataSourceService;
+import inetsoft.web.portal.data.DatasourcesService;
+import inetsoft.web.portal.data.DataSourceDefinition;
+import inetsoft.web.portal.service.datasource.DataSourceStatusService;
 import inetsoft.web.portal.data.*;
 import inetsoft.web.portal.model.database.LogicalModel;
 import inetsoft.web.portal.model.database.PhysicalModel;
@@ -69,7 +72,7 @@ import static org.mockito.Mockito.*;
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class,
-                                  DataSourcePathClashOperationsTest.Beans.class },
+                                  DataSourcePathClashTest.Beans.class },
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
 @Tag("core")
@@ -506,25 +509,73 @@ class DataSourcePathClashModelEntriesTest {
    // anything is moved (it moved v5F/G/a first and then stopped)
    @Test
    void xengineMoveSubfolderOutOfClashWithUnreadableModel() {
-      seedUnreadableSubfolder("v5F");
-      addFolder("v5Q");
-      List<String> before = state("v5F", "v5Q");
+      // the model under the first and under the last data source, so that one of the two catches
+      // a check that comes too late whatever order the data sources are moved in
+      for(String member : new String[] { "a", "y" }) {
+         String clash = "v5" + member + "F";
+         String target = "v5" + member + "Q";
+         seedUnreadableSubfolder(clash, member);
+         addFolder(target);
+         List<String> before = state(clash, target);
 
-      assertThrows(MessageException.class, () -> repository.updateDataSourceFolder(
-         new DataSourceFolder("v5Q/G", LocalDateTime.now(), null), "v5F/G"));
-      assertEquals(before, state("v5F", "v5Q"));
+         assertThrows(MessageException.class, () -> repository.updateDataSourceFolder(
+            new DataSourceFolder(target + "/G", LocalDateTime.now(), null), clash + "/G"));
+         assertEquals(before, state(clash, target), "model under " + member);
+      }
    }
 
    // verify r2, the same for a rename of the subfolder inside the clash folder
    @Test
    void xengineRenameSubfolderInClashWithUnreadableModel() {
-      seedUnreadableSubfolder("v5bF");
-      List<String> before = state("v5bF");
+      for(String member : new String[] { "a", "y" }) {
+         String clash = "v5b" + member + "F";
+         seedUnreadableSubfolder(clash, member);
+         List<String> before = state(clash);
 
-      assertThrows(MessageException.class, () -> repository.updateDataSourceFolder(
-         new DataSourceFolder("v5bF/H", LocalDateTime.now(), null), "v5bF/G"));
-      assertEquals(before, state("v5bF"));
+         assertThrows(MessageException.class, () -> repository.updateDataSourceFolder(
+            new DataSourceFolder(clash + "/H", LocalDateTime.now(), null), clash + "/G"));
+         assertEquals(before, state(clash), "model under " + member);
+      }
    }
+
+   // r3: the portal data source editor renames data source peF/peX, which has an additional
+   // connection, with a model that can't be read under it. Refused before anything is written,
+   // by the editor's own check that the new path is not under a data source
+   @Test
+   void portalEditorRenameWithUnreadableModel() throws Exception {
+      clash("peF", false, false);
+      tabParent("peF/peX", "peAdd");
+      grant(ResourceType.DATA_SOURCE, "peF/peX");
+      grant(ResourceType.DATA_SOURCE, "peF/peX::peAdd");
+      setUnreadableModel("peF/peX/lm");
+      List<String> before = state("peF");
+      assertTrue(before.contains("DATA_SOURCE peF/peX/peAdd [peAdd]"), "not seeded: " + before);
+
+      assertThrows(MessageException.class,
+                   () -> portalSave("peX", "peZ", "peF", "peAdd"));
+      assertEquals(before, state("peF"));
+   }
+
+   // r3: the portal data source editor renames data source pcF, which shares its path with a
+   // folder holding a data source, and has an additional connection. Refused before anything is
+   // written (it wrote pcG/pcAdd and moved the pcF::pcAdd grant before the #77725 refusal)
+   @Test
+   void portalEditorRenameOfClashDataSource() throws Exception {
+      addFolder("pcF");
+      grant(ResourceType.DATA_SOURCE_FOLDER, "pcF");
+      addSource("pcF/pcX");
+      grant(ResourceType.DATA_SOURCE, "pcF/pcX");
+      tabParent("pcF", "pcAdd");
+      grant(ResourceType.DATA_SOURCE, "pcF");
+      grant(ResourceType.DATA_SOURCE, "pcF::pcAdd");
+      registry.clearCache();
+      assertTrue(registry.getDataSourcePathClashes().contains("pcF"), "not seeded");
+      List<String> before = state("pcF", "pcG");
+
+      assertThrows(MessageException.class, () -> portalSave("pcF", "pcG", "", "pcAdd"));
+      assertEquals(before, state("pcF", "pcG"));
+   }
+
 
    // r2 sweep: an EM move of two data sources of clash folder emF, the second with a model that
    // can't be read, is refused before anything is moved
@@ -1145,11 +1196,58 @@ class DataSourcePathClashModelEntriesTest {
    // clash P with subfolder P/G holding data sources P/G/a and P/G/y, and a model under P/G/y
    // that can't be read
    private void seedUnreadableSubfolder(String path) {
+      seedUnreadableSubfolder(path, "y");
+   }
+
+   private void seedUnreadableSubfolder(String path, String member) {
       clash(path, false, false);
       addFolder(path + "/G");
       addSource(path + "/G/a");
       addSource(path + "/G/y");
-      setUnreadableModel(path + "/G/y/lm");
+      setUnreadableModel(path + "/G/" + member + "/lm");
+   }
+
+   // a tabular data source with additional connections, of the type the editor tests register
+   private void tabParent(String path, String... additionals) {
+      DataSourcePathClashTest.Tab77691 parent = new DataSourcePathClashTest.Tab77691();
+      parent.setName(path);
+      registry.setDataSource(parent, false);
+      parent = (DataSourcePathClashTest.Tab77691) registry.getDataSource(path);
+
+      for(String name : additionals) {
+         DataSourcePathClashTest.Tab77691 child = new DataSourcePathClashTest.Tab77691();
+         child.setName(name);
+         parent.addDatasource(child);
+      }
+
+      registry.clearCache();
+   }
+
+   // a save in the portal data source editor that renames a data source and keeps its
+   // additional connections
+   private void portalSave(String name, String newName, String parentPath,
+                           String... additionals) throws Exception
+   {
+      DataSourceDefinition definition = tabularDefinition(newName, parentPath);
+      List<DataSourceDefinition> children = new ArrayList<>();
+
+      for(String additional : additionals) {
+         children.add(tabularDefinition(additional, null));
+      }
+
+      definition.setAdditionalConnections(children);
+      new DatasourcesService(repository, security, mock(DataSourceStatusService.class), registry,
+                             inetsoft.uql.util.Config.getConfig())
+         .updateDataSource(name, definition, principal);
+   }
+
+   private static DataSourceDefinition tabularDefinition(String name, String parentPath) {
+      DataSourceDefinition definition = new DataSourceDefinition();
+      definition.setType("Bug77691Tab");
+      definition.setName(name);
+      definition.setParentPath(parentPath);
+      definition.setTabularView(new inetsoft.uql.tabular.TabularView());
+      return definition;
    }
 
    private static ContentRepositoryTreeNode treeNode(String path, int type) {
