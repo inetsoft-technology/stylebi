@@ -29,13 +29,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
-import java.security.Principal;
 import java.time.LocalDateTime;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
 
 /**
  * Bug #77700: the registry removes the permission of a removed data source in the current
@@ -76,9 +73,6 @@ class DataSourcePermissionRemovalOrgTest {
       authzChain.setProviders(List.of(authz));
       authzChain.saveConfiguration();
       SecurityEngine.getSecurity().init();
-      // only the access check is stubbed (the engine bean is a spy of a real SecurityEngine)
-      doReturn(true).when(SecurityEngine.getSecurity()).checkPermission(
-         any(Principal.class), any(ResourceType.class), anyString(), any(ResourceAction.class));
       authorization = SecurityEngine.getSecurity().getSecurityProvider().getAuthorizationProvider();
    }
 
@@ -89,7 +83,6 @@ class DataSourcePermissionRemovalOrgTest {
          authorization.removePermission(ResourceType.DATA_SOURCE_FOLDER, SUBFOLDER, org);
       }
 
-      reset(SecurityEngine.getSecurity());
       OrganizationContextHolder.clear();
       SreeEnv.remove("security.enabled");
       SreeEnv.remove("security.users.multiTenant");
