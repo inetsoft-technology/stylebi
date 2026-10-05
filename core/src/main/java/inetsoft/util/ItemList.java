@@ -230,11 +230,23 @@ public class ItemList implements XMLSerializable, Serializable {
    }
 
    /**
-    * Method to parse an xml segment.
+    * Method to parse an xml segment. An element item may name any
+    * XMLSerializable class, which is constructed. Parse stored or imported XML
+    * with {@link #parseXML(Element, Class)} or {@link #parseStringItems(Element)}
+    * instead, so that only the expected type is constructed.
     */
    @Override
    public void parseXML(Element tag) throws Exception {
       parseXML(tag, XMLSerializable.class, false);
+   }
+
+   /**
+    * Parse an xml segment that holds only string items. Every element item is
+    * skipped with a warning instead of being constructed.
+    * @param tag the xml element.
+    */
+   public void parseStringItems(Element tag) throws Exception {
+      parseXML(tag, null, true);
    }
 
    /**
@@ -288,7 +300,7 @@ public class ItemList implements XMLSerializable, Serializable {
 
                if(expected == null || classname == null) {
                   LOG.warn("Ignoring unsupported item in list {}: {}",
-                           tag.getTagName(), classname);
+                           tag.getTagName(), Tool.cleanseCRLF(classname));
                   continue;
                }
 
@@ -299,7 +311,7 @@ public class ItemList implements XMLSerializable, Serializable {
                }
                catch(ClassNotFoundException | ClassCastException ex) {
                   LOG.warn("Ignoring unsupported item in list {}: {}",
-                           tag.getTagName(), classname);
+                           tag.getTagName(), Tool.cleanseCRLF(classname));
                   continue;
                }
 

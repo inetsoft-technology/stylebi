@@ -116,7 +116,7 @@ public class DependenciesInfo implements RenameTransformObject, Cloneable {
                   // ignore
                }
                catch(ClassCastException ex) {
-                  LOG.warn("Ignoring unsupported dependency asset object: {}", cls);
+                  LOG.warn("Ignoring unsupported dependency asset object: {}", Tool.cleanseCRLF(cls));
                }
             }
          }
@@ -139,7 +139,7 @@ public class DependenciesInfo implements RenameTransformObject, Cloneable {
                   assetClass = Tool.loadSubclass(cls, AssetEntry.class);
                }
                catch(ClassCastException ex) {
-                  LOG.warn("Ignoring unsupported embedded dependency asset object: {}", cls);
+                  LOG.warn("Ignoring unsupported embedded dependency asset object: {}", Tool.cleanseCRLF(cls));
                   continue;
                }
 

@@ -235,7 +235,7 @@ public class RenameDependencyInfo implements Serializable, XMLSerializable {
             assetClass = Tool.loadSubclass(cls, AssetEntry.class);
          }
          catch(ClassCastException ex) {
-            LOG.warn("Ignoring unsupported rename dependency asset object: {}", cls);
+            LOG.warn("Ignoring unsupported rename dependency asset object: {}", Tool.cleanseCRLF(cls));
             continue;
          }
 

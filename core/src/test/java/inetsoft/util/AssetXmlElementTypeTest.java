@@ -35,6 +35,7 @@ import org.w3c.dom.*;
 
 import java.io.*;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -171,6 +172,166 @@ class AssetXmlElementTypeTest {
       assertEquals("old", map.get(entry("vs1")).get(0).getOldName());
    }
 
+   // The probe tests below prove that a rejected class is never initialized or constructed,
+   // not only that it is missing from the result. Each site uses its own probe class, so its
+   // static initializer can only have run during that test's parse. The counters live in this
+   // class, because reading a static field of a probe class would initialize it; the probe
+   // name comes from a class literal, which does not initialize the class.
+
+   @Test
+   void vsDimensionDoesNotConstructProbe() throws Exception {
+      VSDimension dim = new VSDimension();
+      dim.setName("dim");
+      dim.addLevel(member("state"));
+
+      Element elem = parse(dim);
+      Element members = Tool.getChildNodeByTagName(elem, "members");
+      members.appendChild(foreignElement(elem.getOwnerDocument(), DimensionProbe.class.getName()));
+
+      VSDimension result = new VSDimension();
+      result.parseXML(elem);
+
+      assertNotConstructed(DimensionProbe.class);
+      assertEquals(1, result.getLevelCount());
+   }
+
+   @Test
+   void orderInfoManualOrderDoesNotConstructProbe() throws Exception {
+      OrderInfo info = new OrderInfo();
+      info.setManualOrder(new ArrayList<>(List.of("b", "a")));
+      Element elem = parse(info);
+      replaceChildren(Tool.getChildNodeByTagName(elem, "manualOrderList"),
+                      OrderInfoProbe.class.getName());
+
+      new OrderInfo().parseXML(elem);
+
+      assertNotConstructed(OrderInfoProbe.class);
+   }
+
+   @Test
+   void vsDimensionRefManualOrderDoesNotConstructProbe() throws Exception {
+      VSDimensionRef ref = new VSDimensionRef(new AttributeRef(null, "state"));
+      ref.setManualOrderList(new ArrayList<>(List.of("NJ", "NY")));
+      Element elem = parse(ref);
+      replaceChildren(Tool.getChildNodeByTagName(elem, "manualOrderList"),
+                      DimensionRefProbe.class.getName());
+
+      new VSDimensionRef().parseXML(elem);
+
+      assertNotConstructed(DimensionRefProbe.class);
+   }
+
+   @Test
+   void dependenciesInfoDoesNotConstructProbe() throws Exception {
+      DependenciesInfo info = new DependenciesInfo();
+      info.setDependencies(new ArrayList<>(List.of(entry("vs1"), entry("vs2"))));
+      info.setEmbedDependencies(new ArrayList<>(List.of(entry("vs3"), entry("vs4"))));
+      Element elem = parse(info);
+      renameAssetObjectClass(elem, "vs2", DependencyProbe.class.getName());
+      renameAssetObjectClass(elem, "vs3", EmbedDependencyProbe.class.getName());
+
+      DependenciesInfo result = jacksonRoundTrip(elem);
+
+      assertNotConstructed(DependencyProbe.class, EmbedDependencyProbe.class);
+      assertEquals(List.of(entry("vs1")), result.getDependencies());
+      assertEquals(List.of(entry("vs4")), result.getEmbedDependencies());
+   }
+
+   @Test
+   void renameDependencyInfoDoesNotConstructProbe() throws Exception {
+      RenameDependencyInfo info = new RenameDependencyInfo();
+      RenameInfo rinfo = new RenameInfo("old", "new", RenameInfo.ASSET);
+      info.addRenameInfo(entry("vs1"), rinfo);
+      info.addRenameInfo(entry("vs2"), rinfo);
+      Element elem = parse(info);
+      renameAssetObjectClass(elem, "vs2", RenameDependencyProbe.class.getName());
+
+      RenameDependencyInfo result = new RenameDependencyInfo();
+      result.parseXML(elem);
+
+      assertNotConstructed(RenameDependencyProbe.class);
+      assertEquals(Set.of(entry("vs1")), result.getDependencyMap().keySet());
+   }
+
+   @Test
+   void typedItemListSkipsMissingAndUnknownClass() throws Exception {
+      Element list = Tool.parseXML(new StringReader(
+         "<members><a/><b class=\"inetsoft.util.NoSuchItemClass77816\"/></members>"))
+         .getDocumentElement();
+      list.appendChild(list.getOwnerDocument().importNode(parse(member("state")), true));
+
+      ItemList items = new ItemList();
+      items.parseXML(list, VSDimensionMember.class);
+
+      assertEquals(1, items.size());
+      assertInstanceOf(VSDimensionMember.class, items.getItem(0));
+   }
+
+   private static void assertNotConstructed(Class<?>... probes) {
+      assertAll(Arrays.stream(probes).map(Class::getName).flatMap(name -> java.util.stream.Stream.of(
+         () -> assertEquals(0, PROBE_INITS.getOrDefault(name, 0), name + " static initializer ran"),
+         () -> assertEquals(0, PROBE_CTORS.getOrDefault(name, 0), name + " constructor ran"))));
+   }
+
+   private static void count(Map<String, Integer> counts, Class<?> cls) {
+      counts.merge(cls.getName(), 1, Integer::sum);
+   }
+
+   static final Map<String, Integer> PROBE_INITS = new ConcurrentHashMap<>();
+   static final Map<String, Integer> PROBE_CTORS = new ConcurrentHashMap<>();
+
+   /**
+    * Test-only XMLSerializable that counts constructor calls. Each subclass counts its own
+    * static initialization.
+    */
+   public static class XmlProbe implements XMLSerializable {
+      public XmlProbe() {
+         count(PROBE_CTORS, getClass());
+      }
+
+      @Override
+      public void writeXML(PrintWriter writer) {
+      }
+
+      @Override
+      public void parseXML(Element tag) {
+      }
+   }
+
+   /**
+    * Test-only AssetObject that is not an AssetEntry.
+    */
+   public static class AssetProbe extends XmlProbe implements AssetObject {
+      @Override
+      public Object clone() {
+         return this;
+      }
+   }
+
+   public static class DimensionProbe extends XmlProbe {
+      static { count(PROBE_INITS, DimensionProbe.class); }
+   }
+
+   public static class OrderInfoProbe extends XmlProbe {
+      static { count(PROBE_INITS, OrderInfoProbe.class); }
+   }
+
+   public static class DimensionRefProbe extends XmlProbe {
+      static { count(PROBE_INITS, DimensionRefProbe.class); }
+   }
+
+   public static class DependencyProbe extends AssetProbe {
+      static { count(PROBE_INITS, DependencyProbe.class); }
+   }
+
+   public static class EmbedDependencyProbe extends AssetProbe {
+      static { count(PROBE_INITS, EmbedDependencyProbe.class); }
+   }
+
+   public static class RenameDependencyProbe extends AssetProbe {
+      static { count(PROBE_INITS, RenameDependencyProbe.class); }
+   }
+
    private static VSDimensionMember member(String name) {
       VSDimensionMember member = new VSDimensionMember();
       member.setDataRef(new AttributeRef(null, name));
@@ -193,20 +354,34 @@ class AssetXmlElementTypeTest {
     * A real XMLSerializable/AssetObject that is not the type any of these lists hold.
     */
    private static Element foreignElement(Document doc) throws Exception {
+      return foreignElement(doc, AggregateInfo.class.getName());
+   }
+
+   private static Element foreignElement(Document doc, String className) throws Exception {
       Element elem = (Element) doc.importNode(parse(new AggregateInfo()), true);
-      elem.setAttribute("class", AggregateInfo.class.getName());
+      elem.setAttribute("class", className);
       return elem;
    }
 
    private static void replaceChildren(Element list) throws Exception {
+      replaceChildren(list, AggregateInfo.class.getName());
+   }
+
+   private static void replaceChildren(Element list, String className) throws Exception {
       while(list.getFirstChild() != null) {
          list.removeChild(list.getFirstChild());
       }
 
-      list.appendChild(foreignElement(list.getOwnerDocument()));
+      list.appendChild(foreignElement(list.getOwnerDocument(), className));
    }
 
    private static void renameAssetObjectClass(Element root, String path) throws Exception {
+      renameAssetObjectClass(root, path, AggregateInfo.class.getName());
+   }
+
+   private static void renameAssetObjectClass(Element root, String path, String className)
+      throws Exception
+   {
       NodeList nodes = root.getElementsByTagName("assetObject");
       int found = 0;
 
@@ -216,7 +391,7 @@ class AssetXmlElementTypeTest {
          entry.parseXML(Tool.getFirstChildNode(node));
 
          if(path.equals(entry.getPath())) {
-            node.setAttribute("class", AggregateInfo.class.getName());
+            node.setAttribute("class", className);
             found++;
          }
       }

@@ -835,7 +835,7 @@ public class OrderInfo implements java.io.Serializable, Cloneable, XMLSerializab
       if(node != null) {
          ItemList mlist = new ItemList();
          // manual order values are written as string items only
-         mlist.parseXML(node, null);
+         mlist.parseStringItems(node);
          manualOrder = new ArrayList(Arrays.asList(mlist.toArray()));
       }
    }
