@@ -150,6 +150,9 @@ public class DataSourceController {
       @RequestBody @PermissionPath("parentPath()") AddFolderRequest request, Principal principal)
       throws Exception
    {
+      // Bug #77733, a name with a slash would create the folder under another parent than the
+      // one the permission is checked on
+      Tool.checkFolderNameSeparator(request.name());
       String path;
       String parentPath = request.parentPath();
 

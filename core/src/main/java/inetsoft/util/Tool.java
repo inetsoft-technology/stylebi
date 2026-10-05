@@ -2356,6 +2356,64 @@ public final class Tool extends CoreTool {
    }
 
    /**
+    * Checks if a folder name contains a path separator. A rename or create request sends only
+    * the folder name and the server joins it to the parent path, so a name such as "T/S" would
+    * build a path under another parent, and the folder would be moved or created there without
+    * the checks of the move endpoint (Bug #77733). A '\\' is not a separator in these stores and
+    * isn't refused here.
+    *
+    * @param name       the folder name.
+    * @param separators the separators the store of the folder uses besides '/', e.g. '~' for a
+    *                   table style folder.
+    *
+    * @return {@code true} if the name contains '/' or one of the separators.
+    */
+   public static boolean containsPathSeparator(String name, char... separators) {
+      if(name == null) {
+         return false;
+      }
+
+      if(name.indexOf('/') >= 0) {
+         return true;
+      }
+
+      for(char separator : separators) {
+         if(name.indexOf(separator) >= 0) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Refuses a folder name that contains a path separator, see
+    * {@link #containsPathSeparator(String, char...)}.
+    *
+    * @param name       the folder name.
+    * @param separators the separators the store of the folder uses besides '/'.
+    *
+    * @throws MessageException if the name contains a path separator.
+    */
+   public static void checkFolderNameSeparator(String name, char... separators)
+      throws MessageException
+   {
+      if(containsPathSeparator(name, separators)) {
+         throw new MessageException(getInvalidFolderNameMessage());
+      }
+   }
+
+   /**
+    * Gets the message for a folder name refused by
+    * {@link #checkFolderNameSeparator(String, char...)}.
+    *
+    * @return the localized message.
+    */
+   public static String getInvalidFolderNameMessage() {
+      return Catalog.getCatalog().getString("common.sree.internal.invalidCharInName");
+   }
+
+   /**
     * Get the build number of this software.
     */
    public static String getBuildNumber() {

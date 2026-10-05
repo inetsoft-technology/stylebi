@@ -650,6 +650,8 @@ public class DataSetService {
       newName = SUtil.removeControlChars(newName);
 
       try {
+         // Bug #77733, a name with a slash would build a path under another parent
+         Tool.checkFolderNameSeparator(newName);
          String oldPath = info.path();
          IdentityID user = getUser(principal, scope);
 
