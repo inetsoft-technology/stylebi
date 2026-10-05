@@ -150,8 +150,15 @@ class SQLHelperTextJoinNoNewTableStepTest {
       assertEquals(UniformSQL.PARSE_SUCCESS, reparsed.getParseResult(), generated);
 
       String regenerated = regenerate(reparsed);
+      assertEquals(from(generated), from(regenerated));
       assertEquals(regenerated, regenerate(parse(regenerated, ds)));
       assertSameRows(DB, text, regenerated);
+   }
+
+   // the from clause of generated sql, without the where clause
+   private static String from(String sql) {
+      int where = sql.indexOf(" where ");
+      return where < 0 ? sql : sql.substring(0, where);
    }
 
    @Test
@@ -188,6 +195,20 @@ class SQLHelperTextJoinNoNewTableStepTest {
       JDBCDataSource ds = "none".equals(type) ? null : dataSource(type);
       RecognitionException ex =
          assertThrows(RecognitionException.class, () -> parse(V19, ds));
+      assertTrue(ex.getMessage().contains("Unsupported join order"), ex.getMessage());
+   }
+
+   @Test
+   void stepJoiningTheTableOfANoNewTableStepAndANewTableFailsTheParse() {
+      // join e on x.k = c.k leaves e a comma item, so the next ON joins two new tables, g and
+      // e, to the group, which the text order can't write. This one returned the same rows in
+      // the outer-last order, with the left join last in its own group, but it is refused like
+      // every query that reaches that order
+      String text = "select c.id, e.id, f.id, g.id, p.id, q.id, r.id, x.id from x join c on " +
+         "c.id = x.id join e on x.k = c.k join g on g.id = e.id and g.k = c.k, r join q on " +
+         "q.id = r.id join f on f.id = r.id left join p on p.id = f.id";
+      RecognitionException ex =
+         assertThrows(RecognitionException.class, () -> parse(text, dataSource("generic")));
       assertTrue(ex.getMessage().contains("Unsupported join order"), ex.getMessage());
    }
 

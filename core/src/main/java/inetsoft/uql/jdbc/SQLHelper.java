@@ -2972,8 +2972,9 @@ public class SQLHelper implements KeywordProvider {
       // an inner join ON that names only tables of one group adds no table, e.g. r in
       // p join q on p.id = q.id join r on p.k = q.k, which is a comma item. It is a condition
       // of the group, the same in the where clause as long as no later join null-extends the
-      // group, and the parse fails for such a join: its regenerated joins differ (Bug #77515,
-      // #77674). Not a join added in the query editor, which has no ON and no such check
+      // group. The parse fails when a later join does, because the regenerated joins then
+      // differ (Bug #77515, #77674). Not a join added in the query editor, which has no ON and
+      // no such check
       else if(newTables.isEmpty() && joined.size() == 1 && !outer &&
               step.get(0).isOnClauseJoin())
       {

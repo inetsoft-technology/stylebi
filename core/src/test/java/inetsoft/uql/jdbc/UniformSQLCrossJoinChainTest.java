@@ -1316,13 +1316,15 @@ class UniformSQLCrossJoinChainTest {
       assertEquals(UniformSQL.PARSE_SUCCESS, reparsed.getParseResult(), generated);
       String regenerated = regenerate(reparsed);
 
-      // a condition SQLHelper writes after the from clause is ANDed to the where clause as
-      // where (..) AND condition (e.g. a join condition that names no new table, Bug
-      // #77674), and parsed again it's part of the where clause, so the from clause must
-      // round trip and the where clause after that
-      if(generated.contains(" where (") && !generated.equals(regenerated)) {
-         assertEquals(generated.substring(0, generated.indexOf(" where (")),
-                      regenerated.substring(0, regenerated.indexOf(" where ")), "round trip");
+      // a join condition SQLHelper writes after the from clause (one that names no new table,
+      // Bug #77674) is ANDed to the where clause as where (..) AND condition. Parsed again
+      // it's part of the where clause, written where .. and condition, which round trips
+      java.util.regex.Matcher anded =
+         java.util.regex.Pattern.compile("(.*) where \\((.*)\\) AND (.*)").matcher(generated);
+
+      if(!generated.equals(regenerated) && anded.matches()) {
+         assertEquals(anded.group(1) + " where " + anded.group(2) + " and " + anded.group(3),
+                      regenerated, "round trip");
          assertEquals(regenerated, regenerate(parse(regenerated, ds)), "round trip");
          return;
       }
