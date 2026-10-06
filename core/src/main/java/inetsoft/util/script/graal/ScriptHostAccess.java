@@ -391,6 +391,16 @@ public final class ScriptHostAccess {
                                  .DistributedTableCacheStore.class)
                   // - the dependency and rename machinery
                   .denyAccess(inetsoft.uql.asset.sync.RenameTransformHandler.class)
+                  // Bug #77852: the rest of the rename pipeline. DependencyTransformer
+                  // covers its public subclasses; RenameTransformTask$Rename doesn't
+                  // extend RenameTransformTask, so it is named
+                  .denyAccess(inetsoft.uql.asset.sync.DependencyTransformer.class)
+                  .denyAccess(inetsoft.uql.asset.sync.UpdateDependencyHandler.class)
+                  .denyAccess(inetsoft.uql.asset.sync.RenameTransformTask.class)
+                  .denyAccess(inetsoft.uql.asset.sync.RenameTransformTask.Rename.class)
+                  .denyAccess(inetsoft.uql.asset.sync.RenameTransformTask.Remove.class)
+                  .denyAccess(inetsoft.uql.asset.sync.LoadDependencyStorageTask.class)
+                  .denyAccess(inetsoft.uql.asset.sync.RenameTransformQueue.class)
                   .denyAccess(inetsoft.uql.asset.UpdateAssetDependenciesHandler.class)
                   .denyAccess(inetsoft.uql.asset.DependencyHandler.class)
                   .denyAccess(inetsoft.report.internal.MVInfoClient.class)
