@@ -429,7 +429,7 @@ public abstract class ListInputVSAssemblyInfo extends InputVSAssemblyInfo
 
          for(int i = 0; i < labels.length; i++) {
             writer.print("<label>");
-            writer.print("<![CDATA[" + Tool.localize(labels[i]) + "]]>");
+            writer.print("<![CDATA[" + Tool.cdataText(Tool.localize(labels[i])) + "]]>");
             writer.print("</label>");
          }
 

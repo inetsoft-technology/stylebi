@@ -416,7 +416,7 @@ public class ExpressionRef extends AbstractDataRef {
     */
    @Override
    protected void writeCDATA(PrintWriter writer) {
-      writer.println("<![CDATA[" + Tool.splitCDATAEnd(getExpression()) + "]]>");
+      writer.println("<![CDATA[" + Tool.cdataText(getExpression()) + "]]>");
    }
 
    /**

@@ -207,7 +207,7 @@ public class DashboardRegistry {
       for(Map.Entry<String, Dashboard> entry : new ArrayList<>(dashboardsMap.entrySet())) {
          String name = entry.getKey();
          writer.println("<node>");
-         writer.println("<name><![CDATA[" + name + "]]></name>");
+         writer.println("<name><![CDATA[" + Tool.splitCDATAEnd(name) + "]]></name>");
          Dashboard dashboard = entry.getValue();
          dashboard.writeXML(writer);
          writer.println("</node>");

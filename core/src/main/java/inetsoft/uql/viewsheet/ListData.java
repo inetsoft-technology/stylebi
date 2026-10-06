@@ -185,7 +185,7 @@ public class ListData implements AssetObject {
 
       for(int i = 0; i < labels.length; i++) {
          writer.print("<label>");
-         writer.print("<![CDATA[" + Tool.splitCDATAEnd(Tool.getPersistentDataString(labels[i])) +
+         writer.print("<![CDATA[" + Tool.cdataText(Tool.getPersistentDataString(labels[i])) +
                       "]]>");
          writer.print("</label>");
       }

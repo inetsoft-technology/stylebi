@@ -427,7 +427,7 @@ public class UserVariable extends XVariable {
             writer.print("<choice><item>");
 
             if(choices[i] != null) {
-               writer.print("<![CDATA[" + choices[i] + "]]>");
+               writer.print("<![CDATA[" + Tool.cdataText(String.valueOf(choices[i])) + "]]>");
             }
 
             writer.print("</item><value>");

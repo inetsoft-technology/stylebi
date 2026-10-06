@@ -194,7 +194,7 @@ public class WSAssemblyInfo extends AssemblyInfo {
 
       if(!compact && desc != null) {
          writer.print("<description>");
-         writer.print("<![CDATA[" + Tool.splitCDATAEnd(desc) + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(desc) + "]]>");
          writer.println("</description>");
       }
 

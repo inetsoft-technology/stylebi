@@ -370,7 +370,7 @@ public class LabelInfo implements AssetObject {
 
       if(textValue != null && !textValue.isEmpty()) {
          writer.print("<labelTextValue>");
-         writer.print("<![CDATA[" + textValue + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(textValue) + "]]>");
          writer.println("</labelTextValue>");
       }
 

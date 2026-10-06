@@ -232,7 +232,7 @@ public class TextInputVSAssemblyInfo extends ClickableInputVSAssemblyInfo {
 
       if(val != null) {
          writer.print("<text>");
-         writer.print("<![CDATA[" + val + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(String.valueOf(val)) + "]]>");
          writer.println("</text>");
       }
 
@@ -250,7 +250,7 @@ public class TextInputVSAssemblyInfo extends ClickableInputVSAssemblyInfo {
 
       if(toolTip != null) {
          writer.print("<toolTip>");
-         writer.print("<![CDATA[" + Tool.getDataString(toolTip) + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(Tool.getDataString(toolTip)) + "]]>");
          writer.println("</toolTip>");
       }
 

@@ -803,7 +803,7 @@ public class AxisDescriptor implements Cloneable, Serializable, XMLSerializable,
             writer.print("<![CDATA[" + key + "]]>");
             writer.println("</key>");
             writer.print("<value>");
-            writer.print("<![CDATA[" + title + "]]>");
+            writer.print("<![CDATA[" + Tool.cdataText(title) + "]]>");
             writer.println("</value>");
             writer.print("</title>");
          }
@@ -821,7 +821,7 @@ public class AxisDescriptor implements Cloneable, Serializable, XMLSerializable,
             CompositeTextFormat format = fmtMap.get(key);
             writer.print("<format>");
             writer.print("<key>");
-            writer.print("<![CDATA[" + key + "]]>");
+            writer.print("<![CDATA[" + Tool.cdataText(key) + "]]>");
             writer.println("</key>");
             format.writeXML(writer);
             writer.print("</format>");

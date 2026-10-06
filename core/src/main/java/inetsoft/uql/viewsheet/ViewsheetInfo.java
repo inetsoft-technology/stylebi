@@ -930,13 +930,13 @@ public class ViewsheetInfo implements AssetObject {
 
       if(initScript != null) {
          writer.print("<initScript>");
-         writer.print("<![CDATA[" + Tool.splitCDATAEnd(initScript) + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(initScript) + "]]>");
          writer.println("</initScript>");
       }
 
       if(loadScript != null) {
          writer.print("<loadScript>");
-         writer.print("<![CDATA[" + Tool.splitCDATAEnd(loadScript) + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(loadScript) + "]]>");
          writer.println("</loadScript>");
       }
 

@@ -514,13 +514,13 @@ public class LegendDescriptor implements AssetObject, ContentObject {
 
       if(title.getDValue() != null) {
          writer.print("<title>");
-         writer.print("<![CDATA[" + title.getDValue() + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(title.getDValue()) + "]]>");
          writer.println("</title>");
       }
 
       if(getTitle() != null) {
          writer.print("<titleRValue>");
-         writer.print("<![CDATA[" + getTitle() + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(getTitle()) + "]]>");
          writer.print("</titleRValue>");
       }
 
@@ -535,7 +535,7 @@ public class LegendDescriptor implements AssetObject, ContentObject {
             writer.print("<![CDATA[" + key + "]]>");
             writer.println("</key>");
             writer.print("<value>");
-            writer.print("<![CDATA[" + label + "]]>");
+            writer.print("<![CDATA[" + Tool.cdataText(label) + "]]>");
             writer.println("</value>");
             writer.print("</label>");
          }
