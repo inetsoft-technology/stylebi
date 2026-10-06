@@ -19,6 +19,7 @@ package inetsoft.sree.schedule;
 
 import inetsoft.report.LibManagerProvider;
 import inetsoft.report.internal.Util;
+import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.internal.HttpXMLSerializable;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.IdentityID;
@@ -168,7 +169,8 @@ public class IndividualAssetBackupAction implements ScheduleAction, HttpXMLSeria
 
       for(XAsset asset : assets) {
          writer.println("<XAsset type=\"" + asset.getType() + "\" path=\"" +
-                           byteEncode(asset.getPath()) + "\" user=\"" +
+                           (encoding ? encodeAssetPath(asset.getPath()) : asset.getPath()) +
+                           "\" user=\"" +
                            (asset.getUser() != null ? Tool.escape(asset.getUser().convertToKey()) : "") +
                            "\">");
          writer.println("</XAsset>");
@@ -258,6 +260,19 @@ public class IndividualAssetBackupAction implements ScheduleAction, HttpXMLSeria
    @Override
    public String byteDecode(String encString) {
       return encoding ? Tool.byteDecode(encString) : encString;
+   }
+
+   /**
+    * Encodes a backup asset path for the path attribute of the task XML. Control characters,
+    * which byteEncode2 keeps raw and XML can't carry, are encoded too (Bug #77847), the
+    * reader decodes both with Tool.byteDecode.
+    *
+    * @param path the asset path.
+    * @return the encoded path, the same as Tool.byteEncode2 for a path without control
+    *         characters.
+    */
+   public static String encodeAssetPath(String path) {
+      return RepositoryEntry.encodeControlChars(Tool.byteEncode2(path), false);
    }
 
    @Override

@@ -32,6 +32,7 @@ import org.slf4j.LoggerFactory;
 import org.w3c.dom.*;
 
 import java.rmi.RemoteException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -488,30 +489,16 @@ public class TaskAssetDependencyTransformer extends DependencyTransformer {
          return;
       }
 
-      String assetExpression = getAssetExpression(path, type, user, info);
-
-      NodeList dependings = getChildNodes(doc, assetExpression);
-
-      if(dependings == null) {
-         return;
-      }
+      List<Element> dependings = findBackupAssets(doc, type, path, user, info.isTask());
 
       //newly created logical model might not contain splitter, try without
-      if(dependings.getLength() == 0 && info.isLogicalModel() && path.contains(XUtil.DATAMODEL_FOLDER_SPLITER)) {
+      if(dependings.isEmpty() && info.isLogicalModel() && path.contains(XUtil.DATAMODEL_FOLDER_SPLITER)) {
          path = path.replace(XUtil.DATAMODEL_FOLDER_SPLITER, "^");
-
-         assetExpression = getAssetExpression(path, type, user, info);
-         dependings = getChildNodes(doc, assetExpression);
+         dependings = findBackupAssets(doc, type, path, user, info.isTask());
       }
 
-      for(int i = 0; i < dependings.getLength(); i++) {
-         Element item = (Element) dependings.item(i);
-
-         if(item == null) {
-            continue;
-         }
-
-         item.setAttribute("path", Tool.byteEncode2(newPath));
+      for(Element item : dependings) {
+         item.setAttribute("path", IndividualAssetBackupAction.encodeAssetPath(newPath));
 
          if(!info.isTask()) {
             item.setAttribute("user", newUser == null ? "" : newUser.convertToKey());
@@ -519,17 +506,58 @@ public class TaskAssetDependencyTransformer extends DependencyTransformer {
       }
    }
 
-   private String getAssetExpression(String path, String type, IdentityID user, RenameInfo info) {
-      String assetExpression = "//Task/Action/XAsset[@type='%s' and @path='%s' and @user='%s']";
-      assetExpression = String.format(assetExpression, type, Tool.byteEncode2(path),
-                                      user == null ? "" : user.convertToKey());
+   /**
+    * Finds the backup action assets that reference an asset. The names are compared here and
+    * not in the XPath: a name put into an XPath string literal breaks the expression when it
+    * holds a quote, and the rename is then silently skipped (Bug #77851).
+    *
+    * @param task {@code true} to ignore the owner of the asset.
+    */
+   private List<Element> findBackupAssets(Element doc, String type, String path,
+                                          IdentityID user, boolean task)
+   {
+      List<Element> result = new ArrayList<>();
+      NodeList items = getChildNodes(doc, "//Task/Action/XAsset");
 
-      if(info.isTask()) {
-         assetExpression = "//Task/Action/XAsset[@type='%s' and @path='%s']";
-         assetExpression = String.format(assetExpression, type, Tool.byteEncode2(path));
+      if(items == null) {
+         return result;
       }
 
-      return assetExpression;
+      String userKey = user == null ? "" : user.convertToKey();
+
+      for(int i = 0; i < items.getLength(); i++) {
+         Element item = (Element) items.item(i);
+
+         if(item != null && Tool.equals(type, item.getAttribute("type")) &&
+            matchesAssetPath(item.getAttribute("path"), path) &&
+            (task || userKey.equals(getStoredUserKey(item))))
+         {
+            result.add(item);
+         }
+      }
+
+      return result;
+   }
+
+   /**
+    * Checks if a stored backup asset path attribute references an asset path. Accepts the
+    * current writer form, the form older writers stored (control characters raw), and any
+    * other encoding that the reader decodes to the path (Bug #77847).
+    */
+   static boolean matchesAssetPath(String stored, String path) {
+      return stored != null && path != null &&
+         (stored.equals(IndividualAssetBackupAction.encodeAssetPath(path)) ||
+          stored.equals(Tool.byteEncode2(path)) ||
+          path.equals(Tool.byteDecode(stored)));
+   }
+
+   /**
+    * Gets the owner key of a stored backup asset, "" for a global asset. A missing, "null" or
+    * "~;~" user is a global asset, as IndividualAssetBackupAction.parseXML reads it.
+    */
+   private static String getStoredUserKey(Element item) {
+      String user = item.getAttribute("user");
+      return "null".equals(user) || IdentityID.KEY_DELIMITER.equals(user) ? "" : user;
    }
 
    private String convertVpmPathToAssetPath(String path) {
@@ -547,8 +575,8 @@ public class TaskAssetDependencyTransformer extends DependencyTransformer {
    }
 
    private void renameViewsheetAction(Element doc, RenameInfo info) {
-      NodeList childNodes = getChildNodes(doc,
-         "//Task/Action[@viewsheet='" + info.getOldName() + "']");
+      // the id is compared here, not in an XPath string literal (Bug #77851)
+      NodeList childNodes = getChildNodes(doc, "//Task/Action[@viewsheet]");
 
       if(childNodes == null) {
          return;
@@ -557,7 +585,7 @@ public class TaskAssetDependencyTransformer extends DependencyTransformer {
       for(int i = 0; i < childNodes.getLength(); i++) {
          Element item = (Element) childNodes.item(i);
 
-         if(item == null) {
+         if(item == null || !Tool.equals(item.getAttribute("viewsheet"), info.getOldName())) {
             continue;
          }
 
