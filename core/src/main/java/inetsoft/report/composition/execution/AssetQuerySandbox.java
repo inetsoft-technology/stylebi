@@ -1154,8 +1154,12 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
     * columns ({@link #hasOwnScriptColumn}) and its pre-/post-conditions, runtime ones included
     * ({@link #conditionsMayRunScript}: expression values of any type, and sub-queries, whose
     * sub tables are walked in turn); then it walks the bases of a
-    * {@link ComposedTableAssembly}, read with {@link ComposedTableAssembly#getTableAssemblies(
-    * boolean) getTableAssemblies(true)}, the call every composed query builds its bases from.
+    * {@link ComposedTableAssembly} ({@link #getBaseTables}).
+    *
+    * <p>Taking the lock this way also means the build must not hand work that may need it to
+    * another thread and wait: {@code JoinQuery} and {@code ConcatenatedQuery} run their member
+    * queries on the calling thread when it holds the lock
+    * ({@link #holdsScriptExecutionLock}).
     *
     * <p>Each earlier version of this check covered one more shape (bug #77301: own columns,
     * then sub-queries), and the build then deadlocked through a shape it skipped (bug #77873:
@@ -1185,7 +1189,7 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
       }
 
       if(table instanceof ComposedTableAssembly) {
-         TableAssembly[] bases = ((ComposedTableAssembly) table).getTableAssemblies(true);
+         TableAssembly[] bases = getBaseTables((ComposedTableAssembly) table);
 
          for(int i = 0; bases != null && i < bases.length; i++) {
             if(needsEmbeddedTableScriptLock(bases[i], visited)) {
@@ -1195,6 +1199,41 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
       }
 
       return false;
+   }
+
+   /**
+    * The current definitions of {@code table}'s bases, read without filling or reading the
+    * transient clone cache of {@link ComposedTableAssembly#getTableAssemblies(boolean)
+    * getTableAssemblies(true)}: the query builds from a clone of {@code table} whose cache is
+    * empty, so it resolves its bases from the worksheet again -- a cache left on the definition
+    * could be stale. A mirror's base is read as {@code MirrorQuery} reads it; any other composed
+    * table's bases by name from its worksheet, as {@code getTableAssemblies()} does, minus the
+    * {@code update()} calls that method makes on them.
+    */
+   private static TableAssembly[] getBaseTables(ComposedTableAssembly table) {
+      if(table instanceof MirrorTableAssembly) {
+         TableAssembly base = ((MirrorTableAssembly) table).getTableAssembly();
+         return base == null ? new TableAssembly[0] : new TableAssembly[] { base };
+      }
+
+      Worksheet ws = table.getWorksheet();
+      String[] names = table.getTableNames();
+
+      if(ws == null || names == null) {
+         return table.getTableAssemblies(true);
+      }
+
+      List<TableAssembly> bases = new ArrayList<>();
+
+      for(String name : names) {
+         Assembly base = name == null ? null : ws.getAssembly(name);
+
+         if(base instanceof TableAssembly) {
+            bases.add((TableAssembly) base);
+         }
+      }
+
+      return bases.toArray(new TableAssembly[0]);
    }
 
    /**
@@ -1291,6 +1330,12 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
    /**
     * @return {@code true} if {@code vtable} (its base tables included) holds an
     * {@link ExpressionValue} of any type. See {@link #embeddedBuildMayRunScript}.
+    *
+    * <p>{@link VariableTable#get(String)} is the only read of a value it offers, and it can
+    * write back: a {@code UserVariable} entry is replaced by its value node's value. That is the
+    * same {@code get} the build itself makes on these tables ({@code AssetDataCache
+    * .getVariableTable}, condition {@code replaceVariables}), so it changes nothing the build
+    * would not, and it never runs a script.
     */
    private static boolean hasExpressionVariable(VariableTable vtable) {
       if(vtable == null) {
@@ -1587,6 +1632,22 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
     */
    public ScriptEnv peekScriptEnv() {
       return senv;
+   }
+
+   /**
+    * @return {@code true} if the calling thread holds this sandbox's script-execution lock,
+    * for whatever reason -- inside {@code exec()}, or taken outside script evaluation, e.g. by
+    * {@link #getEmbeddedTableLens} before an embedded table's monitor (bug #77873), recorded with
+    * {@code JavaScriptEngine.pushHeldScriptLock} or not. A thread holding it must not hand work
+    * that may need it to another thread and wait for that work (the fan-out in
+    * {@code JoinQuery} and {@code ConcatenatedQuery}). Never creates an env or engine.
+    */
+   public boolean holdsScriptExecutionLock() {
+      ScriptEnv env = senv;
+      Lock lock = env == null ? null : env.getExecutionLock();
+
+      return lock instanceof LendableReentrantLock &&
+         ((LendableReentrantLock) lock).isHeldByCurrentThread();
    }
 
    /**

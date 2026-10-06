@@ -17,24 +17,30 @@
  */
 package inetsoft.report.composition.execution.lockcycle;
 
+import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.composition.execution.*;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.ConditionItem;
 import inetsoft.uql.ConditionList;
+import inetsoft.uql.VariableTable;
+import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.XCondition;
 import inetsoft.uql.asset.AggregateFormula;
 import inetsoft.uql.asset.AggregateInfo;
 import inetsoft.uql.asset.AggregateRef;
 import inetsoft.uql.asset.AssetCondition;
 import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.asset.ConcatenatedTableAssembly;
 import inetsoft.uql.asset.EmbeddedTableAssembly;
 import inetsoft.uql.asset.ExpressionValue;
 import inetsoft.uql.asset.GroupRef;
 import inetsoft.uql.asset.MirrorTableAssembly;
+import inetsoft.uql.asset.RelationalJoinTableAssembly;
 import inetsoft.uql.asset.SubQueryValue;
 import inetsoft.uql.asset.TableAssembly;
+import inetsoft.uql.asset.TableAssemblyOperator;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.schema.XSchema;
@@ -345,18 +351,41 @@ public class EmbeddedTableScriptLockCycleTest {
    public void formulaReadsTableWithScriptVariable() throws Exception {
       Worksheet ws = new Worksheet();
       embedded(ws, "A", 5, null);
+      box = sandbox(ws);
+      box.getVariableTable().put("v1", jsValue("1"));
+
+      assertFormulaReadsBusyA(ws, null);
+   }
+
+   /**
+    * As {@link #formulaReadsTableWithScriptVariable}, but the {@link ExpressionValue} is only in
+    * the variables passed to A's build, not in the box's own table.
+    */
+   @Test
+   public void formulaReadsTableWithScriptPassedVariable() throws Exception {
+      Worksheet ws = new Worksheet();
+      embedded(ws, "A", 5, null);
+      box = sandbox(ws);
+      VariableTable vars = new VariableTable();
+      vars.put("v1", jsValue("1"));
+
+      assertFormulaReadsBusyA(ws, vars);
+   }
+
+   /**
+    * X holds the engine lock in a busy loop of its own formula, A's builder starts meanwhile
+    * (with {@code avars} passed in, if any), and X then reads A by name. A gate in A's base data
+    * would park A's builder too late here: a variable is evaluated for A's cache key before A
+    * reads any data.
+    */
+   private void assertFormulaReadsBusyA(Worksheet ws, VariableTable avars) throws Exception {
       EmbeddedTableAssembly x = embedded(ws, "X", 1, null);
       expression(x, "alen",
          "var t = new Date().getTime(); while(new Date().getTime() - t < 2000) {} A.length");
-      box = sandbox(ws);
       // the lock exists once the engine is built (X's builder would build it anyway); a
       // pooled env has none, and no cycle to wait for
       box.getScriptEnv().init();
       lock = box.getScriptEnv().getExecutionLock();
-      ExpressionValue value = new ExpressionValue();
-      value.setExpression("1");
-      value.setType(ExpressionValue.JAVASCRIPT);
-      box.getVariableTable().put("v1", value);
 
       Started<Integer> script = harness.start(
          () -> drain(box.getTableLens("X", AssetQuerySandbox.RUNTIME_MODE)).size());
@@ -364,10 +393,176 @@ public class EmbeddedTableScriptLockCycleTest {
                  "X's builder did not take the engine lock");
 
       Started<Integer> populator = harness.start(
-         () -> drain(box.getTableLens("A", AssetQuerySandbox.RUNTIME_MODE)).size());
+         () -> drain(box.getTableLens("A", AssetQuerySandbox.RUNTIME_MODE, avars)).size());
 
       assertEquals(2, harness.await(script.future, KNOWN_CAP, "X's formula reading A by name"));
       assertEquals(6, harness.await(populator.future, KNOWN_CAP, "populator of A"));
+   }
+
+   /**
+    * Bug #77873: the JavaScript value is in a detail (not aggregated) post-condition, which
+    * {@code AssetConditionGroup} evaluates inside A's monitor like a pre-condition.
+    */
+   @Test
+   public void formulaReadsTableWithScriptDetailPostConditionValue() throws Exception {
+      Gate gate = harness.gate();
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = embedded(ws, "A", 5, gate);
+      a.setPostConditionList(jsCondition(a, "id", "0"));
+
+      assertFormulaReadsGatedA(ws, gate, 6);
+   }
+
+   /**
+    * Bug #77873: an SQL-type {@link ExpressionValue} also runs through the script engine
+    * ({@code ConditionGroup.getExpressionVal} rewrites it and execs it), so the walk must match
+    * any type, not only JavaScript.
+    */
+   @Test
+   public void formulaReadsTableWithSqlPreConditionValue() throws Exception {
+      Gate gate = harness.gate();
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = embedded(ws, "A", 5, gate);
+      ExpressionValue value = new ExpressionValue();
+      value.setExpression("0");
+      value.setType(ExpressionValue.SQL);
+      ConditionList list = new ConditionList();
+      list.append(new ConditionItem(a.getColumnSelection(false).getAttribute("id"),
+                                    valueCondition(value), 0));
+      a.setPreConditionList(list);
+
+      assertFormulaReadsGatedA(ws, gate, 6);
+   }
+
+   /**
+    * Bug #77873: the JavaScript value is in A's pre runtime condition list, which the query
+    * merges with its pre-conditions.
+    */
+   @Test
+   public void formulaReadsTableWithScriptRuntimeConditionValue() throws Exception {
+      Gate gate = harness.gate();
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = embedded(ws, "A", 5, gate);
+      a.setPreRuntimeConditionList(jsCondition(a, "id", "0"));
+
+      assertFormulaReadsGatedA(ws, gate, 6);
+   }
+
+   /**
+    * Bug #77873 review round 1 (I1): A's pre-condition is a sub-query on J, a join of B (with
+    * an expression column) and C. Unlike a mirror, {@code JoinQuery} builds its bases on other
+    * threads unless the caller holds the engine lock (see the {@code *BuildsAlone} cases).
+    * B has three rows, so the sub-query keeps three rows of A.
+    */
+   @Test
+   public void formulaReadsTableWithSubQueryJoinOfScriptColumn() throws Exception {
+      Gate gate = harness.gate();
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = embedded(ws, "A", 5, gate);
+      EmbeddedTableAssembly b = embedded(ws, "B", 3, null);
+      expression(b, "bx", "field['id'] * 1");
+      EmbeddedTableAssembly c = embedded(ws, "C", 5, null, true);
+      subQueryCondition(ws, a, join(ws, "J", b, c), "id");
+
+      assertFormulaReadsGatedA(ws, gate, 4);
+   }
+
+   /**
+    * As {@link #formulaReadsTableWithSubQueryJoinOfScriptColumn}, with a concatenation (union) of
+    * B (three rows, with a JavaScript condition value) and C (two rows).
+    */
+   @Test
+   public void formulaReadsTableWithSubQueryConcatenationOfScriptCondition() throws Exception {
+      Gate gate = harness.gate();
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = embedded(ws, "A", 5, gate);
+      EmbeddedTableAssembly b = embedded(ws, "B", 3, null, true);
+      b.setPreConditionList(jsCondition(b, "id", "0"));
+      EmbeddedTableAssembly c = embedded(ws, "C", 2, null, true);
+      subQueryCondition(ws, a, union(ws, "U", b, c), "id");
+
+      assertFormulaReadsGatedA(ws, gate, 4);
+   }
+
+   /**
+    * Review round 1 of bug #77873 (B1): one request, no concurrent formula. A's pre-condition
+    * is a sub-query on J, a join of B (with an expression column) and C. The walk sees B, so A's
+    * builder takes the engine lock first -- and {@code JoinQuery} must then not hand B's build
+    * to a pool thread that needs that same lock while A's builder waits for it.
+    */
+   @Test
+   public void subQueryOnJoinOfScriptColumnBuildsAlone() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = embedded(ws, "A", 5, null);
+      EmbeddedTableAssembly b = embedded(ws, "B", 3, null);
+      expression(b, "bx", "field['id'] * 1");
+      EmbeddedTableAssembly c = embedded(ws, "C", 5, null, true);
+      subQueryCondition(ws, a, join(ws, "J", b, c), "id");
+
+      assertBuildsAlone(ws, 4);
+   }
+
+   /**
+    * As {@link #subQueryOnJoinOfScriptColumnBuildsAlone}, but B has a JavaScript condition value
+    * instead of an expression column.
+    */
+   @Test
+   public void subQueryOnJoinOfScriptConditionBuildsAlone() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = embedded(ws, "A", 5, null);
+      EmbeddedTableAssembly b = embedded(ws, "B", 3, null);
+      b.setPreConditionList(jsCondition(b, "id", "0"));
+      EmbeddedTableAssembly c = embedded(ws, "C", 5, null, true);
+      subQueryCondition(ws, a, join(ws, "J", b, c), "id");
+
+      assertBuildsAlone(ws, 4);
+   }
+
+   /**
+    * As {@link #subQueryOnJoinOfScriptColumnBuildsAlone}, with a concatenation (union) of B and C,
+    * which {@code ConcatenatedQuery} fans out the same way.
+    */
+   @Test
+   public void subQueryOnConcatenationOfScriptColumnBuildsAlone() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = embedded(ws, "A", 5, null);
+      EmbeddedTableAssembly b = embedded(ws, "B", 3, null);
+      expression(b, "bx", "field['id'] * 1");
+      EmbeddedTableAssembly c = embedded(ws, "C", 2, null, true);
+      subQueryCondition(ws, a, union(ws, "U", b, c), "id");
+
+      assertBuildsAlone(ws, 4);
+   }
+
+   /**
+    * No table has any script, but the box's variable table holds a JavaScript
+    * {@link ExpressionValue}: A's builder takes the engine lock first, and every member query of
+    * the join evaluates that variable for its own cache key.
+    */
+   @Test
+   public void subQueryOnJoinWithScriptVariableBuildsAlone() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = embedded(ws, "A", 5, null);
+      EmbeddedTableAssembly b = embedded(ws, "B", 3, null);
+      EmbeddedTableAssembly c = embedded(ws, "C", 5, null, true);
+      subQueryCondition(ws, a, join(ws, "J", b, c), "id");
+      box = sandbox(ws);
+      box.getVariableTable().put("v1", jsValue("1"));
+
+      assertBuildsAlone(ws, 4);
+   }
+
+   /**
+    * Build A on one harness thread, nothing else running, within a bounded wait.
+    */
+   private void assertBuildsAlone(Worksheet ws, int arows) throws Exception {
+      if(box == null) {
+         box = sandbox(ws);
+      }
+
+      Started<Integer> builder = harness.start(
+         () -> drain(box.getTableLens("A", AssetQuerySandbox.RUNTIME_MODE)).size());
+      assertEquals(arows, harness.await(builder.future, KNOWN_CAP, "builder of A"));
    }
 
    /**
@@ -428,14 +623,81 @@ public class EmbeddedTableScriptLockCycleTest {
    }
 
    private static AssetCondition jsValueCondition(String js) {
+      return valueCondition(jsValue(js));
+   }
+
+   private static AssetCondition valueCondition(ExpressionValue value) {
       AssetCondition condition = new AssetCondition();
       condition.setOperation(XCondition.GREATER_THAN);
       condition.setType(XSchema.INTEGER);
+      condition.addValue(value);
+      return condition;
+   }
+
+   private static ExpressionValue jsValue(String js) {
       ExpressionValue value = new ExpressionValue();
       value.setExpression(js);
       value.setType(ExpressionValue.JAVASCRIPT);
-      condition.addValue(value);
-      return condition;
+      return value;
+   }
+
+   /**
+    * {@code left} inner join {@code right} on {@code id}.
+    */
+   private static RelationalJoinTableAssembly join(Worksheet ws, String name, TableAssembly left,
+                                                   TableAssembly right)
+   {
+      TableAssemblyOperator operator = new TableAssemblyOperator();
+      TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
+      op.setOperation(TableAssemblyOperator.INNER_JOIN);
+      op.setLeftTable(left.getName());
+      op.setRightTable(right.getName());
+      op.setLeftAttribute(left.getColumnSelection(false).getAttribute("id"));
+      op.setRightAttribute(right.getColumnSelection(false).getAttribute("id"));
+      operator.addOperator(op);
+      RelationalJoinTableAssembly join = new RelationalJoinTableAssembly(
+         ws, name, new TableAssembly[] { left, right }, new TableAssemblyOperator[] { operator });
+      ws.addAssembly(join);
+      join.update();
+      initColumns(ws, join);
+      return join;
+   }
+
+   /**
+    * {@code top} union {@code bottom} (same column count and types).
+    */
+   private static ConcatenatedTableAssembly union(Worksheet ws, String name, TableAssembly top,
+                                                  TableAssembly bottom)
+   {
+      TableAssemblyOperator operator = new TableAssemblyOperator();
+      TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
+      op.setOperation(TableAssemblyOperator.UNION);
+      op.setLeftTable(top.getName());
+      op.setRightTable(bottom.getName());
+      operator.addOperator(op);
+      ConcatenatedTableAssembly union = new ConcatenatedTableAssembly(
+         ws, name, new TableAssembly[] { top, bottom }, new TableAssemblyOperator[] { operator });
+      ws.addAssembly(union);
+      union.update();
+      initColumns(ws, union);
+      return union;
+   }
+
+   /**
+    * Give a composed table the default column selection of its bases, as the composer does.
+    */
+   private static void initColumns(Worksheet ws, TableAssembly table) {
+      AssetQuerySandbox box = new AssetQuerySandbox(ws);
+
+      try {
+         AssetEventUtil.initColumnSelection(box, table);
+      }
+      catch(Exception ex) {
+         throw new AssertionError(ex);
+      }
+      finally {
+         box.dispose();
+      }
    }
 
    private static MirrorTableAssembly mirror(Worksheet ws, String name, TableAssembly base) {
@@ -461,7 +723,10 @@ public class EmbeddedTableScriptLockCycleTest {
    {
       SubQueryValue sub = new SubQueryValue();
       sub.setQuery(b.getName());
-      sub.setAttribute(b.getColumnSelection(false).getAttribute(column));
+      DataRef attribute = b.getColumnSelection(false).getAttribute(column);
+      assertNotNull(attribute, "no column " + column + " in " + b.getName() + ": " +
+         b.getColumnSelection(false));
+      sub.setAttribute(attribute);
       sub.update(ws);
       AssetCondition condition = new AssetCondition();
       condition.setOperation(XCondition.ONE_OF);
@@ -481,6 +746,13 @@ public class EmbeddedTableScriptLockCycleTest {
    private static void awaitIn(Started<?> started, long capSeconds, String... frames)
       throws InterruptedException
    {
+      // a pooled env has no engine lock to wait in: the thread blocks on the table's monitor
+      // instead, so wait for it to park at all rather than for the full cap
+      if(POOL) {
+         awaitParked(started, capSeconds);
+         return;
+      }
+
       long deadline = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(capSeconds);
 
       while(System.currentTimeMillis() < deadline && !started.future.isDone()) {
