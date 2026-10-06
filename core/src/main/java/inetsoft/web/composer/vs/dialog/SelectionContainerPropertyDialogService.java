@@ -92,6 +92,7 @@ public class SelectionContainerPropertyDialogService {
          selectionContainerAssemblyInfo.getVizMark() == null ? null :
             !selectionContainerAssemblyInfo.isUserTitleHeight());
       sizePositionPaneModel.setContainer(selectionContainerAssembly.getContainer() != null);
+      VSDialogService.readSizeFollowsDensity(selectionContainerAssemblyInfo, sizePositionPaneModel, true);
 
       generalPropPaneModel.setShowEnabledGroup(true);
       generalPropPaneModel.setEnabled(selectionContainerAssemblyInfo.getEnabledValue());
@@ -167,9 +168,12 @@ public class SelectionContainerPropertyDialogService {
          selectionContainerAssemblyInfo.setUserTitleHeight(true);
          selectionContainerAssemblyInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
       }
+      Dimension shownSize = new Dimension(dialogService.getAssemblySize(selectionContainerAssemblyInfo, vs));
+      VSDialogService.followDensitySize(selectionContainerAssemblyInfo, sizePositionPaneModel);
       //When resizing selection container, also resize selection container children
       dialogService.setContainerSize(selectionContainerAssemblyInfo, sizePositionPaneModel,
                                      selectionContainerAssembly.getAssemblies(), vs);
+      VSDialogService.recordAuthorSize(selectionContainerAssemblyInfo, sizePositionPaneModel, shownSize);
 
       selectionContainerAssemblyInfo.setEnabledValue(generalPropPaneModel.getEnabled());
 

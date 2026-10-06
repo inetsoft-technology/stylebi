@@ -131,6 +131,9 @@ public class SelectionTreePropertyDialogService {
       sizePositionPaneModel.setCellHeightFollowsDensity(
          selectionTreeAssemblyInfo.getVizMark() == null ? null :
             !selectionTreeAssemblyInfo.isUserCellHeight());
+      VSDialogService.readSizeFollowsDensity(selectionTreeAssemblyInfo, sizePositionPaneModel,
+         !(selectionTreeAssembly.getContainer() instanceof CurrentSelectionVSAssembly) &&
+            selectionTreeAssemblyInfo.getShowTypeValue() == SelectionVSAssemblyInfo.LIST_SHOW_TYPE);
 
       basicGeneralPaneModel.setName(selectionTreeAssemblyInfo.getAbsoluteName());
       basicGeneralPaneModel.setPrimary(selectionTreeAssemblyInfo.isPrimary());
@@ -269,7 +272,11 @@ public class SelectionTreePropertyDialogService {
       streeInfo.setTitleVisibleValue(titlePropPaneModel.isVisible());
       streeInfo.setTitleValue(titlePropPaneModel.getTitle());
 
+      Dimension shownSize =
+         new Dimension(dialogService.getAssemblySize(streeInfo, viewsheet.getViewsheet()));
+      VSDialogService.followDensitySize(streeInfo, sizePositionPaneModel);
       dialogService.setAssemblySize(streeInfo, sizePositionPaneModel);
+      VSDialogService.recordAuthorSize(streeInfo, sizePositionPaneModel, shownSize);
       dialogService.setAssemblyPosition(streeInfo, sizePositionPaneModel);
       Boolean followsDensity = sizePositionPaneModel.getTitleHeightFollowsDensity();
 
