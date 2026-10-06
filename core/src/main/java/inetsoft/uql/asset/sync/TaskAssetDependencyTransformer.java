@@ -498,7 +498,7 @@ public class TaskAssetDependencyTransformer extends DependencyTransformer {
       }
 
       for(Element item : dependings) {
-         item.setAttribute("path", Tool.byteEncode2(newPath));
+         item.setAttribute("path", IndividualAssetBackupAction.encodeAssetPath(newPath));
 
          if(!info.isTask()) {
             item.setAttribute("user", newUser == null ? "" : newUser.convertToKey());
@@ -540,10 +540,15 @@ public class TaskAssetDependencyTransformer extends DependencyTransformer {
    }
 
    /**
-    * Checks if a stored backup asset path attribute references an asset path.
+    * Checks if a stored backup asset path attribute references an asset path. Accepts the
+    * current writer form, the form older writers stored (control characters raw), and any
+    * other encoding that the reader decodes to the path (Bug #77847).
     */
    static boolean matchesAssetPath(String stored, String path) {
-      return stored != null && path != null && stored.equals(Tool.byteEncode2(path));
+      return stored != null && path != null &&
+         (stored.equals(IndividualAssetBackupAction.encodeAssetPath(path)) ||
+          stored.equals(Tool.byteEncode2(path)) ||
+          path.equals(Tool.byteDecode(stored)));
    }
 
    /**

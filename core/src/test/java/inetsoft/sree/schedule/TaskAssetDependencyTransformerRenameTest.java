@@ -29,6 +29,7 @@ import inetsoft.util.*;
 import inetsoft.util.dep.XAsset;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -40,7 +41,11 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
+import java.io.*;
 import java.lang.reflect.Constructor;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.stream.Stream;
 
@@ -56,6 +61,9 @@ import static org.junit.jupiter.api.Assertions.*;
  *    <li>Bug #77851: an apostrophe in the old viewsheet id (name, folder, owner) or in the owner
  *    of a backed-up asset was put into an XPath string literal, the XPath failed silently and
  *    the rename was not followed.</li>
+ *    <li>Bug #77847: a backup asset path with control characters, stored encoded, must be
+ *    matched and rewritten (storage and import asset-file branches), and tasks stored by the old
+ *    writer must still be matched.</li>
  * </ul>
  */
 @ExtendWith(SpringExtension.class)
@@ -69,6 +77,9 @@ class TaskAssetDependencyTransformerRenameTest {
 
    @Autowired
    ScheduleManager scheduleManager;
+
+   @TempDir
+   Path tempDir;
 
    @BeforeEach
    void setUp() {
@@ -262,6 +273,95 @@ class TaskAssetDependencyTransformerRenameTest {
    }
 
    // ---------------------------------------------------------------------------------------
+   // Bug #77847: control characters in backup asset paths, legacy stored forms
+   // ---------------------------------------------------------------------------------------
+
+   static Stream<Arguments> controlCharRenames() {
+      return Stream.of(
+         Arguments.of("my\u001Fvs", "renamed"),
+         Arguments.of("F1/ws\u0001x", "F1/ws2"),
+         Arguments.of("myvs", "new\u001Fname"),
+         Arguments.of("tab\tvs", "tab\tvs2"));
+   }
+
+   @ParameterizedTest(name = "storage: {0} -> {1}")
+   @MethodSource("controlCharRenames")
+   void controlCharRenameIsFollowedInStorage(String oldPath, String newPath) throws Exception {
+      ScheduleTask task = task("c0", backup(asset("VIEWSHEET", oldPath, null)));
+      String key = store(task);
+      assertEquals(oldPath, reloadedAssetPath(key, 0), "the task must load before the rename");
+
+      rename(Mode.TRANSFORM, key, task, vsId(oldPath), vsId(newPath));
+
+      assertEquals(newPath, reloadedAssetPath(key, 0));
+   }
+
+   @ParameterizedTest(name = "asset file: {0} -> {1}")
+   @MethodSource("controlCharRenames")
+   void controlCharRenameIsFollowedInAssetFile(String oldPath, String newPath) throws Exception {
+      ScheduleTask task = task("c0f", backup(asset("VIEWSHEET", oldPath, null)));
+      File file = writeAssetFile(task);
+
+      transformFile(task, file, vsId(oldPath), vsId(newPath));
+
+      assertTrue(file.length() > 0, "the import file must not be truncated");
+      assertEquals(newPath, fileAssetPath(file));
+   }
+
+   @Test
+   void legacyRawDeletePathIsStillFollowed() throws Exception {
+      ScheduleTask task = task("del", backup(asset("VIEWSHEET", "delvs", null)));
+      String key = store(task);
+      // what the old writer stored for "del\u007Fvs": DEL is legal XML and was written raw
+      patchXAsset(key, e -> e.setAttribute("path", "del\u007Fvs"));
+      assertEquals("del\u007Fvs", reloadedAssetPath(key, 0));
+
+      rename(Mode.TRANSFORM, key, task, vsId("del\u007Fvs"), vsId("renamed"));
+
+      assertEquals("renamed", rawXAssets(key).get(0).getAttribute("path"));
+   }
+
+   @Test
+   void legacyRawDeletePathIsStillFollowedInAssetFile() throws Exception {
+      ScheduleTask task = task("delf", backup(asset("VIEWSHEET", "delvs", null)));
+      File file = writeAssetFile(task);
+      String xml = Files.readString(file.toPath(), StandardCharsets.UTF_8)
+         .replace("path=\"delvs\"", "path=\"del\u007Fvs\"");
+      Files.writeString(file.toPath(), xml, StandardCharsets.UTF_8);
+
+      transformFile(task, file, vsId("del\u007Fvs"), vsId("renamed"));
+
+      assertEquals("renamed", fileAssetPath(file));
+   }
+
+   @Test
+   void legacyEncodedFolderPathIsFollowedInAssetFile() throws Exception {
+      ScheduleTask task = task("legf", backup(asset("VIEWSHEET", "f1/myvs", null)));
+      File file = writeAssetFile(task);
+      assertTrue(Files.readString(file.toPath(), StandardCharsets.UTF_8)
+                    .contains("path=\"f1~_2f_~myvs\""));
+
+      transformFile(task, file, vsId("f1/myvs"), vsId("f2/renamed"));
+
+      assertTrue(Files.readString(file.toPath(), StandardCharsets.UTF_8)
+                    .contains("path=\"f2~_2f_~renamed\""));
+      assertEquals("f2/renamed", fileAssetPath(file));
+   }
+
+   @Test
+   void otherEncodingOfTheRenamedPathIsFollowed() throws Exception {
+      ScheduleTask task = task("arm3", backup(asset("VIEWSHEET", "xy", null)));
+      String key = store(task);
+      // no writer produces this form, but the reader resolves it to the asset "xAy"
+      patchXAsset(key, e -> e.setAttribute("path", "x~_41_~y"));
+      assertEquals("xAy", reloadedAssetPath(key, 0));
+
+      rename(Mode.TRANSFORM, key, task, vsId("xAy"), vsId("z"));
+
+      assertEquals("z", reloadedAssetPath(key, 0));
+   }
+
+   // ---------------------------------------------------------------------------------------
    // helpers
    // ---------------------------------------------------------------------------------------
 
@@ -303,6 +403,35 @@ class TaskAssetDependencyTransformerRenameTest {
       RenameDependencyInfo dinfo = new RenameDependencyInfo();
       dinfo.addRenameInfo(taskEntry, new RenameInfo(oldId, newId, RenameInfo.VIEWSHEET));
       DependencyTransformer.transformAsset(taskEntry, dinfo);
+   }
+
+   private void transformFile(ScheduleTask task, File file, String oldId, String newId) {
+      AssetEntry taskEntry = AssetEntry.createAssetEntry(taskKey(task));
+      TaskAssetDependencyTransformer transformer = new TaskAssetDependencyTransformer(taskEntry);
+      transformer.setAssetFile(file);
+      transformer.process(List.of(new RenameInfo(oldId, newId, RenameInfo.VIEWSHEET)));
+   }
+
+   private File writeAssetFile(ScheduleTask task) throws IOException {
+      File file = Files.createTempFile(tempDir, "task", ".xml").toFile();
+
+      try(PrintWriter writer = new PrintWriter(new OutputStreamWriter(
+         new FileOutputStream(file), StandardCharsets.UTF_8)))
+      {
+         writer.println("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
+         task.writeXML(writer);
+      }
+
+      return file;
+   }
+
+   private static String fileAssetPath(File file) throws Exception {
+      try(InputStream in = new FileInputStream(file)) {
+         Document doc = Tool.parseXML(in, "UTF-8", false, false);
+         ScheduleTask task = new ScheduleTask();
+         task.parseXML(doc.getDocumentElement());
+         return ((IndividualAssetBackupAction) task.getAction(0)).getAssets().get(0).getPath();
+      }
    }
 
    private static ViewsheetAction vsAction(String id) {
