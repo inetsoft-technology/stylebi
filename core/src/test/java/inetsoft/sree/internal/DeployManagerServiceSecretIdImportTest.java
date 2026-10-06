@@ -91,6 +91,8 @@ class DeployManagerServiceSecretIdImportTest {
       doReturn(false).when(registry).containDatasource(anyString());
       doReturn(new String[0]).when(registry).getDataSourceFullNames();
       doReturn(null).when(registry).getDataSource(anyString());
+      // no data source folder is in the way of an import
+      doReturn(false).when(registry).containObject(any());
       doNothing().when(registry).parseDomain(any());
       doNothing().when(registry).setExistQueryFolders(any());
       doNothing().when(registry).setDataSource(any(XDataSource.class), anyBoolean());

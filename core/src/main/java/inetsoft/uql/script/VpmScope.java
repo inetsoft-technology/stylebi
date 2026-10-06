@@ -19,6 +19,7 @@ package inetsoft.uql.script;
 
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XPrincipal;
+import inetsoft.uql.erm.vpm.VirtualPrivateModel;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.script.*;
 import inetsoft.util.script.graal.ScriptScope;
@@ -53,6 +54,13 @@ public class VpmScope implements ScriptScope {
       ScriptEnv senv = ScriptEnvRepository.getScriptEnv();
       senv.init();
       senv.put("vpm", new inetsoft.util.script.graal.ScopeProxy(scope));
+
+      // Bug #77615, a scope member is found before a global, so the built-in hasTable would
+      // hide a script library function of the same name and change what an existing script
+      // calling it does. The library function takes precedence.
+      if(senv.get(HAS_TABLE) != null) {
+         scope.removeMember(HAS_TABLE);
+      }
 
       // compile the script statement
       try {
@@ -104,6 +112,8 @@ public class VpmScope implements ScriptScope {
       // ScriptFunction so it is callable from scripts under GraalJS.
       members.put("runQuery", new inetsoft.util.script.graal.ScriptFunction(
          this, getClass(), "runQuery", String.class, Object.class));
+      members.put(HAS_TABLE, new inetsoft.util.script.graal.ScriptFunction(
+         this, getClass(), HAS_TABLE, String.class));
    }
 
    /**
@@ -114,6 +124,54 @@ public class VpmScope implements ScriptScope {
     */
    public Object runQuery(String name, Object val) {
       return XUtil.runQuery(name, val, getUser(), null);
+   }
+
+   /**
+    * Set the tables of the query, available to the script as the <code>tables</code> array
+    * and tested by {@link #hasTable(String)}. The names are as the query stores them, so a
+    * parsed sql text has the helper's identifier quotes (<tt>"sa"."t"</tt> on PostgreSQL)
+    * while a query built from a model does not (<tt>sa.t</tt>).
+    * @param tables the tables of the query.
+    */
+   public void setTables(String[] tables) {
+      this.tables = tables == null ? null : tables.clone();
+      members.put("tables", new StringArray("table", tables));
+   }
+
+   /**
+    * Check if the query reads a table. Bug #77615, the <code>tables</code> array has the
+    * names as the query stores them, quoted or not depending on how the query was built, so
+    * a script comparing the names as written misses a quoted table. The names are compared
+    * by {@link VirtualPrivateModel#isSameTable(String, String)}, so identifier quotes and
+    * case are ignored, and a name with fewer segments matches the trailing segments of the
+    * other one, e.g. <tt>hasTable('sa.t')</tt> and <tt>hasTable('t')</tt> are both true for
+    * <tt>"sa"."t"</tt>, but <tt>hasTable('sb.t')</tt> is not. So a query table stored without
+    * a schema matches the name in any schema: <tt>hasTable('sa.t')</tt> and
+    * <tt>hasTable('sb.t')</tt> are both true for <tt>t</tt>.
+    * <p>
+    * The tables are those {@link #setTables(String[]) set} on this scope: for the trigger and
+    * hidden columns scripts the tables of the query and its sub queries, for a condition
+    * script the tables of the query or sub query the condition is added to. Changing the
+    * <code>tables</code> array in the script does not change the result.
+    * <p>
+    * A script library function named <tt>hasTable</tt> takes precedence, the built-in is not
+    * available to the script when the library defines one.
+    * @param name the table name, quoted or not.
+    * @return <tt>true</tt> if the query reads the table, <tt>false</tt> if not or if the
+    * name is null or empty.
+    */
+   public boolean hasTable(String name) {
+      if(tables == null || name == null || name.trim().isEmpty()) {
+         return false;
+      }
+
+      for(String table : tables) {
+         if(VirtualPrivateModel.isSameTable(table, name)) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    /**
@@ -268,11 +326,13 @@ public class VpmScope implements ScriptScope {
 
    private Principal user;
    private VariableTable vars;
+   private String[] tables;
    private ScriptScope parent;
    private final Set<String> usedVars = new HashSet<>();
    private final Map<String, Object> members = new LinkedHashMap<>();
 
    private static final String CONDITION = "condition";
+   private static final String HAS_TABLE = "hasTable";
 
    private static final Logger LOG =
       LoggerFactory.getLogger(VpmScope.class);

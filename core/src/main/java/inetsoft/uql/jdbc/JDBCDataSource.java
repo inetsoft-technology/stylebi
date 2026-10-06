@@ -20,6 +20,8 @@ package inetsoft.uql.jdbc;
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.AdditionalConnectionDataSource;
 import inetsoft.uql.XDataSource;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.jdbc.util.JDBCUtil;
 import inetsoft.uql.schema.UserVariable;
@@ -1316,6 +1318,29 @@ public class JDBCDataSource extends AdditionalConnectionDataSource<JDBCDataSourc
 
          systemSchemas = schemas.toArray(new String[0]);
          systemCatalogs = catalogs.toArray(new String[0]);
+      }
+   }
+
+   /**
+    * Removes an additional connection and its legacy connection test query, which older versions
+    * kept in SreeEnv under the additional connection name alone. The test query is kept if a
+    * data source of that full name exists.
+    */
+   @Override
+   public void removeDatasource(String name) {
+      super.removeDatasource(name);
+
+      try {
+         AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
+                                           AssetEntry.Type.DATA_SOURCE, name, null);
+
+         if(!getRegistry().containObject(entry) && JDBCUtil.removeConnectionTestQueryIfSet(name)) {
+            SreeEnv.save();
+         }
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to remove the connection test query of additional connection {}",
+                  name, e);
       }
    }
 

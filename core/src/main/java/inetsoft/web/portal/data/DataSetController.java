@@ -23,6 +23,7 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.util.MessageException;
 import inetsoft.util.MissingAssetClassNameException;
+import inetsoft.util.Tool;
 import inetsoft.web.factory.RemainingPath;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
@@ -223,6 +224,8 @@ public class DataSetController {
    public void addFolder(@RequestBody AddFolderRequest request, Principal principal)
       throws Exception
    {
+      // Bug #77733, a name with a slash would build a path under another parent
+      Tool.checkFolderNameSeparator(request.name());
       String path;
       String parentPath = request.parentPath();
 

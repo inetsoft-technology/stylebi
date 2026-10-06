@@ -246,7 +246,16 @@ public class DashboardRegistry {
          Class<?> c = Class.forName(className);
 
          Dashboard dashboard = (Dashboard) c.getConstructor().newInstance();
-         dashboard.parseXML(dashboardNode);
+
+         // a dashboard that fails to parse (e.g. a viewsheet entry without <path>, Bug #77603)
+         // is skipped, so that it does not drop the dashboards after it in this file
+         try {
+            dashboard.parseXML(dashboardNode);
+         }
+         catch(Exception ex) {
+            LOG.warn("Dashboard {} in registry {} skipped: {}", name, getPath(), ex.getMessage());
+            continue;
+         }
 
          if(needsPort && !isGlobal()) {
             if(globalRegistry != null && globalRegistry.getDashboard(name + "__GLOBAL") != null) {

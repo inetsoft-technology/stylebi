@@ -25,7 +25,7 @@ import inetsoft.uql.text.TextOutput;
 import inetsoft.uql.util.XTableTableNode;
 import inetsoft.util.CoreTool;
 import inetsoft.util.Tool;
-import org.pojava.datetime.DateTime;
+import inetsoft.util.pojava.datetime.DateTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.util.StringUtils;
@@ -397,7 +397,7 @@ public abstract class ExcelLoader {
 
                try {
                   if(ovalue != null) {
-                     String ostr = new SimpleDateFormat(defPattern).format(ovalue);
+                     String ostr = Tool.createGregorianDateFormat(defPattern).format(ovalue);
                      ovalue = Tool.getData(
                         "string".equals(types.get(column)) ? dateType : types.get(column), ostr);
                   }
@@ -552,7 +552,7 @@ public abstract class ExcelLoader {
                      String defPattern = getDefaultPattern(type);
 
                      if(!XSchema.TIME_INSTANT.equals(type) && val != null) {
-                        String ostr = new SimpleDateFormat(defPattern).format(val);
+                        String ostr = Tool.createGregorianDateFormat(defPattern).format(val);
                         val = Tool.getData(type, ostr);
                      }
 

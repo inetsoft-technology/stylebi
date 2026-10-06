@@ -19,8 +19,13 @@ package inetsoft.util.script.graal;
 
 import org.graalvm.polyglot.*;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.mockito.Mockito;
 
 import java.util.Set;
+import java.util.stream.Stream;
 import static org.junit.jupiter.api.Assertions.*;
 
 @Tag("core")
@@ -276,6 +281,93 @@ class ScriptHostAccessTest {
             () -> ctx.eval("js", "Java.type('inetsoft.util.script.JavaScriptEngine')"));
          assertThrows(PolyglotException.class,
             () -> ctx.eval("js", "Java.type('inetsoft.util.script.FormulaContext')"));
+      }
+   }
+
+   /**
+    * Instances of the privileged engine, storage and helper types, and a member each
+    * declares. None is script API, so the member is hidden on any instance a script
+    * holds. (#77827, #77828)
+    */
+   static Stream<Arguments> privilegedInstanceMembers() {
+      return Stream.of(
+         Arguments.of(inetsoft.uql.asset.AssetRepository.class, "getSheet"),
+         Arguments.of(inetsoft.uql.asset.AssetRepository.class, "clearVSBookmark"),
+         Arguments.of(inetsoft.uql.asset.AssetRepository.class, "getStorage"),
+         Arguments.of(inetsoft.sree.RepletRepository.class, "removeRepositoryEntry"),
+         Arguments.of(inetsoft.util.IndexedStorage.class, "remove"),
+         Arguments.of(inetsoft.util.IndexedStorage.class, "getKeys"),
+         Arguments.of(inetsoft.uql.asset.sync.DependencyStorageService.class,
+                      "removeDependencyStorage"),
+         Arguments.of(inetsoft.report.LibManagerProvider.class, "getManager"),
+         Arguments.of(inetsoft.report.LibManager.class, "setScript"),
+         Arguments.of(inetsoft.uql.asset.EmbeddedTableStorage.class, "removeTable"),
+         Arguments.of(inetsoft.uql.viewsheet.vslayout.DeviceRegistry.class, "deleteDevice"),
+         Arguments.of(inetsoft.uql.viewsheet.BookmarkLockManager.class, "lock"),
+         Arguments.of(inetsoft.report.composition.execution.AssetDataCache.class,
+                      "getLocalEntries"),
+         Arguments.of(inetsoft.uql.asset.sync.RenameTransformHandler.class, "addTransformTask"),
+         Arguments.of(inetsoft.uql.asset.UpdateAssetDependenciesHandler.class, "rebuild"),
+         Arguments.of(inetsoft.uql.asset.DependencyHandler.class,
+                      "updateDashboardDependencies"),
+         Arguments.of(inetsoft.report.internal.MVInfoClient.class, "getDataRefreshedTime"),
+         Arguments.of(inetsoft.uql.asset.WorksheetProcessor.class, "execute"),
+         Arguments.of(inetsoft.report.composition.execution.ReportWorksheetProcessor.class,
+                      "execute"));
+   }
+
+   @ParameterizedTest(name = "{0}.{1}")
+   @MethodSource("privilegedInstanceMembers")
+   void privilegedTypeMembersDenied(Class<?> type, String member) {
+      try(Context ctx = newContext()) {
+         ctx.getBindings("js").putMember("h", Mockito.mock(type));
+         assertEquals("undefined", ctx.eval("js", "typeof h." + member).asString());
+      }
+   }
+
+   /**
+    * The statics that hand out or act through the privileged types, on the Java.type
+    * route; a subclass inherits the deny (VSLayoutTool). (#77827, #77828)
+    */
+   static Stream<Arguments> privilegedStatics() {
+      return Stream.of(
+         Arguments.of("inetsoft.uql.asset.sync.DependencyTool", "getAssetElement"),
+         Arguments.of("inetsoft.uql.asset.sync.DependencyStorageService", "getInstance"),
+         Arguments.of("inetsoft.report.LayoutTool", "getNamedGroupAssembly"),
+         Arguments.of("inetsoft.uql.viewsheet.VSLayoutTool", "getNamedGroupAssembly"),
+         Arguments.of("inetsoft.uql.viewsheet.VSLayoutTool", "createCalcLens"),
+         Arguments.of("inetsoft.report.LibManagerProvider", "getInstance"),
+         Arguments.of("inetsoft.uql.asset.EmbeddedTableStorage", "getInstance"),
+         Arguments.of("inetsoft.uql.asset.EmbeddedDataCacheHandler", "clearOrgCache"),
+         Arguments.of("inetsoft.uql.viewsheet.vslayout.DeviceRegistry", "getRegistry"),
+         Arguments.of("inetsoft.uql.viewsheet.BookmarkLockManager", "getManager"),
+         Arguments.of("inetsoft.report.composition.execution.AssetDataCache", "getCache"),
+         Arguments.of("inetsoft.report.composition.execution.DistributedTableCacheStore",
+                      "getInstance"),
+         Arguments.of("inetsoft.uql.asset.sync.RenameTransformHandler", "getTransformHandler"),
+         Arguments.of("inetsoft.uql.asset.UpdateAssetDependenciesHandler", "getInstance"),
+         Arguments.of("inetsoft.uql.asset.DependencyHandler", "getInstance"),
+         Arguments.of("inetsoft.report.internal.MVInfoClient", "getInstance"),
+         Arguments.of("inetsoft.uql.asset.AbstractAssetEngine", "getPortalDataEntries"));
+   }
+
+   @ParameterizedTest(name = "{0}.{1}")
+   @MethodSource("privilegedStatics")
+   void privilegedStaticsDenied(String type, String member) {
+      try(Context ctx = newContext()) {
+         assertEquals("undefined", ctx.eval(
+            "js", "typeof Java.type('" + type + "')." + member).asString());
+      }
+   }
+
+   /** A script-API type next to the denied ones keeps its members. (#77827, #77828) */
+   @Test void scriptApiTypeKeepsMembers() {
+      try(Context ctx = newContext()) {
+         assertEquals("function", ctx.eval("js",
+            "typeof Java.type('inetsoft.uql.asset.AssetEntry').createAssetEntry").asString());
+         assertEquals("function", ctx.eval("js",
+            "typeof Java.type('inetsoft.uql.asset.internal.AssetUtil').getAssetRepository")
+            .asString());
       }
    }
 

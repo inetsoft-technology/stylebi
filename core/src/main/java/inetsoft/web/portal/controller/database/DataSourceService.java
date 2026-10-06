@@ -340,7 +340,9 @@ public class DataSourceService {
       }
 
       List<Vpm> results = new ArrayList<>();
-      AssetEntry[] entries = getModelAssetEntries(database + "/", AssetEntry.Type.VPM);
+      // Bug #77820, not the VPMs of a data source of a folder at the same path
+      AssetEntry[] entries = dataSourceRegistry.getDataSourceEntries(
+         database, database + "/", AssetEntry.Type.VPM, false);
 
       if(!checkPermission(database, ResourceAction.WRITE, principal)) {
          return model;
@@ -389,8 +391,10 @@ public class DataSourceService {
          result.setCreatedDateLabel(dateLabel);
          result.setId(entry.toIdentifier());
          result.setDatabaseName(database);
-         vmodel = dataModel.getVirtualPrivateModel(entry.getName());
-         result.setDescription(vmodel.getDescription());
+         // the name may have "/" in it, the entry name is only its last part
+         vmodel = dataModel.getVirtualPrivateModel(
+            entry.getPath().substring(database.length() + 1));
+         result.setDescription(vmodel != null ? vmodel.getDescription() : null);
          results.add(result);
       }
 
@@ -426,15 +430,20 @@ public class DataSourceService {
          return results;
       }
 
-      AssetEntry[] entries = getModelAssetEntries(database + "/", AssetEntry.Type.PARTITION);
+      // Bug #77820, not the views of a data source of a folder at the same path
+      AssetEntry[] entries = dataSourceRegistry.getDataSourceEntries(
+         database, database + "/", AssetEntry.Type.PARTITION, false);
 
       for(AssetEntry entry : entries) {
-         XPartition partition = dataModel.getPartition(entry.getName());
-         String folderName = partition.getFolder();
+         // the name may have "/" in it, the entry name is only its last part
+         XPartition partition =
+            dataModel.getPartition(entry.getPath().substring(database.length() + 1));
 
          if(partition == null) {
             continue;
          }
+
+         String folderName = partition.getFolder();
 
          if(!allChild && Tool.equals(folderName, folder) ||
             // for search
@@ -508,8 +517,9 @@ public class DataSourceService {
          basePath += "/";
       }
 
-      AssetEntry[] entries =
-         getModelAssetEntries(basePath, AssetEntry.Type.EXTENDED_PARTITION);
+      // Bug #77820, not the views of a data source of a folder at the path of the data source
+      AssetEntry[] entries = dataSourceRegistry.getDataSourceEntries(
+         database, basePath, AssetEntry.Type.EXTENDED_PARTITION, false);
 
       if(entries != null) {
          for(AssetEntry entry : entries) {
@@ -652,8 +662,9 @@ public class DataSourceService {
          basePath += "/";
       }
 
-      AssetEntry[] extendModels =
-         getModelAssetEntries(basePath, AssetEntry.Type.EXTENDED_LOGIC_MODEL);
+      // Bug #77820, not the models of a data source of a folder at the path of the data source
+      AssetEntry[] extendModels = dataSourceRegistry.getDataSourceEntries(
+         database, basePath, AssetEntry.Type.EXTENDED_LOGIC_MODEL, false);
       String connection = null;
       XLogicalModel childModel = null;
 

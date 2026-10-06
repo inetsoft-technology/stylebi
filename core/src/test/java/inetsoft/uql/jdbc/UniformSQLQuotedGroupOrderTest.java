@@ -98,7 +98,7 @@ class UniformSQLQuotedGroupOrderTest {
 
    @Test
    void sybaseAliasFormKeepsQuotes() throws Exception {
-      UniformSQL sql = parse("select a = \"x y\" from t");
+      UniformSQL sql = parse("select a = \"x y\" from t", sybase());
       JDBCSelection selection = (JDBCSelection) sql.getSelection();
 
       assertEquals("x y", selection.getColumn(0));
@@ -238,7 +238,7 @@ class UniformSQLQuotedGroupOrderTest {
    @Test
    void quotedFlagsSurviveXmlRoundTrip() throws Exception {
       UniformSQL sql = parse("select a = \"x y\", count(*) from t where \"MixedCase\" = 1 " +
-                             "group by \"x y\" having \"x y\" > 1 order by \"MixedCase\" desc");
+                             "group by \"x y\" having \"x y\" > 1 order by \"MixedCase\" desc", sybase());
       String expected = regenerate(sql);
       UniformSQL loaded = reload(sql);
 
@@ -329,8 +329,6 @@ class UniformSQLQuotedGroupOrderTest {
    @Test
    void regeneratedSqlRegeneratesToItself() throws Exception {
       String[] queries = {
-         "select a = \"x y\", count(*) from t where \"MixedCase\" = 1 group by \"x y\" " +
-            "having \"x y\" > 1 order by \"MixedCase\" desc",
          "select coalesce(`x y`, 0), case when \"x y\" = 1 then 1 end from t where (\"x y\") = 1",
          "select \"x y\" as z from t order by z",
          "select count(*) from t group by \"x y\", a",
@@ -342,6 +340,12 @@ class UniformSQLQuotedGroupOrderTest {
          String generated = regenerate(query);
          assertEquals(generated, regenerate(generated), query);
       }
+
+      // the alias form is parsed on a T-SQL data source only (#77785)
+      String query = "select a = \"x y\", count(*) from t where \"MixedCase\" = 1 group by \"x y\" " +
+         "having \"x y\" > 1 order by \"MixedCase\" desc";
+      String generated = regenerate(parse(query, sybase()));
+      assertEquals(generated, regenerate(parse(generated, sybase())), query);
    }
 
    @Test
@@ -435,6 +439,13 @@ class UniformSQLQuotedGroupOrderTest {
       ds.setRuntimeProductName(product);
       // otherwise the mysql and oracle helpers ask the repository for it
       ds.setProductVersion("10.0");
+      return ds;
+   }
+
+   // select a = b is the T-SQL alias form, parsed only for SQL Server and Sybase (#77785)
+   private static JDBCDataSource sybase() {
+      JDBCDataSource ds = dataSource("net.sourceforge.jtds.jdbc.Driver", "jdbc:jtds:sybase://localhost/db", "sybase");
+      assertEquals("sybase", SQLHelper.getSQLHelper(ds).getSQLHelperType());
       return ds;
    }
 

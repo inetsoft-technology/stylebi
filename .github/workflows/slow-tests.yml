@@ -1,0 +1,65 @@
+# Slack notifications come from the GitHub Slack app, subscribed in the channel with
+#   /github subscribe inetsoft-technology/stylebi workflows:{name:"Slow Tests" event:"schedule" branch:"main"}
+# The subscription matches on this name, so update it if the name changes.
+name: Slow Tests
+on:
+  schedule:
+    # daily, 06:00 UTC
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  # The core tests tagged slow (long-running timing, concurrency, stress and large
+  # parameterized tests) and the lockcycle suite with the pool off, which the PR and Jenkins
+  # builds leave out
+  slow-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          server-id: gh-stylebi
+          server-username: GITHUB_ACTOR
+          server-password: GITHUB_TOKEN
+
+      - name: Cache local Maven repository
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+
+      - name: Build core and its dependencies
+        run: ./mvnw --batch-mode install -pl core -am -DskipTests -Dmaven.javadoc.skip=true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Slow core tests
+        run: ./mvnw --batch-mode test -pl core -Dsurefire.groups=slow
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # the PR and Jenkins builds run the lockcycle suite pooled, as production runs worksheet
+      # scripts by default; script.ws.contextPool=false is still supported, so it is checked
+      # here. Runs even when the slow tests failed
+      - name: Lockcycle suite with the pool off
+        if: ${{ !cancelled() }}
+        run: >-
+          ./mvnw --batch-mode test -pl core
+          -Dtest='**/lockcycle/*Test'
+          -Dlockcycle.pool=false
+          '-Dsurefire.groups=core | slow'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

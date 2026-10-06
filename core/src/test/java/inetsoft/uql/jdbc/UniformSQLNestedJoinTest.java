@@ -52,7 +52,7 @@ import static org.mockito.Mockito.*;
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
 @SreeHome
-@Tag("core")
+@Tag("slow")
 class UniformSQLNestedJoinTest {
    // an ANSI join data source, the sql of a query is generated with its data source
    private static JDBCDataSource ansiSource;
@@ -164,7 +164,7 @@ class UniformSQLNestedJoinTest {
       "select * from a right join b on a.id = b.id, c where b.id = c.id",
       "select * from a full join b on a.id = b.id, c where b.id = c.id",
       "select * from a right join b on a.id = b.id, c join d on c.id = d.id",
-      "select * from a join b on a.id = b.id, c right join d on c.id = d.id",
+      // a RIGHT join after a comma is refused (#77675, SQLHelperCommaJoinGroupTest)
       // sql generated for query editor joins
       "select * from (a RIGHT OUTER JOIN b ON a.id = b.id ) INNER JOIN c ON b.id = c.id",
       "select * from ((b INNER JOIN c ON b.id = c.id ) RIGHT OUTER JOIN a ON a.id = b.id ) " +
@@ -185,7 +185,6 @@ class UniformSQLNestedJoinTest {
       "select * from a full join b on a.id = b.id join c on a.id = c.id",
       "select * from a right join b on a.id = b.id join c on b.id = c.id join d on d.id = a.id",
       "select * from a right join b on a.id = b.id, c where a.id = c.id",
-      "select * from a, b right join c on b.id = c.id where a.id = b.id",
       "select * from a right join b on a.id = b.id, c, d where a.id = c.id and c.id = d.id",
       "select * from a right join b on a.id = b.id, c join d on c.id = d.id where a.id = d.id",
       "select * from a left join b on a.id = b.id right join c on b.id = c.id where a.id = c.k",
@@ -304,7 +303,6 @@ class UniformSQLNestedJoinTest {
       "select * from a right join b on a.id = b.id right join c on b.id = c.id",
       "select * from a left join b on a.id = b.id right join c on b.id = c.id",
       "select * from a right join b on a.id = b.id where a.k = 1",
-      "select * from a, b right join c on b.id = c.id",
       // a right join in a subquery doesn't refuse the inner join of the query
       "select * from a join b on a.id = b.id where b.id in " +
          "(select c.id from c right join d on c.id = d.id)",

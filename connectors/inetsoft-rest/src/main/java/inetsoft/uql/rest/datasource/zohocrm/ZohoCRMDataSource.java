@@ -23,6 +23,8 @@ import inetsoft.uql.XRepository;
 import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.json.EndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
+import inetsoft.util.CoreTool;
+import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
 import inetsoft.util.credential.AuthorizationCodeGrant;
 import inetsoft.util.credential.CredentialType;
@@ -41,9 +43,12 @@ import org.w3c.dom.Element;
 
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.text.MessageFormat;
 import java.time.*;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
+
+import static inetsoft.util.AbstractPasswordEncryption.MASTER_PREFIX;
 
 @View(vertical = true, value = {
    @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
@@ -175,18 +180,41 @@ public class ZohoCRMDataSource extends EndpointJsonDataSource<ZohoCRMDataSource>
    }
 
    public void authorize(String sessionId) {
-      if(getClientId() == null || getClientId().isEmpty() || getClientSecret() == null ||
-         getClientSecret().isEmpty() || getAccountDomain() == null || getAccountDomain().isEmpty() ||
-         getAuthorizationCode() == null || getAuthorizationCode().isEmpty())
-      {
+      if(isUndecryptable(getClientSecret())) {
+         addUserMessage("zohocrm.undecryptable");
          return;
       }
 
-      updateTokens(
+      String missing = Tool.isEmptyString(getClientId()) ? "Client ID" :
+         Tool.isEmptyString(getClientSecret()) ? "Client Secret" :
+         Tool.isEmptyString(getAccountDomain()) ? "Account Domain" :
+         Tool.isEmptyString(getAuthorizationCode()) ? "Authorization Code" : null;
+
+      if(missing != null) {
+         if("Authorization Code".equals(missing)) {
+            addUserMessage("zohocrm.authorize.missingCode");
+         }
+         else {
+            addUserMessage("zohocrm.authorize.missingField", getBundle().getString(missing));
+         }
+
+         return;
+      }
+
+      boolean success = updateTokens(
          new BasicNameValuePair("grant_type", "authorization_code"),
          new BasicNameValuePair("client_id", getClientId()),
          new BasicNameValuePair("client_secret", getClientSecret()),
          new BasicNameValuePair("code", getAuthorizationCode()));
+
+      if(success) {
+         // the code can only be used once, clear it so that it is not replayed or exported
+         if(!isUseCredentialId()) {
+            setAuthorizationCode(null);
+         }
+
+         addUserMessage("zohocrm.authorize.success");
+      }
    }
 
    @Override
@@ -197,21 +225,52 @@ public class ZohoCRMDataSource extends EndpointJsonDataSource<ZohoCRMDataSource>
          return;
       }
 
-      updateTokens(
+      if(isUndecryptable(getClientSecret()) || isUndecryptable(getRefreshToken())) {
+         LOG.warn(
+            "The client secret or refresh token of data source {} could not be decrypted, " +
+            "the master password has likely been changed", getFullName());
+         addUserMessage("zohocrm.undecryptable");
+         return;
+      }
+
+      boolean success = updateTokens(
          new BasicNameValuePair("grant_type", "refresh_token"),
          new BasicNameValuePair("client_id", getClientId()),
          new BasicNameValuePair("client_secret", getClientSecret()),
          new BasicNameValuePair("refresh_token", getRefreshToken()));
 
+      if(!success || getFullName() == null) {
+         return;
+      }
+
+      // Bug #77692, save the refreshed tokens onto the stored definition, not this runtime
+      // instance whose variables may have been replaced with the values of the query
+      final String accessToken = getAccessToken();
+      final String refreshToken = getRefreshToken();
+      final long expiration = getTokenExpiration();
+      final String apiDomain = getURL();
+
       try {
-         XRepository.getRepository().updateDataSource(this, getFullName());
+         XRepository.getRepository().updateDataSourceTokens(this, stored -> {
+            ZohoCRMDataSource zoho = (ZohoCRMDataSource) stored;
+            zoho.setAccessToken(accessToken);
+            zoho.setRefreshToken(refreshToken);
+            zoho.setTokenExpiration(expiration);
+            zoho.setURL(apiDomain);
+         });
       }
       catch(Exception e) {
          LOG.warn("Failed to save data source with updated access tokens", e);
       }
    }
 
-   private void updateTokens(NameValuePair... parameters) {
+   /**
+    * Updates the tokens from the Zoho token endpoint.
+    *
+    * @return {@code true} if the tokens were updated, {@code false} if the request failed, in
+    *         which case a user message describing the failure has been added.
+    */
+   private boolean updateTokens(NameValuePair... parameters) {
       HttpPost request = new HttpPost(getAccountDomain() + "/oauth/v2/token");
       List<NameValuePair> form = Arrays.asList(parameters);
       UrlEncodedFormEntity entity = new UrlEncodedFormEntity(form, Consts.UTF_8);
@@ -237,21 +296,60 @@ public class ZohoCRMDataSource extends EndpointJsonDataSource<ZohoCRMDataSource>
                Duration duration = Duration.of(json.get("expires_in").asLong(), ChronoUnit.SECONDS);
                Instant instant = Instant.now().plus(duration);
                tokenExpiration = instant.toEpochMilli();
+               return true;
             }
-            else {
+            else if(json.has("error")) {
                String error = json.get("error").asText();
                LOG.error("Failed to get access token: {}", error);
+
+               if("invalid_code".equals(error)) {
+                  addUserMessage("zohocrm.token.invalidCode");
+               }
+               else if("invalid_client".equals(error)) {
+                  addUserMessage("zohocrm.token.invalidClient");
+               }
+               else {
+                  addUserMessage("zohocrm.token.error", error);
+               }
+            }
+            else {
+               LOG.error("Failed to get access token, unexpected response");
+               addUserMessage("zohocrm.token.unexpectedResponse");
             }
          }
          else {
             LOG.error(
                "Failed to get access token [{}]: {}",
                status, response.getStatusLine().getReasonPhrase());
+            addUserMessage(
+               "zohocrm.token.httpError", status, response.getStatusLine().getReasonPhrase());
          }
       }
       catch(IOException e) {
          LOG.error("Failed to get access token", e);
+         addUserMessage("zohocrm.token.error", e.getMessage());
       }
+
+      return false;
+   }
+
+   /**
+    * Determines if a secret is still encrypted with the master password after it was loaded,
+    * which means that it could not be decrypted on this server, for example because the data
+    * source was imported from a server that uses a different master password.
+    */
+   private static boolean isUndecryptable(String secret) {
+      return secret != null && secret.startsWith(MASTER_PREFIX);
+   }
+
+   private static ResourceBundle getBundle() {
+      return ResourceBundle.getBundle(
+         "inetsoft.uql.rest.datasource.zohocrm.Bundle", ThreadContext.getLocale());
+   }
+
+   private static void addUserMessage(String key, Object... args) {
+      String message = getBundle().getString(key);
+      CoreTool.addUserMessage(args.length == 0 ? message : MessageFormat.format(message, args));
    }
 
    @Override

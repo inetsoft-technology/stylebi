@@ -73,6 +73,6 @@
 </ng-template>
 <ng-template #editJoinDialog let-close="close" let-dismiss="dismiss">
   <edit-join-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)"
-                    [removeEnabled]="false" [joinModel]="editJoinModel">
+                    [removeEnabled]="false" [joinModel]="editingJoin">
   </edit-join-dialog>
 </ng-template>

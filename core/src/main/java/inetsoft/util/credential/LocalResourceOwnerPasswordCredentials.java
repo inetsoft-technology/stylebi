@@ -61,11 +61,33 @@ public class LocalResourceOwnerPasswordCredentials extends LocalPasswordCredenti
    }
 
    @Override
+   public String getAccessToken() {
+      return accessToken;
+   }
+
+   @Override
+   public void setAccessToken(String accessToken) {
+      this.accessToken = accessToken;
+   }
+
+   @Override
+   public String getRefreshToken() {
+      return refreshToken;
+   }
+
+   @Override
+   public void setRefreshToken(String refreshToken) {
+      this.refreshToken = refreshToken;
+   }
+
+   @Override
    public void reset() {
       super.reset();
       clientId = "";
       clientSecret = "";
       tenantId = "";
+      accessToken = null;
+      refreshToken = null;
    }
 
    @Override
@@ -76,7 +98,9 @@ public class LocalResourceOwnerPasswordCredentials extends LocalPasswordCredenti
 
       return Tool.equals(((LocalResourceOwnerPasswordCredentials) obj).clientId, clientId) &&
          Tool.equals(((LocalResourceOwnerPasswordCredentials) obj).clientSecret, clientSecret) &&
-         Tool.equals(((LocalResourceOwnerPasswordCredentials) obj).tenantId, tenantId);
+         Tool.equals(((LocalResourceOwnerPasswordCredentials) obj).tenantId, tenantId) &&
+         Tool.equals(((LocalResourceOwnerPasswordCredentials) obj).accessToken, accessToken) &&
+         Tool.equals(((LocalResourceOwnerPasswordCredentials) obj).refreshToken, refreshToken);
    }
 
    @Override
@@ -95,6 +119,17 @@ public class LocalResourceOwnerPasswordCredentials extends LocalPasswordCredenti
       if(getTenantId() != null) {
          writer.format("<tenantId><![CDATA[%s]]></tenantId>%n", getTenantId());
       }
+
+      if(getAccessToken() != null) {
+         writer.format(
+            "<accessToken><![CDATA[%s]]></accessToken>%n", Tool.encryptPassword(getAccessToken()));
+      }
+
+      if(getRefreshToken() != null) {
+         writer.format(
+            "<refreshToken><![CDATA[%s]]></refreshToken>%n",
+            Tool.encryptPassword(getRefreshToken()));
+      }
    }
 
    @Override
@@ -107,9 +142,13 @@ public class LocalResourceOwnerPasswordCredentials extends LocalPasswordCredenti
       setClientId(Tool.getChildValueByTagName(elem, "clientId"));
       setTenantId(Tool.getChildValueByTagName(elem, "tenantId"));
       setClientSecret(Tool.decryptPassword(Tool.getChildValueByTagName(elem, "clientSecret")));
+      setAccessToken(getDecryptPassword(Tool.getChildNodeByTagName(elem, "accessToken")));
+      setRefreshToken(getDecryptPassword(Tool.getChildNodeByTagName(elem, "refreshToken")));
    }
 
    private String clientId;
    private String clientSecret;
    private String tenantId;
+   private String accessToken;
+   private String refreshToken;
 }

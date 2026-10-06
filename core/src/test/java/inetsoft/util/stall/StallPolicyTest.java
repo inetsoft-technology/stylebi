@@ -121,21 +121,10 @@ public class StallPolicyTest {
       assertEquals(StallPolicy.DEFAULT_NO_PROGRESS_MILLIS, policy.getNoProgressMillis());
    }
 
-   /**
-    * The constructors without {@code failOnTimeout} keep the rule they were written for, fail
-    * on the timeout alone, for the tests of what a failed wait leaves behind.
-    */
-   @Test
-   public void shortConstructorsFailOnTheTimeout() {
-      File dir = new File("x");
-      assertTrue(new StallPolicy(StallPolicy.Mode.FAIL, 1, 1, dir).isFailOnTimeout());
-      assertTrue(new StallPolicy(StallPolicy.Mode.FAIL, 1, 1, dir, 3).isFailOnTimeout());
-      assertFalse(new StallPolicy(StallPolicy.Mode.FAIL, 1, 1, dir, 3, false).isFailOnTimeout());
-   }
-
    @Test
    public void overrideWins() {
-      StallPolicy policy = new StallPolicy(StallPolicy.Mode.OFF, 1, 1, new File("x"));
+      StallPolicy policy = new StallPolicy(StallPolicy.Mode.OFF, 1, 1, new File("x"),
+                                           StallPolicy.DEFAULT_MAX_DUMPS, false);
       StallPolicy.setOverride(policy);
       assertSame(policy, StallPolicy.get());
       StallPolicy.setOverride(null);

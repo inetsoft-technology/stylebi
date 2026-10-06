@@ -42,6 +42,7 @@ import inetsoft.web.portal.service.database.PhysicalGraphService;
 import inetsoft.web.viewsheet.*;
 import org.apache.commons.io.FileExistsException;
 import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -1138,8 +1139,23 @@ public class PhysicalModelManagerService {
             }
          }
          else {
-            xTableNode =
-               physicalModelService.executeSQLQuery(partitionTable.getSql(), dataSource, principal);
+            try {
+               // the view belongs to the model's connection, so run it there
+               xTableNode = physicalModelService.executeSQLQuery(
+                  partitionTable.getSql(), dataSource, additional, principal);
+            }
+            catch(Exception ex) {
+               // an outage, timeout or other server-side failure still fails the request
+               if(!PhysicalModelService.isUserSqlError(ex)) {
+                  throw ex;
+               }
+
+               // the database rejected the view's SQL: skip the view, so the other tables
+               // still offer their joins
+               LOG.debug("Inline view {} skipped for auto-join, its SQL was rejected: {}",
+                         fqn, partitionTable.getSql(), ex);
+               continue;
+            }
 
             if(xTableNode == null) {
                continue;
@@ -1891,4 +1907,6 @@ public class PhysicalModelManagerService {
    private final DataSourceRegistry dataSourceRegistry;
    private final DependencyHandler dependencyHandler;
    private final RenameTransformHandler renameTransformHandler;
+
+   private static final Logger LOG = LoggerFactory.getLogger(PhysicalModelManagerService.class);
 }

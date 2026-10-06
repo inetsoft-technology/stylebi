@@ -217,10 +217,14 @@ class UniformSQLOuterJoinUnknownTableTest {
     */
    @Test
    void unqualifiedOuterJoinIsRefusedOnOracleNonAnsi() throws Exception {
+      // lowercase, "Oracle" gets the base sql helper, which writes ANSI joins, and a where
+      // clause outer join is refused with it (Bug #77548)
       JDBCDataSource ds = mock(JDBCDataSource.class);
-      when(ds.getRuntimeProductName()).thenReturn("Oracle");
+      when(ds.getRuntimeProductName()).thenReturn("oracle");
       when(ds.getProductVersion()).thenReturn("19");
       when(ds.isAnsiJoin()).thenReturn(false);
+      assertEquals(OracleSQLHelper.class, SQLHelper.getSQLHelper(
+         SQLHelper.getProductName(ds, true)).getClass());
 
       for(String text : new String[] {
          "select a.x from a left join b on id = bid",

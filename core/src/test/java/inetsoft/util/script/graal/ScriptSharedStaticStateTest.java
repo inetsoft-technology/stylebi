@@ -21,6 +21,7 @@ import inetsoft.graph.aesthetic.*;
 import inetsoft.report.StyleConstants;
 import inetsoft.report.composition.region.ChartConstants;
 import inetsoft.report.script.SharedStaticFixture;
+import inetsoft.util.CoreTool;
 import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.graal.pool.PoolTestSupport;
 import org.junit.jupiter.api.*;
@@ -28,6 +29,7 @@ import org.junit.jupiter.api.*;
 import java.awt.Color;
 import java.io.File;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.nio.file.*;
 import java.util.*;
@@ -224,7 +226,11 @@ class ScriptSharedStaticStateTest {
    /**
     * A public static thread-local field cannot be reassigned or cleared by a script: Java code
     * reads it on every thread, so a write would reach every user. Such fields are final.
-    * Checked over every class of the product, on every class-lookup route.
+    * The final check covers every class of the product. The script writes are tried, on every
+    * class-lookup route, only for the classes that are already initialized: reading the field
+    * or reaching the class from a script initializes it, and a class whose static initializer
+    * fails here (for example one that needs a Spring bean) cannot be used again by any later
+    * test in the JVM.
     */
    @Test
    void threadLocalStaticFieldsCannotBeReassigned() throws Exception {
@@ -232,9 +238,16 @@ class ScriptSharedStaticStateTest {
       int writable = 0;
       int attempts = 0;
       int reassigned = 0;
+      // CoreTool needs no Spring context, so there is always an initialized class to write to
+      Objects.requireNonNull(CoreTool.yearFmt);
 
       for(Field field : fields) {
          writable += Modifier.isFinal(field.getModifiers()) ? 0 : 1;
+
+         if(!isInitialized(field.getDeclaringClass())) {
+            continue;
+         }
+
          Object before;
 
          try {
@@ -348,6 +361,17 @@ class ScriptSharedStaticStateTest {
       }
 
       return fields;
+   }
+
+   /**
+    * If a class has been initialized, checked without initializing it. Needs the
+    * --add-opens=java.base/jdk.internal.misc=ALL-UNNAMED of the surefire argLine.
+    */
+   private static boolean isInitialized(Class<?> cls) throws Exception {
+      Class<?> unsafe = Class.forName("jdk.internal.misc.Unsafe");
+      Object instance = unsafe.getMethod("getUnsafe").invoke(null);
+      Method method = unsafe.getMethod("shouldBeInitialized", Class.class);
+      return !(Boolean) method.invoke(instance, cls);
    }
 
    /** The public static shape constants of the shape classes. */

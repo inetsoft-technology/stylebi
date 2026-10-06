@@ -17,6 +17,8 @@
  */
 package inetsoft.util.script;
 
+import java.util.Arrays;
+
 /**
  * @by jeremy.schiff 2012-7-20
  *
@@ -58,4 +60,28 @@ public class ExpressionFailedException extends ScriptException {
    public String getTableName() {
       return tableName;
    }
+
+   /**
+    * Get the table rows whose expression failed with this exception, in the order they
+    * failed. A formula lens computes a whole batch of rows and throws the first failure of the
+    * batch at its end, so one exception reports every failed row of the batch (Testing
+    * #77123). Empty if the rows are not known.
+    */
+   public int[] getFailedRows() {
+      return Arrays.copyOf(failedRows, failedCount);
+   }
+
+   /**
+    * Add a table row whose expression failed, see {@link #getFailedRows()}.
+    */
+   public void addFailedRow(int row) {
+      if(failedCount == failedRows.length) {
+         failedRows = Arrays.copyOf(failedRows, Math.max(4, failedCount * 2));
+      }
+
+      failedRows[failedCount++] = row;
+   }
+
+   private int[] failedRows = new int[0];
+   private int failedCount;
 }

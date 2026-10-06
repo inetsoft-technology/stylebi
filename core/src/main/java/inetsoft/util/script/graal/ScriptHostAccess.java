@@ -349,6 +349,51 @@ public final class ScriptHostAccess {
                   // the engine (static WorksheetEngine.getWorksheetService(),
                   // ViewsheetEngine), which hands out every user's sheets on the node
                   .denyAccess(inetsoft.report.composition.WorksheetService.class)
+                  // Bug #77827, #77828: the asset engine, its storage and the
+                  // Java-side helpers and singletons under the allowed prefixes
+                  // that read, write or delete stored state for an entry, org id or
+                  // user name the caller supplies, with no principal check of their
+                  // own. None is script API, and the deny is by type, so it holds on
+                  // every route (Java.type, the legacy shim, an inherited static, an
+                  // instance an API returns). Java callers are unaffected, so
+                  // runQuery, VSUtil.getBookmarks, library functions and calc-table
+                  // rendering still work. A deny does not cover members Graal
+                  // attributes to an undenied supertype (AutoCloseable.close,
+                  // PropertyChangeListener.propertyChange, DataCache), so no
+                  // script-reachable method may return one of these instances;
+                  // AssetUtil.getAssetRepository refuses a direct script caller.
+                  // - the asset engine (AbstractAssetEngine, RepletEngine,
+                  //   AnalyticEngine, RuntimeAssetEngine, StyleCore and so ReportSheet
+                  //   and TabularSheet) and the raw storage getStorage() returns
+                  .denyAccess(inetsoft.uql.asset.AssetRepository.class)
+                  .denyAccess(inetsoft.sree.RepletRepository.class)
+                  .denyAccess(inetsoft.util.IndexedStorage.class)
+                  // - asset readers that load a stored sheet for a minted entry with
+                  //   no principal (LayoutTool covers VSLayoutTool and ReportLayoutTool,
+                  //   whose public statics reach getNamedGroupAssembly)
+                  .denyAccess(inetsoft.uql.asset.sync.DependencyTool.class)
+                  .denyAccess(inetsoft.report.LayoutTool.class)
+                  // ReportWorksheetProcessor, the only implementor, runs a stored
+                  // worksheet for a minted entry (a null user loads it unchecked) and
+                  // returns its data; XUtil.runQuery checks permission before using it
+                  .denyAccess(inetsoft.uql.asset.WorksheetProcessor.class)
+                  // - storage services keyed by an org id the caller passes
+                  .denyAccess(inetsoft.report.LibManagerProvider.class)
+                  .denyAccess(inetsoft.report.LibManager.class)
+                  .denyAccess(inetsoft.uql.asset.EmbeddedTableStorage.class)
+                  .denyAccess(inetsoft.uql.asset.EmbeddedDataCacheHandler.class)
+                  .denyAccess(inetsoft.uql.asset.sync.DependencyStorageService.class)
+                  .denyAccess(inetsoft.uql.viewsheet.vslayout.DeviceRegistry.class)
+                  // - per-user and node-wide state
+                  .denyAccess(inetsoft.uql.viewsheet.BookmarkLockManager.class)
+                  .denyAccess(inetsoft.report.composition.execution.AssetDataCache.class)
+                  .denyAccess(inetsoft.report.composition.execution
+                                 .DistributedTableCacheStore.class)
+                  // - the dependency and rename machinery
+                  .denyAccess(inetsoft.uql.asset.sync.RenameTransformHandler.class)
+                  .denyAccess(inetsoft.uql.asset.UpdateAssetDependenciesHandler.class)
+                  .denyAccess(inetsoft.uql.asset.DependencyHandler.class)
+                  .denyAccess(inetsoft.report.internal.MVInfoClient.class)
                   // XUtil.getXIdentityFinder() resolves every user's roles, groups
                   // and org, and its getters return the live arrays
                   .denyAccess(inetsoft.uql.util.XIdentityFinder.class)
@@ -593,6 +638,13 @@ public final class ScriptHostAccess {
                                      Double::longValue,
                                      HostAccess.TargetMappingPrecedence.LOWEST);
 
+               // Bug #77521: classFilter() is consulted only when a script looks a
+               // class up by name. A Class value an allowed API returns (or an
+               // instance of the class) gives a script the class's public members,
+               // statics and constructors, with no name check. So every class
+               // refused by exact name is also denied here by type.
+               denyBlockedClasses(builder);
+
                // A graph object a script holds is a HostBeanProxy (a ProxyObject),
                // which GraalJS cannot convert to its Java type on its own, so it
                // failed every hand-off whose receiver is not itself a
@@ -681,6 +733,45 @@ public final class ScriptHostAccess {
       final boolean comOrgF = comOrg;
 
       return classFilter(extra, customPkgsF, comOrgF);
+   }
+
+   /**
+    * Denies, by type, every class of {@link #BLOCKED_CLASSES} on the class path, so
+    * the name block holds for a class value or an instance a script gets from an
+    * allowed API. A name that doesn't load (e.g. a class removed from the JDK) is
+    * skipped. (Bug #77521)
+    */
+   private static void denyBlockedClasses(HostAccess.Builder builder) {
+      for(String name : BLOCKED_CLASSES) {
+         Class<?> type;
+
+         try {
+            type = Class.forName(name, false, ScriptHostAccess.class.getClassLoader());
+         }
+         catch(ClassNotFoundException | LinkageError ignore) {
+            continue;
+         }
+
+         builder.denyAccess(type);
+      }
+   }
+
+   /** The classes refused by exact name, for tests. */
+   static Set<String> blockedClasses() {
+      return BLOCKED_CLASSES;
+   }
+
+   /**
+    * Whether a class value may be handed to a script: when the class filter would
+    * admit the class by name. A primitive type is not a class and is always
+    * allowed, as in {@code Java.type}. (Bug #77521)
+    */
+   static boolean isClassValueVisible(Class<?> type, Predicate<String> filter) {
+      while(type.isArray()) {
+         type = type.getComponentType();
+      }
+
+      return type.isPrimitive() || filter.test(type.getName());
    }
 
    /**

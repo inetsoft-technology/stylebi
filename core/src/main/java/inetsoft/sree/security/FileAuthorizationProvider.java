@@ -88,7 +88,15 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
                return;
             }
 
-            setPermission(type, path, orgPermission, orgId);
+            // keep the migration best-effort per entry, as it was before the writers threw: a
+            // failed re-put must not leave the loop or escape init()
+            try {
+               setPermission(type, path, orgPermission, orgId);
+            }
+            catch(RuntimeException e) {
+               LOG.error("Failed to isolate the permission of {} {} for organization {}",
+                         type, path, orgId, e);
+            }
          });
       }
    }
@@ -174,7 +182,7 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
             storage.put(getResourceKey(type, resource, orgID), perm).get(10L, TimeUnit.SECONDS);
          }
          catch(Exception e) {
-            LOG.error("Failed to set permission on {} {}", type, resource, e);
+            throw storageWriteFailure(type, resource, e);
          }
       }
    }
@@ -196,7 +204,7 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
                .get(10L, TimeUnit.SECONDS);
          }
          catch(Exception e) {
-            LOG.error("Failed to set permission on {} {}", type, identityID, e);
+            throw storageWriteFailure(type, identityID, e);
          }
       }
    }
@@ -210,7 +218,7 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
          storage.remove(getResourceKey(type, resource, orgID)).get(10L, TimeUnit.SECONDS);
       }
       catch(Exception e) {
-         LOG.error("Failed to remove permission from {} {}", type, resource, e);
+         throw storageWriteFailure(type, resource, e);
       }
    }
 
@@ -223,7 +231,7 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
          storage.remove(getResourceKey(type, identityID.convertToKey(), orgID)).get(10L, TimeUnit.SECONDS);
       }
       catch(Exception e) {
-         LOG.error("Failed to remove permission from {} {}", type, identityID, e);
+         throw storageWriteFailure(type, identityID, e);
       }
    }
 
@@ -238,7 +246,15 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
          ResourceType type = permissionSet.getFirst();
          String path = permissionSet.getThird();
 
-         removePermission(type, path, resourceOrgID);
+         // best-effort per item: one failed remove must not stop the rest, or the org delete
+         // cleanup that follows this call
+         try {
+            removePermission(type, path, resourceOrgID);
+         }
+         catch(RuntimeException e) {
+            LOG.error("Failed to remove the permission of {} {} while cleaning organization {}, " +
+                      "it may still be stored", type, path, orgId, e);
+         }
       }
    }
 
@@ -276,8 +292,25 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
 
       List<KeyValuePair<Permission>> list = storage.stream().collect(Collectors.toList());
 
-      try {
-         for(KeyValuePair<Permission> pair : list) {
+      // The identity record is already gone when this listener runs, so the cleanup is
+      // best-effort per entry: a failed entry must not stop the remaining entries from being
+      // updated (Bug #77799). This method must not throw either: AuthenticationChain.changeDelegate
+      // has no catch, and a throw would skip SecurityEngine.fireAuthenticationChange (which logs out
+      // the sessions of a removed or renamed organization).
+      //
+      // The caller holds the authentication provider's lock. After the first put that times out
+      // (a hung backend), the remaining puts are still submitted but are not waited on, so a hung
+      // backend costs at most one put timeout, as before. Puts that are slow but complete within
+      // the timeout are still waited on one by one. Keys whose put timed out or was not waited on
+      // are reported as not confirmed, because such a put may still land.
+      List<String> failedKeys = new ArrayList<>();
+      List<String> unconfirmedKeys = new ArrayList<>();
+      Exception firstFailure = null;
+      boolean timedOut = false;
+      boolean interrupted = false;
+
+      for(KeyValuePair<Permission> pair : list) {
+         try {
             Permission perm = pair.getValue();
             boolean changed = false;
 
@@ -303,12 +336,48 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
             }
 
             if(changed) {
-               storage.put(pair.getKey(), perm).get(10L, TimeUnit.SECONDS);
+               Future<Permission> future = storage.put(pair.getKey(), perm);
+
+               if(timedOut) {
+                  unconfirmedKeys.add(pair.getKey());
+               }
+               else {
+                  future.get(10L, TimeUnit.SECONDS);
+               }
             }
          }
+         catch(TimeoutException e) {
+            timedOut = true;
+            unconfirmedKeys.add(pair.getKey());
+            firstFailure = firstFailure == null ? e : firstFailure;
+         }
+         catch(InterruptedException e) {
+            // Future.get cleared the interrupt flag, so the remaining entries can still be
+            // updated. The flag is restored after the loop.
+            interrupted = true;
+            failedKeys.add(pair.getKey());
+            firstFailure = firstFailure == null ? e : firstFailure;
+         }
+         catch(Exception e) {
+            failedKeys.add(pair.getKey());
+            firstFailure = firstFailure == null ? e : firstFailure;
+         }
       }
-      catch(Exception e) {
-         LOG.error("Failed to update permissions", e);
+
+      if(!failedKeys.isEmpty() || !unconfirmedKeys.isEmpty()) {
+         LOG.error(
+            "Failed to update the permissions after identity {} (type {}) was {}; these " +
+            "permission entries may not have been updated: failed={}, not confirmed={}",
+            oldID, type, removed ? "removed" : "renamed to " + newID, failedKeys, unconfirmedKeys,
+            firstFailure);
+      }
+
+      // Restore the interrupt for the caller. Note that this listener is still inside
+      // AuthenticationChain.changeDelegate, so the next listener (SecurityEngine's
+      // fireAuthenticationChange, which logs out the sessions of a removed organization) then runs
+      // on an interrupted thread, and an interruptible call there may fail.
+      if(interrupted) {
+         Thread.currentThread().interrupt();
       }
    }
 
@@ -320,6 +389,22 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
       orgID = orgID != null ? orgID : SUtil.isMultiTenant() ?
          OrganizationManager.getInstance().getCurrentOrgID() : Organization.getDefaultOrganizationID();
       return type + ":" + orgID + ":" + path;
+   }
+
+   /**
+    * Logs a failed permission storage write and returns the exception to throw. A write that timed
+    * out may still complete, so the message says the permission may not have been saved.
+    */
+   private static RuntimeException storageWriteFailure(ResourceType type, Object resource,
+                                                       Exception cause)
+   {
+      if(cause instanceof InterruptedException) {
+         Thread.currentThread().interrupt();
+      }
+
+      String message = "The permission of " + type + " " + resource + " may not have been saved";
+      LOG.error(message, cause);
+      return new MessageException(message, cause);
    }
 
    private KeyValueStorage<Permission> storage;

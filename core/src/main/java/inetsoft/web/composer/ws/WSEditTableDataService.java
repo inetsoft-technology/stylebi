@@ -32,6 +32,7 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.util.Catalog;
+import inetsoft.util.Tool;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.WSEditTableDataEvent;
 import inetsoft.web.viewsheet.command.MessageCommand;
@@ -128,7 +129,7 @@ public class WSEditTableDataService extends WorksheetControllerService {
 
          try {
             if(column.getDataType().equalsIgnoreCase(XSchema.DATE) && "1900-01-01".equals(data)) {
-               tdata.setObject(y, x, new SimpleDateFormat("yyyy-MM-dd").parse("1900-01-01"));
+               tdata.setObject(y, x, Tool.createGregorianDateFormat("yyyy-MM-dd").parse("1900-01-01"));
             }
             else {
                tdata.setObject(y, x, AssetUtil.parse(column.getDataType(), data));

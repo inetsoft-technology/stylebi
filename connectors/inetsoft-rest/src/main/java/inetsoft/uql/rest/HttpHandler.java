@@ -64,9 +64,26 @@ public class HttpHandler implements IHttpHandler {
    private HttpResponse executeHttpQueryWithUrl(AbstractRestQuery query, URL url)
       throws IOException, URISyntaxException, InterruptedException, TimeoutException
    {
+      final RestAuthenticator restAuthenticator = getRestAuthenticator(query);
       final HttpClientContext context = HttpClientContext.create();
-      final HttpRequestBase request = createRequest(query, url, context);
-      return executeMethod(request, context);
+      final HttpRequestBase request = createRequest(query, url, context, restAuthenticator);
+
+      try {
+         return executeMethod(request, context);
+      }
+      catch(RestResponseException e) {
+         if(e.getResponse() == null || e.getResponse().getResponseStatusCode() != 401 ||
+            !restAuthenticator.credentialsRejected())
+         {
+            throw e;
+         }
+
+         // the credentials were discarded, retry once with new ones
+         LOG.debug("Request for {} was unauthorized, retrying with new credentials", url);
+         final HttpClientContext retryContext = HttpClientContext.create();
+         return executeMethod(
+            createRequest(query, url, retryContext, restAuthenticator), retryContext);
+      }
    }
 
    @Override
@@ -77,13 +94,13 @@ public class HttpHandler implements IHttpHandler {
       }
    }
 
-   private HttpRequestBase createRequest(AbstractRestQuery query, URL url, HttpClientContext context)
+   private HttpRequestBase createRequest(AbstractRestQuery query, URL url, HttpClientContext context,
+                                         RestAuthenticator restAuthenticator)
       throws IOException, URISyntaxException, InterruptedException
    {
       final HttpRequestBase request = getHttpRequest(query, url);
       // missing User-Agent may cause 403 error (jsonplaceholder.typicode.com)
       request.addHeader("User-Agent", "Mozilla/4.76");
-      final RestAuthenticator restAuthenticator = getRestAuthenticator(query);
       addDataSourceHttpParameters(query, request, restAuthenticator);
       restAuthenticator.authenticateRequest(request, context);
 

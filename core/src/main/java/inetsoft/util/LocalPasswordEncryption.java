@@ -32,6 +32,7 @@ import java.security.*;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
 import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.function.Function;
 
@@ -49,6 +50,17 @@ abstract class LocalPasswordEncryption extends AbstractPasswordEncryption {
 
       if(PasswordEncryption.isForceMaster()) {
          return encryptMasterPassword(input);
+      }
+
+      if(isEncryptedWithSecretKey(input) && !isDecryptableWithCurrentKey(input)) {
+         // Bug #77722, decryptPassword() returns a value that the current key cannot decrypt
+         // (e.g. it was encrypted with another password.encryption.key) as is. Keep it as is
+         // here too, so that saving its owner again does not bury the original ciphertext,
+         // and it can still be decrypted once the right key is back. A value that the current
+         // key can decrypt is never returned by decryptPassword(), so it is clear text that
+         // only looks encrypted and is encrypted like any other text below; passing it through
+         // would let a known ciphertext stand in for the secret it encrypts.
+         return input;
       }
 
       try {
@@ -98,7 +110,7 @@ abstract class LocalPasswordEncryption extends AbstractPasswordEncryption {
    public final String decryptPassword(String input, String encryptedKey) {
       if(input.startsWith(NEW_PREFIX)) {
          SecretKey keySpec = decryptSecretKey(encryptedKey, getMasterKey());
-         return decryptPassword(input.substring(4), keySpec);
+         return decryptPassword(input, keySpec);
       }
       else if(input.startsWith(MASTER_PREFIX)) {
          return decryptMasterPassword(input);
@@ -124,7 +136,7 @@ abstract class LocalPasswordEncryption extends AbstractPasswordEncryption {
 
       if(input.startsWith(NEW_PREFIX)) {
          SecretKey keySpec = getSecretKey(getMasterKey());
-         return decryptPassword(input.substring(4), keySpec);
+         return decryptPassword(input, keySpec);
       }
 
       // clear text
@@ -163,11 +175,31 @@ abstract class LocalPasswordEncryption extends AbstractPasswordEncryption {
             return decryptWithMaster(encrypted, getMasterKey());
          }
          catch(Exception e) {
-            if(LOG.isDebugEnabled()) {
-               LOG.warn("Failed to decrypt password, assuming that it was saved as clear text.", e);
+            String message;
+
+            if(input.startsWith(MASTER_PREFIX)) {
+               // Bug #77628, a master-encrypted value is never clear text. It most likely was
+               // encrypted with a different master password, e.g. it is in an export from another
+               // server. The value is still returned as is, so that callers checking for the
+               // prefix keep working, but an import counts it to tell the user.
+               message = "Failed to decrypt a master-encrypted password, it was most likely " +
+                  "encrypted with a different master password. The encrypted value is used as is.";
+               AtomicInteger failures = PasswordEncryption.getMasterDecryptFailures();
+
+               if(failures != null) {
+                  failures.incrementAndGet();
+               }
             }
             else {
-               LOG.warn("Failed to decrypt password, assuming that it was saved as clear text.");
+               message = "Failed to decrypt a password with the master password. The value is " +
+                  "used as is.";
+            }
+
+            if(LOG.isDebugEnabled()) {
+               LOG.warn(message, e);
+            }
+            else {
+               LOG.warn(message);
             }
 
             return input;
@@ -347,30 +379,146 @@ abstract class LocalPasswordEncryption extends AbstractPasswordEncryption {
       }
    }
 
+   /**
+    * Decrypts a value encrypted with the secret key (password.encryption.key).
+    *
+    * @param input     the encrypted value, including the {@link #NEW_PREFIX} prefix.
+    * @param secretKey the secret key, may be {@code null}.
+    *
+    * @return the clear text password, or {@code input} as is if it cannot be decrypted.
+    */
    private String decryptPassword(String input, SecretKey secretKey) {
-      int index = input.indexOf(':', 4);
-
-      if(index < 0) {
-         return input;
-      }
-
       try {
-         Base64.Decoder decoder = Base64.getDecoder();
-         byte[] iv = decoder.decode(input.substring(0, index));
-         byte[] encrypted = decoder.decode(input.substring(index + 1));
-         byte[] decrypted = decrypt(encrypted, iv, secretKey);
-
-         return new String(decrypted, StandardCharsets.UTF_16);
+         String decrypted = decryptWithSecretKey(input, secretKey);
+         return decrypted == null ? input : decrypted;
       }
       catch(Exception e) {
+         // Bug #77722, the value is never clear text. Return it with its prefix, so that it is
+         // not saved again as the clear text password (see encryptPassword()).
+         String message = "Failed to decrypt a password, it was most likely encrypted with a " +
+            "different password.encryption.key (e.g. after a storage restore), or the master " +
+            "password (INETSOFT_MASTER_PASSWORD) is wrong. The encrypted value is used as is.";
+
          if(LOG.isDebugEnabled()) {
-            LOG.warn("Failed to decrypt password, assuming that it was saved as clear text.", e);
+            LOG.warn(message, e);
          }
          else {
-            LOG.warn("Failed to decrypt password, assuming that it was saved as clear text.");
+            LOG.warn(message);
          }
 
          return input;
+      }
+   }
+
+   /**
+    * Decrypts a value encrypted with the secret key, without logging.
+    *
+    * @param input     the encrypted value, including the {@link #NEW_PREFIX} prefix.
+    * @param secretKey the secret key, may be {@code null}.
+    *
+    * @return the clear text password, or {@code null} if it cannot be decrypted with the key.
+    */
+   private String tryDecrypt(String input, SecretKey secretKey) {
+      try {
+         return decryptWithSecretKey(input, secretKey);
+      }
+      catch(Exception e) {
+         return null;
+      }
+   }
+
+   /**
+    * Decrypts a value encrypted with the secret key.
+    *
+    * @param input     the encrypted value, including the {@link #NEW_PREFIX} prefix.
+    * @param secretKey the secret key, may be {@code null}.
+    *
+    * @return the clear text password, or {@code null} if the value has no IV separator.
+    *
+    * @throws Exception if the value cannot be decrypted with the key.
+    */
+   private String decryptWithSecretKey(String input, SecretKey secretKey) throws Exception {
+      String encryptedValue = input.substring(NEW_PREFIX.length());
+      int index = encryptedValue.indexOf(':', 4);
+
+      if(index < 0) {
+         return null;
+      }
+
+      Base64.Decoder decoder = Base64.getDecoder();
+      byte[] iv = decoder.decode(encryptedValue.substring(0, index));
+      byte[] encrypted = decoder.decode(encryptedValue.substring(index + 1));
+      byte[] decrypted = decrypt(encrypted, iv, secretKey);
+
+      // Bug #77722, AES/CBC/PKCS5Padding is not authenticated, so a wrong key decrypts
+      // without an error about once in 256 tries. Every value is encrypted from
+      // String.getBytes(UTF_16), which always starts with the big-endian byte order mark,
+      // so anything else was decrypted with the wrong key.
+      if(decrypted.length < 2 || decrypted.length % 2 != 0 ||
+         (decrypted[0] & 0xff) != 0xfe || (decrypted[1] & 0xff) != 0xff)
+      {
+         throw new GeneralSecurityException("The decrypted password is not UTF-16 text");
+      }
+
+      return new String(decrypted, StandardCharsets.UTF_16);
+   }
+
+   /**
+    * Determines if a value can be decrypted with the current secret key. If the secret key
+    * cannot be read (e.g. the master password is wrong), the value cannot be decrypted, so
+    * this returns {@code false}.
+    */
+   private boolean isDecryptableWithCurrentKey(String input) {
+      SecretKey secretKey;
+
+      try {
+         secretKey = getSecretKey(getMasterKey());
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to read the secret key", e);
+         return false;
+      }
+
+      if(secretKey == null) {
+         return false;
+      }
+
+      return tryDecrypt(input, secretKey) != null;
+   }
+
+   /**
+    * Determines if a value has the exact form written by {@link #encryptPassword(String)}:
+    * the {@link #NEW_PREFIX} prefix, the Base64 16-byte IV, a colon, and the Base64 ciphertext,
+    * a non-empty multiple of the 16-byte AES block.
+    */
+   private static boolean isEncryptedWithSecretKey(String input) {
+      if(!input.startsWith(NEW_PREFIX)) {
+         return false;
+      }
+
+      String encryptedValue = input.substring(NEW_PREFIX.length());
+      int index = encryptedValue.indexOf(':');
+
+      if(index < 0) {
+         return false;
+      }
+
+      byte[] iv = decodeBase64Strictly(encryptedValue.substring(0, index));
+      byte[] encrypted = decodeBase64Strictly(encryptedValue.substring(index + 1));
+      return iv != null && iv.length == AES_BLOCK_SIZE && encrypted != null &&
+         encrypted.length > 0 && encrypted.length % AES_BLOCK_SIZE == 0;
+   }
+
+   /**
+    * Decodes Base64 text, returning {@code null} unless it is in the canonical, padded form.
+    */
+   private static byte[] decodeBase64Strictly(String text) {
+      try {
+         byte[] data = Base64.getDecoder().decode(text);
+         return Base64.getEncoder().encodeToString(data).equals(text) ? data : null;
+      }
+      catch(IllegalArgumentException e) {
+         return null;
       }
    }
 
@@ -610,6 +758,7 @@ abstract class LocalPasswordEncryption extends AbstractPasswordEncryption {
    private final boolean throwExceptions;
    // Minimum JWT signing key size in bytes (256 bits) required by the HS512 algorithm.
    private static final int JWT_SIGNING_KEY_MIN_BYTES = 32;
+   private static final int AES_BLOCK_SIZE = 16;
    private static final String LOCK_NAME = LocalPasswordEncryption.class.getName() + ".lock";
 
    private static final Logger LOG = LoggerFactory.getLogger(LocalPasswordEncryption.class);

@@ -194,8 +194,12 @@ class SQLHelperTextJoinOrderTest {
 
    @Test
    void whereClauseOuterJoinKeepsTheOldOrder() throws Exception {
-      // a *= written in the where clause keeps the (B = C) =* A meaning
-      UniformSQL sql = parse(COLS3 + "from a, b, c where a.id *= b.id and b.id = c.id");
+      // a *= written in the where clause keeps the (B = C) =* A meaning. The sql is refused
+      // with a data source that writes ANSI joins (Bug #77548), so it's parsed without one
+      UniformSQL sql = new UniformSQL();
+      sql.parse(COLS3 + "from a, b, c where a.id *= b.id and b.id = c.id",
+                UniformSQL.PARSE_ALL, UniformSQL.PARSE_PERIOD);
+      sql.setDataSource(GenericJDBCDataSource.create());
       String generated = normalize(sql.getSQLString());
 
       for(XJoin join : sql.getJoins()) {

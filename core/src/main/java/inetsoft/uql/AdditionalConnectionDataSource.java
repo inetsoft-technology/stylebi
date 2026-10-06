@@ -21,10 +21,13 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.service.XEngine;
+import inetsoft.util.XMLSerializable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.rmi.RemoteException;
+import java.util.ArrayList;
+import java.util.List;
 
 public abstract class AdditionalConnectionDataSource<SELF extends AdditionalConnectionDataSource<SELF>>
    extends XDataSource
@@ -57,7 +60,14 @@ public abstract class AdditionalConnectionDataSource<SELF extends AdditionalConn
    }
 
    /**
-    * Get names of additional connections.
+    * Get names of additional connections. An additional connection is stored one level under
+    * its data source, so a deeper entry is never one. An entry is only listed if it can be read
+    * and it is stored with a bare name, or, before Bug #77610, with its own path. If a data
+    * source folder has the path of this data source (legacy data, Bug #77691), the data sources
+    * in that folder are stored at the same paths as additional connections, with their own paths,
+    * so then only a bare name is listed. An entry stored with another path, e.g. a data source
+    * renamed onto such a folder (Bug #77725), is never listed. An entry that is not listed is not
+    * removed or re-added when this data source is saved.
     */
    public String[] getDataSourceNames() {
       String[] names = null;
@@ -66,17 +76,44 @@ public abstract class AdditionalConnectionDataSource<SELF extends AdditionalConn
          String prefix = getFullName() + "/";
          AssetEntry[] entries = getRegistry().getEntries(prefix,
                                                          AssetEntry.Type.DATA_SOURCE);
-         names = new String[entries.length];
+         boolean folderAtPath = getRegistry().containObject(new AssetEntry(
+            AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE_FOLDER, getFullName(), null));
+         List<String> list = new ArrayList<>();
 
-         for(int i = 0; i < entries.length; i++) {
-            names[i] = entries[i].getPath().substring(prefix.length());
+         for(AssetEntry entry : entries) {
+            String name = entry.getPath().substring(prefix.length());
+
+            if(name.indexOf('/') < 0 && isAdditionalConnectionEntry(entry, folderAtPath)) {
+               list.add(name);
+            }
          }
+
+         names = list.toArray(new String[0]);
       }
       catch(Exception e) {
          LOG.error("Failed to get data source names", e);
       }
 
       return names;
+   }
+
+   /**
+    * Checks if an entry under this data source is stored as an additional connection is: with a
+    * bare name, or, before Bug #77610, with its own path. A data source in a folder is stored
+    * with its full path, so on a path clash with a folder only a bare name is one.
+    */
+   private boolean isAdditionalConnectionEntry(AssetEntry entry, boolean folderAtPath) {
+      try {
+         XMLSerializable obj = getRegistry().getObject(entry, false);
+         String name = obj instanceof XDataSourceWrapper wrapper && wrapper.getSource() != null ?
+            wrapper.getSource().getFullName() : null;
+         return name != null &&
+            (name.indexOf('/') < 0 || !folderAtPath && name.equals(entry.getPath()));
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to read data source {}", entry.getPath(), e);
+         return false;
+      }
    }
 
    /**

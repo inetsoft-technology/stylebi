@@ -192,7 +192,7 @@ public class VSDimension implements XDimension {
 
       if(cnode != null) {
          ItemList list = new ItemList();
-         list.parseXML(cnode);
+         list.parseXML(cnode, VSDimensionMember.class);
          Iterator iter = list.itemsIterator();
          members = new ArrayList();
 

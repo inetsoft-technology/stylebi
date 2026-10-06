@@ -65,6 +65,18 @@ public class AddFolderController {
       }
 
       name = SUtil.removeControlChars(name);
+
+      // Bug #77733, a name with a separator would create the folder under another parent than
+      // the one the permission is checked on
+      if(Tool.containsPathSeparator(name, parent.isTableStyleFolder() ?
+         new char[] { LibManager.SEPARATOR.charAt(0) } : new char[0]))
+      {
+         MessageCommand messageCommand = new MessageCommand();
+         messageCommand.setMessage(Tool.getInvalidFolderNameMessage());
+         messageCommand.setType(MessageCommand.Type.ERROR);
+         return messageCommand;
+      }
+
       String path = parent.isRoot() ? name : parent.getPath() + "/" + name;
       AssetEntry.Type type = parent.isRepositoryFolder() || parent.isTableStyleFolder() ?
          parent.getType() : AssetEntry.Type.FOLDER;

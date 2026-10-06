@@ -233,8 +233,11 @@ public class VirtualAuthenticationProvider
 
    /**
     * Save the virtual_security.xml file.
+    *
+    * @throws IOException if the file could not be written. The caller decides whether the
+    *                     failure is reported (password change) or only logged (first-run bootstrap).
     */
-   private void save() {
+   private void save() throws IOException {
       DataSpace space = DataSpace.getDataSpace();
       dmgr.removeChangeListener(space, null, fileName, changeListener);
 
@@ -248,9 +251,6 @@ public class VirtualAuthenticationProvider
          writer.print("</virtualSecurityProvider>\n");
          writer.flush();
          tx.commit();
-      }
-      catch(Throwable ex) {
-         LOG.error("Failed to save virtual security file", ex);
       }
       finally {
          long ts = System.currentTimeMillis();
@@ -280,7 +280,18 @@ public class VirtualAuthenticationProvider
          admin = new FSUser(new IdentityID("admin", Organization.getDefaultOrganizationID()));
          SUtil.setPassword(admin, password);
          admin.setRoles(new IdentityID[] { new IdentityID("Administrator", null) });
-         save();
+         // a restart rebuilds this admin from INETSOFT_ADMIN_PASSWORD when the file is missing,
+         // so it is the state to return to even if the write below fails
+         savedAdmin = (FSUser) admin.clone();
+
+         // best-effort: SecurityEngine.init() creates this provider on every init, also when
+         // security is enabled, so a failed first-run write must not fail the security init
+         try {
+            save();
+         }
+         catch(Exception ex) {
+            LOG.error("Failed to save virtual security file", ex);
+         }
 
          return;
       }
@@ -291,6 +302,7 @@ public class VirtualAuthenticationProvider
          Element root = doc.getDocumentElement();
          admin = new FSUser();
          admin.parseXML(Tool.getChildNodeByTagName(root, "FSUser"));
+         savedAdmin = (FSUser) admin.clone();
       }
       catch(Exception ex) {
          LOG.error("Failed to load virtual security file: " + fileName, ex);
@@ -310,7 +322,22 @@ public class VirtualAuthenticationProvider
 
       if(user.getName().equals("admin")) {
          admin = (FSUser) user;
-         save();
+
+         try {
+            save();
+            savedAdmin = (FSUser) admin.clone();
+         }
+         catch(Exception ex) {
+            // callers change the password on the live admin object before calling addUser, so
+            // restore the last saved admin to keep this node on the password a restart would load
+            if(savedAdmin != null) {
+               admin = (FSUser) savedAdmin.clone();
+            }
+
+            String message = "Failed to save the admin user to " + fileName;
+            LOG.error(message, ex);
+            throw new MessageException(message, ex);
+         }
       }
    }
 
@@ -338,6 +365,8 @@ public class VirtualAuthenticationProvider
    private long lastRefresh = 0;
    private DataChangeListenerManager dmgr = new DataChangeListenerManager();
    private FSUser admin;
+   // copy of the admin as last saved to (or loaded from) virtual_security.xml
+   private FSUser savedAdmin;
    FSUser system;
    private FSUser anonymous;
 

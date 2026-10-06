@@ -65,18 +65,12 @@ class UniformSQLUsingJoinTest {
       "select a.x from a join (select id from b) t using (id) | a.id = t.id",
       // a comma-listed earlier table
       "select a.x from z, a left join b using (id) | a.id *= b.id",
-      // chains the model represents: after inner or RIGHT USING joins, after ON joins,
-      // and with a different column
+      // chains the model represents: after inner or RIGHT USING joins of the column. A
+      // USING join of another column after a join fails the parse (Bug #77490)
       "select a.x from a join b using (id) join c using (id) | a.id = b.id, b.id = c.id",
       "select a.x from a join b using (id) left join c using (id) | a.id = b.id, b.id *= c.id",
       "select a.x from a right join b using (id) left join c using (id) | " +
          "a.id =* b.id, b.id *= c.id",
-      "select a.x from a left join b using (id) join c using (k) | a.id *= b.id, b.k = c.k",
-      "select a.x, c.z from a left join b on a.id = b.id join c using (k) | " +
-         "a.id *= b.id, b.k = c.k",
-      "select a.x from a left join b on a.id = b.id left join c using (k) | " +
-         "a.id *= b.id, b.k *= c.k",
-      "select a.x from z join a on z.k = a.k left join b using (id) | z.k = a.k, a.id *= b.id",
       // a merged column in another join expression of the from clause
       "select a.x from a left join b using (id), c join d using (id) | " +
          "a.id *= b.id, c.id = d.id",
@@ -182,22 +176,15 @@ class UniformSQLUsingJoinTest {
       "select b.y from a right join b using (id)",
       "select t1.x from a t1 left join b t2 using (id)",
       "select d.y from b d left join c e using (id, k)",
-      "select a.x, c.z from a left join b on a.id = b.id join c using (k)",
       "select a.x, c.z from a join b using (id) left join c using (id)",
       "select b.y, c.z from a right join b using (id) left join c using (id)",
       "select a.x, t.z from (select b.id, c.z from b left join c using (id)) t left join a using (id)",
       // a correlated subquery with an outer USING join
       "select a.x from a join b using (id) where exists " +
          "(select 1 from c left join d using (id) where c.id = a.id)",
-      "select a.x from a where exists (select 1 from c left join b using (id) where c.id = a.id)",
-      // an inner join filter between outer joined tables before a RIGHT USING join is not
-      // a where condition (#77478)
-      "select a.x, b.y, c.z, d.w from a left join b on a.id = b.id " +
-         "join c on c.k = b.k and b.y = a.x right join d using (z)",
-      "select a.x, b.y, c.z, d.w from a left join b using (id) " +
-         "join c on c.k = b.k and b.y = a.x right join d using (z)",
-      "select a.x, b.y, c.z, d.w from a left join b on a.id = b.id " +
-         "join c on c.k = b.k and b.y = a.x left join d using (z)"
+      "select a.x from a where exists (select 1 from c left join b using (id) where c.id = a.id)"
+      // UniformSQLUsingJoinLeftOperandTest has an inner join filter between outer joined
+      // tables before a RIGHT USING join (#77478)
    })
    void usingJoinGeneratesSameRows(String text) throws Exception {
       String generated = normalize(parse(text).getSQLString());

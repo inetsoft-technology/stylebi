@@ -473,7 +473,19 @@ public class RepositoryEntry implements Serializable, Comparable, Cloneable, XML
 
    public void parseContents(Element tag, boolean isSiteAdminImport) throws Exception {
       Element elem = Tool.getChildNodeByTagName(tag, "path");
-      path = Tool.byteDecode(Tool.getValue(elem));
+
+      // writeContents always writes <path>, so a missing one is a hand-edited entry. Refuse it
+      // here rather than keep a null path that fails later, e.g. when saving (Bug #77603).
+      if(elem == null) {
+         String identifier = Tool.getAttribute(tag, "identifier");
+         throw new Exception(getClass().getSimpleName() +
+            (identifier == null ? "" : " \"" + Tool.byteDecode(identifier) + "\"") +
+            " is missing <path>");
+      }
+
+      // an empty path is written as an empty CDATA section, which getValue() reads as null
+      String value = Tool.getValue(elem);
+      path = value == null ? "" : Tool.byteDecode(value);
 
       if(isSiteAdminImport) {
          for(String pathSection : path.split("\\^")) {
@@ -610,7 +622,7 @@ public class RepositoryEntry implements Serializable, Comparable, Cloneable, XML
     *
     * @return the encoded value, or {@code value} itself if it has nothing to encode.
     */
-   protected static String encodeControlChars(String value, boolean keepTabNewline) {
+   public static String encodeControlChars(String value, boolean keepTabNewline) {
       if(value == null) {
          return null;
       }

@@ -349,17 +349,20 @@ export class VPMConditionItemPane implements OnInit, OnChanges {
    }
 
    private getExpressionValue(expression: string): string {
-      if(!expression) {
+      if(expression == null || expression === "") {
          return null;
       }
 
+      // the number and boolean value editors emit numbers and booleans
+      expression = expression + "";
+
       if(this.condition?.operation?.symbol == ClauseOperationSymbols.IN
-         && !expression?.startsWith("("))
+         && !expression.startsWith("("))
       {
          expression = "(" + expression + ")";
       }
       else if(this.condition?.operation?.symbol != ClauseOperationSymbols.IN
-         && expression?.startsWith("("))
+         && expression.startsWith("("))
       {
          expression = expression.substring(1, expression.length - 1);
          expression = expression.split(",").length > 0 ?

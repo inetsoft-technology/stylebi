@@ -817,7 +817,9 @@ public class DatasourcesTreeService {
       List<TreeNodeModel> results = new ArrayList<>();
       XDataModel dataModel = dataSourceRegistry.getDataModel(database);
 
-      AssetEntry[] entries = getModelAssetEntries(database + "/", AssetEntry.Type.VPM);
+      // Bug #77820, not the VPMs of a data source of a folder at the same path
+      AssetEntry[] entries = dataSourceRegistry.getDataSourceEntries(
+         database, database + "/", AssetEntry.Type.VPM, false);
 
       for(AssetEntry entry : entries) {
          AssetEntry dataEntry = new AssetEntry(AssetRepository.QUERY_SCOPE, null,

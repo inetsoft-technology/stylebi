@@ -1646,108 +1646,119 @@ public class MVSupportService {
          for(Identity identity : identities) {
             SRPrincipal user = SUtil.getPrincipal(identity, null, true);
 
-            if(sheet instanceof Worksheet) {
-               analyzer = new WSMVAnalyzer(entry.toIdentifier(), (Worksheet) sheet, identity,
-                                           bypass);
-            }
-            else {
-               ViewsheetSandbox box = new ViewsheetSandbox(
-                  (Viewsheet) sheet, Viewsheet.SHEET_DESIGN_MODE, user, false, entry);
-
-               // @by ChrisSpagnoli, for Bug #6297
-               // prepareMVCreation() needed to set up any script-set vars,
-               // so they can be referenced during MV creation
-               box.prepareMVCreation();
-               box.setMVDisabled(true);
-               box.updateAssemblies();
-               analyzer = new VSMVAnalyzer(entry.toIdentifier(), (Viewsheet) sheet, identity,
-                                           box, bypass, candidate.getParentIds());
-            }
-
-            MVDef[] mvs;
+            // Bug #77609: dispose this identity's design-mode sandbox on every exit,
+            // including the continue after a failed analyze().
+            ViewsheetSandbox box = null;
 
             try {
-               mvs = analyzer.analyze();
+               if(sheet instanceof Worksheet) {
+                  analyzer = new WSMVAnalyzer(entry.toIdentifier(), (Worksheet) sheet, identity,
+                                              bypass);
+               }
+               else {
+                  box = new ViewsheetSandbox(
+                     (Viewsheet) sheet, Viewsheet.SHEET_DESIGN_MODE, user, false, entry);
 
-               for(MVDef def : mvs) {
-                  def.getMetaData().setGroupExpanded(expanded);
-                  def.getMetaData().setFullData(full);
+                  // @by ChrisSpagnoli, for Bug #6297
+                  // prepareMVCreation() needed to set up any script-set vars,
+                  // so they can be referenced during MV creation
+                  box.prepareMVCreation();
+                  box.setMVDisabled(true);
+                  box.updateAssemblies();
+                  analyzer = new VSMVAnalyzer(entry.toIdentifier(), (Viewsheet) sheet, identity,
+                                              box, bypass, candidate.getParentIds());
                }
 
-               isWarned = isWarned || analyzer.isNotHitMVWarned();
-            }
-            // thrown for vpm, should terminate immediately
-            catch(SecurityException ex) {
-               throw ex;
-            }
-            // for one identity included in permission, it may not be suitable
-            // for creating mv, and exception might occur (e.g.multitenant) when
-            // preparing mv. For this case, we should ignore the identity and
-            // continue to prepare mv for the other identities
-            catch(Exception ex) {
-               LOG.warn("Failed to analyze materialized views", ex);
-               UserInfo info = new UserInfo(entry.getPath(), "", ex.toString());
-               exceptions.add(info);
-               continue;
-            }
+               MVDef[] mvs;
 
-            // the optimize plan for each user are the same, so only show once
-            if(descs.isEmpty()) {
-               descs.add(analyzer.getInfo(mvs));
-               exceptions.addAll(analyzer.getDescriptor().getUserInfo());
-            }
-
-            LOOP:
-            for(MVDef def : mvs) {
-               for(MVDef def2 : defs) {
-                  if(def.equalsContent(def2)) {
-                     Identity[] src = def2.getUsers();
-                     src = src == null ? new Identity[0] : src;
-                     Identity[] src2 = def.getUsers();
-                     src2 = src2 == null ? new Identity[0] : src2;
-
-                     if(src2.length > 0 &&
-                        !Arrays.asList(src).contains(src2[0])) {
-                        Identity[] dest = new Identity[src.length + 1];
-                        System.arraycopy(src, 0, dest, 0, src.length);
-                        dest[src.length] = src2[0];
-                        def2.setUsers(dest);
-                     }
-
-                     continue LOOP;
-                  }
-               }
-
-               def.sortUsers();
-               defs.add(def);
-            }
-
-            // Bug #4705 - Restore ColumnSelection to all TableAssembly in Worksheet
-            for(int i = 0; i < wsAssemblies.length; i++) {
-               if(wsAssemblies[i] instanceof TableAssembly) {
-                  TableAssembly table = (TableAssembly) wsAssemblies[i];
+               try {
+                  mvs = analyzer.analyze();
 
                   for(MVDef def : mvs) {
-                     if(Tool.equals(table.getName(), def.getBoundTable())) {
-                        ColumnSelection origColumns = columnsPub[i];
-                        ColumnSelection columns = table.getColumnSelection(true);
+                     def.getMetaData().setGroupExpanded(expanded);
+                     def.getMetaData().setFullData(full);
+                  }
 
-                        if(origColumns.getAttributeCount() == columns.getAttributeCount()) {
-                           break;
+                  isWarned = isWarned || analyzer.isNotHitMVWarned();
+               }
+               // thrown for vpm, should terminate immediately
+               catch(SecurityException ex) {
+                  throw ex;
+               }
+               // for one identity included in permission, it may not be suitable
+               // for creating mv, and exception might occur (e.g.multitenant) when
+               // preparing mv. For this case, we should ignore the identity and
+               // continue to prepare mv for the other identities
+               catch(Exception ex) {
+                  LOG.warn("Failed to analyze materialized views", ex);
+                  UserInfo info = new UserInfo(entry.getPath(), "", ex.toString());
+                  exceptions.add(info);
+                  continue;
+               }
+
+               // the optimize plan for each user are the same, so only show once
+               if(descs.isEmpty()) {
+                  descs.add(analyzer.getInfo(mvs));
+                  exceptions.addAll(analyzer.getDescriptor().getUserInfo());
+               }
+
+               LOOP:
+               for(MVDef def : mvs) {
+                  for(MVDef def2 : defs) {
+                     if(def.equalsContent(def2)) {
+                        Identity[] src = def2.getUsers();
+                        src = src == null ? new Identity[0] : src;
+                        Identity[] src2 = def.getUsers();
+                        src2 = src2 == null ? new Identity[0] : src2;
+
+                        if(src2.length > 0 &&
+                           !Arrays.asList(src).contains(src2[0])) {
+                           Identity[] dest = new Identity[src.length + 1];
+                           System.arraycopy(src, 0, dest, 0, src.length);
+                           dest[src.length] = src2[0];
+                           def2.setUsers(dest);
                         }
 
-                        for(int c = 0; c < origColumns.getAttributeCount(); c++) {
-                           DataRef ref = origColumns.getAttribute(c);
+                        continue LOOP;
+                     }
+                  }
 
-                           if(ref instanceof ColumnRef && columns.indexOfAttribute(ref) < 0) {
-                              def.addRemovedColumn((ColumnRef) ref);
+                  def.sortUsers();
+                  defs.add(def);
+               }
+
+               // Bug #4705 - Restore ColumnSelection to all TableAssembly in Worksheet
+               for(int i = 0; i < wsAssemblies.length; i++) {
+                  if(wsAssemblies[i] instanceof TableAssembly) {
+                     TableAssembly table = (TableAssembly) wsAssemblies[i];
+
+                     for(MVDef def : mvs) {
+                        if(Tool.equals(table.getName(), def.getBoundTable())) {
+                           ColumnSelection origColumns = columnsPub[i];
+                           ColumnSelection columns = table.getColumnSelection(true);
+
+                           if(origColumns.getAttributeCount() == columns.getAttributeCount()) {
+                              break;
+                           }
+
+                           for(int c = 0; c < origColumns.getAttributeCount(); c++) {
+                              DataRef ref = origColumns.getAttribute(c);
+
+                              if(ref instanceof ColumnRef && columns.indexOfAttribute(ref) < 0) {
+                                 def.addRemovedColumn((ColumnRef) ref);
+                              }
                            }
                         }
                      }
-                  }
 
-                  table.setColumnSelection(columnsPub[i], true);
-                  table.setColumnSelection(columnsPrivate[i], false);
+                     table.setColumnSelection(columnsPub[i], true);
+                     table.setColumnSelection(columnsPrivate[i], false);
+                  }
+               }
+            }
+            finally {
+               if(box != null) {
+                  box.dispose();
                }
             }
          }

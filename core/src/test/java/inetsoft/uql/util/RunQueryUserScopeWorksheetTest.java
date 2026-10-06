@@ -28,14 +28,18 @@ package inetsoft.uql.util;
  * hooks grant everything, so the real checkAssetPermission0 owner check (checkUserAsset=true) is
  * the only thing that can refuse a user-scope sheet; a call that dropped checkUserAsset (e.g. the
  * AssetRepository default 4-arg method) would let the non-owner through and fail the test. The
- * global ASSET walk goes through the SecurityEngine spy bean, stubbed to grant READ only to READER
- * and the admins.
+ * global ASSET walk goes through the SecurityEngine spy bean, whose ASSET READ check is routed to
+ * a hook that grants READ only to READER and the admins. HookConfig stubs the spy once, before it
+ * is published; the tests only set the hook and must never stub the shared spy, because another
+ * thread calling it (e.g. the debounced ApplicationPropertiesChangedEvent from setUpAll's
+ * SreeEnv.save()) can take a pending stub and leave UnfinishedStubbingException (Bug #77783).
  * ReportWorksheetProcessor is replaced by a construction mock, so "allowed" means the processor
  * ran and its table came back.
  */
 
 import inetsoft.report.LibManagerProvider;
 import inetsoft.report.composition.execution.ReportWorksheetProcessor;
+import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.Cluster;
@@ -54,19 +58,25 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.MockedConstruction;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.DependsOn;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.security.Principal;
 import java.util.EnumSet;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class },
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class,
+                                  RunQueryUserScopeWorksheetTest.HookConfig.class },
                       initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
@@ -88,6 +98,8 @@ class RunQueryUserScopeWorksheetTest {
    private static SRPrincipal noRead;
    private static SRPrincipal orgAdmin;
    private static SRPrincipal siteAdmin;
+   private static final AtomicReference<Predicate<Principal>> CHECK_PERMISSION =
+      new AtomicReference<>();
 
    private MockedStatic<AssetUtil> assetUtil;
    private MockedStatic<VpmProcessor> vpmProcessor;
@@ -134,15 +146,11 @@ class RunQueryUserScopeWorksheetTest {
       assetUtil = Mockito.mockStatic(AssetUtil.class, Mockito.CALLS_REAL_METHODS);
       assetUtil.when(() -> AssetUtil.getAssetRepository(false)).thenReturn(engine);
 
-      // global worksheet ACL: only READER and the admins may read it. The SecurityEngine bean
-      // from BaseTestConfiguration is already a Mockito spy, so stub it in place.
-      SecurityEngine spyEngine = SecurityEngine.getSecurity();
-      doAnswer(inv -> {
-         Principal p = inv.getArgument(0);
+      // global worksheet ACL: only READER and the admins may read it
+      CHECK_PERMISSION.set(p -> {
          String name = IdentityID.getIdentityIDFromKey(p.getName()).getName();
          return READER.equals(name) || ORG_ADMIN.equals(name) || SITE_ADMIN.equals(name);
-      }).when(spyEngine).checkPermission(any(Principal.class), eq(ResourceType.ASSET),
-                                          anyString(), eq(ResourceAction.READ));
+      });
 
       vpmProcessor = Mockito.mockStatic(VpmProcessor.class, Mockito.CALLS_REAL_METHODS);
       vpmProcessor.when(VpmProcessor::useVpmSecurity).thenAnswer(inv -> vpmSecurity);
@@ -155,8 +163,7 @@ class RunQueryUserScopeWorksheetTest {
    @AfterEach
    void tearDown() throws Exception {
       ThreadContext.setContextPrincipal(null);
-      doCallRealMethod().when(SecurityEngine.getSecurity()).checkPermission(
-         any(Principal.class), eq(ResourceType.ASSET), anyString(), eq(ResourceAction.READ));
+      CHECK_PERMISSION.set(null);
       SreeEnv.setProperty("security.provider", oldProvider == null ? "" : oldProvider);
 
       for(AutoCloseable c : new AutoCloseable[] { processors, vpmProcessor, assetUtil }) {
@@ -235,6 +242,27 @@ class RunQueryUserScopeWorksheetTest {
          catch(Exception ex) {
             fail(ex);
          }
+      }
+   }
+
+   /**
+    * Replaces the SecurityEngine spy bean with one whose ASSET READ check defers to
+    * CHECK_PERMISSION, or to the real method when no hook is set.
+    */
+   @Configuration
+   static class HookConfig {
+      @Bean
+      @DependsOn("propertiesEngine")
+      public SecurityEngine securityEngine(Cluster cluster, LicenseManager licenseManager)
+         throws Exception
+      {
+         SecurityEngine engine = spy(new SecurityEngine(licenseManager, cluster));
+         doAnswer(inv -> {
+            Predicate<Principal> hook = CHECK_PERMISSION.get();
+            return hook == null ? inv.callRealMethod() : hook.test(inv.getArgument(0));
+         }).when(engine).checkPermission(any(Principal.class), eq(ResourceType.ASSET),
+                                         anyString(), eq(ResourceAction.READ));
+         return engine;
       }
    }
 

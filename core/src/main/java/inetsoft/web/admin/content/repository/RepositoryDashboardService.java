@@ -275,26 +275,23 @@ public class RepositoryDashboardService {
          }
          else if(!security) {
             Identity anonymous = new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.USER);
-            List<String> selectedDashboards = new ArrayList<>(
-               Arrays.asList(dashboardManager.getDashboards(anonymous)));
-            List<String> deselectedDashboards = new ArrayList<>(
-               Arrays.asList(dashboardManager.getDeselectedDashboards(anonymous)));
+            String dashboardName = name;
+            boolean enable = model.enable();
 
-            if(!selectedDashboards.contains(name) && !deselectedDashboards.contains(name)
-               && model.enable())
-            {
-               selectedDashboards.add(name);
-            }
-            else if(!model.enable()) {
-               if(selectedDashboards.contains(name)) {
-                  selectedDashboards.remove(name);
+            // changes the stored names in one locked read-modify-write, so a concurrent change
+            // of the selection is not overwritten (Bug #77872). The deselected name is removed
+            // by removeManagerDashboards() below.
+            dashboardManager.updateDashboardLists(anonymous, (selected, deselected) -> {
+               if(!selected.contains(dashboardName) && !deselected.contains(dashboardName) &&
+                  enable)
+               {
+                  selected.add(dashboardName);
                }
-               else if(deselectedDashboards.contains(name)) {
-                  deselectedDashboards.remove(name);
+               else if(!enable) {
+                  selected.remove(dashboardName);
                }
-            }
+            });
 
-            dashboardManager.setDashboards(anonymous, selectedDashboards.toArray(new String[0]));
             removeManagerDashboards(anonymous, name, model.enable());
             removeManagerDashboards(new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.USER), name,
                                                         model.enable());
@@ -318,15 +315,12 @@ public class RepositoryDashboardService {
    }
 
    public void removeManagerDashboards(Identity anonymous, String dashboard, boolean enabled) {
-      List<String> deselectedDashboards = new ArrayList<>(
-         Arrays.asList(dashboardManager.getDeselectedDashboards(anonymous)));
-
-      if(deselectedDashboards.contains(dashboard) && !enabled) {
-         deselectedDashboards.remove(dashboard);
-      }
-
-      dashboardManager.setDeselectedDashboards(
-         anonymous, deselectedDashboards.toArray(new String[0]));
+      // one locked read-modify-write of the stored names (Bug #77872)
+      dashboardManager.updateDashboardLists(anonymous, (selected, deselected) -> {
+         if(!enabled) {
+            deselected.remove(dashboard);
+         }
+      });
    }
 
    public ContentRepositoryTreeNode addDashboard(NewRepositoryFolderRequest parentInfo,
@@ -458,9 +452,18 @@ public class RepositoryDashboardService {
       }
 
       Identity identity = getDashboardFolderIdentity(principal);
-      List<String> all = Arrays.asList(dashboardManager.getDashboards(identity));
-      all.sort(Comparator.comparingInt(model.dashboards()::indexOf));
-      dashboardManager.setDashboards(identity, all.toArray(new String[0]));
+      List<String> order = model.dashboards();
+
+      // reorders the stored names in one locked read-modify-write, so a dashboard that is
+      // created or renamed meanwhile is not overwritten, and the names that are not in the
+      // request or that getDashboards() leaves out are kept. The request only gives the order,
+      // its names are not added (Bug #77872).
+      dashboardManager.updateDashboards(identity, dashboards -> {
+         String[] sorted = dashboards.clone();
+         Arrays.sort(sorted, Comparator.comparingInt(order::indexOf));
+         return sorted;
+      });
+
       boolean security = securityEngine.isSecurityEnabled();
       ResourcePermissionModel permissionModel = model.permissions();
 
@@ -500,13 +503,9 @@ public class RepositoryDashboardService {
       //update granted user dashboards.
       for(String identity : grants) {
          DefaultIdentity defaultIdentity = new DefaultIdentity(identity, type.code());
-         String[] dashboards = dashboardManager.getDashboards(defaultIdentity);
-         List<String> dashboardsList = new ArrayList<>(Arrays.asList(dashboards));
-
-         if(!dashboardsList.contains(dashboard)) {
-            dashboardsList.add(dashboard);
-            dashboardManager.setDashboards(defaultIdentity, dashboardsList.toArray(new String[0]));
-         }
+         // appended in one locked read-modify-write, so a concurrent change of the identity's
+         // selection is not overwritten (Bug #77872)
+         dashboardManager.addDashboard(defaultIdentity, dashboard);
       }
 
       //update ungranted user dashboards.
@@ -537,16 +536,15 @@ public class RepositoryDashboardService {
 
       for(IdentityID user : ungrantedIdentities) {
          DefaultIdentity identity = new DefaultIdentity(user, type.code());
-         String[] dashboards = dashboardManager.getDashboards(identity);
-         List<String> dashboardsList = new ArrayList<>(Arrays.asList(dashboards));
-         String[] deselectedDashboards = dashboardManager.getDeselectedDashboards(identity);
-         List<String> deselectedList = new ArrayList<>(Arrays.asList(deselectedDashboards));
-         boolean remove = dashboardsList.remove(dashboard) || deselectedList.remove(dashboard);
 
-         if(remove) {
-            dashboardManager.setDashboards(identity, dashboardsList.toArray(new String[0]));
-            dashboardManager.setDeselectedDashboards(identity, deselectedList.toArray(new String[0]));
-         }
+         // both lists are changed in one locked read-modify-write, so a concurrent change of
+         // either is not overwritten (Bug #77872). As before, the name is removed from the
+         // deselected names only when it is not selected.
+         dashboardManager.updateDashboardLists(identity, (selected, deselected) -> {
+            if(!selected.remove(dashboard)) {
+               deselected.remove(dashboard);
+            }
+         });
       }
    }
 

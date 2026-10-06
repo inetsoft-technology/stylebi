@@ -1782,19 +1782,19 @@ public class VLabel extends BoundedVisualizable {
    private static final ThreadLocal<Format> DATE = new ThreadLocal() {
       @Override
       protected Format initialValue() {
-         return new SimpleDateFormat("yyyy-MM-dd");
+         return CoreTool.createGregorianDateFormat("yyyy-MM-dd");
       }
    };
    private static final ThreadLocal<Format> DATE_TIME = new ThreadLocal() {
       @Override
       protected Format initialValue() {
-         return new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+         return CoreTool.createGregorianDateFormat("yyyy-MM-dd HH:mm:ss");
       }
    };
    private static final ThreadLocal<Format> TIME = new ThreadLocal() {
       @Override
       protected Format initialValue() {
-         return new SimpleDateFormat("HH:mm:ss");
+         return CoreTool.createGregorianDateFormat("HH:mm:ss");
       }
    };
    private static final ThreadLocal<Format> DECIMAL = new ThreadLocal() {

@@ -38,6 +38,7 @@ import inetsoft.util.script.*;
 import inetsoft.util.script.graal.GraalJavaScriptEngine;
 import inetsoft.util.script.graal.GraalJavaScriptEnv;
 import inetsoft.util.script.graal.ScriptScope;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.script.graal.pool.WorksheetScriptEnv;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.stall.WaitRecord;
@@ -490,6 +491,11 @@ public class FormulaTableLens extends AbstractTableLens
          // stop at the rows whose base was loaded before taking the locks, see lockForRow()
          final int maxr = Math.min(Math.max(r, nrows + hrows +
                                                (execLock != null ? advance : batch)), lastRow);
+         // the first script error of this batch, thrown once the batch is computed: a reader
+         // that goes on after it reads the rest of the batch without recomputing, so a column
+         // that fails on many rows ends one batch (one context clean, pool on), not one per
+         // failing row (Testing #77123, O2)
+         ExpressionFailedException firstFailure = null;
 
          // stop once invalidate() published a new row table: the rest of the rows belong to it,
          // and the next read computes them there (bug #77243)
@@ -560,7 +566,30 @@ public class FormulaTableLens extends AbstractTableLens
                }
 
                String colName = getColName(j + ncols);
-               throw new ExpressionFailedException(ncols + j, colName, null, ex);
+               ExpressionFailedException failure =
+                  new ExpressionFailedException(ncols + j, colName, null, ex);
+
+               // a timeout or cancel ends the batch at once: the next row would wait as
+               // long, under the lens lock
+               if(ScriptTimeoutGuard.isStop(ex) || Thread.currentThread().isInterrupted() ||
+                  cancelled)
+               {
+                  if(firstFailure != null) {
+                     for(int failedRow : firstFailure.getFailedRows()) {
+                        failure.addFailedRow(failedRow);
+                     }
+                  }
+
+                  failure.addFailedRow(i);
+                  throw failure;
+               }
+
+               if(firstFailure == null) {
+                  firstFailure = failure;
+               }
+
+               // the reader learns every failed row of the batch from the one exception
+               firstFailure.addFailedRow(i);
             }
             finally {
                // add empty row even if script failed since getObject() assumes rows contains
@@ -578,6 +607,10 @@ public class FormulaTableLens extends AbstractTableLens
                table.addChangeListener(listener);
                FormulaContext.setRestricted(restricted0);
             }
+         }
+
+         if(firstFailure != null) {
+            throw firstFailure;
          }
       }
       catch(LockStallException ex) {
@@ -1549,7 +1582,10 @@ public class FormulaTableLens extends AbstractTableLens
                throw stall;
             }
 
-            throw new ScriptException(ex.getMessage());
+            ScriptException failure = new ScriptException(ex.getMessage());
+            // keep a timeout or cancel recognizable, so the batch ends at it (Testing #77123)
+            failure.setStopped(ScriptTimeoutGuard.isStop(ex));
+            throw failure;
          }
 
          return row[col];

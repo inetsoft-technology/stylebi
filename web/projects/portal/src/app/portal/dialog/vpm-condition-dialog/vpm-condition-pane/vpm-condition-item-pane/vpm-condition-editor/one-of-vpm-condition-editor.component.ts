@@ -152,7 +152,7 @@ export class OneOfVpmConditionEditor implements OnChanges {
             return;
          }
 
-         this.values[this.values.length] = newValue;
+         this.values[this.values.length] = newValue + "";
          this.setSelectedIndex(this.values.length - 1);
          this.updateValueModel();
       }
@@ -184,9 +184,10 @@ export class OneOfVpmConditionEditor implements OnChanges {
 
    modify(): void {
       if(this.selectedIndex >= 0 && this.selectedIndex < this.values.length &&
-         !!this.editingModel && !!this.editingModel.expression)
+         !this.isEmpty())
       {
-         this.values[this.selectedIndex] = this.editingModel.expression;
+         // the number value editor emits numbers, keep the list as strings
+         this.values[this.selectedIndex] = this.editingModel.expression + "";
          this.updateValueModel();
       }
    }

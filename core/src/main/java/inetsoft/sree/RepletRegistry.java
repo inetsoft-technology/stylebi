@@ -535,6 +535,12 @@ public class RepletRegistry implements Serializable {
          return "true";
       }
 
+      // Bug #77721, the subfolders would be renamed under the new name, which itself lies under
+      // the old folder, and the folder would be left with no parent.
+      if(Tool.isDescendantPath(oldFolderName, newFolderName)) {
+         return catalog.getString("common.folder.moveIntoItself", oldFolderName);
+      }
+
       if(getFolderMap().containsKey(newFolderName)) {
          return catalog.getString("common.repletRegistry.folderExist", newFolderName);
       }

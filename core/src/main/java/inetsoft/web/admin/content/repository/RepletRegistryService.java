@@ -563,6 +563,14 @@ public class RepletRegistryService {
       RepletRegistry registryTo = repletRegistryManager.getRegistry(userTo);
       pathTo = "".equals(pathTo) || "/".equals(pathTo) ? "" : pathTo + "/";
       pathTo += entryName;
+
+      // Bug #77721, a folder copied into itself or one of its subfolders of the same owner
+      // would list its own copy as a subfolder and be copied without end.
+      if(Tool.equals(userFrom, userTo) && Tool.isDescendantPath(pathFrom, pathTo)) {
+         throw new MessageException(Catalog.getCatalog(principal).getString(
+            "common.folder.moveIntoItself", pathFrom));
+      }
+
       String identifier = null;
 
       if(isWSFolder) {
@@ -624,7 +632,15 @@ public class RepletRegistryService {
       if(securityEngine != null) {
          Permission perm = securityEngine.getPermission(ResourceType.REPORT, pathFrom);
          if(perm != null) {
-            securityEngine.setPermission(ResourceType.REPORT, pathTo, perm);
+            // best-effort: a failed permission copy must not skip the registry save or the copy
+            // of the children
+            try {
+               securityEngine.setPermission(ResourceType.REPORT, pathTo, perm);
+            }
+            catch(RuntimeException e) {
+               LOG.error("Failed to copy the permission of {} to {}, it may not have been saved",
+                         pathFrom, pathTo, e);
+            }
          }
       }
 

@@ -32,8 +32,8 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Bug #77527: calendar assembly date strings ("2024-8", "2024-01-03") hold Gregorian years and
  * must be read as Gregorian whatever the calendar system of the JVM default locale is
- * (Buddhist for th_TH, Japanese imperial for ja_JP_JP). Display formats keep the locale
- * calendar.
+ * (Buddhist for th_TH, Japanese imperial for ja_JP_JP). Display formats are Gregorian too,
+ * with the month and day names of the locale (Bug #77605).
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = BaseTestConfiguration.class,
@@ -82,6 +82,22 @@ class CalendarUtilCalendarSystemTest {
       }
    }
 
+   // Bug #77598: a custom CALENDAR_TITLE date pattern must also show the Gregorian year
+   @Test
+   void customPatternTitleUsesGregorianYear() {
+      VSCompositeFormat format = new VSCompositeFormat();
+      format.getUserDefinedFormat().setFormatValue("DateFormat");
+      format.getUserDefinedFormat().setFormatExtentValue("yyyy-MM-dd");
+
+      for(Locale locale : List.of(Locale.US, TH, JA)) {
+         Locale.setDefault(locale);
+         assertEquals("2026-01", CalendarUtil.formatTitle("2026-0", false, format),
+                      "default locale " + locale);
+         assertEquals("2026", CalendarUtil.formatTitle("2026", true, format),
+                      "default locale " + locale);
+      }
+   }
+
    @Test
    void fullFormatEnUs() {
       Locale.setDefault(Locale.US);
@@ -90,18 +106,20 @@ class CalendarUtilCalendarSystemTest {
    }
 
    @Test
-   void fullFormatThaiShowsBuddhistYear() {
+   void fullFormatThaiShowsGregorianYear() {
       Locale.setDefault(TH);
       String result = CalendarUtil.formatSelectedDates("2024-01-03", "FULL", false, false, true);
-      assertTrue(result.contains("2567"), result);
-      assertFalse(result.contains("2024"), result);
+      assertTrue(result.contains("2024"), result);
+      assertTrue(result.contains("มกราคม"), result);
+      assertFalse(result.contains("2567"), result);
    }
 
    @Test
-   void fullFormatJapaneseShowsEraYear() {
+   void fullFormatJapaneseShowsGregorianYear() {
       Locale.setDefault(JA);
       String result = CalendarUtil.formatSelectedDates("2024-01-03", "FULL", false, false, true);
-      assertTrue(result.contains("令和6年1月3日"), result);
+      assertTrue(result.contains("2024年1月3日"), result);
+      assertFalse(result.contains("令和"), result);
    }
 
    @Test

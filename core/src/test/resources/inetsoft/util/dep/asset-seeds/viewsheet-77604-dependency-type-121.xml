@@ -1,0 +1,18 @@
+<viewsheet>
+<assembly>
+<assemblies>
+<oneAssembly>
+<assembly class="inetsoft.uql.viewsheet.Viewsheet">
+<viewsheetEntry><assetEntry scope="1" type="128">
+<path><![CDATA[Examples/Census]]></path></assetEntry>
+</viewsheetEntry>
+<assemblyInfo><assemblyInfo class="inetsoft.uql.viewsheet.internal.ViewsheetVSAssemblyInfo">
+<name><![CDATA[Viewsheet1]]></name></assemblyInfo></assemblyInfo>
+</assembly>
+</oneAssembly>
+</assemblies>
+<dependencies>
+<assetEntry scope="1" type="121"><path><![CDATA[Examples/Dep]]></path></assetEntry>
+</dependencies>
+</assembly>
+</viewsheet>

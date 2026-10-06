@@ -20,8 +20,12 @@ package inetsoft.util.credential;
 
 /**
  * The credentials for the OAuth 2.0 Resource Owner Password Credentials (ROPC) authorization flow.
+ * It also holds the access and refresh tokens that the flow obtained, so that they are reused
+ * until they expire instead of requesting new tokens with the password every time.
  */
-public interface ResourceOwnerPasswordCredentials extends ClientCredentials, PasswordCredential {
+public interface ResourceOwnerPasswordCredentials
+   extends ClientCredentials, PasswordCredential, RefreshTokenCredential
+{
    String getTenantId();
 
    void setTenantId(String tenantId);

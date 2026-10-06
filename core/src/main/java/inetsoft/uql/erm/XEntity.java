@@ -582,7 +582,7 @@ public class XEntity implements Cloneable, Serializable, Comparable<XEntity>, XM
       if(description != null) {
          writer.print("<description>");
          writer.print("<![CDATA[");
-         writer.print(description);
+         writer.print(Tool.splitCDATAEnd(description));
          writer.print("]]>");
          writer.println("</description>");
       }

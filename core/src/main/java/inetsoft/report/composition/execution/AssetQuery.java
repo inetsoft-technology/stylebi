@@ -35,7 +35,6 @@ import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.*;
 import inetsoft.uql.erm.*;
-import inetsoft.uql.erm.vpm.VirtualPrivateModel;
 import inetsoft.uql.jdbc.*;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.schema.XTypeNode;
@@ -3561,57 +3560,6 @@ public abstract class AssetQuery extends PreAssetQuery {
    }
 
    /**
-    * check groupby columns is the vpm hidden columns(data type is date).
-    * @return sql is groupby hidden column(date type).
-    */
-   private boolean isGroupedByHiddenCols(JDBCQuery query, VariableTable vars,
-      String groupByCols) throws Exception
-   {
-      String[] tables = new String[0];
-      String[] columns = new String[0];
-
-      XDataSource dx = query.getDataSource();
-      String dname = dx == null ? null : dx.getFullName();
-      XDataModel model = XRepository.getRepository().getDataModel(dname);
-
-      if(model == null) {
-         return false;
-      }
-
-      String[] names = model.getVirtualPrivateModelNames();
-      String[] result =  null;
-
-      for(String name : names) {
-         VirtualPrivateModel vpm = model.getVirtualPrivateModel(name);
-         HiddenColumns hcolumns = vpm.getHiddenColumns();
-
-         if(hcolumns != null) {
-            result = hcolumns.evaluate(tables, columns, vars, box.getUser(), false,
-                                       query.getPartition());
-         }
-      }
-
-      int index = groupByCols.indexOf('(');
-
-      if(index > 0) {
-         groupByCols = groupByCols.substring(index + 1,
-            groupByCols.length() - 1);
-      }
-
-      if(result == null) {
-         return false;
-      }
-
-      for(String aResult : result) {
-         if(aResult.indexOf(groupByCols) > 0) {
-            return true;
-         }
-      }
-
-      return false;
-   }
-
-   /**
     * Get the target jdbc query to merge into.
     * @return the target jdbc query to merge into.
     */
@@ -3634,10 +3582,6 @@ public abstract class AssetQuery extends PreAssetQuery {
    protected TableLens getPreBaseTableLens(VariableTable vars) throws Exception {
       JDBCQuery query = getQuery();
       ColumnSelection columns = gmerged ? gcolumns : used;
-
-      if(isGroupedByHiddenCols(query, vars, columns.toString())) {
-         return null;
-      }
 
       if(columns.getAttributeCount() == 0) {
          XEmbeddedTable table =

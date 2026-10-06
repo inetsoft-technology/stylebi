@@ -309,26 +309,52 @@ public final class PoolTestSupport {
     * handles or constructor is fixed here.
     */
    static void injectClean(Slot slot, String factory, Object... args) throws Exception {
+      swapHandles(slot, factory, args, true);
+   }
+
+   /**
+    * Swap the slot's clean helper for one whose paranoid check ({@link CleanHelper#verify})
+    * is {@code factory} (a guest function source) applied to the real check's handle and then
+    * to {@code args}, keeping its other handles: {@code factory} wraps the real check, e.g. to
+    * block in a host call before it (bug #77568). Caller holds the slot.
+    */
+   static void injectVerify(Slot slot, String factory, Object... args) throws Exception {
+      swapHandles(slot, factory, args, false);
+   }
+
+   private static void swapHandles(Slot slot, String factory, Object[] args, boolean clean)
+      throws Exception
+   {
       Field field = Slot.class.getDeclaredField("cleaner");
       field.setAccessible(true);
       CleanHelper real = (CleanHelper) field.get(slot);
-      Value clean = slot.engine().context().eval("js", factory);
-
-      if(args.length > 0) {
-         clean = clean.execute(args);
-      }
-
+      Field cleanField = CleanHelper.class.getDeclaredField("clean");
       Field expect = CleanHelper.class.getDeclaredField("expect");
       Field forget = CleanHelper.class.getDeclaredField("forget");
-      Field verify = CleanHelper.class.getDeclaredField("verify");
+      Field verifyField = CleanHelper.class.getDeclaredField("verify");
+      cleanField.setAccessible(true);
       expect.setAccessible(true);
       forget.setAccessible(true);
-      verify.setAccessible(true);
+      verifyField.setAccessible(true);
+      Value made = slot.engine().context().eval("js", factory);
+      Value cleanHandle = (Value) cleanField.get(real);
+      Value verifyHandle = (Value) verifyField.get(real);
+
+      if(clean) {
+         cleanHandle = args.length > 0 ? made.execute(args) : made;
+      }
+      else {
+         Object[] all = new Object[args.length + 1];
+         all[0] = verifyHandle;
+         System.arraycopy(args, 0, all, 1, args.length);
+         verifyHandle = made.execute(all);
+      }
+
       Constructor<CleanHelper> ctor = CleanHelper.class.getDeclaredConstructor(
          Value.class, Value.class, Value.class, Value.class);
       ctor.setAccessible(true);
-      field.set(slot, ctor.newInstance(clean, expect.get(real), forget.get(real),
-                                       verify.get(real)));
+      field.set(slot, ctor.newInstance(cleanHandle, expect.get(real), forget.get(real),
+                                       verifyHandle));
    }
 
    @FunctionalInterface

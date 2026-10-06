@@ -235,6 +235,7 @@ class SlotPoolProbeTest {
     * waited for.
     */
    @Test
+   @Disabled("Fails intermittently: Jenkins main #377, #386 (Bug #77830)")
    void aPullOfAHomeHeldByAClaimDoesNotWait() throws Exception {
       WorksheetScriptEnv env = softEnv();
       Tenant tenant = new Tenant();

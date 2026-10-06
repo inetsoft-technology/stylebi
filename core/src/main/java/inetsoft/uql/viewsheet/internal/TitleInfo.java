@@ -340,13 +340,13 @@ public class TitleInfo implements AssetObject {
 
       if(title != null) {
          writer.print("<title>");
-         writer.print("<![CDATA[" + title + "]]>");
+         writer.print("<![CDATA[" + Tool.splitCDATAEnd(title) + "]]>");
          writer.println("</title>");
       }
 
       if(getTitleValue() != null) {
          writer.print("<titleValue>");
-         writer.print("<![CDATA[" + getTitleValue() + "]]>");
+         writer.print("<![CDATA[" + Tool.splitCDATAEnd(getTitleValue()) + "]]>");
          writer.println("</titleValue>");
       }
    }

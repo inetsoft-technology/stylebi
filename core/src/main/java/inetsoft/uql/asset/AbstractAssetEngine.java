@@ -1858,6 +1858,14 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
                "common.sameFolder", nentry));
          }
 
+         // Bug #77721, a folder moved into one of its own subfolders would be written under
+         // itself while it is being moved, which loses or endlessly copies its subtree. A move
+         // to the same path (an alias change) or into another scope, user or org is not one.
+         if(isMovedIntoItself(oentry, nentry)) {
+            throw new MessageException(catalog.getString(
+               "common.folder.moveIntoItself", oentry.getPath()));
+         }
+
          IndexedStorage ostorage = getStorage(oentry);
          IndexedStorage nstorage = getStorage(nentry);
 
@@ -1899,6 +1907,18 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
       finally {
          writeLock.unlock();
       }
+   }
+
+   /**
+    * Checks if a folder would be moved into one of its own subfolders: the new folder is in the
+    * same scope, of the same type and of the same user and org, and its path lies strictly under
+    * the path of the old folder.
+    */
+   private static boolean isMovedIntoItself(AssetEntry oentry, AssetEntry nentry) {
+      return oentry.getScope() == nentry.getScope() && oentry.getType() == nentry.getType() &&
+         Tool.equals(oentry.getUser(), nentry.getUser()) &&
+         Tool.equals(oentry.getOrgID(), nentry.getOrgID()) &&
+         Tool.isDescendantPath(oentry.getPath(), nentry.getPath());
    }
 
    /**
@@ -2126,12 +2146,26 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          return;
       }
 
-      securityEngine.removePermission(type, oentry.getPath());
+      // the permission move is best-effort: this runs inside the folder move, and a failed
+      // permission write must not stop the rest of the tree from being moved
+      try {
+         securityEngine.removePermission(type, oentry.getPath());
+      }
+      catch(RuntimeException e) {
+         LOG.error("Failed to remove the permission of {} {} after moving it to {}",
+                   type, oentry.getPath(), nentry.getPath(), e);
+      }
 
       // moving out of the global repository (e.g. into a user's private assets); the old
       // permission no longer applies to any path and must not be copied to the private path
       if(nentry.getScope() == GLOBAL_SCOPE) {
-         securityEngine.setPermission(type, nentry.getPath(), oldPermission);
+         try {
+            securityEngine.setPermission(type, nentry.getPath(), oldPermission);
+         }
+         catch(RuntimeException e) {
+            LOG.error("Failed to move the permission of {} {} to {}",
+                      type, oentry.getPath(), nentry.getPath(), e);
+         }
       }
    }
 

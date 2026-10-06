@@ -1698,20 +1698,7 @@ public class ScheduleManager {
     * Method will be invoked when a user is removed.
     */
    public synchronized void identityRemoved(Identity identity, EditableAuthenticationProvider eprovider) {
-      int type = identity.getType();
       IdentityID identityID = identity.getIdentityID();
-
-      if(type == Identity.ROLE) {
-         roleRemoved(identityID);
-
-         for(ScheduleExt ext : extensions) {
-            ext.identityRemoved(identity);
-         }
-
-         return;
-      }
-
-      Set<ScheduleTask> changedTasks = new HashSet<>();
       String orgID;
 
       switch(identity.getType()) {
@@ -1728,6 +1715,33 @@ public class ScheduleManager {
             orgID = Organization.getDefaultOrganizationID();
             break;
       }
+
+      identityRemoved(identity, orgID);
+   }
+
+   /**
+    * Method will be invoked when a user is removed. Unlike
+    * {@link #identityRemoved(Identity, EditableAuthenticationProvider)} it does not look the
+    * identity up in the provider, so it can run after the identity has been removed.
+    *
+    * @param orgID the organization of the removed user or group, read before it was removed.
+    *              Not used for a role.
+    */
+   public synchronized void identityRemoved(Identity identity, String orgID) {
+      int type = identity.getType();
+      IdentityID identityID = identity.getIdentityID();
+
+      if(type == Identity.ROLE) {
+         roleRemoved(identityID);
+
+         for(ScheduleExt ext : extensions) {
+            ext.identityRemoved(identity);
+         }
+
+         return;
+      }
+
+      Set<ScheduleTask> changedTasks = new HashSet<>();
 
       Iterator<ScheduleTask> i = getOrgTaskMap(orgID).values().iterator();
 

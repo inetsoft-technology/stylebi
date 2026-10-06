@@ -42,6 +42,20 @@ class PooledCancelKeptTest {
       Thread.interrupted();
    }
 
+   @BeforeEach
+   void rememberParanoia() {
+      forcedBefore = PoolParanoia.forced;
+      verifyTimeoutBefore = PoolParanoia.verifyTimeout;
+   }
+
+   @AfterEach
+   void restoreParanoia() {
+      PoolParanoia.forced = forcedBefore;
+      PoolParanoia.beforeVerifyHook = null;
+      PoolParanoia.verifyTimeout = verifyTimeoutBefore;
+      PoolParanoia.refresh();
+   }
+
    @AfterEach
    void closeSlot() {
       if(slot != null && !slot.isClosed()) {
@@ -231,6 +245,138 @@ class PooledCancelKeptTest {
       }
    }
 
+   /**
+    * Bug #77568: with the paranoid check on, a claim's release runs the check's JS right after
+    * the clean has put the caller's cancel back on the thread. Graal throws at the check's
+    * first guest safepoint poll and clears the flag, so the check must set the cancel aside
+    * too. The check then gives a real verdict, so the slot is reused, not closed as
+    * inconclusive. CI runs with the check off, hence it is forced here.
+    */
+   @Test
+   void aParanoidReleaseKeepsACancelAndReusesTheSlot() throws Exception {
+      PoolParanoia.forced = true;
+      // the check's own timeout would make it inconclusive on a stalled machine
+      PoolParanoia.verifyTimeout = LONG_CHECK;
+      WorksheetScriptEnv env = PoolTestSupport.env();
+
+      try {
+         PoolTestSupport.run(env, "var w = 1; 1");
+         long inconclusive = PoolParanoia.inconclusive();
+         long violations = PoolParanoia.violations();
+         Thread.currentThread().interrupt();
+         String outcome;
+
+         try {
+            outcome = String.valueOf(PoolTestSupport.run(env, "var u = 2; 3"));
+         }
+         catch(Exception ex) {
+            outcome = String.valueOf(ex);
+         }
+
+         assertTrue(Thread.interrupted(), "the paranoid release lost the cancel: " + outcome);
+         assertEquals(inconclusive, PoolParanoia.inconclusive(), "the check was not stopped");
+         assertEquals(violations, PoolParanoia.violations());
+         assertEquals("undefined", PoolTestSupport.run(env, "typeof u"));
+         assertEquals(1, env.getMetrics().getCreations(), "the cancelled slot is reused");
+      }
+      finally {
+         env.retire();
+      }
+   }
+
+   /**
+    * Bug #77568: a cancel that lands while the paranoid check runs is consumed at one of the
+    * check's guest safepoint polls; the check's catch must put it back. The check is wrapped
+    * so that it first enters a host call that waits, outside guest code, until the canceller
+    * has interrupted the thread; so the cancel lands inside the check, after it set the
+    * caller's flag aside, and the next guest safepoint poll consumes it, on any schedule. The
+    * check's own timeout is lengthened so that only the cancel can stop it.
+    */
+   @Test
+   void aCancelDuringAParanoidCheckIsKept() throws Exception {
+      WorksheetScriptEnv env = PoolTestSupport.env();
+      Spinner spinner = new Spinner();
+      Thread self = Thread.currentThread();
+      CountDownLatch sent = new CountDownLatch(1);
+      Thread canceller = new Thread(() -> {
+         try {
+            if(spinner.entered.await(30, TimeUnit.SECONDS)) {
+               self.interrupt();
+               sent.countDown();
+            }
+         }
+         catch(InterruptedException ignore) {
+            // the test ends
+         }
+      }, "paranoid-cancel-canceller");
+
+      try {
+         PoolTestSupport.run(env, "1");
+         long inconclusive = PoolParanoia.inconclusive();
+         PoolParanoia.forced = true;
+         PoolParanoia.verifyTimeout = LONG_CHECK;
+         PoolParanoia.beforeVerifyHook = s -> {
+            PoolParanoia.beforeVerifyHook = null;
+
+            try {
+               PoolTestSupport.injectVerify(
+                  s, "(function(real, sp) { return function() { sp.spin(); return real(); }; })",
+                  spinner);
+            }
+            catch(Exception ex) {
+               throw new IllegalStateException(ex);
+            }
+         };
+         canceller.start();
+         String outcome;
+
+         try {
+            outcome = String.valueOf(PoolTestSupport.run(env, "1"));
+         }
+         catch(Exception ex) {
+            outcome = String.valueOf(ex);
+         }
+
+         // take the flag before waiting, and wait so that no interrupt can end the wait
+         boolean cancelled = Thread.interrupted();
+         boolean stray = joinIgnoringInterrupts(canceller);
+         assertEquals(0, spinner.entered.getCount(), "the check did not run");
+         assertEquals(0, sent.getCount(), "the canceller did not cancel");
+         assertFalse(stray, "the cancel landed after the release returned");
+         assertTrue(cancelled, "the cancel was lost in the check: " + outcome);
+         assertEquals(inconclusive + 1, PoolParanoia.inconclusive(),
+                      "the cancel did not stop the check");
+         assertEquals(2, ((Number) PoolTestSupport.run(env, "1 + 1")).intValue());
+      }
+      finally {
+         PoolParanoia.beforeVerifyHook = null;
+         canceller.interrupt();
+         env.retire();
+      }
+   }
+
+   /**
+    * Join {@code thread} for at most 30 s; an interrupt of the calling thread meanwhile does
+    * not end the wait and is cleared.
+    *
+    * @return whether such an interrupt arrived.
+    */
+   private static boolean joinIgnoringInterrupts(Thread thread) {
+      boolean interrupted = false;
+      long end = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+
+      while(thread.isAlive() && end - System.nanoTime() > 0) {
+         try {
+            thread.join(Math.max(1, TimeUnit.NANOSECONDS.toMillis(end - System.nanoTime())));
+         }
+         catch(InterruptedException ex) {
+            interrupted = true;
+         }
+      }
+
+      return interrupted | Thread.interrupted();
+   }
+
    private static Slot newSlot() throws Exception {
       EnvState state = new EnvState();
       return Slot.create(new InitSnapshot("org0", Map.of()), state.snapshot(), 0L, false,
@@ -243,4 +389,8 @@ class PooledCancelKeptTest {
    }
 
    private Slot slot;
+   private Boolean forcedBefore;
+   private Duration verifyTimeoutBefore;
+
+   private static final Duration LONG_CHECK = Duration.ofSeconds(60);
 }

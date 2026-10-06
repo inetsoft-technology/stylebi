@@ -22,5 +22,6 @@ public enum AuthType {
    BASIC,
    TWO_STEP,
    OAUTH,
-   KERBEROS
+   KERBEROS,
+   OAUTH_CLIENT_CREDENTIALS
 }

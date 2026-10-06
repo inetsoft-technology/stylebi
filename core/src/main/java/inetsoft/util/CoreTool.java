@@ -25,7 +25,7 @@ import inetsoft.sree.security.SRPrincipal;
 import inetsoft.uql.asset.ConfirmException;
 import inetsoft.web.viewsheet.command.MessageCommand.Type;
 import org.apache.commons.lang3.math.NumberUtils;
-import org.pojava.datetime.*;
+import inetsoft.util.pojava.datetime.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.*;
@@ -121,6 +121,9 @@ public class CoreTool {
     */
    public static final ThreadLocal<GregorianCalendar> calendar2 =
       ThreadLocal.withInitial(GregorianCalendar::new);
+
+   // getGregorianLocale() results, declared before the static date formats that may use it
+   private static final Map<Locale, Locale> GREGORIAN_LOCALES = new ConcurrentHashMap<>();
 
    /**
     * Null type.
@@ -623,25 +626,27 @@ public class CoreTool {
     */
    public static SimpleDateFormat createDateFormat(String pattern) {
       DateFormat fmt = null;
+      // the Gregorian pattern of the locale, e.g. without the era of a Japanese calendar pattern
+      Locale glocale = getGregorianLocale(Locale.getDefault(Locale.Category.FORMAT));
 
       if("FULL".equalsIgnoreCase(pattern)) {
-         fmt = DateFormat.getDateInstance(DateFormat.FULL);
+         fmt = DateFormat.getDateInstance(DateFormat.FULL, glocale);
       }
       else if("LONG".equalsIgnoreCase(pattern)) {
-         fmt = DateFormat.getDateInstance(DateFormat.LONG);
+         fmt = DateFormat.getDateInstance(DateFormat.LONG, glocale);
       }
       else if("MEDIUM".equalsIgnoreCase(pattern)) {
-         fmt = DateFormat.getDateInstance(DateFormat.MEDIUM);
+         fmt = DateFormat.getDateInstance(DateFormat.MEDIUM, glocale);
       }
       else if("SHORT".equalsIgnoreCase(pattern)) {
-         fmt = DateFormat.getDateInstance(DateFormat.SHORT);
+         fmt = DateFormat.getDateInstance(DateFormat.SHORT, glocale);
       }
       else if("yyyy".equalsIgnoreCase(pattern)) {
          fmt = new SimpleDateFormat("yyyy");
       }
 
       if(fmt instanceof SimpleDateFormat) {
-         return (SimpleDateFormat) fmt;
+         return setGregorianCalendar((SimpleDateFormat) fmt);
       }
 
       return new ExtendedDateFormat(pattern);
@@ -659,28 +664,223 @@ public class CoreTool {
       }
 
       DateFormat fmt = null;
+      Locale glocale = getGregorianLocale(locale);
 
       if(pattern.equalsIgnoreCase("FULL")) {
-         fmt = DateFormat.getDateInstance(DateFormat.FULL, locale);
+         fmt = DateFormat.getDateInstance(DateFormat.FULL, glocale);
       }
       else if(pattern.equalsIgnoreCase("LONG")) {
-         fmt = DateFormat.getDateInstance(DateFormat.LONG, locale);
+         fmt = DateFormat.getDateInstance(DateFormat.LONG, glocale);
       }
       else if(pattern.equalsIgnoreCase("MEDIUM")) {
-         fmt = DateFormat.getDateInstance(DateFormat.MEDIUM, locale);
+         fmt = DateFormat.getDateInstance(DateFormat.MEDIUM, glocale);
       }
       else if(pattern.equalsIgnoreCase("SHORT")) {
-         fmt = DateFormat.getDateInstance(DateFormat.SHORT, locale);
+         fmt = DateFormat.getDateInstance(DateFormat.SHORT, glocale);
       }
       else if(pattern.equalsIgnoreCase("yyyy")) {
          fmt = new SimpleDateFormat("yyyy", locale);
       }
 
       if(fmt instanceof SimpleDateFormat) {
-         return (SimpleDateFormat) fmt;
+         return setGregorianCalendar((SimpleDateFormat) fmt);
       }
 
       return new ExtendedDateFormat(pattern, locale);
+   }
+
+   /**
+    * Create a SimpleDateFormat for the default format locale that uses the Gregorian calendar.
+    * Use it instead of new SimpleDateFormat(pattern), which takes the calendar of the default
+    * locale, e.g. Buddhist years for th_TH or the current Japanese era for ja_JP_JP.
+    */
+   public static SimpleDateFormat createGregorianDateFormat(String pattern) {
+      return setGregorianCalendar(new SimpleDateFormat(pattern));
+   }
+
+   /**
+    * Create a SimpleDateFormat for the locale that uses the Gregorian calendar. The month and
+    * day names are still the locale's.
+    */
+   public static SimpleDateFormat createGregorianDateFormat(String pattern, Locale locale) {
+      return setGregorianCalendar(new SimpleDateFormat(pattern, locale));
+   }
+
+   /**
+    * Make a date format use the Gregorian calendar if its calendar is another one, e.g. the
+    * Buddhist calendar of th_TH or the Japanese calendar of ja_JP_JP. A Gregorian calendar
+    * (including the ISO 8601 week rules of a -u-ca-iso8601 locale) is kept. The time zone,
+    * leniency and week rules of the replaced calendar are kept, and the two-digit year window
+    * of a SimpleDateFormat is computed again, since SimpleDateFormat keeps the year of the
+    * window from the old calendar (yy would otherwise read 94 as 2494 under th_TH).
+    * @return the format passed in.
+    */
+   public static <T extends DateFormat> T setGregorianCalendar(T fmt) {
+      Calendar cal = fmt.getCalendar();
+
+      if(cal == null || "gregory".equals(cal.getCalendarType())) {
+         return fmt;
+      }
+
+      GregorianCalendar gcal = new GregorianCalendar(cal.getTimeZone());
+      gcal.setLenient(cal.isLenient());
+      gcal.setFirstDayOfWeek(cal.getFirstDayOfWeek());
+      gcal.setMinimalDaysInFirstWeek(cal.getMinimalDaysInFirstWeek());
+      fmt.setCalendar(gcal);
+
+      if(fmt instanceof SimpleDateFormat sfmt) {
+         sfmt.set2DigitYearStart(sfmt.get2DigitYearStart());
+      }
+
+      return fmt;
+   }
+
+   /**
+    * Get a locale with the same language, region and symbols that formats dates with the
+    * Gregorian calendar, for APIs that pick the calendar from the locale (e.g. FastDateFormat,
+    * Calendar.getInstance(Locale)). The locale is returned unchanged if its calendar is already
+    * Gregorian, which keeps the week rules of a -u-ca-iso8601 locale and avoids rebuilding a
+    * locale Locale.Builder rejects, such as new Locale("ja", "JP_JP").
+    */
+   public static Locale getGregorianLocale(Locale locale) {
+      if(locale == null) {
+         return null;
+      }
+
+      return GREGORIAN_LOCALES.computeIfAbsent(locale, loc -> {
+         if("gregory".equals(Calendar.getInstance(loc).getCalendarType())) {
+            return loc;
+         }
+
+         try {
+            // ja_JP_JP gives ja-JP-u-ca-gregory, th_TH_TH th-TH-u-ca-gregory-nu-thai
+            return new Locale.Builder().setLocale(loc)
+               .setUnicodeLocaleKeyword("ca", "gregory").build();
+         }
+         catch(IllformedLocaleException ex) {
+            LOG.debug("Failed to create a Gregorian locale for {}", loc, ex);
+            return loc;
+         }
+      });
+   }
+
+   /**
+    * Correct the year of a date read from a persisted asset (e.g. a condition value, a schedule
+    * parameter or a variable default), which may have been written in a non-Gregorian calendar
+    * before every date format was made Gregorian (#77605). The value must be in a canonical
+    * format, starting with a four digit year (yyyy-MM-dd..., or a JDBC escape such as
+    * {d 'yyyy-MM-dd'}). The year digits are replaced before the date is parsed, so a leap day
+    * such as the Buddhist 2539-02-29 (1996-02-29) is kept.
+    * <ul>
+    * <li>A Buddhist year (Gregorian + 543) between 2443 (1900) and 643 years from now is read
+    * as Buddhist if the date.legacy.buddhist.compat property is true, or if it is auto (the
+    * default) and either the default calendar is Buddhist or locale.available has a Thai
+    * locale. Other values, including Gregorian years after 2400 written since the fix, are
+    * then also read as Buddhist, so set the property to false if there is no legacy data.</li>
+    * <li>A year 1 to 64 is read in the current Japanese era, as the Japanese calendar of a
+    * ja_JP_JP default locale did, if the default calendar is Japanese. The era was never
+    * written, so a date of an earlier era is read in the current one as before.</li>
+    * </ul>
+    * Do not use it for live data, such as database values or in-memory format and parse round
+    * trips, since a Thai database can hold Gregorian dates with Buddhist year digits.
+    * @return the value with a Gregorian year, or the value unchanged.
+    */
+   public static String toGregorianPersistentDate(String val) {
+      if(val == null || val.length() < 4) {
+         return val;
+      }
+
+      int start = 0;
+
+      // JDBC escape, e.g. {d 'yyyy-MM-dd'} or {ts 'yyyy-MM-dd HH:mm:ss'}
+      if(val.charAt(0) == '{') {
+         start = val.indexOf('\'');
+
+         if(start < 0) {
+            return val;
+         }
+
+         start++;
+      }
+
+      int end = start + 4;
+
+      if(end > val.length() || end < val.length() && Character.isDigit(val.charAt(end))) {
+         return val;
+      }
+
+      int year = 0;
+
+      for(int i = start; i < end; i++) {
+         char c = val.charAt(i);
+
+         if(c < '0' || c > '9') {
+            return val;
+         }
+
+         year = year * 10 + c - '0';
+      }
+
+      int gyear = year;
+
+      if(year >= 2443 && year <= LocalDate.now().getYear() + 643) {
+         if(isBuddhistDateCompat()) {
+            gyear = year - 543;
+         }
+      }
+      else if(year >= 1 && year <= 64 &&
+         "japanese".equals(Calendar.getInstance().getCalendarType()))
+      {
+         // the Gregorian year before the first year of the current era, e.g. 2018 for Reiwa
+         gyear = year + LocalDate.now().getYear() -
+            java.time.chrono.JapaneseDate.now().get(java.time.temporal.ChronoField.YEAR_OF_ERA);
+      }
+
+      if(gyear == year) {
+         return val;
+      }
+
+      return val.substring(0, start) + String.format(Locale.ROOT, "%04d", gyear) +
+         val.substring(end);
+   }
+
+   /**
+    * Check if a persisted year in the Buddhist window is read as a Buddhist year, see
+    * toGregorianPersistentDate().
+    */
+   private static boolean isBuddhistDateCompat() {
+      String compat = null;
+      String available = null;
+
+      try {
+         compat = SreeEnv.getProperty("date.legacy.buddhist.compat");
+         available = SreeEnv.getProperty("locale.available");
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to read the legacy Buddhist date properties", ex);
+      }
+
+      if("true".equalsIgnoreCase(compat)) {
+         return true;
+      }
+      else if("false".equalsIgnoreCase(compat)) {
+         return false;
+      }
+
+      if("buddhist".equals(Calendar.getInstance().getCalendarType())) {
+         return true;
+      }
+
+      if(available != null) {
+         // e.g. th_TH:en_US
+         for(String loc : available.split(":")) {
+            if(loc.trim().toLowerCase(Locale.ROOT).startsWith("th")) {
+               return true;
+            }
+         }
+      }
+
+      return false;
    }
 
    /**
@@ -1033,7 +1233,19 @@ public class CoreTool {
     * @return typed value.
     */
    public static Object getPersistentData(String type, String val) {
-      return getData(type, val, true);
+      return getData(type, val, true, true);
+   }
+
+   /**
+    * Get a typed value from its string representation which come from persistence data.
+    * @param type String representation of the type.
+    * @param val String representation of the value.
+    * @param strictNull if true, null values were identified with FAKE_NULL so that
+    *                   they can be strictly distinguished, else not.
+    * @return typed value.
+    */
+   public static Object getPersistentData(String type, String val, boolean strictNull) {
+      return getData(type, val, strictNull, true);
    }
 
    /**
@@ -1057,6 +1269,17 @@ public class CoreTool {
     * @return typed value.
     */
    public static Object getData(String type, String val, boolean strictNull) {
+      return getData(type, val, strictNull, false);
+   }
+
+   /**
+    * Get a typed value from its string representation.
+    * @param persistent true if the value is read from a persisted asset, whose date may have
+    *                   a non-Gregorian year, see toGregorianPersistentDate().
+    */
+   private static Object getData(String type, String val, boolean strictNull,
+                                 boolean persistent)
+   {
       try {
          if(strictNull && FAKE_NULL.equals(val) || !strictNull && NULL.equals(val) || val == null) {
             return null;
@@ -1066,6 +1289,10 @@ public class CoreTool {
          }
 
          int code = getTypeCode(type);
+
+         if(persistent && (code == CODE_DATE || code == CODE_TIME_INSTANT)) {
+            val = toGregorianPersistentDate(val);
+         }
 
          switch(code) {
          case CODE_NULL:
@@ -1187,7 +1414,7 @@ public class CoreTool {
             }
          case CODE_ARRAY:
             if(val.startsWith("^")) {
-               return parseEscapedArray(val, strictNull);
+               return parseEscapedArray(val, strictNull, persistent);
             }
 
             String[] vals = split(val, '^');
@@ -1197,7 +1424,7 @@ public class CoreTool {
                String[] temp = split(vals[i], '~');
 
                try {
-                  res[i] = getData(temp[0], temp[1], strictNull);
+                  res[i] = getData(temp[0], temp[1], strictNull, persistent);
                }
                catch(Exception ignore) {
                }
@@ -1451,7 +1678,7 @@ public class CoreTool {
     * type~value items separated by '^', with '\', '^' and '~' in values escaped by '\'.
     * @param strictNull true if the items were written with strict nulls (FAKE_NULL).
     */
-   private static Object[] parseEscapedArray(String val, boolean strictNull) {
+   private static Object[] parseEscapedArray(String val, boolean strictNull, boolean persistent) {
       List<Object> res = new ArrayList<>();
       StringBuilder type = new StringBuilder();
       StringBuilder value = null;
@@ -1469,7 +1696,7 @@ public class CoreTool {
             // an item without a type separator is null, same as in the legacy form
             if(value != null) {
                try {
-                  item = getData(type.toString(), value.toString(), strictNull);
+                  item = getData(type.toString(), value.toString(), strictNull, persistent);
                }
                catch(Exception ignore) {
                }
@@ -1999,10 +2226,10 @@ public class CoreTool {
    public static Date parseDate(String val, Boolean isDmyOrder) throws ParseException {
       try {
          if(val.equals("1900-01-01")) {
-            return new SimpleDateFormat("yyyy-MM-dd").parse("1900-01-01");
+            return createGregorianDateFormat("yyyy-MM-dd").parse("1900-01-01");
          }
          else if(Pattern.matches("^\\d\\d\\d\\d$", val)) {
-            return new SimpleDateFormat("yyyy").parse(val);
+            return createGregorianDateFormat("yyyy").parse(val);
          }
 
          return (Date) DATE_FORMAT_CACHE.parse(val);
@@ -2142,7 +2369,8 @@ public class CoreTool {
          builder.setDmyOrder(isDmyOrder);
       }
       else {
-         DateFormat df = DateFormat.getDateInstance(DateFormat.SHORT, locale);
+         // the Gregorian pattern, a Japanese calendar pattern starts with the era (G)
+         DateFormat df = DateFormat.getDateInstance(DateFormat.SHORT, getGregorianLocale(locale));
 
          if(df instanceof SimpleDateFormat) {
             String pattern = ((SimpleDateFormat) df).toPattern();

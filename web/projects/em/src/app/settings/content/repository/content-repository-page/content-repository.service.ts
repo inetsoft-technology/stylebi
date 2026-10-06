@@ -757,6 +757,11 @@ export class ContentRepositoryService implements OnDestroy {
          else if(curPath.startsWith(Tool.RECYCLE_BIN)) {
             warning = "_#(js:em.reports.drag.recycle.note)";
          }
+         // just additional source type is RepositoryEntryType.DATA_SOURCE, it belongs to its
+         // parent data source and can't be moved out of it. see ContentRepositoryTreeService
+         else if(curDataType === RepositoryEntryType.DATA_SOURCE) {
+            warning = "_#(js:common.datasource.additionalConnectionMove)";
+         }
          else if(((curDataType & RepositoryEntryType.DATA_SOURCE) === RepositoryEntryType.DATA_SOURCE ||
             (curDataType & RepositoryEntryType.DATA_SOURCE_FOLDER) === RepositoryEntryType.DATA_SOURCE_FOLDER) &&
             (toFolder.type & RepositoryEntryType.DATA_SOURCE_FOLDER) !== RepositoryEntryType.DATA_SOURCE_FOLDER) {
@@ -781,6 +786,23 @@ export class ContentRepositoryService implements OnDestroy {
 
             if(this.isDuplicatedName(curPath, npath, toFolder)) {
                warning = "_#(js:em.folder.exist)" + toFolder.path;
+            }
+         }
+         else if(!warning &&
+            ((curDataType & RepositoryEntryType.DATA_SOURCE) === RepositoryEntryType.DATA_SOURCE ||
+            (curDataType & RepositoryEntryType.DATA_SOURCE_FOLDER) === RepositoryEntryType.DATA_SOURCE_FOLDER))
+         {
+            const name = curPath.lastIndexOf("/") != -1 ?
+               curPath.substring(curPath.lastIndexOf("/") + 1) : curPath;
+            // the data source root folder path is "/"
+            const npath = toFolder.path === "/" ? name : toFolder.path + "/" + name;
+
+            // a drop on the node's own folder is a no-op, the node itself is not a duplicate
+            if(npath !== curPath && !(toFolder.children && toFolder.children.indexOf(fromNode) >= 0) &&
+               this.isDuplicatedName(curPath, npath, toFolder))
+            {
+               warning = Tool.formatCatalogString(
+                  "_#(js:common.datasource.moveTargetExists)", [npath]);
             }
          }
 

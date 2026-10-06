@@ -262,7 +262,7 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
          if(labels[i] != null) {
             // @by stephenwebster, For Bug #643
             // Localize the runtime label values.
-            writer.print("<![CDATA[" + Tool.localize(labels[i]) + "]]>");
+            writer.print("<![CDATA[" + Tool.splitCDATAEnd(Tool.localize(labels[i])) + "]]>");
          }
 
          writer.println("</label>");
@@ -284,7 +284,7 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
          writer.print("<label>");
 
          if(labels[i] != null) {
-            writer.print("<![CDATA[" + labels[i] + "]]>");
+            writer.print("<![CDATA[" + Tool.splitCDATAEnd(labels[i]) + "]]>");
          }
 
          writer.println("</label>");

@@ -18,6 +18,7 @@
 package inetsoft.uql.table;
 
 import inetsoft.uql.schema.XSchema;
+import inetsoft.util.Tool;
 import inetsoft.util.swap.*;
 import org.joda.time.DateTime;
 import org.slf4j.Logger;
@@ -26,7 +27,6 @@ import org.springframework.util.StringUtils;
 
 import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
-import java.util.GregorianCalendar;
 
 /**
  * XTimestampColumn, maintains the meta information and data of one timestamp
@@ -139,8 +139,8 @@ public final class XTimestampColumn extends AbstractTableColumn {
                   // formatter's own output -- a locale-less SimpleDateFormat would otherwise
                   // misparse the Gregorian year under a non-Gregorian JVM default locale (e.g.
                   // Buddhist for th_TH, Japanese imperial for ja_JP_JP).
-                  SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
-                  format.setCalendar(new GregorianCalendar());
+                  SimpleDateFormat format =
+                     Tool.createGregorianDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
                   obj = format.parse(str);
                }
             }
@@ -156,8 +156,7 @@ public final class XTimestampColumn extends AbstractTableColumn {
                   // joda time has trouble parsing dd-MM-yyyy (47216). Same Gregorian-ingestion
                   // reasoning as above (Bug #77566) applies to this fallback parse.
                   try {
-                     SimpleDateFormat format = new SimpleDateFormat("dd-MM-yyyy");
-                     format.setCalendar(new GregorianCalendar());
+                     SimpleDateFormat format = Tool.createGregorianDateFormat("dd-MM-yyyy");
                      obj = format.parse(str);
                   }
                   catch(Exception ex3) {

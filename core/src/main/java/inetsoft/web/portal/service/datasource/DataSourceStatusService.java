@@ -20,6 +20,7 @@ package inetsoft.web.portal.service.datasource;
 
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.*;
+import inetsoft.uql.AdditionalConnectionDataSource;
 import inetsoft.uql.XDataSource;
 import inetsoft.uql.XRepository;
 import inetsoft.util.*;
@@ -98,7 +99,7 @@ public class DataSourceStatusService {
                continue;
             }
 
-            XDataSource dataSource = repository.getDataSource(paths.get(i));
+            XDataSource dataSource = getDataSource(paths.get(i));
 
             if(dataSource != null) {
                dataSource.setStatus(statuses[i]);
@@ -116,7 +117,7 @@ public class DataSourceStatusService {
    public XDataSource.Status getDataSourceConnectionStatus(String path, boolean updateStatus)
       throws Exception
    {
-      XDataSource dataSource = repository.getDataSource(path);
+      XDataSource dataSource = getDataSource(path);
 
       if(dataSource == null) {
          throw new FileNotFoundException(path);
@@ -127,6 +128,31 @@ public class DataSourceStatusService {
       }
 
       return dataSource.getStatus();
+   }
+
+   /**
+    * Gets a data source by its path. If the path is that of an additional connection, e.g.
+    * {@code P/add}, its base data source is set, so that the additional connection is saved under
+    * its parent and not at the top level under its bare name (Bug #77672).
+    */
+   @SuppressWarnings({ "rawtypes", "unchecked" })
+   private XDataSource getDataSource(String path) throws Exception {
+      XDataSource dataSource = repository.getDataSource(path);
+
+      if(dataSource instanceof AdditionalConnectionDataSource additional &&
+         additional.getBaseDatasource() == null && path != null &&
+         !path.equals(dataSource.getFullName()) &&
+         path.endsWith("/" + dataSource.getFullName()))
+      {
+         String parentPath =
+            path.substring(0, path.length() - dataSource.getFullName().length() - 1);
+
+         if(repository.getDataSource(parentPath) instanceof AdditionalConnectionDataSource parent) {
+            additional.setBaseDatasource(parent);
+         }
+      }
+
+      return dataSource;
    }
 
    public void updateStatus(XDataSource dataSource) throws Exception {
@@ -162,7 +188,7 @@ public class DataSourceStatusService {
 
       Catalog catalog = Catalog.getCatalog(principal);
       String errorMessage = status.getErrorMessage();
-      SimpleDateFormat format = new SimpleDateFormat(SreeEnv.getProperty("format.date.time"));
+      SimpleDateFormat format = Tool.createGregorianDateFormat(SreeEnv.getProperty("format.date.time"));
       format.setTimeZone(TimeZone.getTimeZone(timeZone));
       String time = format.format(new Date(status.getLastUpdateTime()));
       String message;

@@ -1754,9 +1754,7 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
     * so forcing Gregorian here only fixes the displayed year, with no persistence/compat impact.
     */
    private static SimpleDateFormat gregorianDateFormat(String pattern) {
-      SimpleDateFormat format = new SimpleDateFormat(pattern);
-      format.setCalendar(new GregorianCalendar());
-      return format;
+      return Tool.createGregorianDateFormat(pattern);
    }
 
    /**

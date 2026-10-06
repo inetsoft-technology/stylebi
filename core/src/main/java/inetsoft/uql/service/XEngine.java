@@ -23,6 +23,8 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.*;
 import inetsoft.uql.*;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.asset.sync.*;
 import inetsoft.uql.erm.*;
@@ -37,6 +39,7 @@ import inetsoft.uql.util.*;
 import inetsoft.uql.xmla.Domain;
 import inetsoft.uql.xmla.XMLADataSource;
 import inetsoft.util.*;
+import inetsoft.util.credential.CloudCredential;
 import inetsoft.web.cluster.ClearLocalNodeMetaDataCacheMessage;
 import inetsoft.web.cluster.RefreshMetaDataMessage;
 import jakarta.annotation.PostConstruct;
@@ -292,9 +295,21 @@ public class XEngine implements XRepository, XQueryRepository {
                                 Boolean actionRecord, String actionName, boolean checkDelete)
       throws Exception
    {
+      // Bug #77672, an additional connection that is saved by its bare name, e.g. by a connector
+      // after it refreshes an OAuth token, is stored under its parent, not at the top level
+      if(isAdditionalConnectionSave(dx, oname)) {
+         updateAdditionalConnection((AdditionalConnectionDataSource<?>) dx, false);
+         return;
+      }
+
       XDataSource odx = oname == null ? null : getDSRegistry().getDataSource(oname);
       boolean nameChanged = oname != null && !Tool.equals(oname, dx.getFullName());
       boolean changed = odx != null && (!Tool.equals(dx, odx) || dx.getLastModified() != odx.getLastModified());
+
+      // Bug #77725, Bug #77820, before the meta data is removed
+      if(nameChanged) {
+         getDSRegistry().checkDataSourceMovePathClash(oname);
+      }
 
       if(nameChanged || changed) {
          // when a datasource has been updated, remove the handlers for
@@ -315,7 +330,18 @@ public class XEngine implements XRepository, XQueryRepository {
       }
 
       String dname = oname != null ? oname : dx.getFullName();
-      getDSRegistry().renameDatasource(oname, dx.getFullName());
+
+      try {
+         getDSRegistry().renameDatasource(oname, dx.getFullName());
+      }
+      catch(DataSourceRenameException e) {
+         // Bug #77704, the data source itself was moved, only some of its objects weren't
+         if(nameChanged && e.isMoved(oname)) {
+            renameDependencies(dx, oname);
+         }
+
+         throw e;
+      }
 
       if(nameChanged || changed || odx == null) {
          getDSRegistry().setDataSource(dx, oname, actionRecord, checkDelete, false, true);
@@ -323,28 +349,8 @@ public class XEngine implements XRepository, XQueryRepository {
 
       // Only add transform task when data source is renamed, if folder is reanmed, it will add task in renama action.
       // Should only add one task for one action to avoid tranform one report/ws/vs for some time.
-      if(nameChanged) {
-         final String type = dx.getType();
-         boolean tabular = dx instanceof ListedDataSource ||
-            type.startsWith(SourceInfo.REST_PREFIX) || dx instanceof TabularDataSource;
-         String oname2 = oname;
-         String nname2 = dx.getFullName();
-
-         if(oname2.contains("/")) {
-            oname2 = oname2.substring(oname2.lastIndexOf("/") + 1);
-         }
-
-         if(nname2.contains("/")) {
-            nname2 = nname2.substring(nname2.lastIndexOf("/") + 1);
-         }
-
-         if(!tabular && Tool.equals(oname2, nname2)) {
-            return;
-         }
-
-         RenameDependencyInfo dinfo =
-            DependencyTransformer.createDependencyInfo(dx, oname, dx.getFullName());
-         renameTransform(dinfo);
+      if(nameChanged && !renameDependencies(dx, oname)) {
+         return;
       }
 
       if(dx instanceof AdditionalConnectionDataSource) {
@@ -354,14 +360,171 @@ public class XEngine implements XRepository, XQueryRepository {
 
          for(String name : names) {
             AdditionalConnectionDataSource<?> jds = base.getDataSource(name);
-            base.addDatasource(jds);
+
+            // can't be read, or stored with a full path name (Bug #77725), which would be written
+            // at "parent/full path". It is left as it is.
+            if(jds != null && jds.getFullName() != null && jds.getFullName().indexOf('/') < 0) {
+               base.addDatasource(jds);
+            }
          }
       }
    }
 
+   /**
+    * Adds the transform task of the dependencies of a renamed data source.
+    *
+    * @return {@code false} if there is none, the data source is only moved to another folder.
+    */
+   private boolean renameDependencies(XDataSource dx, String oname) {
+      final String type = dx.getType();
+      boolean tabular = dx instanceof ListedDataSource ||
+         type.startsWith(SourceInfo.REST_PREFIX) || dx instanceof TabularDataSource;
+      String oname2 = oname;
+      String nname2 = dx.getFullName();
+
+      if(oname2.contains("/")) {
+         oname2 = oname2.substring(oname2.lastIndexOf("/") + 1);
+      }
+
+      if(nname2.contains("/")) {
+         nname2 = nname2.substring(nname2.lastIndexOf("/") + 1);
+      }
+
+      if(!tabular && Tool.equals(oname2, nname2)) {
+         return false;
+      }
+
+      RenameDependencyInfo dinfo =
+         DependencyTransformer.createDependencyInfo(dx, oname, dx.getFullName());
+      renameTransform(dinfo);
+      return true;
+   }
+
    @Override
    public void updateDataSourceStatus(XDataSource dx) {
+      // Bug #77672, store the status of an additional connection under its parent
+      if(isAdditionalConnectionSave(dx, null)) {
+         updateAdditionalConnection((AdditionalConnectionDataSource<?>) dx, true);
+         return;
+      }
+
       getDSRegistry().setDataSource(dx, null, false, false, false, false);
+   }
+
+   /**
+    * Checks if a save of a data source is that of an additional connection keyed by its bare
+    * name. An additional connection's full name is only its own name, but it is stored at
+    * {@code <parent>/<name>}, so saving it at its full name would create or overwrite a top-level
+    * data source of that name. Renames and saves by path are left to the callers.
+    */
+   private static boolean isAdditionalConnectionSave(XDataSource dx, String oname) {
+      if(!(dx instanceof AdditionalConnectionDataSource<?> additional) ||
+         additional.getBaseDatasource() == null)
+      {
+         return false;
+      }
+
+      String name = dx.getFullName();
+      return name != null && name.indexOf('/') < 0 && (oname == null || oname.equals(name));
+   }
+
+   /**
+    * Saves an additional connection at its path under its parent. The base data source is used
+    * only for its name, the parent is read again so that a stale copy of it is never saved. The
+    * additional connection is not saved if it no longer exists under the parent.
+    *
+    * @param dx     the additional connection.
+    * @param status {@code true} if only the status is being saved, in which case it is always
+    *               written and no event is fired.
+    */
+   @SuppressWarnings({ "rawtypes", "unchecked" })
+   private void updateAdditionalConnection(AdditionalConnectionDataSource<?> dx, boolean status) {
+      String parentName = dx.getBaseDatasource().getFullName();
+      String name = dx.getFullName();
+      XDataSource parent = getDSRegistry().getDataSource(parentName);
+      XDataSource stored = parent instanceof AdditionalConnectionDataSource<?> ads ?
+         ads.getDataSource(name) : null;
+
+      if(stored == null) {
+         LOG.warn("Additional connection {} of data source {} was not found, it is not saved",
+                  name, parentName);
+         return;
+      }
+
+      if(!status && Tool.equals(dx, stored) && dx.getLastModified() == stored.getLastModified()) {
+         return;
+      }
+
+      dx.setLastModified(System.currentTimeMillis());
+      ((AdditionalConnectionDataSource) dx).setBaseDatasource((AdditionalConnectionDataSource) parent);
+      AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE,
+                                        parentName + "/" + name, null);
+      getDSRegistry().setObject(entry, new XDataSourceWrapper(dx), !status);
+   }
+
+   /**
+    * Bug #77692, saves the tokens a data source obtained at runtime onto a copy of its stored
+    * definition, never the runtime instance, whose variables may have been substituted.
+    */
+   @Override
+   public void updateDataSourceTokens(XDataSource dx,
+                                      java.util.function.Consumer<XDataSource> apply)
+      throws Exception
+   {
+      String name = dx.getFullName();
+
+      if(name == null) {
+         return;
+      }
+
+      XDataSource stored;
+
+      if(isAdditionalConnectionSave(dx, null)) {
+         // an additional connection is stored under its parent, not at its bare name
+         String parentName = ((AdditionalConnectionDataSource<?>) dx).getBaseDatasource().getFullName();
+         XDataSource parent = getDSRegistry().getDataSource(parentName);
+         stored = parent instanceof AdditionalConnectionDataSource<?> ads ?
+            ads.getDataSource(name) : null;
+      }
+      else {
+         stored = getDSRegistry().getDataSource(name);
+      }
+
+      if(stored == null) {
+         LOG.warn("Data source {} was not found, its tokens are not saved", name);
+         return;
+      }
+
+      XDataSource copy = (XDataSource) stored.clone();
+      apply.accept(copy);
+
+      // Bug #77699, a cloud credential stores only its id, its tokens are read again from the
+      // secrets manager when the data source is loaded. Saving would store the new expiration
+      // with the old tokens, which would then be used as if they were valid, so the tokens are
+      // kept only by the runtime instance and refreshed again by the next query
+      if(isCloudCredentialChanged(stored, copy)) {
+         LOG.debug("The tokens of data source {} are held in a cloud credential and can't be " +
+                      "saved", name);
+         return;
+      }
+
+      // Bug #77699, always write the tokens. The data source's equals may not compare every
+      // token field, e.g. the token expiration and instance URL of Salesforce, and the copy
+      // would then be taken as unchanged and not saved
+      copy.setLastModified(System.currentTimeMillis());
+      // an additional connection copy keeps its base, so it is saved under its parent
+      updateDataSource(copy, name);
+   }
+
+   /**
+    * Checks if applying the tokens changed the cloud credential of a data source, i.e. if the
+    * tokens are held in a credential whose values are not saved with the data source.
+    */
+   private static boolean isCloudCredentialChanged(XDataSource stored, XDataSource copy) {
+      return stored instanceof TabularDataSource<?> source &&
+         copy instanceof TabularDataSource<?> updated &&
+         source.getCredential() instanceof CloudCredential &&
+         !Objects.equals(source.getCredential(), updated.getCredential());
    }
 
    /**
@@ -510,6 +673,28 @@ public class XEngine implements XRepository, XQueryRepository {
    public void cutDataSourceFolder(DataSourceFolder folder, String oname)
       throws Exception
    {
+      // Bug #77725, before any data source is moved
+      getDSRegistry().checkDataSourceFolderPathClash(oname);
+      Map<String, RenameDependencyInfo> unloadable = new LinkedHashMap<>();
+      cutDataSourceFolder(folder, oname, unloadable, new LinkedHashMap<>());
+
+      for(RenameDependencyInfo dinfo : unloadable.values()) {
+         RenameTransformHandler.getTransformHandler().addTransformTask(dinfo);
+      }
+   }
+
+   /**
+    * Moves the data sources and the subfolders of a data source folder.
+    *
+    * @param unloadable the dependency infos of the data sources that can't be loaded, which are
+    *                   left for renameDataSourceFolder.
+    * @param moved      the data sources moved, old path to new path.
+    */
+   private void cutDataSourceFolder(DataSourceFolder folder, String oname,
+                                    Map<String, RenameDependencyInfo> unloadable,
+                                    Map<String, String> moved)
+      throws Exception
+   {
       List<String> children = getDSRegistry().getSubDataSourceNames(oname);
 
       for(String name : children) {
@@ -522,11 +707,37 @@ public class XEngine implements XRepository, XQueryRepository {
                     name.substring(onameIdx + oname.length());
          }
 
+         // can't be loaded, e.g. its connector isn't installed. Left for renameDataSourceFolder,
+         // which moves its stored document as it is.
+         if(child == null) {
+            RenameDependencyInfo dinfo = DependencyTransformer.createUnloadableDependencyInfo(
+               getDSRegistry(), name, newName, true);
+
+            if(dinfo != null) {
+               unloadable.put(name, dinfo);
+            }
+
+            continue;
+         }
+
          child.setName(newName);
          RenameDependencyInfo dinfo =
             DependencyTransformer.createDependencyInfo(child, name, newName, true);
+
+         // Bug #77704, the dependencies are renamed once the data source is moved
+         try {
+            updateDataSource(child, name, false, false);
+         }
+         catch(DataSourceRenameException e) {
+            if(e.isMoved(name)) {
+               RenameTransformHandler.getTransformHandler().addTransformTask(dinfo);
+            }
+
+            throw e;
+         }
+
+         moved.put(name, newName);
          RenameTransformHandler.getTransformHandler().addTransformTask(dinfo);
-         updateDataSource(child, name, false, false);
       }
 
       children = getDSRegistry().getSubfolderNames(oname);
@@ -542,9 +753,26 @@ public class XEngine implements XRepository, XQueryRepository {
          }
 
          child.setName(newName);
+         List<String> sources = getDSRegistry().getSubDataSourceNames(name, true);
          updateDataSourceFolder(child, name);
+
+         // the data sources the subfolder moved, for a later failure to report
+         for(String source : sources) {
+            if(!source.startsWith(name + "/")) {
+               continue;
+            }
+
+            String nsource = newName + source.substring(name.length());
+
+            if(getDSRegistry().containObject(new AssetEntry(
+               AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE, nsource, null)))
+            {
+               moved.put(source, nsource);
+            }
+         }
       }
    }
+
    /**
     * Add or replace a data source folder in the repository.
     * @param folder new data source folder.
@@ -557,6 +785,13 @@ public class XEngine implements XRepository, XQueryRepository {
    {
       boolean nameChanged =
          oname != null && !Tool.equals(oname, folder.getFullName());
+
+      // a folder moved into one of its subfolders would be left with no parent folder. Checked
+      // before cutDataSourceFolder, which moves the children first.
+      if(nameChanged && DataSourceRegistry.isSameOrDescendantPath(oname, folder.getFullName())) {
+         throw new MessageException(Catalog.getCatalog().getString(
+            "common.datasource.moveIntoItself", oname));
+      }
 
       if(forcerename) {
          copyDataSourceFolder(folder, oname);
@@ -575,11 +810,69 @@ public class XEngine implements XRepository, XQueryRepository {
                   "security.nopermission.write", oname));
             }
 
-            cutDataSourceFolder(folder, oname);
+            // Bug #77725, before cutDataSourceFolder, which moves the data sources first
+            getDSRegistry().checkDataSourceFolderPathClash(oname);
+            moveDataSourceFolder(folder, oname);
+         }
+         else {
+            getDSRegistry().renameDataSourceFolder(oname, folder.getFullName());
          }
 
-         getDSRegistry().renameDataSourceFolder(oname, folder.getFullName());
          getDSRegistry().setDataSourceFolder(folder);
+      }
+   }
+
+   /**
+    * Moves a data source folder, its data sources and its subfolders. Bug #77704, the new folder
+    * is created first, so that the data sources moved before a failed write are in it. The
+    * dependencies of a data source are renamed once it is moved.
+    *
+    * @throws DataSourceRenameException if a write failed, with the data sources moved before it.
+    */
+   private void moveDataSourceFolder(DataSourceFolder folder, String oname) throws Exception {
+      DataSourceRegistry registry = getDSRegistry();
+      String nname = folder.getFullName();
+      Map<String, RenameDependencyInfo> unloadable = new LinkedHashMap<>();
+      Map<String, String> moved = new LinkedHashMap<>();
+      boolean created = false;
+
+      try {
+         created = registry.createMoveTargetFolder(oname, nname);
+         cutDataSourceFolder(folder, oname, unloadable, moved);
+         registry.renameDataSourceFolder(oname, nname);
+      }
+      catch(DataSourceRenameException e) {
+         if(created) {
+            registry.discardMoveTargetFolder(oname, nname);
+         }
+
+         e.addMovedDataSources(oname, nname, moved);
+
+         for(Map.Entry<String, RenameDependencyInfo> entry : unloadable.entrySet()) {
+            if(e.isMoved(entry.getKey())) {
+               renameTransform(entry.getValue());
+            }
+         }
+
+         throw e;
+      }
+      catch(SecurityException | MessageException e) {
+         if(created) {
+            registry.discardMoveTargetFolder(oname, nname);
+         }
+
+         throw e;
+      }
+      catch(Exception e) {
+         if(created) {
+            registry.discardMoveTargetFolder(oname, nname);
+         }
+
+         throw new DataSourceRenameException(oname, nname, oname, moved, e);
+      }
+
+      for(RenameDependencyInfo dinfo : unloadable.values()) {
+         renameTransform(dinfo);
       }
    }
 
@@ -600,6 +893,8 @@ public class XEngine implements XRepository, XQueryRepository {
     */
    @Override
    public boolean removeDataSource(String dxname, boolean removeAnyWay) {
+      // Bug #77725, before the data model is removed
+      getDSRegistry().checkDataSourcePathClash(dxname);
       removeMetaData(dxname);
       getDSRegistry().removeDataModel(dxname);
       getDSRegistry().removeDataSource(dxname);
@@ -621,10 +916,25 @@ public class XEngine implements XRepository, XQueryRepository {
    public boolean removeDataSourceFolder(String name, boolean removeAnyWay)
       throws Exception
    {
+      // Bug #77725, before any subfolder or data source is removed
+      getDSRegistry().checkDataSourceFolderDeletePathClash(name);
+      return removeDataSourceFolder0(name, removeAnyWay);
+   }
+
+   private boolean removeDataSourceFolder0(String name, boolean removeAnyWay) throws Exception {
       List<String> children = getDSRegistry().getSubfolderNames(name);
 
       for(String child : children) {
-         removeDataSourceFolder(child, removeAnyWay);
+         // Bug #77725, a subfolder at the path of a data source (older data, Bug #77691) is
+         // removed together with the data source. Removed one at a time, either would be
+         // refused, as it would take the other one's entries.
+         if(getDSRegistry().isDataSourcePathClash(child)) {
+            removeMetaData(child);
+            getDSRegistry().removeDataSourceFolder(child, true);
+            continue;
+         }
+
+         removeDataSourceFolder0(child, removeAnyWay);
       }
 
       children = getDSRegistry().getSubDataSourceNames(name);

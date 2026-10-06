@@ -21,10 +21,13 @@ import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.asset.sync.RenameDependencyInfo;
 import inetsoft.uql.asset.sync.RenameInfo;
 import inetsoft.uql.erm.XDataModel;
+import inetsoft.uql.tabular.oauth.OAuthDataSource;
+import inetsoft.uql.tabular.oauth.Tokens;
 import inetsoft.util.ConfigurationContext;
 import java.rmi.RemoteException;
 import java.util.List;
 import java.util.concurrent.Future;
+import java.util.function.Consumer;
 
 /**
  * XRepository defines the API to the data source and query registries.
@@ -152,6 +155,40 @@ public interface XRepository extends XDataService, XQueryRepository {
     * @param dx data source.
     */
    void updateDataSourceStatus(XDataSource dx) throws Exception;
+
+   /**
+    * Saves the OAuth tokens that a data source obtained at runtime, e.g. after refreshing an
+    * expired access token while running a query. The tokens are applied, with the connector's own
+    * {@link OAuthDataSource#updateTokens(Tokens)}, to a copy of the stored definition of the data
+    * source and that copy is saved. The runtime instance itself is never saved, because its
+    * variables, e.g. {@code $(var)}, may have been replaced with the values of the query that is
+    * running.
+    *
+    * @param dx     the runtime instance of the data source, used only to find the stored
+    *               definition. It must implement {@link OAuthDataSource}.
+    * @param tokens the tokens to save.
+    */
+   default void updateDataSourceTokens(XDataSource dx, Tokens tokens) throws Exception {
+      if(!(dx instanceof OAuthDataSource)) {
+         throw new IllegalArgumentException(
+            "Data source " + dx.getFullName() + " does not support OAuth tokens");
+      }
+
+      updateDataSourceTokens(dx, stored -> ((OAuthDataSource) stored).updateTokens(tokens));
+   }
+
+   /**
+    * Saves the tokens that a data source obtained at runtime onto its stored definition. The
+    * stored definition of the data source, or of the additional connection under its parent, is
+    * read again and copied, {@code apply} sets the tokens on the copy and the copy is saved. The
+    * runtime instance itself is never saved, because its variables may have been replaced with
+    * the values of the query that is running. Nothing is saved if the data source is not stored.
+    *
+    * @param dx    the runtime instance of the data source, used only to find the stored
+    *              definition.
+    * @param apply sets the tokens on the copy of the stored definition.
+    */
+   void updateDataSourceTokens(XDataSource dx, Consumer<XDataSource> apply) throws Exception;
 
    /**
     * Add or replace a data source folder in the repository.

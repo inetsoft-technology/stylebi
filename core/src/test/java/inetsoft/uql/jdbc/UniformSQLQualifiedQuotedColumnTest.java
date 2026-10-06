@@ -95,7 +95,9 @@ class UniformSQLQualifiedQuotedColumnTest {
                               "(t.\"MixedCase\") * 2 as d from t"));
       assertEquals("select t.\"MixedCase\" as m from t order by t.\"MixedCase\" asc",
                    regenerate("select t.\"MixedCase\" as m from t order by m"));
-      assertEquals("select t.\"MixedCase\" as b from t", regenerate("select b = t.\"MixedCase\" from t"));
+      // the T-SQL alias form, parsed on a T-SQL data source only (#77785)
+      assertEquals("select t.\"MixedCase\" as b from t",
+                   regenerate(parse("select b = t.\"MixedCase\" from t", tsqlHelpers().get("sybase"))));
       assertEquals("select cast(t.\"MixedCase\" as varchar(10)), t.\"MixedCase\" || 'x' from t",
                    regenerate("select t.\"MixedCase\" || 'x', cast(t.\"MixedCase\" as varchar(10)) from t"));
    }
@@ -111,8 +113,8 @@ class UniformSQLQualifiedQuotedColumnTest {
       // a backtick
       assertEquals("select t.\"MixedCase\" from t where t.\"MixedCase\" = 1",
                    regenerate("select t.`MixedCase` from t where t.`MixedCase` = 1"));
-      // the table quotes are still dropped on a case-folding database (#77569)
-      assertEquals("select T.\"MixedCase\" from T where T.\"MixedCase\" = 1",
+      // the table quotes are kept too (#77569)
+      assertEquals("select \"T\".\"MixedCase\" from \"T\" where \"T\".\"MixedCase\" = 1",
                    regenerate("select \"T\".\"MixedCase\" from \"T\" where \"T\".\"MixedCase\" = 1"));
       // a qualifier that doesn't resolve to a from table
       assertEquals("select \"Schema\".\"Table\".\"Col\" from \"Schema\".\"Table\" t",
@@ -198,20 +200,6 @@ class UniformSQLQualifiedQuotedColumnTest {
                   String label = helper.getKey() + " " + stage.getKey() + ": " + query + " -> " + stage.getValue();
                   String generated = stage.getValue();
 
-                  // known residual (#77578): on PostgreSQL, Snowflake and Exasol the alias-qualified
-                  // aggregate argument sum(x."MixedCase") is stored like the unquoted sum(x.MixedCase)
-                  // and gets its metadata case repair, as before this change
-                  if(names[i].startsWith("x.") && template.contains("sum(") &&
-                     Set.of("postgresql", "snowflake", "exasol").contains(helper.getKey()))
-                  {
-                     String col = "fixed-twin-first".equals(stage.getKey()) ? "MIXEDCASE" : "MixedCase";
-                     String agg = "sum(x." +
-                        ("postgresql".equals(helper.getKey()) ? "\"" + col + "\"" : col) + ")";
-                     // the select list and the order by, the having clause is kept as written
-                     assertEquals(2, generated.split(Pattern.quote(agg), -1).length - 1, label);
-                     generated = generated.replace(agg, "sum(x.\"MixedCase\")");
-                  }
-
                   assertFalse(generated.contains("\"\""), label);
                   assertFalse(whole.matcher(generated).find(), label);
                   assertFalse(unquoted.matcher(generated).find(), label);
@@ -258,9 +246,15 @@ class UniformSQLQualifiedQuotedColumnTest {
       String query = "select t.\"MixedCase\", b = t.\"low\", sum(t.\"MixedCase\") from t " +
          "where t.\"MixedCase\" = 1 group by t.\"MixedCase\", t.\"low\" " +
          "having max(t.\"low\") > 0 order by t.\"low\" desc";
+      // the b = expression alias form is a comparison on other dialects and is parsed on a
+      // T-SQL data source only (#77785), the other helpers use expression as b
+      Map<String, JDBCDataSource> helpers = new LinkedHashMap<>(helpers());
+      helpers.putAll(tsqlHelpers());
 
-      for(Map.Entry<String, JDBCDataSource> helper : helpers().entrySet()) {
-         UniformSQL sql = parse(query, helper.getValue());
+      for(Map.Entry<String, JDBCDataSource> helper : helpers.entrySet()) {
+         String text = tsqlHelpers().containsKey(helper.getKey()) ? query :
+            query.replace("b = t.\"low\"", "t.\"low\" as b");
+         UniformSQL sql = parse(text, helper.getValue());
          String expected = regenerate(sql);
          UniformSQL loaded = reload(sql);
          UniformSQL copy = new UniformSQL();
@@ -489,8 +483,9 @@ class UniformSQLQualifiedQuotedColumnTest {
    /**
     * The metadata step rewrites a name to the case of its column. A quoted name ("MixedCase"
     * or t."MixedCase") must resolve to the column of the same case, also when a column that
-    * differs only in case (MIXEDCASE) comes first. An unquoted name keeps the first match
-    * ignoring case, as before.
+    * differs only in case (MIXEDCASE) comes first. An unquoted name is the column in the case
+    * the database folds it to (snowflake MIXEDCASE), else the first match ignoring case, as
+    * before (Bug #77643).
     */
    @Test
    void quotedNamesResolveToTheColumnOfTheSameCase() throws Exception {
@@ -521,7 +516,7 @@ class UniformSQLQualifiedQuotedColumnTest {
                UniformSQL sql = parse(unquoted, ds);
                resolve(sql, columns);
                String generated = regenerate(sql);
-               String first = columns[0];
+               String first = key.equals("snowflake") ? "MIXEDCASE" : columns[0];
 
                assertTrue(generated.contains("where " + (ds == null || key.equals("h2") ? "t." : "\"t\".") +
                                              (key.equals("postgresql") || key.equals("snowflake") ?
@@ -632,15 +627,13 @@ class UniformSQLQualifiedQuotedColumnTest {
    }
 
    /**
-    * Known risk, not fixed here: the quoted flag is keyed by the stored name (#77501), and
     * t."MixedCase" and t.MixedCase are both stored as t.MixedCase. When both spellings are in
-    * the same select or group list, both are generated quoted, so the unquoted one (column
-    * b, which is MIXEDCASE on a case-folding database) now takes the quoted column. Before
-    * this change both were generated unquoted. Fixing it needs flags keyed by position (#77573).
+    * the same select or group list, each keeps its own quoting, since the flag is kept by
+    * position (#77573). It used to be keyed by the stored name, and both were quoted.
     */
    @Test
-   void knownRiskBothSpellingsOfANameShareTheFlag() throws Exception {
-      assertEquals("select t.\"MixedCase\", t.\"MixedCase\" as b from t group by t.\"MixedCase\", t.\"MixedCase\"",
+   void bothSpellingsOfANameKeepTheirOwnFlag() throws Exception {
+      assertEquals("select t.\"MixedCase\", t.MixedCase as b from t group by t.\"MixedCase\", t.MixedCase",
                    regenerate("select t.\"MixedCase\", t.MixedCase as b from t " +
                               "group by t.\"MixedCase\", t.MixedCase"));
    }
@@ -695,27 +688,26 @@ class UniformSQLQualifiedQuotedColumnTest {
       assertEquals("select q.id, sum(q.\"MixedCase\") from T q group by q.id",
                    aggregate("oracle", quoted, TWIN_FIRST));
       assertEquals("select q.id, sum(q.MIXEDCASE) from t q group by q.id", aggregate("h2", unquoted, TWIN_FIRST));
-      assertEquals("select q.id, sum(q.\"MIXEDCASE\") from T q group by q.id",
+      // was sum(q."MIXEDCASE"), an unquoted column is quoted on oracle only if needed (#77646)
+      assertEquals("select q.id, sum(q.MIXEDCASE) from T q group by q.id",
                    aggregate("oracle", unquoted, TWIN_FIRST));
    }
 
    /**
-    * Known residual, not fixed here: on PostgreSQL, Snowflake and Exasol a quoted aggregate
-    * argument sum(q."MixedCase") is stored with the same text as the unquoted sum(q.MixedCase)
-    * (see above), so it gets the metadata case repair of an unquoted name, as before this
-    * change: the first column ignoring case, unquoted on Snowflake and Exasol. Keeping it needs
-    * the parser to record the quotes of an aggregate argument, which is left to #77578.
-    * These are the outputs before this change, change them when that is fixed.
+    * On PostgreSQL, Snowflake and Exasol a quoted aggregate argument sum(q."MixedCase") is
+    * stored with the same text as the unquoted sum(q.MixedCase) (see above). The parser records
+    * the quoted column of the aggregate (#77578), so it keeps the written case, quoted, instead
+    * of the metadata case repair of an unquoted name. See UniformSQLQuotedAggregateTest.
     */
    @Test
-   void knownResidualQuotedAggregatesOnCaseSensitiveDatabases() throws Exception {
-      assertEquals("select \"q\".\"id\", sum(q.\"MIXEDCASE\") from \"t\" q group by \"q\".\"id\"",
+   void quotedAggregatesOnCaseSensitiveDatabasesKeepTheWrittenCase() throws Exception {
+      assertEquals("select \"q\".\"id\", sum(q.\"MixedCase\") from \"t\" q group by \"q\".\"id\"",
                    aggregate("postgresql", "select q.id, sum(q.\"MixedCase\") from t q group by q.id",
                              "MIXEDCASE", "MixedCase", "id"));
-      assertEquals("select \"q\".\"id\", sum(q.MixedCase) from \"t\" q group by \"q\".\"id\"",
+      assertEquals("select \"q\".\"id\", sum(q.\"MixedCase\") from \"t\" q group by \"q\".\"id\"",
                    aggregate("snowflake", "select q.id, sum(q.\"MixedCase\") from t q group by q.id",
                              "MixedCase", "id"));
-      assertEquals("select \"q\".\"id\", sum(q.LOW) from \"t\" q group by \"q\".\"id\"",
+      assertEquals("select \"q\".\"id\", sum(q.\"low\") from \"t\" q group by \"q\".\"id\"",
                    aggregate("exasol", "select q.id, sum(q.\"low\") from t q group by q.id", "LOW", "low", "id"));
    }
 
@@ -736,7 +728,9 @@ class UniformSQLQualifiedQuotedColumnTest {
             for(boolean xml : new boolean[] { true, false }) {
                String label = from + " " + column + (xml ? " xml" : " direct");
                String h2 = "sum(q." + column + ")";
-               String oracle = "sum(q.\"" + column + "\")";
+               // was sum(q."MIXEDCASE") and sum(q."mixedcase"), oracle quotes an unquoted
+               // column only if needed, so it folds to MIXEDCASE as written (#77646)
+               String oracle = "sum(q." + column + ")";
 
                assertEquals("select \"q\".\"id\", " + h2 + " from \"t\" q group by \"q\".\"id\"",
                             crossHelper(from, "h2", select, xml, column, "id"), label);
@@ -763,39 +757,38 @@ class UniformSQLQualifiedQuotedColumnTest {
                    aggregate("h2", "select sum(\"q\".\"MixedCase\") from t \"q\"", TWIN_FIRST));
       assertEquals("select sum(Q.\"MixedCase\") from t Q",
                    aggregate("h2", "select sum(\"Q\".\"MixedCase\") from t \"Q\"", TWIN_FIRST));
-      assertEquals("select sum(T.\"MixedCase\") from T",
+      // a quoted table keeps its quotes (#77569)
+      assertEquals("select sum(\"T\".\"MixedCase\") from \"T\"",
                    aggregate("h2", "select sum(\"T\".\"MixedCase\") from \"T\"", TWIN_FIRST));
       assertEquals("select q.id, sum(q.\"MixedCase\") from T q group by q.id",
                    aggregate("oracle", "select q.id, sum(\"q\".\"MixedCase\") from t q group by q.id", TWIN_FIRST));
       assertEquals("select sum(t.\"MixedCase\") from T t",
                    aggregate("oracle", "select sum(\"t\".\"MixedCase\") from t", TWIN_FIRST));
-      assertEquals("select sum(T.\"MixedCase\") from T",
+      assertEquals("select sum(\"T\".\"MixedCase\") from \"T\"",
                    aggregate("oracle", "select sum(\"T\".\"MixedCase\") from \"T\"", TWIN_FIRST));
    }
 
    /**
-    * Known residual, not fixed here: on H2 and Oracle a special qualifier (a space or a keyword)
-    * stays quoted at parse, so sum("my q"."MixedCase") is stored with the same text that
-    * PostgreSQL, Snowflake and Exasol store for sum("my q".MixedCase). It gets the metadata case
-    * repair of an unquoted name, as before this change. Keeping it needs the parser to record the
-    * quotes of an aggregate argument (#77578). These are the outputs before this change, change
-    * them when that is fixed.
+    * On H2 and Oracle a special qualifier (a space or a keyword) stays quoted at parse, so
+    * sum("my q"."MixedCase") is stored with the same text that PostgreSQL, Snowflake and Exasol
+    * store for sum("my q".MixedCase). The parser records the quoted column of the aggregate
+    * (#77578), so it keeps the written case. See UniformSQLQuotedAggregateTest.
     */
    @Test
-   void knownResidualQuotedAggregatesWithASpecialQualifier() throws Exception {
-      assertEquals("select sum(\"my q\".MIXEDCASE) from t \"my q\"",
+   void quotedAggregatesWithASpecialQualifierKeepTheWrittenCase() throws Exception {
+      assertEquals("select sum(\"my q\".\"MixedCase\") from t \"my q\"",
                    aggregate("h2", "select sum(\"my q\".\"MixedCase\") from t \"my q\"", TWIN_FIRST));
-      assertEquals("select sum(\"my q\".MixedCase) from t \"my q\"",
+      assertEquals("select sum(\"my q\".\"MixedCase\") from t \"my q\"",
                    aggregate("h2", "select sum(\"my q\".\"MixedCase\") from t \"my q\"", TWIN_SECOND));
-      assertEquals("select sum(\"order\".MIXEDCASE) from t \"order\"",
+      assertEquals("select sum(\"order\".\"MixedCase\") from t \"order\"",
                    aggregate("h2", "select sum(\"order\".\"MixedCase\") from t \"order\"", TWIN_FIRST));
-      assertEquals("select sum(\"my q\".LOW) from t \"my q\"",
+      assertEquals("select sum(\"my q\".\"low\") from t \"my q\"",
                    aggregate("h2", "select sum(\"my q\".\"low\") from t \"my q\"", TWIN_FIRST));
-      assertEquals("select sum(\"my q\".\"MIXEDCASE\") from T \"my q\"",
+      assertEquals("select sum(\"my q\".\"MixedCase\") from T \"my q\"",
                    aggregate("oracle", "select sum(\"my q\".\"MixedCase\") from t \"my q\"", TWIN_FIRST));
-      assertEquals("select sum(\"order\".\"MIXEDCASE\") from T \"order\"",
+      assertEquals("select sum(\"order\".\"MixedCase\") from T \"order\"",
                    aggregate("oracle", "select sum(\"order\".\"MixedCase\") from t \"order\"", TWIN_FIRST));
-      assertEquals("select sum(\"my q\".\"LOW\") from T \"my q\"",
+      assertEquals("select sum(\"my q\".\"low\") from T \"my q\"",
                    aggregate("oracle", "select sum(\"my q\".\"low\") from t \"my q\"", TWIN_FIRST));
    }
 
@@ -901,6 +894,21 @@ class UniformSQLQualifiedQuotedColumnTest {
       helpers.put("snowflake", dataSource("net.snowflake.client.jdbc.SnowflakeDriver", "jdbc:snowflake://x",
                                           "snowflake", true));
       helpers.put("exasol", dataSource("com.exasol.jdbc.EXADriver", "jdbc:exa:x", "exasol", false));
+      return helpers;
+   }
+
+   // the helpers that parse select a = b as the alias form (#77785)
+   private static Map<String, JDBCDataSource> tsqlHelpers() {
+      Map<String, JDBCDataSource> helpers = new LinkedHashMap<>();
+      helpers.put("sybase", dataSource("net.sourceforge.jtds.jdbc.Driver", "jdbc:jtds:sybase://localhost/db",
+                                       "sybase", false));
+      helpers.put("sql server", dataSource("com.microsoft.sqlserver.jdbc.SQLServerDriver",
+                                           "jdbc:sqlserver://localhost;databaseName=db", "sql server", false));
+
+      for(Map.Entry<String, JDBCDataSource> helper : helpers.entrySet()) {
+         assertEquals(helper.getKey(), SQLHelper.getSQLHelper(helper.getValue()).getSQLHelperType());
+      }
+
       return helpers;
    }
 

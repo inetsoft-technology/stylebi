@@ -17,9 +17,12 @@
  */
 package inetsoft.uql.asset.sync;
 
+import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetObject;
 import inetsoft.util.Tool;
 import inetsoft.util.XMLSerializable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
@@ -147,7 +150,8 @@ public class RenameDependencyInfo implements Serializable, XMLSerializable {
     */
    public void writeXML(PrintWriter writer) {
       writer.print("<renameDependencyInfo class=\"" + getClass().getName()
-         + "\" recursive=\"" + recursive + "\" id=\"" + id + "\">");
+         + "\" recursive=\"" + recursive + "\" updateStorage=\"" + updateStorage
+         + "\" runtime=\"" + runtime + "\" id=\"" + id + "\">");
 
       if(rinfos != null) {
          writer.print("<renameInfos>");
@@ -193,7 +197,11 @@ public class RenameDependencyInfo implements Serializable, XMLSerializable {
     * Method to parse an xml segment.
     */
    public void parseXML(Element elem) throws Exception {
-      recursive = "true".equalsIgnoreCase(Tool.getAttribute(elem, "class"));
+      // a missing attribute keeps the field default (entries written before updateStorage
+      // and runtime were persisted)
+      recursive = !"false".equalsIgnoreCase(Tool.getAttribute(elem, "recursive"));
+      updateStorage = !"false".equalsIgnoreCase(Tool.getAttribute(elem, "updateStorage"));
+      runtime = "true".equalsIgnoreCase(Tool.getAttribute(elem, "runtime"));
       id = Tool.getAttribute(elem, "id");
 
       if(id == null) {
@@ -203,15 +211,7 @@ public class RenameDependencyInfo implements Serializable, XMLSerializable {
       Element rnode = Tool.getChildNodeByTagName(elem, "renameInfos");
 
       if(rnode != null) {
-         NodeList infos = Tool.getChildNodesByTagName(rnode, "renameInfo");
-         List<RenameInfo> rinfos = new ArrayList<>();
-
-         for(int j = 0; j < infos.getLength(); j++) {
-            Element infoElem = (Element) infos.item(j);
-            RenameInfo info = new RenameInfo();
-            info.parseXML(infoElem);
-            rinfos.add(info);
-         }
+         rinfos = parseRenameInfos(rnode);
       }
 
       map = new HashMap<>();
@@ -226,7 +226,17 @@ public class RenameDependencyInfo implements Serializable, XMLSerializable {
          }
 
          String cls = Tool.getAttribute(assetNode, "class");
-         AssetObject assetObj = (AssetObject) Tool.loadSubclass(cls, AssetObject.class).newInstance();
+         Class<?> assetClass;
+
+         try {
+            assetClass = Tool.loadSubclass(cls, AssetEntry.class);
+         }
+         catch(ClassCastException ex) {
+            LOG.warn("Ignoring unsupported rename dependency asset object: {}", Tool.cleanseCRLF(cls));
+            continue;
+         }
+
+         AssetObject assetObj = (AssetObject) assetClass.newInstance();
 
          NodeList list = assetNode.getChildNodes();
 
@@ -237,18 +247,25 @@ public class RenameDependencyInfo implements Serializable, XMLSerializable {
             }
          }
 
-         NodeList infos = Tool.getChildNodesByTagName(item, "renameInfo");
-         List<RenameInfo> renameInfoList = new ArrayList<>();
-
-         for(int j = 0; j < infos.getLength(); j++) {
-            Element ielem = (Element) infos.item(j);
-            RenameInfo rinfo = new RenameInfo();
-            rinfo.parseXML(ielem);
-            renameInfoList.add(rinfo);
-         }
-
-         map.put(assetObj, renameInfoList);
+         map.put(assetObj, parseRenameInfos(item));
       }
+   }
+
+   /**
+    * Parse the rename infos (RenameInfo and subclasses such as ChangeTableOptionInfo)
+    * written as child elements of a node.
+    */
+   private static List<RenameInfo> parseRenameInfos(Element node) throws Exception {
+      List<RenameInfo> list = new ArrayList<>();
+      NodeList nodes = node.getChildNodes();
+
+      for(int i = 0; i < nodes.getLength(); i++) {
+         if(nodes.item(i) instanceof Element child && RenameInfo.isRenameInfoElement(child)) {
+            list.add(RenameInfo.createRenameInfo(child));
+         }
+      }
+
+      return list;
    }
 
    public boolean isUpdateStorage() {
@@ -289,4 +306,6 @@ public class RenameDependencyInfo implements Serializable, XMLSerializable {
    private List<RenameInfo> rinfos = new ArrayList<>();
    private Map<AssetObject, List<RenameInfo>> map = new HashMap<>();
    private Map<AssetObject, File> assetFileMap = new HashMap<>();
+
+   private static final Logger LOG = LoggerFactory.getLogger(RenameDependencyInfo.class);
 }

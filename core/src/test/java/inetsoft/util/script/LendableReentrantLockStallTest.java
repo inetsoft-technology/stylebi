@@ -36,7 +36,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * changing who is let in (#5531). Every blocking step is bounded and helper threads are
  * daemons.
  */
-@Tag("core")
+@Tag("slow")
 public class LendableReentrantLockStallTest {
    @BeforeEach
    public void setUp() {

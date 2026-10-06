@@ -65,6 +65,7 @@ public class XNodeTable implements XTable {
     */
    public void setNode(XNode root) {
       cancelled = false;
+      loadException = null;
       this.root = root;
 
       if(root instanceof CompositeTableNode) {
@@ -117,6 +118,24 @@ public class XNodeTable implements XTable {
     */
    public synchronized boolean isCancelled() {
       return cancelled;
+   }
+
+   /**
+    * Get the exception that stopped loading the rows of the data tree, e.g. a database error
+    * raised while reading the result set. Loading stops at the failure and the table keeps the
+    * rows read before it, so a caller that must not show partial data checks this after
+    * reading the rows. It does not change how the table behaves for other callers.
+    *
+    * @return the load failure, or {@code null} if the rows loaded without one.
+    */
+   public Exception getLoadException() {
+      return loadException;
+   }
+
+   private void setLoadException(Exception ex) {
+      if(loadException == null) {
+         loadException = ex;
+      }
    }
 
    /**
@@ -548,6 +567,7 @@ public class XNodeTable implements XTable {
          }
          catch(Exception ex) {
             cancelled = true;
+            setLoadException(ex);
             LOG.debug("Failed to load XTableNode", ex);
          }
       }
@@ -602,6 +622,7 @@ public class XNodeTable implements XTable {
                   catch(Exception ex) {
                      cancelled = true;
                      loadDataException = ex;
+                     setLoadException(ex);
                      LOG.debug("Failed to load XTableNode", ex);
                   }
                   finally {
@@ -664,6 +685,12 @@ public class XNodeTable implements XTable {
                countExecutedRows(result);
             }
          }
+         catch(RuntimeException ex) {
+            // kept before complete() below wakes a reader waiting for the rows, so the reader
+            // sees the failure when it finds no more rows
+            setLoadException(ex);
+            throw ex;
+         }
          finally {
             complete();
 
@@ -685,6 +712,7 @@ public class XNodeTable implements XTable {
          }
          catch(Exception ex) {
             cancelled = true;
+            setLoadException(ex);
             LOG.debug("Failed to load XNode data", ex);
          }
          finally {
@@ -951,6 +979,8 @@ public class XNodeTable implements XTable {
    private transient XTable delegate;
    private boolean cancelled = false;
    private Exception loadDataException = null;
+   // not serialized, a load failure only matters to the caller that ran the query
+   private transient volatile Exception loadException;
    private boolean disposed = false;
    private transient XNode root;
    private Class<?>[] types;

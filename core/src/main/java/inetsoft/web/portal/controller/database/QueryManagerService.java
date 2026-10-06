@@ -30,6 +30,7 @@ import inetsoft.uql.asset.internal.*;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.jdbc.*;
 import inetsoft.uql.jdbc.util.*;
+import inetsoft.uql.path.XSelection;
 import inetsoft.uql.schema.*;
 import inetsoft.uql.util.*;
 import inetsoft.uql.util.sqlparser.SQLLexer;
@@ -44,6 +45,7 @@ import inetsoft.web.portal.model.database.events.RemoveQueryColumnEvent;
 import java.awt.*;
 import java.rmi.RemoteException;
 import java.security.Principal;
+import java.sql.SQLException;
 import java.util.List;
 import java.util.*;
 import java.util.function.Supplier;
@@ -187,7 +189,9 @@ public class QueryManagerService {
                int newIndex = newSelection.addColumn(name);
                newSelection.setAlias(newIndex, alias);
                newSelection.setTable(name, oldSelection.getTable(name));
-               newSelection.copyQuoted(name, oldSelection, name);
+               newSelection.copyQuoted(newIndex, oldSelection, columnIndex);
+               newSelection.setQuotedAggregate(newIndex,
+                  oldSelection.getQuotedAggregate(columnIndex));
                newSelection.setType(name, oldSelection.getType(name));
                newSelection.setXMetaInfo(newIndex, oldSelection.getXMetaInfo(columnIndex));
                newSelection.setDescription(name, oldSelection.getDescription(name));
@@ -221,6 +225,18 @@ public class QueryManagerService {
          QuerySortPaneModel sortPaneModel = queryModel.getSortPaneModel();
          List<String> fields = sortPaneModel.getFields();
          List<String> orders = sortPaneModel.getOrders();
+         // the quoted aggregate records of the fields kept in the sort pane (#77578)
+         Map<String, String> records = new HashMap<>();
+         Object[] ofields = sql.getOrderByFields();
+
+         for(int i = 0; ofields != null && i < ofields.length; i++) {
+            String seg = sql.getQuotedAggregate(ofields[i]);
+
+            if(seg != null) {
+               records.put((String) ofields[i], seg);
+            }
+         }
+
          sql.removeAllOrderByFields();
          sql.clearOrderDBFields();
 
@@ -230,6 +246,7 @@ public class QueryManagerService {
             }
 
             sql.setOrderBy(fields.get(i), orders.get(i));
+            sql.setQuotedAggregate(fields.get(i), records.get(fields.get(i)));
          }
 
          sql.clearSQLString();
@@ -456,6 +473,7 @@ public class QueryManagerService {
          fieldModel.setDataType(selection.getType(name));
          fieldModel.setDrillInfo(getAutoDrillInfo(selection.getXMetaInfo(i)));
          fieldModel.setFormat(getFormatInfo(selection.getXMetaInfo(i)));
+         fieldModel.setQuotedName(getQuotedName(sql, selection, i));
          queryFields.add(fieldModel);
       }
 
@@ -636,7 +654,6 @@ public class QueryManagerService {
       }
 
       UniformSQL sql = (UniformSQL) query.getSQLDefinition();
-      SQLHelper sqlHelper = SQLHelper.getSQLHelper(sql);
       JDBCSelection selection = (JDBCSelection) sql.getSelection();
       Map<String, String> nameAliasMap = new LinkedHashMap<>();
       List<String> aliases = getColumnAliases(selection);
@@ -663,7 +680,9 @@ public class QueryManagerService {
          String path = getColumnPath(col);
          int index = selection.addColumn(path);
          selection.setTable(path, XUtil.getTablePart(path, sql));
-         selection.setAlias(index, selection.getValidAlias(index, alias, sqlHelper));
+         // store the name itself, a name the database can't take is replaced by an ALIAS_n
+         // each time the sql is generated and mapped back in the result (Bug #77711)
+         selection.setAlias(index, alias);
          selection.setType(path, getColumnDataType(col));
          nameAliasMap.put(alias, path);
       }
@@ -717,7 +736,8 @@ public class QueryManagerService {
          if(!remove) {
             int index = newSelection.addColumn(selectionName);
             newSelection.setTable(selectionName, selection.getTable(selectionName));
-            newSelection.copyQuoted(selectionName, selection, selectionName);
+            newSelection.copyQuoted(index, selection, i);
+            newSelection.setQuotedAggregate(index, selection.getQuotedAggregate(i));
             newSelection.setAlias(index, selectionAlias);
             newSelection.setType(selectionName, selection.getType(selectionName));
             newSelection.setXMetaInfo(index, selection.getXMetaInfo(i));
@@ -1127,9 +1147,13 @@ public class QueryManagerService {
             Catalog.getCatalog().getString("common.sqlquery.sessionExpired"));
       }
 
+      TableAssembly assembly = (TableAssembly) rws.getWorksheet().getAssembly(model.getName());
+      // the alias mapping is keyed by the table's names (Bug #77711), which are those of the
+      // runtime query until an Apply of the simple mode binds a rebuilt query to the table
+      JDBCQuery oldQuery = assembly instanceof SQLBoundTableAssembly ?
+         ((SQLBoundTableAssemblyInfo) assembly.getInfo()).getQuery() : runtimeQuery.getQuery();
       JDBCQuery query = createNewQuery(name, database);
       runtimeQuery.setQuery(query);
-      TableAssembly assembly = (TableAssembly) rws.getWorksheet().getAssembly(model.getName());
 
       if(assembly != null) {
          int queryPreviewMaxrow = Util.getQueryPreviewMaxrow();
@@ -1147,6 +1171,14 @@ public class QueryManagerService {
          JDBCUtil.fixTableLocation(sql);
          fixUniformSQLInfo(sql, dataSource, principal);
          query.setSQLDefinition(sql);
+
+         // the advanced OK maps the assembly's columns by the runtime query's mapping, a
+         // column of an old query stored with a generated alias is renamed (Bug #77711)
+         if(runtimeQuery.getAliasMapping() != null) {
+            Map<String, String> aliasMapping = new HashMap<>(runtimeQuery.getAliasMapping());
+            mapRebuiltColumnAliases(oldQuery, sql, aliasMapping);
+            aliasMapping.forEach(runtimeQuery::putAliasMapping);
+         }
 
          if(simpleModel.getTables() != null) {
             runtimeQuery.setSelectedTables(simpleModel.getTables());
@@ -1258,7 +1290,6 @@ public class QueryManagerService {
       fixUniformSQLInfo(sql, dataSource, principal);
       selection = (JDBCSelection) sql.getSelection();
       List<String> columnAliases = getColumnAliases(selection);
-      SQLHelper sqlHelper = SQLHelper.getSQLHelper(sql);
       boolean tableColumn = sql.isTableColumn(expression);
       String alias = null;
 
@@ -1271,7 +1302,6 @@ public class QueryManagerService {
          }
 
          alias = alias + counter;
-         alias = selection.getValidAlias(index, alias, sqlHelper);
          selection.setAlias(index, alias);
          selection.setType(expression, XField.STRING_TYPE);
          selection.setExpression(index, true);
@@ -1291,7 +1321,7 @@ public class QueryManagerService {
          }
 
          alias = counter > 0 ? alias + "_" + counter : alias;
-         alias = selection.getValidAlias(index, alias, sqlHelper);
+         // store the name itself, as addColumns does (Bug #77711)
          String table = XUtil.getTablePart(expression, sql);
          selection.setAlias(index, alias);
          selection.setTable(expression, table);
@@ -1301,6 +1331,38 @@ public class QueryManagerService {
       return new String[] {alias, expression};
    }
 
+   /**
+    * Get a select column as written in the sql when it was a quoted identifier, which the
+    * expression editor starts from: t."MixedCase" or "My Col". The column name doesn't show
+    * the quotes, and an edit is generated as it is written (Bug #77573).
+    * @return the quoted spelling, or <tt>null</tt> if the column isn't a quoted identifier.
+    */
+   public static String getQuotedName(UniformSQL sql, JDBCSelection selection, int idx) {
+      if(!selection.isQuoted(idx) || selection.isExpression(idx)) {
+         return null;
+      }
+
+      String path = selection.getColumn(idx);
+      String segment = selection.getQuotedColumn(idx);
+      String table = selection.getTable(path);
+      String quote = sql.getSQLHelper().getQuote();
+      String prefix = "";
+      String column = path;
+
+      if(segment != null && path.endsWith("." + segment)) {
+         prefix = path.substring(0, path.length() - segment.length());
+         column = segment;
+      }
+      else if(segment == null && table != null && !table.isEmpty() &&
+         path.startsWith(table + "."))
+      {
+         prefix = table + ".";
+         column = path.substring(table.length() + 1);
+      }
+
+      return prefix + quote + column + quote;
+   }
+
    public String[] editExpression(UniformSQL sql, JDBCSelection selection, String expression,
                               String columnName, String columnAlias)
    {
@@ -1308,6 +1370,13 @@ public class QueryManagerService {
 
       if(columnIndex == -1) {
          return null;
+      }
+
+      // the quoted column the editor started from, unchanged (getQuotedName), stays the
+      // column with its quoting. Any other text is generated as it is written (Bug #77573)
+      if(expression.equals(getQuotedName(sql, selection, columnIndex))) {
+         sql.setAlias(columnIndex, columnAlias);
+         return new String[] {columnAlias, selection.getColumn(columnIndex)};
       }
 
       String type = selection.getType(columnName);
@@ -2347,7 +2416,20 @@ public class QueryManagerService {
                return Catalog.getCatalog().getString("designer.qb.jdbc.unableParseSql");
             }
 
-            XNode result = execute(query, runtimeQuery.getVariables(), principal.getName());
+            XNode result;
+
+            try {
+               result = execute(query, runtimeQuery.getVariables(), principal.getName());
+            }
+            catch(Exception ex) {
+               // anything but the database rejecting the user's SQL is logged as an error below
+               if(!PhysicalModelService.isUserSqlError(ex)) {
+                  throw ex;
+               }
+
+               LOG.debug("Free-form SQL rejected by the database: {}", nsqlString, ex);
+               return null;
+            }
 
             if(result instanceof JDBCTableNode) {
                JDBCTableNode jresult = (JDBCTableNode) result;
@@ -2475,6 +2557,22 @@ public class QueryManagerService {
          }
       }
 
+      // a database error raised while reading the rows (e.g. a division by zero in a row) stops
+      // the load and leaves only the rows read before it, report it instead of partial data
+      Exception loadException = lens.getLoadException();
+
+      if(loadException != null) {
+         // JDBCTableNode wraps the driver's exception in a plain RuntimeException, pass the
+         // database exception on so the caller can tell the user's SQL error from an outage
+         if(loadException.getClass() == RuntimeException.class &&
+            loadException.getCause() instanceof SQLException sqlEx)
+         {
+            throw sqlEx;
+         }
+
+         throw loadException;
+      }
+
       return values;
    }
 
@@ -2489,7 +2587,9 @@ public class QueryManagerService {
 
       if((sql.getParseResult() == UniformSQL.PARSE_SUCCESS ||
          sql.getParseResult() == UniformSQL.PARSE_PARTIALLY) &&
-         sql.getSelection().getColumnCount() > 0)
+         sql.getSelection().getColumnCount() > 0 &&
+         // the columns of a wildcard that isn't expanded are known from the output (Bug #77617)
+         !UniformSQL.hasWildcard(sql.getSelection()))
       {
          JDBCSelection selection = (JDBCSelection) sql.getSelection();
 
@@ -2509,7 +2609,10 @@ public class QueryManagerService {
                ColumnRef oldCol = (ColumnRef) oldRef;
                ref.setAlias(oldCol.getAlias());
                ref.setDescription(oldCol.getDescription());
-               ref.setOldName(oldCol.getDisplayName());
+               // the name the column had when the worksheet was opened or saved, so a rename
+               // of an earlier OK isn't lost by another OK before the save (Bug #77711)
+               ref.setOldName(oldCol.getOldName() != null ? oldCol.getOldName() :
+                                 oldCol.getDisplayName());
             }
 
             columns.addAttribute(ref);
@@ -2521,17 +2624,39 @@ public class QueryManagerService {
          cinfo.setMaxOccurs(XTypeNode.STAR);
          JDBCQuery clone = query.clone();
          cinfo = clone.getOutputTypeForNonParseableSQL(cinfo, vars, session);
+         // the sql of the metadata was generated from the structure (not a kept sql text)
+         JDBCSelection generated = clone.getSQLDefinition() instanceof UniformSQL &&
+            !((UniformSQL) clone.getSQLDefinition()).hasSQLString() &&
+            clone.getSelection() instanceof JDBCSelection ?
+            (JDBCSelection) clone.getSelection() : null;
 
          for(int i = 0; i < cinfo.getChildCount(); i++) {
             XTypeNode node = (XTypeNode) cinfo.getChild(i);
-            AttributeRef attributeRef = new AttributeRef(node.getName());
+            String name = node.getName();
+
+            // the database names a column by the ALIAS_n generated for a name it can't
+            // take, the column is named by the stored name as the result header is
+            // (Bug #77711)
+            if(generated != null && name != null) {
+               name = generated.getOriginalAlias(name);
+            }
+
+            AttributeRef attributeRef = new AttributeRef(name);
             ColumnRef ref = new ColumnRef(attributeRef);
             ref.setDataType(node.getType());
-            DataRef oldRef = oldColumns.findAttribute(ref);
+            String oldAlias = getOriginalAlias(aliasMapping, name);
+            boolean renamed = oldAlias != null && !oldAlias.equals(name);
+            DataRef oldRef = renamed ?
+               oldColumns.findAttribute(new ColumnRef(new AttributeRef(oldAlias))) :
+               oldColumns.findAttribute(ref);
 
             if(oldRef instanceof ColumnRef) {
-               ref.setAlias(((ColumnRef) oldRef).getAlias());
-               ref.setDescription(((ColumnRef) oldRef).getDescription());
+               ColumnRef oldCol = (ColumnRef) oldRef;
+               ref.setAlias(oldCol.getAlias());
+               ref.setDescription(oldCol.getDescription());
+               // as above, for the dependents of a column renamed from a generated alias
+               ref.setOldName(oldCol.getOldName() != null ? oldCol.getOldName() :
+                                 oldCol.getDisplayName());
             }
 
             columns.addAttribute(ref);
@@ -2762,6 +2887,96 @@ public class QueryManagerService {
       }
 
       return -1;
+   }
+
+   /**
+    * Records in an alias mapping how the columns of a query rebuilt by JDBCUtil.createSQL
+    * are named in the query it replaces. Before Bug #77711 the editor stored the ALIAS_n
+    * generated for a name the database can't take, so a column of an old query may be
+    * named ALIAS_n where the rebuilt one stores the name. That column is mapped from its
+    * old alias to the name, so its worksheet column, groups, aggregates and conditions
+    * follow the rename. A column the rebuilt query names as the old one did is mapped to
+    * itself when the mapping doesn't know its alias yet (e.g. a second OK of the dialog).
+    *
+    * @param oldQuery     the query that is replaced.
+    * @param sql          the rebuilt query.
+    * @param aliasMapping the mapping from the alias when the dialog was opened to the alias
+    *                     now, it is changed.
+    */
+   public void mapRebuiltColumnAliases(JDBCQuery oldQuery, UniformSQL sql,
+                                       Map<String, String> aliasMapping)
+   {
+      if(oldQuery == null || !(oldQuery.getSQLDefinition() instanceof UniformSQL) ||
+         sql == null || aliasMapping == null)
+      {
+         return;
+      }
+
+      XSelection oldSelection = ((UniformSQL) oldQuery.getSQLDefinition()).getSelection();
+      XSelection selection = sql.getSelection();
+      SQLHelper helper = SQLHelper.getSQLHelper(sql);
+      boolean[] matched = new boolean[oldSelection.getColumnCount()];
+
+      for(int i = 0; i < selection.getColumnCount(); i++) {
+         String path = selection.getColumn(i);
+         String alias = selection.getAlias(i);
+
+         if(Tool.isEmptyString(alias)) {
+            continue;
+         }
+
+         // the same column of the old query, the first not matched yet
+         for(int j = 0; j < matched.length; j++) {
+            if(matched[j] || !Tool.equals(path, oldSelection.getColumn(j))) {
+               continue;
+            }
+
+            matched[j] = true;
+            String oldAlias = oldSelection.getAlias(j);
+
+            if(Tool.equals(oldAlias, alias)) {
+               if(getOriginalAlias(aliasMapping, alias) == null &&
+                  !aliasMapping.containsKey(alias))
+               {
+                  aliasMapping.put(alias, alias);
+               }
+            }
+            // only a name the database can't take had an alias generated for it
+            else if(!Tool.isEmptyString(oldAlias) && !helper.isValidAlias(alias)) {
+               String originalAlias = getOriginalAlias(aliasMapping, oldAlias);
+               aliasMapping.put(originalAlias != null ? originalAlias : oldAlias, alias);
+            }
+
+            break;
+         }
+      }
+   }
+
+   /**
+    * Keys the alias mapping of a dialog's runtime query by the aliases of the query an Apply
+    * just bound to the table. The table now has those columns, so a later OK maps the
+    * table's columns from them (Bug #77711).
+    *
+    * @param runtimeId the id of the dialog's runtime query.
+    * @param query     the query of the table.
+    */
+   public void resetAliasMapping(String runtimeId, JDBCQuery query) {
+      RuntimeQueryService.RuntimeXQuery runtimeQuery = getRuntimeQuery(runtimeId);
+
+      if(runtimeQuery == null || runtimeQuery.getAliasMapping() == null || query == null) {
+         return;
+      }
+
+      Map<String, String> aliasMapping = runtimeQuery.getAliasMapping();
+      XSelection selection = query.getSelection();
+      aliasMapping.clear();
+
+      for(int i = 0; i < selection.getColumnCount(); i++) {
+         String alias = selection.getAlias(i);
+         aliasMapping.put(alias, alias);
+      }
+
+      saveRuntimeQuery(runtimeQuery);
    }
 
    private String getOriginalAlias(Map<String, String> aliasMapping, String lastAlias) {

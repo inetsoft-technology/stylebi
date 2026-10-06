@@ -22,6 +22,7 @@ import inetsoft.report.lens.FormulaTableLens;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
 import inetsoft.uql.asset.Worksheet;
+import inetsoft.util.script.graal.GraalJavaScriptEngine;
 import inetsoft.util.script.graal.pool.PoolConfig;
 import inetsoft.util.script.graal.pool.WorksheetScriptEnv;
 import org.junit.jupiter.api.*;
@@ -30,6 +31,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -37,8 +39,9 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * O2 (Testing #77123): a formula column whose script throws, read row by row by a reader that
- * swallows each failure. The cells are the same pool off and on, and the pool counts one
- * context clean per failed batch, which is every failing row (the O2 cost).
+ * swallows each failure. The cells are the same pool off and on. A batch computes all its rows
+ * and throws its first script error at the end, so a column failing on every row costs one
+ * context clean per batch, not one per failing row. A timeout still ends the batch at once.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class, LibManagerTestConfiguration.class, PluginsTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -66,29 +69,76 @@ public class RelErrorPathTest {
       Read offAll = read("unknownName + field['value']", 300, false);
       Read onAll = read("unknownName + field['value']", 300, true);
       assertEquals(offAll.cells, onAll.cells);
-      assertEquals(300, offAll.errors);
-      assertEquals(300, onAll.errors);
+      // one failure per batch, which differs by mode, never per failing row
+      assertTrue(offAll.errors > 0 && offAll.errors < 300, "errors off " + offAll.errors);
+      assertTrue(onAll.errors > 0 && onAll.errors < 300, "errors on " + onAll.errors);
    }
 
    /**
-    * Documents the O2 mechanism: every failing row is its own batch and costs one clean.
+    * The O2 fix: a formula column failing on every row cleans its context once per batch
+    * (before, 1000 failing rows cost 1000 cleans, ~0.7 ms each).
     */
    @Test
-   public void everyFailingRowCostsOneClean() throws Exception {
-      Read on = read("unknownName + field['value']", 300, true);
-      assertEquals(300, on.errors);
-      assertTrue(on.cleans >= 300, "cleans " + on.cleans);
-   }
-
-   /**
-    * The O2 target, not met: a formula column failing on every row should not clean its
-    * context once per row (1000 rows here cost 1000 cleans, ~0.6 ms each).
-    */
-   @Test
-   @Disabled("O2: one context clean per failing row; see docs/teams/2026-09-29-pool-reliability/o2.md")
    public void failingRowsShareABatchClean() throws Exception {
       Read on = read("unknownName + field['value']", 1000, true);
+      assertTrue(on.errors > 0, "the reader still sees the failure");
       assertTrue(on.cleans <= 50, "cleans per 1000 failing rows: " + on.cleans);
+   }
+
+   /**
+    * A row that times out is not followed by the rest of its batch: each row would wait out
+    * the timeout again, under the lens lock.
+    */
+   @Test
+   public void timeoutEndsTheBatch() throws Exception {
+      String previous = SreeEnv.getProperty("script.execution.timeout");
+      SreeEnv.setProperty("script.execution.timeout", "1");
+      refreshTimeout();
+
+      try {
+         for(boolean pool : new boolean[] { false, true }) {
+            SreeEnv.setProperty(PoolConfig.ENABLED, String.valueOf(pool));
+            AssetQuerySandbox box = new AssetQuerySandbox(new Worksheet());
+
+            try {
+               Object[][] data = new Object[21][];
+               data[0] = new Object[] {"value"};
+
+               for(int i = 1; i <= 20; i++) {
+                  data[i] = new Object[] {i};
+               }
+
+               FormulaTableLens lens = new FormulaTableLens(new DefaultTableLens(data),
+                  new String[] {"f"}, new String[] {"while(true) {} field['value']"},
+                  box.getScriptEnv(), box.getScope());
+               long start = System.nanoTime();
+               assertThrows(Exception.class, () -> lens.moreRows(1), "pool " + pool);
+               long millis = (System.nanoTime() - start) / 1_000_000;
+               // one timeout, not one per row of the batch (20 s)
+               assertTrue(millis < 8000, "pool " + pool + ": first read took " + millis + " ms");
+            }
+            finally {
+               box.dispose();
+            }
+         }
+      }
+      finally {
+         if(previous == null) {
+            SreeEnv.remove("script.execution.timeout");
+         }
+         else {
+            SreeEnv.setProperty("script.execution.timeout", previous);
+         }
+
+         refreshTimeout();
+      }
+   }
+
+   // the engine caches the property for 10 s
+   private static void refreshTimeout() throws Exception {
+      Field field = GraalJavaScriptEngine.class.getDeclaredField("TIMEOUT_PROP");
+      field.setAccessible(true);
+      ((SreeEnv.Value) field.get(null)).updateValue();
    }
 
    private static Read read(String script, int rows, boolean pool) throws Exception {

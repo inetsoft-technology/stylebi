@@ -187,6 +187,22 @@ describe("QueryFieldsPaneComponent — showFieldDialog: add / edit expression pa
       expect(capturedUrl).toContain("columnAlias=col1");
    });
 
+   // Bug #77573: a column written as a quoted identifier is edited from its quoted spelling,
+   // so OK without a change keeps the quoted column
+   it("editExpression: starts from the quoted spelling of a quoted column", async () => {
+      const { comp } = await renderComponent();
+      comp.databaseFieldsTree = makeFieldsTree([makeLeafNode("col1")]);
+      await waitFor(() => expect(comp.selectedFieldIndexes).toEqual([0]));
+      MODAL_MOCK.open.mockClear();
+      comp.editExpression();
+      expect(MODAL_MOCK.open.mock.results[0].value.componentInstance.expression).not.toBe("q.\"col1\"");
+
+      comp.selectedField.quotedName = "q.\"col1\"";
+      MODAL_MOCK.open.mockClear();
+      comp.editExpression();
+      expect(MODAL_MOCK.open.mock.results[0].value.componentInstance.expression).toBe("q.\"col1\"");
+   });
+
    it("editExpression: updates existing columnsOrderMap entry (does not push a new one)", async () => {
       server.use(
          http.post("*/api/data/datasource/query/expression/save", () =>

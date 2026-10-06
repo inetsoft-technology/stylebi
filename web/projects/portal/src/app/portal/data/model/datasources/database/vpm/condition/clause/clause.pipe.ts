@@ -73,8 +73,9 @@ export class ClausePipe implements PipeTransform {
       if(valueModel.type == ClauseValueTypes.SUBQUERY) {
          return valueModel.query ? `(${valueModel.query.simpleModel.sqlString})` : "";
       }
-      else if(valueModel.expression) {
-         return valueModel.expression;
+      // test for presence, not truthiness: the number and boolean editors emit 0 and false
+      else if(valueModel.expression != null && valueModel.expression !== "") {
+         return valueModel.expression + "";
       }
 
       return "";

@@ -2638,6 +2638,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             // merged host/guest stack trace so nothing useful is lost. (#75555)
             ScriptException se = new ScriptException(ex.getMessage() + loc);
             se.setStackTrace(ex.getStackTrace());
+            // what the dropped cause said: stopped by a timeout or cancel, not failed
+            se.setStopped(ex.isInterrupted() || ex.isCancelled());
             throw se;
          }
          finally {

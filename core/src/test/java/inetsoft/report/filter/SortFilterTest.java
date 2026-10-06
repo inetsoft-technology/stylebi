@@ -23,6 +23,10 @@ import inetsoft.test.*;
 import inetsoft.uql.XTable;
 import inetsoft.util.script.ExpressionFailedException;
 import inetsoft.util.stall.LockStallException;
+import inetsoft.util.swap.SwapFileReadException;
+
+import java.io.File;
+import java.io.IOException;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -82,6 +86,20 @@ public class SortFilterTest {
 
       Assertions.assertSame(stall, Assertions.assertThrows(
          LockStallException.class, () -> filter.moreRows(1)));
+   }
+
+   /**
+    * A swap file read failure of the base escapes the sort instead of silently leaving the
+    * filter looking empty (bug #77651).
+    */
+   @Test
+   public void baseSwapFileReadFailureEscapesTheSort() {
+      SwapFileReadException failure =
+         new SwapFileReadException(new File("does-not-exist.dat"), new IOException("gone"));
+      SortFilter filter = new SortFilter(new FailingBase(failure), SORT_COLS, true);
+
+      Assertions.assertSame(failure, Assertions.assertThrows(
+         SwapFileReadException.class, () -> filter.moreRows(1)));
    }
 
    /**

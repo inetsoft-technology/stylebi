@@ -20,6 +20,7 @@ package inetsoft.util.swap;
 import com.esotericsoftware.kryo.kryo5.Kryo;
 import com.esotericsoftware.kryo.kryo5.io.Input;
 import com.esotericsoftware.kryo.kryo5.io.Output;
+import inetsoft.util.FileSystemService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -110,26 +111,6 @@ public final class XObjectFragment<T> extends XSwappable {
    }
 
    /**
-    * set new size to this object fragment.
-    */
-   public synchronized void size(char size) {
-      if(size < 0 || size >= pos) {
-         return;
-      }
-
-      if(disposed) {
-         return;
-      }
-
-      if(!valid) {
-         validate0(true);
-      }
-
-      completed = false;
-      pos = size;
-   }
-
-   /**
     * Complete this object fragment.
     */
    @Override
@@ -166,6 +147,26 @@ public final class XObjectFragment<T> extends XSwappable {
    private synchronized Object[] validate0(boolean reset) {
       File file = getFile(prefix + "_0.tdat");
 
+      if(disposed) {
+         valid = true;
+         return this.arr;
+      }
+
+      // the fragment was empty when swapped (no swap file was written), or swap0() failed
+      // before the data was dropped. the data in memory is the only good copy either way,
+      // so remove any partial swap file to have the data written again on the next swap.
+      // rewriteRequired is the actual correctness guarantee here, independent of whether the
+      // delete below succeeds: deleteSwapFiles() can fall back to a delayed/queued delete that
+      // fires after a later swap recreates one of these filenames (the sub-problem 2/3 race),
+      // so swap0() must not depend on it succeeding.
+      if(this.arr != null) {
+         rewriteRequired = true;
+         deleteSwapFiles();
+         spos = 0;
+         valid = true;
+         return this.arr;
+      }
+
       RandomAccessFile fin = null;
       FileChannel channel = null;
       ByteBuffer buf = null;
@@ -186,6 +187,7 @@ public final class XObjectFragment<T> extends XSwappable {
          buf = XSwapUtil.uncompressByteBuffer(buf);
 
          if(disposed) {
+            valid = true;
             return this.arr;
          }
 
@@ -212,37 +214,47 @@ public final class XObjectFragment<T> extends XSwappable {
          }
 
          file = null;
-         this.arr = holder.arr;
-         this.pos = holder.pos;
-         return holder.arr;
-      }
-      catch(Exception ex) {
-         Object[] arr;
 
-         // since we ignore the exceptions, we should return whatever we managed to read
-         // up to the point until the exception was thrown
-         if(holder != null) {
-            arr = holder.arr;
+         // validate(buf, holder) now either completes every chunk (setting holder.complete)
+         // or throws out to the catch below - it no longer swallows a partial read internally
+         // and returns -1 as if complete - so holder.complete is always true by the time the
+         // while loop above exits normally. Kept as defense-in-depth / parity with the
+         // write-side rewriteRequired bookkeeping rather than assuming that invariant holds
+         // forever; the else branch below is not expected to be reachable today.
+         if(holder.complete) {
             this.arr = holder.arr;
             this.pos = holder.pos;
+            // a full, successful read-back proves the on-disk file(s) are actually correct
+            rewriteRequired = false;
          }
          else {
-            arr = this.arr;
+            // the on-disk file(s) didn't fully parse - force the next swap0() to actually
+            // (re)write regardless of file.exists(), rather than treating them as already-valid.
+            // this.arr is already null here (the arr != null fast path above returns before
+            // this point), so there is nothing to protect by holding onto a partial holder.arr
+            rewriteRequired = true;
          }
 
-         if(ex instanceof FileNotFoundException) {
-            if(arr == null) {
-               LOG.debug("Null array. Failed to read swap file: " + file, ex);
-            }
-         }
-         else {
-            LOG.error("Failed to read swap file: " + file, ex);
+         valid = true;
+
+         if(reset) {
+            swapFileCount = 0;
          }
 
-         return arr;
+         return this.arr;
+      }
+      catch(Exception ex) {
+         // reaching here means this.arr was already null (the arr != null fast path above
+         // returns before this point), so there is no in-memory copy left, and a partial
+         // read would hand back wrong data for the missing rows. keep the fragment invalid
+         // so a later access tries the files again (recovers from a transient failure) and
+         // the swapper never swaps the fragment out in this state; fail loudly instead of
+         // silently substituting partial data
+         spos = 0;
+         LOG.error("Failed to read swap file: " + file, ex);
+         throw new SwapFileReadException(file, ex);
       }
       finally {
-         valid = true;
          buf = null;
 
          try {
@@ -259,11 +271,32 @@ public final class XObjectFragment<T> extends XSwappable {
          catch(Exception ex) {
             // ignore it
          }
+      }
+   }
 
-         if(reset) {
-            swapFileCount = 0;
+   /**
+    * Delete the swap files of this fragment.
+    */
+   private void deleteSwapFiles() {
+      boolean failed = false;
+
+      for(int i = 0; ; i++) {
+         File file = getFile(prefix + "_" + i + ".tdat");
+
+         if(!file.exists()) {
+            break;
+         }
+
+         if(!file.delete()) {
+            failed = true;
+            FileSystemService.getInstance().remove(file, 30000);
          }
       }
+
+      swapFileCount = 0;
+      // a file that could not be deleted may still be there for the next swap to reuse,
+      // so keep checking for it on the next change
+      hasSwapFiles = failed;
    }
 
    /**
@@ -310,12 +343,17 @@ public final class XObjectFragment<T> extends XSwappable {
 
       File file = getFile(prefix + "_0.tdat");
 
-      if(file.exists()) {
+      // reuse-without-rewrite only applies to a file that's actually a durable copy of the
+      // current array; a stub left by a previous failed write (rewriteRequired) must always be
+      // (re)written, even if it still physically exists - see validate0()
+      if(file.exists() && !rewriteRequired) {
          if(disposed) {
             return;
          }
 
+         hasSwapFiles = true;
          invalidate(null);
+         clear();
          return;
       }
 
@@ -325,7 +363,11 @@ public final class XObjectFragment<T> extends XSwappable {
       int counter = 0;
 
       try {
+         // set before the first file is created, so a failed write leaving a partial file
+         // is still known to change()
+         hasSwapFiles = true;
          fout = new RandomAccessFile(file, "rw");
+         fout.setLength(0);
          channel = fout.getChannel();
          buf = ByteBuffer.allocate((int) len);
          int spos = 0; // current save pos
@@ -342,6 +384,11 @@ public final class XObjectFragment<T> extends XSwappable {
 
             XSwapUtil.flip(buf);
             buf = XSwapUtil.compressByteBuffer(buf);
+
+            if(testBeforeWrite != null) {
+               testBeforeWrite.run();
+            }
+
             channel.write(buf);
             channel.close();
             channel = null;
@@ -361,6 +408,7 @@ public final class XObjectFragment<T> extends XSwappable {
 	    counter++;
             file = getFile(prefix + '_' + counter + ".tdat");
             fout = new RandomAccessFile(file, "rw");
+            fout.setLength(0);
             channel = fout.getChannel();
 
             buf = ByteBuffer.allocate((int) len);
@@ -370,6 +418,11 @@ public final class XObjectFragment<T> extends XSwappable {
 	 swapFileCount = counter + 1;
          XSwapUtil.flip(buf);
          buf = XSwapUtil.compressByteBuffer(buf);
+
+         if(testBeforeWrite != null) {
+            testBeforeWrite.run();
+         }
+
          channel.write(buf);
          channel.close();
          channel = null;
@@ -380,6 +433,13 @@ public final class XObjectFragment<T> extends XSwappable {
          }
 
          fout = null;
+
+         // only drop the in-memory array once the final write above has
+         // actually succeeded; if channel.write() threw, control never
+         // reaches here and arr/pos/spos are preserved so the data isn't
+         // silently lost
+         clear();
+
          file = null;
       }
       catch(Exception ex) {
@@ -456,7 +516,17 @@ public final class XObjectFragment<T> extends XSwappable {
     * @param val the specified object value.
     */
    public void add(Object val) {
-      // disposed?
+      if(disposed) {
+         return;
+      }
+
+      // a completed fragment may have been swapped out (arr == null) or swapped and read
+      // back (the next swap reuses the old swap file), so a value added now would be lost
+      if(completed) {
+         throw new IllegalStateException(
+            "Cannot add a value to a completed swappable fragment: " + prefix);
+      }
+
       if(arr == null) {
          return;
       }
@@ -532,14 +602,19 @@ public final class XObjectFragment<T> extends XSwappable {
          return;
       }
 
-      if(!valid) {
-         getSwapper().waitForMemory();
+      // bring the data back first, the swap files may hold the only copy
+      access();
 
-         synchronized(this) {
-            if(!valid) {
-               validate0(true);
-            }
+      synchronized(this) {
+         // a fragment that was never swapped has no file to check, which keeps this
+         // per-set() call free of file system access
+         if(disposed || !valid || arr == null || !hasSwapFiles) {
+            return;
          }
+
+         // swap0() skips writing when the first swap file exists, so remove the files
+         // to have the changed values written on the next swap
+         deleteSwapFiles();
       }
    }
 
@@ -548,7 +623,7 @@ public final class XObjectFragment<T> extends XSwappable {
     * @param buf the specified byte buffer.
     * @return next position if any, <tt>-1</tt> otherwise.
     */
-   private int validate(ByteBuffer buf, ObjectArrayHolder holder) {
+   private int validate(ByteBuffer buf, ObjectArrayHolder holder) throws Exception {
       Kryo kryo = null;
 
       try {
@@ -586,24 +661,25 @@ public final class XObjectFragment<T> extends XSwappable {
 
          if(spos == holder.pos) {
             spos = 0;
+            // the only point at which every object has genuinely been read back; distinct
+            // from the swallowed-exception path below, which also returns -1 but must not be
+            // mistaken by validate0() for a real, complete read
+            holder.complete = true;
             return -1;
          }
          else {
             return spos;
          }
       }
-      catch(Exception ex) {
-         LOG.error("Failed to read swap buffer", ex);
-      }
       finally {
          XSwapUtil.releaseKryo(kryo);
       }
-
-      return -1;
    }
 
    /**
-    * Invalidate this table column to a byte buffer.
+    * Serialize (a chunk of) this table column into a byte buffer. Does not
+    * touch pos/spos/arr; the caller is responsible for dropping them only
+    * once the resulting buffer(s) have been durably written.
     * @param buf the specified byte buffer.
     * @return next position if any, <tt>-1</tt> otherwise.
     */
@@ -692,10 +768,19 @@ public final class XObjectFragment<T> extends XSwappable {
          }
       }
 
+      return -1;
+   }
+
+   /**
+    * Drop the in-memory array once its serialized form has been durably
+    * written (or, for the already-swapped fast path, once there is nothing
+    * new to write).
+    */
+   private void clear() {
       pos = 0;
       spos = 0;
       arr = null;
-      return -1;
+      rewriteRequired = false;
    }
 
    /**
@@ -762,10 +847,20 @@ public final class XObjectFragment<T> extends XSwappable {
    private char size;
    private char pos;
    private int swapFileCount; // number of cache files
+   // swap files of this fragment may exist, guarded by this fragment's monitor
+   private boolean hasSwapFiles;
    private boolean valid; // valid flag
    private boolean lastValid;
    private boolean completed; // completed flag
    private boolean disposed; // disposed flag
+   // true when the on-disk file(s) are a stub/incomplete reconstruction left by a failed write
+   // or read, not a durable copy of arr; forces the next swap0() to rewrite regardless of
+   // file.exists()
+   private boolean rewriteRequired;
+   // test-only hook: when set, invoked immediately before each real durable write, so tests can
+   // force a write failure deterministically without relying on platform-specific file locking
+   // or permission semantics (which differ between Windows and Linux/CI). No-op in production.
+   transient Runnable testBeforeWrite;
    private AtomicInteger holding = new AtomicInteger(0); // suspend swapping
    private char spos; // next serialization position
    private Class kryoClass;
@@ -778,5 +873,8 @@ public final class XObjectFragment<T> extends XSwappable {
    private static class ObjectArrayHolder {
       private Object[] arr;
       private char pos;
+      // true only once every object across every chunk has actually been read back;
+      // distinguishes a genuine finish from validate()'s swallowed-exception return(-1)
+      private boolean complete;
    }
 }
