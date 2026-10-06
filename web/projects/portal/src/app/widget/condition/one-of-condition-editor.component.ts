@@ -168,7 +168,8 @@ export class OneOfConditionEditor implements OnInit, OnChanges {
             this.valuesChange.emit(this.values);
          }
 
-         if(XSchema.isDateType(this.field.dataType)) {
+         // field may not be chosen yet (e.g. grouping condition dialog), Append validates it
+         if(XSchema.isDateType(this.field?.dataType)) {
             this.value = Tool.clone(this.value);
          }
          else {
