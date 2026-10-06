@@ -319,24 +319,19 @@ public class DashboardAsset extends AbstractXAsset {
 
       list = Tool.getChildNodesByTagName(elem, "deselected");
 
-      Loop:
       for(int i = 0; i < list.getLength(); i++) {
          node = (Element) list.item(i);
          String name = Tool.byteDecode(Tool.getAttribute(node, "name"));
          int type = Integer.parseInt(Objects.requireNonNull(Tool.getAttribute(node, "type")));
          Identity identity = new DefaultIdentity(name, type);
-         String[] dashboards = manager.getDeselectedDashboards(identity);
 
-         for(String deselected : dashboards) {
-            if(deselected.equals(dashboard)) {
-               continue Loop;
+         // appended to the stored names in one locked read-modify-write, so a concurrent change
+         // of the identity's deselected dashboards is not overwritten (Bug #77872)
+         manager.updateDashboardLists(identity, (selected, deselected) -> {
+            if(!deselected.contains(dashboard)) {
+               deselected.add(dashboard);
             }
-         }
-
-         String[] narr = new String[dashboards.length + 1];
-         System.arraycopy(dashboards, 0, narr, 0, dashboards.length);
-         narr[narr.length - 1] = dashboard;
-         manager.setDeselectedDashboards(identity, narr);
+         });
       }
    }
 
