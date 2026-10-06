@@ -23,6 +23,7 @@ import inetsoft.util.GroupedThread;
 import inetsoft.util.ThreadContext;
 import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.stall.LockStallException;
+import inetsoft.util.swap.SwapFileReadException;
 import it.unimi.dsi.fastutil.objects.*;
 import org.roaringbitmap.IntIterator;
 import org.slf4j.Logger;
@@ -400,6 +401,14 @@ class HashJoinTable extends JoinTable {
             LockStallException stall = LockStallException.find(ex);
 
             if(stall == null) {
+               // nor a lost swap file of a base, recorded before the join completes
+               // (bug #77651)
+               SwapFileReadException swapFailure = SwapFileReadException.find(ex);
+
+               if(swapFailure != null) {
+                  joinTable.setSwapFailure(swapFailure);
+               }
+
                throw ex;
             }
 

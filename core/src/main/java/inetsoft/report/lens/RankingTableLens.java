@@ -22,6 +22,7 @@ import inetsoft.report.filter.*;
 import inetsoft.report.internal.table.CancellableTableLens;
 import inetsoft.util.Tool;
 import inetsoft.util.stall.LockStallException;
+import inetsoft.util.swap.SwapFileReadException;
 import inetsoft.util.swap.XSwappableIntList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -339,6 +340,14 @@ public class RankingTableLens extends AbstractTableLens
 
          if(stall != null) {
             throw stall;
+         }
+
+         // nor is a lost swap file of the base, the fragment already logged the read failure
+         // (bug #77651)
+         SwapFileReadException swapFailure = SwapFileReadException.find(ex);
+
+         if(swapFailure != null) {
+            throw swapFailure;
          }
 
          LOG.error("Failed to sort list", ex);

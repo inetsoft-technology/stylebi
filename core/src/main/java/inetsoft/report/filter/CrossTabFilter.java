@@ -38,6 +38,7 @@ import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.ScriptSpan;
 import inetsoft.util.stall.LockStallException;
+import inetsoft.util.swap.SwapFileReadException;
 import inetsoft.util.swap.XIntList;
 
 import java.awt.*;
@@ -2267,6 +2268,14 @@ public class CrossTabFilter extends AbstractTableLens
 
          if(stall != null) {
             throw stall;
+         }
+
+         // nor a lost swap file of the base, the fragment already logged the read failure
+         // (bug #77651)
+         SwapFileReadException swapFailure = SwapFileReadException.find(ex);
+
+         if(swapFailure != null) {
+            throw swapFailure;
          }
 
          LOG.error("Failed to process crosstab filter", ex);
