@@ -21,6 +21,8 @@ package inetsoft.report.lens;
 import inetsoft.test.*;
 import inetsoft.uql.XTable;
 import inetsoft.util.stall.LockStallException;
+import inetsoft.util.swap.SwapFileReadException;
+import inetsoft.util.swap.SwapLostTestSupport.LostTable;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,6 +30,8 @@ import org.junit.jupiter.api.Tag;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+
+import static inetsoft.util.swap.SwapLostTestSupport.*;
 
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -88,6 +92,46 @@ public class RankingTableLensTest {
 
       Assertions.assertFalse(ranking.moreRows(1));
       Assertions.assertEquals(1, ranking.getRowCount());
+   }
+
+   /**
+    * A lost swap file of the base while ranking fails the read, it is never a table without
+    * data rows (bug #77651). The ranking is not kept, so the next read fails too while the
+    * file is lost.
+    */
+   @Test
+   public void lostSwapFileWhileRankingFailsEveryRead() throws Exception {
+      SwapFileReadException lost = swapLost();
+      RankingTableLens ranking = ranking(new LostTable(values(40), 21, lost));
+
+      Assertions.assertSame(lost, swapIn(failureOf(15, ranking::getRowCount)), "first read");
+      Assertions.assertSame(lost, swapIn(failureOf(15, ranking::getRowCount)), "second read");
+   }
+
+   /**
+    * A wrapped lost swap file is found in the cause chain.
+    */
+   @Test
+   public void wrappedLostSwapFileWhileRankingFailsTheRead() throws Exception {
+      SwapFileReadException lost = swapLost();
+      RankingTableLens ranking =
+         ranking(new LostTable(values(40), 21, new RuntimeException("wrapped", lost)));
+
+      Assertions.assertSame(lost, swapIn(failureOf(15, () -> ranking.moreRows(1))));
+   }
+
+   /**
+    * {@code rows} rows of {@code key, value}, value {@code i} for row {@code i}.
+    */
+   private static Object[][] values(int rows) {
+      Object[][] data = new Object[rows + 1][];
+      data[0] = new Object[] { "key", "value" };
+
+      for(int r = 1; r <= rows; r++) {
+         data[r] = new Object[] { "k" + r, r };
+      }
+
+      return data;
    }
 
    private static RankingTableLens ranking(DefaultTableLens base) {

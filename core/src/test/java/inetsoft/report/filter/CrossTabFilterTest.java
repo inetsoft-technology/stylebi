@@ -18,10 +18,13 @@
 
 package inetsoft.report.filter;
 
+import inetsoft.report.TableLens;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.test.*;
 import inetsoft.uql.XTable;
 import inetsoft.uql.asset.Worksheet;
+import inetsoft.util.swap.SwapFileReadException;
+import inetsoft.util.swap.SwapLostTestSupport.LostTable;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -29,6 +32,8 @@ import org.junit.jupiter.api.Tag;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+
+import static inetsoft.util.swap.SwapLostTestSupport.*;
 
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class, LibManagerTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -64,5 +69,50 @@ public class CrossTabFilterTest {
                                                         dcol, formulas);
       XTable deserializedTable = TestSerializeUtils.serializeAndDeserialize(originalTable);
       Assertions.assertEquals(CrossTabFilter.class, deserializedTable.getClass());
+   }
+
+   /**
+    * A lost swap file of the base fails the read of the crosstab with the swap file read
+    * failure, not with a NullPointerException of the missing data (bug #77651). Nothing is
+    * kept, so the next read fails the same way while the file is lost.
+    */
+   @Test
+   public void lostSwapFileOfTheBaseFailsEveryRead() throws Exception {
+      SwapFileReadException lost = swapLost();
+      CrossTabFilter crosstab = crosstab(new LostTable(values(40), 21, lost));
+
+      Assertions.assertSame(lost, swapIn(failureOf(15, crosstab::getRowCount)), "first read");
+      Assertions.assertSame(lost, swapIn(failureOf(15, crosstab::getRowCount)), "second read");
+   }
+
+   /**
+    * A wrapped lost swap file is found in the cause chain.
+    */
+   @Test
+   public void wrappedLostSwapFileOfTheBaseFailsTheRead() throws Exception {
+      SwapFileReadException lost = swapLost();
+      CrossTabFilter crosstab =
+         crosstab(new LostTable(values(40), 21, new RuntimeException("wrapped", lost)));
+
+      Assertions.assertSame(lost, swapIn(failureOf(15, crosstab::getRowCount)));
+   }
+
+   private static CrossTabFilter crosstab(TableLens base) {
+      return new CrossTabFilter(base, new int[] { 0 }, new int[0], new int[] { 1 },
+                                new Formula[] { new SumFormula() });
+   }
+
+   /**
+    * {@code rows} rows of {@code key, value}, value {@code i} for row {@code i}.
+    */
+   private static Object[][] values(int rows) {
+      Object[][] data = new Object[rows + 1][];
+      data[0] = new Object[] { "key", "value" };
+
+      for(int r = 1; r <= rows; r++) {
+         data[r] = new Object[] { "k" + r, r };
+      }
+
+      return data;
    }
 }
