@@ -674,25 +674,25 @@ public class ColumnRef extends AbstractDataRef implements AssetObject, DataRefWr
 
       if(alias != null) {
          writer.print("<alias>");
-         writer.print("<![CDATA[" + alias + "]]>");
+         writer.print("<![CDATA[" + Tool.splitCDATAEnd(alias) + "]]>");
          writer.println("</alias>");
       }
 
       if(caption != null) {
          writer.print("<caption>");
-         writer.print("<![CDATA[" + caption + "]]>");
+         writer.print("<![CDATA[" + Tool.splitCDATAEnd(caption) + "]]>");
          writer.println("</caption>");
       }
 
       if(desc != null) {
          writer.print("<description>");
-         writer.print("<![CDATA[" + desc + "]]>");
+         writer.print("<![CDATA[" + Tool.splitCDATAEnd(desc) + "]]>");
          writer.println("</description>");
       }
 
       if(view != null) {
          writer.print("<view>");
-         writer.print("<![CDATA[" + view + "]]>");
+         writer.print("<![CDATA[" + Tool.splitCDATAEnd(view) + "]]>");
          writer.println("</view>");
       }
    }
