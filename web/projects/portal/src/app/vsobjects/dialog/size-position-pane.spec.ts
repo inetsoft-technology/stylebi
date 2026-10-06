@@ -121,5 +121,40 @@ describe("size position pane unit case", () => {
 
       expect(fixture.componentInstance.form.controls["titleHeight"].disabled).toBeTruthy();
    });
-});
 
+   it("should not render the size checkbox when the model does not offer one", () => {
+      fixture.componentInstance.model = createModel();
+      fixture.detectChanges();
+      expect(fixture.debugElement.query(By.css("#sizeFollowsDensity"))).toBeNull();
+   });
+
+   it("should disable width and height while the size follows the density", () => {
+      fixture.componentInstance.model = createModel({sizeFollowsDensity: true});
+      fixture.detectChanges();
+      expect(fixture.debugElement.query(By.css("#sizeFollowsDensity"))).not.toBeNull();
+      expect(fixture.componentInstance.form.controls["width"].disabled).toBeTruthy();
+      expect(fixture.componentInstance.form.controls["height"].disabled).toBeTruthy();
+   });
+
+   it("should re-enable width and height when the size checkbox is cleared", () => {
+      fixture.componentInstance.model = createModel({sizeFollowsDensity: true});
+      fixture.detectChanges();
+
+      fixture.componentInstance.sizeFollowChanged(false);
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.model.sizeFollowsDensity).toBe(false);
+      expect(fixture.componentInstance.form.controls["width"].disabled).toBeFalsy();
+      expect(fixture.componentInstance.form.controls["height"].disabled).toBeFalsy();
+   });
+
+   it("should keep width and height disabled in a container when the size checkbox is cleared", () => {
+      fixture.componentInstance.model = createModel({container: true, sizeFollowsDensity: true});
+      fixture.detectChanges();
+
+      fixture.componentInstance.sizeFollowChanged(false);
+
+      expect(fixture.componentInstance.form.controls["width"].disabled).toBeTruthy();
+      expect(fixture.componentInstance.form.controls["height"].disabled).toBeTruthy();
+   });
+});
