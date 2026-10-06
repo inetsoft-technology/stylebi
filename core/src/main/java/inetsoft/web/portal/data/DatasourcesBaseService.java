@@ -651,6 +651,12 @@ public abstract class DatasourcesBaseService {
             "common.datasource.additionalConnectionMove"));
       }
 
+      // Bug #77725, Bug #77820, a rename that XEngine refuses, checked here because the additional
+      // connections are written under the new name before XEngine is called
+      if(!Tool.equals(oldName, nName)) {
+         dataSourceRegistry.checkDataSourceMovePathClash(oldName);
+      }
+
       XDataSource oldSrc = repository.getDataSource(oldName);
       checkUpdateDatasourcePermission(nName, oldSrc, principal);
       AuthorizedDataSource authorized = createAuthorizedDataSource(

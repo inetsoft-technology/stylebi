@@ -28,6 +28,7 @@ import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.internal.AssetFolder;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.*;
+import inetsoft.uql.erm.vpm.VirtualPrivateModel;
 import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.jdbc.util.JDBCUtil;
 import inetsoft.uql.util.*;
@@ -316,6 +317,24 @@ public class DataSourceRegistry implements MessageListener {
    }
 
    /**
+    * Checks that a data source may be renamed or moved, as
+    * {@link #checkDataSourcePathClash(String)}, and that every entry under its path can be told
+    * apart from the entries of a data source above it at a path a data source folder shares
+    * (Bug #77820). Thrown before anything is written, so that a move of several data sources is
+    * refused before the first one is moved. A delete doesn't need the latter: it leaves an entry
+    * that can't be told apart.
+    *
+    * @param path the path of the data source.
+    *
+    * @throws MessageException if a folder at the path holds data sources or subfolders, or if an
+    *                          entry under the path can't be read to tell whose it is.
+    */
+   public void checkDataSourceMovePathClash(String path) {
+      checkDataSourcePathClash(path);
+      getDataSourceEntriesAbove(path);
+   }
+
+   /**
     * Checks that a data source folder may be renamed or moved: if a data source has the same path
     * (Bug #77691), its additional connections and data models are stored under the path of the
     * folder and would be moved with it, and a folder below it with a data source at its path
@@ -324,12 +343,18 @@ public class DataSourceRegistry implements MessageListener {
     *
     * @param path the path of the folder.
     *
+    * Bug #77820, also checked: every entry under the folder can be told apart from the entries of
+    * a data source above it at a path a data source folder shares, so that a move that moves the
+    * folder's data sources one at a time doesn't stop after the first ones.
+    *
     * @throws MessageException if a data source at the path has additional connections or data
     *                          models, or a data source at the path of a folder below it has a
-    *                          folder that holds data sources or subfolders.
+    *                          folder that holds data sources or subfolders, or an entry under
+    *                          the folder can't be read to tell whose it is.
     */
    public void checkDataSourceFolderPathClash(String path) {
       checkDataSourceFolderDeletePathClash(path);
+      getDataSourceEntriesAbove(path);
 
       AssetEntry[] subfolders = getEntries(path + "/", AssetEntry.Type.DATA_SOURCE_FOLDER);
       Arrays.sort(subfolders, Comparator.comparing(AssetEntry::getPath));
@@ -386,8 +411,9 @@ public class DataSourceRegistry implements MessageListener {
     * path name (a data source of the folder) and everything under it, and the data models and
     * domains of those data sources. The data source side is every data source stored with a bare
     * name (an additional connection), and the logical models, physical views and VPMs of the
-    * data source with their extended models. A data source one level under the path that can't
-    * be read can't be told apart, so it counts on both sides (as {@code unreadable}).
+    * data source with their extended models (see {@link #getPathClashSide(String, AssetEntry)}).
+    * An entry that can't be read to tell them apart counts on both sides (as
+    * {@code unreadable}).
     *
     * @return the sides, or {@code null} if a data source and a folder don't share the path.
     */
@@ -396,58 +422,22 @@ public class DataSourceRegistry implements MessageListener {
          return null;
       }
 
-      String prefix = path + "/";
-      List<AssetEntry> entries = new ArrayList<>();
-      // the logical models and physical views of the data source, whose extended models are
-      // stored under them
-      Set<String> models = new HashSet<>();
+      boolean folderSide = false;
+      boolean dataSourceSide = false;
+      AssetEntry unreadable = null;
 
-      for(AssetEntry entry : getEntries(prefix)) {
+      for(AssetEntry entry : getEntries(path + "/")) {
          // the root folder may list a missing asset (bug #60767)
          if(!containObject(entry)) {
             continue;
          }
 
-         entries.add(entry);
-         String name = entry.getPath().substring(prefix.length());
+         Boolean side = getPathClashSide(path, entry);
 
-         if(name.indexOf('/') < 0 && (entry.getType() == AssetEntry.Type.LOGIC_MODEL ||
-            entry.getType() == AssetEntry.Type.PARTITION))
-         {
-            models.add(entry.getType() + "/" + name);
+         if(side == null) {
+            unreadable = unreadable == null ? entry : unreadable;
          }
-      }
-
-      boolean folderSide = false;
-      boolean dataSourceSide = false;
-      String unreadable = null;
-
-      for(AssetEntry entry : entries) {
-         String name = entry.getPath().substring(prefix.length());
-         int index = name.indexOf('/');
-         AssetEntry.Type type = entry.getType();
-
-         if(type == AssetEntry.Type.DATA_SOURCE && index < 0) {
-            String storedName = getStoredDataSourceName(entry);
-
-            if(storedName == null) {
-               unreadable = unreadable == null ? entry.getPath() : unreadable;
-            }
-            else if(storedName.indexOf('/') < 0) {
-               dataSourceSide = true;
-            }
-            else {
-               folderSide = true;
-            }
-         }
-         else if(index < 0 && (type == AssetEntry.Type.LOGIC_MODEL ||
-            type == AssetEntry.Type.PARTITION || type == AssetEntry.Type.VPM) ||
-            index > 0 && name.indexOf('/', index + 1) < 0 &&
-            (type == AssetEntry.Type.EXTENDED_LOGIC_MODEL &&
-               models.contains(AssetEntry.Type.LOGIC_MODEL + "/" + name.substring(0, index)) ||
-             type == AssetEntry.Type.EXTENDED_PARTITION &&
-               models.contains(AssetEntry.Type.PARTITION + "/" + name.substring(0, index))))
-         {
+         else if(side) {
             dataSourceSide = true;
          }
          else {
@@ -456,6 +446,256 @@ public class DataSourceRegistry implements MessageListener {
       }
 
       return new PathClashSides(path, folderSide, dataSourceSide, unreadable);
+   }
+
+   /**
+    * Gets which side of a data source and data source folder at the same path an entry under
+    * the path is on. The data source's are a data source one level under the path stored with
+    * a bare name (an additional connection), a logical model, physical view or VPM one level
+    * under the path, or deeper if it is stored with the rest of the path as its name (a name
+    * with "/"), and an extended model of one of those logical models or physical views. Every
+    * other entry is the folder's: its subfolders, its data sources (stored with a full path
+    * name) and everything under them.
+    *
+    * @param path  the path of the data source and the folder.
+    * @param entry an entry under the path.
+    *
+    * @return {@code true} if the entry is the data source's, {@code false} if it is the
+    *         folder's, or {@code null} if it can't be read to tell.
+    */
+   private Boolean getPathClashSide(String path, AssetEntry entry) {
+      String name = entry.getPath().substring(path.length() + 1);
+      int index = name.indexOf('/');
+      AssetEntry.Type type = entry.getType();
+
+      if(type == AssetEntry.Type.DATA_SOURCE) {
+         if(index >= 0) {
+            return false;
+         }
+
+         String storedName = getStoredDataSourceName(entry);
+         return storedName == null ? null : storedName.indexOf('/') < 0;
+      }
+
+      if(type == AssetEntry.Type.LOGIC_MODEL || type == AssetEntry.Type.PARTITION ||
+         type == AssetEntry.Type.VPM)
+      {
+         // Bug #77820, a model of a data source of the folder is stored with its own name
+         return index < 0 ? Boolean.TRUE : isStoredModel(path, name, type);
+      }
+
+      if(type == AssetEntry.Type.EXTENDED_LOGIC_MODEL ||
+         type == AssetEntry.Type.EXTENDED_PARTITION)
+      {
+         AssetEntry.Type baseType = type == AssetEntry.Type.EXTENDED_LOGIC_MODEL ?
+            AssetEntry.Type.LOGIC_MODEL : AssetEntry.Type.PARTITION;
+
+         if(index < 0) {
+            return false;
+         }
+
+         // an extended model of a data source of the folder is at least two levels below
+         if(name.indexOf('/', index + 1) < 0) {
+            return containObject(new AssetEntry(AssetRepository.QUERY_SCOPE, baseType,
+                                                path + "/" + name.substring(0, index), null));
+         }
+
+         // Bug #77820, the extended model is stored with its own name under the path of the
+         // model it extends
+         String storedName = getStoredModelName(entry);
+
+         if(storedName == null) {
+            return null;
+         }
+
+         if(!name.endsWith("/" + storedName) || name.length() == storedName.length() + 1) {
+            return false;
+         }
+
+         String base = name.substring(0, name.length() - storedName.length() - 1);
+         return base.indexOf('/') < 0 ?
+            Boolean.valueOf(containObject(new AssetEntry(AssetRepository.QUERY_SCOPE, baseType,
+                                                         path + "/" + base, null))) :
+            isStoredModel(path, base, baseType);
+      }
+
+      return false;
+   }
+
+   /**
+    * Checks if a logical model, physical view or VPM is stored under the path of a data source
+    * with a name that has "/" in it, e.g. "x/lm" at "P/x/lm".
+    *
+    * @return {@code true} if it is, {@code false} if it isn't stored or has another name, or
+    *         {@code null} if it can't be read.
+    */
+   private Boolean isStoredModel(String path, String name, AssetEntry.Type type) {
+      AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE, type, path + "/" + name,
+                                        null);
+
+      if(!containObject(entry)) {
+         return false;
+      }
+
+      String storedName = getStoredModelName(entry);
+      return storedName == null ? null : name.equals(storedName);
+   }
+
+   /**
+    * Gets the name a logical model, physical view or VPM entry is stored with, or {@code null}
+    * if it can't be read.
+    */
+   private String getStoredModelName(AssetEntry entry) {
+      try {
+         XMLSerializable obj = getObject(entry, true, false);
+         return obj instanceof XLogicalModel model ? model.getName() :
+            obj instanceof XPartition partition ? partition.getName() :
+            obj instanceof VirtualPrivateModel vpm ? vpm.getName() : null;
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to read model {}", entry.getPath(), e);
+         return null;
+      }
+   }
+
+   /**
+    * Gets the entries under a prefix that belong to a data source. Bug #77820, if a data source
+    * folder has the path of the data source or of a data source above it (older data,
+    * Bug #77691), the folder's data sources and subfolders are stored under the same path, and
+    * an entry is the data source's only if it is on the data source's side of its own path
+    * and on the folder's side of the path above it (see
+    * {@link #getPathClashSide(String, AssetEntry)}). Otherwise every entry under the prefix is
+    * the data source's.
+    *
+    * @param dataSource the path of the data source, e.g. "P".
+    * @param prefix     the prefix, the path of the data source followed by "/" and optionally a
+    *                   model path, e.g. "P/" or "P/lm/".
+    * @param type       the entry type, or {@code null} for every type.
+    * @param refuse     {@code true} to throw if an entry can't be read to tell whose it is,
+    *                   {@code false} to leave it out.
+    *
+    * @return the entries.
+    *
+    * @throws MessageException if {@code refuse} and an entry can't be read to tell whose it is.
+    */
+   public AssetEntry[] getDataSourceEntries(String dataSource, String prefix,
+                                            AssetEntry.Type type, boolean refuse)
+   {
+      return getDataSourceEntries(dataSource, prefix, type, refuse, refuse);
+   }
+
+   /**
+    * Gets the entries under a prefix that belong to a data source, see
+    * {@link #getDataSourceEntries(String, String, AssetEntry.Type, boolean)}.
+    *
+    * @param refuse      {@code true} to throw if an entry can't be read to tell whether it is
+    *                    on the data source's side of its own path, {@code false} to leave it out.
+    * @param refuseAbove {@code true} to throw if an entry can't be read to tell whether it
+    *                    belongs to a data source at a path above, {@code false} to leave it out.
+    */
+   private AssetEntry[] getDataSourceEntries(String dataSource, String prefix,
+                                             AssetEntry.Type type, boolean refuse,
+                                             boolean refuseAbove)
+   {
+      AssetEntry[] entries = type == null ? getEntries(prefix) : getEntries(prefix, type);
+
+      if(entries.length == 0) {
+         return entries;
+      }
+
+      List<String> clashes = getDataSourcePathClashesAbove(dataSource);
+
+      if(isDataSourcePathClash(dataSource)) {
+         clashes.add(dataSource);
+      }
+
+      if(clashes.isEmpty()) {
+         return entries;
+      }
+
+      List<AssetEntry> result = new ArrayList<>();
+
+      entries:
+      for(AssetEntry entry : entries) {
+         // the root folder may list a missing asset (bug #60767), which is left as it is
+         if(!containObject(entry)) {
+            continue;
+         }
+
+         for(String clash : clashes) {
+            Boolean side = getPathClashSide(clash, entry);
+
+            if(side == null) {
+               if(clash.equals(dataSource) ? refuse : refuseAbove) {
+                  throw unreadableException(clash, entry);
+               }
+
+               continue entries;
+            }
+
+            // the data source's side of its own path, the folder's side of a path above it
+            if(side != clash.equals(dataSource)) {
+               continue entries;
+            }
+         }
+
+         result.add(entry);
+      }
+
+      return result.toArray(new AssetEntry[0]);
+   }
+
+   // the paths above a path that a data source and a data source folder share, the top first
+   private List<String> getDataSourcePathClashesAbove(String path) {
+      List<String> clashes = new ArrayList<>();
+
+      for(int index = path.indexOf('/'); index > 0; index = path.indexOf('/', index + 1)) {
+         if(isDataSourcePathClash(path.substring(0, index))) {
+            clashes.add(path.substring(0, index));
+         }
+      }
+
+      return clashes;
+   }
+
+   /**
+    * Bug #77820, gets the entries under a path that belong to a data source at a path above it
+    * that a data source folder shares (older data, Bug #77691), e.g. the extended models of a
+    * model "G" of data source "P", stored under the path of folder "P/G". A move of the folder
+    * at the path leaves them.
+    *
+    * @throws MessageException if an entry can't be read to tell whose it is. Thrown before
+    *                          anything is written.
+    */
+   private Set<AssetEntry> getDataSourceEntriesAbove(String path) {
+      List<String> clashes = getDataSourcePathClashesAbove(path);
+      Set<AssetEntry> result = new HashSet<>();
+
+      if(clashes.isEmpty()) {
+         return result;
+      }
+
+      for(AssetEntry entry : getEntries(path + "/")) {
+         // the root folder may list a missing asset (bug #60767)
+         if(!containObject(entry)) {
+            continue;
+         }
+
+         for(String clash : clashes) {
+            Boolean side = getPathClashSide(clash, entry);
+
+            if(side == null) {
+               throw unreadableException(clash, entry);
+            }
+
+            if(side) {
+               result.add(entry);
+               break;
+            }
+         }
+      }
+
+      return result;
    }
 
    /**
@@ -480,7 +720,7 @@ public class DataSourceRegistry implements MessageListener {
    // which sides of a data source and folder at the same path hold entries under the path, and
    // a data source under the path that can't be read, which counts on both sides
    private record PathClashSides(String path, boolean folderSide, boolean dataSourceSide,
-                                 String unreadable)
+                                 AssetEntry unreadable)
    {
       // refuses if the side is not empty, or if an entry can't be told apart
       void check(boolean side, String key, Object... args) {
@@ -489,10 +729,20 @@ public class DataSourceRegistry implements MessageListener {
          }
 
          if(unreadable != null) {
-            throw new MessageException(Catalog.getCatalog().getString(
-               "common.datasource.pathClashUnreadable", path, unreadable));
+            throw unreadableException(path, unreadable);
          }
       }
+   }
+
+   /**
+    * Gets the refusal of an operation on a data source or folder at a path they share, for an
+    * entry under the path that can't be read to tell which of them it belongs to.
+    */
+   private static MessageException unreadableException(String path, AssetEntry entry) {
+      return new MessageException(Catalog.getCatalog().getString(
+         entry.getType() == AssetEntry.Type.DATA_SOURCE ?
+            "common.datasource.pathClashUnreadable" :
+            "common.datasource.pathClashUnreadableModel", path, entry.getPath()));
    }
 
    /**
@@ -921,6 +1171,11 @@ public class DataSourceRegistry implements MessageListener {
 
       // Bug #77725, before the try, which only logs a failure
       checkDataSourcePathClash(dxname);
+      // Bug #77820, a data source of a folder at the path of the data source above it has the
+      // extended models of that data source's models stored under its path
+      // Bug #77820, one that can't be told apart from a data source above is left: nothing that
+      // may be that data source's is lost, and a delete of both sides at its path removes it
+      AssetEntry[] children = getDataSourceEntries(dxname, dxname + "/", null, true, false);
 
       try {
          // read before the data source and its additional connections are removed. The test
@@ -941,7 +1196,7 @@ public class DataSourceRegistry implements MessageListener {
          }
 
          removeObject(entry);
-         removeObjects(getEntries(dxname + "/"));
+         removeObjects(children);
          removeObject(new AssetEntry(AssetRepository.QUERY_SCOPE,
             AssetEntry.Type.DATA_MODEL, dxname, null));
          removeConnectionTestQueries(dxname, additionalNames);
@@ -966,9 +1221,13 @@ public class DataSourceRegistry implements MessageListener {
             "Permission denied to delete datasource"));
       }
 
+      // Bug #77820, not the domains of the data sources of a folder at the same path. Read
+      // while the data source is still there
+      AssetEntry[] domains =
+         getDataSourceEntries(dxname, dxname + "/", AssetEntry.Type.DOMAIN, true);
       removeObject(new AssetEntry(AssetRepository.QUERY_SCOPE,
                                   AssetEntry.Type.DATA_SOURCE, dxname, null));
-      removeObjects(getEntries(dxname + "/", AssetEntry.Type.DOMAIN));
+      removeObjects(domains);
       parseDomain(elem);
       parseXDataSource(elem, isImport);
       parseDataModel(dxname, elem);
@@ -1294,8 +1553,14 @@ public class DataSourceRegistry implements MessageListener {
             "security.nopermission.write", "datasource"));
       }
 
-      // Bug #77725, a folder at the path would have its data sources moved under the new name
-      checkDataSourcePathClash(oname);
+      // Bug #77725, a folder at the path would have its data sources moved under the new name.
+      // Bug #77820, an entry that can't be told apart from a data source above
+      checkDataSourceMovePathClash(oname);
+      // Bug #77820, a data source of a folder at the path of the data source above it has the
+      // extended models of that data source's models stored under its path, which stay
+      Set<AssetEntry> skipped = new HashSet<>(Arrays.asList(getEntries(oname + "/")));
+      Arrays.asList(getDataSourceEntries(oname, oname + "/", null, true))
+         .forEach(skipped::remove);
 
       XDomain domain = getDomain(oname);
       XDataModel model = getDataModel(oname);
@@ -1322,7 +1587,7 @@ public class DataSourceRegistry implements MessageListener {
          }
 
          moves.addAll(createMoves(oname + "/", nname + "/", false,
-                                  ds instanceof AdditionalConnectionDataSource, Set.of()));
+                                  ds instanceof AdditionalConnectionDataSource, skipped));
          moveEntries(moves);
          moved = true;
          updateQueryFolders(ds, oname);
@@ -1516,7 +1781,9 @@ public class DataSourceRegistry implements MessageListener {
       String prefix = dxname + "/";
 
       try {
-         return Arrays.stream(getEntries(prefix, AssetEntry.Type.DATA_SOURCE))
+         // Bug #77820, not the data sources of a folder at the same path
+         return Arrays.stream(getDataSourceEntries(dxname, prefix, AssetEntry.Type.DATA_SOURCE,
+                                                   false))
             .map(entry -> entry.getPath().substring(prefix.length()))
             .filter(name -> !name.contains("/"))
             .toArray(String[]::new);
@@ -1657,6 +1924,9 @@ public class DataSourceRegistry implements MessageListener {
       checkDSFolderRenamePermission(oname);
       // Bug #77725, before anything is written
       checkDataSourceFolderPathClash(oname);
+      // Bug #77820, the entries of a data source above stored under the path of the folder stay
+      // (one that can't be told apart was refused by the check above)
+      Set<AssetEntry> aboveEntries = getDataSourceEntriesAbove(oname);
       // Bug #77704, a failed write stops the rename and is thrown, with the data sources moved
       // before it. The folders created for the move are removed again if nothing was moved in.
       Map<String, String> moved = new LinkedHashMap<>();
@@ -1759,8 +2029,9 @@ public class DataSourceRegistry implements MessageListener {
 
          // the rest, e.g. a data source that can't be loaded, before the old folders are gone
          current = oname;
-         List<EntryMove> rest = createMoves(oname + "/", nname + "/", false, false,
-                                            Set.of(allFolderChildren));
+         Set<AssetEntry> skipped = new HashSet<>(aboveEntries);
+         skipped.addAll(Arrays.asList(allFolderChildren));
+         List<EntryMove> rest = createMoves(oname + "/", nname + "/", false, false, skipped);
 
          try {
             moveEntries(rest);
@@ -2204,12 +2475,17 @@ public class DataSourceRegistry implements MessageListener {
          throw new SecurityException("Permission denied to modify datasource");
       }
 
+      // Bug #77820, not the data sources and subfolders of a folder at the same path. Before
+      // the try, which only logs a failure
+      AssetEntry[] children =
+         getDataSourceEntries(datasource, datasource + "/", null, true, false);
+
       try {
          // read before the additional connections of the data source are removed below
          List<String> additionalResources = getAdditionalConnectionResources(datasource);
          //Remove all children. Because of the appended "/", the domain (if
          //present) won't be affected.
-         removeObjects(getEntries(datasource + "/"));
+         removeObjects(children);
          AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
                                            AssetEntry.Type.DATA_MODEL, datasource, null);
          removeObject(entry);
@@ -2505,6 +2781,28 @@ public class DataSourceRegistry implements MessageListener {
       try {
          moveEntries(createMoves(oldPrefix, newPrefix, keepCreatedInfo, isAdditionalSource,
                                  Set.of()));
+      }
+      catch(Exception e) {
+         LOG.error(
+            "Failed to rename objects: " + oldPrefix, e);
+      }
+   }
+
+   /**
+    * Rename some of the objects stored in the registry whose full paths start with oldPrefix,
+    * e.g. the ones of a data source from {@link #getDataSourceEntries}, and leave the rest.
+    * @param entries   the entries of the objects to be renamed
+    * @param oldPrefix prefix of the paths of the objects to be renamed
+    * @param newPrefix String to replace oldPrefix
+    */
+   public void renameObjects(AssetEntry[] entries, String oldPrefix, String newPrefix,
+                             boolean keepCreatedInfo)
+   {
+      Set<AssetEntry> skipped = new HashSet<>(Arrays.asList(getEntries(oldPrefix)));
+      Arrays.asList(entries).forEach(skipped::remove);
+
+      try {
+         moveEntries(createMoves(oldPrefix, newPrefix, keepCreatedInfo, false, skipped));
       }
       catch(Exception e) {
          LOG.error(

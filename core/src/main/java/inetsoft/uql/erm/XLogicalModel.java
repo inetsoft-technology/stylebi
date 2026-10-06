@@ -1453,8 +1453,10 @@ public class XLogicalModel
 
       try {
          String path = getDataSource() + "/" + getName() + "/";
-         AssetEntry[] entries =
-                 getRegistry().getEntries(path, AssetEntry.Type.EXTENDED_LOGIC_MODEL);
+         // Bug #77820, not the models of a data source of a folder at the path of the data
+         // source
+         AssetEntry[] entries = getRegistry().getDataSourceEntries(getDataSource(), path,
+                 AssetEntry.Type.EXTENDED_LOGIC_MODEL, false);
          result = new String[entries.length];
 
          for(int i = 0; i < entries.length; i++) {

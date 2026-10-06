@@ -962,7 +962,8 @@ public class DataSourceBrowserService {
             registry.checkDataSourceFolderPathClash(item.getOldPath());
          }
          else {
-            registry.checkDataSourcePathClash(item.getOldPath());
+            // Bug #77820, before the first of the moved data sources is moved
+            registry.checkDataSourceMovePathClash(item.getOldPath());
          }
       }
    }
