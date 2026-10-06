@@ -235,6 +235,62 @@ class DashboardSelectionCallerConcurrencyTest {
                    "as before, a deselected name is only removed when it is not selected");
    }
 
+   @Test
+   void ungrant_racingDeselectedChange_keepsTheDeselectedDashboard() throws Exception {
+      Identity group = new DefaultIdentity("dash77872_g5", Identity.GROUP);
+      globalNames.addAll(List.of("G__GLOBAL", "D1", "X"));
+      seed(group, List.of("A", "G__GLOBAL"), List.of("D1"));
+      // after the read of the deselected names, the second getter of the split read-modify-write
+      manager.arm(() -> manager.setDeselectedDashboards(group, new String[] { "D1", "X" }), 1);
+
+      runCaller(() -> setIdentityPermission(Collections.EMPTY_SET,
+                                            new IdentityID[] { group.getIdentityID() },
+                                            "G__GLOBAL"));
+
+      DashboardManager.DashboardData data = stored(group);
+      assertEquals(List.of("A"), data.getDashboards());
+      assertEquals(List.of("D1", "X"), data.getDeselected(),
+                   "a dashboard deselected while the permission is removed must stay deselected");
+   }
+
+   /*
+    * The EM user is in another org that has no admin users, so the folder has no identity. The
+    * order save is a no-op, as before, and must not fail on the null identity.
+    */
+   @Test
+   void emOrderSave_noFolderIdentity_changesNothing() throws Exception {
+      seed(anonymous, List.of("A", "B"), List.of());
+      SecurityProvider securityProvider = mock(SecurityProvider.class);
+      when(securityProvider.checkPermission(any(), any(), anyString(), any())).thenReturn(true);
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.isSecurityEnabled()).thenReturn(true);
+      RepositoryDashboardService securedService = new RepositoryDashboardService(
+         mock(ResourcePermissionService.class), securityProvider,
+         mock(ContentRepositoryTreeService.class), manager, securityEngine,
+         mock(DependencyHandler.class), registryManager, mock(RenameTransformHandler.class));
+      XPrincipal principal = mock(XPrincipal.class);
+      when(principal.getName()).thenReturn(
+         new IdentityID("admin", "dash77872_other_org").convertToKey());
+      AtomicReference<RepositoryFolderDashboardSettingsModel> result = new AtomicReference<>();
+
+      runCaller(() -> {
+         OrganizationManager organizations = mock(OrganizationManager.class);
+         when(organizations.getCurrentOrgID()).thenReturn(Organization.getDefaultOrganizationID());
+         when(organizations.orgAdminUsers(anyString())).thenReturn(List.of());
+
+         try(MockedStatic<OrganizationManager> managers = mockStatic(OrganizationManager.class)) {
+            managers.when(OrganizationManager::getInstance).thenReturn(organizations);
+            result.set(securedService.setDashboardFolderSettings(order("B", "A"), principal));
+         }
+
+         return null;
+      });
+
+      assertEquals(List.of(), result.get().dashboards());
+      assertEquals(List.of("A", "B"), stored(anonymous).getDashboards(),
+                   "no other identity's selection is reordered");
+   }
+
    // ── dashboard import (DashboardAsset.parseContent) ──
 
    @Test
@@ -426,7 +482,15 @@ class DashboardSelectionCallerConcurrencyTest {
       }
 
       void arm(Runnable writer) {
+         arm(writer, 0);
+      }
+
+      /**
+       * @param skip the number of getter gaps of the caller to let pass before the writer runs.
+       */
+      void arm(Runnable writer, int skip) {
          this.writer = writer;
+         this.gettersToSkip = skip;
          fired.set(false);
       }
 
@@ -461,7 +525,7 @@ class DashboardSelectionCallerConcurrencyTest {
          }
 
          // the gap of a split read-modify-write: nothing stops the writer
-         if(depth.get() == 0 && !Thread.holdsLock(this) && fire()) {
+         if(depth.get() == 0 && !Thread.holdsLock(this) && !skipGetter() && fire()) {
             Thread thread = startWriter();
 
             try {
@@ -496,6 +560,17 @@ class DashboardSelectionCallerConcurrencyTest {
                Thread.onSpinWait();
             }
          }
+      }
+
+      private boolean skipGetter() {
+         if(writer != null && CALLER.equals(Thread.currentThread().getName()) &&
+            gettersToSkip > 0)
+         {
+            gettersToSkip--;
+            return true;
+         }
+
+         return false;
       }
 
       private boolean fire() {
@@ -538,6 +613,7 @@ class DashboardSelectionCallerConcurrencyTest {
 
       private volatile Runnable writer;
       private volatile Thread writerThread;
+      private volatile int gettersToSkip;
       private final AtomicBoolean fired = new AtomicBoolean();
       private final AtomicReference<Throwable> writerError = new AtomicReference<>();
       private final ThreadLocal<Integer> depth = ThreadLocal.withInitial(() -> 0);
