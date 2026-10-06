@@ -33,6 +33,7 @@ import inetsoft.uql.jdbc.*;
 import inetsoft.uql.util.Config;
 import inetsoft.uql.util.DefaultMetaDataProvider;
 import inetsoft.uql.util.Drivers;
+import inetsoft.uql.util.rgraph.TableNode;
 import inetsoft.util.Plugins;
 import inetsoft.util.credential.CredentialService;
 import inetsoft.util.log.LogManager;
@@ -63,6 +64,7 @@ import java.util.List;
 import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -162,6 +164,13 @@ class PhysicalModelAutoJoinErrorTest {
       // no primary key information, so every shared column name is a candidate
       DefaultMetaDataProvider metaData = mock(DefaultMetaDataProvider.class);
       when(metaData.getPrimaryKeys(any())).thenReturn(new XNode());
+      // the physical table EMP, as the meta data provider describes it
+      XNode emp = new XNode("EMP");
+      TableNode empColumns = new TableNode("EMP");
+      empColumns.addColumn("ID", "integer");
+      empColumns.addColumn("NAME", "string");
+      when(metaData.getTable(eq("EMP"), any())).thenReturn(emp);
+      when(metaData.getTableMetaData(emp)).thenReturn(empColumns);
 
       DataSourceService dataSourceService = mock(DataSourceService.class);
       when(dataSourceService.getDataSource(SOURCE, null))
@@ -226,6 +235,16 @@ class PhysicalModelAutoJoinErrorTest {
    }
 
    @Test
+   void brokenViewDoesNotHidePhysicalTableJoins() throws Exception {
+      request(SOURCE, null, view("BAD", "select * from NO_SUCH_TABLE"),
+              view("V1", "select ID from EMP"), physical("EMP"))
+         .andExpect(status().isOk())
+         .andExpect(jsonPath("$.nameColumns[*].column", only("ID")))
+         .andExpect(jsonPath("$.nameColumns[0].tables", tables("V1", "EMP")));
+      assertNothingLogged();
+   }
+
+   @Test
    void viewRunsOnTheModelsAdditionalConnection() throws Exception {
       request(SOURCE, ADDITIONAL, view("V1", "select ID from ONLY_ADD"),
               view("V2", "select ID from ONLY_ADD"))
@@ -276,6 +295,12 @@ class PhysicalModelAutoJoinErrorTest {
    private static String view(String name, String sql) {
       return "{\"name\":\"" + name + "\",\"qualifiedName\":\"" + name + "\",\"type\":1," +
          "\"sql\":\"" + sql + "\",\"joins\":[],\"autoAliases\":[]}";
+   }
+
+   // a physical table (0 = PHYSICAL)
+   private static String physical(String name) {
+      return "{\"name\":\"" + name + "\",\"qualifiedName\":\"" + name + "\",\"type\":0," +
+         "\"joins\":[],\"autoAliases\":[]}";
    }
 
    // the tables of a join candidate, in any order
