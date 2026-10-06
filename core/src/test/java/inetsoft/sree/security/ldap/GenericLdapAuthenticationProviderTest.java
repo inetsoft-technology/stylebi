@@ -504,6 +504,7 @@ class GenericLdapAuthenticationProviderTest {
 
    @Test
    @Order(18)
+   @Disabled("Mockito cannot mock LdapContext with the package-private StartTlsContext (Bug #77869)")
    void testContextShouldReturnFalseForExpiredStartTlsSession() {
       SSLSession expiredSession = mock(SSLSession.class);
       when(expiredSession.isValid()).thenReturn(false);
