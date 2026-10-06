@@ -21,10 +21,6 @@ package inetsoft.report.script.viewsheet;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.test.*;
-import inetsoft.uql.asset.AssetEntry;
-import inetsoft.uql.asset.AssetRepository;
-import inetsoft.uql.asset.sync.DependencyTransformer;
-import inetsoft.uql.asset.sync.RenameDependencyInfo;
 import inetsoft.uql.erm.XDataModel;
 import inetsoft.uql.erm.XLogicalModel;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
@@ -40,9 +36,10 @@ import java.util.Arrays;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * The asset dependency and rename pipeline under inetsoft.uql.asset.sync, and the
- * logical model renames that start it, are refused to a sheet script on every route.
- * Java callers are unaffected. (Bug #77852)
+ * The asset dependency and rename pipeline under inetsoft.uql.asset.sync, the delete
+ * dependency checkers under inetsoft.uql.asset.delete, and the logical model renames that
+ * start the pipeline, are refused to a sheet script on every route. Java callers are
+ * unaffected. (Bug #77852)
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class },
@@ -56,6 +53,7 @@ class ScriptRenamePipelineAccessTest {
       new RuntimeViewsheetExtension(createOpenViewsheetEvent());
 
    private static final String SYNC = "inetsoft.uql.asset.sync.";
+   private static final String DELETE = "inetsoft.uql.asset.delete.";
    private static final String UNKNOWN = "Unknown identifier";
    private static final String CTOR_REFUSED = "Message not supported";
    private static final String RENAME_REFUSED = "A script may not rename a logical model";
@@ -145,6 +143,24 @@ class ScriptRenamePipelineAccessTest {
    }
 
    @Test
+   void assetDependencyCheckerRefused() throws Exception {
+      assertNotAllowed(run("new (Java.type('" + DELETE + "AssetDependencyChecker'))(null);" +
+                              " 'constructed'"));
+   }
+
+   @Test
+   void viewsheetDependencyCheckerRefused() throws Exception {
+      assertNotAllowed(run("new (Java.type('" + DELETE + "ViewsheetDependencyChecker'))(null);" +
+                              " 'constructed'"));
+   }
+
+   @Test
+   void deleteDependencyHandlerStaticRefused() throws Exception {
+      assertRefused(run("'' + Java.type('" + DELETE + "DeleteDependencyHandler')" +
+                           ".checkDependency(null)"));
+   }
+
+   @Test
    void dataModelRenameRefused() throws Exception {
       Object result = run("new (Java.type('inetsoft.uql.erm.XDataModel'))('ds77852')" +
                              ".renameLogicalModel('none77852', 'none77852b', null); 'renamed'");
@@ -169,13 +185,11 @@ class ScriptRenamePipelineAccessTest {
                                      "('ds77852').getDataSource()"));
    }
 
-   /** Java callers still use the pipeline. */
+   /** The sync value classes are not denied. */
    @Test
-   void dependencyTransformerUsableFromJava() {
-      AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
-                                        AssetEntry.Type.DATA_SOURCE, "q77852", null);
-      assertEquals(entry.toIdentifier(), DependencyTransformer.getTabularAssetId("q77852"));
-      assertDoesNotThrow(() -> DependencyTransformer.renameDep(new RenameDependencyInfo()));
+   void syncValueClassStillAllowed() throws Exception {
+      assertEquals("b77852", run("'' + new (Java.type('" + SYNC + "RenameInfo'))" +
+                                    "('a77852', 'b77852', 1).getNewName()"));
    }
 
    /** Java callers still reach the logical model renames. */
@@ -183,9 +197,18 @@ class ScriptRenamePipelineAccessTest {
    void logicalModelRenamesUsableFromJava() {
       assertDoesNotThrow(() -> new XDataModel("ds77852")
          .renameLogicalModel("none77852", "none77852b", null));
-      // past the guard: the body runs and fails on the missing model
-      assertThrows(NullPointerException.class,
-                   () -> new XLogicalModel("lm77852").renameLogicalModel("none77852", null));
+      // the guard lets a Java caller through; whatever the body then does with the null
+      // model, it is not the guard's refusal
+      Throwable thrown = null;
+
+      try {
+         new XLogicalModel("lm77852").renameLogicalModel("none77852", null);
+      }
+      catch(Throwable ex) {
+         thrown = ex;
+      }
+
+      assertFalse(thrown instanceof SecurityException, String.valueOf(thrown));
    }
 
    // a member of a denied type

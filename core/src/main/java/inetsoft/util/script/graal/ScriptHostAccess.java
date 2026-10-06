@@ -392,8 +392,8 @@ public final class ScriptHostAccess {
                   // - the dependency and rename machinery
                   .denyAccess(inetsoft.uql.asset.sync.RenameTransformHandler.class)
                   // Bug #77852: the rest of the rename pipeline. DependencyTransformer
-                  // covers its public subclasses; RenameTransformTask$Rename doesn't
-                  // extend RenameTransformTask, so it is named
+                  // covers its public subclasses; RenameTransformTask$Rename and $Remove
+                  // don't extend RenameTransformTask, so they are named
                   .denyAccess(inetsoft.uql.asset.sync.DependencyTransformer.class)
                   .denyAccess(inetsoft.uql.asset.sync.UpdateDependencyHandler.class)
                   .denyAccess(inetsoft.uql.asset.sync.RenameTransformTask.class)
@@ -401,6 +401,11 @@ public final class ScriptHostAccess {
                   .denyAccess(inetsoft.uql.asset.sync.RenameTransformTask.Remove.class)
                   .denyAccess(inetsoft.uql.asset.sync.LoadDependencyStorageTask.class)
                   .denyAccess(inetsoft.uql.asset.sync.RenameTransformQueue.class)
+                  // the delete dependency checkers load a stored sheet through
+                  // DependencyTool for the entry they are passed. DependencyChecker covers
+                  // AssetDependencyChecker and ViewsheetDependencyChecker
+                  .denyAccess(inetsoft.uql.asset.delete.DependencyChecker.class)
+                  .denyAccess(inetsoft.uql.asset.delete.DeleteDependencyHandler.class)
                   .denyAccess(inetsoft.uql.asset.UpdateAssetDependenciesHandler.class)
                   .denyAccess(inetsoft.uql.asset.DependencyHandler.class)
                   .denyAccess(inetsoft.report.internal.MVInfoClient.class)
