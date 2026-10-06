@@ -111,9 +111,7 @@ public class CurrentSelectionVSAssemblyInfo extends ContainerVSAssemblyInfo
 
       // twelve lanes at the tier; only a size the rule wrote moves, and unmarked only under Revert.
       // An author's size carries userSize and is never moved
-      if(!isUserSize() && (ctx.modern || ctx.transition) &&
-         VSDensityDefaults.isSeededContainerSize(getPixelSize()))
-      {
+      if((ctx.modern || ctx.transition) && followsDensitySize()) {
          setPixelSize(VSDensityDefaults.containerSize(ctx));
       }
    }
@@ -121,6 +119,11 @@ public class CurrentSelectionVSAssemblyInfo extends ContainerVSAssemblyInfo
    @Override
    public boolean takesDensitySize() {
       return true;
+   }
+
+   @Override
+   public boolean followsDensitySize() {
+      return !isUserSize() && VSDensityDefaults.isSeededContainerSize(getPixelSize());
    }
 
    @Override

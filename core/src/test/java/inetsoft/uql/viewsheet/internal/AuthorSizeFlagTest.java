@@ -153,6 +153,28 @@ class AuthorSizeFlagTest {
       assertTrue(chart.isUserSize(), "a type without a density size keeps its flag untouched");
    }
 
+   @Test
+   void followsDensitySizeNeedsTheUnflaggedBoxAtASizeTheRuleWrites() {
+      CurrentSelectionVSAssemblyInfo container = new CurrentSelectionVSAssemblyInfo();
+      container.setPixelSize(new Dimension(300, 360));
+      assertTrue(container.followsDensitySize());
+
+      container.setUserSize(true);
+      assertFalse(container.followsDensitySize());
+
+      CurrentSelectionVSAssemblyInfo odd = new CurrentSelectionVSAssemblyInfo();
+      odd.setPixelSize(new Dimension(400, 300));
+      assertFalse(odd.followsDensitySize());
+
+      SelectionListVSAssemblyInfo list = new SelectionListVSAssemblyInfo();
+      list.setPixelSize(new Dimension(132, 202));
+      assertTrue(list.followsDensitySize());
+      list.setPixelSize(new Dimension(200, 300));
+      assertFalse(list.followsDensitySize());
+
+      assertFalse(new ChartVSAssemblyInfo().followsDensitySize());
+   }
+
    private static <T extends VSAssemblyInfo> T authored(T info, Dimension size) {
       info.setVizMark(VizMark.MODERN_LIGHT);
       info.setPixelSize(size);

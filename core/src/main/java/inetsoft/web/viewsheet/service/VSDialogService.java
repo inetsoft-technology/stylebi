@@ -159,23 +159,20 @@ public class VSDialogService {
    }
 
    /**
-    * Offer Size & Position's follow-the-default-density checkbox for size where a density size rule
-    * governs the box; null, which hides it, everywhere else.
-    * @param governed whether this box is one the size rule writes: not a selection container's child,
-    *                 and for a list or tree, shown as a list.
+    * Offer the size checkbox only for a box a density size rule governs.
+    * @param governed not a selection container's child, and a list or tree shown as a list
     */
    public static void readSizeFollowsDensity(VSAssemblyInfo info, SizePositionPaneModel model,
                                              boolean governed)
    {
       model.setSizeFollowsDensity(
          governed && info.takesDensitySize() && info.getVizMark() != null ?
-            !info.isUserSize() : null);
+            info.followsDensitySize() : null);
    }
 
    /**
-    * When the author ticked follow-the-default-density, return the box to its density size and put
-    * that size in the model, so the caller's size write - which re-widens a container's children -
-    * applies it too.
+    * Put a ticked box back on its density size, and that size in the model so a container's
+    * children follow.
     */
    public static void followDensitySize(VSAssemblyInfo info, SizePositionPaneModel model) {
       if(!Boolean.TRUE.equals(model.getSizeFollowsDensity()) || !info.takesDensitySize()) {
@@ -189,8 +186,8 @@ public class VSDialogService {
    }
 
    /**
-    * Record an author's size: always when they unticked the checkbox, and, from a client that sent
-    * no answer, only when the submitted size differs from what the dialog showed.
+    * Record the size as the author's when they unticked, or changed it from a client with no
+    * answer.
     * @param shown the size the dialog opened with.
     */
    public static void recordAuthorSize(VSAssemblyInfo info, SizePositionPaneModel model,

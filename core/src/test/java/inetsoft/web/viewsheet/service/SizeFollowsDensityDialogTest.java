@@ -21,6 +21,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.web.composer.model.vs.SizePositionPaneModel;
 import org.junit.jupiter.api.*;
@@ -81,6 +82,22 @@ class SizeFollowsDensityDialogTest {
    }
 
    @Test
+   void readUnticksAnUnflaggedBoxAtASizeTheRuleDoesNotOwn() {
+      SizePositionPaneModel box = new SizePositionPaneModel();
+      VSDialogService.readSizeFollowsDensity(
+         container(VizMark.MODERN_LIGHT, new Dimension(400, 300), false), box, true);
+      assertEquals(Boolean.FALSE, box.getSizeFollowsDensity());
+
+      SelectionListVSAssemblyInfo list = new SelectionListVSAssemblyInfo();
+      list.setVizMark(VizMark.MODERN_LIGHT);
+      list.setShowType(SelectionVSAssemblyInfo.LIST_SHOW_TYPE);
+      list.setPixelSize(new Dimension(200, 300));
+      SizePositionPaneModel listModel = new SizePositionPaneModel();
+      VSDialogService.readSizeFollowsDensity(list, listModel, true);
+      assertEquals(Boolean.FALSE, listModel.getSizeFollowsDensity());
+   }
+
+   @Test
    void readOffersNoCheckboxWhenNotGovernedUnmarkedOrWithoutADensitySize() {
       SizePositionPaneModel notGoverned = new SizePositionPaneModel();
       VSDialogService.readSizeFollowsDensity(
@@ -102,8 +119,8 @@ class SizeFollowsDensityDialogTest {
    // the container dialog then hands this model to setContainerSize, which re-widens its children
    @Test
    void followingWritesTheTierSizeIntoTheBoxAndTheModel() {
-      CurrentSelectionVSAssemblyInfo info = container(VizMark.MODERN_LIGHT, new Dimension(300, 500), true);
-      SizePositionPaneModel model = model(true, 300, 500);
+      CurrentSelectionVSAssemblyInfo info = container(VizMark.MODERN_LIGHT, new Dimension(400, 500), true);
+      SizePositionPaneModel model = model(true, 400, 500);
 
       VSDialogService.followDensitySize(info, model);
 
@@ -111,6 +128,33 @@ class SizeFollowsDensityDialogTest {
       assertFalse(info.isUserSize());
       assertEquals(300, model.getWidth());
       assertEquals(360, model.getHeight());
+   }
+
+   @Test
+   void followingUsesTheDashboardsOwnDensityPin() {
+      Viewsheet vs = new Viewsheet();
+      vs.getViewsheetInfo().setVizDensity("dense");
+      CurrentSelectionVSAssemblyInfo info = container(VizMark.MODERN_LIGHT, new Dimension(400, 500), true);
+      info.setViewsheet(vs);
+      SizePositionPaneModel model = model(true, 400, 500);
+
+      VSDialogService.followDensitySize(info, model);
+
+      assertEquals(new Dimension(300, 240), info.getPixelSize());
+      assertEquals(240, model.getHeight());
+   }
+
+   @Test
+   void tickingThroughTheDialogSequenceClearsTheFlag() {
+      CurrentSelectionVSAssemblyInfo info = container(VizMark.MODERN_LIGHT, new Dimension(300, 500), true);
+      SizePositionPaneModel model = model(true, 300, 500);
+      Dimension shown = new Dimension(300, 500);
+
+      VSDialogService.followDensitySize(info, model);
+      VSDialogService.recordAuthorSize(info, model, shown);
+
+      assertFalse(info.isUserSize());
+      assertEquals(new Dimension(300, 360), info.getPixelSize());
    }
 
    @Test
@@ -131,6 +175,10 @@ class SizeFollowsDensityDialogTest {
       CurrentSelectionVSAssemblyInfo changed = container(VizMark.MODERN_LIGHT, new Dimension(300, 360), false);
       VSDialogService.recordAuthorSize(changed, model(null, 300, 240), new Dimension(300, 360));
       assertTrue(changed.isUserSize());
+
+      CurrentSelectionVSAssemblyInfo wider = container(VizMark.MODERN_LIGHT, new Dimension(300, 360), false);
+      VSDialogService.recordAuthorSize(wider, model(null, 280, 360), new Dimension(300, 360));
+      assertTrue(wider.isUserSize());
    }
 
    @Test
