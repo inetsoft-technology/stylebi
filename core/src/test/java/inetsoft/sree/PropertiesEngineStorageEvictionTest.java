@@ -21,6 +21,7 @@ import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.DistributedMap;
 import inetsoft.storage.KeyValueStorage;
 import inetsoft.storage.KeyValueStorageManager;
+import inetsoft.storage.PutKeyValueTask;
 import inetsoft.test.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,9 +29,12 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
 import java.io.Serializable;
 import java.lang.reflect.Field;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BooleanSupplier;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -87,17 +91,10 @@ class PropertiesEngineStorageEvictionTest {
       // Force a REAL eviction: push more than MAX_SIZE(50) distinct, unrelated ids through the
       // same manager instance so Caffeine's eviction policy reclaims the idle "sreeProperties"
       // entry and its removalListener calls close() on it -- this is KeyValueStorageManager's
-      // actual production eviction path, not a reflection-based field swap.
-      for(int i = 0; i < 60; i++) {
-         manager.<Serializable>getStorage("test77177.evict." + i);
-      }
-
-      // Caffeine's removal listener runs asynchronously relative to the triggering get() (see
-      // 02-refute.md's recheck of the "synchronously calls close()" wording), so poll for it.
-      waitFor(before::isClosed);
-      assertTrue(before.isClosed(),
-                 "KeyValueStorageManager never evicted+closed the held storage instance; " +
-                 "this test's premise (a real Caffeine eviction) did not occur");
+      // actual production eviction path, not a reflection-based field swap. The removal listener
+      // runs asynchronously, and a recently re-fetched entry (e.g. by another test in this class)
+      // may survive one pass, so evict() polls and repeats.
+      evict(before);
 
       // Before the fix, PropertiesEngine.kvStorage would still point at this closed instance,
       // permanently: get()/put() would keep silently working against the still-live shared map
@@ -129,6 +126,66 @@ class PropertiesEngineStorageEvictionTest {
       map.put(remoteKey, "remote-value");
 
       waitFor(() -> "remote-value".equals(engine.getProperty(remoteKey)));
+   }
+
+   /**
+    * Bug #77871: a change another node stores while the held instance is evicted (closed, so its
+    * map listener is removed) fires no event here. Re-attaching through a read path must reload
+    * the properties without waiting for some later, unrelated change, and must notify the
+    * per-property listeners that refresh derived settings.
+    */
+   @Test
+   void changeStoredWhileDetachedIsAppliedAfterReattach() throws Exception {
+      String key = "test77871.remote." + UUID.randomUUID();
+      java.util.List<PropertyChangeEvent> events = new CopyOnWriteArrayList<>();
+      PropertyChangeListener listener = events::add;
+      engine.addPropertyChangeListener(key, listener);
+
+      try {
+         KeyValueStorage<String> before = getKvStorageField();
+         evict(before);
+
+         // the task another node's LocalKeyValueStorage.put() submits; nothing has re-attached
+         // yet, so no listener of this engine hears it
+         Cluster.getInstance()
+            .submit("sreeProperties", new PutKeyValueTask<>("sreeProperties", key, "remote-value"))
+            .get();
+         assertNull(engine.getProperty(key));
+
+         // a storage read re-attaches through getStorage()
+         assertEquals("remote-value", engine.getPropertyFromStorage(key));
+         assertNotSame(before, getKvStorageField());
+
+         // no later change is made: the re-attach itself must bring the value in
+         waitFor(() -> "remote-value".equals(engine.getProperty(key)));
+         waitFor(() -> events.stream().anyMatch(e -> "remote-value".equals(e.getNewValue())));
+      }
+      finally {
+         engine.removePropertyChangeListener(key, listener);
+         engine.remove(key);
+         engine.save();
+      }
+   }
+
+   /**
+    * Evicts the given instance through the real manager. A recently re-fetched entry may survive
+    * one pass of filler ids (W-TinyLFU admission), so the same ids are fetched again until it is
+    * closed.
+    */
+   private void evict(KeyValueStorage<String> storage) throws InterruptedException {
+      for(int pass = 0; pass < 10 && !storage.isClosed(); pass++) {
+         for(int i = 0; i < 60; i++) {
+            manager.<Serializable>getStorage("test77871.evict." + i);
+         }
+
+         long end = System.currentTimeMillis() + 2000L;
+
+         while(!storage.isClosed() && System.currentTimeMillis() < end) {
+            Thread.sleep(50L);
+         }
+      }
+
+      assertTrue(storage.isClosed(), "the held storage instance was never evicted and closed");
    }
 
    @SuppressWarnings("unchecked")
