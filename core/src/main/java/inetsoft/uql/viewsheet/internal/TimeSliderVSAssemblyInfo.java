@@ -27,6 +27,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.util.DataSerializable;
 import inetsoft.util.Tool;
 import inetsoft.util.css.CSSConstants;
+import inetsoft.util.swap.SwapFileReadException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
@@ -673,7 +674,15 @@ public class TimeSliderVSAssemblyInfo extends MaxModeSelectionVSAssemblyInfo
            }
 
             if(slist != null) {
-               info.slist = (SelectionList) slist.clone();
+               try {
+                  info.slist = (SelectionList) slist.clone();
+               }
+               catch(SwapFileReadException ex) {
+                  // the swapped values are lost. don't fail the whole clone (e.g. an undo checkpoint),
+                  // leave the selection list out so it is queried again (bug #77864)
+                  LOG.warn("Selection list not cloned, its swap file is lost: " + ex.getFile());
+                  info.slist = null;
+               }
             }
 
             if(logScaleValue != null) {
