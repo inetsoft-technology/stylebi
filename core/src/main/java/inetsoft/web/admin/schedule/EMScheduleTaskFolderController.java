@@ -25,6 +25,7 @@ import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.internal.AssetFolder;
 import inetsoft.util.Catalog;
 import inetsoft.util.InvalidOrgException;
+import inetsoft.util.MessageException;
 import inetsoft.web.admin.content.repository.ContentRepositoryTreeModel;
 import inetsoft.web.admin.content.repository.ContentRepositoryTreeNode;
 import inetsoft.web.admin.schedule.model.*;
@@ -247,7 +248,10 @@ public class EMScheduleTaskFolderController {
                ResourceType.SCHEDULE_TASK, task.getTaskId(), ResourceAction.WRITE) ||
                scheduleTaskService.canDeleteTask(task, principal)))
             {
-               return;
+               // Bug #77813, refuse the whole move with an error the UI shows, as the portal does,
+               // instead of answering 200 as if the move had worked
+               throw new MessageException(Catalog.getCatalog().getString(
+                  "common.writeAuthority", task.getName()));
             }
          }
       }
