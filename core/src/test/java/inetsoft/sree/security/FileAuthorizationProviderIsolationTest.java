@@ -183,6 +183,56 @@ public class FileAuthorizationProviderIsolationTest {
       assertTrue(granted(provider.getPermission(ResourceType.CUBE, "ds::cube1", ORG), "dave"));
    }
 
+   // the key of a known organization is kept, also when a user of another known organization is
+   // granted on it
+   @Test
+   void knownOrganizationKeyWithGranteeOfAnotherOrganizationIsUnchanged() throws Exception {
+      FileAuthenticationProvider authc = new FileAuthenticationProvider();
+      setUp(authc);
+      authc.addOrganization(new FSOrganization("orgB"));
+
+      try {
+         assertNotNull(SecurityEngine.getSecurity().getSecurityProvider().getOrganization("orgB"));
+         KeyValueStorage<Permission> real = storage();
+         clear(real);
+         Permission vs = grant("alice");
+         vs.setUserGrantsForOrg(ResourceAction.READ, Set.of("bob"), "orgB");
+         real.put("VIEWSHEET:" + ORG + ":vsA", vs).get();
+         Map<String, String> before = snapshot(real);
+
+         runInit(real);
+
+         assertEquals(before, snapshot(real));
+      }
+      finally {
+         authc.removeOrganization("orgB");
+      }
+   }
+
+   // a legacy entry of two organizations, one of which already has its key: that key is kept, the
+   // missing one is written and the legacy key is removed
+   @Test
+   void legacyEntryOfTwoOrganizationsKeepsTheExistingTarget() throws Exception {
+      setUp(new FileAuthenticationProvider());
+      KeyValueStorage<Permission> real = storage();
+      clear(real);
+      Permission legacy = grant("mallory");
+      legacy.setUserGrantsForOrg(ResourceAction.READ, Set.of("bob"), "org2");
+      real.put("VIEWSHEET:vsA", legacy).get();
+      real.put("VIEWSHEET:" + ORG + ":vsA", edited(grant("alice"))).get();
+      String live = snapshot(real).get("VIEWSHEET:" + ORG + ":vsA");
+
+      runInit(real);
+
+      Map<String, String> after = snapshot(real);
+      assertEquals(Set.of("VIEWSHEET:" + ORG + ":vsA", "VIEWSHEET:org2:vsA"), after.keySet());
+      assertEquals(live, after.get("VIEWSHEET:" + ORG + ":vsA"));
+      Permission other = provider.getPermission(ResourceType.VIEWSHEET, "vsA", "org2");
+      assertTrue(other.getUserGrants(ResourceAction.READ, "org2").stream()
+                    .anyMatch(i -> "bob".equals(i.getName())));
+      assertTrue(other.getUserGrants(ResourceAction.READ, ORG).isEmpty());
+   }
+
    // a legacy entry keeps the edited flag of its organization, also when nobody is granted
    @Test
    void legacyMigrationKeepsTheEditedFlag() throws Exception {
