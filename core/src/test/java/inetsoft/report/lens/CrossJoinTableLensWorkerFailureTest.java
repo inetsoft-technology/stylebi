@@ -20,6 +20,7 @@ package inetsoft.report.lens;
 
 import inetsoft.report.TableLens;
 import inetsoft.test.*;
+import inetsoft.util.stall.LockStallException;
 import inetsoft.util.swap.SwapFileReadException;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -153,6 +154,58 @@ public class CrossJoinTableLensWorkerFailureTest {
 
          assertFalse(lens.moreRows(TableLens.EOT));
          assertEquals(3 * 5 + 1, lens.getRowCount());
+      }
+      finally {
+         lens.dispose();
+      }
+   }
+
+   /**
+    * A stall of one worker still takes priority over another failure of the other worker, so
+    * the reader sees the stall (bug #76967) when both are recorded.
+    */
+   @Test
+   public void stallTakesPriorityOverWorkerFailure() throws Exception {
+      Thread[] workers = new Thread[2];
+      LockStallException stall =
+         new LockStallException("CrossJoinTableLensWorkerFailureTest", "worker", 1, null);
+      FailingTable left = new FailingTable(() -> {
+         workers[0] = Thread.currentThread();
+         return stall;
+      });
+      FailingTable right = new FailingTable(() -> {
+         workers[1] = Thread.currentThread();
+         return new IllegalStateException("base failed");
+      });
+      CrossJoinTableLens lens = new CrossJoinTableLens(left, right);
+      left.armed = true;
+      right.armed = true;
+
+      try {
+         // starts the workers without waiting for them
+         try {
+            lens.getRowCount();
+         }
+         catch(RuntimeException ignore) {
+            // a worker may already have failed
+         }
+
+         for(int i = 0; i < 2; i++) {
+            long end = System.currentTimeMillis() + CAP_SECONDS * 1000L;
+
+            while(workers[i] == null && System.currentTimeMillis() < end) {
+               Thread.onSpinWait();
+            }
+
+            assertNotNull(workers[i]);
+            workers[i].join(CAP_SECONDS * 1000L);
+            assertFalse(workers[i].isAlive());
+         }
+
+         LockStallException thrown =
+            assertThrows(LockStallException.class, () -> lens.moreRows(TableLens.EOT));
+         assertSame(stall, thrown.getCause());
+         assertThrows(LockStallException.class, lens::getRowCount);
       }
       finally {
          lens.dispose();
