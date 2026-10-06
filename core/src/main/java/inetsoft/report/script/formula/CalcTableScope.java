@@ -27,7 +27,7 @@ import inetsoft.report.script.graal.ReportGraalJavaScriptEngine;
 import inetsoft.util.script.DynamicScope;
 import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.script.graal.ScopeLocals;
-import inetsoft.util.stall.LockStallException;
+import inetsoft.util.swap.DataUnavailable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -803,12 +803,9 @@ public class CalcTableScope extends PropertyScriptable implements DynamicScope {
          return sum.getResult();
       }
       catch(Exception ex) {
-         // a stalled table has no value to return, the stall is not a script value (#77123)
-         LockStallException stall = LockStallException.find(ex);
-
-         if(stall != null) {
-            throw stall;
-         }
+         // a stalled table or one whose swap file is lost has no value to return, the failure
+         // is not a script value (#77123, #77910)
+         DataUnavailable.rethrow(ex);
 
          LOG.warn("Failed to summarize range " + range +
             " using formula " + sum, ex);
