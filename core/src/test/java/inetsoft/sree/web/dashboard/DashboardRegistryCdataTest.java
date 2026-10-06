@@ -76,18 +76,21 @@ class DashboardRegistryCdataTest {
       registry.addDashboard("d]]>1__GLOBAL", dashboard("x]]>y", "a]]>b"));
       registry.addDashboard("d2__GLOBAL", dashboard("p\u0001q\tr", "plain"));
       registry.addDashboard("d3__GLOBAL", dashboard("plain", "plain"));
+      // a dashboard name is the registry key and is not stripped of control characters
+      registry.addDashboard("d\u00014\\x__GLOBAL", dashboard("plain", "plain"));
       registry.save();
 
       loaded = new DashboardRegistry(orgId, eventPublisher, securityEngine);
       loaded.loadDashboard(null);
 
-      assertEquals(3, loaded.getDashboardNames().length);
+      assertEquals(4, loaded.getDashboardNames().length);
       VSDashboard first = (VSDashboard) loaded.getDashboard("d]]>1__GLOBAL");
       assertNotNull(first);
       assertEquals("x]]>y", first.getDescription());
       assertEquals("a]]>b", first.getCreatedBy());
       assertEquals("p q\tr", loaded.getDashboard("d2__GLOBAL").getDescription());
       assertEquals("plain", loaded.getDashboard("d3__GLOBAL").getDescription());
+      assertNotNull(loaded.getDashboard("d\u00014\\x__GLOBAL"), "name kept exactly");
    }
 
    private static VSDashboard dashboard(String description, String createdBy) {
