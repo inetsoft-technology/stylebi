@@ -29,12 +29,9 @@ import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.uql.asset.*;
-import inetsoft.uql.asset.internal.AssetUtil;
-import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
-import inetsoft.web.admin.content.repository.ResourcePermissionService;
 import inetsoft.web.composer.model.RenameAssetEvent;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -55,16 +52,12 @@ public class RenameAssetController {
    public RenameAssetController(AssetRepository assetRepository,
                                 RepletRepository repletRepository,
                                 ViewsheetService viewsheetService,
-                                SecurityProvider securityProvider,
-                                LibManagerProvider libManagerProvider,
-                                DataSourceRegistry dataSourceRegistry)
+                                LibManagerProvider libManagerProvider)
    {
       this.assetRepository = assetRepository;
       this.repletRepository = repletRepository;
       this.viewsheetService = viewsheetService;
-      this.securityProvider = securityProvider;
       this.libManagerProvider = libManagerProvider;
-      this.dataSourceRegistry = dataSourceRegistry;
    }
 
    @PostMapping("api/composer/asset-tree/rename-asset")
@@ -159,13 +152,6 @@ public class RenameAssetController {
       }
 
       try {
-         ResourceType resourceType = AssetUtil.isLibraryType(entry) ?
-                 AssetUtil.getLibraryAssetType(entry) : ResourceType.ASSET;
-         String oldPath = AssetUtil.isLibraryType(entry) ?
-                 AssetUtil.getLibraryPermissionPath(entry, resourceType) : entry.getPath();
-         oldPath = ResourcePermissionService.getPermissionResourcePath(oldPath, resourceType, entry.isTableStyleFolder(), libManagerProvider, dataSourceRegistry);
-         Permission oldPermission = securityProvider.getPermission(resourceType, oldPath);
-
          if(reAlias) {
             entry.setAlias(name);
             nentry = entry;
@@ -220,13 +206,13 @@ public class RenameAssetController {
             assetRepository.changeSheet(entry, nentry, principal, true);
          }
 
-         // Permissions are only keyed by path for global-scope assets. A private asset shares
-         // its path namespace with a same-named global asset, so moving the permission here
-         // would move/clear the global asset's permission. See the same guard in
-         // AbstractAssetEngine.updatePermission().
-         if(!AssetUtil.isLibraryType(nentry) && entry.getScope() == AssetRepository.GLOBAL_SCOPE) {
-            updatePermission(resourceType, oldPath, nentry.getPath(), oldPermission);
-         }
+         // Bug #77839, the permission of a renamed asset is moved by the engine that renames it,
+         // under the asset's own resource type (REPORT for a viewsheet or report folder, ASSET
+         // for a worksheet or worksheet folder): AbstractAssetEngine.updatePermission() for a
+         // worksheet folder, RepletEngine.changeSheet0() for a sheet and the registry's folder
+         // rename event for a report folder. A second move here wrote the ASSET key of the same
+         // path for a viewsheet or report folder, and deleted the permission when the path did
+         // not change (an alias-only or same-name rename).
 
          if(actionRecord != null) {
             actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_SUCCESS);
@@ -311,11 +297,6 @@ public class RenameAssetController {
       return null;
    }
 
-   private void updatePermission(ResourceType resourceType, String oldPath, String newPath, Permission oldPermission) {
-      securityProvider.setPermission(resourceType, newPath, oldPermission);
-      securityProvider.removePermission(resourceType, oldPath);
-   }
-
    private void renameTableStyleFolder(String oname, String nname, LibManager manager) {
       XTableStyle[] tstyles = manager.getTableStyles(oname);
 
@@ -355,7 +336,5 @@ public class RenameAssetController {
    private final AssetRepository assetRepository;
    private final ViewsheetService viewsheetService;
    private final RepletRepository repletRepository;
-   private final SecurityProvider securityProvider;
    private final LibManagerProvider libManagerProvider;
-   private final DataSourceRegistry dataSourceRegistry;
 }

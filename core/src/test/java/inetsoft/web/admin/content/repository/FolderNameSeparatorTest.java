@@ -27,7 +27,6 @@ import inetsoft.test.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.sync.RenameTransformHandler;
-import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.util.IndexedStorage;
 import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
@@ -233,17 +232,15 @@ class FolderNameSeparatorTest {
       addReportFolders(s, s + "/G", t);
       Set<String> before = folders(registry(), s);
       Set<String> beforeKeys = assetKeys(vsFolder(s), s);
-      SecurityProvider provider = mock(SecurityProvider.class);
 
       MessageCommand[] result = new MessageCommand[1];
-      allowAll(() -> result[0] = renameController(repo, provider, mock(LibManagerProvider.class))
+      allowAll(() -> result[0] = renameController(repo, mock(LibManagerProvider.class))
          .renameAsset(renameAssetEvent(vsFolder(s), t + "/" + s), admin()));
 
       assertInvalidName(result[0]);
       assertEquals(before, folders(registry(), s));
       assertEquals(beforeKeys, assetKeys(vsFolder(s), s));
       assertFalse(registry().isFolder(t + "/" + s));
-      verifyNoInteractions(provider);
    }
 
    @Test
@@ -252,16 +249,14 @@ class FolderNameSeparatorTest {
       String s = "S77733h";
       addWsFolders(s, s + "/G");
       Set<String> beforeKeys = assetKeys(wsFolder(s), s);
-      SecurityProvider provider = mock(SecurityProvider.class);
 
       // the same last segment moved nothing but moved the folder's permission to "X/S"
       MessageCommand[] result = new MessageCommand[1];
-      allowAll(() -> result[0] = renameController(repo, provider, mock(LibManagerProvider.class))
+      allowAll(() -> result[0] = renameController(repo, mock(LibManagerProvider.class))
          .renameAsset(renameAssetEvent(wsFolder(s), "X77733h/" + s), admin()));
 
       assertInvalidName(result[0]);
       assertEquals(beforeKeys, assetKeys(wsFolder(s), s));
-      verifyNoInteractions(provider);
    }
 
    @Test
@@ -272,8 +267,7 @@ class FolderNameSeparatorTest {
       folder.setProperty("folder", "S77733i");
       LibManagerProvider libs = mock(LibManagerProvider.class);
 
-      MessageCommand result = renameController(mock(AssetRepository.class),
-         mock(SecurityProvider.class), libs)
+      MessageCommand result = renameController(mock(AssetRepository.class), libs)
          .renameAsset(renameAssetEvent(folder, "T77733i~S77733i"), admin());
 
       assertInvalidName(result);
@@ -406,11 +400,9 @@ class FolderNameSeparatorTest {
          .build();
    }
 
-   private RenameAssetController renameController(AssetRepository assets, SecurityProvider provider,
-                                                  LibManagerProvider libs)
-   {
+   private RenameAssetController renameController(AssetRepository assets, LibManagerProvider libs) {
       return new RenameAssetController(assets, SUtil.getRepletRepository(),
-         mock(ViewsheetService.class), provider, libs, mock(DataSourceRegistry.class));
+         mock(ViewsheetService.class), libs);
    }
 
    private DataSetService dataSetService() {
