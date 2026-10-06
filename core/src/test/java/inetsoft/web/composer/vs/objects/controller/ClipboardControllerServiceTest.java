@@ -24,6 +24,7 @@ import inetsoft.sree.security.*;
 import inetsoft.test.*;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.composer.ClipboardService;
 import inetsoft.web.composer.vs.VSObjectTreeService;
@@ -41,11 +42,13 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.*;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.security.Principal;
 import java.util.*;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(SpringExtension.class)
@@ -101,6 +104,43 @@ class ClipboardControllerServiceTest {
       assertEquals(0, positionImage.y);
       assertEquals(100, positionGauge.y);
       assertEquals(100, positionGauge.y);
+   }
+
+   // Bug #77865 pasting an image whose uploaded image is missing must not break saving.
+   @Test
+   void pasteImageWithMissingUploadKeepsViewsheetSavable() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      ImageVSAssembly image = VSAssemblyFixture.image(vs, "Image1", 100, 100);
+      ((ImageVSAssemblyInfo) image.getInfo()).setImageValue(ImageVSAssemblyInfo.UPLOADED_IMAGE + "reg.png");
+      vs.addAssembly(image);
+      vs.addUploadedImage("reg.png", new byte[] { 1, 2, 3 });
+      // the image is deleted in the image dialog, Image1 still refers to it
+      vs.removeUploadedImage("reg.png");
+
+      when(viewsheetService.getViewsheet(any(), nullable(Principal.class))).thenReturn(rvs);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(sandbox));
+      // copyObjects puts clones of the selected assemblies on the clipboard
+      when(clipboardService.paste()).thenReturn(List.of((Assembly) image.clone()));
+
+      Principal principal = new SRPrincipal(new IdentityID("admin", Organization.getDefaultOrganizationID()));
+      clipboardControllerService.pasteObject("vs1", 0, 0, principal, commandDispatcher, linkUri);
+
+      assertEquals(2, Arrays.stream(vs.getAssemblies())
+         .filter(ImageVSAssembly.class::isInstance).count());
+      // saving the viewsheet (and its undo checkpoints) must still work
+      assertDoesNotThrow(() -> writeXml(vs));
+      assertDoesNotThrow(() -> writeXml(vs.clone()));
+      // no phantom entry for the missing image in the image dialog
+      assertArrayEquals(new String[0], vs.getUploadedImageNames());
+   }
+
+   private static String writeXml(Viewsheet vs) {
+      StringWriter buffer = new StringWriter();
+      PrintWriter writer = new PrintWriter(buffer);
+      vs.writeXML(writer);
+      writer.flush();
+      return buffer.toString();
    }
 
    @Captor
