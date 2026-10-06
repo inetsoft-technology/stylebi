@@ -3698,10 +3698,13 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
    }
 
    /**
-    * Add the uploaded images.
+    * Add the uploaded images. A null image is ignored and leaves any existing
+    * entry unchanged, because writeXML() encodes every value in the map.
     */
    public void addUploadedImage(String name, byte[] image) {
-      imgmap.put(name, image);
+      if(image != null) {
+         imgmap.put(name, image);
+      }
    }
 
    /**
