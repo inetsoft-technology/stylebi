@@ -21,6 +21,8 @@ import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.Tool;
 import inetsoft.util.XMLSerializable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
 
 import java.io.PrintWriter;
@@ -497,41 +499,55 @@ public class RenameInfo implements Serializable, XMLSerializable, Cloneable {
    }
 
    public void writeAttributes(PrintWriter writer) {
-      if(oname != null) {
-         writer.print(" oname=\"" + oname + "\"");
-      }
-
-      if(nname != null) {
-         writer.print(" nname=\"" + nname + "\"");
-      }
-
-      if(table != null) {
-         writer.print(" table=\"" + table + "\"");
-      }
-
-      if(source != null) {
-         writer.print(" source=\"" + source + "\"");
-      }
-
+      writeAttribute(writer, "oname", oname);
+      writeAttribute(writer, "nname", nname);
+      writeAttribute(writer, "table", table);
+      writeAttribute(writer, "source", source);
+      writeAttribute(writer, "entity", entity);
+      writeAttribute(writer, "oentity", oentity);
+      writeAttribute(writer, "prefix", prefix);
+      writeAttribute(writer, "opath", opath);
+      writeAttribute(writer, "npath", npath);
+      writeAttribute(writer, "modelFolder", modelFolder);
       writer.print(" type=\"" + type + "\"");
+
+      if(sourceIndex != 0) {
+         writer.print(" sourceIndex=\"" + sourceIndex + "\"");
+      }
 
       if(rest) {
          writer.print(" rest=\"" + rest + "\"");
       }
 
-      if(bookmarkVS != null) {
-         writer.print(" bookmarkVS=\"" + bookmarkVS + "\"");
+      if(reportLink) {
+         writer.print(" reportLink=\"" + reportLink + "\"");
       }
+
+      if(primaryTable) {
+         writer.print(" primaryTable=\"" + primaryTable + "\"");
+      }
+
+      if(updateStorage) {
+         writer.print(" updateStorage=\"" + updateStorage + "\"");
+      }
+
+      writeAttribute(writer, "bookmarkVS", bookmarkVS);
 
       if(bookmarkUser != null) {
-         writer.print(" bookmarkUser=\"" + bookmarkUser.convertToKey() + "\"");
+         writeAttribute(writer, "bookmarkUser", bookmarkUser.convertToKey());
       }
 
-      if(organizationId != null) {
-         writer.print(" organizationId=\"" +organizationId + "\"");
-      }
-
+      writeAttribute(writer, "organizationId", organizationId);
       writer.print(" alias=\"" + alias + "\"");
+   }
+
+   /**
+    * Write an escaped attribute, if the value is not null.
+    */
+   protected static void writeAttribute(PrintWriter writer, String name, String value) {
+      if(value != null) {
+         writer.print(" " + name + "=\"" + Tool.escape(value) + "\"");
+      }
    }
 
    public void writeEndXml(PrintWriter writer) {
@@ -609,11 +625,46 @@ public class RenameInfo implements Serializable, XMLSerializable, Cloneable {
 
    private void parseContent(Element elem) throws Exception {
       Element parent = Tool.getChildNodeByTagName(elem, "parentRenameInfo");
+      // the parent is written as a nested <renameInfo> (or subclass) element
+      Element pnode = parent == null ? null : Tool.getFirstChildNode(parent);
+      parentRenameInfo = pnode == null ? null : createRenameInfo(pnode);
+   }
 
-      if(parent != null) {
-         parentRenameInfo = new RenameInfo();
-         parentRenameInfo.parseXML(parent);
+   /**
+    * Create a rename info from a written element, using the class named by its class
+    * attribute (e.g. ChangeTableOptionInfo).
+    *
+    * @param elem the element written by writeXML.
+    *
+    * @return the parsed rename info.
+    */
+   public static RenameInfo createRenameInfo(Element elem) throws Exception {
+      String cls = Tool.getAttribute(elem, "class");
+      RenameInfo info = null;
+
+      if(cls != null && !cls.equals(RenameInfo.class.getName())) {
+         try {
+            info = Tool.loadSubclass(cls, RenameInfo.class).getConstructor().newInstance();
+         }
+         catch(ReflectiveOperationException | ClassCastException ex) {
+            LOG.warn("Unsupported rename info class, read as RenameInfo: {}", Tool.cleanseCRLF(cls));
+         }
       }
+
+      if(info == null) {
+         info = new RenameInfo();
+      }
+
+      info.parseXML(elem);
+      return info;
+   }
+
+   /**
+    * Check if an element is a written rename info (RenameInfo or a subclass).
+    */
+   public static boolean isRenameInfoElement(Element elem) {
+      String tag = elem.getTagName();
+      return "renameInfo".equals(tag) || "changeTableOptionInfo".equals(tag);
    }
 
    @Override
@@ -656,4 +707,6 @@ public class RenameInfo implements Serializable, XMLSerializable, Cloneable {
    protected RenameInfo parentRenameInfo; // which caused the current rename info.
    protected boolean alias = false;
    private String organizationId = null;
+
+   private static final Logger LOG = LoggerFactory.getLogger(RenameInfo.class);
 }
