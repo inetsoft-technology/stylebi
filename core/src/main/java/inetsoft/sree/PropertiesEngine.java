@@ -198,6 +198,10 @@ public class PropertiesEngine {
 
          kvStorage = storage;
 
+         if(previous != null) {
+            reattachCount++;
+         }
+
          // a closed instance had no listener on the map, so a change another node stored in the
          // meantime fired no event here. The listener is attached again above, so a reload now
          // reads every change stored while detached. It is debounced rather than run inline
@@ -1831,18 +1835,21 @@ public class PropertiesEngine {
          PropertiesEngine instance = PropertiesEngine.this;
          String security = instance.getProperty("security.provider");
          String license = instance.getProperty("license.key");
-         Properties oldProperties = resync ? internalProperties : null;
+         Properties oldProperties = internalProperties;
+         int reattaches = reattachCount;
 
          // the change listener stays attached during the reload, so that no change stored in
          // the meantime is missed (Bug #76954)
          init(true);
 
-         if(oldProperties != null) {
-            fireMissedChanges(oldProperties, internalProperties);
-         }
-
          if(getProperty("license.key") == null || "".equals(getProperty("license.key"))) {
             setProperty("license.key", license);
+         }
+
+         // the reload re-attached the storage itself, or follows a re-attach, so it may have
+         // loaded changes that were stored while detached and fired no event (Bug #77871)
+         if(resync || reattachCount != reattaches) {
+            fireMissedChanges(oldProperties, internalProperties);
          }
 
          ApplicationPropertiesChangedEvent event = new ApplicationPropertiesChangedEvent(
@@ -1857,7 +1864,8 @@ public class PropertiesEngine {
        * properties named by a received event were already fired by the change listener.
        */
       private void fireMissedChanges(Properties oldProperties, Properties newProperties) {
-         if(newProperties == null || newProperties == oldProperties) {
+         // no properties were loaded before, e.g. after clear(), so there is nothing to compare
+         if(oldProperties == null || newProperties == null || newProperties == oldProperties) {
             return;
          }
 
@@ -1899,6 +1907,8 @@ public class PropertiesEngine {
    private final Map<String, StorageValue> changedPropsBaseline = new HashMap<>();
    private final PropertyChangeSupport support = new PropertyChangeSupport(PropertiesEngine.class);
    private KeyValueStorage<String> kvStorage;
+   // the number of times getStorage() replaced a closed instance, written under this monitor
+   private volatile int reattachCount;
    // Concurrency axis (Bug #77142): lock-free readers x writers x change-triggered reload x
    // shutdown. The field is published in a single write and a reload never sets it to null, so a
    // reader reads it once into a local and takes no lock. Writers (setProperty, remove and the

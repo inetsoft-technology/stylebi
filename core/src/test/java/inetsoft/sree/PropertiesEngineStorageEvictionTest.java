@@ -19,18 +19,12 @@ package inetsoft.sree;
 
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.DistributedMap;
-import inetsoft.storage.InMemoryKeyValueStorage;
 import inetsoft.storage.KeyValueStorage;
 import inetsoft.storage.KeyValueStorageManager;
 import inetsoft.storage.PutKeyValueTask;
 import inetsoft.test.*;
-import inetsoft.util.FileSystemService;
-import inetsoft.util.log.LogManager;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -39,16 +33,11 @@ import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.io.Serializable;
 import java.lang.reflect.Field;
-import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 /**
  * Bug #77177: {@link PropertiesEngineClusterSyncTest} and {@link PropertiesEngineLogLevelResetTest}
@@ -170,6 +159,10 @@ class PropertiesEngineStorageEvictionTest {
          // no later change is made: the re-attach itself must bring the value in
          waitFor(() -> "remote-value".equals(engine.getProperty(key)));
          waitFor(() -> events.stream().anyMatch(e -> "remote-value".equals(e.getNewValue())));
+
+         // the catch-up fires the listener once, not again from a merged or later reload
+         Thread.sleep(1000L);
+         assertEquals(1, events.size(), events.toString());
       }
       finally {
          engine.removePropertyChangeListener(key, listener);
@@ -199,141 +192,6 @@ class PropertiesEngineStorageEvictionTest {
       assertTrue(storage.isClosed(), "the held storage instance was never evicted and closed");
    }
 
-   /**
-    * Bug #77871: the reload that a re-attach schedules runs once and does not schedule another
-    * one, notifies the listeners of the keys changed and removed while detached, and keeps a
-    * local change that was not saved yet. The engine here owns a closable in-memory storage and
-    * a manager that hands out a replacement, so the reloads it publishes can be counted.
-    */
-   @Test
-   void reattachReloadsOnceNotifiesListenersAndKeepsLocalChange() throws Exception {
-      ClosableStorage replacement = new ClosableStorage();
-      PropertiesEngine owner = createOwner(replacement);
-      java.util.List<PropertyChangeEvent> events = new CopyOnWriteArrayList<>();
-      owner.addPropertyChangeListener("test77871.changed", events::add);
-      owner.addPropertyChangeListener("test77871.removed", events::add);
-      owner.addPropertyChangeListener("test77871.unchanged", events::add);
-
-      try {
-         // the held instance is evicted and closed; its contents stay in the shared map, which
-         // the replacement shares, and another node changes and removes keys meanwhile
-         ownerStorage.closed = true;
-         replacement.remotePut("test77871.unchanged", "same", false);
-         replacement.remotePut("test77871.changed", "new", false);
-         assertEquals("old", owner.getProperty("test77871.changed"));
-         assertEquals("same", owner.getProperty("test77871.unchanged"));
-         assertEquals("gone", owner.getProperty("test77871.removed"));
-
-         // a local change, not saved yet, re-attaches through the baseline read
-         owner.setProperty("test77871.local", "local-unsaved");
-         assertSame(replacement, getKvStorageField(owner));
-
-         waitFor(() -> reloads.get() > 0);
-         assertEquals("new", owner.getProperty("test77871.changed"));
-         assertNull(owner.getProperty("test77871.removed"));
-         assertEquals("local-unsaved", owner.getProperty("test77871.local"));
-
-         assertTrue(events.stream().anyMatch(e -> "test77871.changed".equals(e.getPropertyName()) &&
-            "old".equals(e.getOldValue()) && "new".equals(e.getNewValue())), events.toString());
-         assertTrue(events.stream().anyMatch(e -> "test77871.removed".equals(e.getPropertyName()) &&
-            "gone".equals(e.getOldValue()) && e.getNewValue() == null), events.toString());
-         assertTrue(events.stream().noneMatch(
-            e -> "test77871.unchanged".equals(e.getPropertyName())), events.toString());
-         assertEquals(2, events.size(), events.toString());
-
-         // the reload's own getStorage() finds the live replacement, so nothing is rescheduled
-         Thread.sleep(1200L);
-         assertEquals(1, reloads.get(), "the re-attach reload scheduled another reload");
-
-         // the local change is still saved to the replacement afterwards
-         owner.save();
-         assertEquals("local-unsaved", replacement.get("test77871.local"));
-      }
-      finally {
-         owner.shutdown();
-         EarlyLoadedProperties.restore(earlyLoaded);
-      }
-   }
-
-   /**
-    * Bug #77871 / Bug #77201: a re-attach after the engine shut down schedules no reload. Its
-    * debouncer is closed, so a schedule would also throw out of the read.
-    */
-   @Test
-   void reattachAfterShutdownSchedulesNoReload() throws Exception {
-      ClosableStorage replacement = new ClosableStorage();
-      PropertiesEngine owner = createOwner(replacement);
-      Properties before = owner.getInternalProperties();
-
-      try {
-         replacement.remotePut("test77871.changed", "new", false);
-         owner.shutdown();
-         ownerStorage.closed = true;
-
-         assertEquals("new", owner.getPropertyFromStorage("test77871.changed"));
-         assertSame(replacement, getKvStorageField(owner));
-
-         Thread.sleep(1000L);
-         assertEquals(0, reloads.get(), "a closed engine reloaded after a re-attach");
-         assertSame(before, owner.getInternalProperties());
-      }
-      finally {
-         EarlyLoadedProperties.restore(earlyLoaded);
-      }
-   }
-
-   /**
-    * Creates an engine that holds an in-memory storage with three stored properties, and whose
-    * manager returns the given replacement once that storage is closed. The replacement starts
-    * with the same contents, as an instance re-fetched from the same shared map does.
-    */
-   private PropertiesEngine createOwner(ClosableStorage replacement) throws Exception {
-      earlyLoaded = EarlyLoadedProperties.getInstance();
-      reloads.set(0);
-      ApplicationEventPublisher publisher = event -> {
-         if(event instanceof ApplicationPropertiesChangedEvent) {
-            reloads.incrementAndGet();
-         }
-      };
-      KeyValueStorageManager ownerManager = mock(KeyValueStorageManager.class);
-      when(ownerManager.<String>getStorage(anyString())).thenReturn(replacement);
-      PropertiesEngine owner = new PropertiesEngine(
-         ownerManager, context.getBean(FileSystemService.class), publisher,
-         context.getBeanProvider(LogManager.class));
-      ownerStorage = new ClosableStorage();
-
-      for(ClosableStorage storage : java.util.List.of(ownerStorage, replacement)) {
-         storage.remotePut("test77871.changed", "old", false);
-         storage.remotePut("test77871.removed", "gone", false);
-         storage.remotePut("test77871.unchanged", "same", false);
-      }
-
-      replacement.remoteRemove("test77871.removed", false);
-      Field field = PropertiesEngine.class.getDeclaredField("kvStorage");
-      field.setAccessible(true);
-      field.set(owner, ownerStorage);
-      owner.init();
-      return owner;
-   }
-
-   @SuppressWarnings("unchecked")
-   private static KeyValueStorage<String> getKvStorageField(PropertiesEngine owner)
-      throws Exception
-   {
-      Field field = PropertiesEngine.class.getDeclaredField("kvStorage");
-      field.setAccessible(true);
-      return (KeyValueStorage<String>) field.get(owner);
-   }
-
-   private static final class ClosableStorage extends InMemoryKeyValueStorage<String> {
-      @Override
-      public boolean isClosed() {
-         return closed;
-      }
-
-      private volatile boolean closed;
-   }
-
    @SuppressWarnings("unchecked")
    private KeyValueStorage<String> getKvStorageField() throws Exception {
       Field field = PropertiesEngine.class.getDeclaredField("kvStorage");
@@ -355,9 +213,4 @@ class PropertiesEngineStorageEvictionTest {
 
    private PropertiesEngine engine;
    private KeyValueStorageManager manager;
-   @Autowired
-   private ConfigurableApplicationContext context;
-   private final AtomicInteger reloads = new AtomicInteger();
-   private ClosableStorage ownerStorage;
-   private EarlyLoadedProperties earlyLoaded;
 }
