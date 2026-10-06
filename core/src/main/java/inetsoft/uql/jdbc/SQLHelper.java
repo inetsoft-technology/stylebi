@@ -5908,6 +5908,10 @@ public class SQLHelper implements KeywordProvider {
    {
       Map<String, String> subquerymap = new HashMap<>();
       final HashSet<String> subqueryAliases = new HashSet<>();
+      // the names the tables of the nearer query levels are referred to by, which hide the
+      // same names of the outer levels, and the qualifiers that end a table name (77860)
+      Set<String> boundNames = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+      Map<String, String> suffixes = new HashMap<>();
 
       // hide subqueires so the names in the subqueries are not touched.
       // it's up to the subquery generation to make sure the names are
@@ -5949,9 +5953,24 @@ public class SQLHelper implements KeywordProvider {
                if(!alias2.equals(alias)) {
                   expr = replaceTable(expr, alias2, nalias);
                }
+
+               // a table without an alias is also referred to by the end of its name
+               // (CUSTOMERS.CITY for public.CUSTOMERS), which names nothing once the table
+               // is given an alias (77860)
+               if(alias.equals(tobj)) {
+                  addSuffixQualifiers(sql, i, nalias, boundNames, suffixes);
+               }
             }
          }
+
+         for(int i = 0; i < sql.getTableCount(); i++) {
+            boundNames.addAll(getBoundNames(sql.getSelectTable(i)));
+         }
       } while(subQuery && (sql = sql.getParent()) != null);
+
+      if(!suffixes.isEmpty()) {
+         expr = replaceSuffixQualifiers(expr, suffixes);
+      }
 
       // a table written quoted ("a") is stored without its quotes in the expression text, as
       // before, so every reader of the text sees the same text, and is quoted here (#77569)
@@ -5971,6 +5990,126 @@ public class SQLHelper implements KeywordProvider {
       expr = restoreSubqueries(expr, subquerymap);
 
       return expr;
+   }
+
+   /**
+    * Add the qualifiers that end the name of a table without an alias (CUSTOMERS and
+    * "CUSTOMERS" for public."CUSTOMERS"), to be replaced by the new alias of the table. An
+    * end that another table of the query level is referred to by (public.t with other.t, or
+    * with other.u t), or a table of a nearer query level, which hides the table, is not added.
+    * @param idx the index of the table in the query level.
+    * @param nalias the new alias of the table.
+    * @param boundNames the names the tables of the nearer query levels are referred to by.
+    * @param suffixes the qualifiers mapped to their replacements.
+    */
+   private void addSuffixQualifiers(UniformSQL sql, int idx, String nalias,
+                                    Set<String> boundNames, Map<String, String> suffixes)
+   {
+      List<String> segs = splitTableName(sql.getSelectTable(idx).getAlias());
+
+      for(int start = 1; start < segs.size(); start++) {
+         List<String> suffix = segs.subList(start, segs.size());
+         String bare = getUnquotedName(suffix);
+         boolean bound = boundNames.contains(bare);
+
+         for(int i = 0; !bound && i < sql.getTableCount(); i++) {
+            bound = i != idx && getBoundNames(sql.getSelectTable(i)).contains(bare);
+         }
+
+         if(!bound) {
+            for(String qualifier : getQualifierForms(suffix)) {
+               suffixes.putIfAbsent(qualifier, nalias);
+            }
+         }
+      }
+   }
+
+   /**
+    * Get the names, without quotes, a table is referred to by in its query level: its alias,
+    * and when it has no alias, its name and the ends of its name.
+    */
+   private static Set<String> getBoundNames(SelectTable table) {
+      Set<String> names = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+      String alias = table.getAlias();
+      Object name = table.getName();
+
+      if(alias != null) {
+         names.add(getUnquotedName(splitTableName(alias)));
+      }
+
+      if(name instanceof String && (alias == null || alias.equals(name))) {
+         List<String> segs = splitTableName((String) name);
+
+         for(int start = 0; start < segs.size(); start++) {
+            names.add(getUnquotedName(segs.subList(start, segs.size())));
+         }
+      }
+
+      return names;
+   }
+
+   /**
+    * Get a name from its segments, without the quotes of the segments.
+    */
+   private static String getUnquotedName(List<String> segs) {
+      List<String> names = new ArrayList<>();
+
+      for(String seg : segs) {
+         names.add(isQuotedTableSegment(seg) ? seg.substring(1, seg.length() - 1) : seg);
+      }
+
+      return String.join(".", names);
+   }
+
+   /**
+    * Get the forms a qualifier of the name segments is written in: each segment as stored,
+    * quoted, or without quotes when it's a plain identifier.
+    */
+   private List<String> getQualifierForms(List<String> segs) {
+      List<String> forms = new ArrayList<>();
+      forms.add("");
+
+      for(String seg : segs) {
+         String name = getUnquotedName(List.of(seg));
+         Set<String> segForms = new LinkedHashSet<>();
+         segForms.add(seg);
+
+         if(!Tool.isEmptyString(getQuote())) {
+            segForms.add(getQuote() + name + getQuote());
+         }
+
+         if(!name.isEmpty() && name.codePoints().allMatch(Character::isUnicodeIdentifierPart)) {
+            segForms.add(name);
+         }
+
+         List<String> nforms = new ArrayList<>();
+
+         for(String form : forms) {
+            for(String segForm : segForms) {
+               nforms.add(form.isEmpty() ? segForm : form + "." + segForm);
+            }
+         }
+
+         forms = nforms;
+      }
+
+      return forms;
+   }
+
+   /**
+    * Replace the qualifiers that end a table name. When the expression is a subquery operand,
+    * the names in the subquery are not replaced: a table of the subquery can hide the outer
+    * table, and the subquery replaced the names of the outer tables it doesn't hide (77860).
+    */
+   private String replaceSuffixQualifiers(String expr, Map<String, String> suffixes) {
+      Matcher matcher = pattern.matcher(expr);
+
+      if(matcher.find() && expr.substring(0, matcher.start()).isBlank()) {
+         int end = findClosingParen(expr, matcher.start()) + 1;
+         return expr.substring(0, end) + quoteQualifiers(expr.substring(end), suffixes, true);
+      }
+
+      return quoteQualifiers(expr, suffixes, true);
    }
 
    /**
@@ -6056,6 +6195,18 @@ public class SQLHelper implements KeywordProvider {
     * outside quotes and string literals, and followed by a dot.
     */
    private static String quoteQualifiers(String expr, Map<String, String> qualifiers) {
+      return quoteQualifiers(expr, qualifiers, false);
+   }
+
+   /**
+    * Quote the qualifiers in expression text that are written at the start of an identifier,
+    * outside quotes and string literals, and followed by a dot.
+    * @param ignoreCase <tt>true</tt> to match a qualifier without quotes in any case, as the
+    * database folds both names.
+    */
+   private static String quoteQualifiers(String expr, Map<String, String> qualifiers,
+                                         boolean ignoreCase)
+   {
       List<String> names = new ArrayList<>(qualifiers.keySet());
       names.sort((a, b) -> b.length() - a.length());
       StringBuilder sb = new StringBuilder();
@@ -6079,8 +6230,12 @@ public class SQLHelper implements KeywordProvider {
          String found = null;
 
          for(int j = 0; start && found == null && j < names.size(); j++) {
-            if(expr.startsWith(names.get(j) + ".", i)) {
-               found = names.get(j);
+            String name = names.get(j);
+            boolean plain = ignoreCase && name.chars().noneMatch(ch -> ch == '"' || ch == '`' ||
+               ch == '[');
+
+            if(expr.regionMatches(plain, i, name + ".", 0, name.length() + 1)) {
+               found = name;
             }
          }
 
