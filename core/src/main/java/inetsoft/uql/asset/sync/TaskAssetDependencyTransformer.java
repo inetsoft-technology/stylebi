@@ -245,7 +245,7 @@ public class TaskAssetDependencyTransformer extends DependencyTransformer {
             NodeList paths = getChildNodes(action, "./queryEntry/assetEntry/path");
 
             for(int j = 0; j < paths.getLength(); j++) {
-               Element path = (Element) paths.item(i);
+               Element path = (Element) paths.item(j);
                String value = Tool.getValue(path);
 
                if(Tool.equals(value, info.getOldPath())) {
@@ -256,7 +256,7 @@ public class TaskAssetDependencyTransformer extends DependencyTransformer {
                   String opath = AssetEntry.createAssetEntry(info.getOldName()).getPath();
                   String npath = AssetEntry.createAssetEntry(info.getNewName()).getPath();
 
-                  if(value.startsWith(opath + "/")) {
+                  if(value != null && value.startsWith(opath + "/")) {
                      String table = value.substring(opath.length());
                      DependencyTransformer.replaceElementCDATANode(path, npath + table);
                   }
@@ -316,7 +316,7 @@ public class TaskAssetDependencyTransformer extends DependencyTransformer {
          }
 
          for(int j = 0; j < nodes.getLength(); j++) {
-            Element item = (Element) nodes.item(i);
+            Element item = (Element) nodes.item(j);
             NodeList list = getChildNodes(item, ".//path");
 
             if(list.getLength() == 0) {
