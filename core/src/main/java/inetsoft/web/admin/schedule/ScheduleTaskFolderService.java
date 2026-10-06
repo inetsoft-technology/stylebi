@@ -143,23 +143,25 @@ public class ScheduleTaskFolderService {
       securityProvider.removePermission(ResourceType.SCHEDULE_TASK_FOLDER, folderEntry.getPath());
    }
 
+   /**
+    * Checks if a folder is listed in its parent folder. Bug #77796, the parent of a nested
+    * folder is the path before its last slash, and the parent lists the folder by its full path.
+    * The root is never a folder a task is moved into.
+    */
    public boolean checkFolderExists(String path) {
-      String parentPath = path.indexOf('/') != - 1 ? path.substring(path.indexOf('/')) : "/";
-      AssetEntry parentEntry = new AssetEntry(
-         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER, parentPath, null);
+      if(path == null || path.isEmpty() || "/".equals(path)) {
+         return false;
+      }
+
+      int index = path.lastIndexOf('/');
+      String parentPath = index < 0 ? "/" : path.substring(0, index);
 
       try {
-         AssetFolder parentfolder =
-            (AssetFolder) indexedStorage.getXMLSerializable(parentEntry.toIdentifier(), null);
-         AssetEntry[] entries = parentfolder.getEntries();
-
-         for(AssetEntry entry : entries) {
-            if(entry.getName().equals(path)) {
-               return true;
-            }
-         }
+         AssetFolder parentfolder = getTaskFolder(getFolderEntry(parentPath).toIdentifier());
+         return parentfolder != null && parentfolder.containsEntry(getFolderEntry(path));
       }
       catch(Exception e) {
+         LOG.warn("Failed to check if the task folder exists: {}", path, e);
       }
 
       return false;
