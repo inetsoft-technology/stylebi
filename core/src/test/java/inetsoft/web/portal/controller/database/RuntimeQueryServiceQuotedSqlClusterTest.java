@@ -36,6 +36,9 @@ import inetsoft.util.ThreadContext;
 import inetsoft.util.credential.CredentialService;
 import inetsoft.util.credential.LocalPasswordCredential;
 import inetsoft.web.portal.controller.database.RuntimeQueryService.RuntimeXQuery;
+import org.apache.ignite.configuration.IgniteConfiguration;
+import org.apache.ignite.spi.communication.tcp.TcpCommunicationSpi;
+import org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi;
 import org.apache.ignite.spi.discovery.tcp.ipfinder.vm.TcpDiscoveryVmIpFinder;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -45,6 +48,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.net.ServerSocket;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.Principal;
@@ -69,13 +73,48 @@ class RuntimeQueryServiceQuotedSqlClusterTest {
    @BeforeAll
    static void startCluster() throws Exception {
       clusterDir = Files.createTempDirectory("cluster-77858");
-      TcpDiscoveryVmIpFinder ipFinder = new TcpDiscoveryVmIpFinder(true);
-      node1 = IgniteClusterTestUtils.getIgniteCluster("q77858-1", ipFinder, clusterDir);
-      node2 = IgniteClusterTestUtils.getIgniteCluster("q77858-2", ipFinder, clusterDir);
+      int discoPort1 = freePort();
+      int discoPort2 = freePort();
+      List<String> addresses = List.of("127.0.0.1:" + discoPort1, "127.0.0.1:" + discoPort2);
+      node1 = startNode("q77858-1", discoPort1, addresses);
+      node2 = startNode("q77858-2", discoPort2, addresses);
       service1 = new RuntimeQueryService(node1);
       service1.init();
       service2 = new RuntimeQueryService(node2);
       service2.init();
+   }
+
+   /**
+    * Start a node from the production configuration with discovery and communication pinned to
+    * loopback ports, as ServiceTaskExecutorImplTest does.
+    */
+   private static IgniteCluster startNode(String name, int discoPort, List<String> addresses)
+      throws Exception
+   {
+      TcpDiscoveryVmIpFinder ipFinder = new TcpDiscoveryVmIpFinder();
+      ipFinder.setAddresses(addresses);
+      TcpDiscoverySpi disco = new TcpDiscoverySpi();
+      disco.setLocalAddress("127.0.0.1");
+      disco.setLocalPort(discoPort);
+      disco.setLocalPortRange(0);
+      disco.setIpFinder(ipFinder);
+      TcpCommunicationSpi comm = new TcpCommunicationSpi();
+      comm.setLocalAddress("127.0.0.1");
+      comm.setLocalPort(freePort());
+      comm.setLocalPortRange(0);
+
+      IgniteConfiguration config = IgniteCluster.getDefaultConfig(clusterDir.resolve(name));
+      config.setIgniteInstanceName(name + "-" + UUID.randomUUID());
+      config.setLocalHost("127.0.0.1");
+      config.setDiscoverySpi(disco);
+      config.setCommunicationSpi(comm);
+      return IgniteClusterTestUtils.getIgniteCluster(config);
+   }
+
+   private static int freePort() throws Exception {
+      try(ServerSocket socket = new ServerSocket(0)) {
+         return socket.getLocalPort();
+      }
    }
 
    @AfterAll

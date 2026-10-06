@@ -55,4 +55,12 @@ public class IgniteClusterTestUtils {
 
       return new IgniteCluster(config);
    }
+
+   /**
+    * Creates a cluster node from a configuration made by the caller, e.g. one that starts from
+    * {@link IgniteCluster#getDefaultConfig(Path)} and pins its SPIs to loopback ports.
+    */
+   public static IgniteCluster getIgniteCluster(IgniteConfiguration config) {
+      return new IgniteCluster(config);
+   }
 }
