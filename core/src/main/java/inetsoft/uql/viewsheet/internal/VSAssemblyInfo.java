@@ -1457,6 +1457,13 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
    }
 
    /**
+    * Whether the density size rule owns this box's size.
+    */
+   public boolean followsDensitySize() {
+      return false;
+   }
+
+   /**
     * The size this type takes when nobody has an opinion, or null for a type without one.
     */
    protected Dimension defaultSize(VizContext ctx) {

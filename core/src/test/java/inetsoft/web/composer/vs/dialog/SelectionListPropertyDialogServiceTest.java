@@ -40,6 +40,8 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import inetsoft.uql.asset.internal.AssemblyInfo;
+
 import java.awt.*;
 import java.security.Principal;
 import inetsoft.test.BaseTestConfiguration;
@@ -48,6 +50,7 @@ import inetsoft.test.ConfigurationContextInitializer;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -65,6 +68,8 @@ class SelectionListPropertyDialogServiceTest {
          vsObjectPropertyService, vsOutputService, engine, trapService, dialogService,
          selectionDialogService, assemblyInfoHandler, dataRefService, dataSourceRegistry,
          mock(QueryManagerService.class));
+      lenient().when(dialogService.getAssemblySize(any(), any()))
+         .thenAnswer(inv -> ((AssemblyInfo) inv.getArgument(0)).getPixelSize());
    }
 
    @Test
