@@ -51,6 +51,7 @@ export interface ScheduleTaskEditorRouterStub {
 export interface ScheduleTaskEditorRouteStub {
    paramMap$: BehaviorSubject<ParamMap>;
    paramMap: ReturnType<BehaviorSubject<ParamMap>["asObservable"]>;
+   snapshot: { queryParamMap: ParamMap };
 }
 
 export interface ScheduleTaskEditorTimeZoneServiceStub {
@@ -184,12 +185,16 @@ export function createScheduleTaskEditorRouterStub(): ScheduleTaskEditorRouterSt
    };
 }
 
-export function createScheduleTaskEditorRouteStub(taskName = "Nightly"): ScheduleTaskEditorRouteStub {
+export function createScheduleTaskEditorRouteStub(
+   taskName = "Nightly",
+   queryParams: Record<string, string> = {},
+): ScheduleTaskEditorRouteStub {
    const paramMap$ = new BehaviorSubject<ParamMap>(convertToParamMap({ task: taskName }));
 
    return {
       paramMap$,
       paramMap: paramMap$.asObservable(),
+      snapshot: { queryParamMap: convertToParamMap(queryParams) },
    };
 }
 
