@@ -23,6 +23,8 @@ import inetsoft.report.filter.ColumnMapFilter;
 import inetsoft.report.filter.SortFilter;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
+import inetsoft.util.swap.LostSwapFile;
+import inetsoft.util.swap.SwapFileReadException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
@@ -243,4 +245,72 @@ public class TableRowTest {
    };
 
    private DefaultTableLens defaultTableLens = new DefaultTableLens(objData);
+
+   /**
+    * #77910: a cell read of a row whose swap file is lost must throw the swap file read
+    * failure, not read as null, for a column of the table, a column only in its base table
+    * and an indexed read.
+    */
+   @Test
+   void lostSwapFileCellReadThrowsTheSwapFailure() {
+      try(LostSwapFile lost = new LostSwapFile()) {
+         LostSwapFile.Table base = new LostSwapFile.Table(objData, 2, false, lost);
+         base.moreRows(TableLens.EOT);
+         tableRow = new TableRow(base, 2);
+
+         assertEquals(lost.getFile(), assertThrows(SwapFileReadException.class,
+            () -> tableRow.getMember("name")).getFile());
+         assertEquals(lost.getFile(), assertThrows(SwapFileReadException.class,
+            () -> tableRow.getArrayElement(1)).getFile());
+
+         // "id" is reachable only through the base table
+         TableRow filteredRow = new TableRow(new ColumnMapFilter(base, new int[]{ 0 }), 2);
+         assertEquals(lost.getFile(), assertThrows(SwapFileReadException.class,
+            () -> filteredRow.getMember("id")).getFile());
+      }
+   }
+
+   /**
+    * #77910: a cell read that failed on one row is a row-dependent miss, like an unmapped
+    * row (#76779): it must not mark the column absent, which read it as undefined on every
+    * later row of the reused TableRow.
+    */
+   @Test
+   void failedCellReadDoesNotPoisonLaterRows() {
+      DefaultTableLens base = new FailingCellTable(objData);
+      base.moreRows(TableLens.EOT);
+
+      // a column of the table itself
+      tableRow = new TableRow(base, 2);
+      assertNull(tableRow.getMember("id"));
+      tableRow.setRow(3);
+      assertTrue(tableRow.hasMember("id"), "a failed read must not mark the column absent");
+      assertEquals(3, tableRow.getMember("id"), "later rows must still resolve");
+
+      // a column only in the base table
+      tableRow = new TableRow(new ColumnMapFilter(base, new int[]{ 0 }), 2);
+      assertNull(tableRow.getMember("id"));
+      tableRow.setRow(3);
+      assertTrue(tableRow.hasMember("id"), "a failed read must not mark the column absent");
+      assertEquals(3, tableRow.getMember("id"), "later rows must still resolve");
+   }
+
+   /**
+    * A table whose cell at row 2, column 1 fails. Public, so TableRow searches it as a base
+    * table and calls getObject reflectively.
+    */
+   public static class FailingCellTable extends DefaultTableLens {
+      public FailingCellTable(Object[][] data) {
+         super(data);
+      }
+
+      @Override
+      public Object getObject(int r, int c) {
+         if(r == 2 && c == 1) {
+            throw new IllegalStateException("broken");
+         }
+
+         return super.getObject(r, c);
+      }
+   }
 }

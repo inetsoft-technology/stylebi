@@ -22,7 +22,7 @@ import inetsoft.uql.XTable;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.script.graal.ScriptArrayScope;
 import inetsoft.util.script.graal.ScriptScope;
-import inetsoft.util.stall.LockStallException;
+import inetsoft.util.swap.DataUnavailable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -134,13 +134,10 @@ public class XTableArray implements ScriptArrayScope {
          return range.getCollectionValue(cells);
       }
       catch(Exception ex) {
-         // a stalled table has no value to return, and it is not an absent member either, so
-         // the stall reaches both getMember and hasMember (#77123)
-         LockStallException stall = LockStallException.find(ex);
-
-         if(stall != null) {
-            throw stall;
-         }
+         // a stalled table or one whose swap file is lost has no value to return, and it is not
+         // an absent member either, so the failure reaches both getMember and hasMember
+         // (#77123, #77910)
+         DataUnavailable.rethrow(ex);
 
          LOG.debug("Failed to get property " + name + " from " + this, ex);
       }
