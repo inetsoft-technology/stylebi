@@ -238,12 +238,16 @@ saved XML unchanged.
 - `public void resetSize(VizContext ctx)` — clears `userSize` and writes the rule's size:
   `VSDensityDefaults.selectionSize(ctx)` for a list or tree, `containerSize(ctx)` for a container. It
   does nothing on a type that does not take a density size.
+- `public boolean followsDensitySize()` (amended 2026-10-06, after the Task 10 review) — whether the
+  size rule owns the box's size: false on `VSAssemblyInfo`; on the two types, the flag is clear **and**
+  the size is one the rule recognizes. The rule guards and the dialog read (§6) both use it, so the
+  checkbox can never claim a size the rule would not move.
 
-**The rules honour it.** Both guards gain `!isUserSize()`:
+**The rules honour it.** Both guards gain `!isUserSize()`, through `followsDensitySize()`:
 
 ```
-SelectionBaseVSAssemblyInfo:     !isUserSize() && (ctx.modern || ctx.transition) && isSeededSelectionSize(getPixelSize())
-CurrentSelectionVSAssemblyInfo:  !isUserSize() && (ctx.modern || ctx.transition) && isSeededContainerSize(getPixelSize())
+SelectionBaseVSAssemblyInfo:     (ctx.modern || ctx.transition) && followsDensitySize()   // !isUserSize() && isSeededSelectionSize(getPixelSize())
+CurrentSelectionVSAssemblyInfo:  (ctx.modern || ctx.transition) && followsDensitySize()   // !isUserSize() && isSeededContainerSize(getPixelSize())
 ```
 
 A flagged box is therefore left alone by every open, by a density change, by Modernize and by
@@ -313,11 +317,17 @@ checkbox for size, `SizePositionPaneModel.sizeFollowsDensity` (Java and TypeScri
 null-means-no-opinion semantics as `titleHeightFollowsDensity`. The list, tree and container dialog
 services read and write it.
 
-- **Read:** `!isUserSize()` when the box is one a size rule governs — a marked container, or a marked
-  list or tree in LIST show type that is not a selection container's child — otherwise null, which
-  hides the checkbox. A contained child's height belongs to the container's expand path (D2), and a
+- **Read:** `followsDensitySize()` when the box is one a size rule governs — a marked container, or a
+  marked list or tree in LIST show type that is not a selection container's child — otherwise null,
+  which hides the checkbox. A contained child's height belongs to the container's expand path (D2), and a
   dropdown's box is its title, so neither is the rule's box. A list in a Tab or group container is
   still the rule's box and gets the checkbox.
+  - *Amended 2026-10-06.* The read was `!isUserSize()`. That ticked the box for an unflagged box at a
+    size the rule never moves — anything saved before the flag at a non-default size, or a list
+    dragged out of a container (which keeps the container's width and is not an author resize). The
+    browser sends the ticked value back, so any OK, even for a title edit, reset such a box to the
+    tier size. Such a box now reads false: the rule leaves it alone, so the size is the author's in
+    effect, and an OK records the flag.
 - **Write**, right after the existing `dialogService.setAssemblySize` / `setContainerSize` call and
   before the list and tree dialogs' show-type switch:
   - true → `resetSize(VizContext.of(info))`, ignoring the submitted width and height. The container
@@ -379,9 +389,11 @@ services read and write it.
     a type without a density size;
   - composer resize flags a list, a tree and a container, but not a chart or table, and not the
     container's children;
-  - each dialog: the read offers the checkbox only where §6 says; the write handles true (tier size,
-    flag cleared, a container's children re-widthed), false (flag set) and null (flag set only on a
-    changed size);
+  - `followsDensitySize()`: true for an unflagged box at a recognized size; false when flagged, at
+    any other size, or on a type without a density size;
+  - each dialog: the read offers the checkbox only where §6 says, reading false for an unflagged
+    box at an unrecognized size; the write handles true (tier size, flag cleared, a container's
+    children re-widthed), false (flag set) and null (flag set only on a changed size);
   - `size-position-pane.component.spec.ts`: the checkbox is hidden when the flag is null and shown
     otherwise; ticking it disables Width and Height, unticking re-enables them, and the model follows.
 - Full `core` suite, and the portal spec run for `size-position-pane`.
