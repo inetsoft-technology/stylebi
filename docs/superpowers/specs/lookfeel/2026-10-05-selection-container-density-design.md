@@ -9,6 +9,10 @@ container's default size should grow to keep its row count at the larger tiers r
 slice." This is that slice, plus three defects found while scoping it.
 **Types in scope:** the selection container (`CurrentSelectionVSAssembly`), the selection lists and
 trees inside it, and the range slider (`TimeSliderVSAssembly`) as a contained child.
+**Amended 2026-10-06:** D7 records an author's size so that neither size rule rewrites it, and
+gives Size & Position a follow-the-default-density checkbox to undo that. It covers standalone
+selection lists and trees as well, because the list size rule from the selection family design has
+the same gap.
 
 ## 1. Why
 
@@ -200,10 +204,67 @@ legacy             = 300 × 240                        (CurrentSelectionVSAssemb
   happens to sit at a tier size.
 - **Reach:** creation, Modernize, a density change, and every open of a marked container (the restore
   path re-seeds, per the selection family design's reversed D6). Revert reaches it through the
-  transition and restores 300×240. At dense it is a no-op. An author size is left alone.
+  transition and restores 300×240. At dense it is a no-op. An author size is left alone — by the
+  recognizer when it is off the recognized set, and by D7's flag when it is on it.
 - Width stays 300: density has no opinion on the container's width, and it has no inset (D1).
 - The comment at `:110-112` ("no card inset and no size rule … keeps the legacy basis at every tier")
   is rewritten to keep its inset half and drop the size half.
+
+### D7 — An author's size is recorded, and "follow the default density" gives it back (added 2026-10-06)
+
+**Why.** D6's rule and the list size rule (selection family design D5) know a seeded size only by
+its value, and both re-run on every open. So an author who deliberately sizes a marked container to
+300×240 — the old default, and the natural value to pick, since changing only the height keeps the
+width at 300 — has it rewritten to the tier size on the next open, and on every open after that.
+The same holds for a list sized exactly 100×120, 132×202, 124×170 or 116×136. Every other density
+value an author can set is already protected by a flag: table row heights by `userDataRowHeight` and
+`userHeaderRowHeight` (read at `VSTableLens:1812-1818`), title height by `userTitleHeight`, cell
+height by `userCellHeight`, the card inset by `userPadding`. The size rules had only the value test.
+
+The size stays a seeded write rather than becoming a read-time substitution. Read-time resolution
+would not remove the need for a flag — an author's 300×240 would still look exactly like the legacy
+default — and every reader of `getPixelSize()` (layout, composer move and resize, overlap, device
+layouts, every exporter, the browser model) would have to go through a resolver.
+
+**The flag.** `VSAssemblyInfo` gains `userSize` beside `userPadding` (`:1414-1423`, `:1876`):
+accessors, copied in `copyInfo` the way `userPadding` is (`:701-704`), parsed with a missing
+attribute meaning false. Unlike `userPadding` it is written only when true, so an assembly that never
+gets it — every type without a size rule, and every list or container nobody resized — keeps its
+saved XML unchanged.
+
+**Which types.** Mirroring `defaultPadding` / `resetPadding` (`:1444`, `:1458`):
+- `public boolean takesDensitySize()` — false on `VSAssemblyInfo`; true on
+  `SelectionBaseVSAssemblyInfo` (list and tree) and `CurrentSelectionVSAssemblyInfo`.
+- `public void resetSize(VizContext ctx)` — clears `userSize` and writes the rule's size:
+  `VSDensityDefaults.selectionSize(ctx)` for a list or tree, `containerSize(ctx)` for a container. It
+  does nothing on a type that does not take a density size.
+
+**The rules honour it.** Both guards gain `!isUserSize()`:
+
+```
+SelectionBaseVSAssemblyInfo:     !isUserSize() && (ctx.modern || ctx.transition) && isSeededSelectionSize(getPixelSize())
+CurrentSelectionVSAssemblyInfo:  !isUserSize() && (ctx.modern || ctx.transition) && isSeededContainerSize(getPixelSize())
+```
+
+A flagged box is therefore left alone by every open, by a density change, by Modernize and by
+Revert. The checkbox below is the only way back to the density size.
+
+**What sets the flag: the author's resize paths, and nothing else.**
+- Composer drag-resize, `ComposerObjectService.resizeObject` (`:126`). Multi-select resize routes
+  through it too (`ComposerObjectController:88-89`). It sets the flag on the resized assembly when
+  `takesDensitySize()` — not on the container's children, whose widths it changes to follow the
+  container.
+- Size & Position in the list, tree and container property dialogs (§6).
+
+Derived writes never set it: the expand and collapse path (D2), the drop into a container, the
+dialogs' show-type switch, convert-to-range-slider, device and print layout sizes (which live in
+`VSAssemblyLayout`, not the pixel size), and the size rules themselves.
+
+**Existing content.** Nothing saved before the flag carries it. An older box at a recognized size
+still follows the rule on its first open (§9); any author resize after that records the flag.
+
+**Bookmarks.** A container's bookmark writes each child's whole XML, flag included (2.2). A
+standalone list's bookmark state carries no size. Nothing else changes.
 
 ## 4. Contained-list sizing in detail (D2, D3)
 
@@ -237,15 +298,39 @@ slider (`:122-125`). It gains the follow-the-density checkbox, copied from
 `SelectionContainerPropertyDialogService:89-93` (read) and `:154-168` (write):
 
 - **Read:** the title height is `VSDensityDefaults.titleHeight(info, info.getTitleHeightValue())`;
-  `titleHeightFollowsDensity` is `!isUserTitleHeight()` for a marked slider and null for an unmarked
-  one, which hides the checkbox (`size-position-pane.component.ts:139`).
+  `titleHeightFollowsDensity` is `!isUserTitleHeight()` for a marked slider in a selection container,
+  and null for an unmarked one or one in a Tab or group container, where its title never draws. Null
+  hides the checkbox (`size-position-pane.component.ts:139`).
 - **Write:** inside the existing `getTitleHeight() > 0` guard (`:263`), which keeps a standalone
   slider's stored lane untouched: null keeps today's logic at `:264-267`; true clears the author
   flag and stores `getLegacyTitleHeight()`; false stores the author's value and sets the flag —
   the three branches of `SelectionContainerPropertyDialogService:154-168`.
 
-The container's dialog is unchanged: it has no padding pane (D1), and its title height already
-follows the density.
+The container's title height already follows the density, and it has no padding pane (D1).
+
+**Size follows density (D7, added 2026-10-06).** Size & Position gains a follow-the-default-density
+checkbox for size, `SizePositionPaneModel.sizeFollowsDensity` (Java and TypeScript), with the same
+null-means-no-opinion semantics as `titleHeightFollowsDensity`. The list, tree and container dialog
+services read and write it.
+
+- **Read:** `!isUserSize()` when the box is one a size rule governs — a marked container, or a marked
+  list or tree in LIST show type that is not a selection container's child — otherwise null, which
+  hides the checkbox. A contained child's height belongs to the container's expand path (D2), and a
+  dropdown's box is its title, so neither is the rule's box. A list in a Tab or group container is
+  still the rule's box and gets the checkbox.
+- **Write**, right after the existing `dialogService.setAssemblySize` / `setContainerSize` call and
+  before the list and tree dialogs' show-type switch:
+  - true → `resetSize(VizContext.of(info))`, ignoring the submitted width and height. The container
+    dialog puts the tier size into the pane model before its `setContainerSize` call, so its
+    children's widths follow as they do for a typed size.
+  - false → set the flag and keep the submitted size. Unticking says "this size is mine" even if the
+    numbers did not change.
+  - null (a stale client, or a box the checkbox is not offered for) → set the flag only if the
+    submitted width or height differs from the stored size.
+- **Browser** (`size-position-pane.component.*`): the checkbox sits under Width and Height, shown when
+  the flag is non-null. Ticked, it disables the width and height steppers, the way
+  `titleHeightFollowsDensity` disables the title stepper. The server writes the tier size on Apply,
+  so the steppers may show the old numbers until then. No comment goes in the `.html`.
 
 ## 7. Export and print
 
@@ -285,7 +370,21 @@ follows the density.
 - **Two existing tests stay as they are, by design:** `SelectionContainerChildExportTest` builds an
   unmarked container around a marked list, the mixed case D5 leaves to the exporter's list-only rule;
   `SelectionContainerOutRowsExportTest` calls `getContainerChildTop`, whose numbers D5 keeps.
-- Full `core` suite.
+- **D7, the author size flag:**
+  - persistence: a missing attribute parses as false; true is written and read back; false writes no
+    attribute; `copyInfo` carries it;
+  - both rules skip a flagged box on an open, a density change, Modernize and Revert, for a list, a
+    tree and a container — and still rewrite an unflagged box at a recognized size;
+  - `resetSize` clears the flag and writes the tier size (list, tree, container), and does nothing on
+    a type without a density size;
+  - composer resize flags a list, a tree and a container, but not a chart or table, and not the
+    container's children;
+  - each dialog: the read offers the checkbox only where §6 says; the write handles true (tier size,
+    flag cleared, a container's children re-widthed), false (flag set) and null (flag set only on a
+    changed size);
+  - `size-position-pane.component.spec.ts`: the checkbox is hidden when the flag is null and shown
+    otherwise; ticking it disables Width and Height, unticking re-enables them, and the model follows.
+- Full `core` suite, and the portal spec run for `size-position-pane`.
 
 ### 8.2 Fixture and manual checks
 
@@ -311,6 +410,7 @@ Each tier copy (`SEL Modern Comfortable / Compact / Dense`) and `SEL Legacy` gai
 | MC-5 | a range slider at the container's bottom edge is clipped and included in PDF and PNG as the viewer shows it | export |
 | MC-6 | `ConNew` is 300×360 / 312 / 240; `ConOld` grows on open; Revert restores 300×240; dense unchanged | live, asset XML |
 | MC-7 | expanding a list in a nearly full modern container collapses a sibling | live |
+| MC-8 | an author's 300×240 container and 100×120 list survive reopening, a density change, Modernize and Revert; ticking Follow default density returns each to the tier size, and dragging it unticks the box again | composer, live |
 
 Device layout is covered by a unit test only; the fixture has no device layout.
 
@@ -324,8 +424,14 @@ Device layout is covered by a unit test only; the fixture has no device layout.
 - **XLSX shifts a standalone range slider too.** `PoiExcelVSExporter.getAnchorPosition` shifts every TimeSlider's anchor by `getTitleHeight()`, so a modern standalone slider lands 10 / 6 / 0 px lower in XLSX. Limiting the shift to contained sliders would move legacy XLSX output, and Excel quantises to rows.
 - **Existing marked containers at exactly 300×240 grow on their first open** (D6) and can overlap what
   sits below them — the same cost the selection family accepted for standalone lists.
-- **An author who sized a marked container to exactly 300×312 or 300×360** is treated as seeded and
-  follows the tier. Inherent to recognizing seeded sizes; the list rule has the same property.
+- ~~**An author who sized a marked container to exactly 300×312 or 300×360** is treated as seeded and
+  follows the tier.~~ **Resolved by D7 (2026-10-06)**, for lists and trees as well. This understated
+  the gap: 300×240 was the likeliest author size, and because the rule runs on every open the size was
+  lost every time, not once. What remains is content saved **before** the flag existed: an older box
+  at exactly a recognized size has no flag, so it follows the rule on its first open. Any author
+  resize after that records the flag.
+- **Ticking Follow default density moves the box** to the tier size at once, and the box can then
+  overlap what sits below it — the same cost as D6's growth on open, but now asked for by the author.
 
 ## 10. Out of scope
 
@@ -343,6 +449,12 @@ Device layout is covered by a unit test only; the fixture has no device layout.
   gives a converted slider: a track, not rows.
 - **Other height-based slider checks are not switched to the hidden flag.** `PDFVSExporter:726`, `PPTVSExporter:757` and the SVG exporter decide whether to draw the track by comparing height with the lane; a hidden slider stored at a larger lane draws a zero-height image, which is harmless. `ComposerAdhocFilterService:612` (`size.height <= defh`) treats a marked collapsed slider as open-sized, as it already did for marked lists.
 - **The container's card inset** — declined, D1.
+- **Size changes that are not an author's design-time choice** do not set D7's flag: a script
+  setting `size` at runtime, device and print layout sizes (kept in `VSAssemblyLayout`), and the
+  derived writes listed under D7.
+- **The composer's resize of a selection list derives its list height from `defh`**
+  (`ComposerObjectService:192-193`, `(height − title) / defh`). It is density-blind but sits outside the
+  container slice; D7 only adds the flag beside it.
 
 ## 11. Open items
 
