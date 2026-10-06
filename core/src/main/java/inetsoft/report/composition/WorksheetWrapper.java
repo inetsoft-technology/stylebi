@@ -43,8 +43,21 @@ public final class WorksheetWrapper extends Worksheet {
     * Create an instance of WorksheetWrapper.
     */
    public WorksheetWrapper(Worksheet ws) {
+      this(ws, false);
+   }
+
+   /**
+    * Create an instance of WorksheetWrapper.
+    * @param ws the wrapped worksheet.
+    * @param all <tt>true</tt> to list the assemblies of the wrapped worksheet too, so the
+    * wrapper is seen as the wrapped worksheet by the code that walks the assemblies of a
+    * table's worksheet (e.g. the mv transformation), <tt>false</tt> to list only the
+    * assemblies copied into or added to the wrapper.
+    */
+   public WorksheetWrapper(Worksheet ws, boolean all) {
       super();
       this.inner_ws = ws;
+      this.all = all;
 
       if(inner_ws != null) {
          setCreated(ws.getCreated());
@@ -196,6 +209,10 @@ public final class WorksheetWrapper extends Worksheet {
     */
    @Override
    public Assembly[] getAssemblies() {
+      if(all && inner_ws != null) {
+         return getAllAssemblies(inner_ws.getAssemblies());
+      }
+
       Assembly[] arr = new Assembly[alist.size()];
       alist.toArray(arr);
       return arr;
@@ -210,6 +227,10 @@ public final class WorksheetWrapper extends Worksheet {
    @SuppressWarnings("unchecked")
    @Override
    public Assembly[] getAssemblies(boolean sort) {
+      if(all && inner_ws != null) {
+         return getAllAssemblies(inner_ws.getAssemblies(sort));
+      }
+
       Assembly[] arr = new Assembly[alist.size()];
       alist.toArray(arr);
 
@@ -218,6 +239,30 @@ public final class WorksheetWrapper extends Worksheet {
       }
 
       return arr;
+   }
+
+   /**
+    * Get the assemblies of the wrapped worksheet in its order, each one replaced by the
+    * assembly of the same name in this wrapper, followed by the assemblies only this wrapper
+    * holds. Those are added at runtime and nothing in the wrapped worksheet depends on them,
+    * so a list sorted by dependency stays sorted.
+    */
+   private Assembly[] getAllAssemblies(Assembly[] inner) {
+      Map<String, WSAssembly> own = new LinkedHashMap<>();
+
+      for(WSAssembly assembly : alist) {
+         own.put(assembly.getName(), assembly);
+      }
+
+      List<Assembly> list = new ArrayList<>();
+
+      for(Assembly assembly : inner) {
+         WSAssembly copy = own.remove(assembly.getName());
+         list.add(copy != null ? copy : assembly);
+      }
+
+      list.addAll(own.values());
+      return list.toArray(new Assembly[0]);
    }
 
    /**
@@ -491,5 +536,6 @@ public final class WorksheetWrapper extends Worksheet {
    }
 
    private Worksheet inner_ws;
+   private boolean all; // list the assemblies of inner_ws too
    private final List<WSAssembly> alist = new ArrayList<>();
 }

@@ -4639,6 +4639,48 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       MVSession session = getAssetQuerySandbox().getMVSession();
 
       if(tassembly != null) {
+         setRuntimeConditionList(ws, tassembly, table, conds, session);
+      }
+
+      if(dependedSelections.size() != 0) {
+         SelectionVSAssembly selectionVSAssembly = dependedSelections.get(0);
+
+         if(!isRootVSAssembly(selectionVSAssembly)) {
+            Assembly[] dependedAssemblies =
+               AssetUtil.getDependedAssemblies(vs, selectionVSAssembly, false, false, true);
+            processed.add(table);
+
+            for(Assembly assembly : dependedAssemblies) {
+               if(assembly instanceof VSAssembly) {
+                  String tableName = ((VSAssembly) assembly).getTableName();
+
+                  if(tableName != null) {
+                     refreshRuntimeConditionList(((VSAssembly) assembly).getTableName(), ignore,
+                                                 processed);
+                  }
+               }
+            }
+         }
+      }
+
+      return dependedSelections;
+   }
+
+   /**
+    * Apply the merged condition list of the selections to a worksheet table.
+    * @param ws the worksheet of the table.
+    * @param tassembly the table.
+    * @param table the name of the table.
+    * @param conds the merged condition list.
+    * @param session the mv session.
+    */
+   void setRuntimeConditionList(Worksheet ws, AbstractTableAssembly tassembly, String table,
+                                ConditionList conds, MVSession session)
+   {
+      // the worksheet table is shared by the queries of all the requests on the viewsheet,
+      // which fetch their data without the sandbox lock (74001) and copy it under the
+      // worksheet lock (VSAQuery.getVSTableAssembly, 77867), so change it under that lock
+      synchronized(ws) {
          // mark table as having selection. used by jdbc pushdown for caching
          tassembly.setProperty("vs.selection.bound", "true");
 
@@ -4709,29 +4751,6 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             }
          }
       }
-
-      if(dependedSelections.size() != 0) {
-         SelectionVSAssembly selectionVSAssembly = dependedSelections.get(0);
-
-         if(!isRootVSAssembly(selectionVSAssembly)) {
-            Assembly[] dependedAssemblies =
-               AssetUtil.getDependedAssemblies(vs, selectionVSAssembly, false, false, true);
-            processed.add(table);
-
-            for(Assembly assembly : dependedAssemblies) {
-               if(assembly instanceof VSAssembly) {
-                  String tableName = ((VSAssembly) assembly).getTableName();
-
-                  if(tableName != null) {
-                     refreshRuntimeConditionList(((VSAssembly) assembly).getTableName(), ignore,
-                                                 processed);
-                  }
-               }
-            }
-         }
-      }
-
-      return dependedSelections;
    }
 
    private ConditionList getMergedCubeConditionList0(DataRef column, List<Object> values) {

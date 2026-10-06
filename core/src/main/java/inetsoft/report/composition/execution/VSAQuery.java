@@ -1596,8 +1596,25 @@ public abstract class VSAQuery {
          return;
       }
 
-      // the wrapper copies the base table from the worksheet when the mirror looks it up
-      new WorksheetWrapper(ws).addAssembly(table);
+      // the wrapper copies the base table from the worksheet when the mirror looks it up. it
+      // lists the assemblies of the worksheet too, so the mv transformation and the other code
+      // that walks the assemblies of the table's worksheet see the same ones as before
+      WorksheetWrapper wrapper = new WorksheetWrapper(ws, true);
+      wrapper.addAssembly(table);
+      TableAssembly child = ((MirrorTableAssembly) table).getTableAssembly();
+
+      if(child == null) {
+         return;
+      }
+
+      // the base table holds the calc fields as the last of the concurrent queries left them,
+      // which may have validated them for its own assembly. do again on the copy what this
+      // query did to the base table (getVSTableAssembly, validateCalculateRef)
+      appendCalcField(child, base, true, getViewsheet());
+
+      if(base.equals(validatedTable)) {
+         validateCalculateRef(wrapper, base);
+      }
    }
 
    private boolean removeUnusedCalcField(TableAssembly table) {
@@ -1829,15 +1846,21 @@ public abstract class VSAQuery {
     * Validate calculate ref.
     */
    protected void validateCalculateRef(Worksheet ws, String name) {
-      TableAssembly table = (TableAssembly) ws.getAssembly(name);
+      validatedTable = name;
 
-      if(table == null) {
-         return;
+      // the calc fields of the base table are changed in place by concurrent queries under the
+      // worksheet lock, see getVSTableAssembly (77867)
+      synchronized(ws) {
+         TableAssembly table = (TableAssembly) ws.getAssembly(name);
+
+         if(table == null) {
+            return;
+         }
+
+         ColumnSelection cols = table.getColumnSelection();
+         cols.stream().filter(CalculateRef.class::isInstance)
+            .forEach(c -> validateCalculateRef((CalculateRef) c));
       }
-
-      ColumnSelection cols = table.getColumnSelection();
-      cols.stream().filter(CalculateRef.class::isInstance)
-         .forEach(c -> validateCalculateRef((CalculateRef) c));
    }
 
    /**
@@ -2016,6 +2039,7 @@ public abstract class VSAQuery {
    protected long createdTime;
    protected Locale locale;
    private Worksheet ws = null;
+   private String validatedTable; // the base table whose calc fields this query validated
    private boolean shrink = true;
    private boolean meta = false;
 
