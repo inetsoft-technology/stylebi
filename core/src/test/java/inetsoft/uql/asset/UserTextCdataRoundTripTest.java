@@ -55,7 +55,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class },
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
-@Tag("core")
+@Tag("slow")
 class UserTextCdataRoundTripTest {
    private static final String JS = "=a[b[0]]>1";
    private static final String TEXT = "x ]]> y ]]>]]> z";

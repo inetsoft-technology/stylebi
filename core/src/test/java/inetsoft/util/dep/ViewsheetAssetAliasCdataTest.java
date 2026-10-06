@@ -43,7 +43,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class },
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
-@Tag("core")
+@Tag("slow")
 class ViewsheetAssetAliasCdataTest {
    @Test
    void exportedAliasHoldingCdataEndIsReadBack() throws Exception {
