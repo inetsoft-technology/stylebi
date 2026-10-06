@@ -25,6 +25,7 @@ import java.io.*;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Predicate;
 
 /**
  * XIntFragment, the swappable int fragment.
@@ -175,9 +176,7 @@ public final class XIntFragment extends XSwappable {
       // swap0() failed before the data was dropped, so the data in memory is still the only
       // good copy. remove the partial swap file to have the data written again on the next swap.
       // rewriteRequired is the actual correctness guarantee here, independent of whether the
-      // delete below succeeds: deleteFile() can fall back to a delayed/queued delete that fires
-      // after a later swap recreates this same filename (the sub-problem 2/3 race), so swap0()
-      // must not depend on it succeeding.
+      // delete below succeeds, so swap0() must not depend on it succeeding.
       if(arr != null) {
          valid = true;
          rewriteRequired = true;
@@ -253,11 +252,13 @@ public final class XIntFragment extends XSwappable {
    }
 
    /**
-    * Delete a swap file.
+    * Delete a swap file. A file that could not be deleted is left in place and rewritten on the
+    * next swap. It must not be queued for a delayed removal, which deletes by name and would
+    * remove the file the next swap writes with the same name (#77877).
     */
-   private static void deleteFile(File file) {
-      if(file.exists() && !file.delete()) {
-         FileSystemService.getInstance().remove(file, 30000);
+   private void deleteFile(File file) {
+      if(file.exists() && !(testDelete != null ? testDelete.test(file) : file.delete())) {
+         rewriteRequired = true;
       }
    }
 
@@ -544,6 +545,9 @@ public final class XIntFragment extends XSwappable {
    // force a write failure deterministically without relying on platform-specific file locking
    // or permission semantics (which differ between Windows and Linux/CI). No-op in production.
    transient Runnable testBeforeWrite;
+   // test-only hook: when set, called instead of File.delete() for a swap file of a live
+   // fragment, so tests can force a delete failure on every platform. No-op in production.
+   transient Predicate<File> testDelete;
    private AtomicInteger holding = new AtomicInteger(0); // suspend swapping
    private transient XSwappableMonitor monitor;
    private transient boolean isCountHM;
