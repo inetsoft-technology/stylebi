@@ -103,8 +103,9 @@ public class TextInputVSAssembly extends InputVSAssembly
 
       Object obj = getSelectedObject();
 
-      writer.print("<state_selectedObject>");
-      writer.print("<![CDATA[" + Tool.getDataString(obj) + "]]>");
+      String str = Tool.getDataString(obj);
+      writer.print("<state_selectedObject" + Tool.cdataDataAttr(str) + ">");
+      writer.print("<![CDATA[" + Tool.cdataData(str) + "]]>");
       writer.print("</state_selectedObject>");
    }
 
@@ -119,7 +120,7 @@ public class TextInputVSAssembly extends InputVSAssembly
       super.parseStateContent(elem, runtime);
 
       Element snode = Tool.getChildNodeByTagName(elem, "state_selectedObject");
-      Object obj = Tool.getData(getDataType(), Tool.getValue(snode));
+      Object obj = Tool.getData(getDataType(), Tool.getCDATAData(snode));
       setSelectedObject(obj);
    }
 }
