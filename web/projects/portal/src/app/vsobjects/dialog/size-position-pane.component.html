@@ -64,15 +64,19 @@
         </div>
       }
     </div>
-    @if (showSizeFollow) {
-      <div class="form-check mt-1">
-        <input type="checkbox" class="form-check-input" id="sizeFollowsDensity"
-               [ngModel]="model.sizeFollowsDensity"
-               (ngModelChange)="sizeFollowChanged($event)"
-               [ngModelOptions]="{standalone: true}">
-        <label class="form-check-label" for="sizeFollowsDensity">
-          _#(composer.vs.followDefaultDensity)
-        </label>
+    @if (showSizeFollow && !isGroup && !isViewsheet) {
+      <div class="row shell-form-row--field">
+        <div class="col-6 offset-6">
+          <div class="form-check mt-1">
+            <input type="checkbox" class="form-check-input" id="sizeFollowsDensity"
+                   [ngModel]="model.sizeFollowsDensity"
+                   (ngModelChange)="sizeFollowChanged($event)"
+                   [ngModelOptions]="{standalone: true}">
+            <label class="form-check-label" for="sizeFollowsDensity">
+              _#(composer.vs.followDefaultDensity)
+            </label>
+          </div>
+        </div>
       </div>
     }
     @if (showTitleHeight || showCellHeight) {
