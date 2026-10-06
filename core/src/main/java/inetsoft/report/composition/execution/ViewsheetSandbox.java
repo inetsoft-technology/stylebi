@@ -1296,17 +1296,15 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       // getDateComparison() may return null if DC hasn't been applied to the runtime chart
       // state yet (the initial worksheet-table setup call happens before ChartDcProcessor
       // runs). Fall back to the assembly's raw DC info only when DC is genuinely enabled
-      // and the share-from assembly reference is valid — preserving all other null semantics.
+      // and the assembly does not share another assembly's DC. A sharer's own DC is a stale
+      // snapshot of the source, so a sharer whose share doesn't resolve gets no DC conditions,
+      // matching the chart render which also resolves to no DC.
       if(dateComparisonInfo == null) {
          boolean dcEnabled = !(info instanceof DataVSAssemblyInfo) ||
             ((DataVSAssemblyInfo) info).isDateComparisonEnabled();
-         VSAssembly shareAssembly = (vs != null && !Tool.isEmptyString(info.getComparisonShareFrom()))
-            ? vs.getAssembly(info.getComparisonShareFrom()) : null;
-         boolean validShare = Tool.isEmptyString(info.getComparisonShareFrom()) ||
-            (shareAssembly != null &&
-               shareAssembly.getVSAssemblyInfo() instanceof DateCompareAbleAssemblyInfo);
+         boolean shared = !Tool.isEmptyString(info.getComparisonShareFrom());
 
-         if(dcEnabled && validShare) {
+         if(dcEnabled && !shared) {
             dateComparisonInfo = info.getDateComparisonInfo();
          }
       }
