@@ -67,15 +67,23 @@ import static org.mockito.Mockito.spy;
 public class FormulaTableLensSwapLostTest {
    @BeforeEach
    public void setUp() {
-      env = new FailingEnv();
+      faults = new Faults();
+      env = createEnv(faults);
       env.init();
    }
 
    @AfterEach
    public void tearDown() throws Exception {
-      if(env.engine != null) {
-         env.engine.close();
+      if(env instanceof FailingEnv graal && graal.engine != null) {
+         graal.engine.close();
       }
+   }
+
+   /**
+    * The env the lenses run on: a plain Graal env here (script context pool off).
+    */
+   GraalJavaScriptEnv createEnv(Faults faults) {
+      return new FailingEnv(faults);
    }
 
    /**
@@ -103,19 +111,19 @@ public class FormulaTableLensSwapLostTest {
    public void permanentScriptSwapFailureFailsEveryReadBoundedly() throws Exception {
       List<List<Object>> expected = within(CAP, () -> drain(lens(RUNNING_TOTAL)));
       SwapFileReadException lost = swapLost();
-      env.reset(n -> n >= FAILED_ROW, lost, false);
+      faults.reset(n -> n >= FAILED_ROW, lost, false);
       FormulaTableLens lens = lens(RUNNING_TOTAL);
 
       assertSame(lost, failureOf(CAP, () -> drain(lens)));
-      int calls = env.calls.get();
+      int calls = faults.calls.get();
       assertEquals(FAILED_ROW, calls, "the batch ends at the failed row");
 
       assertSame(lost, failureOf(CAP, () -> lens.getObject(FAILED_ROW, 2)));
       assertSame(lost, failureOf(CAP, () -> lens.moreRows(TableLens.EOT)));
       assertSame(lost, failureOf(CAP, () -> drain(lens)));
       assertSame(lost, failureOf(CAP, () -> drain(new SortFilter(lens, new int[] { 2 }, true))));
-      assertTrue(env.calls.get() - calls <= 4,
-                 "every read makes one attempt at most: " + (env.calls.get() - calls));
+      assertTrue(faults.calls.get() - calls <= 4,
+                 "every read makes one attempt at most: " + (faults.calls.get() - calls));
       assertEquals(expected.get(FAILED_ROW - 1).get(2),
                    within(CAP, () -> lens.getObject(FAILED_ROW - 1, 2)),
                    "a kept row is still readable");
@@ -208,14 +216,14 @@ public class FormulaTableLensSwapLostTest {
       }
 
       SwapFileReadException lost = swapLost();
-      env.reset(n -> n == FAILED_ROW, lost, wrapped);
+      faults.reset(n -> n == FAILED_ROW, lost, wrapped);
       FormulaTableLens lens = lens(RUNNING_TOTAL);
 
       assertSame(lost, failureOf(CAP, () -> drain(lens)),
                  "the reader gets the swap failure itself");
       assertEquals(expected, within(CAP, () -> drain(lens)),
                    "the failed row is computed again, not kept as null");
-      assertEquals(N + 1, env.calls.get(), "one exec per row and one retry");
+      assertEquals(N + 1, faults.calls.get(), "one exec per row and one retry");
    }
 
    private FormulaTableLens lens(String expr) {
@@ -284,11 +292,10 @@ public class FormulaTableLensSwapLostTest {
    }
 
    /**
-    * A real env whose n-th exec (from 1) fails with a lost swap file when {@code fail} says
-    * so, raw or as the cause of a script error, as the script engine delivers it once a
-    * host exception's cause survives it (#77910).
+    * Which execs (from 1) fail with a lost swap file, raw or as the cause of a script error,
+    * as the script engine delivers it once a host exception's cause survives it (#77910).
     */
-   private static final class FailingEnv extends GraalJavaScriptEnv {
+   static final class Faults {
       void reset(IntPredicate fail, SwapFileReadException lost, boolean wrapped) {
          this.fail = fail;
          this.lost = lost;
@@ -296,14 +303,31 @@ public class FormulaTableLensSwapLostTest {
          calls.set(0);
       }
 
+      void check() throws Exception {
+         if(fail.test(calls.incrementAndGet())) {
+            throw wrapped ? new ScriptException("JavaScript error", lost) : lost;
+         }
+      }
+
+      final AtomicInteger calls = new AtomicInteger();
+      private volatile IntPredicate fail = n -> false;
+      private volatile SwapFileReadException lost;
+      private volatile boolean wrapped;
+   }
+
+   /**
+    * A real env whose execs fail as {@link Faults} says.
+    */
+   private static final class FailingEnv extends GraalJavaScriptEnv {
+      FailingEnv(Faults faults) {
+         this.faults = faults;
+      }
+
       @Override
       public Object exec(Object script, Object scope, Object rscope, Object target)
          throws Exception
       {
-         if(fail.test(calls.incrementAndGet())) {
-            throw wrapped ? new ScriptException("JavaScript error", lost) : lost;
-         }
-
+         faults.check();
          return super.exec(script, scope, rscope, target);
       }
 
@@ -313,10 +337,7 @@ public class FormulaTableLensSwapLostTest {
          return engine;
       }
 
-      final AtomicInteger calls = new AtomicInteger();
-      private volatile IntPredicate fail = n -> false;
-      private volatile SwapFileReadException lost;
-      private volatile boolean wrapped;
+      private final Faults faults;
       private GraalJavaScriptEngine engine;
    }
 
@@ -328,5 +349,6 @@ public class FormulaTableLensSwapLostTest {
    private static final String RUNNING_TOTAL =
       "field['value'] + (field[-1] == null || field[-1]['f'] == null || " +
       "isNaN(field[-1]['f']) ? 0 : field[-1]['f'])";
-   private FailingEnv env;
+   GraalJavaScriptEnv env;
+   Faults faults;
 }
