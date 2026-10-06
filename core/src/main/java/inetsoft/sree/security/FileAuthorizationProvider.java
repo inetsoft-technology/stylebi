@@ -53,70 +53,113 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
    /**
     * Permission was isolated by organiztion to fix bugs like Bug #7091, this function is to
     * isolate permissions by organization for old storage.
+    *
+    * Each key is decided on its own, so keys that are already isolated are never split again and
+    * running this again changes nothing (Bug #77832). A legacy key is removed only after all of its
+    * per-organization copies were written, and a failure on one key leaves that key as it is and
+    * never escapes init().
     */
    private void isolatePermissionForOrg() {
-      if(!needIsolate()) {
+      Map<String, Permission> map = new HashMap<>();
+
+      try {
+         storage.stream().forEach(pair -> map.put(pair.getKey(), pair.getValue()));
+      }
+      catch(RuntimeException e) {
+         LOG.error("Failed to read the permissions to isolate by organization", e);
          return;
       }
 
-      Map<String, Permission> map = new HashMap<>();
-      storage.stream().forEach(pair -> map.put(pair.getKey(), pair.getValue()));
-
-      try {
-         storage.removeAll(storage.keys().collect(Collectors.toSet())).get(1L, TimeUnit.MINUTES);
-      }
-      catch(InterruptedException | ExecutionException | TimeoutException e) {
-         LOG.error("Failed to remove permissions from storage", e);
-      }
+      Map<String, Boolean> knownOrgs = new HashMap<>();
 
       for(Map.Entry<String, Permission> entry : map.entrySet()) {
-         String key = entry.getKey();
-         int delimiter = key.indexOf(":");
-         ResourceType type = ResourceType.valueOf(key.substring(0, delimiter));
-         String path = key.substring(delimiter + 1);
-         Permission permission = entry.getValue();
-
-         if(permission == null) {
-            continue;
+         try {
+            isolatePermissionForOrg(entry.getKey(), entry.getValue(), knownOrgs);
          }
-
-         Map<String, Permission> permissionMap = permission.splitPermissionForOrg();
-
-         permissionMap.forEach((orgId, orgPermission) -> {
-            // no meaningful scenario for setting permissions on a global role.
-            if("null".equals(orgId)) {
-               return;
-            }
-
-            // keep the migration best-effort per entry, as it was before the writers threw: a
-            // failed re-put must not leave the loop or escape init()
-            try {
-               setPermission(type, path, orgPermission, orgId);
-            }
-            catch(RuntimeException e) {
-               LOG.error("Failed to isolate the permission of {} {} for organization {}",
-                         type, path, orgId, e);
-            }
-         });
+         catch(InterruptedException e) {
+            // the remaining keys are kept as they are
+            Thread.currentThread().interrupt();
+            LOG.error("Interrupted while isolating the permissions by organization", e);
+            break;
+         }
+         catch(Exception e) {
+            LOG.error("Failed to isolate the permission {} by organization, it is kept as it is",
+                      entry.getKey(), e);
+         }
       }
    }
 
-   private boolean needIsolate() {
-      String key = storage.keys().findFirst().orElse(null);
-
-      if(key == null) {
-         return false;
+   private void isolatePermissionForOrg(String key, Permission permission,
+                                        Map<String, Boolean> knownOrgs) throws Exception
+   {
+      if(permission == null) {
+         return;
       }
 
-      String[] arr = key.split(":");
+      int delimiter = key.indexOf(":");
 
-      if(arr.length < 3) {
+      if(delimiter < 0) {
+         LOG.warn("Ignoring the permission {}, its key has no resource type", key);
+         return;
+      }
+
+      ResourceType type = ResourceType.valueOf(key.substring(0, delimiter));
+      String path = key.substring(delimiter + 1);
+      Map<String, Permission> permissionMap = permission.splitPermissionForOrg();
+
+      if(!isLegacyKey(path, permissionMap, knownOrgs)) {
+         return;
+      }
+
+      // no meaningful scenario for setting permissions on a global role.
+      permissionMap.remove("null");
+
+      // keep the edited flag of each organization, also for an organization that was edited
+      // without granting anyone, so it does not fall back to the parent's permission
+      permission.getOrgEditedGrantAll().forEach((orgId, edited) -> {
+         if(Boolean.TRUE.equals(edited) && !Tool.isEmptyString(orgId) && !"null".equals(orgId)) {
+            permissionMap.computeIfAbsent(orgId, o -> new Permission())
+               .updateGrantAllByOrg(orgId, true);
+         }
+      });
+
+      for(Map.Entry<String, Permission> entry : permissionMap.entrySet()) {
+         String target = getResourceKey(type, path, getResourceOrgID(entry.getKey()));
+
+         // the permission already stored for the organization is the current one, a stale legacy
+         // grant must not replace it
+         if(storage.contains(target)) {
+            continue;
+         }
+
+         storage.put(target, entry.getValue()).get(10L, TimeUnit.SECONDS);
+      }
+
+      storage.remove(key).get(10L, TimeUnit.SECONDS);
+   }
+
+   /**
+    * Checks if a permission key has no organization part. The path of a legacy key may contain
+    * ':' (schedule task ids are owner:name, cubes are ds::cube), so a key with an organization
+    * part is legacy only if that part is not a known organization and some grantee belongs to
+    * another organization. The keys of an organization the security provider doesn't know, like
+    * SELF under LDAP or a deleted organization, are kept.
+    */
+   private boolean isLegacyKey(String path, Map<String, Permission> permissionMap,
+                               Map<String, Boolean> knownOrgs)
+   {
+      int delimiter = path.indexOf(":");
+
+      if(delimiter < 0) {
          return true;
       }
 
-      String orgID = arr[1];
+      String orgID = path.substring(0, delimiter);
+      boolean otherOrg = permissionMap.keySet().stream()
+         .anyMatch(o -> !"null".equals(o) && !o.equals(orgID));
 
-      return SecurityEngine.getSecurity().getSecurityProvider().getOrganization(orgID) == null;
+      return otherOrg && !knownOrgs.computeIfAbsent(orgID, o ->
+         SecurityEngine.getSecurity().getSecurityProvider().getOrganization(o) != null);
    }
 
    /**
