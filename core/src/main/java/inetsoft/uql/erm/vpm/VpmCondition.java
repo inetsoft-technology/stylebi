@@ -614,7 +614,7 @@ public class VpmCondition extends VpmObject {
       Object value = exp.getValue();
 
       if(exp.getType().equals(XExpression.FIELD)) {
-         value = getColumn(value, tables, taliases, target, sql);
+         value = getColumn(value, tables, taliases, target, sql, false, true);
 
          if(value != null) {
             exp.setValue(value, exp.getType());
@@ -739,7 +739,7 @@ public class VpmCondition extends VpmObject {
       String[] ncolumns = new String[columns.length];
 
       for(int i = 0; i < columns.length; i++) {
-         ncolumns[i] = getColumn(columns[i], tables, taliases, target, sql, raws[i]);
+         ncolumns[i] = getColumn(columns[i], tables, taliases, target, sql, raws[i], false);
       }
 
       for(int i = 0; i < columns.length; i++) {
@@ -760,7 +760,11 @@ public class VpmCondition extends VpmObject {
             // the table part of the column before the helper quotes it (o. of o.A)
             String rawPrefix = ncolumn.endsWith("." + wcolumn) ?
                ncolumn.substring(0, ncolumn.length() - wcolumn.length()) : null;
-            ncolumn = helper.buildFieldExpression(ncolumn, false);
+            // true if the table part is a query table without an alias, as stored ("ORDERS".)
+            boolean stored = rawPrefix != null && isQuotedTableName(
+               rawPrefix.substring(0, rawPrefix.length() - 1), tables, taliases, helper);
+            ncolumn = rawPrefix == null ? helper.buildFieldExpression(ncolumn, false) :
+               buildColumn(rawPrefix, wcolumn, stored, helper);
             // the table part as the helper quotes it ("Order Details". of "Order Details".A).
             // A quoted column with a dot is quoted already (o."A.B"), and is used as it is
             String prefix = rawPrefix == null || dotted != null ? null :
@@ -802,7 +806,7 @@ public class VpmCondition extends VpmObject {
                // (a keyword, the case), a 0 never makes a name a keyword (current$date)
                else if(isUnquotedName(column, helper) && !ncolumn.equals(prefix + column)) {
                   String plain = column.replace('$', '0').replace('#', '0');
-                  String nplain = helper.buildFieldExpression(rawPrefix + plain, false);
+                  String nplain = buildColumn(rawPrefix, plain, stored, helper);
 
                   if(nplain.equals(prefix + plain)) {
                      ucolumn = prefix + column;
@@ -943,6 +947,49 @@ public class VpmCondition extends VpmObject {
       }
 
       return true;
+   }
+
+   /**
+    * Build a column with the helper.
+    * Bug #77861, a column of a table without an alias is qualified with the table name as the
+    * parser stores it, which is quoted on postgresql and snowflake ("ORDERS".A) or for a
+    * keyword ("user".A). The helper doesn't quote a column after a quoted qualifier the way it
+    * quotes the column of an alias (o."A"), so the column is quoted as for an alias.
+    * @param prefix the table part of the column, ending with the dot.
+    * @param column the column part.
+    * @param stored true if the table part is a quoted query table name without an alias.
+    */
+   private static String buildColumn(String prefix, String column, boolean stored,
+                                     SQLHelper helper)
+   {
+      return stored ? prefix + XUtil.quoteNameSegment(column, helper) :
+         helper.buildFieldExpression(prefix + column, false);
+   }
+
+   /**
+    * Check if a name is a query table without an alias, stored with the helper's identifier
+    * quote ("ORDERS", "public"."ORDERS"). An alias is stored without its quotes.
+    */
+   private static boolean isQuotedTableName(String name, String[] tables, String[] taliases,
+                                            SQLHelper helper)
+   {
+      String quote = helper.getQuote();
+
+      if(quote == null || quote.trim().isEmpty() || !name.contains(quote) ||
+         tables == null || taliases == null || tables.length != taliases.length)
+      {
+         return false;
+      }
+
+      for(int i = 0; i < tables.length; i++) {
+         if(name.equals(tables[i]) && (taliases[i] == null || taliases[i].isEmpty() ||
+            name.equals(taliases[i])))
+         {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    /**
@@ -1114,18 +1161,15 @@ public class VpmCondition extends VpmObject {
          field.substring(index + 1) : XUtil.getColumnPart(field);
    }
 
-   private String getColumn(Object value, String[] tables,
-                            String[] taliases, int target, UniformSQL sql)
-   {
-      return getColumn(value, tables, taliases, target, sql, false);
-   }
-
    /**
     * @param raw true if the last name of the column is the raw name, as the parser reports
     *            it (T."A" of the name "A").
+    * @param quote true to quote the column part of a table qualified with its quoted name as
+    *              the helper quotes the column of an alias, for a field the helper doesn't
+    *              quote again.
     */
-   private String getColumn(Object value, String[] tables,
-                            String[] taliases, int target, UniformSQL sql, boolean raw)
+   private String getColumn(Object value, String[] tables, String[] taliases, int target,
+                            UniformSQL sql, boolean raw, boolean quote)
    {
       // Object value = exp.getValue();
 
@@ -1199,6 +1243,16 @@ public class VpmCondition extends VpmObject {
          if(find_step == 1 && dotted == null) {
             SQLHelper helper = SQLHelper.getSQLHelper(sql);
             cpart = XUtil.quoteAlias(cpart, helper);
+         }
+         // Bug #77861, a table without an alias is qualified with its name as stored, quoted
+         // on postgresql ("ORDERS"), and the helper doesn't quote a column after a quoted
+         // qualifier, so the column is quoted as the helper quotes the column of an alias
+         else if(quote && dotted == null && !raw) {
+            SQLHelper helper = SQLHelper.getSQLHelper(sql);
+
+            if(isQuotedTableName(alias, tables, taliases, helper)) {
+               cpart = XUtil.quoteNameSegment(cpart, helper);
+            }
          }
 
          nfield = alias + "." + cpart;
