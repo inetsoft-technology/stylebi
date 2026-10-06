@@ -41,6 +41,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.nio.charset.StandardCharsets;
 import java.rmi.RemoteException;
 import java.security.Principal;
 import java.util.ArrayList;
@@ -271,8 +272,11 @@ public class QueryController extends WorksheetController {
          }
 
          LOG.debug("Query preview SQL rejected by the database: {}", sqlString, ex);
-         // the preview pane shows the plain message and checks its prefix, so keep it a String
-         return ResponseEntity.badRequest().contentType(MediaType.TEXT_PLAIN).body(ex.getMessage());
+         // the preview pane shows the plain message and checks its prefix, so keep it a String.
+         // UTF-8, since text/plain otherwise defaults to ISO-8859-1 and loses non-Latin-1 text
+         return ResponseEntity.badRequest()
+            .contentType(new MediaType(MediaType.TEXT_PLAIN, StandardCharsets.UTF_8))
+            .body(ex.getMessage());
       }
    }
 

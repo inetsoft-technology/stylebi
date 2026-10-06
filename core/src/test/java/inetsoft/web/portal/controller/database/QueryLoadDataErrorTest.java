@@ -21,8 +21,6 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
-import com.zaxxer.hikari.HikariConfig;
-import com.zaxxer.hikari.HikariDataSource;
 import inetsoft.report.XSessionManager;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.SecurityEngine;
@@ -78,7 +76,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
                                   QueryLoadDataErrorTest.JdbcConfig.class },
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
-// about 10 s with the Spring context and the outage pool timeouts
+// about 10 s alone, almost all of it the Spring context start-up (the tests take ~2 s)
 @Tag("slow")
 class QueryLoadDataErrorTest {
    private static final String DB = "memory:bug77855loaddata";
@@ -106,11 +104,17 @@ class QueryLoadDataErrorTest {
       }
 
       @Bean(destroyMethod = "")
-      public ConnectionPoolFactory connectionPoolFactory() {
+      public ConnectionPoolFactory connectionPoolFactory() throws SQLException {
+         // what a Hikari pool throws when the database is down
+         DataSource down = mock(DataSource.class);
+         when(down.getConnection()).thenThrow(new SQLTransientConnectionException(
+            "bug77855 - Connection is not available, request timed out", "08001"));
+         when(down.getConnection(any(), any())).thenThrow(new SQLTransientConnectionException(
+            "bug77855 - Connection is not available, request timed out", "08001"));
          ConnectionPoolFactory factory = mock(ConnectionPoolFactory.class);
          when(factory.getConnectionPool(any(), any())).thenAnswer(inv -> {
             JDBCDataSource ds = inv.getArgument(0);
-            return UNREACHABLE.equals(ds.getName()) ? unreachablePool : derby();
+            return UNREACHABLE.equals(ds.getName()) ? down : derby();
          });
          return factory;
       }
@@ -141,7 +145,7 @@ class QueryLoadDataErrorTest {
    }
 
    @BeforeAll
-   static void createPoolAndTable() throws Exception {
+   static void createTable() throws Exception {
       try(Connection conn = derby().getConnection(); Statement stmt = conn.createStatement()) {
          try {
             stmt.executeUpdate("drop table EMP");
@@ -152,21 +156,6 @@ class QueryLoadDataErrorTest {
 
          stmt.executeUpdate("create table EMP (ID int, NAME varchar(20))");
          stmt.executeUpdate("insert into EMP values (1, 'a')");
-      }
-
-      // a database that does not exist and is not created: every connection attempt fails
-      HikariConfig unreachable = new HikariConfig();
-      unreachable.setPoolName("bug77855-unreachable");
-      unreachable.setJdbcUrl("jdbc:derby:memory:bug77855doesnotexist");
-      unreachable.setInitializationFailTimeout(-1);
-      unreachable.setConnectionTimeout(250);
-      unreachablePool = new HikariDataSource(unreachable);
-   }
-
-   @AfterAll
-   static void closePool() {
-      if(unreachablePool != null) {
-         unreachablePool.close();
       }
    }
 
@@ -252,6 +241,19 @@ class QueryLoadDataErrorTest {
    }
 
    @Test
+   void nonLatinMessageIsSentAsUtf8() throws Exception {
+      // a table name typed in Chinese; Derby echoes it back in its message
+      String table = "\u5458\u5de5\u8868";
+      MockHttpServletResponse response = preview(SOURCE, "select * from \"" + table + "\"");
+      String body = response.getContentAsString(StandardCharsets.UTF_8);
+      assertEquals(400, response.getStatus(), body);
+      assertTrue(body.contains("'" + table + "'"), body);
+      assertEquals(StandardCharsets.UTF_8,
+                   MediaType.parseMediaType(response.getContentType()).getCharset(),
+                   response.getContentType());
+   }
+
+   @Test
    void unreachableDatabaseIsStillServerError() throws Exception {
       MockHttpServletResponse response = preview(UNREACHABLE, "select ID from EMP");
       assertEquals(500, response.getStatus(), response.getContentAsString(StandardCharsets.UTF_8));
@@ -269,8 +271,10 @@ class QueryLoadDataErrorTest {
       String body = response.getContentAsString(StandardCharsets.UTF_8);
       assertEquals(400, response.getStatus(), body);
       // a raw String (not ProblemDetail / JSON) body, so error.error is a string in the client
-      assertTrue(MediaType.TEXT_PLAIN.isCompatibleWith(
-         MediaType.parseMediaType(response.getContentType())), response.getContentType());
+      MediaType contentType = MediaType.parseMediaType(response.getContentType());
+      assertTrue(MediaType.TEXT_PLAIN.isCompatibleWith(contentType), contentType.toString());
+      // the message may hold non-Latin-1 text (identifiers, localized server messages)
+      assertEquals(StandardCharsets.UTF_8, contentType.getCharset(), contentType.toString());
 
       List<ILoggingEvent> logged = appender.list.stream()
          .filter(e -> e.getLevel().isGreaterOrEqual(Level.WARN))
@@ -322,7 +326,6 @@ class QueryLoadDataErrorTest {
       return ds;
    }
 
-   private static HikariDataSource unreachablePool;
    @Autowired
    private XRepository repository;
    private RuntimeQueryService runtimeQueryService;
