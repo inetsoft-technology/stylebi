@@ -1476,6 +1476,8 @@ public final class XUtil {
     * Only meaningful when called from {@code inetsoft.uql} code, which the walk skips: called
     * from any other package it always returns false, because the walk stops at that caller.
     * {@code ScriptDataSourceAccess.isScriptAccess} applies the same rule; keep the two in step.
+    * A static that {@code inetsoft.uql} code also calls internally needs
+    * {@link #isDirectScriptCall(Class)} instead.
     */
    public static boolean isScriptCall() {
       return StackWalker.getInstance().walk(frames -> isScriptCall(
@@ -1499,6 +1501,65 @@ public final class XUtil {
       }
 
       return false;
+   }
+
+   /**
+    * Whether a script calls a method of {@code callee} directly: the first frame above the
+    * {@code callee} frames, skipping JDK code, is the GraalJS host interop that a script
+    * calls Java through. Unlike {@link #isScriptCall()}, any product code in between makes
+    * it a Java call, including {@code inetsoft.uql} helpers, so a static guarded this way
+    * still works for the Java helpers a script calls (VSUtil.getBookmarks, XUtil.runQuery).
+    * The stack decides, not {@link JavaScriptEngine#isScriptThread()}, so a script function
+    * that Java calls back after the script returned is still the script's call.
+    * <p>
+    * {@code callee} is the class whose method guards itself, and must not be {@code XUtil}.
+    * Only this helper's own {@code XUtil} frames, below the first {@code callee} frame, are
+    * skipped, so an {@code XUtil} static that calls {@code callee} counts as a Java caller.
+    * Called from any class other than {@code callee}, it returns false.
+    */
+   public static boolean isDirectScriptCall(Class<?> callee) {
+      return StackWalker.getInstance().walk(frames -> isDirectScriptCall(
+         callee.getName(), frames.map(StackWalker.StackFrame::getClassName).iterator()));
+   }
+
+   /**
+    * The rule of {@link #isDirectScriptCall(Class)} on the whole stack, innermost first.
+    */
+   static boolean isDirectScriptCall(String callee, Iterator<String> classes) {
+      // phase 1: this helper's own frames, up to the first callee frame
+      while(true) {
+         if(!classes.hasNext()) {
+            return false;
+         }
+
+         String name = classes.next();
+
+         if(name.equals(callee)) {
+            break;
+         }
+
+         if(!name.equals(XUtil.class.getName()) && !isJDKFrame(name)) {
+            return false;
+         }
+      }
+
+      // phase 2: the first frame above the callee that is not JDK code decides
+      while(classes.hasNext()) {
+         String name = classes.next();
+
+         if(name.equals(callee) || isJDKFrame(name)) {
+            continue;
+         }
+
+         return name.startsWith("com.oracle.truffle.") || name.startsWith("org.graalvm.");
+      }
+
+      return false;
+   }
+
+   private static boolean isJDKFrame(String name) {
+      return name.startsWith("java.") || name.startsWith("javax.") ||
+         name.startsWith("jdk.") || name.startsWith("sun.");
    }
 
    /**
