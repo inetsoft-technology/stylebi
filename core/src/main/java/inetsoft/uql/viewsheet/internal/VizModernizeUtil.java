@@ -101,11 +101,19 @@ public final class VizModernizeUtil {
    /**
     * Re-seed every target under the mark it already holds, stamping nothing. For a density change,
     * which moves no mark and so collects nothing through applyMark, but still has to re-fire the
-    * density-derived control-height substitution.
+    * density-derived control-height substitution and move a density size.
     */
    public static int reseed(Viewsheet vs) {
+      List<VSAssemblyInfo> targets = collect(vs, info -> true);
       // mark is inert here: nothing is stamped, so every target keeps the one it has
-      return seedAll(vs, null, collect(vs, info -> true), false, false);
+      int seeded = seedAll(vs, null, targets, false, false);
+
+      // the one re-seed that moves a box: a restore, Modernize and Revert leave it where it is
+      for(VSAssemblyInfo info : targets) {
+         info.seedDensitySize(VizContext.of(info));
+      }
+
+      return seeded;
    }
 
    /**

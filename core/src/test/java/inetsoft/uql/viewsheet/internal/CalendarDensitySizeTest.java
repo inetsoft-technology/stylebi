@@ -185,4 +185,69 @@ class CalendarDensitySizeTest {
       assertEquals(new Dimension(300, 332), info.getPixelSize());
       assertFalse(info.isUserSize());
    }
+
+   @Test
+   void aDashboardDensityChangeMovesAFollowingCalendar() {
+      CalendarVSAssembly calendar = created("compact", VizMark.MODERN_LIGHT);
+      Viewsheet vs = calendar.getViewsheet();
+
+      vs.getViewsheetInfo().setVizDensity("comfortable");
+      VizModernizeUtil.reseed(vs);
+      assertEquals(new Dimension(300, 332), info(calendar).getPixelSize());
+
+      vs.getViewsheetInfo().setVizDensity("dense");
+      VizModernizeUtil.reseed(vs);
+      assertEquals(new Dimension(300, 266), info(calendar).getPixelSize());
+
+      vs.getViewsheetInfo().setVizDensity("compact");
+      VizModernizeUtil.reseed(vs);
+      assertEquals(new Dimension(300, 300), info(calendar).getPixelSize());
+   }
+
+   @Test
+   void theDashboardsOwnDensityWinsOverTheOrgs() {
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      CalendarVSAssembly calendar = created("compact", VizMark.MODERN_LIGHT);
+      Viewsheet vs = calendar.getViewsheet();
+
+      vs.getViewsheetInfo().setVizDensity("dense");
+      VizModernizeUtil.reseed(vs);
+
+      assertEquals(new Dimension(300, 266), info(calendar).getPixelSize());
+   }
+
+   @Test
+   void aDensityChangeLeavesAnAuthorSizeAlone() {
+      CalendarVSAssembly calendar = created("compact", VizMark.MODERN_LIGHT);
+      info(calendar).setUserSize(true);
+      Viewsheet vs = calendar.getViewsheet();
+
+      vs.getViewsheetInfo().setVizDensity("comfortable");
+      VizModernizeUtil.reseed(vs);
+
+      assertEquals(new Dimension(300, 300), info(calendar).getPixelSize());
+   }
+
+   // guards: these paths must never resize, before or after the reseed change
+   @Test
+   void aRestoreDoesNotResize() {
+      CalendarVSAssemblyInfo info = marked("comfortable", new Dimension(300, 300));
+
+      VizModernizeUtil.reseedAfterRestore(info);
+
+      assertEquals(new Dimension(300, 300), info.getPixelSize());
+   }
+
+   @Test
+   void modernizeAndRevertDoNotResize() {
+      CalendarVSAssembly calendar = created("comfortable", null);
+      Viewsheet vs = calendar.getViewsheet();
+
+      VizModernizeUtil.applyMark(vs, VizMark.MODERN_LIGHT);
+      assertEquals(new Dimension(300, 300), info(calendar).getPixelSize());
+
+      info(calendar).setPixelSize(new Dimension(300, 332));
+      VizModernizeUtil.revert(vs);
+      assertEquals(new Dimension(300, 332), info(calendar).getPixelSize());
+   }
 }
