@@ -21,7 +21,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.util.script.LendableReentrantLock;
 import inetsoft.util.script.ScriptException;
 import inetsoft.util.script.graal.pool.WsExecContext;
-import inetsoft.util.stall.LockStallException;
+import inetsoft.util.swap.DataUnavailable;
 import org.graalvm.polyglot.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -2605,14 +2605,11 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             }
          }
          catch(PolyglotException ex) {
-            // a lock stall of Java code the script called, e.g. a read of a table, is not a
-            // script error: rethrow it as it is so the reader gets it (bug #76967)
+            // a lock stall or a lost swap file of Java code the script called, e.g. a read of
+            // a table, is not a script error: rethrow it as it is so the reader gets it, and do
+            // not count it toward the script's errors (bugs #76967, #77910)
             if(ex.isHostException()) {
-               LockStallException stall = LockStallException.find(ex.asHostException());
-
-               if(stall != null) {
-                  throw stall;
-               }
+               DataUnavailable.rethrow(ex.asHostException());
             }
 
             // FIX B: increment per-Source error count and warn when limit first crossed
