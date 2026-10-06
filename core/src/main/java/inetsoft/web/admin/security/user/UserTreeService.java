@@ -36,6 +36,7 @@ import inetsoft.uql.erm.vpm.VirtualPrivateModel;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
 import inetsoft.util.audit.*;
+import inetsoft.util.log.LogLevel;
 import inetsoft.web.RecycleBin;
 import inetsoft.web.admin.favorites.FavoritesService;
 import inetsoft.web.admin.general.LocalizationSettingsService;
@@ -1152,6 +1153,13 @@ public class UserTreeService {
             continue;
          }
 
+         // a global-only setting stored as an org override is never used, so don't show it as
+         // an org setting or post it back on save. It stays in EM All Properties, where it can be
+         // deleted (Bug #77885).
+         if(PropertiesEngine.isExcludedOrgProperty(qualifiedName)) {
+            continue;
+         }
+
          String propName = qualifiedName.substring(orgPrefix.length());
 
          // read by the already-org-qualified key (orgScope=false) instead of re-resolving the
@@ -1427,6 +1435,24 @@ public class UserTreeService {
       // before any org property is saved, so a rejected rename or theme leaves nothing behind
       OrganizationIdRules.checkRename(oldOrg.getId(), model.id());
       identityService.checkOrganizationTheme(oldOrg, model, principal);
+
+      // a JVM-wide setting is always read globally, so an organization override of it is never
+      // used. Refuse it, as EM All Properties does (Bug #77694), before anything is written so a
+      // refused save leaves nothing behind (Bug #77885). Only names that would be written are
+      // checked, so a non-site admin's save is never newly refused. getOrganizationModel hides an
+      // already-stored override, so an unchanged save does not post it back.
+      String orgPrefix = PropertiesEngine.getOrgPropertyPrefix(oldOrg.getId());
+
+      for(PropertyModel property : model.properties()) {
+         if((siteAdmin || propertyNames.contains(property.name())) &&
+            PropertiesEngine.isExcludedOrgProperty(orgPrefix + property.name()))
+         {
+            throw new MessageException(
+               Catalog.getCatalog(principal).getString(
+                  "em.properties.orgOverrideNotAllowed", property.name()),
+               LogLevel.INFO, false);
+         }
+      }
 
       OrganizationManager.runInOrgScope(oldOrg.getId(), () -> {
          boolean saveProperties = false;
