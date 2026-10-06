@@ -274,7 +274,7 @@ public class SelectionTreePropertyDialogService {
 
       Dimension shownSize =
          new Dimension(dialogService.getAssemblySize(streeInfo, viewsheet.getViewsheet()));
-      VSDialogService.followDensitySize(streeInfo, sizePositionPaneModel);
+      VSDialogService.applyDensitySize(streeInfo, sizePositionPaneModel);
       dialogService.setAssemblySize(streeInfo, sizePositionPaneModel);
       VSDialogService.recordAuthorSize(streeInfo, sizePositionPaneModel, shownSize);
       dialogService.setAssemblyPosition(streeInfo, sizePositionPaneModel);

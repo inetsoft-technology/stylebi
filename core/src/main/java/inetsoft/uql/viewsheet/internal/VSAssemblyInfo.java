@@ -890,6 +890,7 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
       if(userSize) {
          writer.print(" userSize=\"true\"");
       }
+
       writer.print(" zIndex=\"" + zIndex + "\"");
       writer.print(" scriptEnabled=\"" + scriptEnabled + "\"");
 
@@ -1470,8 +1471,7 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
    }
 
    /**
-    * Return the box to its density default, which is what Size & Position's follow-the-default
-    * checkbox asks for. Clears the author flag, so the seed manages the size again.
+    * Return the box to its density size and drop the author's claim on it.
     */
    public void resetSize(VizContext ctx) {
       Dimension size = defaultSize(ctx);

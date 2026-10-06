@@ -110,7 +110,7 @@ public class CurrentSelectionVSAssemblyInfo extends ContainerVSAssemblyInfo
       // no card inset: its children inset themselves, so one here would indent them twice
 
       // twelve lanes at the tier; only a size the rule wrote moves, and unmarked only under Revert.
-      // An author's size carries userSize and is never moved
+      // An author's size carries userSize and this rule leaves it alone
       if((ctx.modern || ctx.transition) && followsDensitySize()) {
          setPixelSize(VSDensityDefaults.containerSize(ctx));
       }

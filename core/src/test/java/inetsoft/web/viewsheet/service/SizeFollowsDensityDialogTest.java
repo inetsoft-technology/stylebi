@@ -122,7 +122,7 @@ class SizeFollowsDensityDialogTest {
       CurrentSelectionVSAssemblyInfo info = container(VizMark.MODERN_LIGHT, new Dimension(400, 500), true);
       SizePositionPaneModel model = model(true, 400, 500);
 
-      VSDialogService.followDensitySize(info, model);
+      VSDialogService.applyDensitySize(info, model);
 
       assertEquals(new Dimension(300, 360), info.getPixelSize());
       assertFalse(info.isUserSize());
@@ -138,7 +138,7 @@ class SizeFollowsDensityDialogTest {
       info.setViewsheet(vs);
       SizePositionPaneModel model = model(true, 400, 500);
 
-      VSDialogService.followDensitySize(info, model);
+      VSDialogService.applyDensitySize(info, model);
 
       assertEquals(new Dimension(300, 240), info.getPixelSize());
       assertEquals(240, model.getHeight());
@@ -150,7 +150,7 @@ class SizeFollowsDensityDialogTest {
       SizePositionPaneModel model = model(true, 300, 500);
       Dimension shown = new Dimension(300, 500);
 
-      VSDialogService.followDensitySize(info, model);
+      VSDialogService.applyDensitySize(info, model);
       VSDialogService.recordAuthorSize(info, model, shown);
 
       assertFalse(info.isUserSize());
@@ -187,7 +187,7 @@ class SizeFollowsDensityDialogTest {
       chart.setVizMark(VizMark.MODERN_LIGHT);
       chart.setPixelSize(new Dimension(400, 300));
 
-      VSDialogService.followDensitySize(chart, model(true, 400, 300));
+      VSDialogService.applyDensitySize(chart, model(true, 400, 300));
       VSDialogService.recordAuthorSize(chart, model(false, 500, 300), new Dimension(400, 300));
 
       assertEquals(new Dimension(400, 300), chart.getPixelSize());

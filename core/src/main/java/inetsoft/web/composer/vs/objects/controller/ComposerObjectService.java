@@ -144,8 +144,8 @@ public class ComposerObjectService {
 
          info.setPixelSize(size);
 
-         // an author's drag owns the size; the density size rules leave it alone from here on
-         if(info.takesDensitySize()) {
+         // a changed size is the author's; Align and Distribute resend sizes unchanged
+         if(info.takesDensitySize() && !size.equals(originalSize)) {
             info.setUserSize(true);
          }
 
