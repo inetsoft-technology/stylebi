@@ -130,6 +130,9 @@ public class SelectionListPropertyDialogService {
       sizePositionPaneModel.setCellHeightFollowsDensity(
          selectionListAssemblyInfo.getVizMark() == null ? null :
             !selectionListAssemblyInfo.isUserCellHeight());
+      VSDialogService.readSizeFollowsDensity(selectionListAssemblyInfo, sizePositionPaneModel,
+         !inSelectionContainer &&
+            selectionListAssemblyInfo.getShowTypeValue() == SelectionVSAssemblyInfo.LIST_SHOW_TYPE);
 
       basicGeneralPaneModel.setName(selectionListAssemblyInfo.getAbsoluteName());
       basicGeneralPaneModel.setPrimary(selectionListAssemblyInfo.isPrimary());
@@ -242,7 +245,11 @@ public class SelectionListPropertyDialogService {
 
       selectionListAssemblyInfo.setEnabledValue(generalPropPaneModel.getEnabled());
 
+      Dimension shownSize =
+         new Dimension(dialogService.getAssemblySize(selectionListAssemblyInfo, rvs.getViewsheet()));
+      VSDialogService.followDensitySize(selectionListAssemblyInfo, sizePositionPaneModel);
       dialogService.setAssemblySize(selectionListAssemblyInfo, sizePositionPaneModel);
+      VSDialogService.recordAuthorSize(selectionListAssemblyInfo, sizePositionPaneModel, shownSize);
       dialogService.setAssemblyPosition(selectionListAssemblyInfo, sizePositionPaneModel);
 
       Boolean followsDensity = sizePositionPaneModel.getTitleHeightFollowsDensity();

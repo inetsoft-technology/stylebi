@@ -159,6 +159,57 @@ public class VSDialogService {
    }
 
    /**
+    * Offer Size & Position's follow-the-default-density checkbox for size where a density size rule
+    * governs the box; null, which hides it, everywhere else.
+    * @param governed whether this box is one the size rule writes: not a selection container's child,
+    *                 and for a list or tree, shown as a list.
+    */
+   public static void readSizeFollowsDensity(VSAssemblyInfo info, SizePositionPaneModel model,
+                                             boolean governed)
+   {
+      model.setSizeFollowsDensity(
+         governed && info.takesDensitySize() && info.getVizMark() != null ?
+            !info.isUserSize() : null);
+   }
+
+   /**
+    * When the author ticked follow-the-default-density, return the box to its density size and put
+    * that size in the model, so the caller's size write - which re-widens a container's children -
+    * applies it too.
+    */
+   public static void followDensitySize(VSAssemblyInfo info, SizePositionPaneModel model) {
+      if(!Boolean.TRUE.equals(model.getSizeFollowsDensity()) || !info.takesDensitySize()) {
+         return;
+      }
+
+      info.resetSize(VizContext.of(info));
+      Dimension size = info.getPixelSize();
+      model.setWidth(size.width);
+      model.setHeight(size.height);
+   }
+
+   /**
+    * Record an author's size: always when they unticked the checkbox, and, from a client that sent
+    * no answer, only when the submitted size differs from what the dialog showed.
+    * @param shown the size the dialog opened with.
+    */
+   public static void recordAuthorSize(VSAssemblyInfo info, SizePositionPaneModel model,
+                                       Dimension shown)
+   {
+      Boolean follows = model.getSizeFollowsDensity();
+
+      if(!info.takesDensitySize() || Boolean.TRUE.equals(follows)) {
+         return;
+      }
+
+      if(Boolean.FALSE.equals(follows) ||
+         model.getWidth() != shown.width || model.getHeight() != shown.height)
+      {
+         info.setUserSize(true);
+      }
+   }
+
+   /**
     * Get Tree model for images, mimic of GetTableStyleEvent
     *
     * @param rvs The runtime viewsheet
