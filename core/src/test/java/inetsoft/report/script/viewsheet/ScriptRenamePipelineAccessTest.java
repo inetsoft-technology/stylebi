@@ -25,6 +25,8 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.sync.DependencyTransformer;
 import inetsoft.uql.asset.sync.RenameDependencyInfo;
+import inetsoft.uql.erm.XDataModel;
+import inetsoft.uql.erm.XLogicalModel;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -52,6 +54,7 @@ class ScriptRenamePipelineAccessTest {
 
    private static final String SYNC = "inetsoft.uql.asset.sync.";
    private static final String UNKNOWN = "Unknown identifier";
+   private static final String CTOR_REFUSED = "Message not supported";
    private static final String RENAME_REFUSED = "A script may not rename a logical model";
 
    private ViewsheetScope viewsheetScope;
@@ -64,51 +67,61 @@ class ScriptRenamePipelineAccessTest {
    }
 
    @Test
-   void dependencyTransformerStaticsRefused() throws Exception {
-      String call = ".getTabularAssetId('q77852')";
-      assertRefused(run("'' + Java.type('" + SYNC + "DependencyTransformer')" + call));
-      assertRefused(run("'' + " + SYNC + "DependencyTransformer" + call));
+   void dependencyTransformerStaticRefused() throws Exception {
+      assertRefused(run("'' + Java.type('" + SYNC + "DependencyTransformer')" +
+                           ".getTabularAssetId('q77852')"));
    }
 
    @Test
-   void dependencyTransformerSubclassRefused() throws Exception {
-      assertNotAllowed(run("new (Java.type('" + SYNC + "DataDependencyTransformer'))(null);" +
-                              " 'constructed'"));
-      assertNotAllowed(run("new (Java.type('" + SYNC + "AssetDependencyTransformer'))(null);" +
-                              " 'constructed'"));
+   void dependencyTransformerStaticLegacyRouteRefused() throws Exception {
+      assertRefused(run("'' + " + SYNC + "DependencyTransformer.getTabularAssetId('q77852')"));
+   }
+
+   @Test
+   void dataDependencyTransformerRefused() throws Exception {
+      assertNotAllowed(construct("DataDependencyTransformer", "null"));
+   }
+
+   @Test
+   void assetDependencyTransformerRefused() throws Exception {
+      assertNotAllowed(construct("AssetDependencyTransformer", "null"));
    }
 
    @Test
    void renameTransformTaskRefused() throws Exception {
-      assertNotAllowed(run("new (Java.type('" + SYNC + "RenameTransformTask'))(null);" +
-                              " 'constructed'"));
+      assertNotAllowed(construct("RenameTransformTask", "null"));
    }
 
    @Test
-   void renameTransformTaskNestedRefused() throws Exception {
-      assertNotAllowed(run("new (Java.type('" + SYNC + "RenameTransformTask$Rename'))(null);" +
-                              " 'constructed'"));
-      assertNotAllowed(run("new (Java.type('" + SYNC + "RenameTransformTask$Remove'))(null);" +
-                              " 'constructed'"));
+   void renameTransformTaskRenameRefused() throws Exception {
+      assertNotAllowed(construct("RenameTransformTask$Rename", "null"));
+   }
+
+   @Test
+   void renameTransformTaskRemoveRefused() throws Exception {
+      assertNotAllowed(construct("RenameTransformTask$Remove", "null"));
    }
 
    @Test
    void loadDependencyStorageTaskRefused() throws Exception {
-      assertNotAllowed(run("new (Java.type('" + SYNC + "LoadDependencyStorageTask'))('x');" +
-                              " 'constructed'"));
+      assertNotAllowed(construct("LoadDependencyStorageTask", "'x'"));
    }
 
    @Test
    void renameTransformQueueRefused() throws Exception {
-      assertNotAllowed(run("new (Java.type('" + SYNC + "RenameTransformQueue'))();" +
-                              " 'constructed'"));
+      assertNotAllowed(construct("RenameTransformQueue", ""));
    }
 
    @Test
-   void updateDependencyHandlerStaticsRefused() throws Exception {
-      String call = ".getChildNodes(null, '/x').getLength()";
-      assertRefused(run("'' + Java.type('" + SYNC + "UpdateDependencyHandler')" + call));
-      assertRefused(run("'' + " + SYNC + "UpdateDependencyHandler" + call));
+   void updateDependencyHandlerStaticRefused() throws Exception {
+      assertRefused(run("'' + Java.type('" + SYNC + "UpdateDependencyHandler')" +
+                           ".getChildNodes(null, '/x').getLength()"));
+   }
+
+   @Test
+   void updateDependencyHandlerStaticLegacyRouteRefused() throws Exception {
+      assertRefused(run("'' + " + SYNC + "UpdateDependencyHandler" +
+                           ".getChildNodes(null, '/x').getLength()"));
    }
 
    @Test
@@ -145,6 +158,16 @@ class ScriptRenamePipelineAccessTest {
       assertDoesNotThrow(() -> DependencyTransformer.renameDep(new RenameDependencyInfo()));
    }
 
+   /** Java callers still reach the logical model renames. */
+   @Test
+   void logicalModelRenamesUsableFromJava() {
+      assertDoesNotThrow(() -> new XDataModel("ds77852")
+         .renameLogicalModel("none77852", "none77852b", null));
+      // past the guard: the body runs and fails on the missing model
+      assertThrows(NullPointerException.class,
+                   () -> new XLogicalModel("lm77852").renameLogicalModel("none77852", null));
+   }
+
    // a member of a denied type
    private static void assertRefused(Object result) {
       assertErrorContains(result, UNKNOWN);
@@ -152,14 +175,17 @@ class ScriptRenamePipelineAccessTest {
 
    // a constructor of a denied type
    private static void assertNotAllowed(Object result) {
-      assertInstanceOf(String.class, result, String.valueOf(result));
-      assertTrue(((String) result).startsWith("error: "), String.valueOf(result));
+      assertErrorContains(result, CTOR_REFUSED);
    }
 
    private static void assertErrorContains(Object result, String text) {
       assertInstanceOf(String.class, result, String.valueOf(result));
       assertTrue(((String) result).startsWith("error: "), String.valueOf(result));
       assertTrue(((String) result).contains(text), String.valueOf(result));
+   }
+
+   private Object construct(String type, String args) throws Exception {
+      return run("new (Java.type('" + SYNC + type + "'))(" + args + "); 'constructed'");
    }
 
    private Object run(String script) throws Exception {
