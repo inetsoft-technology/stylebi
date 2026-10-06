@@ -2415,7 +2415,20 @@ public class QueryManagerService {
                return Catalog.getCatalog().getString("designer.qb.jdbc.unableParseSql");
             }
 
-            XNode result = execute(query, runtimeQuery.getVariables(), principal.getName());
+            XNode result;
+
+            try {
+               result = execute(query, runtimeQuery.getVariables(), principal.getName());
+            }
+            catch(Exception ex) {
+               // anything but the database rejecting the user's SQL is logged as an error below
+               if(!PhysicalModelService.isUserSqlError(ex)) {
+                  throw ex;
+               }
+
+               LOG.debug("Free-form SQL rejected by the database: {}", nsqlString, ex);
+               return null;
+            }
 
             if(result instanceof JDBCTableNode) {
                JDBCTableNode jresult = (JDBCTableNode) result;
