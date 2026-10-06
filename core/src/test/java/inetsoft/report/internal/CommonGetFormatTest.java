@@ -31,6 +31,8 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.w3c.dom.Element;
 
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.text.*;
@@ -50,7 +52,12 @@ class CommonGetFormatTest {
    @CsvSource(delimiter = '|', value = {
       "MessageFMT|{0,choice,}",
       "DecimalFMT|#,##0.0.0",
-      "SimpleDateFMT|yyyy-qq"
+      "SimpleDateFMT|yyyy-qq",
+      // Bug #77817: specs without a limit separator parse to a ChoiceFormat with no limits
+      "ChoiceFMT|abc",
+      "ChoiceFormat|abc",
+      "ChoiceFMT|1",
+      "ChoiceFMT|''"
    })
    void malformedSpecReturnsNull(String type, String spec) {
       assertNull(Common.getFormat(type, spec));
@@ -62,6 +69,35 @@ class CommonGetFormatTest {
       assertEquals("5 ok", Common.getFormat("MessageFMT", "{0} ok")
          .format(new Object[] { 5 }));
       assertNull(Common.getFormat("MessageFMT", null));
+      assertEquals("one", Common.getFormat("ChoiceFMT", "1#one").format(5));
+      assertEquals("zero", Common.getFormat("ChoiceFMT", "0#zero|1#one").format(0));
+      assertEquals("one", Common.getFormat("ChoiceFormat", "0#zero|1#one").format(1));
+      assertInstanceOf(NumberFormat.class, Common.getFormat("ChoiceFMT", null));
+   }
+
+   // Bug #77817: RulerPresenter formats with no guard, so a limitless ChoiceFormat parameter
+   // made paint() throw ArrayIndexOutOfBoundsException
+   @Test
+   void limitlessChoiceFormatIsDroppedFromPresenter() throws Exception {
+      String xml = "<presenter name=\"inetsoft.report.painter.RulerPresenter\">" +
+         "<presenterParameter Name=\"format\" Type=\"Format\" FormatType=\"ChoiceFMT\" " +
+         "Format=\"abc\"/></presenter>";
+      PresenterRef ref = new PresenterRef();
+      ref.parseXML(Tool.parseXML(new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8)))
+         .getDocumentElement());
+
+      assertEquals("inetsoft.report.painter.RulerPresenter", ref.getName());
+      assertNull(ref.getParameter("format"), "the limitless format is dropped");
+
+      BufferedImage img = new BufferedImage(200, 30, BufferedImage.TYPE_INT_ARGB);
+      Graphics2D g = img.createGraphics();
+
+      try {
+         assertDoesNotThrow(() -> ref.createPresenter().paint(g, 5, 0, 0, 200, 30));
+      }
+      finally {
+         g.dispose();
+      }
    }
 
    @Test
