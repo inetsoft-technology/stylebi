@@ -1949,3 +1949,927 @@ Write `E:/StyleBI/stylebi-enterprise/selection-container-density-pr-draft.md`: w
 ```
 
 Ask the user before pushing or opening the PR.
+
+---
+
+# Part 2 — D7: an author's size (added 2026-10-06)
+
+**Goal:** an author's deliberate size on a selection list, tree or container survives every open, density change, Modernize and Revert, and a Follow default density checkbox for size gives the box back to the density.
+
+**Architecture:** a `userSize` flag on `VSAssemblyInfo`, beside `userPadding`, which both size rules require to be clear. `takesDensitySize()` and `resetSize(VizContext)` mirror `defaultPadding` / `resetPadding`. Two author paths set the flag: the composer's drag-resize, and Size & Position in the three property dialogs. Static helpers on `VSDialogService` keep the three dialogs from repeating the logic. The browser gets one checkbox in the existing `size-position-pane`.
+
+**Spec:** `docs/superpowers/specs/lookfeel/2026-10-05-selection-container-density-design.md` D7 and §6 (amended at `ad67c7f13f`).
+
+## Global Constraints (Part 2)
+
+- **Work in the shared checkout** `E:/StyleBI/stylebi-enterprise/community`, which is on `feature-selection-container-density`. The scratchpad worktree is detached and is not used. Stage only the files your task lists: the checkout carries unrelated local edits (`web/angular.json`, `web/package-lock.json`) and untracked docs that must never be committed.
+- The flag is named `userSize`. Its XML attribute `userSize="true"` is written **only when true**. A missing attribute parses as false.
+- `takesDensitySize()` is true only on `SelectionBaseVSAssemblyInfo` (list and tree) and `CurrentSelectionVSAssemblyInfo`.
+- Only the author's resize paths set the flag: composer drag-resize, and Size & Position in the list, tree and container dialogs. Derived writes never do: expand and collapse, drop, the show-type switch, convert-to-range-slider, the size rules.
+- The size checkbox (`sizeFollowsDensity`) is offered for a **marked** container, or a **marked** list or tree in **LIST** show type that is **not** a selection container's child. Everywhere else it is null.
+- Comments are why, not what, as a short clause. No comments in `.html`. No ticket, PR or design-doc references in source.
+- Commits: `git -C E:/StyleBI/stylebi-enterprise/community branch --show-current` first, then `git -C … add <files>` and `git -C … commit …` as separate commands, never chained with `&&`. End the message with a `Co-Authored-By:` trailer naming your own model.
+
+## How to run tests (Part 2)
+
+```bash
+# from E:/StyleBI/stylebi-enterprise/community
+./mvnw test -pl core -Dtest=AuthorSizeFlagTest
+# frontend, from E:/StyleBI/stylebi-enterprise/community/web
+npx ng test portal --include="**/size-position-pane.spec.ts"
+```
+
+## Review Focus (Part 2)
+
+1. **Following density on a container re-widens its children.** The container dialog's `setContainerSize` writes the model's width into every child, so the tier size has to be in the model before that call. **Task 10**, `followingWritesTheTierSizeIntoTheBoxAndTheModel`.
+2. **Dragging a container must not flag its children**, whose widths the same resize changes. **Task 9**, `aDraggedContainerIsFlaggedButNotItsChildren`.
+3. **A client that sends no follow flag must not flag an unchanged box.** Applying the dialog only to change a title must leave the box following density. **Task 10**, `noAnswerSetsTheFlagOnlyOnAChange`.
+4. **A flagged box survives Revert and Modernize,** not only an ordinary open. **Task 8**, `anAuthorSizeSurvivesEveryRerun`.
+5. **A type without a density size is untouched** by `resetSize`, the dialog helpers and the composer resize. **Task 8** `resetSizeDoesNothingWithoutADensitySize`, **Task 9** `aDraggedTextIsNotFlagged`, **Task 10** `theHelpersLeaveATypeWithoutADensitySizeAlone`.
+
+---
+
+### Task 8: The author size flag, and the rules honour it
+
+**Files:**
+- Modify: `core/src/main/java/inetsoft/uql/viewsheet/internal/VSAssemblyInfo.java`: `copyViewInfo` (after the `userPadding` block, `:701-704`), `writeContents` (after `:882`), `parseContents` (after `:931`), accessors (after `setUserPadding`, `:1421-1423`), field (after `:1876`)
+- Modify: `core/src/main/java/inetsoft/uql/viewsheet/internal/SelectionBaseVSAssemblyInfo.java:1010-1011`, plus two overrides beside `defaultPadding`
+- Modify: `core/src/main/java/inetsoft/uql/viewsheet/internal/CurrentSelectionVSAssemblyInfo.java:113-114`, plus two overrides
+- Test: `core/src/test/java/inetsoft/uql/viewsheet/internal/AuthorSizeFlagTest.java` (create)
+
+**Interfaces:**
+- Produces: `public boolean VSAssemblyInfo.isUserSize()`, `public void setUserSize(boolean)`, `public boolean takesDensitySize()`, `protected Dimension defaultSize(VizContext)`, `public void resetSize(VizContext)`. Tasks 9 and 10 use the public ones.
+
+- [ ] **Step 1: Write the failing test**
+
+Create `AuthorSizeFlagTest.java` with the GNU AGPL header from `ContainedListHeightTest.java` (2026):
+
+```java
+package inetsoft.uql.viewsheet.internal;
+
+import inetsoft.sree.SreeEnv;
+import inetsoft.test.BaseTestConfiguration;
+import inetsoft.test.ConfigurationContextInitializer;
+import inetsoft.test.SreeHome;
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+
+import javax.xml.parsers.DocumentBuilderFactory;
+import java.awt.Dimension;
+import java.io.*;
+import java.nio.charset.StandardCharsets;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
+class AuthorSizeFlagTest {
+   @AfterEach
+   void reset() {
+      SreeEnv.setProperty("viewsheet.density", null);
+   }
+
+   @Test
+   void anUnsetFlagWritesNoAttributeAndParsesAsFalse() throws Exception {
+      CurrentSelectionVSAssemblyInfo saved = new CurrentSelectionVSAssemblyInfo();
+
+      assertFalse(xml(saved).contains("userSize"), "a box nobody resized keeps its saved form");
+
+      CurrentSelectionVSAssemblyInfo loaded = new CurrentSelectionVSAssemblyInfo();
+      loaded.parseXML(element(saved));
+      assertFalse(loaded.isUserSize());
+   }
+
+   @Test
+   void aSetFlagRoundTrips() throws Exception {
+      SelectionListVSAssemblyInfo saved = new SelectionListVSAssemblyInfo();
+      saved.setUserSize(true);
+
+      assertTrue(xml(saved).contains("userSize=\"true\""));
+
+      SelectionListVSAssemblyInfo loaded = new SelectionListVSAssemblyInfo();
+      loaded.parseXML(element(saved));
+      assertTrue(loaded.isUserSize());
+   }
+
+   @Test
+   void copyCarriesTheFlag() {
+      CurrentSelectionVSAssemblyInfo from = new CurrentSelectionVSAssemblyInfo();
+      from.setUserSize(true);
+      CurrentSelectionVSAssemblyInfo to = new CurrentSelectionVSAssemblyInfo();
+
+      assertTrue(to.copyViewInfo(from, false), "a changed flag reports a change");
+      assertTrue(to.isUserSize());
+   }
+
+   // open, density change, Modernize and Revert all run this hook
+   @Test
+   void anAuthorSizeSurvivesEveryRerun() {
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      CurrentSelectionVSAssemblyInfo container = authored(new CurrentSelectionVSAssemblyInfo(),
+                                                          new Dimension(300, 240));
+      SelectionListVSAssemblyInfo list = authored(new SelectionListVSAssemblyInfo(),
+                                                  new Dimension(100, 120));
+      SelectionTreeVSAssemblyInfo tree = authored(new SelectionTreeVSAssemblyInfo(),
+                                                  new Dimension(100, 120));
+
+      for(VSAssemblyInfo info : new VSAssemblyInfo[] { container, list, tree }) {
+         VizModernizeUtil.reseedAfterRestore(info);
+         info.seedChromeDefaults(VizContext.of(info));
+         SreeEnv.setProperty("viewsheet.density", "compact");
+         info.seedChromeDefaults(VizContext.of(info));
+         info.setVizMark(null);
+         info.seedChromeDefaults(VizContext.ofTransition(null, null));
+         SreeEnv.setProperty("viewsheet.density", "comfortable");
+      }
+
+      assertEquals(new Dimension(300, 240), container.getPixelSize());
+      assertEquals(new Dimension(100, 120), list.getPixelSize());
+      assertEquals(new Dimension(100, 120), tree.getPixelSize());
+   }
+
+   @Test
+   void anUnflaggedSeededSizeStillFollowsTheRule() {
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      CurrentSelectionVSAssemblyInfo container = new CurrentSelectionVSAssemblyInfo();
+      container.setVizMark(VizMark.MODERN_LIGHT);
+      container.setPixelSize(new Dimension(300, 240));
+
+      container.seedChromeDefaults(VizContext.of(container));
+
+      assertEquals(new Dimension(300, 360), container.getPixelSize());
+   }
+
+   @Test
+   void resetSizeClearsTheFlagAndWritesTheTierSize() {
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      CurrentSelectionVSAssemblyInfo container = authored(new CurrentSelectionVSAssemblyInfo(),
+                                                          new Dimension(300, 500));
+      SelectionListVSAssemblyInfo list = authored(new SelectionListVSAssemblyInfo(),
+                                                  new Dimension(300, 400));
+      SelectionTreeVSAssemblyInfo tree = authored(new SelectionTreeVSAssemblyInfo(),
+                                                  new Dimension(300, 400));
+
+      container.resetSize(VizContext.of(container));
+      list.resetSize(VizContext.of(list));
+      tree.resetSize(VizContext.of(tree));
+
+      assertEquals(new Dimension(300, 360), container.getPixelSize());
+      assertEquals(new Dimension(132, 202), list.getPixelSize());
+      assertEquals(new Dimension(132, 202), tree.getPixelSize());
+      assertFalse(container.isUserSize() || list.isUserSize() || tree.isUserSize());
+   }
+
+   @Test
+   void resetSizeDoesNothingWithoutADensitySize() {
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      ChartVSAssemblyInfo chart = new ChartVSAssemblyInfo();
+      chart.setVizMark(VizMark.MODERN_LIGHT);
+      chart.setPixelSize(new Dimension(400, 300));
+      chart.setUserSize(true);
+
+      chart.resetSize(VizContext.of(chart));
+
+      assertFalse(chart.takesDensitySize());
+      assertEquals(new Dimension(400, 300), chart.getPixelSize());
+      assertTrue(chart.isUserSize(), "a type without a density size keeps its flag untouched");
+   }
+
+   private static <T extends VSAssemblyInfo> T authored(T info, Dimension size) {
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      info.setPixelSize(size);
+      info.setUserSize(true);
+      return info;
+   }
+
+   private static String xml(VSAssemblyInfo info) {
+      StringWriter sw = new StringWriter();
+      PrintWriter writer = new PrintWriter(sw);
+      info.writeXML(writer);
+      writer.flush();
+      return sw.toString();
+   }
+
+   private static Element element(VSAssemblyInfo info) throws Exception {
+      DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
+      dbf.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+      Document doc = dbf.newDocumentBuilder()
+         .parse(new ByteArrayInputStream(xml(info).getBytes(StandardCharsets.UTF_8)));
+      return doc.getDocumentElement();
+   }
+}
+```
+
+- [ ] **Step 2: Run it to verify it fails**
+
+Run: `./mvnw test -pl core -Dtest=AuthorSizeFlagTest`
+Expected: compilation error, `cannot find symbol: method setUserSize(boolean)`.
+
+- [ ] **Step 3: Add the flag to `VSAssemblyInfo`**
+
+In `copyViewInfo`, right after the `userPadding` block:
+
+```java
+      if(userSize != info.userSize) {
+         userSize = info.userSize;
+         result = true;
+      }
+```
+
+In `writeContents`, right after `writer.print(" userPadding=\"" + isUserPadding() + "\"");`:
+
+```java
+      // only when set, so a box nobody resized keeps its saved form
+      if(userSize) {
+         writer.print(" userSize=\"true\"");
+      }
+```
+
+In `parseContents`, right after the `setUserPadding(...)` line:
+
+```java
+      setUserSize("true".equalsIgnoreCase(Tool.getAttribute(elem, "userSize")));
+```
+
+After `setUserPadding(boolean)`:
+
+```java
+   /**
+    * Whether the author set the size. Surfaced in Size & Position as the follow-the-default-density
+    * checkbox for size, inverted; the density size rules leave a box with it set alone.
+    */
+   public boolean isUserSize() {
+      return userSize;
+   }
+
+   /**
+    * Set whether the size was set by the author.
+    */
+   public void setUserSize(boolean userSize) {
+      this.userSize = userSize;
+   }
+
+   /**
+    * Whether this type takes a density default size from the seed. Overridden by the types that
+    * have one.
+    */
+   public boolean takesDensitySize() {
+      return false;
+   }
+
+   /**
+    * The size this type takes when nobody has an opinion, or null for a type without one.
+    */
+   protected Dimension defaultSize(VizContext ctx) {
+      return null;
+   }
+
+   /**
+    * Return the box to its density default, which is what Size & Position's follow-the-default
+    * checkbox asks for. Clears the author flag, so the seed manages the size again.
+    */
+   public void resetSize(VizContext ctx) {
+      Dimension size = defaultSize(ctx);
+
+      if(size == null) {
+         return;
+      }
+
+      setUserSize(false);
+      setPixelSize(size);
+   }
+```
+
+After the `userPadding` field:
+
+```java
+   // whether the author set the size; the density size rules leave such a box alone
+   private boolean userSize = false;
+```
+
+- [ ] **Step 4: Make both rules honour it, and give both types their size**
+
+In `SelectionBaseVSAssemblyInfo.java`, replace:
+
+```java
+      if((ctx.modern || ctx.transition) &&
+         VSDensityDefaults.isSeededSelectionSize(getPixelSize()))
+```
+
+with:
+
+```java
+      if(!isUserSize() && (ctx.modern || ctx.transition) &&
+         VSDensityDefaults.isSeededSelectionSize(getPixelSize()))
+```
+
+and add, beside `defaultPadding(VizContext)`:
+
+```java
+   @Override
+   public boolean takesDensitySize() {
+      return true;
+   }
+
+   @Override
+   protected Dimension defaultSize(VizContext ctx) {
+      return VSDensityDefaults.selectionSize(ctx);
+   }
+```
+
+In `CurrentSelectionVSAssemblyInfo.java`, replace:
+
+```java
+      if((ctx.modern || ctx.transition) &&
+         VSDensityDefaults.isSeededContainerSize(getPixelSize()))
+```
+
+with:
+
+```java
+      if(!isUserSize() && (ctx.modern || ctx.transition) &&
+         VSDensityDefaults.isSeededContainerSize(getPixelSize()))
+```
+
+and add, after `seedChromeDefaults`:
+
+```java
+   @Override
+   public boolean takesDensitySize() {
+      return true;
+   }
+
+   @Override
+   protected Dimension defaultSize(VizContext ctx) {
+      return VSDensityDefaults.containerSize(ctx);
+   }
+```
+
+Extend the comment above each rule by one short clause: an author's size carries `userSize` and is never moved.
+
+- [ ] **Step 5: Run it and the size suites**
+
+Run: `./mvnw test -pl core -Dtest='AuthorSizeFlagTest,ContainerDensitySizeTest,SelectionDensitySizeTest,ContainedListHeightTest'`
+Expected: PASS, with no change to the existing three classes.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git -C E:/StyleBI/stylebi-enterprise/community branch --show-current
+git -C E:/StyleBI/stylebi-enterprise/community add core/src/main/java/inetsoft/uql/viewsheet/internal/VSAssemblyInfo.java core/src/main/java/inetsoft/uql/viewsheet/internal/SelectionBaseVSAssemblyInfo.java core/src/main/java/inetsoft/uql/viewsheet/internal/CurrentSelectionVSAssemblyInfo.java core/src/test/java/inetsoft/uql/viewsheet/internal/AuthorSizeFlagTest.java
+git -C E:/StyleBI/stylebi-enterprise/community commit -m "Record an author's selection size so the density size rules leave it" -m "Co-Authored-By: <your model> <noreply@anthropic.com>"
+```
+
+---
+
+### Task 9: A composer drag-resize records the author's size
+
+**Files:**
+- Modify: `core/src/main/java/inetsoft/web/composer/vs/objects/controller/ComposerObjectService.java`, `resizeObject` (`:126`), right after `info.setPixelSize(size);`
+- Test: `core/src/test/java/inetsoft/web/composer/vs/objects/controller/ComposerObjectServiceTest.java` (extend)
+
+**Interfaces:**
+- Consumes: `VSAssemblyInfo.takesDensitySize()`, `setUserSize(boolean)`, `isUserSize()` (Task 8).
+
+- [ ] **Step 1: Write the failing tests**
+
+Add to `ComposerObjectServiceTest.java` (change the assertion import to `import static org.junit.jupiter.api.Assertions.*;`):
+
+```java
+   @Test
+   void aDraggedContainerIsFlaggedButNotItsChildren() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.getVSAssemblyInfo().setName("vs1");
+
+      SelectionListVSAssembly list = new SelectionListVSAssembly(vs, "SelectionList1");
+      list.getVSAssemblyInfo().setPixelSize(new Dimension(300, 30));
+      vs.addAssembly(list);
+
+      CurrentSelectionVSAssembly container = new CurrentSelectionVSAssembly(vs, "CurrentSelection1");
+      container.getVSAssemblyInfo().setPixelOffset(new Point(0, 0));
+      container.getVSAssemblyInfo().setPixelSize(new Dimension(300, 360));
+      vs.addAssembly(container);
+      container.setAssemblies(new String[] { "SelectionList1" });
+
+      resize(vs, "CurrentSelection1", 300, 240);
+
+      assertTrue(container.getVSAssemblyInfo().isUserSize());
+      assertFalse(list.getVSAssemblyInfo().isUserSize(), "its re-widened children are not the author's");
+   }
+
+   @Test
+   void aDraggedListIsFlagged() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.getVSAssemblyInfo().setName("vs1");
+      SelectionListVSAssembly list = new SelectionListVSAssembly(vs, "SelectionList1");
+      list.getVSAssemblyInfo().setPixelOffset(new Point(0, 0));
+      list.getVSAssemblyInfo().setPixelSize(new Dimension(132, 202));
+      vs.addAssembly(list);
+
+      resize(vs, "SelectionList1", 100, 120);
+
+      assertTrue(list.getVSAssemblyInfo().isUserSize());
+   }
+
+   @Test
+   void aDraggedTextIsNotFlagged() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.getVSAssemblyInfo().setName("vs1");
+      TextVSAssembly text = new TextVSAssembly();
+      text.getVSAssemblyInfo().setName("Text1");
+      text.getVSAssemblyInfo().setPixelOffset(new Point(0, 0));
+      text.getVSAssemblyInfo().setPixelSize(new Dimension(100, 20));
+      vs.addAssembly(text);
+
+      resize(vs, "Text1", 200, 40);
+
+      assertFalse(text.getVSAssemblyInfo().isUserSize(), "a type without a density size stays clean");
+   }
+
+   private void resize(Viewsheet vs, String name, int width, int height) throws Exception {
+      when(engine.getViewsheet(any(), any())).thenReturn(rvs);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      ResizeVSObjectEvent event = new ResizeVSObjectEvent();
+      event.setName(name);
+      event.setxOffset(0);
+      event.setyOffset(0);
+      event.setWidth(width);
+      event.setHeight(height);
+      service.resizeObject(runtimeViewsheetRef.getRuntimeId(), event, principal, dispatcher, "/test");
+   }
+```
+
+- [ ] **Step 2: Run them to verify they fail**
+
+Run: `./mvnw test -pl core -Dtest=ComposerObjectServiceTest`
+Expected: FAIL in `aDraggedContainerIsFlaggedButNotItsChildren` and `aDraggedListIsFlagged` (the flag stays false). `aDraggedTextIsNotFlagged` and the existing tests pass. If a test fails with an exception, or a strict-stubbing error, fix the fixture, not the production code.
+
+- [ ] **Step 3: Set the flag on an author's resize**
+
+In `ComposerObjectService.resizeObject`, right after `info.setPixelSize(size);`:
+
+```java
+         // an author's drag owns the size; the density size rules leave it alone from here on
+         if(info.takesDensitySize()) {
+            info.setUserSize(true);
+         }
+```
+
+Do not touch the container-children loop below it.
+
+- [ ] **Step 4: Run them to verify they pass**
+
+Run: `./mvnw test -pl core -Dtest=ComposerObjectServiceTest`
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git -C E:/StyleBI/stylebi-enterprise/community branch --show-current
+git -C E:/StyleBI/stylebi-enterprise/community add core/src/main/java/inetsoft/web/composer/vs/objects/controller/ComposerObjectService.java core/src/test/java/inetsoft/web/composer/vs/objects/controller/ComposerObjectServiceTest.java
+git -C E:/StyleBI/stylebi-enterprise/community commit -m "Keep a dragged selection size as the author's" -m "Co-Authored-By: <your model> <noreply@anthropic.com>"
+```
+
+---
+
+### Task 10: Size & Position reads and writes the size checkbox
+
+**Files:**
+- Modify: `core/src/main/java/inetsoft/web/composer/model/vs/SizePositionPaneModel.java` (accessors beside `getCellHeightFollowsDensity`, field beside `cellHeightFollowsDensity`)
+- Modify: `core/src/main/java/inetsoft/web/viewsheet/service/VSDialogService.java` (three static helpers after `setContainerSize`)
+- Modify: `core/src/main/java/inetsoft/web/composer/vs/dialog/SelectionListPropertyDialogService.java` (read `:118-133`, write `:245`)
+- Modify: `core/src/main/java/inetsoft/web/composer/vs/dialog/SelectionTreePropertyDialogService.java` (read `:118-133`, write `:272`)
+- Modify: `core/src/main/java/inetsoft/web/composer/vs/dialog/SelectionContainerPropertyDialogService.java` (read `:86-93`, write `:171`)
+- Test: `core/src/test/java/inetsoft/web/viewsheet/service/SizeFollowsDensityDialogTest.java` (create)
+
+**Interfaces:**
+- Consumes: Task 8's `isUserSize`, `setUserSize`, `takesDensitySize`, `resetSize`.
+- Produces: `Boolean SizePositionPaneModel.getSizeFollowsDensity()` / `setSizeFollowsDensity(Boolean)`. Its JSON property `sizeFollowsDensity` is what Task 11's TypeScript model reads.
+- Produces: `public static void VSDialogService.readSizeFollowsDensity(VSAssemblyInfo info, SizePositionPaneModel model, boolean governed)`, `public static void followDensitySize(VSAssemblyInfo info, SizePositionPaneModel model)`, `public static void recordAuthorSize(VSAssemblyInfo info, SizePositionPaneModel model, Dimension shown)`.
+
+- [ ] **Step 1: Write the failing test**
+
+Create `SizeFollowsDensityDialogTest.java` (license header as in Task 8):
+
+```java
+package inetsoft.web.viewsheet.service;
+
+import inetsoft.sree.SreeEnv;
+import inetsoft.test.BaseTestConfiguration;
+import inetsoft.test.ConfigurationContextInitializer;
+import inetsoft.test.SreeHome;
+import inetsoft.uql.viewsheet.internal.*;
+import inetsoft.web.composer.model.vs.SizePositionPaneModel;
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
+
+import java.awt.Dimension;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
+class SizeFollowsDensityDialogTest {
+   @BeforeEach
+   void density() {
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+   }
+
+   @AfterEach
+   void reset() {
+      SreeEnv.setProperty("viewsheet.density", null);
+   }
+
+   private static CurrentSelectionVSAssemblyInfo container(VizMark mark, Dimension size,
+                                                           boolean userSize)
+   {
+      CurrentSelectionVSAssemblyInfo info = new CurrentSelectionVSAssemblyInfo();
+      info.setVizMark(mark);
+      info.setPixelSize(size);
+      info.setUserSize(userSize);
+      return info;
+   }
+
+   private static SizePositionPaneModel model(Boolean follows, int width, int height) {
+      SizePositionPaneModel model = new SizePositionPaneModel();
+      model.setSizeFollowsDensity(follows);
+      model.setWidth(width);
+      model.setHeight(height);
+      return model;
+   }
+
+   @Test
+   void readOffersTheCheckboxForAGovernedMarkedBox() {
+      SizePositionPaneModel following = new SizePositionPaneModel();
+      VSDialogService.readSizeFollowsDensity(
+         container(VizMark.MODERN_LIGHT, new Dimension(300, 360), false), following, true);
+      assertEquals(Boolean.TRUE, following.getSizeFollowsDensity());
+
+      SizePositionPaneModel authored = new SizePositionPaneModel();
+      VSDialogService.readSizeFollowsDensity(
+         container(VizMark.MODERN_LIGHT, new Dimension(300, 240), true), authored, true);
+      assertEquals(Boolean.FALSE, authored.getSizeFollowsDensity());
+   }
+
+   @Test
+   void readOffersNoCheckboxWhenNotGovernedUnmarkedOrWithoutADensitySize() {
+      SizePositionPaneModel notGoverned = new SizePositionPaneModel();
+      VSDialogService.readSizeFollowsDensity(
+         container(VizMark.MODERN_LIGHT, new Dimension(300, 360), false), notGoverned, false);
+      assertNull(notGoverned.getSizeFollowsDensity());
+
+      SizePositionPaneModel unmarked = new SizePositionPaneModel();
+      VSDialogService.readSizeFollowsDensity(
+         container(null, new Dimension(300, 240), false), unmarked, true);
+      assertNull(unmarked.getSizeFollowsDensity());
+
+      ChartVSAssemblyInfo chart = new ChartVSAssemblyInfo();
+      chart.setVizMark(VizMark.MODERN_LIGHT);
+      SizePositionPaneModel noDensitySize = new SizePositionPaneModel();
+      VSDialogService.readSizeFollowsDensity(chart, noDensitySize, true);
+      assertNull(noDensitySize.getSizeFollowsDensity());
+   }
+
+   // the container dialog then hands this model to setContainerSize, which re-widens its children
+   @Test
+   void followingWritesTheTierSizeIntoTheBoxAndTheModel() {
+      CurrentSelectionVSAssemblyInfo info = container(VizMark.MODERN_LIGHT, new Dimension(300, 500), true);
+      SizePositionPaneModel model = model(true, 300, 500);
+
+      VSDialogService.followDensitySize(info, model);
+
+      assertEquals(new Dimension(300, 360), info.getPixelSize());
+      assertFalse(info.isUserSize());
+      assertEquals(300, model.getWidth());
+      assertEquals(360, model.getHeight());
+   }
+
+   @Test
+   void notFollowingSetsTheFlagEvenForAnUnchangedSize() {
+      CurrentSelectionVSAssemblyInfo info = container(VizMark.MODERN_LIGHT, new Dimension(300, 360), false);
+
+      VSDialogService.recordAuthorSize(info, model(false, 300, 360), new Dimension(300, 360));
+
+      assertTrue(info.isUserSize());
+   }
+
+   @Test
+   void noAnswerSetsTheFlagOnlyOnAChange() {
+      CurrentSelectionVSAssemblyInfo unchanged = container(VizMark.MODERN_LIGHT, new Dimension(300, 360), false);
+      VSDialogService.recordAuthorSize(unchanged, model(null, 300, 360), new Dimension(300, 360));
+      assertFalse(unchanged.isUserSize(), "applying the dialog for a title change leaves the box following");
+
+      CurrentSelectionVSAssemblyInfo changed = container(VizMark.MODERN_LIGHT, new Dimension(300, 360), false);
+      VSDialogService.recordAuthorSize(changed, model(null, 300, 240), new Dimension(300, 360));
+      assertTrue(changed.isUserSize());
+   }
+
+   @Test
+   void theHelpersLeaveATypeWithoutADensitySizeAlone() {
+      ChartVSAssemblyInfo chart = new ChartVSAssemblyInfo();
+      chart.setVizMark(VizMark.MODERN_LIGHT);
+      chart.setPixelSize(new Dimension(400, 300));
+
+      VSDialogService.followDensitySize(chart, model(true, 400, 300));
+      VSDialogService.recordAuthorSize(chart, model(false, 500, 300), new Dimension(400, 300));
+
+      assertEquals(new Dimension(400, 300), chart.getPixelSize());
+      assertFalse(chart.isUserSize());
+   }
+}
+```
+
+- [ ] **Step 2: Run it to verify it fails**
+
+Run: `./mvnw test -pl core -Dtest=SizeFollowsDensityDialogTest`
+Expected: compilation error, `cannot find symbol: method setSizeFollowsDensity(…)`.
+
+- [ ] **Step 3: Add the model field**
+
+In `SizePositionPaneModel.java`, beside the cell-height accessors:
+
+```java
+   public Boolean getSizeFollowsDensity() {
+      return sizeFollowsDensity;
+   }
+
+   public void setSizeFollowsDensity(Boolean sizeFollowsDensity) {
+      this.sizeFollowsDensity = sizeFollowsDensity;
+   }
+```
+
+and beside `cellHeightFollowsDensity`:
+
+```java
+   private Boolean sizeFollowsDensity;
+```
+
+- [ ] **Step 4: Add the helpers**
+
+In `VSDialogService.java`, after `setContainerSize(...)`:
+
+```java
+   /**
+    * Offer Size & Position's follow-the-default-density checkbox for size where a density size rule
+    * governs the box; null, which hides it, everywhere else.
+    * @param governed whether this box is one the size rule writes: not a selection container's child,
+    *                 and for a list or tree, shown as a list.
+    */
+   public static void readSizeFollowsDensity(VSAssemblyInfo info, SizePositionPaneModel model,
+                                             boolean governed)
+   {
+      model.setSizeFollowsDensity(
+         governed && info.takesDensitySize() && info.getVizMark() != null ?
+            !info.isUserSize() : null);
+   }
+
+   /**
+    * When the author ticked follow-the-default-density, return the box to its density size and put
+    * that size in the model, so the caller's size write - which re-widens a container's children -
+    * applies it too.
+    */
+   public static void followDensitySize(VSAssemblyInfo info, SizePositionPaneModel model) {
+      if(!Boolean.TRUE.equals(model.getSizeFollowsDensity()) || !info.takesDensitySize()) {
+         return;
+      }
+
+      info.resetSize(VizContext.of(info));
+      Dimension size = info.getPixelSize();
+      model.setWidth(size.width);
+      model.setHeight(size.height);
+   }
+
+   /**
+    * Record an author's size: always when they unticked the checkbox, and, from a client that sent
+    * no answer, only when the submitted size differs from what the dialog showed.
+    * @param shown the size the dialog opened with.
+    */
+   public static void recordAuthorSize(VSAssemblyInfo info, SizePositionPaneModel model,
+                                       Dimension shown)
+   {
+      Boolean follows = model.getSizeFollowsDensity();
+
+      if(!info.takesDensitySize() || Boolean.TRUE.equals(follows)) {
+         return;
+      }
+
+      if(Boolean.FALSE.equals(follows) ||
+         model.getWidth() != shown.width || model.getHeight() != shown.height)
+      {
+         info.setUserSize(true);
+      }
+   }
+```
+
+Add imports only if the file's existing wildcards don't already cover `inetsoft.uql.viewsheet.internal.VizContext` and `java.awt.Dimension`.
+
+- [ ] **Step 5: Run it to verify it passes**
+
+Run: `./mvnw test -pl core -Dtest=SizeFollowsDensityDialogTest`
+Expected: 6 tests, PASS.
+
+- [ ] **Step 6: Wire the three dialogs**
+
+`SelectionListPropertyDialogService.java`, read: right after the `sizePositionPaneModel.setCellHeightFollowsDensity(...)` statement:
+
+```java
+      VSDialogService.readSizeFollowsDensity(selectionListAssemblyInfo, sizePositionPaneModel,
+         !inSelectionContainer &&
+            selectionListAssemblyInfo.getShowTypeValue() == SelectionVSAssemblyInfo.LIST_SHOW_TYPE);
+```
+
+Write: replace `dialogService.setAssemblySize(selectionListAssemblyInfo, sizePositionPaneModel);` with:
+
+```java
+      Dimension shownSize =
+         new Dimension(dialogService.getAssemblySize(selectionListAssemblyInfo, rvs.getViewsheet()));
+      VSDialogService.followDensitySize(selectionListAssemblyInfo, sizePositionPaneModel);
+      dialogService.setAssemblySize(selectionListAssemblyInfo, sizePositionPaneModel);
+      VSDialogService.recordAuthorSize(selectionListAssemblyInfo, sizePositionPaneModel, shownSize);
+```
+
+`SelectionTreePropertyDialogService.java`, read: right after the `sizePositionPaneModel.setCellHeightFollowsDensity(...)` statement:
+
+```java
+      VSDialogService.readSizeFollowsDensity(selectionTreeAssemblyInfo, sizePositionPaneModel,
+         !(selectionTreeAssembly.getContainer() instanceof CurrentSelectionVSAssembly) &&
+            selectionTreeAssemblyInfo.getShowTypeValue() == SelectionVSAssemblyInfo.LIST_SHOW_TYPE);
+```
+
+Write: replace `dialogService.setAssemblySize(streeInfo, sizePositionPaneModel);` with:
+
+```java
+      Dimension shownSize =
+         new Dimension(dialogService.getAssemblySize(streeInfo, viewsheet.getViewsheet()));
+      VSDialogService.followDensitySize(streeInfo, sizePositionPaneModel);
+      dialogService.setAssemblySize(streeInfo, sizePositionPaneModel);
+      VSDialogService.recordAuthorSize(streeInfo, sizePositionPaneModel, shownSize);
+```
+
+(In that method the `RuntimeViewsheet` variable is named `viewsheet`. Check that, and use the method's real name if it differs.)
+
+`SelectionContainerPropertyDialogService.java`, read: right after `sizePositionPaneModel.setContainer(...)`:
+
+```java
+      VSDialogService.readSizeFollowsDensity(selectionContainerAssemblyInfo, sizePositionPaneModel, true);
+```
+
+Write: replace the `dialogService.setContainerSize(...)` call and its comment line with:
+
+```java
+      Dimension shownSize = new Dimension(dialogService.getAssemblySize(selectionContainerAssemblyInfo, vs));
+      VSDialogService.followDensitySize(selectionContainerAssemblyInfo, sizePositionPaneModel);
+      //When resizing selection container, also resize selection container children
+      dialogService.setContainerSize(selectionContainerAssemblyInfo, sizePositionPaneModel,
+                                     selectionContainerAssembly.getAssemblies(), vs);
+      VSDialogService.recordAuthorSize(selectionContainerAssemblyInfo, sizePositionPaneModel, shownSize);
+```
+
+`setContainerPosition` runs earlier in that method and stays where it is. `shownSize` must be captured before `followDensitySize` in all three.
+
+- [ ] **Step 7: Run the dialog suites**
+
+Run: `./mvnw test -pl core -Dtest='SizeFollowsDensityDialogTest,TitleHeightFollowDensityTest,SelectionPaddingDialogTest,SelectionTreeShowTypeSizeTest,RangeSliderTitleHeightDialogTest'`
+Expected: PASS, with no change to the existing classes.
+
+- [ ] **Step 8: Commit**
+
+```bash
+git -C E:/StyleBI/stylebi-enterprise/community branch --show-current
+git -C E:/StyleBI/stylebi-enterprise/community add core/src/main/java/inetsoft/web/composer/model/vs/SizePositionPaneModel.java core/src/main/java/inetsoft/web/viewsheet/service/VSDialogService.java core/src/main/java/inetsoft/web/composer/vs/dialog/SelectionListPropertyDialogService.java core/src/main/java/inetsoft/web/composer/vs/dialog/SelectionTreePropertyDialogService.java core/src/main/java/inetsoft/web/composer/vs/dialog/SelectionContainerPropertyDialogService.java core/src/test/java/inetsoft/web/viewsheet/service/SizeFollowsDensityDialogTest.java
+git -C E:/StyleBI/stylebi-enterprise/community commit -m "Offer follow-the-default-density for a selection's size" -m "Co-Authored-By: <your model> <noreply@anthropic.com>"
+```
+
+---
+
+### Task 11: The size checkbox in the browser
+
+**Files:**
+- Modify: `web/projects/portal/src/app/vsobjects/model/size-position-pane-model.ts`
+- Modify: `web/projects/portal/src/app/vsobjects/dialog/size-position-pane.component.ts`
+- Modify: `web/projects/portal/src/app/vsobjects/dialog/size-position-pane.component.html`
+- Test: `web/projects/portal/src/app/vsobjects/dialog/size-position-pane.spec.ts` (extend)
+
+**Interfaces:**
+- Consumes: the JSON property `sizeFollowsDensity` (Task 10): null or absent means no checkbox, true means following, false means the author's size.
+
+- [ ] **Step 1: Write the failing tests**
+
+Add inside the existing `describe` of `size-position-pane.spec.ts`:
+
+```ts
+   it("should not render the size checkbox when the model does not offer one", () => {
+      fixture.componentInstance.model = createModel();
+      fixture.detectChanges();
+      expect(fixture.debugElement.query(By.css("#sizeFollowsDensity"))).toBeNull();
+   });
+
+   it("should disable width and height while the size follows the density", () => {
+      fixture.componentInstance.model = createModel({sizeFollowsDensity: true});
+      fixture.detectChanges();
+      expect(fixture.debugElement.query(By.css("#sizeFollowsDensity"))).not.toBeNull();
+      expect(fixture.componentInstance.form.controls["width"].disabled).toBeTruthy();
+      expect(fixture.componentInstance.form.controls["height"].disabled).toBeTruthy();
+   });
+
+   it("should re-enable width and height when the size checkbox is cleared", () => {
+      fixture.componentInstance.model = createModel({sizeFollowsDensity: true});
+      fixture.detectChanges();
+
+      fixture.componentInstance.sizeFollowChanged(false);
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.model.sizeFollowsDensity).toBe(false);
+      expect(fixture.componentInstance.form.controls["width"].disabled).toBeFalsy();
+      expect(fixture.componentInstance.form.controls["height"].disabled).toBeFalsy();
+   });
+
+   it("should keep width and height disabled in a container when the size checkbox is cleared", () => {
+      fixture.componentInstance.model = createModel({container: true, sizeFollowsDensity: true});
+      fixture.detectChanges();
+
+      fixture.componentInstance.sizeFollowChanged(false);
+
+      expect(fixture.componentInstance.form.controls["width"].disabled).toBeTruthy();
+      expect(fixture.componentInstance.form.controls["height"].disabled).toBeTruthy();
+   });
+```
+
+- [ ] **Step 2: Run them to verify they fail**
+
+Run (from `web/`): `npx ng test portal --include="**/size-position-pane.spec.ts"`
+Expected: FAIL. The model has no `sizeFollowsDensity` (a TypeScript error) and the component has no `sizeFollowChanged`.
+
+- [ ] **Step 3: Implement**
+
+`size-position-pane-model.ts`, after `cellHeightFollowsDensity?: boolean;`:
+
+```ts
+   sizeFollowsDensity?: boolean;
+```
+
+`size-position-pane.component.ts`:
+- add the field `showSizeFollow: boolean;` beside `showCellHeightFollow`;
+- in `ngOnInit`, beside the other two: `this.showSizeFollow = this.model.sizeFollowsDensity != null;`
+- in `initForm`, the `width` and `height` controls' `disabled` becomes
+  `(!this.layoutEnabled || this.model.locked || this.model.sizeFollowsDensity === true)`;
+- add, beside `cellHeightFollowChanged`:
+
+```ts
+   sizeFollowChanged(follows: boolean): void {
+      this.model.sizeFollowsDensity = follows;
+      const enabled = !follows && this.layoutEnabled && !this.model.locked;
+      this.setEnabled("width", enabled);
+      this.setEnabled("height", enabled);
+   }
+```
+
+`size-position-pane.component.html`:
+- on the Width and Height `number-stepper`s, `[disabled]` becomes
+  `"!layoutEnabled || model.locked || model.sizeFollowsDensity === true"`;
+- right after the `</div>` that closes the Top/Left/Width/Height row, before `@if (showTitleHeight || showCellHeight) {`:
+
+```html
+    @if (showSizeFollow) {
+      <div class="form-check mt-1">
+        <input type="checkbox" class="form-check-input" id="sizeFollowsDensity"
+               [ngModel]="model.sizeFollowsDensity"
+               (ngModelChange)="sizeFollowChanged($event)"
+               [ngModelOptions]="{standalone: true}">
+        <label class="form-check-label" for="sizeFollowsDensity">
+          _#(composer.vs.followDefaultDensity)
+        </label>
+      </div>
+    }
+```
+
+No comments in the `.html`.
+
+- [ ] **Step 4: Run them to verify they pass**
+
+Run (from `web/`): `npx ng test portal --include="**/size-position-pane.spec.ts"`
+Expected: PASS, including the file's existing tests.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git -C E:/StyleBI/stylebi-enterprise/community branch --show-current
+git -C E:/StyleBI/stylebi-enterprise/community add web/projects/portal/src/app/vsobjects/model/size-position-pane-model.ts web/projects/portal/src/app/vsobjects/dialog/size-position-pane.component.ts web/projects/portal/src/app/vsobjects/dialog/size-position-pane.component.html web/projects/portal/src/app/vsobjects/dialog/size-position-pane.spec.ts
+git -C E:/StyleBI/stylebi-enterprise/community commit -m "Show a follow-the-default-density checkbox for a selection's size" -m "Co-Authored-By: <your model> <noreply@anthropic.com>"
+```
+
+Do not stage `web/angular.json` or `web/package-lock.json`.
