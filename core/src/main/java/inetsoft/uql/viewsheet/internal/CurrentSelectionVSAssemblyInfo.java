@@ -109,12 +109,23 @@ public class CurrentSelectionVSAssemblyInfo extends ContainerVSAssemblyInfo
 
       // no card inset: its children inset themselves, so one here would indent them twice
 
-      // twelve lanes at the tier; only a size the rule wrote moves, and unmarked only under Revert
-      if((ctx.modern || ctx.transition) &&
+      // twelve lanes at the tier; only a size the rule wrote moves, and unmarked only under Revert.
+      // An author's size carries userSize and is never moved
+      if(!isUserSize() && (ctx.modern || ctx.transition) &&
          VSDensityDefaults.isSeededContainerSize(getPixelSize()))
       {
          setPixelSize(VSDensityDefaults.containerSize(ctx));
       }
+   }
+
+   @Override
+   public boolean takesDensitySize() {
+      return true;
+   }
+
+   @Override
+   protected Dimension defaultSize(VizContext ctx) {
+      return VSDensityDefaults.containerSize(ctx);
    }
 
    /**

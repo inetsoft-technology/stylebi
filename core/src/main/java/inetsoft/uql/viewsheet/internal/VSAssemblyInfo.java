@@ -704,6 +704,11 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
          result = true;
       }
 
+      if(userSize != info.userSize) {
+         userSize = info.userSize;
+         result = true;
+      }
+
       return result;
    }
 
@@ -880,6 +885,11 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
       }
 
       writer.print(" userPadding=\"" + isUserPadding() + "\"");
+
+      // only when set, so a box nobody resized keeps its saved form
+      if(userSize) {
+         writer.print(" userSize=\"true\"");
+      }
       writer.print(" zIndex=\"" + zIndex + "\"");
       writer.print(" scriptEnabled=\"" + scriptEnabled + "\"");
 
@@ -929,6 +939,7 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
       // absent in files saved before the flag existed; a missing flag means no opinion, and the
       // seed's comparison against the creation default decides
       setUserPadding("true".equalsIgnoreCase(Tool.getAttribute(elem, "userPadding")));
+      setUserSize("true".equalsIgnoreCase(Tool.getAttribute(elem, "userSize")));
 
       String idxStr = Tool.getAttribute(elem, "zIndex");
       zIndex = idxStr == null ? 0 : Integer.parseInt(idxStr);
@@ -1423,6 +1434,51 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
    }
 
    /**
+    * Whether the author set the size. Surfaced in Size & Position as the follow-the-default-density
+    * checkbox for size, inverted; the density size rules leave a box with it set alone.
+    */
+   public boolean isUserSize() {
+      return userSize;
+   }
+
+   /**
+    * Set whether the size was set by the author.
+    */
+   public void setUserSize(boolean userSize) {
+      this.userSize = userSize;
+   }
+
+   /**
+    * Whether this type takes a density default size from the seed. Overridden by the types that
+    * have one.
+    */
+   public boolean takesDensitySize() {
+      return false;
+   }
+
+   /**
+    * The size this type takes when nobody has an opinion, or null for a type without one.
+    */
+   protected Dimension defaultSize(VizContext ctx) {
+      return null;
+   }
+
+   /**
+    * Return the box to its density default, which is what Size & Position's follow-the-default
+    * checkbox asks for. Clears the author flag, so the seed manages the size again.
+    */
+   public void resetSize(VizContext ctx) {
+      Dimension size = defaultSize(ctx);
+
+      if(size == null) {
+         return;
+      }
+
+      setUserSize(false);
+      setPixelSize(size);
+   }
+
+   /**
     * Whether a format.css class set this assembly's padding. setCSSDefaults writes it before the
     * seed runs and there is no tier to record it in, so the dictionary is asked directly.
     */
@@ -1874,6 +1930,8 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
    // default, so the seed substitutes for the latter only. Lives here rather than on the chart,
    // which owned it first, because the field it guards has always lived here
    private boolean userPadding = false;
+   // whether the author set the size; the density size rules leave such a box alone
+   private boolean userSize = false;
    private VizMark vizMark;
 
    /**
