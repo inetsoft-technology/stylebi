@@ -22,6 +22,7 @@ import inetsoft.util.Tool;
 import org.apache.commons.lang3.StringUtils;
 import org.w3c.dom.*;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -446,8 +447,17 @@ public class AssetLMDependencyTransformer extends AssetDependencyTransformer {
    {
       NodeList exps = getChildNodes(
          assembly, ".//dataRef[@class='inetsoft.uql.erm.ExpressionRef']");
-      NodeList cols = getChildNodes(
-         assembly, ".//ColumnSelection//dataRef/dataRef[@entity='" + entity + "']");
+      // compare the entity in Java, a name with an apostrophe breaks an XPath string literal
+      NodeList refs = getChildNodes(assembly, ".//ColumnSelection//dataRef/dataRef[@entity]");
+      List<Element> cols = new ArrayList<>();
+
+      for(int i = 0; i < refs.getLength(); i++) {
+         Element ref = (Element) refs.item(i);
+
+         if(Tool.equals(ref.getAttribute("entity"), entity)) {
+            cols.add(ref);
+         }
+      }
 
       for(int i = 0; i < exps.getLength(); i++) {
          Element exp = (Element) exps.item(i);
@@ -459,14 +469,12 @@ public class AssetLMDependencyTransformer extends AssetDependencyTransformer {
       }
    }
 
-   private boolean matchOnlyColumnExp(NodeList cols, RenameInfo info) {
+   private boolean matchOnlyColumnExp(List<Element> cols, RenameInfo info) {
       String oattribute = getWSColumnName(info, true);
       String nattribute = getWSColumnName(info, false);
       String attribute;
-      Element col;
 
-      for(int i = 0; i < cols.getLength(); i++) {
-         col = (Element) cols.item(i);
+      for(Element col : cols) {
          attribute = Tool.getAttribute(col, "attribute");
 
          // maybe has renamed.

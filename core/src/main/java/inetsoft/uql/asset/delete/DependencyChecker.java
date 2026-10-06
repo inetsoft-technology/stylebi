@@ -41,24 +41,39 @@ public abstract class DependencyChecker {
 
    protected boolean checkDataRef(Element elem, DeleteInfo info) {
       String name = info.getName();
-      String isRangeRef = "(@class='inetsoft.uql.asset.NumericRangeRef' " +
-         "or @class='inetsoft.uql.asset.DateRangeRef') and attribute='" + name + "'";
+      // compare the names in Java, a name with an apostrophe breaks an XPath string literal
+      NodeList refs = DependencyTool.getChildNodes(xpath, elem, ".//dataRef");
 
-      Element node = DependencyTool.getChildNode(xpath, elem, ".//dataRef[(@name='"
-         + name + "' and @class='inetsoft.uql.erm.ExpressionRef')" +
-         " or @attribute='"+ name + "'" +
-         " or ("+ isRangeRef + ")]");
+      for(int i = 0; refs != null && i < refs.getLength(); i++) {
+         Element ref = (Element) refs.item(i);
+         String cls = ref.getAttribute("class");
+         boolean rangeRef = "inetsoft.uql.asset.NumericRangeRef".equals(cls) ||
+            "inetsoft.uql.asset.DateRangeRef".equals(cls);
 
-      if(node != null) {
-         return true;
+         if(("inetsoft.uql.erm.ExpressionRef".equals(cls) && hasAttribute(ref, "name", name)) ||
+            hasAttribute(ref, "attribute", name) ||
+            (rangeRef && hasChildText(ref, "attribute", name)) ||
+            // check chart aggregate binding
+            hasChildText(ref, "refValue", name))
+         {
+            return true;
+         }
       }
 
-      // check chart aggregate binding
-      node = DependencyTool.getChildNode(xpath, elem, ".//dataRef[refValue='"
-         + name + "']");
+      return false;
+   }
 
-      if(node != null) {
-         return true;
+   private static boolean hasAttribute(Element elem, String attr, String value) {
+      return elem.hasAttribute(attr) && Tool.equals(elem.getAttribute(attr), value);
+   }
+
+   private static boolean hasChildText(Element elem, String tag, String value) {
+      NodeList children = Tool.getChildNodesByTagName(elem, tag);
+
+      for(int i = 0; i < children.getLength(); i++) {
+         if(Tool.equals(children.item(i).getTextContent(), value)) {
+            return true;
+         }
       }
 
       return false;
