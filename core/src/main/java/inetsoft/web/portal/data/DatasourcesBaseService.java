@@ -654,6 +654,14 @@ public abstract class DatasourcesBaseService {
             "common.datasource.additionalConnectionMove"));
       }
 
+      // the name is the name of the data source in the folder of the definition. A folder in it
+      // would make this update move the data source to an ancestor folder without the checks of
+      // a move, and replace a data source of the same name there (Bug #77836)
+      if(Tool.containsPathSeparator(name)) {
+         throw new MessageException(Catalog.getCatalog(principal).getString(
+            "common.datasource.slashNotAllowed"));
+      }
+
       // Bug #77725, Bug #77820, a rename that XEngine refuses, checked here because the additional
       // connections are written under the new name before XEngine is called
       if(!Tool.equals(oldName, nName)) {
@@ -670,6 +678,15 @@ public abstract class DatasourcesBaseService {
          if(oldSrc == null) {
             throw new MessageException(Catalog.getCatalog().getString(
                "data.datasources.saveDataSourceLost"));
+         }
+
+         // an update that changes the path never replaces another data source or a folder
+         // (Bug #77836)
+         if(!Tool.equals(oldSrc.getFullName(), nName) &&
+            dataSourceRegistry.isDataSourcePathInUse(nName))
+         {
+            throw new MessageException(Catalog.getCatalog(principal).getString(
+               "common.datasource.moveTargetExists", nName));
          }
 
          if(authorized.additionalConnections() != null) {
