@@ -23,13 +23,14 @@ import org.springframework.messaging.*;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessageType;
 import org.springframework.messaging.support.*;
+import org.springframework.web.socket.server.support.HttpSessionHandshakeInterceptor;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.*;
 
 /**
- * Channel interceptor that hands the events one STOMP session sends for one runtime sheet to the
+ * Channel interceptor that hands the events one HTTP session sends for one runtime sheet to the
  * client inbound channel's thread pool one at a time, in the order they were received. The next
  * event of the sheet is released only after every subscriber has finished handling the previous
  * one. Events for other sheets, frames without a sheet runtime id (subscriptions, heartbeats),
@@ -39,13 +40,17 @@ import java.util.concurrent.atomic.*;
  * Without this, the events run concurrently on the pool and a later event (e.g. a selection delta
  * or a range slider range) can be applied before an earlier one (Bug #77887). Spring's
  * {@code setPreserveReceiveOrder} would order the whole session, which is shared by every sheet
- * of a browser window and would also queue the cancel events.
+ * of a browser window and would also queue the cancel events. The events are ordered by HTTP
+ * session rather than STOMP session, so the events a client sends after it reconnects are still
+ * applied after the ones it sent before. The held events of a disconnected STOMP session are not
+ * dropped, the client reconnects and keeps using its sheets.
  * <p>
- * The periodic touch-asset event is not queued again while the same event is already held for
- * the sheet, so a refresh that takes longer than the refresh interval cannot build a backlog. A
- * close is not held behind the running event unless other events are held, so closing a busy
- * sheet still cancels its query without dropping an event (e.g. a save) sent before the close.
- * The held events of a session are dropped when it disconnects.
+ * The periodic touch-asset event is not queued again while the same event is held for the sheet
+ * with only touch-asset events after it, so a refresh that takes longer than the refresh interval
+ * cannot build a backlog, and a touch-asset (e.g. an auto save) is never moved before a later
+ * event. A close is not held behind the running event unless other events are held, so closing a
+ * busy sheet still cancels its query without overtaking a held event (e.g. a save) sent before the
+ * close.
  * <p>
  * The tickets are kept out of the message headers, which are copied into the
  * {@code ServiceProxyContext} of cluster calls. Only the ticket id is put in a header.
@@ -66,11 +71,6 @@ public class SheetEventOrderInterceptor implements ExecutorChannelInterceptor {
             ticket.subscriberCount = getSubscriberCount(channel);
          }
 
-         return message;
-      }
-
-      if(SimpMessageHeaderAccessor.getMessageType(headers) == SimpMessageType.DISCONNECT) {
-         dropHeldEvents(SimpMessageHeaderAccessor.getSessionId(headers));
          return message;
       }
 
@@ -168,49 +168,32 @@ public class SheetEventOrderInterceptor implements ExecutorChannelInterceptor {
       }
    }
 
-   /**
-    * Drop the held events of a closed session. The running event of each sheet stays queued, so
-    * its completion still removes the queue.
-    */
-   private void dropHeldEvents(String sessionId) {
-      if(sessionId == null) {
-         return;
-      }
-
-      for(Key key : queues.keySet()) {
-         if(sessionId.equals(key.sessionId())) {
-            queues.computeIfPresent(key, (k, queue) -> {
-               Ticket running = queue.poll();
-               queue.forEach(t -> tickets.remove(t.id));
-               queue.clear();
-               queue.add(running);
-               return queue;
-            });
-         }
-      }
-   }
-
    private Ticket getTicket(Message<?> message) {
       return message.getHeaders().get(TICKET_HEADER) instanceof Long id ? tickets.get(id) : null;
    }
 
    /**
-    * Check if an event with the same destination and payload is held (not running) in the queue.
+    * Check if an event with the same destination and payload is held (not running) in the queue
+    * and only coalesced events are held after it, so dropping the new event moves nothing before
+    * an event that changes the sheet.
     */
    private static boolean isHeld(Deque<Ticket> queue, Message<?> message) {
       String destination = SimpMessageHeaderAccessor.getDestination(message.getHeaders());
-      Iterator<Ticket> iterator = queue.iterator();
-      // skip the running event
-      iterator.next();
+      Iterator<Ticket> iterator = queue.descendingIterator();
 
-      while(iterator.hasNext()) {
+      // stop before the running event
+      for(int i = queue.size() - 1; i > 0; i--) {
          Message<?> held = iterator.next().message;
+         String heldDestination = SimpMessageHeaderAccessor.getDestination(held.getHeaders());
 
-         if(Objects.equals(destination,
-                           SimpMessageHeaderAccessor.getDestination(held.getHeaders())) &&
+         if(Objects.equals(destination, heldDestination) &&
             Objects.deepEquals(message.getPayload(), held.getPayload()))
          {
             return true;
+         }
+
+         if(!COALESCED_DESTINATIONS.contains(heldDestination)) {
+            return false;
          }
       }
 
@@ -229,7 +212,7 @@ public class SheetEventOrderInterceptor implements ExecutorChannelInterceptor {
          return null;
       }
 
-      String sessionId = SimpMessageHeaderAccessor.getSessionId(headers);
+      String sessionId = getSessionId(headers);
       String destination = SimpMessageHeaderAccessor.getDestination(headers);
       String runtimeId = SimpMessageHeaderAccessor.getFirstNativeHeader("sheetRuntimeId", headers);
 
@@ -238,6 +221,19 @@ public class SheetEventOrderInterceptor implements ExecutorChannelInterceptor {
       }
 
       return new Key(sessionId, runtimeId);
+   }
+
+   /**
+    * Get the HTTP session of the event, which a reconnected STOMP session keeps, or the STOMP
+    * session if there is none.
+    */
+   private static String getSessionId(MessageHeaders headers) {
+      Map<String, Object> attributes = SimpMessageHeaderAccessor.getSessionAttributes(headers);
+      Object httpSessionId = attributes == null ? null :
+         attributes.get(HttpSessionHandshakeInterceptor.HTTP_SESSION_ID_ATTR_NAME);
+
+      return httpSessionId != null ?
+         "http:" + httpSessionId : SimpMessageHeaderAccessor.getSessionId(headers);
    }
 
    // for testing

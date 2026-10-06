@@ -24,6 +24,7 @@ import org.springframework.messaging.MessageHandler;
 import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.*;
+import org.springframework.web.socket.server.support.HttpSessionHandshakeInterceptor;
 
 import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
@@ -39,7 +40,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * <p>Axis covered: <b>same sheet vs. other sheet / other session</b> &times; <b>ordered event vs.
  * cancel / flyover event vs. close vs. periodic touch-asset vs. frame without a sheet</b> &times;
- * <b>normal vs. throwing handler vs. disconnected session</b>. The channel
+ * <b>normal vs. throwing handler vs. disconnected / reconnected session</b>. The channel
  * is a real {@link ExecutorSubscribableChannel} on a multi-thread pool (like
  * {@code WebSocketConfig.eventTaskExecutor()}) with three subscribers, as the real inbound channel
  * fans each message out to the annotation, broker and user destination handlers, and with
@@ -312,37 +313,89 @@ class SheetEventOrderInterceptorTest {
       awaitNoPendingSheet();
    }
 
-   // The held events of a closed session are dropped, the running event still releases its queue
-   // and other sessions are not affected.
+   // The client reconnects after its STOMP session drops and keeps using its sheets, so the held
+   // events of the session (e.g. an edit and a save) still run, in order.
    @Test
-   void disconnectDropsTheHeldEventsOfTheSession() throws Exception {
+   void disconnectKeepsTheHeldEventsOfTheSession() throws Exception {
       CountDownLatch release = new CountDownLatch(1);
-      Set<String> handled = ConcurrentHashMap.newKeySet();
+      List<String> handled = new CopyOnWriteArrayList<>();
       ExecutorSubscribableChannel channel = channel(m -> {
          handled.add(id(m));
 
-         if(id(m).startsWith("busy")) {
+         if("busy".equals(id(m))) {
             await(release);
          }
       });
 
-      channel.send(event("s1", "vs1", "/events/vs/refresh", 0, "busy1"));
-      channel.send(event("s1", "vs1", "/events/vs/refresh", 1, "held1"));
-      channel.send(event("s1", "vs1", "/events/vs/refresh", 2, "held2"));
-      channel.send(event("s2", "vs1", "/events/vs/refresh", 3, "busy2"));
-      channel.send(event("s2", "vs1", "/events/vs/refresh", 4, "held3"));
-      awaitHandled(handled, "busy1");
-      awaitHandled(handled, "busy2");
+      channel.send(event("s1", "vs1", "/events/vs/refresh", 0, "busy"));
+      channel.send(event("s1", "vs1", "/events/composer/viewsheet/edit", 1, "edit"));
+      channel.send(event("s1", "vs1", "/events/composer/viewsheet/save", 2, "save"));
+      awaitHandled(handled, "busy");
 
       channel.send(disconnect("s1"));
-      assertEquals(3, interceptor.getQueuedEventCount(), "the held events were not dropped");
+      assertEquals(3, interceptor.getQueuedEventCount(), "the held events were dropped");
 
       release.countDown();
-      awaitHandled(handled, "held3");
+      awaitHandled(handled, "save");
       awaitNoPendingSheet();
-      assertFalse(handled.contains("held1"));
-      assertFalse(handled.contains("held2"));
+      assertEquals(List.of("busy", "edit", "save"), events(handled));
       assertEquals(0, interceptor.getQueuedEventCount());
+   }
+
+   // The events a reconnected client sends (a new STOMP session of the same HTTP session) are
+   // applied after the ones it sent before, other HTTP sessions are not held.
+   @Test
+   void reconnectedSessionIsOrderedAfterTheOldOne() throws Exception {
+      CountDownLatch release = new CountDownLatch(1);
+      List<String> handled = new CopyOnWriteArrayList<>();
+      ExecutorSubscribableChannel channel = channel(m -> {
+         handled.add(id(m));
+
+         if("busy".equals(id(m))) {
+            await(release);
+         }
+      });
+
+      channel.send(event("s1", "h1", "vs1", "/events/vs/refresh", 0, "busy"));
+      channel.send(event("s1", "h1", "vs1", "/events/selectionList/update/List1", 1, "held"));
+      channel.send(disconnect("s1"));
+      channel.send(event("s2", "h1", "vs1", "/events/selectionList/update/List1", 2, "after"));
+      channel.send(event("s3", "h2", "vs1", "/events/vs/refresh", 3, "otherHttpSession"));
+
+      awaitHandled(handled, "otherHttpSession", WHILE_BUSY);
+      assertFalse(handled.contains("after"), "the reconnected session overtook the held event");
+
+      release.countDown();
+      awaitHandled(handled, "after");
+      awaitNoPendingSheet();
+      assertEquals(List.of("busy", "otherHttpSession", "held", "after"), events(handled));
+   }
+
+   // A touch-asset (e.g. an auto save, changed:true) must not be dropped in favour of a held copy
+   // that runs before a later event, that would write the auto save file without the later edit.
+   @Test
+   void touchAssetIsNotMovedBeforeALaterEvent() throws Exception {
+      CountDownLatch release = new CountDownLatch(1);
+      List<String> handled = new CopyOnWriteArrayList<>();
+      ExecutorSubscribableChannel channel = channel(m -> {
+         handled.add(id(m));
+
+         if("busy".equals(id(m))) {
+            await(release);
+         }
+      });
+
+      channel.send(event("s1", "vs1", "/events/vs/refresh", 0, "busy"));
+      channel.send(event("s1", "vs1", "/events/composer/touch-asset", 1, "save1",
+                         "{\"changed\":true}"));
+      channel.send(event("s1", "vs1", "/events/composer/viewsheet/edit", 2, "edit"));
+      channel.send(event("s1", "vs1", "/events/composer/touch-asset", 3, "save2",
+                         "{\"changed\":true}"));
+
+      release.countDown();
+      awaitHandled(handled, "save2");
+      awaitNoPendingSheet();
+      assertEquals(List.of("busy", "save1", "edit", "save2"), handled);
    }
 
    // The subscribers are counted when a held event is sent, not when it is held.
@@ -437,6 +490,17 @@ class SheetEventOrderInterceptorTest {
       return message(accessor, session, runtimeId, seq, id, payload);
    }
 
+   // an event of a STOMP session opened in an HTTP session
+   private static Message<byte[]> event(String session, String httpSession, String runtimeId,
+                                        String destination, int seq, String id)
+   {
+      StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.SEND);
+      accessor.setDestination(destination);
+      accessor.setSessionAttributes(new HashMap<>(
+         Map.of(HttpSessionHandshakeInterceptor.HTTP_SESSION_ID_ATTR_NAME, httpSession)));
+      return message(accessor, session, runtimeId, seq, id, "");
+   }
+
    private static Message<byte[]> disconnect(String session) {
       StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.DISCONNECT);
       return message(accessor, session, null, -1, "disconnect");
@@ -478,6 +542,11 @@ class SheetEventOrderInterceptorTest {
 
    private static String id(Message<?> message) {
       return StompHeaderAccessor.wrap(message).getFirstNativeHeader("id");
+   }
+
+   // the handled events without the disconnect frame
+   private static List<String> events(List<String> handled) {
+      return handled.stream().filter(id -> !"disconnect".equals(id)).toList();
    }
 
    private static List<Integer> sequence(int count) {
