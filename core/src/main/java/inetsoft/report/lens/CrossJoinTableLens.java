@@ -433,14 +433,27 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
 
       Throwable workerFailure = this.workerFailure;
 
-      // a lost swap file is rethrown as is, as JoinTable does (bug #77651)
-      if(workerFailure instanceof SwapFileReadException swapFailure) {
-         throw swapFailure;
-      }
-
       if(workerFailure != null) {
-         throw new RuntimeException("Failed to load a base table of the cross join",
-                                    workerFailure);
+         // a lost swap file is rethrown as is, as JoinTable does (bug #77651)
+         SwapFileReadException swapFailure = SwapFileReadException.find(workerFailure);
+
+         if(swapFailure != null) {
+            throw swapFailure;
+         }
+
+         throw new CrossJoinException(workerFailure);
+      }
+   }
+
+   /**
+    * Thrown by a read of a cross join whose worker failed, the rows so far are not the whole
+    * table (bug #77907). The message is shown to the user, so it never includes the cause
+    * (e.g. a cache file path), the cause is chained.
+    */
+   static final class CrossJoinException extends MessageException {
+      CrossJoinException(Throwable cause) {
+         super(Catalog.getCatalog().getString("common.table.getDataFailed"));
+         initCause(cause);
       }
    }
 
@@ -1131,9 +1144,12 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
             else {
                // this thread never completes its table, so readers would wait for it
                // forever; they rethrow the failure instead. a thread superseded by
-               // invalidate() must not fail the next pass (bug #77907)
+               // invalidate() must not fail the next pass, and a failure caused by
+               // dispose() or cancel() of this lens ends the reads as before (bug #77907)
                synchronized(CrossJoinTableLens.this) {
-                  if(!this.disposed && this == (left ? lthread : rthread)) {
+                  if(!this.disposed && this == (left ? lthread : rthread) &&
+                     !CrossJoinTableLens.this.disposed && !cancelled)
+                  {
                      workerFailure = ex;
                      CrossJoinTableLens.this.notifyAll();
                   }

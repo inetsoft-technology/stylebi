@@ -20,6 +20,8 @@ package inetsoft.report.lens;
 
 import inetsoft.report.TableLens;
 import inetsoft.test.*;
+import inetsoft.util.Catalog;
+import inetsoft.util.MessageException;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.swap.SwapFileReadException;
 import org.junit.jupiter.api.Tag;
@@ -31,6 +33,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.File;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -55,9 +58,11 @@ public class CrossJoinTableLensWorkerFailureTest {
       try {
          Throwable thrown = readFailure(lens);
          assertSame(failure, thrown.getCause(), String.valueOf(thrown));
+         assertLocalized(thrown);
          // the rows so far are not the whole table
-         RuntimeException count = assertThrows(RuntimeException.class, lens::getRowCount);
+         MessageException count = assertThrows(MessageException.class, lens::getRowCount);
          assertSame(failure, count.getCause());
+         assertLocalized(count);
       }
       finally {
          lens.dispose();
@@ -81,6 +86,26 @@ public class CrossJoinTableLensWorkerFailureTest {
       }
    }
 
+   /**
+    * A lost swap file wrapped by the base is found in the cause chain and rethrown as is.
+    */
+   @Test
+   public void wrappedLostSwapFileIsRethrownAsIs() throws Exception {
+      SwapFileReadException failure =
+         new SwapFileReadException(new File("lost.swap"), new java.io.IOException("gone"));
+      FailingTable left = new FailingTable(() -> new IllegalStateException("wrapped", failure));
+      CrossJoinTableLens lens = new CrossJoinTableLens(left, new DefaultTableLens(data(5)));
+      left.armed = true;
+
+      try {
+         assertSame(failure, readFailure(lens));
+         assertSame(failure, assertThrows(SwapFileReadException.class, lens::getRowCount));
+      }
+      finally {
+         lens.dispose();
+      }
+   }
+
    @Test
    public void errorFailsReader() throws Exception {
       StackOverflowError failure = new StackOverflowError("base failed");
@@ -89,7 +114,9 @@ public class CrossJoinTableLensWorkerFailureTest {
       left.armed = true;
 
       try {
-         assertSame(failure, readFailure(lens).getCause());
+         Throwable thrown = readFailure(lens);
+         assertSame(failure, thrown.getCause());
+         assertLocalized(thrown);
       }
       finally {
          lens.dispose();
@@ -141,6 +168,65 @@ public class CrossJoinTableLensWorkerFailureTest {
       }
    }
 
+   /**
+    * A worker that fails because its lens was cancelled ends the reads as before, rather than
+    * failing them.
+    */
+   @Test
+   public void failureAfterCancelEndsReads() throws Exception {
+      checkFailureAfterClose(CrossJoinTableLens::cancel);
+   }
+
+   /**
+    * A worker that fails because its lens was disposed ends the reads as before, rather than
+    * failing them.
+    */
+   @Test
+   public void failureAfterDisposeEndsReads() throws Exception {
+      checkFailureAfterClose(CrossJoinTableLens::dispose);
+   }
+
+   private void checkFailureAfterClose(java.util.function.Consumer<CrossJoinTableLens> close)
+      throws Exception
+   {
+      CountDownLatch entered = new CountDownLatch(1);
+      CountDownLatch release = new CountDownLatch(1);
+      AtomicReferenceArray<Thread> worker = new AtomicReferenceArray<>(1);
+      FailingTable left = new FailingTable(() -> {
+         worker.set(0, Thread.currentThread());
+         entered.countDown();
+
+         try {
+            release.await(CAP_SECONDS, TimeUnit.SECONDS);
+         }
+         catch(InterruptedException ex) {
+            Thread.currentThread().interrupt();
+         }
+
+         return new IllegalStateException("closed");
+      });
+      CrossJoinTableLens lens = new CrossJoinTableLens(left, new DefaultTableLens(data(5)));
+      left.armed = true;
+
+      try {
+         // starts the workers without waiting for them
+         lens.getRowCount();
+         assertTrue(entered.await(CAP_SECONDS, TimeUnit.SECONDS));
+
+         close.accept(lens);
+         release.countDown();
+         worker.get(0).join(CAP_SECONDS * 1000L);
+         assertFalse(worker.get(0).isAlive());
+
+         assertFalse(lens.moreRows(TableLens.EOT));
+         lens.getRowCount();
+      }
+      finally {
+         release.countDown();
+         lens.dispose();
+      }
+   }
+
    @Test
    public void invalidateRetriesAfterFailure() throws Exception {
       FailingTable left = new FailingTable(() -> new IllegalStateException("base failed"));
@@ -166,15 +252,15 @@ public class CrossJoinTableLensWorkerFailureTest {
     */
    @Test
    public void stallTakesPriorityOverWorkerFailure() throws Exception {
-      Thread[] workers = new Thread[2];
+      AtomicReferenceArray<Thread> workers = new AtomicReferenceArray<>(2);
       LockStallException stall =
          new LockStallException("CrossJoinTableLensWorkerFailureTest", "worker", 1, null);
       FailingTable left = new FailingTable(() -> {
-         workers[0] = Thread.currentThread();
+         workers.set(0, Thread.currentThread());
          return stall;
       });
       FailingTable right = new FailingTable(() -> {
-         workers[1] = Thread.currentThread();
+         workers.set(1, Thread.currentThread());
          return new IllegalStateException("base failed");
       });
       CrossJoinTableLens lens = new CrossJoinTableLens(left, right);
@@ -193,13 +279,13 @@ public class CrossJoinTableLensWorkerFailureTest {
          for(int i = 0; i < 2; i++) {
             long end = System.currentTimeMillis() + CAP_SECONDS * 1000L;
 
-            while(workers[i] == null && System.currentTimeMillis() < end) {
+            while(workers.get(i) == null && System.currentTimeMillis() < end) {
                Thread.onSpinWait();
             }
 
-            assertNotNull(workers[i]);
-            workers[i].join(CAP_SECONDS * 1000L);
-            assertFalse(workers[i].isAlive());
+            assertNotNull(workers.get(i));
+            workers.get(i).join(CAP_SECONDS * 1000L);
+            assertFalse(workers.get(i).isAlive());
          }
 
          LockStallException thrown =
@@ -230,6 +316,15 @@ public class CrossJoinTableLensWorkerFailureTest {
       }
 
       return fail("the reader didn't fail");
+   }
+
+   /**
+    * The failure is shown to the user with the localized message only, never the cause's.
+    */
+   private static void assertLocalized(Throwable thrown) {
+      assertInstanceOf(MessageException.class, thrown);
+      assertEquals(Catalog.getCatalog().getString("common.table.getDataFailed"),
+                   thrown.getMessage());
    }
 
    private static Object[][] data(int rows) {
