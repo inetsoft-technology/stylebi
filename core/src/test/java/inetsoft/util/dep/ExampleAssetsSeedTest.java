@@ -18,6 +18,11 @@
 package inetsoft.util.dep;
 
 import inetsoft.test.*;
+import inetsoft.uql.DrillPath;
+import inetsoft.uql.XDrillInfo;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.erm.*;
+import inetsoft.util.Tool;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -27,13 +32,14 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.io.ByteArrayInputStream;
 import java.nio.file.*;
 import java.util.*;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Replays the viewsheets, worksheets and manifest of the example bundle that a new server
@@ -50,6 +56,70 @@ class ExampleAssetsSeedTest {
    @MethodSource("entries")
    void exampleSurvivesSaveAndReload(String name, byte[] content) throws Exception {
       assertTrue(ImportedAssetProperties.check(content, true), name + " was not checked");
+   }
+
+   /**
+    * Every auto-drill shipped in an example logical model must be one the product can follow:
+    * a web link, or a viewsheet link to a viewsheet in the same bundle. Legacy report links
+    * (link type 0) are emitted as cell hyperlinks but do nothing when clicked (Bug #77889).
+    */
+   @ParameterizedTest(name = "{0}")
+   @MethodSource("logicalModels")
+   void exampleDrillsAreFollowable(String name, byte[] content, Set<String> viewsheets)
+      throws Exception
+   {
+      XLogicalModel model = new XLogicalModel("");
+      model.parseXML(Tool.parseXML(new ByteArrayInputStream(content)).getDocumentElement(), false);
+
+      for(int i = 0; i < model.getEntityCount(); i++) {
+         XEntity entity = model.getEntityAt(i);
+
+         for(int j = 0; j < entity.getAttributeCount(); j++) {
+            XAttribute attribute = entity.getAttributeAt(j);
+            XDrillInfo drills = attribute.getXMetaInfo().getXDrillInfo();
+
+            for(int k = 0; drills != null && k < drills.getDrillPathCount(); k++) {
+               DrillPath path = drills.getDrillPath(k);
+               String where = name + " " + entity.getName() + "." + attribute.getName() +
+                  " drill " + path.getName() + " -> " + path.getLink();
+
+               if(path.getLinkType() == DrillPath.VIEWSHEET_LINK) {
+                  AssetEntry target = AssetEntry.createAssetEntry(path.getLink());
+                  assertNotNull(target, where + " is not a viewsheet identifier");
+                  assertTrue(viewsheets.contains(target.getPath()),
+                             where + " targets a viewsheet that is not in the bundle");
+               }
+               else {
+                  assertEquals(DrillPath.WEB_LINK, path.getLinkType(),
+                               where + " has an unsupported link type");
+               }
+            }
+         }
+      }
+   }
+
+   static Stream<Arguments> logicalModels() throws Exception {
+      List<Arguments> all = entries().toList();
+      Set<String> viewsheets = new HashSet<>();
+      String prefix = "VIEWSHEET_" + ViewsheetAsset.class.getName() + "^";
+
+      for(Arguments entry : all) {
+         String name = (String) entry.get()[0];
+
+         if(name.startsWith(prefix)) {
+            AssetEntry vs = AssetEntry.createAssetEntry(
+               name.substring(prefix.length()).replace("^_^", "/"));
+
+            if(vs != null) {
+               viewsheets.add(vs.getPath());
+            }
+         }
+      }
+
+      assertFalse(viewsheets.isEmpty(), "no example viewsheets found");
+      return all.stream()
+         .filter(a -> ((String) a.get()[0]).startsWith("XLOGICALMODEL_"))
+         .map(a -> Arguments.of(a.get()[0], a.get()[1], viewsheets));
    }
 
    static Stream<Arguments> entries() throws Exception {
