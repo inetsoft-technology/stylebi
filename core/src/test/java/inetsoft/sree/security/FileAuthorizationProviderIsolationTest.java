@@ -154,6 +154,35 @@ public class FileAuthorizationProviderIsolationTest {
       assertTrue(granted(provider.getPermission(ResourceType.VIEWSHEET, "vs1", ORG), "carol"));
    }
 
+   // a legacy entry with grantees of two organizations is split into one key per organization,
+   // also under a chain that knows only the default organization
+   @Test
+   void legacyEntryOfTwoOrganizationsIsSplitUnderLdapOnlyChain() throws Exception {
+      setUp(new GenericLdapAuthenticationProvider());
+      KeyValueStorage<Permission> real = storage();
+      clear(real);
+      String task = "admin~;~" + ORG + ":Task1";
+      Permission vs = grant("alice");
+      vs.setUserGrantsForOrg(ResourceAction.WRITE, Set.of("bob"), "org2");
+      real.put("VIEWSHEET:vs1", vs).get();
+      real.put("SCHEDULE_TASK:" + task, grant("carol")).get();
+      real.put("CUBE:ds::cube1", grant("dave")).get();
+
+      runInit(real);
+
+      assertEquals(Set.of("VIEWSHEET:" + ORG + ":vs1", "VIEWSHEET:org2:vs1",
+                          "SCHEDULE_TASK:" + ORG + ":" + task, "CUBE:" + ORG + ":ds::cube1"),
+                   keys(real));
+      Permission own = provider.getPermission(ResourceType.VIEWSHEET, "vs1", ORG);
+      assertTrue(granted(own, "alice"));
+      assertTrue(own.getUserGrants(ResourceAction.WRITE, "org2").isEmpty());
+      Permission other = provider.getPermission(ResourceType.VIEWSHEET, "vs1", "org2");
+      assertTrue(other.getUserGrants(ResourceAction.WRITE, "org2").stream()
+                    .anyMatch(i -> "bob".equals(i.getName())));
+      assertTrue(granted(provider.getPermission(ResourceType.SCHEDULE_TASK, task, ORG), "carol"));
+      assertTrue(granted(provider.getPermission(ResourceType.CUBE, "ds::cube1", ORG), "dave"));
+   }
+
    // a legacy entry keeps the edited flag of its organization, also when nobody is granted
    @Test
    void legacyMigrationKeepsTheEditedFlag() throws Exception {
@@ -199,6 +228,52 @@ public class FileAuthorizationProviderIsolationTest {
       runInit(real);
       assertEquals(Set.of("VIEWSHEET:" + ORG + ":legacyA", "VIEWSHEET:" + ORG + ":legacyB"),
                    keys(real));
+   }
+
+   // a legacy key whose remove failed stays next to its copy; once the copy is edited, the next
+   // start drops the stale legacy key and keeps the edit
+   @Test
+   void failedRemoveKeepsTheLiveEditOnTheNextStart() throws Exception {
+      setUp(new FileAuthenticationProvider());
+      KeyValueStorage<Permission> real = storage();
+      clear(real);
+      real.put("VIEWSHEET:legacyA", grant("mallory")).get();
+      KeyValueStorage<Permission> failing = mock(KeyValueStorage.class, AdditionalAnswers.delegatesTo(real));
+      doReturn(CompletableFuture.failedFuture(new IOException("simulated write failure")))
+         .when(failing).remove(anyString());
+
+      runInit(failing);
+
+      assertEquals(Set.of("VIEWSHEET:legacyA", "VIEWSHEET:" + ORG + ":legacyA"), keys(real));
+
+      provider.setPermission(ResourceType.VIEWSHEET, "legacyA", grant("alice"), ORG);
+      runInit(real);
+
+      assertEquals(Set.of("VIEWSHEET:" + ORG + ":legacyA"), keys(real));
+      Permission live = provider.getPermission(ResourceType.VIEWSHEET, "legacyA", ORG);
+      assertTrue(granted(live, "alice"));
+      assertFalse(granted(live, "mallory"), "the stale legacy grant replaced the live one");
+   }
+
+   // when every put fails during the migration run by authenticationChanged, nothing is lost
+   @Test
+   void failedPutsInAuthenticationChangedKeepTheStorage() throws Exception {
+      setUp(new FileAuthenticationProvider());
+      KeyValueStorage<Permission> real = storage();
+      clear(real);
+      real.put("VIEWSHEET:legacyA", grant("alice")).get();
+      real.put("SCHEDULE_TASK:admin~;~" + ORG + ":Task1", grant("bob")).get();
+      real.put("VIEWSHEET:" + ORG + ":vsA", edited(grant("carol"))).get();
+      Map<String, String> before = snapshot(real);
+      KeyValueStorage<Permission> failing = mock(KeyValueStorage.class, AdditionalAnswers.delegatesTo(real));
+      doReturn(CompletableFuture.failedFuture(new IOException("simulated write failure")))
+         .when(failing).put(anyString(), any());
+      AuthenticationChangeEvent event = new AuthenticationChangeEvent(
+         this, new IdentityID("zed", ORG), null, ORG, ORG, Identity.USER, true);
+
+      runInit(failing, () -> provider.authenticationChanged(event));
+
+      assertEquals(before, snapshot(real));
    }
 
    @Test
