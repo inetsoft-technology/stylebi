@@ -138,10 +138,19 @@ public final class WorksheetWrapper extends Worksheet {
          return null;
       }
 
-      WSAssembly assembly = (WSAssembly) inner_ws.getAssembly(name);
+      WSAssembly assembly;
+
+      // the tables of the inner worksheet are changed in place by concurrent viewsheet
+      // queries under its lock (VSAQuery.getVSTableAssembly, 77867), copy them under it too
+      synchronized(inner_ws) {
+         assembly = (WSAssembly) inner_ws.getAssembly(name);
+
+         if(assembly != null) {
+            assembly = (WSAssembly) assembly.clone();
+         }
+      }
 
       if(assembly != null) {
-         assembly = (WSAssembly) assembly.clone();
          assembly.setWorksheet(this);
          alist.add(assembly);
       }

@@ -1205,7 +1205,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          }
       }
 
-      TableAssembly ntable = (TableAssembly) assembly.copyAssembly(nname);
+      TableAssembly ntable = copyBoundTable(assembly, nname);
       ws.addAssembly(ntable);
       MVManager mgr = MVManager.getManager();
 
@@ -1240,6 +1240,25 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       }
 
       return ntable;
+   }
+
+   /**
+    * Copy the viewsheet table a query binds to.
+    * @param assembly the viewsheet table in the worksheet.
+    * @param name the name of the copy.
+    */
+   static TableAssembly copyBoundTable(TableAssembly assembly, String name) {
+      Worksheet ws = assembly.getWorksheet();
+
+      if(ws == null) {
+         return (TableAssembly) assembly.copyAssembly(name);
+      }
+
+      // the copy reads the base table, which concurrent queries change in place under the
+      // worksheet lock (VSAQuery.getVSTableAssembly, 77867)
+      synchronized(ws) {
+         return (TableAssembly) assembly.copyAssembly(name);
+      }
    }
 
    /**
