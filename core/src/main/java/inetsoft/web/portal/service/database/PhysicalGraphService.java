@@ -415,17 +415,20 @@ public class PhysicalGraphService {
     * is below it. So after the other nodes are unfolded, a node with no top may no longer open
     * where it is shown.
     *
-    * For each such node that would open somewhere else, try the stored positions that
-    * shrinking maps back to its portal y, check each by running the real shrink, and keep the
-    * best one that brings the node closer while no node opens further from where it is shown
-    * and no new overlap appears. Nodes without a top that the move pushes away get one chance
-    * to be placed again in the same step.
+    * First the lowest node gets the inverse of the bottom rule, so the layout opens at least
+    * as well as before that rule existed. Then, within a time limit, each node with no top that
+    * would open somewhere else tries the stored positions that shrinking maps back to its
+    * portal y, each checked by running the real shrink. A move is kept only if it brings the
+    * node closer, no node opens further from where it is shown and no new overlap appears, so
+    * stopping at the time limit never leaves the layout worse than after the first step. Nodes
+    * without a top that the move pushes away get one chance to be placed again in the same step.
     */
    private void unfoldNoTopNodes(XPartition newPartition,
                                  List<GraphBoundsInfo> graphs,
                                  List<GraphBoundsInfo> viewLayout,
                                  XPartition currentLayout)
    {
+      long deadline = System.nanoTime() + SEARCH_TIME_LIMIT;
       int count = graphs.size();
       int[] target = new int[count];
 
@@ -434,6 +437,12 @@ public class PhysicalGraphService {
       }
 
       int[] opened = simulateShrink(graphs);
+
+      if(Arrays.equals(opened, target)) {
+         return;
+      }
+
+      opened = unfoldBottomNodes(newPartition, graphs, opened, target);
 
       if(Arrays.equals(opened, target)) {
          return;
@@ -449,15 +458,11 @@ public class PhysicalGraphService {
          }
       }
 
-      // each simulation costs about count^2, keep the search bounded for large views
-      int budget = Math.max(MIN_SEARCH_SHRINKS, SEARCH_WORK / Math.max(1, count * count));
-      int[] used = { 0 };
-
-      for(int pass = 0; pass < MAX_SEARCH_PASSES && used[0] < budget; pass++) {
+      for(int pass = 0; pass < MAX_SEARCH_PASSES && System.nanoTime() < deadline; pass++) {
          boolean improved = false;
 
          for(int i : roots) {
-            if(opened[i] == target[i] || used[0] >= budget) {
+            if(opened[i] == target[i]) {
                continue;
             }
 
@@ -467,19 +472,19 @@ public class PhysicalGraphService {
             int overlaps = countOverlaps(graphs, opened, target);
 
             for(int y : candidates(i, graphs, opened, target, subtrees)) {
-               if(used[0] >= budget) {
+               if(System.nanoTime() >= deadline) {
                   break;
                }
 
                List<int[]> moves = new ArrayList<>();
                moveRoot(graphs, subtrees, i, y - graphs.get(i).getBounds().y, moves, null);
                int[] result = simulateShrink(graphs);
-               used[0]++;
 
                // let no-top nodes that were pushed away by this move be placed again
                for(int other : roots) {
                   if(other != i && distance(result, target, other) > distance(opened, target, other)) {
-                     result = replace(other, graphs, opened, result, target, subtrees, moves, used);
+                     result = placeAgain(other, graphs, opened, result, target, subtrees, moves,
+                                         deadline);
                   }
                }
 
@@ -516,13 +521,71 @@ public class PhysicalGraphService {
    }
 
    /**
+    * Inverse of {@link #shrinkBottomNode}: the lowest stored node(s) move down by the shift of
+    * the lowest node above them, so shrinking moves them back up to where they are shown.
+    * A node above them never moves relative to them, so the other nodes open as before.
+    * @return the opened layout, changed only if no node opens further from where it is shown.
+    */
+   private int[] unfoldBottomNodes(XPartition newPartition, List<GraphBoundsInfo> graphs,
+                                   int[] opened, int[] target)
+   {
+      int lowestY = Integer.MIN_VALUE;
+      Integer above = null;
+
+      for(GraphBoundsInfo node : graphs) {
+         lowestY = Math.max(lowestY, node.getBounds().y);
+      }
+
+      for(int i = 0; i < graphs.size(); i++) {
+         int y = graphs.get(i).getBounds().y;
+
+         if(y < lowestY && (above == null || y > graphs.get(above).getBounds().y)) {
+            above = i;
+         }
+      }
+
+      int shift = above == null ? 0 : graphs.get(above).getBounds().y - opened[above];
+      List<Integer> lowest = new ArrayList<>();
+
+      for(int i = 0; i < graphs.size(); i++) {
+         if(graphs.get(i).getBounds().y == lowestY && opened[i] != target[i]) {
+            lowest.add(i);
+         }
+      }
+
+      if(shift <= 0 || lowest.isEmpty()) {
+         return opened;
+      }
+
+      moveNodes(graphs, lowest, shift, null);
+      int[] result = simulateShrink(graphs);
+
+      if(error(result, target) < error(opened, target) && noneFurther(opened, result, target)) {
+         moveNodes(graphs, lowest, 0, newPartition);
+         return result;
+      }
+
+      moveNodes(graphs, lowest, -shift, null);
+      return opened;
+   }
+
+   private void moveNodes(List<GraphBoundsInfo> graphs, List<Integer> nodes, int delta,
+                          XPartition partition)
+   {
+      for(int i : nodes) {
+         Rectangle bounds = graphs.get(i).getBounds();
+         setLocation(graphs.get(i), new Point(bounds.x, bounds.y + delta), partition);
+      }
+   }
+
+   /**
     * Place no-top node <tt>index</tt> again after another node moved it away from its portal
     * y. The best position is applied to <tt>graphs</tt> and logged in <tt>moves</tt>.
     * @return the opened layout after the move, or <tt>result</tt> if nothing helps.
     */
-   private int[] replace(int index, List<GraphBoundsInfo> graphs, int[] opened, int[] result,
-                         int[] target, Map<Integer, Set<Integer>> subtrees, List<int[]> moves,
-                         int[] used)
+   private int[] placeAgain(int index, List<GraphBoundsInfo> graphs, int[] opened, int[] result,
+                            int[] target, Map<Integer, Set<Integer>> subtrees, List<int[]> moves,
+                            long deadline)
    {
       int y0 = graphs.get(index).getBounds().y;
       Integer bestY = null;
@@ -530,9 +593,12 @@ public class PhysicalGraphService {
       long bestError = Long.MAX_VALUE;
 
       for(int y : candidates(index, graphs, result, target, subtrees)) {
+         if(System.nanoTime() >= deadline) {
+            break;
+         }
+
          moveRoot(graphs, subtrees, index, y - y0, null, null);
          int[] trial = simulateShrink(graphs);
-         used[0]++;
          moveRoot(graphs, subtrees, index, y0 - y, null, null);
          long error = error(trial, target);
 
@@ -595,6 +661,7 @@ public class PhysicalGraphService {
          double mixed = y - height + (portalY - opened[i] + PORTAL_GRAPH_NODE_HEIGHT) *
             (double) height / PORTAL_GRAPH_NODE_HEIGHT;
 
+         // the shrink rounds the mixed space, so try the integers around the exact inverse
          for(int k = -1; k <= 2; k++) {
             addMiddleCandidate(result, (int) Math.floor(mixed) + k, i, index, graphs);
          }
@@ -616,6 +683,8 @@ public class PhysicalGraphService {
       }
 
       result.remove(bounds.y);
+
+      // shrinking only moves a node up, so a stored y above the portal y can't map back to it
       return result.tailSet(portalY, true);
    }
 
@@ -732,7 +801,7 @@ public class PhysicalGraphService {
    }
 
    /**
-    * Largest distance first, then total distance.
+    * Largest distance first, then total distance (the sum stays far below 1e9).
     */
    private static long error(int[] opened, int[] target) {
       long max = 0;
@@ -1019,9 +1088,9 @@ public class PhysicalGraphService {
 
    private static final int MOVE_INVALID = -1;
    private static final int MAX_SEARCH_PASSES = 3;
-   private static final int MIN_SEARCH_SHRINKS = 20;
-   // simulated shrinks * node count^2 allowed for one unfold
-   private static final int SEARCH_WORK = 8_000_000;
+   // time for the search after the bottom nodes are placed; a shrink that is running when it
+   // ends still completes, and the result is never worse than after the bottom step
+   private static final long SEARCH_TIME_LIMIT = 500_000_000L;
 
    private static final Logger LOGGER = LoggerFactory.getLogger(PhysicalGraphService.class);
 }

@@ -171,6 +171,40 @@ class PhysicalGraphServiceRoundTripTest {
       }
    }
 
+   /**
+    * Large view: 60 columns of 6 tables, 20 tables dragged between rows, and one table dropped
+    * below everything. The dropped table must open where it was dropped even when the search
+    * stops at its time limit, and no table may open further away than before the fix (61).
+    */
+   @Test
+   void largeViewKeepsTableDroppedBelowEverything() {
+      Random random = new Random(102);
+      int columns = 60;
+      Map<String, Rectangle> portal = new TreeMap<>();
+      int t = 0;
+
+      for(int c = 0; c < columns; c++) {
+         for(int d = 0; d < 6; d++) {
+            portal.put(String.format("C%04d", t++),
+                       new Rectangle(10 + c * 170, 10 + d * 40, 100, height(random)));
+         }
+      }
+
+      for(int c = 0; c < columns; c += 3) {
+         String name = String.format("C%04d", c * 6 + 3);
+         Rectangle bounds = portal.get(name);
+         portal.put(name, new Rectangle(bounds.x + 110, 110, 50, bounds.height));
+      }
+
+      portal.put("ZBOTTOM", new Rectangle(10 + columns * 170 + 20, 1500, 100, 130));
+
+      Saved saved = save(portal, null);
+
+      assertEquals(1500, saved.opened.get("ZBOTTOM").y);
+      assertTrue(maxDy(portal, saved.opened) <= 61, () -> describe(portal, saved));
+      assertStable(saved.opened, saved, 1);
+   }
+
    private void assertStable(Map<String, Rectangle> expected, Saved saved, int cycles) {
       for(int i = 0; i < cycles; i++) {
          saved = save(saved.opened, saved.stored);
@@ -263,10 +297,11 @@ class PhysicalGraphServiceRoundTripTest {
    }
 
    /**
-    * Vertical columns starting at the top, opened by the shrink, then 1-3 tables dragged.
+    * Vertical columns starting at the top as shown in the portal (each table 26 high, so it
+    * sits right under the one above it), then 1-3 tables dragged.
     */
-   static Map<String, Rectangle> columnsWithDrags(Random random, PhysicalGraphService service) {
-      Map<String, Rectangle> stored = new TreeMap<>();
+   static Map<String, Rectangle> columnsWithDrags(Random random) {
+      Map<String, Rectangle> portal = new TreeMap<>();
       int columns = 2 + random.nextInt(4);
       int t = 0;
 
@@ -277,14 +312,12 @@ class PhysicalGraphServiceRoundTripTest {
 
          for(int i = 0; i < count; i++) {
             int h = height(random);
-            stored.put(String.format("T%03d", t++), new Rectangle(x, y, 60 + random.nextInt(90), h));
-            y += h + 20 + random.nextInt(30);
+            portal.put(String.format("T%03d", t++), new Rectangle(x, y, 60 + random.nextInt(90), h));
+            y += 26 + 20 + random.nextInt(30);
          }
       }
 
-      RuntimePartitionService.RuntimeXPartition runtime = runtime(stored);
-      service.shrinkColumnHeight(runtime);
-      return drag(random, read(runtime.getPartition(), stored.keySet()));
+      return drag(random, portal);
    }
 
    /**
@@ -394,10 +427,8 @@ class PhysicalGraphServiceRoundTripTest {
       return layout;
    }
 
-   private static final PhysicalGraphService GENERATOR_SERVICE = new PhysicalGraphService();
-
    static final List<Function<Random, Map<String, Rectangle>>> GENERATORS = List.of(
-      random -> columnsWithDrags(random, GENERATOR_SERVICE),
+      PhysicalGraphServiceRoundTripTest::columnsWithDrags,
       PhysicalGraphServiceRoundTripTest::autoColumns,
       PhysicalGraphServiceRoundTripTest::autoRows,
       random -> drag(random, autoColumns(random)),
