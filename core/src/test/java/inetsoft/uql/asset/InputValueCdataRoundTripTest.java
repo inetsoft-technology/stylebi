@@ -174,6 +174,34 @@ class InputValueCdataRoundTripTest {
    }
 
    @Test
+   void chartFormatKeyCustomTooltipAndGaugeTooltip() throws Exception {
+      int n = 0;
+
+      for(String p : PAYLOADS) {
+         Viewsheet vs = new Viewsheet();
+         ChartVSAssembly chart = new ChartVSAssembly(vs, "Chart1");
+         VSChartInfo cinfo = ((ChartVSAssemblyInfo) chart.getVSAssemblyInfo()).getVSChartInfo();
+         // the key of a column label format is a column name
+         cinfo.getAxisDescriptor().setColumnLabelTextFormat("f" + p, new CompositeTextFormat());
+         cinfo.setToolTip("c" + p);
+         vs.addAssembly(chart);
+         GaugeVSAssembly gauge = new GaugeVSAssembly(vs, "Gauge1");
+         ((GaugeVSAssemblyInfo) gauge.getVSAssemblyInfo()).setCustomTooltipString("g" + p);
+         vs.addAssembly(gauge);
+
+         Viewsheet back = (Viewsheet) roundTrip(viewsheetEntry("vs77891fmt" + n++), vs);
+
+         VSChartInfo cback = ((ChartVSAssemblyInfo) back.getAssembly("Chart1")
+            .getVSAssemblyInfo()).getVSChartInfo();
+         assertEquals(Set.of("f" + lossy(p)),
+                      cback.getAxisDescriptor().getColumnLabelTextFormatColumns());
+         assertEquals("c" + lossy(p), cback.getCustomTooltip());
+         assertEquals("g" + lossy(p), ((GaugeVSAssemblyInfo) back.getAssembly("Gauge1")
+            .getVSAssemblyInfo()).getCustomTooltipString());
+      }
+   }
+
+   @Test
    void outputTooltipDisplayValueAndMeasureLabel() throws Exception {
       int n = 0;
 
