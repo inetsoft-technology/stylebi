@@ -33,6 +33,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -63,7 +64,8 @@ import static org.junit.jupiter.api.Assertions.*;
  *    the rename was not followed.</li>
  *    <li>Bug #77847: a backup asset path with control characters, stored encoded, must be
  *    matched and rewritten (storage and import asset-file branches), and tasks stored by the old
- *    writer must still be matched.</li>
+ *    writer must still be matched. Backup asset paths with control characters must also survive
+ *    a save, reload, listing and the copy every run makes.</li>
  * </ul>
  */
 @ExtendWith(SpringExtension.class)
@@ -258,7 +260,7 @@ class TaskAssetDependencyTransformerRenameTest {
    }
 
    @ParameterizedTest
-   @org.junit.jupiter.params.provider.ValueSource(strings = { "null", "~;~" })
+   @ValueSource(strings = { "null", "~;~" })
    void globalUserMarkersAreFollowedByAGlobalRename(String marker) throws Exception {
       ScheduleTask task = task("marker", backup(asset("VIEWSHEET", "F1/m1", null)));
       String key = store(task);
@@ -374,6 +376,74 @@ class TaskAssetDependencyTransformerRenameTest {
       rename(Mode.TRANSFORM, key, task, vsId("xAy"), vsId("z"));
 
       assertEquals("z", reloadedAssetPath(key, 0));
+   }
+
+   // ---------------------------------------------------------------------------------------
+   // Bug #77847: backup asset path storage (save, reload, list, copy)
+   // ---------------------------------------------------------------------------------------
+
+   static Stream<Arguments> controlCharAssetPaths() {
+      return Stream.of(
+         Arguments.of("VIEWSHEET", "my\u001Fvs"),
+         Arguments.of("WORKSHEET", "folder/ws\u0001x"),
+         Arguments.of("VIEWSHEET", "tab\tvs"),
+         Arguments.of("VIEWSHEET", "del\u007Fvs"),
+         Arguments.of("VIEWSHEET", "cr\rlf\nvs"));
+   }
+
+   @ParameterizedTest
+   @MethodSource("controlCharAssetPaths")
+   void backupAssetPath_controlChars_surviveStorageAndCopy(String type, String path)
+      throws Exception
+   {
+      ScheduleTask task = task("bk77847", backup(asset(type, path, null)));
+
+      // every run copies the task through the action XML first
+      assertEquals(path, assetPath(ScheduleTask.copyScheduleTask(task)));
+
+      String key = store(task);
+      String stored = rawXAssets(key).get(0).getAttribute("path");
+      assertTrue(stored.chars().noneMatch(Character::isISOControl),
+                 "stored path must not hold raw control characters: " + stored);
+
+      ScheduleTask loaded = reload(key);
+      assertNotNull(loaded, "task skipped on reload");
+      assertEquals(path, assetPath(loaded));
+      assertTrue(scheduleManager.getScheduleTasks(ORG).stream()
+                    .anyMatch(t -> task.getTaskId().equals(t.getTaskId())), "task not listed");
+      assertEquals(path, assetPath(ScheduleTask.copyScheduleTask(loaded)));
+   }
+
+   @Test
+   void backupAssetPath_literalEncodedText_stableAcrossResaves() throws Exception {
+      String key = store(task("bk77847lit", backup(asset("VIEWSHEET", "a~_1f_~b", null))));
+
+      // the reader decodes the literal text (pre-existing), the task must stay readable
+      for(int cycle = 1; cycle <= 3; cycle++) {
+         ScheduleTask loaded = reload(key);
+         assertNotNull(loaded, "load " + cycle);
+         assertEquals("a\u001Fb", assetPath(loaded), "load " + cycle);
+         assertEquals("a~_1f_~b", rawXAssets(key).get(0).getAttribute("path"), "stored " + cycle);
+         scheduleManager.getOrgTaskMap(ORG).put(key, loaded);
+      }
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "plain/vs", "folder/my vs é", "a'b", "x&y<z>\"q",
+                            "中文/报表", "a~b_c", "x\u0085y",
+                            "[a]=%?#,\\+`(){}|", "ds^__^folder^lm", "admin~;~org:task 1" })
+   void backupAssetPath_ordinaryPath_writtenAsBefore(String path) {
+      IndividualAssetBackupAction action = backup(asset("VIEWSHEET", path, null));
+      StringWriter buffer = new StringWriter();
+
+      try(PrintWriter writer = new PrintWriter(buffer)) {
+         action.writeXML(writer);
+      }
+
+      // the line the writer produced before the fix
+      assertTrue(buffer.toString().contains("<XAsset type=\"VIEWSHEET\" path=\"" +
+                                               Tool.byteEncode2(path) + "\" user=\"\">"),
+                 buffer.toString());
    }
 
    // ---------------------------------------------------------------------------------------
@@ -498,6 +568,11 @@ class TaskAssetDependencyTransformerRenameTest {
       ScheduleTask loaded = reload(key);
       assertNotNull(loaded, "the task must load");
       return ((IndividualAssetBackupAction) loaded.getAction(0)).getAssets().get(index).getPath();
+   }
+
+   private static String assetPath(ScheduleTask task) {
+      assertTrue(task.getActionCount() > 0, "actions dropped on parse");
+      return ((IndividualAssetBackupAction) task.getAction(0)).getAssets().get(0).getPath();
    }
 
    private static Document rawDocument(String key) throws Exception {

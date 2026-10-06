@@ -30,8 +30,6 @@ import inetsoft.web.composer.model.vs.DynamicValueModel;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
@@ -41,7 +39,6 @@ import org.w3c.dom.Document;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -54,7 +51,6 @@ import static org.junit.jupiter.api.Assertions.*;
  *    XML-special characters.</li>
  *    <li>Bug #77806: characters XML 1.0 can't carry (C0 controls) in CDATA free text: the
  *    email message, viewsheet action parameters and batch action parameters.</li>
- *    <li>Bug #77847: control characters in the backup asset path attribute.</li>
  * </ul>
  */
 @ExtendWith(SpringExtension.class)
@@ -330,68 +326,6 @@ class ScheduleActionXmlEscapeTest {
    }
 
    // ---------------------------------------------------------------------------------------
-   // Bug #77847: backup asset path
-   // ---------------------------------------------------------------------------------------
-
-   static Stream<Arguments> controlCharAssetPaths() {
-      return Stream.of(
-         Arguments.of("VIEWSHEET", "my\u001Fvs"),
-         Arguments.of("WORKSHEET", "folder/ws\u0001x"),
-         Arguments.of("VIEWSHEET", "tab\tvs"),
-         Arguments.of("VIEWSHEET", "del\u007Fvs"),
-         Arguments.of("VIEWSHEET", "cr\rlf\nvs"));
-   }
-
-   @ParameterizedTest
-   @MethodSource("controlCharAssetPaths")
-   void backupAssetPath_controlChars_surviveStorageAndCopy(String type, String path)
-      throws Exception
-   {
-      ScheduleTask task = task("bk77847", backupPath(type, path));
-
-      // every run copies the task through the action XML first
-      assertEquals(path, backupPath(ScheduleTask.copyScheduleTask(task)));
-
-      String key = store(task);
-      String stored = storedBackupPath(key);
-      assertTrue(stored.chars().noneMatch(Character::isISOControl),
-                 "stored path must not hold raw control characters: " + stored);
-
-      ScheduleTask loaded = reload(key);
-      assertNotNull(loaded, "task skipped on reload");
-      assertEquals(path, backupPath(loaded));
-      assertTrue(scheduleManager.getScheduleTasks(ORG).stream()
-                    .anyMatch(t -> task.getTaskId().equals(t.getTaskId())), "task not listed");
-      assertEquals(path, backupPath(ScheduleTask.copyScheduleTask(loaded)));
-   }
-
-   @Test
-   void backupAssetPath_literalEncodedText_stableAcrossResaves() throws Exception {
-      String key = store(task("bk77847lit", backupPath("VIEWSHEET", "a~_1f_~b")));
-
-      // the reader decodes the literal text (pre-existing), the task must stay readable
-      for(int cycle = 1; cycle <= 3; cycle++) {
-         ScheduleTask loaded = reload(key);
-         assertNotNull(loaded, "load " + cycle);
-         assertEquals("a\u001Fb", backupPath(loaded), "load " + cycle);
-         assertEquals("a~_1f_~b", storedBackupPath(key), "stored " + cycle);
-         scheduleManager.getOrgTaskMap(ORG).put(key, loaded);
-      }
-   }
-
-   @ParameterizedTest
-   @ValueSource(strings = { "plain/vs", "folder/my vs \u00e9", "a'b", "x&y<z>\"q",
-                            "\u4e2d\u6587/\u62a5\u8868", "a~b_c", "x\u0085y",
-                            "[a]=%?#,\\+`(){}|", "ds^__^folder^lm", "admin~;~org:task 1" })
-   void backupAssetPath_ordinaryPath_writtenAsBefore(String path) {
-      String bkXml = xml(backupPath("VIEWSHEET", path));
-      // the line the writer produced before the fix
-      assertTrue(bkXml.contains("<XAsset type=\"VIEWSHEET\" path=\"" + Tool.byteEncode2(path) +
-                                   "\" user=\"\">"), bkXml);
-      assertEquals("F1~_2f_~a~_27_~b", Tool.byteEncode2("F1/a'b"));
-   }
-
-   // ---------------------------------------------------------------------------------------
    // helpers
    // ---------------------------------------------------------------------------------------
 
@@ -463,37 +397,6 @@ class ScheduleActionXmlEscapeTest {
       action.setAssets(assets);
       action.setPaths("backup/sax.zip");
       return action;
-   }
-
-   private static IndividualAssetBackupAction backupPath(String type, String path) {
-      IndividualAssetBackupAction action = new IndividualAssetBackupAction();
-      action.setAssets(List.of(SUtil.getXAsset(type, path, null)));
-      action.setPaths("backup/sax.zip");
-      return action;
-   }
-
-   private static String backupPath(ScheduleTask task) {
-      assertTrue(task.getActionCount() > 0, "actions dropped on parse");
-      return ((IndividualAssetBackupAction) task.getAction(0)).getAssets().get(0).getPath();
-   }
-
-   private String store(ScheduleTask task) {
-      String key = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK,
-                                  "/" + task.getTaskId(), null, ORG).toIdentifier();
-      scheduleManager.getOrgTaskMap(ORG).put(key, task);
-      return key;
-   }
-
-   private ScheduleTask reload(String key) {
-      ScheduleTaskMap map = scheduleManager.getOrgTaskMap(ORG);
-      map.clearCache();
-      return map.get(key);
-   }
-
-   private static String storedBackupPath(String key) throws Exception {
-      org.w3c.dom.Element xasset = (org.w3c.dom.Element) IndexedStorage.getIndexedStorage()
-         .getDocument(key, ORG).getDocumentElement().getElementsByTagName("XAsset").item(0);
-      return xasset.getAttribute("path");
    }
 
    private static BatchAction batch(String taskId) {
