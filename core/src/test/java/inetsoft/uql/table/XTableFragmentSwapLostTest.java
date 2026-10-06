@@ -17,6 +17,8 @@
  */
 package inetsoft.uql.table;
 
+import inetsoft.report.internal.table.XTableLens;
+import inetsoft.report.lens.RankingTableLens;
 import inetsoft.test.*;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
@@ -33,6 +35,7 @@ import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.sql.Timestamp;
+import java.util.List;
 import java.util.Random;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -184,6 +187,33 @@ class XTableFragmentSwapLostTest {
       IndexOutOfBoundsException ex =
          assertThrows(IndexOutOfBoundsException.class, () -> table.getObject(5, 0));
       assertEquals("row", ex.getMessage());
+   }
+
+   /**
+    * A table built over a lost fragment (bug #77651 builders) fails with the swap failure
+    * instead of a header-only ranking (typed columns) or a ranking of nulls (object columns).
+    * The snapshot save file list keeps the lost file instead of a recreated one.
+    */
+   @Test
+   void rankingOverLostFragmentFailsAndFileListKeepsLostFile() throws Exception {
+      for(XSwappableTable table : new XSwappableTable[] { createTypedTable(), createObjectTable() }) {
+         XTableFragment fragment = swapFragment(table);
+         File file = fragment.getSwapFile();
+         Files.delete(file.toPath());
+
+         RankingTableLens ranking = new RankingTableLens(new XTableLens(table));
+         ranking.setRankingColumn(0);
+         ranking.setRankingN(3);
+
+         SwapFileReadException ex =
+            assertThrows(SwapFileReadException.class, ranking::getRowCount);
+         assertEquals(file, ex.getFile());
+
+         List<File> files = table.getFilesList();
+         assertEquals(List.of(file), files);
+         assertFalse(file.exists(), "swap file was recreated by the snapshot file list");
+         table.dispose();
+      }
    }
 
    private static XSwappableTable createTypedTable() {
