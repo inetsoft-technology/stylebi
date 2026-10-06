@@ -20,8 +20,9 @@ package inetsoft.uql.util;
 
 import inetsoft.report.internal.table.XTableLens;
 import inetsoft.report.lens.FormulaTableLens;
+import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
-import inetsoft.uql.XTable;
+import inetsoft.uql.*;
 import inetsoft.util.script.graal.GraalJavaScriptEnv;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -72,5 +73,104 @@ public class XNodeTableTest {
                                                             new GraalJavaScriptEnv(), null);
       XTable deserializedTable = TestSerializeUtils.serializeAndDeserialize(originalTable);
       Assertions.assertEquals(FormulaTableLens.class, deserializedTable.getClass());
+   }
+
+   // Bug #77870: a failure while reading the rows is kept for the caller, without changing what
+   // the table reports to other callers (cancelled, the rows read before the failure)
+   @Test
+   public void testLoadExceptionStreaming() throws Exception {
+      checkLoadException("true");
+   }
+
+   @Test
+   public void testLoadExceptionNotStreaming() throws Exception {
+      checkLoadException("false");
+   }
+
+   @Test
+   public void testNoLoadExceptionWhenAllRowsLoad() throws Exception {
+      XNodeTable table = new XNodeTable(XTableUtil.getDefaultXTableNode());
+      table.moreRows(Integer.MAX_VALUE);
+      Assertions.assertEquals(5, table.getRowCount());
+      Assertions.assertNull(table.getLoadException());
+      Assertions.assertFalse(table.isCancelled());
+   }
+
+   private void checkLoadException(String streaming) throws Exception {
+      String old = SreeEnv.getProperty("replet.streaming");
+      RuntimeException failure = new RuntimeException("bug77870 read failed");
+
+      try {
+         SreeEnv.setProperty("replet.streaming", streaming);
+         XNodeTable table = new XNodeTable(new FailingTableNode(3, failure));
+         // does not throw, the rows read before the failure stay as before
+         Assertions.assertFalse(table.moreRows(Integer.MAX_VALUE));
+         Assertions.assertEquals(4, table.getRowCount());
+         // kept before the waiting reader is woken, so no wait is needed
+         Assertions.assertSame(failure, table.getLoadException());
+
+         if("false".equals(streaming)) {
+            // the background loader marks the table cancelled after waking the reader
+            Assertions.assertTrue(table.isCancelled());
+         }
+      }
+      finally {
+         SreeEnv.setProperty("replet.streaming", old);
+      }
+   }
+
+   private static final class FailingTableNode extends XTableNode {
+      FailingTableNode(int rows, RuntimeException failure) {
+         this.rows = rows;
+         this.failure = failure;
+      }
+
+      @Override
+      public boolean next() {
+         if(++row > rows) {
+            throw failure;
+         }
+
+         return true;
+      }
+
+      @Override
+      public int getColCount() {
+         return 1;
+      }
+
+      @Override
+      public String getName(int col) {
+         return "ID";
+      }
+
+      @Override
+      public Class getType(int col) {
+         return Integer.class;
+      }
+
+      @Override
+      public Object getObject(int col) {
+         return row;
+      }
+
+      @Override
+      public XMetaInfo getXMetaInfo(int col) {
+         return null;
+      }
+
+      @Override
+      public boolean rewind() {
+         return false;
+      }
+
+      @Override
+      public boolean isRewindable() {
+         return false;
+      }
+
+      private final int rows;
+      private final RuntimeException failure;
+      private int row;
    }
 }
