@@ -28,7 +28,6 @@ import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
-import inetsoft.util.Tool;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -37,11 +36,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
-import org.w3c.dom.Element;
 
-import java.io.ByteArrayInputStream;
 import java.lang.reflect.Constructor;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -51,7 +47,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * was put into an XPath string literal, so a name with an apostrophe made the XPath fail
  * silently and no dependency was reported. Dependents are saved through the real
  * {@link AssetRepository} and checked through {@link DeleteDependencyHandler}, with the delete
- * info built as {@code DeleteColumnsService.hasDependency} builds it.
+ * info built as {@code DeleteColumnsService.hasDependency} builds it. The context-free check of
+ * every data ref form is in {@link DependencyCheckerDataRefTest}.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class,
@@ -104,61 +101,6 @@ class DependencyCheckerQuoteTest {
       save(dep, ws);
 
       assertDependency(dep, src, column, false);
-   }
-
-   // every alternative the old XPath matched is still matched, also with an apostrophe
-   @ParameterizedTest
-   @ValueSource(strings = { "Customers", "Customer's", "Mix'\"" })
-   void everyDataRefFormIsChecked(String name) throws Exception {
-      String cdata = "<![CDATA[" + name + "]]>";
-      String attr = Tool.escape(name);
-      String[] matches = {
-         "<dataRef class=\"inetsoft.uql.erm.ExpressionRef\" name=\"" + attr + "\"/>",
-         "<dataRef class=\"inetsoft.uql.erm.AttributeRef\" attribute=\"" + attr + "\"/>",
-         "<dataRef class=\"inetsoft.uql.asset.ColumnRef\"><dataRef class=\"x\">" +
-            "<dataRef class=\"inetsoft.uql.erm.AttributeRef\" attribute=\"" + attr + "\"/>" +
-            "</dataRef></dataRef>",
-         "<dataRef class=\"inetsoft.uql.asset.NumericRangeRef\"><attribute>" + cdata +
-            "</attribute></dataRef>",
-         "<dataRef class=\"inetsoft.uql.asset.DateRangeRef\"><attribute>" + cdata +
-            "</attribute></dataRef>",
-         "<dataRef class=\"inetsoft.uql.erm.AggregateRef\"><refValue>" + cdata +
-            "</refValue></dataRef>",
-      };
-      String[] misses = {
-         // only an expression is matched by its name
-         "<dataRef class=\"inetsoft.uql.erm.AttributeRef\" name=\"" + attr + "\"/>",
-         // only a range ref is matched by its attribute child
-         "<dataRef class=\"inetsoft.uql.erm.AttributeRef\"><attribute>" + cdata +
-            "</attribute></dataRef>",
-         "<dataRef class=\"inetsoft.uql.erm.AttributeRef\" attribute=\"" + attr + "x\"/>",
-         "<dataRef class=\"inetsoft.uql.erm.AggregateRef\"><refValue>" + cdata +
-            "x</refValue></dataRef>",
-         "<other attribute=\"" + attr + "\"/>",
-      };
-
-      for(String xml : matches) {
-         assertTrue(check(xml, name), xml);
-      }
-
-      for(String xml : misses) {
-         assertFalse(check(xml, name), xml);
-      }
-   }
-
-   private static boolean check(String xml, String name) throws Exception {
-      String doc = "<assemblyInfo><ColumnSelection>" + xml + "</ColumnSelection></assemblyInfo>";
-      Element elem = Tool.parseXML(new ByteArrayInputStream(doc.getBytes(StandardCharsets.UTF_8)),
-                                   "UTF-8", false, false).getDocumentElement();
-      DependencyChecker checker = new DependencyChecker() {
-         @Override
-         protected boolean isSameSource(Element elem, DeleteInfo info) {
-            return true;
-         }
-      };
-
-      return checker.checkDataRef(elem, new DeleteInfo(name, RenameInfo.ASSET | RenameInfo.COLUMN,
-                                                       "src", "T"));
    }
 
    private static void assertDependency(AssetEntry dep, AssetEntry src, String column,

@@ -66,6 +66,9 @@ import static org.junit.jupiter.api.Assertions.*;
  *    matched and rewritten (storage and import asset-file branches), and tasks stored by the old
  *    writer must still be matched. Backup asset paths with control characters must also survive
  *    a save, reload, listing and the copy every run makes.</li>
+ *    <li>Bug #77893: the inner loop over an action's query entries read the entry at the action
+ *    index, so for any batch action after the task's first action a column rename was skipped
+ *    and a worksheet rename threw a NullPointerException that skipped saving the task.</li>
  * </ul>
  */
 @ExtendWith(SpringExtension.class)
@@ -76,6 +79,8 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag("slow") // over 10 s: the Spring context with the real dependency storage, many rows
 class TaskAssetDependencyTransformerRenameTest {
    private static final String ORG = "tadrorg";
+   private static final String WS = "ws1";
+   private static final String WS_RENAMED = "ws1renamed";
 
    @Autowired
    ScheduleManager scheduleManager;
@@ -444,6 +449,181 @@ class TaskAssetDependencyTransformerRenameTest {
       assertTrue(buffer.toString().contains("<XAsset type=\"VIEWSHEET\" path=\"" +
                                                Tool.byteEncode2(path) + "\" user=\"\">"),
                  buffer.toString());
+   }
+
+   // ---------------------------------------------------------------------------------------
+   // Bug #77893: every batch action follows a rename, not only the task's first action.
+   // Column rename of the primary table: every batch action's query parameter follows
+   // ---------------------------------------------------------------------------------------
+
+   @ParameterizedTest(name = "{0} batch action(s)")
+   @ValueSource(ints = { 1, 2, 3 })
+   void columnRenameFollowedByEveryBatchAction(int count) {
+      String key = store(batchTask("col", batchActions(count)));
+
+      renameColumn(key);
+
+      assertEquals(Collections.nCopies(count, "col2"), parameters(key));
+   }
+
+   @Test
+   void columnRenameFollowedByBatchActionAfterViewsheetAction() {
+      String key = store(batchTask("colvs", viewsheetThenBatch()));
+
+      renameColumn(key);
+
+      assertEquals(List.of("col2"), parameters(key));
+   }
+
+   // ---------------------------------------------------------------------------------------
+   // worksheet rename: every batch action's query entry follows and the task is saved
+   // ---------------------------------------------------------------------------------------
+
+   @ParameterizedTest(name = "{0} batch action(s)")
+   @ValueSource(ints = { 1, 2, 3 })
+   void worksheetRenameFollowedByEveryBatchAction(int count) {
+      String key = store(batchTask("ws", batchActions(count)));
+
+      renameWorksheet(key, false);
+
+      assertEquals(Collections.nCopies(count, WS_RENAMED), queryPaths(key));
+   }
+
+   // the primary table is a bound table, so the rename info carries its old and new path
+   @Test
+   void worksheetRenameWithPrimaryTablePathFollowedByEveryBatchAction() {
+      String key = store(batchTask("wsp", batchActions(2)));
+
+      renameWorksheet(key, true);
+
+      assertEquals(List.of(WS_RENAMED, WS_RENAMED), queryPaths(key));
+   }
+
+   @Test
+   void worksheetRenameFollowedByBatchActionAfterViewsheetAction() {
+      String key = store(batchTask("wsvs", viewsheetThenBatch()));
+
+      renameWorksheet(key, false);
+
+      assertEquals(List.of(WS_RENAMED), queryPaths(key));
+   }
+
+   // ---------------------------------------------------------------------------------------
+   // guard: a batch action on another worksheet is left alone
+   // ---------------------------------------------------------------------------------------
+
+   @Test
+   void batchActionOnOtherWorksheetIsNotRenamed() {
+      BatchAction other = batch();
+      other.setQueryEntry(new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+                                         AssetEntry.Type.WORKSHEET, "other", null, ORG));
+      String key = store(batchTask("other", List.of(batch(), other)));
+
+      renameColumn(key);
+      renameWorksheet(key, false);
+
+      assertEquals(List.of("col2", "col"), parameters(key));
+      assertEquals(List.of(WS_RENAMED, "other"), queryPaths(key));
+   }
+
+   // Bug #77893 helpers
+
+   private static String batchWsId(String path) {
+      return new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, path, null,
+                            ORG).toIdentifier();
+   }
+
+   // as DependencyTransformer.addAssemblyRenameInfo builds it for a renamed column
+   private static void renameColumn(String key) {
+      RenameInfo info = new RenameInfo("col", "col2", RenameInfo.ASSET | RenameInfo.COLUMN,
+                                       batchWsId(WS), "T", null);
+      info.setPrimaryTable(true);
+      transform(key, info);
+   }
+
+   // as AbstractAssetEngine.renameSheet builds it for a renamed worksheet
+   private static void renameWorksheet(String key, boolean tablePath) {
+      RenameInfo info = new RenameInfo(batchWsId(WS), batchWsId(WS_RENAMED),
+                                       RenameInfo.ASSET | RenameInfo.SOURCE);
+
+      if(tablePath) {
+         info.setOldPath(WS + "/T");
+         info.setNewPath(WS_RENAMED + "/T");
+      }
+
+      transform(key, info);
+   }
+
+   private static void transform(String key, RenameInfo info) {
+      AssetEntry taskEntry = AssetEntry.createAssetEntry(key);
+      RenameDependencyInfo dinfo = new RenameDependencyInfo();
+      dinfo.addRenameInfo(taskEntry, info);
+      DependencyTransformer.transformAsset(taskEntry, dinfo);
+   }
+
+   private static List<ScheduleAction> batchActions(int count) {
+      List<ScheduleAction> actions = new ArrayList<>();
+
+      for(int i = 0; i < count; i++) {
+         actions.add(batch());
+      }
+
+      return actions;
+   }
+
+   private static List<ScheduleAction> viewsheetThenBatch() {
+      ViewsheetAction vs = new ViewsheetAction();
+      vs.setViewsheet(new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET,
+                                     "vs1", null, ORG).toIdentifier());
+      vs.setEmails("a@b.com");
+      return List.of(vs, batch());
+   }
+
+   private static BatchAction batch() {
+      BatchAction action = new BatchAction();
+      action.setTaskId(new IdentityID("admin", ORG).convertToKey() + ":target");
+      action.setQueryEntry(new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+                                          AssetEntry.Type.WORKSHEET, WS, null, ORG));
+      Map<String, Object> params = new LinkedHashMap<>();
+      params.put("pK", "col");
+      action.setQueryParameters(params);
+      return action;
+   }
+
+   private static ScheduleTask batchTask(String name, List<ScheduleAction> actions) {
+      ScheduleTask task = new ScheduleTask(name + "_" + (++taskCount));
+      task.setOwner(new IdentityID("admin", ORG));
+      task.addCondition(TimeCondition.at(1, 0, 0));
+      actions.forEach(task::addAction);
+      return task;
+   }
+
+   private List<BatchAction> reloadBatchActions(String key) {
+      ScheduleTaskMap map = scheduleManager.getOrgTaskMap(ORG);
+      map.clearCache();
+      ScheduleTask task = map.get(key);
+      assertNotNull(task, "the task must load");
+      List<BatchAction> result = new ArrayList<>();
+
+      for(int i = 0; i < task.getActionCount(); i++) {
+         if(task.getAction(i) instanceof BatchAction batch) {
+            result.add(batch);
+         }
+      }
+
+      return result;
+   }
+
+   private List<Object> parameters(String key) {
+      List<Object> result = new ArrayList<>();
+      reloadBatchActions(key).forEach(a -> result.add(a.getQueryParameters().get("pK")));
+      return result;
+   }
+
+   private List<String> queryPaths(String key) {
+      List<String> result = new ArrayList<>();
+      reloadBatchActions(key).forEach(a -> result.add(a.getQueryEntry().getPath()));
+      return result;
    }
 
    // ---------------------------------------------------------------------------------------
