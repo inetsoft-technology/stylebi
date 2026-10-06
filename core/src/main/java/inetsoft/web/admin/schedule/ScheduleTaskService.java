@@ -673,7 +673,8 @@ public class ScheduleTaskService {
          for(int i = 0; i < model.actions().size(); i++) {
             ScheduleAction scheduleAction = originalTask.getActionCount() > i ? originalTask.getAction(i) : null;
             ScheduleAction action =
-               scheduleService.getActionFromModel(model.actions().get(i), scheduleAction, principal, linkURI);
+               scheduleService.getActionFromModel(model.actions().get(i), scheduleAction,
+                                                  originalActions, principal, linkURI);
 
             if(action == null) {
                continue;

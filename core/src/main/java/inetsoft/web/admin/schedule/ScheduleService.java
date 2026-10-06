@@ -1259,6 +1259,23 @@ public class ScheduleService {
                                             String linkURI)
       throws Exception
    {
+      return getActionFromModel(model, oldAction,
+                                oldAction == null ? List.of() : List.of(oldAction), principal,
+                                linkURI);
+   }
+
+   /**
+    * Gets the ScheduleAction from the model.
+    *
+    * @param oldAction     the stored action that it replaces, or {@code null} if none.
+    * @param storedActions all the actions of the stored task. An asset that one of their backup
+    *                      actions already holds may be kept.
+    */
+   public ScheduleAction getActionFromModel(ScheduleActionModel model, ScheduleAction oldAction,
+                                            Collection<ScheduleAction> storedActions,
+                                            Principal principal, String linkURI)
+      throws Exception
+   {
       ScheduleAction action = null;
 
       if(model instanceof GeneralActionModel actionModel) {
@@ -1490,7 +1507,15 @@ public class ScheduleService {
       else if("BackupAction".equals(model.actionType())) {
          BackupActionModel backupActionModel = (BackupActionModel) model;
          IndividualAssetBackupAction backupAction = new IndividualAssetBackupAction();
-         backupAction.setAssets(deployService.getEntryAssets(backupActionModel.assets(), principal));
+         // Bug #77862, only the assets the caller adds are checked, keeping or removing a
+         // stored asset is always allowed (Bug #77405)
+         Set<String> storedAssets = storedActions.stream()
+            .filter(IndividualAssetBackupAction.class::isInstance)
+            .flatMap(a -> ((IndividualAssetBackupAction) a).getAssets().stream())
+            .map(XAsset::toIdentifier)
+            .collect(Collectors.toSet());
+         backupAction.setAssets(
+            deployService.getEntryAssets(backupActionModel.assets(), storedAssets, principal));
          backupAction.setPaths(Tool.defaultIfNull(backupActionModel.backupPathsEnabled(), false) ? backupActionModel
             .backupPath() : null);
          ServerPathInfo oldServerPath = backupAction.getServerPath();

@@ -269,7 +269,7 @@ class ScheduleTaskServiceSecretIdTest {
       stored.addAction(saveAction("ftp://files.corp.example/out/a", OWN_ID));
       when(scheduleManager.getScheduleTask("task1")).thenReturn(stored);
       when(scheduleService.updateTaskName(any(), any(), any(), any())).thenReturn("task1");
-      when(scheduleService.getActionFromModel(any(), any(), any(), any()))
+      when(scheduleService.getActionFromModel(any(), any(), any(), any(), any()))
          .thenReturn(saveAction("ftp://collector.invalid/out", FOREIGN_ID));
       ScheduleTaskEditorModel model = ScheduleTaskEditorModel.builder()
          .taskName("task1")
