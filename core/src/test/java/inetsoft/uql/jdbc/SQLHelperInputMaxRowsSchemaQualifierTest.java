@@ -156,6 +156,25 @@ class SQLHelperInputMaxRowsSchemaQualifierTest {
                    sql);
    }
 
+   // the reporter's executed sql had the end of the name without quotes (CUSTOMERS."CITY"),
+   // as a merged column is written, while postgresql stores the table name quoted
+   @Test
+   void postgresBareEndOfNameReplaced() throws Exception {
+      JDBCDataSource ds = dataSource("postgresql");
+      UniformSQL usql = new UniformSQL();
+      usql.setDataSource(ds);
+      usql.parse("select \"CUSTOMERS\".\"CITY\", \"CUSTOMERS\".\"CUSTOMER_ID\" from public.\"CUSTOMERS\"",
+                 UniformSQL.PARSE_ALL, UniformSQL.PARSE_PERIOD);
+      JDBCSelection selection = (JDBCSelection) usql.getSelection();
+      selection.setColumn(0, "CUSTOMERS.\"CITY\"");
+      selection.setColumn(1, "CUSTOMERS.\"CUSTOMER_ID\"");
+      usql.clearSQLString();
+      usql.setHint(UniformSQL.HINT_INPUT_MAXROWS, "50000");
+
+      assertEquals("select \"public.CUSTOMERS\".\"CITY\", \"public.CUSTOMERS\".\"CUSTOMER_ID\" from ( select * from \"public\".\"CUSTOMERS\" limit 50000) \"public.CUSTOMERS\"",
+                   usql.getSQLString().replaceAll("\\s+", " ").trim());
+   }
+
    // the table of a subquery hides the outer table of the same name: its references are the
    // subquery's own, and are not replaced by the outer alias (that silently returned other rows)
    @ParameterizedTest(name = "{0}")
