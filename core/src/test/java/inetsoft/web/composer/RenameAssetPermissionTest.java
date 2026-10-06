@@ -226,6 +226,48 @@ class RenameAssetPermissionTest {
       });
    }
 
+   @Test
+   @Timeout(value = 60, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+   void snapshotRenameLeavesWorksheetFolderPermission() throws Exception {
+      String v = "N77839i";
+      run(() -> {
+         repo.setSheet(snapshot(v), new Viewsheet(), admin(), true);
+         repo.addFolder(wsFolder(v), null);
+         grant(ResourceType.ASSET, v, "alice");
+         grant(ResourceType.REPORT, v, "carol");
+
+         assertNull(rename(snapshot(v), v + "x"));
+         assertTrue(repo.containsEntry(snapshot(v + "x")));
+         assertEquals(Set.of("alice"), readers(ResourceType.ASSET, v));
+         assertNull(readers(ResourceType.ASSET, v + "x"));
+         assertNull(readers(ResourceType.REPORT, v));
+         assertEquals(Set.of("carol"), readers(ResourceType.REPORT, v + "x"));
+      });
+   }
+
+   @Test
+   @Timeout(value = 60, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+   void folderRenameMovesChildPermissions() throws Exception {
+      String s = "S77839j";
+      run(() -> {
+         repo.addFolder(wsFolder(s), null);
+         repo.addFolder(wsFolder(s + "/Sub"), null);
+         repo.setSheet(worksheet(s + "/W"), new Worksheet(), admin(), true);
+         grant(ResourceType.ASSET, s, "alice");
+         grant(ResourceType.ASSET, s + "/Sub", "bob");
+         grant(ResourceType.ASSET, s + "/W", "carol");
+
+         // the engine moves the permissions of the folder's children, the controller doesn't
+         assertNull(rename(wsFolder(s), s + "x"));
+         assertEquals(Set.of("alice"), readers(ResourceType.ASSET, s + "x"));
+         assertEquals(Set.of("bob"), readers(ResourceType.ASSET, s + "x/Sub"));
+         assertEquals(Set.of("carol"), readers(ResourceType.ASSET, s + "x/W"));
+         assertNull(readers(ResourceType.ASSET, s));
+         assertNull(readers(ResourceType.ASSET, s + "/Sub"));
+         assertNull(readers(ResourceType.ASSET, s + "/W"));
+      });
+   }
+
    // ---- helpers ----
 
    private MessageCommand rename(AssetEntry entry, String newName) throws Exception {
@@ -267,6 +309,11 @@ class RenameAssetPermissionTest {
    private AssetEntry worksheet(String path) {
       return new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, path, null,
                             orgId);
+   }
+
+   private AssetEntry snapshot(String path) {
+      return new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET_SNAPSHOT, path,
+                            null, orgId);
    }
 
    private AssetEntry viewsheet(String path) {
