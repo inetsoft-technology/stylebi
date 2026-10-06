@@ -21,6 +21,8 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
+import inetsoft.uql.viewsheet.CalendarVSAssembly;
+import inetsoft.uql.viewsheet.Viewsheet;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.annotation.DirtiesContext;
@@ -45,6 +47,30 @@ class CalendarDensitySizeTest {
    private static Dimension sizeAt(String density) {
       SreeEnv.setProperty("viewsheet.density", density);
       return VSDensityDefaults.calendarSize(VizContext.of(VizMark.MODERN_LIGHT));
+   }
+
+   // created the way the composer creates one: the host's mark is stamped, then initDefaultFormat
+   private static CalendarVSAssembly created(String density, VizMark mark) {
+      Viewsheet vs = new Viewsheet();
+      vs.getViewsheetInfo().setVizDensity(density);
+      vs.getVSAssemblyInfo().setVizMark(mark);
+      CalendarVSAssembly calendar = new CalendarVSAssembly(vs, "Calendar1");
+      calendar.initDefaultFormat();
+      vs.addAssembly(calendar);
+      return calendar;
+   }
+
+   private static CalendarVSAssemblyInfo info(CalendarVSAssembly calendar) {
+      return (CalendarVSAssemblyInfo) calendar.getVSAssemblyInfo();
+   }
+
+   // no viewsheet, so the context takes the org's density
+   private static CalendarVSAssemblyInfo marked(String orgDensity, Dimension size) {
+      SreeEnv.setProperty("viewsheet.density", orgDensity);
+      CalendarVSAssemblyInfo info = new CalendarVSAssemblyInfo();
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      info.setPixelSize(size);
+      return info;
    }
 
    @Test
@@ -76,5 +102,87 @@ class CalendarDensitySizeTest {
       assertFalse(VSDensityDefaults.isSeededCalendarSize(new Dimension(600, 300)));
       assertFalse(VSDensityDefaults.isSeededCalendarSize(new Dimension(300, 301)));
       assertFalse(VSDensityDefaults.isSeededCalendarSize(null));
+   }
+
+   @Test
+   void aNewCalendarTakesItsTiersBox() {
+      assertEquals(new Dimension(300, 332),
+                   info(created("comfortable", VizMark.MODERN_LIGHT)).getPixelSize());
+      assertEquals(new Dimension(300, 300),
+                   info(created("compact", VizMark.MODERN_LIGHT)).getPixelSize());
+      assertEquals(new Dimension(300, 266),
+                   info(created("dense", VizMark.MODERN_LIGHT)).getPixelSize());
+   }
+
+   @Test
+   void aNewUnmarkedCalendarKeepsTheLegacySize() {
+      assertEquals(new Dimension(300, 300), info(created("comfortable", null)).getPixelSize());
+   }
+
+   @Test
+   void theConstructorSizeIsTheLegacySize() {
+      assertEquals(VSDensityDefaults.calendarSize(VizContext.of((VizMark) null)),
+                   new CalendarVSAssemblyInfo().getPixelSize());
+   }
+
+   @Test
+   void theSeedLeavesAnAuthorFlaggedBoxAlone() {
+      CalendarVSAssemblyInfo info = marked("comfortable", new Dimension(300, 300));
+      info.setUserSize(true);
+
+      info.seedDensitySize(VizContext.of(info));
+
+      assertEquals(new Dimension(300, 300), info.getPixelSize());
+   }
+
+   @Test
+   void theSeedLeavesASizeOffTheRecognizedSetAlone() {
+      CalendarVSAssemblyInfo info = marked("comfortable", new Dimension(400, 300));
+
+      info.seedDensitySize(VizContext.of(info));
+
+      assertEquals(new Dimension(400, 300), info.getPixelSize());
+   }
+
+   @Test
+   void theSeedLeavesAnUnmarkedCalendarAlone() {
+      CalendarVSAssemblyInfo info = marked("comfortable", new Dimension(300, 266));
+      info.setVizMark(null);
+
+      info.seedDensitySize(VizContext.of(info));
+
+      assertEquals(new Dimension(300, 266), info.getPixelSize());
+   }
+
+   // a dropdown draws only its stored width, so its height can follow harmlessly
+   @Test
+   void aDropdownIsSizedToo() {
+      CalendarVSAssemblyInfo info = marked("comfortable", new Dimension(300, 300));
+      info.setShowTypeValue(CalendarVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
+
+      info.seedDensitySize(VizContext.of(info));
+
+      assertEquals(new Dimension(300, 332), info.getPixelSize());
+   }
+
+   @Test
+   void aToggledDoubleWidthLeavesTheRuleAndTogglingBackReturnsIt() {
+      CalendarVSAssemblyInfo info = marked("comfortable", new Dimension(600, 332));
+      assertFalse(info.followsDensitySize());
+
+      info.setPixelSize(new Dimension(300, 332));
+      assertTrue(info.followsDensitySize());
+   }
+
+   @Test
+   void resetSizeReturnsAnAuthorSizeToTheTier() {
+      CalendarVSAssemblyInfo info = marked("comfortable", new Dimension(400, 500));
+      info.setUserSize(true);
+      assertTrue(info.takesDensitySize());
+
+      info.resetSize(VizContext.of(info));
+
+      assertEquals(new Dimension(300, 332), info.getPixelSize());
+      assertFalse(info.isUserSize());
    }
 }
