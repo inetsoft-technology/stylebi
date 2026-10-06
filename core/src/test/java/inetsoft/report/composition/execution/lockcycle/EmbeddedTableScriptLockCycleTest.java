@@ -24,10 +24,17 @@ import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.ConditionItem;
 import inetsoft.uql.ConditionList;
 import inetsoft.uql.XCondition;
+import inetsoft.uql.asset.AggregateFormula;
+import inetsoft.uql.asset.AggregateInfo;
+import inetsoft.uql.asset.AggregateRef;
 import inetsoft.uql.asset.AssetCondition;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.asset.EmbeddedTableAssembly;
+import inetsoft.uql.asset.ExpressionValue;
+import inetsoft.uql.asset.GroupRef;
+import inetsoft.uql.asset.MirrorTableAssembly;
 import inetsoft.uql.asset.SubQueryValue;
+import inetsoft.uql.asset.TableAssembly;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.schema.XSchema;
@@ -233,16 +240,228 @@ public class EmbeddedTableScriptLockCycleTest {
    }
 
    /**
-    * Add the pre-condition {@code a.id one of (subquery on b.bx)} -- the shape
+    * Bug #77873, the reporter's shape: A has no expression column, but its pre-condition value
+    * is JavaScript ({@code id > [JS: 0]}, keeping every row). {@code AssetConditionGroup}
+    * evaluates it through the script engine inside A's monitor ({@code
+    * ConditionGroup.getExpressionVal}). Before the fix, A's builder took no lock before its
+    * monitor, since A has no expression column and no sub-query.
+    */
+   @Test
+   public void formulaReadsTableWithScriptPreConditionValue() throws Exception {
+      Gate gate = harness.gate();
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = embedded(ws, "A", 5, gate);
+      a.setPreConditionList(jsCondition(a, "id", "0"));
+
+      assertFormulaReadsGatedA(ws, gate, 6);
+   }
+
+   /**
+    * Bug #77873: the JavaScript value is in an aggregate post-condition ({@code sum(v) > [JS:
+    * 1]}, grouped by {@code id}), which {@code AssetQuery$AssetConditionGroup2} evaluates through
+    * the script engine inside A's monitor. It needs a real summary (group on one column,
+    * aggregate another) to reach that code at all.
+    */
+   @Test
+   public void formulaReadsTableWithScriptAggregatePostConditionValue() throws Exception {
+      Gate gate = harness.gate();
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = embedded(ws, "A", 5, gate, true);
+      ColumnSelection columns = a.getColumnSelection(false);
+      AggregateInfo aggregate = new AggregateInfo();
+      aggregate.addGroup(new GroupRef(columns.getAttribute("id")));
+      AggregateRef sum = new AggregateRef(columns.getAttribute("v"), AggregateFormula.SUM);
+      aggregate.addAggregate(sum);
+      a.setAggregateInfo(aggregate);
+      ConditionList post = new ConditionList();
+      post.append(new ConditionItem(sum, jsValueCondition("1"), 0));
+      a.setPostConditionList(post);
+
+      // groups 1..5, sum(v) == id, so sum(v) > 1 keeps four of them
+      assertFormulaReadsGatedA(ws, gate, 5);
+   }
+
+   /**
+    * Bug #77873: A's pre-condition is {@code id one of (subquery on B.id)}; B has no expression
+    * column, but its own pre-condition value is JavaScript. B is built inline, inside A's
+    * monitor, by A's {@code AssetConditionGroup}.
+    */
+   @Test
+   public void formulaReadsTableWithSubQuerySubTableScriptCondition() throws Exception {
+      Gate gate = harness.gate();
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = embedded(ws, "A", 5, gate);
+      EmbeddedTableAssembly b = embedded(ws, "B", 5, null);
+      b.setPreConditionList(jsCondition(b, "id", "0"));
+      subQueryCondition(ws, a, b, "id");
+
+      assertFormulaReadsGatedA(ws, gate, 6);
+   }
+
+   /**
+    * Bug #77873 (refuter's finding): A's pre-condition is {@code id one of (subquery on M.id)},
+    * where M mirrors C and C has its own expression column. M has none ({@code hasOwnScriptColumn}
+    * is false for a mirror), and {@code MirrorQuery} builds C inline, inside A's monitor -- a
+    * hole in bug #77301's sub-query recursion, which never descended into a composed table's
+    * bases.
+    */
+   @Test
+   public void formulaReadsTableWithSubQueryMirrorOfScriptColumn() throws Exception {
+      Gate gate = harness.gate();
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = embedded(ws, "A", 5, gate);
+      EmbeddedTableAssembly c = embedded(ws, "C", 5, null);
+      expression(c, "cx", "field['id'] * 1");
+      subQueryCondition(ws, a, mirror(ws, "M", c), "id");
+
+      assertFormulaReadsGatedA(ws, gate, 6);
+   }
+
+   /**
+    * Bug #77873 (refuter's finding): as above, but C has no expression column and a JavaScript
+    * pre-condition value instead.
+    */
+   @Test
+   public void formulaReadsTableWithSubQueryMirrorOfScriptCondition() throws Exception {
+      Gate gate = harness.gate();
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = embedded(ws, "A", 5, gate);
+      EmbeddedTableAssembly c = embedded(ws, "C", 5, null);
+      c.setPreConditionList(jsCondition(c, "id", "0"));
+      subQueryCondition(ws, a, mirror(ws, "M", c), "id");
+
+      assertFormulaReadsGatedA(ws, gate, 6);
+   }
+
+   /**
+    * Bug #77873: A has no expression column and no condition at all, but the sandbox's variable
+    * table holds a JavaScript {@link ExpressionValue}, which {@code AssetDataCache.getVariableTable}
+    * evaluates (from {@code AssetQuery}'s cache key) for every runtime build, inside A's
+    * monitor. That happens before A reads any data, so a gate in A's base data would park A's
+    * builder too late: X instead holds the engine lock in a busy loop of its own formula, A's
+    * builder starts meanwhile, and X then reads A by name.
+    */
+   @Test
+   public void formulaReadsTableWithScriptVariable() throws Exception {
+      Worksheet ws = new Worksheet();
+      embedded(ws, "A", 5, null);
+      EmbeddedTableAssembly x = embedded(ws, "X", 1, null);
+      expression(x, "alen",
+         "var t = new Date().getTime(); while(new Date().getTime() - t < 2000) {} A.length");
+      box = sandbox(ws);
+      // the lock exists once the engine is built (X's builder would build it anyway); a
+      // pooled env has none, and no cycle to wait for
+      box.getScriptEnv().init();
+      lock = box.getScriptEnv().getExecutionLock();
+      ExpressionValue value = new ExpressionValue();
+      value.setExpression("1");
+      value.setType(ExpressionValue.JAVASCRIPT);
+      box.getVariableTable().put("v1", value);
+
+      Started<Integer> script = harness.start(
+         () -> drain(box.getTableLens("X", AssetQuerySandbox.RUNTIME_MODE)).size());
+      assertTrue(lock == null || awaitHeldElsewhere(lock, KNOWN_CAP),
+                 "X's builder did not take the engine lock");
+
+      Started<Integer> populator = harness.start(
+         () -> drain(box.getTableLens("A", AssetQuerySandbox.RUNTIME_MODE)).size());
+
+      assertEquals(2, harness.await(script.future, KNOWN_CAP, "X's formula reading A by name"));
+      assertEquals(6, harness.await(populator.future, KNOWN_CAP, "populator of A"));
+   }
+
+   /**
+    * The interleaving of {@link #formulaReadsPlainEmbeddedTableByName}: A's builder parks inside
+    * A's own base data, X's builder (whose formula reads A by name) starts, then A goes on.
+    *
+    * @param arows the row count of A, header included.
+    */
+   private void assertFormulaReadsGatedA(Worksheet ws, Gate gate, int arows) throws Exception {
+      EmbeddedTableAssembly x = embedded(ws, "X", 1, null);
+      expression(x, "alen", "A.length");
+      box = sandbox(ws);
+      lock = box.getScriptEnv().getExecutionLock();
+
+      Started<Integer> populator = harness.startGated(gate,
+         () -> drain(box.getTableLens("A", AssetQuerySandbox.RUNTIME_MODE)).size());
+      assertTrue(gate.awaitEntered(KNOWN_CAP), "A's builder did not reach its base data");
+
+      Started<Integer> script = harness.start(
+         () -> drain(box.getTableLens("X", AssetQuerySandbox.RUNTIME_MODE)).size());
+      awaitIn(script, KNOWN_CAP, "LendableReentrantLock.lock");
+      gate.release();
+
+      assertEquals(2, harness.await(script.future, KNOWN_CAP, "X's formula reading A by name"));
+      assertEquals(arows, harness.await(populator.future, KNOWN_CAP, "populator of A"));
+   }
+
+   /**
+    * Wait until another thread holds {@code lock}, or {@code capSeconds} passed.
+    */
+   private static boolean awaitHeldElsewhere(Lock lock, long capSeconds)
+      throws InterruptedException
+   {
+      long deadline = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(capSeconds);
+
+      while(System.currentTimeMillis() < deadline) {
+         if(!lock.tryLock()) {
+            return true;
+         }
+
+         lock.unlock();
+         Thread.sleep(5);
+      }
+
+      return false;
+   }
+
+   /**
+    * A condition list of {@code column > [JavaScript: js]}.
+    */
+   private static ConditionList jsCondition(EmbeddedTableAssembly table, String column,
+                                            String js)
+   {
+      ConditionList list = new ConditionList();
+      list.append(new ConditionItem(table.getColumnSelection(false).getAttribute(column),
+                                    jsValueCondition(js), 0));
+      return list;
+   }
+
+   private static AssetCondition jsValueCondition(String js) {
+      AssetCondition condition = new AssetCondition();
+      condition.setOperation(XCondition.GREATER_THAN);
+      condition.setType(XSchema.INTEGER);
+      ExpressionValue value = new ExpressionValue();
+      value.setExpression(js);
+      value.setType(ExpressionValue.JAVASCRIPT);
+      condition.addValue(value);
+      return condition;
+   }
+
+   private static MirrorTableAssembly mirror(Worksheet ws, String name, TableAssembly base) {
+      MirrorTableAssembly mirror = new MirrorTableAssembly(ws, name, base);
+      ws.addAssembly(mirror);
+      mirror.update();
+      return mirror;
+   }
+
+   private static void subQueryCondition(Worksheet ws, EmbeddedTableAssembly a,
+                                         EmbeddedTableAssembly b)
+   {
+      subQueryCondition(ws, a, b, "bx");
+   }
+
+   /**
+    * Add the pre-condition {@code a.id one of (subquery on b.column)} -- the shape
     * {@code SubQueryConditionWorksheetCycleTest.subQueryCondition} uses (uncorrelated), minus
     * the {@code grp} column that test's correlated variant needs and this one does not.
     */
    private static void subQueryCondition(Worksheet ws, EmbeddedTableAssembly a,
-                                         EmbeddedTableAssembly b)
+                                         TableAssembly b, String column)
    {
       SubQueryValue sub = new SubQueryValue();
       sub.setQuery(b.getName());
-      sub.setAttribute(b.getColumnSelection(false).getAttribute("bx"));
+      sub.setAttribute(b.getColumnSelection(false).getAttribute(column));
       sub.update(ws);
       AssetCondition condition = new AssetCondition();
       condition.setOperation(XCondition.ONE_OF);
@@ -284,15 +503,25 @@ public class EmbeddedTableScriptLockCycleTest {
    }
 
    private static EmbeddedTableAssembly embedded(Worksheet ws, String name, int rows, Gate gate) {
+      return embedded(ws, name, rows, gate, false);
+   }
+
+   /**
+    * @param value {@code true} to add a column {@code v} (equal to {@code id}) after {@code id}.
+    */
+   private static EmbeddedTableAssembly embedded(Worksheet ws, String name, int rows, Gate gate,
+                                                 boolean value)
+   {
       EmbeddedTableAssembly table = new EmbeddedTableAssembly(ws, name);
       Object[][] data = new Object[rows + 1][];
-      data[0] = new Object[] { "id" };
+      data[0] = value ? new Object[] { "id", "v" } : new Object[] { "id" };
 
       for(int i = 1; i <= rows; i++) {
-         data[i] = new Object[] { i };
+         data[i] = value ? new Object[] { i, i } : new Object[] { i };
       }
 
-      String[] types = { XSchema.INTEGER };
+      String[] types = value ? new String[] { XSchema.INTEGER, XSchema.INTEGER }
+         : new String[] { XSchema.INTEGER };
       table.setEmbeddedData(gate == null ? new XEmbeddedTable(types, data)
                                : new GatedEmbeddedData(types, data, gate));
       ws.addAssembly(table);

@@ -989,13 +989,15 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
     * first time must wait for the lock before it ever touches the monitor, so it can never hold
     * the monitor while blocked on the lock.
     *
-    * <p>Only when {@code table}'s build might reach the script engine -- its own script/JS
-    * expression column ({@link #hasOwnScriptColumn(TableAssembly)}), or a pre-/post-condition
-    * sub-query whose sub table does
-    * ({@link #hasScriptReachingSubQuerySubTable(TableAssembly, Set)}) -- the two shapes this bug
-    * needs, and the only ones this fix takes on (checked separately, not through one combined
-    * method, so this code can tell which one is the reason -- see below on why that distinction
-    * matters). A false positive there only costs one extra,
+    * <p>The rule: the lock is taken first whenever anything the build can run under
+    * {@code synchronized(table)} might reach the script engine -- not a list of shapes, since
+    * every list so far turned out to miss one (bug #77873: condition expression values, a
+    * JavaScript variable left in the variable table, the bases of a composed table under a
+    * sub-query). {@code table}'s own script/JS expression column
+    * ({@link #hasOwnScriptColumn(TableAssembly)}) is checked on its own, so this code can tell
+    * when it is the reason (see below on why that distinction matters); everything else the
+    * build reaches is one recursive walk ({@link #embeddedBuildMayRunScript}). A false positive
+    * there only costs one extra,
     * uncontested lock acquisition (the same trade-off {@code PostProcessor$ConditionFilter2}
     * accepts for its own conservative checks), but forcing this path -- and the GraalJS
     * {@code Context} it requires, see below -- for every {@code EmbeddedTableAssembly} build
@@ -1018,7 +1020,7 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
     * it needs no worker, no {@code Distinct}, and no completed first build -- it is the exact
     * {@code synchronized(table)}-vs-engine-lock cycle this method exists to close, just entered
     * through a condition list instead of {@code table}'s own columns, and round 2 of this fix
-    * closes it via {@link #hasScriptReachingSubQuerySubTable}.
+    * closes it via {@link #needsEmbeddedTableScriptLock}.
     *
     * <p>Uses the creating {@link #getScriptEnv()}, not {@link #peekScriptEnv()}, and calls
     * {@code init()} on it before reading its lock: the reported scenario is two concurrent,
@@ -1044,9 +1046,7 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
       if(!isScriptPoolMode()) {
          ownColumn = hasOwnScriptColumn(table);
 
-         if(ownColumn || hasScriptReachingSubQuerySubTable(table,
-            Collections.newSetFromMap(new IdentityHashMap<>())))
-         {
+         if(ownColumn || embeddedBuildMayRunScript(table, vars)) {
             ScriptEnv senv = getScriptEnv();
             senv.init();
             execLock = senv.getExecutionLock();
@@ -1065,8 +1065,10 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
       // computation to a background worker and wait for it can lend this lock to that
       // worker instead, bug #76938) only when table's own column is the reason: that is
       // round 1's already-shipped, already-validated behavior, covering any worker A's
-      // own pipeline directly waits for. When only a pre-/post-condition sub-query's sub
-      // table reaches script, this thread never itself waits on a worker before
+      // own pipeline directly waits for. When any other reason applies (a sub-query's
+      // sub table or a composed base that reaches script, a condition expression value,
+      // a variable expression -- all run inline on this thread, bug #77873), this
+      // thread never itself waits on a worker before
       // PostProcessor$ConditionFilter2 exists (see getEmbeddedTableLens's javadoc) --
       // recording the lock here regardless would make a lens like DistinctTableLens see
       // JavaScriptEngine.holdsScriptLock() == true the first time it validates the
@@ -1121,21 +1123,50 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
    }
 
    /**
-    * Recursive check, used to decide whether a table reached through a sub-query might
-    * itself reach the script engine: {@code table} has its own script column
-    * ({@link #hasOwnScriptColumn}), or one of *its* pre-/post-conditions is in turn a
-    * sub-query whose sub table does ({@link #hasScriptReachingSubQuerySubTable}).
-    * {@code visited} (identity-based) is checked and grown for every table entered --
-    * {@code table} itself included -- so a pathological condition cycle (a sub-query,
-    * however many hops away, whose own condition list loops back to an ancestor)
-    * terminates instead of recursing forever. Ordinary worksheets nest sub-queries at
-    * most one or two levels deep, so this is never meaningful extra work in practice.
+    * @return {@code true} if building {@code table} under its own monitor might run anything
+    * through the script engine besides {@code table}'s own expression columns (which
+    * {@link #getEmbeddedTableLens} checks separately, see there): any table the build reaches
+    * might ({@link #needsEmbeddedTableScriptLock}), or the variables the build runs with hold
+    * an {@link ExpressionValue} ({@link #hasExpressionVariable}).
     *
-    * <p>{@link #getEmbeddedTableLens} does not call this for the table it is building
-    * itself -- it checks {@link #hasOwnScriptColumn} and
-    * {@link #hasScriptReachingSubQuerySubTable} separately there, so it can tell which
-    * one is the reason (see its javadoc on why that distinction matters for whether the
-    * held lock is recorded for lending).
+    * <p>The variables are checked apart from the table walk because they are not part of any
+    * table's definition: {@code AssetDataCache.getVariableTable} (from
+    * {@code AssetQuery.doGetTableLens}'s cache key) evaluates a JavaScript
+    * {@link ExpressionValue} left in them for every runtime/live build, even of a table with no
+    * condition at all, and a {@code $(v)} condition value is replaced by the raw variable value
+    * before {@code ConditionGroup.getExpressionVal} evaluates it, whatever its type. Both the
+    * sandbox's own table and {@code vars} are checked: {@code executeQuery} layers them, and a
+    * sub-query's sub table runs with a clone of the sandbox's own table (bug #77873).
+    */
+   private boolean embeddedBuildMayRunScript(TableAssembly table, VariableTable vars) {
+      return hasExpressionVariable(getVariableTable()) || hasExpressionVariable(vars) ||
+         needsEmbeddedTableScriptLock(table, Collections.newSetFromMap(new IdentityHashMap<>()));
+   }
+
+   /**
+    * The rule: anything the build of {@code table} can run under the caller's monitor counts.
+    * {@code AssetQuery} builds every table the build reaches inline, on the same thread -- a
+    * sub-query's sub table ({@code AssetConditionGroup}) and the bases of a composed table
+    * (mirror, join, concatenation, rotate, unpivot), both through
+    * {@code AssetQuery.createAssetQuery} directly, never through {@link #getTableLens} -- so
+    * none of them gets a lock order of its own, and they are all walked here, recursively, as
+    * one. At every table reached, {@code table} itself included, this checks its own expression
+    * columns ({@link #hasOwnScriptColumn}) and its pre-/post-conditions, runtime ones included
+    * ({@link #conditionsMayRunScript}: expression values of any type, and sub-queries, whose
+    * sub tables are walked in turn); then it walks the bases of a
+    * {@link ComposedTableAssembly}, read with {@link ComposedTableAssembly#getTableAssemblies(
+    * boolean) getTableAssemblies(true)}, the call every composed query builds its bases from.
+    *
+    * <p>Each earlier version of this check covered one more shape (bug #77301: own columns,
+    * then sub-queries), and the build then deadlocked through a shape it skipped (bug #77873:
+    * condition expression values, composed bases). A script source added to the build later
+    * belongs in this walk, not in a new, separate check.
+    *
+    * <p>{@code visited} (identity-based) is checked and grown for every table entered, so a
+    * pathological cycle (a sub-query or base, however many hops away, that loops back to an
+    * ancestor) terminates instead of recursing forever. Ordinary worksheets nest sub-queries
+    * and composed tables only a few levels deep, so this is never meaningful extra work in
+    * practice, and a false positive only costs one extra, uncontested lock acquisition.
     */
    private static boolean needsEmbeddedTableScriptLock(TableAssembly table,
                                                         Set<TableAssembly> visited)
@@ -1144,9 +1175,26 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
          return false;
       }
 
-      return hasOwnScriptColumn(table) ||
-         hasScriptReachingSubQuerySubTable(table.getPreConditionList(), visited) ||
-         hasScriptReachingSubQuerySubTable(table.getPostConditionList(), visited);
+      if(hasOwnScriptColumn(table) ||
+         conditionsMayRunScript(table.getPreConditionList(), visited) ||
+         conditionsMayRunScript(table.getPostConditionList(), visited) ||
+         conditionsMayRunScript(table.getPreRuntimeConditionList(), visited) ||
+         conditionsMayRunScript(table.getPostRuntimeConditionList(), visited))
+      {
+         return true;
+      }
+
+      if(table instanceof ComposedTableAssembly) {
+         TableAssembly[] bases = ((ComposedTableAssembly) table).getTableAssemblies(true);
+
+         for(int i = 0; bases != null && i < bases.length; i++) {
+            if(needsEmbeddedTableScriptLock(bases[i], visited)) {
+               return true;
+            }
+         }
+      }
+
+      return false;
    }
 
    /**
@@ -1176,14 +1224,13 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
    }
 
    /**
-    * @return {@code true} if a pre- or post-condition of {@code table} is a sub-query whose sub
-    * table might itself reach the script engine, recursively (bug #77301, review round 1: the
-    * same {@code synchronized(table)}-vs-engine-lock cycle {@link #getEmbeddedTableLens} exists
-    * to close is also reachable this way, not just through {@code table}'s own columns). Both
-    * {@link TableAssembly#getPreConditionList()} and {@link TableAssembly#getPostConditionList()}
-    * are walked: {@code AssetQuery.getRuntimeTableLens} chains both onto the base lens (lines
-    * ~911-953) before its row-forcing second {@code validateDataTypes} call (line ~994), so a
-    * sub-query on either list reaches that call the same way -- neither can be skipped.
+    * @return {@code true} if a condition in {@code wrapper} has an {@link ExpressionValue} of
+    * any type -- {@code AssetConditionGroup} (pre and detail post conditions),
+    * {@code AssetQuery$AssetConditionGroup2} (aggregate post conditions) and
+    * {@code PreAssetQuery.execScriptExpression} (an SQL-bound table's mergeable conditions) all
+    * run it through the script engine, an SQL-type one included (bug #77873) -- or is a
+    * sub-query whose sub table might reach the script engine, recursively (bug #77301), through
+    * {@link #needsEmbeddedTableScriptLock}, which grows the same {@code visited} set.
     *
     * <p>This mirrors, rather than calls, {@code PostProcessor.ConditionFilter2
     * .subTableNeedsScriptLock}: that method inspects an already-built runtime
@@ -1199,21 +1246,9 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
     * {@link AssetCondition#getSubTable()}, which only answers non-{@code null} after
     * {@code initSubTable()} has actually run the sub-query once, deep inside a build already in
     * progress.
-    *
-    * <p>Recurses into a found sub table through {@link #needsEmbeddedTableScriptLock(TableAssembly,
-    * Set)}, which grows the same {@code visited} set this method was called with -- see that
-    * method for the cycle guard.
     */
-   private static boolean hasScriptReachingSubQuerySubTable(TableAssembly table,
-                                                             Set<TableAssembly> visited)
-   {
-      visited.add(table);
-      return hasScriptReachingSubQuerySubTable(table.getPreConditionList(), visited) ||
-         hasScriptReachingSubQuerySubTable(table.getPostConditionList(), visited);
-   }
-
-   private static boolean hasScriptReachingSubQuerySubTable(ConditionListWrapper wrapper,
-                                                             Set<TableAssembly> visited)
+   private static boolean conditionsMayRunScript(ConditionListWrapper wrapper,
+                                                 Set<TableAssembly> visited)
    {
       ConditionList list = wrapper == null ? null : wrapper.getConditionList();
 
@@ -1228,6 +1263,16 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
 
          XCondition cond = list.getConditionItem(i).getXCondition();
 
+         if(cond instanceof Condition) {
+            Condition vcond = (Condition) cond;
+
+            for(int j = 0; j < vcond.getValueCount(); j++) {
+               if(vcond.getValue(j) instanceof ExpressionValue) {
+                  return true;
+               }
+            }
+         }
+
          if(!(cond instanceof AssetCondition)) {
             continue;
          }
@@ -1236,6 +1281,32 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
          TableAssembly stable = sval == null ? null : sval.getTable();
 
          if(stable != null && needsEmbeddedTableScriptLock(stable, visited)) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * @return {@code true} if {@code vtable} (its base tables included) holds an
+    * {@link ExpressionValue} of any type. See {@link #embeddedBuildMayRunScript}.
+    */
+   private static boolean hasExpressionVariable(VariableTable vtable) {
+      if(vtable == null) {
+         return false;
+      }
+
+      Enumeration<String> keys = vtable.keys();
+
+      while(keys.hasMoreElements()) {
+         try {
+            if(vtable.get(keys.nextElement()) instanceof ExpressionValue) {
+               return true;
+            }
+         }
+         catch(Exception ex) {
+            // can't tell, so take the lock: a false positive only costs one lock acquisition
             return true;
          }
       }
