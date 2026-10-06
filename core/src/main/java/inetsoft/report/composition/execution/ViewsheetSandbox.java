@@ -51,6 +51,7 @@ import inetsoft.util.log.LogContext;
 import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.*;
 import inetsoft.util.stall.LockStallException;
+import inetsoft.util.swap.SwapFileReadException;
 import inetsoft.web.viewsheet.service.SharedFilterService;
 import inetsoft.web.vswizard.model.VSWizardConstants;
 import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
@@ -5623,7 +5624,12 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                catch(Exception ex) {
                   // a table whose query failed with a lock stall must not leave a cached NULL,
                   // the next read would take it for no table instead of building it again (#77123)
-                  if(LockStallException.find(ex) != null) {
+                  // A lost swap file must fail the read, not turn into "no table" on the next
+                  // read (it often appears mid-session on a table that rendered fine), and a
+                  // retry only re-reads the missing file, so don't cache it either (#77908)
+                  if(LockStallException.find(ex) != null ||
+                     SwapFileReadException.find(ex) != null)
+                  {
                      cache = false;
                   }
 
@@ -5895,6 +5901,13 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             else {
                LOG.warn("Failed to query materialized view: {}", name, ex);
                CoreTool.addUserMessage(ex.getMessage());
+
+               // the MV query wraps any failure, a lost swap file must not be cached as no
+               // data either, see catch(Exception) below (#77908)
+               if(SwapFileReadException.find(ex) != null) {
+                  cache = false;
+               }
+
                // error should be shown to user
                throw ex;
             }
@@ -5902,7 +5915,12 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          catch(Exception ex) {
             // a query that failed with a lock stall must not leave a cached NULL, the next
             // read would take it for no data instead of running the query again (#77123)
-            if(LockStallException.find(ex) != null) {
+            // A lost swap file must fail every read until it is rebuilt, never substitute no
+            // data (it often appears mid-session on an assembly that rendered fine), and a
+            // retry only re-reads the missing file, so don't cache it either. Other failures
+            // are still cached as NULL, so e.g. a slow failing SQL query is not re-run on
+            // every read (#77908)
+            if(LockStallException.find(ex) != null || SwapFileReadException.find(ex) != null) {
                cache = false;
             }
 
