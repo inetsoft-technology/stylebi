@@ -26,6 +26,7 @@ import inetsoft.report.internal.Util;
 import inetsoft.report.internal.binding.CrosstabSortInfo;
 import inetsoft.report.internal.table.TableFormat;
 import inetsoft.report.lens.AbstractTableLens;
+import inetsoft.report.lens.ChainScriptLock;
 import inetsoft.report.lens.HeaderRowTableLens;
 import inetsoft.report.style.TableStyle;
 import inetsoft.uql.*;
@@ -37,6 +38,8 @@ import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.*;
 import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.profile.ProfileUtils;
+import inetsoft.util.script.JavaScriptEngine;
+import inetsoft.util.script.LendableReentrantLock;
 import inetsoft.util.script.ScriptSpan;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.swap.SwapFileReadException;
@@ -5893,6 +5896,45 @@ public class CrossTabFilter extends AbstractTableLens
       if(published != null) {
          return published;
       }
+
+      // the crosstab reads the whole base under this filter's monitor, so it takes the engine
+      // lock the base needs before the monitor, like a condition filter (bug #76918): a thread
+      // holding that lock may be waiting for the monitor to read this filter, it would wait
+      // forever for a reader holding the monitor between two base rows (bug #77874). the row
+      // count is the crosstab's own result, so a count takes the lock as well
+      LendableReentrantLock execLock = getUnheldChainScriptLock();
+
+      if(execLock == null) {
+         return generateData();
+      }
+
+      execLock.lock();
+      JavaScriptEngine.pushHeldScriptLock(execLock);
+
+      try {
+         return generateData();
+      }
+      finally {
+         JavaScriptEngine.popHeldScriptLock();
+         execLock.unlock();
+      }
+   }
+
+   /**
+    * Get the engine lock reading the base may take if the current thread does not hold it
+    * (bug #77874).
+    */
+   private LendableReentrantLock getUnheldChainScriptLock() {
+      LendableReentrantLock execLock = ChainScriptLock.find(table);
+      return execLock != null && !execLock.isHeldByCurrentThread() ? execLock : null;
+   }
+
+   /**
+    * Get the published crosstab data, generating it under this filter's monitor if it is not
+    * published.
+    */
+   private Object[][] generateData() {
+      Object[][] published;
 
       synchronized(this) {
          published = this.published;

@@ -878,6 +878,40 @@ public abstract class SetTableLens
     */
    @Override
    public boolean moreRows(int row) {
+      // the first read of any row, a header row too, adds every base row to the merged table
+      // under this lens's monitor (bug #77681), so it takes the engine lock the bases need
+      // before the monitor, like a condition filter (bug #76918). a thread holding that lock
+      // may be waiting for the monitor to read this lens, it would wait forever for a reader
+      // holding the monitor between two base rows (bug #77874). holding the lock, validate()
+      // merges on this thread, no worker is started that needs it
+      LendableReentrantLock execLock = validated ? null : getUnheldChainScriptLock();
+
+      if(execLock == null) {
+         return moreRows0(row);
+      }
+
+      execLock.lock();
+      JavaScriptEngine.pushHeldScriptLock(execLock);
+
+      try {
+         return moreRows0(row);
+      }
+      finally {
+         JavaScriptEngine.popHeldScriptLock();
+         execLock.unlock();
+      }
+   }
+
+   /**
+    * Get the engine lock reading the base tables may take if the current thread does not hold
+    * it (bug #77874).
+    */
+   private LendableReentrantLock getUnheldChainScriptLock() {
+      LendableReentrantLock execLock = ChainScriptLock.find(this);
+      return execLock != null && !execLock.isHeldByCurrentThread() ? execLock : null;
+   }
+
+   private boolean moreRows0(int row) {
       WaitRecord record = null;
       // the failure of an earlier pass, this read retries it and fails only on a new one
       Exception oldFailure = failure;
@@ -1017,7 +1051,21 @@ public abstract class SetTableLens
     * @return number of rows in table.
     */
    @Override
-   public synchronized int getRowCount() {
+   public int getRowCount() {
+      // found outside of this lens's monitor, as in moreRows
+      return getRowCount0(validated ? null : getUnheldChainScriptLock());
+   }
+
+   private synchronized int getRowCount0(LendableReentrantLock execLock) {
+      // a row count probe (e.g. AssetQuery.validateDataTypes) starts nothing if the bases
+      // need an engine lock this thread doesn't hold: it must not take the lock, it may be
+      // building a table inside that table's monitor (bug #77223). a failure within the retry
+      // delay still fails it (bug #77524). the first read of rows merges them (bug #77874)
+      if(execLock != null && !validated) {
+         throwRecentFailure();
+         return -1;
+      }
+
       try {
          validate();
 
@@ -1797,7 +1845,16 @@ public abstract class SetTableLens
     */
    private Row findRow(int r) {
       for(int retry = 0; ; retry++) {
-         Row row = getRow(r);
+         Row row;
+
+         try {
+            row = getRow(r);
+         }
+         catch(ArrayIndexOutOfBoundsException ex) {
+            // a non-distinct union's row past the end of its bases, e.g. a row moreRows()
+            // found before an invalidate() shrank them: the row does not exist (bug #77874)
+            row = null;
+         }
 
          if(row != null || retry >= 100 || !moreRows(r)) {
             return row;
@@ -1885,7 +1942,8 @@ public abstract class SetTableLens
    private volatile int cancels;                 // cancel() count, under cancelLock
    private volatile boolean disposed;            // dispose() called
    private final Lock cancelLock = new ReentrantLock();
-   private boolean validated = false;   // validated flag
+   // validated flag, read outside of the monitor by moreRows and getRowCount (bug #77874)
+   private volatile boolean validated = false;
    // the background task merging the tables, if any
    private transient volatile LendableReentrantLock.Borrower worker;
    // the merged rows the worker visited, and the stall it failed with (bug #76967)

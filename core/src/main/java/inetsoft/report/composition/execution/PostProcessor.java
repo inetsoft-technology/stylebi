@@ -419,10 +419,17 @@ public class PostProcessor {
       /**
        * Get the engine lock that moreRows() takes, so an async lens over this filter takes it
        * first instead of starting a worker that would wait for it (bug #77223). A filter that
-       * takes no lock itself, e.g. over a plain base, is not counted.
+       * takes no lock itself, e.g. over a plain base, is not counted. Nor is a filter whose
+       * row map is completed: its reads take no lock, and a lens taking the lock first over it
+       * would add a wait for the lock under a lock-free reader's monitor (bug #77874). The
+       * tables below it are still walked, an incomplete formula lens there still counts.
        */
       @Override
       public Lock getScriptLock() {
+         if(hasNonEmptyCompletedMap()) {
+            return null;
+         }
+
          ScriptEnv senv = needsScriptLock && !poolMode && this.senv != null
             ? this.senv.get() : null;
          return senv == null ? null : senv.getExecutionLock();

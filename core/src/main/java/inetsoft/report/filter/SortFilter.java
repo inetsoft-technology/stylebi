@@ -21,12 +21,15 @@ import inetsoft.report.*;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.table.*;
 import inetsoft.report.lens.AbstractTableLens;
+import inetsoft.report.lens.ChainScriptLock;
 import inetsoft.util.Collator_CN;
 import inetsoft.util.CoreTool;
 import inetsoft.util.algo.*;
 import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.ExpressionFailedException;
+import inetsoft.util.script.JavaScriptEngine;
+import inetsoft.util.script.LendableReentrantLock;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.swap.SwapFileReadException;
 import inetsoft.util.swap.XSwappableIntList;
@@ -981,11 +984,39 @@ public class SortFilter extends AbstractTableLens
    private XSwappableIntList getRowMap() {
       XSwappableIntList rowmap = this.rowmap;
 
-      if(rowmap == null) {
-         rowmap = checkInit();
+      if(rowmap != null) {
+         return rowmap;
       }
 
-      return rowmap;
+      // the sort reads the whole base under the lock, so it takes the engine lock the base
+      // needs before it, like a condition filter (bug #76918): a thread holding that lock may
+      // be waiting for the lock to read this filter, it would wait forever for a reader
+      // holding it between two base rows (bug #77874)
+      LendableReentrantLock execLock = getUnheldChainScriptLock();
+
+      if(execLock == null) {
+         return checkInit();
+      }
+
+      execLock.lock();
+      JavaScriptEngine.pushHeldScriptLock(execLock);
+
+      try {
+         return checkInit();
+      }
+      finally {
+         JavaScriptEngine.popHeldScriptLock();
+         execLock.unlock();
+      }
+   }
+
+   /**
+    * Get the engine lock reading the base may take if the current thread does not hold it
+    * (bug #77874).
+    */
+   private LendableReentrantLock getUnheldChainScriptLock() {
+      LendableReentrantLock execLock = ChainScriptLock.find(table);
+      return execLock != null && !execLock.isHeldByCurrentThread() ? execLock : null;
    }
 
    /**

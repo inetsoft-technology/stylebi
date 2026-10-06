@@ -91,16 +91,22 @@ public class RelPooledCompletionTest {
    }
 
    /**
-    * StallWatchdogCycleTest.monitorFirstLensFailsOneReader, pooled: T1 parks inside the lens
-    * monitor, T2 blocks on that monitor inside the outer condition filter. Pool off T2 holds
-    * the engine lock there and T1 then waits for it (the #76960 B R2 cycle); pooled, T1 needs
-    * no engine lock, so once released both complete with every row.
+    * The monitor-first shape of StallWatchdogCycleTest.monitorFirstLensFailsOneReader over the
+    * product lenses, pooled: T1 parks inside the lens monitor, T2 blocks on that monitor
+    * inside the outer condition filter. Pool off T2 held the engine lock there and T1 then
+    * waited for it (the #76960 B R2 cycle; since bug #77874 these lenses take the lock first
+    * pool off, see MonitorFirstLensCycleTest); pooled, T1 needs no engine lock, so once
+    * released both complete with every row.
     *
     * <p>Not MAX_ROWS: since bug #77311 {@code MaxRowsTableLens} reads its base without its
-    * monitor, so T2 never blocks on it; the pinned case excludes it too.
+    * monitor, so T2 never blocks on it; the pinned case excludes it too. Not UNION_ALL for the
+    * same reason: since bug #77874 the non-distinct {@code UnionTableLens} reads its bases
+    * without its monitor. SORT and RANKING still hold their monitor here, pooled: no engine
+    * lock is found in the chain, so they read as before.
     */
    @ParameterizedTest
-   @EnumSource(value = MonitorKind.class, names = "MAX_ROWS", mode = EnumSource.Mode.EXCLUDE)
+   @EnumSource(value = MonitorKind.class, names = { "MAX_ROWS", "UNION_ALL" },
+               mode = EnumSource.Mode.EXCLUDE)
    public void monitorFirstLensCompletesPooled(MonitorKind kind) {
       assertTimeoutPreemptively(CAP, () -> monitorFirst(kind, (t1, t2) -> {}));
    }

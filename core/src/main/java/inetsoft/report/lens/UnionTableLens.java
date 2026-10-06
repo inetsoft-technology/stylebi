@@ -116,15 +116,19 @@ public class UnionTableLens extends SetTableLens {
          return super.moreRows(row);
       }
 
-      synchronized(this) {
-         return moreRows0(row);
+      // the bases are read without this lens's monitor: a base read may take a script
+      // engine lock (e.g. a condition filter over a formula lens, pool off), and a thread
+      // holding that lock may be waiting for the monitor to read this lens (bug #77874).
+      // the monitor guards only the published row count
+      if(row != EOT && row < rowCnt) {
+         return true;
       }
-   }
 
-   private boolean moreRows0(int row) {
+      // captured before reading, getRow() reads the same array. invalidate() replaces it, so
+      // a count read from the bases before an invalidate() is never published (bug #77397)
+      int[] rowCounts = getRowCounts();
+
       if(row == EOT) {
-         int[] rowCounts = getRowCounts();
-
          for(int i = 0; i < getTableCount(); i++) {
             TableLens table = getTable(i);
             table.moreRows(EOT);
@@ -140,20 +144,23 @@ public class UnionTableLens extends SetTableLens {
 
          return false;
       }
-      else {
-         if(row < rowCnt) {
-            return true;
-         }
 
-         try {
-            getRow(row);
-            rowCnt = row + 1;
-            return true;
-         }
-         catch(ArrayIndexOutOfBoundsException exc) {
-            return false;
+      try {
+         getRow(row);
+      }
+      catch(ArrayIndexOutOfBoundsException exc) {
+         return false;
+      }
+
+      synchronized(this) {
+         // a mismatch is an invalidate() since the read (or another reader's lazy create of
+         // the array), leave the count to the next read
+         if(this.rowCounts == rowCounts) {
+            rowCnt = Math.max(rowCnt, row + 1);
          }
       }
+
+      return true;
    }
 
    /**
@@ -172,11 +179,14 @@ public class UnionTableLens extends SetTableLens {
    }
 
    @Override
-   public synchronized int getRowCount() {
+   public int getRowCount() {
       if(distinct) {
          return super.getRowCount();
       }
       else {
+         // reads no state of this lens, so the bases are asked without its monitor: a base's
+         // count may take a script engine lock (e.g. a crosstab computes it), and a thread
+         // holding that lock may be waiting for the monitor (bug #77874)
          int rcount = 0;
 
          for(int i = 0; i < getTableCount(); i++) {
@@ -209,7 +219,7 @@ public class UnionTableLens extends SetTableLens {
 
    @Override
    public void invalidate() {
-      // reset both under the monitor moreRows0() computes and writes rowCnt with, a stale
+      // reset both under the monitor moreRows() publishes rowCnt with, a stale
       // rowCnt reports rows past the end of a shrunk base (bug #77397)
       synchronized(this) {
          rowCounts = null;
@@ -281,7 +291,8 @@ public class UnionTableLens extends SetTableLens {
 
    private boolean distinct = true;  // distinct flag
    private volatile int[] rowCounts = null;
-   private transient int rowCnt = 0;
+   // read without the monitor by moreRows(), written under it (bug #77874)
+   private transient volatile int rowCnt = 0;
 
    private static final Logger LOG = LoggerFactory.getLogger(UnionTableLens.class);
 }
