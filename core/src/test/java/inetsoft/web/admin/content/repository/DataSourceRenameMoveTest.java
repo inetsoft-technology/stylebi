@@ -230,6 +230,29 @@ class DataSourceRenameMoveTest {
       assertNull(registry.getDataSource("xbT/xbX"));
    }
 
+   // a JDBC data source created in a folder, as the editor creates it (the path is the folder,
+   // the name has no '/'), is still created there. A '/' in the name of a new data source is
+   // refused even if WRITE on the folder is allowed, it would create the data source in a folder
+   // that doesn't exist
+   @Test
+   void jdbcCreateInAFolder() throws Exception {
+      SecurityEngine security = mock(SecurityEngine.class);
+      when(security.checkPermission(any(), any(), nullable(String.class), any())).thenReturn(true);
+      databaseService = new DatabaseDatasourcesService(
+         new DatabaseTypeService(List.of(new CustomDatabaseType(), new AccessDatabaseType())),
+         security, mock(DatabaseSettingsService.class), repository,
+         mock(ResourcePermissionService.class), mock(DataSourceStatusService.class),
+         mock(IgniteSessionRepository.class), registry, mock(RenameTransformHandler.class));
+      folder("jcF");
+
+      assertNull(create("jcF", "jcX"));
+      assertThrows(MessageException.class, () -> create("jcF", "jcSub/jcY"));
+
+      registry.clearCache();
+      assertNotNull(registry.getDataSource("jcF/jcX"));
+      assertNull(registry.getDataSource("jcF/jcSub/jcY"));
+   }
+
    // a plain rename in the same folder still works, for tabular and JDBC, also to a name with
    // spaces, '-' and '()'
    @Test
@@ -338,6 +361,18 @@ class DataSourceRenameMoveTest {
       return databaseService.saveDatabase(path, DataSourceSettingsModel.builder()
          .uploadEnabled(false).dataSource(definition)
          .additionalDataSources(list.toArray(new DatabaseDefinition[0]))
+         .build(), action, principal);
+   }
+
+   // a create as the editor sends it: the path is the folder
+   private ConnectionStatus create(String folder, String name) throws Exception {
+      DatabaseDefinition definition = edit(source(name));
+      definition.setName(name);
+      String action = databaseService.getActionName(folder, name);
+      assertEquals(ActionRecord.ACTION_NAME_CREATE, action);
+      return databaseService.saveDatabase(folder, DataSourceSettingsModel.builder()
+         .uploadEnabled(false).dataSource(definition)
+         .additionalDataSources(new DatabaseDefinition[0])
          .build(), action, principal);
    }
 
