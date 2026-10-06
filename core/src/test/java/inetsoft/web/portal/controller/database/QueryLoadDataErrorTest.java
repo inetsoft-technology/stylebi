@@ -22,6 +22,7 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import inetsoft.report.XSessionManager;
+import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.storage.BlobStorageManager;
@@ -70,13 +71,17 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  * {@code startsWith} on it), without an ERROR log, while an outage still gives 500 + ERROR. Runs the
  * real QueryController, QueryManagerService and JDBCHandler on embedded Derby, through the
  * production advices (in bean order), message source and message converters.
+ * <p>
+ * Bug #77870. A database error raised while reading the rows (after the statement executed) must
+ * not give a 200 with no or only part of the rows, and an expired query session must still give
+ * its message.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class,
                                   QueryLoadDataErrorTest.JdbcConfig.class },
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
-// about 10 s alone, almost all of it the Spring context start-up (the tests take ~2 s)
+// 10-20 s alone, most of it the Spring context start-up
 @Tag("slow")
 class QueryLoadDataErrorTest {
    private static final String DB = "memory:bug77855loaddata";
@@ -156,6 +161,21 @@ class QueryLoadDataErrorTest {
 
          stmt.executeUpdate("create table EMP (ID int, NAME varchar(20))");
          stmt.executeUpdate("insert into EMP values (1, 'a')");
+
+         try {
+            stmt.executeUpdate("drop table BIG");
+         }
+         catch(Exception ignore) {
+            // first run
+         }
+
+         stmt.executeUpdate("create table BIG (ID int)");
+
+         for(int i = 1; i <= 300; i++) {
+            stmt.addBatch("insert into BIG values (" + i + ")");
+         }
+
+         stmt.executeBatch();
       }
    }
 
@@ -264,6 +284,148 @@ class QueryLoadDataErrorTest {
          .toList();
       assertEquals(1, errors.size(), () -> "ControllerErrorHandler ERROR events: " + errors);
       assertNotNull(errors.get(0).getThrowableProxy());
+   }
+
+   @Test
+   void errorReadingTheFirstRowIsBadRequest() throws Exception {
+      // Derby raises the division by zero while reading the row, not when executing
+      String body = expectFetchTimeBadRequest("select 1/0 from EMP");
+      assertTrue(body.contains("divide by zero"), body);
+   }
+
+   @Test
+   void errorAfterSomeRowsIsBadRequestNotPartialRows() throws Exception {
+      // the first 149 rows read fine, before the fix they were returned as the whole result
+      String body = expectFetchTimeBadRequest("select ID, 1/(ID-150) from BIG");
+      assertTrue(body.contains("divide by zero"), body);
+   }
+
+   @Test
+   void errorAfterSomeRowsIsBadRequestWithoutStreaming() throws Exception {
+      String streaming = SreeEnv.getProperty("replet.streaming");
+
+      try {
+         // rows read in the request thread instead of a background loader
+         SreeEnv.setProperty("replet.streaming", "false");
+         String body = expectFetchTimeBadRequest("select ID, 1/(ID-150) from BIG");
+         assertTrue(body.contains("divide by zero"), body);
+      }
+      finally {
+         SreeEnv.setProperty("replet.streaming", streaming);
+      }
+   }
+
+   @Test
+   void allRowsStillLoadWithoutAnError() throws Exception {
+      MockHttpServletResponse response = preview(SOURCE, "select ID from BIG");
+      String body = response.getContentAsString(StandardCharsets.UTF_8);
+      assertEquals(200, response.getStatus(), body);
+      assertTrue(body.contains("[\"300\"]"), body);
+   }
+
+   @Test
+   void connectionLostWhileReadingRowsIsServerError() throws Exception {
+      // an outage while reading the rows is not the user's SQL: still 500, but not partial rows
+      doReturn(new FailingTableNode(new RuntimeException(
+         "java.sql.SQLRecoverableException: bug77870 connection reset",
+         new SQLRecoverableException("bug77870 connection reset", "08006"))))
+         .when(repository).execute(any(), any(XQuery.class), any(), any(), anyBoolean(), any());
+
+      MockHttpServletResponse response = preview(SOURCE, "select ID from EMP");
+      String body = response.getContentAsString(StandardCharsets.UTF_8);
+      assertEquals(500, response.getStatus(), body);
+      assertTrue(body.contains("bug77870 connection reset"), body);
+      assertFalse(body.contains("row1"), body);
+   }
+
+   @Test
+   void expiredQuerySessionKeepsItsMessage() throws Exception {
+      preview(SOURCE, "select ID from EMP");
+      when(runtimeQueryService.getRuntimeQuery(RID)).thenReturn(null);
+      Principal principal = () -> "admin";
+      MockHttpServletResponse response = mockMvc.perform(get(URL)
+                                                            .principal(principal)
+                                                            .header("Accept", ANGULAR_ACCEPT)
+                                                            .param("runtimeId", RID))
+         .andReturn().getResponse();
+      String body = response.getContentAsString(StandardCharsets.UTF_8);
+      // the client reads the message from this {error, message} body (Bug #77870 part A)
+      assertEquals(500, response.getStatus(), body);
+      assertTrue(body.contains("\"error\":\"messageException\""), body);
+      assertTrue(body.contains("\"message\":"), body);
+   }
+
+   private String expectFetchTimeBadRequest(String sql) throws Exception {
+      MockHttpServletResponse response = preview(SOURCE, sql);
+      String body = response.getContentAsString(StandardCharsets.UTF_8);
+      assertEquals(400, response.getStatus(), body);
+      MediaType contentType = MediaType.parseMediaType(response.getContentType());
+      assertTrue(MediaType.TEXT_PLAIN.isCompatibleWith(contentType), contentType.toString());
+      assertEquals(StandardCharsets.UTF_8, contentType.getCharset(), contentType.toString());
+
+      // JDBCTableNode still logs the read error itself, but it is not reported as a server error
+      List<ILoggingEvent> errors = appender.list.stream()
+         .filter(e -> e.getLevel().isGreaterOrEqual(Level.ERROR))
+         .filter(e -> ControllerErrorHandler.class.getName().equals(e.getLoggerName()))
+         .toList();
+      assertTrue(errors.isEmpty(), () -> "ControllerErrorHandler ERROR events: " + errors);
+      return body;
+   }
+
+   /**
+    * A result that reads two rows and then fails, like a driver whose connection drops.
+    */
+   private static final class FailingTableNode extends XTableNode {
+      FailingTableNode(RuntimeException failure) {
+         this.failure = failure;
+      }
+
+      @Override
+      public boolean next() {
+         if(++row > 2) {
+            throw failure;
+         }
+
+         return true;
+      }
+
+      @Override
+      public int getColCount() {
+         return 1;
+      }
+
+      @Override
+      public String getName(int col) {
+         return "ID";
+      }
+
+      @Override
+      public Class getType(int col) {
+         return String.class;
+      }
+
+      @Override
+      public Object getObject(int col) {
+         return "row" + row;
+      }
+
+      @Override
+      public XMetaInfo getXMetaInfo(int col) {
+         return null;
+      }
+
+      @Override
+      public boolean rewind() {
+         return false;
+      }
+
+      @Override
+      public boolean isRewindable() {
+         return false;
+      }
+
+      private final RuntimeException failure;
+      private int row;
    }
 
    private String expectBadRequest(String sql) throws Exception {
