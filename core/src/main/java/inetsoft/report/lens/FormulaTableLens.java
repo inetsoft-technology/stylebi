@@ -43,6 +43,7 @@ import inetsoft.util.script.graal.pool.WorksheetScriptEnv;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.stall.WaitRecord;
 import inetsoft.util.stall.WaitRegistry;
+import inetsoft.util.swap.SwapFileReadException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -557,12 +558,26 @@ public class FormulaTableLens extends AbstractTableLens
                stalled = true;
                throw ex;
             }
+            // a lost swap file is not a script error either: like a stall, the row is not
+            // kept, and the reader gets the failure itself, so a later read computes the row
+            // again instead of reading a null cell (bug #77912)
+            catch(SwapFileReadException ex) {
+               stalled = true;
+               throw ex;
+            }
             catch(ScriptException ex) {
                LockStallException stall = LockStallException.find(ex);
 
                if(stall != null) {
                   stalled = true;
                   throw stall;
+               }
+
+               SwapFileReadException swap = SwapFileReadException.find(ex);
+
+               if(swap != null) {
+                  stalled = true;
+                  throw swap;
                }
 
                String colName = getColName(j + ncols);
@@ -1216,6 +1231,13 @@ public class FormulaTableLens extends AbstractTableLens
             return rows.getObject(row + 1, c - ncols);
          }
          catch(Exception ex) {
+            // a lost swap file is not a null value (bug #77912)
+            SwapFileReadException swap = SwapFileReadException.find(ex);
+
+            if(swap != null) {
+               throw swap;
+            }
+
             // row is out of bound
             return null;
          }
@@ -1500,6 +1522,13 @@ public class FormulaTableLens extends AbstractTableLens
                   : batchRows.getObject(row - batchHrows + 1, col - batchNcols);
             }
             catch(Exception ex) {
+               // a lost swap file is not a null value (bug #77912)
+               SwapFileReadException swap = SwapFileReadException.find(ex);
+
+               if(swap != null) {
+                  throw swap;
+               }
+
                return null;
             }
          }
@@ -1580,6 +1609,13 @@ public class FormulaTableLens extends AbstractTableLens
 
             if(stall != null) {
                throw stall;
+            }
+
+            // nor is a lost swap file, which the failure below would drop (bug #77912)
+            SwapFileReadException swap = SwapFileReadException.find(ex);
+
+            if(swap != null) {
+               throw swap;
             }
 
             ScriptException failure = new ScriptException(ex.getMessage());
@@ -1817,6 +1853,13 @@ public class FormulaTableLens extends AbstractTableLens
 
          if(stall != null) {
             throw stall;
+         }
+
+         // nor is a lost swap file (bug #77912)
+         SwapFileReadException swap = SwapFileReadException.find(ex);
+
+         if(swap != null) {
+            throw swap;
          }
 
          // if in design mode, ignore the error
