@@ -28,6 +28,7 @@ package inetsoft.web.admin.security.user;
  * UserTreeServiceEditOrganizationOrgPropertyTest. Only authorization collaborators are mocked.
  */
 
+import inetsoft.sree.PropertiesEngine;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.CustomThemesManager;
@@ -84,8 +85,7 @@ class UserTreeServiceEditOrganizationExcludedPropertyTest {
       securityEngineStatic.when(SecurityEngine::getSecurity).thenReturn(staticSecurityEngine);
 
       Organization targetOrg = org(TARGET_ORG, TARGET_NAME);
-      AuthenticationProvider provider =
-         mock(AuthenticationProvider.class, withSettings().lenient());
+      provider = mock(AuthenticationProvider.class, withSettings().lenient());
       when(provider.getGroups()).thenReturn(new IdentityID[0]);
       when(provider.getOrganization(CALLER_ORG)).thenReturn(org(CALLER_ORG, "Host Organization"));
       when(provider.getOrganization(TARGET_ORG)).thenReturn(targetOrg);
@@ -140,6 +140,7 @@ class UserTreeServiceEditOrganizationExcludedPropertyTest {
    void tearDown() {
       for(String key : TOUCHED_KEYS) {
          SreeEnv.remove(QUALIFIED.apply(key));
+         SreeEnv.remove(PropertiesEngine.getOrgPropertyPrefix(MIXED_ORG) + key);
       }
 
       setPrincipal(null);
@@ -225,6 +226,44 @@ class UserTreeServiceEditOrganizationExcludedPropertyTest {
       assertNull(stored("security.enabled"));
    }
 
+   @Test
+   void mixedCaseOrgIdHidesAndRefusesExcludedKey() throws Exception {
+      // an org ID with upper-case letters: the stored key's org segment is lower-cased, so the
+      // GET filter and the save check must both match it regardless of the ID's case
+      when(provider.getOrganization(MIXED_ORG)).thenReturn(org(MIXED_ORG, MIXED_NAME));
+      when(provider.getOrganizationId(MIXED_NAME)).thenReturn(MIXED_ORG);
+
+      SreeEnv.setProperty("inetsoft.org." + MIXED_ORG + ".Security.Enabled", "false", false);
+      SreeEnv.setProperty("inetsoft.org." + MIXED_ORG + ".max.row.count", "333", false);
+      assertEquals("false", mixedStored("security.enabled"),
+                   "precondition: the override is stored under the lower-cased org prefix");
+
+      EditOrganizationPaneModel readBack = service.getOrganizationModel(
+         "Primary", new IdentityID(MIXED_NAME, MIXED_ORG), siteAdmin, false, null);
+      List<String> names = readBack.properties().stream().map(PropertyModel::name).toList();
+      assertFalse(names.contains("security.enabled"), names.toString());
+      assertTrue(names.contains("max.row.count"), names.toString());
+
+      // an unchanged save goes through and keeps the stored override
+      service.editOrganization(
+         EditOrganizationPaneModel.builder().from(readBack).oldName(MIXED_NAME).build(),
+         "Primary", siteAdmin);
+      assertEquals("false", mixedStored("security.enabled"));
+
+      // adding a new excluded override is refused and writes nothing
+      EditOrganizationPaneModel toSave = EditOrganizationPaneModel.builder().from(readBack)
+         .oldName(MIXED_NAME)
+         .properties(List.of(prop("max.row.count", "9"), prop("sree.home", "/x"))).build();
+      assertThrows(MessageException.class,
+                   () -> service.editOrganization(toSave, "Primary", siteAdmin));
+      assertNull(mixedStored("sree.home"));
+      assertEquals("333", mixedStored("max.row.count"));
+   }
+
+   private static String mixedStored(String key) {
+      return SreeEnv.getProperty(PropertiesEngine.getOrgPropertyPrefix(MIXED_ORG) + key, false, false);
+   }
+
    private EditOrganizationPaneModel saveModel(SRPrincipal principal, List<PropertyModel> props) {
       EditOrganizationPaneModel readBack = service.getOrganizationModel(
          "Primary", new IdentityID(TARGET_NAME, TARGET_ORG), principal, false, null);
@@ -254,8 +293,10 @@ class UserTreeServiceEditOrganizationExcludedPropertyTest {
    private static final String CALLER_ORG = "host-org";
    private static final String TARGET_ORG = "s30b";
    private static final String TARGET_NAME = "S30B Org";
+   private static final String MIXED_ORG = "MixOrg";
+   private static final String MIXED_NAME = "Mix Org";
    private static final String[] TOUCHED_KEYS = {
-      "security.enabled", "replet.cache.directory", "olap.security.enabled",
+      "security.enabled", "sree.home", "replet.cache.directory", "olap.security.enabled",
       "max.row.count", "max.col.count", "max.cell.size", "max.user.count" };
    private static final java.util.function.Function<String, String> QUALIFIED =
       key -> "inetsoft.org." + TARGET_ORG + "." + key;
@@ -266,6 +307,7 @@ class UserTreeServiceEditOrganizationExcludedPropertyTest {
    private MockedStatic<SUtil> sUtilStatic;
    private MockedStatic<XSessionService> xSessionServiceStatic;
    private MockedStatic<SecurityEngine> securityEngineStatic;
+   private AuthenticationProvider provider;
    private UserTreeService service;
    private SRPrincipal siteAdmin;
    private SRPrincipal orgAdmin;
