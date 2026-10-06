@@ -20,6 +20,8 @@ package inetsoft.util;
 import inetsoft.uql.asset.ConfirmException;
 import inetsoft.util.log.LogLevel;
 
+import java.util.*;
+
 /**
  * Exception implementation that holds information about how it is to be logged.
  *
@@ -98,6 +100,24 @@ public class MessageException extends RuntimeException implements LogException {
       this.logLevel = logLevel;
       this.dumpStack = dumpStack;
       this.warningLevel = warningLevel;
+   }
+
+   /**
+    * Find the message exception in the cause chain of {@code failure}, e.g. a failure of a
+    * base table read that a lens wrapped (bug #77875).
+    *
+    * @return the outermost message exception of the chain, or {@code null} if there is none.
+    */
+   public static MessageException find(Throwable failure) {
+      Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+
+      for(Throwable t = failure; t != null && seen.add(t); t = t.getCause()) {
+         if(t instanceof MessageException) {
+            return (MessageException) t;
+         }
+      }
+
+      return null;
    }
 
    /**
