@@ -1812,10 +1812,17 @@ public class IdentityService {
          .collect(Collectors.toList());
    }
 
+   /**
+    * Gets the grantees of the action that {@link #setIdentityPermissions} writes for the
+    * resource: ASSIGN for a role other than the {@code Roles} and {@code Organization Roles}
+    * roots, ADMIN for the roots and every other identity type. The grant is read from the
+    * permission storage of {@code orgID} with grantee scope {@code orgID}, and only grantees the
+    * principal can administer are returned.
+    */
    public List<IdentityModel> getPermission(IdentityID resourceID, ResourceType resourceType, String orgID,
                                             Principal principal)
    {
-      ResourceAction action = ResourceAction.ADMIN;;
+      ResourceAction action = getIdentityGrantAction(resourceID, resourceType);
       EnumSet<ResourceAction> actions = EnumSet.of(ResourceAction.ADMIN);
 
       AuthorizationProvider authz = this.securityProvider.getAuthorizationProvider();
@@ -1830,6 +1837,23 @@ public class IdentityService {
          .filter(identity -> securityProvider.checkAnyPermission(
             principal, getResourceType(identity.type()), identity.identityID().convertToKey(), actions))
          .collect(Collectors.toList());
+   }
+
+   /**
+    * Bug #77868, a role's grant is stored under ASSIGN except for the role roots, which
+    * setIdentityPermissions stores under ADMIN. The root is decided by name, since the writer's
+    * root key depends on its caller's org argument rather than on the resource.
+    */
+   private static ResourceAction getIdentityGrantAction(IdentityID resourceID,
+                                                        ResourceType resourceType)
+   {
+      if(resourceType == ResourceType.SECURITY_ROLE && resourceID != null &&
+         !"Roles".equals(resourceID.name) && !"Organization Roles".equals(resourceID.name))
+      {
+         return ResourceAction.ASSIGN;
+      }
+
+      return ResourceAction.ADMIN;
    }
 
    private List<IdentityModel> getIdentityGrants(Permission resourcePerm, ResourceAction action,
