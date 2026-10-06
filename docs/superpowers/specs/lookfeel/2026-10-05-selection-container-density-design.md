@@ -258,6 +258,10 @@ Revert. The checkbox below is the only way back to the density size.
   through it too (`ComposerObjectController:88-89`). It sets the flag on the resized assembly when
   `takesDensitySize()` — not on the container's children, whose widths it changes to follow the
   container.
+  - *Amended 2026-10-06, after the final review.* The multi-select handler also serves the toolbar's
+    Align, Distribute and Same Width/Height, which send every selected box with its current size. So
+    the flag is set only when the size **changed**, the same test the dialogs' null branch uses. An
+    Align or a resize back to the starting size leaves a following box following.
 - Size & Position in the list, tree and container property dialogs (§6).
 
 Derived writes never set it: the expand and collapse path (D2), the drop into a container, the
@@ -464,6 +468,11 @@ Device layout is covered by a unit test only; the fixture has no device layout.
 - **Size changes that are not an author's design-time choice** do not set D7's flag: a script
   setting `size` at runtime, device and print layout sizes (kept in `VSAssemblyLayout`), and the
   derived writes listed under D7.
+- **The dashboard wizard's resize** (`WizardVSObjectService.resizeVSObject`) does not set D7's flag
+  either. It lays the whole sheet out on a 20px grid, so an author can land a list on exactly 100×120
+  or a container on 300×240, and the rule then moves it on the next open — the behaviour before D7,
+  on this one path. Added 2026-10-06; the service has no test harness, so the flag there is left to a
+  follow-up.
 - **The composer's resize of a selection list derives its list height from `defh`**
   (`ComposerObjectService:192-193`, `(height − title) / defh`). It is density-blind but sits outside the
   container slice; D7 only adds the flag beside it.
