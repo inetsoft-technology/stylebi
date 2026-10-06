@@ -177,8 +177,20 @@ class QueryFreeFormSqlErrorTest {
          .thenAnswer(inv -> metaData(inv.getArgument(1), inv.getArgument(2)));
       when(repository.getMetaData(any(), any(), any(), anyBoolean()))
          .thenAnswer(inv -> metaData(inv.getArgument(1), inv.getArgument(2)));
+      failFixUp = false;
+      fixUpFailed = false;
       when(repository.getMetaData(any(), any(), any(), anyBoolean(), any()))
-         .thenAnswer(inv -> metaData(inv.getArgument(1), inv.getArgument(2)));
+         .thenAnswer(inv -> {
+            // a class 42 error (insufficient privilege) while fixing up the parsed SQL's tables
+            if(failFixUp && StackWalker.getInstance().walk(frames -> frames.anyMatch(
+               f -> "fixUniformSQLInfo".equals(f.getMethodName()))))
+            {
+               fixUpFailed = true;
+               throw new SQLSyntaxErrorException("bug77848 - permission denied", "42501");
+            }
+
+            return metaData(inv.getArgument(1), inv.getArgument(2));
+         });
 
       runtimeQueryService = mock(RuntimeQueryService.class);
       QueryManagerService service = new QueryManagerService(
@@ -235,6 +247,22 @@ class QueryFreeFormSqlErrorTest {
    @Test
    void dataErrorIsNotLoggedAsError() throws Exception {
       expectOkWithoutError(SOURCE, "select cast('abc' as int) from EMP");
+   }
+
+   @Test
+   void metaDataFixUpFailureIsStillLoggedAsError() throws Exception {
+      // only the database rejecting the statement itself is the user's error; the same kind of
+      // SQLException from the meta data fix-up after the statement ran is still a server error
+      failFixUp = true;
+      MockHttpServletResponse response = save(SOURCE, "select * from EMP");
+      assertEquals(200, response.getStatus(), response.getContentAsString(StandardCharsets.UTF_8));
+      assertTrue(fixUpFailed, "the meta data fix-up was not reached");
+
+      List<ILoggingEvent> errors = errors();
+      assertEquals(1, errors.size(), () -> "QueryManagerService ERROR events: " + errors);
+      assertNotNull(errors.get(0).getThrowableProxy());
+      assertTrue(errors.get(0).getFormattedMessage().contains("permission denied"),
+                 errors.get(0).getFormattedMessage());
    }
 
    @Test
@@ -317,6 +345,8 @@ class QueryFreeFormSqlErrorTest {
 
    @Autowired
    private XRepository repository;
+   private boolean failFixUp;
+   private boolean fixUpFailed;
    private RuntimeQueryService runtimeQueryService;
    private MockMvc mockMvc;
    private Logger root;
