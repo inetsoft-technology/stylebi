@@ -41,6 +41,7 @@ package inetsoft.sree.web.dashboard;
  * package-private syncWithFile() and isFileLoaded().
  */
 
+import inetsoft.sree.ViewsheetEntry;
 import inetsoft.sree.security.*;
 import inetsoft.storage.KeyValueStorage;
 import inetsoft.storage.KeyValueStorageManager;
@@ -53,6 +54,7 @@ import inetsoft.uql.util.DefaultIdentity;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.dep.DashboardAsset;
 import inetsoft.web.admin.content.repository.*;
+import inetsoft.web.admin.content.repository.model.RepositoryDashboardSettingsModel;
 import inetsoft.web.admin.content.repository.model.RepositoryFolderDashboardSettingsModel;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -238,10 +240,10 @@ class DashboardSelectionCallerConcurrencyTest {
    @Test
    void ungrant_racingDeselectedChange_keepsTheDeselectedDashboard() throws Exception {
       Identity group = new DefaultIdentity("dash77872_g5", Identity.GROUP);
-      globalNames.addAll(List.of("G__GLOBAL", "D1", "X"));
-      seed(group, List.of("A", "G__GLOBAL"), List.of("D1"));
+      globalNames.addAll(List.of("G__GLOBAL", "D1", "Y"));
+      seed(group, List.of("A"), List.of("D1", "G__GLOBAL"));
       // after the read of the deselected names, the second getter of the split read-modify-write
-      manager.arm(() -> manager.setDeselectedDashboards(group, new String[] { "D1", "X" }), 1);
+      manager.arm(() -> appendDeselected(group, "Y"), 1);
 
       runCaller(() -> setIdentityPermission(Collections.EMPTY_SET,
                                             new IdentityID[] { group.getIdentityID() },
@@ -249,8 +251,8 @@ class DashboardSelectionCallerConcurrencyTest {
 
       DashboardManager.DashboardData data = stored(group);
       assertEquals(List.of("A"), data.getDashboards());
-      assertEquals(List.of("D1", "X"), data.getDeselected(),
-                   "a dashboard deselected while the permission is removed must stay deselected");
+      assertEquals(Set.of("D1", "Y"), new HashSet<>(data.getDeselected()),
+                   "the un-granted name is removed, and a dashboard deselected meanwhile is kept");
    }
 
    /*
@@ -294,11 +296,11 @@ class DashboardSelectionCallerConcurrencyTest {
    // ── dashboard import (DashboardAsset.parseContent) ──
 
    @Test
-   void importDeselected_racingSetDeselected_keepsTheDeselectedDashboard() throws Exception {
+   void importDeselected_racingDeselect_keepsBothDashboards() throws Exception {
       Identity group = new DefaultIdentity("dash77872_g7", Identity.GROUP);
       globalNames.addAll(List.of("D1", "X", "Imp__GLOBAL"));
       seed(group, List.of(), List.of("D1"));
-      manager.arm(() -> manager.setDeselectedDashboards(group, new String[] { "D1", "X" }));
+      manager.arm(() -> appendDeselected(group, "X"));
 
       String xml = "<dashboardAsset><deselected name=\"" + group.getName() + "\" type=\"" +
          Identity.GROUP + "\"/></dashboardAsset>";
@@ -322,15 +324,88 @@ class DashboardSelectionCallerConcurrencyTest {
          return null;
       });
 
-      // the writer is a whole-list set, like an arrange dialog save, so when it waits for the
-      // import it replaces the import's list. Either way the import must not drop "X".
-      List<String> deselected = stored(group).getDeselected();
-      assertTrue(deselected.contains("X"),
-                 "a dashboard deselected while the import runs must stay deselected: " +
-                 deselected);
+      assertEquals(Set.of("D1", "X", "Imp__GLOBAL"), new HashSet<>(stored(group).getDeselected()),
+                   "the import deselects its dashboard, and a dashboard deselected meanwhile is kept");
+   }
+
+   // ── dashboard settings with security off (RepositoryDashboardService.setSettings) ──
+
+   @Test
+   void securityOffSettings_enable_selectsTheDashboard() throws Exception {
+      seed(anonymous, List.of("A"), List.of());
+
+      saveSettings("S__GLOBAL", true);
+
+      DashboardManager.DashboardData data = stored(anonymous);
+      assertEquals(List.of("A", "S__GLOBAL"), data.getDashboards());
+      assertEquals(List.of(), data.getDeselected());
+   }
+
+   @Test
+   void securityOffSettings_enableDeselected_keepsItDeselected() throws Exception {
+      seed(anonymous, List.of("A"), List.of("S__GLOBAL"));
+
+      saveSettings("S__GLOBAL", true);
+
+      DashboardManager.DashboardData data = stored(anonymous);
+      assertEquals(List.of("A"), data.getDashboards());
+      assertEquals(List.of("S__GLOBAL"), data.getDeselected());
+   }
+
+   @Test
+   void securityOffSettings_disable_removesTheDashboardFromBothLists() throws Exception {
+      seed(anonymous, List.of("A", "S__GLOBAL"), List.of("S__GLOBAL", "D1"));
+
+      saveSettings("S__GLOBAL", false);
+
+      DashboardManager.DashboardData data = stored(anonymous);
+      assertEquals(List.of("A"), data.getDashboards());
+      assertEquals(List.of("D1"), data.getDeselected());
    }
 
    // ── fixture ──
+
+   /**
+    * Appends a deselected name in one locked read-modify-write of the stored record, as an atomic
+    * concurrent change does, so that it waits for a caller that holds the lock.
+    */
+   private void appendDeselected(Identity identity, String name) {
+      manager.runLocked(() -> {
+         DashboardManager.DashboardData data = rawStorage.get(key(identity));
+         List<String> deselected = data == null ? new ArrayList<>() :
+            new ArrayList<>(data.getDeselected());
+         deselected.add(name);
+         manager.setDeselectedDashboards(identity, deselected.toArray(new String[0]));
+      });
+   }
+
+   /**
+    * Saves the settings of an unchanged global dashboard with security off, only enabling or
+    * disabling it.
+    */
+   private void saveSettings(String name, boolean enable) throws Exception {
+      globalNames.addAll(List.of("A", "D1", name));
+      String viewsheet = new inetsoft.uql.asset.AssetEntry(
+         inetsoft.uql.asset.AssetRepository.GLOBAL_SCOPE,
+         inetsoft.uql.asset.AssetEntry.Type.VIEWSHEET, "dash77872_vs", null).toIdentifier();
+      ViewsheetEntry entry = new ViewsheetEntry("dash77872_vs", null);
+      entry.setIdentifier(viewsheet);
+      VSDashboard dashboard = new VSDashboard();
+      dashboard.setViewsheet(entry);
+      DashboardRegistry registry = registryManager.getRegistry();
+      when(registry.getDashboard(name)).thenReturn(dashboard);
+      String shortName = name.substring(0, name.length() - "__GLOBAL".length());
+      RepositoryDashboardSettingsModel model = RepositoryDashboardSettingsModel.builder()
+         .name(shortName)
+         .oname(name)
+         .viewsheet(viewsheet)
+         .enable(enable)
+         .visible(true)
+         .build();
+
+      runCaller(() -> service.setSettings(name, model, null, principal()));
+   }
+
 
    private RepositoryFolderDashboardSettingsModel order(String... dashboards) {
       return RepositoryFolderDashboardSettingsModel.builder()
