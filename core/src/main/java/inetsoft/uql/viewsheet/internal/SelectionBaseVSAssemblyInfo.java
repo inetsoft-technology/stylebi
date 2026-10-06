@@ -1006,12 +1006,23 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
       // against the inset seeded above.
       //
       // Unmarked, only Revert's transition may reset the box: an open or a density re-seed runs
-      // this too, and must not shrink an unmarked list that merely happens to sit at a tier size
-      if((ctx.modern || ctx.transition) &&
+      // this too, and must not shrink an unmarked list that merely happens to sit at a tier size.
+      // An author's size carries userSize and is never moved
+      if(!isUserSize() && (ctx.modern || ctx.transition) &&
          VSDensityDefaults.isSeededSelectionSize(getPixelSize()))
       {
          setPixelSize(VSDensityDefaults.selectionSize(ctx));
       }
+   }
+
+   @Override
+   public boolean takesDensitySize() {
+      return true;
+   }
+
+   @Override
+   protected Dimension defaultSize(VizContext ctx) {
+      return VSDensityDefaults.selectionSize(ctx);
    }
 
    @Override
