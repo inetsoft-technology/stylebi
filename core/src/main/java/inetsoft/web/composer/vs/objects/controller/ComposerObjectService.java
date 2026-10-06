@@ -144,6 +144,11 @@ public class ComposerObjectService {
 
          info.setPixelSize(size);
 
+         // an author's drag owns the size; the density size rules leave it alone from here on
+         if(info.takesDensitySize()) {
+            info.setUserSize(true);
+         }
+
          if(assembly instanceof LineVSAssembly) {
             LineVSAssembly line = (LineVSAssembly) assembly;
 
