@@ -363,7 +363,13 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
     * @return the string representaion.
     */
    public String toString() {
-      return "SelectionList[" + getList() + "]";
+      try {
+         return "SelectionList[" + getList() + "]";
+      }
+      catch(SwapFileReadException ex) {
+         // the values could not be read back, the error is reported where they are accessed
+         return "SelectionList[swap file not available: " + ex.getFile() + "]";
+      }
    }
 
    /**
@@ -393,6 +399,14 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
          return slist;
       }
       catch(Exception ex) {
+         // a clone without the values that could not be read back would silently lose them
+         // (bug #77864)
+         SwapFileReadException swapFailure = SwapFileReadException.find(ex);
+
+         if(swapFailure != null) {
+            throw swapFailure;
+         }
+
          LOG.error("Failed to clone SelectionList", ex);
       }
 
@@ -977,7 +991,11 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
                   valid = true;
                }
                catch(Exception ex) {
-                  LOG.warn("Restore failed for selection list: " + swapFile, ex);
+                  // don't return the null placeholders as the values. the list stays invalid
+                  // so a later access tries the file again, fail loudly instead of silently
+                  // substituting wrong data (bug #77864)
+                  LOG.error("Restore failed for selection list: " + swapFile, ex);
+                  throw new SwapFileReadException(swapFile, ex);
                }
                finally {
                   XSwapUtil.releaseKryo(kryo);

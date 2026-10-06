@@ -323,7 +323,7 @@ public final class XBigObjectColumn extends XSwappable implements XTableColumn {
    @Override
    public double getSwapPriority() {
       if(disposed || mlist == null || pos == mlist.size || !isSwappable() ||
-         !completed)
+         !completed || lost)
       {
          return 0;
       }
@@ -374,9 +374,18 @@ public final class XBigObjectColumn extends XSwappable implements XTableColumn {
          return false;
       }
 
+      File file = getFile(prefix + ".tdat");
+
+      // the swap file was removed or truncated (e.g. by a cleaner of the cache directory).
+      // appending would recreate it at offset 0, so the rows swapped out before would read back
+      // other rows' values, and the rows read back since would be freed without being written
+      // again. keep the rows left in memory instead (bug #77864)
+      if(isSwapFileLost(file)) {
+         return false;
+      }
+
       swapCount++;
       boolean freed = false;
-      File file = getFile(prefix + ".tdat");
       FileOutputStream fout = null;
       com.esotericsoftware.kryo.kryo5.Kryo kryo = XSwapUtil.getKryo();
 
@@ -396,7 +405,6 @@ public final class XBigObjectColumn extends XSwappable implements XTableColumn {
             }
 
             if(parr[i] == -1) {
-               parr[i] = len;
                Output oout = new Output(bout);
                kryo.writeClassAndObject(
                   oout, image ? new ImageWrapper((Image) arr[i]) : arr[i]);
@@ -404,7 +412,11 @@ public final class XBigObjectColumn extends XSwappable implements XTableColumn {
 
                int len0 = bout.size();
                fout.write(bout.toBytes(), 0, len0);
+               // point at the data only once it is written, a failed write must not leave the
+               // row pointing at the bytes appended later for other rows
+               parr[i] = len;
                len += len0;
+               flen = len;
                bout.reset();
             }
 
@@ -451,6 +463,11 @@ public final class XBigObjectColumn extends XSwappable implements XTableColumn {
       com.esotericsoftware.kryo.kryo5.Kryo kryo = XSwapUtil.getKryo();
 
       try {
+         if(isSwapFileLost(file)) {
+            throw new IOException("Swap file is missing or truncated, expected " + flen +
+                                  " bytes, found " + file.length());
+         }
+
          fin = new FileInputStream(file);
          long s = fin.skip(skip);
          BufferedInputStream in = new BufferedInputStream(fin, 4096);
@@ -467,7 +484,11 @@ public final class XBigObjectColumn extends XSwappable implements XTableColumn {
          kryoInput.close();
       }
       catch(Exception e) {
+         // don't return null, it would be cached as the value of the row. leave the row
+         // swapped out so a later access tries the file again, and fail loudly instead of
+         // silently substituting wrong data (bug #77864)
          LOG.error("Failed to read object [" + r + "]", e);
+         throw new SwapFileReadException(file, e);
       }
       finally {
          XSwapUtil.releaseKryo(kryo);
@@ -485,6 +506,20 @@ public final class XBigObjectColumn extends XSwappable implements XTableColumn {
       }
 
       return obj;
+   }
+
+   /**
+    * Check if the swap file lost the data written to it. The column is not swapped again once
+    * the file is lost.
+    */
+   private boolean isSwapFileLost(File file) {
+      if(!lost && flen > 0 && file.length() < flen) {
+         lost = true;
+         LOG.error("Swap file is missing or truncated, the rows in memory are not swapped " +
+                   "out any more: " + file);
+      }
+
+      return lost;
    }
 
    @Override
@@ -551,6 +586,8 @@ public final class XBigObjectColumn extends XSwappable implements XTableColumn {
    private boolean image; // image flag
    private XIntList mlist; // in-memory row indices
    private int scount; // swapped row count
+   private long flen; // number of bytes written to the swap file
+   private boolean lost; // swap file lost, see isSwapFileLost()
    private boolean completed; // completed flag
    private boolean disposed; // disposed flag
    private volatile int swapCount; // number of swaps

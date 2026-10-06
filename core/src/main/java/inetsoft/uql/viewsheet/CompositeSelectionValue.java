@@ -20,6 +20,7 @@ package inetsoft.uql.viewsheet;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.util.Tool;
+import inetsoft.util.swap.SwapFileReadException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
@@ -211,6 +212,13 @@ public class CompositeSelectionValue extends SelectionValue {
          return value;
       }
       catch(Exception ex) {
+         // a null child would be added silently to the cloned parent list (bug #77864)
+         SwapFileReadException swapFailure = SwapFileReadException.find(ex);
+
+         if(swapFailure != null) {
+            throw swapFailure;
+         }
+
          LOG.error("Failed to clone CompositeSelectionValue", ex);
       }
 
