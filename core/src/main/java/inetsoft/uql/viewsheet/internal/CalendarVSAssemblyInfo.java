@@ -97,7 +97,9 @@ public class CalendarVSAssemblyInfo extends SelectionVSAssemblyInfo
       setCSSDefaults();
       titleInfo.setTitleHeightValue(36);
       // this type never calls setDefaultFormat, so the base's hook call is unreachable
-      seedChromeDefaults(VizContext.of(this));
+      VizContext ctx = VizContext.of(this);
+      seedChromeDefaults(ctx);
+      seedDensitySize(ctx);
    }
 
    @Override
@@ -110,6 +112,32 @@ public class CalendarVSAssemblyInfo extends SelectionVSAssemblyInfo
       // returns at the bypass guard - this type installs its own object format and radius
       super.seedChromeDefaults(ctx);
       applyCalendarSeed(getFormatInfo(), ctx, prototype(getShowType()));
+   }
+
+   /**
+    * Not reached by a restore, Modernize or Revert, so a calendar already on a dashboard keeps its
+    * box until the dashboard's density changes.
+    */
+   @Override
+   protected void seedDensitySize(VizContext ctx) {
+      if(ctx.modern && followsDensitySize()) {
+         setPixelSize(VSDensityDefaults.calendarSize(ctx));
+      }
+   }
+
+   @Override
+   public boolean takesDensitySize() {
+      return true;
+   }
+
+   @Override
+   public boolean followsDensitySize() {
+      return !isUserSize() && VSDensityDefaults.isSeededCalendarSize(getPixelSize());
+   }
+
+   @Override
+   protected Dimension defaultSize(VizContext ctx) {
+      return VSDensityDefaults.calendarSize(ctx);
    }
 
    /**
