@@ -6248,6 +6248,41 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    private static final Logger LOG = LoggerFactory.getLogger(UniformSQL.class);
    private static final ThreadLocal<Integer> UNQUOTED = ThreadLocal.withInitial(() -> 0);
 
-   private record OrderBySql(Object field, String sql) implements java.io.Serializable {
+   // the field of an order by item and the sql generated in its place. An immutable class, not
+   // a record, as Ignite's binary marshaller can't write or read a record and a query is cached
+   // in Ignite (e.g. RuntimeXQuery, Bug #77858). It's shared by clone, so it must stay immutable
+   private static final class OrderBySql implements java.io.Serializable {
+      OrderBySql(Object field, String sql) {
+         this.field = field;
+         this.sql = sql;
+      }
+
+      Object field() {
+         return field;
+      }
+
+      String sql() {
+         return sql;
+      }
+
+      @Override
+      public boolean equals(Object obj) {
+         return obj instanceof OrderBySql other && Objects.equals(field, other.field) &&
+            Objects.equals(sql, other.sql);
+      }
+
+      @Override
+      public int hashCode() {
+         return Objects.hash(field, sql);
+      }
+
+      @Override
+      public String toString() {
+         return "OrderBySql[field=" + field + ", sql=" + sql + "]";
+      }
+
+      private final Object field;
+      private final String sql;
+      private static final long serialVersionUID = 1L;
    }
 }

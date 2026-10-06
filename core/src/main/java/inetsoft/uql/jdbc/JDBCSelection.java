@@ -770,14 +770,115 @@ public class JDBCSelection extends XSelection {
    private TreeMap<Integer, ColumnSql> columnSql = new TreeMap<>();
    private boolean plan = false; // plan flag
 
-   private record AliasQuote(String alias, boolean quoted) implements java.io.Serializable {
+   // the values below are immutable classes, not records, as Ignite's binary marshaller can't
+   // write or read a record and a selection is cached in Ignite (e.g. RuntimeXQuery, Bug #77858).
+   // They are shared by clone, so they must stay immutable
+
+   // the alias and its quoting
+   private static final class AliasQuote implements java.io.Serializable {
+      AliasQuote(String alias, boolean quoted) {
+         this.alias = alias;
+         this.quoted = quoted;
+      }
+
+      String alias() {
+         return alias;
+      }
+
+      boolean quoted() {
+         return quoted;
+      }
+
+      @Override
+      public boolean equals(Object obj) {
+         return obj instanceof AliasQuote other && quoted == other.quoted &&
+            Objects.equals(alias, other.alias);
+      }
+
+      @Override
+      public int hashCode() {
+         return Objects.hash(alias, quoted);
+      }
+
+      @Override
+      public String toString() {
+         return "AliasQuote[alias=" + alias + ", quoted=" + quoted + "]";
+      }
+
+      private final String alias;
+      private final boolean quoted;
+      private static final long serialVersionUID = 1L;
    }
 
    // the name a column was written quoted as, and its column segment ("" if bare)
-   private record ColumnQuote(String column, String segment) implements java.io.Serializable {
+   private static final class ColumnQuote implements java.io.Serializable {
+      ColumnQuote(String column, String segment) {
+         this.column = column;
+         this.segment = segment;
+      }
+
+      String column() {
+         return column;
+      }
+
+      String segment() {
+         return segment;
+      }
+
+      @Override
+      public boolean equals(Object obj) {
+         return obj instanceof ColumnQuote other && Objects.equals(column, other.column) &&
+            Objects.equals(segment, other.segment);
+      }
+
+      @Override
+      public int hashCode() {
+         return Objects.hash(column, segment);
+      }
+
+      @Override
+      public String toString() {
+         return "ColumnQuote[column=" + column + ", segment=" + segment + "]";
+      }
+
+      private final String column;
+      private final String segment;
+      private static final long serialVersionUID = 1L;
    }
 
    // the text of a column and the sql generated in its place
-   private record ColumnSql(String column, String sql) implements java.io.Serializable {
+   private static final class ColumnSql implements java.io.Serializable {
+      ColumnSql(String column, String sql) {
+         this.column = column;
+         this.sql = sql;
+      }
+
+      String column() {
+         return column;
+      }
+
+      String sql() {
+         return sql;
+      }
+
+      @Override
+      public boolean equals(Object obj) {
+         return obj instanceof ColumnSql other && Objects.equals(column, other.column) &&
+            Objects.equals(sql, other.sql);
+      }
+
+      @Override
+      public int hashCode() {
+         return Objects.hash(column, sql);
+      }
+
+      @Override
+      public String toString() {
+         return "ColumnSql[column=" + column + ", sql=" + sql + "]";
+      }
+
+      private final String column;
+      private final String sql;
+      private static final long serialVersionUID = 1L;
    }
 }
