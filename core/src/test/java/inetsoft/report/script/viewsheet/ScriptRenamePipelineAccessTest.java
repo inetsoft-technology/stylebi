@@ -31,8 +31,11 @@ import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.jupiter.api.function.Executable;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+
+import java.util.Arrays;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -85,6 +88,23 @@ class ScriptRenamePipelineAccessTest {
    @Test
    void assetDependencyTransformerRefused() throws Exception {
       assertNotAllowed(construct("AssetDependencyTransformer", "null"));
+   }
+
+   /** The deny on DependencyTransformer also covers each of its other public subclasses. */
+   @Test
+   void otherDependencyTransformerSubclassesRefused() {
+      String[] types = {
+         "AssetCubeDependencyTransformer", "AssetEmbedDependencyTransformer",
+         "AssetHyperlinkDependencyTransformer", "AssetLMDependencyTransformer",
+         "AssetPhyTableDependencyTransformer", "AssetSQLTableDependencyTransformer",
+         "AssetScriptDependencyTransformer", "AssetTabularDependencyTransformer",
+         "AssetWSDependencyTransformer", "DashboardAssetDependencyTransformer",
+         "LogicalModelPartitionDependencyTransformer", "QueryDatasourceDependencyTransformer",
+         "TaskAssetDependencyTransformer"
+      };
+
+      assertAll(Arrays.stream(types)
+                   .map(type -> (Executable) () -> assertNotAllowed(construct(type, "null"))));
    }
 
    @Test
