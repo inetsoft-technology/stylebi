@@ -553,143 +553,172 @@ public class DatabaseDatasourcesService {
       jdbcDataSource.setAnsiJoin(newSrc.isAnsiJoin());
 
       boolean additionalChange = false;
+      // the permission of a saved data source, written at the end of the save
+      boolean savePermission = false;
 
-      //Editing additional datasource connection. Delegate to its base.
-      if(base != null) {
-         if(name.equals(base.getName())) {
-            throw new MessageException(Catalog.getCatalog(principal)
-               .getString("common.datasource.nameInvalid", name));
-         }
+      // the failure of a step after the data source is saved, which a failed permission write
+      // doesn't replace
+      Throwable saveFailure = null;
 
-         base.removeDatasource(oname);
-         jdbcDataSource.setName(name);
-         base.addDatasource(jdbcDataSource);
-         additionalChange = true;
-
-         if(!oname.equals(name)) {
-            renameAdditionalSource(base, oname, name);
-            updateAdditionalPermissions(base.getFullName(), Collections.emptySet(),
-                                        Collections.singletonMap(oname, name));
-         }
-      }
-      else {
-         dataSourceStatusService.updateStatus(jdbcDataSource);
-         repository.updateDataSource(jdbcDataSource, fullName, false);
-
-         // some kind private datasource of the current user
-         if(newDataSource && !folderPermission && newSourcePermission ) {
-            if(oldPermission == null) {
-               oldPermission = new Permission();
+      try {
+         //Editing additional datasource connection. Delegate to its base.
+         if(base != null) {
+            if(name.equals(base.getName())) {
+               throw new MessageException(Catalog.getCatalog(principal)
+                  .getString("common.datasource.nameInvalid", name));
             }
 
-            IdentityID pId = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
-            String orgId = OrganizationManager.getInstance().getUserOrgId(principal);
-            Set<Permission.PermissionIdentity> users = pId == null ? Collections.emptySet() :
-               Collections.singleton(new Permission.PermissionIdentity(pId.name, orgId));
-            oldPermission.setUserGrants(ResourceAction.READ, users);
-            oldPermission.setUserGrants(ResourceAction.WRITE, users);
-            oldPermission.setUserGrants(ResourceAction.DELETE, users);
-            oldPermission.updateGrantAllByOrg(orgId, true);
-         }
+            base.removeDatasource(oname);
+            jdbcDataSource.setName(name);
+            base.addDatasource(jdbcDataSource);
+            additionalChange = true;
 
-         securityEngine.setPermission(
-            ResourceType.DATA_SOURCE, jdbcDataSource.getFullName(), oldPermission);
-         entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
-            AssetEntry.Type.DATA_SOURCE, jdbcDataSource.getFullName(), null);
-         entry = getDataSourceAssetEntry(entry);
-
-         if(entry != null) {
-            entry.setCreatedUsername(user != null ? user : entry.getCreatedUsername());
-            entry.setCreatedDate(date != null ? date : entry.getCreatedDate());
-            updateDataSourceAssetEntry(entry);
-         }
-
-         DatabaseDefinition[] additionalDataSources = getAdditionals != null
-            ? getAdditionals.get()
-            : null;
-
-         if(additionalDataSources != null) {
-            Map<String, String> additionalNamePasswordMap = new HashMap<>();
-
-            // clear additional ds first
-            for(String dataSourceName : jdbcDataSource.getDataSourceNames()) {
-               JDBCDataSource source = jdbcDataSource.getDataSource(dataSourceName);
-               String dsNameWithoutFolder = dataSourceName.contains("/") ?
-                  dataSourceName.substring(dataSourceName.indexOf('/') + 1) : dataSourceName;
-               additionalNamePasswordMap.put(dsNameWithoutFolder, source.getPassword());
-               jdbcDataSource.removeDatasource(dataSourceName);
+            if(!oname.equals(name)) {
+               renameAdditionalSource(base, oname, name);
+               updateAdditionalPermissions(base.getFullName(), Collections.emptySet(),
+                                           Collections.singletonMap(oname, name));
             }
+         }
+         else {
+            dataSourceStatusService.updateStatus(jdbcDataSource);
+            repository.updateDataSource(jdbcDataSource, fullName, false);
 
-            // the names of the kept and renamed additional connections before this save, and the
-            // renames, by old name
-            Set<String> keptOldNames = new HashSet<>();
-            Map<String, String> renames = new LinkedHashMap<>();
-
-            // add newly additional ds
-            for(DatabaseDefinition ads : additionalDataSources) {
-               String additionalName = ads.getName();
-               String oldName = ads.getOldName();
-
-               if(oldName != null) {
-                  keptOldNames.add(oldName);
+            // some kind private datasource of the current user
+            if(newDataSource && !folderPermission && newSourcePermission ) {
+               if(oldPermission == null) {
+                  oldPermission = new Permission();
                }
 
-               if(additionalNamePasswordMap.get(oldName) != null && ads.getAuthentication() != null) {
-                  AuthenticationDetails authentication = ads.getAuthentication();
+               IdentityID pId = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
+               String orgId = OrganizationManager.getInstance().getUserOrgId(principal);
+               Set<Permission.PermissionIdentity> users = pId == null ? Collections.emptySet() :
+                  Collections.singleton(new Permission.PermissionIdentity(pId.name, orgId));
+               oldPermission.setUserGrants(ResourceAction.READ, users);
+               oldPermission.setUserGrants(ResourceAction.WRITE, users);
+               oldPermission.setUserGrants(ResourceAction.DELETE, users);
+               oldPermission.updateGrantAllByOrg(orgId, true);
+            }
 
-                  if((!Tool.isCloudSecrets() || !authentication.isUseCredentialId()) &&
-                     Tool.equals(authentication.getPassword(), Util.PLACEHOLDER_PASSWORD))
-                  {
-                     authentication.setPassword(additionalNamePasswordMap.get(oldName));
+            savePermission = true;
+            entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
+               AssetEntry.Type.DATA_SOURCE, jdbcDataSource.getFullName(), null);
+            entry = getDataSourceAssetEntry(entry);
+
+            if(entry != null) {
+               entry.setCreatedUsername(user != null ? user : entry.getCreatedUsername());
+               entry.setCreatedDate(date != null ? date : entry.getCreatedDate());
+               updateDataSourceAssetEntry(entry);
+            }
+
+            DatabaseDefinition[] additionalDataSources = getAdditionals != null
+               ? getAdditionals.get()
+               : null;
+
+            if(additionalDataSources != null) {
+               Map<String, String> additionalNamePasswordMap = new HashMap<>();
+
+               // clear additional ds first
+               for(String dataSourceName : jdbcDataSource.getDataSourceNames()) {
+                  JDBCDataSource source = jdbcDataSource.getDataSource(dataSourceName);
+                  String dsNameWithoutFolder = dataSourceName.contains("/") ?
+                     dataSourceName.substring(dataSourceName.indexOf('/') + 1) : dataSourceName;
+                  additionalNamePasswordMap.put(dsNameWithoutFolder, source.getPassword());
+                  jdbcDataSource.removeDatasource(dataSourceName);
+               }
+
+               // the names of the kept and renamed additional connections before this save, and the
+               // renames, by old name
+               Set<String> keptOldNames = new HashSet<>();
+               Map<String, String> renames = new LinkedHashMap<>();
+
+               // add newly additional ds
+               for(DatabaseDefinition ads : additionalDataSources) {
+                  String additionalName = ads.getName();
+                  String oldName = ads.getOldName();
+
+                  if(oldName != null) {
+                     keptOldNames.add(oldName);
+                  }
+
+                  if(additionalNamePasswordMap.get(oldName) != null && ads.getAuthentication() != null) {
+                     AuthenticationDetails authentication = ads.getAuthentication();
+
+                     if((!Tool.isCloudSecrets() || !authentication.isUseCredentialId()) &&
+                        Tool.equals(authentication.getPassword(), Util.PLACEHOLDER_PASSWORD))
+                     {
+                        authentication.setPassword(additionalNamePasswordMap.get(oldName));
+                     }
+                  }
+
+                  addAdditionalConnection(jdbcDataSource, ads, secretIdCheck, principal);
+
+                  if(!additionalChange) {
+                     additionalChange = true;
+                  }
+
+                  if(oldName != null && !oldName.equals(additionalName)) {
+                     renameAdditionalSource(jdbcDataSource, oldName, additionalName);
+                     renames.put(oldName, additionalName);
                   }
                }
 
-               addAdditionalConnection(jdbcDataSource, ads, secretIdCheck, principal);
-
-               if(!additionalChange) {
-                  additionalChange = true;
-               }
-
-               if(oldName != null && !oldName.equals(additionalName)) {
-                  renameAdditionalSource(jdbcDataSource, oldName, additionalName);
-                  renames.put(oldName, additionalName);
-               }
+               // a new additional connection has no old name, so one that has the name of a removed
+               // one is not kept. The parent was renamed above, which moved the permissions of its
+               // additional connections, so they are under its new name
+               Set<String> removedNames = new HashSet<>(additionalNamePasswordMap.keySet());
+               removedNames.removeAll(keptOldNames);
+               updateAdditionalPermissions(jdbcDataSource.getFullName(), removedNames, renames);
+               refreshAdditionalSource(jdbcDataSource);
             }
+         }
 
-            // a new additional connection has no old name, so one that has the name of a removed
-            // one is not kept. The parent was renamed above, which moved the permissions of its
-            // additional connections, so they are under its new name
-            Set<String> removedNames = new HashSet<>(additionalNamePasswordMap.keySet());
-            removedNames.removeAll(keptOldNames);
-            updateAdditionalPermissions(jdbcDataSource.getFullName(), removedNames, renames);
-            refreshAdditionalSource(jdbcDataSource);
+         if(additionalChange && base != null) {
+            // base.addDatasource() saved the additional connection under its parent. Update the
+            // parent as a save of the parent does, since updating the additional connection by its
+            // path would rename it to its own name and so move it out of the parent
+            XDataSource parent = repository.getDataSource(base.getFullName());
+
+            if(parent != null) {
+               parent.setLastModified(System.currentTimeMillis());
+               repository.updateDataSource(parent, parent.getFullName(), false);
+            }
+         }
+         else if(additionalChange) {
+            jdbcDataSource.setLastModified(System.currentTimeMillis());
+            repository.updateDataSource(jdbcDataSource, fullName, false);
+         }
+
+         String type = database.getType();
+
+         if(type.equals(CustomDatabaseType.TYPE) || type.equals(AccessDatabaseType.TYPE)) {
+            removeLegacyTestQuery(fullName, newSrc.getFullName());
+         }
+
+         JDBCDataSource currentDataSource = (JDBCDataSource) Tool.clone(jdbcDataSource);
+         transformTables(oldDataSource, currentDataSource);
+      }
+      catch(Throwable e) {
+         saveFailure = e;
+         throw e;
+      }
+      finally {
+         // written last, so a failed permission write doesn't skip the asset entry, the additional
+         // connections or the rest of the save, and written even if a later step fails, since the
+         // data source is saved by then
+         if(savePermission) {
+            try {
+               securityEngine.setPermission(
+                  ResourceType.DATA_SOURCE, jdbcDataSource.getFullName(), oldPermission);
+            }
+            catch(RuntimeException e) {
+               if(saveFailure == null) {
+                  throw e;
+               }
+
+               saveFailure.addSuppressed(e);
+            }
          }
       }
-
-      if(additionalChange && base != null) {
-         // base.addDatasource() saved the additional connection under its parent. Update the
-         // parent as a save of the parent does, since updating the additional connection by its
-         // path would rename it to its own name and so move it out of the parent
-         XDataSource parent = repository.getDataSource(base.getFullName());
-
-         if(parent != null) {
-            parent.setLastModified(System.currentTimeMillis());
-            repository.updateDataSource(parent, parent.getFullName(), false);
-         }
-      }
-      else if(additionalChange) {
-         jdbcDataSource.setLastModified(System.currentTimeMillis());
-         repository.updateDataSource(jdbcDataSource, fullName, false);
-      }
-
-      String type = database.getType();
-
-      if(type.equals(CustomDatabaseType.TYPE) || type.equals(AccessDatabaseType.TYPE)) {
-         removeLegacyTestQuery(fullName, newSrc.getFullName());
-      }
-
-      JDBCDataSource currentDataSource = (JDBCDataSource) Tool.clone(jdbcDataSource);
-      transformTables(oldDataSource, currentDataSource);
 
       return null;
    }

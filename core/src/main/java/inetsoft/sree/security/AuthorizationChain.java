@@ -108,18 +108,33 @@ public class AuthorizationChain
    @Override
    public void removePermission(ResourceType type, String resource, String orgID) {
       final String org_id = fixOrgID(orgID);
-      final boolean[] configBackedChanged = {false};
+      boolean configBackedChanged = false;
+      RuntimeException failure = null;
 
-      stream()
-         .forEach(p -> {
+      // try every provider so that one failed revoke does not leave the grant in the others
+      for(AuthorizationProvider p : getProviders()) {
+         try {
             p.removePermission(type, resource, org_id);
 
             if(p.contentInConfig()) {
-               configBackedChanged[0] = true;
+               configBackedChanged = true;
             }
-         });
+         }
+         catch(RuntimeException e) {
+            if(failure == null) {
+               failure = e;
+            }
+            else {
+               failure.addSuppressed(e);
+            }
+         }
+      }
 
-      saveConfigurationIfNeeded(configBackedChanged[0]);
+      saveConfigurationIfNeeded(configBackedChanged);
+
+      if(failure != null) {
+         throw failure;
+      }
    }
 
    @Override
@@ -130,18 +145,33 @@ public class AuthorizationChain
    @Override
    public void removePermission(ResourceType type, IdentityID resourceID, String orgID) {
       final String org_id = fixOrgID(orgID);
-      final boolean[] configBackedChanged = {false};
+      boolean configBackedChanged = false;
+      RuntimeException failure = null;
 
-      stream()
-         .forEach(p -> {
+      // try every provider so that one failed revoke does not leave the grant in the others
+      for(AuthorizationProvider p : getProviders()) {
+         try {
             p.removePermission(type, resourceID, org_id);
 
             if(p.contentInConfig()) {
-               configBackedChanged[0] = true;
+               configBackedChanged = true;
             }
-         });
+         }
+         catch(RuntimeException e) {
+            if(failure == null) {
+               failure = e;
+            }
+            else {
+               failure.addSuppressed(e);
+            }
+         }
+      }
 
-      saveConfigurationIfNeeded(configBackedChanged[0]);
+      saveConfigurationIfNeeded(configBackedChanged);
+
+      if(failure != null) {
+         throw failure;
+      }
    }
 
    @Override

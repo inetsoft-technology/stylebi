@@ -1035,14 +1035,15 @@ public class DataSetService {
 
       if(RecycleUtils.isInRecycleBin(path)) {
          assetRepository.removeFolder(entry, principal, true);
+         // remove the bin entry before the revoke, so a failed revoke doesn't leave a dangling
+         // entry for a folder that no longer exists
+         recycleBin.removeEntry(path);
 
          // Permissions are only keyed by path for global-scope assets; see the same guard in
          // AbstractAssetEngine.updatePermission().
          if(entry.getScope() == AssetRepository.GLOBAL_SCOPE) {
             securityProvider.removePermission(ResourceType.ASSET, path);
          }
-
-         recycleBin.removeEntry(path);
       }
       else {
          AssetEntry binEntry = new AssetEntry(scope, AssetEntry.Type.FOLDER,
@@ -1069,18 +1070,20 @@ public class DataSetService {
 
          assetRepository.changeFolder(entry, newEntry, principal, true);
 
+         // A private folder has no path-keyed permission of its own (oldPermission is the
+         // same-named global folder's), so don't record it for a later restore. The entry is
+         // added before the permission move, so a failed permission write doesn't leave the
+         // folder in the bin without a restore entry.
+         recycleBin.addEntry(newEntry.getPath(), entry.getPath(), entry.getName(),
+                             entry.getScope() == AssetRepository.GLOBAL_SCOPE ? oldPermission : null,
+                             RepositoryEntry.WORKSHEET_FOLDER, entry.getScope(), entry.getUser());
+
          // Permissions are only keyed by path for global-scope assets; see the same guard in
          // AbstractAssetEngine.updatePermission().
          if(entry.getScope() == AssetRepository.GLOBAL_SCOPE) {
             securityProvider.removePermission(ResourceType.ASSET, entry.getPath());
             securityProvider.setPermission(ResourceType.ASSET, newEntry.getPath(), oldPermission);
          }
-
-         // A private folder has no path-keyed permission of its own (oldPermission is the
-         // same-named global folder's), so don't record it for a later restore.
-         recycleBin.addEntry(newEntry.getPath(), entry.getPath(), entry.getName(),
-                             entry.getScope() == AssetRepository.GLOBAL_SCOPE ? oldPermission : null,
-                             RepositoryEntry.WORKSHEET_FOLDER, entry.getScope(), entry.getUser());
       }
    }
 
@@ -1103,12 +1106,13 @@ public class DataSetService {
       // AbstractAssetEngine.updatePermission().
       if(RecycleUtils.isInRecycleBin(path)) {
          assetRepository.removeSheet(entry, principal, true);
+         // remove the bin entry before the revoke, so a failed revoke doesn't leave a dangling
+         // entry for a worksheet that no longer exists
+         recycleBin.removeEntry(entry.getPath());
 
          if(entry.getScope() == AssetRepository.GLOBAL_SCOPE) {
             securityProvider.removePermission(ResourceType.ASSET, path);
          }
-
-         recycleBin.removeEntry(entry.getPath());
       }
       else if(force) {
          assetRepository.removeSheet(entry, principal, true);
@@ -1370,6 +1374,14 @@ public class DataSetService {
 
       assetRepository.changeSheet(oldEntry, newEntry, principal, true);
 
+      // A private worksheet has no path-keyed permission of its own (permission is the
+      // same-named global worksheet's), so don't record it for a later restore. The entry is
+      // added before the permission move, so a failed permission write doesn't leave the
+      // worksheet in the bin without a restore entry.
+      recycleBin.addEntry(newEntry.getPath(), oldEntry.getPath(), oldEntry.getName(),
+                          oldEntry.getScope() == AssetRepository.GLOBAL_SCOPE ? permission : null,
+                          RepositoryEntry.WORKSHEET, oldEntry.getScope(), oldEntry.getUser());
+
       // Permissions are only keyed by path for global-scope assets; see the same guard in
       // AbstractAssetEngine.updatePermission().
       if(oldEntry.getScope() == AssetRepository.GLOBAL_SCOPE) {
@@ -1378,12 +1390,6 @@ public class DataSetService {
       }
 
       SecurityEngine.touch();
-
-      // A private worksheet has no path-keyed permission of its own (permission is the
-      // same-named global worksheet's), so don't record it for a later restore.
-      recycleBin.addEntry(newEntry.getPath(), oldEntry.getPath(), oldEntry.getName(),
-                          oldEntry.getScope() == AssetRepository.GLOBAL_SCOPE ? permission : null,
-                          RepositoryEntry.WORKSHEET, oldEntry.getScope(), oldEntry.getUser());
    }
 
    private IdentityID getUser(Principal principal, int scope) {

@@ -115,6 +115,8 @@ class DataSourceRenameFailureTest {
    private String failPermission;
    // whether a failed permission save throws, which the real provider doesn't do
    private boolean failPermissionThrows;
+   // the prefix of the data source permissions whose removal throws and keeps them
+   private String failRemovePrefix;
    // the connector of the tabular data sources isn't installed while an operation runs
    private boolean uninstalled;
    // checks each index that is saved, while set
@@ -150,8 +152,15 @@ class DataSourceRenameFailureTest {
 
          return store.put(key, inv.getArgument(2));
       }).when(security).setPermission(any(ResourceType.class), anyString(), any());
-      doAnswer(inv -> store.remove(key(inv.getArgument(0), inv.getArgument(1))))
-         .when(security).removePermission(any(ResourceType.class), anyString());
+      doAnswer(inv -> {
+         String key = key(inv.getArgument(0), inv.getArgument(1));
+
+         if(failRemovePrefix != null && key.startsWith(failRemovePrefix)) {
+            throw new IllegalStateException("simulated permission storage failure");
+         }
+
+         return store.remove(key);
+      }).when(security).removePermission(any(ResourceType.class), anyString());
       securityStatic = mockStatic(SecurityEngine.class, CALLS_REAL_METHODS);
       securityStatic.when(SecurityEngine::getSecurity).thenReturn(security);
       Audit audit = mock(Audit.class);
@@ -197,6 +206,7 @@ class DataSourceRenameFailureTest {
       failKey = null;
       failPermission = null;
       failPermissionThrows = false;
+      failRemovePrefix = null;
       uninstalled = false;
       storageField.set(registry, storage);
       auditStatic.close();
@@ -285,6 +295,82 @@ class DataSourceRenameFailureTest {
             checkSource(p, source, p + "F/" + source, nfolder + "/" + source, label);
          }
       }
+   }
+
+   // Bug #77798 r1: the removal of the old permission of a data source throws once the
+   // permission is saved under the new path. The data source rename, the data source move and
+   // the folder rename and move still complete, and the stale old permission is only logged.
+   @Test
+   void renameAndMoveCompleteWhenTheOldPermissionRemovalFails() throws Exception {
+      Map<String, Operation> operations = new LinkedHashMap<>();
+      operations.put("data source rename", p -> {
+         XDataSource source = registry.getDataSource(p + "F/D");
+         source.setName(p + "F/E");
+         repository.updateDataSource(source, p + "F/D");
+      });
+      operations.put("data source move", p ->
+         emMove(p + "F/A", RepositoryEntry.DATA_SOURCE, p + "Dest"));
+      operations.put("folder move", p ->
+         emMove(p + "F", RepositoryEntry.DATA_SOURCE_FOLDER, p + "Dest"));
+      operations.put("folder rename", p -> repository.updateDataSourceFolder(
+         new DataSourceFolder(p + "R", LocalDateTime.now(), null), p + "F"));
+      operations.put("folder rename with an unloadable connector", p -> {
+         uninstalled = true;
+         repository.updateDataSourceFolder(
+            new DataSourceFolder(p + "R", LocalDateTime.now(), null), p + "F");
+      });
+      Map<String, Function<String, Map<String, String>>> moves = Map.of(
+         "data source rename", p -> Map.of(p + "F/D", p + "F/E"),
+         "data source move", p -> Map.of(p + "F/A", p + "Dest/A", p + "F/A::add",
+                                         p + "Dest/A::add"),
+         "folder move", p -> sources(p, p + "Dest/" + p + "F"),
+         "folder rename", p -> sources(p, p + "R"),
+         "folder rename with an unloadable connector", p -> sources(p, p + "R"));
+
+      for(Map.Entry<String, Operation> operation : operations.entrySet()) {
+         String label = operation.getKey();
+         String p = scenario();
+         failRemovePrefix = key(ResourceType.DATA_SOURCE, p + "F/");
+         Throwable thrown;
+
+         try {
+            thrown = run(0, false, () -> operation.getValue().run(p));
+         }
+         finally {
+            failRemovePrefix = null;
+            uninstalled = false;
+         }
+
+         assertNull(thrown, label);
+         registry.clearCache();
+
+         moves.get(label).apply(p).forEach((oname, nname) -> {
+            String source = oname.contains("::") ? oname.substring(0, oname.indexOf("::")) : oname;
+
+            if(!oname.contains("::")) {
+               assertNotNull(registry.getDataSource(nname), label + ": " + nname);
+               assertNull(registry.getDataSource(oname), label + ": " + oname);
+            }
+
+            // moved, and the old one kept since its removal failed
+            assertSame(perm(ResourceType.DATA_SOURCE, oname + "#grant"),
+                       perm(ResourceType.DATA_SOURCE, nname), label + ": " + nname);
+            assertNotNull(perm(ResourceType.DATA_SOURCE, oname), label + ": " + source);
+         });
+      }
+   }
+
+   // the new paths of the data sources of a scenario and of its additional connection, by their
+   // old paths, once the folder is moved to a new path
+   private static Map<String, String> sources(String p, String nfolder) {
+      Map<String, String> moves = new HashMap<>();
+
+      for(String source : SOURCES) {
+         moves.put(p + "F/" + source, nfolder + "/" + source);
+      }
+
+      moves.put(p + "F/A::add", nfolder + "/A::add");
+      return moves;
    }
 
    // Bug #77704 r1/r2: the permission of the new folder can't be saved, the new folder is removed

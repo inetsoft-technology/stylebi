@@ -1143,10 +1143,10 @@ public class RepletEngine extends AbstractAssetEngine
                String nname = nentry.getPath();
                ResourceType otype = getAssetResourceType(oentry);
                String oname = oentry.getPath();
-               security.setPermission(ntype, nname, security.getPermission(otype, oname));
+               setPermissionBestEffort(security, ntype, nname, security.getPermission(otype, oname));
 
                if(!Tool.equals(oname, nname)) {
-                  security.removePermission(otype, oname);
+                  removePermissionBestEffort(security, otype, oname);
                }
             }
          }
@@ -1155,7 +1155,7 @@ public class RepletEngine extends AbstractAssetEngine
             if(security != null) {
                ResourceType otype = getAssetResourceType(oentry);
                String oname = oentry.getPath();
-               security.removePermission(otype, oname);
+               removePermissionBestEffort(security, otype, oname);
             }
          }
       }
@@ -1293,8 +1293,8 @@ public class RepletEngine extends AbstractAssetEngine
                ResourceType otype = getAssetResourceType(oentry);
                String oname = oentry.getPath();
                Permission temp = security.getPermission(otype, oname);
-               security.removePermission(otype, oname);
-               security.setPermission(ntype, nname, temp);
+               removePermissionBestEffort(security, otype, oname);
+               setPermissionBestEffort(security, ntype, nname, temp);
             }
          }
          // remove permission
@@ -1302,7 +1302,7 @@ public class RepletEngine extends AbstractAssetEngine
             if(security != null) {
                ResourceType otype = getAssetResourceType(oentry);
                String oname = oentry.getPath();
-               security.removePermission(otype, oname);
+               removePermissionBestEffort(security, otype, oname);
             }
          }
       }
@@ -1356,7 +1356,7 @@ public class RepletEngine extends AbstractAssetEngine
          if(security != null) {
             ResourceType otype = getAssetResourceType(entry);
             String oname = entry.getPath();
-            security.removePermission(otype, oname);
+            removePermissionBestEffort(security, otype, oname);
          }
       }
    }
@@ -1377,7 +1377,7 @@ public class RepletEngine extends AbstractAssetEngine
          if(security != null) {
             ResourceType otype = getAssetResourceType(entry);
             String oname = entry.getPath();
-            security.removePermission(otype, oname);
+            removePermissionBestEffort(security, otype, oname);
          }
       }
 
@@ -1719,8 +1719,8 @@ public class RepletEngine extends AbstractAssetEngine
                   Permission perm = security.getPermission(ResourceType.REPORT, oname);
 
                   if(perm != null) {
-                     security.setPermission(ResourceType.REPORT, nname, perm);
-                     security.removePermission(ResourceType.REPORT, oname);
+                     setPermissionBestEffort(security, ResourceType.REPORT, nname, perm);
+                     removePermissionBestEffort(security, ResourceType.REPORT, oname);
                   }
                }
             }
@@ -1855,7 +1855,7 @@ public class RepletEngine extends AbstractAssetEngine
                SecurityEngine security = getSecurity();
 
                if(security != null) {
-                  security.removePermission(ResourceType.REPORT, path);
+                  removePermissionBestEffort(security, ResourceType.REPORT, path);
                }
             }
          }
@@ -2162,6 +2162,39 @@ public class RepletEngine extends AbstractAssetEngine
 
    public <T> T unwrap(Class<T> iface) {
       return iface.cast(this);
+   }
+
+   /**
+    * Writes the permission of an asset that is being moved or removed. The write is a side effect
+    * of the structural change, so a failure is logged and does not stop the rest of the change.
+    */
+   private static void setPermissionBestEffort(SecurityEngine security, ResourceType type,
+                                               String path, Permission perm)
+   {
+      try {
+         security.setPermission(type, path, perm);
+      }
+      catch(RuntimeException e) {
+         LOG.error("Failed to set the permission of {} {}, it may not have been saved",
+                   type, path, e);
+      }
+   }
+
+   /**
+    * Removes the permission of an asset that is being moved or removed. The write is a side
+    * effect of the structural change, so a failure is logged and does not stop the rest of the
+    * change.
+    */
+   private static void removePermissionBestEffort(SecurityEngine security, ResourceType type,
+                                                  String path)
+   {
+      try {
+         security.removePermission(type, path);
+      }
+      catch(RuntimeException e) {
+         LOG.error("Failed to remove the permission of {} {}, it may still be stored",
+                   type, path, e);
+      }
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(RepletEngine.class);
