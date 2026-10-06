@@ -777,12 +777,24 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
     * Check if equals another object.
     */
    public boolean equals(Object obj) {
+      if(this == obj) {
+         return true;
+      }
+
       if(!(obj instanceof SelectionList)) {
          return false;
       }
 
       SelectionList slist = (SelectionList) obj;
-      return getList().equals(slist.getList());
+
+      try {
+         return getList().equals(slist.getList());
+      }
+      catch(SwapFileReadException ex) {
+         // a list whose values can't be read back doesn't equal any other list, so a caller
+         // replaces it instead of keeping it (bug #77864)
+         return false;
+      }
    }
 
    /**

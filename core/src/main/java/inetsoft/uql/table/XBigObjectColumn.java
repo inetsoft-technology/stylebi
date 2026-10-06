@@ -587,7 +587,7 @@ public final class XBigObjectColumn extends XSwappable implements XTableColumn {
    private XIntList mlist; // in-memory row indices
    private int scount; // swapped row count
    private long flen; // number of bytes written to the swap file
-   private boolean lost; // swap file lost, see isSwapFileLost()
+   private volatile boolean lost; // swap file lost, see isSwapFileLost()
    private boolean completed; // completed flag
    private boolean disposed; // disposed flag
    private volatile int swapCount; // number of swaps

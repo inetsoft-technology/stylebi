@@ -25,6 +25,7 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.CoreTool;
 import inetsoft.util.Tool;
+import inetsoft.util.swap.SwapFileReadException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
@@ -1201,7 +1202,15 @@ public class TimeSliderVSAssembly extends AbstractSelectionVSAssembly
          TimeSliderVSAssembly assembly2 = (TimeSliderVSAssembly) super.clone();
 
          if(slist != null) {
-            assembly2.slist = (SelectionList) slist.clone();
+            try {
+               assembly2.slist = (SelectionList) slist.clone();
+            }
+            catch(SwapFileReadException ex) {
+               // the swapped values are lost. don't fail the whole clone (e.g. an undo checkpoint),
+               // leave the state selection out, its values are not available (bug #77864)
+               LOG.warn("State selection list not cloned, its swap file is lost: " + ex.getFile());
+               assembly2.slist = null;
+            }
          }
 
          return assembly2;

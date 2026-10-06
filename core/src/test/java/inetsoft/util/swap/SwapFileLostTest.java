@@ -20,6 +20,7 @@ package inetsoft.util.swap;
 import inetsoft.test.*;
 import inetsoft.uql.table.XBigObjectColumn;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -74,6 +75,8 @@ class SwapFileLostTest {
          raf.setLength(file.length() / 2);
       }
 
+      // the data of row 0 is still in the file, only the length check rejects it
+      assertThrows(SwapFileReadException.class, () -> column.getObject(0));
       assertThrows(SwapFileReadException.class, () -> column.getObject(ROWS - 10));
       column.dispose();
    }
@@ -194,6 +197,79 @@ class SwapFileLostTest {
       assertNull(parent.clone());
    }
 
+   @Test
+   void lostListOnlyEqualsItself() throws Exception {
+      SelectionList lost = createLostList("v");
+      SelectionList other = createSwappedList("v");
+
+      assertEquals(lost, lost);
+      assertNotEquals(lost, other);
+      assertNotEquals(other, lost);
+      // the values themselves still fail loudly
+      assertThrows(SwapFileReadException.class, lost::getSelectionValues);
+      lost.dispose();
+      other.dispose();
+   }
+
+   @Test
+   void cloneOfViewsheetWithLostListsLeavesListsOut() throws Exception {
+      Viewsheet vs = new Viewsheet();
+
+      SelectionListVSAssembly list = new SelectionListVSAssembly(vs, "SelectionList1");
+      TimeSliderVSAssembly slider = new TimeSliderVSAssembly(vs, "TimeSlider1");
+      SelectionTreeVSAssembly tree = new SelectionTreeVSAssembly(vs, "SelectionTree1");
+      vs.addAssembly(list);
+      vs.addAssembly(slider);
+      vs.addAssembly(tree);
+
+      // lose the lists once the assemblies are in place, adding an assembly reads its values
+      SelectionList lostList = createLostList("l");
+      list.getSelectionListInfo().setSelectionList(lostList);
+      list.setStateSelectionList(createLostList("s"));
+      slider.getTimeSliderInfo().setSelectionList(createLostList("t"));
+      CompositeSelectionValue root = new CompositeSelectionValue();
+      root.setSelectionList(createLostList("c"));
+      tree.getSelectionTreeInfo().setCompositeSelectionValue(root);
+
+      // e.g. the undo checkpoint taken for a change of another object
+      assertNotNull(vs.prepareCheckpoint(), "checkpoint failed");
+
+      Viewsheet copy = vs.clone();
+      assertNotNull(copy, "viewsheet clone failed");
+      SelectionListVSAssembly list2 = (SelectionListVSAssembly) copy.getAssembly("SelectionList1");
+      TimeSliderVSAssembly slider2 = (TimeSliderVSAssembly) copy.getAssembly("TimeSlider1");
+      SelectionTreeVSAssembly tree2 = (SelectionTreeVSAssembly) copy.getAssembly("SelectionTree1");
+      assertNotNull(list2);
+      assertNotNull(slider2);
+      assertNotNull(tree2);
+      assertNull(list2.getSelectionListInfo().getSelectionList());
+      assertNull(list2.getStateSelectionList());
+      assertNull(slider2.getTimeSliderInfo().getSelectionList());
+      assertNull(tree2.getSelectionTreeInfo().getCompositeSelectionValue());
+
+      // the original still fails loudly when its values are read
+      assertThrows(SwapFileReadException.class, lostList::getSelectionValues);
+   }
+
+   @Test
+   void copyInfoReplacesLostList() throws Exception {
+      SelectionListVSAssemblyInfo info = new SelectionListVSAssemblyInfo();
+      info.setSelectionList(createLostList("v"));
+
+      // a deep clone leaves the lost list out
+      SelectionListVSAssemblyInfo info2 = (SelectionListVSAssemblyInfo) info.clone();
+      assertNotNull(info2, "info clone failed");
+      assertNull(info2.getSelectionList());
+
+      // a new list replaces the lost one rather than failing the copy
+      SelectionList fresh = createSwappedList("f");
+      info2.setSelectionList(fresh);
+      assertDoesNotThrow(() -> info.copyInfo(info2));
+      assertSame(fresh, info.getSelectionList());
+      assertEquals("f5", info.getSelectionList().getSelectionValue(5).getValue());
+      fresh.dispose();
+   }
+
    private static XBigObjectColumn createSwappedColumn() throws Exception {
       XBigObjectColumn column = new XBigObjectColumn((char) 4, (char) 16, (char) ROWS);
 
@@ -220,6 +296,12 @@ class SwapFileLostTest {
       list.swapper = mockSwapper();
       assertTrue(list.swap(), "list was not swapped");
       assertFalse(list.isValid(), "list is still in memory");
+      return list;
+   }
+
+   private static SelectionList createLostList(String prefix) throws Exception {
+      SelectionList list = createSwappedList(prefix);
+      Files.delete(getListFile(list).toPath());
       return list;
    }
 
