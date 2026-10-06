@@ -1668,18 +1668,18 @@ public class AssetEntry implements AssetObject, Comparable<AssetEntry>, DataSeri
       writer.print("<assetEntry" + cls + " scope=\"" + scope +
                    "\" type=\"" + type.id + "\">");
       writer.print("<path>");
-      writer.print("<![CDATA[" + path + "]]>");
+      writer.print("<![CDATA[" + Tool.splitCDATAEnd(path) + "]]>");
       writer.println("</path>");
 
       if(!compact && alias != null && alias.length() != 0) {
          writer.print("<alias>");
-         writer.print("<![CDATA[" + alias + "]]>");
+         writer.print("<![CDATA[" + Tool.splitCDATAEnd(alias) + "]]>");
          writer.println("</alias>");
       }
 
       if(!compact) {
          writer.print("<description>");
-         writer.print("<![CDATA[" + getDescription() + "]]>");
+         writer.print("<![CDATA[" + Tool.splitCDATAEnd(getDescription()) + "]]>");
          writer.println("</description>");
 
          if(favoritesUser != null) {
@@ -1792,11 +1792,11 @@ public class AssetEntry implements AssetObject, Comparable<AssetEntry>, DataSeri
       for(String key : prop.keySet()) {
          writer.println("<property>");
          writer.print("<key>");
-         writer.print("<![CDATA[" + key + "]]>");
+         writer.print("<![CDATA[" + Tool.splitCDATAEnd(key) + "]]>");
          writer.print("</key>");
          String val = prop.get(key);
          writer.print("<value>");
-         writer.print("<![CDATA[" + val + "]]>");
+         writer.print("<![CDATA[" + Tool.splitCDATAEnd(val) + "]]>");
          writer.print("</value>");
          writer.println("</property>");
       }
