@@ -211,15 +211,7 @@ public class RenameDependencyInfo implements Serializable, XMLSerializable {
       Element rnode = Tool.getChildNodeByTagName(elem, "renameInfos");
 
       if(rnode != null) {
-         NodeList infos = Tool.getChildNodesByTagName(rnode, "renameInfo");
-         rinfos = new ArrayList<>();
-
-         for(int j = 0; j < infos.getLength(); j++) {
-            Element infoElem = (Element) infos.item(j);
-            RenameInfo info = new RenameInfo();
-            info.parseXML(infoElem);
-            rinfos.add(info);
-         }
+         rinfos = parseRenameInfos(rnode);
       }
 
       map = new HashMap<>();
@@ -255,18 +247,25 @@ public class RenameDependencyInfo implements Serializable, XMLSerializable {
             }
          }
 
-         NodeList infos = Tool.getChildNodesByTagName(item, "renameInfo");
-         List<RenameInfo> renameInfoList = new ArrayList<>();
-
-         for(int j = 0; j < infos.getLength(); j++) {
-            Element ielem = (Element) infos.item(j);
-            RenameInfo rinfo = new RenameInfo();
-            rinfo.parseXML(ielem);
-            renameInfoList.add(rinfo);
-         }
-
-         map.put(assetObj, renameInfoList);
+         map.put(assetObj, parseRenameInfos(item));
       }
+   }
+
+   /**
+    * Parse the rename infos (RenameInfo and subclasses such as ChangeTableOptionInfo)
+    * written as child elements of a node.
+    */
+   private static List<RenameInfo> parseRenameInfos(Element node) throws Exception {
+      List<RenameInfo> list = new ArrayList<>();
+      NodeList nodes = node.getChildNodes();
+
+      for(int i = 0; i < nodes.getLength(); i++) {
+         if(nodes.item(i) instanceof Element child && RenameInfo.isRenameInfoElement(child)) {
+            list.add(RenameInfo.createRenameInfo(child));
+         }
+      }
+
+      return list;
    }
 
    public boolean isUpdateStorage() {
