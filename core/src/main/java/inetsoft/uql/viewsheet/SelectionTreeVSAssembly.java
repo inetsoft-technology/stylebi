@@ -23,7 +23,6 @@ import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.CoreTool;
 import inetsoft.util.Tool;
-import inetsoft.util.swap.SwapFileReadException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
@@ -1102,15 +1101,9 @@ public class SelectionTreeVSAssembly extends AbstractSelectionVSAssembly
          SelectionTreeVSAssembly assembly2 = (SelectionTreeVSAssembly) super.clone();
 
          if(cval != null) {
-            try {
-               assembly2.cval = (CompositeSelectionValue) cval.clone();
-            }
-            catch(SwapFileReadException ex) {
-               // the swapped values are lost. don't fail the whole clone (e.g. an undo checkpoint),
-               // leave the state selection out, its values are not available (bug #77864)
-               LOG.warn("State selection value not cloned, its swap file is lost: " + ex.getFile());
-               assembly2.cval = null;
-            }
+            // keep a state selection that can't be read back unreadable in the clone, an
+            // empty state would silently select nothing, e.g. after an undo (bug #77864)
+            assembly2.cval = cval.cloneKeepingLost();
          }
 
          if(expandedValues != null) {

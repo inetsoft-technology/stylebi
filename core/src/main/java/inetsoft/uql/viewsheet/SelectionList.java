@@ -34,6 +34,8 @@ import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
 import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.text.Format;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -378,8 +380,33 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
     */
    @Override
    public synchronized Object clone() {
+      return clone0(false);
+   }
+
+   /**
+    * Clone the list like clone(), but copy a list whose values can't be read back from its swap
+    * file in the same unreadable state instead of failing. Reading the values of the copy fails
+    * too, rather than finding an empty list. Used for a state selection, where a missing list
+    * means that nothing is selected (bug #77864).
+    * @return the cloned object.
+    */
+   public synchronized SelectionList cloneKeepingLost() {
+      return (SelectionList) clone0(true);
+   }
+
+   private Object clone0(boolean keepLost) {
       try {
-         getList();
+         try {
+            getList();
+         }
+         catch(SwapFileReadException ex) {
+            if(keepLost) {
+               return copyLost(ex);
+            }
+
+            throw ex;
+         }
+
          SelectionList slist = (SelectionList) super.clone();
          slist.list = new ArrayList<>();
          slist.swapFile = null;
@@ -387,7 +414,10 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
 
          try {
             for(int i = 0; i < getSelectionValueCount(); i++) {
-               SelectionValue sv = (SelectionValue) getSelectionValue(i).clone();
+               SelectionValue val = getSelectionValue(i);
+               SelectionValue sv = keepLost && val instanceof CompositeSelectionValue ?
+                  ((CompositeSelectionValue) val).cloneKeepingLost() :
+                  (SelectionValue) val.clone();
                slist.addSelectionValue(sv);
             }
          }
@@ -411,6 +441,45 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
       }
 
       return null;
+   }
+
+   /**
+    * Copy this list, whose values can't be read back, in the same state. The copy has its own
+    * swap file (a copy of the file if it's still there, e.g. if it's only unreadable for now), so
+    * neither list deletes or overwrites the file of the other.
+    */
+   private SelectionList copyLost(SwapFileReadException ex) {
+      SelectionList slist = (SelectionList) super.clone();
+      slist.list = new ArrayList<>();
+      slist.swapFile = slist.getFile(slist.prefix + "_slist.swap");
+      int[] nested = enterNested();
+
+      try {
+         // the null placeholders of the swapped values and the composite values kept in memory
+         for(SelectionValue val : list) {
+            slist.list.add(val instanceof CompositeSelectionValue ?
+               ((CompositeSelectionValue) val).cloneKeepingLost() :
+               val == null ? null : (SelectionValue) val.clone());
+         }
+      }
+      finally {
+         nested[0]--;
+      }
+
+      if(swapFile != null && swapFile.exists()) {
+         try {
+            Files.copy(swapFile.toPath(), slist.swapFile.toPath(),
+                       StandardCopyOption.REPLACE_EXISTING);
+         }
+         catch(IOException ioex) {
+            LOG.debug("Failed to copy swap file: " + swapFile, ioex);
+         }
+      }
+
+      slist.complete();
+      LOG.warn("Selection list copied without its values, its swap file is lost: " +
+               ex.getFile());
+      return slist;
    }
 
    /**

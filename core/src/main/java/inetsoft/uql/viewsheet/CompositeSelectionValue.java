@@ -201,12 +201,25 @@ public class CompositeSelectionValue extends SelectionValue {
     */
    @Override
    public Object clone() {
+      return clone0(false);
+   }
+
+   /**
+    * Clone the value like clone(), but keep the selection lists whose values can't be read back
+    * in their unreadable state, see SelectionList.cloneKeepingLost() (bug #77864).
+    * @return the cloned object.
+    */
+   public CompositeSelectionValue cloneKeepingLost() {
+      return (CompositeSelectionValue) clone0(true);
+   }
+
+   private Object clone0(boolean keepLost) {
       try {
          CompositeSelectionValue value =
             (CompositeSelectionValue) super.clone();
 
          if(list != null) {
-            value.list = (SelectionList) list.clone();
+            value.list = keepLost ? list.cloneKeepingLost() : (SelectionList) list.clone();
          }
 
          return value;

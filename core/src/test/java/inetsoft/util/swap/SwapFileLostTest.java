@@ -212,7 +212,7 @@ class SwapFileLostTest {
    }
 
    @Test
-   void cloneOfViewsheetWithLostListsLeavesListsOut() throws Exception {
+   void cloneOfViewsheetWithLostListsKeepsStateSelectionUnreadable() throws Exception {
       Viewsheet vs = new Viewsheet();
 
       SelectionListVSAssembly list = new SelectionListVSAssembly(vs, "SelectionList1");
@@ -226,29 +226,95 @@ class SwapFileLostTest {
       SelectionList lostList = createLostList("l");
       list.getSelectionListInfo().setSelectionList(lostList);
       list.setStateSelectionList(createLostList("s"));
+      slider.setStateSelectionList(createLostList("ts"));
       slider.getTimeSliderInfo().setSelectionList(createLostList("t"));
       CompositeSelectionValue root = new CompositeSelectionValue();
       root.setSelectionList(createLostList("c"));
       tree.getSelectionTreeInfo().setCompositeSelectionValue(root);
+      CompositeSelectionValue stateRoot = new CompositeSelectionValue();
+      stateRoot.setSelectionList(createLostList("cs"));
+      tree.setStateCompositeSelectionValue(stateRoot);
 
-      // e.g. the undo checkpoint taken for a change of another object
-      assertNotNull(vs.prepareCheckpoint(), "checkpoint failed");
+      // e.g. the undo checkpoint taken for a change of another object, which an undo restores
+      // as a clone of the checkpoint (RuntimeViewsheet.restoreCheckpoint0)
+      Viewsheet checkpoint = vs.prepareCheckpoint();
+      assertNotNull(checkpoint, "checkpoint failed");
+      Viewsheet restored = checkpoint.clone();
+      assertNotNull(restored, "checkpoint clone failed");
+      assertStateSelectionUnreadable(restored);
 
       Viewsheet copy = vs.clone();
       assertNotNull(copy, "viewsheet clone failed");
+      assertStateSelectionUnreadable(copy);
+
+      // the info lists are left out, they are queried again
       SelectionListVSAssembly list2 = (SelectionListVSAssembly) copy.getAssembly("SelectionList1");
       TimeSliderVSAssembly slider2 = (TimeSliderVSAssembly) copy.getAssembly("TimeSlider1");
       SelectionTreeVSAssembly tree2 = (SelectionTreeVSAssembly) copy.getAssembly("SelectionTree1");
-      assertNotNull(list2);
-      assertNotNull(slider2);
-      assertNotNull(tree2);
       assertNull(list2.getSelectionListInfo().getSelectionList());
-      assertNull(list2.getStateSelectionList());
       assertNull(slider2.getTimeSliderInfo().getSelectionList());
       assertNull(tree2.getSelectionTreeInfo().getCompositeSelectionValue());
 
+      // the copies are not shared with the original
+      assertNotSame(list.getStateSelectionList(), list2.getStateSelectionList());
+      assertNotSame(slider.getStateSelectionList(), slider2.getStateSelectionList());
+
       // the original still fails loudly when its values are read
       assertThrows(SwapFileReadException.class, lostList::getSelectionValues);
+      assertThrows(SwapFileReadException.class, list.getStateSelectionList()::getSelectionValues);
+   }
+
+   @Test
+   void lostListCopyHasItsOwnSwapFile() throws Exception {
+      SelectionList list = createSwappedList("v");
+      File file = getListFile(list);
+
+      // a file that is still there but can't be read
+      try(RandomAccessFile raf = new RandomAccessFile(file, "rw")) {
+         raf.setLength(0);
+      }
+
+      assertThrows(SwapFileReadException.class, list::getSelectionValues);
+      assertThrows(SwapFileReadException.class, list::clone);
+
+      SelectionList copy = list.cloneKeepingLost();
+      assertNotNull(copy);
+      assertNotSame(list, copy);
+      assertFalse(copy.isValid());
+      assertEquals(VALUES, copy.getSelectionValueCount());
+      File copyFile = getListFile(copy);
+      assertNotEquals(file, copyFile);
+      assertTrue(copyFile.exists(), "swap file was not copied");
+
+      // disposing the original doesn't remove the file of the copy
+      list.dispose();
+      assertFalse(file.exists());
+      assertTrue(copyFile.exists());
+      assertThrows(SwapFileReadException.class, copy::getSelectionValues);
+
+      // replacing the values makes the copy readable again
+      copy.setSelectionValues(new SelectionValue[] { new SelectionValue("x", "x") });
+      assertEquals("x", copy.getSelectionValue(0).getValue());
+      copy.dispose();
+   }
+
+   private static void assertStateSelectionUnreadable(Viewsheet vs) {
+      SelectionListVSAssembly list = (SelectionListVSAssembly) vs.getAssembly("SelectionList1");
+      TimeSliderVSAssembly slider = (TimeSliderVSAssembly) vs.getAssembly("TimeSlider1");
+      SelectionTreeVSAssembly tree = (SelectionTreeVSAssembly) vs.getAssembly("SelectionTree1");
+      assertNotNull(list);
+      assertNotNull(slider);
+      assertNotNull(tree);
+
+      // a lost state selection must not turn into "nothing selected"
+      assertNotNull(list.getStateSelectionList());
+      assertThrows(SwapFileReadException.class, list.getStateSelectionList()::getSelectionValues);
+      assertNotNull(slider.getStateSelectionList());
+      assertThrows(SwapFileReadException.class, slider.getStateSelectionList()::getSelectionValues);
+      CompositeSelectionValue cval = tree.getStateCompositeSelectionValue();
+      assertNotNull(cval);
+      assertNotNull(cval.getSelectionList());
+      assertThrows(SwapFileReadException.class, cval.getSelectionList()::getSelectionValues);
    }
 
    @Test
