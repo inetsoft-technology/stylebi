@@ -21,6 +21,8 @@ import inetsoft.report.Comparer;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.XTable;
 import inetsoft.util.DataComparer;
+import inetsoft.util.stall.LockStallException;
+import inetsoft.util.swap.SwapFileReadException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -189,6 +191,13 @@ public final class SelfJoinOperator implements Serializable {
          return true;
       }
       catch(Exception ex) {
+         // a lock stall or a lost swap file of the base is not an invalid value, dropping the
+         // row would leave a partial join. join() fails the readers with it (bug #76967,
+         // bug #77651)
+         if(LockStallException.find(ex) != null || SwapFileReadException.find(ex) != null) {
+            throw ex;
+         }
+
          LOG.warn("Failed to evaluate row: " + row, ex);
          // ignore the invalid values
          return false;
