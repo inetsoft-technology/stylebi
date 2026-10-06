@@ -84,7 +84,11 @@ public class GraalJavaScriptEngine implements AutoCloseable {
    // Bug #77595: the per-scope var stores of the current context (see localsFor), the
    // frozen empty object a script reads as its store when its vars stay globals, and the
    // function that makes a store. Rebuilt on (re)init; guarded by lock.
+   // Bug #77866: a scope with a ScopeLocals holds its own store (keyed by this engine),
+   // ownedLocals only names those scopes, to release their stores of a closed context.
    private final Map<ScriptScope, LocalsEntry> localStores = new WeakHashMap<>();
+   private final Set<ScriptScope> ownedLocals = java.util.Collections.newSetFromMap(
+      new WeakHashMap<>());
    private Value noLocals;
    private Value newLocals;
    private Value setLocalsParent;
@@ -188,7 +192,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          scopeProxy = null; // rebound against the new context on next exec
          hostGlobals = null; // rebuilt against the new context by installHostGlobals
          // the var stores belong to the old context (#77595)
-         localStores.clear();
+         releaseLocals();
          noLocals = newLocals = setLocalsParent = null;
 
          context = Context.newBuilder("js")
@@ -2784,8 +2788,11 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * assignment without {@code var} to a parent store's var (a calc table cell setting
     * its assembly script's var) makes a copy in the child's store, as for any
     * prototype; the vars of the sheet's own scripts are globals, so this never applies
-    * to them. A store holding a value that refers to its own scope keeps the scope
-    * until the engine closes.
+    * to them. A scope with a {@link ScopeLocals} holds its own store, so the store
+    * lives as long as the scope even when a var of it refers back to the scope (#77866);
+    * the store of any other scope is held by this engine, weakly keyed by the scope, and
+    * one holding a value that refers to its own scope keeps the scope until this engine
+    * is re-initialized, closed or dropped.
     *
     * <p>The vars of these scripts stay globals, as before, and the frozen empty
     * {@link #NO_LOCALS_VAR} object is returned:
@@ -2817,7 +2824,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       }
 
       LocalsEntry parent = nearestLocals(root.getParentScope());
-      LocalsEntry entry = localStores.get(root);
+      LocalsEntry entry = storedLocals(root);
 
       if(entry == null && !create) {
          return parent != null ? parent.store : noLocals;
@@ -2826,7 +2833,15 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       if(entry == null) {
          entry = new LocalsEntry(
             newLocals.execute(parent != null ? parent.store : null), parent);
-         localStores.put(root, entry);
+         ScopeLocals held = root.getScopeLocals();
+
+         if(held != null) {
+            held.put(this, entry);
+            ownedLocals.add(root);
+         }
+         else {
+            localStores.put(root, entry);
+         }
       }
       else if(entry.parent != parent) {
          // a parent scope ran its first script after this one
@@ -2840,7 +2855,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
    /** The store of {@code scope} or of its nearest ancestor that has one, or null. */
    private LocalsEntry nearestLocals(ScriptScope scope) {
       for(int depth = 0; scope != null && depth < MAX_SCOPE_DEPTH; depth++) {
-         LocalsEntry entry = localStores.get(scope);
+         LocalsEntry entry = storedLocals(scope);
 
          if(entry != null) {
             return entry;
@@ -2850,6 +2865,32 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       }
 
       return null;
+   }
+
+   /**
+    * The store of {@code scope} itself, or null. Bug #77866: the store of a scope with a
+    * {@link ScopeLocals} is held by the scope, not by this engine: a store whose var refers
+    * back to its scope (the scope itself, as {@code worksheet} on a query view, or a member
+    * object that reaches it, as a calc table's {@code field}) would otherwise keep the
+    * scope, a {@link WeakHashMap} key, as long as this engine. Caller holds {@code lock}.
+    */
+   private LocalsEntry storedLocals(ScriptScope scope) {
+      ScopeLocals held = scope.getScopeLocals();
+      return held != null ? (LocalsEntry) held.get(this) : localStores.get(scope);
+   }
+
+   /** Drop the var stores of the current context (#77595, #77866). Caller holds lock. */
+   private void releaseLocals() {
+      for(ScriptScope scope : ownedLocals) {
+         ScopeLocals held = scope.getScopeLocals();
+
+         if(held != null) {
+            held.remove(this);
+         }
+      }
+
+      ownedLocals.clear();
+      localStores.clear();
    }
 
    private static boolean hasOwnedVarScope(ScriptScope scope) {
@@ -4117,6 +4158,9 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             context.close(true);
             context = null;
          }
+
+         // a long-lived scope must not keep the stores of the closed context (#77866)
+         releaseLocals();
       }
       finally {
          lock.unlock();

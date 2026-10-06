@@ -26,6 +26,7 @@ import inetsoft.report.script.*;
 import inetsoft.report.script.graal.ReportGraalJavaScriptEngine;
 import inetsoft.util.script.DynamicScope;
 import inetsoft.util.script.JavaScriptEngine;
+import inetsoft.util.script.graal.ScopeLocals;
 import inetsoft.util.stall.LockStallException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -163,12 +164,24 @@ public class CalcTableScope extends PropertyScriptable implements DynamicScope {
    }
 
    /**
+    * Bug #77866: this scope holds the var stores of its formulas, since it is made per table
+    * lens and an engine outlives it, and its {@code field} and cell references reach it
+    * through the lens.
+    */
+   @Override
+   public ScopeLocals getScopeLocals() {
+      return scopeLocals;
+   }
+
+   /**
     * Make a copy of this scope.
     */
    @Override
    public CalcTableScope clone() {
       try {
-         return (CalcTableScope) super.clone();
+         CalcTableScope obj = (CalcTableScope) super.clone();
+         obj.scopeLocals = new ScopeLocals(); // a copy has its own vars
+         return obj;
       }
       catch(Exception ex) {
          LOG.error("Failed to clone object", ex);
@@ -859,6 +872,7 @@ public class CalcTableScope extends PropertyScriptable implements DynamicScope {
 
    private final CalcTableLens table;
    private final TableRow field;
+   private ScopeLocals scopeLocals = new ScopeLocals();
 
    private static final Logger LOG = LoggerFactory.getLogger(CalcTableScope.class);
 }
