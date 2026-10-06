@@ -174,7 +174,7 @@ public class VSDialogService {
     * Put a ticked box back on its density size, and that size in the model so a container's
     * children follow.
     */
-   public static void followDensitySize(VSAssemblyInfo info, SizePositionPaneModel model) {
+   public static void applyDensitySize(VSAssemblyInfo info, SizePositionPaneModel model) {
       if(!Boolean.TRUE.equals(model.getSizeFollowsDensity()) || !info.takesDensitySize()) {
          return;
       }
@@ -188,7 +188,7 @@ public class VSDialogService {
    /**
     * Record the size as the author's when they unticked, or changed it from a client with no
     * answer.
-    * @param shown the size the dialog opened with.
+    * @param shown the stored size before this write.
     */
    public static void recordAuthorSize(VSAssemblyInfo info, SizePositionPaneModel model,
                                        Dimension shown)

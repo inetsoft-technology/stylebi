@@ -247,7 +247,7 @@ public class SelectionListPropertyDialogService {
 
       Dimension shownSize =
          new Dimension(dialogService.getAssemblySize(selectionListAssemblyInfo, rvs.getViewsheet()));
-      VSDialogService.followDensitySize(selectionListAssemblyInfo, sizePositionPaneModel);
+      VSDialogService.applyDensitySize(selectionListAssemblyInfo, sizePositionPaneModel);
       dialogService.setAssemblySize(selectionListAssemblyInfo, sizePositionPaneModel);
       VSDialogService.recordAuthorSize(selectionListAssemblyInfo, sizePositionPaneModel, shownSize);
       dialogService.setAssemblyPosition(selectionListAssemblyInfo, sizePositionPaneModel);

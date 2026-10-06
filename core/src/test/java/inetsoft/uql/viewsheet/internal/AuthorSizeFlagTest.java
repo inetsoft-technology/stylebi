@@ -21,6 +21,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
+import inetsoft.uql.viewsheet.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.annotation.DirtiesContext;
@@ -80,7 +81,7 @@ class AuthorSizeFlagTest {
       assertTrue(to.isUserSize());
    }
 
-   // open, density change, Modernize and Revert all run this hook
+   // open, density change and Revert run this hook; Modernize has its own test below
    @Test
    void anAuthorSizeSurvivesEveryRerun() {
       SreeEnv.setProperty("viewsheet.density", "comfortable");
@@ -104,6 +105,43 @@ class AuthorSizeFlagTest {
       assertEquals(new Dimension(300, 240), container.getPixelSize());
       assertEquals(new Dimension(100, 120), list.getPixelSize());
       assertEquals(new Dimension(100, 120), tree.getPixelSize());
+   }
+
+   @Test
+   void modernizeLeavesAnAuthorSizeAndGrowsAFollowingOne() {
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      Viewsheet vs = new Viewsheet();
+      SelectionListVSAssembly kept = unmarkedList(vs, "List1", true);
+      SelectionListVSAssembly followed = unmarkedList(vs, "List2", false);
+      CurrentSelectionVSAssembly keptBox = unmarkedContainer(vs, "Box1", true);
+      CurrentSelectionVSAssembly followedBox = unmarkedContainer(vs, "Box2", false);
+
+      VizModernizeUtil.applyMark(vs, VizMark.MODERN_LIGHT);
+
+      assertEquals(new Dimension(100, 120), kept.getVSAssemblyInfo().getPixelSize());
+      assertEquals(new Dimension(132, 202), followed.getVSAssemblyInfo().getPixelSize());
+      assertEquals(new Dimension(300, 240), keptBox.getVSAssemblyInfo().getPixelSize());
+      assertEquals(new Dimension(300, 360), followedBox.getVSAssemblyInfo().getPixelSize());
+   }
+
+   private static SelectionListVSAssembly unmarkedList(Viewsheet vs, String name, boolean userSize) {
+      SelectionListVSAssembly list = new SelectionListVSAssembly(vs, name);
+      list.getVSAssemblyInfo().setVizMark(null);
+      list.getVSAssemblyInfo().setPixelSize(new Dimension(100, 120));
+      list.getVSAssemblyInfo().setUserSize(userSize);
+      vs.addAssembly(list);
+      return list;
+   }
+
+   private static CurrentSelectionVSAssembly unmarkedContainer(Viewsheet vs, String name,
+                                                               boolean userSize)
+   {
+      CurrentSelectionVSAssembly box = new CurrentSelectionVSAssembly(vs, name);
+      box.getVSAssemblyInfo().setVizMark(null);
+      box.getVSAssemblyInfo().setPixelSize(new Dimension(300, 240));
+      box.getVSAssemblyInfo().setUserSize(userSize);
+      vs.addAssembly(box);
+      return box;
    }
 
    @Test

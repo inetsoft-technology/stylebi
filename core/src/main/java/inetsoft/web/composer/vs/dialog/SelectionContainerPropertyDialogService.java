@@ -169,7 +169,7 @@ public class SelectionContainerPropertyDialogService {
          selectionContainerAssemblyInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
       }
       Dimension shownSize = new Dimension(dialogService.getAssemblySize(selectionContainerAssemblyInfo, vs));
-      VSDialogService.followDensitySize(selectionContainerAssemblyInfo, sizePositionPaneModel);
+      VSDialogService.applyDensitySize(selectionContainerAssemblyInfo, sizePositionPaneModel);
       //When resizing selection container, also resize selection container children
       dialogService.setContainerSize(selectionContainerAssemblyInfo, sizePositionPaneModel,
                                      selectionContainerAssembly.getAssemblies(), vs);

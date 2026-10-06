@@ -195,6 +195,48 @@ class ComposerObjectServiceTest {
    }
 
    @Test
+   void aListResizedToItsOwnSizeIsNotFlagged() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.getVSAssemblyInfo().setName("vs1");
+      SelectionListVSAssembly list = new SelectionListVSAssembly(vs, "SelectionList1");
+      list.getVSAssemblyInfo().setPixelOffset(new Point(0, 0));
+      list.getVSAssemblyInfo().setPixelSize(new Dimension(132, 202));
+      vs.addAssembly(list);
+
+      resize(vs, "SelectionList1", 132, 202);
+
+      assertFalse(list.getVSAssemblyInfo().isUserSize(), "a position-only change is not the author's size");
+   }
+
+   @Test
+   void aDraggedTreeIsFlagged() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.getVSAssemblyInfo().setName("vs1");
+      SelectionTreeVSAssembly tree = new SelectionTreeVSAssembly(vs, "SelectionTree1");
+      tree.getVSAssemblyInfo().setPixelOffset(new Point(0, 0));
+      tree.getVSAssemblyInfo().setPixelSize(new Dimension(132, 202));
+      vs.addAssembly(tree);
+
+      resize(vs, "SelectionTree1", 100, 120);
+
+      assertTrue(tree.getVSAssemblyInfo().isUserSize());
+   }
+
+   @Test
+   void aDraggedTableIsNotFlagged() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.getVSAssemblyInfo().setName("vs1");
+      TableVSAssembly table = new TableVSAssembly(vs, "Table1");
+      table.getVSAssemblyInfo().setPixelOffset(new Point(0, 0));
+      table.getVSAssemblyInfo().setPixelSize(new Dimension(400, 200));
+      vs.addAssembly(table);
+
+      resize(vs, "Table1", 300, 150);
+
+      assertFalse(table.getVSAssemblyInfo().isUserSize(), "a type without a density size stays clean");
+   }
+
+   @Test
    void aDraggedTextIsNotFlagged() throws Exception {
       Viewsheet vs = new Viewsheet();
       vs.getVSAssemblyInfo().setName("vs1");
