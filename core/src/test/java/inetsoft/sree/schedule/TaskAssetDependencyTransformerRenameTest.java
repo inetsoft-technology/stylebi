@@ -296,6 +296,21 @@ class TaskAssetDependencyTransformerRenameTest {
       assertEquals(newPath, reloadedAssetPath(key, 0));
    }
 
+   @ParameterizedTest(name = "dependency lookup: {0} -> {1} -> back")
+   @MethodSource("controlCharRenames")
+   void controlCharRenameIsFollowedThroughDependencyLookupBothWays(String oldPath, String newPath)
+      throws Exception
+   {
+      ScheduleTask task = task("c0h", backup(asset("VIEWSHEET", oldPath, null)));
+      String key = store(task);
+
+      rename(Mode.HANDLER, key, task, vsId(oldPath), vsId(newPath));
+      assertEquals(newPath, reloadedAssetPath(key, 0));
+
+      rename(Mode.HANDLER, key, reload(key), vsId(newPath), vsId(oldPath));
+      assertEquals(oldPath, reloadedAssetPath(key, 0));
+   }
+
    @ParameterizedTest(name = "asset file: {0} -> {1}")
    @MethodSource("controlCharRenames")
    void controlCharRenameIsFollowedInAssetFile(String oldPath, String newPath) throws Exception {
