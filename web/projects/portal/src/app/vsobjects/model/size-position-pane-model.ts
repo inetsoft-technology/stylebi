@@ -26,5 +26,6 @@ export interface SizePositionPaneModel {
    cellHeight: number;
    titleHeightFollowsDensity?: boolean;
    cellHeightFollowsDensity?: boolean;
+   sizeFollowsDensity?: boolean;
    scaleVertical?: boolean;
 }
