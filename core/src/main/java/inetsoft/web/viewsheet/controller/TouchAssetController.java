@@ -36,6 +36,7 @@ public class TouchAssetController {
       this.touchAssetServiceProxy = touchAssetServiceProxy;
    }
 
+   // listed in SheetEventOrderInterceptor, which drops a copy already queued for the sheet
    @MessageMapping("/composer/touch-asset")
    public void touchAsset(@Payload TouchAssetEvent event, Principal principal,
                           CommandDispatcher commandDispatcher, @LinkUri String linkUri)

@@ -17,6 +17,7 @@
  */
 package inetsoft.web.messaging;
 
+import inetsoft.web.ServiceProxyContext;
 import org.junit.jupiter.api.*;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageHandler;
@@ -24,6 +25,8 @@ import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.*;
 
+import java.lang.reflect.Field;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -35,7 +38,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * order they were received, although the client inbound channel runs on a thread pool.
  *
  * <p>Axis covered: <b>same sheet vs. other sheet / other session</b> &times; <b>ordered event vs.
- * cancel event vs. frame without a sheet</b> &times; <b>normal vs. throwing handler</b>. The channel
+ * cancel / flyover event vs. close vs. periodic touch-asset vs. frame without a sheet</b> &times;
+ * <b>normal vs. throwing handler vs. disconnected session</b>. The channel
  * is a real {@link ExecutorSubscribableChannel} on a multi-thread pool (like
  * {@code WebSocketConfig.eventTaskExecutor()}) with three subscribers, as the real inbound channel
  * fans each message out to the annotation, broker and user destination handlers, and with
@@ -199,6 +203,210 @@ class SheetEventOrderInterceptorTest {
       awaitNoPendingSheet();
    }
 
+   // A newer flyover must reach the sheet while an older one runs, so it can cancel the older
+   // one's query (Bug #77155).
+   @Test
+   void flyoverEventsAreNotHeld() throws Exception {
+      CountDownLatch release = new CountDownLatch(1);
+      Set<String> handled = ConcurrentHashMap.newKeySet();
+      ExecutorSubscribableChannel channel = channel(m -> {
+         handled.add(id(m));
+
+         if("busy".equals(id(m))) {
+            await(release);
+         }
+      });
+
+      channel.send(event("s1", "vs1", "/events/vschart/flyover", 0, "busy"));
+      channel.send(event("s1", "vs1", "/events/vschart/flyover", 1, "chartFlyover"));
+      channel.send(event("s1", "vs1", "/events/table/flyover", 2, "tableFlyover"));
+
+      awaitHandled(handled, "chartFlyover", WHILE_BUSY);
+      awaitHandled(handled, "tableFlyover", WHILE_BUSY);
+
+      release.countDown();
+      awaitNoPendingSheet();
+   }
+
+   // The viewer sends a touch-asset refresh every interval without waiting for the last one. A
+   // refresh that takes longer than the interval must not build a backlog of refreshes.
+   @Test
+   void periodicTouchAssetStaysBounded() throws Exception {
+      CountDownLatch release = new CountDownLatch(1);
+      List<String> handled = new CopyOnWriteArrayList<>();
+      ExecutorSubscribableChannel channel = channel(m -> {
+         handled.add(id(m));
+
+         if("busy".equals(id(m))) {
+            await(release);
+         }
+      });
+
+      channel.send(event("s1", "vs1", "/events/vs/refresh", 0, "busy"));
+      channel.send(event("s1", "vs1", "/events/selectionList/update/List1", 1, "selection"));
+
+      for(int i = 0; i < 50; i++) {
+         channel.send(event("s1", "vs1", "/events/composer/touch-asset", 2, "update",
+                            "{\"update\":true}"));
+         channel.send(event("s1", "vs1", "/events/composer/touch-asset", 3, "heartbeat",
+                            "{\"update\":false}"));
+      }
+
+      // the running event, the selection and one touch-asset of each kind
+      assertEquals(4, interceptor.getQueuedEventCount(), "the touch-asset events were queued");
+
+      release.countDown();
+      awaitHandled(handled, "heartbeat");
+      awaitNoPendingSheet();
+      assertEquals(List.of("busy", "selection", "update", "heartbeat"), handled);
+   }
+
+   // Closing a busy sheet must cancel its running query, so the close is not held behind it.
+   @Test
+   void closeOfABusySheetIsNotHeld() throws Exception {
+      CountDownLatch release = new CountDownLatch(1);
+      Set<String> handled = ConcurrentHashMap.newKeySet();
+      ExecutorSubscribableChannel channel = channel(m -> {
+         handled.add(id(m));
+
+         if(id(m).startsWith("busy")) {
+            await(release);
+         }
+      });
+
+      channel.send(event("s1", "vs1", "/events/vs/refresh", 0, "busy"));
+      channel.send(event("s1", "vs1", "/events/composer/viewsheet/close", 1, "closeVs"));
+      channel.send(event("s1", "ws1", "/events/vs/refresh", 2, "busyWs"));
+      channel.send(event("s1", "ws1", "/events/ws/close", 3, "closeWs"));
+
+      awaitHandled(handled, "closeVs", WHILE_BUSY);
+      awaitHandled(handled, "closeWs", WHILE_BUSY);
+
+      release.countDown();
+      awaitNoPendingSheet();
+   }
+
+   // A close must not overtake an event that is held, e.g. a save sent before the close.
+   @Test
+   void closeIsNotAppliedBeforeHeldEvents() throws Exception {
+      CountDownLatch release = new CountDownLatch(1);
+      List<String> handled = new CopyOnWriteArrayList<>();
+      ExecutorSubscribableChannel channel = channel(m -> {
+         handled.add(id(m));
+
+         if("busy".equals(id(m))) {
+            await(release);
+         }
+      });
+
+      channel.send(event("s1", "vs1", "/events/vs/refresh", 0, "busy"));
+      channel.send(event("s1", "vs1", "/events/composer/viewsheet/save", 1, "save"));
+      channel.send(event("s1", "vs1", "/events/composer/viewsheet/close", 2, "close"));
+
+      Thread.sleep(100);
+      assertEquals(List.of("busy"), handled);
+
+      release.countDown();
+      awaitHandled(handled, "close");
+      assertEquals(List.of("busy", "save", "close"), handled);
+      awaitNoPendingSheet();
+   }
+
+   // The held events of a closed session are dropped, the running event still releases its queue
+   // and other sessions are not affected.
+   @Test
+   void disconnectDropsTheHeldEventsOfTheSession() throws Exception {
+      CountDownLatch release = new CountDownLatch(1);
+      Set<String> handled = ConcurrentHashMap.newKeySet();
+      ExecutorSubscribableChannel channel = channel(m -> {
+         handled.add(id(m));
+
+         if(id(m).startsWith("busy")) {
+            await(release);
+         }
+      });
+
+      channel.send(event("s1", "vs1", "/events/vs/refresh", 0, "busy1"));
+      channel.send(event("s1", "vs1", "/events/vs/refresh", 1, "held1"));
+      channel.send(event("s1", "vs1", "/events/vs/refresh", 2, "held2"));
+      channel.send(event("s2", "vs1", "/events/vs/refresh", 3, "busy2"));
+      channel.send(event("s2", "vs1", "/events/vs/refresh", 4, "held3"));
+      awaitHandled(handled, "busy1");
+      awaitHandled(handled, "busy2");
+
+      channel.send(disconnect("s1"));
+      assertEquals(3, interceptor.getQueuedEventCount(), "the held events were not dropped");
+
+      release.countDown();
+      awaitHandled(handled, "held3");
+      awaitNoPendingSheet();
+      assertFalse(handled.contains("held1"));
+      assertFalse(handled.contains("held2"));
+      assertEquals(0, interceptor.getQueuedEventCount());
+   }
+
+   // The subscribers are counted when a held event is sent, not when it is held.
+   @Test
+   void subscribersAreCountedWhenTheEventIsSent() throws Exception {
+      CountDownLatch release = new CountDownLatch(1);
+      Set<String> handled = ConcurrentHashMap.newKeySet();
+      MessageHandler broker = m -> {};
+      ExecutorSubscribableChannel channel = new ExecutorSubscribableChannel(pool);
+      channel.setInterceptors(List.of(interceptor, new ImmutableMessageChannelInterceptor()));
+      channel.subscribe(m -> {
+         handled.add(id(m));
+
+         if("busy".equals(id(m))) {
+            await(release);
+         }
+      });
+      channel.subscribe(broker);
+      channel.subscribe(m -> {});
+
+      channel.send(event("s1", "vs1", "/events/vs/refresh", 0, "busy"));
+      channel.send(event("s1", "vs1", "/events/vs/refresh", 1, "held"));
+      channel.send(event("s1", "vs1", "/events/vs/refresh", 2, "next"));
+      awaitHandled(handled, "busy");
+      channel.unsubscribe(broker);
+
+      release.countDown();
+      awaitHandled(handled, "next");
+      awaitNoPendingSheet();
+   }
+
+   // The ticket must not reach the message headers that ServiceProxyContext copies into
+   // cluster calls, it holds the whole message and its session attributes.
+   @Test
+   void serviceProxyContextCarriesNoTicket() throws Exception {
+      ExecutorSubscribableChannel channel = channel(m -> {});
+      Message<?> message = interceptor.preSend(
+         event("s1", "vs1", "/events/vs/refresh", 0), channel);
+      assertNotNull(message);
+      MessageContextHolder.setMessageAttributes(new MessageAttributes(message));
+
+      try {
+         ServiceProxyContext context = new ServiceProxyContext(false);
+         Field field = ServiceProxyContext.class.getDeclaredField("messageHeaders");
+         field.setAccessible(true);
+         @SuppressWarnings("unchecked")
+         Map<String, Object> headers = (Map<String, Object>) field.get(context);
+
+         assertEquals(1, interceptor.getQueuedEventCount());
+         assertTrue(headers.keySet().stream().anyMatch(k -> k.contains("SheetEventOrder")),
+                    "the event was not ticketed");
+
+         for(Object value : headers.values()) {
+            assertFalse(value.getClass().getName().startsWith(
+                           SheetEventOrderInterceptor.class.getName()),
+                        "a ticket is copied into the context: " + value);
+            assertFalse(value instanceof Message, "a message is copied into the context");
+         }
+      }
+      finally {
+         MessageContextHolder.setMessageAttributes(null);
+      }
+   }
+
    private ExecutorSubscribableChannel channel(MessageHandler handler) {
       ExecutorSubscribableChannel channel = new ExecutorSubscribableChannel(pool);
       channel.setInterceptors(List.of(interceptor, new ImmutableMessageChannelInterceptor()));
@@ -218,9 +426,20 @@ class SheetEventOrderInterceptorTest {
    private static Message<byte[]> event(String session, String runtimeId, String destination,
                                         int seq, String id)
    {
+      return event(session, runtimeId, destination, seq, id, "");
+   }
+
+   private static Message<byte[]> event(String session, String runtimeId, String destination,
+                                        int seq, String id, String payload)
+   {
       StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.SEND);
       accessor.setDestination(destination);
-      return message(accessor, session, runtimeId, seq, id);
+      return message(accessor, session, runtimeId, seq, id, payload);
+   }
+
+   private static Message<byte[]> disconnect(String session) {
+      StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.DISCONNECT);
+      return message(accessor, session, null, -1, "disconnect");
    }
 
    private static Message<byte[]> subscribe(String session, String runtimeId, String id) {
@@ -233,6 +452,12 @@ class SheetEventOrderInterceptorTest {
    private static Message<byte[]> message(StompHeaderAccessor accessor, String session,
                                           String runtimeId, int seq, String id)
    {
+      return message(accessor, session, runtimeId, seq, id, "");
+   }
+
+   private static Message<byte[]> message(StompHeaderAccessor accessor, String session,
+                                          String runtimeId, int seq, String id, String payload)
+   {
       accessor.setSessionId(session);
 
       if(runtimeId != null) {
@@ -243,7 +468,8 @@ class SheetEventOrderInterceptorTest {
       accessor.setNativeHeader("id", id);
       // as StompSubProtocolHandler leaves it when ImmutableMessageChannelInterceptor is present
       accessor.setLeaveMutable(true);
-      return MessageBuilder.createMessage(new byte[0], accessor.getMessageHeaders());
+      return MessageBuilder.createMessage(payload.getBytes(StandardCharsets.UTF_8),
+                                          accessor.getMessageHeaders());
    }
 
    private static int seq(Message<?> message) {
@@ -274,7 +500,15 @@ class SheetEventOrderInterceptorTest {
    }
 
    private static void awaitHandled(Collection<String> handled, String id) throws Exception {
-      long end = System.currentTimeMillis() + 10000;
+      awaitHandled(handled, id, 10000);
+   }
+
+   // wait for an event that must run while the busy event is blocked (well before await() of
+   // the blocked handler times out and releases the sheet)
+   private static void awaitHandled(Collection<String> handled, String id, long timeout)
+      throws Exception
+   {
+      long end = System.currentTimeMillis() + timeout;
 
       while(!handled.contains(id) && System.currentTimeMillis() < end) {
          Thread.sleep(10);
@@ -295,4 +529,5 @@ class SheetEventOrderInterceptorTest {
 
    private ExecutorService pool;
    private SheetEventOrderInterceptor interceptor;
+   private static final long WHILE_BUSY = 3000;
 }

@@ -30,6 +30,7 @@ public class CloseWorksheetController extends WorksheetController {
       this.closeWorksheetService = closeWorksheetService;
    }
 
+   // listed in SheetEventOrderInterceptor, which does not queue it behind the sheet's events
    @MessageMapping("/ws/close")
    public void closeWorksheet(Principal principal) throws Exception {
       closeWorksheetService.closeWorksheet(getRuntimeId(), principal);

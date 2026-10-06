@@ -48,6 +48,7 @@ public class ViewsheetController {
     *
     * @param principal a principal identifying the current user.
     */
+   // listed in SheetEventOrderInterceptor, which does not queue it behind the sheet's events
    @MessageMapping("/close")
    public void closeViewsheet(Principal principal) {
       if(runtimeViewsheetRef.getRuntimeId() != null) {

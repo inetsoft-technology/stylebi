@@ -32,13 +32,23 @@ import java.util.concurrent.atomic.*;
  * Channel interceptor that hands the events one STOMP session sends for one runtime sheet to the
  * client inbound channel's thread pool one at a time, in the order they were received. The next
  * event of the sheet is released only after every subscriber has finished handling the previous
- * one. Events for other sheets, frames without a sheet runtime id (subscriptions, heartbeats) and
- * the cancel events are not held, so a cancel can still reach the query it is meant to stop.
+ * one. Events for other sheets, frames without a sheet runtime id (subscriptions, heartbeats),
+ * the cancel events and the flyover events are not held, so a cancel can still reach the query
+ * it is meant to stop and a newer flyover can still cancel an older one (Bug #77155).
  * <p>
  * Without this, the events run concurrently on the pool and a later event (e.g. a selection delta
  * or a range slider range) can be applied before an earlier one (Bug #77887). Spring's
  * {@code setPreserveReceiveOrder} would order the whole session, which is shared by every sheet
  * of a browser window and would also queue the cancel events.
+ * <p>
+ * The periodic touch-asset event is not queued again while the same event is already held for
+ * the sheet, so a refresh that takes longer than the refresh interval cannot build a backlog. A
+ * close is not held behind the running event unless other events are held, so closing a busy
+ * sheet still cancels its query without dropping an event (e.g. a save) sent before the close.
+ * The held events of a session are dropped when it disconnects.
+ * <p>
+ * The tickets are kept out of the message headers, which are copied into the
+ * {@code ServiceProxyContext} of cluster calls. Only the ticket id is put in a header.
  * <p>
  * This must be the first interceptor of the channel, so a held event has not been through the
  * other interceptors yet when it is released.
@@ -46,37 +56,71 @@ import java.util.concurrent.atomic.*;
 public class SheetEventOrderInterceptor implements ExecutorChannelInterceptor {
    @Override
    public Message<?> preSend(Message<?> message, MessageChannel channel) {
-      if(message.getHeaders().containsKey(TICKET_HEADER)) {
-         // released by sendNext()
+      MessageHeaders headers = message.getHeaders();
+
+      if(headers.get(TICKET_HEADER) instanceof Long id) {
+         // released by sendNext(), count the subscribers it is now dispatched to
+         Ticket ticket = tickets.get(id);
+
+         if(ticket != null) {
+            ticket.subscriberCount = getSubscriberCount(channel);
+         }
+
          return message;
       }
 
-      String key = getOrderKey(message);
+      if(SimpMessageHeaderAccessor.getMessageType(headers) == SimpMessageType.DISCONNECT) {
+         dropHeldEvents(SimpMessageHeaderAccessor.getSessionId(headers));
+         return message;
+      }
+
+      Key key = getOrderKey(message);
       SimpMessageHeaderAccessor accessor =
          MessageHeaderAccessor.getAccessor(message, SimpMessageHeaderAccessor.class);
-      int subscriberCount = channel instanceof ExecutorSubscribableChannel execChannel ?
-         execChannel.getSubscribers().size() : 0;
+      int subscriberCount = getSubscriberCount(channel);
 
       if(key == null || accessor == null || !accessor.isMutable() || subscriberCount == 0) {
          return message;
       }
 
-      Ticket ticket = new Ticket(key, message, subscriberCount);
-      accessor.setHeader(TICKET_HEADER, ticket);
-      AtomicBoolean first = new AtomicBoolean(false);
+      String destination = SimpMessageHeaderAccessor.getDestination(headers);
+      Ticket ticket = new Ticket(nextId.incrementAndGet(), key, message);
+      ticket.subscriberCount = subscriberCount;
+      // set before the ticket is queued, sendNext() may send the message as soon as it is
+      accessor.setHeader(TICKET_HEADER, ticket.id);
+      AtomicReference<Action> action = new AtomicReference<>(Action.HOLD);
 
       queues.compute(key, (k, queue) -> {
          if(queue == null) {
             queue = new ArrayDeque<>();
-            first.set(true);
+            action.set(Action.SEND);
+         }
+         else if(CLOSE_DESTINATIONS.contains(destination) && queue.size() == 1) {
+            // only the running event is queued, let the close cancel it
+            action.set(Action.SEND_UNORDERED);
+            return queue;
+         }
+         else if(COALESCED_DESTINATIONS.contains(destination) && isHeld(queue, message)) {
+            action.set(Action.DROP);
+            return queue;
          }
 
          queue.add(ticket);
+         tickets.put(ticket.id, ticket);
          return queue;
       });
 
-      // returning null holds the event, it is sent when the previous one is handled
-      return first.get() ? message : null;
+      switch(action.get()) {
+      case SEND:
+         return message;
+      case SEND_UNORDERED:
+         accessor.removeHeader(TICKET_HEADER);
+         return message;
+      default:
+         // returning null holds the event (it is sent when the previous one is handled) or
+         // drops a duplicate of a held event
+         return null;
+      }
    }
 
    @Override
@@ -84,7 +128,7 @@ public class SheetEventOrderInterceptor implements ExecutorChannelInterceptor {
                                    Exception ex)
    {
       // the event will never be handled (rejected by another interceptor or failed to send)
-      if(!sent && message.getHeaders().get(TICKET_HEADER) instanceof Ticket ticket) {
+      if(!sent && getTicket(message) instanceof Ticket ticket) {
          sendNext(ticket, channel);
       }
    }
@@ -93,7 +137,7 @@ public class SheetEventOrderInterceptor implements ExecutorChannelInterceptor {
    public void afterMessageHandled(Message<?> message, MessageChannel channel,
                                    MessageHandler handler, Exception ex)
    {
-      if(message.getHeaders().get(TICKET_HEADER) instanceof Ticket ticket &&
+      if(getTicket(message) instanceof Ticket ticket &&
          ticket.handled.incrementAndGet() == ticket.subscriberCount)
       {
          sendNext(ticket, channel);
@@ -106,6 +150,7 @@ public class SheetEventOrderInterceptor implements ExecutorChannelInterceptor {
       queues.computeIfPresent(done.key, (k, queue) -> {
          if(queue.peek() == done) {
             queue.poll();
+            tickets.remove(done.id);
             next.set(queue.peek());
          }
 
@@ -123,7 +168,61 @@ public class SheetEventOrderInterceptor implements ExecutorChannelInterceptor {
       }
    }
 
-   private static String getOrderKey(Message<?> message) {
+   /**
+    * Drop the held events of a closed session. The running event of each sheet stays queued, so
+    * its completion still removes the queue.
+    */
+   private void dropHeldEvents(String sessionId) {
+      if(sessionId == null) {
+         return;
+      }
+
+      for(Key key : queues.keySet()) {
+         if(sessionId.equals(key.sessionId())) {
+            queues.computeIfPresent(key, (k, queue) -> {
+               Ticket running = queue.poll();
+               queue.forEach(t -> tickets.remove(t.id));
+               queue.clear();
+               queue.add(running);
+               return queue;
+            });
+         }
+      }
+   }
+
+   private Ticket getTicket(Message<?> message) {
+      return message.getHeaders().get(TICKET_HEADER) instanceof Long id ? tickets.get(id) : null;
+   }
+
+   /**
+    * Check if an event with the same destination and payload is held (not running) in the queue.
+    */
+   private static boolean isHeld(Deque<Ticket> queue, Message<?> message) {
+      String destination = SimpMessageHeaderAccessor.getDestination(message.getHeaders());
+      Iterator<Ticket> iterator = queue.iterator();
+      // skip the running event
+      iterator.next();
+
+      while(iterator.hasNext()) {
+         Message<?> held = iterator.next().message;
+
+         if(Objects.equals(destination,
+                           SimpMessageHeaderAccessor.getDestination(held.getHeaders())) &&
+            Objects.deepEquals(message.getPayload(), held.getPayload()))
+         {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   private static int getSubscriberCount(MessageChannel channel) {
+      return channel instanceof ExecutorSubscribableChannel execChannel ?
+         execChannel.getSubscribers().size() : 0;
+   }
+
+   private static Key getOrderKey(Message<?> message) {
       MessageHeaders headers = message.getHeaders();
 
       if(SimpMessageHeaderAccessor.getMessageType(headers) != SimpMessageType.MESSAGE) {
@@ -138,7 +237,7 @@ public class SheetEventOrderInterceptor implements ExecutorChannelInterceptor {
          return null;
       }
 
-      return sessionId + "|" + runtimeId;
+      return new Key(sessionId, runtimeId);
    }
 
    // for testing
@@ -146,11 +245,21 @@ public class SheetEventOrderInterceptor implements ExecutorChannelInterceptor {
       return queues.size();
    }
 
+   // for testing
+   int getQueuedEventCount() {
+      return tickets.size();
+   }
+
+   private record Key(String sessionId, String runtimeId) {
+   }
+
+   private enum Action { SEND, SEND_UNORDERED, HOLD, DROP }
+
    private static final class Ticket {
-      Ticket(String key, Message<?> message, int subscriberCount) {
+      Ticket(long id, Key key, Message<?> message) {
+         this.id = id;
          this.key = key;
          this.message = message;
-         this.subscriberCount = subscriberCount;
       }
 
       @Override
@@ -158,22 +267,38 @@ public class SheetEventOrderInterceptor implements ExecutorChannelInterceptor {
          return "Ticket[" + key + "]";
       }
 
-      private final String key;
+      private final long id;
+      private final Key key;
       private final Message<?> message;
-      private final int subscriberCount;
+      // the subscribers the event was dispatched to, set when it is sent
+      private volatile int subscriberCount;
       private final AtomicInteger handled = new AtomicInteger(0);
    }
 
-   private final Map<String, Deque<Ticket>> queues = new ConcurrentHashMap<>();
+   private final Map<Key, Deque<Ticket>> queues = new ConcurrentHashMap<>();
+   private final Map<Long, Ticket> tickets = new ConcurrentHashMap<>();
+   private final AtomicLong nextId = new AtomicLong();
 
    private static final String TICKET_HEADER = SheetEventOrderInterceptor.class.getName() + ".ticket";
-   // events that cancel the running query of the sheet, they must not wait for it
+   // events that cancel the running query of the sheet, they must not wait for it, and the
+   // flyover events, a newer flyover cancels the query of an older one (Bug #77155). Each
+   // endpoint has a comment pointing here, add one to a new endpoint of this kind.
    private static final Set<String> UNORDERED_DESTINATIONS = Set.of(
       "/events/composer/viewsheet/cancelViewsheet",
       "/events/vschart/cancel-query",
       "/events/composer/worksheet/cancel-loading",
       "/events/composer/worksheet/query/stop",
       "/events/composer/ws/join/cancel-ws-join/",
-      "/events/vs/wizard/use-meta");
+      "/events/vs/wizard/use-meta",
+      "/events/vschart/flyover",
+      "/events/table/flyover");
+   // events that close the sheet and cancel its running query
+   private static final Set<String> CLOSE_DESTINATIONS = Set.of(
+      "/events/composer/viewsheet/close",
+      "/events/ws/close",
+      "/events/close");
+   // periodic events, a copy of one that is already held is dropped
+   private static final Set<String> COALESCED_DESTINATIONS = Set.of(
+      "/events/composer/touch-asset");
    private static final Logger LOG = LoggerFactory.getLogger(SheetEventOrderInterceptor.class);
 }
