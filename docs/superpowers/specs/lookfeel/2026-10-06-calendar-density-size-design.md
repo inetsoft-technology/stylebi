@@ -15,9 +15,8 @@ design](./2026-10-05-selection-container-density-design.md) D7, which this desig
 
 ## 1. Why
 
-The calendar is the last titled card in the density rollout that density changes only through its
-title lane. Before choosing what density should change, the review found that the two obvious
-candidates do not apply:
+Density changes the calendar only through its title lane. Before choosing what else density should
+change, the review found that the two obvious candidates do not apply:
 
 - **There is no row height to pad.** Day cells stretch to fill the box (§2.1). The space between two
   numerals is the box size divided by seven, in both the browser and the export. Cell padding would
@@ -45,7 +44,8 @@ step with the tier.
   (`month-calendar.component.ts:267`, `year-calendar.component.ts:208`). Inside it, the 36px month band
   (`.child-calendar-title`, `vs-calendar.component.scss:241`) sits above `.day-table`, which is
   `calc(100% - 36px)` tall (`:168`). The weekday header and six week rows are `flex-grow: 1` cells
-  with `padding: 0`, so each takes one seventh of what remains.
+  with `padding: 0`, so each takes one seventh of what remains. The year view fills the same space
+  with three rows of month cells, so it follows the box the same way.
 - **Export.** `VSCalendar.paintMonthCalendar` divides the height into eight equal rows, the month title
   being one of them (`VSCalendar.java:657`, `int rH = h / 8`), and fills each cell.
 - The two layouts already differ (a 36px band against an eighth of the height). That predates this
@@ -54,9 +54,15 @@ step with the tier.
 ### 2.2 The default size
 
 - A new calendar is 300×300 (`CalendarVSAssemblyInfo.java:88`, raised from 300×200 in #3030).
-- `fixCalendarSize()` (`:1515`) runs only when a script sets the show type or view mode at runtime (the
-  `typeSValid` / `modeSValid` flags). It doubles or halves the width for the two-calendar mode and
-  pins a dropdown to 18px. The property dialog sets the stored values without calling it.
+- Besides an author's resize, two things change the stored width:
+  - The calendar's **Toggle Double Calendar** action, in the composer and the viewer, doubles or
+    halves it (`VSCalendarService.java:136-158`). It is not an author resize: it does not go through
+    `ComposerObjectService.resizeObject`, so it never sets #6390's `userSize`.
+  - `fixCalendarSize()` (`:1515`) does the same, and pins a dropdown to 18px, but only after a script
+    sets the show type or view mode at runtime (the `typeSValid` / `modeSValid` flags, set only by
+    `CalendarVSAScriptable.java:108`, `:125`).
+- The property dialog changes the stored show type and view mode without touching the size, except
+  in the bottom-tabs branch (§5).
 - `fitCalendarHeightToTitle()` (`:1569`) grows the box only when the title lane is at least the box
   height. No tier size comes near that.
 - A **dropdown** ignores its stored height. Closed, it is title-lane tall. Open, its body is a fixed
@@ -75,6 +81,10 @@ step with the tier.
 The density change and the restore build the **same** context, so a rule inside `seedChromeDefaults`
 cannot tell them apart. This is why D4 needs its own hook.
 
+`initDefaultFormat` reaches only new calendars. Its one caller that runs on an existing assembly,
+`ComposerObjectService.java:771`, handles a child moved out of a selection container, and only
+selection lists and range sliders can be dropped into one (`editable-object-container.component.ts:1683-1686`).
+
 The context's density is the top-level dashboard's (`VizContext.densityOf`, `VizContext.java:92`),
 which falls back to the org's.
 
@@ -90,7 +100,7 @@ their content can scroll or show fewer rows. The calendar's cannot.
 ### D2 — No cell padding; density acts through the box
 
 Because rows fill the box (§2.1), padding has nothing to act on. The rows step with the tier only if
-the box does. Gaps between cells are out of scope (§7), because they would decide the selection
+the box does. Gaps between cells are out of scope (§8), because they would decide the selection
 shape that the widget spec's §07 range treatment has not settled.
 
 ### D3 — Row heights 38 / 34 / 30, and compact keeps 300×300
@@ -188,10 +198,13 @@ change.
 (`:133`, `:250`, `:252` at `ae84d2821e`):
 
 - **Open:** `VSDialogService.readSizeFollowsDensity(info, sizePositionPaneModel, governed)`, with
-  `governed` true when the stored show type is the full calendar
-  (`getShowTypeValue() == CALENDAR_SHOW_TYPE`). A dropdown does not draw its stored height (§2.2), so
-  a checkbox there would control nothing visible. The helper returns null for an unmarked calendar,
-  so no checkbox is shown.
+  `governed` true only for a single full calendar (`getShowTypeValue() == CALENDAR_SHOW_TYPE` and
+  `getViewModeValue() == SINGLE_CALENDAR_MODE`). The helper returns null for an unmarked calendar,
+  so no checkbox is shown there either.
+  - **Not a dropdown**, because a dropdown does not draw its stored height (§2.2), so a checkbox
+    there would control nothing visible.
+  - **Not a double calendar**, because ticking the box writes `calendarSize(ctx)`, which is 300 wide.
+    A double calendar the toggle widened to 600 would have its two months squeezed into 300px.
 - **Save:** `VSDialogService.applyDensitySize` before the existing `dialogService.setAssemblySize`
   (`CalendarPropertyDialogService.java:245`), then `VSDialogService.recordAuthorSize` after it, with
   the size as it was before the save.
@@ -229,7 +242,9 @@ Constants: `CALENDAR_NAV_BAND = 36`, documented as the browser's `.child-calenda
 ## 5. Unchanged on purpose
 
 - The export painter (`VSCalendar`), every calendar template and stylesheet, and the 36px band.
-- `fixCalendarSize()` and `fitCalendarHeightToTitle()`.
+- `fixCalendarSize()`, `fitCalendarHeightToTitle()` and the Toggle Double Calendar action. A double
+  calendar the toggle widened to 600 is outside the recognized set, so density leaves it alone.
+  Toggling it back to 300 wide puts it back in the set if its height is still a tier height.
 - The dropdown's fixed 144px body (`CALENDAR_BODY_HEIGHT`) and its closed height.
 - The constructor's 300×300.
 - The bottom-tabs branch of `CalendarPropertyDialogService` (`:312-340`), which writes
@@ -257,8 +272,9 @@ Constants: `CALENDAR_NAV_BAND = 36`, documented as the browser's `.child-calenda
   - **A density change does:** `VizModernizeUtil.reseed` takes a marked 300×300 calendar to 300×332
     when the dashboard is comfortable, and back to 300×300 at compact.
   - The dropdown show type is resized too (its stored height is not drawn).
+  - `followsDensitySize()` is false at 600×332 (a toggled double calendar) and true again at 300×332.
 - **`CalendarPropertyDialogServiceTest`** (tagged `core`):
-  - No checkbox for an unmarked calendar or a dropdown.
+  - No checkbox for an unmarked calendar, a dropdown, or a double calendar.
   - Ticking it writes the tier size and clears `userSize`.
   - Unticking it, or typing a different width or height, sets `userSize`.
 - **`ComposerObjectService`:** one calendar case showing that a changed drag-resize sets `userSize`
@@ -288,9 +304,11 @@ Run with the dashboard set to each tier in turn:
   This has been read in the code but not yet seen in a browser. The selection lists' size rule has
   the same exposure. **Not fixed in this slice.** Manual check 7 confirms or refutes it. If it is
   confirmed, the fix belongs in the shared re-seed path so it covers both types, as a follow-up.
-- **Two-calendar mode at design time.** The dialog switches the view mode without changing the size,
-  so a two-calendar box at a tier size shows two months in 300px. That is today's behaviour at
-  300×300, unchanged.
+- **Double calendars.**
+  - One switched to double in the property dialog keeps its 300px width and shows two months in it.
+    That is today's behaviour at 300×300, and density keeps following its height.
+  - One widened to 600 by the toggle no longer follows density, and gets no checkbox (D6). Toggling
+    it back restores both.
 - **Pre-#6390 author sizes on a tier value** follow the next density change (D5).
 
 ## 8. Out of scope
