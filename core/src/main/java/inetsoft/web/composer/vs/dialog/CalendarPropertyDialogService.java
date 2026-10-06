@@ -108,6 +108,10 @@ public class CalendarPropertyDialogService {
          calendarAssemblyInfo.getVizMark() == null ? null :
             !calendarAssemblyInfo.isUserTitleHeight());
       sizePositionPaneModel.setContainer(calendarAssembly.getContainer() != null);
+      // a dropdown draws no stored height, and the rule's 300 width would squeeze a double calendar
+      VSDialogService.readSizeFollowsDensity(calendarAssemblyInfo, sizePositionPaneModel,
+         calendarAssemblyInfo.getShowTypeValue() == CalendarVSAssemblyInfo.CALENDAR_SHOW_TYPE &&
+            calendarAssemblyInfo.getViewModeValue() == CalendarVSAssemblyInfo.SINGLE_CALENDAR_MODE);
 
       generalPropPaneModel.setShowEnabledGroup(true);
       generalPropPaneModel.setEnabled(calendarAssemblyInfo.getEnabledValue());
@@ -242,7 +246,11 @@ public class CalendarPropertyDialogService {
       info.setTitleVisibleValue(titlePropPaneModel.isVisible());
       info.setTitleValue(titlePropPaneModel.getTitle());
 
+      Dimension shownSize =
+         new Dimension(dialogService.getAssemblySize(info, viewsheet.getViewsheet()));
+      VSDialogService.applyDensitySize(info, sizePositionPaneModel);
       dialogService.setAssemblySize(info, sizePositionPaneModel);
+      VSDialogService.recordAuthorSize(info, sizePositionPaneModel, shownSize);
       dialogService.setAssemblyPosition(info, sizePositionPaneModel);
       Boolean followsDensity = sizePositionPaneModel.getTitleHeightFollowsDensity();
 
