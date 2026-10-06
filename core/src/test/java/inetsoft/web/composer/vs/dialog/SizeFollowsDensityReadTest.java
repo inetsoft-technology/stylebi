@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2026  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -22,7 +22,6 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
 import inetsoft.uql.asset.Assembly;
-import inetsoft.uql.asset.internal.AssemblyInfo;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
@@ -108,6 +107,24 @@ class SizeFollowsDensityReadTest {
       assertNull(listRead());
    }
 
+   @Test
+   void treeInATabContainerIsStillOffered() throws Exception {
+      SelectionTreeVSAssemblyInfo info = new SelectionTreeVSAssemblyInfo();
+      seed(info, SelectionVSAssemblyInfo.LIST_SHOW_TYPE);
+      wire(info, treeAssembly);
+      lenient().when(treeAssembly.getContainer()).thenReturn(tabContainer);
+      assertEquals(Boolean.TRUE, treeRead());
+   }
+
+   @Test
+   void listInATabContainerIsStillOffered() throws Exception {
+      SelectionListVSAssemblyInfo info = new SelectionListVSAssemblyInfo();
+      seed(info, SelectionVSAssemblyInfo.LIST_SHOW_TYPE);
+      wire(info, listAssembly);
+      lenient().when(listAssembly.getContainer()).thenReturn(tabContainer);
+      assertEquals(Boolean.TRUE, listRead());
+   }
+
    private static void seed(SelectionBaseVSAssemblyInfo info, int showType) {
       info.setVizMark(VizMark.MODERN_LIGHT);
       info.setShowTypeValue(showType);
@@ -134,11 +151,11 @@ class SizeFollowsDensityReadTest {
       lenient().when(viewsheet.getAssembly(anyString())).thenReturn(assembly);
       lenient().when(viewsheet.getAssemblies()).thenReturn(new Assembly[0]);
       lenient().when(viewsheet.getPixelSize(any()))
-         .thenAnswer(inv -> ((AssemblyInfo) inv.getArgument(0)).getPixelSize());
+         .thenAnswer(inv -> ((VSAssemblyInfo) inv.getArgument(0)).getPixelSize());
       lenient().when(assembly.getVSAssemblyInfo()).thenReturn(info);
       lenient().when(dialogService.getAssemblyPosition(any(), any())).thenReturn(new Point(0, 0));
       lenient().when(dialogService.getAssemblySize(any(), any()))
-         .thenAnswer(inv -> ((AssemblyInfo) inv.getArgument(0)).getPixelSize());
+         .thenAnswer(inv -> ((VSAssemblyInfo) inv.getArgument(0)).getPixelSize());
    }
 
    @Mock VSOutputService vsOutputService;
@@ -149,6 +166,7 @@ class SizeFollowsDensityReadTest {
    @Mock SelectionTreeVSAssembly treeAssembly;
    @Mock SelectionListVSAssembly listAssembly;
    @Mock CurrentSelectionVSAssembly container;
+   @Mock TabVSAssembly tabContainer;
    @Mock VSDialogService dialogService;
    @Mock VSSelectionService vsSelectionService;
    @Mock SelectionDialogService selectionDialogService;

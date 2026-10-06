@@ -1434,8 +1434,7 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
    }
 
    /**
-    * Whether the author set the size. Surfaced in Size & Position as the follow-the-default-density
-    * checkbox for size, inverted; the density size rules leave a box with it set alone.
+    * Whether an author set this box's size, so the density size rules leave it alone.
     */
    public boolean isUserSize() {
       return userSize;

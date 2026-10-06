@@ -40,7 +40,6 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
-import inetsoft.uql.asset.internal.AssemblyInfo;
 
 import java.awt.*;
 import java.security.Principal;
@@ -69,7 +68,7 @@ class SelectionListPropertyDialogServiceTest {
          selectionDialogService, assemblyInfoHandler, dataRefService, dataSourceRegistry,
          mock(QueryManagerService.class));
       lenient().when(dialogService.getAssemblySize(any(), any()))
-         .thenAnswer(inv -> ((AssemblyInfo) inv.getArgument(0)).getPixelSize());
+         .thenAnswer(inv -> ((VSAssemblyInfo) inv.getArgument(0)).getPixelSize());
    }
 
    @Test
