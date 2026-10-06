@@ -468,6 +468,17 @@ Device layout is covered by a unit test only; the fixture has no device layout.
 - **Size changes that are not an author's design-time choice** do not set D7's flag: a script
   setting `size` at runtime, device and print layout sizes (kept in `VSAssemblyLayout`), and the
   derived writes listed under D7.
+- **A composer open does not apply the seeded values.** `VizModernizeUtil.reseedAfterRestore` runs
+  only on a state or bookmark restore (the viewer and exports: `AbstractVSAssembly.parseState`,
+  `Viewsheet` state restore), and on a density change, Modernize and Revert. Content whose stored
+  values predate the current seeds therefore differs between the two until one of those runs: the
+  composer shows a container at 300×240 that the viewer draws at 300×360 (D6). A list saved before
+  its card inset was seeded has no inset in the composer, so a composer expand stores
+  `title + rows` without it (198 at comfortable). The viewer then adds the 16px inset and shows
+  about 4.9 rows until the list is re-expanded there. The expand itself (D2) is right for the inset
+  the list has at that moment, and the list sizes and insets from the selection family behave the
+  same way. Found 2026-10-06 in the manual tests (MT-3, MT-16). Accepted without a follow-up: only
+  content saved before the seeds existed reaches it, and the feature is not yet live.
 - **The dashboard wizard's resize** (`WizardVSObjectService.resizeVSObject`) does not set D7's flag
   either. It lays the whole sheet out on a 20px grid, so an author can land a list on exactly 100×120
   or a container on 300×240, and the rule then moves it on the next open — the behaviour before D7,
