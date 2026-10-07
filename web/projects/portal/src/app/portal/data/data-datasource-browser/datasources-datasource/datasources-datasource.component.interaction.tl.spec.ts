@@ -471,6 +471,70 @@ describe("DatasourcesDatasource — renameAdditional", () => {
 
       expect(MODAL_MOCK.open).not.toHaveBeenCalled();
    });
+
+   // Bug #77843, without the old name the server takes the renamed connection for a new one, which
+   // doesn't get the permission of the old one
+   it("sets oldName to the current name when the connection is renamed", async () => {
+      const { comp } = await renderDatasource();
+      const existing = makeDataSource({ name: "Extra1", description: "Desc1", oldName: null });
+      comp.datasource = makeDataSource({ name: "MainDS", additionalConnections: [existing] });
+      comp.selectedAdditionalIndex = [0];
+      const result = Promise.resolve({ name: "Extra2", description: "Desc2" });
+      MODAL_MOCK.open.mockImplementationOnce(() => ({
+         result,
+         componentInstance: {},
+         close: vi.fn(),
+         dismiss: vi.fn(),
+      }));
+
+      comp.renameAdditional();
+      await result;
+
+      const renamed = comp.datasource.additionalConnections[0];
+      expect(renamed.name).toBe("Extra2");
+      expect(renamed.description).toBe("Desc2");
+      expect(renamed.oldName).toBe("Extra1");
+   });
+
+   it("keeps the first oldName when the connection is renamed twice", async () => {
+      const { comp } = await renderDatasource();
+      const existing = makeDataSource({ name: "Extra2", oldName: "Extra1" });
+      comp.datasource = makeDataSource({ name: "MainDS", additionalConnections: [existing] });
+      comp.selectedAdditionalIndex = [0];
+      const result = Promise.resolve({ name: "Extra3", description: "" });
+      MODAL_MOCK.open.mockImplementationOnce(() => ({
+         result,
+         componentInstance: {},
+         close: vi.fn(),
+         dismiss: vi.fn(),
+      }));
+
+      comp.renameAdditional();
+      await result;
+
+      expect(comp.datasource.additionalConnections[0].name).toBe("Extra3");
+      expect(comp.datasource.additionalConnections[0].oldName).toBe("Extra1");
+   });
+
+   it("doesn't set oldName when only the description changes", async () => {
+      const { comp } = await renderDatasource();
+      const existing = makeDataSource({ name: "Extra1", description: "Desc1", oldName: null });
+      comp.datasource = makeDataSource({ name: "MainDS", additionalConnections: [existing] });
+      comp.selectedAdditionalIndex = [0];
+      const result = Promise.resolve({ name: "Extra1", description: "Desc2" });
+      MODAL_MOCK.open.mockImplementationOnce(() => ({
+         result,
+         componentInstance: {},
+         close: vi.fn(),
+         dismiss: vi.fn(),
+      }));
+
+      comp.renameAdditional();
+      await result;
+
+      expect(comp.datasource.additionalConnections[0].description).toBe("Desc2");
+      expect(comp.datasource.additionalConnections[0].oldName).toBeNull();
+   });
 });
 
 // ── Group 15: memory leak — ngOnDestroy unsubscribes route ────────────────

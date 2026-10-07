@@ -18,6 +18,7 @@
 package inetsoft.web.admin.content.repository;
 
 import inetsoft.report.LibManagerProvider;
+import inetsoft.report.XSessionManager;
 import inetsoft.sree.RepletRegistry;
 import inetsoft.sree.RepletRegistryManager;
 import inetsoft.sree.security.*;
@@ -25,7 +26,10 @@ import inetsoft.sree.web.dashboard.DashboardRegistryManager;
 import inetsoft.storage.KeyValueStorageManager;
 import inetsoft.test.*;
 import inetsoft.uql.DataSourceFolder;
+import inetsoft.uql.XDomainWrapper;
 import inetsoft.uql.XRepository;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.DependencyHandler;
 import inetsoft.uql.asset.sync.DependencyStorageService;
 import inetsoft.uql.asset.sync.RenameTransformHandler;
@@ -36,6 +40,9 @@ import inetsoft.uql.tabular.TabularDataSource;
 import inetsoft.uql.tabular.TabularView;
 import inetsoft.uql.util.Config;
 import inetsoft.uql.util.Drivers;
+import inetsoft.uql.xmla.Cube;
+import inetsoft.uql.xmla.Domain;
+import inetsoft.uql.xmla.XMLADataSource;
 import inetsoft.util.Plugins;
 import inetsoft.util.Tool;
 import inetsoft.util.MessageException;
@@ -53,7 +60,10 @@ import inetsoft.web.admin.content.database.types.CustomDatabaseType;
 import inetsoft.web.admin.general.DatabaseSettingsService;
 import inetsoft.web.portal.data.DataSourceDefinition;
 import inetsoft.web.portal.data.DatasourcesService;
+import inetsoft.web.portal.data.DataSourceXmlaDefinition;
+import inetsoft.web.portal.model.database.cube.xmla.CubeModel;
 import inetsoft.web.portal.service.datasource.DataSourceStatusService;
+import inetsoft.web.portal.service.datasource.XmlaDatasourceService;
 import inetsoft.web.session.IgniteSessionRepository;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -84,6 +94,10 @@ import static org.mockito.Mockito.*;
  * <p>
  * Bug #77700: the permission of a removed data source itself, "folder/name", is removed by the
  * registry, so that the data sources of subfolders, removed by the registry alone, don't keep it.
+ * <p>
+ * Bug #77843: a portal editor save that renames the parent keeps the additional connections, their
+ * settings and permissions as the save leaves them, and the XMLA editor saves the domain under the
+ * new name.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class,
@@ -107,6 +121,7 @@ class AdditionalConnectionPermissionRemovalTest {
    private RepositoryObjectService objectService;
    private DatabaseDatasourcesService databaseService;
    private DatasourcesService tabularService;
+   private XmlaDatasourceService xmlaService;
    private Principal principal;
 
    @BeforeEach
@@ -148,6 +163,9 @@ class AdditionalConnectionPermissionRemovalTest {
          mock(IgniteSessionRepository.class), registry, mock(RenameTransformHandler.class));
       tabularService = new DatasourcesService(
          repository, security, mock(DataSourceStatusService.class), registry, config);
+      xmlaService = new XmlaDatasourceService(
+         repository, security, mock(DataSourceStatusService.class), registry, config,
+         mock(DependencyHandler.class), mock(XSessionManager.class));
       principal = new SRPrincipal(new IdentityID("admin", Organization.getDefaultOrganizationID()),
                                   new IdentityID[0], new String[0],
                                   Organization.getDefaultOrganizationID(),
@@ -431,6 +449,8 @@ class AdditionalConnectionPermissionRemovalTest {
 
       saveTabular("tpP", tabular("", "tpP", "tpQ"), "tpQ", tabular("", null, "tpK"));
 
+      // Bug #77843, the parent rename moved the dropped child back under Q
+      assertChildren("tpQ", "tpK");
       assertNull(registry.getDataSource("tpP"));
       assertNull(perm("tpP::tpD"));
       assertNull(perm("tpQ::tpD"));
@@ -469,8 +489,7 @@ class AdditionalConnectionPermissionRemovalTest {
       assertNull(perm("tfF/tfP::tfA"));
    }
 
-   // tabular editor: the parent renamed P -> Q and a child a -> b in one save. The children are
-   // saved under Q before the parent is renamed.
+   // tabular editor: the parent renamed P -> Q and a child a -> b in one save
    @Test
    void tabularEditorRenameWithParentRename() throws Exception {
       addTabularParent("", "tqP", "tqA");
@@ -479,11 +498,187 @@ class AdditionalConnectionPermissionRemovalTest {
       saveTabular("tqP", tabular("", "tqP", "tqQ"), "tqQ",
                   tabular("", "tqA", "tqB"));
 
+      // Bug #77843, the parent rename moved the renamed child back under Q by its old name
+      assertChildren("tqQ", "tqB");
       assertNull(registry.getDataSource("tqP"));
       assertSame(a, perm("tqQ::tqB"));
       assertNull(perm("tqP::tqA"));
       assertNull(perm("tqP::tqB"));
       assertNull(perm("tqQ::tqA"));
+   }
+
+   // Bug #77843, the reported case: the parent renamed P -> Q, a child kept and a child renamed
+   // r1 -> r2 in one save. Q has exactly the kept and the renamed child, with their permissions,
+   // and nothing is left under P.
+   @Test
+   void tabularEditorRenameAndKeepWithParentRename() throws Exception {
+      addTabularParent("", "rkP", "rkK", "rkR1");
+      Permission k = grant("rkP::rkK");
+      Permission r = grant("rkP::rkR1");
+
+      saveTabular("rkP", tabular("", "rkP", "rkQ"), "rkQ",
+                  tabular("", null, "rkK"), tabular("", "rkR1", "rkR2"));
+
+      assertChildren("rkQ", "rkK", "rkR2");
+      assertNull(registry.getDataSource("rkP"));
+      assertFalse(registry.containObject(dataSourceEntry("rkP/rkK")));
+      assertFalse(registry.containObject(dataSourceEntry("rkP/rkR1")));
+      assertSame(k, perm("rkQ::rkK"));
+      assertSame(r, perm("rkQ::rkR2"));
+      assertNull(perm("rkQ::rkR1"));
+      assertNoKeys("rkP::");
+   }
+
+   // Bug #77843, an edit of a kept child in a save that renames the parent is kept, and so is
+   // what the definition doesn't carry, as in a save without a parent rename
+   @Test
+   void tabularEditorEditWithParentRename() throws Exception {
+      addTabularParent("", "reP");
+      addTabularChild("reP", "reK", "old description", "carol");
+      Permission k = grant("reP::reK");
+      DataSourceDefinition kept = tabular("", null, "reK");
+      kept.setDescription("new description");
+
+      saveTabular("reP", tabular("", "reP", "reQ"), "reQ", kept);
+
+      assertChildren("reQ", "reK");
+      assertEquals("new description", child("reQ", "reK").getDescription());
+      assertEquals("carol", child("reQ", "reK").getCreatedBy());
+      assertSame(k, perm("reQ::reK"));
+      assertNoKeys("reP::");
+   }
+
+   // Bug #77843, the control without a parent rename: the same edit is kept
+   @Test
+   void tabularEditorEditWithoutParentRename() throws Exception {
+      addTabularParent("", "rcP");
+      addTabularChild("rcP", "rcK", "old description", "carol");
+      DataSourceDefinition kept = tabular("", null, "rcK");
+      kept.setDescription("new description");
+
+      saveTabular("rcP", tabular("", null, "rcP"), "rcP", kept);
+
+      assertChildren("rcP", "rcK");
+      assertEquals("new description", child("rcP", "rcK").getDescription());
+      assertEquals("carol", child("rcP", "rcK").getCreatedBy());
+   }
+
+   // Bug #77843, the parent renamed P -> Q, b dropped and a renamed to b in one save. Q has one
+   // child b, which has a's settings and a's permission, not those of the dropped b.
+   @Test
+   void tabularEditorRenameOntoADroppedNameWithParentRename() throws Exception {
+      addTabularParent("", "rdP");
+      addTabularChild("rdP", "rdA", "a", null);
+      addTabularChild("rdP", "rdB", "b", null);
+      Permission a = grant("rdP::rdA");
+      grant("rdP::rdB");
+      DataSourceDefinition renamed = tabular("", "rdA", "rdB");
+      renamed.setDescription("a");
+
+      saveTabular("rdP", tabular("", "rdP", "rdQ"), "rdQ", renamed);
+
+      assertChildren("rdQ", "rdB");
+      assertEquals("a", child("rdQ", "rdB").getDescription());
+      assertSame(a, perm("rdQ::rdB"));
+      assertNull(perm("rdQ::rdA"));
+      assertNoKeys("rdP::");
+   }
+
+   // Bug #77843, renamed P -> Q with r1 -> r2, then back Q -> P with r2 -> r1 and a new
+   // description. The second save keeps its edit and doesn't bring r2 back.
+   @Test
+   void tabularEditorRenameBackWithParentRename() throws Exception {
+      addTabularParent("", "rbP");
+      addTabularChild("rbP", "rbR1", "first", null);
+      Permission r = grant("rbP::rbR1");
+      DataSourceDefinition first = tabular("", "rbR1", "rbR2");
+      first.setDescription("first");
+
+      saveTabular("rbP", tabular("", "rbP", "rbQ"), "rbQ", first);
+
+      DataSourceDefinition second = tabular("", "rbR2", "rbR1");
+      second.setDescription("second");
+      saveTabular("rbQ", tabular("", "rbQ", "rbP"), "rbP", second);
+
+      assertChildren("rbP", "rbR1");
+      assertEquals("second", child("rbP", "rbR1").getDescription());
+      assertNull(registry.getDataSource("rbQ"));
+      assertSame(r, perm("rbP::rbR1"));
+      assertNull(perm("rbP::rbR2"));
+      assertNoKeys("rbQ::");
+   }
+
+   // Bug #77843, the parent in a folder renamed F/P -> F/Q with a child renamed in the same save
+   @Test
+   void tabularEditorRenameWithParentRenameInAFolder() throws Exception {
+      addFolder("rfF");
+      addTabularParent("rfF", "rfP", "rfR1", "rfK");
+      Permission r = grant("rfF/rfP::rfR1");
+      Permission k = grant("rfF/rfP::rfK");
+
+      saveTabular("rfP", tabular("rfF", "rfP", "rfQ"), "rfQ",
+                  tabular("rfF", "rfR1", "rfR2"), tabular("rfF", null, "rfK"));
+
+      assertChildren("rfF/rfQ", "rfK", "rfR2");
+      assertNull(registry.getDataSource("rfF/rfP"));
+      assertSame(r, perm("rfF/rfQ::rfR2"));
+      assertSame(k, perm("rfF/rfQ::rfK"));
+      assertNull(perm("rfF/rfQ::rfR1"));
+      assertNoKeys("rfF/rfP::");
+   }
+
+   // Bug #77843, the portal XMLA editor renamed X -> X2 with an edited cube list. The domain is
+   // saved under X2 with the edit, none is left under X, and a new XMLA data source X gets an
+   // empty domain, not the old one.
+   @Test
+   void xmlaEditorRenameMovesTheDomain() throws Exception {
+      addXmla("xrX");
+      DataSourceXmlaDefinition definition = xmlaService.getDataSourceModel("xrX", principal);
+      assertEquals("xrX", definition.getDomain().getDatasource());
+      editCubes(definition, "xrEdited");
+      definition.setName("xrX2");
+
+      xmlaService.updateDataSource("xrX", definition, principal);
+
+      registry.clearCache();
+      assertNull(registry.getDataSource("xrX"));
+      assertNotNull(registry.getDataSource("xrX2"));
+      assertFalse(registry.containObject(domainEntry("xrX")), "a domain is left under xrX");
+      assertDomain("xrX2", "xrEdited");
+
+      addXmla("xrX");
+      assertDomain("xrX");
+   }
+
+   // Bug #77843, the same in a folder
+   @Test
+   void xmlaEditorRenameInAFolderMovesTheDomain() throws Exception {
+      addFolder("xfF");
+      addXmla("xfF/xfX");
+      DataSourceXmlaDefinition definition = xmlaService.getDataSourceModel("xfF/xfX", principal);
+      editCubes(definition, "xfEdited");
+      definition.setName("xfX2");
+
+      xmlaService.updateDataSource("xfX", definition, principal);
+
+      registry.clearCache();
+      assertNull(registry.getDataSource("xfF/xfX"));
+      assertFalse(registry.containObject(domainEntry("xfF/xfX")),
+                  "a domain is left under xfF/xfX");
+      assertDomain("xfF/xfX2", "xfEdited");
+   }
+
+   // Bug #77843, the control without a rename: the edit is saved under the same name
+   @Test
+   void xmlaEditorSaveWithoutRenameKeepsTheDomain() throws Exception {
+      addXmla("xsX");
+      DataSourceXmlaDefinition definition = xmlaService.getDataSourceModel("xsX", principal);
+      editCubes(definition, "xsEdited");
+
+      xmlaService.updateDataSource("xsX", definition, principal);
+
+      registry.clearCache();
+      assertDomain("xsX", "xsEdited");
    }
 
    // the symptom through the real permission check: the parent is restricted to bob, alice is
@@ -886,6 +1081,67 @@ class AdditionalConnectionPermissionRemovalTest {
          child.setName(additional);
          parent.addDatasource(child);
       }
+   }
+
+   private void addTabularChild(String parentPath, String name, String description,
+                                String createdBy)
+   {
+      TestTabularDataSource parent = (TestTabularDataSource) registry.getDataSource(parentPath);
+      TestTabularDataSource child = new TestTabularDataSource();
+      child.setName(name);
+      child.setDescription(description);
+      child.setCreatedBy(createdBy);
+      parent.addDatasource(child);
+   }
+
+   // an additional connection read from the storage
+   private TestTabularDataSource child(String parentPath, String name) {
+      registry.clearCache();
+      TestTabularDataSource child =
+         ((TestTabularDataSource) registry.getDataSource(parentPath)).getDataSource(name);
+      assertNotNull(child, parentPath + "/" + name);
+      return child;
+   }
+
+   // an XMLA data source, which the registry gives an empty domain
+   private void addXmla(String path) {
+      XMLADataSource dataSource = new XMLADataSource();
+      dataSource.setName(path);
+      dataSource.setURL("http://localhost/xmla");
+      registry.setDataSource(dataSource, false);
+      registry.clearCache();
+      assertTrue(registry.containObject(domainEntry(path)), path);
+   }
+
+   // a cube list edited in the editor
+   private static void editCubes(DataSourceXmlaDefinition definition, String cube) {
+      CubeModel cubeModel = new CubeModel();
+      cubeModel.setName(cube);
+      definition.getDomain().setCubes(new ArrayList<>(List.of(cubeModel)));
+   }
+
+   // the stored domain of a data source, read from the storage
+   private void assertDomain(String path, String... cubes) {
+      registry.clearCache();
+      XDomainWrapper wrapper = (XDomainWrapper) registry.getObject(domainEntry(path), false);
+      assertNotNull(wrapper, "no domain under " + path);
+      Domain domain = (Domain) wrapper.getDomain();
+      assertEquals(path, domain.getDataSource());
+      List<String> names = new ArrayList<>();
+
+      for(Enumeration<?> e = domain.getCubes(); e.hasMoreElements(); ) {
+         names.add(((Cube) e.nextElement()).getName());
+      }
+
+      assertEquals(List.of(cubes), names, "cubes of the domain of " + path);
+   }
+
+   private static AssetEntry domainEntry(String path) {
+      return new AssetEntry(AssetRepository.QUERY_SCOPE, AssetEntry.Type.DOMAIN, path, null);
+   }
+
+   private static AssetEntry dataSourceEntry(String path) {
+      return new AssetEntry(AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE, path, null);
    }
 
    private void addFolder(String name) {
