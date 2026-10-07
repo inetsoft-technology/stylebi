@@ -187,9 +187,10 @@ public class XDataModel implements Cloneable, Serializable, XDomain,
          String newPath = getDataSource() + "/" + newName;
          // Bug #77820, read before anything is renamed: not the entries of a data source of a
          // folder at the path of the data source, which may be stored under the path of the
-         // model
-         AssetEntry[] children =
-            getRegistry().getDataSourceEntries(getDataSource(), oldPath + "/", null, true);
+         // model. Bug #77842, only its own extended models: not the extended views of a view
+         // with the same name, or the models "<oldName>/..." and their extended models
+         AssetEntry[] children = getRegistry().getExtendedModelEntries(getDataSource(), oldPath,
+            AssetEntry.Type.EXTENDED_LOGIC_MODEL, true);
          DependencyHandler.getInstance().updateModelDependencies(model, false);
          model.setName(newName);
 
@@ -380,8 +381,9 @@ public class XDataModel implements Cloneable, Serializable, XDomain,
 
       String path = getDataSource() + "/" + name;
       // Bug #77820, not the extended models of a data source of a folder at the path of the
-      // data source. Before the try, which only logs a failure
-      AssetEntry[] children = getRegistry().getDataSourceEntries(getDataSource(), path + "/",
+      // data source. Bug #77842, not the ones of a model "<name>/...". Before the try, which
+      // only logs a failure
+      AssetEntry[] children = getRegistry().getExtendedModelEntries(getDataSource(), path,
             AssetEntry.Type.EXTENDED_LOGIC_MODEL, true);
 
       try {
@@ -719,8 +721,9 @@ public class XDataModel implements Cloneable, Serializable, XDomain,
 
       String path = getDataSource() + "/" + name;
       // Bug #77820, not the extended views of a data source of a folder at the path of the
-      // data source. Before the try, which only logs a failure
-      AssetEntry[] children = getRegistry().getDataSourceEntries(getDataSource(), path + "/",
+      // data source. Bug #77842, not the ones of a view "<name>/...". Before the try, which
+      // only logs a failure
+      AssetEntry[] children = getRegistry().getExtendedModelEntries(getDataSource(), path,
               AssetEntry.Type.EXTENDED_PARTITION, true);
 
       try {
@@ -775,9 +778,10 @@ public class XDataModel implements Cloneable, Serializable, XDomain,
       if(partition != null) {
          // Bug #77820, read before anything is renamed: not the entries of a data source of a
          // folder at the path of the data source, which may be stored under the path of the
-         // view
-         AssetEntry[] children = getRegistry().getDataSourceEntries(getDataSource(),
-                 getDataSource() + "/" + oldName + "/", null, true);
+         // view. Bug #77842, only its own extended views: not the extended models of a logical
+         // model with the same name, or the views "<oldName>/..." and their extended views
+         AssetEntry[] children = getRegistry().getExtendedModelEntries(getDataSource(),
+                 getDataSource() + "/" + oldName, AssetEntry.Type.EXTENDED_PARTITION, true);
          partition.setName(newName);
 
          if(description != null) {
