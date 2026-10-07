@@ -21,6 +21,7 @@ import inetsoft.util.script.graal.ScriptValueConverter;
 import org.graalvm.polyglot.proxy.ProxyExecutable;
 
 import java.lang.reflect.Array;
+import java.math.*;
 import java.util.function.Supplier;
 
 /**
@@ -32,8 +33,12 @@ import java.util.function.Supplier;
  * these the object coerced to its class@hash text, a NaN number (#78000). Same pattern as
  * {@code CalcRef} (#75593).
  * <p>
- * Both members return a JS primitive where the value has one, so JS formats it: a 50.0 value
- * reads as {@code "50"}, not Java's {@code "50.0"}. An array value (a check box's selected
+ * {@code valueOf} returns a JS primitive where the value has one, so {@code Text1 >= 10} and
+ * {@code Text1 - 1} compare and compute on the number. {@code toString} always returns a string,
+ * because the same member also answers an explicit {@code Text1.toString()} call, which a script
+ * expects to give a string ({@code .length}, {@code .indexOf(...)}): a number is formatted as JS
+ * formats it (a 50.0 value reads as {@code "50"}, not Java's {@code "50.0"}), and a null value
+ * reads as {@code "null"}, as {@code String(null)} does. An array value (a check box's selected
  * objects) is joined with "," like a JS array, instead of leaking a Java array class@hash.
  */
 final class ScalarCoercion {
@@ -80,14 +85,17 @@ final class ScalarCoercion {
       return ScriptValueConverter.toGuest(value);
    }
 
-   private static Object toStringResult(Object value) {
-      if(value == null || value instanceof String || value instanceof Boolean) {
-         return value;
+   private static String toStringResult(Object value) {
+      if(value == null) {
+         return "null";
+      }
+
+      if(value instanceof String str) {
+         return str;
       }
 
       if(value instanceof Number num) {
-         // JS formats the number: 50.0 -> "50"
-         return num.doubleValue();
+         return numberToString(num.doubleValue());
       }
 
       if(value.getClass().isArray()) {
@@ -129,12 +137,61 @@ final class ScalarCoercion {
       return str.toString();
    }
 
-   private static String numberToString(double d) {
-      if(d == Math.rint(d) && Math.abs(d) < 1e15) {
-         return Long.toString((long) d);
+   /**
+    * Format a number as JS Number::toString (ECMA-262 6.1.6.1.20) does: 50.0 -> "50",
+    * 1e15 -> "1000000000000000", 1e21 -> "1e+21", 1e-7 -> "1e-7". Java's Double.toString
+    * gives the shortest digits that round-trip (JDK 19+), which are the digits JS uses, except
+    * that it writes two digits where one would do; otherwise only the layout differs.
+    */
+   static String numberToString(double d) {
+      if(Double.isNaN(d)) {
+         return "NaN";
       }
 
-      return Double.toString(d);
+      if(d == 0) {
+         return "0"; // also -0
+      }
+
+      if(Double.isInfinite(d)) {
+         return d > 0 ? "Infinity" : "-Infinity";
+      }
+
+      if(d < 0) {
+         return "-" + numberToString(-d);
+      }
+
+      BigDecimal dec = new BigDecimal(Double.toString(d)).stripTrailingZeros();
+
+      // Double.toString writes at least two digits (d.d) even where one digit round-trips,
+      // e.g. 4.9E-324 for Double.MIN_VALUE where JS writes 5e-324
+      if(dec.precision() == 2) {
+         BigDecimal one = dec.round(new MathContext(1, RoundingMode.HALF_EVEN));
+
+         if(one.doubleValue() == d) {
+            dec = one.stripTrailingZeros();
+         }
+      }
+
+      String digits = dec.unscaledValue().toString();
+      int k = digits.length();
+      // the value is 0.digits * 10^n
+      int n = k - dec.scale();
+
+      if(k <= n && n <= 21) {
+         return digits + "0".repeat(n - k);
+      }
+
+      if(0 < n && n <= 21) {
+         return digits.substring(0, n) + "." + digits.substring(n);
+      }
+
+      if(-6 < n && n <= 0) {
+         return "0." + "0".repeat(-n) + digits;
+      }
+
+      int exp = n - 1;
+      String mantissa = k == 1 ? digits : digits.charAt(0) + "." + digits.substring(1);
+      return mantissa + "e" + (exp < 0 ? "-" : "+") + Math.abs(exp);
    }
 
    private static final String VALUE_OF = "valueOf";

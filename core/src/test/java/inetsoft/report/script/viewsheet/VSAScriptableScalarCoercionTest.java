@@ -149,6 +149,60 @@ class VSAScriptableScalarCoercionTest {
       assertEquals("1,2.5", eval("'' + CheckNum78"));
    }
 
+   /**
+    * An explicit toString() call returns a JS string for every kind of value, so string
+    * methods work on it; valueOf() still returns the primitive.
+    */
+   @Test
+   void explicitToStringCallReturnsAString() throws Exception {
+      assertEquals("string", eval("typeof TxtNum.toString()"));
+      assertEquals("50", eval("TxtNum.toString()"));
+      assertEquals(2.0, eval("TxtNum.toString().length"));
+      assertEquals(0.0, eval("TxtNum.toString().indexOf('5')"));
+      assertEquals("number", eval("typeof TxtNum.valueOf()"));
+      assertEquals("string", eval("typeof TxtStr.toString()"));
+      assertEquals("50", eval("TxtStr.toString()"));
+      assertEquals("string", eval("typeof GaugeNull.toString()"));
+      assertEquals("null", eval("GaugeNull.toString()"));
+      assertEquals(4.0, eval("GaugeNull.toString().length"));
+      assertEquals("string", eval("typeof Slider78.toString()"));
+      assertEquals("30", eval("Slider78.toString()"));
+      assertEquals("string", eval("typeof CheckNum78.toString()"));
+      assertEquals("1,2.5", eval("CheckNum78.toString()"));
+      // string-hint coercion uses toString, which gives the same text as before
+      assertEquals("50", eval("String(TxtNum)"));
+      assertEquals("50", eval("`${TxtNum}`"));
+   }
+
+   /**
+    * Numbers are formatted as JS formats them, including the ranges where JS switches to
+    * exponent form.
+    */
+   @Test
+   void numberIsFormattedAsJavaScriptFormatsIt() throws Exception {
+      double[] values = { 50.0, 2.5, -2.5, 0.1, 1.0 / 3, 123456.789, 1e15, 1e20, 1e21,
+                          1.5e21, 1e-6, 1e-7, 1.25e-7, -1e21, 0.0, -0.0, Double.NaN,
+                          Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, Double.MAX_VALUE,
+                          Double.MIN_VALUE, 9007199254740993.0 };
+
+      for(double d : values) {
+         Object js = eval("String(" + jsLiteral(d) + ")");
+         assertEquals(js, ScalarCoercion.numberToString(d), "value " + d);
+      }
+   }
+
+   private static String jsLiteral(double d) {
+      if(Double.isNaN(d)) {
+         return "NaN";
+      }
+
+      if(Double.isInfinite(d)) {
+         return d > 0 ? "Infinity" : "-Infinity";
+      }
+
+      return d == 0 && 1 / d < 0 ? "-0" : Double.toString(d);
+   }
+
    @Test
    void explicitValueReadIsUnchanged() throws Exception {
       assertEquals(50.0, eval("TxtNum.value"));

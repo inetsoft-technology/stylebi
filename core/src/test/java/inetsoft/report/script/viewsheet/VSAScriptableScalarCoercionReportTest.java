@@ -107,6 +107,12 @@ class VSAScriptableScalarCoercionReportTest {
       assertEquals("50", eval("txtRegisterIncrease12MStr.toString()"));
       assertEquals(50.0, eval("txtRegisterIncrease12M.valueOf()"));
       assertEquals("null", eval("String(TextInputEmpty.toString())"));
+      assertEquals("string", eval("typeof txtRegisterIncrease12M.toString()"));
+      assertEquals("50", eval("txtRegisterIncrease12M.toString()"));
+      assertEquals(2.0, eval("txtRegisterIncrease12M.toString().length"));
+      assertEquals("string", eval("typeof TextInputEmpty.toString()"));
+      assertEquals("null", eval("TextInputEmpty.toString()"));
+      assertEquals("string", eval("typeof ComboEmpty.toString()"));
    }
 
    private Object eval(String script) throws Exception {
