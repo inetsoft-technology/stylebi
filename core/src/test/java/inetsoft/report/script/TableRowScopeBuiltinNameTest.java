@@ -114,6 +114,36 @@ class TableRowScopeBuiltinNameTest {
       assertEquals(42, ((Number) value(t)).intValue());
    }
 
+   @ParameterizedTest(name = "pool={0}")
+   @ValueSource(booleans = { false, true })
+   void reporterBlockWithDateAndDateTimeExpressionColumns(boolean pool) throws Exception {
+      // the reported User Sessions block: qualified timestamp columns and two expression
+      // columns, Date and DateTime, both new Date(field[...]); the DateTime column failed too,
+      // only because its sibling expression column is named Date
+      AssetQuerySandbox box = PoolTestSupport.poolBox(pool);
+      ScriptEnv env = box.getScriptEnv();
+      envs.add(env);
+      Object scope = box.getScope();
+      assertNotNull(scope, "the formula table must run in a TableRowScope");
+      Timestamp exec = new Timestamp(1700000500000L);
+      TableLens t = PostProcessor.formula(
+         new DefaultTableLens(new Object[][] {
+            { "SR_SESSION1.OP_TIMESTAMP", "SR_SESSION1.EXEC_TIMESTAMP" }, { TS, exec } }),
+         new String[] { "Date", "DateTime" },
+         new String[] { "new Date(field['SR_SESSION1.OP_TIMESTAMP'])",
+                        "new Date(field['SR_SESSION1.EXEC_TIMESTAMP'])" },
+         env, scope, null, "T", null, List.of(Date.class, Date.class),
+         new boolean[] { false, false });
+
+      assertTrue(t.moreRows(1));
+      Object date = t.getObject(1, t.getColCount() - 2);
+      Object dateTime = t.getObject(1, t.getColCount() - 1);
+      assertInstanceOf(Date.class, date, "Date column: " + date);
+      assertInstanceOf(Date.class, dateTime, "DateTime column: " + dateTime);
+      assertEquals(TS.getTime(), ((Date) date).getTime());
+      assertEquals(exec.getTime(), ((Date) dateTime).getTime());
+   }
+
    @Test
    void formulaEvaluatorRowScopeDoesNotHideTheBuiltins() {
       DefaultTableLens table = new DefaultTableLens(new Object[][] {
