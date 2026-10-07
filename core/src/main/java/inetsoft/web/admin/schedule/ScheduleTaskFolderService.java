@@ -406,8 +406,13 @@ public class ScheduleTaskFolderService {
    /**
     * Bug #77454, refuses a new folder name that is empty or contains the path separator. Such a
     * name would put the folder into another folder than the one the permission was checked on.
+    * Bug #77856, also refuses a name made only of whitespace.
     */
    private static void checkFolderName(String name) throws MessageException {
+      if(name != null && !name.isEmpty() && name.trim().isEmpty()) {
+         throw new MessageException(Catalog.getCatalog().getString("folder.required"));
+      }
+
       if(Tool.isEmptyString(name) || name.contains("/")) {
          throw new MessageException(Catalog.getCatalog().getString(
             "common.sree.internal.invalidCharInName"));

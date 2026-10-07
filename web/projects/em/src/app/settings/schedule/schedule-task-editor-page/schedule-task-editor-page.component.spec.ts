@@ -292,4 +292,30 @@ describe("ScheduleTaskEditorPageComponent", () => {
             .toBe("_#(js:Copy of) test action");
       });
    });
+
+   // Bug #77856, a task name made only of whitespace is required, like an empty one
+   describe("taskName validation", () => {
+      it.each([" ", "   "])("should reject the whitespace-only name %j as required", (name) => {
+         const control = component.form.controls["taskName"];
+         control.setValue(name);
+
+         expect(control.errors).toEqual({ required: true });
+         expect(component.form.valid).toBe(false);
+      });
+
+      it.each(["Task", " a", "a "])("should accept the name %j", (name) => {
+         component.form.controls["taskName"].setValue(name);
+
+         expect(component.form.valid).toBe(true);
+      });
+
+      it("should disable apply when the name is whitespace only", () => {
+         component.form.controls["taskName"].setValue("Task");
+         component.taskChanged = true;
+         expect(component.valid).toBe(true);
+
+         component.form.controls["taskName"].setValue(" ");
+         expect(component.valid).toBe(false);
+      });
+   });
 });

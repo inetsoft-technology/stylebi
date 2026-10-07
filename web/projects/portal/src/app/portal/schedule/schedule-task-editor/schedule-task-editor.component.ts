@@ -80,7 +80,7 @@ export class ScheduleTaskEditorComponent implements OnInit {
                private scheduleTaskNamesService: ScheduleTaskNamesService)
    {
       this.form = formBuilder.group({
-         "name": ["", Validators.compose([Validators.required, FormValidators.invalidTaskName])]
+         "name": ["", Validators.compose([FormValidators.required, FormValidators.invalidTaskName])]
       });
       this.form.get("name").valueChanges.forEach(
          (name: string) => this.updateTaskName(name, false)
