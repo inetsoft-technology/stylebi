@@ -23,6 +23,7 @@ import inetsoft.report.TableLens;
 import inetsoft.report.composition.VSTableLens;
 import inetsoft.report.lens.CalcTableLens;
 import inetsoft.report.lens.DefaultTableLens;
+import inetsoft.report.lens.FormulaTableLens;
 import inetsoft.test.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.viewsheet.*;
@@ -39,6 +40,8 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -167,6 +170,126 @@ class ViewsheetSandboxStopCacheTest {
          Thread.interrupted();
          ScriptStopTestSupport.setTimeout(previousTimeout);
       }
+   }
+
+   /**
+    * A formula table is computed lazily, after getData() cached it: a stop on a read of it
+    * then fails that read, and the next getData() runs the query again instead of handing out
+    * the stopped table.
+    */
+   @Test
+   void getDataComputesALazilyStoppedFormulaTableAgain() throws Exception {
+      Stops stops = new Stops();
+      ScriptStopTestSupport.StoppingEnv env = new ScriptStopTestSupport.StoppingEnv(stops);
+      env.init();
+      String marker = "/*lazy77949*/";
+      stops.reset(marker, n -> n == 3, true);
+      ViewsheetSandbox box = sandbox();
+      VSAQuery query = Mockito.mock(VSAQuery.class);
+      Mockito.when(query.getData()).thenAnswer(inv -> formulaTable(env, marker));
+
+      try(MockedStatic<VSAQuery> st = mockQuery(query)) {
+         TableLens first = (TableLens) box.getData("Text1");
+         assertTrue(ScriptTimeoutGuard.isStop(
+            assertThrows(Exception.class, () -> drain(first))));
+         assertSame(first, dmap(box).get("Text1", DataMap.NORMAL), "cached before the stop");
+
+         TableLens next = (TableLens) box.getData("Text1");
+         assertNotSame(first, next, "the stopped table is not handed out again");
+         assertEquals(List.of(10, 20, 30, 40, 50), drain(next));
+         Mockito.verify(query, Mockito.times(2)).getData();
+         // the table handed out before keeps failing at the stopped row
+         assertTrue(ScriptTimeoutGuard.isStop(
+            assertThrows(Exception.class, () -> first.getObject(3, 2))));
+      }
+   }
+
+   /**
+    * The same for the view table of a table assembly, built lazily over the formula table.
+    */
+   @Test
+   void getVSTableLensBuildsALazilyStoppedTableAgain() throws Exception {
+      Stops stops = new Stops();
+      ScriptStopTestSupport.StoppingEnv env = new ScriptStopTestSupport.StoppingEnv(stops);
+      env.init();
+      String marker = "/*lazyvs77949*/";
+      stops.reset(marker, n -> n == 3, true);
+      ViewsheetSandbox box = sandbox();
+      DataVSAQuery query = Mockito.mock(DataVSAQuery.class);
+      Mockito.when(query.getViewTableLens(Mockito.any()))
+         .thenAnswer(inv -> new VSTableLens(inv.getArgument(0)));
+      Mockito.when(query.getData()).thenAnswer(inv -> formulaTable(env, marker));
+
+      try(MockedStatic<VSAQuery> st = mockQuery(query)) {
+         VSTableLens first = box.getVSTableLens("Table1", false);
+         assertTrue(ScriptTimeoutGuard.isStop(
+            assertThrows(Exception.class, () -> drain(first))));
+
+         VSTableLens next = box.getVSTableLens("Table1", false);
+         assertNotSame(first, next, "the stopped view table is not handed out again");
+         assertEquals(List.of(10, 20, 30, 40, 50), drain(next));
+         Mockito.verify(query, Mockito.times(2)).getData();
+      }
+   }
+
+   /**
+    * A freehand table cell evaluated lazily, after getData() cached the processed table: the
+    * next getData() processes it again.
+    */
+   @Test
+   void getDataProcessesALazilyStoppedFreehandTableAgain() throws Exception {
+      Stops stops = new Stops();
+      ScriptStopTestSupport.StoppingEnv env = new ScriptStopTestSupport.StoppingEnv(stops);
+      env.init();
+      String marker = "/*lazycalc77949*/";
+      FormulaTable elem = Mockito.mock(FormulaTable.class);
+      Mockito.when(elem.getScriptEnv()).thenReturn(env);
+      Mockito.when(elem.getID()).thenReturn("CalcTable1");
+      Mockito.when(elem.getScriptTable()).thenReturn(lens());
+      CalcTableLens calc = new CalcTableLens(1, 1);
+      calc.setElement(elem);
+      calc.setObject(0, 0, new CalcTableLens.Formula("41 + 1" + marker));
+      stops.reset(marker, n -> n == 1, true);
+      ViewsheetSandbox box = sandbox();
+      VSAQuery query = Mockito.mock(VSAQuery.class);
+      Mockito.when(query.getData()).thenAnswer(inv -> calc.process());
+
+      try(MockedStatic<VSAQuery> st = mockQuery(query)) {
+         TableLens first = (TableLens) box.getData("Text1");
+         assertTrue(ScriptTimeoutGuard.isStop(
+            assertThrows(Exception.class, () -> first.getObject(0, 0))));
+
+         TableLens next = (TableLens) box.getData("Text1");
+         assertNotSame(first, next);
+         assertEquals(42, ((Number) next.getObject(0, 0)).intValue());
+         Mockito.verify(query, Mockito.times(2)).getData();
+      }
+   }
+
+   private static FormulaTableLens formulaTable(ScriptStopTestSupport.StoppingEnv env,
+                                                String marker)
+   {
+      Object[][] data = new Object[6][];
+      data[0] = new Object[] { "key", "value" };
+
+      for(int i = 1; i <= 5; i++) {
+         data[i] = new Object[] { "k" + i, i };
+      }
+
+      return new FormulaTableLens(new DefaultTableLens(data), new String[] { "f" },
+                                  new String[] { "field['value'] * 10" + marker }, env, null);
+   }
+
+   // the formula column of every data row
+   private static List<Integer> drain(TableLens table) {
+      List<Integer> values = new ArrayList<>();
+      int col = table.getColCount() - 1;
+
+      for(int r = 1; table.moreRows(r); r++) {
+         values.add(((Number) table.getObject(r, col)).intValue());
+      }
+
+      return values;
    }
 
    private static void assertStopNotCached(Exception failure) throws Exception {

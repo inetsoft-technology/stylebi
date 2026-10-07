@@ -49,6 +49,7 @@ import org.slf4j.LoggerFactory;
 
 import java.awt.*;
 import java.io.*;
+import java.lang.ref.WeakReference;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
@@ -326,8 +327,9 @@ public class FormulaTableLens extends AbstractTableLens
             rows = nrows;
          }
 
-         // the stopped cells belong to the old row table, the new one computes them again
-         stoppedRows.clear();
+         // the stopped rows of the old row table are not cleared here, without the lens lock:
+         // a reader that still reads the old table must still get the stop. They are for the
+         // old table only, the new one computes them again (bug #77949)
 
          // the compiled scripts and row scriptable are rebuilt by the next batch, since they
          // belong to the old row table (TableRow2.batchRows); an in-flight batch keeps its own.
@@ -606,7 +608,11 @@ public class FormulaTableLens extends AbstractTableLens
                   // every read of them fails with the stop instead of reading null. The row is
                   // not computed again from that state: only a new row table is (bug #77949)
                   failure.setStopped(true);
-                  stoppedRows.put(i, new StoppedRow(target, j, failure));
+                  // the records of a replaced row table are kept until now, for a reader that
+                  // still reads it (they hold it weakly)
+                  final XSwappableTable stoppedTable = target;
+                  stoppedRows.values().removeIf(s -> s.rows().get() != stoppedTable);
+                  stoppedRows.put(i, new StoppedRow(new WeakReference<>(target), j, failure));
                   throw failure;
                }
 
@@ -2036,15 +2042,46 @@ public class FormulaTableLens extends AbstractTableLens
    private void checkStopped(XSwappableTable rows, int r, int col) {
       StoppedRow stopped = stoppedRows.isEmpty() ? null : stoppedRows.get(r);
 
-      if(stopped != null && stopped.rows() == rows && col >= stopped.col()) {
-         throw stopped.failure();
+      if(stopped != null && stopped.rows().get() == rows && col >= stopped.col()) {
+         // a new exception for each read: a reader may add to the one it gets
+         ExpressionFailedException failure = stopped.failure();
+         ExpressionFailedException stop = new ExpressionFailedException(
+            failure.getColIndex(), failure.getColName(), failure.getTableName(),
+            failure.getOriginalException());
+
+         for(int failedRow : failure.getFailedRows()) {
+            stop.addFailedRow(failedRow);
+         }
+
+         stop.setStopped(true);
+         throw stop;
       }
    }
 
    /**
-    * A row of {@code rows} whose formula of column {@code col} was stopped.
+    * Check if a script timeout or cancel stopped a row of this table as it is computed now:
+    * the cells of that row fail every read, so a cache must not hand this table to another
+    * reader, which would get the same failure, but compute the table again (bug #77949).
     */
-   private record StoppedRow(XSwappableTable rows, int col, ExpressionFailedException failure) {
+   public boolean isStopped() {
+      XSwappableTable rows = this.rows;
+
+      for(StoppedRow stopped : stoppedRows.values()) {
+         if(rows != null && stopped.rows().get() == rows) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * A row of {@code rows} whose formula of column {@code col} was stopped. The row table is
+    * held weakly: a record of a replaced row table must not keep it.
+    */
+   private record StoppedRow(WeakReference<XSwappableTable> rows, int col,
+                             ExpressionFailedException failure)
+   {
    }
 
    /**
@@ -2108,6 +2145,21 @@ public class FormulaTableLens extends AbstractTableLens
    // the reads of a row that invalidate() keeps replacing the row table under, after which
    // the current row table is read as it is (bug #77243)
    private static final int MAX_READ_RETRIES = 100;
+
+   /**
+    * A table with a stopped row is not written: its stopped cells would be read back as null.
+    * A cache that writes it fails to, and the reader of the other copy computes it again
+    * (bug #77949).
+    */
+   @Serial
+   private void writeObject(ObjectOutputStream out) throws IOException {
+      if(isStopped()) {
+         throw new NotSerializableException(
+            "A formula table whose row was stopped by a script timeout is not written");
+      }
+
+      out.defaultWriteObject();
+   }
 
    @Serial
    private void readObject(ObjectInputStream in) throws ClassNotFoundException, IOException {

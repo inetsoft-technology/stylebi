@@ -5551,7 +5551,10 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       Object obj = dmap.get(name, DataMap.VSTABLE);
       final VSAssembly assembly = vs.getAssembly(name);
 
-      if(AssetDataCache.isDebugData()) {
+      // a view table whose formula a script timeout stopped is built again (bug #77949)
+      if(AssetDataCache.isDebugData() || obj instanceof TableLens lens &&
+         AssetDataCache.isStopped(lens))
+      {
          obj = null;
       }
 
@@ -5562,7 +5565,9 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          try {
             obj = dmap.get(name, DataMap.VSTABLE);
 
-            if(AssetDataCache.isDebugData()) {
+            if(AssetDataCache.isDebugData() || obj instanceof TableLens lens &&
+               AssetDataCache.isStopped(lens))
+            {
                obj = null;
             }
 
@@ -5891,8 +5896,11 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
       Object obj = dmap.get(name, type);
 
+      // a table whose formula a script timeout stopped is computed again, like a cancelled
+      // one (bug #77949)
       if(AssetDataCache.isDebugData() || isDataExpired(name, type) ||
-         obj instanceof TableLens lens && AssetDataCache.isCancelled(lens))
+         obj instanceof TableLens lens &&
+         (AssetDataCache.isCancelled(lens) || AssetDataCache.isStopped(lens)))
       {
          obj = null;
       }

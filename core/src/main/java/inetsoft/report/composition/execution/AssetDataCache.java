@@ -26,6 +26,8 @@ import inetsoft.report.filter.BinaryTableFilter;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.XNodeMetaTable;
 import inetsoft.report.internal.table.CancellableTableLens;
+import inetsoft.report.lens.CalcTableLens;
+import inetsoft.report.lens.FormulaTableLens;
 import inetsoft.report.lens.SetTableLens;
 import inetsoft.report.lens.xnode.XNodeTableLens;
 import inetsoft.report.script.formula.AssetQueryScope;
@@ -117,7 +119,9 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
 
       TableFilter2 filter = (TableFilter2) get(key, ts);
 
-      if(filter != null && (filter.isChanged() || isCancelled(filter) ||
+      // a table whose formula a script timeout stopped fails the reads of that cell: computed
+      // again, not handed to another reader (bug #77949)
+      if(filter != null && (filter.isChanged() || isCancelled(filter) || isStopped(filter) ||
          isFailedQueryDefaultMetaTable(filter)))
       {
          filter = null;
@@ -200,6 +204,38 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
       }
 
       return null;
+   }
+
+   /**
+    * Check if a formula of the table or a sub-table was stopped by a script timeout or cancel,
+    * so its cell fails every read. A cache treats such a table as not cached, and the next
+    * reader computes it again with fresh formula vars (bug #77949).
+    */
+   public static boolean isStopped(TableLens lens) {
+      if(lens instanceof FormulaTableLens formula && formula.isStopped() ||
+         lens instanceof CalcTableLens calc && calc.isStopped())
+      {
+         return true;
+      }
+
+      if(lens instanceof SetTableLens) {
+         for(int i = 0; i < ((SetTableLens) lens).getTableCount(); i++) {
+            if(isStopped(((SetTableLens) lens).getTable(i))) {
+               return true;
+            }
+         }
+
+         return false;
+      }
+      else if(lens instanceof BinaryTableFilter) {
+         return isStopped(((BinaryTableFilter) lens).getLeftTable()) ||
+            isStopped(((BinaryTableFilter) lens).getRightTable());
+      }
+      else if(lens instanceof TableFilter) {
+         return isStopped(((TableFilter) lens).getTable());
+      }
+
+      return false;
    }
 
    /**

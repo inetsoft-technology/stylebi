@@ -31,6 +31,9 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.io.ByteArrayOutputStream;
+import java.io.NotSerializableException;
+import java.io.ObjectOutputStream;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static inetsoft.util.stall.StallTestSupport.data;
@@ -94,9 +97,18 @@ public class CalcTableLensTimeoutTest {
       RuntimeCalcTableLens runtime = within(CAP, calc::process);
       stops.reset(marker, n -> n == 1, false);
 
-      assertStop(failureOf(CAP, () -> runtime.getObject(0, 0)));
-      assertStop(failureOf(CAP, () -> runtime.getObject(0, 0)));
+      Throwable first = failureOf(CAP, () -> runtime.getObject(0, 0));
+      Throwable second = failureOf(CAP, () -> runtime.getObject(0, 0));
+      assertStop(first);
+      assertStop(second);
+      assertNotSame(first, second, "an exception of its own for each read");
       assertEquals(1, stops.calls(), "the stopped formula is not evaluated again");
+      assertTrue(runtime.isStopped(), "a cache computes it again");
+      runtime.invalidate();
+      assertTrue(runtime.isStopped(), "the runtime table keeps the stop in place");
+      // not written either: its stopped cell holds a formula
+      assertThrows(NotSerializableException.class,
+                   () -> new ObjectOutputStream(new ByteArrayOutputStream()).writeObject(runtime));
       assertEquals("x", runtime.getObject(0, 1), "another cell is evaluated as before");
 
       RuntimeCalcTableLens again = within(CAP, calc::process);
@@ -176,9 +188,11 @@ public class CalcTableLensTimeoutTest {
       assertStop(failureOf(CAP, () -> calc.getValue(0, 0)));
       assertStop(failureOf(CAP, () -> calc.getValue(0, 0)));
       assertEquals(1, stops.calls(), "the stopped formula is not evaluated again");
+      assertTrue(calc.isStopped());
 
       // computed again
       calc.invalidate();
+      assertFalse(calc.isStopped());
       assertEquals(42, ((Number) within(CAP, () -> calc.getValue(0, 0))).intValue());
       assertEquals(42, ((Number) within(CAP, () -> calc.getValue(0, 0))).intValue());
       assertEquals(2, stops.calls(), "a value is cached");

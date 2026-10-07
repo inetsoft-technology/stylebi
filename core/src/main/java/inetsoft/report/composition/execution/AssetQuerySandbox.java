@@ -1706,6 +1706,12 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
       TableEntry entry = new TableEntry(table, mode, aggregate, chash);
       TableLens obj = tmap.get(entry);
 
+      // a table whose formula a script timeout stopped is computed again (bug #77949)
+      if(obj != null && AssetDataCache.isStopped(obj)) {
+         tmap.remove(entry);
+         obj = null;
+      }
+
       // remove cached data
       if(obj == null && chash != 0) {
          tmap.remove(new TableEntry(table, mode, aggregate, 0));

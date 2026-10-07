@@ -32,6 +32,12 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import inetsoft.uql.table.XSwappableTable;
+
+import java.io.*;
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -45,11 +51,13 @@ import static org.junit.jupiter.api.Assertions.*;
  * A formula row stopped by the script timeout is not a row with a null cell (bug #77949): the
  * stopped cells fail every read with the stop, recognizable as one, and so does every cell
  * whose formula reads them. The row is never computed again from the vars its stopped exec
- * may have changed, so no read returns a wrong value: the rows after it go on from the vars as
- * the stopped exec left them, as they always did, and a new row table (invalidate()) or a
- * new lens computes the table again with fresh vars. The stops are real 1 s timeouts of a
- * {@code while(true){}} (optionally after changing the vars) run in place of the row's exec,
- * or a stopped script exception injected there.
+ * may have changed, which would apply a change it made twice. The rows after it go on from the
+ * vars as the stopped exec left them, as they always did (Testing #77123): right when the
+ * stopped exec had made its change (step, then timeout), but one step behind when the timeout
+ * came before it (timeout, then step), as on main and as {@code PooledWorksheetDateVarTest}
+ * pins. A new row table (invalidate()) or a new lens computes the table again with fresh vars.
+ * The stops are real 1 s timeouts of a {@code while(true){}} run in place of the row's exec, or
+ * of a formula that loops in one row, or a stopped script exception injected there.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class, LibManagerTestConfiguration.class, PluginsTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -222,6 +230,71 @@ public class FormulaTableLensTimeoutTest {
       assertEquals(expected.get(FAILED_ROW - 1).get(2),
                    within(CAP, () -> lens.getObject(FAILED_ROW - 1, 2)),
                    "a row before it is still readable");
+   }
+
+   /**
+    * A table with a stopped row is not written (a cache flush counts it as failed and the
+    * other node computes the table itself): written, its stopped cell would read back as a
+    * plain null. Computed again, it is written as before (bug #77949, review I1).
+    */
+   @Test
+   public void stoppedTableIsNotSerialized() throws Exception {
+      stops.reset(marker, n -> n == FAILED_ROW, true);
+      FormulaTableLens lens = lens("field['value'] * 10" + marker);
+      assertStop(failureOf(CAP, () -> drain(lens)));
+      assertTrue(lens.isStopped());
+
+      assertThrows(NotSerializableException.class, () -> serialize(lens));
+
+      lens.invalidate();
+      assertFalse(lens.isStopped(), "a new row table");
+      List<List<Object>> rows = within(CAP, () -> drain(lens));
+      FormulaTableLens copy = (FormulaTableLens) deserialize(serialize(lens));
+      assertEquals(rows.get(FAILED_ROW).get(2), copy.getObject(FAILED_ROW, 2));
+   }
+
+   /**
+    * A reader still reading the row table that invalidate() replaced gets the stop, not that
+    * table's null cell (review M1), and every read gets an exception of its own (review M2).
+    */
+   @Test
+   public void oldRowTableReaderStillGetsTheStop() throws Exception {
+      stops.reset(marker, n -> n == FAILED_ROW, true);
+      FormulaTableLens lens = lens("field['value'] * 10" + marker);
+      assertStop(failureOf(CAP, () -> drain(lens)));
+      Field rowsField = FormulaTableLens.class.getDeclaredField("rows");
+      rowsField.setAccessible(true);
+      Object oldRows = rowsField.get(lens);
+      Method check = FormulaTableLens.class.getDeclaredMethod(
+         "checkStopped", XSwappableTable.class, int.class, int.class);
+      check.setAccessible(true);
+
+      lens.invalidate();
+
+      Throwable first = assertThrows(InvocationTargetException.class,
+                                     () -> check.invoke(lens, oldRows, FAILED_ROW, 0)).getCause();
+      Throwable second = assertThrows(InvocationTargetException.class,
+                                      () -> check.invoke(lens, oldRows, FAILED_ROW, 0)).getCause();
+      assertStop(first);
+      assertStop(second);
+      assertNotSame(first, second, "an exception of its own for each read");
+      assertFalse(lens.isStopped(), "the current row table has no stopped row");
+   }
+
+   private static byte[] serialize(Object obj) throws IOException {
+      ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+
+      try(ObjectOutputStream out = new ObjectOutputStream(bytes)) {
+         out.writeObject(obj);
+      }
+
+      return bytes.toByteArray();
+   }
+
+   private static Object deserialize(byte[] bytes) throws Exception {
+      try(ObjectInputStream in = new ObjectInputStream(new ByteArrayInputStream(bytes))) {
+         return in.readObject();
+      }
    }
 
    /**
