@@ -243,6 +243,15 @@ public class IdentityService {
                if(type == Identity.USER) {
                   deleteUserIDs.add(identityId);
                }
+
+               // Bug #77834, report a permission the delete could not remove. The identity is
+               // deleted, so its IdentityInfo record is still written; the warning makes the
+               // action record a failure after the loop
+               String leftoverWarning = getLeftoverPermissionsWarning(type, identityId, principal);
+
+               if(leftoverWarning != null) {
+                  warnings.add(leftoverWarning);
+               }
             }
             catch(Exception ex) {
                actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_FAILURE);
@@ -1106,11 +1115,14 @@ public class IdentityService {
    private boolean removeDroppedMember(EditableAuthenticationProvider eprovider, IdentityID id,
                                        int type, String orgID)
    {
+      boolean synced = false;
+
       try {
          OrganizationManager.runInOrgScope(orgID, () -> {
             syncIdentity(eprovider, new DefaultIdentity(id, type), null);
             return null;
          });
+         synced = true;
       }
       catch(Exception ex) {
          LOG.warn("Failed to clean up the removed organization member: {}", id, ex);
@@ -1169,6 +1181,16 @@ public class IdentityService {
             catch(Exception cleanupEx) {
                LOG.warn("Failed to clean up the removed organization member: {}", id, cleanupEx);
             }
+         }
+      }
+
+      // Bug #77834, report a permission the delete could not remove
+      if(synced) {
+         String leftoverWarning = getLeftoverPermissionsWarning(
+            type, id, ThreadContext.getContextPrincipal());
+
+         if(leftoverWarning != null) {
+            Tool.addUserMessage(leftoverWarning);
          }
       }
 
@@ -3808,18 +3830,11 @@ public class IdentityService {
                   continue;
                }
 
-               if(resourceOrgID != null && !Tool.equals(resourceOrgID, oldOrgId) && !Tool.equals(resourceOrgID, newOrgId) ||
-                  newName == null && path.contains(IdentityID.KEY_DELIMITER) && IdentityID.getIdentityIDFromKey(path).orgID != null &&
-                     !Tool.equals(IdentityID.getIdentityIDFromKey(path).orgID, oldName.orgID) &&
-                     !Tool.equals(IdentityID.getIdentityIDFromKey(path).orgID, oldOrgId))
-               {
-                  //skip permissions not in this organization
-                  continue;
-               }
-
-               if(containsOrgID(path, oldName.getOrgID()) && newName == null) {
-                  // best-effort per item: a failed write must not stop the other items or the
-                  // caller's later steps (the identity delete/rename/org migration)
+               // Bug #77834, a deleted identity's own key (who may administer it) is removed and
+               // not put back, or a new identity with the same name would get its grants. It is
+               // checked before the organization filter, because a global role's own key is
+               // stored in every organization. The other identities' keys are left alone.
+               if(newName == null && isOwnPermissionKey(type, resourceType, path, oldName)) {
                   try {
                      aprovider.removePermission(resourceType, path, resourceOrgID);
                   }
@@ -3827,6 +3842,17 @@ public class IdentityService {
                      LOG.error("Failed to remove the permission of {} {} for {}, it may still be stored",
                                resourceType, path, oldName, e);
                   }
+
+                  continue;
+               }
+
+               if(resourceOrgID != null && !Tool.equals(resourceOrgID, oldOrgId) && !Tool.equals(resourceOrgID, newOrgId) ||
+                  newName == null && path.contains(IdentityID.KEY_DELIMITER) && IdentityID.getIdentityIDFromKey(path).orgID != null &&
+                     !Tool.equals(IdentityID.getIdentityIDFromKey(path).orgID, oldName.orgID) &&
+                     !Tool.equals(IdentityID.getIdentityIDFromKey(path).orgID, oldOrgId))
+               {
+                  //skip permissions not in this organization
+                  continue;
                }
 
                for(ResourceAction action : ResourceAction.values()) {
@@ -3940,6 +3966,122 @@ public class IdentityService {
 
       if(doReplace && (!Tool.equals(oorgId, norgId) || !Tool.equals(newPath, path))) {
          provider.removePermission(type, path, oorgId);
+      }
+   }
+
+   /**
+    * Determines if a permission entry is the identity's own key, the permission of who may
+    * administer the user, group or role. The key is parsed, so a global identity's key matches
+    * in both its {@code ~;~__GLOBAL__} and {@code ~;~null} forms.
+    */
+   private static boolean isOwnPermissionKey(int type, ResourceType resourceType, String path,
+                                             IdentityID id)
+   {
+      boolean ownType = type == Identity.USER && resourceType == ResourceType.SECURITY_USER ||
+         type == Identity.GROUP && resourceType == ResourceType.SECURITY_GROUP ||
+         type == Identity.ROLE && resourceType == ResourceType.SECURITY_ROLE;
+
+      return ownType && id != null && path != null && path.contains(IdentityID.KEY_DELIMITER) &&
+         id.equals(IdentityID.getIdentityIDFromKey(path));
+   }
+
+   /**
+    * Bug #77834, finds the permission entries that still refer to a deleted user, group, role or
+    * organization after its delete, which a new identity with the same name would receive. An
+    * entry is left if it grants the deleted user, group or role (matched by name and organization,
+    * in every organization, so a global role is found too) or is its own key, or if it belongs to
+    * the deleted organization. Legacy keys without an organization are not checked (Bug #77911).
+    *
+    * @return the keys of the entries that are left, or an empty list if none is left or the
+    *         permissions cannot be read. It never throws.
+    */
+   private List<String> findLeftoverPermissions(int type, IdentityID id) {
+      List<String> leftovers = new ArrayList<>();
+
+      if(id == null) {
+         return leftovers;
+      }
+
+      try {
+         Optional<AuthorizationChain> chain = securityEngine.getAuthorizationChain();
+
+         if(chain.isEmpty()) {
+            return leftovers;
+         }
+
+         Permission.PermissionIdentity grantee = new Permission.PermissionIdentity(id);
+
+         for(AuthorizationProvider aprovider : chain.get().getProviders()) {
+            List<Tuple4<ResourceType, String, String, Permission>> permissionSetList;
+
+            try {
+               permissionSetList = aprovider.getPermissions();
+            }
+            catch(UnsupportedOperationException e) {
+               LOG.debug("The permissions of {} cannot be listed, the delete of {} is not checked",
+                         aprovider.getProviderName(), id);
+               continue;
+            }
+
+            if(permissionSetList == null) {
+               continue;
+            }
+
+            for(Tuple4<ResourceType, String, String, Permission> permissionSet : permissionSetList) {
+               ResourceType resourceType = permissionSet.getFirst();
+               String resourceOrgID = permissionSet.getSecond();
+               String path = permissionSet.getThird();
+               Permission permission = permissionSet.getForth();
+
+               if(resourceOrgID == null) {
+                  continue;
+               }
+
+               boolean left;
+
+               if(type == Identity.ORGANIZATION) {
+                  left = Tool.equals(resourceOrgID, id.getOrgID());
+               }
+               else {
+                  left = isOwnPermissionKey(type, resourceType, path, id) ||
+                     permission != null && Arrays.stream(ResourceAction.values())
+                        .anyMatch(action -> permission.getGrants(action, type, null).contains(grantee));
+               }
+
+               if(left) {
+                  leftovers.add(resourceType + ":" + resourceOrgID + ":" + path);
+               }
+            }
+         }
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to check the permissions left after deleting {}", id, e);
+      }
+
+      return leftovers;
+   }
+
+   /**
+    * Gets the message reporting that some permissions of a deleted identity may remain, or
+    * {@code null} if none is left. It never throws, because the identity is already deleted.
+    */
+   private String getLeftoverPermissionsWarning(int type, IdentityID id, Principal principal) {
+      List<String> leftovers = findLeftoverPermissions(type, id);
+
+      if(leftovers.isEmpty()) {
+         return null;
+      }
+
+      LOG.warn("{} was deleted, but these permission entries still refer to it and may be " +
+               "received by an identity created later with the same name: {}", id, leftovers);
+
+      try {
+         return Catalog.getCatalog(principal).getString(
+            "em.security.deletePermissionsMayRemain", id.getName());
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to get the message for the permissions left after deleting {}", id, e);
+         return id.getName() + " was deleted, but some of its permissions may not have been removed.";
       }
    }
 
