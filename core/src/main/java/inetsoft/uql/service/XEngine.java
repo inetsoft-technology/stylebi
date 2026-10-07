@@ -1966,6 +1966,13 @@ public class XEngine implements XRepository, XQueryRepository {
                if(node == null) {
                   node = new XNode();
                }
+               else if(isMetaDataFailure(node)) {
+                  // the handler built this result on another key's cached failure
+                  // (e.g. DBPROPERTIES), so it isn't a real result and must not be
+                  // written to the permanent cache (Bug #77801)
+                  throw new IllegalStateException(
+                     "Meta data built on a cached meta data failure: " + key);
+               }
 
                synchronized(lock) {
                   // Swallow npe for tabular data source meta data
@@ -1985,7 +1992,7 @@ public class XEngine implements XRepository, XQueryRepository {
                // which may hold up the entire server. the timestamp lets a later
                // request retry after META_DATA_FAILURE_RETRY_INTERVAL instead of
                // being stuck forever (Bug #77542).
-               metaDataCache.put(key, node = new XNode());
+               metaDataCache.put(key, node = new MetaDataFailureNode());
                metaDataFailureTimes.put(key, System.currentTimeMillis());
             }
 
@@ -2199,6 +2206,20 @@ public class XEngine implements XRepository, XQueryRepository {
    }
 
    /**
+    * Determines if a node returned by {@link #getMetaData} is a cached meta data
+    * retrieval failure, or a clone of one, rather than a real result. The failure
+    * node is empty, so a caller that builds another key's meta data on it must treat
+    * it as an error instead of as a data source without any properties (Bug #77801).
+    *
+    * @param node the meta data node.
+    *
+    * @return <tt>true</tt> if the node is a cached failure.
+    */
+   public static boolean isMetaDataFailure(XNode node) {
+      return node instanceof MetaDataFailureNode;
+   }
+
+   /**
     * Read the cached database meta data from disk.
     */
    public XNode getCachedMetaData(String key) {
@@ -2324,6 +2345,14 @@ public class XEngine implements XRepository, XQueryRepository {
             }
          }
       }).start();
+   }
+
+   /**
+    * The empty node cached for a failed meta data retrieval. It is a subclass rather
+    * than a marker attribute so that it survives clone() without ever showing up in
+    * the attributes of a node built on it (Bug #77801).
+    */
+   private static final class MetaDataFailureNode extends XNode {
    }
 
    class Pair {
