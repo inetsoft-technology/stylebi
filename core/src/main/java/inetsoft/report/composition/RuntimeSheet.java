@@ -1134,8 +1134,19 @@ public abstract class RuntimeSheet {
             }
 
             valid = false;
-            _swap();
-            return true;
+            boolean swapped = false;
+
+            try {
+               swapped = _swap();
+            }
+            finally {
+               // the write failed (or threw), the sheet is still in memory, keep using it
+               if(!swapped) {
+                  valid = true;
+               }
+            }
+
+            return swapped;
          }
          finally {
             ThreadContext.setContextPrincipal(oldContextPrincipal);
@@ -1149,51 +1160,85 @@ public abstract class RuntimeSheet {
          }
       }
 
-      private void _swap() {
+      /**
+       * Writes the sheet to its swap file and drops it from memory.
+       *
+       * @return {@code true} if the sheet was swapped out (or there was nothing to write),
+       *         {@code false} if the write failed and the sheet was kept in memory.
+       */
+      private boolean _swap() {
          // Guard against null sheet before opening the file. This can happen if validate()
          // sets valid=true at the start of loading but the load fails (IOException, OOM,
          // parse error), leaving sheet=null while getSwapPriority() returns 100 — causing
          // XSwapper to call swap() again on a null sheet.
          if(sheet == null) {
             LOG.warn("Skipping swap: sheet is unexpectedly null (disposed={})", disposed);
-            return;
+            return true;
+         }
+
+         if(disposed) {
+            return true;
          }
 
          File file = getFile(prefix + ".tdat");
-         OutputStream output = null;
+
+         // reuse the swap file only if this swappable wrote it completely, a file that merely
+         // exists may be the partial output of a failed write
+         if(fileWritten) {
+            sheet = null;
+            return true;
+         }
+
+         FileOutputStream fileOutput = null;
+         boolean written = false;
 
          try {
-            if(!file.exists()) {
-               output = Tool.createCompressOutputStream(new FileOutputStream(file));
+            fileOutput = new FileOutputStream(file);
+            OutputStream output = Tool.createCompressOutputStream(fileOutput);
+            PrintWriter writer = new PrintWriter(new OutputStreamWriter(output, StandardCharsets.UTF_8));
+            writer.println("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
+            Worksheet.setIsTEMP(true);
+            sheet.writeXML(writer);
+            writer.close();
+
+            // PrintWriter swallows IOExceptions (e.g. disk full) and only sets an error flag
+            if(writer.checkError()) {
+               throw new IOException("Failed to write swap file: " + file);
             }
 
-            if(disposed) {
-               return;
-            }
-
-            if(output != null) {
-               PrintWriter writer = new PrintWriter(new OutputStreamWriter(output, StandardCharsets.UTF_8));
-               writer.println("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
-               Worksheet.setIsTEMP(true);
-               sheet.writeXML(writer);
-               writer.close();
-            }
-
-            sheet = null;
-
-            if(isCountRW && output != null) {
-               monitor.countWrite(file.length(), XSwappableMonitor.SHEET);
-            }
-
-            output = null;
+            written = true;
          }
          catch(Exception exc) {
-            LOG.error("Failed to write swapped viewsheet", exc);
+            LOG.warn("Failed to write swapped sheet, keeping it in memory: {}", exc.toString());
+            LOG.debug("Failed to write swapped sheet", exc);
          }
          finally {
             Worksheet.setIsTEMP(false);
-            IOUtils.closeQuietly(output);
+            // close the file even if closing the writer chain failed part way, an open handle
+            // would keep the partial file from being deleted on Windows
+            IOUtils.closeQuietly(fileOutput);
+
+            if(!written) {
+               fileWritten = false;
+
+               if(file.exists() && !file.delete()) {
+                  LOG.debug("Failed to delete partial swap file: {}", file);
+               }
+            }
          }
+
+         if(!written) {
+            return false;
+         }
+
+         fileWritten = true;
+         sheet = null;
+
+         if(isCountRW) {
+            monitor.countWrite(file.length(), XSwappableMonitor.SHEET);
+         }
+
+         return true;
       }
 
       @Override
@@ -1287,6 +1332,8 @@ public abstract class RuntimeSheet {
       private boolean lastValid = false;
       private boolean completed = false;
       private boolean disposed = false;
+      // true when the swap file holds a complete copy of the sheet written by _swap()
+      private boolean fileWritten = false;
       private final transient XSwappableMonitor monitor;
       private transient boolean isCountHM = false;
       private transient boolean isCountRW = false;
