@@ -48,6 +48,8 @@ import static org.mockito.Mockito.*;
 @SreeHome
 @Tag("core")
 class ScriptTableReadSwapLostTest {
+   private static final String SUM =
+      "var t = 0; for(var i = 1; i < Query1.length; i++) { t += Query1[i][1]; } t";
    private static final Object[][] DATA = { { "a", "b" }, { "x", 2 }, { "y", 4 } };
 
    @BeforeEach
@@ -67,6 +69,29 @@ class ScriptTableReadSwapLostTest {
       AssetQueryScope scope = worksheetScope(new LostSwapFile.Table(DATA, 1, true, lost));
 
       assertLost(() -> senv.exec(senv.compile("Query1.length"), scope, null, null));
+   }
+
+   @Test
+   void columnReadThrowsTheLostSwapFile() throws Exception {
+      AssetQueryScope scope = worksheetScope(new LostSwapFile.Table(DATA, 1, true, lost));
+
+      assertLost(() -> senv.exec(senv.compile("Query1['b']"), scope, null, null));
+   }
+
+   @Test
+   void cellSumThrowsTheLostSwapFile() throws Exception {
+      AssetQueryScope scope = worksheetScope(new LostSwapFile.Table(DATA, 1, false, lost));
+
+      assertLost(() -> senv.exec(senv.compile(SUM), scope, null, null));
+   }
+
+   @Test
+   void cellSumReadsTheTable() throws Exception {
+      LostSwapFile.Table table = new LostSwapFile.Table(DATA, 1, false, lost);
+      table.lost = false;
+      AssetQueryScope scope = worksheetScope(table);
+
+      assertEquals(6, ((Number) senv.exec(senv.compile(SUM), scope, null, null)).intValue());
    }
 
    @Test

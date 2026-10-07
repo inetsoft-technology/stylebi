@@ -20,7 +20,7 @@ package inetsoft.report.script.formula;
 import inetsoft.report.script.TableRow;
 import inetsoft.uql.XTable;
 import inetsoft.util.script.graal.ScriptScope;
-import inetsoft.util.stall.LockStallException;
+import inetsoft.util.swap.DataUnavailable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -119,12 +119,9 @@ class RowIterator extends CellIterator {
             return FormulaEvaluator.exec(expr, scope, "rowValue", tableRow);
          }
          catch(Exception ex) {
-            // a stalled table has no value to return, the stall is not a script value (#77123)
-            LockStallException stall = LockStallException.find(ex);
-
-            if(stall != null) {
-               throw stall;
-            }
+            // a stalled table or one whose swap file is lost has no value to return, the
+            // failure is not a script value (#77123, #77910)
+            DataUnavailable.rethrow(ex);
 
             LOG.error("Failed to get row value", ex);
             return null;

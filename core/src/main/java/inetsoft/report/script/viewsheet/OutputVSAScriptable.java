@@ -23,7 +23,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.OutputVSAssemblyInfo;
 import inetsoft.util.script.ScriptException;
-import inetsoft.util.stall.LockStallException;
+import inetsoft.util.swap.DataUnavailable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -76,12 +76,12 @@ public class OutputVSAScriptable extends VSAScriptable {
                box.executeView(assembly, false);
             }
             catch(ColumnNotFoundException | ScriptException messageException) {
-               rethrowStall(messageException);
+               rethrowUnavailable(messageException);
                LOG.warn("Failed to get output property '{}' due to prior exception", name);
                return null;
             }
             catch(Exception ex) {
-               rethrowStall(ex);
+               rethrowUnavailable(ex);
                LOG.error("Failed to get output property '{}', could not get data", name, ex);
                return null;
             }
@@ -100,15 +100,11 @@ public class OutputVSAScriptable extends VSAScriptable {
    }
 
    /**
-    * A lock stall under the output query is not a missing value: rethrow it so the script
-    * fails instead of computing with a null value (bug #77123).
+    * A lock stall or a lost swap file under the output query is not a missing value: rethrow
+    * it so the script fails instead of computing with a null value (bugs #77123, #77910).
     */
-   private static void rethrowStall(Throwable ex) {
-      LockStallException stall = LockStallException.find(ex);
-
-      if(stall != null) {
-         throw stall;
-      }
+   private static void rethrowUnavailable(Throwable ex) {
+      DataUnavailable.rethrow(ex);
    }
 
    /**

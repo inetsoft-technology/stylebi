@@ -11,6 +11,8 @@ import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.util.script.ScriptException;
 import inetsoft.util.script.ScriptUtil;
 import inetsoft.util.stall.LockStallException;
+import inetsoft.util.swap.LostSwapFile;
+import inetsoft.util.swap.SwapFileReadException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -211,4 +213,23 @@ class TableAssemblyScriptableTest {
       {"a", 3, new Date(2025 - 1900, 11, 31)},
       {"b", 2, new Date(2026 - 1900, 9, 20)}
    };
+
+   /**
+    * #77910: a lost swap file while the worksheet table is built must reach the script, not
+    * read as a missing table ({@code Query1.length == 0}).
+    */
+   @Test
+   void lostSwapFileTableFetchThrowsTheSwapFailure() throws Exception {
+      try(LostSwapFile lost = new LostSwapFile()) {
+         when(mockSandbox.getTableLens(eq("testTable"), anyInt(), any())).thenAnswer(inv -> {
+            lost.read();
+            return null;
+         });
+
+         assertEquals(lost.getFile(), assertThrows(SwapFileReadException.class,
+            () -> tableAssemblyScriptable.getElementTable()).getFile());
+         assertEquals(lost.getFile(), assertThrows(SwapFileReadException.class,
+            () -> tableAssemblyScriptable.getMember("length")).getFile());
+      }
+   }
 }
