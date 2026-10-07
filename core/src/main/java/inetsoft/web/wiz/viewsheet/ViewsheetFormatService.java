@@ -29,31 +29,63 @@ import inetsoft.report.TableDataPath;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.VSTableLens;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.XConstants;
+import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.asset.SourceInfo;
+import inetsoft.uql.asset.TableAssembly;
+import inetsoft.uql.asset.Worksheet;
+import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.viewsheet.CalcTableVSAssembly;
+import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.CrosstabVSAssembly;
+import inetsoft.uql.viewsheet.FormatInfo;
+import inetsoft.uql.viewsheet.SelectionTreeVSAssembly;
+import inetsoft.uql.viewsheet.TableDataVSAssembly;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
+import inetsoft.uql.viewsheet.VSCompositeFormat;
+import inetsoft.uql.viewsheet.VSCrosstabInfo;
+import inetsoft.uql.viewsheet.VSDataRef;
+import inetsoft.uql.viewsheet.VSFormat;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
+import inetsoft.uql.viewsheet.graph.ChartRef;
+import inetsoft.uql.viewsheet.graph.RadarChartInfo;
+import inetsoft.uql.viewsheet.graph.VSChartInfo;
+import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
+import inetsoft.util.Catalog;
+import inetsoft.util.CoreTool;
+import inetsoft.util.UserMessage;
+import inetsoft.web.adhoc.model.FormatInfoModel;
 import inetsoft.web.adhoc.model.chart.ChartFormatConstants;
 import inetsoft.web.composer.model.vs.VSObjectFormatInfoModel;
 import inetsoft.web.composer.vs.controller.FormatPainterService;
 import inetsoft.web.composer.vs.objects.command.SetCurrentFormatCommand;
 import inetsoft.web.composer.vs.objects.event.FormatVSObjectEvent;
 import inetsoft.web.composer.vs.objects.event.GetVSObjectFormatEvent;
+import inetsoft.web.vswizard.handler.VSWizardBindingHandler;
 import inetsoft.web.wiz.binding.CalcTableService;
 import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Applies assembly-level formatting through the Composer's own format service.
@@ -66,11 +98,13 @@ import java.util.Set;
 public class ViewsheetFormatService {
    @Autowired
    public ViewsheetFormatService(ViewsheetSessionService sessions, FormatPainterService painter,
-                                 CalcTableService calcService)
+                                 CalcTableService calcService,
+                                 VSWizardBindingHandler bindingHandler)
    {
       this.sessions = sessions;
       this.painter = painter;
       this.calcService = calcService;
+      this.bindingHandler = bindingHandler;
    }
 
    /**
@@ -94,25 +128,39 @@ public class ViewsheetFormatService {
     *                   body/header; null/blank keeps today's whole-table behavior. Against a
     *                   Crosstab it names one aggregate (its rendered measure header, its data
     *                   path header, or its base column when unambiguous) and scopes the write to
-    *                   that measure's body cells (including totals) or header cells. Unused for
-    *                   any other target.
+    *                   that measure's body cells (including totals) or header cells. Required
+    *                   when {@code target} is {@code "field"}: the chart field (its full name,
+    *                   as the binding reports it) whose value format to set. Unused for any
+    *                   other target.
+    * @param formatKeys the names of the keys the caller's JSON {@code format} object carried
+    *                   with a non-null value, captured before parsing so a key the target cannot
+    *                   apply is refused by name rather than mistaken for a model default; null
+    *                   for a request built in Java, which skips that check
     */
    public record FormatRequest(List<String> assemblies,
                                VSObjectFormatInfoModel format,
                                boolean reset,
                                String target,
-                               String field)
+                               String field,
+                               Set<String> formatKeys)
    {
       /** Kept for existing callers that predate {@code target}/{@code field} — defaults both. */
       public FormatRequest(List<String> assemblies, VSObjectFormatInfoModel format, boolean reset) {
-         this(assemblies, format, reset, null, null);
+         this(assemblies, format, reset, null, null, null);
       }
 
       /** Kept for existing callers that predate {@code field} — defaults it to null. */
       public FormatRequest(List<String> assemblies, VSObjectFormatInfoModel format, boolean reset,
                            String target)
       {
-         this(assemblies, format, reset, target, null);
+         this(assemblies, format, reset, target, null, null);
+      }
+
+      /** Kept for existing callers that predate {@code formatKeys} — no raw keys. */
+      public FormatRequest(List<String> assemblies, VSObjectFormatInfoModel format, boolean reset,
+                           String target, String field)
+      {
+         this(assemblies, format, reset, target, field, null);
       }
 
       /**
@@ -138,7 +186,22 @@ public class ViewsheetFormatService {
                                            @JsonProperty("field") String field)
       {
          return new FormatRequest(assemblies, parseFormat(format, "set_format"), reset, target,
-                                  field);
+                                  field, formatKeys(format));
+      }
+
+      /** The keys of a JSON {@code format} object whose value is not JSON null. */
+      private static Set<String> formatKeys(JsonNode format) {
+         Set<String> keys = new LinkedHashSet<>();
+
+         if(format != null && format.isObject()) {
+            format.fields().forEachRemaining(entry -> {
+               if(entry.getValue() != null && !entry.getValue().isNull()) {
+                  keys.add(entry.getKey());
+               }
+            });
+         }
+
+         return keys;
       }
    }
 
@@ -183,14 +246,138 @@ public class ViewsheetFormatService {
       coerceAlign(object, toolName);
       coerceBorderStyles(object, toolName);
 
+      VSObjectFormatInfoModel model;
+
       try {
-         return MAPPER.treeToValue(object, VSObjectFormatInfoModel.class);
+         model = MAPPER.treeToValue(object, VSObjectFormatInfoModel.class);
       }
       catch(JsonProcessingException e) {
          throw new IllegalArgumentException(
             toolName + " could not read 'format': " + e.getOriginalMessage(), e);
       }
+
+      deriveDateSpec(model);
+      validateFormatSpec(model, toolName);
+      return model;
    }
+
+   /**
+    * Bug #77597: fills in the {@code dateSpec} half of the Composer's two-field date contract.
+    *
+    * <p>{@code FormatPainterService} reads a {@code DateFormat}'s pattern from {@code formatSpec}
+    * only when {@code dateSpec} is {@code "Custom"}; otherwise it uses {@code dateSpec} itself as
+    * the pattern. The Composer's own Format pane always sends {@code dateSpec}. This API documents
+    * only {@code format}/{@code formatSpec}, so a caller's {@code "MMM dd, yyyy"} arrived with a
+    * null {@code dateSpec}, the painter stored a null pattern, and the cells rendered the
+    * {@code yyyy-MM-dd} default while the call reported success.
+    *
+    * <p>Derived the way {@code FormatInfoModel.fixDateSpec} does, but matching the named styles
+    * case-insensitively: {@code FULL}/{@code LONG}/{@code MEDIUM}/{@code SHORT} become
+    * {@code dateSpec} with no {@code formatSpec}; any other non-empty pattern becomes
+    * {@code "Custom"}. An explicit {@code dateSpec} is kept, only canonicalized; an empty
+    * {@code formatSpec} is left as it is (the default pattern, as before).
+    */
+   private static void deriveDateSpec(VSObjectFormatInfoModel model) {
+      if(model == null || !XConstants.DATE_FORMAT.equals(model.getFormat())) {
+         return;
+      }
+
+      String dateSpec = model.getDateSpec();
+
+      if(dateSpec != null && !dateSpec.isBlank()) {
+         String named = namedDateStyle(dateSpec);
+
+         if(named != null) {
+            model.setDateSpec(named);
+         }
+         else if(CUSTOM_DATE_SPEC.equalsIgnoreCase(dateSpec.trim())) {
+            model.setDateSpec(CUSTOM_DATE_SPEC);
+         }
+
+         return;
+      }
+
+      String spec = model.getFormatSpec();
+
+      if(spec == null || spec.isEmpty()) {
+         return;
+      }
+
+      String named = namedDateStyle(spec);
+
+      if(named != null) {
+         model.setDateSpec(named);
+         model.setFormatSpec(null);
+      }
+      else {
+         model.setDateSpec(CUSTOM_DATE_SPEC);
+      }
+   }
+
+   /** The upper-case named date style {@code spec} names, ignoring case; null if none. */
+   private static String namedDateStyle(String spec) {
+      String upper = spec.trim().toUpperCase(Locale.ROOT);
+      return NAMED_DATE_STYLES.contains(upper) ? upper : null;
+   }
+
+   /**
+    * Bug #77597: refuses a pattern the renderer cannot build.
+    *
+    * <p>{@code TableFormat.getFormat} catches a bad pattern at render time and shows the value
+    * unformatted, so a pattern stored verbatim but unusable is another silent no-op. The same
+    * date factory the renderer uses, {@code CoreTool.createDateFormat}, is tried for a custom
+    * date, time or timestamp pattern. A decimal pattern is tried with the JDK
+    * {@code DecimalFormat}, which accepts StyleBI's extended suffix forms ({@code #,##0K},
+    * {@code #.#B}, ...); {@code ExtendedDecimalFormat} itself is not used because its static
+    * initializer needs the server's configuration, which a request-body parse must not.
+    * The message stays on one line: a failure here surfaces through the request-body error
+    * handler, which reports only the cause's first line.
+    */
+   private static void validateFormatSpec(VSObjectFormatInfoModel model, String toolName) {
+      if(model == null) {
+         return;
+      }
+
+      String type = model.getFormat();
+      String spec = model.getFormatSpec();
+      String dateSpec = model.getDateSpec();
+
+      // A DateFormat whose explicit dateSpec is neither a named style nor "Custom" is a pattern
+      // in its own right: the painter stores dateSpec as the pattern. Validate it the same way.
+      if(XConstants.DATE_FORMAT.equals(type) && dateSpec != null && !dateSpec.isBlank() &&
+         !CUSTOM_DATE_SPEC.equals(dateSpec) && namedDateStyle(dateSpec) == null)
+      {
+         spec = dateSpec;
+      }
+
+      if(type == null || spec == null || spec.isEmpty()) {
+         return;
+      }
+
+      boolean dateLike = XConstants.DATE_FORMAT.equals(type) &&
+         (dateSpec == null || !NAMED_DATE_STYLES.contains(dateSpec)) ||
+         XConstants.TIME_FORMAT.equals(type) || XConstants.TIMEINSTANT_FORMAT.equals(type);
+
+      try {
+         if(dateLike) {
+            CoreTool.createDateFormat(spec, Locale.getDefault());
+         }
+         else if(XConstants.DECIMAL_FORMAT.equals(type)) {
+            new DecimalFormat(spec, new DecimalFormatSymbols(Locale.getDefault()));
+         }
+      }
+      catch(IllegalArgumentException e) {
+         String cause = e.getMessage() == null ? e.getClass().getSimpleName() :
+            e.getMessage().lines().findFirst().orElse("").trim();
+         // Not chained: the body-error handler reports the most specific cause, which must be
+         // this message (naming the pattern), not the JDK's bare "Illegal pattern character".
+         throw new IllegalArgumentException(
+            toolName + " could not use formatSpec '" + spec + "' for " + type + ": " + cause);
+      }
+   }
+
+   private static final String CUSTOM_DATE_SPEC = "Custom";
+   private static final Set<String> NAMED_DATE_STYLES = Set.of("FULL", "LONG", "MEDIUM", "SHORT");
 
    /**
     * Lets {@code align} be written as a word.
@@ -378,8 +565,20 @@ public class ViewsheetFormatService {
 
    private static final ObjectMapper MAPPER = new ObjectMapper();
 
-   public void setFormat(String sessionToken, Principal user, FormatRequest request,
-                         String linkUri) throws Exception
+   /**
+    * What a {@code set_format} call reports back.
+    *
+    * @param warnings things the call applied only partly or could not confirm: messages the
+    *                 Composer's format engine raised (e.g. a number format on a string column),
+    *                 a read-back that found a written cell without the requested format, and
+    *                 the session's own post-write warnings. Empty when nothing warned. A request
+    *                 that cannot take effect at all is refused with a 400 instead.
+    */
+   public record FormatResult(List<String> warnings) {
+   }
+
+   public FormatResult setFormat(String sessionToken, Principal user, FormatRequest request,
+                                 String linkUri) throws Exception
    {
       if(request.assemblies() == null || request.assemblies().isEmpty()) {
          throw new IllegalArgumentException(
@@ -407,7 +606,39 @@ public class ViewsheetFormatService {
          }
       }
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      if("field".equals(target)) {
+         return setFieldFormat(sessionToken, user, request);
+      }
+
+      // Binding-only refusals run against a read-only resolve, before mutate: a refused request
+      // then leaves no empty undo step, no write-revision bump and no Composer refresh behind.
+      // A missing or unsupported assembly is skipped here and left to the existing error paths.
+      boolean chartCheck = needsChartValueFormatCheck(request, target);
+      boolean numericCheck = needsNumericCellCheck(request, target);
+
+      if(chartCheck || numericCheck) {
+         RuntimeViewsheet resolved = sessions.resolve(sessionToken, user);
+         Viewsheet viewsheet = resolved == null ? null : resolved.getViewsheet();
+
+         if(viewsheet != null) {
+            for(String name : request.assemblies()) {
+               if(chartCheck) {
+                  refuseValueFormatOnChart(viewsheet, name, target,
+                                           request.format().getFormat());
+               }
+
+               if(numericCheck) {
+                  refuseDateFormatOverNumericCells(viewsheet, name, target,
+                                                   request.format().getFormat());
+               }
+            }
+         }
+      }
+
+      Set<String> warnings = new LinkedHashSet<>();
+
+      List<String> sessionWarnings = sessions.mutate(sessionToken, user, (rvs, runtimeId,
+                                                                          dispatcher) -> {
          FormatVSObjectEvent event = new FormatVSObjectEvent();
          event.setFormat(request.format());
          event.setReset(request.reset());
@@ -457,7 +688,8 @@ public class ViewsheetFormatService {
                ArrayList<TableDataPath[]> data = new ArrayList<>();
 
                for(String name : request.assemblies()) {
-                  data.add(computeDataRegionPaths(rvs, name, request.field()));
+                  data.add(requirePaths(computeDataRegionPaths(rvs, name, request.field()),
+                                        name, "body"));
                }
 
                event.setData(data);
@@ -471,16 +703,772 @@ public class ViewsheetFormatService {
                ArrayList<TableDataPath[]> data = new ArrayList<>();
 
                for(String name : request.assemblies()) {
-                  data.add(computeHeaderRegionPaths(rvs, name, request.field()));
+                  data.add(requirePaths(computeHeaderRegionPaths(rvs, name, request.field()),
+                                        name, "header"));
                }
 
                event.setData(data);
             }
          }
 
-         painter.setFormat(runtimeId, event, user, dispatcher, linkUri);
+         // Snapshot what was asked for before the painter runs: it can null the request's own
+         // format in place (FormatPainterService.handleHeaderFormats), and that object is
+         // request.format().
+         Requested requested = Requested.of(request.format(), request.reset());
+
+         // Stale messages from an earlier request on this pooled thread are not this call's.
+         CoreTool.clearUserMessage();
+
+         Set<String> engineMessages = new LinkedHashSet<>();
+
+         try {
+            painter.setFormat(runtimeId, event, user, dispatcher, linkUri);
+         }
+         finally {
+            drainUserMessages(engineMessages);
+         }
+
+         if("object".equals(target)) {
+            dropUntrueStringColumnWarning(engineMessages, rvs, request.assemblies(), user);
+         }
+
+         warnings.addAll(engineMessages);
+
+         if(requested != null && !"text".equals(target)) {
+            readBack(rvs, request.assemblies(), target, event, requested, warnings);
+         }
       });
+
+      if(sessionWarnings != null) {
+         warnings.addAll(sessionWarnings);
+      }
+
+      return new FormatResult(new ArrayList<>(warnings));
    }
+
+   /**
+    * Bug #77597: a {@code data}/{@code header} write that found no cells is refused.
+    * {@code FormatPainterService} treats an empty path list as "no paths" and falls through to a
+    * whole-object write, so the request used to be applied to something else (headers included)
+    * and reported as a success. The paths are empty when the assembly has no rendered rows, no
+    * sandbox, or no table lens.
+    */
+   private static TableDataPath[] requirePaths(TableDataPath[] paths, String name,
+                                               String region)
+   {
+      if(paths == null || paths.length == 0) {
+         throw new IllegalArgumentException(
+            "set_format: could not find any " + region + " cells on '" + name + "' to format " +
+            "(it has no rendered rows, or its data could not be computed); the request was not " +
+            "applied as a whole-table format. Render or refresh the viewsheet and try again, " +
+            "or use target 'object'.");
+      }
+
+      return paths;
+   }
+
+   /**
+    * Bug #77597 review: the painter's "Format applied to a string column" warning is true for
+    * an {@code object} write only when the table really has a string column.
+    *
+    * <p>{@code FormatPainterService.isFormattedStringColumn} tests the data type of the path
+    * being written. For a whole-object write that path is {@code VSAssemblyInfo.OBJECTPATH},
+    * whose data type is the {@code TableDataPath} constructor default, {@code string} -- not a
+    * column's type -- so the painter raises it on every whole-object value format to a Table,
+    * an all-numeric one included. The Composer shares that engine, so it is left unchanged and
+    * the message is checked here instead: it is passed on only when one of the named Tables has
+    * a visible string-typed column in its binding. {@code data}/{@code header} writes are not
+    * filtered: their paths come from the lens and carry the real column type.
+    */
+   private static void dropUntrueStringColumnWarning(Set<String> messages, RuntimeViewsheet rvs,
+                                                     List<String> assemblies, Principal user)
+   {
+      if(messages.isEmpty()) {
+         return;
+      }
+
+      String warning = Catalog.getCatalog(user).getString("composer.stringColumnFormat");
+
+      if(warning == null || !messages.contains(warning.trim()) ||
+         hasVisibleStringColumn(rvs, assemblies))
+      {
+         return;
+      }
+
+      messages.remove(warning.trim());
+   }
+
+   /** Whether any named assembly is a Table whose binding has a visible string column. */
+   private static boolean hasVisibleStringColumn(RuntimeViewsheet rvs, List<String> assemblies) {
+      Viewsheet viewsheet = rvs == null ? null : rvs.getViewsheet();
+
+      if(viewsheet == null) {
+         return false;
+      }
+
+      for(String name : assemblies) {
+         if(!(viewsheet.getAssembly(name) instanceof TableVSAssembly table) ||
+            table.getColumnSelection() == null)
+         {
+            continue;
+         }
+
+         ColumnSelection columns = table.getColumnSelection();
+
+         for(int i = 0; i < columns.getAttributeCount(); i++) {
+            DataRef ref = columns.getAttribute(i);
+
+            if(ref instanceof ColumnRef column && !column.isVisible()) {
+               continue;
+            }
+
+            if(ref != null && XSchema.STRING.equals(ref.getDataType())) {
+               return true;
+            }
+         }
+      }
+
+      return false;
+   }
+
+   /** Moves the Composer format engine's user messages (Tool.addUserMessage) into warnings. */
+   private static void drainUserMessages(Set<String> warnings) {
+      UserMessage message = CoreTool.getUserMessage();
+
+      if(message != null && message.getMessage() != null) {
+         message.getMessage().lines()
+            .map(String::trim)
+            .filter(line -> !line.isEmpty())
+            .forEach(warnings::add);
+      }
+   }
+
+   /**
+    * The value format a caller asked for, captured before the painter runs.
+    *
+    * @param type       the format type as the painter stores it (CommaFormat is stored as
+    *                   DecimalFormat, DurationFormat as its padding variant)
+    * @param customDate the caller's pattern when it asked for a custom date pattern, else null
+    */
+   private record Requested(String type, String customDate) {
+      static Requested of(VSObjectFormatInfoModel format, boolean reset) {
+         if(reset || format == null || format.getFormat() == null ||
+            format.getFormat().isEmpty())
+         {
+            return null;
+         }
+
+         String type = FormatInfoModel.getDurationFormat(format.getFormat(),
+                                                         format.isDurationPadZeros());
+
+         if(XConstants.COMMA_FORMAT.equals(type)) {
+            type = XConstants.DECIMAL_FORMAT;
+         }
+
+         String spec = format.getFormatSpec();
+         boolean customDate = XConstants.DATE_FORMAT.equals(type) &&
+            CUSTOM_DATE_SPEC.equals(format.getDateSpec()) && spec != null && !spec.isEmpty();
+         return new Requested(type, customDate ? spec : null);
+      }
+   }
+
+   /**
+    * Bug #77597: a safety net for silent drops. Reads each written path's stored user format
+    * with the non-mutating {@link FormatInfo#getFormat(TableDataPath)} -- never
+    * {@code getFormat(path, false)}, which rewrites path defaults in place -- and warns when a
+    * written path holds no format of the requested type, or holds a requested custom date
+    * pattern's type without the pattern (the #2 failure). Only the type is compared, plus that
+    * one pattern check, so this cannot drift from the painter's own spec translations.
+    */
+   private static void readBack(RuntimeViewsheet rvs, List<String> assemblies, String target,
+                                FormatVSObjectEvent event, Requested requested,
+                                Set<String> warnings)
+   {
+      Viewsheet viewsheet = rvs == null ? null : rvs.getViewsheet();
+
+      if(viewsheet == null) {
+         return;
+      }
+
+      for(int i = 0; i < assemblies.size(); i++) {
+         String name = assemblies.get(i);
+         VSAssembly assembly = viewsheet.getAssembly(name);
+         VSAssemblyInfo info = assembly == null ? null : assembly.getVSAssemblyInfo();
+         FormatInfo formatInfo = info == null ? null : info.getFormatInfo();
+
+         // An ID-mode selection tree has its non-object paths rewritten by the painter, so the
+         // path written is not the path asked for.
+         if(formatInfo == null || assembly instanceof SelectionTreeVSAssembly tree &&
+            tree.isIDMode() && !"object".equals(target))
+         {
+            continue;
+         }
+
+         TableDataPath[] paths = "object".equals(target) ?
+            new TableDataPath[]{ VSAssemblyInfo.OBJECTPATH } :
+            event.getData() != null && event.getData().size() > i ? event.getData().get(i) : null;
+
+         if(paths == null) {
+            continue;
+         }
+
+         int missing = 0;
+         int noPattern = 0;
+         String stored = null;
+
+         for(TableDataPath path : paths) {
+            VSCompositeFormat format = path == null ? null : formatInfo.getFormat(path);
+            VSFormat user = format == null ? null : format.getUserDefinedFormat();
+            String type = user == null ? null : user.getFormatValue();
+
+            if(!requested.type().equals(type)) {
+               missing++;
+               stored = type;
+            }
+            else if(requested.customDate() != null && user.getFormatExtentValue() == null) {
+               noPattern++;
+            }
+         }
+
+         if(missing > 0) {
+            warnings.add(
+               "set_format: requested " + requested.type() + " on '" + name + "', but " +
+               missing + " of " + paths.length + " written " + regionName(target) +
+               " path(s) stored " + (stored == null ? "no format" : stored) +
+               "; those cells will not show it.");
+         }
+
+         if(noPattern > 0) {
+            warnings.add(
+               "set_format: requested DateFormat '" + requested.customDate() + "' on '" + name +
+               "', but " + noPattern + " of " + paths.length + " written path(s) stored " +
+               "DateFormat with no pattern; those cells will show the default yyyy-MM-dd.");
+         }
+      }
+   }
+
+   /**
+    * Bug #77597: {@code target: "field"} -- one chart field's value format (number, date,
+    * percent ...), wherever that field renders: its axis labels, legend, data labels and plot
+    * slots. Written through the wizard's own field-format writer
+    * ({@link VSWizardBindingHandler#applyFieldFormats}), the one route that reaches an axis's or
+    * field's value format; a chart's whole-object format carries only font and colour to its
+    * axes, so a number format sent there never rendered.
+    *
+    * <p>Every refusal that needs only the binding runs before {@code mutate}. {@code reset}
+    * clears the field's user value format (a defined-null format), so its default renders again.
+    * Same-type formulas (sum/max/min/first/last of one column) share one format key, and on a
+    * chart that is not separated by measure the value axis is shared by its measures; both are
+    * the wizard's behaviour and are reported as a warning where they apply.
+    */
+   private FormatResult setFieldFormat(String sessionToken, Principal user, FormatRequest request)
+      throws Exception
+   {
+      if(request.assemblies().size() != 1) {
+         throw new IllegalArgumentException(
+            "set_format: target 'field' formats one chart field at a time; got " +
+            request.assemblies().size() + " assemblies.");
+      }
+
+      String field = request.field();
+
+      if(field == null || field.isBlank()) {
+         throw new IllegalArgumentException(
+            "set_format: target 'field' requires 'field' -- the chart field (as get_binding " +
+            "reports it, e.g. \"Sum(Revenue)\") whose value format to set.");
+      }
+
+      if(request.formatKeys() != null) {
+         List<String> unsupported = request.formatKeys().stream()
+            .filter(key -> !FIELD_FORMAT_KEYS.contains(key))
+            .toList();
+
+         if(!unsupported.isEmpty()) {
+            throw new IllegalArgumentException(
+               "set_format: target 'field' sets only a field's value format (format, " +
+               "formatSpec, dateSpec, durationPadZeros); " + quoted(unsupported) +
+               (unsupported.size() == 1 ? " is" : " are") + " not applied there -- use target " +
+               "'object' or 'text' for them.");
+         }
+      }
+
+      VSFormat format = null;
+
+      if(!request.reset()) {
+         VSObjectFormatInfoModel model = request.format();
+
+         if(model == null || model.getFormat() == null || model.getFormat().isBlank()) {
+            throw new IllegalArgumentException(
+               "set_format: target 'field' requires format.format (e.g. \"DecimalFormat\" " +
+               "with a formatSpec), or reset: true to clear the field's value format.");
+         }
+
+         format = toFieldFormat(model);
+      }
+
+      String name = request.assemblies().get(0);
+      RuntimeViewsheet resolved = sessions.resolve(sessionToken, user);
+      Viewsheet viewsheet = resolved == null ? null : resolved.getViewsheet();
+      VSAssembly assembly = viewsheet == null ? null : viewsheet.getAssembly(name);
+
+      if(!(assembly instanceof ChartVSAssembly chart)) {
+         throw new IllegalArgumentException(
+            "set_format: target 'field' only applies to a chart; '" + name + "' is " +
+            (assembly == null ? "not found" : assembly.getClass().getSimpleName()) + ".");
+      }
+
+      VSChartInfo chartInfo = chart.getVSChartInfo();
+      List<ChartRef> refs = VSWizardBindingHandler.collectFormattableRefs(chartInfo);
+
+      if(refs.stream().noneMatch(ref -> field.equals(ref.getFullName()))) {
+         String bindable = refs.stream()
+            .map(ChartRef::getFullName)
+            .distinct()
+            .sorted()
+            .collect(Collectors.joining(", "));
+
+         throw new IllegalArgumentException(
+            "No such field(s) in this chart's binding: " + field +
+            ". Bindable fields: " + (bindable.isEmpty() ? "(none)" : bindable));
+      }
+
+      if(format != null) {
+         WizFormatChecks.checkFormatFitsFieldType(field, format, refs);
+      }
+
+      Set<String> warnings = new LinkedHashSet<>();
+      String shared = sharedValueAxisWarning(chartInfo, refs, field, request.reset());
+
+      if(shared != null) {
+         warnings.add(shared);
+      }
+
+      VSFormat toApply = request.reset() ? VSWizardBindingHandler.clearingFormat() : format;
+
+      List<String> sessionWarnings = sessions.mutate(sessionToken, user, (rvs, runtimeId,
+                                                                          dispatcher) -> {
+         Viewsheet live = rvs == null ? null : rvs.getViewsheet();
+         VSAssembly liveAssembly = live == null ? null : live.getAssembly(name);
+
+         if(!(liveAssembly instanceof ChartVSAssembly liveChart)) {
+            throw new IllegalArgumentException(
+               "set_format: '" + name + "' is no longer a chart; nothing was formatted.");
+         }
+
+         // Never Map.of: a reset must be able to carry its value, and Map.of rejects nulls.
+         Map<String, VSFormat> formats = new HashMap<>();
+         formats.put(field, toApply);
+         Set<String> unmatched;
+         CoreTool.clearUserMessage();
+
+         try {
+            unmatched = bindingHandler.applyFieldFormats(rvs, liveChart, formats);
+         }
+         finally {
+            drainUserMessages(warnings);
+         }
+
+         // The binding was checked before mutate; a human may have rebound the chart since.
+         if(!unmatched.isEmpty()) {
+            throw new IllegalArgumentException(
+               "set_format: '" + field + "' is no longer bound to chart '" + name + "'; nothing " +
+               "was formatted. Read the binding again and retry.");
+         }
+
+         // applyFieldFormats only clears the runtime chart info. The cached VGraphPair holds this
+         // same VSChartInfo, so the sandbox's staleness check cannot see the in-place change:
+         // clear the cached descriptor and graph explicitly, as WizAutoBindingService does after
+         // the same call, or the next render serves the old axis.
+         ((ChartVSAssemblyInfo) liveChart.getVSAssemblyInfo()).setRTChartDescriptor(null);
+         rvs.getViewsheetSandbox().ifPresent(box -> box.clearGraph(liveChart.getAbsoluteName()));
+      });
+
+      if(sessionWarnings != null) {
+         warnings.addAll(sessionWarnings);
+      }
+
+      return new FormatResult(new ArrayList<>(warnings));
+   }
+
+   /**
+    * The model as the wizard's field-format writer consumes it, with the same translations
+    * {@code FormatPainterService.setUserFormat} makes: the duration padding folded into the type,
+    * CommaFormat as DecimalFormat with {@code #,##0}, and a non-Custom {@code dateSpec} as the
+    * pattern ({@link #parseFormat} has already derived {@code dateSpec}).
+    */
+   private static VSFormat toFieldFormat(VSObjectFormatInfoModel model) {
+      String formatValue = FormatInfoModel.getDurationFormat(model.getFormat(),
+                                                             model.isDurationPadZeros());
+      String spec = model.getFormatSpec();
+
+      if(XConstants.COMMA_FORMAT.equals(formatValue)) {
+         formatValue = XConstants.DECIMAL_FORMAT;
+         spec = "#,##0";
+      }
+      else if(XConstants.DATE_FORMAT.equals(formatValue) &&
+         !CUSTOM_DATE_SPEC.equals(model.getDateSpec()))
+      {
+         spec = model.getDateSpec();
+      }
+
+      VSFormat format = new VSFormat();
+      format.setFormatValue(formatValue);
+      format.setFormatExtentValue(spec != null && !spec.isEmpty() ? spec : null);
+      return format;
+   }
+
+   /**
+    * On a chart that is not separated by measure (and is not a radar), every primary-axis
+    * aggregate shares one value-axis descriptor, and every secondary-axis aggregate another
+    * ({@code GraphUtil.getAxisDescriptor}). A field-scoped set or reset of one of them therefore
+    * sets or clears that whole axis's format, including a format a human set through the
+    * Composer's axis dialog. Returned as a warning naming the other measures; null otherwise.
+    */
+   private static String sharedValueAxisWarning(VSChartInfo info, List<ChartRef> refs,
+                                                String field, boolean reset)
+   {
+      ChartRef ref = refs.stream()
+         .filter(r -> field.equals(r.getFullName()))
+         .findFirst()
+         .orElse(null);
+
+      if(!(ref instanceof ChartAggregateRef aggregate) || info instanceof RadarChartInfo ||
+         info.isSeparatedGraph())
+      {
+         return null;
+      }
+
+      List<String> others = new ArrayList<>();
+
+      for(ChartRef[] fields : List.of(info.getXFields(), info.getYFields())) {
+         for(ChartRef other : fields) {
+            if(other instanceof ChartAggregateRef otherAggregate &&
+               otherAggregate.isSecondaryY() == aggregate.isSecondaryY() &&
+               !field.equals(other.getFullName()) && !others.contains(other.getFullName()))
+            {
+               others.add(other.getFullName());
+            }
+         }
+      }
+
+      if(others.isEmpty()) {
+         return null;
+      }
+
+      return "'" + field + "' shares its value axis with " + String.join(", ", others) +
+         " on this chart (not separated by measure): this " + (reset ? "reset" : "set") +
+         " applies to that whole axis's format.";
+   }
+
+   private static String quoted(List<String> names) {
+      return names.stream().map(n -> "'" + n + "'").collect(Collectors.joining(", "));
+   }
+
+   /** The format keys target 'field' applies; any other key would be dropped silently. */
+   private static final Set<String> FIELD_FORMAT_KEYS =
+      Set.of("format", "formatSpec", "dateSpec", "durationPadZeros");
+
+   /**
+    * Whether {@code request} sends a value format (number, date ...) to a chart's whole-object
+    * or title format, which nothing renders values with.
+    */
+   private static boolean needsChartValueFormatCheck(FormatRequest request, String target) {
+      return !request.reset() && request.format() != null &&
+         request.format().getFormat() != null && !request.format().getFormat().isEmpty() &&
+         ("object".equals(target) || "title".equals(target));
+   }
+
+   /**
+    * Bug #77597: refuses a number/date format on a chart's {@code object} or {@code title}
+    * target. {@code VGraphPair} is the only graph-side reader of a chart's OBJECT format and
+    * copies only its font and colour into the axis and label formats, so such a write was stored
+    * and never rendered -- the axis kept its default ticks while the call reported success. A
+    * missing or non-chart assembly is left to the existing paths.
+    */
+   private static void refuseValueFormatOnChart(Viewsheet viewsheet, String name, String target,
+                                                String formatType)
+   {
+      if(!(viewsheet.getAssembly(name) instanceof ChartVSAssembly)) {
+         return;
+      }
+
+      throw new IllegalArgumentException(
+         "set_format: a " + formatType + " on chart '" + name + "''s " + target + " format is " +
+         "never used to format values -- a chart's whole-object format carries only font and " +
+         "colour to its axes and labels. Use target 'field' with 'field' naming the axis or " +
+         "legend field (e.g. \"Sum(Revenue)\") for its value format, or target 'text' for " +
+         "data labels; send font/colour without 'format' to keep using target '" + target +
+         "'.");
+   }
+
+   /**
+    * Whether {@code request} writes a date/time format over a whole table region, where numeric
+    * cells would inherit it. A {@code data}/{@code header} write scoped by {@code field} is an
+    * explicit single-column choice (e.g. an epoch-millisecond column) and is not checked.
+    */
+   private static boolean needsNumericCellCheck(FormatRequest request, String target) {
+      if(request.reset() || request.format() == null || request.format().getFormat() == null ||
+         !DATE_LIKE_FORMATS.contains(request.format().getFormat()))
+      {
+         return false;
+      }
+
+      boolean hasField = request.field() != null && !request.field().isBlank();
+      return "object".equals(target) ||
+         ("data".equals(target) || "header".equals(target)) && !hasField;
+   }
+
+   /**
+    * Bug #77597: refuses a date/time format over a table region whose cells include numbers.
+    *
+    * <p>The table renderer hands such a format every cell of the region that has no format of
+    * its own, whatever the column's type, and a {@code java.text.DateFormat} reads a
+    * {@code Number} as epoch milliseconds -- so {@code Revenue = 3600} renders as
+    * {@code 1970-01-01}. Types come from the binding only (no lens, no sandbox); a column whose
+    * type is unknown never triggers a refusal.
+    *
+    * <ul>
+    *    <li>Table: the visible columns, for {@code object} and {@code data}; never for
+    *        {@code header} (header cells are strings). For {@code object} only, a column whose
+    *        own {@code DETAIL} path already has a user format value is exempt, since it does
+    *        not inherit the object format. A {@code data} write replaces that column's own
+    *        format, so nothing is exempt there.</li>
+    *    <li>Crosstab: dimensions (at their effective date level) and aggregates (their output
+    *        type) for {@code object}; aggregates for {@code data}; dimensions for
+    *        {@code header}. Measures are checked by type even if they carry their own format:
+    *        a measure spans many cell paths, and proving all are covered needs the lens.</li>
+    *    <li>Calc table, {@code object} only: the source columns its cells bind, typed from the
+    *        source table. A cell's output type (e.g. a part-level grouping) is not modelled, so
+    *        this fails open there.</li>
+    * </ul>
+    */
+   private static void refuseDateFormatOverNumericCells(Viewsheet viewsheet, String name,
+                                                        String target, String formatType)
+   {
+      VSAssembly assembly = viewsheet.getAssembly(name);
+
+      if(!(assembly instanceof TableDataVSAssembly)) {
+         return;
+      }
+
+      boolean object = "object".equals(target);
+      List<String> numeric = new ArrayList<>();
+      String advice;
+
+      if(assembly instanceof CrosstabVSAssembly crosstab) {
+         VSCrosstabInfo cinfo = crosstab.getVSCrosstabInfo();
+
+         if(cinfo == null) {
+            return;
+         }
+
+         List<String> numericDims = new ArrayList<>();
+
+         if(!"data".equals(target)) {
+            addNumeric(numericDims, runtimeOrDesign(cinfo.getRuntimeRowHeaders(),
+                                                    cinfo.getRowHeaders()));
+            addNumeric(numericDims, runtimeOrDesign(cinfo.getRuntimeColHeaders(),
+                                                    cinfo.getColHeaders()));
+         }
+
+         numeric.addAll(numericDims);
+
+         if(!"header".equals(target)) {
+            addNumeric(numeric, runtimeOrDesign(cinfo.getRuntimeAggregates(),
+                                                cinfo.getAggregates()));
+         }
+
+         advice = !numericDims.isEmpty() ?
+            "The header region holds the numeric dimension(s) too, so target:\"header\" would " +
+            "show the same dates; format this Crosstab in the Composer or with a script, or " +
+            "group the date dimension at a full level (Year, Month, ...)." :
+            (object ? "Use target:\"header\" to format the date dimension labels only, or " :
+             "Use ") + "target:\"data\" with 'field' naming one date-valued measure. Crosstab " +
+            "measures are checked by type even if they already have their own format.";
+      }
+      else if(assembly instanceof TableVSAssembly table) {
+         if("header".equals(target)) {
+            return;
+         }
+
+         ColumnSelection columns = table.getColumnSelection();
+
+         if(columns == null) {
+            return;
+         }
+
+         Set<String> ownFormat = object ? ownDetailFormatHeaders(table) : Set.of();
+         List<String> dateColumns = new ArrayList<>();
+
+         for(int i = 0; i < columns.getAttributeCount(); i++) {
+            DataRef ref = columns.getAttribute(i);
+
+            if(ref instanceof ColumnRef column && !column.isVisible()) {
+               continue;
+            }
+
+            if(WizFormatChecks.isNumeric(ref)) {
+               if(!ownFormat.isEmpty() && candidateHeaders(ref).stream()
+                  .anyMatch(ownFormat::contains))
+               {
+                  continue;
+               }
+
+               numeric.add(displayName(ref));
+            }
+            else if(WizFormatChecks.isDateLike(ref)) {
+               dateColumns.add(displayName(ref));
+            }
+         }
+
+         advice = "Format the date columns alone with target:\"data\" and 'field' naming each" +
+            (dateColumns.isEmpty() ? "" : " (" + summarize(dateColumns) + ")") + "." +
+            (object ? " Columns that already have their own number format are exempt; if one " +
+             "of these does, under a different header, format the date column with " +
+             "target:\"data\", field:... instead." : "");
+      }
+      else if(assembly instanceof CalcTableVSAssembly calc && object) {
+         ColumnSelection source = calcSourceColumns(viewsheet, calc);
+
+         if(source == null) {
+            return;
+         }
+
+         for(DataRef ref : calc.getBindingRefs()) {
+            DataRef column = ref == null ? null : source.getAttribute(ref.getName());
+
+            if(WizFormatChecks.isNumeric(column)) {
+               numeric.add(ref.getName());
+            }
+         }
+
+         advice = "Format the date cells alone with set_calc_cell_format.";
+      }
+      else {
+         return;
+      }
+
+      if(numeric.isEmpty()) {
+         return;
+      }
+
+      throw new IllegalArgumentException(
+         "set_format: a " + formatType + " over the " + regionName(target) + " of '" + name +
+         "' would render its numeric cells as dates (e.g. 1970-01-01): " + summarize(numeric) +
+         ". The request was not applied. " + advice);
+   }
+
+   private static String regionName(String target) {
+      return "data".equals(target) ? "body cells" :
+         "header".equals(target) ? "header cells" :
+         "title".equals(target) ? "title" : "whole assembly";
+   }
+
+   private static DataRef[] runtimeOrDesign(DataRef[] runtime, DataRef[] design) {
+      return runtime != null && runtime.length > 0 ? runtime : design;
+   }
+
+   private static void addNumeric(List<String> out, DataRef[] refs) {
+      if(refs == null) {
+         return;
+      }
+
+      for(DataRef ref : refs) {
+         if(WizFormatChecks.isNumeric(ref)) {
+            out.add(displayName(ref));
+         }
+      }
+   }
+
+   private static String displayName(DataRef ref) {
+      if(ref instanceof VSDataRef vsRef && vsRef.getFullName() != null) {
+         return vsRef.getFullName();
+      }
+
+      if(ref instanceof ColumnRef column && column.getAlias() != null &&
+         !column.getAlias().isEmpty())
+      {
+         return column.getAlias();
+      }
+
+      return ref.getAttribute() != null ? ref.getAttribute() : ref.getName();
+   }
+
+   /** The names a Table column's {@code DETAIL} path may be stored under (its rendered header). */
+   private static Set<String> candidateHeaders(DataRef ref) {
+      Set<String> names = new LinkedHashSet<>();
+
+      if(ref instanceof ColumnRef column && column.getAlias() != null) {
+         names.add(column.getAlias());
+      }
+
+      names.add(ref.getAttribute());
+      names.add(ref.getName());
+      names.remove(null);
+      return names;
+   }
+
+   /**
+    * The headers of a Table's {@code DETAIL} paths that already hold a user format value, read
+    * with the non-mutating {@link FormatInfo#getFormat(TableDataPath)}. Such a column keeps its
+    * own format and does not inherit the object format (VSFormatTableLens).
+    */
+   private static Set<String> ownDetailFormatHeaders(TableVSAssembly table) {
+      VSAssemblyInfo info = table.getVSAssemblyInfo();
+      FormatInfo formatInfo = info == null ? null : info.getFormatInfo();
+      Set<String> headers = new LinkedHashSet<>();
+
+      if(formatInfo == null) {
+         return headers;
+      }
+
+      for(TableDataPath path : formatInfo.getPaths()) {
+         if(path == null || path.getType() != TableDataPath.DETAIL || path.getPath() == null ||
+            path.getPath().length == 0)
+         {
+            continue;
+         }
+
+         VSCompositeFormat format = formatInfo.getFormat(path);
+
+         if(format != null && format.getUserDefinedFormat() != null &&
+            format.getUserDefinedFormat().isFormatValueDefined())
+         {
+            headers.add(path.getPath()[0]);
+         }
+      }
+
+      return headers;
+   }
+
+   /** The calc table's source table columns, from the base worksheet; null when unknown. */
+   private static ColumnSelection calcSourceColumns(Viewsheet viewsheet,
+                                                    CalcTableVSAssembly calc)
+   {
+      SourceInfo source = calc.getSourceInfo();
+      Worksheet worksheet = viewsheet.getBaseWorksheet();
+
+      if(source == null || source.getSource() == null || worksheet == null) {
+         return null;
+      }
+
+      return worksheet.getAssembly(source.getSource()) instanceof TableAssembly table ?
+         table.getColumnSelection(true) : null;
+   }
+
+   private static String summarize(List<String> names) {
+      List<String> distinct = new ArrayList<>(new LinkedHashSet<>(names));
+
+      if(distinct.size() <= 5) {
+         return String.join(", ", distinct);
+      }
+
+      return String.join(", ", distinct.subList(0, 5)) + " and " + (distinct.size() - 5) +
+         " more";
+   }
+
+   private static final Set<String> DATE_LIKE_FORMATS = Set.of(
+      XConstants.DATE_FORMAT, XConstants.TIME_FORMAT, XConstants.TIMEINSTANT_FORMAT);
 
    /**
     * Computes the {@code TableDataPath[]} for a Crosstab/Table's data (body) region -- one
@@ -971,13 +1959,16 @@ public class ViewsheetFormatService {
       String name = target == null || target.isBlank() ? "object" : target.trim().toLowerCase();
 
       if(!"object".equals(name) && !"title".equals(name) && !"text".equals(name) &&
-         !"data".equals(name) && !"header".equals(name))
+         !"data".equals(name) && !"header".equals(name) && !"field".equals(name))
       {
          throw new IllegalArgumentException(
-            "set_format 'target' must be 'object', 'title', 'text', 'data' or 'header', got '" +
-            target + "'. 'object' (the default) formats the whole assembly, including — for a " +
-            "chart — the default text style that unstyled axis titles and tick labels fall " +
-            "back to. 'title' formats only that assembly's own title-bar text; for a chart's " +
+            "set_format 'target' must be 'object', 'title', 'text', 'data', 'header' or " +
+            "'field', got '" + target + "'. 'object' (the default) formats the whole " +
+            "assembly, including — for a chart — the font and colour that unstyled axis " +
+            "titles and tick labels fall back to (not their number/date format: use 'field' " +
+            "for that). 'field' sets one chart field's value format wherever it renders (axis " +
+            "labels, legend, data labels) — requires 'field'. " +
+            "'title' formats only that assembly's own title-bar text; for a chart's " +
             "x/y axis titles, use set_chart_region_properties with region 'title' instead. " +
             "'text' formats a single chart's text-aesthetic-bound field (its data labels) — " +
             "requires 'field'. 'data' formats a Crosstab or Table's body cells directly — use " +
@@ -994,4 +1985,5 @@ public class ViewsheetFormatService {
    private final ViewsheetSessionService sessions;
    private final FormatPainterService painter;
    private final CalcTableService calcService;
+   private final VSWizardBindingHandler bindingHandler;
 }

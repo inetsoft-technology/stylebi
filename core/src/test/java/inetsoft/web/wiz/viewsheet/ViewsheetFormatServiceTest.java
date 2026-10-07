@@ -24,10 +24,20 @@ import inetsoft.report.TableDataPath;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.VSTableLens;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.asset.SourceInfo;
+import inetsoft.uql.asset.TableAssembly;
+import inetsoft.uql.asset.Worksheet;
+import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.viewsheet.CalcTableVSAssembly;
 import inetsoft.uql.viewsheet.CrosstabVSAssembly;
+import inetsoft.uql.viewsheet.FormatInfo;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.TextVSAssembly;
+import inetsoft.uql.viewsheet.VSCompositeFormat;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.web.composer.model.vs.VSObjectFormatInfoModel;
@@ -854,9 +864,14 @@ class ViewsheetFormatServiceTest {
       assertTrue(thrown.getMessage().contains("Text1"), thrown.getMessage());
    }
 
-   /** No sandbox (e.g. an unloaded/disposed viewsheet) degrades to an empty path list. */
+   /**
+    * No sandbox (e.g. an unloaded/disposed viewsheet) means no body cells were found. Bug
+    * #77597 reversed this test: it used to assert an empty path list was handed to the painter,
+    * which FormatPainterService treats as "no paths" and turns into a whole-OBJECT write -- the
+    * request silently became a different one. It is now refused before the painter runs.
+    */
    @Test
-   void targetDataIsEmptyWhenNoSandboxIsAvailable() throws Exception {
+   void targetDataIsRefusedWhenNoSandboxIsAvailable() {
       FormatPainterService painter = mock(FormatPainterService.class);
       Viewsheet viewsheet = mock(Viewsheet.class);
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
@@ -864,16 +879,34 @@ class ViewsheetFormatServiceTest {
       when(viewsheet.getAssembly("Crosstab1")).thenReturn(mock(CrosstabVSAssembly.class));
       when(rvs.getViewsheetSandbox()).thenReturn(Optional.empty());
 
-      serviceWith(painter, rvs).setFormat(
-         "tok", principal(),
-         new ViewsheetFormatService.FormatRequest(
-            List.of("Crosstab1"), new VSObjectFormatInfoModel(), false, "data"), "");
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> serviceWith(painter, rvs).setFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.FormatRequest(
+               List.of("Crosstab1"), new VSObjectFormatInfoModel(), false, "data"), ""));
 
-      ArgumentCaptor<FormatVSObjectEvent> captor =
-         ArgumentCaptor.forClass(FormatVSObjectEvent.class);
-      verify(painter).setFormat(eq("rt1"), captor.capture(), any(Principal.class), any(),
-                                anyString());
-      assertArrayEquals(new TableDataPath[0], captor.getValue().getData().get(0));
+      assertTrue(thrown.getMessage().contains("could not find any body cells"),
+                 thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Crosstab1"), thrown.getMessage());
+      verifyNoInteractions(painter);
+   }
+
+   /** A reset over no body cells is refused the same way: nothing would be reset. */
+   @Test
+   void targetDataResetIsRefusedWhenNoSandboxIsAvailable() {
+      Viewsheet viewsheet = mock(Viewsheet.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(viewsheet.getAssembly("Crosstab1")).thenReturn(mock(CrosstabVSAssembly.class));
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.empty());
+
+      assertThrows(
+         IllegalArgumentException.class,
+         () -> serviceWith(mock(FormatPainterService.class), rvs).setFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.FormatRequest(List.of("Crosstab1"), null, true,
+                                                     "data"), ""));
    }
 
    // ── target: "data" + 'field' column scoping (bug 76868) ────────────────────────────────
@@ -1215,9 +1248,14 @@ class ViewsheetFormatServiceTest {
       assertTrue(thrown.getMessage().contains("Text1"), thrown.getMessage());
    }
 
-   /** No sandbox (e.g. an unloaded/disposed viewsheet) degrades to an empty path list. */
+   /**
+    * No sandbox (e.g. an unloaded/disposed viewsheet) means no header cells were found. Bug
+    * #77597 reversed this test: it used to assert an empty path list was handed to the painter,
+    * which FormatPainterService treats as "no paths" and turns into a whole-OBJECT write -- the
+    * request silently became a different one. It is now refused before the painter runs.
+    */
    @Test
-   void targetHeaderIsEmptyWhenNoSandboxIsAvailable() throws Exception {
+   void targetHeaderIsRefusedWhenNoSandboxIsAvailable() {
       FormatPainterService painter = mock(FormatPainterService.class);
       Viewsheet viewsheet = mock(Viewsheet.class);
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
@@ -1225,16 +1263,34 @@ class ViewsheetFormatServiceTest {
       when(viewsheet.getAssembly("Crosstab1")).thenReturn(mock(CrosstabVSAssembly.class));
       when(rvs.getViewsheetSandbox()).thenReturn(Optional.empty());
 
-      serviceWith(painter, rvs).setFormat(
-         "tok", principal(),
-         new ViewsheetFormatService.FormatRequest(
-            List.of("Crosstab1"), new VSObjectFormatInfoModel(), false, "header"), "");
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> serviceWith(painter, rvs).setFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.FormatRequest(
+               List.of("Crosstab1"), new VSObjectFormatInfoModel(), false, "header"), ""));
 
-      ArgumentCaptor<FormatVSObjectEvent> captor =
-         ArgumentCaptor.forClass(FormatVSObjectEvent.class);
-      verify(painter).setFormat(eq("rt1"), captor.capture(), any(Principal.class), any(),
-                                anyString());
-      assertArrayEquals(new TableDataPath[0], captor.getValue().getData().get(0));
+      assertTrue(thrown.getMessage().contains("could not find any header cells"),
+                 thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Crosstab1"), thrown.getMessage());
+      verifyNoInteractions(painter);
+   }
+
+   /** A reset over no header cells is refused the same way: nothing would be reset. */
+   @Test
+   void targetHeaderResetIsRefusedWhenNoSandboxIsAvailable() {
+      Viewsheet viewsheet = mock(Viewsheet.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(viewsheet.getAssembly("Crosstab1")).thenReturn(mock(CrosstabVSAssembly.class));
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.empty());
+
+      assertThrows(
+         IllegalArgumentException.class,
+         () -> serviceWith(mock(FormatPainterService.class), rvs).setFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.FormatRequest(List.of("Crosstab1"), null, true,
+                                                     "header"), ""));
    }
 
    /** Mirrors "data"'s own field-scoping (bug 76868): narrows to just the resolved column. */
@@ -1435,14 +1491,703 @@ class ViewsheetFormatServiceTest {
       assertTrue(thrown.getMessage().contains("assembly"), thrown.getMessage());
    }
 
+   // ── Bug #77597 part A: dateSpec derivation and pattern validation ─────────────────────
+
+   private static VSObjectFormatInfoModel parsed(String formatJson) throws Exception {
+      return new ObjectMapper().readValue(
+         "{\"assemblies\":[\"Table1\"],\"format\":" + formatJson + ",\"reset\":false}",
+         ViewsheetFormatService.FormatRequest.class).format();
+   }
+
+   /**
+    * The pattern the painter stores, run through the real {@code FormatPainterService}
+    * translation: a {@code DateFormat} keeps {@code formatSpec} only when {@code dateSpec} is
+    * {@code "Custom"}, otherwise it stores {@code dateSpec} as the pattern.
+    */
+   private static String storedPattern(VSObjectFormatInfoModel model) throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class, CALLS_REAL_METHODS);
+      java.lang.reflect.Method setUserFormat = FormatPainterService.class.getDeclaredMethod(
+         "setUserFormat", inetsoft.uql.viewsheet.VSCompositeFormat.class,
+         VSObjectFormatInfoModel.class, VSObjectFormatInfoModel.class, boolean.class,
+         boolean.class);
+      setUserFormat.setAccessible(true);
+      inetsoft.uql.viewsheet.VSCompositeFormat stored =
+         new inetsoft.uql.viewsheet.VSCompositeFormat();
+      setUserFormat.invoke(painter, stored, model, new VSObjectFormatInfoModel(), false, false);
+      return stored.getUserDefinedFormat().getFormatExtentValue();
+   }
+
+   /** #1/#2a: before the fix the pattern was dropped and the cells rendered yyyy-MM-dd. */
+   @Test
+   void aCustomDatePatternIsMarkedCustomAndStoredVerbatim() throws Exception {
+      VSObjectFormatInfoModel model =
+         parsed("{\"format\":\"DateFormat\",\"formatSpec\":\"MMM dd, yyyy\"}");
+
+      assertEquals("Custom", model.getDateSpec());
+      assertEquals("MMM dd, yyyy", model.getFormatSpec());
+      assertEquals("MMM dd, yyyy", storedPattern(model),
+                   "the painter must store the caller's pattern, not drop it");
+   }
+
+   @Test
+   void aNamedDateStyleBecomesTheDateSpecIgnoringCase() throws Exception {
+      VSObjectFormatInfoModel model =
+         parsed("{\"format\":\"DateFormat\",\"formatSpec\":\"medium\"}");
+
+      assertEquals("MEDIUM", model.getDateSpec());
+      assertNull(model.getFormatSpec());
+      assertEquals("MEDIUM", storedPattern(model));
+   }
+
+   @Test
+   void anExplicitDateSpecIsKeptAndOnlyCanonicalized() throws Exception {
+      VSObjectFormatInfoModel named =
+         parsed("{\"format\":\"DateFormat\",\"dateSpec\":\"short\",\"formatSpec\":\"yyyy\"}");
+      assertEquals("SHORT", named.getDateSpec());
+      assertEquals("yyyy", named.getFormatSpec());
+
+      VSObjectFormatInfoModel custom =
+         parsed("{\"format\":\"DateFormat\",\"dateSpec\":\"custom\",\"formatSpec\":\"MM/dd\"}");
+      assertEquals("Custom", custom.getDateSpec());
+      assertEquals("MM/dd", storedPattern(custom));
+   }
+
+   @Test
+   void aDateFormatWithNoPatternIsLeftAlone() throws Exception {
+      VSObjectFormatInfoModel model = parsed("{\"format\":\"DateFormat\"}");
+
+      assertNull(model.getDateSpec());
+      assertNull(model.getFormatSpec());
+   }
+
+   @Test
+   void aNonDateFormatGetsNoDateSpec() throws Exception {
+      VSObjectFormatInfoModel model =
+         parsed("{\"format\":\"DecimalFormat\",\"formatSpec\":\"#,##0.00\"}");
+
+      assertNull(model.getDateSpec());
+      assertEquals("#,##0.00", model.getFormatSpec());
+   }
+
+   @Test
+   void anIllegalDatePatternIsRefusedNamingThePattern() {
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> parsed("{\"format\":\"DateFormat\",\"formatSpec\":\"MMM qq yyyy\"}"));
+
+      assertTrue(thrown.getMessage().contains("MMM qq yyyy"), thrown.getMessage());
+
+      // WizControllerErrorHandler.handleUnreadableBody reports the most specific cause's first
+      // line, so that cause must be the message naming the pattern, on one line.
+      Throwable root = thrown;
+
+      while(root.getCause() != null && root.getCause() != root) {
+         root = root.getCause();
+      }
+
+      assertTrue(root.getMessage().contains("MMM qq yyyy") &&
+                 root.getMessage().contains("Illegal pattern character"), root.getMessage());
+      assertFalse(root.getMessage().contains("\n"), root.getMessage());
+   }
+
+   @Test
+   void aMalformedDecimalPatternIsRefusedNamingThePattern() {
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> parsed("{\"format\":\"DecimalFormat\",\"formatSpec\":\"#,##0.0.0\"}"));
+
+      assertTrue(thrown.getMessage().contains("#,##0.0.0"), thrown.getMessage());
+   }
+
+   /** Review round 1: a pattern sent in dateSpec itself is validated like formatSpec. */
+   @Test
+   void anIllegalPatternSentAsTheDateSpecIsRefusedToo() {
+      // The painter uses a non-named, non-Custom dateSpec as the pattern itself.
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> parsed("{\"format\":\"DateFormat\",\"dateSpec\":\"MMM qq yyyy\"}"));
+
+      assertTrue(thrown.getMessage().contains("MMM qq yyyy"), thrown.getMessage());
+   }
+
+   @Test
+   void aLegalPatternSentAsTheDateSpecIsAccepted() throws Exception {
+      assertEquals("MM/dd/yyyy",
+                   parsed("{\"format\":\"DateFormat\",\"dateSpec\":\"MM/dd/yyyy\"}").getDateSpec());
+   }
+
+   /** A typo that is still a legal pattern is accepted, as the Composer would accept it. */
+   @Test
+   void aLegalButOddDatePatternIsAccepted() throws Exception {
+      assertEquals("MMM dd, yyy",
+                   parsed("{\"format\":\"DateFormat\",\"formatSpec\":\"MMM dd, yyy\"}")
+                      .getFormatSpec());
+   }
+
+   /** StyleBI's extended decimal suffixes are accepted (no false refusal). */
+   @Test
+   void extendedDecimalSuffixesAreAccepted() throws Exception {
+      for(String spec : List.of("#.#B", "#,##0K", "'$'#,##0", "#,##0.##%M")) {
+         assertEquals(spec, parsed("{\"format\":\"DecimalFormat\",\"formatSpec\":\"" + spec +
+                                   "\"}").getFormatSpec());
+      }
+   }
+
+   /** set_calc_cell_format shares parseFormat, so it gets the derivation too. */
+   @Test
+   void calcCellFormatGetsTheDateSpecDerivation() throws Exception {
+      ViewsheetFormatService.CellFormatRequest request = new ObjectMapper().readValue(
+         "{\"assembly\":\"FreehandTable1\",\"row\":1,\"col\":0,\"format\":" +
+         "{\"format\":\"DateFormat\",\"formatSpec\":\"MM/dd/yyyy\"},\"reset\":false}",
+         ViewsheetFormatService.CellFormatRequest.class);
+
+      assertEquals("Custom", request.format().getDateSpec());
+      assertEquals("MM/dd/yyyy", request.format().getFormatSpec());
+   }
+
+   // ── Bug #77597 part B: no whole-region date format over numeric cells ─────────────────
+
+   static VSObjectFormatInfoModel dateFormat() {
+      VSObjectFormatInfoModel format = new VSObjectFormatInfoModel();
+      format.setFormat("DateFormat");
+      format.setDateSpec("Custom");
+      format.setFormatSpec("MMM dd, yyyy");
+      return format;
+   }
+
+   static ColumnRef column(String name, String type) {
+      ColumnRef column = new ColumnRef(new AttributeRef(null, name));
+      column.setDataType(type);
+      return column;
+   }
+
+   /** A Table bound to {@code columns}, whose FormatInfo is {@code formatInfo}. */
+   private static RuntimeViewsheet boundTableRvs(String name, FormatInfo formatInfo,
+                                                 ColumnRef... columns)
+   {
+      ColumnSelection selection = new ColumnSelection();
+
+      for(ColumnRef column : columns) {
+         selection.addAttribute(column);
+      }
+
+      TableVSAssembly table = mock(TableVSAssembly.class);
+      VSAssemblyInfo info = mock(VSAssemblyInfo.class);
+      when(table.getColumnSelection()).thenReturn(selection);
+      when(table.getVSAssemblyInfo()).thenReturn(info);
+      when(info.getFormatInfo()).thenReturn(formatInfo);
+      return rvsWith(name, table);
+   }
+
+   static RuntimeViewsheet rvsWith(String name,
+                                           inetsoft.uql.viewsheet.VSAssembly assembly)
+   {
+      Viewsheet viewsheet = mock(Viewsheet.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(viewsheet.getAssembly(name)).thenReturn(assembly);
+      return rvs;
+   }
+
+   private static FormatInfo ownDetailFormat(String header) {
+      FormatInfo formatInfo = new FormatInfo();
+      VSCompositeFormat own = new VSCompositeFormat();
+      own.getUserDefinedFormat().setFormatValue("DecimalFormat");
+      own.getUserDefinedFormat().setFormatExtentValue("#,##0");
+      formatInfo.setFormat(new TableDataPath(-1, TableDataPath.DETAIL, XSchema.DOUBLE,
+                                             new String[]{ header }), own);
+      return formatInfo;
+   }
+
+   /** #1, the numeric half: Revenue rendered 1970-01-01 under a whole-table DateFormat. */
+   @Test
+   void refusesAWholeTableDateFormatOverANumericColumnBeforeMutating() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      RuntimeViewsheet rvs = boundTableRvs("Table1", new FormatInfo(),
+         column("Order Date", XSchema.DATE), column("Revenue", XSchema.DOUBLE),
+         column("Region", XSchema.STRING));
+      ViewsheetSessionService sessions = sessionsFor(rvs);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> service(sessions, painter, mock(CalcTableService.class)).setFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.FormatRequest(List.of("Table1"), dateFormat(), false),
+            ""));
+
+      String message = thrown.getMessage();
+      assertTrue(message.contains("Revenue"), message);
+      assertFalse(message.contains("Region"), message);
+      assertTrue(message.contains("target:\"data\"") && message.contains("Order Date"), message);
+      assertFalse(message.contains("\n"), "one line: " + message);
+      verify(sessions, never()).mutate(anyString(), any(Principal.class), any());
+      verifyNoInteractions(painter);
+   }
+
+   @Test
+   void allowsAWholeTableDateFormatWhenTheNumericColumnHasItsOwnFormat() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      RuntimeViewsheet rvs = boundTableRvs("Table1", ownDetailFormat("Revenue"),
+         column("Order Date", XSchema.DATE), column("Revenue", XSchema.DOUBLE));
+
+      serviceWith(painter, rvs).setFormat(
+         "tok", principal(),
+         new ViewsheetFormatService.FormatRequest(List.of("Table1"), dateFormat(), false), "");
+
+      verify(painter).setFormat(eq("rt1"), any(), any(Principal.class), any(), anyString());
+   }
+
+   /** The exemption matches by header; a format stored under a relabelled header is missed. */
+   @Test
+   void refusesARelabelledNumericColumnAndNamesTheExemption() {
+      RuntimeViewsheet rvs = boundTableRvs("Table1", ownDetailFormat("Sales $"),
+         column("Order Date", XSchema.DATE), column("Revenue", XSchema.DOUBLE));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> serviceWith(mock(FormatPainterService.class), rvs).setFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.FormatRequest(List.of("Table1"), dateFormat(), false),
+            ""));
+
+      assertTrue(thrown.getMessage().contains("exempt"), thrown.getMessage());
+   }
+
+   /** A data write replaces the column's own format, so the exemption does not apply. */
+   @Test
+   void refusesAWholeBodyDateFormatEvenOverASelfFormattedNumericColumn() {
+      RuntimeViewsheet rvs = boundTableRvs("Table1", ownDetailFormat("Revenue"),
+         column("Order Date", XSchema.DATE), column("Revenue", XSchema.DOUBLE));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> serviceWith(mock(FormatPainterService.class), rvs).setFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.FormatRequest(List.of("Table1"), dateFormat(), false,
+                                                     "data"), ""));
+
+      assertTrue(thrown.getMessage().contains("Revenue"), thrown.getMessage());
+   }
+
+   @Test
+   void ignoresHiddenNumericColumns() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      ColumnRef hidden = column("Revenue", XSchema.DOUBLE);
+      hidden.setVisible(false);
+      RuntimeViewsheet rvs = boundTableRvs("Table1", new FormatInfo(),
+         column("Order Date", XSchema.DATE), hidden);
+
+      serviceWith(painter, rvs).setFormat(
+         "tok", principal(),
+         new ViewsheetFormatService.FormatRequest(List.of("Table1"), dateFormat(), false), "");
+
+      verify(painter).setFormat(eq("rt1"), any(), any(Principal.class), any(), anyString());
+   }
+
+   @Test
+   void allowsAWholeTableDateFormatOverDateAndStringColumns() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      RuntimeViewsheet rvs = boundTableRvs("Table1", new FormatInfo(),
+         column("Order Date", XSchema.DATE), column("Region", XSchema.STRING));
+
+      serviceWith(painter, rvs).setFormat(
+         "tok", principal(),
+         new ViewsheetFormatService.FormatRequest(List.of("Table1"), dateFormat(), false), "");
+
+      verify(painter).setFormat(eq("rt1"), any(), any(Principal.class), any(), anyString());
+   }
+
+   /** A column whose type is not known never triggers a refusal (fails open). */
+   @Test
+   void allowsWhenTheColumnTypeIsUnknown() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      RuntimeViewsheet rvs = boundTableRvs("Table1", new FormatInfo(), column("Mystery", null));
+
+      serviceWith(painter, rvs).setFormat(
+         "tok", principal(),
+         new ViewsheetFormatService.FormatRequest(List.of("Table1"), dateFormat(), false), "");
+
+      verify(painter).setFormat(eq("rt1"), any(), any(Principal.class), any(), anyString());
+   }
+
+   @Test
+   void aResetIsNeverRefused() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      RuntimeViewsheet rvs = boundTableRvs("Table1", new FormatInfo(),
+         column("Revenue", XSchema.DOUBLE));
+
+      serviceWith(painter, rvs).setFormat(
+         "tok", principal(),
+         new ViewsheetFormatService.FormatRequest(List.of("Table1"), dateFormat(), true), "");
+
+      verify(painter).setFormat(eq("rt1"), any(), any(Principal.class), any(), anyString());
+   }
+
+   /** A field-scoped data write is an explicit single-column choice: no binding check. */
+   @Test
+   void aFieldScopedDataWriteIsNotChecked() throws Exception {
+      ViewsheetSessionService sessions = sessionsFor(null);
+      ViewsheetFormatService service =
+         service(sessions, mock(FormatPainterService.class), mock(CalcTableService.class));
+
+      // The null rvs makes the lambda fail later; only the absence of the pre-check matters.
+      assertThrows(Exception.class, () -> service.setFormat(
+         "tok", principal(), new ViewsheetFormatService.FormatRequest(
+            List.of("Table1"), dateFormat(), false, "data", "Epoch Millis"), ""));
+
+      verify(sessions, never()).resolve(anyString(), any(Principal.class));
+   }
+
+   @Test
+   void refusesAWholeCalcTableDateFormatOverANumericSourceColumn() {
+      CalcTableVSAssembly calc = mock(CalcTableVSAssembly.class);
+      when(calc.getBindingRefs()).thenReturn(
+         new DataRef[]{ new ColumnRef(new AttributeRef("Revenue")),
+                        new ColumnRef(new AttributeRef("Order Date")) });
+      SourceInfo source = mock(SourceInfo.class);
+      when(source.getSource()).thenReturn("Orders");
+      when(calc.getSourceInfo()).thenReturn(source);
+
+      ColumnSelection sourceColumns = new ColumnSelection();
+      sourceColumns.addAttribute(column("Revenue", XSchema.DOUBLE));
+      sourceColumns.addAttribute(column("Order Date", XSchema.DATE));
+      TableAssembly sourceTable = mock(TableAssembly.class);
+      when(sourceTable.getColumnSelection(true)).thenReturn(sourceColumns);
+      Worksheet worksheet = mock(Worksheet.class);
+      when(worksheet.getAssembly("Orders")).thenReturn(sourceTable);
+
+      RuntimeViewsheet rvs = rvsWith("FreehandTable1", calc);
+      when(rvs.getViewsheet().getBaseWorksheet()).thenReturn(worksheet);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> serviceWith(mock(FormatPainterService.class), rvs).setFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.FormatRequest(List.of("FreehandTable1"), dateFormat(),
+                                                     false), ""));
+
+      assertTrue(thrown.getMessage().contains("Revenue"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("set_calc_cell_format"), thrown.getMessage());
+   }
+
+   // ── Bug #77597 part D: the response carries warnings ─────────────────────────────────
+
+   /** A Gauge-like assembly with a real FormatInfo the painter mock can write into. */
+   static RuntimeViewsheet assemblyWithFormatInfo(String name, FormatInfo formatInfo) {
+      inetsoft.uql.viewsheet.VSAssembly assembly = mock(inetsoft.uql.viewsheet.VSAssembly.class);
+      VSAssemblyInfo info = mock(VSAssemblyInfo.class);
+      when(assembly.getVSAssemblyInfo()).thenReturn(info);
+      when(info.getFormatInfo()).thenReturn(formatInfo);
+      return rvsWith(name, assembly);
+   }
+
+   private static VSObjectFormatInfoModel decimalFormat() {
+      VSObjectFormatInfoModel format = new VSObjectFormatInfoModel();
+      format.setFormat("DecimalFormat");
+      format.setFormatSpec("#,##0");
+      return format;
+   }
+
+   /** Stores {@code type}/{@code spec} on the OBJECT path, as the painter would. */
+   private static org.mockito.stubbing.Answer<Void> stores(FormatInfo formatInfo, String type,
+                                                          String spec)
+   {
+      return invocation -> {
+         VSCompositeFormat stored = new VSCompositeFormat();
+         stored.getUserDefinedFormat().setFormatValue(type);
+         stored.getUserDefinedFormat().setFormatExtentValue(spec);
+         formatInfo.setFormat(VSAssemblyInfo.OBJECTPATH, stored);
+         return null;
+      };
+   }
+
+   @Test
+   void aStoredFormatComesBackWithNoWarnings() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      FormatInfo formatInfo = new FormatInfo();
+      doAnswer(stores(formatInfo, "DecimalFormat", "#,##0")).when(painter)
+         .setFormat(anyString(), any(), any(Principal.class), any(), anyString());
+
+      ViewsheetFormatService.FormatResult result =
+         serviceWith(painter, assemblyWithFormatInfo("Gauge1", formatInfo)).setFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.FormatRequest(List.of("Gauge1"), decimalFormat(), false),
+            "");
+
+      assertEquals(List.of(), result.warnings());
+   }
+
+   /** The painter wrote nothing: the read-back reports it instead of a bare ok. */
+   @Test
+   void aFormatThePainterDidNotStoreIsReportedAsAWarning() throws Exception {
+      ViewsheetFormatService.FormatResult result =
+         serviceWith(mock(FormatPainterService.class),
+                     assemblyWithFormatInfo("Gauge1", new FormatInfo())).setFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.FormatRequest(List.of("Gauge1"), decimalFormat(), false),
+            "");
+
+      assertEquals(1, result.warnings().size(), result.warnings().toString());
+      assertTrue(result.warnings().get(0).contains("DecimalFormat") &&
+                 result.warnings().get(0).contains("Gauge1") &&
+                 result.warnings().get(0).contains("no format"), result.warnings().get(0));
+   }
+
+   /** The #2 shape: DateFormat stored, custom pattern dropped. */
+   @Test
+   void aDroppedCustomDatePatternIsReportedAsAWarning() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      FormatInfo formatInfo = new FormatInfo();
+      doAnswer(stores(formatInfo, "DateFormat", null)).when(painter)
+         .setFormat(anyString(), any(), any(Principal.class), any(), anyString());
+      VSObjectFormatInfoModel format = new VSObjectFormatInfoModel();
+      format.setFormat("DateFormat");
+      format.setDateSpec("Custom");
+      format.setFormatSpec("MMM dd, yyyy");
+
+      ViewsheetFormatService.FormatResult result =
+         serviceWith(painter, assemblyWithFormatInfo("Text1", formatInfo)).setFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.FormatRequest(List.of("Text1"), format, false), "");
+
+      assertEquals(1, result.warnings().size(), result.warnings().toString());
+      assertTrue(result.warnings().get(0).contains("MMM dd, yyyy") &&
+                 result.warnings().get(0).contains("yyyy-MM-dd"), result.warnings().get(0));
+   }
+
+   /** CommaFormat is stored as DecimalFormat; that translation is not a mismatch. */
+   @Test
+   void theCommaToDecimalTranslationIsNotAMismatch() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      FormatInfo formatInfo = new FormatInfo();
+      doAnswer(stores(formatInfo, "DecimalFormat", "#,##0")).when(painter)
+         .setFormat(anyString(), any(), any(Principal.class), any(), anyString());
+      VSObjectFormatInfoModel format = new VSObjectFormatInfoModel();
+      format.setFormat("CommaFormat");
+
+      assertEquals(List.of(),
+         serviceWith(painter, assemblyWithFormatInfo("Gauge1", formatInfo)).setFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.FormatRequest(List.of("Gauge1"), format, false), "")
+            .warnings());
+   }
+
+   /** A user message the Composer's format engine raised comes back as a warning. */
+   @Test
+   void aFormatEngineUserMessageComesBackAsAWarning() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      doAnswer(invocation -> {
+         inetsoft.util.CoreTool.addUserMessage("Format does not apply to string column");
+         return null;
+      }).when(painter).setFormat(anyString(), any(), any(Principal.class), any(), anyString());
+
+      ViewsheetFormatService.FormatResult result = serviceWith(painter).setFormat(
+         "tok", principal(),
+         new ViewsheetFormatService.FormatRequest(List.of("Gauge1"),
+                                                  new VSObjectFormatInfoModel(), false), "");
+
+      assertEquals(List.of("Format does not apply to string column"), result.warnings());
+   }
+
+   /** A message left on this thread by an earlier request is not this call's warning. */
+   @Test
+   void aStaleUserMessageIsNotReported() throws Exception {
+      inetsoft.util.CoreTool.addUserMessage("left over from another request");
+
+      ViewsheetFormatService.FormatResult result =
+         serviceWith(mock(FormatPainterService.class)).setFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.FormatRequest(List.of("Gauge1"),
+                                                     new VSObjectFormatInfoModel(), false), "");
+
+      assertEquals(List.of(), result.warnings());
+   }
+
+   /** The session's own post-write warnings are merged into the result. */
+   @Test
+   void theSessionsWarningsAreMergedIn() throws Exception {
+      ViewsheetSessionService sessions = sessionsFor(null);
+      doAnswer(invocation -> {
+         ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
+         mutation.run(null, "rt1", null);
+         return List.of("refresh step was contained");
+      }).when(sessions).mutate(anyString(), any(Principal.class), any());
+
+      ViewsheetFormatService.FormatResult result =
+         service(sessions, mock(FormatPainterService.class), mock(CalcTableService.class))
+            .setFormat("tok", principal(),
+                       new ViewsheetFormatService.FormatRequest(
+                          List.of("Gauge1"), new VSObjectFormatInfoModel(), false), "");
+
+      assertEquals(List.of("refresh step was contained"), result.warnings());
+   }
+
+   // ── Bug #77597 part C: target "field", and no value format on a chart's object/title ──
+
+   private static ViewsheetFormatService.FormatRequest jsonRequest(String json) throws Exception {
+      return new ObjectMapper().readValue(json, ViewsheetFormatService.FormatRequest.class);
+   }
+
+   @Test
+   void theRawFormatKeysAreCapturedWithoutJsonNulls() throws Exception {
+      ViewsheetFormatService.FormatRequest request = jsonRequest(
+         "{\"assemblies\":[\"Chart1\"],\"target\":\"field\",\"field\":\"Sum(Revenue)\"," +
+         "\"format\":{\"format\":\"DecimalFormat\",\"formatSpec\":\"#,##0\",\"color\":null}}");
+
+      assertEquals(java.util.Set.of("format", "formatSpec"), request.formatKeys());
+      assertNull(new ViewsheetFormatService.FormatRequest(
+         List.of("Chart1"), new VSObjectFormatInfoModel(), false, "field", "F").formatKeys());
+   }
+
+   /** A CSS key the field writer would drop is refused by name, before the sheet is touched. */
+   @Test
+   void targetFieldRefusesCssKeysByName() throws Exception {
+      ViewsheetSessionService sessions = sessionsFor(null);
+      ViewsheetFormatService.FormatRequest request = jsonRequest(
+         "{\"assemblies\":[\"Chart1\"],\"target\":\"field\",\"field\":\"Sum(Revenue)\"," +
+         "\"format\":{\"format\":\"DecimalFormat\",\"formatSpec\":\"#,##0\"," +
+         "\"color\":\"#ff0000\",\"backgroundColor\":\"#eeeeee\"}}");
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> service(sessions, mock(FormatPainterService.class), mock(CalcTableService.class))
+            .setFormat("tok", principal(), request, ""));
+
+      assertTrue(thrown.getMessage().contains("'color'") &&
+                 thrown.getMessage().contains("'backgroundColor'"), thrown.getMessage());
+      verify(sessions, never()).resolve(anyString(), any(Principal.class));
+      verify(sessions, never()).mutate(anyString(), any(Principal.class), any());
+   }
+
+   /** Primitive model defaults (wrapText, roundCorner ...) are never mistaken for sent keys. */
+   @Test
+   void targetFieldDoesNotMistakeModelDefaultsForKeys() throws Exception {
+      ViewsheetFormatService.FormatRequest request = jsonRequest(
+         "{\"assemblies\":[\"Gauge1\"],\"target\":\"field\",\"field\":\"Sum(Revenue)\"," +
+         "\"format\":{\"format\":\"DecimalFormat\",\"formatSpec\":\"#,##0\"}}");
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> serviceWith(mock(FormatPainterService.class),
+                           rvsWith("Gauge1", mock(inetsoft.uql.viewsheet.GaugeVSAssembly.class)))
+            .setFormat("tok", principal(), request, ""));
+
+      // Past the key check: refused for not being a chart instead.
+      assertTrue(thrown.getMessage().contains("only applies to a chart"), thrown.getMessage());
+   }
+
+   @Test
+   void targetFieldRequiresOneAssemblyAndAField() {
+      VSObjectFormatInfoModel format = decimalFormat();
+
+      Exception many = assertThrows(
+         IllegalArgumentException.class,
+         () -> serviceWith(mock(FormatPainterService.class)).setFormat(
+            "tok", principal(), new ViewsheetFormatService.FormatRequest(
+               List.of("Chart1", "Chart2"), format, false, "field", "Sum(Revenue)"), ""));
+      assertTrue(many.getMessage().contains("one chart field"), many.getMessage());
+
+      Exception none = assertThrows(
+         IllegalArgumentException.class,
+         () -> serviceWith(mock(FormatPainterService.class)).setFormat(
+            "tok", principal(), new ViewsheetFormatService.FormatRequest(
+               List.of("Chart1"), format, false, "field", " "), ""));
+      assertTrue(none.getMessage().contains("requires 'field'"), none.getMessage());
+   }
+
+   @Test
+   void targetFieldRequiresAFormatTypeUnlessResetting() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> serviceWith(mock(FormatPainterService.class)).setFormat(
+            "tok", principal(), new ViewsheetFormatService.FormatRequest(
+               List.of("Chart1"), new VSObjectFormatInfoModel(), false, "field",
+               "Sum(Revenue)"), ""));
+
+      assertTrue(thrown.getMessage().contains("format.format"), thrown.getMessage());
+   }
+
+   @Test
+   void targetFieldRefusesANonChart() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> serviceWith(mock(FormatPainterService.class),
+                           rvsWith("Table1", mock(TableVSAssembly.class))).setFormat(
+            "tok", principal(), new ViewsheetFormatService.FormatRequest(
+               List.of("Table1"), decimalFormat(), false, "field", "Revenue"), ""));
+
+      assertTrue(thrown.getMessage().contains("only applies to a chart") &&
+                 thrown.getMessage().contains("Table1"), thrown.getMessage());
+   }
+
+   /** #3: a number format on a chart's whole object never reached the axis. Now refused. */
+   @Test
+   void refusesANumberFormatOnAChartsWholeObjectBeforeMutating() throws Exception {
+      RuntimeViewsheet rvs = rvsWith("Chart1", mock(inetsoft.uql.viewsheet.ChartVSAssembly.class));
+      ViewsheetSessionService sessions = sessionsFor(rvs);
+      FormatPainterService painter = mock(FormatPainterService.class);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> service(sessions, painter, mock(CalcTableService.class)).setFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.FormatRequest(List.of("Chart1"), decimalFormat(), false),
+            ""));
+
+      assertTrue(thrown.getMessage().contains("target 'field'") &&
+                 thrown.getMessage().contains("target 'text'"), thrown.getMessage());
+      verify(sessions, never()).mutate(anyString(), any(Principal.class), any());
+      verifyNoInteractions(painter);
+   }
+
+   @Test
+   void refusesADateFormatOnAChartsTitle() {
+      RuntimeViewsheet rvs = rvsWith("Chart1", mock(inetsoft.uql.viewsheet.ChartVSAssembly.class));
+
+      assertThrows(
+         IllegalArgumentException.class,
+         () -> serviceWith(mock(FormatPainterService.class), rvs).setFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.FormatRequest(List.of("Chart1"), dateFormat(), false,
+                                                     "title"), ""));
+   }
+
+   /** Font and colour on a chart's whole object still go through, as before. */
+   @Test
+   void aFontOnlyChartObjectFormatIsStillApplied() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      RuntimeViewsheet rvs = rvsWith("Chart1", mock(inetsoft.uql.viewsheet.ChartVSAssembly.class));
+      VSObjectFormatInfoModel format = new VSObjectFormatInfoModel();
+      format.setColor("#333333");
+
+      serviceWith(painter, rvs).setFormat(
+         "tok", principal(),
+         new ViewsheetFormatService.FormatRequest(List.of("Chart1"), format, false), "");
+
+      verify(painter).setFormat(eq("rt1"), any(), any(Principal.class), any(), anyString());
+   }
+
+   /** A reset of a chart's whole object is never refused. */
+   @Test
+   void aChartObjectResetIsStillApplied() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      RuntimeViewsheet rvs = rvsWith("Chart1", mock(inetsoft.uql.viewsheet.ChartVSAssembly.class));
+
+      serviceWith(painter, rvs).setFormat(
+         "tok", principal(),
+         new ViewsheetFormatService.FormatRequest(List.of("Chart1"), decimalFormat(), true), "");
+
+      verify(painter).setFormat(eq("rt1"), any(), any(Principal.class), any(), anyString());
+   }
+
    private static ViewsheetFormatService serviceWith(FormatPainterService painter) {
       return serviceWith(painter, mock(CalcTableService.class));
    }
 
    /** A real (mocked) {@code RuntimeViewsheet} in place of {@code null} -- for target:"data",
     *  which needs to resolve the named assembly and its live table lens. */
-   private static ViewsheetFormatService serviceWith(FormatPainterService painter,
-                                                      RuntimeViewsheet rvs)
+   static ViewsheetFormatService serviceWith(FormatPainterService painter,
+                                              RuntimeViewsheet rvs)
    {
       return serviceWith(painter, mock(CalcTableService.class), rvs);
    }
@@ -1614,9 +2359,30 @@ class ViewsheetFormatServiceTest {
                                                       CalcTableService calcService,
                                                       RuntimeViewsheet rvs)
    {
+      return service(sessionsFor(rvs), painter, calcService);
+   }
+
+   static ViewsheetFormatService service(ViewsheetSessionService sessions,
+                                                 FormatPainterService painter,
+                                                 CalcTableService calcService)
+   {
+      // No binding handler: these tests never reach the field writer (its refusals run first),
+      // and VSWizardBindingHandler's static initializer needs the SREE context -- see
+      // ViewsheetFormatServiceFieldTargetTest for the field target against the real handler.
+      return new ViewsheetFormatService(sessions, painter, calcService, null);
+   }
+
+   /**
+    * A sessions mock whose {@code mutate}/{@code read} run the lambda against {@code rvs}, and
+    * whose read-only {@code resolve} (used by the pre-mutate refusals) returns the same
+    * {@code rvs}.
+    */
+   static ViewsheetSessionService sessionsFor(RuntimeViewsheet rvs) {
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
 
       try {
+         when(sessions.resolve(anyString(), any(Principal.class))).thenReturn(rvs);
+
          doAnswer(invocation -> {
             ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
             mutation.run(rvs, "rt1", null);
@@ -1637,10 +2403,10 @@ class ViewsheetFormatServiceTest {
          throw new IllegalStateException(e);
       }
 
-      return new ViewsheetFormatService(sessions, painter, calcService);
+      return sessions;
    }
 
-   private static Principal principal() {
+   static Principal principal() {
       return () -> "admin";
    }
 }
