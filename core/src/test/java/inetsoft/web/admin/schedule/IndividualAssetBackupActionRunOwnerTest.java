@@ -106,6 +106,8 @@ class IndividualAssetBackupActionRunOwnerTest {
    private static final IdentityID SADM = new IdentityID("sadm", ORG_A);
    private static final IdentityID BOB = new IdentityID("bob", ORG_B);
    private static final IdentityID CARL_GROUP = new IdentityID("iabrCarlGroup", ORG_A);
+   // a missing owner named like a site admin of another org (Bug #77452 principal)
+   private static final IdentityID SROOT_IN_A = new IdentityID("iabrRoot", ORG_A);
    private static final String FTP = "ftp://attacker.example/loot";
    private static final String BACKUP_PATH = "/backup/iabr";
 
@@ -131,6 +133,9 @@ class IndividualAssetBackupActionRunOwnerTest {
          .addUser("dave", ORG_A, "password")
          .addUser("sadm", ORG_A, "password")
          .addUser("bob", ORG_B, "password")
+         .addSysAdminRole("iabrSiteAdminB", ORG_B)
+         .addUser("iabrRoot", ORG_B, "password")
+         .addUserToRole("iabrRoot", "iabrSiteAdminB", ORG_B)
          .addGroup(CARL_GROUP.name, ORG_A)
          .addUserToGroup("carl", CARL_GROUP.name, ORG_A)
          .addUserToRole("alice", "iabrOrgAdminA", ORG_A)
@@ -326,6 +331,27 @@ class IndividualAssetBackupActionRunOwnerTest {
       Throwable plainError = assertThrows(Throwable.class, () -> run(
          backupTask("Cycle2", CARL, BACKUP_PATH, cycle)));
       assertTrue(plainError.getMessage().contains("may not back up"), plainError.getMessage());
+   }
+
+   // a task whose owner is missing and named like a site admin of another org runs with the
+   // organization admin roles of its own org (Bug #77452), it still backs up the sheets of its
+   // org and not those of another org
+   @Test
+   void missingSiteAdminNameOwner_backsUpOwnOrgOnly() throws Throwable {
+      assertNotNull(SUtil.getSameNameSiteAdmin(
+                       SecurityEngine.getSecurity().getSecurityProvider(), SROOT_IN_A),
+                    "precondition: the owner is a missing site admin name");
+
+      run(backupTask("RootOwn", SROOT_IN_A, BACKUP_PATH,
+                     SUtil.getXAsset("WORKSHEET", "daveSecretWs", DAVE)));
+      assertWritten("dave~;~" + ORG_A + "^daveSecretWs");
+
+      reset(storage);
+      Throwable e = assertThrows(Throwable.class, () -> run(
+         backupTask("RootOther", SROOT_IN_A, BACKUP_PATH,
+                    SUtil.getXAsset("WORKSHEET", "bobSecretWs", BOB))));
+      assertTrue(e.getMessage().contains("bobSecretWs"), e.getMessage());
+      verify(storage, never()).write(anyString(), any(Path.class), any());
    }
 
    private void assertWritten(String fragment) throws Exception {
