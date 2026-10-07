@@ -1313,6 +1313,11 @@ public class XLogicalModel
     * Add a child XLogicalModel.
     */
    public void addLogicalModel(XLogicalModel child, boolean lmchange) {
+      // Bug #77918: as XDataModel.addLogicalModel
+      if(XUtil.isDirectScriptCall(XLogicalModel.class)) {
+         throw new java.lang.SecurityException("A script may not add a logical model");
+      }
+
       String path = getDataSource() + "/" + getName() + "/" + child.getName();
       AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
               AssetEntry.Type.EXTENDED_LOGIC_MODEL, path, null);
@@ -1476,6 +1481,11 @@ public class XLogicalModel
     * remove a child XLogicalModel.
     */
    public void removeLogicalModel(String name) {
+      // Bug #77918: as XDataModel.addLogicalModel
+      if(XUtil.isDirectScriptCall(XLogicalModel.class)) {
+         throw new java.lang.SecurityException("A script may not remove a logical model");
+      }
+
       AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
               AssetEntry.Type.EXTENDED_LOGIC_MODEL,
               getDataSource() + "/" + getName() + "/" + name, null);
