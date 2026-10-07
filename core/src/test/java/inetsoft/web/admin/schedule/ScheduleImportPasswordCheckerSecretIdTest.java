@@ -111,6 +111,19 @@ class ScheduleImportPasswordCheckerSecretIdTest {
       assertCleared(pdf(imported));
    }
 
+   // Bug #77979, the user in the path overrides the secret's user name
+   @Test
+   void otherPathUser_isCleared() {
+      ScheduleTask stored = task(secretPath(HOST_A, SECRET_A), null, null);
+      ScheduleTask imported = task(
+         new ServerPathInfo("ftp://mallory@" + HOST_A + "/out", "bob", "pw-a"), null, null);
+
+      List<String> cleared = ScheduleImportPasswordChecker.clearUnboundPasswords(imported, stored);
+
+      assertEquals(List.of(pdf(imported).getPath()), cleared);
+      assertCleared(pdf(imported));
+   }
+
    // a secret id is only taken from the stored task, a new task has none
    @Test
    void newTask_isCleared() {
