@@ -29,9 +29,12 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.File;
 import java.lang.reflect.Field;
+import java.nio.file.Files;
+import java.util.Arrays;
 import java.util.function.BooleanSupplier;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 /**
  * Bug #77961: a swap whose file write fails must keep the in-memory data, and must not leave
@@ -228,6 +231,91 @@ class XDimSwapWriteFailureTest {
       }
    }
 
+   @Test
+   void dictionaryKeepsValuesWhenSwapFileCannotBeOpened() throws Exception {
+      XDimDictionary dict = newDict();
+      File file = dictFile(dict);
+
+      try {
+         swapInterrupted(dict::swap);
+         // a stub that cannot be opened for write, so the rewrite fails with an IOException
+         assertTrue(file.createNewFile());
+         assertTrue(file.setReadOnly());
+         assumeFalse(file.canWrite(), "the read-only file is writable here");
+
+         assertFalse(dict.swap(), "a failed write must not count as swapped");
+         assertEquals("Boston", dict.getValue(0), "values lost after a failed swap write");
+         assertEquals("Chicago", dict.getValue(1), "values lost after a failed swap write");
+         assertTrue(dict.isValid());
+
+         // the failure path may already have deleted the stub
+         file.setWritable(true);
+         assertTrue(dict.swap());
+         assertFalse(dict.isValid());
+         assertTrue(file.length() > 0, "the stub must be rewritten, not taken as swapped");
+         assertEquals("Boston", dict.getValue(0));
+         assertEquals("Chicago", dict.getValue(1));
+      }
+      finally {
+         file.setWritable(true);
+         dict.dispose();
+      }
+   }
+
+   @Test
+   void indexRewritesStubLongerThanItsData() throws Exception {
+      BitDimIndex index = newIndex();
+      File file = indexFile(index);
+
+      try {
+         swapInterrupted(index::swap);
+         assertIndexRows(index);
+         // as if a partly written stub of other data could not be deleted
+         byte[] garbage = new byte[4096];
+         Arrays.fill(garbage, (byte) 0x7f);
+         Files.write(file.toPath(), garbage);
+
+         assertTrue(index.swap());
+         assertFalse(index.isValid());
+         assertIndexRows(index);
+      }
+      finally {
+         index.dispose();
+      }
+   }
+
+   @Test
+   void measureFragmentSharesFileWithStubOfFailedWrite() throws Exception {
+      int size = AbstractMeasureColumn.BLOCK_SIZE;
+      MVDoubleColumn col = newMeasureColumn(size * 2);
+      MVDecimalColumn.Fragment fragment0 = col.fragments[0];
+      MVDecimalColumn.Fragment fragment1 = col.fragments[1];
+
+      try {
+         // the failed write of fragment 0 leaves the shared column file as a stub
+         assertFalse(swapInterrupted(fragment0::swap));
+         assertEquals(7.5, col.getValue(7), "values lost after a failed swap write");
+
+         assertTrue(fragment1.swap());
+         assertTrue(fragment0.swap());
+         assertFalse(fragment0.isValid());
+         assertFalse(fragment1.isValid());
+         assertEquals(7.5, col.getValue(7));
+         assertEquals(size - 0.5, col.getValue(size - 1));
+         assertEquals(size + 3.5, col.getValue(size + 3));
+         assertEquals(2 * size - 0.5, col.getValue(2 * size - 1));
+      }
+      finally {
+         fragment0.dispose();
+         fragment1.dispose();
+         col.dispose();
+
+         if(col.file != null) {
+            col.file.delete();
+         }
+      }
+   }
+
    /**
     * Swap with the thread interrupted, so the first interruptible write call throws.
     */
@@ -265,7 +353,10 @@ class XDimSwapWriteFailureTest {
    }
 
    private static MVDoubleColumn newMeasureColumn() {
-      int size = AbstractMeasureColumn.BLOCK_SIZE;
+      return newMeasureColumn(AbstractMeasureColumn.BLOCK_SIZE);
+   }
+
+   private static MVDoubleColumn newMeasureColumn(int size) {
       MVDoubleColumn col = new MVDoubleColumn(null, 0, null, size, true);
 
       for(int i = 0; i < size; i++) {
@@ -273,8 +364,11 @@ class XDimSwapWriteFailureTest {
       }
 
       // only the test thread swaps it
-      XSwapper.getSwapper().deregister(col.fragments[0]);
-      assertTrue(col.fragments[0].isValid());
+      for(MVDecimalColumn.Fragment fragment : col.fragments) {
+         XSwapper.getSwapper().deregister(fragment);
+         assertTrue(fragment.isValid());
+      }
+
       return col;
    }
 
