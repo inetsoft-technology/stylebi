@@ -518,6 +518,9 @@ public class XSessionManager {
             XNodeTableLens xNodeTableLens =
                (XNodeTableLens) Util.getNestedTable(table, XNodeTableLens.class);
             xNodeTableLens.setMaxRowHintMap(map);
+            // a scheduled run fails on a row fetch error instead of using the rows read
+            // before it (Bug #77901)
+            xNodeTableLens.setFailOnLoadException(isScheduler(qvars));
          }
          catch(SQLExpressionFailedException sqlExpressionException) {
             LOG.error("A SQL Expression failed for query: {}", query);
@@ -542,7 +545,7 @@ public class XSessionManager {
             Tool.addUserWarning(Catalog.getCatalog().getString("common.table.getDataFailed") +
                                 ": " + ex.getMessage());
 
-            if(Boolean.TRUE.equals(qvars.get("__is_scheduler__"))) {
+            if(isScheduler(qvars)) {
                throw ex;
             }
          }
@@ -552,6 +555,16 @@ public class XSessionManager {
       finally {
          removeQueryInfo(queryId);
          qvars.remove(XQuery.HINT_TOUCH_TIMESTAMP);
+      }
+   }
+
+   private static boolean isScheduler(VariableTable qvars) {
+      try {
+         Object scheduler = qvars.get("__is_scheduler__");
+         return Boolean.TRUE.equals(scheduler) || "true".equals(scheduler);
+      }
+      catch(Exception ex) {
+         return false;
       }
    }
 
@@ -576,6 +589,14 @@ public class XSessionManager {
          table = new XNodeTableLens(node);
 
          if(table.isCancelled()) {
+            Exception loadException = table.getLoadException();
+
+            // the rows failed to load (e.g. a database error while reading the result), report
+            // the failure instead of a cancel (Bug #77901)
+            if(loadException != null) {
+               throw loadException;
+            }
+
             throw new CancelledException(
                Catalog.getCatalog().getString("Query abandoned") + ".");
          }

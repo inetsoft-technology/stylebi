@@ -27,6 +27,7 @@ import inetsoft.report.lens.ChainScriptLock;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.internal.ColumnIndexMap;
 import inetsoft.uql.table.XSwappableTable;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.*;
 import inetsoft.util.audit.ExecutionBreakDownRecord;
@@ -686,7 +687,7 @@ public class SummaryFilter extends AbstractGroupedTable
       catch(ScriptException scriptException) {
          // a script may wrap a lost swap file of a base cell, the readers rethrow it
          // (bug #77651)
-         recordSwapFailure(pass, scriptException);
+         recordBaseFailure(pass, scriptException);
          // Script Exceptions are already logged
          Tool.addUserMessage(scriptException.getMessage());
       }
@@ -694,8 +695,9 @@ public class SummaryFilter extends AbstractGroupedTable
          // logged by the wait site, process0() kept it for the readers (bug #76967)
       }
       catch(Exception ex) {
-         // the fragment already logged a lost swap file, the readers rethrow it (bug #77651)
-         if(!recordSwapFailure(pass, ex)) {
+         // the fragment already logged a lost swap file, and a load failure of the base was
+         // logged where it happened, the readers rethrow them (bug #77651, #77901)
+         if(!recordBaseFailure(pass, ex)) {
             LOG.error("Failed to process summary filter", ex);
          }
       }
@@ -942,8 +944,10 @@ public class SummaryFilter extends AbstractGroupedTable
             pass.stallFailure = stall;
          }
          else {
-            // nor take the rows so far of a lost swap file of the base (bug #77651)
-            recordSwapFailure(pass, ex);
+            // nor take the rows so far of a lost swap file of the base (bug #77651), or of a
+            // base that failed to load for a reader that has to fail, e.g. a scheduled run
+            // (bug #77901)
+            recordBaseFailure(pass, ex);
          }
 
          throw ex;
@@ -951,18 +955,22 @@ public class SummaryFilter extends AbstractGroupedTable
    }
 
    /**
-    * Keep the lost swap file a pass failed with for the readers, unless it failed with a
-    * stall (bug #77651).
-    * @return {@code true} if the failure is a lost swap file.
+    * Keep the lost swap file (bug #77651) or the load failure of the base (bug #77901) a pass
+    * failed with for the readers, unless it failed with a stall.
+    * @return {@code true} if the failure is a lost swap file or a load failure.
     */
-   private static boolean recordSwapFailure(Pass pass, Throwable ex) {
-      SwapFileReadException swapFailure = SwapFileReadException.find(ex);
+   private static boolean recordBaseFailure(Pass pass, Throwable ex) {
+      RuntimeException baseFailure = SwapFileReadException.find(ex);
 
-      if(swapFailure != null && pass.stallFailure == null) {
-         pass.swapFailure = swapFailure;
+      if(baseFailure == null) {
+         baseFailure = TableLoadException.find(ex);
       }
 
-      return swapFailure != null;
+      if(baseFailure != null && pass.stallFailure == null) {
+         pass.baseFailure = baseFailure;
+      }
+
+      return baseFailure != null;
    }
 
    /**
@@ -2177,11 +2185,12 @@ public class SummaryFilter extends AbstractGroupedTable
          throw new LockStallException(failure);
       }
 
-      // nor the end of the table of a lost swap file (bug #77651)
-      SwapFileReadException swapFailure = pass.swapFailure;
+      // nor the end of the table of a lost swap file (bug #77651) or of a base that failed
+      // to load (bug #77901)
+      RuntimeException baseFailure = pass.baseFailure;
 
-      if(pass.completed && swapFailure != null) {
-         throw swapFailure;
+      if(pass.completed && baseFailure != null) {
+         throw baseFailure;
       }
    }
 
@@ -3803,8 +3812,9 @@ public class SummaryFilter extends AbstractGroupedTable
       // the base row the worker has reached, and the stall it failed with (bug #76967)
       transient volatile int processedRows;
       transient volatile LockStallException stallFailure;
-      // the lost swap file the worker failed with (bug #77651)
-      transient volatile SwapFileReadException swapFailure;
+      // the lost swap file or the load failure of the base the worker failed with
+      // (bug #77651, #77901)
+      transient volatile RuntimeException baseFailure;
       // the watchdog suppliers of getObject and waitForRow (bug #76967)
       private transient LongSupplier stallProgress;
       private transient Supplier<Thread[]> stallBlockers;

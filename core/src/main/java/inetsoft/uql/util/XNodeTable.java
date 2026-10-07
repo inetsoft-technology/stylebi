@@ -117,7 +117,10 @@ public class XNodeTable implements XTable {
     * Check the table to see if it is cancelled.
     */
    public synchronized boolean isCancelled() {
-      return cancelled;
+      // a load failure is kept before the readers are woken, while cancelled is set by the
+      // loader's catch after it, so a cache check right after the end of the rows never takes
+      // the truncated table for a complete one (Bug #77901)
+      return cancelled || loadException != null;
    }
 
    /**
@@ -977,7 +980,7 @@ public class XNodeTable implements XTable {
    }
 
    private transient XTable delegate;
-   private boolean cancelled = false;
+   private volatile boolean cancelled = false;
    private Exception loadDataException = null;
    // not serialized, a load failure only matters to the caller that ran the query
    private transient volatile Exception loadException;

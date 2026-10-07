@@ -934,7 +934,11 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
 
             // the columns of a crosstab don't match its data, the column header columns
             // missing from a row-limited run are kept (77538)
-            if(data != null && (data.getColCount() == ncol || pub && ainfo.isCrosstab())) {
+            // a result whose rows failed to load holds only the rows read before the failure,
+            // run the query again instead of reusing it (Bug #77901)
+            if(data != null && (data.getColCount() == ncol || pub && ainfo.isCrosstab()) &&
+               AssetDataCache.getLoadException(data) == null)
+            {
                return data;
             }
 

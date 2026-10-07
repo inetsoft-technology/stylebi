@@ -59,7 +59,26 @@ public class MVDispatcher {
 
    public boolean isCanceled() {
       return canceled || (data instanceof XNodeTableLens &&
-         ((XNodeTableLens) data).isCancelled()) || Thread.currentThread().isInterrupted();
+         ((XNodeTableLens) data).isCancelled()) || isLoadFailed() ||
+         Thread.currentThread().isInterrupted();
+   }
+
+   /**
+    * Check if the rows of the query result under the data failed to load, e.g. a database
+    * error while reading the result set. The data then holds only the rows read before the
+    * failure, and an MV must not be built from it (Bug #77901).
+    */
+   private boolean isLoadFailed() {
+      Exception loadException = data instanceof TableLens ?
+         AssetDataCache.getLoadException((TableLens) data) : null;
+
+      if(loadException != null && !loadFailureLogged) {
+         loadFailureLogged = true;
+         LOG.warn("Materialized view {} is not created, the query failed while reading " +
+                  "its rows: {}", name, loadException.getMessage(), loadException);
+      }
+
+      return loadException != null;
    }
 
    public void cancel() {
@@ -836,6 +855,7 @@ public class MVDispatcher {
    // all its dispatchers, null to always reset (see MVBuilder)
    protected Set<MVColumn> resetColumns = null;
    private transient XTable data;
+   private transient boolean loadFailureLogged;
    private transient int[] dims;
    private transient int[] measures;
 
