@@ -216,11 +216,15 @@ change.
   ticked single calendar switched to double keeps its doubled width. It is not flagged as the
   author's either, so a double calendar switched back to a single 300-wide box follows density
   again. This matches #6390's D7, where a dialog's show-type switch is a derived write that never
-  sets the flag.
-- **A save of a dropdown or double calendar ignores the checkbox answer.** Apply keeps the dialog
-  open with the model it was opened with, so after an Apply that switched to double or dropdown, OK
-  can resend the answer read while the calendar was single. The save clears it, so OK cannot reset
-  that calendar to the 300-wide density size.
+  sets the flag. **An untick is the exception:** it never resizes, so it is recorded through the
+  switch, and the calendar stays the author's when it is later switched back.
+- **A save of a dropdown or double calendar ignores a tick.** Apply keeps the dialog open with the
+  model it was opened with, so after an Apply that switched to double or dropdown, OK can resend the
+  tick read while the calendar was single. The save drops it, so OK cannot reset that calendar to
+  the 300-wide density size. An untick is still recorded, because it never resizes.
+- **Accepted:** after an Apply the open dialog's size fields are not reloaded, so they can show the
+  size from before a ticked Apply reset it. A later mode switch in the same session doubles or halves
+  that stale size. Apply has never reloaded the dialog's model.
 
 **No frontend change.** The calendar's general pane already embeds `<size-position-pane>`
 (`calendar-general-pane.component.html:27`). The pane shows the checkbox whenever
