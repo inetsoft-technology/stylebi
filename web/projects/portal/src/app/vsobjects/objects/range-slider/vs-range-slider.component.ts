@@ -138,6 +138,10 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
    private clickTime: number = 200;
    private startingSelectStart: number;
    private startingSelectEnd: number;
+   // labels/values when the drag started, and the server range of a refresh during the drag
+   private dragLabels: string[];
+   private dragValues: string[];
+   private refreshedRange: {start: number, end: number};
 
    get mobilePadding(): number {
       return this.hasMobilePadding ? 10 : 0;
@@ -211,6 +215,13 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
 
    @Input()
    set model(model: VSRangeSliderModel) {
+      // a refresh during a drag keeps the dragged range until the mouse is released
+      if(this.isMouseDown && this._model && model && model !== this._model) {
+         this.refreshedRange = {start: model.selectStart, end: model.selectEnd};
+         model.selectStart = this._model.selectStart;
+         model.selectEnd = this._model.selectEnd;
+      }
+
       this._model = model;
       this.setTopPositions();
 
@@ -330,7 +341,10 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
    }
 
    ngOnChanges(changes: SimpleChanges) {
-      this.calculatePositions();
+      // don't move the handles under the mouse, mouseUp() recalculates the positions
+      if(!this.isMouseDown) {
+         this.calculatePositions();
+      }
 
       if(changes["selected"] && !this.selected) {
          this.editingTitle = false;
@@ -467,6 +481,9 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
       this.timeHandleClicked = Date.now();
       this.startingSelectStart = this.model.selectStart;
       this.startingSelectEnd = this.model.selectEnd;
+      this.dragLabels = this.model.labels;
+      this.dragValues = this.model.values;
+      this.refreshedRange = null;
 
       if(GuiTool.isButton1(event)) {
          this.mouseHandle = handle;
@@ -540,16 +557,38 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
       let moved: boolean = handle != Handle.None;
       const selectionChanged = this.model.selectStart !== this.startingSelectStart ||
          this.model.selectEnd !== this.startingSelectEnd;
+      const refreshedRange = this.isMouseDown ? this.refreshedRange : null;
+      let send: boolean = moved && selectionChanged;
+      this.refreshedRange = null;
+
+      if(refreshedRange) {
+         // the model was refreshed during the drag. Keep the refreshed range unless the drag
+         // changed the range, and the dragged indexes still refer to the same labels.
+         if(!send || !Tool.isEquals(this.dragLabels, this.model.labels) ||
+            !Tool.isEquals(this.dragValues, this.model.values))
+         {
+            this.model.selectStart = refreshedRange.start;
+            this.model.selectEnd = refreshedRange.end;
+            send = false;
+         }
+         else {
+            send = this.model.selectStart !== refreshedRange.start ||
+               this.model.selectEnd !== refreshedRange.end;
+         }
+      }
 
       if(this.isMouseDown) {
          this.mouseHandle = Handle.None;
 
-         if(moved) {
+         if(refreshedRange) {
+            this.calculatePositions();
+         }
+         else if(moved) {
             this._leftHandlePosition = this.model.selectStart * this.widthBetweenTicks;
             this._rightHandlePosition = this.model.selectEnd * this.widthBetweenTicks;
          }
 
-         if(moved && selectionChanged) {
+         if(send) {
             this.updateSelections(this.model.selectStart, this.model.selectEnd);
          }
       }
@@ -641,6 +680,9 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
    }
 
    private updateSelections(start?: number, end?: number) {
+      // a newer range replaces a pending keyboard range, which must not be sent after it
+      this.debounceService.cancel(this.getApplyDebounceKey());
+
       if(this.model.submitOnChange) {
          this.updateSelections0(start, end, this.model.absoluteName);
          this._unappliedSelections = null;
@@ -1086,13 +1128,18 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
          default:
          }
 
-         const debounceKey: string = `VSRangeSlider.ApplyEvent.${this.model.absoluteName}`;
-         const callback: () => void = () => {
-            this.updateSelections(this.model.selectStart, this.model.selectEnd);
+         // send the range chosen by this key, a refresh may replace the model before it's sent
+         const callback: (start: number, end: number) => void = (start, end) => {
+            this.updateSelections(start, end);
             this.focusSelectedHandle();
          };
-         this.debounceService.debounce(debounceKey, callback, 300, null);
+         this.debounceService.debounce(this.getApplyDebounceKey(), callback, 300,
+            [this.model.selectStart, this.model.selectEnd]);
       }
+   }
+
+   private getApplyDebounceKey(): string {
+      return `VSRangeSlider.ApplyEvent.${this.model.absoluteName}`;
    }
 
    private focusSelectedHandle(): void {
