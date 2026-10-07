@@ -148,20 +148,30 @@ public final class XAssetExportPermission {
    }
 
    /**
-    * Checks if a principal may get the content of an auto-save file. The auto-save file is read
-    * from {@code recycle/} + the file name with the user of its third field moved to the current
-    * organization (VSAutoSaveAsset/WSAutoSaveAsset.writeContent), so the owner is resolved from
-    * the name in the same way.
-    * <p>
-    * Bug #77947, also used by the EM endpoints that delete, restore or get the time of a named
-    * auto-save file.
+    * The auto-save file is read from {@code recycle/} + the file name with the user of its third
+    * field moved to the current organization (VSAutoSaveAsset/WSAutoSaveAsset.writeContent), so
+    * the owner is resolved from the name in the same way.
+    */
+   private static boolean isAutoSavePermitted(String path, Principal principal) {
+      return isAutoSaveNamePermitted(
+         SUtil.addAutoSaveOrganization(SUtil.trimAutoSaveOrganization(path)), principal, false);
+   }
+
+   /**
+    * Bug #77947, checks if a principal may act on an auto-save file by the EM endpoints that
+    * delete, restore or get the time of it. Those act on {@code recycle/} + the name as given, so
+    * the owner is the user of its third field as stored, not moved to the current organization as
+    * the export does. An owner of another organization, e.g. the file of a site administrator that
+    * switched to the organization, is treated as a file without a user: only for the site
+    * administrator and the organization administrator, whom the repository tree lists all the
+    * auto-save files of the organization for.
     *
-    * @param path      the name of the auto-save file, without the {@code recycle/} prefix.
+    * @param name      the name of the auto-save file, without the {@code recycle/} prefix.
     * @param principal the principal.
     *
     * @return {@code true} if permitted.
     */
-   public static boolean isAutoSavePermitted(String path, Principal principal) {
+   public static boolean isStoredAutoSavePermitted(String name, Principal principal) {
       if(!SecurityEngine.getSecurity().isSecurityEnabled()) {
          return true;
       }
@@ -170,7 +180,13 @@ public final class XAssetExportPermission {
          return false;
       }
 
-      String name = SUtil.addAutoSaveOrganization(SUtil.trimAutoSaveOrganization(path));
+      // a name without an organization is read from the storage of the current organization
+      return isAutoSaveNamePermitted(SUtil.addAutoSaveOrganization(name), principal, true);
+   }
+
+   private static boolean isAutoSaveNamePermitted(String name, Principal principal,
+                                                  boolean stored)
+   {
       String[] fields = name == null ? new String[0] : Tool.split(name, '^');
 
       if(fields.length < 4) {
@@ -178,13 +194,15 @@ public final class XAssetExportPermission {
       }
 
       IdentityID owner = IdentityID.getIdentityIDFromKey(fields[2]);
+      OrganizationManager manager = OrganizationManager.getInstance();
 
       // a file saved without a user, only the administrators that the repository tree lists the
       // organization's auto-save files for
       if(owner == null || Tool.isEmptyString(owner.name) || "_NULL_".equals(owner.name) ||
-         XAsset.NULL.equals(owner.name) || XPrincipal.ANONYMOUS.equals(owner.name))
+         XAsset.NULL.equals(owner.name) || XPrincipal.ANONYMOUS.equals(owner.name) ||
+         stored && (owner.orgID == null ||
+            !owner.orgID.equalsIgnoreCase(manager.getCurrentOrgID(principal))))
       {
-         OrganizationManager manager = OrganizationManager.getInstance();
          return manager.isSiteAdmin(principal) || manager.isOrgAdmin(principal);
       }
 

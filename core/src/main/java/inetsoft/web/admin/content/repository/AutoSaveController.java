@@ -96,7 +96,7 @@ public class AutoSaveController {
 
       // Bug #77947, answered as for a missing file, so the time is not an oracle for the files
       // of other users
-      if(!XAssetExportPermission.isAutoSavePermitted(id, user)) {
+      if(!XAssetExportPermission.isStoredAutoSavePermitted(id, user)) {
          return "";
       }
 

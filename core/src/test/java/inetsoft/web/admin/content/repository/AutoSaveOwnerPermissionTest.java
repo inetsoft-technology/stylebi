@@ -18,15 +18,12 @@
 package inetsoft.web.admin.content.repository;
 
 /*
- * Bug #77947: the EM auto-save endpoints (delete, restore, gettime) and the repository tree delete
- * of auto-save nodes are gated only by the EM_COMPONENT settings/content/repository grant, which an
- * administrator can delegate to a plain user. They acted on any auto-save file named by the client,
- * so the delegate could delete another user's auto-save, restore it into a global sheet of its own
- * choosing, and probe its existence and time.
- *
- * The owner rule of the auto-save export (XAssetExportPermission.isAutoSavePermitted, #77924) now
- * applies: the owner from the file name, a user with ADMIN on the owner, a site or organization
- * administrator; a file without an owner only for the administrators.
+ * Bug #77947: the EM auto-save restore is gated only by the EM_COMPONENT
+ * settings/content/repository grant, which an administrator can delegate to a plain user. It read
+ * any auto-save file named by the client without a permission check and wrote it as a global sheet
+ * of the caller's choosing. The owner is now checked as stored in the name
+ * (XAssetExportPermission.isStoredAutoSavePermitted). The delete, gettime and tree delete cases
+ * are in AutoSaveOwnerCheckTest.
  *
  * The controller is called through an AspectJ proxy with the real SecuredAspect, so the delegate
  * passes the product's own gate. ComponentAuthorizationService is mocked because
@@ -36,19 +33,13 @@ package inetsoft.web.admin.content.repository;
  */
 
 import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.LibManagerProvider;
-import inetsoft.sree.RepletRegistryManager;
-import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.sree.security.*;
 import inetsoft.sree.security.support.SecurityTestDataBuilder;
-import inetsoft.sree.web.dashboard.DashboardRegistryManager;
 import inetsoft.test.*;
-import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
-import inetsoft.uql.asset.sync.RenameTransformHandler;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.Drivers;
 import inetsoft.uql.util.Identity;
@@ -56,9 +47,6 @@ import inetsoft.util.*;
 import inetsoft.web.*;
 import inetsoft.web.admin.authz.ComponentAuthorizationService;
 import inetsoft.web.admin.authz.ViewComponent;
-import inetsoft.web.admin.content.database.model.DataModelFolderManagerService;
-import inetsoft.web.admin.content.repository.model.TreeNodeInfo;
-import inetsoft.web.admin.deploy.XAssetExportPermission;
 import inetsoft.web.security.SecuredAspect;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -72,14 +60,12 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
-import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.Callable;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
@@ -119,20 +105,25 @@ class AutoSaveOwnerPermissionTest {
          .addUser("oadm", ORG, "password")
          .addUser("del", ORG, "password")
          .addUser("owner", ORG, "password")
+         // a plain user of the organization with the name of the site administrator
+         .addUser("sadm", ORG, "password")
          .addSysAdminRole("a947SiteAdmin", HOST_ORG)
          .addUser("sadm", HOST_ORG, "password")
          .addUserToRole("sadm", "a947SiteAdmin", HOST_ORG)
-         .addUserToRole("oadm", "a947OrgAdmin", ORG)
-         .grantPermission(ResourceType.EM, "*", ResourceAction.ACCESS,
-                          "del", Identity.USER, ORG)
-         .grantPermission(ResourceType.EM_COMPONENT, "settings/content/repository",
-                          ResourceAction.ACCESS, "del", Identity.USER, ORG)
-         .grantPermission(ResourceType.ASSET, "/", ResourceAction.READ,
-                          "del", Identity.USER, ORG)
-         .grantPermission(ResourceType.ASSET, "/", ResourceAction.WRITE,
-                          "del", Identity.USER, ORG)
-         .grantPermission(ResourceType.REPORT, "/", ResourceAction.DELETE,
-                          "del", Identity.USER, ORG);
+         .addUserToRole("oadm", "a947OrgAdmin", ORG);
+
+      for(String user : new String[] { "del", "sadm" }) {
+         builder
+            .grantPermission(ResourceType.EM, "*", ResourceAction.ACCESS,
+                             user, Identity.USER, ORG)
+            .grantPermission(ResourceType.EM_COMPONENT, "settings/content/repository",
+                             ResourceAction.ACCESS, user, Identity.USER, ORG)
+            .grantPermission(ResourceType.ASSET, "/", ResourceAction.READ,
+                             user, Identity.USER, ORG)
+            .grantPermission(ResourceType.ASSET, "/", ResourceAction.WRITE,
+                             user, Identity.USER, ORG);
+      }
+
       builder.setup();
    }
 
@@ -150,11 +141,12 @@ class AutoSaveOwnerPermissionTest {
       oadm = builder.principalOf("oadm", ORG);
       del = builder.principalOf("del", ORG);
       owner = builder.principalOf("owner", ORG);
+      namesake = builder.principalOf("sadm", ORG);
       // a site admin that switched to the organization in the EM
       sadm = builder.principalOf("sadm", HOST_ORG);
       sadm.setProperty("curr_org_id", ORG);
 
-      AutoSaveService service = new AutoSaveService(viewsheetService);
+      service = new AutoSaveService(viewsheetService);
       AutoSaveServiceProxy serviceProxy = mock(AutoSaveServiceProxy.class, inv ->
          "restoreAutoSaveAssets".equals(inv.getMethod().getName()) ?
             service.restoreAutoSaveAssets(inv.getArgument(0), inv.getArgument(1),
@@ -167,17 +159,6 @@ class AutoSaveOwnerPermissionTest {
       factory.setProxyTargetClass(true);
       factory.addAspect(new SecuredAspect(mock(DataSourceRegistry.class), components));
       controller = factory.getProxy();
-
-      ResourcePermissionService resourcePermissionService = mock(ResourcePermissionService.class);
-      when(resourcePermissionService.getRepositoryResourceType(anyInt(), anyString()))
-         .thenAnswer(inv -> new Resource(ResourceType.REPORT, inv.getArgument(1)));
-      objectService = new RepositoryObjectService(
-         mock(RepletRegistryService.class), mock(ContentRepositoryTreeService.class),
-         mock(SecurityProvider.class), resourcePermissionService, mock(XRepository.class),
-         mock(RepositoryDashboardService.class), mock(DataModelFolderManagerService.class),
-         mock(DataSourceRegistry.class), mock(LibManagerProvider.class), mock(RecycleBin.class),
-         mock(DependencyHandler.class), mock(RenameTransformHandler.class),
-         mock(RepletRegistryManager.class), mock(DashboardRegistryManager.class));
    }
 
    @AfterEach
@@ -185,69 +166,6 @@ class AutoSaveOwnerPermissionTest {
       ThreadContext.setContextPrincipal(null);
       OrganizationContextHolder.setCurrentOrgId(null);
       sutilStatic.close();
-   }
-
-   @Test
-   void delegateCannotDeleteAnotherUsersAutoSave() throws Exception {
-      String file = recycledViewsheet(owner, "Del-1");
-
-      assertThrows(MessageException.class, () -> as(del, () -> {
-         controller.deleteAutoSaveAssets(Map.of("ids", file), del);
-         return null;
-      }));
-
-      assertTrue(exists(file));
-   }
-
-   // every file is checked before any is deleted, so the delegate's own file is kept as well
-   @Test
-   void delegateBatchWithAnotherUsersAutoSaveDeletesNothing() throws Exception {
-      String own = recycledViewsheet(del, "Own-1");
-      String other = recycledViewsheet(owner, "Other-1");
-
-      assertThrows(MessageException.class, () -> as(del, () -> {
-         controller.deleteAutoSaveAssets(Map.of("ids", own + "," + other), del);
-         return null;
-      }));
-
-      assertTrue(exists(own));
-      assertTrue(exists(other));
-   }
-
-   @Test
-   void delegateCanDeleteOwnAutoSave() throws Exception {
-      String own = recycledViewsheet(del, "Own-2");
-
-      as(del, () -> {
-         controller.deleteAutoSaveAssets(Map.of("ids", own), del);
-         return null;
-      });
-
-      assertFalse(exists(own));
-   }
-
-   @Test
-   void orgAdminCanDeleteAnotherUsersAutoSave() throws Exception {
-      String file = recycledViewsheet(owner, "Del-2");
-
-      as(oadm, () -> {
-         controller.deleteAutoSaveAssets(Map.of("ids", file), oadm);
-         return null;
-      });
-
-      assertFalse(exists(file));
-   }
-
-   @Test
-   void siteAdminCanDeleteAnotherUsersAutoSave() throws Exception {
-      String file = recycledViewsheet(owner, "Del-3");
-
-      as(sadm, () -> {
-         controller.deleteAutoSaveAssets(Map.of("ids", file), sadm);
-         return null;
-      });
-
-      assertFalse(exists(file));
    }
 
    @Test
@@ -280,62 +198,32 @@ class AutoSaveOwnerPermissionTest {
       assertFalse(exists(file));
    }
 
-   // refused as a missing file is answered, so the time is not an existence oracle
+   // the file of a site admin in the organization is stored with the site admin's own key, it is
+   // not the file of the organization's user with the same name
    @Test
-   void delegateGetsNoTimeForAnotherUsersAutoSave() throws Exception {
-      String file = recycledViewsheet(owner, "Time-1");
-      String own = recycledViewsheet(del, "Time-2");
+   void namesakeCannotRestoreSiteAdminsAutoSave() throws Exception {
+      String file = recycledWorksheet(sadm, "Ws-3");
+      assertTrue(file.contains("^sadm" + IdentityID.KEY_DELIMITER + HOST_ORG + "^"), file);
 
-      assertEquals("", as(del, () -> controller.getAutoSaveTime(
-         Map.of("id", file, "timezoneid", "UTC"), del)));
-      assertNotEquals("", as(del, () -> controller.getAutoSaveTime(
-         Map.of("id", own, "timezoneid", "UTC"), del)));
-      assertNotEquals("", as(oadm, () -> controller.getAutoSaveTime(
-         Map.of("id", file, "timezoneid", "UTC"), oadm)));
+      assertThrows(MessageException.class, () -> as(namesake, () -> {
+         controller.restoreAutoSaveAssets(
+            Map.of("ids", file, "name", "Namesake947", "folder", "/", "overwrite", "true"),
+            namesake);
+         return null;
+      }));
+
+      assertTrue(exists(file));
+      assertNull(restoredSheet("Namesake947"));
    }
 
+   // the cluster-proxied service checks the file too, for any caller other than the controller
    @Test
-   void delegateCannotDeleteAnotherUsersAutoSaveFromTree() throws Exception {
-      String own = recycledViewsheet(del, "Tree-1");
-      String other = recycledViewsheet(owner, "Tree-2");
+   void serviceRefusesAnotherUsersAutoSave() throws Exception {
+      String file = recycledWorksheet(owner, "Ws-4");
 
       assertThrows(MessageException.class, () -> as(del, () ->
-         objectService.deleteNodes(new TreeNodeInfo[] { node(own), node(other) }, del, false,
-                                   false)));
-
-      assertTrue(exists(own));
-      assertTrue(exists(other));
-   }
-
-   @Test
-   void orgAdminCanDeleteAnotherUsersAutoSaveFromTree() throws Exception {
-      String other = recycledViewsheet(owner, "Tree-3");
-
-      as(oadm, () ->
-         objectService.deleteNodes(new TreeNodeInfo[] { node(other) }, oadm, false, false));
-
-      assertFalse(exists(other));
-   }
-
-   @Test
-   void fileWithoutOwnerOnlyForAdministrators() throws Exception {
-      String file = "8^VIEWSHEET^_NULL_^Untitled-1^10.1.2.3~";
-
-      assertFalse(as(del, () -> XAssetExportPermission.isAutoSavePermitted(file, del)));
-      assertFalse(as(owner, () -> XAssetExportPermission.isAutoSavePermitted(file, owner)));
-      assertTrue(as(oadm, () -> XAssetExportPermission.isAutoSavePermitted(file, oadm)));
-      assertTrue(as(sadm, () -> XAssetExportPermission.isAutoSavePermitted(file, sadm)));
-   }
-
-   private TreeNodeInfo node(String file) {
-      return TreeNodeInfo.builder().label(file).path(file).type(RepositoryEntry.AUTO_SAVE_VS)
-         .build();
-   }
-
-   private String recycledViewsheet(SRPrincipal user, String sheet) throws Exception {
-      AssetEntry entry = new AssetEntry(
-         AssetRepository.TEMPORARY_SCOPE, AssetEntry.Type.VIEWSHEET, sheet, null);
-      return recycled(user, entry, "content".getBytes(StandardCharsets.UTF_8));
+         service.restoreAutoSaveAssets(file, "Service947", true, del)));
+      assertNull(restoredSheet("Service947"));
    }
 
    private String recycledWorksheet(SRPrincipal user, String sheet) throws Exception {
@@ -397,6 +285,7 @@ class AutoSaveOwnerPermissionTest {
    private SRPrincipal del;
    private SRPrincipal owner;
    private SRPrincipal sadm;
+   private SRPrincipal namesake;
+   private AutoSaveService service;
    private AutoSaveController controller;
-   private RepositoryObjectService objectService;
 }

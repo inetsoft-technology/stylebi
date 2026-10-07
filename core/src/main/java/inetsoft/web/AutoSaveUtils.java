@@ -280,9 +280,10 @@ public final class AutoSaveUtils {
 
    /**
     * Bug #77947, checks that a principal may act on every named auto-save file, before any of them
-    * is acted on. The owner is taken from the file name by the rule of the auto-save export
-    * ({@link XAssetExportPermission#isAutoSavePermitted}): the owner, a user with ADMIN permission
-    * on the owner, or for a file without an owner a site or organization administrator.
+    * is acted on. The owner is taken from the file name as stored
+    * ({@link XAssetExportPermission#isStoredAutoSavePermitted}): the owner, a user with ADMIN
+    * permission on the owner, or for a file without an owner or with an owner of another
+    * organization a site or organization administrator.
     *
     * @param names     the names of the auto-save files, without the recycle bin prefix.
     * @param principal the principal.
@@ -291,7 +292,7 @@ public final class AutoSaveUtils {
     */
    public static void checkAutoSavePermission(Collection<String> names, Principal principal) {
       for(String name : names) {
-         if(!XAssetExportPermission.isAutoSavePermitted(name, principal)) {
+         if(!XAssetExportPermission.isStoredAutoSavePermitted(name, principal)) {
             String[] fields = name == null ? new String[0] : Tool.split(name, '^');
             throw new MessageException(Catalog.getCatalog().getString(
                "em.common.security.no.permission", fields.length > 3 ? fields[3] : name));
