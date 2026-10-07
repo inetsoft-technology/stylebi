@@ -108,7 +108,7 @@ public final class VizModernizeUtil {
       // mark is inert here: nothing is stamped, so every target keeps the one it has
       int seeded = seedAll(vs, null, targets, false, false);
 
-      // seedDensitySize runs only here; a restore, Modernize and Revert skip it
+      // the one re-seed that calls seedDensitySize; a restore, Modernize and Revert do not
       for(VSAssemblyInfo info : targets) {
          info.seedDensitySize(VizContext.of(info));
       }
