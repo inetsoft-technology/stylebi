@@ -78,7 +78,7 @@ import static org.mockito.Mockito.*;
 @ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class },
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
-@Tag("slow") // over 10 s alone: the Spring context with the real asset repository
+@Tag("core")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class AutoSaveOwnerCheckTest {
    @BeforeAll
