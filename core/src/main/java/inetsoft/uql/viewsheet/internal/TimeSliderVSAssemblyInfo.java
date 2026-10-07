@@ -708,6 +708,17 @@ public class TimeSliderVSAssemblyInfo extends MaxModeSelectionVSAssemblyInfo
             if(tickVisibleValue != null) {
                info.tickVisibleValue = (DynamicValue) tickVisibleValue.clone();
             }
+
+            // paired with slist, which is copied above. a shared object is changed in place by
+            // the query and the property dialog, and a clone (e.g. an undo checkpoint) would then
+            // be written with formats that don't match its own values (bug #77980)
+            if(timeSliderSelection != null) {
+               info.timeSliderSelection = timeSliderSelection.clone();
+            }
+
+            if(titleInfo != null) {
+               info.titleInfo = (TitleInfo) titleInfo.clone();
+            }
          }
 
          return info;
@@ -936,6 +947,12 @@ public class TimeSliderVSAssemblyInfo extends MaxModeSelectionVSAssemblyInfo
       {
          oldTimeSliderSelection.setValueFormat(newTimeSliderSelection.getValueFormat());
       }
+
+      // the increment and date levels go with the formats. keeping the old ones (e.g. date
+      // levels after a change to a number column) writes a selection that can't be read back
+      oldTimeSliderSelection.setIncrement(newTimeSliderSelection.getIncrement());
+      int[] newDateLevels = newTimeSliderSelection.getDateLevels();
+      oldTimeSliderSelection.setDateLevels(newDateLevels == null ? null : newDateLevels.clone());
 
       return result;
    }

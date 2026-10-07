@@ -31,10 +31,28 @@ import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
-public class TimeSliderSelection {
+public class TimeSliderSelection implements Cloneable {
 
    public TimeSliderSelection() {
 
+   }
+
+   /**
+    * Deep copy. The formats and date levels are paired with the selection list of the assembly
+    * info that owns this object, so a cloned info (e.g. an undo checkpoint) must own its own copy.
+    */
+   @Override
+   public TimeSliderSelection clone() {
+      try {
+         TimeSliderSelection copy = (TimeSliderSelection) super.clone();
+         copy.labelFormat = labelFormat == null ? null : (Format) labelFormat.clone();
+         copy.valueFormat = valueFormat == null ? null : (Format) valueFormat.clone();
+         copy.dateLevels = dateLevels == null ? null : dateLevels.clone();
+         return copy;
+      }
+      catch(CloneNotSupportedException ex) {
+         throw new IllegalStateException(ex);
+      }
    }
 
    public void writeXML(PrintWriter writer, SelectionList list) {
@@ -217,7 +235,16 @@ public class TimeSliderSelection {
             endDate = (Date) valuefmt.parseObject(Tool.toGregorianPersistentDate(endVal.getValue()));
          }
          catch(Exception e) {
-            LOG.warn("dates not parsed correctly, selectionList readxml may fail:" + e);
+            LOG.warn("dates not parsed correctly, the selection is rebuilt by the next query: " + e);
+         }
+
+         // the values don't match the value format (e.g. written with another date level).
+         // the stored list has no values, so the slider loads empty and the next query
+         // rebuilds the full range (the selected range is reset)
+         if(firstSelectedDate == null || lastSelectedDate == null || startDate == null ||
+            endDate == null)
+         {
+            return null;
          }
 
          return populateDateList(startDate, endDate, firstSelectedDate, lastSelectedDate, labelfmt, valuefmt, dateLevels);
