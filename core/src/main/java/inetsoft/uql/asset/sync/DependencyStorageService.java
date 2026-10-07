@@ -258,7 +258,7 @@ public final class DependencyStorageService {
       // run are replayed now, not only at the next rename. Don't wait for it: this service is
       // lazy and may be created on the renameTransform thread, while a waiting
       // RenameTransformTask holds the queue store's service until that thread's rename finishes.
-      CompletableFuture.runAsync(() -> {
+      queueOpen = CompletableFuture.runAsync(() -> {
          try {
             getQueueStorage();
          }
@@ -281,7 +281,16 @@ public final class DependencyStorageService {
       return keyValueStorageManager.getStorage(storeID, new LoadDependencyStorageTask(storeID));
    }
 
+   /**
+    * Waits for the queue store opened by the last {@link #initStorage()}. For tests that close
+    * the stores: an open still running then would reopen the store after the close.
+    */
+   void awaitQueueOpen() throws Exception {
+      queueOpen.get(30, TimeUnit.SECONDS);
+   }
+
    private final KeyValueStorageManager keyValueStorageManager;
+   private volatile CompletableFuture<Void> queueOpen = CompletableFuture.completedFuture(null);
 
    /**
     * The id of the cluster-global store that holds the rename queue. It is also the id of the
