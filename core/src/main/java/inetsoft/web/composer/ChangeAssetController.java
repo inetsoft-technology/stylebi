@@ -299,8 +299,9 @@ public class ChangeAssetController {
             "common.writeAuthority", tableStyle.getName()));
       }
 
-      // does not have write permission of the folder?
-      if(!Tool.equals(folder, entry.getProperty("folder")) &&
+      // does not have write permission of the folder? Bug #77837, compare with the folder of the
+      // stored style, not the folder the request claims the style is in.
+      if(!Tool.equals(folder, AssetEventUtil.getTableStyleFolder(tableStyle.getName())) &&
          !assetRepository.checkPermission(principal, getTableStyleResourceType(parent),
          Tool.isEmptyString(folder) ? "*" : folder, EnumSet.of(ResourceAction.WRITE)))
       {
