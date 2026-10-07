@@ -20,6 +20,8 @@ package inetsoft.web.admin.content.repository;
 
 import inetsoft.cluster.*;
 import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.security.*;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.util.FileSystemService;
 import inetsoft.util.Tool;
 import inetsoft.util.cachefs.BinaryTransfer;
@@ -160,7 +162,7 @@ public class ExportAssetService {
       // Bug #77923, #77924, a schedule task or an auto-save asset is checked against its stored
       // owner, whatever owner the client sends, as the asset is written.
       List<PartialDeploymentJarInfo.RequiredAsset> assetDataArray = assetData.stream()
-         .map(this::createRequiredAsset)
+         .map(ExportAssetService::createRequiredAsset)
          .collect(Collectors.toList());
 
       for(PartialDeploymentJarInfo.RequiredAsset required : assetDataArray) {
@@ -171,12 +173,17 @@ public class ExportAssetService {
       // could be any global asset. Keep only the dependents that are dependencies of the checked
       // selected assets, as get-dependent-assets lists them, or are selected assets themselves.
       // The asset that is written is compared, its path may come from the detail description.
+      // A sheet the caller may write (e.g. through an import) can make any global asset a real
+      // dependency, so an owner-less dependent is also dropped if the caller may not read it.
+      Set<String> selectedIds = assets.stream()
+         .map(XAsset::toIdentifier)
+         .collect(Collectors.toSet());
       Set<String> exportable = DeployUtil.getDependentAssets(assets).keySet().stream()
          .map(XAsset::toIdentifier)
          .collect(Collectors.toCollection(HashSet::new));
-      assets.forEach(asset -> exportable.add(asset.toIdentifier()));
+      exportable.addAll(selectedIds);
       assetDataArray = assetDataArray.stream()
-         .filter(required -> isExportableDependent(required, exportable))
+         .filter(required -> isExportableDependent(required, exportable, selectedIds, principal))
          .collect(Collectors.toList());
 
       PartialDeploymentJarInfo info = new PartialDeploymentJarInfo();
@@ -196,20 +203,81 @@ public class ExportAssetService {
    }
 
    private static boolean isExportableDependent(PartialDeploymentJarInfo.RequiredAsset required,
-                                                Set<String> exportable)
+                                                Set<String> exportable, Set<String> selectedIds,
+                                                Principal principal)
    {
       XAsset asset = DeployUtil.getAsset(required);
 
-      if(asset != null && exportable.contains(asset.toIdentifier())) {
+      if(asset == null || !exportable.contains(asset.toIdentifier())) {
+         LOG.warn("A dependent asset of type {} is not a dependency of the exported assets, " +
+                     "it is not exported", asset == null ? null : asset.getType());
+         LOG.debug("Dependent asset not exported: {}", required.getPath());
+         return false;
+      }
+
+      if(!selectedIds.contains(asset.toIdentifier()) &&
+         !isGlobalDependentReadable(asset, principal))
+      {
+         LOG.warn("The dependent asset {} is not readable by {}, it is not exported",
+                  asset.toIdentifier(), principal == null ? null : principal.getName());
+         return false;
+      }
+
+      return true;
+   }
+
+   /**
+    * Bug #77959, checks if the caller may read an owner-less (global) dependent asset of an
+    * export. A dependent with an owner is checked against the owner
+    * ({@link DeployService#checkDependentAsset}), and an asset without a security resource or a
+    * device (an action resource without READ) is not checked.
+    *
+    * @param asset     the dependent asset as it is written to the export.
+    * @param principal the caller.
+    *
+    * @return {@code false} if the asset is global and the caller has no READ permission on its
+    *         security resource.
+    */
+   public static boolean isGlobalDependentReadable(XAsset asset, Principal principal) {
+      IdentityID owner = asset.getUser();
+
+      if(owner != null && !XAsset.NULL.equals(owner.name)) {
          return true;
       }
 
-      LOG.warn("Dependent asset {} of type {} is not a dependency of the exported assets, " +
-                  "it is not exported", required.getPath(), required.getType());
-      return false;
+      SecurityEngine security = SecurityEngine.getSecurity();
+
+      if(!security.isSecurityEnabled()) {
+         return true;
+      }
+
+      Resource resource = asset.getSecurityResource();
+
+      if(resource == null || resource.getType() == ResourceType.DEVICE) {
+         return true;
+      }
+
+      if(principal == null) {
+         return false;
+      }
+
+      try {
+         return security.checkPermission(principal, resource.getType(), resource.getPath(),
+                                         ResourceAction.READ);
+      }
+      catch(SecurityException e) {
+         LOG.warn("Failed to check the permission on {} for {}, not exporting it", resource,
+                  principal.getName(), e);
+         return false;
+      }
    }
 
-   private PartialDeploymentJarInfo.RequiredAsset createRequiredAsset(RequiredAssetModel model) {
+   /**
+    * Builds the dependent asset of an export from the model the client sends.
+    */
+   public static PartialDeploymentJarInfo.RequiredAsset createRequiredAsset(
+      RequiredAssetModel model)
+   {
       PartialDeploymentJarInfo.RequiredAsset asset = new PartialDeploymentJarInfo.RequiredAsset();
       asset.setPath(model.name());
       asset.setType(model.type());

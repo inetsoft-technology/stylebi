@@ -487,11 +487,8 @@ class DeployServiceExportStoredOwnerTest {
    private void assertDependentPermitted(SRPrincipal caller, RequiredAssetModel model)
       throws Exception
    {
-      PartialDeploymentJarInfo.RequiredAsset required = new PartialDeploymentJarInfo.RequiredAsset();
-      required.setPath(model.name());
-      required.setType(model.type());
-      required.setUser(model.user());
-      required.setDetailDescription(model.detailDescription());
+      PartialDeploymentJarInfo.RequiredAsset required =
+         ExportAssetService.createRequiredAsset(model);
 
       as(caller, () -> {
          deployService.checkDependentAsset(required, caller);

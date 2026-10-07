@@ -32,6 +32,7 @@ import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.util.Identity;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.*;
+import inetsoft.util.dep.XDataSourceAsset;
 import inetsoft.web.admin.content.repository.*;
 import inetsoft.web.admin.content.repository.model.*;
 import inetsoft.web.service.BinaryTransferService;
@@ -64,7 +65,8 @@ import static org.mockito.Mockito.*;
  * ZIP. Only the dependents that are dependencies of the checked selected assets may be written,
  * compared on the asset that is written (a "TableStyleAsset:[...]" detail description replaces
  * its path), while a real dependency of a selected sheet, sent back as get-dependent-assets lists
- * it, is still exported.
+ * it, is still exported. A global dependent the caller may not READ is dropped as well, since she
+ * can make it a real dependency with a sheet of her own (e.g. one she imports).
  *
  * Real SecurityEngine, AssetRepository, DeployService, ExportAssetService and export ZIP.
  */
@@ -82,6 +84,10 @@ class DeployServiceExportClientDependentTest {
    private static final String SHARED_WS = "dxcSharedWs";
    private static final String CAROL_WS = "dxcCarolWs";
    private static final String CAROL_VS = "dxcCarolVs";
+   private static final String CAROL_SECRET_VS = "dxcCarolSecretVs";
+   private static final IdentityID ERIN = new IdentityID("erin", ORG_A);
+   private static final String ERIN_SECRET_VS = "dxcErinSecretVs";
+   private static final String SECRET_DS = "dxcSecretDs";
 
    @Configuration
    static class Config {
@@ -128,11 +134,22 @@ class DeployServiceExportClientDependentTest {
          .addOrgAdminRole("dxcOrgAdminA", ORG_A)
          .addUser("alice", ORG_A, "password")
          .addUser("carol", ORG_A, "password")
+         .addUser("erin", ORG_A, "password")
          .addUserToRole("alice", "dxcOrgAdminA", ORG_A)
          .grantPermission(ResourceType.EM, "*", ResourceAction.ACCESS,
                           "carol", Identity.USER, ORG_A)
          .grantPermission(ResourceType.EM_COMPONENT, "settings/content/repository",
                           ResourceAction.ACCESS, "carol", Identity.USER, ORG_A)
+         // erin is a delegate like carol, who may read the secret worksheet and data source
+         .grantPermission(ResourceType.EM, "*", ResourceAction.ACCESS,
+                          "erin", Identity.USER, ORG_A)
+         .grantPermission(ResourceType.EM_COMPONENT, "settings/content/repository",
+                          ResourceAction.ACCESS, "erin", Identity.USER, ORG_A)
+         .grantPermission(ResourceType.ASSET, SECRET_WS, ResourceAction.READ,
+                          "erin", Identity.USER, ORG_A)
+         .grantPermission(ResourceType.DATA_SOURCE, SECRET_DS, ResourceAction.READ,
+                          "erin", Identity.USER, ORG_A)
+         .markPermissionEdited(ResourceType.DATA_SOURCE, SECRET_DS, ORG_A)
          // only alice may read the secret worksheet, carol may read the shared one
          .grantPermission(ResourceType.ASSET, SECRET_WS, ResourceAction.READ,
                           "alice", Identity.USER, ORG_A)
@@ -155,6 +172,20 @@ class DeployServiceExportClientDependentTest {
       vs.setBaseEntry(sharedWs);
       saveSheet(new AssetEntry(AssetRepository.USER_SCOPE, AssetEntry.Type.VIEWSHEET, CAROL_VS,
                                CAROL, ORG_A), vs, new XPrincipal(CAROL));
+
+      // a viewsheet of carol's (e.g. imported) and one of erin's on the secret worksheet
+      saveSheet(new AssetEntry(AssetRepository.USER_SCOPE, AssetEntry.Type.VIEWSHEET,
+                               CAROL_SECRET_VS, CAROL, ORG_A), basedOn(secretWs),
+                new XPrincipal(CAROL));
+      saveSheet(new AssetEntry(AssetRepository.USER_SCOPE, AssetEntry.Type.VIEWSHEET,
+                               ERIN_SECRET_VS, ERIN, ORG_A), basedOn(secretWs),
+                new XPrincipal(ERIN));
+   }
+
+   private static Viewsheet basedOn(AssetEntry base) {
+      Viewsheet vs = new Viewsheet();
+      vs.setBaseEntry(base);
+      return vs;
    }
 
    @AfterAll
@@ -207,6 +238,11 @@ class DeployServiceExportClientDependentTest {
          alice, ResourceType.ASSET, SECRET_WS, ResourceAction.READ)));
       assertFalse(OrganizationManager.getInstance().isSiteAdmin(carol));
       assertFalse(OrganizationManager.getInstance().isOrgAdmin(carol));
+
+      SRPrincipal erin = builder.principalOf("erin", ORG_A);
+      assertTrue(as(erin, () -> security.checkPermission(
+         erin, ResourceType.ASSET, SECRET_WS, ResourceAction.READ)));
+      assertFalse(OrganizationManager.getInstance().isOrgAdmin(erin));
    }
 
    // R1: nothing selected, the global worksheet sent as a dependent
@@ -266,6 +302,70 @@ class DeployServiceExportClientDependentTest {
       assertTrue(export.jarInfo.contains(SHARED_WS), export.jarInfo);
    }
 
+   // carol owns a viewsheet based on the global worksheet she may not read, e.g. one she imported,
+   // so the worksheet is a real dependency. The export dialog's own dependent list writes her
+   // viewsheet but not the worksheet.
+   @Test
+   void unreadableRealDependency_ofOwnSheet_isNotWritten() throws Exception {
+      List<SelectedAssetModel> selected =
+         List.of(selected(RepositoryEntry.VIEWSHEET, CAROL_SECRET_VS, "VIEWSHEET", CAROL));
+      List<RequiredAssetModel> dependencies = as(carol, () ->
+         deployService.getDependentAssetsList(selected, carol)).requiredAssets();
+      assertTrue(dependencies.stream().anyMatch(d -> SECRET_WS.equals(d.name())),
+                 "precondition: " + dependencies);
+
+      Export export = export(carol, selected, dependencies);
+
+      export.assertWritten(CAROL_SECRET_VS);
+      export.assertNotWritten(SECRET_WS);
+   }
+
+   // a delegate who may read the global worksheet still gets it with her own viewsheet
+   @Test
+   void readableRealDependency_ofOwnSheet_isWritten() throws Exception {
+      SRPrincipal erin = builder.principalOf("erin", ORG_A);
+      erin.setProperty("__internal__", "true");
+      List<SelectedAssetModel> selected =
+         List.of(selected(RepositoryEntry.VIEWSHEET, ERIN_SECRET_VS, "VIEWSHEET", ERIN));
+      List<RequiredAssetModel> dependencies = as(erin, () ->
+         deployService.getDependentAssetsList(selected, erin)).requiredAssets();
+
+      Export export = export(erin, selected, dependencies);
+
+      export.assertWritten(ERIN_SECRET_VS);
+      export.assertWritten(SECRET_WS);
+   }
+
+   // an org admin exporting carol's viewsheet sees no change, the worksheet is written
+   @Test
+   void unreadableRealDependency_isWrittenForOrgAdmin() throws Exception {
+      SRPrincipal alice = builder.principalOf("alice", ORG_A);
+      alice.setProperty("__internal__", "true");
+      List<SelectedAssetModel> selected =
+         List.of(selected(RepositoryEntry.VIEWSHEET, CAROL_SECRET_VS, "VIEWSHEET", CAROL));
+      List<RequiredAssetModel> dependencies = as(alice, () ->
+         deployService.getDependentAssetsList(selected, alice)).requiredAssets();
+
+      Export export = export(alice, selected, dependencies);
+
+      export.assertWritten(CAROL_SECRET_VS);
+      export.assertWritten(SECRET_WS);
+   }
+
+   // the read check follows the asset's security resource, a global data source is checked on
+   // DATA_SOURCE. The registry does not resolve a data source in this harness, so the check is
+   // tested directly.
+   @Test
+   void globalDataSourceDependent_needsRead() throws Exception {
+      SRPrincipal erin = builder.principalOf("erin", ORG_A);
+      SRPrincipal alice = builder.principalOf("alice", ORG_A);
+      XDataSourceAsset ds = new XDataSourceAsset(SECRET_DS);
+
+      assertFalse(as(carol, () -> ExportAssetService.isGlobalDependentReadable(ds, carol)));
+      assertTrue(as(erin, () -> ExportAssetService.isGlobalDependentReadable(ds, erin)));
+      assertTrue(as(alice, () -> ExportAssetService.isGlobalDependentReadable(ds, alice)));
+   }
+
    private record Export(List<String> names, String jarInfo) {
       void assertWritten(String sheet) {
          assertTrue(names.stream().anyMatch(n -> n.contains("^" + sheet + "^")),
@@ -282,13 +382,20 @@ class DeployServiceExportClientDependentTest {
    private Export export(List<SelectedAssetModel> selected, List<RequiredAssetModel> dependents)
       throws Exception
    {
+      return export(carol, selected, dependents);
+   }
+
+   private Export export(SRPrincipal caller, List<SelectedAssetModel> selected,
+                         List<RequiredAssetModel> dependents)
+      throws Exception
+   {
       ExportedAssetsModel model = ExportedAssetsModel.builder()
          .name("export77959")
          .selectedEntities(selected)
          .dependentAssets(dependents)
          .build();
       ExportJarProperties properties =
-         as(carol, () -> exportService.createExport("id", model, carol));
+         as(caller, () -> exportService.createExport("id", model, caller));
       List<String> names = new ArrayList<>();
       String jarInfo = "";
 
@@ -326,12 +433,18 @@ class DeployServiceExportClientDependentTest {
    }
 
    private static SelectedAssetModel selected(int type, String path, String typeName) {
+      return selected(type, path, typeName, CAROL);
+   }
+
+   private static SelectedAssetModel selected(int type, String path, String typeName,
+                                              IdentityID owner)
+   {
       return SelectedAssetModel.builder()
          .path(path)
          .type(type)
          .typeName(typeName)
          .typeLabel("")
-         .user(CAROL)
+         .user(owner)
          .build();
    }
 
