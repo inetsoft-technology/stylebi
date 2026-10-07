@@ -224,6 +224,13 @@ public final class XIntFragment extends XSwappable {
          // e.g. EACCES/EMFILE) and the swapper never writes the empty state back over the swap
          // file; fail loudly instead of silently substituting wrong data
          pos = 0;
+
+         // a timeout or cancel closed the channel, the swap file is not lost (bug #77916)
+         if(SwapReadInterruptedException.isInterrupt(ex)) {
+            LOG.debug("Read of swap file interrupted: " + file, ex);
+            throw new SwapReadInterruptedException(file, ex);
+         }
+
          LOG.error("Failed to read swap file: " + file, ex);
          throw new SwapFileReadException(file, ex);
       }
