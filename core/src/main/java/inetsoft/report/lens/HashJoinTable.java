@@ -19,8 +19,11 @@ package inetsoft.report.lens;
 
 import inetsoft.mv.data.BitSet;
 import inetsoft.report.TableLens;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.util.GroupedThread;
 import inetsoft.util.ThreadContext;
+import inetsoft.util.Tool;
+import inetsoft.util.UserMessage;
 import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.swap.SwapFileReadException;
@@ -408,6 +411,15 @@ class HashJoinTable extends JoinTable {
                if(swapFailure != null) {
                   joinTable.setSwapFailure(swapFailure);
                }
+               else {
+                  // nor a base that failed to load, for a reader that has to fail, e.g. a
+                  // scheduled run (bug #77966)
+                  TableLoadException loadFailure = TableLoadException.find(ex);
+
+                  if(loadFailure != null) {
+                     joinTable.setLoadFailure(loadFailure);
+                  }
+               }
 
                throw ex;
             }
@@ -419,6 +431,13 @@ class HashJoinTable extends JoinTable {
             }
          }
          finally {
+            // the user messages of this thread, e.g. the warning of a base that failed to load,
+            // are kept for the readers before the join completes (bug #77966). a scan on the
+            // constructing thread leaves them to that thread
+            if(Thread.currentThread() == this) {
+               keepUserMessages();
+            }
+
             synchronized(map) {
                if(scanLeft) {
                   if(map.isRightComplete()) {
@@ -437,6 +456,20 @@ class HashJoinTable extends JoinTable {
                   }
                }
             }
+         }
+      }
+
+      private void keepUserMessages() {
+         try {
+            UserMessage msg = Tool.getUserMessage();
+
+            if(msg != null) {
+               joinTable.addWorkerMessage(msg);
+            }
+         }
+         catch(RuntimeException ex) {
+            LOG.warn("Failed to collect the join user messages", ex);
+            Tool.clearUserMessage();
          }
       }
 

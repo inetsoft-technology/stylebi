@@ -18,10 +18,12 @@
 package inetsoft.report.filter;
 
 import inetsoft.report.*;
+import inetsoft.report.composition.execution.AssetDataCache;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.table.*;
 import inetsoft.report.lens.AbstractTableLens;
 import inetsoft.report.lens.ChainScriptLock;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.util.Collator_CN;
 import inetsoft.util.CoreTool;
 import inetsoft.util.MessageException;
@@ -241,6 +243,15 @@ public class SortFilter extends AbstractTableLens
             throw swapFailure;
          }
 
+         // nor a base that failed to load, for a reader that has to fail, e.g. a scheduled
+         // run; the failure was logged where it happened (bug #77966). checked first, the
+         // load failure may have a MessageException cause
+         TableLoadException loadFailure = TableLoadException.find(ex);
+
+         if(loadFailure != null) {
+            throw loadFailure;
+         }
+
          // nor a failure to read the base, e.g. of a set table (bug #77524), the rows stay
          // unsorted and a later read sorts again. a script failure keeps the log (bug #77875)
          MessageException baseFailure = ex instanceof ScriptException ? null :
@@ -384,7 +395,11 @@ public class SortFilter extends AbstractTableLens
       }
 
       if(useCache) {
-         if(table instanceof CancellableTableLens && ((CancellableTableLens) table).isCancelled()) {
+         // a base that failed to load also reports a cancel (bug #77901), its rows so far are
+         // still sorted for a reader that gets the failure's warning (bug #77966)
+         if(table instanceof CancellableTableLens && ((CancellableTableLens) table).isCancelled() &&
+            AssetDataCache.getLoadException(table) == null)
+         {
             return;
          }
 

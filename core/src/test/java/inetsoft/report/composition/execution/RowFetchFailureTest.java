@@ -28,12 +28,16 @@ import inetsoft.mv.fs.XFileSystem;
 import inetsoft.mv.fs.XServerNode;
 import inetsoft.report.TableLens;
 import inetsoft.report.XSessionManager;
+import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.composition.graph.VSDataSet;
 import inetsoft.report.filter.CrossTabFilter;
 import inetsoft.report.filter.Formula;
+import inetsoft.report.filter.SortFilter;
 import inetsoft.report.filter.SumFormula;
 import inetsoft.report.filter.SummaryFilter;
 import inetsoft.report.internal.Util;
+import inetsoft.report.lens.DistinctTableLens;
+import inetsoft.report.lens.JoinTableLens;
 import inetsoft.report.lens.xnode.XNodeTableLens;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.Cluster;
@@ -52,13 +56,13 @@ import inetsoft.uql.util.Drivers;
 import inetsoft.uql.util.TableLoadException;
 import inetsoft.uql.util.XSessionService;
 import inetsoft.uql.util.XSourceInfo;
-import inetsoft.uql.viewsheet.TableVSAssembly;
-import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.*;
 import inetsoft.util.*;
 import inetsoft.util.credential.CredentialService;
 import org.apache.derby.jdbc.EmbeddedDataSource;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.function.Executable;
 import org.mockito.MockedStatic;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationEventPublisher;
@@ -396,6 +400,225 @@ class RowFetchFailureTest {
       assertWarned();
    }
 
+   // Bug #77966: a lens that reads its base on a worker (DistinctTableLens, HashJoinTable),
+   // and SortFilter, must not take the base's load failure for the end of the table: a
+   // scheduled run fails and an interactive reader gets the warning on its own thread
+
+   @Test
+   void scheduledDistinctOneColumnFails() throws Exception {
+      assertLoadFailure(() -> dataRows(distinctLens(true, true, true)));
+   }
+
+   @Test
+   void interactiveDistinctOneColumnWarns() throws Exception {
+      assertEquals(FAIL_ROW - 1, dataRows(distinctLens(true, false, true)));
+      assertWarned();
+   }
+
+   @Test
+   void scheduledDistinctThreeColumnsFails() throws Exception {
+      assertLoadFailure(() -> dataRows(distinctLens(true, true, false)));
+   }
+
+   @Test
+   void interactiveDistinctThreeColumnsWarns() throws Exception {
+      assertEquals(FAIL_ROW - 1, dataRows(distinctLens(true, false, false)));
+      assertWarned();
+   }
+
+   @Test
+   void successfulDistinctIsUnchanged() throws Exception {
+      for(boolean oneColumn : new boolean[] { true, false }) {
+         assertEquals(ROWS, dataRows(distinctLens(false, true, oneColumn)));
+         assertNull(CoreTool.getUserMessage());
+      }
+   }
+
+   @Test
+   void scheduledComboBoxOptionsFail() throws Exception {
+      assertLoadFailure(() -> comboBoxOptions(true, true));
+   }
+
+   @Test
+   void interactiveComboBoxOptionsWarn() throws Exception {
+      assertEquals(FAIL_ROW - 1, comboBoxOptions(true, false));
+      assertWarned();
+   }
+
+   @Test
+   void successfulComboBoxOptionsAreUnchanged() throws Exception {
+      assertEquals(ROWS, comboBoxOptions(false, true));
+      assertNull(CoreTool.getUserMessage());
+   }
+
+   @Test
+   void scheduledInnerJoinFails() throws Exception {
+      assertLoadFailure(() -> dataRows(innerJoinLens(true, true)));
+   }
+
+   @Test
+   void interactiveInnerJoinWarns() throws Exception {
+      assertEquals(FAIL_ROW - 1, dataRows(innerJoinLens(true, false)));
+      assertWarned();
+   }
+
+   @Test
+   void successfulInnerJoinIsUnchanged() throws Exception {
+      assertEquals(ROWS, dataRows(innerJoinLens(false, true)));
+      assertNull(CoreTool.getUserMessage());
+   }
+
+   @Test
+   void scheduledSortFails() throws Exception {
+      assertLoadFailure(() -> dataRows(sortLens(true, true)));
+   }
+
+   @Test
+   void interactiveSortWarns() throws Exception {
+      TableLens lens = sortLens(true, false);
+
+      assertEquals(FAIL_ROW - 1, dataRows(lens));
+      assertWarned();
+      // the rows read before the failure are still sorted
+      assertSortedDescending(lens);
+   }
+
+   @Test
+   void successfulSortIsUnchanged() throws Exception {
+      TableLens lens = sortLens(false, true);
+
+      assertEquals(ROWS, dataRows(lens));
+      assertNull(CoreTool.getUserMessage());
+      assertSortedDescending(lens);
+   }
+
+   private static void assertLoadFailure(Executable read) {
+      RuntimeException ex = assertThrows(RuntimeException.class, read);
+      assertNotNull(TableLoadException.find(ex), String.valueOf(ex));
+      assertTrue(String.valueOf(ex.getMessage()).contains(DB_MESSAGE), String.valueOf(ex));
+   }
+
+   // g descending, the sort column
+   private static void assertSortedDescending(TableLens lens) {
+      int col = Util.findColumn(lens, "g");
+      assertTrue(col >= 0, "no column g");
+      Integer prev = null;
+
+      for(int r = lens.getHeaderRowCount(); lens.moreRows(r); r++) {
+         Integer g = ((Number) lens.getObject(r, col)).intValue();
+         assertTrue(prev == null || prev >= g, "not sorted at row " + r);
+         prev = g;
+      }
+   }
+
+   // T1 with Distinct and Merge SQL off, so the distinct rows are found in memory: one
+   // visible column (hash distinct) or three (sort distinct)
+   private static TableLens distinctLens(boolean fail, boolean scheduler, boolean oneColumn)
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      SQLBoundTableAssembly t1 = sqlTable(ws, "T1", fail);
+
+      if(oneColumn) {
+         ColumnSelection cols = t1.getColumnSelection(false);
+         ((ColumnRef) cols.getAttribute(1)).setVisible(false);
+         ((ColumnRef) cols.getAttribute(2)).setVisible(false);
+         t1.setColumnSelection(cols, false);
+      }
+
+      t1.setSQLMergeable(false);
+      t1.setDistinct(true);
+      TableLens lens = runtimeLens(ws, "T1", scheduler);
+      assertNotNull(Util.getNestedTable(lens, DistinctTableLens.class));
+      return lens;
+   }
+
+   // T1 sorted on g descending with Merge SQL off, so the rows are sorted in memory
+   private static TableLens sortLens(boolean fail, boolean scheduler) throws Exception {
+      Worksheet ws = new Worksheet();
+      SQLBoundTableAssembly t1 = sqlTable(ws, "T1", fail);
+      SortRef sort = new SortRef(t1.getColumnSelection(false).getAttribute("g"));
+      sort.setOrder(XConstants.SORT_DESC);
+      SortInfo sortInfo = new SortInfo();
+      sortInfo.addSort(sort);
+      t1.setSortInfo(sortInfo);
+      t1.setSQLMergeable(false);
+      TableLens lens = runtimeLens(ws, "T1", scheduler);
+      assertNotNull(Util.getNestedTable(lens, SortFilter.class));
+      return lens;
+   }
+
+   // T1 INNER JOIN T2 on id with Merge SQL off, so the join is a hash join in memory
+   private static TableLens innerJoinLens(boolean fail, boolean scheduler) throws Exception {
+      Worksheet ws = new Worksheet();
+      SQLBoundTableAssembly t1 = sqlTable(ws, "T1", fail);
+      SQLBoundTableAssembly t2 = sqlTable(ws, "T2", false);
+      t1.setSQLMergeable(false);
+      t2.setSQLMergeable(false);
+      TableAssemblyOperator operator = new TableAssemblyOperator();
+      TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
+      op.setOperation(TableAssemblyOperator.INNER_JOIN);
+      op.setLeftTable("T1");
+      op.setRightTable("T2");
+      op.setLeftAttribute(t1.getColumnSelection(false).getAttribute("id"));
+      op.setRightAttribute(t2.getColumnSelection(false).getAttribute("id"));
+      operator.addOperator(op);
+      RelationalJoinTableAssembly join = new RelationalJoinTableAssembly(
+         ws, "J1", new TableAssembly[] { t1, t2 }, new TableAssemblyOperator[] { operator });
+      ws.addAssembly(join);
+      join.update();
+      join.setSQLMergeable(false);
+      AssetQuerySandbox init = new AssetQuerySandbox(ws);
+      AssetEventUtil.initColumnSelection(init, join);
+      init.dispose();
+      CoreTool.clearUserMessage();
+
+      TableLens lens = runtimeLens(ws, "J1", scheduler);
+      assertNotNull(Util.getNestedTable(lens, JoinTableLens.class));
+      return lens;
+   }
+
+   private static TableLens runtimeLens(Worksheet ws, String name, boolean scheduler)
+      throws Exception
+   {
+      AssetQuerySandbox box = new AssetQuerySandbox(ws);
+      VariableTable vars = new VariableTable();
+
+      if(scheduler) {
+         vars.put("__is_scheduler__", Boolean.TRUE);
+      }
+
+      TableLens lens = box.getTableLens(name, AssetQuerySandbox.RUNTIME_MODE, vars);
+      assertNotNull(lens, "the query failed, see the log");
+      return lens;
+   }
+
+   // the options of a combo box bound to T1.id, made distinct in memory by InputVSAQuery
+   private static int comboBoxOptions(boolean fail, boolean scheduler) throws Exception {
+      Worksheet ws = new Worksheet();
+      sqlTable(ws, "T1", fail);
+      AssetQuerySandbox box = new AssetQuerySandbox(ws);
+
+      if(scheduler) {
+         box.getVariableTable().put("__is_scheduler__", "true");
+      }
+
+      Viewsheet vs = viewsheet(ws);
+      ComboBoxVSAssembly combo = new ComboBoxVSAssembly(vs, "C1");
+      combo.setSourceType(ListInputVSAssembly.BOUND_SOURCE);
+      ListBindingInfo binding = new ListBindingInfo();
+      binding.setTableName("T1");
+      binding.setValueColumn(new ColumnRef(new AttributeRef(null, "id")));
+      binding.setLabelColumn(new ColumnRef(new AttributeRef(null, "id")));
+      combo.setListBindingInfo(binding);
+      vs.addAssembly(combo);
+      ViewsheetSandbox vbox = viewsheetSandbox(vs, box);
+      Object data = new InputVSAQuery(vbox, "C1").getData();
+
+      assertInstanceOf(ListData.class, data);
+      return ((ListData) data).getValues().length;
+   }
+
    private static TableLens baseLens(boolean fail, boolean scheduler) throws Exception {
       Worksheet ws = new Worksheet();
       sqlTable(ws, "T1", fail);
@@ -570,11 +793,7 @@ class RowFetchFailureTest {
    private static ViewsheetSandbox vsTable(Worksheet ws, AssetQuerySandbox box)
       throws Exception
    {
-      Viewsheet vs = new Viewsheet();
-      // as PooledWorksheetOpenReadAheadTest: the base worksheet is wired directly
-      Field wsField = Viewsheet.class.getDeclaredField("ws");
-      wsField.setAccessible(true);
-      wsField.set(vs, ws);
+      Viewsheet vs = viewsheet(ws);
       TableVSAssembly table = new TableVSAssembly(vs, "TableV");
       table.setSourceInfo(new SourceInfo(XSourceInfo.ASSET, null, "T1"));
       ColumnSelection cols = new ColumnSelection();
@@ -585,6 +804,21 @@ class RowFetchFailureTest {
 
       table.setColumnSelection(cols);
       vs.addAssembly(table);
+      return viewsheetSandbox(vs, box);
+   }
+
+   private static Viewsheet viewsheet(Worksheet ws) throws Exception {
+      Viewsheet vs = new Viewsheet();
+      // as PooledWorksheetOpenReadAheadTest: the base worksheet is wired directly
+      Field wsField = Viewsheet.class.getDeclaredField("ws");
+      wsField.setAccessible(true);
+      wsField.set(vs, ws);
+      return vs;
+   }
+
+   private static ViewsheetSandbox viewsheetSandbox(Viewsheet vs, AssetQuerySandbox box)
+      throws Exception
+   {
       AssetEntry entry = new AssetEntry(
          AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET, "test/RowFetchFailureTest",
          null, OrganizationManager.getInstance().getCurrentOrgID());
