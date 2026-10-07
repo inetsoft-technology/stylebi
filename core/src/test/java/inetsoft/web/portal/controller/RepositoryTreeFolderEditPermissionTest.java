@@ -23,6 +23,8 @@ import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.security.*;
 import inetsoft.test.*;
 import inetsoft.util.Catalog;
+import inetsoft.util.audit.ActionRecord;
+import inetsoft.util.audit.Audit;
 import inetsoft.web.RecycleBin;
 import inetsoft.web.portal.model.*;
 import inetsoft.web.viewsheet.command.MessageCommand;
@@ -42,7 +44,8 @@ import static org.mockito.Mockito.*;
  * Bug #77838, editing a portal repository folder without changing its name only writes the
  * alias and description, and that branch checked no permission while a rename of the same folder
  * needs WRITE on it. Runs against the real repository tree controller, replet engine and
- * registry, with a security engine that refuses only WRITE on the folder.
+ * registry, with a security engine that refuses only WRITE on the folder. A refused edit or
+ * rename is audited as a failure, the same as a refused rename through the rename endpoint.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class },
@@ -50,11 +53,13 @@ import static org.mockito.Mockito.*;
 @SreeHome
 @Tag("core")
 class RepositoryTreeFolderEditPermissionTest {
+   private static final List<ActionRecord> audits = Collections.synchronizedList(new ArrayList<>());
    private String orgId;
 
    @BeforeEach
    void setUp() {
       orgId = Organization.getDefaultOrganizationID();
+      audits.clear();
    }
 
    @Test
@@ -74,6 +79,7 @@ class RepositoryTreeFolderEditPermissionTest {
                    result[0].getMessage());
       assertTrue(calls.contains(List.of(ResourceType.REPORT, folder, ResourceAction.WRITE)),
                  () -> "WRITE on the folder was not checked: " + calls);
+      assertRefusalAudited(ActionRecord.ACTION_NAME_EDIT, folder);
 
       RepletRegistryManager.getInstance().clearOrgCache(orgId);
       assertEquals("OldAlias", registry().getFolderAlias(folder));
@@ -85,13 +91,18 @@ class RepositoryTreeFolderEditPermissionTest {
    void editWithChangedNameWithoutWriteIsRefusedAndKeepsAlias() throws Exception {
       String folder = "F77838b";
       addFolder(folder, "OldAlias", "OldDesc");
+      List<List<Object>> calls = new ArrayList<>();
 
       MessageCommand[] result = new MessageCommand[1];
-      withWriteRefusedOn(folder, new ArrayList<>(), () -> result[0] = controller()
+      withWriteRefusedOn(folder, calls, () -> result[0] = controller()
          .addRepositoryFolder(editEvent(folder, folder + "x", "NewAlias", "NewDesc"), user()));
 
       assertNotNull(result[0], "the rename was not refused");
       assertEquals(MessageCommand.Type.ERROR, result[0].getType());
+      assertTrue(calls.contains(List.of(ResourceType.REPORT, folder, ResourceAction.WRITE)),
+                 () -> "WRITE on the folder was not checked: " + calls);
+      assertRefusalAudited(ActionRecord.ACTION_NAME_RENAME, folder);
+      RepletRegistryManager.getInstance().clearOrgCache(orgId);
       assertTrue(registry().isFolder(folder));
       assertFalse(registry().isFolder(folder + "x"));
       assertEquals("OldAlias", registry().getFolderAlias(folder));
@@ -111,6 +122,7 @@ class RepositoryTreeFolderEditPermissionTest {
          editEvent(folder, folder, "NewAlias", "NewDesc"), user()));
 
       assertNull(result[0], () -> "edit refused: " + result[0].getMessage());
+      assertTrue(audits.isEmpty(), () -> "an allowed edit was audited as refused: " + audits);
       RepletRegistryManager.getInstance().clearOrgCache(orgId);
       assertEquals("NewAlias", registry().getFolderAlias(folder));
       assertEquals("NewDesc", registry().getFolderDescription(folder));
@@ -178,6 +190,16 @@ class RepositoryTreeFolderEditPermissionTest {
 
    // ---- helpers ----
 
+   private static void assertRefusalAudited(String actionName, String folder) {
+      assertEquals(1, audits.size(), () -> "expected one audit record: " + audits);
+      ActionRecord record = audits.get(0);
+      assertEquals(actionName, record.getActionName());
+      assertEquals(ActionRecord.OBJECT_TYPE_FOLDER, record.getObjectType());
+      assertEquals(ActionRecord.ACTION_STATUS_FAILURE, record.getActionStatus());
+      assertTrue(record.getActionError().contains("Write access denied: " + folder),
+                 record::getActionError);
+   }
+
    private void addFolder(String path, String alias, String description) throws Exception {
       addFolder(registry(), path, alias, description);
    }
@@ -240,6 +262,7 @@ class RepositoryTreeFolderEditPermissionTest {
    /**
     * Runs the body with a security engine that refuses the (type, resource, action) checks the
     * predicate matches, allows every other permission check and records each one it is asked.
+    * The audit records written meanwhile are collected in {@link #audits}.
     */
    private static void withRefused(Predicate<List<Object>> refused,
                                    List<List<Object>> calls, Body body)
@@ -258,8 +281,15 @@ class RepositoryTreeFolderEditPermissionTest {
             return !refused.test(call);
          }));
 
-      try(MockedStatic<SecurityEngine> st = mockStatic(SecurityEngine.class, CALLS_REAL_METHODS)) {
+      Audit audit = mock(Audit.class);
+      doAnswer(inv -> audits.add(inv.getArgument(0)))
+         .when(audit).auditAction(any(ActionRecord.class), any());
+
+      try(MockedStatic<SecurityEngine> st = mockStatic(SecurityEngine.class, CALLS_REAL_METHODS);
+          MockedStatic<Audit> at = mockStatic(Audit.class))
+      {
          st.when(SecurityEngine::getSecurity).thenReturn(spy);
+         at.when(Audit::getInstance).thenReturn(audit);
          body.run();
       }
    }

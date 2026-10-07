@@ -631,6 +631,21 @@ public class RepositoryTreeController {
          // Bug #77838, an edit that keeps the name only writes the alias and description, check
          // the same permission as a rename before anything is written to the registry
          if(!SUtil.checkPermission(principal, entry, analyticRepository, ResourceAction.WRITE)) {
+            String actionName = entry.getName().equals(name) ?
+               ActionRecord.ACTION_NAME_EDIT : ActionRecord.ACTION_NAME_RENAME;
+            ActionRecord actionRecord = new ActionRecord(SUtil.getUserName(principal), actionName,
+               Util.getObjectFullPath(RepositoryEntry.REPOSITORY | RepositoryEntry.FOLDER,
+                                      entry.getPath(), principal),
+               ActionRecord.OBJECT_TYPE_FOLDER, new Timestamp(System.currentTimeMillis()),
+               ActionRecord.ACTION_STATUS_FAILURE, "Write access denied: " + entry.getPath());
+
+            try {
+               Audit.getInstance().auditAction(actionRecord, principal);
+            }
+            catch(Exception e) {
+               LOG.error("Failed to insert audit record for editing folder: " + entry.getPath(), e);
+            }
+
             MessageCommand messageCommand = new MessageCommand();
             messageCommand.setMessage(catalog.getString("common.writeAuthority", entry.getPath()));
             messageCommand.setType(MessageCommand.Type.ERROR);
