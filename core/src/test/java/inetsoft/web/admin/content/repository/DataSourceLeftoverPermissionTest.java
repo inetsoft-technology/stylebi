@@ -327,6 +327,34 @@ class DataSourceLeftoverPermissionTest {
       verify(notifications).sendNotificationToUser(leftoverMessage(), admin);
    }
 
+   // the portal Data tab "delete selected" of a folder and a data source notifies the user once
+   @Test
+   void portalBulkDelete_folderRemoveFails_notifiesUser() throws Exception {
+      addFolder(FOLDER);
+      registry.setDataSource(source(SOURCE), false);
+      grant(ResourceType.DATA_SOURCE_FOLDER, FOLDER);
+      failRemoves(key(ResourceType.DATA_SOURCE_FOLDER, FOLDER));
+      NotificationService notifications = mock(NotificationService.class);
+      SelectedDataSourcesRequest request = ImmutableSelectedDataSourcesRequest.builder()
+         .addDataSources(ImmutableSelectedDataSourceItem.builder().name(SOURCE).path(SOURCE).build())
+         .addFolders(ImmutableSelectedDataSourceItem.builder().name(FOLDER).path(FOLDER).build())
+         .build();
+
+      DataSourceController controller = portalController(notifications);
+      // the delete permission checks before the delete are not under test
+      SecurityEngine allow = mock(SecurityEngine.class);
+      when(allow.checkPermission(any(Principal.class), any(), anyString(), any())).thenReturn(true);
+      ReflectionTestUtils.setField(controller, "securityEngine", allow);
+
+      try(MockedStatic<Audit> ignored = mockAudit()) {
+         controller.deleteDataSources(request, admin);
+      }
+
+      assertNull(registry.getDataSourceFolder(FOLDER));
+      assertNull(registry.getDataSource(SOURCE));
+      verify(notifications).sendNotificationToUser(leftoverMessage(), admin);
+   }
+
    private ConnectionStatus emDeleteFolder(String path) throws Exception {
       DeleteTreeNodesRequest request = DeleteTreeNodesRequest.builder()
          .nodes(new TreeNodeInfo[] {
