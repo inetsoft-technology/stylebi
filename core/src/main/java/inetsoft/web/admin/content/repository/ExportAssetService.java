@@ -153,8 +153,10 @@ public class ExportAssetService {
       // Bug #77862, a dependent asset with an owner is read from the owner's storage. Global
       // dependents resolve in the current organization and are not checked, a legitimate
       // dependency list holds global data sources and the like the caller may not administer.
+      // Bug #77923, #77924, a schedule task or an auto-save asset is checked against its stored
+      // owner, whatever owner the client sends.
       for(RequiredAssetModel model : assetData) {
-         deployService.checkAssetOwner(model.user(), model.name(), principal);
+         deployService.checkDependentAsset(model, principal);
       }
 
       List<PartialDeploymentJarInfo.RequiredAsset> assetDataArray = assetData.stream()

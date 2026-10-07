@@ -890,23 +890,41 @@ public class DeployService {
       String type = repositoryEntryTypeToAssetType(model.type());
       IdentityID user = getEntryAssetUser(model);
       RepositoryOwnerOrgCheck.checkOwnerOrg(user, principal);
-      boolean permitted;
 
-      try {
-         permitted = principal != null && isEntityPermitted(model.path(), user, type, principal);
-      }
-      catch(SecurityException e) {
-         throw new MessageException(noPermissionMessage(model.path(), principal), e);
-      }
-
-      if(!permitted) {
+      if(principal == null || !isEntityPermitted(model.path(), user, type, principal)) {
          throw new MessageException(noPermissionMessage(model.path(), principal));
       }
    }
 
    /**
+    * Checks if the caller may export a dependent asset of an export. The owner of a schedule task
+    * or an auto-save asset is resolved from the stored task or the file name, the client-supplied
+    * owner is ignored. The other assets are checked by {@link #checkAssetOwner}.
+    *
+    * @throws MessageException if the caller may not export the asset.
+    */
+   public void checkDependentAsset(RequiredAssetModel model, Principal principal) {
+      String type = model.type();
+
+      // Bug #77923, #77924, the writers of these assets ignore the owner of the model
+      if(ScheduleTaskAsset.SCHEDULETASK.equals(type) || VSAutoSaveAsset.AUTOSAVEVS.equals(type) ||
+         WSAutoSaveAsset.AUTOSAVEWS.equals(type))
+      {
+         XAsset asset = SUtil.getXAsset(type, model.name(), model.user());
+
+         if(!XAssetExportPermission.isPermitted(asset, model.name(), false, principal)) {
+            throw new MessageException(noPermissionMessage(model.name(), principal));
+         }
+
+         return;
+      }
+
+      checkAssetOwner(model.user(), model.name(), principal);
+   }
+
+   /**
     * Checks if the caller may export an asset owned by a client-supplied user, a dependent asset
-    * of an export. The owner of an auto-save asset is {@code __NULL__}, it has no owner.
+    * of an export. A {@code __NULL__} owner has no owner.
     *
     * @throws MessageException if the owner belongs to another organization or the caller is
     *                          neither the owner nor an administrator of the owner.
@@ -923,16 +941,7 @@ public class DeployService {
          return;
       }
 
-      boolean permitted;
-
-      try {
-         permitted = principal != null && isOwnerPermitted(owner, principal);
-      }
-      catch(SecurityException e) {
-         throw new MessageException(noPermissionMessage(path, principal), e);
-      }
-
-      if(!permitted) {
+      if(!XAssetExportPermission.isOwnerPermitted(owner, principal)) {
          throw new MessageException(noPermissionMessage(path, principal));
       }
    }
@@ -1110,42 +1119,21 @@ public class DeployService {
    }
 
    private boolean isEntityPermitted(SelectedAssetModel entity, String assetType,
-                                     Principal principal) throws SecurityException
+                                     Principal principal)
    {
       return isEntityPermitted(entity.path(), entity.user(), assetType, principal);
    }
 
    private boolean isEntityPermitted(String path, IdentityID user, String assetType,
-                                     Principal principal) throws SecurityException
+                                     Principal principal)
    {
       String unscopedPath = contentRepositoryTreeService.getUnscopedPath(path);
 
       XAsset xasset = SUtil.getXAsset(assetType, unscopedPath, user);
 
-      if(xasset instanceof VSAutoSaveAsset || xasset instanceof WSAutoSaveAsset) {
-         return true;
-      }
-
-      Resource resource = xasset.getSecurityResource();
-
-      if(resource == null) {
-         return securityEngine.checkPermission(
-            principal, ResourceType.ASSET, unscopedPath, ResourceAction.ADMIN);
-      }
-      else if(xasset.getUser() != null) {
-         return isOwnerPermitted(xasset.getUser(), principal);
-      }
-      else {
-         return securityEngine.checkPermission(
-            principal, resource.getType(), resource.getPath(), ResourceAction.ADMIN);
-      }
-   }
-
-   private boolean isOwnerPermitted(IdentityID owner, Principal principal)
-      throws SecurityException
-   {
-      return principal.getName().equals(owner.convertToKey()) || securityEngine.checkPermission(
-         principal, ResourceType.SECURITY_USER, owner, ResourceAction.ADMIN);
+      // Bug #77923, #77924, the owner of a schedule task or an auto-save asset is resolved from
+      // the stored task or the file name, not from the client-supplied user
+      return XAssetExportPermission.isPermitted(xasset, unscopedPath, true, principal);
    }
 
    /**
