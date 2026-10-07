@@ -882,7 +882,7 @@ class IgniteSessionRepositoryTest {
          assertEquals(ttl, policy.getExpiryForAccess());
          assertNull(policy.getExpiryForUpdate(), "an update must still leave the TTL unchanged");
          assertTrue(PropertyAccessedExpiryPolicy.TTL_MARGIN_SECONDS >= 40,
-                    "the margin must cover at least two 20 s checkSessions periods");
+                    "the margin must cover several 10 s checkSessions periods");
          assertEquals(java.time.Duration.ofSeconds(60),
                       repository.createSession().getMaxInactiveInterval(),
                       "the session itself still times out at http.session.timeout");

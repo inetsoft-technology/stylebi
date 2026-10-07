@@ -530,7 +530,11 @@ public class IgniteSessionRepository
       }
    }
 
-   @Scheduled(fixedRate = 20000) // Check every 20 seconds
+   // Every 10 seconds: this pass is what ends an idle session (it deletes the sessions past their
+   // timeout), so its period bounds how late the end can be. Every node runs it, but the nodes'
+   // phases are arbitrary and can coincide, so the bound is one period, not a fraction of it
+   // (Bug #77886: three nodes ran their 20 s passes within 5 s of each other).
+   @Scheduled(fixedRate = 10000)
    public void checkSessions() {
       long currentTime = System.currentTimeMillis();
       long protectionExpirationTime = nodeProtectionService.getExpirationTime();
@@ -695,7 +699,7 @@ public class IgniteSessionRepository
    // mutated concurrently from at least three independent thread contexts (request threads via
    // createSessionAttributeMap()/getSessionAttributeMap()'s cold-path put, the single-threaded
    // Ignite cache-event listener executor via destroySessionAttributeMap(), and the
-   // @Scheduled(fixedRate = 20000) checkSessions() thread's cold-path put for every session
+   // @Scheduled checkSessions() thread's cold-path put for every session
    // cluster-wide). Concurrent put/remove on a plain HashMap can corrupt its internal structure
    // badly enough to spuriously null out (or lose) an entirely unrelated key, with the damage
    // persisting for the life of the map -- this was the root cause of Bug #77306 (a sibling

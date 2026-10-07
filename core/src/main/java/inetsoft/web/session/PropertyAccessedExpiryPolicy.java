@@ -48,7 +48,7 @@ public final class PropertyAccessedExpiryPolicy implements ExpiryPolicy, Seriali
    /**
     * The Ignite time-to-live of a session cache entry: the session timeout plus
     * {@link #TTL_MARGIN_SECONDS}. A session ends when its {@code MapSession} expires, which an
-    * {@code IgniteSessionRepository} sweep (checkSessions on every node every 20 seconds, or a
+    * {@code IgniteSessionRepository} sweep (checkSessions on every node every 10 seconds, or a
     * lazy {@code findById}) detects and turns into {@code deleteById}: the LOGOFF audit record,
     * the license release and the {@code SessionExpiredEvent}. The entry must still be in the
     * cache when the sweep runs. If the TTL equaled the timeout, the entry would vanish at the
@@ -84,7 +84,7 @@ public final class PropertyAccessedExpiryPolicy implements ExpiryPolicy, Seriali
    }
 
    public static final int DEFAULT_MAX_INACTIVE_INTERVAL_SECONDS = 1800;
-   // three checkSessions periods (20 s each): covers a late or failed pass and clock skew
+   // several checkSessions periods (10 s each): covers late or failed passes and clock skew
    // between the nodes that set lastAccessedTime and the node that sweeps
    static final long TTL_MARGIN_SECONDS = 60;
    private static final Logger LOG = LoggerFactory.getLogger(PropertyAccessedExpiryPolicy.class);
