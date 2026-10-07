@@ -27,6 +27,7 @@ import inetsoft.sree.security.support.SecurityTestDataBuilder;
 import inetsoft.test.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
 import inetsoft.util.dep.*;
 import inetsoft.web.AutoSaveUtils;
@@ -107,6 +108,7 @@ class DeployServiceExportStoredOwnerTest {
    private SRPrincipal carol;   // plain user of org A, the delegated EM repository user
    private SRPrincipal dave;    // plain user of org A, owner of the task and the auto-saves
    private SRPrincipal sadm;    // site admin (org A)
+   private SRPrincipal erin;    // plain user of org A with ADMIN permission on dave
    private String cycleTask;    // data cycle task of org A, owned by the system user
    private String vsFile;       // repository tree paths of the recycled auto-saves
    private String wsFile;
@@ -124,9 +126,12 @@ class DeployServiceExportStoredOwnerTest {
          .addUser("carol", ORG_A, "password")
          .addUser("dave", ORG_A, "password")
          .addUser("sadm", ORG_A, "password")
+         .addUser("erin", ORG_A, "password")
          .addUser("bob", ORG_B, "password")
          .addUserToRole("alice", "dxsOrgAdminA", ORG_A)
-         .addUserToRole("sadm", "dxsSiteAdmin", ORG_A);
+         .addUserToRole("sadm", "dxsSiteAdmin", ORG_A)
+         .grantPermission(ResourceType.SECURITY_USER, DAVE.convertToKey(), ResourceAction.ADMIN,
+                          "erin", Identity.USER, ORG_A);
       builder.setup();
 
       ScheduleManager manager = ScheduleManager.getScheduleManager();
@@ -180,6 +185,7 @@ class DeployServiceExportStoredOwnerTest {
       carol = loginPrincipalOf("carol", ORG_A);
       dave = loginPrincipalOf("dave", ORG_A);
       sadm = loginPrincipalOf("sadm", ORG_A);
+      erin = loginPrincipalOf("erin", ORG_A);
 
       ContentRepositoryTreeService treeService = mock(ContentRepositoryTreeService.class);
       when(treeService.getUnscopedPath(anyString()))
@@ -247,6 +253,20 @@ class DeployServiceExportStoredOwnerTest {
             e -> e.getKey().startsWith("SCHEDULETASK_") && e.getValue().contains("daveSecret")),
                     caller.getName() + " exported " + entries.keySet());
          assertTrue(preflight(caller, task(DAVE_TASK, DAVE)).size() == 1, caller.getName());
+      }
+   }
+
+   @Test
+   void task_plainUserWithAdminOnOwner_exportsTheTask() throws Exception {
+      // the stored owner decides, not the role: a plain user that may administer dave still
+      // gets dave's task, whatever owner is sent, while carol (no permission) is refused above
+      for(IdentityID owner : Arrays.asList(DAVE, erin.getIdentityID())) {
+         Map<String, String> entries = export(
+            erin, List.of(task(DAVE_TASK, owner)), List.of(required(DAVE_TASK, "SCHEDULETASK", null)));
+
+         assertTrue(entries.values().stream().anyMatch(v -> v.contains("daveSecret")),
+                    entries.keySet().toString());
+         assertEquals(1, preflight(erin, task(DAVE_TASK, owner)).size());
       }
    }
 
