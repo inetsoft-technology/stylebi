@@ -458,7 +458,16 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
    }
 
    isModelChanged(): boolean {
-      return !Tool.isEquals(this.model, this.originalModel);
+      return !Tool.isEquals(this.withNormalizedTheme(this.model),
+                            this.withNormalizedTheme(this.originalModel));
+   }
+
+   /**
+    * The server sends theme null for an identity with no theme assigned, while the form
+    * (and so updateModel()) uses "". Treat both as the same unassigned theme when comparing.
+    */
+   private withNormalizedTheme(model: EditIdentityPaneModel): EditIdentityPaneModel {
+      return model ? { ...model, theme: model.theme || "" } : model;
    }
 
    reset() {

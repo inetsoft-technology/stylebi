@@ -790,13 +790,26 @@ describe("EditIdentityViewComponent — identityEditable: org-save disable/re-en
 
 describe("EditIdentityViewComponent — isModelChanged() and structural guards", () => {
 
+   // init() subscribes form.valueChanges -> updateModel() inside a 200 ms setTimeout. A real
+   // user always edits after it fired, so these tests fake setTimeout and advance past the delay
+   // before acting; otherwise the result depends on how long render() and the MSW responses take.
+   // The model is shaped like the server's for an existing user: password null, theme null.
+   async function renderWithLiveFormSync(model: EditIdentityPaneModel) {
+      vi.useFakeTimers({ toFake: ["setTimeout"] });
+      const result = await renderComponent({ model, type: IdentityType.USER });
+      vi.advanceTimersByTime(200);
+      return result;
+   }
+
+   afterEach(() => {
+      vi.useRealTimers();
+   });
+
    // isModelChanged() false → true → false cycle validates that original-state bookkeeping
    // is correct across the full edit/reset lifecycle.
    it("should return false initially, true after a name edit, and false again after reset", async () => {
-      const { comp } = await renderComponent({
-         model: makeUserModel({ name: "original" }),
-         type: IdentityType.USER,
-      });
+      const { comp } = await renderWithLiveFormSync(
+         makeUserModel({ name: "original", password: null, theme: null }));
 
       expect(comp.isModelChanged()).toBe(false);
 
@@ -805,6 +818,18 @@ describe("EditIdentityViewComponent — isModelChanged() and structural guards",
       expect(comp.isModelChanged()).toBe(true);
 
       comp.reset();
+      expect(comp.isModelChanged()).toBe(false);
+   });
+
+   // Bug #77935: reset()'s setValue calls run updateModel(), which writes the form's "" theme over
+   // the server's null. An unassigned theme must not count as a change, or Apply stays enabled.
+   it("should return false after reset with no edit when the identity has no theme", async () => {
+      const { comp } = await renderWithLiveFormSync(
+         makeUserModel({ name: "original", password: null, theme: null }));
+
+      comp.reset();
+
+      expect(comp.model.theme).toBe("");
       expect(comp.isModelChanged()).toBe(false);
    });
 
