@@ -478,11 +478,15 @@ public abstract class XDimIndex extends XSwappable {
       }
 
       if(newbuf) {
+         BlockFile ofile = file;
+         long ofpos = fpos;
          file = new CacheBlockFile(prefix + EXTENSION);
          fpos = 0;
 
          try {
-            if(!file.exists()) {
+            // a stub left by a failed write must be rewritten, not taken as a swapped copy.
+            // the rewrite starts at 0 and writes the same data, so a stub tail is never read
+            if(rewriteRequired || !file.exists()) {
                try(TransactionChannel channel = file.openWriteChannel()) {
                   write(channel, null);
                   channel.commit();
@@ -491,7 +495,15 @@ public abstract class XDimIndex extends XSwappable {
          }
          catch(Exception ex) {
             LOG.error(ex.getMessage(), ex);
+            // keep the data in memory, the swap file is not usable
+            file.delete();
+            rewriteRequired = true;
+            file = ofile;
+            fpos = ofpos;
+            return false;
          }
+
+         rewriteRequired = false;
       }
 
       newbuf = false;
@@ -549,5 +561,7 @@ public abstract class XDimIndex extends XSwappable {
    private boolean completed;
    private boolean compressed = true;
    private boolean newbuf = false;
+   // true if the swap file may be a stub left by a failed write
+   private boolean rewriteRequired = false;
    private transient boolean includeNullCompare = false;
 }
