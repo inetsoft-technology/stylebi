@@ -18,10 +18,14 @@
 package inetsoft.report.lens;
 
 import inetsoft.report.TableLens;
+import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.test.*;
 import inetsoft.util.script.ExpressionFailedException;
+import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.graal.*;
 import inetsoft.util.script.graal.ScriptStopTestSupport.Stops;
+import inetsoft.util.script.graal.pool.PoolTestSupport;
+import inetsoft.util.script.graal.pool.WorksheetScriptEnv;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.annotation.DirtiesContext;
@@ -30,6 +34,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static inetsoft.util.swap.SwapLostTestSupport.failureOf;
@@ -37,10 +42,14 @@ import static inetsoft.util.swap.SwapLostTestSupport.within;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * A formula row stopped by the script timeout is not kept with a null cell (bug #77949): the
- * reader gets the stop, recognizable as one, and a later read computes the row again, so a
- * running total equals the control. The stops are real 1 s timeouts of a {@code while(true){}}
- * run in place of the row's exec, or a stopped script exception injected there.
+ * A formula row stopped by the script timeout is not a row with a null cell (bug #77949): the
+ * stopped cells fail every read with the stop, recognizable as one, and so does every cell
+ * whose formula reads them. The row is never computed again from the vars its stopped exec
+ * may have changed, so no read returns a wrong value: the rows after it go on from the vars as
+ * the stopped exec left them, as they always did, and a new row table (invalidate()) or a
+ * new lens computes the table again with fresh vars. The stops are real 1 s timeouts of a
+ * {@code while(true){}} (optionally after changing the vars) run in place of the row's exec,
+ * or a stopped script exception injected there.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class, LibManagerTestConfiguration.class, PluginsTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -72,21 +81,116 @@ public class FormulaTableLensTimeoutTest {
    }
 
    @Test
-   public void timedOutRowIsComputedAgainNotReadAsNull() throws Exception {
-      assertStopRetries(false);
+   public void timedOutRowIsAStopOnEveryReadNotANullCell() throws Exception {
+      assertRunningTotalStops(false);
    }
 
    @Test
-   public void injectedStopRowIsComputedAgainNotReadAsNull() throws Exception {
-      assertStopRetries(true);
+   public void injectedStopRowIsAStopOnEveryReadNotANullCell() throws Exception {
+      assertRunningTotalStops(true);
    }
 
    /**
-    * A column that reads the stopped column of its own row: neither cell is kept.
+    * A formula that does not read the stopped row: only the stopped cell fails, the rows
+    * after it are computed as before.
     */
    @Test
-   public void timedOutCellReadByAnotherColumnOfTheRowIsComputedAgain() throws Exception {
-      assertNestedStopRetries(false);
+   public void rowsAfterAStoppedRowAreComputedAsBefore() throws Exception {
+      String formula = "field['value'] * 10" + marker;
+      stops.reset(marker, n -> n == FAILED_ROW, false);
+      FormulaTableLens lens = lens(formula);
+
+      assertStop(failureOf(CAP, () -> drain(lens)));
+
+      for(int r = 1; r <= N; r++) {
+         final int row = r;
+
+         if(r == FAILED_ROW) {
+            assertStop(failureOf(CAP, () -> lens.getObject(row, 2)));
+         }
+         else {
+            assertEquals(r * 10, ((Number) within(CAP, () -> value(lens, row, 2))).intValue());
+         }
+      }
+
+      assertEquals(1, stops.stops());
+   }
+
+   /**
+    * The stopped exec changed a formula var (a Date, in place) before the timeout: the row is
+    * not computed again from it, which would apply the change twice and put every later row
+    * one off. The later rows go on from the var as the stopped exec left it, which counts its
+    * change once, and a new row table or a new lens computes every row with a fresh var.
+    */
+   @Test
+   public void varChangedBeforeTheTimeoutIsNotAppliedTwice() throws Exception {
+      // a worksheet formula, whose top-level vars the row scope owns; the row whose base
+      // column 'loop' is 1 loops after its step, until the timeout
+      String formula = "var d = d || new Date(0); d.setTime(d.getTime() + 1000); " +
+         "if(field['loop'] == 1) { while(true) {} } d.getTime() / 1000" + marker;
+      AssetQuerySandbox box = PoolTestSupport.poolBox(pooled());
+      ScriptEnv boxEnv = box.getScriptEnv();
+      AtomicInteger loopRow = new AtomicInteger();
+      DefaultTableLens base = loopData(loopRow);
+
+      try {
+         List<List<Object>> expected =
+            within(CAP, () -> drain(FormulaTableLensVarTest.make(box, base, formula, "T")));
+
+         for(int r = 1; r <= N; r++) {
+            assertEquals(r, ((Number) expected.get(r).get(3)).intValue(), "control of row " + r);
+         }
+
+         loopRow.set(FAILED_ROW);
+         TableLens lens = FormulaTableLensVarTest.make(box, base, formula, "T");
+
+         assertStop(failureOf(CAP, () -> drain(lens)));
+         // the loop was one-shot: a computation of the row again would not time out, but
+         // would step the Date a second time and put every later row one off, silently
+         loopRow.set(0);
+
+         for(int read = 0; read < 2; read++) {
+            for(int r = 1; r <= N; r++) {
+               final int row = r;
+
+               if(r == FAILED_ROW) {
+                  assertStop(failureOf(CAP, () -> lens.getObject(row, 3)));
+               }
+               else {
+                  assertEquals(r, ((Number) within(CAP, () -> value(lens, row, 3))).intValue(),
+                               "row " + r + ", read " + read);
+               }
+            }
+         }
+
+         // a computation with fresh vars
+         ((FormulaTableLens) lens).invalidate();
+         assertEquals(expected, within(CAP, () -> drain(lens)), "a new row table, fresh vars");
+         assertEquals(expected,
+                      within(CAP, () -> drain(FormulaTableLensVarTest.make(box, base, formula, "T"))),
+                      "a new lens, fresh vars");
+      }
+      finally {
+         if(boxEnv instanceof WorksheetScriptEnv pooled) {
+            pooled.retire();
+         }
+      }
+   }
+
+   /**
+    * Whether the lenses of {@link #varChangedBeforeTheTimeoutIsNotAppliedTwice} run on the
+    * script context pool.
+    */
+   boolean pooled() {
+      return false;
+   }
+
+   /**
+    * A column that reads the stopped column of its own row: both cells fail with the stop.
+    */
+   @Test
+   public void timedOutCellReadByAnotherColumnOfTheRowIsAStopToo() throws Exception {
+      assertNestedStop(false);
    }
 
    /**
@@ -94,13 +198,13 @@ public class FormulaTableLensTimeoutTest {
     * as a host exception of its own script.
     */
    @Test
-   public void injectedStopReadByAnotherColumnOfTheRowIsComputedAgain() throws Exception {
-      assertNestedStopRetries(true);
+   public void injectedStopReadByAnotherColumnOfTheRowIsAStopToo() throws Exception {
+      assertNestedStop(true);
    }
 
    /**
-    * A timeout that lasts fails every read of the row as a stop, one timeout per read; the
-    * rows before it stay readable.
+    * A timeout that lasts: each read stops at most one more row, with one timeout; a stopped
+    * row fails again without one.
     */
    @Test
    public void lastingTimeoutFailsEveryReadAsAStop() throws Exception {
@@ -112,13 +216,20 @@ public class FormulaTableLensTimeoutTest {
       assertEquals(FAILED_ROW, stops.calls(), "the batch ends at the stopped row");
       assertStop(failureOf(CAP, () -> drain(lens)));
       assertStop(failureOf(CAP, () -> lens.getObject(FAILED_ROW, 2)));
-      assertEquals(3, stops.stops(), "one timeout per read");
+      assertEquals(1, stops.stops(), "a stopped row fails again without a timeout");
+      assertStop(failureOf(CAP, () -> lens.getObject(FAILED_ROW + 1, 2)));
+      assertEquals(2, stops.stops(), "the next row runs into the timeout once");
       assertEquals(expected.get(FAILED_ROW - 1).get(2),
                    within(CAP, () -> lens.getObject(FAILED_ROW - 1, 2)),
-                   "a kept row is still readable");
+                   "a row before it is still readable");
    }
 
-   private void assertStopRetries(boolean inject) throws Exception {
+   /**
+    * A running total over the stopped row: the stopped cell and every later one fail with the
+    * stop (they read it), on every read, and none is a null or a wrong value. The rows before
+    * it keep their values, and a new row table computes the control values.
+    */
+   private void assertRunningTotalStops(boolean inject) throws Exception {
       String formula = RUNNING_TOTAL + marker;
       List<List<Object>> expected = within(CAP, () -> drain(lens(formula)));
 
@@ -132,36 +243,68 @@ public class FormulaTableLensTimeoutTest {
 
       assertStop(failureOf(CAP, () -> drain(lens)));
       assertEquals(FAILED_ROW, stops.calls(), "the stop ends the batch");
-      assertEquals(expected, within(CAP, () -> drain(lens)),
-                   "the stopped row is computed again, not kept as null");
-      assertEquals(N + 1, stops.calls(), "one exec per row and one retry");
+
+      for(int read = 0; read < 2; read++) {
+         assertStop(failureOf(CAP, () -> drain(lens)));
+
+         for(int r = 1; r <= N; r++) {
+            final int row = r;
+
+            if(r < FAILED_ROW) {
+               assertEquals(expected.get(r).get(2), within(CAP, () -> value(lens, row, 2)));
+            }
+            else {
+               assertStop(failureOf(CAP, () -> value(lens, row, 2)));
+            }
+         }
+      }
+
       assertEquals(1, stops.stops());
+      assertEquals(N, stops.calls(), "each row runs once, the stopped one is not run again");
+
+      lens.invalidate();
+      assertEquals(expected, within(CAP, () -> drain(lens)), "a new row table");
    }
 
-   private void assertNestedStopRetries(boolean inject) throws Exception {
+   private void assertNestedStop(boolean inject) throws Exception {
       // g first: its exec computes f of the same row, so f's stop happens inside g's exec
       String[] names = { "g", "f" };
-      String[] formulas = { "field['f'] * 10", RUNNING_TOTAL + marker };
+      String[] formulas = { "field['f'] * 10", "field['value']" + marker };
       List<List<Object>> expected = within(CAP, () -> drain(lens(names, formulas)));
 
       for(int r = 1; r <= N; r++) {
-         assertEquals(r * (r + 1) / 2, ((Number) expected.get(r).get(3)).intValue());
-         assertEquals(r * (r + 1) * 5, ((Number) expected.get(r).get(2)).intValue());
+         assertEquals(r, ((Number) expected.get(r).get(3)).intValue());
+         assertEquals(r * 10, ((Number) expected.get(r).get(2)).intValue());
       }
 
       stops.reset(marker, n -> n == FAILED_ROW, inject);
       FormulaTableLens lens = lens(names, formulas);
 
       assertStop(failureOf(CAP, () -> drain(lens)));
-      assertEquals(expected, within(CAP, () -> drain(lens)),
-                   "neither cell of the stopped row is kept as null");
+
+      for(int r = 1; r <= N; r++) {
+         for(int c = 2; c <= 3; c++) {
+            final int row = r;
+            final int col = c;
+
+            if(r == FAILED_ROW) {
+               assertStop(failureOf(CAP, () -> lens.getObject(row, col)));
+            }
+            else {
+               assertEquals(expected.get(r).get(c), within(CAP, () -> value(lens, row, col)));
+            }
+         }
+      }
+
       assertEquals(1, stops.stops());
+      lens.invalidate();
+      assertEquals(expected, within(CAP, () -> drain(lens)), "a new row table");
    }
 
    /**
     * The reader gets a formula failure that says it is a stop, not a script error.
     */
-   private static void assertStop(Throwable failure) {
+   static void assertStop(Throwable failure) {
       assertInstanceOf(ExpressionFailedException.class, failure);
       assertTrue(ScriptTimeoutGuard.isStop(failure), "the reader can tell a stop: " + failure);
       assertTrue(ScriptTimeoutGuard.isStop(
@@ -174,6 +317,31 @@ public class FormulaTableLensTimeoutTest {
 
    private FormulaTableLens lens(String[] names, String[] formulas) {
       return new FormulaTableLens(new DefaultTableLens(data()), names, formulas, env, null);
+   }
+
+   private static Object value(TableLens lens, int r, int c) {
+      assertTrue(lens.moreRows(r));
+      return lens.getObject(r, c);
+   }
+
+   /**
+    * The rows of {@link #data()} with a column 'loop', 1 in the row {@code loopRow} holds and
+    * 0 in the others. Changing it fires no change event, which would invalidate the lens.
+    */
+   private static DefaultTableLens loopData(AtomicInteger loopRow) {
+      Object[][] data = new Object[N + 1][];
+      data[0] = new Object[] { "key", "value", "loop" };
+
+      for(int i = 1; i <= N; i++) {
+         data[i] = new Object[] { "k" + i, i, 0 };
+      }
+
+      return new DefaultTableLens(data) {
+         @Override
+         public Object getObject(int r, int c) {
+            return c == 2 && r > 0 ? (r == loopRow.get() ? 1 : 0) : super.getObject(r, c);
+         }
+      };
    }
 
    private static Object[][] data() {

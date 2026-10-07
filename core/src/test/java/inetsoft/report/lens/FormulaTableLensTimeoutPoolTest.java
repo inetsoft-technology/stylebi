@@ -55,6 +55,11 @@ public class FormulaTableLensTimeoutPoolTest extends FormulaTableLensTimeoutTest
       ((WorksheetScriptEnv) env).retire();
    }
 
+   @Override
+   boolean pooled() {
+      return true;
+   }
+
    @Test
    public void lensTakesThePooledPath() {
       assertFalse(env.usesExecutionLock());

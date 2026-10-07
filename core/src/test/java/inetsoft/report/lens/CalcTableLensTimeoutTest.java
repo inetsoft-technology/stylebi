@@ -42,10 +42,12 @@ import static org.mockito.Mockito.when;
 
 /**
  * A freehand (calc) table formula stopped by the script timeout is not an error cell (bug
- * #77949): the reader gets the stop, and a later read evaluates the formula again, in the
- * table's own cell cache, in the runtime table's in-place cache, in the expansion of
- * process(), and in a cell that reads the stopped cell by name. The stops are real 1 s
- * timeouts of a {@code while(true){}} run in place of the formula's exec, or a stopped
+ * #77949): the reader gets the stop, and so does every later read of the cell, without
+ * evaluating it again (its script may have changed the formulas' state before it was
+ * stopped), in the table's own cell cache, in the runtime table's in-place cache, and in a
+ * cell that reads the stopped cell by name. The table computed again (invalidate(), or a new
+ * process(), whose expansion is a new runtime table) evaluates it again. The stops are real
+ * 1 s timeouts of a {@code while(true){}} run in place of the formula's exec, or a stopped
  * script exception injected there.
  */
 @ExtendWith(SpringExtension.class)
@@ -71,21 +73,21 @@ public class CalcTableLensTimeoutTest {
    }
 
    @Test
-   public void timedOutFormulaIsEvaluatedAgainNotAnErrorCell() throws Exception {
+   public void timedOutFormulaIsAStopOnEveryReadNotAnErrorCell() throws Exception {
       assertCellRetries(false);
    }
 
    @Test
-   public void injectedStopFormulaIsEvaluatedAgainNotAnErrorCell() throws Exception {
+   public void injectedStopFormulaIsAStopOnEveryReadNotAnErrorCell() throws Exception {
       assertCellRetries(true);
    }
 
    /**
-    * The runtime table caches a value in place of the formula: after a stop the formula is
-    * put back.
+    * The runtime table caches a value in place of the formula: after a stop it keeps the
+    * stop there, and a new runtime table evaluates the formula again.
     */
    @Test
-   public void timedOutRuntimeFormulaIsEvaluatedAgain() throws Exception {
+   public void timedOutRuntimeFormulaIsAStopOnEveryRead() throws Exception {
       CalcTableLens calc = calcTable(1, 2);
       calc.setObject(0, 0, new CalcTableLens.Formula("41 + 1" + marker));
       calc.setObject(0, 1, new CalcTableLens.Formula("'x'"));
@@ -93,7 +95,12 @@ public class CalcTableLensTimeoutTest {
       stops.reset(marker, n -> n == 1, false);
 
       assertStop(failureOf(CAP, () -> runtime.getObject(0, 0)));
-      assertEquals(42, ((Number) within(CAP, () -> runtime.getObject(0, 0))).intValue());
+      assertStop(failureOf(CAP, () -> runtime.getObject(0, 0)));
+      assertEquals(1, stops.calls(), "the stopped formula is not evaluated again");
+      assertEquals("x", runtime.getObject(0, 1), "another cell is evaluated as before");
+
+      RuntimeCalcTableLens again = within(CAP, calc::process);
+      assertEquals(42, ((Number) within(CAP, () -> again.getObject(0, 0))).intValue());
       assertEquals(2, stops.calls());
    }
 
@@ -120,10 +127,10 @@ public class CalcTableLensTimeoutTest {
 
    /**
     * A cell that reads the stopped cell by name ($a) is not cached with a wrong value or an
-    * error either.
+    * error either: it is a stop too.
     */
    @Test
-   public void timedOutCellReadByNameIsEvaluatedAgain() throws Exception {
+   public void timedOutCellReadByNameIsAStopToo() throws Exception {
       assertNamedReadRetries(false);
    }
 
@@ -132,8 +139,17 @@ public class CalcTableLensTimeoutTest {
     * a host exception of its own script.
     */
    @Test
-   public void injectedStopCellReadByNameIsEvaluatedAgain() throws Exception {
+   public void injectedStopCellReadByNameIsAStopToo() throws Exception {
       assertNamedReadRetries(true);
+   }
+
+   /**
+    * A cell that sums a range holding the stopped cell, with no interrupt pending on its exec:
+    * a stop too, not a sum without it (CalcTableScope.summarize).
+    */
+   @Test
+   public void injectedStopCellSummedByARangeIsAStopToo() throws Exception {
+      assertNamedReadRetries(true, "sum('[0,0]:[0,0]') * 10");
    }
 
    /**
@@ -158,24 +174,36 @@ public class CalcTableLensTimeoutTest {
       stops.reset(marker, n -> n == 1, inject);
 
       assertStop(failureOf(CAP, () -> calc.getValue(0, 0)));
-      assertEquals(42, ((Number) within(CAP, () -> calc.getValue(0, 0))).intValue(),
-                   "the stopped formula is evaluated again");
+      assertStop(failureOf(CAP, () -> calc.getValue(0, 0)));
+      assertEquals(1, stops.calls(), "the stopped formula is not evaluated again");
+
+      // computed again
+      calc.invalidate();
+      assertEquals(42, ((Number) within(CAP, () -> calc.getValue(0, 0))).intValue());
       assertEquals(42, ((Number) within(CAP, () -> calc.getValue(0, 0))).intValue());
       assertEquals(2, stops.calls(), "a value is cached");
    }
 
    private void assertNamedReadRetries(boolean inject) throws Exception {
+      assertNamedReadRetries(inject, "$a * 10");
+   }
+
+   private void assertNamedReadRetries(boolean inject, String reader) throws Exception {
       CalcTableLens calc = calcTable(1, 2);
       calc.setObject(0, 0, new CalcTableLens.Formula("41 + 1" + marker));
       calc.setCellName(0, 0, "a");
-      calc.setObject(0, 1, new CalcTableLens.Formula("$a * 10"));
+      calc.setObject(0, 1, new CalcTableLens.Formula(reader));
       RuntimeCalcTableLens runtime = within(CAP, calc::process);
       stops.reset(marker, n -> n == 1, inject);
 
       assertStop(failureOf(CAP, () -> runtime.getObject(0, 1)));
-      assertEquals(420, ((Number) within(CAP, () -> runtime.getObject(0, 1))).intValue(),
-                   "the reading cell is evaluated again");
-      assertEquals(42, ((Number) within(CAP, () -> runtime.getObject(0, 0))).intValue());
+      assertStop(failureOf(CAP, () -> runtime.getObject(0, 1)));
+      assertStop(failureOf(CAP, () -> runtime.getObject(0, 0)));
+      assertEquals(1, stops.calls(), "the stopped formula is not evaluated again");
+
+      RuntimeCalcTableLens again = within(CAP, calc::process);
+      assertEquals(420, ((Number) within(CAP, () -> again.getObject(0, 1))).intValue());
+      assertEquals(42, ((Number) within(CAP, () -> again.getObject(0, 0))).intValue());
       assertEquals(2, stops.calls());
    }
 

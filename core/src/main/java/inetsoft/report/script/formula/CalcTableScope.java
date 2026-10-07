@@ -27,6 +27,7 @@ import inetsoft.report.script.graal.ReportGraalJavaScriptEngine;
 import inetsoft.util.script.DynamicScope;
 import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.script.graal.ScopeLocals;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.swap.DataUnavailable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -804,8 +805,10 @@ public class CalcTableScope extends PropertyScriptable implements DynamicScope {
       }
       catch(Exception ex) {
          // a stalled table or one whose swap file is lost has no value to return, the failure
-         // is not a script value (#77123, #77910)
+         // is not a script value (#77123, #77910), nor has a cell whose formula was stopped by
+         // a script timeout or cancel (#77949)
          DataUnavailable.rethrow(ex);
+         ScriptTimeoutGuard.rethrowStop(ex);
 
          LOG.warn("Failed to summarize range " + range +
             " using formula " + sum, ex);
