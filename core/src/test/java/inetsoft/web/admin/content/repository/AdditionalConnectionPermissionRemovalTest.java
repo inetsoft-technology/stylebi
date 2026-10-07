@@ -627,6 +627,30 @@ class AdditionalConnectionPermissionRemovalTest {
       assertNoKeys("rfF/rfP::");
    }
 
+   // Bug #77843, the parent renamed P -> Q and a new child added in one save. The new child is
+   // saved under Q after the rename, without a permission, and the kept one keeps its settings
+   @Test
+   void tabularEditorAddWithParentRename() throws Exception {
+      addTabularParent("", "naP");
+      addTabularChild("naP", "naK", "kept", "carol");
+      Permission k = grant("naP::naK");
+      DataSourceDefinition kept = tabular("", null, "naK");
+      kept.setDescription("kept");
+      DataSourceDefinition added = tabular("", null, "naN");
+      added.setDescription("added");
+
+      saveTabular("naP", tabular("", "naP", "naQ"), "naQ", kept, added);
+
+      assertChildren("naQ", "naK", "naN");
+      assertNull(registry.getDataSource("naP"));
+      assertFalse(registry.containObject(dataSourceEntry("naP/naN")));
+      assertEquals("carol", child("naQ", "naK").getCreatedBy());
+      assertEquals("added", child("naQ", "naN").getDescription());
+      assertSame(k, perm("naQ::naK"));
+      assertNull(perm("naQ::naN"));
+      assertNoKeys("naP::");
+   }
+
    // Bug #77843, the portal XMLA editor renamed X -> X2 with an edited cube list. The domain is
    // saved under X2 with the edit, none is left under X, and a new XMLA data source X gets an
    // empty domain, not the old one.
