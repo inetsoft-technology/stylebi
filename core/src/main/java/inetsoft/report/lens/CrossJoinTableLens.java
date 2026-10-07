@@ -27,6 +27,7 @@ import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.stall.WaitRecord;
 import inetsoft.util.stall.WaitRegistry;
+import inetsoft.util.swap.SwapFileReadException;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -191,6 +192,7 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
          lcompleted = false;
          rcompleted = false;
          stallFailure = null;
+         workerFailure = null;
 
          lrows = 0;
          rrows = 0;
@@ -384,7 +386,7 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
 
       try {
          while(row >= getRowCount0() && !isCompleted() && !disposed && !cancelled &&
-               stallFailure == null)
+               stallFailure == null && workerFailure == null)
          {
             // this lens lends nothing, and holds its own monitor for the whole method anyway;
             // a stall of the workers fails the reader (bug #76967)
@@ -419,14 +421,39 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
    }
 
    /**
-    * Rethrow the stall a worker failed with. A stall must never look like the end of the
-    * table (bug #76967).
+    * Rethrow the stall (bug #76967) or any other failure (bug #77907) a worker failed with.
+    * Neither must look like the end of the table.
     */
    private void throwStallFailure() {
       LockStallException failure = stallFailure;
 
       if(failure != null) {
          throw new LockStallException(failure);
+      }
+
+      Throwable workerFailure = this.workerFailure;
+
+      if(workerFailure != null) {
+         // a lost swap file is rethrown as is, as JoinTable does (bug #77651)
+         SwapFileReadException swapFailure = SwapFileReadException.find(workerFailure);
+
+         if(swapFailure != null) {
+            throw swapFailure;
+         }
+
+         throw new CrossJoinException(workerFailure);
+      }
+   }
+
+   /**
+    * Thrown by a read of a cross join whose worker failed, the rows so far are not the whole
+    * table (bug #77907). The message is shown to the user, so it never includes the cause
+    * (e.g. a cache file path), the cause is chained.
+    */
+   static final class CrossJoinException extends MessageException {
+      CrossJoinException(Throwable cause) {
+         super(Catalog.getCatalog().getString("common.table.getDataFailed"));
+         initCause(cause);
       }
    }
 
@@ -1101,7 +1128,7 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
          try {
             loadTable(left, this);
          }
-         catch(RuntimeException ex) {
+         catch(RuntimeException | Error ex) {
             // the readers rethrow it at once rather than wait for a stall of their own
             // (bug #76967)
             LockStallException stall = LockStallException.find(ex);
@@ -1110,6 +1137,20 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
                synchronized(CrossJoinTableLens.this) {
                   if(!this.disposed) {
                      stallFailure = stall;
+                     CrossJoinTableLens.this.notifyAll();
+                  }
+               }
+            }
+            else {
+               // this thread never completes its table, so readers would wait for it
+               // forever; they rethrow the failure instead. a thread superseded by
+               // invalidate() must not fail the next pass, and a failure caused by
+               // dispose() or cancel() of this lens ends the reads as before (bug #77907)
+               synchronized(CrossJoinTableLens.this) {
+                  if(!this.disposed && this == (left ? lthread : rthread) &&
+                     !CrossJoinTableLens.this.disposed && !cancelled)
+                  {
+                     workerFailure = ex;
                      CrossJoinTableLens.this.notifyAll();
                   }
                }
@@ -1151,6 +1192,8 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
    private transient boolean maxAlerted = false;
    // the stall a worker failed with (bug #76967)
    private transient volatile LockStallException stallFailure;
+   // any other failure a worker failed with, e.g. a lost swap file (bug #77907)
+   private transient volatile Throwable workerFailure;
 
    // the base row of a data row while the main table is not known, e.g. after invalidate()
    // (bug #77397)
