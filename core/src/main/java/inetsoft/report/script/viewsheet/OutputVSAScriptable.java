@@ -62,6 +62,12 @@ public class OutputVSAScriptable extends VSAScriptable {
          return null;
       }
 
+      // the assembly used as a scalar coerces to its value, read the same way as .value
+      // (#78000)
+      if(ScalarCoercion.isCoercionMember(name) && !super.hasMember(name)) {
+         return ScalarCoercion.member(name, () -> getMember("value"));
+      }
+
       if("value".equals(name)) {
          if(!executed) {
             executed = true;
@@ -97,6 +103,23 @@ public class OutputVSAScriptable extends VSAScriptable {
       }
 
       return super.getMember(name);
+   }
+
+   /**
+    * Indicate whether or not a named property is defined in an object.
+    */
+   @Override
+   public boolean hasMember(String name) {
+      if(super.hasMember(name)) {
+         return true;
+      }
+
+      if(ScalarCoercion.isCoercionMember(name)) {
+         Viewsheet vs = box.getViewsheet();
+         return assembly != null && vs.getAssembly(assembly) instanceof OutputVSAssembly;
+      }
+
+      return false;
    }
 
    /**
@@ -242,12 +265,6 @@ public class OutputVSAScriptable extends VSAScriptable {
 
       return null;
    }
-
-   // NOTE (Feature #75423): Rhino getDefaultValue(Class) — which returned the
-   // output's data value when the scriptable was used as a scalar (e.g.
-   // name + 2) — has no direct equivalent in the GraalJS ProxyObject model and
-   // is removed per the migration recipe. The value is still available via the
-   // explicit accessors. Revisit if scalar coercion is required post-cutover.
 
    /**
     * Get the suffix of a property.
