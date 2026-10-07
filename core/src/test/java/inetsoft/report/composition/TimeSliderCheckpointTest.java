@@ -228,6 +228,55 @@ class TimeSliderCheckpointTest {
          .getInfo()).getTitleValue());
    }
 
+   /**
+    * A stored sheet whose slider values don't match its value format is read back (not
+    * dropped), and the next query rebuilds the full range.
+    */
+   @Test
+   void unparseableStoredSheetLoadsAndQueryRebuilds() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      TimeSliderVSAssembly ts = createDateSlider(vs);
+      query(vs, new Object[] { date(2023, 3), date(2026, 12) });
+      select(ts, 0, 5);
+      String stored = xml(vs);
+      // the Month values with the Year value format
+      String bad = stored.replace("''yyyy-MM''", "''yyyy''");
+      assertNotEquals(stored, bad);
+
+      Viewsheet loaded = RuntimeSheet.loadXml(new Viewsheet(), bad);
+
+      assertNotNull(loaded, "the sheet is read back");
+      assertTrue(warnings().stream().noneMatch(w -> w.contains("Failed to load")));
+      query(loaded, new Object[] { date(2023, 3), date(2026, 12) });
+      assertEquals(ts.getSelectionList().getSelectionValueCount(),
+                   ((TimeSliderVSAssembly) loaded.getAssembly(SLIDER))
+                      .getSelectionList().getSelectionValueCount());
+   }
+
+   /**
+    * Querying a viewsheet clone (bookmark, export) with another unit must not change the
+    * original's slider selection or title.
+    */
+   @Test
+   void queryingCloneDoesNotChangeOriginal() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      TimeSliderVSAssembly ts = createDateSlider(vs);
+      ((TimeSliderVSAssemblyInfo) ts.getInfo()).setTitleValue("Original");
+      query(vs, new Object[] { date(2023, 3), date(2026, 12) });
+      String before = xml(vs);
+
+      Viewsheet copy = (Viewsheet) vs.clone();
+      TimeSliderVSAssembly copySlider = (TimeSliderVSAssembly) copy.getAssembly(SLIDER);
+      changeColumn(copySlider, XSchema.DATE, TimeInfo.YEAR);
+      query(copy, new Object[] { date(2023, 3), date(2026, 12) });
+      ((TimeSliderVSAssemblyInfo) copySlider.getInfo()).setTitleValue("Copy");
+
+      assertEquals(before, xml(vs));
+      assertNotNull(RuntimeSheet.loadXml(new Viewsheet(), xml(vs)));
+      assertNotNull(RuntimeSheet.loadXml(new Viewsheet(), xml(copy)));
+      assertEquals(List.of(), warnings());
+   }
+
    private static Date date(int year, int month) {
       return new GregorianCalendar(year, month - 1, 1).getTime();
    }
