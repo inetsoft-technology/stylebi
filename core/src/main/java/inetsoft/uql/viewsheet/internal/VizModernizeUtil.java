@@ -61,7 +61,7 @@ public final class VizModernizeUtil {
       VizMark mark = VizMark.fromGate();
       // unmarked(), not applyMark()'s differing predicate: an already-marked sibling (e.g. dark)
       // must survive a light-gated modernize untouched, which "differs from target mark" would not
-      return mark == null ? 0 : seedAll(vs, mark, unmarked(vs), true, true);
+      return mark == null ? 0 : moveMark(vs, mark, unmarked(vs));
    }
 
    /**
@@ -96,7 +96,21 @@ public final class VizModernizeUtil {
     * MODERN_LIGHT to MODERN_DARK flip, which neither of the one-way operations above can reach.
     */
    public static int applyMark(Viewsheet vs, VizMark mark) {
-      return seedAll(vs, mark, collect(vs, info -> info.getVizMark() != mark), true, true);
+      return moveMark(vs, mark, collect(vs, info -> info.getVizMark() != mark));
+   }
+
+   /**
+    * Stamp and seed the targets. A mark change re-seeds sizes and title lanes, so it re-flushes
+    * bottom-tabs children as a density change does. Nothing moves when nothing was seeded.
+    */
+   private static int moveMark(Viewsheet vs, VizMark mark, List<VSAssemblyInfo> targets) {
+      int seeded = seedAll(vs, mark, targets, true, true);
+
+      if(seeded > 0) {
+         keepOnBottomTabs(vs);
+      }
+
+      return seeded;
    }
 
    /**
@@ -119,11 +133,11 @@ public final class VizModernizeUtil {
    }
 
    /**
-    * A bottom-tabs strip sits under its children, and a density change can alter how tall a child
-    * stands on it: a box the size rule resized, or a dropdown's title lane. Re-flush them all.
+    * A bottom-tabs strip sits under its children, and a re-seed can alter how tall a child stands
+    * on it: a box a size rule resized, or a dropdown's title lane. Re-flush them all.
     */
    private static void keepOnBottomTabs(Viewsheet vs) {
-      for(Assembly assembly : vs.getAssemblies()) {
+      for(Assembly assembly : vs.getAssemblies(false)) {
          if(!(assembly instanceof TabVSAssembly tab) ||
             !((TabVSAssemblyInfo) tab.getVSAssemblyInfo()).getBottomTabsValue())
          {
