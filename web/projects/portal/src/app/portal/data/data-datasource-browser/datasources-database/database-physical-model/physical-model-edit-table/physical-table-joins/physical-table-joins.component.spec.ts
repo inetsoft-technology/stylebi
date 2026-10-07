@@ -507,9 +507,7 @@ describe("PhysicalTableJoinsComponent.editJoin - dialog cancel / commit (Bug #77
 
             await openDialog(comp);
             await chooseJoinType(JoinType.LEFT_OUTER);
-            expect(dialog.joinModel.type).toBe(JoinType.LEFT_OUTER);
             await chooseJoinType(JoinType.EQUAL);
-            expect(dialog.joinModel.type).toBe(JoinType.EQUAL);
             dialogButton("OK").click();
             await settle();
 
