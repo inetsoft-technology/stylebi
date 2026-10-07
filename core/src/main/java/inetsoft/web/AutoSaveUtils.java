@@ -28,6 +28,7 @@ import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.util.*;
 import inetsoft.util.migrate.MigrateViewsheetTask;
 import inetsoft.util.migrate.MigrateWorksheetTask;
+import inetsoft.web.admin.deploy.XAssetExportPermission;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.*;
@@ -274,6 +275,28 @@ public final class AutoSaveUtils {
       }
       catch(Exception e) {
          LOG.debug("Failed to delete auto save file to recycle bin {}", id, e);
+      }
+   }
+
+   /**
+    * Bug #77947, checks that a principal may act on every named auto-save file, before any of them
+    * is acted on. The owner is taken from the file name as stored
+    * ({@link XAssetExportPermission#isStoredAutoSavePermitted}): the owner, a user with ADMIN
+    * permission on the owner, or for a file without an owner or with an owner of another
+    * organization a site or organization administrator.
+    *
+    * @param names     the names of the auto-save files, without the recycle bin prefix.
+    * @param principal the principal.
+    *
+    * @throws MessageException if the principal may not act on one of the files.
+    */
+   public static void checkAutoSavePermission(Collection<String> names, Principal principal) {
+      for(String name : names) {
+         if(!XAssetExportPermission.isStoredAutoSavePermitted(name, principal)) {
+            String[] fields = name == null ? new String[0] : Tool.split(name, '^');
+            throw new MessageException(Catalog.getCatalog().getString(
+               "em.common.security.no.permission", fields.length > 3 ? fields[3] : name));
+         }
       }
    }
 
