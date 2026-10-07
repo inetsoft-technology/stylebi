@@ -82,6 +82,34 @@ public class RenameAssetController {
       ActionRecord actionRecord = new ActionRecord(SUtil.getUserName(principal), actionName,
          objectName, objectType, actionTimestamp, ActionRecord.ACTION_STATUS_FAILURE, null);
 
+      // Bug #77837, a table style's folder is its stored name up to the last separator. Take the
+      // name and folder from the style the ID resolves to, not from the request, so the
+      // permission checks below and the rename act on the same style and keep it in its folder.
+      if(entry.isTableStyle()) {
+         String styleID = entry.getProperty("styleID");
+         XTableStyle tableStyle = styleID == null ? null :
+            libManagerProvider.getManager(principal).getTableStyle(styleID);
+
+         if(tableStyle == null) {
+            String message = Catalog.getCatalog().getString(
+               "common.assetNotFound", styleID != null ? styleID : entry.getName());
+            MessageCommand messageCommand = new MessageCommand();
+            messageCommand.setMessage(message);
+            messageCommand.setType(MessageCommand.Type.ERROR);
+
+            if(actionRecord != null) {
+               actionRecord.setActionError(message);
+               Audit.getInstance().auditAction(actionRecord, principal);
+            }
+
+            return messageCommand;
+         }
+
+         entry.setProperty("styleName", tableStyle.getName());
+         entry.setProperty("styleID", tableStyle.getID());
+         entry.setProperty("folder", AssetEventUtil.getTableStyleFolder(tableStyle.getName()));
+      }
+
       try {
          assetRepository.checkAssetPermission(principal, entry, ResourceAction.DELETE);
 
@@ -110,9 +138,11 @@ public class RenameAssetController {
       // name, a name with a separator would move the folder under another parent. A report
       // folder is always passed on as a path, RepletEngine decides from its own registry alias
       // whether it is an alias change.
-      if(entry.isFolder() && (!reAlias || entry.isRepositoryFolder()) &&
+      // Bug #77837, a table style's new name is joined to its folder the same way, a '~' would
+      // move the style into another folder.
+      if(((entry.isFolder() && (!reAlias || entry.isRepositoryFolder())) || entry.isTableStyle()) &&
          Tool.containsPathSeparator(SUtil.removeControlChars(name),
-                                    entry.isTableStyleFolder() ?
+                                    entry.isTableStyleFolder() || entry.isTableStyle() ?
                                        new char[] { LibManager.SEPARATOR.charAt(0) } :
                                        new char[0]))
       {
