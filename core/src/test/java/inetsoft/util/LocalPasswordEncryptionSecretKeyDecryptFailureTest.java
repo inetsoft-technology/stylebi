@@ -17,6 +17,7 @@
  */
 package inetsoft.util;
 
+import inetsoft.util.config.InetsoftConfig;
 import org.junit.jupiter.api.*;
 
 import javax.crypto.SecretKey;
@@ -36,6 +37,10 @@ import static org.junit.jupiter.api.Assertions.*;
 class LocalPasswordEncryptionSecretKeyDecryptFailureTest {
    @BeforeEach
    void setUp() throws Exception {
+      // Bug #77845: an earlier class can leave InetsoftConfig.BOOTSTRAP_INSTANCE loaded (a lazy
+      // InetsoftConfig.getInstance()), with a masterPasswordCheck that doesn't match MASTER
+      bootstrapConfig = InetsoftConfig.BOOTSTRAP_INSTANCE;
+      InetsoftConfig.BOOTSTRAP_INSTANCE = null;
       LocalPasswordEncryption.masterPassword.set(MASTER.toCharArray());
       encryption = new JcePasswordEncryption();
       keyA = encryption.createSecretKey();
@@ -45,6 +50,7 @@ class LocalPasswordEncryptionSecretKeyDecryptFailureTest {
    @AfterEach
    void tearDown() {
       LocalPasswordEncryption.masterPassword.remove();
+      InetsoftConfig.BOOTSTRAP_INSTANCE = bootstrapConfig;
    }
 
    @Test
@@ -145,4 +151,5 @@ class LocalPasswordEncryptionSecretKeyDecryptFailureTest {
    private JcePasswordEncryption encryption;
    private SecretKey keyA;
    private String value;
+   private InetsoftConfig bootstrapConfig;
 }
