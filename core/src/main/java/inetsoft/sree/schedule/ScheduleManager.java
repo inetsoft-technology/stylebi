@@ -92,8 +92,11 @@ public class ScheduleManager {
    }
 
    public static ScheduleTaskMetaData getTaskMetaData(String taskId) {
-      if(taskId.contains(":")) {
-         return new ScheduleTaskMetaData(taskId.split(":")[1], taskId.split(":")[0]);
+      // Bug #77883, the owner key ends at the first ':', the task name may contain ':'
+      int index = taskId.indexOf(':');
+
+      if(index >= 0) {
+         return new ScheduleTaskMetaData(taskId.substring(index + 1), taskId.substring(0, index));
       }
       else {
          return new ScheduleTaskMetaData(taskId, null);
@@ -1515,7 +1518,20 @@ public class ScheduleManager {
       // not an ext task? check if a normal task
       if(!ext) {
          if(task != null) {
-            getOrgTaskMap(orgID).remove(getTaskIdentifier(task.getTaskId(), orgID));
+            String identifier = getTaskIdentifier(task.getTaskId(), orgID);
+            String requested = getTaskIdentifier(taskName, orgID);
+            getOrgTaskMap(orgID).remove(identifier);
+
+            // Bug #77883, a task stored under the requested id that loads with another id (e.g.
+            // its name was changed when it was loaded) is removed by the key it's stored under
+            if(!requested.equals(identifier)) {
+               ScheduleTask stored = getOrgTaskMap(orgID).get(requested);
+
+               if(stored != null && Tool.equals(stored.getTaskId(), task.getTaskId())) {
+                  getOrgTaskMap(orgID).remove(requested);
+               }
+            }
+
             dependencyHandler.updateTaskDependencies(task, false);
          }
          else {

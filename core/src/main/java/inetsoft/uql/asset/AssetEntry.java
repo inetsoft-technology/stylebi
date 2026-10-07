@@ -2095,12 +2095,13 @@ public class AssetEntry implements AssetObject, Comparable<AssetEntry>, DataSeri
       }
       else if(newEntry.isScheduleTask()) {
          String taskName = newEntry.getPath().substring(1);
-         String[] split = taskName.split(":");
+         // Bug #77883, the owner key ends at the first ':', the task name may contain ':'
+         int index = taskName.indexOf(':');
 
-         if(split.length == 2) {
-            IdentityID identityID = IdentityID.getIdentityIDFromKey(split[0]);
+         if(index > 0) {
+            IdentityID identityID = IdentityID.getIdentityIDFromKey(taskName.substring(0, index));
             identityID.setName(name);
-            taskName = identityID.convertToKey() + ":" + split[1];
+            taskName = identityID.convertToKey() + taskName.substring(index);
          }
 
          newEntry.setPath("/" + taskName);
@@ -2210,16 +2211,17 @@ public class AssetEntry implements AssetObject, Comparable<AssetEntry>, DataSeri
 
       if(newEntry.isScheduleTask()) {
          String taskName = newEntry.getPath().substring(1);
-         String[] split = taskName.split(":");
+         // Bug #77883, the owner key ends at the first ':', the task name may contain ':'
+         int index = taskName.indexOf(':');
 
-         if(split.length == 2) {
-            IdentityID identityID = IdentityID.getIdentityIDFromKey(split[0]);
+         if(index > 0) {
+            IdentityID identityID = IdentityID.getIdentityIDFromKey(taskName.substring(0, index));
 
             if(Tool.equals(identityID, oldUser)) {
                identityID.setName(newUser.getName());
             }
 
-            taskName = identityID.convertToKey() + ":" + split[1];
+            taskName = identityID.convertToKey() + taskName.substring(index);
          }
 
          newEntry.setPath("/" + taskName);

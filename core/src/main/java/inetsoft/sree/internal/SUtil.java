@@ -3368,11 +3368,13 @@ public class SUtil {
          return name;
       }
 
-      String[] names = name.split(":");
+      // Bug #77883, the owner key ends at the first ':', the task name may contain ':'
+      int index = name.indexOf(':');
+      String owner = name.substring(0, index);
 
-      if(names[0].indexOf(IdentityID.KEY_DELIMITER) > 0) {
-         String[] userNames = names[0].split(IdentityID.KEY_DELIMITER);
-         return userNames[0] + ":" + names[1];
+      if(owner.indexOf(IdentityID.KEY_DELIMITER) > 0) {
+         String[] userNames = owner.split(IdentityID.KEY_DELIMITER);
+         return userNames[0] + name.substring(index);
       }
 
       return name;
@@ -3383,8 +3385,8 @@ public class SUtil {
          return name;
       }
 
-      String[] names = name.split(":");
-      return names[1];
+      // Bug #77883, the task name may contain ':'
+      return name.substring(name.indexOf(':') + 1);
    }
 
    public static IdentityID getOwnerForNewTask(IdentityID user) {
