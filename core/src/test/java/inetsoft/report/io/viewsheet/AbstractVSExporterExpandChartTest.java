@@ -196,6 +196,75 @@ class AbstractVSExporterExpandChartTest {
       assertFits(written);
    }
 
+   // Bug #77978: the expanded height is capped (10000px), PDF writes the expanded graph at
+   // its natural row pitch (clipped at the cap) instead of squeezing all rows into the cap
+   @Test
+   void cappedHeightChartIsWrittenAtTheNaturalSizeInPdfExport() throws Exception {
+      ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) getChart().getVSAssemblyInfo();
+      VSChartInfo cinfo = info.getVSChartInfo();
+      swapAxes(cinfo);
+      // an absolute ratio, same as a plot resized in the editor (VSChartPlotResizeService)
+      cinfo.setHeightResized(true);
+      cinfo.setUnitHeightRatio(CAPPED_RATIO);
+      info.setPixelSize(new Dimension(300, 500));
+
+      assertCappedChartIsWrittenAtTheNaturalSize(false);
+   }
+
+   // Bug #77978: same as above for a chart whose expanded width is capped
+   @Test
+   void cappedWidthChartIsWrittenAtTheNaturalSizeInPdfExport() throws Exception {
+      ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) getChart().getVSAssemblyInfo();
+      VSChartInfo cinfo = info.getVSChartInfo();
+      cinfo.setWidthResized(true);
+      cinfo.setUnitWidthRatio(CAPPED_RATIO);
+      info.setPixelSize(new Dimension(500, 300));
+
+      assertCappedChartIsWrittenAtTheNaturalSize(true);
+   }
+
+   private void assertCappedChartIsWrittenAtTheNaturalSize(boolean width) throws Exception {
+      CapturingPdfExporter exporter = new CapturingPdfExporter();
+
+      export(exporter);
+
+      assertEquals(1, exporter.slices, "precondition: the slice path should be used");
+      assertEquals(1, exporter.written.size());
+      Written written = exporter.written.get(0);
+      VGraph expanded = exporter.pair.getExpandedVGraph();
+      double natural = width ? expanded.getSize().getWidth() : expanded.getSize().getHeight();
+      int assembly = width ? written.assemblySize.width : written.assemblySize.height;
+      double graph = width ? written.graph.getSize().getWidth() :
+         written.graph.getSize().getHeight();
+
+      assertTrue(natural > 10000,
+         "precondition: the natural chart size (" + natural + ") exceeds the 10000px cap");
+      assertTrue(assembly < natural,
+         "precondition: the expanded assembly (" + assembly + ") is capped");
+      assertEquals(natural, graph, 1,
+         "the capped chart should be painted at its natural size (and clipped), not " +
+         "squeezed into the capped assembly (" + assembly + ")");
+   }
+
+   private static void swapAxes(VSChartInfo cinfo) {
+      ChartRef[] xrefs = cinfo.getXFields();
+      ChartRef[] yrefs = cinfo.getYFields();
+      cinfo.removeXFields();
+      cinfo.removeYFields();
+
+      for(ChartRef ref : yrefs) {
+         cinfo.addXField(ref);
+      }
+
+      for(ChartRef ref : xrefs) {
+         cinfo.addYField(ref);
+      }
+   }
+
+   private ChartVSAssembly getChart() {
+      return (ChartVSAssembly) getBox().getViewsheet().getAssembly(CHART);
+   }
+
    /**
     * Set a plot resize percent on the chart, same as VSChartPlotResizeService.
     */
@@ -331,6 +400,7 @@ class AbstractVSExporterExpandChartTest {
                                      boolean match, boolean imgOnly)
       {
          slices++;
+         this.pair = pair;
          super.writeSliceChart(assembly, data, pair, match, imgOnly);
       }
 
@@ -343,6 +413,7 @@ class AbstractVSExporterExpandChartTest {
 
       private final List<Written> written = new ArrayList<>();
       private int slices;
+      private VGraphPair pair;
    }
 
    @RegisterExtension
@@ -352,6 +423,8 @@ class AbstractVSExporterExpandChartTest {
    private static final String ASSET_ID = "1^128^__NULL__^TEST_GraphRender";
    private static final String CHART = "Chart1";
    private static final double PERCENT = 2.0;
+   // large enough for the expanded graph to exceed the 10000px expand cap
+   private static final double CAPPED_RATIO = 200;
    // the chart area is larger than EXPORT_SIZE^2 so the export slices it
    private static final int LARGE_WIDTH = 1000;
    private static final int LARGE_HEIGHT = 1100;
