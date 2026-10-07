@@ -271,6 +271,43 @@ class PhysicalModelInlineViewCardinalityTest {
                         JoinCardinality.MANY_TO_ONE);
    }
 
+   // T3def: the view as the dependent end, joined to a primary key; it used to read the keys of
+   // "table" and give ONE_TO_ONE
+   @Test
+   void tableNamedTableDoesNotKeyViewToKeyOnDefaultConnection() throws Exception {
+      String model = model(null, physical("T1"), view("V_T2", "select ID, X from T2"));
+      expectCardinality(TABLE_SOURCE, null, model, "V_T2", "ID", "T1", "ID",
+                        JoinCardinality.MANY_TO_ONE);
+   }
+
+   // control: an alias of a physical table is still a physical table, so its keys are read
+   @Test
+   void aliasOfPhysicalTableKeepsItsKeys() throws Exception {
+      String model = model(null, physical("DEPT"), alias("E2", "EMP"));
+      expectCardinality(SOURCE, null, model, "E2", "ID", "DEPT", "DEPT_ID",
+                        JoinCardinality.ONE_TO_ONE);
+   }
+
+   // the edit permission on the source is still checked before any metadata is read
+   @Test
+   void cardinalityRequiresEditPermission() throws Exception {
+      doThrow(new SecurityException("Unauthorized access to resource \"" + SOURCE + "\""))
+         .when(dataSourceService).checkDataModelEditPermission(SOURCE, ADDCONN, PRINCIPAL);
+      String model = model(ADDCONN, physical("ONLYB"), view("V_B", "select ID, V from ONLYB"));
+
+      mockMvc.perform(post("/api/data/physicalmodel/cardinality")
+                         .param("database", SOURCE)
+                         .param("additional", ADDCONN)
+                         .principal(PRINCIPAL)
+                         .accept(MediaType.APPLICATION_JSON)
+                         .contentType(MediaType.APPLICATION_JSON)
+                         .content("{\"table\":\"ONLYB\",\"model\":" + model + ",\"join\":" +
+                                     join("ONLYB", "ID", "V_B", "ID") + "}"))
+         .andExpect(status().isForbidden());
+
+      verify(dataSourceService, never()).getDataSource(any(), any());
+   }
+
    // D5bad: a view whose SQL the database rejects counts as unkeyed like any other view; it is
    // validated when its columns are listed, not here
    @Test
@@ -358,6 +395,13 @@ class PhysicalModelInlineViewCardinalityTest {
    // a physical table (0 = PHYSICAL)
    private static String physical(String name) {
       return "{\"name\":\"" + name + "\",\"qualifiedName\":\"" + name + "\",\"type\":0," +
+         "\"joins\":[],\"autoAliases\":[]}";
+   }
+
+   // an alias of a physical table
+   private static String alias(String alias, String table) {
+      return "{\"name\":\"" + table + "\",\"qualifiedName\":\"" + table + "\",\"alias\":\"" +
+         alias + "\",\"aliasSource\":\"" + table + "\",\"type\":0," +
          "\"joins\":[],\"autoAliases\":[]}";
    }
 
