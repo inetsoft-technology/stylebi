@@ -794,9 +794,11 @@ describe("EditIdentityViewComponent — isModelChanged() and structural guards",
    // user always edits after it fired, so these tests fake setTimeout and advance past the delay
    // before acting; otherwise the result depends on how long render() and the MSW responses take.
    // The model is shaped like the server's for an existing user: password null, theme null.
-   async function renderWithLiveFormSync(model: EditIdentityPaneModel) {
+   async function renderWithLiveFormSync(model: EditIdentityPaneModel,
+                                         type: IdentityType = IdentityType.USER)
+   {
       vi.useFakeTimers({ toFake: ["setTimeout"] });
-      const result = await renderComponent({ model, type: IdentityType.USER });
+      const result = await renderComponent({ model, type });
       vi.advanceTimersByTime(200);
       return result;
    }
@@ -823,9 +825,35 @@ describe("EditIdentityViewComponent — isModelChanged() and structural guards",
 
    // Bug #77935: reset()'s setValue calls run updateModel(), which writes the form's "" theme over
    // the server's null. An unassigned theme must not count as a change, or Apply stays enabled.
-   it("should return false after reset with no edit when the identity has no theme", async () => {
+   // Every identity type shares the theme field and isModelChanged(), so cover each of them.
+   it.each([
+      { name: "user", type: IdentityType.USER,
+        model: makeUserModel({ name: "original", password: null, theme: null }) },
+      { name: "group", type: IdentityType.GROUP, model: makeGroupModel({ name: "original", theme: null }) },
+      { name: "role", type: IdentityType.ROLE, model: makeRoleModel({ name: "original", theme: null }) },
+      { name: "organization", type: IdentityType.ORGANIZATION,
+        model: makeOrgModel({ name: "original", theme: null }) },
+   ] satisfies Array<{ name: string; type: IdentityType; model: EditIdentityPaneModel }>)(
+      "should return false after reset with no edit when the $name has no theme",
+      async ({ type, model }) => {
+         const { comp } = await renderWithLiveFormSync(model, type);
+
+         comp.reset();
+
+         expect(comp.model.theme).toBe("");
+         expect(comp.isModelChanged()).toBe(false);
+      });
+
+   // Bug #77935: the other direction of the unassigned-theme normalization. Assigning a theme to an
+   // identity that has none (null -> "theme1") is a real change, and reset undoes it.
+   it("should return true when a theme is assigned to an identity with no theme, and false after reset", async () => {
       const { comp } = await renderWithLiveFormSync(
          makeUserModel({ name: "original", password: null, theme: null }));
+
+      comp.form.controls["theme"].setValue("theme1");
+
+      expect(comp.model.theme).toBe("theme1");
+      expect(comp.isModelChanged()).toBe(true);
 
       comp.reset();
 
