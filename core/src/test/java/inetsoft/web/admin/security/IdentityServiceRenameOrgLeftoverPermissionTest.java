@@ -64,6 +64,7 @@ class IdentityServiceRenameOrgLeftoverPermissionTest {
 
    private final Map<String, Permission> store = new LinkedHashMap<>();
    private final Set<String> failingRemoves = new HashSet<>();
+   private final Set<String> failOnceRemoves = new HashSet<>();
    private IdentityService service;
 
    @BeforeEach
@@ -71,6 +72,7 @@ class IdentityServiceRenameOrgLeftoverPermissionTest {
       Tool.clearUserMessage();
       store.clear();
       failingRemoves.clear();
+      failOnceRemoves.clear();
       store.put(VS_KEY, grant());
       store.put(USER_KEY, grant());
       service = newService(mapProvider());
@@ -103,6 +105,18 @@ class IdentityServiceRenameOrgLeftoverPermissionTest {
 
       assertTrue(store.containsKey(USER_KEY), "the old key was not left");
       assertNotNull(Tool.getUserMessage(), "the leftover must be reported");
+   }
+
+   // the first pass fails to remove the key and the second pass removes it, so nothing is left
+   @Test
+   void renameOrgId_removeFailsOnFirstPassOnly_noUserMessage() throws Exception {
+      failOnceRemoves.add(USER_KEY);
+
+      renameOrg(OLD_ORG, NEW_ORG, "Org1", "Org1");
+
+      assertTrue(failOnceRemoves.isEmpty(), "the removal did not fail once");
+      assertFalse(store.containsKey(USER_KEY), store.toString());
+      assertNull(Tool.getUserMessage(), "a key removed by the second pass is not left");
    }
 
    @Test
@@ -178,7 +192,7 @@ class IdentityServiceRenameOrgLeftoverPermissionTest {
       doAnswer(inv -> {
          String key = inv.getArgument(0) + ":" + inv.getArgument(2) + ":" + inv.getArgument(1);
 
-         if(failingRemoves.contains(key)) {
+         if(failingRemoves.contains(key) || failOnceRemoves.remove(key)) {
             throw new MessageException("simulated, may not have been saved");
          }
 
