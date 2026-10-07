@@ -197,6 +197,22 @@ public class PropertiesEngine {
          }
 
          kvStorage = storage;
+
+         if(previous != null) {
+            reattachCount++;
+         }
+
+         // a closed instance had no listener on the map, so a change another node stored in the
+         // meantime fired no event here. The listener is attached again above, so a reload now
+         // reads every change stored while detached. It is debounced rather than run inline
+         // because init(true) calls this method under propertiesLock, and it is scheduled under
+         // this monitor and only when not closed, so that shutdown() either cancels it or it is
+         // never scheduled (Bug #77871, Bug #77201)
+         if(previous != null && !closed) {
+            debouncer.debounce(
+               "change", 500L, TimeUnit.MILLISECONDS, new ChangeTask(new ArrayList<>(), true),
+               this::reduceChangeTasks);
+         }
       }
 
       return kvStorage;
@@ -1714,25 +1730,44 @@ public class PropertiesEngine {
          support.firePropertyChange(e.getKey(), e.getOldValue(), e.getNewValue());
 
          debouncer.debounce(
-            "change", 500L, TimeUnit.MILLISECONDS, new ChangeTask(change), this::reduce);
-      }
-
-      private Runnable reduce(Runnable r1, Runnable r2) {
-         List<PropertyChange> changes = new ArrayList<>();
-         ChangeTask task1 = (ChangeTask) r1;
-         ChangeTask task2 = (ChangeTask) r2;
-
-         if(task1 != null) {
-            changes.addAll(task1.changes);
-         }
-
-         if(task2 != null) {
-            changes.addAll(task2.changes);
-         }
-
-         return new ChangeTask(changes);
+            "change", 500L, TimeUnit.MILLISECONDS, new ChangeTask(change),
+            PropertiesEngine.this::reduceChangeTasks);
       }
    };
+
+   private Runnable reduceChangeTasks(Runnable r1, Runnable r2) {
+      List<PropertyChange> changes = new ArrayList<>();
+      boolean resync = false;
+      ChangeTask task1 = (ChangeTask) r1;
+      ChangeTask task2 = (ChangeTask) r2;
+
+      if(task1 != null) {
+         changes.addAll(task1.changes);
+         resync = task1.resync;
+      }
+
+      if(task2 != null) {
+         changes.addAll(task2.changes);
+         resync = resync || task2.resync;
+      }
+
+      return new ChangeTask(changes, resync);
+   }
+
+   /**
+    * Gets the values of the given properties by name, or an empty map if there are none.
+    */
+   private static Map<String, String> snapshot(Properties properties) {
+      Map<String, String> values = new HashMap<>();
+
+      if(properties != null) {
+         for(String name : properties.stringPropertyNames()) {
+            values.put(name, properties.getProperty(name));
+         }
+      }
+
+      return values;
+   }
 
    private static final class PropertyChange {
       public PropertyChange(String name, String oldValue, String newValue) {
@@ -1777,10 +1812,12 @@ public class PropertiesEngine {
       private ChangeTask(PropertyChange change) {
          this.changes = new ArrayList<>();
          this.changes.add(change);
+         this.resync = false;
       }
 
-      private ChangeTask(List<PropertyChange> changes) {
+      private ChangeTask(List<PropertyChange> changes, boolean resync) {
          this.changes = changes;
+         this.resync = resync;
       }
 
       @Override
@@ -1798,6 +1835,8 @@ public class PropertiesEngine {
          PropertiesEngine instance = PropertiesEngine.this;
          String security = instance.getProperty("security.provider");
          String license = instance.getProperty("license.key");
+         Properties oldProperties = internalProperties;
+         int reattaches = reattachCount;
 
          // the change listener stays attached during the reload, so that no change stored in
          // the meantime is missed (Bug #76954)
@@ -1807,12 +1846,56 @@ public class PropertiesEngine {
             setProperty("license.key", license);
          }
 
+         // the reload re-attached the storage itself, or follows a re-attach, so it may have
+         // loaded changes that were stored while detached and fired no event (Bug #77871)
+         if(resync || reattachCount != reattaches) {
+            fireMissedChanges(oldProperties, internalProperties);
+         }
+
          ApplicationPropertiesChangedEvent event = new ApplicationPropertiesChangedEvent(
             this, !Tool.equals(getProperty("security.provider"), security));
          eventPublisher.publishEvent(event);
       }
 
+      /**
+       * Fires the property change listeners for the properties that the reload after a
+       * re-attach changed. A change stored while the storage was detached fired no event, so the
+       * listeners that refresh derived settings (e.g. the query cache limits) did not run. The
+       * properties named by a received event were already fired by the change listener.
+       */
+      private void fireMissedChanges(Properties oldProperties, Properties newProperties) {
+         // no properties were loaded before, e.g. after clear(), so there is nothing to compare
+         if(oldProperties == null || newProperties == null || newProperties == oldProperties) {
+            return;
+         }
+
+         Map<String, String> oldValues = snapshot(oldProperties);
+         Map<String, String> newValues = snapshot(newProperties);
+         Set<String> names = new HashSet<>(oldValues.keySet());
+         names.addAll(newValues.keySet());
+
+         for(PropertyChange change : changes) {
+            names.remove(change.getName());
+         }
+
+         for(String name : names) {
+            String oldValue = oldValues.get(name);
+            String newValue = newValues.get(name);
+
+            if(!Objects.equals(oldValue, newValue)) {
+               try {
+                  support.firePropertyChange(name, oldValue, newValue);
+               }
+               catch(Exception e) {
+                  LOG.warn("Failed to notify the listeners of property {}", name, e);
+               }
+            }
+         }
+      }
+
       private final List<PropertyChange> changes;
+      // whether the task reloads after the storage was re-attached (Bug #77871)
+      private final boolean resync;
    }
 
    private final KeyValueStorageManager keyValueStorageManager;
@@ -1824,6 +1907,8 @@ public class PropertiesEngine {
    private final Map<String, StorageValue> changedPropsBaseline = new HashMap<>();
    private final PropertyChangeSupport support = new PropertyChangeSupport(PropertiesEngine.class);
    private KeyValueStorage<String> kvStorage;
+   // the number of times getStorage() replaced a closed instance, written under this monitor
+   private volatile int reattachCount;
    // Concurrency axis (Bug #77142): lock-free readers x writers x change-triggered reload x
    // shutdown. The field is published in a single write and a reload never sets it to null, so a
    // reader reads it once into a local and takes no lock. Writers (setProperty, remove and the
