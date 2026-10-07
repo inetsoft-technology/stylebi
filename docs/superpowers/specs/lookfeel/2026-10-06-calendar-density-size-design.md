@@ -1,13 +1,15 @@
 # Calendar — a density default size
 
 **Date:** 2026-10-06
-**Branch:** community `feature-calendar-density-size`, cut from `epic-74519` @ `aee985d164`
+**Branch:** community `feature-calendar-density-size`, cut from `epic-74519` @ `aee985d164`, then
+rebased onto #6390's head `ae84d2821e` to build before #6390 merges; it is rebased onto `epic-74519`
+once #6390 merges
 **Verified against:** `aee985d164` for everything on `epic-74519`, and `feature-selection-container-density`
 @ `ae84d2821e` (PR #6390) for the size machinery that has not merged yet. Each citation names the
 commit it was checked against when that is not `aee985d164`.
 **Depends on:** PR #6390. D5 and D6 use its `userSize` flag, the `takesDensitySize` /
 `followsDensitySize` / `defaultSize` / `resetSize` methods and the three `VSDialogService` size helpers.
-Implementation starts after #6390 merges into `epic-74519` and this branch is rebased onto it.
+This branch is built on #6390's head, so #6390 merges first.
 **Follows:** [the density padding design](./2026-09-23-density-padding-design.md), [the selection family
 padding design](./2026-10-01-selection-family-padding-design.md) and [the selection container density
 design](./2026-10-05-selection-container-density-design.md) D7, which this design reuses for the author's size.
@@ -165,8 +167,8 @@ moves.
 
 **Consequences, accepted.**
 - **Modernize** leaves a legacy calendar at 300×300. That is already the compact size, and at the
-  other tiers the box takes the tier size on the next dashboard density change, or when the author
-  ticks the checkbox (D6).
+  other tiers the box takes the tier size on the next dashboard density change. The dialog shows it
+  ticked, and pressing OK leaves it alone (D6).
 - **Revert** leaves a seeded 300×332 or 300×266 box in place. A legacy calendar draws any box, so
   nothing breaks. Its rows are just a little taller or shorter than a fresh legacy calendar's.
 - **An already-modern calendar** keeps its size until its dashboard's density changes.
@@ -211,6 +213,12 @@ change.
 - **Save:** `VSDialogService.applyDensitySize` before the existing `dialogService.setAssemblySize`
   (`CalendarPropertyDialogService.java:245`), then `VSDialogService.recordAuthorSize` after it, with
   the size as it was before the save.
+- **OK with the box already ticked leaves the size alone** (added 2026-10-06, after the final
+  review). When the calendar already follows density and the answer is still a tick, the save skips
+  the size entirely, with no reset, no write and no flag. Only ticking it from unticked resizes.
+  Otherwise a calendar Modernized at 300×300 on a comfortable or dense dashboard opens ticked, and
+  the first OK for any edit would grow it, against D4. Skipping the write also keeps the locked
+  fields' size from before an Apply from being saved back.
 - **A save that switches the show type or view mode applies neither** (added 2026-10-06). The size
   the dialog wrote for the switch (§2.2) is stored as sent. It is not reset to the density size, so a
   ticked single calendar switched to double keeps its doubled width. It is not flagged as the
@@ -322,10 +330,9 @@ Run with the dashboard set to each tier in turn:
   the same exposure. **Not fixed in this slice.** Manual check 7 confirms or refutes it. If it is
   confirmed, the fix belongs in the shared re-seed path so it covers both types, as a follow-up.
 - **Double calendars.**
-  - One switched to double in the property dialog keeps its 300px width and shows two months in it.
-    That is today's behaviour at 300×300, and density keeps following its height.
-  - One widened to 600 by the toggle no longer follows density, and gets no checkbox (D6). Toggling
-    it back restores both.
+  - One widened to 600, by the property dialog's view-mode switch (§2.2) or by the toggle, no
+    longer follows density and gets no checkbox (D6). Switching it back halves it to 300, which
+    restores both.
 - **Pre-#6390 author sizes on a tier value** follow the next density change (D5).
 
 ## 8. Out of scope
