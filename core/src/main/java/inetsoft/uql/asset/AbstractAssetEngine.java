@@ -2182,8 +2182,8 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
     * can't be read. The report is a user message for the request that deleted or moved the asset.
     * It never throws, because the asset is already deleted or moved.
     */
-   protected static void reportPermissionMayRemain(SecurityEngine security, ResourceType type,
-                                                   String path)
+   public static void reportPermissionMayRemain(SecurityEngine security, ResourceType type,
+                                                String path)
    {
       boolean remains;
 
