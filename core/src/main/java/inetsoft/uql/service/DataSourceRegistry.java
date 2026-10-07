@@ -690,6 +690,11 @@ public class DataSourceRegistry implements MessageListener {
             if(entry.getPath().equals(basePath + "/" + storedName)) {
                result.add(entry);
             }
+            else {
+               // another model's, or one whose stored name doesn't match its path (left alone)
+               LOG.debug("Extended model {} is stored as \"{}\", not a child of {}",
+                         entry.getPath(), storedName, basePath);
+            }
 
             continue;
          }
