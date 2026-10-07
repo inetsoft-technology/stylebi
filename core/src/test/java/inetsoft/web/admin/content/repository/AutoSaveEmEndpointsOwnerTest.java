@@ -22,7 +22,8 @@ package inetsoft.web.admin.content.repository;
  * named by the client. Here the files have production-shaped names (the client IP is part of the
  * name), the tree delete goes through RepositoryObjectController with the real registry and
  * resource permission checks, and a user with ADMIN on the owner is a delegate the owner rule must
- * let through.
+ * let through. A site admin's file in the organization's storage is named with the site admin's
+ * own key, so a plain user of the organization with the same name is not its owner.
  */
 
 import inetsoft.analytic.composition.ViewsheetService;
@@ -139,6 +140,10 @@ class AutoSaveEmEndpointsOwnerTest {
       builder.grantPermission(ResourceType.SECURITY_USER,
                               new IdentityID("victim", ORG).convertToKey(), ResourceAction.ADMIN,
                               "uadm", Identity.USER, ORG);
+      // a site admin with the same name as the plain delegate
+      builder.addSysAdminRole("v947SiteAdmin", HOST_ORG)
+         .addUser("del", HOST_ORG, "password")
+         .addUserToRole("del", "v947SiteAdmin", HOST_ORG);
       builder.setup();
    }
 
@@ -291,8 +296,52 @@ autoSaveController.deleteAutoSaveAssets(Map.of("ids", first), uadm));
       assertFalse(exists(second));
    }
 
+   @Test
+   void namesakeDelegateCannotActOnSiteAdminFile() throws Exception {
+      SRPrincipal sadm = login("del", HOST_ORG);
+      // switched to the organization in the EM, so the files are in its storage
+      sadm.setProperty("curr_org_id", ORG);
+      String vs = recycled(sadm, "SaVs", false);
+      String ws = recycled(sadm, "SaWs", true);
+      String forOadm = recycled(sadm, "SaForOadm", false);
+      assertTrue(vs.contains("^del" + IdentityID.KEY_DELIMITER + HOST_ORG + "^"), vs);
+
+      assertThrows(MessageException.class, () -> act(del, () ->
+         autoSaveController.deleteAutoSaveAssets(Map.of("ids", vs), del)));
+      assertThrows(MessageException.class, () -> act(del, () ->
+         autoSaveController.restoreAutoSaveAssets(
+            Map.of("ids", ws, "name", "FromSiteAdmin947", "folder", "/", "overwrite", "true"),
+            del)));
+      assertEquals("", call(del, () -> autoSaveController.getAutoSaveTime(
+         Map.of("id", vs, "timezoneid", "UTC"), del)));
+      assertThrows(MessageException.class, () -> call(del, () ->
+         treeController.deleteRepositoryEntry(deleteRequest(vs), del)));
+
+      assertTrue(exists(vs));
+      assertTrue(exists(ws));
+      assertNull(globalSheet("FromSiteAdmin947"));
+
+      // the site admin and the organization's admin manage it
+      act(sadm, () -> autoSaveController.restoreAutoSaveAssets(
+         Map.of("ids", ws, "name", "SiteAdminRestored947", "folder", "/", "overwrite", "true"),
+         sadm));
+      call(sadm, () -> treeController.deleteRepositoryEntry(deleteRequest(vs), sadm));
+      assertNotEquals("", call(oadm, () -> autoSaveController.getAutoSaveTime(
+         Map.of("id", forOadm, "timezoneid", "UTC"), oadm)));
+      call(oadm, () -> treeController.deleteRepositoryEntry(deleteRequest(forOadm), oadm));
+
+      assertNotNull(globalSheet("SiteAdminRestored947"));
+      assertFalse(exists(ws));
+      assertFalse(exists(vs));
+      assertFalse(exists(forOadm));
+   }
+
    private SRPrincipal login(String name) {
-      SRPrincipal base = builder.principalOf(name, ORG);
+      return login(name, ORG);
+   }
+
+   private SRPrincipal login(String name, String org) {
+      SRPrincipal base = builder.principalOf(name, org);
       SRPrincipal principal = new SRPrincipal(base, new ClientInfo(base.getIdentityID(), IP));
       @SuppressWarnings("unchecked")
       Map<ClientInfo, SRPrincipal> users = (Map<ClientInfo, SRPrincipal>)
@@ -383,6 +432,7 @@ autoSaveController.deleteAutoSaveAssets(Map.of("ids", first), uadm));
       void run() throws Exception;
    }
 
+   private static final String HOST_ORG = Organization.getDefaultOrganizationID();
    private static final String ORG = "v947org";
    private static final String IP = "10.1.2.3";
 
