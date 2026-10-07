@@ -413,8 +413,97 @@ class IdentityServiceDeleteLeftoverPermissionTest {
       assertTrue(warnings.get(0).startsWith("viewer was deleted"), warnings.get(0));
    }
 
-   // the delete of a global role cleans the organizations' entries only through the listener
-   // (follow-up), so one failed write leaves the grant, which must be reported
+   // Bug #77942, a global role's grants in every organization get the second pass too: one failed
+   // write in each organization is repaired, each entry is written back to its own organization,
+   // and no entry is created in the current or the default organization
+   @Test
+   void deleteGlobalRole_singleFailureInEachOrganizationRepaired_noWarning() throws Exception {
+      String otherKey = "VIEWSHEET:" + OTHER_ORG + ":" + VS;
+      Permission perm = new Permission();
+      perm.setGrants(ResourceAction.READ, Identity.ROLE,
+                     new HashSet<>(Set.of(new Permission.PermissionIdentity(GVIEWER))));
+      perm.setGrants(ResourceAction.READ, Identity.USER, new HashSet<>(Set.of(
+         new Permission.PermissionIdentity(new IdentityID("erin", OTHER_ORG)))));
+      authz.setPermission(ResourceType.VIEWSHEET, VS, perm, OTHER_ORG);
+
+      try {
+         Set<String> keysBefore = keys();
+         AtomicInteger writes = failWrites(VS_KEY, false, true);
+         AtomicInteger otherWrites = failWrites(otherKey, false, true);
+
+         List<String> warnings = delete(GVIEWER, Identity.ROLE);
+
+         assertEquals(List.of(), warnings);
+         assertEquals(2, writes.get(), "the listener's failed write is repaired by the second pass");
+         assertEquals(2, otherWrites.get());
+         assertFalse(granted(VS_KEY, GVIEWER, Identity.ROLE));
+         assertFalse(granted(otherKey, GVIEWER, Identity.ROLE));
+         assertTrue(granted(VS_KEY, CAROL, Identity.USER), "the co-grantee must keep its grant");
+         assertTrue(granted(VS_KEY, VIEWER, Identity.ROLE), "the org role must keep its grant");
+         assertTrue(granted(otherKey, new IdentityID("erin", OTHER_ORG), Identity.USER));
+
+         Set<String> added = new HashSet<>(keys());
+         added.removeAll(keysBefore);
+         assertEquals(Set.of(), added, "no entry may be copied to another organization");
+      }
+      finally {
+         authz.removePermission(ResourceType.VIEWSHEET, VS, OTHER_ORG);
+      }
+   }
+
+   // a role with the same name in an organization is another identity: its grant is kept, while
+   // the global role's grant on the same entry is removed by the second pass
+   @Test
+   void deleteGlobalRole_sameNamedOrgRoleKeepsItsGrant() throws Exception {
+      String otherKey = "VIEWSHEET:" + OTHER_ORG + ":" + VS;
+      IdentityID orgGviewer = new IdentityID(GVIEWER.name, OTHER_ORG);
+      Permission perm = new Permission();
+      perm.setGrants(ResourceAction.READ, Identity.ROLE, new HashSet<>(Set.of(
+         new Permission.PermissionIdentity(GVIEWER), new Permission.PermissionIdentity(orgGviewer))));
+      authz.setPermission(ResourceType.VIEWSHEET, VS, perm, OTHER_ORG);
+
+      try {
+         failWrites(otherKey, false, true);
+
+         assertEquals(List.of(), delete(GVIEWER, Identity.ROLE));
+         assertFalse(granted(otherKey, GVIEWER, Identity.ROLE));
+         assertTrue(granted(otherKey, orgGviewer, Identity.ROLE),
+                    "the organization's role with the same name must keep its grant");
+      }
+      finally {
+         authz.removePermission(ResourceType.VIEWSHEET, VS, OTHER_ORG);
+      }
+   }
+
+   // the second pass never writes a legacy key without an organization (Bug #77911): it would be
+   // written to the current or the default organization. Only the listener writes it.
+   @Test
+   void deleteGlobalRole_legacyKeyWithoutOrganizationNotWrittenBySecondPass() throws Exception {
+      Permission perm = new Permission();
+      perm.setGrants(ResourceAction.READ, Identity.ROLE,
+                     new HashSet<>(Set.of(new Permission.PermissionIdentity(GVIEWER))));
+      KeyValueStorage<Permission> storage = storage();
+      String legacyKey = "VIEWSHEET:r77942/legacy";
+      storage.put(legacyKey, perm).get();
+
+      try {
+         AtomicInteger writes = failWrites(legacyKey, false, false);
+
+         delete(GVIEWER, Identity.ROLE);
+
+         assertEquals(1, writes.get(), "only the listener may write the legacy key");
+         assertTrue(granted(legacyKey, GVIEWER, Identity.ROLE), "the legacy key is not changed");
+      }
+      finally {
+         storage.remove(legacyKey).get();
+         // the shared path, as for every identity type, copies a legacy entry to the default
+         // organization (pre-existing, not this test's subject)
+         storage.remove("VIEWSHEET:host-org:r77942/legacy").get();
+      }
+   }
+
+   // one failed write is repaired by the second pass, but a grant whose every write fails is
+   // left and must be reported
    @Test
    void deleteGlobalRole_writeFails_warns() throws Exception {
       failWrites(VS_KEY, false, false);
@@ -574,8 +663,9 @@ class IdentityServiceDeleteLeftoverPermissionTest {
    private AtomicInteger failWrites(String key, boolean putsOnly, boolean firstOnly)
       throws Exception
    {
-      KeyValueStorage<Permission> real = storage();
-      realStorage = real;
+      // a second call wraps the first, so the writes of several keys can fail
+      KeyValueStorage<Permission> real = currentStorage();
+      realStorage = storage();
       AtomicInteger writes = new AtomicInteger();
       KeyValueStorage failing = mock(KeyValueStorage.class, AdditionalAnswers.delegatesTo(real));
       doAnswer(inv -> {
@@ -608,6 +698,20 @@ class IdentityServiceDeleteLeftoverPermissionTest {
       Field f = FileAuthorizationProvider.class.getDeclaredField("storage");
       f.setAccessible(true);
       return (KeyValueStorage<Permission>) f.get(authz);
+   }
+
+   @SuppressWarnings("unchecked")
+   private KeyValueStorage<Permission> currentStorage() throws Exception {
+      storage(); // init()
+      Field f = FileAuthorizationProvider.class.getDeclaredField("storage");
+      f.setAccessible(true);
+      return (KeyValueStorage<Permission>) f.get(authz);
+   }
+
+   private Set<String> keys() throws Exception {
+      Set<String> keys = new HashSet<>();
+      storage().stream().forEach(pair -> keys.add(pair.getKey()));
+      return keys;
    }
 
    private void restoreStorage() {
