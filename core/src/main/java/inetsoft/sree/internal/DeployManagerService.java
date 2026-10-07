@@ -1609,6 +1609,12 @@ public class DeployManagerService {
 
                if(asset instanceof ScheduleTaskAsset) {
                   dependencyHandler.updateTaskDependencies((ScheduleTaskAsset) asset);
+
+                  // Bug #77936, a warning, not a failure, the task is imported
+                  if(!((ScheduleTaskAsset) asset).getClearedPasswordPaths().isEmpty()) {
+                     info.getImportWarnings().add(Catalog.getCatalog().getString(
+                        "em.import.schedulePasswordsCleared", asset.getPath()));
+                  }
                }
 
                if(asset instanceof XDataSourceAsset) {
