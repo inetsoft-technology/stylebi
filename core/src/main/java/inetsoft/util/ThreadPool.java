@@ -172,10 +172,6 @@ public class ThreadPool {
 
    // dispose threads over the soft limit if there is no job waiting
    private void cleanUp() {
-      if(claimedLicenseListener != null) {
-         LicenseManager.getInstance().removeClaimedLicenseListener(claimedLicenseListener);
-      }
-
       if(queue.size() > 0 || busy.get() > 0) {
          return;
       }
@@ -317,6 +313,16 @@ public class ThreadPool {
          synchronized(this) {
             disposed = true;
             notifyAll();
+         }
+
+         if(claimedLicenseListener != null) {
+            try {
+               LicenseManager.getInstance().removeClaimedLicenseListener(claimedLicenseListener);
+            }
+            catch(RuntimeException ex) {
+               // may be called from finalize() or after the spring context has been closed
+               LOG.debug("Failed to remove claimed license listener from thread pool: {}", name, ex);
+            }
          }
       }
    }
