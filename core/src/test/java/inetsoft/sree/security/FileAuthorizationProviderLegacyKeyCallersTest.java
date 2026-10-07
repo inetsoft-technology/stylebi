@@ -60,7 +60,7 @@ import static org.mockito.Mockito.*;
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
 @SreeHome
 @Tag("core")
-public class FileAuthorizationProviderLegacyKeyCallersTest {
+class FileAuthorizationProviderLegacyKeyCallersTest {
    @BeforeEach
    void setUp() throws Exception {
       savedPrincipal = ThreadContext.getPrincipal();
