@@ -63,7 +63,7 @@ public final class XTableFragment extends XSwappable {
 
    @Override
    public double getSwapPriority() {
-      if(disposed || !completed || !valid || !isSwappable()) {
+      if(disposed || !completed || !valid || lost || !isSwappable()) {
          return 0;
       }
 
@@ -149,7 +149,7 @@ public final class XTableFragment extends XSwappable {
     * @return <tt>true</tt> if swapped, <tt>false</tt> rejected.
     */
    public synchronized boolean swap(boolean force) {
-      if(getSwapPriority() == 0) {
+      if(getSwapPriority() == 0 || isSwapFileLost()) {
          return false;
       }
 
@@ -178,6 +178,28 @@ public final class XTableFragment extends XSwappable {
       }
 
       return true;
+   }
+
+   /**
+    * Check if the swap file of this fragment is lost. It is lost when it is missing while some
+    * of the swapped columns are not in memory, so they can't be written to a new file. Writing
+    * it anyway would create an empty file, or one that holds nulls in place of the lost data.
+    * The fragment is not swapped again once the file is lost, and reading the columns that are
+    * not in memory throws SwapFileReadException (bug #77895).
+    */
+   private boolean isSwapFileLost() {
+      if(!lost && !getSwapFile().exists()) {
+         for(XTableColumn column : columns) {
+            if(column.isSerializable() && !column.isValid()) {
+               lost = true;
+               LOG.error("Swap file is missing, the table fragment is not swapped out any " +
+                         "more: " + getSwapFile());
+               break;
+            }
+         }
+      }
+
+      return lost;
    }
 
    /**
@@ -507,6 +529,7 @@ public final class XTableFragment extends XSwappable {
    private List<File> files; // cache files
    private boolean completed; // completed flag
    private boolean disposed; // disposed flag
+   private volatile boolean lost; // swap file lost, see isSwapFileLost()
    private String snappath; // snapshot path
    private static final Logger LOG =
       LoggerFactory.getLogger(XTableFragment.class);

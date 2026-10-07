@@ -117,17 +117,18 @@ public abstract class AbstractTableColumn implements XTableColumn, XSerializable
       catch(Exception ex) {
          if(!swapfile.exists()) {
             Tool.addUserMessage(Catalog.getCatalog().getString("common.worksheet.swap.missing"));
-
-            if(LOG.isDebugEnabled()) {
-               LOG.debug("Failed to read swap file: " + swapInfo + " " +
-                            (swapfile.exists() ? "size: " + swapfile.length() : " missing"), ex);
-            }
+            LOG.error("Failed to read swap file: " + swapInfo + " missing", ex);
          }
          else {
             LOG.error("Failed to read swap file: " + swapInfo + " size: " + swapfile.length() +
                " uncompressed: " + uncompressedSize + " ts: " + new Date(swapfile.lastModified()),
                       ex);
          }
+
+         // the data array is left null so a later access tries the file again. fail loudly
+         // instead of returning, which would end in a plain NullPointerException in the
+         // getter, or in silent nulls for an XObjectColumn (bug #77895)
+         throw new SwapFileReadException(swapfile, ex);
       }
       finally {
          if(buf0 != null) {
