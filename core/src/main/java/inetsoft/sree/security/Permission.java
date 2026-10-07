@@ -826,7 +826,7 @@ public class Permission implements Serializable, Cloneable, XMLSerializable {
       Map<ResourceAction, Set<PermissionIdentity>> users = userGrants;
       Map<ResourceAction, Set<PermissionIdentity>> roles = roleGrants;
       Map<ResourceAction, Set<PermissionIdentity>> groups =  groupGrants;
-      Map<ResourceAction, Set<PermissionIdentity>> organizations =  groupGrants;
+      Map<ResourceAction, Set<PermissionIdentity>> organizations =  organizationGrants;
 
       Set<ResourceAction> actions = new HashSet<>();
       actions.addAll(userGrants.keySet());
@@ -857,30 +857,37 @@ public class Permission implements Serializable, Cloneable, XMLSerializable {
 
       if(users.containsKey(action)) {
          users.get(action).stream()
-            .sorted()
+            .sorted(IDENTITY_ORDER)
             .forEach(u -> writeIdentity("user", u, writer));
       }
 
       if(roles.containsKey(action)) {
          roles.get(action).stream()
-            .sorted()
+            .sorted(IDENTITY_ORDER)
             .forEach(r -> writeIdentity("role", r, writer));
       }
 
       if(groups.containsKey(action)) {
          groups.get(action).stream()
-            .sorted()
+            .sorted(IDENTITY_ORDER)
             .forEach(g -> writeIdentity("group", g, writer));
       }
 
       if(organizations.containsKey(action)) {
          organizations.get(action).stream()
-            .sorted()
+            .sorted(IDENTITY_ORDER)
             .forEach(o -> writeIdentity("organization", o, writer));
       }
 
       writer.println("  </grant>");
    }
+
+   // PermissionIdentity is not Comparable, so writeXML needs an explicit, null-safe order
+   private static final Comparator<PermissionIdentity> IDENTITY_ORDER =
+      Comparator.comparing(PermissionIdentity::getName,
+                           Comparator.nullsFirst(Comparator.<String>naturalOrder()))
+         .thenComparing(PermissionIdentity::getOrganizationID,
+                        Comparator.nullsFirst(Comparator.<String>naturalOrder()));
 
    private void writeIdentity(String tag, PermissionIdentity identity, PrintWriter writer) {
       writer.format("<%s>", tag);
@@ -961,12 +968,27 @@ public class Permission implements Serializable, Cloneable, XMLSerializable {
             organizations.computeIfAbsent(action, a -> new HashSet<>()).add(parseIdentity(identity));
          }
 
+         // legacy location, kept for tolerance; writeXML never emitted orgEdited inside a grant
          identities = Tool.getChildNodesByTagName(grant, "orgEdited");
 
          for(int j = 0; j < identities.getLength(); j++) {
             Element identity = (Element) identities.item(j);
             orgUpdated.put(Tool.getChildValueByTagName(identity, "name"),
                        Boolean.parseBoolean(Tool.getChildValueByTagName(identity, "organization")));
+         }
+      }
+
+      // writeXML writes <orgEdited><orgEditedElement>... as a direct child of <permission>
+      NodeList orgEditedLists = Tool.getChildNodesByTagName(tag, "orgEdited");
+
+      for(int i = 0; i < orgEditedLists.getLength(); i++) {
+         NodeList elems =
+            Tool.getChildNodesByTagName((Element) orgEditedLists.item(i), "orgEditedElement");
+
+         for(int j = 0; j < elems.getLength(); j++) {
+            Element elem = (Element) elems.item(j);
+            orgUpdated.put(Tool.getChildValueByTagName(elem, "name"),
+                       Boolean.parseBoolean(Tool.getChildValueByTagName(elem, "organization")));
          }
       }
 
