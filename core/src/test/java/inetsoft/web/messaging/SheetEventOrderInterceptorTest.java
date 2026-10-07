@@ -17,6 +17,7 @@
  */
 package inetsoft.web.messaging;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.web.ServiceProxyContext;
 import org.junit.jupiter.api.*;
 import org.springframework.messaging.Message;
@@ -39,7 +40,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * order they were received, although the client inbound channel runs on a thread pool.
  *
  * <p>Axis covered: <b>same sheet vs. other sheet / other session</b> &times; <b>ordered event vs.
- * cancel / flyover event vs. close vs. periodic touch-asset vs. frame without a sheet</b> &times;
+ * cancel / flyover event vs. close vs. periodic touch-asset (keep-alive vs. auto save / refresh /
+ * malformed) vs. frame without a sheet</b> &times;
  * <b>normal vs. throwing handler vs. disconnected / reconnected session</b>. The channel
  * is a real {@link ExecutorSubscribableChannel} on a multi-thread pool (like
  * {@code WebSocketConfig.eventTaskExecutor()}) with three subscribers, as the real inbound channel
@@ -51,7 +53,7 @@ class SheetEventOrderInterceptorTest {
    @BeforeEach
    void setUp() {
       pool = Executors.newFixedThreadPool(32);
-      interceptor = new SheetEventOrderInterceptor();
+      interceptor = new SheetEventOrderInterceptor(new ObjectMapper());
    }
 
    @AfterEach
@@ -229,8 +231,9 @@ class SheetEventOrderInterceptorTest {
       awaitNoPendingSheet();
    }
 
-   // The viewer sends a touch-asset refresh every interval without waiting for the last one. A
-   // refresh that takes longer than the interval must not build a backlog of refreshes.
+   // The viewer sends a touch-asset refresh every interval without waiting for the last one, and
+   // the composer an auto save. A refresh that takes longer than the interval must not build a
+   // backlog of refreshes.
    @Test
    void periodicTouchAssetStaysBounded() throws Exception {
       CountDownLatch release = new CountDownLatch(1);
@@ -249,17 +252,90 @@ class SheetEventOrderInterceptorTest {
       for(int i = 0; i < 50; i++) {
          channel.send(event("s1", "vs1", "/events/composer/touch-asset", 2, "update",
                             "{\"update\":true}"));
-         channel.send(event("s1", "vs1", "/events/composer/touch-asset", 3, "heartbeat",
-                            "{\"update\":false}"));
+         channel.send(event("s1", "vs1", "/events/composer/touch-asset", 3, "autoSave",
+                            "{\"changed\":true}"));
       }
 
       // the running event, the selection and one touch-asset of each kind
       assertEquals(4, interceptor.getQueuedEventCount(), "the touch-asset events were queued");
 
       release.countDown();
-      awaitHandled(handled, "heartbeat");
+      awaitHandled(handled, "autoSave");
       awaitNoPendingSheet();
-      assertEquals(List.of("busy", "selection", "update", "heartbeat"), handled);
+      assertEquals(List.of("busy", "selection", "update", "autoSave"), handled);
+   }
+
+   // A touch-asset that only keeps the sheet alive must refresh its heartbeat while a long event
+   // runs, or the sheet is recycled as expired before the event ends.
+   @Test
+   void keepAliveTouchAssetIsNotHeld() throws Exception {
+      CountDownLatch release = new CountDownLatch(1);
+      Set<String> handled = ConcurrentHashMap.newKeySet();
+      ExecutorSubscribableChannel channel = channel(m -> {
+         handled.add(id(m));
+
+         if("busy".equals(id(m))) {
+            await(release);
+         }
+      });
+
+      channel.send(event("s1", "vs1", "/events/selectionList/update/List1", 0, "busy"));
+      channel.send(event("s1", "vs1", "/events/composer/touch-asset", 1, "viewer",
+                         "{\"design\":false,\"changed\":false,\"update\":false," +
+                         "\"wallboard\":true,\"width\":0,\"height\":0}"));
+      channel.send(event("s1", "vs1", "/events/composer/touch-asset", 2, "composer",
+                         "{\"design\":true,\"changed\":false,\"update\":false}"));
+      channel.send(event("s1", "vs1", "/events/composer/touch-asset", 3, "noFlags", "{}"));
+
+      awaitHandled(handled, "viewer", WHILE_BUSY);
+      awaitHandled(handled, "composer", WHILE_BUSY);
+      awaitHandled(handled, "noFlags", WHILE_BUSY);
+      assertEquals(1, interceptor.getQueuedEventCount(), "a keep-alive touch-asset was queued");
+
+      release.countDown();
+      awaitNoPendingSheet();
+   }
+
+   // An auto save must not be applied before an earlier edit is.
+   @Test
+   void autoSaveTouchAssetIsHeld() throws Exception {
+      assertTouchAssetIsHeld("{\"design\":true,\"changed\":true,\"update\":false}");
+   }
+
+   // A refresh must not be applied before an earlier selection is.
+   @Test
+   void refreshTouchAssetIsHeld() throws Exception {
+      assertTouchAssetIsHeld("{\"design\":false,\"changed\":false,\"update\":true}");
+   }
+
+   // A touch-asset that cannot be parsed may be an auto save or a refresh, so it is held.
+   @Test
+   void malformedTouchAssetIsHeld() throws Exception {
+      assertTouchAssetIsHeld("{\"changed\":fal");
+   }
+
+   private void assertTouchAssetIsHeld(String payload) throws Exception {
+      CountDownLatch release = new CountDownLatch(1);
+      List<String> handled = new CopyOnWriteArrayList<>();
+      ExecutorSubscribableChannel channel = channel(m -> {
+         handled.add(id(m));
+
+         if("busy".equals(id(m))) {
+            await(release);
+         }
+      });
+
+      channel.send(event("s1", "vs1", "/events/selectionList/update/List1", 0, "busy"));
+      channel.send(event("s1", "vs1", "/events/composer/touch-asset", 1, "touch", payload));
+
+      Thread.sleep(200);
+      assertFalse(handled.contains("touch"), "the touch-asset ran before the running event ended");
+      assertEquals(2, interceptor.getQueuedEventCount(), "the touch-asset was not held");
+
+      release.countDown();
+      awaitHandled(handled, "touch");
+      awaitNoPendingSheet();
+      assertEquals(List.of("busy", "touch"), handled);
    }
 
    // Closing a busy sheet must cancel its running query, so the close is not held behind it.

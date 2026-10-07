@@ -17,6 +17,8 @@
  */
 package inetsoft.web.messaging;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.messaging.*;
@@ -25,6 +27,7 @@ import org.springframework.messaging.simp.SimpMessageType;
 import org.springframework.messaging.support.*;
 import org.springframework.web.socket.server.support.HttpSessionHandshakeInterceptor;
 
+import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.*;
@@ -45,6 +48,9 @@ import java.util.concurrent.atomic.*;
  * applied after the ones it sent before. The held events of a disconnected STOMP session are not
  * dropped, the client reconnects and keeps using its sheets.
  * <p>
+ * A touch-asset event that only keeps the sheet alive (no auto save or refresh) is not held
+ * either, or the sheet is recycled as expired while a long event runs on it.
+ * <p>
  * The periodic touch-asset event is not queued again while the same event is held for the sheet
  * with only touch-asset events after it, so a refresh that takes longer than the refresh interval
  * cannot build a backlog, and a touch-asset (e.g. an auto save) is never moved before a later
@@ -59,6 +65,10 @@ import java.util.concurrent.atomic.*;
  * other interceptors yet when it is released.
  */
 public class SheetEventOrderInterceptor implements ExecutorChannelInterceptor {
+   public SheetEventOrderInterceptor(ObjectMapper objectMapper) {
+      this.objectMapper = objectMapper;
+   }
+
    @Override
    public Message<?> preSend(Message<?> message, MessageChannel channel) {
       MessageHeaders headers = message.getHeaders();
@@ -84,6 +94,11 @@ public class SheetEventOrderInterceptor implements ExecutorChannelInterceptor {
       }
 
       String destination = SimpMessageHeaderAccessor.getDestination(headers);
+
+      if(isKeepAlive(destination, message)) {
+         return message;
+      }
+
       Ticket ticket = new Ticket(nextId.incrementAndGet(), key, message);
       ticket.subscriberCount = subscriberCount;
       // set before the ticket is queued, sendNext() may send the message as soon as it is
@@ -165,6 +180,28 @@ public class SheetEventOrderInterceptor implements ExecutorChannelInterceptor {
             // afterSendCompletion() has released the event after it
             LOG.error("Failed to send held event {}", next.get().message, e);
          }
+      }
+   }
+
+   /**
+    * Check if the event is a touch-asset that neither auto saves (changed) nor refreshes (update)
+    * the sheet. It only refreshes the heartbeat of the sheet, which does not depend on the order.
+    * A payload that cannot be parsed is treated as ordered.
+    */
+   private boolean isKeepAlive(String destination, Message<?> message) {
+      if(!TOUCH_ASSET_DESTINATION.equals(destination) ||
+         !(message.getPayload() instanceof byte[] payload))
+      {
+         return false;
+      }
+
+      try {
+         JsonNode event = objectMapper.readTree(payload);
+         return event != null && event.isObject() && !event.path("changed").asBoolean(false) &&
+            !event.path("update").asBoolean(false);
+      }
+      catch(IOException e) {
+         return false;
       }
    }
 
@@ -271,6 +308,7 @@ public class SheetEventOrderInterceptor implements ExecutorChannelInterceptor {
       private final AtomicInteger handled = new AtomicInteger(0);
    }
 
+   private final ObjectMapper objectMapper;
    private final Map<Key, Deque<Ticket>> queues = new ConcurrentHashMap<>();
    private final Map<Long, Ticket> tickets = new ConcurrentHashMap<>();
    private final AtomicLong nextId = new AtomicLong();
@@ -293,8 +331,8 @@ public class SheetEventOrderInterceptor implements ExecutorChannelInterceptor {
       "/events/composer/viewsheet/close",
       "/events/ws/close",
       "/events/close");
+   private static final String TOUCH_ASSET_DESTINATION = "/events/composer/touch-asset";
    // periodic events, a copy of one that is already held is dropped
-   private static final Set<String> COALESCED_DESTINATIONS = Set.of(
-      "/events/composer/touch-asset");
+   private static final Set<String> COALESCED_DESTINATIONS = Set.of(TOUCH_ASSET_DESTINATION);
    private static final Logger LOG = LoggerFactory.getLogger(SheetEventOrderInterceptor.class);
 }

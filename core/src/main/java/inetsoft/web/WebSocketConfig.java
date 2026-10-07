@@ -140,7 +140,7 @@ public class WebSocketConfig<S extends Session> extends
 
       registration
          // Bug #77887, must be first so a held event skips the other interceptors until released
-         .interceptors(new SheetEventOrderInterceptor(),
+         .interceptors(new SheetEventOrderInterceptor(objectMapper),
                        new MessageScopeInterceptor(),
                        messageInterceptor,
                        new SessionAccessInterceptor(igniteSessionRepository, objectMapper),
