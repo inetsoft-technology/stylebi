@@ -596,6 +596,11 @@ public class FormulaTableLens extends AbstractTableLens
                   }
 
                   failure.addFailedRow(i);
+                  // the stopped row is not kept either: its cell is not a value, and a later
+                  // read computes the row again instead of reading a null cell. The reader
+                  // can tell the stop from a script error by the exception (bug #77949)
+                  stalled = true;
+                  failure.setStopped(true);
                   throw failure;
                }
 
@@ -612,7 +617,8 @@ public class FormulaTableLens extends AbstractTableLens
                // a stalled row is not kept: its cells are not values, and a later read
                // computes the row again (bug #76967). a row of a row table that was replaced
                // while it was computed is not kept either: it may be half-computed, and its
-               // position is past the rows the replaced table's readers use (bug #77243)
+               // position is past the rows the replaced table's readers use (bug #77243).
+               // a row stopped by a script timeout or cancel is not kept (bug #77949)
                if(!stalled && rows == target) {
                   target.addRow(row);
                }

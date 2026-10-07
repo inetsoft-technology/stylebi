@@ -41,6 +41,7 @@ import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.*;
 import inetsoft.util.script.graal.ScriptScope;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.swap.SwapFileReadException;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
@@ -252,6 +253,9 @@ public class CalcTableLens extends DefaultTableLens {
          if(swapFailure != null) {
             throw swapFailure;
          }
+
+         // nor may a formula stopped by a script timeout or cancel (bug #77949)
+         ScriptTimeoutGuard.rethrowStop(ex);
 
          LOG.error("Failed to process calctablelens", ex);
          return null;
@@ -508,6 +512,14 @@ public class CalcTableLens extends DefaultTableLens {
                // not cached, a later read evaluates the formula again
                uncacheValue(r, c, expr);
                throw swapFailure;
+            }
+
+            // nor is one stopped by a script timeout or cancel: the reader gets the stop, and
+            // a later read evaluates the formula again instead of reading an error cell
+            // (bug #77949)
+            if(ScriptTimeoutGuard.isStop(se)) {
+               uncacheValue(r, c, expr);
+               throw se;
             }
 
             obj = "ERROR: " + se.getMessage();

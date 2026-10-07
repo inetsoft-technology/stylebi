@@ -23,6 +23,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.lang.ref.WeakReference;
+import java.lang.reflect.InvocationTargetException;
 import java.time.Duration;
 import java.util.Iterator;
 import java.util.concurrent.*;
@@ -167,6 +168,30 @@ public class ScriptTimeoutGuard {
       }
 
       return false;
+   }
+
+   /**
+    * Rethrow {@code ex} if it {@link #isStop(Throwable) is a stop}, so a read that turns
+    * its failures into a null value does not turn a stopped script into one either: a script
+    * that read it would complete with a wrong value (bug #77949). The stop is rethrown as it
+    * is if it can be, otherwise as a stopped script exception caused by it.
+    */
+   public static void rethrowStop(Throwable ex) {
+      if(!isStop(ex)) {
+         return;
+      }
+
+      Throwable stop = ex instanceof InvocationTargetException && ex.getCause() != null
+         ? ex.getCause() : ex;
+
+      if(stop instanceof RuntimeException rex) {
+         throw rex;
+      }
+
+      inetsoft.util.script.ScriptException se =
+         new inetsoft.util.script.ScriptException(stop.getMessage(), stop);
+      se.setStopped(true);
+      throw se;
    }
 
    /** Test hook run by the interrupt task right before it interrupts; null in production. */

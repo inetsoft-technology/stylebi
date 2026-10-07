@@ -20,6 +20,7 @@ package inetsoft.report.script.formula;
 import inetsoft.report.internal.table.*;
 import inetsoft.util.script.FormulaContext;
 import inetsoft.util.script.graal.ScriptArrayScope;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.script.graal.ScriptValueConverter;
 import inetsoft.util.swap.DataUnavailable;
 import org.graalvm.polyglot.proxy.ProxyExecutable;
@@ -375,10 +376,12 @@ public class CalcRef implements ScriptArrayScope {
     * A stalled table (#76967) or one whose swap file is lost (#77910) has no value to
     * return, so a reference read must not turn the failure into a null script value: the
     * referencing cell would complete and cache a wrong value (e.g. {@code $A + 1}). Other
-    * failures keep degrading to null (#77123).
+    * failures keep degrading to null (#77123). Nor does a cell whose formula was stopped by
+    * a script timeout or cancel have a value (#77949).
     */
    private static void rethrowUnavailable(Exception ex) {
       DataUnavailable.rethrow(ex);
+      ScriptTimeoutGuard.rethrowStop(ex);
    }
 
    private RuntimeCalcTableLens table;
