@@ -190,7 +190,19 @@ class ServerLocationPasswordTest {
                                       PLACEHOLDER));
       assertNull(saveToServerPassword("ftp://other@files.corp.example/reports/a.pdf", "svc",
                                       PLACEHOLDER));
-      assertNull(saveToServerPassword("ftp://svc:own@files.corp.example/reports/a.pdf", "svc",
+
+      // Bug #77957 moves a password typed into the path to the password field, so the path's
+      // own password is used, not the location's
+      ServerPathInfo own = saveToServerPath("ftp://svc:own@files.corp.example/reports/a.pdf",
+                                            "svc", PLACEHOLDER);
+      assertEquals("own", own.getPassword());
+      assertNotEquals(PASSWORD, own.getPassword());
+      assertEquals("ftp://svc@files.corp.example/reports/a.pdf", own.getPath());
+
+      // a path with its own (even empty) password is not the location's login
+      assertFalse(ScheduleService.isSameLogin("ftp://svc:own@files.corp.example/reports/a.pdf",
+                                              "svc", "ftp://files.corp.example/reports", "svc"));
+      assertNull(saveToServerPassword("ftp://svc:@files.corp.example/reports/a.pdf", "svc",
                                       PLACEHOLDER));
    }
 
