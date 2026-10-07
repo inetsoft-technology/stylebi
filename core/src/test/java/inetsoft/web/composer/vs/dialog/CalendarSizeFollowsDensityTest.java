@@ -159,6 +159,33 @@ class CalendarSizeFollowsDensityTest {
       assertEquals(new Point(50, 420 - 332), result.getPixelOffset());
    }
 
+   // the dialog doubles the width on a switch to double; the checkbox must not undo that
+   @Test
+   void aTickedSingleSwitchedToDoubleKeepsTheDoubledWidth() throws Exception {
+      CalendarVSAssemblyInfo result =
+         save(calendar(VizMark.MODERN_LIGHT, new Dimension(300, 332)), Boolean.TRUE,
+              new Dimension(600, 332), CalendarVSAssemblyInfo.CALENDAR_SHOW_TYPE,
+              CalendarVSAssemblyInfo.DOUBLE_CALENDAR_MODE);
+
+      assertEquals(new Dimension(600, 332), result.getPixelSize());
+      assertFalse(result.isUserSize());
+   }
+
+   // the dialog's own resize on a mode switch is not the author's size
+   @Test
+   void aDoubleSwitchedBackToSingleFollowsAgain() throws Exception {
+      CalendarVSAssemblyInfo info = calendar(VizMark.MODERN_LIGHT, new Dimension(600, 332));
+      info.setViewModeValue(CalendarVSAssemblyInfo.DOUBLE_CALENDAR_MODE);
+
+      CalendarVSAssemblyInfo result =
+         save(info, null, new Dimension(300, 332), CalendarVSAssemblyInfo.CALENDAR_SHOW_TYPE,
+              CalendarVSAssemblyInfo.SINGLE_CALENDAR_MODE);
+
+      assertEquals(new Dimension(300, 332), result.getPixelSize());
+      assertFalse(result.isUserSize());
+      assertTrue(result.followsDensitySize());
+   }
+
    private static CalendarVSAssemblyInfo calendar(VizMark mark, Dimension size) {
       CalendarVSAssemblyInfo info = new CalendarVSAssemblyInfo();
       info.setVizMark(mark);
@@ -183,6 +210,13 @@ class CalendarSizeFollowsDensityTest {
    private CalendarVSAssemblyInfo save(CalendarVSAssemblyInfo info, Boolean follows,
                                        Dimension typed) throws Exception
    {
+      return save(info, follows, typed, info.getShowTypeValue(), info.getViewModeValue());
+   }
+
+   private CalendarVSAssemblyInfo save(CalendarVSAssemblyInfo info, Boolean follows,
+                                       Dimension typed, int showType, int viewMode)
+      throws Exception
+   {
       when(calendarAssembly.getVSAssemblyInfo()).thenReturn(info);
       doCallRealMethod().when(dialogService)
          .setAssemblySize(any(), any(SizePositionPaneModel.class));
@@ -197,10 +231,8 @@ class CalendarSizeFollowsDensityTest {
       given(model.getCalendarGeneralPaneModel().getGeneralPropPaneModel()
                .getBasicGeneralPaneModel().getName())
          .willReturn("Calendar1");
-      given(model.getCalendarAdvancedPaneModel().getShowType())
-         .willReturn(info.getShowTypeValue());
-      given(model.getCalendarAdvancedPaneModel().getViewMode())
-         .willReturn(info.getViewModeValue());
+      given(model.getCalendarAdvancedPaneModel().getShowType()).willReturn(showType);
+      given(model.getCalendarAdvancedPaneModel().getViewMode()).willReturn(viewMode);
 
       service.setCalendarPropertyModel("Viewsheet1", "Calendar1", model, "", null,
                                        commandDispatcher);
