@@ -653,7 +653,16 @@ public class StylePage implements java.io.Serializable, Cloneable {
          return false;
       }
 
-      load(inp, swapfull, true);
+      try {
+         load(inp, swapfull, true);
+      }
+      catch(Throwable ex) {
+         // a partly loaded page must not be kept: a partial load skips the slots that are
+         // already set, so a retry would put the data in the wrong slots (bug #77984)
+         clearSwapped();
+         throw ex;
+      }
+
       inmemory = true;
 
       if(removal) {

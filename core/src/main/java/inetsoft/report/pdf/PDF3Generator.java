@@ -290,13 +290,17 @@ public class PDF3Generator extends inetsoft.report.io.AbstractGenerator {
       }
 
       Enumeration pages = ReportGenerator.generate(report, getPageDimension());
-      generate(pages);
 
-      // @by jasons the HP-UX jvm has a GC bug where the finalize method
-      // of the enumeration may not be called, so explicitly call dispose
-      // when we're done
-      if(pages instanceof SwappedEnumeration) {
-         ((SwappedEnumeration) pages).dispose();
+      try {
+         generate(pages);
+      }
+      finally {
+         // @by jasons the HP-UX jvm has a GC bug where the finalize method
+         // of the enumeration may not be called, so explicitly call dispose
+         // when we're done. a page read failure ends generate(), dispose then too
+         if(pages instanceof SwappedEnumeration) {
+            ((SwappedEnumeration) pages).dispose();
+         }
       }
    }
 
