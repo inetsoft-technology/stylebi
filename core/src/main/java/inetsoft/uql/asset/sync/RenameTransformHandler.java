@@ -67,9 +67,8 @@ public class RenameTransformHandler implements AutoCloseable {
     * Add a RenameDependencyInfo to the queue.
     */
    public void addTransformTask(RenameDependencyInfo dinfo, boolean waitDone) {
-      // load the queue store before the first write of this cluster run, so that the load sees
-      // the queue left by the previous run and replays it (it replays only into an empty map)
-      dependencyStorageService.getQueueStorage();
+      // RenameTransformTask replays the queue left by the previous cluster run itself, so the queue
+      // store isn't opened here: opening it can wait on the service a waiting task is holding
       Future<?> dependencyStorage = cluster.submit(
          DependencyStorageService.QUEUE_STORE, new RenameTransformTask(dinfo, waitDone));
 

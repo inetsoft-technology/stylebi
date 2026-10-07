@@ -38,7 +38,9 @@ import java.util.stream.Collectors;
  * {@value DependencyStorageService#QUEUE_STORE} singleton service, which serializes every change
  * of the queue. Tasks on that service read and write the engine and map directly and must never
  * open the store through {@link inetsoft.storage.KeyValueStorageManager}: opening it submits its
- * load task to this same service and waits for it.
+ * load task to this same service and waits for it. For the same reason nothing that runs on the
+ * {@code renameTransform} service may wait on the queue store: a waiting
+ * {@code RenameTransformTask} holds this service until its {@link Rename} finishes.
  */
 public class RenameTransformTask
    extends KeyValueTask<RenameTransformObject> implements SingletonRunnableTask
@@ -55,6 +57,8 @@ public class RenameTransformTask
 
    @Override
    public void run() {
+      // replay the queue left by the previous cluster run before the first change of this run
+      LoadRenameQueueTask.replayIfFirst(getEngine(), getMap(), getCluster());
       RenameTransformQueue queue = getEngine().get(getId(), DependencyStorageService.QUEUE_KEY);
       RenameTransformAttempts attempts =
          getEngine().get(getId(), DependencyStorageService.ATTEMPTS_KEY);
@@ -220,6 +224,7 @@ public class RenameTransformTask
 
       @Override
       public void run() {
+         LoadRenameQueueTask.replayIfFirst(getEngine(), getMap(), getCluster());
          RenameTransformQueue queue = getEngine().get(getId(), DependencyStorageService.QUEUE_KEY);
          RenameTransformAttempts attempts =
             getEngine().get(getId(), DependencyStorageService.ATTEMPTS_KEY);

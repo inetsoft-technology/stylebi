@@ -227,6 +227,94 @@ class RenameTransformQueueReplayTest {
    }
 
    @Test
+   void queuedRenameIsReplayedByTheNextRenameAfterRestart() throws Exception {
+      cluster().dropRenameTransform = true;
+      handler().addTransformTask(newTask(), true);
+      cluster().dropRenameTransform = false;
+
+      restartWithoutOpeningQueue();
+      RenameInfo other = new RenameInfo("1^2^__NULL__^OtherWS^" + ORG,
+                                        "1^2^__NULL__^OtherWS2^" + ORG,
+                                        RenameInfo.ASSET | RenameInfo.SOURCE);
+      RenameDependencyInfo next = new RenameDependencyInfo();
+      next.setRenameInfos(new ArrayList<>(List.of(other)));
+      handler().addTransformTask(next, true);
+      cluster().awaitTasks();
+
+      assertEquals(2, renameSubmissions(), "the queued rename is replayed before the new one");
+      assertNull(dss.get(OLD_WS));
+      assertNotNull(dss.get(NEW_WS));
+      assertEquals(0, queueSize());
+
+      restart();
+      assertEquals(0, renameSubmissions(), "not replayed again");
+   }
+
+   /**
+    * DependencyStorageService is lazy, so on a node that hasn't used it yet the first rename
+    * creates it on the renameTransform thread. A waiting rename holds the queue store's service
+    * until that rename is done, so the creation must not wait on that service.
+    */
+   @Test
+   void firstUseOnTheRenameThreadDoesNotWaitForTheQueueService() throws Exception {
+      CountDownLatch go = new CountDownLatch(1);
+      Future<?> firstUse = cluster().submit("renameTransform", new TestTask(() -> {
+         try {
+            go.await(10, TimeUnit.SECONDS);
+         }
+         catch(InterruptedException e) {
+            throw new RuntimeException(e);
+         }
+
+         // this node has opened nothing yet: the bean is created here, on the rename thread
+         manager.close();
+         dss.initStorage(); // its @PostConstruct
+      }));
+      RenameDependencyInfo task = newTask();
+      CompletableFuture<Void> waitingRename =
+         CompletableFuture.runAsync(() -> handler().addTransformTask(task, true));
+
+      // let the waiting rename take the queue store's service before the first use goes on
+      Thread.sleep(500L);
+      go.countDown();
+
+      firstUse.get(5, TimeUnit.SECONDS);
+      waitingRename.get(10, TimeUnit.SECONDS);
+      cluster().awaitTasks();
+      assertNotNull(dss.get(NEW_WS), "the rename is applied");
+      assertEquals(0, queueSize());
+   }
+
+   @Test
+   void nonWaitingRenameAfterStoreEvictionDoesNotBlock() throws Exception {
+      // a waiting rename holds the queue store's service
+      CountDownLatch release = new CountDownLatch(1);
+      cluster().submit(QUEUE_STORE, new TestTask(() -> {
+         try {
+            release.await(10, TimeUnit.SECONDS);
+         }
+         catch(InterruptedException e) {
+            throw new RuntimeException(e);
+         }
+      }));
+      manager.close(); // the queue store evicted from the storage manager
+
+      RenameDependencyInfo task = newTask();
+
+      try {
+         CompletableFuture.runAsync(() -> handler().addTransformTask(task, false))
+            .get(2, TimeUnit.SECONDS);
+      }
+      finally {
+         release.countDown();
+      }
+
+      cluster().awaitTasks();
+      assertNotNull(dss.get(NEW_WS), "the rename is applied");
+      assertEquals(0, queueSize());
+   }
+
+   @Test
    void attemptsRoundTripThroughJson() throws Exception {
       RenameTransformAttempts attempts = new RenameTransformAttempts();
       attempts.set("a", 2);
@@ -245,7 +333,22 @@ class RenameTransformQueueReplayTest {
       cluster().destroyReplicatedMap("inetsoft.storage.kv." + ORG_STORE);
       cluster().resetSubmissions();
       dss.initStorage();
+      // initStorage() opens the queue store without waiting; open it here to replay now
+      dss.getQueue();
       cluster().awaitTasks();
+   }
+
+   /**
+    * A restart after which nothing opens the queue store, so that the next queue change has to
+    * replay the queue itself.
+    */
+   private void restartWithoutOpeningQueue() throws Exception {
+      cluster().awaitTasks();
+      manager.close();
+      engine().reopen();
+      cluster().destroyReplicatedMap("inetsoft.storage.kv." + QUEUE_STORE);
+      cluster().destroyReplicatedMap("inetsoft.storage.kv." + ORG_STORE);
+      cluster().resetSubmissions();
    }
 
    private void reopenWithoutRestart() throws Exception {
@@ -253,6 +356,7 @@ class RenameTransformQueueReplayTest {
       manager.close();
       cluster().resetSubmissions();
       dss.initStorage();
+      dss.getQueue();
       cluster().awaitTasks();
    }
 
@@ -352,6 +456,19 @@ class RenameTransformQueueReplayTest {
       public DependencyStorageService dependencyStorageService(KeyValueStorageManager manager) {
          return new DependencyStorageService(manager);
       }
+   }
+
+   static final class TestTask implements SingletonRunnableTask {
+      TestTask(Runnable body) {
+         this.body = body;
+      }
+
+      @Override
+      public void run() {
+         body.run();
+      }
+
+      private final transient Runnable body;
    }
 
    /**

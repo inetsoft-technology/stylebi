@@ -17,6 +17,8 @@
  */
 package inetsoft.uql.asset.sync;
 
+import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.storage.KeyValueEngine;
 import inetsoft.storage.LoadKeyValueTask;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,15 +29,17 @@ import java.util.*;
  * Loads the cluster-global rename queue store and, on the first load after a full cluster start,
  * replays the rename transform tasks that the previous run left in the queue.
  * <p>
- * The replay runs only when the replicated map of the store was empty before the load, i.e. for
- * the first loader since the cluster started. A second node opening the store, or the store being
+ * The replay runs only when the replicated map of the store is empty, i.e. for the first loader or
+ * queue change since the cluster started. A second node opening the store, or the store being
  * evicted from {@link inetsoft.storage.KeyValueStorageManager} and opened again, finds the map
  * populated and does not replay the tasks again. A consequence is that a task whose node died in
  * the middle of its transform on a running cluster is replayed only at the next full cluster
  * start.
  * <p>
- * This task runs on the {@value DependencyStorageService#QUEUE_STORE} singleton service, like
- * every other change of the queue, so it reads and writes the engine and map directly.
+ * Every queue change ({@link RenameTransformTask}, {@link RenameTransformTask.Remove}) and this load
+ * run on the {@value DependencyStorageService#QUEUE_STORE} singleton service and call
+ * {@link #replayIfFirst} before they touch the queue, so the replay needs no store to be opened
+ * by the callers and happens before the first queue change of a cluster run.
  */
 public class LoadRenameQueueTask extends LoadKeyValueTask<RenameTransformObject> {
    public LoadRenameQueueTask() {
@@ -48,13 +52,32 @@ public class LoadRenameQueueTask extends LoadKeyValueTask<RenameTransformObject>
       super.run();
 
       if(firstLoad) {
-         try {
-            dropLegacyQueue();
-            replayQueue();
-         }
-         catch(Exception e) {
-            LOG.error("Failed to replay the rename transform queue", e);
-         }
+         replay(getEngine(), getMap(), getCluster());
+      }
+   }
+
+   /**
+    * Replays the queue left by the previous cluster run if nothing has loaded or changed the
+    * queue since the cluster started. Must run on the {@value DependencyStorageService#QUEUE_STORE}
+    * singleton service.
+    */
+   static void replayIfFirst(KeyValueEngine engine, Map<String, RenameTransformObject> map,
+                             Cluster cluster)
+   {
+      if(map.isEmpty()) {
+         replay(engine, map, cluster);
+      }
+   }
+
+   private static void replay(KeyValueEngine engine, Map<String, RenameTransformObject> map,
+                              Cluster cluster)
+   {
+      try {
+         dropLegacyQueue(engine, map);
+         replayQueue(engine, map, cluster);
+      }
+      catch(Exception e) {
+         LOG.error("Failed to replay the rename transform queue", e);
       }
    }
 
@@ -63,8 +86,11 @@ public class LoadRenameQueueTask extends LoadKeyValueTask<RenameTransformObject>
     * its tasks may be years old; replaying them now could rewrite assets that were since
     * repaired or re-created under the old name.
     */
-   private void dropLegacyQueue() {
-      Object legacy = getEngine().get(getId(), DependencyStorageService.LEGACY_QUEUE_KEY);
+   private static void dropLegacyQueue(KeyValueEngine engine,
+                                       Map<String, RenameTransformObject> map)
+   {
+      String id = DependencyStorageService.QUEUE_STORE;
+      Object legacy = engine.get(id, DependencyStorageService.LEGACY_QUEUE_KEY);
 
       if(legacy == null) {
          return;
@@ -78,18 +104,20 @@ public class LoadRenameQueueTask extends LoadKeyValueTask<RenameTransformObject>
          }
       }
 
-      getEngine().remove(getId(), DependencyStorageService.LEGACY_QUEUE_KEY);
-      getMap().remove(DependencyStorageService.LEGACY_QUEUE_KEY);
+      engine.remove(id, DependencyStorageService.LEGACY_QUEUE_KEY);
+      map.remove(DependencyStorageService.LEGACY_QUEUE_KEY);
    }
 
-   private void replayQueue() {
-      RenameTransformQueue queue = getEngine().get(getId(), DependencyStorageService.QUEUE_KEY);
-      RenameTransformAttempts attempts =
-         getEngine().get(getId(), DependencyStorageService.ATTEMPTS_KEY);
+   private static void replayQueue(KeyValueEngine engine, Map<String, RenameTransformObject> map,
+                                   Cluster cluster)
+   {
+      String id = DependencyStorageService.QUEUE_STORE;
+      RenameTransformQueue queue = engine.get(id, DependencyStorageService.QUEUE_KEY);
+      RenameTransformAttempts attempts = engine.get(id, DependencyStorageService.ATTEMPTS_KEY);
 
       if(queue == null || queue.isEmpty()) {
          if(attempts != null && !attempts.isEmpty()) {
-            RenameTransformTask.putQueue(getEngine(), getMap(), new RenameTransformQueue(),
+            RenameTransformTask.putQueue(engine, map, new RenameTransformQueue(),
                                          new RenameTransformAttempts());
          }
 
@@ -121,12 +149,12 @@ public class LoadRenameQueueTask extends LoadKeyValueTask<RenameTransformObject>
       }
 
       attempts.retainAll(queued);
-      RenameTransformTask.putQueue(getEngine(), getMap(), queue, attempts);
+      RenameTransformTask.putQueue(engine, map, queue, attempts);
 
       for(RenameDependencyInfo info : replay) {
          LOG.info("Replaying rename transform task left in the queue: {}",
                   RenameTransformTask.describe(info));
-         getCluster().submit("renameTransform", new RenameTransformTask.Rename(info));
+         cluster.submit("renameTransform", new RenameTransformTask.Rename(info));
       }
    }
 
