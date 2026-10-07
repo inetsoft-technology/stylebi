@@ -227,8 +227,9 @@ public class IgniteSessionRepository
     *
     * <p>An expired session is still swept here. It is re-read through {@link #findById}, which
     * deletes it if it is still expired (so a session renewed by a concurrent request since the
-    * iteration is not deleted). Returns {@code null} for a session that is deleted or no longer
-    * exists.
+    * iteration is not deleted). Returns {@code null} only on that expired path, when the session
+    * is deleted or already gone. A live session is always returned as a wrapper of the iterated
+    * value, even if another thread deletes it concurrently.
     */
    private IgniteSession findIteratedSession(MapSession session) {
       if(session.isExpired()) {
@@ -552,7 +553,13 @@ public class IgniteSessionRepository
             // being left for Ignite's TTL; live sessions are read without renewing the TTL
             // (Bug #77886)
             if(sessionRemainingTime <= 0) {
-               findById(session.getId());
+               // one failed deletion must not skip the rest of the pass
+               try {
+                  findById(session.getId());
+               }
+               catch(RuntimeException e) {
+                  LOG.warn("Failed to delete expired session {}", session.getId(), e);
+               }
             }
             else {
                IgniteSession igniteSession = findIteratedSession(session);

@@ -91,6 +91,7 @@ package inetsoft.web.session;
  */
 
 import inetsoft.sree.RepletRepository;
+import inetsoft.sree.SreeEnv;
 import inetsoft.sree.ClientInfo;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.MockCluster;
@@ -858,6 +859,79 @@ class IgniteSessionRepositoryTest {
       verify(authenticationService, never()).logout(same(livePrincipal), anyString(), anyString());
       assertNull(rawSessions.get(expiredId), "getActiveSessions() must delete the expired session");
       assertNotNull(rawSessions.get(liveId), "the live session must be kept");
+   }
+
+   /**
+    * Bug #77886: the Ignite TTL of a session entry must outlast the session timeout by a margin.
+    * A session is ended (LOGOFF record, license release, SessionExpiredEvent) by a sweep that finds
+    * its expired MapSession still in the cache and deletes it. With TTL == timeout the entry
+    * vanished the moment the session expired, so no sweep could see it and, because Ignite's own
+    * expiry never reached entryExpired(), the session ended with no logout at all.
+    */
+   @Test
+   void expiryPolicy_keepsEntryPastSessionTimeoutForTheSweep() {
+      String oldTimeout = SreeEnv.getProperty("http.session.timeout");
+
+      try {
+         SreeEnv.setProperty("http.session.timeout", "60");
+         PropertyAccessedExpiryPolicy policy = new PropertyAccessedExpiryPolicy();
+         javax.cache.expiry.Duration ttl = new javax.cache.expiry.Duration(
+            TimeUnit.SECONDS, 60 + PropertyAccessedExpiryPolicy.TTL_MARGIN_SECONDS);
+
+         assertEquals(ttl, policy.getExpiryForCreation());
+         assertEquals(ttl, policy.getExpiryForAccess());
+         assertNull(policy.getExpiryForUpdate(), "an update must still leave the TTL unchanged");
+         assertTrue(PropertyAccessedExpiryPolicy.TTL_MARGIN_SECONDS >= 40,
+                    "the margin must cover at least two 20 s checkSessions periods");
+         assertEquals(java.time.Duration.ofSeconds(60),
+                      repository.createSession().getMaxInactiveInterval(),
+                      "the session itself still times out at http.session.timeout");
+      }
+      finally {
+         if(oldTimeout == null) {
+            SreeEnv.remove("http.session.timeout");
+         }
+         else {
+            SreeEnv.setProperty("http.session.timeout", oldTimeout);
+         }
+      }
+   }
+
+   /**
+    * Bug #77886: checkSessions() now deletes expired sessions inside its scan. One failed deletion
+    * must not abort the pass and leave the other expired sessions (and the expiring-soon warnings)
+    * for the next pass.
+    */
+   @Test
+   void checkSessions_continuesPassWhenOneDeletionFails() {
+      doThrow(new IllegalStateException("audit store down"))
+         .when(authenticationService).logout(any(), anyString(), anyString());
+      when(securityEngine.isActiveUser(any())).thenReturn(true);
+      List<String> ids = new ArrayList<>();
+
+      for(int i = 0; i < 2; i++) {
+         IgniteSessionRepository.IgniteSession session = repository.createSession();
+         session.setAttribute(RepletRepository.PRINCIPAL_COOKIE,
+                              mockPrincipal("user" + i, "127.0.0." + (i + 1)));
+         repository.save(session);
+         session.setLastAccessedTime(Instant.now().minus(session.getMaxInactiveInterval())
+                                        .minusSeconds(1));
+         repository.save(session);
+         ids.add(session.getId());
+      }
+
+      assertDoesNotThrow(() -> repository.checkSessions());
+
+      // two calls per session at most (deleteById, then the removal listener's entryExpired);
+      // what matters is that the pass reached the second session after the first one failed
+      verify(authenticationService, atLeast(2)).logout(any(), anyString(), anyString());
+      @SuppressWarnings("unchecked")
+      Cache<String, org.springframework.session.MapSession> rawSessions =
+         cluster.getCache(IgniteSessionRepository.DEFAULT_SESSION_MAP_NAME, true, null);
+
+      for(String id : ids) {
+         assertNull(rawSessions.get(id), "every expired session must be deleted in one pass");
+      }
    }
 
    /**
