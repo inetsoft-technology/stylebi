@@ -103,6 +103,19 @@ class ServerFilePathPolicyTest {
    }
 
    @Test
+   void fileUnderFolderIsReturnedOnlyWhenContained() {
+      String root = temp.resolve("data").toString();
+      File inside = new File(root + "/a/b/");
+      File outside = new File(root + "/../../");
+
+      assertSame(inside, ServerFilePathPolicy.getFileUnderFolder(root, inside));
+      assertNull(ServerFilePathPolicy.getFileUnderFolder(root, outside));
+      assertNull(ServerFilePathPolicy.getFileUnderFolder(root, null));
+      assertNull(ServerFilePathPolicy.getFileUnderFolder(null, inside));
+      assertSame(outside, ServerFilePathPolicy.getFileUnderFolder("/", outside));
+   }
+
+   @Test
    void rootsAreParsedFromTheProperty() {
       String a = temp.resolve("a").toString();
       String b = temp.resolve("b").toString();

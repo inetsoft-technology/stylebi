@@ -46,8 +46,11 @@ import java.util.function.*;
  * read for the user's organization (<code>inetsoft.org.&lt;org&gt;.data.file.allowed.roots</code>)
  * and falls back to the global value. Only a site admin can write it (EM Settings > Properties).
  * <p>
- * The policy is applied when a path is browsed or saved, never when a saved data source is
- * queried, so data sources that were saved before keep working.
+ * The allowed directories are checked when a path is browsed or saved, never when a saved data
+ * source is queried, so a data source that was saved before with a root folder keeps working.
+ * At query time the paths of a query are kept in the root folder of its data source (see
+ * {@link #isUnderFolder(Path, Path)}): a path outside it is refused, and a data source without
+ * a root folder reads no files.
  */
 public final class ServerFilePathPolicy {
    /**
@@ -292,6 +295,35 @@ public final class ServerFilePathPolicy {
       catch(Exception e) {
          LOG.debug("Failed to check if {} is under {}", candidate, root, e);
          return false;
+      }
+   }
+
+   /**
+    * Returns a file only when it is the folder or under it, as {@link #isUnderFolder(Path, Path)}
+    * checks. A folder of <code>/</code> stands for every drive of the server and contains any
+    * file. Callers use the returned value, never the file they passed in, so a path such as
+    * <code>../..</code> that leaves the folder is dropped here.
+    *
+    * @param folder the folder, such as the root folder of a data source.
+    * @param file   the file to check.
+    *
+    * @return the file, or <code>null</code> if it isn't under the folder or either is missing.
+    */
+   public static File getFileUnderFolder(String folder, File file) {
+      if(folder == null || file == null) {
+         return null;
+      }
+
+      if("/".equals(folder)) {
+         return file;
+      }
+
+      try {
+         return isUnderFolder(Paths.get(folder), file.toPath()) ? file : null;
+      }
+      catch(InvalidPathException e) {
+         LOG.debug("Failed to check if {} is under {}", file, folder, e);
+         return null;
       }
    }
 
