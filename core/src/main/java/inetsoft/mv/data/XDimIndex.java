@@ -487,6 +487,9 @@ public abstract class XDimIndex extends XSwappable {
             // a stub left by a failed write must be rewritten, not taken as a swapped copy.
             // the rewrite starts at 0 and writes the same data, so a stub tail is never read
             if(rewriteRequired || !file.exists()) {
+               // set before the file is created, so a stub is rewritten whatever is thrown
+               rewriteRequired = true;
+
                try(TransactionChannel channel = file.openWriteChannel()) {
                   write(channel, null);
                   channel.commit();
@@ -497,7 +500,6 @@ public abstract class XDimIndex extends XSwappable {
             LOG.error(ex.getMessage(), ex);
             // keep the data in memory, the swap file is not usable
             file.delete();
-            rewriteRequired = true;
             file = ofile;
             fpos = ofpos;
             return false;

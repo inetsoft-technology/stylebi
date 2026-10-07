@@ -28,7 +28,10 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.File;
+import java.io.IOException;
 import java.lang.reflect.Field;
+import java.nio.ByteBuffer;
+import java.nio.channels.WritableByteChannel;
 import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.function.BooleanSupplier;
@@ -314,6 +317,126 @@ class XDimSwapWriteFailureTest {
             col.file.delete();
          }
       }
+   }
+
+   // an Error (not an Exception) thrown after the swap file is created skips the catch,
+   // so the stub must still be marked for rewrite
+
+   @Test
+   void dictionaryRewritesStubAfterErrorDuringWrite() throws Exception {
+      XDimDictionary dict = newDict();
+      File file = dictFile(dict);
+
+      try {
+         dict.testBeforeWrite = () -> {
+            throw new OutOfMemoryError("simulated");
+         };
+
+         assertThrows(OutOfMemoryError.class, dict::swap);
+         dict.testBeforeWrite = null;
+         assertTrue(file.exists(), "setup: the failed write must leave a stub");
+         assertEquals("Boston", dict.getValue(0), "values lost after a failed swap write");
+
+         assertTrue(dict.swap());
+         assertTrue(file.length() > 0, "the stub must be rewritten, not taken as swapped");
+         assertEquals("Boston", dict.getValue(0));
+         assertEquals("Chicago", dict.getValue(1));
+      }
+      finally {
+         dict.dispose();
+      }
+   }
+
+   @Test
+   void indexRewritesStubAfterErrorDuringWrite() throws Exception {
+      ErrorOnWriteDimIndex index = new ErrorOnWriteDimIndex();
+      index.addKey(2, 0);
+      index.addKey(5, 1);
+      index.addKey(2, 2);
+      index.complete();
+      // only the test thread swaps it
+      XSwapper.getSwapper().deregister(index);
+      File file = indexFile(index);
+
+      try {
+         index.error = new OutOfMemoryError("simulated");
+
+         assertThrows(OutOfMemoryError.class, index::swap);
+         assertTrue(file.exists(), "setup: the failed write must leave a stub");
+         assertDictIndexRows(index);
+
+         assertTrue(index.swap());
+         assertFalse(index.isValid());
+         assertTrue(file.length() > 0, "the stub must be rewritten, not taken as swapped");
+         assertDictIndexRows(index);
+      }
+      finally {
+         index.dispose();
+      }
+   }
+
+   @Test
+   void measureFragmentFailsAfterAnotherFragmentWasSwapped() throws Exception {
+      int size = AbstractMeasureColumn.BLOCK_SIZE;
+      MVDoubleColumn col = newMeasureColumn(size * 2);
+      MVDecimalColumn.Fragment fragment0 = col.fragments[0];
+      MVDecimalColumn.Fragment fragment1 = col.fragments[1];
+
+      try {
+         // fragment 0 is written to the shared column file, then fragment 1 fails
+         assertTrue(fragment0.swap());
+         assertFalse(swapInterrupted(fragment1::swap));
+         assertEquals(size + 3.5, col.getValue(size + 3), "values lost after a failed swap write");
+         assertEquals(7.5, col.getValue(7), "the written fragment must still read back");
+
+         assertTrue(fragment0.swap());
+         assertTrue(fragment1.swap());
+         assertFalse(fragment0.isValid());
+         assertFalse(fragment1.isValid());
+         assertEquals(7.5, col.getValue(7));
+         assertEquals(size - 0.5, col.getValue(size - 1));
+         assertEquals(size + 3.5, col.getValue(size + 3));
+         assertEquals(2 * size - 0.5, col.getValue(2 * size - 1));
+      }
+      finally {
+         fragment0.dispose();
+         fragment1.dispose();
+         col.dispose();
+
+         if(col.file != null) {
+            col.file.delete();
+         }
+      }
+   }
+
+   private static void assertDictIndexRows(DictDimIndex index) {
+      BitSet rows2 = index.getRows(2, false);
+      assertTrue(rows2.get(0));
+      assertTrue(rows2.get(2));
+      assertTrue(index.getRows(5, false).get(1));
+   }
+
+   /**
+    * A dict index whose write throws the given Error once, after the swap file is created.
+    */
+   private static final class ErrorOnWriteDimIndex extends DictDimIndex {
+      ErrorOnWriteDimIndex() {
+         super(8);
+      }
+
+      @Override
+      public ByteBuffer write(WritableByteChannel channel, ByteBuffer sbuf) throws IOException {
+         Error error = this.error;
+
+         if(error != null) {
+            this.error = null;
+            throw error;
+         }
+
+         return super.write(channel, sbuf);
+      }
+
+      Error error;
    }
 
    /**
