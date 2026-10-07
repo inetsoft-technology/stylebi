@@ -80,7 +80,7 @@ import static org.mockito.Mockito.*;
                                   PermissionMatrixOrgLifecycleTest.CopyOnReadClusterConfig.class },
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
-@Tag("core")
+@Tag("slow")
 class IdentityServiceDeleteLeftoverPermissionTest {
    private static final String ORG = "o77834";
    private static final String OTHER_ORG = "o77834other";
