@@ -316,6 +316,23 @@ class DataSourcePathClashModelEntriesTest {
                            "LOGIC_MODEL rcP/n"), diff(after, before));
    }
 
+   // Bug #77920: the two-argument rename renames the model and keeps its description
+   @Test
+   void renameLogicalModelTwoArgKeepsDescription() {
+      addSource("r2P");
+      XLogicalModel model = new XLogicalModel("m");
+      model.setDescription("desc77920");
+      model("r2P").addLogicalModel(model);
+      registry.clearCache();
+
+      registry.getDataModel("r2P").renameLogicalModel("m", "n");
+
+      assertNull(registry.getDataModel("r2P").getLogicalModel("m"));
+      XLogicalModel renamed = registry.getDataModel("r2P").getLogicalModel("n");
+      assertNotNull(renamed);
+      assertEquals("desc77920", renamed.getDescription());
+   }
+
    // S7: P lists only its own views, VPMs and extended views, and the portal lists them
    @Test
    void modelListingsOnClash() throws Exception {

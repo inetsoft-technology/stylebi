@@ -39,7 +39,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * The asset dependency and rename pipeline under inetsoft.uql.asset.sync, the delete
  * dependency checkers under inetsoft.uql.asset.delete, and the logical model renames that
  * start the pipeline, are refused to a sheet script on every route. Java callers are
- * unaffected. (Bug #77852)
+ * unaffected. (Bug #77852) The two-argument logical model rename delegates to the guarded
+ * rename instead of calling itself. (Bug #77920)
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class },
@@ -168,6 +169,15 @@ class ScriptRenamePipelineAccessTest {
       assertErrorContains(result, RENAME_REFUSED);
    }
 
+   /** Refused by the guard, not a StackOverflowError (Bug #77920). */
+   @Test
+   void dataModelTwoArgRenameRefused() throws Exception {
+      Object result = run("new (Java.type('inetsoft.uql.erm.XDataModel'))('ds77852')" +
+                             ".renameLogicalModel('none77852', 'none77852b'); 'renamed'");
+
+      assertErrorContains(result, RENAME_REFUSED);
+   }
+
    @Test
    void logicalModelRenameRefused() throws Exception {
       Object result = run("new (Java.type('inetsoft.uql.erm.XLogicalModel'))('lm77852')" +
@@ -197,6 +207,8 @@ class ScriptRenamePipelineAccessTest {
    void logicalModelRenamesUsableFromJava() {
       assertDoesNotThrow(() -> new XDataModel("ds77852")
          .renameLogicalModel("none77852", "none77852b", null));
+      assertDoesNotThrow(() -> new XDataModel("ds77852")
+         .renameLogicalModel("none77852", "none77852b"));
       // the guard lets a Java caller through; whatever the body then does with the null
       // model, it is not the guard's refusal
       Throwable thrown = null;

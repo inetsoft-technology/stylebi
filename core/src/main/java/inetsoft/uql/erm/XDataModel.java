@@ -150,8 +150,14 @@ public class XDataModel implements Cloneable, Serializable, XDomain,
       return list.toArray(filters);
    }
 
+   /**
+    * Rename a logical model in this data model, keeping its description.
+    *
+    * @param oldName the old name of the logical model.
+    * @param newName the new name of the logical model.
+    */
    public void renameLogicalModel(String oldName, String newName) {
-      renameLogicalModel(oldName, newName);
+      renameLogicalModel(oldName, newName, null);
    }
 
    /**
