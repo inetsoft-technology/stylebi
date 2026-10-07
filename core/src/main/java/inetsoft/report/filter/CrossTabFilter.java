@@ -31,6 +31,7 @@ import inetsoft.report.style.TableStyle;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.AggregateFormula;
 import inetsoft.uql.asset.internal.ColumnIndexMap;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.*;
@@ -2276,6 +2277,14 @@ public class CrossTabFilter extends AbstractTableLens
 
          if(swapFailure != null) {
             throw swapFailure;
+         }
+
+         // nor a base that failed to load, for a reader that has to fail, e.g. a scheduled
+         // run; the failure was logged where it happened (bug #77901)
+         TableLoadException loadFailure = TableLoadException.find(ex);
+
+         if(loadFailure != null) {
+            throw loadFailure;
          }
 
          LOG.error("Failed to process crosstab filter", ex);

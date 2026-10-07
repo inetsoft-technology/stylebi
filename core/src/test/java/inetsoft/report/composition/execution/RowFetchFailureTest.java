@@ -29,6 +29,10 @@ import inetsoft.mv.fs.XServerNode;
 import inetsoft.report.TableLens;
 import inetsoft.report.XSessionManager;
 import inetsoft.report.composition.graph.VSDataSet;
+import inetsoft.report.filter.CrossTabFilter;
+import inetsoft.report.filter.Formula;
+import inetsoft.report.filter.SumFormula;
+import inetsoft.report.filter.SummaryFilter;
 import inetsoft.report.internal.Util;
 import inetsoft.report.lens.xnode.XNodeTableLens;
 import inetsoft.sree.SreeEnv;
@@ -45,6 +49,7 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.Config;
 import inetsoft.uql.util.Drivers;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.uql.util.XSessionService;
 import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.TableVSAssembly;
@@ -324,6 +329,77 @@ class RowFetchFailureTest {
       RuntimeException ex = assertThrows(RuntimeException.class, () -> dataRows(
          box.getTableLens("T1", AssetQuerySandbox.RUNTIME_MODE, vars)));
       assertTrue(String.valueOf(ex.getMessage()).contains(DB_MESSAGE), String.valueOf(ex));
+   }
+
+   /**
+    * An aggregate computed in memory reads the base on a worker, which must not take the
+    * worker's load failure for the end of the table in a scheduled run (review r1 I1).
+    */
+   @Test
+   void scheduledSummaryFails() throws Exception {
+      TableLens base = baseLens(true, true);
+      SummaryFilter summary = summary(base);
+
+      RuntimeException ex = assertThrows(RuntimeException.class, () -> dataRows(summary));
+      assertNotNull(TableLoadException.find(ex), String.valueOf(ex));
+      assertTrue(String.valueOf(ex.getMessage()).contains(DB_MESSAGE), String.valueOf(ex));
+   }
+
+   @Test
+   void interactiveSummaryWarns() throws Exception {
+      TableLens base = baseLens(true, false);
+      SummaryFilter summary = summary(base);
+
+      assertTrue(dataRows(summary) > 0);
+      assertWarned();
+   }
+
+   @Test
+   void scheduledSuccessfulSummaryIsUnchanged() throws Exception {
+      TableLens base = baseLens(false, true);
+      SummaryFilter summary = summary(base);
+
+      assertTrue(dataRows(summary) > 0);
+      assertNull(CoreTool.getUserMessage());
+   }
+
+   @Test
+   void scheduledCrosstabFails() throws Exception {
+      TableLens base = baseLens(true, true);
+      CrossTabFilter crosstab = new CrossTabFilter(base, 1, 1, 0, new SumFormula());
+
+      RuntimeException ex = assertThrows(RuntimeException.class, () -> dataRows(crosstab));
+      assertNotNull(TableLoadException.find(ex), String.valueOf(ex));
+   }
+
+   @Test
+   void interactiveCrosstabWarns() throws Exception {
+      TableLens base = baseLens(true, false);
+      CrossTabFilter crosstab = new CrossTabFilter(base, 1, 1, 0, new SumFormula());
+
+      assertTrue(dataRows(crosstab) > 0);
+      assertWarned();
+   }
+
+   private static TableLens baseLens(boolean fail, boolean scheduler) throws Exception {
+      Worksheet ws = new Worksheet();
+      sqlTable(ws, "T1", fail);
+      AssetQuerySandbox box = new AssetQuerySandbox(ws);
+      VariableTable vars = new VariableTable();
+
+      if(scheduler) {
+         vars.put("__is_scheduler__", Boolean.TRUE);
+      }
+
+      TableLens base = box.getTableLens("T1", AssetQuerySandbox.RUNTIME_MODE, vars);
+      assertNotNull(base, "the query failed, see the log");
+      return base;
+   }
+
+   // the sum of id by g
+   private static SummaryFilter summary(TableLens base) {
+      return new SummaryFilter(base, new int[] { 1 }, new int[] { 0 },
+                               new Formula[] { new SumFormula() }, null);
    }
 
    @Test

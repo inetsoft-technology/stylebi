@@ -117,7 +117,10 @@ public class XNodeTable implements XTable {
     * Check the table to see if it is cancelled.
     */
    public synchronized boolean isCancelled() {
-      return cancelled;
+      // a load failure is kept before the readers are woken, while cancelled is set by the
+      // loader's catch after it, so a cache check right after the end of the rows never takes
+      // the truncated table for a complete one (Bug #77901)
+      return cancelled || loadException != null;
    }
 
    /**
@@ -689,15 +692,6 @@ public class XNodeTable implements XTable {
             // kept before complete() below wakes a reader waiting for the rows, so the reader
             // sees the failure when it finds no more rows
             setLoadException(ex);
-
-            // mark the table cancelled before complete() too, as the caller's catch does
-            // afterwards, so a reader woken at the end of the rows (or a cache check) never
-            // takes the truncated table for a complete one (Bug #77901). A ClassCastException
-            // is rethrown to the reader by moreRows instead (see the background catch).
-            if(!(ex instanceof ClassCastException)) {
-               cancelled = true;
-            }
-
             throw ex;
          }
          finally {

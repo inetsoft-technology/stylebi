@@ -29,6 +29,7 @@ import inetsoft.uql.*;
 import inetsoft.uql.asset.internal.ColumnIndexMap;
 import inetsoft.uql.jdbc.JDBCTableNode;
 import inetsoft.uql.table.XSwappableTable;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.uql.util.XNodeTable;
 import inetsoft.uql.util.XTableTableNode;
 import inetsoft.util.*;
@@ -193,7 +194,7 @@ public class XNodeTableLens extends AbstractTableLens
       }
 
       if(failOnLoadException) {
-         throw new RuntimeException(getRootCauseMessage(loadException), loadException);
+         throw new TableLoadException(getRootCauseMessage(loadException), loadException);
       }
 
       String message = Catalog.getCatalog().getString("common.table.getDataFailed") + ": " +
