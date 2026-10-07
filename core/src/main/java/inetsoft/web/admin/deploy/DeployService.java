@@ -875,7 +875,7 @@ public class DeployService {
          // Bug #77862, the owner comes from the client and the asset is read from the owner's
          // storage, so check the asset as the export/check-permission preflight does
          if(!keptAssets.contains(asset.toIdentifier())) {
-            checkEntityPermitted(model, principal);
+            checkEntityPermitted(model, asset, principal);
          }
 
          if(!assets.contains(asset)) {
@@ -886,12 +886,18 @@ public class DeployService {
       return assets;
    }
 
-   private void checkEntityPermitted(SelectedAssetModel model, Principal principal) {
+   private void checkEntityPermitted(SelectedAssetModel model, XAsset asset,
+                                     Principal principal)
+   {
       String type = repositoryEntryTypeToAssetType(model.type());
       IdentityID user = getEntryAssetUser(model);
       RepositoryOwnerOrgCheck.checkOwnerOrg(user, principal);
+      // Bug #77923, #77924, check the task or auto-save asset that is written
+      boolean permitted = isOwnerDerivedAsset(asset) ?
+         XAssetExportPermission.isPermitted(asset, asset.getPath(), true, principal) :
+         isEntityPermitted(model.path(), user, type, principal);
 
-      if(principal == null || !isEntityPermitted(model.path(), user, type, principal)) {
+      if(principal == null || !permitted) {
          throw new MessageException(noPermissionMessage(model.path(), principal));
       }
    }
@@ -901,25 +907,35 @@ public class DeployService {
     * or an auto-save asset is resolved from the stored task or the file name, the client-supplied
     * owner is ignored. The other assets are checked by {@link #checkAssetOwner}.
     *
+    * @param required the dependent asset as it is written to the export.
+    *
     * @throws MessageException if the caller may not export the asset.
     */
-   public void checkDependentAsset(RequiredAssetModel model, Principal principal) {
-      String type = model.type();
+   public void checkDependentAsset(PartialDeploymentJarInfo.RequiredAsset required,
+                                   Principal principal)
+   {
+      // Bug #77923, #77924, the writers of these assets ignore the owner of the model. Check the
+      // asset the writer builds, which may take its path from the detail description.
+      XAsset asset = DeployUtil.getAsset(required);
 
-      // Bug #77923, #77924, the writers of these assets ignore the owner of the model
-      if(ScheduleTaskAsset.SCHEDULETASK.equals(type) || VSAutoSaveAsset.AUTOSAVEVS.equals(type) ||
-         WSAutoSaveAsset.AUTOSAVEWS.equals(type))
-      {
-         XAsset asset = SUtil.getXAsset(type, model.name(), model.user());
-
-         if(!XAssetExportPermission.isPermitted(asset, model.name(), false, principal)) {
-            throw new MessageException(noPermissionMessage(model.name(), principal));
+      if(isOwnerDerivedAsset(asset)) {
+         if(!XAssetExportPermission.isPermitted(asset, asset.getPath(), false, principal)) {
+            throw new MessageException(noPermissionMessage(asset.getPath(), principal));
          }
 
          return;
       }
 
-      checkAssetOwner(model.user(), model.name(), principal);
+      checkAssetOwner(required.getUser(), required.getPath(), principal);
+   }
+
+   /**
+    * Whether the writer of an asset ignores {@link XAsset#getUser()}, the owner is resolved from
+    * the stored task or the auto-save file name.
+    */
+   private static boolean isOwnerDerivedAsset(XAsset asset) {
+      return asset instanceof ScheduleTaskAsset || asset instanceof VSAutoSaveAsset ||
+         asset instanceof WSAutoSaveAsset;
    }
 
    /**

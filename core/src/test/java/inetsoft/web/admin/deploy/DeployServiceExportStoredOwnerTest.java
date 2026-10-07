@@ -80,7 +80,9 @@ class DeployServiceExportStoredOwnerTest {
    private static final String ORG_B = "dxsorgb";
    private static final IdentityID DAVE = new IdentityID("dave", ORG_A);
    private static final IdentityID BOB = new IdentityID("bob", ORG_B);
+   private static final IdentityID CAROL = new IdentityID("carol", ORG_A);
    private static final String DAVE_TASK = DAVE.convertToKey() + ":daveSecret";
+   private static final String CAROL_TASK = CAROL.convertToKey() + ":carolOwn";
    private static final String BOB_TASK = BOB.convertToKey() + ":bobSecret";
    private static final String MISSING_TASK = DAVE.convertToKey() + ":noSuchTask";
    private static final String BACKUP = "__asset file backup__";
@@ -115,6 +117,7 @@ class DeployServiceExportStoredOwnerTest {
    private String vsFile;       // repository tree paths of the recycled auto-saves
    private String wsFile;
    private String nullFile;
+   private String carolFile;    // carol's own recycled auto-save, a decoy she may export
    private int exportCount;
 
    @BeforeAll
@@ -139,6 +142,7 @@ class DeployServiceExportStoredOwnerTest {
       ScheduleManager manager = ScheduleManager.getScheduleManager();
       storeTask(manager, userTask("daveSecret", DAVE), ORG_A, false);
       storeTask(manager, userTask("bobSecret", BOB), ORG_B, false);
+      storeTask(manager, userTask("carolOwn", CAROL), ORG_A, false);
 
       ScheduleTask cycle = new ScheduleTask(
          "DataCycle Task: dxsCycle", ScheduleTask.Type.CYCLE_TASK);
@@ -169,6 +173,8 @@ class DeployServiceExportStoredOwnerTest {
       writeAutoSave(vsFile, VS_SECRET);
       writeAutoSave(wsFile, WS_SECRET);
       writeAutoSave(nullFile, NULL_SECRET);
+      carolFile = "8^VIEWSHEET^" + CAROL.convertToKey() + "^Mine^127_0_0_1~";
+      writeAutoSave(carolFile, "CAROL-OWN-UNSAVED-VS");
    }
 
    @AfterAll
@@ -413,6 +419,45 @@ class DeployServiceExportStoredOwnerTest {
       assertFalse(as(sadm, () -> XAssetExportPermission.isPermitted(asset, "x", true, sadm)));
    }
 
+   // ── dependents whose written path comes from the detail description ────
+
+   // DeployUtil.getAsset() replaces the path of a dependent of any type with the name in a
+   // "TableStyleAsset:[...]" detail description, the check must run on that asset
+   @Test
+   void decoyDependents_withoutDetailDescription_areExported() throws Exception {
+      Map<String, String> entries = export(carol, List.of(), List.of(
+         required(CAROL_TASK, "SCHEDULETASK", CAROL), required(carolFile, "AUTOSAVEVS", CAROL)));
+
+      assertTrue(entries.values().stream().anyMatch(v -> v.contains("carolOwn")),
+                 entries.keySet().toString());
+      assertTrue(entries.values().stream().anyMatch(v -> v.contains("CAROL-OWN-UNSAVED-VS")),
+                 entries.keySet().toString());
+   }
+
+   @Test
+   void task_decoyDependentWithVictimDetailDescription_isRefused() {
+      assertRefused(carol, List.of(), List.of(decoy(CAROL_TASK, "SCHEDULETASK", DAVE_TASK)));
+      assertRefused(carol, List.of(), List.of(decoy(CAROL_TASK, "SCHEDULETASK", BACKUP)));
+   }
+
+   @Test
+   void autoSave_decoyDependentWithVictimDetailDescription_isRefused() {
+      assertRefused(carol, List.of(), List.of(decoy(carolFile, "AUTOSAVEVS", vsFile)));
+      assertRefused(carol, List.of(), List.of(decoy(carolFile, "AUTOSAVEVS", nullFile)));
+   }
+
+   @Test
+   void decoyDependentWithVictimDetailDescription_isExportedForOwner() throws Exception {
+      // the check follows the written asset, dave may export his own task and file
+      Map<String, String> entries = export(dave, List.of(), List.of(
+         decoy(CAROL_TASK, "SCHEDULETASK", DAVE_TASK), decoy(carolFile, "AUTOSAVEVS", vsFile)));
+
+      assertTrue(entries.values().stream().anyMatch(v -> v.contains("daveSecret")),
+                 entries.keySet().toString());
+      assertTrue(entries.values().stream().anyMatch(v -> v.contains(VS_SECRET)),
+                 entries.keySet().toString());
+   }
+
    // ── helpers ─────────────────────────────────────────────────────────────
 
    private void assertRefused(SRPrincipal caller, List<SelectedAssetModel> selected,
@@ -557,6 +602,13 @@ class DeployServiceExportStoredOwnerTest {
          .type(type)
          .user(owner)
          .lastModifiedTime(0)
+         .build();
+   }
+
+   private static RequiredAssetModel decoy(String name, String type, String writtenPath) {
+      return RequiredAssetModel.builder()
+         .from(required(name, type, CAROL))
+         .detailDescription("TableStyleAsset:[" + writtenPath + "]")
          .build();
    }
 

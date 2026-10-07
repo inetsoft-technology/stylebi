@@ -154,14 +154,14 @@ public class ExportAssetService {
       // dependents resolve in the current organization and are not checked, a legitimate
       // dependency list holds global data sources and the like the caller may not administer.
       // Bug #77923, #77924, a schedule task or an auto-save asset is checked against its stored
-      // owner, whatever owner the client sends.
-      for(RequiredAssetModel model : assetData) {
-         deployService.checkDependentAsset(model, principal);
-      }
-
+      // owner, whatever owner the client sends, as the asset is written.
       List<PartialDeploymentJarInfo.RequiredAsset> assetDataArray = assetData.stream()
          .map(this::createRequiredAsset)
          .collect(Collectors.toList());
+
+      for(PartialDeploymentJarInfo.RequiredAsset required : assetDataArray) {
+         deployService.checkDependentAsset(required, principal);
+      }
 
       PartialDeploymentJarInfo info = new PartialDeploymentJarInfo();
       info.setName(name);

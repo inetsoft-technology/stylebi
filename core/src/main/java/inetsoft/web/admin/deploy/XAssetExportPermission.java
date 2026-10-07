@@ -105,7 +105,7 @@ public final class XAssetExportPermission {
          }
       }
       catch(SecurityException e) {
-         LOG.debug("Failed to check the permission on {} for {}", asset, principal, e);
+         LOG.warn("Failed to check the permission on {} for {}, refusing it", asset, principal, e);
          return false;
       }
    }
@@ -131,7 +131,8 @@ public final class XAssetExportPermission {
                principal, ResourceType.SECURITY_USER, owner, ResourceAction.ADMIN);
       }
       catch(SecurityException e) {
-         LOG.debug("Failed to check the permission on user {} for {}", owner, principal, e);
+         LOG.warn("Failed to check the permission on user {} for {}, refusing it", owner, principal,
+                  e);
          return false;
       }
    }
