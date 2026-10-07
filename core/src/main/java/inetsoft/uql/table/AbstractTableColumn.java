@@ -58,10 +58,13 @@ public abstract class AbstractTableColumn implements XTableColumn, XSerializable
    public abstract void copyFromBuffer(ByteBuffer buf);
 
    /**
-    * Called to swap data to a file.
+    * Called to write data to a swap file. The data is kept in memory, the caller invalidates
+    * the column once the whole file is written (bug #77948).
     */
    @Override
    public synchronized void swap(File file, FileChannel fc) throws Exception {
+      // no swap data until the write below has succeeded
+      this.swapsize = 0;
       this.swapfile = file;
       this.swappos = fc.position();
       ByteBuffer buf0 = copyToBuffer();
@@ -77,11 +80,17 @@ public abstract class AbstractTableColumn implements XTableColumn, XSerializable
          fc.write(buf);
          swapsize = size;
          ByteBufferPool.releaseByteBuffer(buf0);
-         invalidate();
       }
-      else {
-         swapsize = 0;
-      }
+   }
+
+   /**
+    * Check if the data of this column is in its swap file. It is not when the column could
+    * not be copied to a buffer (copyToBuffer() returned null) or the write failed, and the
+    * column must then stay in memory (bug #77948).
+    */
+   @Override
+   public synchronized boolean hasSwapData() {
+      return swapsize > 0;
    }
 
    /**
