@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.schedule;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.sree.AnalyticRepository;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.*;
@@ -52,6 +53,9 @@ import static org.mockito.Mockito.*;
  * that the import replaces already stores the same user name and password for the same server.
  * Otherwise it's cleared. Both the viewsheet action save-to-server path and the backup action
  * server path are covered.
+ *
+ * Bug #77950, the response warns about each saved task whose passwords were cleared, named by its
+ * task name, so the import dialog doesn't report a plain success.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = BaseTestConfiguration.class,
@@ -114,6 +118,7 @@ class ImportTaskStoredPasswordTest {
       ScheduleTask imported = importTask(export("Nightly", STORED_HOST), true);
 
       assertPasswords(imported, STORED_HOST, STORED);
+      assertEquals(List.of(), response.warnings());
    }
 
    @Test
@@ -123,6 +128,7 @@ class ImportTaskStoredPasswordTest {
       ScheduleTask imported = importTask(export("Nightly", OTHER_HOST), true);
 
       assertPasswords(imported, OTHER_HOST, "");
+      assertClearedWarning("Nightly");
    }
 
    // the stored task has the same server, but not with this password
@@ -164,6 +170,7 @@ class ImportTaskStoredPasswordTest {
       assertEquals("ftp://" + OTHER_HOST + "/backup", backupPath.getPath());
       assertEquals(STORED, vsPath.getPassword(), "save-to-server password");
       assertEquals("", backupPath.getPassword(), "backup password");
+      assertClearedWarning("Nightly");
    }
 
    // a copy replaces no stored task, so there is nothing that already holds the password
@@ -175,6 +182,7 @@ class ImportTaskStoredPasswordTest {
 
       assertEquals("alice~;~" + ORG_A + ":Copy", imported.getTaskId());
       assertPasswords(imported, OTHER_HOST, "");
+      assertClearedWarning("Copy");
    }
 
    @Test
@@ -184,6 +192,7 @@ class ImportTaskStoredPasswordTest {
       ScheduleTask imported = importTask(export("Copy", STORED_HOST), false);
 
       assertPasswords(imported, STORED_HOST, "");
+      assertClearedWarning("Copy");
    }
 
    // site admins aren't restricted, the same as the other import checks
@@ -195,6 +204,7 @@ class ImportTaskStoredPasswordTest {
       ScheduleTask imported = importTask(export("Nightly", OTHER_HOST), true);
 
       assertPasswords(imported, OTHER_HOST, STORED);
+      assertEquals(List.of(), response.warnings());
    }
 
    private ScheduleTask importTask(String taskXml, boolean overwriting) throws Exception {
@@ -207,13 +217,27 @@ class ImportTaskStoredPasswordTest {
       List<ScheduleTask> parsed = (List<ScheduleTask>) sessionAttrs.get(INFO_ATTR);
       List<String> ids = parsed.stream().map(ScheduleTask::getTaskId).toList();
 
-      ImportTaskResponse response =
+      response =
          controller.importScheduleTask(ids, request, overwriting, "http://host", caller);
 
       assertTrue(response.failedTasks().isEmpty(), response.failedTasks().toString());
       ArgumentCaptor<ScheduleTask> captor = ArgumentCaptor.forClass(ScheduleTask.class);
       verify(scheduleManager).setScheduleTask(anyString(), captor.capture(), any(Principal.class));
       return captor.getValue();
+   }
+
+   /**
+    * The response warns once about the saved task, by its name and not its id, and the import
+    * is still not failed.
+    */
+   private void assertClearedWarning(String taskName) throws Exception {
+      assertFalse(response.failed());
+      assertEquals(1, response.warnings().size(), response.warnings().toString());
+      String warning = response.warnings().get(0);
+      assertTrue(warning.contains("schedule task " + taskName + " "), warning);
+      assertFalse(warning.contains("~;~"), warning);
+      String json = new ObjectMapper().writeValueAsString(response);
+      assertTrue(json.contains("\"warnings\":[\"" + warning + "\"]"), json);
    }
 
    private static void assertPasswords(ScheduleTask task, String host, String password) {
@@ -261,6 +285,7 @@ class ImportTaskStoredPasswordTest {
    private OrganizationManager orgManager;
    private MockedStatic<OrganizationManager> orgStatic;
    private ImportTaskController controller;
+   private ImportTaskResponse response;
    private HttpServletRequest request;
    private XPrincipal caller;
    private final Map<String, Object> sessionAttrs = new HashMap<>();
