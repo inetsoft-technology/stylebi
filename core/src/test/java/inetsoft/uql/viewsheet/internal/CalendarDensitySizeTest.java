@@ -22,6 +22,7 @@ import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.CalendarVSAssembly;
+import inetsoft.uql.viewsheet.TabVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,6 +31,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.Dimension;
+import java.awt.Point;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -226,6 +228,52 @@ class CalendarDensitySizeTest {
       VizModernizeUtil.reseed(vs);
 
       assertEquals(new Dimension(300, 300), info(calendar).getPixelSize());
+   }
+
+   // a bottom-tabs strip sits under its children, so a child the density resizes has to move
+   private static TabVSAssembly bottomTabs(Viewsheet vs, String... children) {
+      TabVSAssembly tab = new TabVSAssembly(vs, "Tab1");
+      TabVSAssemblyInfo tabInfo = (TabVSAssemblyInfo) tab.getVSAssemblyInfo();
+      tabInfo.setPixelOffset(new Point(78, 722));
+      tabInfo.setPixelSize(new Dimension(400, 24));
+      tabInfo.setBottomTabsValue(true);
+      vs.addAssembly(tab);
+      tab.setAssemblies(children);
+      return tab;
+   }
+
+   @Test
+   void aDensityChangeKeepsABottomTabsCalendarOnTheStrip() {
+      CalendarVSAssembly calendar = created("compact", VizMark.MODERN_LIGHT);
+      info(calendar).setPixelOffset(new Point(78, 422));
+      Viewsheet vs = calendar.getViewsheet();
+      bottomTabs(vs, calendar.getName());
+
+      vs.getViewsheetInfo().setVizDensity("comfortable");
+      VizModernizeUtil.reseed(vs);
+      assertEquals(new Dimension(300, 332), info(calendar).getPixelSize());
+      assertEquals(new Point(78, 722 - 332), info(calendar).getPixelOffset());
+
+      vs.getViewsheetInfo().setVizDensity("dense");
+      VizModernizeUtil.reseed(vs);
+      assertEquals(new Point(78, 722 - 266), info(calendar).getPixelOffset());
+   }
+
+   // only a box the density moved is re-flushed; an author's placement is left alone
+   @Test
+   void aDensityChangeLeavesAnUnresizedBottomTabsChildWhereItIs() {
+      CalendarVSAssembly calendar = created("compact", VizMark.MODERN_LIGHT);
+      info(calendar).setPixelSize(new Dimension(300, 380));
+      info(calendar).setUserSize(true);
+      info(calendar).setPixelOffset(new Point(78, 300));
+      Viewsheet vs = calendar.getViewsheet();
+      bottomTabs(vs, calendar.getName());
+
+      vs.getViewsheetInfo().setVizDensity("comfortable");
+      VizModernizeUtil.reseed(vs);
+
+      assertEquals(new Dimension(300, 380), info(calendar).getPixelSize());
+      assertEquals(new Point(78, 300), info(calendar).getPixelOffset());
    }
 
    // guards: these paths must never resize, before or after the reseed change
