@@ -166,6 +166,22 @@ class TableStyleRenameMoveRegressionTest {
    }
 
    @Test
+   void moveNestedStyleIntoOtherNestedFolder() throws Exception {
+      String c = A + "~RgC77837";
+
+      if(!manager.containsFolder(c)) {
+         manager.addTableStyleFolder(c);
+         manager.save();
+      }
+
+      addStyle("RgMv4x77837", B + "~RgMv4_77837");
+      MessageCommand r = allow(() -> move(styleEntry("RgMv4x77837"), c));
+
+      assertNull(r, () -> r.getMessage());
+      assertEquals(c + "~RgMv4_77837", manager.getTableStyle("RgMv4x77837").getName());
+   }
+
+   @Test
    void moveOntoExistingNameInTargetIsRefusedAsDuplicate() throws Exception {
       addStyle("RgMvDA77837", A + "~RgMvD77837");
       addStyle("RgMvDB77837", "RgMvD77837");
