@@ -218,6 +218,25 @@ class IdentityServiceDroppedMemberRemoveFailureTest {
       verify(themeService).removeIdentity(eq("alice"), eq(ORG), any());
    }
 
+   // the fallback removes the role but cannot remove its permissions: the own key left behind is
+   // reported to the administrator, not only the generic cleanup failure
+   @Test
+   void dropRole_firstRemoveFails_permissionCleanupFails_leftoverReported() throws Exception {
+      doThrow(new RuntimeException("storage remove failed")).doCallRealMethod()
+         .when(provider).removeRole(VIEWER);
+      doThrow(new RuntimeException("permissions unavailable"))
+         .when(service).updateIdentityPermissions(
+            eq(Identity.ROLE), eq(VIEWER), isNull(), any(), any(), anyBoolean());
+
+      dropMember(VIEWER);
+
+      assertNull(authc.getRole(VIEWER), "the role is removed");
+      assertNotNull(authz.getPermission(ResourceType.SECURITY_ROLE, VIEWER.convertToKey(), ORG));
+      UserMessage message = Tool.getUserMessage();
+      assertNotNull(message, "the leftover must be reported");
+      assertTrue(message.getMessage().contains("viewer was deleted"), message.getMessage());
+   }
+
    // ---- the member is already gone when the fallback looks for it --------------------------
 
    // the storage remove times out and completes after the provider found the role still stored:
