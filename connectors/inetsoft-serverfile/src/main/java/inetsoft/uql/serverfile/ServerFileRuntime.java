@@ -21,6 +21,8 @@ import inetsoft.uql.*;
 import inetsoft.uql.schema.XTypeNode;
 import inetsoft.uql.table.*;
 import inetsoft.uql.tabular.*;
+import inetsoft.util.Catalog;
+import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,6 +41,12 @@ public class ServerFileRuntime extends TabularRuntime {
    public XTableNode runQuery(TabularQuery query, VariableTable params) {
       ServerFileQuery sfQuery = (ServerFileQuery) query;
       File dataFile = sfQuery.getFileFolder();
+
+      // Bug #64331, no file is set, or its path is not under the root folder of the data source
+      if(dataFile == null) {
+         throw new MessageException(Catalog.getCatalog().getString(
+            "data.file.queryPathOutsideRoot", sfQuery.getName()));
+      }
 
       List<File> files;
       boolean isScheduler = false;

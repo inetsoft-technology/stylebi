@@ -231,10 +231,13 @@ public class TabularQueryDialogController extends WorksheetController {
                String name = editorPropertyNames[i];
 
                if("relativeTo".equals(name)) {
+                  // Bug #64331, an empty value, such as the root folder of a data source that
+                  // has none, has nothing to browse. It used to be taken for "/" and listed
+                  // every drive of the server
                   relativeTo = editorPropertyValues[i];
 
-                  if(relativeTo == null || relativeTo.isEmpty()) {
-                     relativeTo = "/";
+                  if(relativeTo != null && relativeTo.isBlank()) {
+                     relativeTo = null;
                   }
                }
                else if("foldersOnly".equals(name)) {
@@ -294,9 +297,11 @@ public class TabularQueryDialogController extends WorksheetController {
                }
             }
             else {
-               File[] list = fileSystemService
-                  .getFile(relativeTo + "/" + path + "/")
-                  .listFiles(filter);
+               // Bug #64331, the query picker only lists the root folder of the data source
+               // and the folders under it, a path such as ../.. can't leave it
+               File folder = ServerFilePathPolicy.getFileUnderFolder(
+                  relativeTo, fileSystemService.getFile(relativeTo + "/" + path + "/"));
+               File[] list = folder != null ? folder.listFiles(filter) : null;
 
                if(list != null) {
                   for(File file : list) {
