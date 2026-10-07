@@ -318,6 +318,27 @@ public class SchedulerConfigurationService {
             StringBuilder pathInfo = new StringBuilder();
             ServerPathInfoModel infoModel = location.pathInfoModel();
 
+            // Bug #77971, store a password in the path in the password field
+            if(infoModel != null) {
+               boolean secret = infoModel.ftp() && infoModel.useCredential();
+               FTPUtil.PathPassword pathPassword = SUtil.splitServerLocationPassword(
+                  path, secret, secret ? infoModel.secretId() : null,
+                  infoModel.ftp() && !secret ? infoModel.username() : null);
+
+               if(pathPassword != null) {
+                  path = pathPassword.path();
+                  infoModel = ServerPathInfoModel.builder()
+                     .from(infoModel)
+                     .path(path)
+                     .ftp(true)
+                     .useCredential(false)
+                     .secretId(null)
+                     .username(pathPassword.user())
+                     .password(pathPassword.password())
+                     .build();
+               }
+            }
+
             if(infoModel != null) {
                if(infoModel.ftp()) {
                   if(infoModel.useCredential()) {

@@ -27,8 +27,10 @@ import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.report.io.viewsheet.snapshot.ViewsheetAsset2;
 import inetsoft.sree.*;
 import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.schedule.FTPUtil;
 import inetsoft.sree.schedule.ScheduleClient;
 import inetsoft.sree.schedule.ScheduleTask;
+import inetsoft.sree.schedule.ServerPathInfo;
 import inetsoft.sree.security.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
@@ -3645,6 +3647,18 @@ public class SUtil {
                }
             }
 
+            // Bug #77971, the property may be written without splitting the path
+            FTPUtil.PathPassword pathPassword =
+               splitServerLocationPassword(path, useSecretId, secretId, username);
+
+            if(pathPassword != null) {
+               path = pathPassword.path();
+               username = pathPassword.user();
+               password = pathPassword.password();
+               useSecretId = false;
+               secretId = null;
+            }
+
             path = path.replaceAll("[/\\\\]+$", "");
             ServerPathInfoModel pathInfoModel = ServerPathInfoModel.builder()
                .path(path)
@@ -3661,6 +3675,34 @@ public class SUtil {
 
       locations.sort(Comparator.comparing(ServerLocation::label));
       return locations;
+   }
+
+   /**
+    * Bug #77971, splits the password out of the user info of a server location path, as
+    * {@link ServerPathInfo} does for the path of a task, so it isn't sent to a client in the path.
+    * The password in the path wins over the password and the secret of the location.
+    *
+    * @param path        the location path.
+    * @param useSecretId {@code true} if the location uses a secret.
+    * @param secretId    the secret id of the location.
+    * @param username    the user name field of the location.
+    *
+    * @return the path without the password, the user and the password, or {@code null} if the
+    *         path has no password.
+    */
+   public static FTPUtil.PathPassword splitServerLocationPassword(String path,
+                                                                  boolean useSecretId,
+                                                                  String secretId,
+                                                                  String username)
+   {
+      ServerPathInfo info = new ServerPathInfo();
+      info.setUseCredential(useSecretId);
+      info.setSecretId(secretId);
+      info.setUsername(username);
+      info.setPath(path);
+
+      return Objects.equals(path, info.getPath()) ? null :
+         new FTPUtil.PathPassword(info.getPath(), info.getUsername(), info.getPassword());
    }
 
    public static String writeCookiesString(Cookie[] cookies) {

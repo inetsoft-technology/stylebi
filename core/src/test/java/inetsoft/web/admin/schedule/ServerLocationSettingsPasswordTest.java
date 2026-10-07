@@ -61,7 +61,8 @@ class ServerLocationSettingsPasswordTest {
    void doesNotKeepPasswordForPathWithItsOwnPassword() {
       SreeEnv.setProperty(PROPERTY, "ftp://a.example/r|R|svc|pw1");
       saveLocations(location("ftp://svc:x@a.example/r", "R", "svc", key(0)));
-      assertEquals("ftp://svc:x@a.example/r|R|svc", stored());
+      // Bug #77971, the password in the path is moved to the password field
+      assertEquals("ftp://svc@a.example/r|R|svc|x", stored());
    }
 
    @Test
