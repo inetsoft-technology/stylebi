@@ -30,7 +30,10 @@ import java.util.concurrent.locks.Lock;
  * lens (DistinctTableLens, SummaryFilter) can take it before its own monitor and compute on the
  * reader's thread, instead of starting a worker that needs it (bug #77223). A worker that needs
  * the lock can only be lent it by a waiter that recorded it, never by a waiter inside script
- * evaluation on that engine, whose context must not be entered by another thread.
+ * evaluation on that engine, whose context must not be entered by another thread. A lens that
+ * reads its whole base under its own monitor (SetTableLens, RankingTableLens, SortFilter,
+ * CrossTabFilter) takes it before that monitor too, so a thread holding the lock never waits
+ * for the monitor of a reader that waits for the lock (bug #77874).
  *
  * <p>Unlike {@code PostProcessor.ConditionFilter2.needsScriptExecutionLock}, which treats every
  * async lens as needing the lock so that it has something to lend (bug #76938), this walks

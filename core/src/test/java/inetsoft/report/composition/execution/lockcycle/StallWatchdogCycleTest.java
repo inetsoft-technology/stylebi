@@ -22,7 +22,6 @@ import inetsoft.report.composition.execution.lockcycle.LockCycleHarness.Sandbox;
 import inetsoft.report.composition.execution.lockcycle.LockCycleHarness.Slow;
 import inetsoft.report.composition.execution.lockcycle.LockCycleHarness.SlowTable;
 import inetsoft.report.filter.DefaultTableFilter;
-import inetsoft.report.filter.SortFilter;
 import inetsoft.report.filter.SumFormula;
 import inetsoft.report.filter.SummaryFilter;
 import inetsoft.report.lens.*;
@@ -31,8 +30,6 @@ import inetsoft.util.stall.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -126,36 +123,37 @@ public class StallWatchdogCycleTest {
    /**
     * #76960 B (R2): T1 holds the lens monitor and waits for the engine lock, T2 holds the
     * lock and is BLOCKED on the monitor. T1, the only registered wait of the cycle, fails with
-    * a stall and lets go of the monitor, T2 then completes with the right rows. SortFilter and
-    * RankingTableLens rethrow the stall and sort or rank again on the next read.
+    * a stall and lets go of the monitor, T2 then completes with the right rows.
     *
     * <p>The gate parks T1 between the lens and its filtered base: inside the lens monitor but
     * before the inner condition filter takes the engine lock. T2 then takes the lock and
     * blocks on the monitor before T1 goes on, so the cycle forms on every run.
     *
-    * <p>Not MAX_ROWS: since bug #77311 {@code MaxRowsTableLens} reads its base without its
-    * monitor, so there is no cycle to stall (see
-    * {@code MonitorFirstLensCycleTest.maxRowsOverFilteredFormula}).
+    * <p>The lens is a test-only {@link MonitorFirstLens}: since bug #77874 none of the product
+    * lenses this case used (SortFilter, the non-distinct UnionTableLens, RankingTableLens)
+    * forms the cycle any more (see {@code MonitorFirstLensCycleTest}), and neither does
+    * MaxRowsTableLens since bug #77311. A stall still reaches SortFilter and RankingTableLens
+    * where the chain's lock is not found (below a join, across two engines); their rethrow and
+    * rank or sort again is covered by {@code SortFilterTest} and {@code RankingTableLensTest}.
     */
-   @ParameterizedTest
-   @EnumSource(value = MonitorKind.class, names = "MAX_ROWS", mode = EnumSource.Mode.EXCLUDE)
-   public void monitorFirstLensFailsOneReader(MonitorKind kind) throws Exception {
+   @Test
+   public void monitorFirstLensFailsOneReader() throws Exception {
       assumeFalse(POOL, MONITOR_FIRST_POOL_OFF);
       Gate gate = harness.gate();
       Sandbox control = harness.control();
-      TableLens controlLens = harness.track(build(kind, control, gate));
+      TableLens controlLens = harness.track(new MonitorFirstLens(gated(control, gate)));
       List<List<Object>> expectedLens =
          harness.await(harness.submit(() -> drain(controlLens)), ACTIVE_CAP, "control lens");
       List<List<Object>> expectedOuter = harness.await(
          harness.submit(() -> drain(cf2(controlLens, null))), ACTIVE_CAP, "control filter");
 
       Sandbox s = harness.sandbox();
-      TableLens lens = harness.track(build(kind, s, gate));
+      TableLens lens = harness.track(new MonitorFirstLens(gated(s, gate)));
       TableLens outer = harness.track(cf2(lens, s.box));
-      // T2 reads the header row first: a cell read goes through the lens monitor without the
-      // engine lock (e.g. UnionTableLens.getObject), so T2 must be past it. T1 then parks
-      // inside the lens monitor without the engine lock; T2 takes the lock for its next row
-      // and blocks on the monitor, then T1 goes on and waits for the lock: the cycle
+      // T2 reads the header row first: a cell read may go through the lens monitor without
+      // the engine lock, so T2 must be past it. T1 then parks inside the lens monitor without
+      // the engine lock; T2 takes the lock for its next row and blocks on the monitor, then T1
+      // goes on and waits for the lock: the cycle
       CountDownLatch headerRead = new CountDownLatch(1);
       CountDownLatch t1Parked = new CountDownLatch(1);
       Started<List<List<Object>>> t2 = harness.start(() -> {
@@ -220,7 +218,7 @@ public class StallWatchdogCycleTest {
                                               StallPolicy.DEFAULT_MAX_DUMPS, false));
       Gate gate = harness.gate();
       Sandbox s = harness.sandbox();
-      TableLens lens = harness.track(build(MonitorKind.SORT, s, gate));
+      TableLens lens = harness.track(new MonitorFirstLens(gated(s, gate)));
       TableLens outer = harness.track(cf2(lens, s.box));
       CountDownLatch headerRead = new CountDownLatch(1);
       CountDownLatch t1Parked = new CountDownLatch(1);
@@ -303,23 +301,19 @@ public class StallWatchdogCycleTest {
                                              new int[] { 1 }, new SumFormula(), null));
    }
 
-   private TableLens build(MonitorKind kind, Sandbox s, Gate gate) {
-      switch(kind) {
-      case SORT:
-         return new SortFilter(gated(s, gate), new int[] { 1 });
-      case MAX_ROWS:
-         return new MaxRowsTableLens(gated(s, gate), 100000);
-      case UNION_ALL:
-         UnionTableLens union = new UnionTableLens(gated(s, gate), gated(s, gate));
-         union.setDistinct(false);
-         return union;
-      case RANKING:
-         RankingTableLens ranking = new RankingTableLens(gated(s, gate));
-         ranking.setRankingColumn(1);
-         ranking.setRankingN(10);
-         return ranking;
-      default:
-         throw new IllegalArgumentException(kind.name());
+   /**
+    * A lens that holds its own monitor while it reads a row of its base, as SortFilter,
+    * UnionTableLens and RankingTableLens did before bug #77874: the fixture of the R2 cycle
+    * the watchdog must find.
+    */
+   private static final class MonitorFirstLens extends DefaultTableFilter {
+      MonitorFirstLens(TableLens table) {
+         super(table);
+      }
+
+      @Override
+      public synchronized boolean moreRows(int row) {
+         return super.moreRows(row);
       }
    }
 
@@ -428,6 +422,9 @@ public class StallWatchdogCycleTest {
       }
    }
 
+   /**
+    * The product lenses of the pooled R2 cases in {@code RelPooledCompletionTest}.
+    */
    public enum MonitorKind {
       SORT, MAX_ROWS, UNION_ALL, RANKING
    }

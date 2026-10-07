@@ -18,15 +18,19 @@
 
 package inetsoft.report.filter;
 
+import inetsoft.report.TableLens;
+import inetsoft.report.lens.ChainScriptLock;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
 import inetsoft.uql.XTable;
 import inetsoft.util.script.ExpressionFailedException;
+import inetsoft.util.script.LendableReentrantLock;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.swap.SwapFileReadException;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.concurrent.locks.Lock;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -130,7 +134,64 @@ public class SortFilterTest {
    }
 
    /**
-    * A base whose data rows from row 3 on fail with {@code failure}.
+    * Bug #77874: over a base whose reads take an engine lock, the sort takes that lock before
+    * its own lock and holds it while it reads the base. A stall of the base escapes with the
+    * lock released, and once the base recovers the next read sorts the table.
+    */
+   @Test
+   public void baseStallUnderTheChainLockReleasesTheLock() {
+      LockStallException stall = new LockStallException("nested.site", "worker", 1234, null);
+      FailingBase base = new FailingBase(stall);
+      LockingFilter locking = new LockingFilter(base);
+      SortFilter filter = new SortFilter(locking, SORT_COLS, true);
+
+      Assertions.assertSame(stall, Assertions.assertThrows(
+         LockStallException.class, () -> filter.moreRows(1)));
+      Assertions.assertEquals(Boolean.TRUE, locking.heldOnDataRead,
+                              "the sort read the base without the chain's lock");
+      Assertions.assertFalse(locking.lock.isLocked(), "the lock is held after the stall");
+
+      base.failure = null;
+      Assertions.assertTrue(filter.moreRows(5));
+      Assertions.assertFalse(filter.moreRows(6));
+      Assertions.assertEquals("a", filter.getObject(1, 0));
+      Assertions.assertEquals("a", filter.getObject(2, 0));
+      Assertions.assertEquals("c", filter.getObject(5, 0));
+      Assertions.assertFalse(locking.lock.isLocked());
+   }
+
+   /**
+    * Passes its base through and takes an engine lock when its rows are read, as a condition
+    * filter over a formula lens does with the pool off. Records whether the lock was held at
+    * the first data row read.
+    */
+   private static final class LockingFilter extends DefaultTableFilter
+      implements ChainScriptLock.Source
+   {
+      LockingFilter(TableLens table) {
+         super(table);
+      }
+
+      @Override
+      public boolean moreRows(int row) {
+         if(row >= 1 && heldOnDataRead == null) {
+            heldOnDataRead = lock.isHeldByCurrentThread();
+         }
+
+         return super.moreRows(row);
+      }
+
+      @Override
+      public Lock getScriptLock() {
+         return lock;
+      }
+
+      final LendableReentrantLock lock = new LendableReentrantLock();
+      volatile Boolean heldOnDataRead;
+   }
+
+   /**
+    * A base whose data rows from row 3 on fail with {@code failure} while it is set.
     */
    private static final class FailingBase extends DefaultTableLens {
       FailingBase(RuntimeException failure) {
@@ -141,14 +202,16 @@ public class SortFilterTest {
 
       @Override
       public boolean moreRows(int row) {
-         if(row >= 3) {
+         RuntimeException failure = this.failure;
+
+         if(row >= 3 && failure != null) {
             throw failure;
          }
 
          return super.moreRows(row);
       }
 
-      private final RuntimeException failure;
+      volatile RuntimeException failure;
    }
 
    private static final int[] SORT_COLS = { 0 };
