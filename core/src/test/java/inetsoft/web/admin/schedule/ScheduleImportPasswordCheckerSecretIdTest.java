@@ -122,6 +122,20 @@ class ScheduleImportPasswordCheckerSecretIdTest {
       assertCleared(pdf(imported));
    }
 
+   // a secret id of the imported file is never restored to another path of the file
+   @Test
+   void secretIdOfImportedFile_isNotRestored() {
+      ScheduleTask stored = task(localPath(HOST_A, "bob", "other"), null, null);
+      ScheduleTask imported = task(localPath(HOST_A, "bob", "pw-a"),
+                                   secretPath(HOST_A, SECRET_A), null);
+
+      List<String> cleared = ScheduleImportPasswordChecker.clearUnboundPasswords(imported, stored);
+
+      assertEquals(List.of(pdf(imported).getPath()), cleared);
+      assertCleared(pdf(imported));
+      assertSecret(excel(imported), SECRET_A);
+   }
+
    // a secret that fails to resolve clears its path, the other paths are still checked
    @Test
    void secretLookupFails_clearsOnlyThatPath() {
