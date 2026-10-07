@@ -441,6 +441,14 @@ class DeployServiceExportStoredOwnerTest {
    }
 
    @Test
+   void task_decoyDependentWithInternalTaskDetailDescription_isRefusedForOrgUsers() {
+      // the org admin may export the decoy (carol's task) but not the host-org internal task
+      for(SRPrincipal caller : List.of(alice, carol)) {
+         assertRefused(caller, List.of(), List.of(decoy(CAROL_TASK, "SCHEDULETASK", BACKUP)));
+      }
+   }
+
+   @Test
    void autoSave_decoyDependentWithVictimDetailDescription_isRefused() {
       assertRefused(carol, List.of(), List.of(decoy(carolFile, "AUTOSAVEVS", vsFile)));
       assertRefused(carol, List.of(), List.of(decoy(carolFile, "AUTOSAVEVS", nullFile)));
