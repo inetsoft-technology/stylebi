@@ -159,11 +159,11 @@ public class IndividualAssetBackupAction implements ScheduleAction, HttpXMLSeria
       }
 
       if(!refused.isEmpty()) {
-         String msg = "Schedule task \"" + taskId + "\" may not back up asset(s) " + refused +
-            ", the task owner " + (taskOwner != null ? taskOwner.convertToKey() : principal) +
-            " has no permission to export them";
-         LOG.error(msg);
-         throw new RuntimeException(msg);
+         String who = taskOwner != null ? "the task owner " + taskOwner.convertToKey() :
+            "the run principal " + (principal != null ? principal.getName() : null);
+         // the task failure reports the exception, so it is not logged here
+         throw new RuntimeException("Schedule task \"" + taskId + "\" may not back up asset(s) " +
+                                       refused + ", " + who + " has no permission to export them");
       }
    }
 

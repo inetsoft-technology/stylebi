@@ -78,7 +78,7 @@ import static org.mockito.Mockito.*;
                                   IndividualAssetBackupActionRunOwnerTest.Config.class },
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
-@Tag("core")
+@Tag("slow")
 class IndividualAssetBackupActionRunOwnerTest {
    @Configuration
    static class Config {
