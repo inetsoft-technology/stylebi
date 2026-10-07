@@ -27,6 +27,7 @@ import org.mockito.MockedStatic;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -130,6 +131,95 @@ class FTPUtilEndpointTest {
             "ftp://files.corp.example/out/x@collector.invalid/r.pdf", file(), info, false));
          assertTrue(ftp.constructed().isEmpty());
       }
+   }
+
+   @Test
+   void passwordInThePathLogsInAsBeforeTheSplit() throws Throwable {
+      // Bug #77957, the password is moved out of the path; the upload logs in with the same user,
+      // password and server
+      ServerPathInfo info = new ServerPathInfo("ftp://u:p@w@files.corp.example:2121/out/{0}");
+      assertEquals("ftp://u@files.corp.example:2121/out/{0}", info.getPath());
+
+      try(MockedConstruction<FTPClient> ftp = mockFtp()) {
+         FTPUtil.uploadToFTP(MessageFormat.format(info.getPath(), "r.pdf"), file(), info, false);
+      }
+
+      assertEquals(List.of("files.corp.example:2121"), connected);
+      assertEquals(List.of("u/p@w"), logins);
+   }
+
+   @Test
+   void passwordInThePathIsNotSentToAnotherServer() throws Throwable {
+      // Bug #77957, a parameter value with an '@' moved the host, and the password in the path
+      // went with it
+      ServerPathInfo info = new ServerPathInfo("ftp://u:pw@files.corp.example/out/{0}");
+      String url = MessageFormat.format(info.getPath(), "x@127.0.0.1#");
+      assertEquals("127.0.0.1", FTPUtil.parseEndpoint(url).host());
+
+      try(MockedConstruction<FTPClient> ftp = mockFtp()) {
+         Exception ex = assertThrows(Exception.class,
+                                     () -> FTPUtil.uploadToFTP(url, file(), info, false));
+         assertTrue(ex.getMessage().contains("the server does not match the saved path"),
+                    ex.getMessage());
+         assertTrue(ftp.constructed().isEmpty());
+      }
+   }
+
+   @Test
+   void passwordInThePathWithParameterHostIsRefused() throws Throwable {
+      // Bug #77957, the saved path can't be parsed, so it can't be bound to a server
+      ServerPathInfo host = new ServerPathInfo("ftp://u:pw@{0}/out/r.pdf");
+      ServerPathInfo port = new ServerPathInfo("ftp://u:pw@files.corp.example:{0}/out/r.pdf");
+
+      try(MockedConstruction<FTPClient> ftp = mockFtp()) {
+         Exception ex = assertThrows(Exception.class, () -> FTPUtil.uploadToFTP(
+            MessageFormat.format(host.getPath(), "collector.invalid"), file(), host, false));
+         assertTrue(ex.getMessage().contains("the server does not match the saved path"),
+                    ex.getMessage());
+         ex = assertThrows(Exception.class, () -> FTPUtil.uploadToFTP(
+            MessageFormat.format(port.getPath(), "21"), file(), port, false));
+         assertTrue(ex.getMessage().contains("the server does not match the saved path"),
+                    ex.getMessage());
+         assertTrue(ftp.constructed().isEmpty());
+      }
+   }
+
+   @Test
+   void emptyPasswordInThePathIsLeftInThePath() throws Throwable {
+      ServerPathInfo info = new ServerPathInfo("ftp://u:@files.corp.example:2121/r.pdf");
+      assertEquals("ftp://u:@files.corp.example:2121/r.pdf", info.getPath());
+      assertNull(info.getPassword());
+
+      try(MockedConstruction<FTPClient> ftp = mockFtp()) {
+         FTPUtil.uploadToFTP(info.getPath(), file(), info, false);
+      }
+
+      assertEquals(List.of("u/"), logins);
+   }
+
+   @Test
+   void splitPasswordFollowsParseEndpoint() throws Exception {
+      for(String path : new String[] {
+         "ftp://u:pw@h/x", "u:pw@h/x", "FTP://u:pw@h/x", "SFTP://u:pw@h:2222/x",
+         "ftp://u:p@w@h/x", "ftp://a@b:c@h/x", "ftp://u:p w+%41/#?@h/x?append=true",
+         "ftp://u:pw@h/a@other.example#/r.pdf" })
+      {
+         boolean sftp = path.toLowerCase().startsWith("sftp://");
+         FTPUtil.PathPassword split = FTPUtil.splitPassword(path, sftp);
+         FTPUtil.Endpoint before = FTPUtil.parseEndpoint(path);
+         FTPUtil.Endpoint after = FTPUtil.parseEndpoint(split.path());
+
+         assertEquals(before.userInfo(), split.user() + ":" + split.password(), path);
+         assertEquals(split.user(), after.userInfo(), path);
+         assertEquals(before.host(), after.host(), path);
+         assertEquals(before.port(), after.port(), path);
+         assertEquals(before.path(), after.path(), path);
+      }
+
+      assertNull(FTPUtil.splitPassword("ftp://u@h/x", false));
+      assertNull(FTPUtil.splitPassword("ftp://h/x", false));
+      assertNull(FTPUtil.splitPassword("ftp://u:@h/x", false));
+      assertNull(FTPUtil.splitPassword(null, false));
    }
 
    private static ServerPathInfo credentialPath(String path) {
