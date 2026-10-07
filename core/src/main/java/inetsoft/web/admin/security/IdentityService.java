@@ -1179,30 +1179,38 @@ public class IdentityService {
             return false;
          }
 
-         if(removed) {
-            String cleanupOrgId = memberOrgId != null ? memberOrgId :
-               id.orgID != null ? id.orgID : orgID;
+         String cleanupOrgId = memberOrgId != null ? memberOrgId :
+            id.orgID != null ? id.orgID : orgID;
+         boolean removedHere = removed;
 
-            try {
-               OrganizationManager.runInOrgScope(orgID, () -> {
-                  cleanUpRemovedIdentity(new DefaultIdentity(id, type), cleanupOrgId);
-                  return null;
-               });
-            }
-            catch(Exception cleanupEx) {
-               LOG.warn("Failed to clean up the removed organization member: {}", id, cleanupEx);
-            }
+         try {
+            OrganizationManager.runInOrgScope(orgID, () -> {
+               if(removedHere) {
+                  cleanUpDroppedMember(id, type, cleanupOrgId);
+               }
+               // Bug #77964, the member was already gone, so the delete failed after the removal
+               // or the removal completed after it failed. Its permissions are cleaned up only if
+               // some are left, so the organization's entries are not all written again.
+               else if(!findLeftoverPermissions(type, id).isEmpty()) {
+                  String permissionOrgId = type == Identity.USER ? id.orgID : cleanupOrgId;
+                  updateIdentityPermissions(type, id, null, permissionOrgId, permissionOrgId, true);
+               }
+
+               return null;
+            });
+         }
+         catch(Exception cleanupEx) {
+            LOG.warn("Failed to clean up the removed organization member: {}", id, cleanupEx);
          }
       }
 
-      // Bug #77834, report a permission the delete could not remove
-      if(synced) {
-         String leftoverWarning = getLeftoverPermissionsWarning(
-            type, id, ThreadContext.getContextPrincipal());
+      // Bug #77834, report a permission the delete could not remove. The member is gone here,
+      // whether it was removed by the delete or by the retry above.
+      String leftoverWarning = getLeftoverPermissionsWarning(
+         type, id, ThreadContext.getContextPrincipal());
 
-         if(leftoverWarning != null) {
-            Tool.addUserMessage(leftoverWarning);
-         }
+      if(leftoverWarning != null) {
+         Tool.addUserMessage(leftoverWarning);
       }
 
       try {
@@ -1217,6 +1225,46 @@ public class IdentityService {
       }
 
       return true;
+   }
+
+   /**
+    * Runs the steps of syncIdentity()'s delete branch that follow the removal from the provider,
+    * for a dropped organization member that removeDroppedMember() removed after the delete failed
+    * to (Bug #77964). Without them the member's own permission key was kept, so a new identity
+    * with the same name was administered by the old grantee. Each step is guarded, so one failure
+    * does not skip the rest.
+    */
+   private void cleanUpDroppedMember(IdentityID id, int type, String orgId) {
+      Identity identity = new DefaultIdentity(id, type);
+      cleanUpRemovedIdentity(identity, orgId);
+      // like the delete, a user's permissions are updated under the organization of its id
+      String permissionOrgId = type == Identity.USER ? id.orgID : orgId;
+      runCleanupStep("permissions", id,
+                     () -> updateIdentityPermissions(type, id, null, permissionOrgId,
+                                                     permissionOrgId, true));
+
+      if(type == Identity.USER) {
+         runCleanupStep("user-scoped assets", id, () -> removeUserScopedAssets(identity));
+         runCleanupStep("user environment", id, () -> UserEnv.removeUser(id));
+         runCleanupStep("auto-save files", id, () -> AutoSaveUtils.deleteUserAutoSaveFiles(id));
+         removeIdentityFromThemes(id, orgId, CustomTheme::getUsers);
+      }
+      else if(type == Identity.GROUP) {
+         runCleanupStep("groups of the current user", id, () -> updatePrincipalGroup(null, id));
+         removeIdentityFromThemes(id, orgId, CustomTheme::getGroups);
+      }
+      else {
+         removeIdentityFromThemes(id, orgId, CustomTheme::getRoles);
+      }
+   }
+
+   private void runCleanupStep(String step, IdentityID id, RenameStep cleanup) {
+      try {
+         cleanup.run();
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to clean up the {} of the removed organization member {}", step, id, e);
+      }
    }
 
    private void updateOrganizationMembers(Organization identity, List<IdentityModel> memberModels,
