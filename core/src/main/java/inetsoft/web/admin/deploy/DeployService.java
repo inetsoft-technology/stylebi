@@ -35,6 +35,7 @@ import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.dep.*;
 import inetsoft.web.admin.content.repository.ContentRepositoryTreeService;
 import inetsoft.web.admin.content.repository.RepletRegistryService;
+import inetsoft.web.admin.content.repository.RepositoryOwnerOrgCheck;
 import inetsoft.web.admin.content.repository.model.*;
 import inetsoft.web.security.auth.MissingResourceException;
 import inetsoft.web.viewsheet.DatasourceIgnoreGlobalShare;
@@ -841,15 +842,108 @@ public class DeployService {
    public List<XAsset> getEntryAssets(List<SelectedAssetModel> selectedEntities,
                                       Principal principal)
    {
+      return getEntryAssets(selectedEntities, Collections.emptySet(), principal);
+   }
+
+   /**
+    * Get assets. Only for replet, viewhsheet and
+    * snapshot type.
+    * @param selectedEntities the specified entry array.
+    * @param keptAssets       the identifiers of the assets the caller may keep without a
+    *                         permission check, the assets already stored in a schedule backup
+    *                         action.
+    * @return xasset.
+    *
+    * @throws MessageException if the caller may not export one of the other assets.
+    */
+   public List<XAsset> getEntryAssets(List<SelectedAssetModel> selectedEntities,
+                                      Set<String> keptAssets, Principal principal)
+   {
       if(selectedEntities == null) {
          return Collections.emptyList();
       }
 
-      return selectedEntities.stream()
-         .map(m -> getEntryAsset(m, principal))
-         .filter(Objects::nonNull)
-         .distinct()
-         .collect(Collectors.toList());
+      List<XAsset> assets = new ArrayList<>();
+
+      for(SelectedAssetModel model : selectedEntities) {
+         XAsset asset = getEntryAsset(model, principal);
+
+         if(asset == null) {
+            continue;
+         }
+
+         // Bug #77862, the owner comes from the client and the asset is read from the owner's
+         // storage, so check the asset as the export/check-permission preflight does
+         if(!keptAssets.contains(asset.toIdentifier())) {
+            checkEntityPermitted(model, principal);
+         }
+
+         if(!assets.contains(asset)) {
+            assets.add(asset);
+         }
+      }
+
+      return assets;
+   }
+
+   private void checkEntityPermitted(SelectedAssetModel model, Principal principal) {
+      String type = repositoryEntryTypeToAssetType(model.type());
+      IdentityID user = getEntryAssetUser(model);
+      RepositoryOwnerOrgCheck.checkOwnerOrg(user, principal);
+      boolean permitted;
+
+      try {
+         permitted = principal != null && isEntityPermitted(model.path(), user, type, principal);
+      }
+      catch(SecurityException e) {
+         throw new MessageException(noPermissionMessage(model.path(), principal), e);
+      }
+
+      if(!permitted) {
+         throw new MessageException(noPermissionMessage(model.path(), principal));
+      }
+   }
+
+   /**
+    * Checks if the caller may export an asset owned by a client-supplied user, a dependent asset
+    * of an export. The owner of an auto-save asset is {@code __NULL__}, it has no owner.
+    *
+    * @throws MessageException if the owner belongs to another organization or the caller is
+    *                          neither the owner nor an administrator of the owner.
+    */
+   public void checkAssetOwner(IdentityID owner, String path, Principal principal) {
+      if(owner == null) {
+         return;
+      }
+
+      // the asset is still built with the organization of a __NULL__ owner
+      RepositoryOwnerOrgCheck.checkOwnerOrg(owner, principal);
+
+      if(XAsset.NULL.equals(owner.name)) {
+         return;
+      }
+
+      boolean permitted;
+
+      try {
+         permitted = principal != null && isOwnerPermitted(owner, principal);
+      }
+      catch(SecurityException e) {
+         throw new MessageException(noPermissionMessage(path, principal), e);
+      }
+
+      if(!permitted) {
+         throw new MessageException(noPermissionMessage(path, principal));
+      }
+   }
+
+   private static String noPermissionMessage(String path, Principal principal) {
+      return Catalog.getCatalog(principal).getString("em.common.security.no.permission", path);
+   }
+
+   private static IdentityID getEntryAssetUser(SelectedAssetModel model) {
+      IdentityID entityUser = model.user();
+      return entityUser == null || XAsset.NULL.equals(entityUser.name) ? null : entityUser;
    }
 
    private XAsset getEntryAsset(SelectedAssetModel model, Principal principal) {
@@ -863,11 +957,8 @@ public class DeployService {
          type.equals(ViewsheetAsset.VIEWSHEET) || type.equals(DashboardAsset.DASHBOARD) ?
          this.contentRepositoryTreeService.getUnscopedPath(model.path()) :
          model.path();
-      IdentityID entityUser = model.user();
-
-
       // @by arlinex, only global assets are supported
-      IdentityID user = entityUser == null || "__NULL__".equals(entityUser.name) ? null : entityUser;
+      IdentityID user = getEntryAssetUser(model);
       XAsset asset = SUtil.getXAsset(type, entityName, user);
 
       if(asset instanceof TableStyleAsset style) {
@@ -1021,9 +1112,15 @@ public class DeployService {
    private boolean isEntityPermitted(SelectedAssetModel entity, String assetType,
                                      Principal principal) throws SecurityException
    {
-      String unscopedPath = contentRepositoryTreeService.getUnscopedPath(entity.path());
+      return isEntityPermitted(entity.path(), entity.user(), assetType, principal);
+   }
 
-      XAsset xasset = SUtil.getXAsset(assetType, unscopedPath, entity.user());
+   private boolean isEntityPermitted(String path, IdentityID user, String assetType,
+                                     Principal principal) throws SecurityException
+   {
+      String unscopedPath = contentRepositoryTreeService.getUnscopedPath(path);
+
+      XAsset xasset = SUtil.getXAsset(assetType, unscopedPath, user);
 
       if(xasset instanceof VSAutoSaveAsset || xasset instanceof WSAutoSaveAsset) {
          return true;
@@ -1036,13 +1133,19 @@ public class DeployService {
             principal, ResourceType.ASSET, unscopedPath, ResourceAction.ADMIN);
       }
       else if(xasset.getUser() != null) {
-         return principal.getName().equals(xasset.getUser().convertToKey()) || securityEngine.checkPermission(
-            principal, ResourceType.SECURITY_USER, xasset.getUser(), ResourceAction.ADMIN);
+         return isOwnerPermitted(xasset.getUser(), principal);
       }
       else {
          return securityEngine.checkPermission(
             principal, resource.getType(), resource.getPath(), ResourceAction.ADMIN);
       }
+   }
+
+   private boolean isOwnerPermitted(IdentityID owner, Principal principal)
+      throws SecurityException
+   {
+      return principal.getName().equals(owner.convertToKey()) || securityEngine.checkPermission(
+         principal, ResourceType.SECURITY_USER, owner, ResourceAction.ADMIN);
    }
 
    /**

@@ -149,6 +149,14 @@ public class ExportAssetService {
       List<XAsset> assets = deployService.getEntryAssets(entryData, principal);
       List<PartialDeploymentJarInfo.SelectedAsset> entryDataArray = DeployUtil.getEntryData(assets);
       assert assetData != null;
+
+      // Bug #77862, a dependent asset with an owner is read from the owner's storage. Global
+      // dependents resolve in the current organization and are not checked, a legitimate
+      // dependency list holds global data sources and the like the caller may not administer.
+      for(RequiredAssetModel model : assetData) {
+         deployService.checkAssetOwner(model.user(), model.name(), principal);
+      }
+
       List<PartialDeploymentJarInfo.RequiredAsset> assetDataArray = assetData.stream()
          .map(this::createRequiredAsset)
          .collect(Collectors.toList());
