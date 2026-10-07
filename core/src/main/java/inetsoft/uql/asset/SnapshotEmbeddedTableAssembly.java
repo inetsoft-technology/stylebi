@@ -309,9 +309,10 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
          }
 
          boolean writeDateFile = dataPaths == null || fileDirty;
+         boolean dataSaved = true;
 
          if(writeDateFile) {
-            writeDataFiles(stable);
+            dataSaved = writeDataFiles(stable);
          }
 
          // init row count after load complete
@@ -326,7 +327,8 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
 
          writer.println("<paths>");
 
-         if(dataPaths != null) {
+         // the previous files don't hold the current data, don't pair them with it (bug #77963)
+         if(dataPaths != null && dataSaved) {
             for(String dataPath : dataPaths) {
                if(dataPathsLoadVersion.get(dataPath) != null) {
                   writer.println(Tool.buildString("<path loadVersion=\"", dataPathsLoadVersion.get(dataPath), "\"><![CDATA["));
@@ -440,12 +442,13 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
 
    /**
     * Write data parts to pdata.
+    * @return false if a data file could not be written. The data is then still out of sync with
+    * the files (fileDirty), and the next save writes it again (bug #77963).
     */
-   private synchronized void writeDataFiles(XSwappableTable stable) throws Exception {
+   private synchronized boolean writeDataFiles(XSwappableTable stable) throws Exception {
       String tprefix = getTablePrefix();
       String[] prefixes = stable.getPrefixes();
       XTableFragment[] tables = stable.getTables();
-      fileDirty = false;
       dataPathsLoadVersion.clear();
       String[] dataPaths = new String[prefixes.length];
 
@@ -459,8 +462,9 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
          if(files.size() != prefixes.length) {
             for(XTableFragment table : tables) {
                if(table.getFiles().isEmpty()) {
-                  LOG.error("Table swap file is missing: " + table.getSwapFile());
-                  return;
+                  LOG.error("Table swap file is missing, the snapshot data is not saved: " +
+                            table.getSwapFile());
+                  return false;
                }
             }
          }
@@ -501,7 +505,9 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
       }
 
       this.dataPaths = dataPaths;
+      fileDirty = false;
       shouldDeleteOldFiles = true;
+      return true;
    }
 
    private void deleteOldFiles(String[] newDataPaths) {
