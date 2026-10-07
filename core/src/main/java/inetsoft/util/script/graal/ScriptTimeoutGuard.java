@@ -150,6 +150,25 @@ public class ScriptTimeoutGuard {
       return false;
    }
 
+   /**
+    * Whether {@code ex}, or a cause, says a script was stopped rather than failed: a Graal
+    * interrupt (a timeout's or a cancel's), a cancelled context, or a script exception the
+    * engine marked as such ({@link inetsoft.util.script.ScriptException#isStopped()}). A caller
+    * that goes on after an ordinary script error stops at such an exception instead.
+    */
+   public static boolean isStop(Throwable ex) {
+      for(int depth = 0; ex != null && depth < 16; ex = ex.getCause(), depth++) {
+         if(ex instanceof PolyglotException pe && (pe.isInterrupted() || pe.isCancelled()) ||
+            ex instanceof inetsoft.util.script.ScriptException se && se.isStopped() ||
+            ex instanceof InterruptedException)
+         {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
    /** Test hook run by the interrupt task right before it interrupts; null in production. */
    static volatile Runnable beforeInterruptHook;
 

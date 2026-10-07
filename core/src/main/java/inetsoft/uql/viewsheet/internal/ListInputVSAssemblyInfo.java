@@ -415,9 +415,9 @@ public abstract class ListInputVSAssemblyInfo extends InputVSAssemblyInfo
          writer.print("<values>");
 
          for(int i = 0; i < values.length; i++) {
-            writer.print("<value>");
-            writer.print("<![CDATA[" + Tool.getDataString(values[i],
-                         getDataType()) + "]]>");
+            String str = Tool.getDataString(values[i], getDataType());
+            writer.print("<value" + Tool.cdataDataAttr(str) + ">");
+            writer.print("<![CDATA[" + Tool.cdataData(str) + "]]>");
             writer.print("</value>");
          }
 
@@ -429,7 +429,7 @@ public abstract class ListInputVSAssemblyInfo extends InputVSAssemblyInfo
 
          for(int i = 0; i < labels.length; i++) {
             writer.print("<label>");
-            writer.print("<![CDATA[" + Tool.localize(labels[i]) + "]]>");
+            writer.print("<![CDATA[" + Tool.cdataText(Tool.localize(labels[i])) + "]]>");
             writer.print("</label>");
          }
 
@@ -482,7 +482,7 @@ public abstract class ListInputVSAssemblyInfo extends InputVSAssemblyInfo
 
             for(int i = 0; i < valuesList.getLength(); i++) {
                values[i] = Tool.getData(getDataType(),
-                  Tool.getValue(valuesList.item(i)));
+                  Tool.getCDATAData(valuesList.item(i)));
             }
          }
       }

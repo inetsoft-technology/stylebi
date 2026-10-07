@@ -45,6 +45,7 @@ import inetsoft.web.portal.model.database.events.RemoveQueryColumnEvent;
 import java.awt.*;
 import java.rmi.RemoteException;
 import java.security.Principal;
+import java.sql.SQLException;
 import java.util.List;
 import java.util.*;
 import java.util.function.Supplier;
@@ -2415,7 +2416,20 @@ public class QueryManagerService {
                return Catalog.getCatalog().getString("designer.qb.jdbc.unableParseSql");
             }
 
-            XNode result = execute(query, runtimeQuery.getVariables(), principal.getName());
+            XNode result;
+
+            try {
+               result = execute(query, runtimeQuery.getVariables(), principal.getName());
+            }
+            catch(Exception ex) {
+               // anything but the database rejecting the user's SQL is logged as an error below
+               if(!PhysicalModelService.isUserSqlError(ex)) {
+                  throw ex;
+               }
+
+               LOG.debug("Free-form SQL rejected by the database: {}", nsqlString, ex);
+               return null;
+            }
 
             if(result instanceof JDBCTableNode) {
                JDBCTableNode jresult = (JDBCTableNode) result;
@@ -2541,6 +2555,22 @@ public class QueryManagerService {
             Object value = lens.getObject(row, col);
             values[row][col] = value == null ? "" : Tool.getDataString(value);
          }
+      }
+
+      // a database error raised while reading the rows (e.g. a division by zero in a row) stops
+      // the load and leaves only the rows read before it, report it instead of partial data
+      Exception loadException = lens.getLoadException();
+
+      if(loadException != null) {
+         // JDBCTableNode wraps the driver's exception in a plain RuntimeException, pass the
+         // database exception on so the caller can tell the user's SQL error from an outage
+         if(loadException.getClass() == RuntimeException.class &&
+            loadException.getCause() instanceof SQLException sqlEx)
+         {
+            throw sqlEx;
+         }
+
+         throw loadException;
       }
 
       return values;

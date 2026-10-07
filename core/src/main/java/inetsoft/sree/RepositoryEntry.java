@@ -622,7 +622,7 @@ public class RepositoryEntry implements Serializable, Comparable, Cloneable, XML
     *
     * @return the encoded value, or {@code value} itself if it has nothing to encode.
     */
-   protected static String encodeControlChars(String value, boolean keepTabNewline) {
+   public static String encodeControlChars(String value, boolean keepTabNewline) {
       if(value == null) {
          return null;
       }

@@ -278,8 +278,12 @@ public class GroupedThread extends Thread {
          currentStackTrace = (new Exception()).getStackTrace();
       }
 
-      int len = (parentStackTrace == null ? 0 : parentStackTrace.length) +
-         (stackTrace == null ? 0 : stackTrace.length) +
+      // ThreadPool sets and restores these fields for every task while another
+      // thread may call this method, so read each one only once
+      StackTraceElement[] createdTrace = stackTrace;
+      StackTraceElement[] parentTrace = parentStackTrace;
+      int len = (parentTrace == null ? 0 : parentTrace.length) +
+         (createdTrace == null ? 0 : createdTrace.length) +
          currentStackTrace.length;
       int offset = 0;
 
@@ -289,14 +293,14 @@ public class GroupedThread extends Thread {
          currentStackTrace, 0, result, 0, currentStackTrace.length);
       offset += currentStackTrace.length;
 
-      if(stackTrace != null) {
-         System.arraycopy(stackTrace, 0, result, offset, stackTrace.length);
-         offset += stackTrace.length;
+      if(createdTrace != null) {
+         System.arraycopy(createdTrace, 0, result, offset, createdTrace.length);
+         offset += createdTrace.length;
       }
 
-      if(parentStackTrace != null) {
+      if(parentTrace != null) {
          System.arraycopy(
-            parentStackTrace, 0, result, offset, parentStackTrace.length);
+            parentTrace, 0, result, offset, parentTrace.length);
       }
 
       return result;

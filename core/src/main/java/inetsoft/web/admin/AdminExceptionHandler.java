@@ -107,10 +107,13 @@ public class AdminExceptionHandler {
 
    /**
     * Error handler for access denied. A checked {@link SecurityException} or
-    * {@link UnauthorizedAccessException} (thrown, for example, by
-    * {@link inetsoft.web.security.DeniedMultiTenancyOrgUserAspect}) that is raised through the
-    * proxy of a controller method that does not declare it is wrapped by Spring AOP in an
-    * {@link UndeclaredThrowableException} before it reaches this handler.
+    * {@link UnauthorizedAccessException} is wrapped by Spring AOP in an
+    * {@link UndeclaredThrowableException} only when an aspect (for example,
+    * {@link inetsoft.web.security.DeniedMultiTenancyOrgUserAspect}) throws it through the proxy
+    * of a controller method that does not declare it. When controller or service code throws it,
+    * the method must declare it, so it arrives unwrapped and is handled by
+    * {@link #handleCheckedSecurityException(SecurityException)} or
+    * {@link #handleUnauthorizedAccess(UnauthorizedAccessException)}.
     */
    @ExceptionHandler(UndeclaredThrowableException.class)
    @ResponseBody
@@ -136,8 +139,7 @@ public class AdminExceptionHandler {
    /**
     * Error handler for access denied. The {@link inetsoft.web.security.SecuredAspect} throws an unchecked
     * {@link java.lang.SecurityException} when authorization fails; because it is unchecked,
-    * Spring AOP propagates it directly (unlike the checked {@link SecurityException} handled by
-    * {@link #handleUndeclaredThrowable(UndeclaredThrowableException)}). Map it to a sanitized 403
+    * Spring AOP propagates it directly. Map it to a sanitized 403
     * so that authorization failures are not reported as server errors and no principal, role,
     * group, or organization details are exposed to the client.
     */
@@ -149,6 +151,25 @@ public class AdminExceptionHandler {
          description = "Access was denied because the user does not have the required permissions.")
    })
    public ResponseEntity<GenericError> handleAccessDenied(java.lang.SecurityException e) {
+      return accessDenied(e);
+   }
+
+   /**
+    * Error handler for access denied. The checked {@link SecurityException} is thrown by
+    * controller and service permission checks (for example, a refused role edit). Because the
+    * method that throws it must declare it, it reaches this handler unwrapped, even through a
+    * class proxy. Map it to a sanitized 403 instead of reporting it as a server error. Its message
+    * often embeds the principal (client, host, roles, groups, organization) or the requested
+    * resource, so it is never returned to the client.
+    */
+   @ExceptionHandler(SecurityException.class)
+   @ResponseBody
+   @ApiResponses({
+      @ApiResponse(
+         responseCode = "403",
+         description = "Access was denied because the user does not have the required permissions.")
+   })
+   public ResponseEntity<GenericError> handleCheckedSecurityException(SecurityException e) {
       return accessDenied(e);
    }
 

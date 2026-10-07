@@ -219,7 +219,7 @@ public class StallWatchdogTest {
          assertSame(StallWatchdog.class.getClassLoader(), thread.getContextClassLoader());
       }
       finally {
-         StallPolicy.setOverride(null);
+         StallTestSupport.clearOverride();
       }
    }
 
@@ -249,7 +249,7 @@ public class StallWatchdogTest {
       finally {
          StallWatchdog.threadFactory = factory;
          StallWatchdog.startClock = clock;
-         StallPolicy.setOverride(null);
+         StallTestSupport.clearOverride();
       }
    }
 

@@ -20,11 +20,13 @@ package inetsoft.web.admin.schedule;
 import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.schedule.ScheduleTask;
 import inetsoft.sree.security.*;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.internal.AssetFolder;
 import inetsoft.util.Catalog;
 import inetsoft.util.InvalidOrgException;
+import inetsoft.util.MessageException;
 import inetsoft.web.admin.content.repository.ContentRepositoryTreeModel;
 import inetsoft.web.admin.content.repository.ContentRepositoryTreeNode;
 import inetsoft.web.admin.schedule.model.*;
@@ -73,6 +75,13 @@ public class EMScheduleTaskFolderController {
       String path = parentInfo.path();
       String folderName = "".equals(path) || "/".equals(path) ? "" : path + "/";
       folderName += req.getFolderName();
+
+      // Bug #77811, the same WRITE check addFolder makes, so the endpoint doesn't tell a user
+      // who can't add to the folder which schedule folders exist
+      if(!scheduleTaskFolderService.checkFolderPermission(path, principal, ResourceAction.WRITE)) {
+         throw new SecurityException(
+            "Unauthorized access to resource \"" + path + "\" by user " + principal);
+      }
 
       AssetEntry parentEntry = new AssetEntry(
          AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER, path, null);
@@ -211,10 +220,20 @@ public class EMScheduleTaskFolderController {
       )
    )
    @PostMapping("/api/em/schedule/check-folder")
-   public boolean checkDuplicateFolderPath(@RequestBody MoveTaskFolderRequest request) throws Exception {
+   public boolean checkDuplicateFolderPath(@RequestBody MoveTaskFolderRequest request,
+                                           Principal principal)
+      throws Exception
+   {
       String[] folders = request.getFolders();
       ContentRepositoryTreeNode target = request.getTarget();
       String pathTo = target.path();
+
+      // Bug #77812, without the WRITE on the target that move-folder checks first, the answer
+      // doesn't depend on which folders exist. The move that follows is refused with its message.
+      if(!scheduleTaskFolderService.checkFolderPermission(pathTo, principal, ResourceAction.WRITE)) {
+         return false;
+      }
+
       AssetEntry assetEntry
          = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER, pathTo, null);
       return scheduleTaskFolderService.checkDuplicateFolderPath(folders,assetEntry);
@@ -247,7 +266,10 @@ public class EMScheduleTaskFolderController {
                ResourceType.SCHEDULE_TASK, task.getTaskId(), ResourceAction.WRITE) ||
                scheduleTaskService.canDeleteTask(task, principal)))
             {
-               return;
+               // Bug #77813, refuse the whole move with an error the UI shows, as the portal does,
+               // instead of answering 200 as if the move had worked
+               throw new MessageException(Catalog.getCatalog().getString(
+                  "common.writeAuthority", task.getName()));
             }
          }
       }
@@ -269,9 +291,21 @@ public class EMScheduleTaskFolderController {
    )
    @PostMapping("api/em/schedule/rename/checkDuplicate")
    public CheckDuplicateResponse checkRenameItemDuplicate(
-      @RequestBody EditTaskFolderDialogModel model)
+      @RequestBody EditTaskFolderDialogModel model, Principal principal)
       throws Exception
    {
+      // Bug #77812, without the DELETE and WRITE on the folder that rename-folder checks first,
+      // the answer doesn't depend on which folders exist. It isn't refused, because New Folder
+      // asks this with a made-up path in the parent before add/checkDuplicate.
+      if(model != null &&
+         (!scheduleTaskFolderService.checkFolderPermission(
+            model.oldPath(), principal, ResourceAction.DELETE) ||
+          !scheduleTaskFolderService.checkFolderPermission(
+             model.oldPath(), principal, ResourceAction.WRITE)))
+      {
+         return new CheckDuplicateResponse(false);
+      }
+
       return scheduleTaskFolderService.checkRenameDuplicate(model);
    }
 

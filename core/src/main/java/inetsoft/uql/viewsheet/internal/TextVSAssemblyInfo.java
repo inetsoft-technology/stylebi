@@ -348,13 +348,13 @@ public class TextVSAssemblyInfo extends ClickableOutputVSAssemblyInfo
 
       if(val != null) {
          writer.print("<text>");
-         writer.print("<![CDATA[" + val + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(String.valueOf(val)) + "]]>");
          writer.println("</text>");
       }
 
       if(textValue.getDValue() != null) {
          writer.print("<textValue>");
-         writer.print("<![CDATA[" + textValue.getDValue() + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(textValue.getDValue()) + "]]>");
          writer.println("</textValue>");
       }
 

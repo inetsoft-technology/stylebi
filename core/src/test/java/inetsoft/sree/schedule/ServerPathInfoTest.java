@@ -20,6 +20,7 @@ package inetsoft.sree.schedule;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import inetsoft.report.internal.Util;
 import inetsoft.util.ConfigurationContext;
 import inetsoft.util.PasswordEncryption;
 import inetsoft.util.Tool;
@@ -180,18 +181,30 @@ class ServerPathInfoTest {
       }
 
       @Test
-      @DisplayName("setPath(null) throws because checkFTP calls path.toLowerCase()")
-      void setPathNullThrowsNullPointerException() {
+      @DisplayName("setPath(null) clears the path")
+      void setPathNull() {
          ServerPathInfo info = new ServerPathInfo("/local/path");
-         assertThrows(NullPointerException.class, () -> info.setPath(null));
+         info.setPath(null);
+         assertNull(info.getPath());
+         assertFalse(info.isFTP());
       }
 
       @Test
-      @DisplayName("setUsername on default instance throws when path is still null")
-      void setUsernameOnNullPathThrowsNullPointerException() {
+      @DisplayName("credential setters on default instance work while path is still null")
+      void credentialSettersOnNullPath() {
          ServerPathInfo info = new ServerPathInfo();
          assertNull(info.getPath());
-         assertThrows(NullPointerException.class, () -> info.setUsername("deploy"));
+
+         // Bug #77957, the public API sets the credentials before the path
+         info.setUseCredential(true);
+         info.setSecretId("vault-cred-1");
+         info.setUsername("deploy");
+         info.setPassword("pw");
+         info.setPath("ftp://host/out");
+
+         assertEquals("ftp://host/out", info.getPath());
+         assertTrue(info.isFTP());
+         assertEquals("vault-cred-1", info.getSecretId());
       }
 
       @Test
@@ -466,6 +479,170 @@ class ServerPathInfoTest {
          finally {
             PasswordEncryption.setEncryptForceLocal(false);
          }
+      }
+
+      @Test
+      @DisplayName("Bug #77957: a password in the path is written encrypted, not in the path")
+      void pathPasswordIsNotWrittenInThePath() {
+         ServerPathInfo info = new ServerPathInfo("sftp://bk:Emb3dded77957@backup.example.com/b");
+
+         try(MockedStatic<Tool> tool = mockStatic(Tool.class, CALLS_REAL_METHODS)) {
+            tool.when(() -> Tool.encryptPassword("Emb3dded77957")).thenReturn("ENC:x");
+            String xml = writeXml(info);
+
+            assertFalse(xml.contains("Emb3dded77957"), xml);
+            assertTrue(xml.contains("path=\"sftp://bk@backup.example.com/b\""), xml);
+            assertTrue(xml.contains("password=\"ENC:x\""), xml);
+         }
+      }
+
+      @Test
+      @DisplayName("Bug #77957: a task saved before the fix is split when it is loaded")
+      void storedPathPasswordIsSplitOnLoad() throws Exception {
+         ServerPathInfo loaded = new ServerPathInfo();
+         loaded.parseXML(parseServerPathXml(
+            "<ServerPath path=\"ftp://u:Emb3dded77957@host/out\" useCredential=\"true\" " +
+            "secretId=\"vault-cred-1\"/>"));
+
+         assertEquals("ftp://u@host/out", loaded.getPath());
+         assertEquals("u", loaded.getUsername());
+         assertEquals("Emb3dded77957", loaded.getPassword());
+         assertFalse(loaded.isUseCredential());
+         assertNull(loaded.getSecretId());
+      }
+   }
+
+   // -------------------------------------------------------------------------
+   // Bug #77957 — a password in the user info of the path is moved to the password field
+   // -------------------------------------------------------------------------
+
+   @Nested
+   @DisplayName("Password in the path (Bug #77957)")
+   class PathPasswordTests {
+
+      @Test
+      @DisplayName("ftp:// path: password moves to the field, the user stays in the path")
+      void ftpPathPasswordMovesToField() {
+         ServerPathInfo info = new ServerPathInfo("ftp://u:pw@host/out/r.pdf?append=true",
+                                                  "field-user", "field-pw");
+
+         assertEquals("ftp://u@host/out/r.pdf?append=true", info.getPath());
+         assertEquals("u", info.getUsername());
+         assertEquals("pw", info.getPassword());
+         assertTrue(info.isFTP());
+      }
+
+      @Test
+      @DisplayName("the user and password are split as the upload reads them")
+      void splitFollowsTheUploadRules() {
+         // the last '@' ends the user info, the first ':' ends the user
+         assertSplit("ftp://u:p@w@host/x", "ftp://u@host/x", "u", "p@w");
+         assertSplit("ftp://a@b:c@host/x", "ftp://a@b@host/x", "a@b", "c");
+         assertSplit("ftp://u:p w+%41/#?@host/x", "ftp://u@host/x", "u", "p w+%41/#?");
+         assertSplit("ftp://:pw@host/x", "ftp://@host/x", "", "pw");
+         // parameters are kept, also where they make the path an invalid URL
+         assertSplit("ftp://u:pw@host/out/{0}", "ftp://u@host/out/{0}", "u", "pw");
+         assertSplit("ftp://u:pw@{0}/x", "ftp://u@{0}/x", "u", "pw");
+         assertSplit("ftp://u:pw@host:{0}/x", "ftp://u@host:{0}/x", "u", "pw");
+         // sftp:// in any case is stripped; FTP:// is not stripped by the upload either
+         assertSplit("SFTP://u:pw@host:2222/x", "SFTP://u@host:2222/x", "u", "pw");
+         assertSplit("FTP://u:pw@host/x", "FTP@host/x", "FTP", "//u:pw");
+      }
+
+      @Test
+      @DisplayName("a path without a password in the user info is not changed")
+      void pathWithoutPasswordIsUnchanged() {
+         assertUnchanged(new ServerPathInfo("ftp://u@host/x", "u", "pw"), "ftp://u@host/x", "pw");
+         assertUnchanged(new ServerPathInfo("ftp://host/x", "u", "pw"), "ftp://host/x", "pw");
+         // an empty password is left in the path
+         assertUnchanged(new ServerPathInfo("ftp://u:@host/x", "f", "pw"), "ftp://u:@host/x", "pw");
+         // not uploaded to a server, so not changed
+         assertUnchanged(new ServerPathInfo("C:/out/u:pw@host/x"), "C:/out/u:pw@host/x", null);
+      }
+
+      @Test
+      @DisplayName("a scheme-less path is split once a user name makes it an FTP path")
+      void schemeLessPathIsSplitWhenItBecomesFtp() {
+         ServerPathInfo info = new ServerPathInfo("u:pw@host/x");
+         assertEquals("u:pw@host/x", info.getPath());
+         assertFalse(info.isFTP());
+
+         info.setUsername("svc");
+
+         assertEquals("u@host/x", info.getPath());
+         assertEquals("u", info.getUsername());
+         assertEquals("pw", info.getPassword());
+      }
+
+      @Test
+      @DisplayName("a password in the path replaces a secret, as it does when uploading")
+      void pathPasswordReplacesSecret() {
+         ServerPathInfo info = new ServerPathInfo();
+         info.setUseCredential(true);
+         info.setSecretId("vault-cred-1");
+         info.setPath("sftp://u:pw@host/x");
+
+         assertEquals("sftp://u@host/x", info.getPath());
+         assertFalse(info.isUseCredential());
+         assertNull(info.getSecretId());
+         assertEquals("u", info.getUsername());
+         assertEquals("pw", info.getPassword());
+         assertTrue(info.isSFTP());
+      }
+
+      @Test
+      @DisplayName("a field set after the path replaces the moved value")
+      void laterSetterWins() {
+         ServerPathInfo info = new ServerPathInfo("ftp://u:pw@host/x");
+         info.setPassword("other");
+
+         assertEquals("ftp://u@host/x", info.getPath());
+         assertEquals("other", info.getPassword());
+      }
+
+      @Test
+      @DisplayName("the model constructor moves the password too")
+      void modelConstructor() {
+         ServerPathInfoModel model = mock(ServerPathInfoModel.class);
+         when(model.path()).thenReturn("ftp://u:pw@host/x");
+         when(model.ftp()).thenReturn(true);
+         when(model.useCredential()).thenReturn(true);
+         when(model.secretId()).thenReturn("vault-cred-1");
+
+         ServerPathInfo info = new ServerPathInfo(model);
+
+         assertEquals("ftp://u@host/x", info.getPath());
+         assertFalse(info.isUseCredential());
+         assertEquals("pw", info.getPassword());
+      }
+
+      @Test
+      @DisplayName("the task editor model shows the path without the password and a placeholder")
+      void editorModelMasksThePasswordFromThePath() {
+         ServerPathInfoModel model = ServerPathInfoModel.builder()
+            .from(new ServerPathInfo("sftp://bk:Emb3dded77957@backup.example.com/b.zip"))
+            .build();
+
+         assertEquals("sftp://bk@backup.example.com/b.zip", model.path());
+         assertEquals("bk", model.username());
+         assertEquals(Util.PLACEHOLDER_PASSWORD, model.password());
+      }
+
+      private void assertSplit(String path, String newPath, String user, String password) {
+         ServerPathInfo info = new ServerPathInfo(path, "field-user", "field-pw");
+         assertEquals(newPath, info.getPath(), path);
+         assertEquals(user, info.getUsername(), path);
+         assertEquals(password, info.getPassword(), path);
+
+         // nothing is left to move
+         info.setPath(info.getPath());
+         assertEquals(newPath, info.getPath(), path);
+         assertEquals(password, info.getPassword(), path);
+      }
+
+      private void assertUnchanged(ServerPathInfo info, String path, String password) {
+         assertEquals(path, info.getPath());
+         assertEquals(password, info.getPassword());
       }
    }
 

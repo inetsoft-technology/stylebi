@@ -38,6 +38,7 @@ import inetsoft.util.Tool;
 import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.stall.LockStallException;
+import inetsoft.util.swap.SwapFileReadException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -350,6 +351,13 @@ public class CalcTableVSAQuery extends DataVSAQuery {
 
             if(stall != null) {
                throw stall;
+            }
+
+            // nor must a lost swap file of a base (bug #77909)
+            SwapFileReadException swapFailure = SwapFileReadException.find(e);
+
+            if(swapFailure != null) {
+               throw swapFailure;
             }
 
             LOG.error("Failed to create calc table: " + e, e);

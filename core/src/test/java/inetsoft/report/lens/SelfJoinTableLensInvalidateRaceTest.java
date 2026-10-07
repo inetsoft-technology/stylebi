@@ -59,7 +59,7 @@ public class SelfJoinTableLensInvalidateRaceTest {
 
    @AfterEach
    public void tearDown() {
-      StallPolicy.setOverride(null);
+      StallTestSupport.clearOverride();
    }
 
    @Test

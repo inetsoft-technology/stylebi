@@ -323,7 +323,13 @@ public class JoinQuery extends AssetQuery {
       // script, not only this worksheet's, so an unrelated in-script caller also
       // takes the serial path. That is intentional (safe over-conservative): it
       // never deadlocks, at a small parallelism cost in that uncommon case.
-      final boolean serial = JavaScriptEngine.isScriptThread();
+      // @by Bug #77873: the caller can also hold this worksheet's engine lock outside
+      // any exec(): an embedded table's build takes it before the table's monitor when
+      // anything it reaches can run script, a sub-query on this table included. Each
+      // member query would then wait for that lock on its pool thread exactly as above,
+      // so run them on the calling thread in that case too.
+      final boolean serial = JavaScriptEngine.isScriptThread() ||
+         box != null && box.holdsScriptExecutionLock();
       ThreadPoolExecutor executor = serial ? null :
          (ThreadPoolExecutor) Executors.newFixedThreadPool(5, new GroupedThreadFactory());
 

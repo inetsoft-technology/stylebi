@@ -3368,11 +3368,13 @@ public class SUtil {
          return name;
       }
 
-      String[] names = name.split(":");
+      // Bug #77883, the owner key ends at the first ':', the task name may contain ':'
+      int index = name.indexOf(':');
+      String owner = name.substring(0, index);
 
-      if(names[0].indexOf(IdentityID.KEY_DELIMITER) > 0) {
-         String[] userNames = names[0].split(IdentityID.KEY_DELIMITER);
-         return userNames[0] + ":" + names[1];
+      if(owner.indexOf(IdentityID.KEY_DELIMITER) > 0) {
+         String[] userNames = owner.split(IdentityID.KEY_DELIMITER);
+         return userNames[0] + name.substring(index);
       }
 
       return name;
@@ -3383,8 +3385,8 @@ public class SUtil {
          return name;
       }
 
-      String[] names = name.split(":");
-      return names[1];
+      // Bug #77883, the task name may contain ':'
+      return name.substring(name.indexOf(':') + 1);
    }
 
    public static IdentityID getOwnerForNewTask(IdentityID user) {
@@ -3597,6 +3599,18 @@ public class SUtil {
    }
 
    public static List<ServerLocation> getServerLocations() {
+      return getServerLocations(false);
+   }
+
+   /**
+    * Gets the server locations with the stored password of each location in its path info model.
+    * Only use it on the server, never send the result to a client.
+    */
+   public static List<ServerLocation> getServerLocationsWithPasswords() {
+      return getServerLocations(true);
+   }
+
+   private static List<ServerLocation> getServerLocations(boolean withPasswords) {
       List<ServerLocation> locations = new ArrayList<>();
       String property = SreeEnv.getProperty("server.save.locations");
 
@@ -3635,11 +3649,11 @@ public class SUtil {
             ServerPathInfoModel pathInfoModel = ServerPathInfoModel.builder()
                .path(path)
                .username(username)
-               .password(password == null ? null : Util.PLACEHOLDER_PASSWORD)
+               .password(password == null || withPasswords ? password : Util.PLACEHOLDER_PASSWORD)
                .secretId(secretId)
                .useCredential(useSecretId)
                .ftp(!Tool.isEmptyString(username) || !Tool.isEmptyString(secretId))
-               .oldPasswordKey(Tool.buildString(path, label, username))
+               .oldPasswordKey(String.join("|", path, label, Objects.toString(username, "")))
                .build();
             locations.add(ServerLocation.builder().path(path).label(label).pathInfoModel(pathInfoModel).build());
          }
@@ -3647,29 +3661,6 @@ public class SUtil {
 
       locations.sort(Comparator.comparing(ServerLocation::label));
       return locations;
-   }
-
-   public static Map<String, String> getServerLocationsPwdMap() {
-      HashMap map = new HashMap();
-      String val = SreeEnv.getProperty("server.save.locations");
-
-      if(Tool.isEmptyString(val)) {
-         return map;
-      }
-
-      String[] paths = val.split(";");
-
-      for(int i = 0; i < paths.length; i++) {
-         String path = paths[i];
-         String[] parts = path.split("\\|");
-
-         if(parts.length == 4) {
-            String pwd = parts[3];
-            map.put(Tool.buildString(parts[0], parts[1], parts[2]), pwd);
-         }
-      }
-
-      return map;
    }
 
    public static String writeCookiesString(Cookie[] cookies) {

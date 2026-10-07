@@ -328,6 +328,9 @@ public abstract class DatasourcesBaseService {
       return TabularDataSource.withCredentialFetchGate(check, () -> {
          XDataSource result = createDataSource(definition, ds);
          SecretIdAuthorizer.checkSecretId(SecretIdAuthorizer.getCloudSecretId(result), check);
+         // Bug #64331, a server path, such as the root folder of a Text/Excel Directory data
+         // source, must be under an allowed root unless it is unchanged
+         ServerFilePathPolicy.create(securityEngine).checkDataSource(result, stored, principal);
          List<AdditionalConnectionDataSource<?>> additionals = null;
 
          // additional connections are added after the data source is saved, so create them now
@@ -399,9 +402,10 @@ public abstract class DatasourcesBaseService {
       throws Exception
    {
       repository.removeDataSource(path, force);
-      securityEngine.removePermission(ResourceType.DATA_SOURCE, path);
       JDBCUtil.removeConnectionTestQuery(path);
       SreeEnv.save();
+      // revoke last, so a failed permission write doesn't skip the cleanup above
+      securityEngine.removePermission(ResourceType.DATA_SOURCE, path);
       return null;
    }
 
@@ -567,38 +571,61 @@ public abstract class DatasourcesBaseService {
          repository.updateDataSource(ds, null, false);
          afterUpdateSourceCallback(definition, ds, true);
 
-
          boolean isSelfUser = Tool.equals(Organization.getSelfOrganizationID(),
                                           OrganizationManager.getInstance().getCurrentOrgID(principal));
-
          // some kind private datasource of the current user
-         if(isSelfUser || (!folderPermission && newSourcePermission)) {
-            String userWithoutOrg = principal.getName() != null ?
-               IdentityID.getIdentityIDFromKey(principal.getName()).getName() : null;
-            Set<String> users = Collections.singleton(userWithoutOrg);
-            Permission permission = new Permission();
-            String orgId = OrganizationManager.getInstance().getCurrentOrgID();
-            permission.setUserGrantsForOrg(ResourceAction.READ, users, orgId);
-            permission.setUserGrantsForOrg(ResourceAction.WRITE, users, orgId);
-            permission.setUserGrantsForOrg(ResourceAction.DELETE, users, orgId);
-            permission.updateGrantAllByOrg(orgId, true);
-            securityEngine.setPermission(
-               ResourceType.DATA_SOURCE, ds.getFullName(), permission);
+         boolean grant = isSelfUser || (!folderPermission && newSourcePermission);
+         // the failure of a step after the data source is saved, which a failed permission write
+         // doesn't replace
+         Throwable saveFailure = null;
+
+         try {
+            AssetEntry entry = new AssetEntry(
+               AssetRepository.QUERY_SCOPE, isXmla ? AssetEntry.Type.DOMAIN : AssetEntry.Type.DATA_SOURCE, name, null);
+            entry = getDataSourceAssetEntry(entry);
+
+            if(entry != null) {
+               entry.setCreatedUsername(principal.getName());
+               entry.setCreatedDate(new Date());
+               updateDataSourceAssetEntry(entry);
+            }
+
+            if(authorized.additionalConnections() != null) {
+               saveAdditionalConnections((DataSourceDefinition) definition,
+                  (AdditionalConnectionDataSource<?>) ds, authorized.additionalConnections(), null);
+            }
          }
-
-         AssetEntry entry = new AssetEntry(
-            AssetRepository.QUERY_SCOPE, isXmla ? AssetEntry.Type.DOMAIN : AssetEntry.Type.DATA_SOURCE, name, null);
-         entry = getDataSourceAssetEntry(entry);
-
-         if(entry != null) {
-            entry.setCreatedUsername(principal.getName());
-            entry.setCreatedDate(new Date());
-            updateDataSourceAssetEntry(entry);
+         catch(Throwable e) {
+            saveFailure = e;
+            throw e;
          }
+         finally {
+            // the grant is written last, so a failed permission write doesn't skip the asset entry
+            // or the additional connections of the saved data source, and written even if one of
+            // them fails, since the data source is saved by then
+            if(grant) {
+               String userWithoutOrg = principal.getName() != null ?
+                  IdentityID.getIdentityIDFromKey(principal.getName()).getName() : null;
+               Set<String> users = Collections.singleton(userWithoutOrg);
+               Permission permission = new Permission();
+               String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+               permission.setUserGrantsForOrg(ResourceAction.READ, users, orgId);
+               permission.setUserGrantsForOrg(ResourceAction.WRITE, users, orgId);
+               permission.setUserGrantsForOrg(ResourceAction.DELETE, users, orgId);
+               permission.updateGrantAllByOrg(orgId, true);
 
-         if(authorized.additionalConnections() != null) {
-            saveAdditionalConnections((DataSourceDefinition) definition,
-               (AdditionalConnectionDataSource<?>) ds, authorized.additionalConnections(), null);
+               try {
+                  securityEngine.setPermission(
+                     ResourceType.DATA_SOURCE, ds.getFullName(), permission);
+               }
+               catch(RuntimeException e) {
+                  if(saveFailure == null) {
+                     throw e;
+                  }
+
+                  saveFailure.addSuppressed(e);
+               }
+            }
          }
       }
    }
@@ -625,6 +652,12 @@ public abstract class DatasourcesBaseService {
       if(dataSourceRegistry.isAdditionalConnectionPath(oldName)) {
          throw new MessageException(Catalog.getCatalog(principal).getString(
             "common.datasource.additionalConnectionMove"));
+      }
+
+      // Bug #77725, Bug #77820, a rename that XEngine refuses, checked here because the additional
+      // connections are written under the new name before XEngine is called
+      if(!Tool.equals(oldName, nName)) {
+         dataSourceRegistry.checkDataSourceMovePathClash(oldName);
       }
 
       XDataSource oldSrc = repository.getDataSource(oldName);

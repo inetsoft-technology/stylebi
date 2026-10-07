@@ -41,7 +41,6 @@ import { TimeZoneService } from "../../../../../../shared/schedule/time-zone.ser
 import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { Tool } from "../../../../../../shared/util/tool";
 import { ComponentTool } from "../../../common/util/component-tool";
-import { GuiTool } from "../../../common/util/gui-tool";
 import { NotificationsComponent } from "../../../widget/notifications/notifications.component";
 import { TaskOptionsPane } from "./options/task-options-pane.component";
 import { TaskActionPane } from "./actions/task-action-pane.component";
@@ -80,7 +79,7 @@ export class ScheduleTaskEditorComponent implements OnInit {
                private scheduleTaskNamesService: ScheduleTaskNamesService)
    {
       this.form = formBuilder.group({
-         "name": ["", Validators.compose([Validators.required, FormValidators.invalidTaskName])]
+         "name": ["", Validators.compose([FormValidators.required, FormValidators.invalidTaskName])]
       });
       this.form.get("name").valueChanges.forEach(
          (name: string) => this.updateTaskName(name, false)
@@ -99,10 +98,10 @@ export class ScheduleTaskEditorComponent implements OnInit {
       ).subscribe(
          (model: ScheduleTaskDialogModel) => {
             this.model = model;
-            let param = GuiTool.getQueryParameters().get("path");
-            this.returnPath = param && param.length > 0 ? param[0] : null;
-            param = GuiTool.getQueryParameters().get("newTask");
-            this.newTask = param[0] == "true";
+            // a deep link has no query parameters (Bug #77511)
+            const queryParams = this.route.snapshot?.queryParamMap;
+            this.returnPath = queryParams?.get("path") || null;
+            this.newTask = queryParams?.get("newTask") == "true";
             this.resetConditionListView();
             this.form.patchValue({name: model.label});
             this.model.timeZoneOptions = this.timeZoneService.updateTimeZoneOptions(

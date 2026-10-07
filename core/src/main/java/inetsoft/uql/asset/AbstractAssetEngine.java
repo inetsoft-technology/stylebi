@@ -2146,13 +2146,72 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          return;
       }
 
-      securityEngine.removePermission(type, oentry.getPath());
+      // the permission move is best-effort: this runs inside the folder move, and a failed
+      // permission write must not stop the rest of the tree from being moved
+      try {
+         securityEngine.removePermission(type, oentry.getPath());
+      }
+      catch(RuntimeException e) {
+         LOG.error("Failed to remove the permission of {} {} after moving it to {}",
+                   type, oentry.getPath(), nentry.getPath(), e);
+
+         // Bug #77939, a repository folder's permission is moved again by RepletEngine after
+         // this, which reports it if that fails too, so it's only reported here for other folders
+         if(!oentry.isRepositoryFolder()) {
+            reportPermissionMayRemain(securityEngine, type, oentry.getPath());
+         }
+      }
 
       // moving out of the global repository (e.g. into a user's private assets); the old
       // permission no longer applies to any path and must not be copied to the private path
       if(nentry.getScope() == GLOBAL_SCOPE) {
-         securityEngine.setPermission(type, nentry.getPath(), oldPermission);
+         try {
+            securityEngine.setPermission(type, nentry.getPath(), oldPermission);
+         }
+         catch(RuntimeException e) {
+            LOG.error("Failed to move the permission of {} {} to {}",
+                      type, oentry.getPath(), nentry.getPath(), e);
+         }
       }
+   }
+
+   /**
+    * Bug #77939, reports that the permission of a deleted or moved asset may still be stored at
+    * its old path after removing it failed, because an asset created later at the same path would
+    * receive it. The permission is read again, and it's reported if it's still there or if it
+    * can't be read. The report is a user message for the request that deleted or moved the asset.
+    * It never throws, because the asset is already deleted or moved.
+    */
+   public static void reportPermissionMayRemain(SecurityEngine security, ResourceType type,
+                                                String path)
+   {
+      boolean remains;
+
+      try {
+         remains = security.getPermission(type, path) != null;
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to check if the permission of {} {} is still stored", type, path, e);
+         remains = true;
+      }
+
+      if(!remains) {
+         return;
+      }
+
+      LOG.warn("The permission of {} {} may still be stored, an asset created later at the " +
+               "same path may receive it", type, path);
+      String message;
+
+      try {
+         message = Catalog.getCatalog().getString("em.repository.permissionsMayRemain");
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to get the message for the permission left at {} {}", type, path, e);
+         message = "Some permissions of the deleted or moved items may not have been removed.";
+      }
+
+      Tool.addUserWarning(message);
    }
 
    /**

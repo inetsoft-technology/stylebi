@@ -410,19 +410,21 @@ export class ScheduleFolderTreeComponent implements OnInit, OnDestroy {
 
             dialogRef.afterClosed().subscribe((res) => {
                if(res) {
-                  this.http.post(TASKS_FOLDER_NAME_URI, res).subscribe(() => {
-                     let newPath = res.oldPath;
-                     const index = newPath.lastIndexOf("/");
+                  this.http.post(TASKS_FOLDER_NAME_URI, res)
+                     .pipe(catchError(error => this.handleError(error)))
+                     .subscribe(() => {
+                        let newPath = res.oldPath;
+                        const index = newPath.lastIndexOf("/");
 
-                     if(index != -1) {
-                        newPath = newPath.substr(0, index + 1) + res.folderName;
-                     }
-                     else {
-                        newPath = res.folderName;
-                     }
+                        if(index != -1) {
+                           newPath = newPath.substr(0, index + 1) + res.folderName;
+                        }
+                        else {
+                           newPath = res.folderName;
+                        }
 
-                     this.safeRefreshTree(false, newPath);
-                  });
+                        this.safeRefreshTree(false, newPath);
+                     });
                }
             });
          });

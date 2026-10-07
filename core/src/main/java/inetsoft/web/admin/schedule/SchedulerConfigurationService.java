@@ -304,7 +304,13 @@ public class SchedulerConfigurationService {
       }
       else {
          ArrayList<String> paths = new ArrayList<>();
-         Map<String, String> oldPwdMap = SUtil.getServerLocationsPwdMap();
+         Map<String, ServerPathInfoModel> oldLocations = new HashMap<>();
+
+         for(ServerLocation location : SUtil.getServerLocationsWithPasswords()) {
+            if(location.pathInfoModel() != null) {
+               oldLocations.put(location.pathInfoModel().oldPasswordKey(), location.pathInfoModel());
+            }
+         }
 
          for(ServerLocation location : locations) {
             String path = location.path();
@@ -332,14 +338,22 @@ public class SchedulerConfigurationService {
                         !Tool.isEmptyString(infoModel.username()) ? infoModel.username() : null;
                      String password = infoModel.password();
 
-                     if(Util.PLACEHOLDER_PASSWORD.equals(password) && infoModel.oldPasswordKey() != null) {
-                        password = oldPwdMap.get(infoModel.oldPasswordKey());
+                     // Bug #77953, only keep the stored password for the same server and user
+                     if(Util.PLACEHOLDER_PASSWORD.equals(password)) {
+                        ServerPathInfoModel oldModel = infoModel.oldPasswordKey() == null ?
+                           null : oldLocations.get(infoModel.oldPasswordKey());
+                        password = oldModel != null && isSameLocationLogin(path, username, oldModel) ?
+                           oldModel.password() : null;
                      }
 
                      pathInfo.append(path).append("|").append(label);
 
                      if(username != null) {
-                        pathInfo.append("|").append(username).append("|").append(password);
+                        pathInfo.append("|").append(username);
+
+                        if(!Tool.isEmptyString(password)) {
+                           pathInfo.append("|").append(password);
+                        }
                      }
                   }
                }
@@ -354,6 +368,26 @@ public class SchedulerConfigurationService {
          String property = String.join(";", paths);
          SreeEnv.setProperty("server.save.locations", property);
       }
+   }
+
+   /**
+    * Determines if the stored password of a server location may be kept for an edited location.
+    * The location must be unchanged, or log in to the same server as the same user.
+    */
+   private static boolean isSameLocationLogin(String path, String username,
+                                              ServerPathInfoModel oldModel)
+   {
+      if(path == null) {
+         return false;
+      }
+
+      if(path.replaceAll("[/\\\\]+$", "").equals(oldModel.path()) &&
+         Objects.equals(username, oldModel.username()))
+      {
+         return true;
+      }
+
+      return ScheduleService.isSameLogin(path, username, oldModel.path(), oldModel.username());
    }
 
    private final ScheduleClient scheduleClient;

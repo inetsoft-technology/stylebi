@@ -349,6 +349,66 @@ public final class ScriptHostAccess {
                   // the engine (static WorksheetEngine.getWorksheetService(),
                   // ViewsheetEngine), which hands out every user's sheets on the node
                   .denyAccess(inetsoft.report.composition.WorksheetService.class)
+                  // Bug #77827, #77828: the asset engine, its storage and the
+                  // Java-side helpers and singletons under the allowed prefixes
+                  // that read, write or delete stored state for an entry, org id or
+                  // user name the caller supplies, with no principal check of their
+                  // own. None is script API, and the deny is by type, so it holds on
+                  // every route (Java.type, the legacy shim, an inherited static, an
+                  // instance an API returns). Java callers are unaffected, so
+                  // runQuery, VSUtil.getBookmarks, library functions and calc-table
+                  // rendering still work. A deny does not cover members Graal
+                  // attributes to an undenied supertype (AutoCloseable.close,
+                  // PropertyChangeListener.propertyChange, DataCache), so no
+                  // script-reachable method may return one of these instances;
+                  // AssetUtil.getAssetRepository refuses a direct script caller.
+                  // - the asset engine (AbstractAssetEngine, RepletEngine,
+                  //   AnalyticEngine, RuntimeAssetEngine, StyleCore and so ReportSheet
+                  //   and TabularSheet) and the raw storage getStorage() returns
+                  .denyAccess(inetsoft.uql.asset.AssetRepository.class)
+                  .denyAccess(inetsoft.sree.RepletRepository.class)
+                  .denyAccess(inetsoft.util.IndexedStorage.class)
+                  // - asset readers that load a stored sheet for a minted entry with
+                  //   no principal (LayoutTool covers VSLayoutTool and ReportLayoutTool,
+                  //   whose public statics reach getNamedGroupAssembly)
+                  .denyAccess(inetsoft.uql.asset.sync.DependencyTool.class)
+                  .denyAccess(inetsoft.report.LayoutTool.class)
+                  // ReportWorksheetProcessor, the only implementor, runs a stored
+                  // worksheet for a minted entry (a null user loads it unchecked) and
+                  // returns its data; XUtil.runQuery checks permission before using it
+                  .denyAccess(inetsoft.uql.asset.WorksheetProcessor.class)
+                  // - storage services keyed by an org id the caller passes
+                  .denyAccess(inetsoft.report.LibManagerProvider.class)
+                  .denyAccess(inetsoft.report.LibManager.class)
+                  .denyAccess(inetsoft.uql.asset.EmbeddedTableStorage.class)
+                  .denyAccess(inetsoft.uql.asset.EmbeddedDataCacheHandler.class)
+                  .denyAccess(inetsoft.uql.asset.sync.DependencyStorageService.class)
+                  .denyAccess(inetsoft.uql.viewsheet.vslayout.DeviceRegistry.class)
+                  // - per-user and node-wide state
+                  .denyAccess(inetsoft.uql.viewsheet.BookmarkLockManager.class)
+                  .denyAccess(inetsoft.report.composition.execution.AssetDataCache.class)
+                  .denyAccess(inetsoft.report.composition.execution
+                                 .DistributedTableCacheStore.class)
+                  // - the dependency and rename machinery
+                  .denyAccess(inetsoft.uql.asset.sync.RenameTransformHandler.class)
+                  // Bug #77852: the rest of the rename pipeline. DependencyTransformer
+                  // covers its public subclasses; RenameTransformTask$Rename and $Remove
+                  // don't extend RenameTransformTask, so they are named
+                  .denyAccess(inetsoft.uql.asset.sync.DependencyTransformer.class)
+                  .denyAccess(inetsoft.uql.asset.sync.UpdateDependencyHandler.class)
+                  .denyAccess(inetsoft.uql.asset.sync.RenameTransformTask.class)
+                  .denyAccess(inetsoft.uql.asset.sync.RenameTransformTask.Rename.class)
+                  .denyAccess(inetsoft.uql.asset.sync.RenameTransformTask.Remove.class)
+                  .denyAccess(inetsoft.uql.asset.sync.LoadDependencyStorageTask.class)
+                  .denyAccess(inetsoft.uql.asset.sync.RenameTransformQueue.class)
+                  // the delete dependency checkers load a stored sheet through
+                  // DependencyTool for the entry they are passed. DependencyChecker covers
+                  // AssetDependencyChecker and ViewsheetDependencyChecker
+                  .denyAccess(inetsoft.uql.asset.delete.DependencyChecker.class)
+                  .denyAccess(inetsoft.uql.asset.delete.DeleteDependencyHandler.class)
+                  .denyAccess(inetsoft.uql.asset.UpdateAssetDependenciesHandler.class)
+                  .denyAccess(inetsoft.uql.asset.DependencyHandler.class)
+                  .denyAccess(inetsoft.report.internal.MVInfoClient.class)
                   // XUtil.getXIdentityFinder() resolves every user's roles, groups
                   // and org, and its getters return the live arrays
                   .denyAccess(inetsoft.uql.util.XIdentityFinder.class)

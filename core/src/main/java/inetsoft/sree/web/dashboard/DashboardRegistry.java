@@ -207,7 +207,8 @@ public class DashboardRegistry {
       for(Map.Entry<String, Dashboard> entry : new ArrayList<>(dashboardsMap.entrySet())) {
          String name = entry.getKey();
          writer.println("<node>");
-         writer.println("<name><![CDATA[" + name + "]]></name>");
+         writer.println("<name" + Tool.cdataDataAttr(name) + "><![CDATA[" + Tool.cdataData(name) +
+                        "]]></name>");
          Dashboard dashboard = entry.getValue();
          dashboard.writeXML(writer);
          writer.println("</node>");
@@ -233,7 +234,7 @@ public class DashboardRegistry {
       for(int i = 0; i < nlist.getLength(); i++) {
          Element node = (Element) nlist.item(i);
          Element keyNode = Tool.getChildNodeByTagName(node, "name");
-         String name = Tool.getValue(keyNode);
+         String name = Tool.getCDATAData(keyNode);
          Element dashboardNode = Tool.getChildNodeByTagName(node, "dashboard");
          String className = Tool.getAttribute(Objects.requireNonNull(dashboardNode), "class");
 

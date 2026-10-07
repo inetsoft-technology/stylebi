@@ -143,23 +143,25 @@ public class ScheduleTaskFolderService {
       securityProvider.removePermission(ResourceType.SCHEDULE_TASK_FOLDER, folderEntry.getPath());
    }
 
+   /**
+    * Checks if a folder is listed in its parent folder. Bug #77796, the parent of a nested
+    * folder is the path before its last slash, and the parent lists the folder by its full path.
+    * The root is never a folder a task is moved into.
+    */
    public boolean checkFolderExists(String path) {
-      String parentPath = path.indexOf('/') != - 1 ? path.substring(path.indexOf('/')) : "/";
-      AssetEntry parentEntry = new AssetEntry(
-         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER, parentPath, null);
+      if(path == null || path.isEmpty() || "/".equals(path)) {
+         return false;
+      }
+
+      int index = path.lastIndexOf('/');
+      String parentPath = index < 0 ? "/" : path.substring(0, index);
 
       try {
-         AssetFolder parentfolder =
-            (AssetFolder) indexedStorage.getXMLSerializable(parentEntry.toIdentifier(), null);
-         AssetEntry[] entries = parentfolder.getEntries();
-
-         for(AssetEntry entry : entries) {
-            if(entry.getName().equals(path)) {
-               return true;
-            }
-         }
+         AssetFolder parentfolder = getTaskFolder(getFolderEntry(parentPath).toIdentifier());
+         return parentfolder != null && parentfolder.containsEntry(getFolderEntry(path));
       }
       catch(Exception e) {
+         LOG.warn("Failed to check if the task folder exists: {}", path, e);
       }
 
       return false;
@@ -404,8 +406,13 @@ public class ScheduleTaskFolderService {
    /**
     * Bug #77454, refuses a new folder name that is empty or contains the path separator. Such a
     * name would put the folder into another folder than the one the permission was checked on.
+    * Bug #77856, also refuses a name made only of whitespace.
     */
    private static void checkFolderName(String name) throws MessageException {
+      if(name != null && !name.isEmpty() && name.trim().isEmpty()) {
+         throw new MessageException(Catalog.getCatalog().getString("folder.required"));
+      }
+
       if(Tool.isEmptyString(name) || name.contains("/")) {
          throw new MessageException(Catalog.getCatalog().getString(
             "common.sree.internal.invalidCharInName"));
@@ -645,12 +652,12 @@ public class ScheduleTaskFolderService {
    public void moveTask(AssetEntry targetEntry, AssetEntry parentEntry, AssetEntry taskEntry, Principal principal)
       throws Exception
    {
-      // Bug #77549, a task refused by setScheduleTask (a batch action query in another
-      // organization) is refused before the folders are changed
+      // Bug #77549, #77863, a task refused by setScheduleTask (e.g. a batch action query or a
+      // viewsheet action sheet in another organization) is refused before the folders are changed
       ScheduleTask task = scheduleManager.getScheduleTask(taskEntry.getName());
 
       if(task != null) {
-         scheduleManager.checkBatchQueryOrganization(task.getTaskId(), task, principal);
+         scheduleManager.checkScheduleTaskSave(task.getTaskId(), task, principal);
       }
 
       AssetFolder npfolder = getTaskFolder(targetEntry.toIdentifier());
@@ -681,8 +688,9 @@ public class ScheduleTaskFolderService {
          return;
       }
 
-      // Bug #77549, checked before the path of the stored task is changed
-      scheduleManager.checkBatchQueryOrganization(task.getTaskId(), task, principal);
+      // Bug #77549, #77863, every refusal of the save is checked before the path of the stored
+      // (cached) task is changed
+      scheduleManager.checkScheduleTaskSave(task.getTaskId(), task, principal);
       String oldPath = task.getPath();
       String newPath = parentEntry.getPath();
       task.setPath(parentEntry.getPath());

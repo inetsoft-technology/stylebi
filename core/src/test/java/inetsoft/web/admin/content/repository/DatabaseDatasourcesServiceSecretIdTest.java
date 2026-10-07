@@ -36,8 +36,12 @@ import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
 import inetsoft.web.session.IgniteSessionRepository;
 import inetsoft.uql.asset.sync.RenameTransformHandler;
+import inetsoft.test.*;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.MockedStatic;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.lang.reflect.Method;
 import java.security.Principal;
@@ -52,6 +56,11 @@ import static org.mockito.Mockito.*;
  * caller does not already manage, and the test-connection endpoints must require access to the
  * data source editors.
  */
+// the save is audited, which reaches Spring beans (Bug #77844)
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = BaseTestConfiguration.class,
+                      initializers = ConfigurationContextInitializer.class)
+@SreeHome
 @Tag("core")
 class DatabaseDatasourcesServiceSecretIdTest {
    @BeforeEach

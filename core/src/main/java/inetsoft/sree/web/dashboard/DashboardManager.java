@@ -36,6 +36,7 @@ import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.Lock;
+import java.util.function.BiConsumer;
 import java.util.function.UnaryOperator;
 
 /**
@@ -903,10 +904,18 @@ public class DashboardManager implements AutoCloseable {
     * node's cached registries, which getDashboards(Identity) leaves out, so that a dashboard
     * that another node has just created and selected is kept (Bug #77272).
     *
-    * @param identity the identity.
+    * A caller that reorders or adds to a selection uses this instead of getDashboards() and then
+    * setDashboards(), which would overwrite a dashboard created or renamed in between, and drop
+    * the names that getDashboards() leaves out (Bug #77872).
+    *
+    * @param identity the identity, nothing is changed if it is {@code null}.
     * @param change   returns the new names from the stored names.
     */
-   synchronized void updateDashboards(Identity identity, UnaryOperator<String[]> change) {
+   public synchronized void updateDashboards(Identity identity, UnaryOperator<String[]> change) {
+      if(identity == null) {
+         return;
+      }
+
       init();
       Lock storeLock = getStoreLock();
       storeLock.lock();
@@ -919,6 +928,50 @@ public class DashboardManager implements AutoCloseable {
 
          if(!Arrays.equals(dashboards, ndashboards)) {
             setDashboards(identity, ndashboards);
+         }
+      }
+      finally {
+         storeLock.unlock();
+      }
+   }
+
+   /**
+    * Changes the stored selected and deselected dashboards of an identity together, holding the
+    * store lock for the whole read-modify-write, like updateDashboards(Identity, UnaryOperator)
+    * (Bug #77872). The change is given modifiable copies of the stored lists, including the names
+    * that getDashboards(Identity) and getDeselectedDashboards(Identity) leave out, and only a list
+    * it changed is written back. The user-changed flag of the record is kept.
+    *
+    * @param identity the identity, nothing is changed if it is {@code null}.
+    * @param change   changes the selected (first) and deselected (second) names in place.
+    */
+   public synchronized void updateDashboardLists(Identity identity,
+                                                 BiConsumer<List<String>, List<String>> change)
+   {
+      if(identity == null) {
+         return;
+      }
+
+      init();
+      Lock storeLock = getStoreLock();
+      storeLock.lock();
+
+      try {
+         DashboardData data = getDashboardStorage().get(getIdentityKey(identity));
+         List<String> dashboards = data == null ?
+            new ArrayList<>() : new ArrayList<>(data.getDashboards());
+         List<String> deselected = data == null ?
+            new ArrayList<>() : new ArrayList<>(data.getDeselected());
+         List<String> ndashboards = new ArrayList<>(dashboards);
+         List<String> ndeselected = new ArrayList<>(deselected);
+         change.accept(ndashboards, ndeselected);
+
+         if(!dashboards.equals(ndashboards)) {
+            setDashboards(identity, ndashboards.toArray(new String[0]));
+         }
+
+         if(!deselected.equals(ndeselected)) {
+            setDeselectedDashboards(identity, ndeselected.toArray(new String[0]));
          }
       }
       finally {

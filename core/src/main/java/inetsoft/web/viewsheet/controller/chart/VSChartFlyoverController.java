@@ -43,6 +43,7 @@ public class VSChartFlyoverController {
     * Apply flyover condition
     */
    @LoadingMask
+   // listed in SheetEventOrderInterceptor, which does not queue it behind the sheet's events
    @MessageMapping("/vschart/flyover")
    public void eventHandler(@Payload VSChartFlyoverEvent event,
                             @LinkUri String linkUri,

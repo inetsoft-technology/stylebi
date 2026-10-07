@@ -61,7 +61,7 @@ public class SetTableLensInvalidateRaceTest {
 
    @AfterEach
    public void tearDown() {
-      StallPolicy.setOverride(null);
+      StallTestSupport.clearOverride();
    }
 
    @Test

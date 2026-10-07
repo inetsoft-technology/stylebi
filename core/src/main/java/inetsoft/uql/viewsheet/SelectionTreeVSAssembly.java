@@ -1101,7 +1101,9 @@ public class SelectionTreeVSAssembly extends AbstractSelectionVSAssembly
          SelectionTreeVSAssembly assembly2 = (SelectionTreeVSAssembly) super.clone();
 
          if(cval != null) {
-            assembly2.cval = (CompositeSelectionValue) cval.clone();
+            // keep a state selection that can't be read back unreadable in the clone, an
+            // empty state would silently select nothing, e.g. after an undo (bug #77864)
+            assembly2.cval = cval.cloneKeepingLost();
          }
 
          if(expandedValues != null) {

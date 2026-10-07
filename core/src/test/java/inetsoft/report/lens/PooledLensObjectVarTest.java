@@ -873,20 +873,13 @@ class PooledLensObjectVarTest {
       read(t, v, 1, 200);
       assertAll(v, 200, "before");
       assertNotNull(home[0]);
-      ExecutorService ex = Executors.newSingleThreadExecutor();
+      Runnable release = PoolTestSupport.holdElsewhere(home[0]);
 
       try {
-         Runnable release = PoolTestSupport.holdElsewhere(home[0], ex);
-
-         try {
-            read(t, v, 201, ROWS);
-         }
-         finally {
-            release.run();
-         }
+         read(t, v, 201, ROWS);
       }
       finally {
-         ex.shutdownNow();
+         release.run();
       }
 
       // the rows of that batch are exact; the next batch's a starts over, never stale

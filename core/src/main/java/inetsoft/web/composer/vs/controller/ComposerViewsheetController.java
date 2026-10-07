@@ -147,6 +147,7 @@ public class ComposerViewsheetController {
     *
     * @throws Exception if unable to get/edit runtime viewsheet
     */
+   // listed in SheetEventOrderInterceptor, which does not queue it behind the sheet's running event
    @MessageMapping("composer/viewsheet/close")
    public void closeViewsheet(@Payload CloseSheetEvent event, Principal principal) throws Exception {
       if(runtimeViewsheetRef.getRuntimeId() == null) {

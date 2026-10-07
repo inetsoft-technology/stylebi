@@ -57,7 +57,7 @@ public class FTPUtil {
       // the formatted path may contain parameter values, so make sure that a stored credential
       // is only sent to the server that the saved path names
       if((pathInfo.isUseCredential() || !Tool.isEmptyString(pathInfo.getPassword())) &&
-         !endpoint.isSameServer(parseEndpoint(pathInfo)))
+         !isSameServer(endpoint, pathInfo))
       {
          throw new Exception("Failed to save file to FTP server: " + host +
             ", the server does not match the saved path");
@@ -245,6 +245,70 @@ public class FTPUtil {
       String userInfo = ftpURL.getUserInfo() == null ? null :
          URLDecoder.decode(ftpURL.getUserInfo(), StandardCharsets.UTF_8);
       return new Endpoint(sftp, ftpURL.getHost(), ftpURL.getPort(), ftpURL.getPath(), userInfo);
+   }
+
+   /**
+    * Checks if the formatted path points to the server of the saved path. A saved path that
+    * can't be parsed, such as one with a parameter in the host or the port, never matches.
+    */
+   private static boolean isSameServer(Endpoint endpoint, ServerPathInfo pathInfo) {
+      try {
+         return endpoint.isSameServer(parseEndpoint(pathInfo));
+      }
+      catch(MalformedURLException ex) {
+         LOG.debug("Failed to parse the saved path: " + pathInfo.getPath(), ex);
+         return false;
+      }
+   }
+
+   /**
+    * Splits the password out of the user info of an FTP or SFTP path. The text is split with the
+    * same steps that {@link #parseEndpoint(String, boolean)} takes before it parses the URL, so
+    * the path doesn't need to be a valid URL, and the user, the password and the text after the
+    * last '@' are the ones used to log in.
+    *
+    * @param path the path.
+    * @param sftp {@code true} if SFTP is used.
+    *
+    * @return the path without the password, the user and the password, or {@code null} if the
+    *         user info of the path has no password.
+    */
+   public static PathPassword splitPassword(String path, boolean sftp) {
+      // a path too short for the sftp prefix can't be uploaded either
+      if(path == null || sftp && path.length() < 7) {
+         return null;
+      }
+
+      String body = sftp ? path.substring(7) :
+         path.startsWith("ftp://") ? path.substring(6) : path;
+      String prefix = path.substring(0, path.length() - body.length());
+      int at = body.lastIndexOf('@');
+
+      if(at < 0) {
+         return null;
+      }
+
+      String userInfo = body.substring(0, at);
+      int colon = userInfo.indexOf(':');
+
+      // an empty password is left in the path, there is nothing to hide
+      if(colon < 0 || colon == userInfo.length() - 1) {
+         return null;
+      }
+
+      String user = userInfo.substring(0, colon);
+      return new PathPassword(prefix + user + body.substring(at), user,
+                              userInfo.substring(colon + 1));
+   }
+
+   /**
+    * A path split by {@link #splitPassword(String, boolean)}.
+    *
+    * @param path     the path, with the user and without the password.
+    * @param user     the user name in the path.
+    * @param password the password that was in the path.
+    */
+   public record PathPassword(String path, String user, String password) {
    }
 
    /**

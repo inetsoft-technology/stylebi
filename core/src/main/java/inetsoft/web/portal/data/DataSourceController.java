@@ -22,6 +22,7 @@ import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
+import inetsoft.uql.tabular.ServerFilePathPolicy;
 import inetsoft.uql.tabular.TabularUtil;
 import inetsoft.uql.tabular.oauth.AuthorizationClient;
 import inetsoft.uql.tabular.oauth.Tokens;
@@ -50,6 +51,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.io.File;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.Principal;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -109,7 +111,14 @@ public class DataSourceController {
                                                   Principal principal)
    {
       String fullPath = Util.getObjectFullPath(RepositoryEntry.DATA_SOURCE_FOLDER, path, principal);
-      return dataSourceBrowserService.deleteDataSourceFolder(path, fullPath, force, principal);
+      CoreTool.clearUserMessage();
+
+      try {
+         return dataSourceBrowserService.deleteDataSourceFolder(path, fullPath, force, principal);
+      }
+      finally {
+         sendDeleteMessage(principal);
+      }
    }
 
    /**
@@ -361,7 +370,14 @@ public class DataSourceController {
       DatabaseDefinition databaseDefinition = new DatabaseDefinition();
       databaseDefinition.setName(dataSourceName);
       String fullPath = this.databaseDatasourcesService.getDataSourceAuditPath(path, databaseDefinition, principal);
-      return datasourcesService.deleteDataSource(path, fullPath, force);
+      CoreTool.clearUserMessage();
+
+      try {
+         return datasourcesService.deleteDataSource(path, fullPath, force);
+      }
+      finally {
+         sendDeleteMessage(principal);
+      }
    }
 
    /**
@@ -378,31 +394,37 @@ public class DataSourceController {
 
       Set<String> folders = getPaths(request.folders());
       Set<String> dataSources = getPaths(request.dataSources());
+      CoreTool.clearUserMessage();
 
-      for (SelectedDataSourceItem d : request.dataSources()) {
-         // Bug #77725, deleted with the folder at its path, and audited with it (Bug #77819)
-         if(folders.contains(d.path())) {
-            continue;
+      try {
+         for (SelectedDataSourceItem d : request.dataSources()) {
+            // Bug #77725, deleted with the folder at its path, and audited with it (Bug #77819)
+            if(folders.contains(d.path())) {
+               continue;
+            }
+
+            DatabaseDefinition databaseDefinition = new DatabaseDefinition();
+            databaseDefinition.setName(d.name());
+            String fullPath = this.databaseDatasourcesService.getDataSourceAuditPath(d.path(), databaseDefinition, principal);
+            datasourcesService.deleteDataSource(d.path(), fullPath, true);
          }
 
-         DatabaseDefinition databaseDefinition = new DatabaseDefinition();
-         databaseDefinition.setName(d.name());
-         String fullPath = this.databaseDatasourcesService.getDataSourceAuditPath(d.path(), databaseDefinition, principal);
-         datasourcesService.deleteDataSource(d.path(), fullPath, true);
+         for (SelectedDataSourceItem f : request.folders()) {
+            String fullPath = Util.getObjectFullPath(RepositoryEntry.DATA_SOURCE_FOLDER, f.path(), principal);
+            // Bug #77725, with the data source at its path if that is selected too
+            ConnectionStatus status = dataSources.contains(f.path()) ?
+               dataSourceBrowserService.deleteDataSourceFolder(
+                  f.path(), fullPath, true, true, principal) :
+               dataSourceBrowserService.deleteDataSourceFolder(f.path(), fullPath, true, principal);
+
+            // refused after the check, e.g. a permission changed since, so don't report success
+            if(status != null) {
+               throw new MessageException(status.getStatus());
+            }
+         }
       }
-
-      for (SelectedDataSourceItem f : request.folders()) {
-         String fullPath = Util.getObjectFullPath(RepositoryEntry.DATA_SOURCE_FOLDER, f.path(), principal);
-         // Bug #77725, with the data source at its path if that is selected too
-         ConnectionStatus status = dataSources.contains(f.path()) ?
-            dataSourceBrowserService.deleteDataSourceFolder(
-               f.path(), fullPath, true, true, principal) :
-            dataSourceBrowserService.deleteDataSourceFolder(f.path(), fullPath, true, principal);
-
-         // refused after the check, e.g. a permission changed since, so don't report success
-         if(status != null) {
-            throw new MessageException(status.getStatus());
-         }
+      finally {
+         sendDeleteMessage(principal);
       }
    }
 
@@ -563,7 +585,24 @@ public class DataSourceController {
       HttpServletRequest request,
       Principal principal) throws Exception
    {
-      path = Tool.byteDecode(path);
+      return getRootFolder(
+         Tool.byteDecode(path), principal, ServerFilePathPolicy.create(securityEngine));
+   }
+
+   /**
+    * Gets the tree model of a server folder for the Browse Folder dialog. A site admin, or
+    * anyone when security is disabled, may browse the whole server. Anyone else only sees the
+    * allowed roots and the folders under them (Bug #64331).
+    *
+    * @param path      the decoded path, "/" for the top level.
+    * @param principal the user.
+    * @param policy    the policy that decides which paths the user may browse.
+    */
+   TreeNodeModel getRootFolder(String path, Principal principal, ServerFilePathPolicy policy) {
+      if(!policy.isUnrestricted(principal)) {
+         return getAllowedFolder(path, policy.getAllowedRoots(principal));
+      }
+
       File[] fileRoots;
       boolean root = "/".equals(path);
 
@@ -639,6 +678,83 @@ public class DataSourceController {
    }
 
    /**
+    * Gets the tree model of a server folder for a user who may only browse the allowed roots.
+    * The top level lists the allowed roots, and a folder that is not under one of them lists
+    * nothing.
+    */
+   private TreeNodeModel getAllowedFolder(String path, List<Path> roots) {
+      List<TreeNodeModel> folderNodes = new ArrayList<>();
+
+      if("/".equals(path)) {
+         for(Path rootPath : roots) {
+            File file = rootPath.toFile();
+
+            if(file.isDirectory() && Files.isReadable(rootPath)) {
+               String name = file.getAbsolutePath();
+               String nodePath = name.replace(File.separator, "/");
+
+               // an allowed root of / has the path of the top level, its folders are listed
+               // instead so that expanding it doesn't list the allowed roots again
+               if("/".equals(nodePath)) {
+                  addFolderNodes(folderNodes, file, "");
+               }
+               else {
+                  folderNodes.add(createFolderNode(name, nodePath, file));
+               }
+            }
+         }
+      }
+      else {
+         File folder = fileSystemService.getFile(path + File.separator);
+
+         if(ServerFilePathPolicy.isUnderAnyRoot(folder, roots)) {
+            addFolderNodes(folderNodes, folder, path);
+         }
+      }
+
+      TabularFileModel tabularFileModel = new TabularFileModel();
+      tabularFileModel.setFolder(true);
+      tabularFileModel.setPath(path);
+
+      return TreeNodeModel.builder()
+         .data(tabularFileModel)
+         .addChildren(folderNodes.toArray(new TreeNodeModel[0]))
+         .build();
+   }
+
+   /**
+    * Adds the nodes of the readable, visible folders in a folder.
+    *
+    * @param path the node path of the folder.
+    */
+   private static void addFolderNodes(List<TreeNodeModel> folderNodes, File folder, String path) {
+      File[] files = folder.listFiles();
+
+      if(files != null) {
+         for(File file : files) {
+            if(file.isDirectory() && Files.isReadable(file.toPath()) && !file.isHidden()) {
+               String childPath = (path + File.separator + file.getName())
+                  .replace(File.separator, "/");
+               folderNodes.add(createFolderNode(file.getName(), childPath, file));
+            }
+         }
+      }
+   }
+
+   private static TreeNodeModel createFolderNode(String label, String path, File file) {
+      TabularFileModel tabularFileModel = new TabularFileModel();
+      tabularFileModel.setFolder(true);
+      tabularFileModel.setPath(path);
+      tabularFileModel.setAbsolutePath(file.getAbsolutePath());
+
+      return TreeNodeModel.builder()
+         .data(tabularFileModel)
+         .label(label)
+         .leaf(false)
+         .build();
+   }
+
+   /**
     * Refreshes a tabular view.
     *
     * @param definition the data source definition.
@@ -674,6 +790,24 @@ public class DataSourceController {
       }
 
       return def2;
+   }
+
+   /**
+    * Bug #77941, sends the user message left by a delete, e.g. a permission it may not have
+    * removed, to the requesting user. The message is sent even if the delete failed later, since
+    * the items deleted before that are gone.
+    */
+   private void sendDeleteMessage(Principal principal) {
+      UserMessage msg = CoreTool.getUserMessage();
+
+      if(msg != null && msg.getMessage() != null) {
+         try {
+            notificationService.sendNotificationToUser(msg.getMessage(), principal);
+         }
+         catch(Exception e) {
+            LOG.info("Failed to send notification: ", e);
+         }
+      }
    }
 
    @PostMapping("/api/portal/data/datasources/oauth-params")

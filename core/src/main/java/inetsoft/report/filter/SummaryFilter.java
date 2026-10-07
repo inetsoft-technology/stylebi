@@ -38,6 +38,7 @@ import inetsoft.util.script.ScriptSpan;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.stall.WaitRecord;
 import inetsoft.util.stall.WaitRegistry;
+import inetsoft.util.swap.SwapFileReadException;
 import inetsoft.util.swap.XSwappableObjectList;
 import inetsoft.util.swap.XSwapper;
 import org.slf4j.Logger;
@@ -683,6 +684,9 @@ public class SummaryFilter extends AbstractGroupedTable
          //process0();
       }
       catch(ScriptException scriptException) {
+         // a script may wrap a lost swap file of a base cell, the readers rethrow it
+         // (bug #77651)
+         recordSwapFailure(pass, scriptException);
          // Script Exceptions are already logged
          Tool.addUserMessage(scriptException.getMessage());
       }
@@ -690,7 +694,10 @@ public class SummaryFilter extends AbstractGroupedTable
          // logged by the wait site, process0() kept it for the readers (bug #76967)
       }
       catch(Exception ex) {
-         LOG.error("Failed to process summary filter", ex);
+         // the fragment already logged a lost swap file, the readers rethrow it (bug #77651)
+         if(!recordSwapFailure(pass, ex)) {
+            LOG.error("Failed to process summary filter", ex);
+         }
       }
    }
 
@@ -934,9 +941,28 @@ public class SummaryFilter extends AbstractGroupedTable
          if(stall != null) {
             pass.stallFailure = stall;
          }
+         else {
+            // nor take the rows so far of a lost swap file of the base (bug #77651)
+            recordSwapFailure(pass, ex);
+         }
 
          throw ex;
       }
+   }
+
+   /**
+    * Keep the lost swap file a pass failed with for the readers, unless it failed with a
+    * stall (bug #77651).
+    * @return {@code true} if the failure is a lost swap file.
+    */
+   private static boolean recordSwapFailure(Pass pass, Throwable ex) {
+      SwapFileReadException swapFailure = SwapFileReadException.find(ex);
+
+      if(swapFailure != null && pass.stallFailure == null) {
+         pass.swapFailure = swapFailure;
+      }
+
+      return swapFailure != null;
    }
 
    /**
@@ -2149,6 +2175,13 @@ public class SummaryFilter extends AbstractGroupedTable
 
       if(pass.completed && failure != null) {
          throw new LockStallException(failure);
+      }
+
+      // nor the end of the table of a lost swap file (bug #77651)
+      SwapFileReadException swapFailure = pass.swapFailure;
+
+      if(pass.completed && swapFailure != null) {
+         throw swapFailure;
       }
    }
 
@@ -3770,6 +3803,8 @@ public class SummaryFilter extends AbstractGroupedTable
       // the base row the worker has reached, and the stall it failed with (bug #76967)
       transient volatile int processedRows;
       transient volatile LockStallException stallFailure;
+      // the lost swap file the worker failed with (bug #77651)
+      transient volatile SwapFileReadException swapFailure;
       // the watchdog suppliers of getObject and waitForRow (bug #76967)
       private transient LongSupplier stallProgress;
       private transient Supplier<Thread[]> stallBlockers;

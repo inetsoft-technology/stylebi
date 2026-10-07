@@ -36,6 +36,7 @@ public class CancelViewsheetLoadingController {
    }
 
    @LoadingMask
+   // listed in SheetEventOrderInterceptor, which does not queue it behind the sheet's events
    @MessageMapping("/composer/viewsheet/cancelViewsheet")
    public void cancelViewsheet(@Payload CancelViewsheetLoadingEvent event,
                                @LinkUri String linkUri,

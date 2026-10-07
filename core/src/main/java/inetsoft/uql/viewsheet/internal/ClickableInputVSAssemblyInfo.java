@@ -47,7 +47,7 @@ public abstract class ClickableInputVSAssemblyInfo extends InputVSAssemblyInfo {
       super.writeContents(writer);
 
       if(onClick != null) {
-         writer.print("<onClick><![CDATA[" + onClick + "]]></onClick>");
+         writer.print("<onClick><![CDATA[" + Tool.cdataText(onClick) + "]]></onClick>");
       }
    }
 

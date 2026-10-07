@@ -153,7 +153,8 @@ class VpmQuotedTableMatchTest {
       return Stream.of(
          Arguments.of(POSTGRESQL, "select a.id from t a", "t", "a.\"STATE\" = 1"),
          Arguments.of(POSTGRESQL, "select a.id from t a", "public.t", "a.\"STATE\" = 1"),
-         Arguments.of(POSTGRESQL, "select t.id from t", "public.t", "\"t\".STATE = 1"),
+         // Bug #77861, the column of a table without an alias is quoted as for an alias
+         Arguments.of(POSTGRESQL, "select t.id from t", "public.t", "\"t\".\"STATE\" = 1"),
          Arguments.of(POSTGRESQL, "select x.id from sa.t x", "sa.t", "x.\"STATE\" = 1"),
          Arguments.of(POSTGRESQL, "select x.id from sa.\"my.table\" x", "sa.\"my.table\"",
                       "x.\"STATE\" = 1"),

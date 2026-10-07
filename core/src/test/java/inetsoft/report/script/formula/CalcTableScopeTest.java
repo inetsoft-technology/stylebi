@@ -25,9 +25,12 @@ import inetsoft.report.script.TableRow;
 import inetsoft.test.*;
 import inetsoft.util.script.graal.ScriptFunction;
 import inetsoft.util.stall.LockStallException;
+import inetsoft.util.swap.LostSwapFile;
+import inetsoft.util.swap.SwapFileReadException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -46,7 +49,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Some algorithms are used by the report script, which has been removed from stylebi, so only simple testing
  */
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
 @Tag("core")
@@ -550,4 +553,81 @@ public class CalcTableScopeTest {
       {"a", 3, 2, new Date(2025 - 1900, 11, 31)},
       {"b", 2, 4, new Date(2026 - 1900, 9, 20)}
    };
+
+   /**
+    * #77910: a cell range summary, a row condition, an expression column or a named range
+    * condition that reads a table whose swap file is lost must reach the formula as the swap
+    * file read failure instead of becoming a null result or a selected row.
+    */
+   @Test
+   void lostSwapFileCellRangeSummaryThrowsTheSwapFailure() {
+      try(LostSwapFile lost = new LostSwapFile()) {
+         CalcTableLens lens = new CalcTableLens(objData) {
+            @Override
+            public Object getObject(int r, int c) {
+               if(r > 0) {
+                  lost.read();
+               }
+
+               return super.getObject(r, c);
+            }
+         };
+         lens.setCellName(1, 0, "name");
+         CalcTableScope scope = new CalcTableScope(lens);
+
+         assertLost(lost, () -> scope.sum("[2,id]:[3,id]", null, null));
+      }
+   }
+
+   @Test
+   void lostSwapFileRowConditionThrowsTheSwapFailure() {
+      try(LostSwapFile lost = new LostSwapFile()) {
+         assertLost(lost, () -> calcTableScope.sum(new LostConditionTable(lost), "id2", "id1>1"));
+      }
+   }
+
+   @Test
+   void lostSwapFileColumnExpressionThrowsTheSwapFailure() {
+      try(LostSwapFile lost = new LostSwapFile()) {
+         assertLost(lost, () -> calcTableScope.sum(new LostConditionTable(lost), "=id1", null));
+      }
+   }
+
+   @Test
+   void lostSwapFileNamedRangeConditionThrowsTheSwapFailure() {
+      // sanity: the condition selects rows 2..4, id2 = 3 + 2 + 4
+      assertEquals(9.0, calcTableScope.sum(conditionTable(null), "id2?id1>1", null));
+
+      try(LostSwapFile lost = new LostSwapFile()) {
+         assertLost(lost,
+            () -> calcTableScope.sum(new LostConditionTable(lost), "id2?id1>1", null));
+      }
+   }
+
+   private static void assertLost(LostSwapFile lost, Executable summary) {
+      assertEquals(lost.getFile(),
+                   assertThrows(SwapFileReadException.class, summary).getFile());
+   }
+
+   /**
+    * objData2 with the id1 column (read only by the condition or expression) in the lost
+    * swap file. Public, so TableRow can call getObject reflectively.
+    */
+   public static class LostConditionTable extends DefaultTableLens {
+      LostConditionTable(LostSwapFile lost) {
+         super(objData2);
+         this.lost = lost;
+      }
+
+      @Override
+      public Object getObject(int r, int c) {
+         if(r > 0 && c == 1) {
+            lost.read();
+         }
+
+         return super.getObject(r, c);
+      }
+
+      private final LostSwapFile lost;
+   }
 }

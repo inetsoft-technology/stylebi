@@ -53,62 +53,113 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
    /**
     * Permission was isolated by organiztion to fix bugs like Bug #7091, this function is to
     * isolate permissions by organization for old storage.
+    *
+    * Each key is decided on its own, so keys that are already isolated are never split again and
+    * running this again changes nothing (Bug #77832). A legacy key is removed only after all of its
+    * per-organization copies were written, and a failure on one key leaves that key as it is and
+    * never escapes init().
     */
    private void isolatePermissionForOrg() {
-      if(!needIsolate()) {
+      Map<String, Permission> map = new HashMap<>();
+
+      try {
+         storage.stream().forEach(pair -> map.put(pair.getKey(), pair.getValue()));
+      }
+      catch(RuntimeException e) {
+         LOG.error("Failed to read the permissions to isolate by organization", e);
          return;
       }
 
-      Map<String, Permission> map = new HashMap<>();
-      storage.stream().forEach(pair -> map.put(pair.getKey(), pair.getValue()));
-
-      try {
-         storage.removeAll(storage.keys().collect(Collectors.toSet())).get(1L, TimeUnit.MINUTES);
-      }
-      catch(InterruptedException | ExecutionException | TimeoutException e) {
-         LOG.error("Failed to remove permissions from storage", e);
-      }
+      Map<String, Boolean> knownOrgs = new HashMap<>();
 
       for(Map.Entry<String, Permission> entry : map.entrySet()) {
-         String key = entry.getKey();
-         int delimiter = key.indexOf(":");
-         ResourceType type = ResourceType.valueOf(key.substring(0, delimiter));
-         String path = key.substring(delimiter + 1);
-         Permission permission = entry.getValue();
-
-         if(permission == null) {
-            continue;
+         try {
+            isolatePermissionForOrg(entry.getKey(), entry.getValue(), knownOrgs);
          }
-
-         Map<String, Permission> permissionMap = permission.splitPermissionForOrg();
-
-         permissionMap.forEach((orgId, orgPermission) -> {
-            // no meaningful scenario for setting permissions on a global role.
-            if("null".equals(orgId)) {
-               return;
-            }
-
-            setPermission(type, path, orgPermission, orgId);
-         });
+         catch(InterruptedException e) {
+            // the remaining keys are kept as they are
+            Thread.currentThread().interrupt();
+            LOG.error("Interrupted while isolating the permissions by organization", e);
+            break;
+         }
+         catch(Exception e) {
+            LOG.error("Failed to isolate the permission {} by organization, it is kept as it is",
+                      entry.getKey(), e);
+         }
       }
    }
 
-   private boolean needIsolate() {
-      String key = storage.keys().findFirst().orElse(null);
-
-      if(key == null) {
-         return false;
+   private void isolatePermissionForOrg(String key, Permission permission,
+                                        Map<String, Boolean> knownOrgs) throws Exception
+   {
+      if(permission == null) {
+         return;
       }
 
-      String[] arr = key.split(":");
+      int delimiter = key.indexOf(":");
 
-      if(arr.length < 3) {
+      if(delimiter < 0) {
+         LOG.warn("Ignoring the permission {}, its key has no resource type", key);
+         return;
+      }
+
+      ResourceType type = ResourceType.valueOf(key.substring(0, delimiter));
+      String path = key.substring(delimiter + 1);
+      Map<String, Permission> permissionMap = permission.splitPermissionForOrg();
+
+      if(!isLegacyKey(path, permissionMap, knownOrgs)) {
+         return;
+      }
+
+      // no meaningful scenario for setting permissions on a global role.
+      permissionMap.remove("null");
+
+      // keep the edited flag of each organization, also for an organization that was edited
+      // without granting anyone, so it does not fall back to the parent's permission
+      permission.getOrgEditedGrantAll().forEach((orgId, edited) -> {
+         if(Boolean.TRUE.equals(edited) && !Tool.isEmptyString(orgId) && !"null".equals(orgId)) {
+            permissionMap.computeIfAbsent(orgId, o -> new Permission())
+               .updateGrantAllByOrg(orgId, true);
+         }
+      });
+
+      for(Map.Entry<String, Permission> entry : permissionMap.entrySet()) {
+         String target = getResourceKey(type, path, getResourceOrgID(entry.getKey()));
+
+         // the permission already stored for the organization is the current one, a stale legacy
+         // grant must not replace it
+         if(storage.contains(target)) {
+            continue;
+         }
+
+         storage.put(target, entry.getValue()).get(10L, TimeUnit.SECONDS);
+      }
+
+      storage.remove(key).get(10L, TimeUnit.SECONDS);
+   }
+
+   /**
+    * Checks if a permission key has no organization part. The path of a legacy key may contain
+    * ':' (schedule task ids are owner:name, cubes are ds::cube), so a key with an organization
+    * part is legacy only if that part is not a known organization and some grantee belongs to
+    * another organization. The keys of an organization the security provider doesn't know, like
+    * SELF under LDAP or a deleted organization, are kept.
+    */
+   private boolean isLegacyKey(String path, Map<String, Permission> permissionMap,
+                               Map<String, Boolean> knownOrgs)
+   {
+      int delimiter = path.indexOf(":");
+
+      if(delimiter < 0) {
          return true;
       }
 
-      String orgID = arr[1];
+      String orgID = path.substring(0, delimiter);
+      boolean otherOrg = permissionMap.keySet().stream()
+         .anyMatch(o -> !"null".equals(o) && !o.equals(orgID));
 
-      return SecurityEngine.getSecurity().getSecurityProvider().getOrganization(orgID) == null;
+      return otherOrg && !knownOrgs.computeIfAbsent(orgID, o ->
+         SecurityEngine.getSecurity().getSecurityProvider().getOrganization(o) != null);
    }
 
    /**
@@ -174,7 +225,7 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
             storage.put(getResourceKey(type, resource, orgID), perm).get(10L, TimeUnit.SECONDS);
          }
          catch(Exception e) {
-            LOG.error("Failed to set permission on {} {}", type, resource, e);
+            throw storageWriteFailure(type, resource, e);
          }
       }
    }
@@ -196,7 +247,7 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
                .get(10L, TimeUnit.SECONDS);
          }
          catch(Exception e) {
-            LOG.error("Failed to set permission on {} {}", type, identityID, e);
+            throw storageWriteFailure(type, identityID, e);
          }
       }
    }
@@ -210,7 +261,7 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
          storage.remove(getResourceKey(type, resource, orgID)).get(10L, TimeUnit.SECONDS);
       }
       catch(Exception e) {
-         LOG.error("Failed to remove permission from {} {}", type, resource, e);
+         throw storageWriteFailure(type, resource, e);
       }
    }
 
@@ -223,7 +274,7 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
          storage.remove(getResourceKey(type, identityID.convertToKey(), orgID)).get(10L, TimeUnit.SECONDS);
       }
       catch(Exception e) {
-         LOG.error("Failed to remove permission from {} {}", type, identityID, e);
+         throw storageWriteFailure(type, identityID, e);
       }
    }
 
@@ -238,7 +289,15 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
          ResourceType type = permissionSet.getFirst();
          String path = permissionSet.getThird();
 
-         removePermission(type, path, resourceOrgID);
+         // best-effort per item: one failed remove must not stop the rest, or the org delete
+         // cleanup that follows this call
+         try {
+            removePermission(type, path, resourceOrgID);
+         }
+         catch(RuntimeException e) {
+            LOG.error("Failed to remove the permission of {} {} while cleaning organization {}, " +
+                      "it may still be stored", type, path, orgId, e);
+         }
       }
    }
 
@@ -276,8 +335,25 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
 
       List<KeyValuePair<Permission>> list = storage.stream().collect(Collectors.toList());
 
-      try {
-         for(KeyValuePair<Permission> pair : list) {
+      // The identity record is already gone when this listener runs, so the cleanup is
+      // best-effort per entry: a failed entry must not stop the remaining entries from being
+      // updated (Bug #77799). This method must not throw either: AuthenticationChain.changeDelegate
+      // has no catch, and a throw would skip SecurityEngine.fireAuthenticationChange (which logs out
+      // the sessions of a removed or renamed organization).
+      //
+      // The caller holds the authentication provider's lock. After the first put that times out
+      // (a hung backend), the remaining puts are still submitted but are not waited on, so a hung
+      // backend costs at most one put timeout, as before. Puts that are slow but complete within
+      // the timeout are still waited on one by one. Keys whose put timed out or was not waited on
+      // are reported as not confirmed, because such a put may still land.
+      List<String> failedKeys = new ArrayList<>();
+      List<String> unconfirmedKeys = new ArrayList<>();
+      Exception firstFailure = null;
+      boolean timedOut = false;
+      boolean interrupted = false;
+
+      for(KeyValuePair<Permission> pair : list) {
+         try {
             Permission perm = pair.getValue();
             boolean changed = false;
 
@@ -303,12 +379,48 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
             }
 
             if(changed) {
-               storage.put(pair.getKey(), perm).get(10L, TimeUnit.SECONDS);
+               Future<Permission> future = storage.put(pair.getKey(), perm);
+
+               if(timedOut) {
+                  unconfirmedKeys.add(pair.getKey());
+               }
+               else {
+                  future.get(10L, TimeUnit.SECONDS);
+               }
             }
          }
+         catch(TimeoutException e) {
+            timedOut = true;
+            unconfirmedKeys.add(pair.getKey());
+            firstFailure = firstFailure == null ? e : firstFailure;
+         }
+         catch(InterruptedException e) {
+            // Future.get cleared the interrupt flag, so the remaining entries can still be
+            // updated. The flag is restored after the loop.
+            interrupted = true;
+            failedKeys.add(pair.getKey());
+            firstFailure = firstFailure == null ? e : firstFailure;
+         }
+         catch(Exception e) {
+            failedKeys.add(pair.getKey());
+            firstFailure = firstFailure == null ? e : firstFailure;
+         }
       }
-      catch(Exception e) {
-         LOG.error("Failed to update permissions", e);
+
+      if(!failedKeys.isEmpty() || !unconfirmedKeys.isEmpty()) {
+         LOG.error(
+            "Failed to update the permissions after identity {} (type {}) was {}; these " +
+            "permission entries may not have been updated: failed={}, not confirmed={}",
+            oldID, type, removed ? "removed" : "renamed to " + newID, failedKeys, unconfirmedKeys,
+            firstFailure);
+      }
+
+      // Restore the interrupt for the caller. Note that this listener is still inside
+      // AuthenticationChain.changeDelegate, so the next listener (SecurityEngine's
+      // fireAuthenticationChange, which logs out the sessions of a removed organization) then runs
+      // on an interrupted thread, and an interruptible call there may fail.
+      if(interrupted) {
+         Thread.currentThread().interrupt();
       }
    }
 
@@ -320,6 +432,22 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
       orgID = orgID != null ? orgID : SUtil.isMultiTenant() ?
          OrganizationManager.getInstance().getCurrentOrgID() : Organization.getDefaultOrganizationID();
       return type + ":" + orgID + ":" + path;
+   }
+
+   /**
+    * Logs a failed permission storage write and returns the exception to throw. A write that timed
+    * out may still complete, so the message says the permission may not have been saved.
+    */
+   private static RuntimeException storageWriteFailure(ResourceType type, Object resource,
+                                                       Exception cause)
+   {
+      if(cause instanceof InterruptedException) {
+         Thread.currentThread().interrupt();
+      }
+
+      String message = "The permission of " + type + " " + resource + " may not have been saved";
+      LOG.error(message, cause);
+      return new MessageException(message, cause);
    }
 
    private KeyValueStorage<Permission> storage;

@@ -147,13 +147,14 @@ public class RepositoryScriptController {
             this.resourcePermissionService.setResourcePermissions(
                resource.getPath(), resource.getType(), fullPath, model.permissions(), principal);
          }
+
+         actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_SUCCESS);
       }
       catch(Exception e) {
          actionRecord.setActionError(e.getMessage());
          throw new RuntimeException(e);
       }
       finally {
-         actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_SUCCESS);
          Audit.getInstance().auditAction(actionRecord, principal);
       }
    }

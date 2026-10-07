@@ -65,8 +65,26 @@ public final class DependencyStorageService {
       return getDependencyStorage(orgid).get(key);
    }
 
+   /**
+    * Gets the rename transform tasks that are queued or running. The queue is cluster-global (one
+    * store for all organizations); each task carries its organization in its RenameInfos.
+    *
+    * @return the queue, never {@code null}.
+    */
    public RenameTransformQueue getQueue() throws Exception {
-      return (RenameTransformQueue) getDependencyStorage().get(QUEUE_KEY);
+      RenameTransformObject queue = getQueueStorage().get(QUEUE_KEY);
+      return queue instanceof RenameTransformQueue ? (RenameTransformQueue) queue :
+         new RenameTransformQueue();
+   }
+
+   /**
+    * Opens the cluster-global rename queue store. The first open after a full cluster start
+    * replays the tasks left in the queue (see {@link LoadRenameQueueTask}). Waits for the
+    * {@value #QUEUE_STORE} singleton service, so it must not be called from a task running on
+    * that service or on the {@code renameTransform} service.
+    */
+   KeyValueStorage<RenameTransformObject> getQueueStorage() {
+      return keyValueStorageManager.getStorage(QUEUE_STORE, new LoadRenameQueueTask());
    }
 
    public boolean rename(String oldKey, String newKey, String organizationId) {
@@ -236,6 +254,18 @@ public final class DependencyStorageService {
    @PostConstruct
    void initStorage() {
       getDependencyStorage();
+      // Open the rename queue store so that renames left in the queue by the previous cluster
+      // run are replayed now, not only at the next rename. Don't wait for it: this service is
+      // lazy and may be created on the renameTransform thread, while a waiting
+      // RenameTransformTask holds the queue store's service until that thread's rename finishes.
+      CompletableFuture.runAsync(() -> {
+         try {
+            getQueueStorage();
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to open the rename transform queue", e);
+         }
+      });
    }
 
    private KeyValueStorage<RenameTransformObject> getDependencyStorage() {
@@ -253,7 +283,25 @@ public final class DependencyStorageService {
 
    private final KeyValueStorageManager keyValueStorageManager;
 
-   static final String QUEUE_KEY = "1^0^__NULL__^rename_queue";
+   /**
+    * The id of the cluster-global store that holds the rename queue. It is also the id of the
+    * singleton service on which all queue changes run.
+    */
+   static final String QUEUE_STORE = "dependencyStorage";
+   /**
+    * The key of the rename queue. The "_v2" suffix marks queues written by a version that
+    * replays them; see {@link #LEGACY_QUEUE_KEY}.
+    */
+   static final String QUEUE_KEY = "1^0^__NULL__^rename_queue_v2";
+   /**
+    * The key of the start counts of the queued tasks ({@link RenameTransformAttempts}).
+    */
+   static final String ATTEMPTS_KEY = "1^0^__NULL__^rename_queue_v2_attempts";
+   /**
+    * The key of the rename queue written by older versions, which never replayed it. Its
+    * entries may be years old, so they are logged and dropped instead of replayed.
+    */
+   static final String LEGACY_QUEUE_KEY = "1^0^__NULL__^rename_queue";
    private static final Logger LOG = LoggerFactory.getLogger(DependencyStorageService.class);
 
 }

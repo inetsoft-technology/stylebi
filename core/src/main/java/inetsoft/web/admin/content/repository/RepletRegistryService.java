@@ -632,7 +632,15 @@ public class RepletRegistryService {
       if(securityEngine != null) {
          Permission perm = securityEngine.getPermission(ResourceType.REPORT, pathFrom);
          if(perm != null) {
-            securityEngine.setPermission(ResourceType.REPORT, pathTo, perm);
+            // best-effort: a failed permission copy must not skip the registry save or the copy
+            // of the children
+            try {
+               securityEngine.setPermission(ResourceType.REPORT, pathTo, perm);
+            }
+            catch(RuntimeException e) {
+               LOG.error("Failed to copy the permission of {} to {}, it may not have been saved",
+                         pathFrom, pathTo, e);
+            }
          }
       }
 

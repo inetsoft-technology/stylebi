@@ -96,6 +96,18 @@ public class XNodeTableLens extends AbstractTableLens
    }
 
    /**
+    * Get the exception that stopped loading the rows, e.g. a database error raised while
+    * reading the result set.
+    *
+    * @return the load failure, or {@code null} if the rows loaded without one.
+    *
+    * @see XNodeTable#getLoadException()
+    */
+   public Exception getLoadException() {
+      return delegate.getLoadException();
+   }
+
+   /**
     * Check if this table lens is valid for use.
     * @return <tt>true</tt> if valid for use, <tt>false</tt> otherwise.
     */

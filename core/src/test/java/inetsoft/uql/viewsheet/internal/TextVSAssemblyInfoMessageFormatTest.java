@@ -62,6 +62,15 @@ class TextVSAssemblyInfoMessageFormatTest {
       assertEquals("42 USD", textWithFormat("{0} USD", 42));
    }
 
+   // Bug #77804: K/M/B subformats on elements whose index differs from their argument
+   // index must still be scaled in a Text object, without changing sibling elements.
+   @Test
+   void extendedFormatOnRepeatedArgument() {
+      assertEquals("1,234 (1.2K)", textWithFormat("{0} ({0,number,#,##0.0K})", 1234));
+      assertEquals("1.2K (1,234)", textWithFormat("{0,number,0.0K} ({0,number,#,##0})", 1234));
+      assertEquals("1234.6K / 1.23M", textWithFormat("{0,number,0.0K} / {0,number,0.00M}", 1234567));
+   }
+
    private static String textWithFormat(String pattern, Object value) {
       TextVSAssemblyInfo info = new TextVSAssemblyInfo();
       VSFormat fmt = info.getFormat().getUserDefinedFormat();

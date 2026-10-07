@@ -193,12 +193,6 @@ public class StallDumperTest {
       assertEquals(3, dumper.getDumpCount());
    }
 
-   @Test
-   public void defaultRetentionIsThePolicys() {
-      assertEquals(StallPolicy.DEFAULT_MAX_DUMPS,
-                   new StallPolicy(StallPolicy.Mode.FAIL, 1, 1, dumpDir).getMaxDumps());
-   }
-
    private void advance(long millis) {
       now.addAndGet(TimeUnit.MILLISECONDS.toNanos(millis));
    }

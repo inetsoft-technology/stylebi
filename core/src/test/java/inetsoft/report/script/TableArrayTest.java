@@ -23,6 +23,8 @@ import inetsoft.test.*;
 import inetsoft.uql.XTable;
 import inetsoft.util.script.ScriptUtil;
 import inetsoft.util.stall.LockStallException;
+import inetsoft.util.swap.LostSwapFile;
+import inetsoft.util.swap.SwapFileReadException;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.annotation.DirtiesContext;
@@ -42,7 +44,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * reads as undefined and calc-table group expansion collapses to zero rows.
  */
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
 @Tag("core")
@@ -223,5 +225,25 @@ class TableArrayTest {
 
       arr.putMember("col1", "assigned");
       assertEquals("assigned", arr.getMember("col1"));
+   }
+
+   /**
+    * #77910: a column read of a table whose swap file is lost (its moreRows reads the lost
+    * fragment) must throw the swap file read failure, not read as null.
+    */
+   @Test
+   void lostSwapFileColumnReadThrowsTheSwapFailure() {
+      try(LostSwapFile lost = new LostSwapFile()) {
+         TableArray arr = new TableArray(new LostSwapFile.Table(new Object[][] {
+            { "col1", "col2", "col3" },
+            { "a", 1, 5.0 },
+            { "b", 3, 10.0 }
+         }, 1, true, lost));
+
+         assertEquals(lost.getFile(),
+            assertThrows(SwapFileReadException.class, () -> arr.getMember("col1")).getFile());
+         assertEquals(lost.getFile(),
+            assertThrows(SwapFileReadException.class, () -> arr.getMember("*")).getFile());
+      }
    }
 }

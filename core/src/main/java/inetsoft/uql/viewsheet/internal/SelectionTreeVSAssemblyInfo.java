@@ -26,6 +26,7 @@ import inetsoft.uql.erm.AbstractDataRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.util.*;
+import inetsoft.util.swap.SwapFileReadException;
 import inetsoft.util.css.CSSAttr;
 import inetsoft.util.css.CSSConstants;
 import org.slf4j.Logger;
@@ -574,7 +575,15 @@ public class SelectionTreeVSAssemblyInfo extends SelectionBaseVSAssemblyInfo {
             }
 
             if(value != null) {
-               info.value = (CompositeSelectionValue) value.clone();
+               try {
+                  info.value = (CompositeSelectionValue) value.clone();
+               }
+               catch(SwapFileReadException ex) {
+                  // the swapped values are lost. don't fail the whole clone (e.g. an undo checkpoint),
+                  // leave the selection value out so it is queried again (bug #77864)
+                  LOG.warn("Selection value not cloned, its swap file is lost: " + ex.getFile());
+                  info.value = null;
+               }
             }
 
             if(parentValue != null) {

@@ -838,37 +838,40 @@ public class VSAggregateRef extends AbstractDataRef implements ContentObject, XA
 
       if(refValue.getDValue() != null) {
          writer.print("<refValue>");
-         writer.print("<![CDATA[" + refValue.getDValue() + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(refValue.getDValue()) + "]]>");
          writer.println("</refValue>");
       }
 
       if(refValue.getRuntimeValue(true) != null) {
          writer.print("<refRValue>");
-         writer.print("<![CDATA[" + refValue.getRuntimeValue(true) + "]]>");
+         writer.print("<![CDATA[" +
+                      Tool.cdataText(String.valueOf(refValue.getRuntimeValue(true))) + "]]>");
          writer.println("</refRValue>");
       }
 
       if(ref2Value.getDValue() != null) {
          writer.print("<secondaryValue>");
-         writer.print("<![CDATA[" + ref2Value.getDValue() + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(ref2Value.getDValue()) + "]]>");
          writer.println("</secondaryValue>");
       }
 
       if(ref2Value.getRuntimeValue(true) != null) {
          writer.print("<secondaryRValue>");
-         writer.print("<![CDATA[" + ref2Value.getRuntimeValue(true) + "]]>");
+         writer.print("<![CDATA[" +
+                      Tool.cdataText(String.valueOf(ref2Value.getRuntimeValue(true))) + "]]>");
          writer.println("</secondaryRValue>");
       }
 
       if(formulaValue.getDValue() != null) {
          writer.print("<formulaValue>");
-         writer.print("<![CDATA[" + formulaValue.getDValue() + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(formulaValue.getDValue()) + "]]>");
          writer.println("</formulaValue>");
       }
 
       if(formulaValue.getRuntimeValue(true) != null) {
          writer.print("<formulaRValue>");
-         writer.print("<![CDATA[" + formulaValue.getRuntimeValue(true) +
+         writer.print("<![CDATA[" +
+                      Tool.cdataText(String.valueOf(formulaValue.getRuntimeValue(true))) +
                       "]]>");
          writer.println("</formulaRValue>");
       }
@@ -900,7 +903,7 @@ public class VSAggregateRef extends AbstractDataRef implements ContentObject, XA
 
       if(caption != null) {
          writer.print("<caption>");
-         writer.print("<![CDATA[" + caption + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(caption) + "]]>");
          writer.println("</caption>");
       }
 
@@ -943,7 +946,7 @@ public class VSAggregateRef extends AbstractDataRef implements ContentObject, XA
 
       if(fullName != null && !fullName.equals("")) {
          writer.print("<fullName>");
-         writer.print("<![CDATA[" + fullName + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(fullName) + "]]>");
          writer.println("</fullName>");
       }
 
@@ -951,7 +954,7 @@ public class VSAggregateRef extends AbstractDataRef implements ContentObject, XA
 
       if(oriFullName != null && !oriFullName.equals("")) {
          writer.print("<oriFullName>");
-         writer.print("<![CDATA[" + oriFullName + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(oriFullName) + "]]>");
          writer.println("</oriFullName>");
       }
 
@@ -960,7 +963,7 @@ public class VSAggregateRef extends AbstractDataRef implements ContentObject, XA
 
       if(oriView != null && !oriView.equals(toView())) {
          writer.print("<oriView>");
-         writer.print("<![CDATA[" + oriView + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(oriView) + "]]>");
          writer.println("</oriView>");
       }
 

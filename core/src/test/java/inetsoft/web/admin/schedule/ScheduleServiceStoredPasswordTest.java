@@ -19,10 +19,14 @@ package inetsoft.web.admin.schedule;
 
 import inetsoft.report.internal.Util;
 import inetsoft.sree.schedule.*;
+import inetsoft.test.*;
 import inetsoft.uql.viewsheet.FileFormatInfo;
 import inetsoft.web.admin.deploy.DeployService;
 import inetsoft.web.admin.schedule.model.*;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.security.Principal;
 import java.util.List;
@@ -34,7 +38,12 @@ import static org.mockito.Mockito.*;
  * Bug #77192: when a task is edited, the editor sends a placeholder instead of a stored FTP
  * password. The stored password must only be kept when the path still points to the server it
  * was saved for, otherwise an editor who does not know it could send it to another server.
+ * The save also looks up the server locations (Bug #77953), which reads SreeEnv.
  */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = BaseTestConfiguration.class,
+                      initializers = ConfigurationContextInitializer.class)
+@SreeHome
 @Tag("core")
 class ScheduleServiceStoredPasswordTest {
    @BeforeEach

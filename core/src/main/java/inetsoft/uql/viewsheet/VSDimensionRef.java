@@ -1120,13 +1120,14 @@ public class VSDimensionRef extends AbstractDataRef implements ContentObject, XD
 
       if(groupValue.getDValue() != null) {
          writer.print("<groupValue>");
-         writer.print("<![CDATA[" + groupValue.getDValue() + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(groupValue.getDValue()) + "]]>");
          writer.println("</groupValue>");
       }
 
       if(groupValue.getRuntimeValue(true) != null) {
          writer.print("<groupRValue>");
-         writer.print("<![CDATA[" + groupValue.getRuntimeValue(true) + "]]>");
+         writer.print("<![CDATA[" +
+                      Tool.cdataText(String.valueOf(groupValue.getRuntimeValue(true))) + "]]>");
          writer.println("</groupRValue>");
       }
 
@@ -1228,7 +1229,7 @@ public class VSDimensionRef extends AbstractDataRef implements ContentObject, XD
 
       if(caption != null) {
          writer.print("<caption>");
-         writer.print("<![CDATA[" + caption + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(caption) + "]]>");
          writer.println("</caption>");
       }
 
@@ -1254,7 +1255,7 @@ public class VSDimensionRef extends AbstractDataRef implements ContentObject, XD
 
       if(fullName != null && !fullName.equals("")) {
          writer.print("<fullName>");
-         writer.print("<![CDATA[" + fullName + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(fullName) + "]]>");
          writer.println("</fullName>");
       }
 

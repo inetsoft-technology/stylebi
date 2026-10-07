@@ -85,4 +85,38 @@ class TaskAssetDependencyTransformerTest {
       String idPath = "Examples/Orders^__^F1^Order Model";
       assertEquals(idPath, transformer.toModelAssetPath(idPath, "F1"));
    }
+
+   // Bug #77847: the backup asset path matcher accepts every stored form of the path
+
+   @Test
+   void matchesAssetPath_currentWriterForm() {
+      assertTrue(TaskAssetDependencyTransformer.matchesAssetPath("my~_1f_~vs", "my\u001Fvs"));
+      assertTrue(TaskAssetDependencyTransformer.matchesAssetPath("F1~_2f_~a~_27_~b", "F1/a'b"));
+   }
+
+   @Test
+   void matchesAssetPath_oldWriterFormWithRawControlChars() {
+      assertTrue(TaskAssetDependencyTransformer.matchesAssetPath("del\u007Fvs", "del\u007Fvs"));
+   }
+
+   @Test
+   void matchesAssetPath_otherEncodingOfThePath() {
+      assertTrue(TaskAssetDependencyTransformer.matchesAssetPath("x~_41_~y", "xAy"));
+      assertTrue(TaskAssetDependencyTransformer.matchesAssetPath("x[41]y", "xAy"));
+   }
+
+   @Test
+   void matchesAssetPath_literalEncodedTextMatchesItsDecodedTwin() {
+      // pre-existing: the reader decodes the literal text, both names share one stored form
+      assertTrue(TaskAssetDependencyTransformer.matchesAssetPath("a~_1f_~b", "a~_1f_~b"));
+      assertTrue(TaskAssetDependencyTransformer.matchesAssetPath("a~_1f_~b", "a\u001Fb"));
+   }
+
+   @Test
+   void matchesAssetPath_otherPathOrNull() {
+      assertFalse(TaskAssetDependencyTransformer.matchesAssetPath("F1~_2f_~vs1", "F1/vs2"));
+      assertFalse(TaskAssetDependencyTransformer.matchesAssetPath("a~_2F_~b", "a/b"));
+      assertFalse(TaskAssetDependencyTransformer.matchesAssetPath(null, "a"));
+      assertFalse(TaskAssetDependencyTransformer.matchesAssetPath("a", null));
+   }
 }

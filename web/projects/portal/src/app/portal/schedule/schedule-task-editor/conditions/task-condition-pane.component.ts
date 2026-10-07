@@ -1196,6 +1196,23 @@ export class TaskConditionPane implements OnInit, OnChanges {
     * Init which timezone to display from local storage (local or server).
     */
    private initTimeZone(edit?: boolean): void {
+      // Opening a condition must not change its time zone, only a user selection does. The
+      // stored zone may be missing from the options (TimeZoneModel has a fixed list), and
+      // setLocalTimeZone() would then select the first option and write it into the condition,
+      // so add it to keep the zone shown and the zone saved the same (Bug #77511). A null zone
+      // is still filled below, as for a new condition. The editor already adds the zones of
+      // all the conditions when it loads the task, so this only matters when it didn't.
+      const storedCondition = this.isTimeCondition(this.condition) ? this.timeCondition : null;
+      const storedTimeZone = storedCondition?.timeZone;
+      const storedTimeZoneLabel = storedCondition?.timeZoneLabel;
+
+      if(storedTimeZone && this.timeZoneOptions &&
+         !this.timeZoneOptions.some(option => option.timeZoneId == storedTimeZone))
+      {
+         this.timeZoneOptions.push(
+            this.timeZoneService.createTimeZoneOption(storedTimeZone, storedTimeZoneLabel));
+      }
+
       this.setLocalTimeZone(this.timeCondition.timeZone);
       this.localTimeZoneOffset = this.timeZoneService.calculateTimezoneOffset(this.localTimeZoneId);
       const serverTZ: string = LocalStorage.getItem(TZ_STORAGE_KEY);
@@ -1281,7 +1298,11 @@ export class TaskConditionPane implements OnInit, OnChanges {
          this.form?.get("timeZone")?.disable();
       }
       else {
-         if(this.isTimeCondition(this.condition)) {
+         // only write a changed zone, so that showing a condition, or the form echoing the
+         // selected zone back, doesn't replace its stored label (Bug #77511)
+         if(this.isTimeCondition(this.condition) &&
+            this.timeCondition.timeZone != this.localTimeZoneId)
+         {
             this.timeCondition.timeZone = this.localTimeZoneId;
             this.timeCondition.timeZoneLabel = this.localTimeZoneLabel || null;
          }

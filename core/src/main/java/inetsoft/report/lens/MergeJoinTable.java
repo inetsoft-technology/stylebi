@@ -25,6 +25,7 @@ import inetsoft.report.internal.ComparatorComparer;
 import inetsoft.util.*;
 import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.stall.LockStallException;
+import inetsoft.util.swap.SwapFileReadException;
 import org.roaringbitmap.RoaringBitmap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -306,6 +307,14 @@ class MergeJoinTable extends JoinTable {
             LockStallException stall = LockStallException.find(ex);
 
             if(stall == null) {
+               // nor a lost swap file of a base, recorded before the join completes
+               // (bug #77651)
+               SwapFileReadException swapFailure = SwapFileReadException.find(ex);
+
+               if(swapFailure != null) {
+                  setSwapFailure(swapFailure);
+               }
+
                throw ex;
             }
 

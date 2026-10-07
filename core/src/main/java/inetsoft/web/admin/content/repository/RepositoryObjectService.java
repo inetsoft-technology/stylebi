@@ -633,7 +633,13 @@ public class RepositoryObjectService {
          }
       }
       else if(isDataSourceNode(type)) {
-         dataSourceRegistry.checkDataSourcePathClash(path);
+         if(delete) {
+            dataSourceRegistry.checkDataSourcePathClash(path);
+         }
+         else {
+            // Bug #77820, before the first of the moved data sources is moved
+            dataSourceRegistry.checkDataSourceMovePathClash(path);
+         }
       }
    }
 

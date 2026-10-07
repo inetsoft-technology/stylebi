@@ -51,6 +51,7 @@ import inetsoft.util.log.LogContext;
 import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.*;
 import inetsoft.util.stall.LockStallException;
+import inetsoft.util.swap.SwapFileReadException;
 import inetsoft.web.viewsheet.service.SharedFilterService;
 import inetsoft.web.vswizard.model.VSWizardConstants;
 import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
@@ -1205,7 +1206,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          }
       }
 
-      TableAssembly ntable = (TableAssembly) assembly.copyAssembly(nname);
+      TableAssembly ntable = copyBoundTable(assembly, nname);
       ws.addAssembly(ntable);
       MVManager mgr = MVManager.getManager();
 
@@ -1240,6 +1241,25 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       }
 
       return ntable;
+   }
+
+   /**
+    * Copy the viewsheet table a query binds to.
+    * @param assembly the viewsheet table in the worksheet.
+    * @param name the name of the copy.
+    */
+   static TableAssembly copyBoundTable(TableAssembly assembly, String name) {
+      Worksheet ws = assembly.getWorksheet();
+
+      if(ws == null) {
+         return (TableAssembly) assembly.copyAssembly(name);
+      }
+
+      // the copy reads the base table, which concurrent queries change in place under the
+      // worksheet lock (VSAQuery.getVSTableAssembly, 77867)
+      synchronized(ws) {
+         return (TableAssembly) assembly.copyAssembly(name);
+      }
    }
 
    /**
@@ -1296,17 +1316,15 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       // getDateComparison() may return null if DC hasn't been applied to the runtime chart
       // state yet (the initial worksheet-table setup call happens before ChartDcProcessor
       // runs). Fall back to the assembly's raw DC info only when DC is genuinely enabled
-      // and the share-from assembly reference is valid — preserving all other null semantics.
+      // and the assembly does not share another assembly's DC. A sharer's own DC is a stale
+      // snapshot of the source, so a sharer whose share doesn't resolve gets no DC conditions,
+      // matching the chart render which also resolves to no DC.
       if(dateComparisonInfo == null) {
          boolean dcEnabled = !(info instanceof DataVSAssemblyInfo) ||
             ((DataVSAssemblyInfo) info).isDateComparisonEnabled();
-         VSAssembly shareAssembly = (vs != null && !Tool.isEmptyString(info.getComparisonShareFrom()))
-            ? vs.getAssembly(info.getComparisonShareFrom()) : null;
-         boolean validShare = Tool.isEmptyString(info.getComparisonShareFrom()) ||
-            (shareAssembly != null &&
-               shareAssembly.getVSAssemblyInfo() instanceof DateCompareAbleAssemblyInfo);
+         boolean shared = !Tool.isEmptyString(info.getComparisonShareFrom());
 
-         if(dcEnabled && validShare) {
+         if(dcEnabled && !shared) {
             dateComparisonInfo = info.getDateComparisonInfo();
          }
       }
@@ -4620,6 +4638,48 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       MVSession session = getAssetQuerySandbox().getMVSession();
 
       if(tassembly != null) {
+         setRuntimeConditionList(ws, tassembly, table, conds, session);
+      }
+
+      if(dependedSelections.size() != 0) {
+         SelectionVSAssembly selectionVSAssembly = dependedSelections.get(0);
+
+         if(!isRootVSAssembly(selectionVSAssembly)) {
+            Assembly[] dependedAssemblies =
+               AssetUtil.getDependedAssemblies(vs, selectionVSAssembly, false, false, true);
+            processed.add(table);
+
+            for(Assembly assembly : dependedAssemblies) {
+               if(assembly instanceof VSAssembly) {
+                  String tableName = ((VSAssembly) assembly).getTableName();
+
+                  if(tableName != null) {
+                     refreshRuntimeConditionList(((VSAssembly) assembly).getTableName(), ignore,
+                                                 processed);
+                  }
+               }
+            }
+         }
+      }
+
+      return dependedSelections;
+   }
+
+   /**
+    * Apply the merged condition list of the selections to a worksheet table.
+    * @param ws the worksheet of the table.
+    * @param tassembly the table.
+    * @param table the name of the table.
+    * @param conds the merged condition list.
+    * @param session the mv session.
+    */
+   void setRuntimeConditionList(Worksheet ws, AbstractTableAssembly tassembly, String table,
+                                ConditionList conds, MVSession session)
+   {
+      // the worksheet table is shared by the queries of all the requests on the viewsheet,
+      // which fetch their data without the sandbox lock (74001) and copy it under the
+      // worksheet lock (VSAQuery.getVSTableAssembly, 77867), so change it under that lock
+      synchronized(ws) {
          // mark table as having selection. used by jdbc pushdown for caching
          tassembly.setProperty("vs.selection.bound", "true");
 
@@ -4690,29 +4750,6 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             }
          }
       }
-
-      if(dependedSelections.size() != 0) {
-         SelectionVSAssembly selectionVSAssembly = dependedSelections.get(0);
-
-         if(!isRootVSAssembly(selectionVSAssembly)) {
-            Assembly[] dependedAssemblies =
-               AssetUtil.getDependedAssemblies(vs, selectionVSAssembly, false, false, true);
-            processed.add(table);
-
-            for(Assembly assembly : dependedAssemblies) {
-               if(assembly instanceof VSAssembly) {
-                  String tableName = ((VSAssembly) assembly).getTableName();
-
-                  if(tableName != null) {
-                     refreshRuntimeConditionList(((VSAssembly) assembly).getTableName(), ignore,
-                                                 processed);
-                  }
-               }
-            }
-         }
-      }
-
-      return dependedSelections;
    }
 
    private ConditionList getMergedCubeConditionList0(DataRef column, List<Object> values) {
@@ -5623,7 +5660,12 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                catch(Exception ex) {
                   // a table whose query failed with a lock stall must not leave a cached NULL,
                   // the next read would take it for no table instead of building it again (#77123)
-                  if(LockStallException.find(ex) != null) {
+                  // A lost swap file must fail the read, not turn into "no table" on the next
+                  // read (it often appears mid-session on a table that rendered fine), and a
+                  // retry only re-reads the missing file, so don't cache it either (#77908)
+                  if(LockStallException.find(ex) != null ||
+                     SwapFileReadException.find(ex) != null)
+                  {
                      cache = false;
                   }
 
@@ -5895,6 +5937,13 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             else {
                LOG.warn("Failed to query materialized view: {}", name, ex);
                CoreTool.addUserMessage(ex.getMessage());
+
+               // the MV query wraps any failure, a lost swap file must not be cached as no
+               // data either, see catch(Exception) below (#77908)
+               if(SwapFileReadException.find(ex) != null) {
+                  cache = false;
+               }
+
                // error should be shown to user
                throw ex;
             }
@@ -5902,7 +5951,12 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          catch(Exception ex) {
             // a query that failed with a lock stall must not leave a cached NULL, the next
             // read would take it for no data instead of running the query again (#77123)
-            if(LockStallException.find(ex) != null) {
+            // A lost swap file must fail every read until it is rebuilt, never substitute no
+            // data (it often appears mid-session on an assembly that rendered fine), and a
+            // retry only re-reads the missing file, so don't cache it either. Other failures
+            // are still cached as NULL, so e.g. a slow failing SQL query is not re-run on
+            // every read (#77908)
+            if(LockStallException.find(ex) != null || SwapFileReadException.find(ex) != null) {
                cache = false;
             }
 

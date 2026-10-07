@@ -14,7 +14,8 @@ permissions:
 
 jobs:
   # The core tests tagged slow (long-running timing, concurrency, stress and large
-  # parameterized tests), which the PR and Jenkins builds leave out
+  # parameterized tests) and the lockcycle suite with the pool off, which the PR and Jenkins
+  # builds leave out
   slow-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -47,5 +48,18 @@ jobs:
 
       - name: Slow core tests
         run: ./mvnw --batch-mode test -pl core -Dsurefire.groups=slow
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # the PR and Jenkins builds run the lockcycle suite pooled, as production runs worksheet
+      # scripts by default; script.ws.contextPool=false is still supported, so it is checked
+      # here. Runs even when the slow tests failed
+      - name: Lockcycle suite with the pool off
+        if: ${{ !cancelled() }}
+        run: >-
+          ./mvnw --batch-mode test -pl core
+          -Dtest='**/lockcycle/*Test'
+          -Dlockcycle.pool=false
+          '-Dsurefire.groups=core | slow'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

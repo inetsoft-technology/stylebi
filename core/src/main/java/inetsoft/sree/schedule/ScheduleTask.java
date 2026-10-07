@@ -630,6 +630,11 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
             waited = true;
          }
 
+         // Bug #77922, the backup assets are checked against the task owner when they are written
+         if(act instanceof IndividualAssetBackupAction backup) {
+            backup.setTaskOwner(SUtil.getTaskNameForLogging(getTaskId()), getOwner());
+         }
+
          Runnable r = new ThreadPool.AbstractContextRunnable() {
             { addRecord("ScheduleTask:" + ScheduleTask.this.getTaskId()); }
 
@@ -1436,13 +1441,27 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
       parseXML(elem, false);
    }
 
+   /**
+    * Whether the owner attribute of a task xml is written by a version before the owner was an
+    * identity key (no owner, "null" or a user name without an organization). Only the name of
+    * such a task may be prefixed by its owner as "user:task", the current version always writes
+    * the owner key and the bare task name, which may itself contain ':'.
+    */
+   static boolean isLegacyOwnerKey(String ownerKey) {
+      return Tool.isEmptyString(ownerKey) || !ownerKey.contains(IdentityID.KEY_DELIMITER);
+   }
+
    @Override
    public void parseXML(Element elem, boolean isSiteAdminImport) throws Exception {
       name = elem.getAttribute("name");
+      String ownerKey = elem.getAttribute("owner");
 
       // older versions are userName:taskName, breaks unless IdentityID:taskname
       // should not fix mv tasks like "MV Task: UUID"
-      if(name.indexOf(":") > -1 && name.indexOf(IdentityID.KEY_DELIMITER) == -1 &&
+      // Bug #77883, only the name of a legacy task (an owner without an organization) has a
+      // user name prefix, the current version writes the bare name, which may contain ':'
+      if(isLegacyOwnerKey(ownerKey) &&
+         name.indexOf(":") > -1 && name.indexOf(IdentityID.KEY_DELIMITER) == -1 &&
          !name.startsWith(Util.MV_TASK_PREFIX) &&
          !name.startsWith(Util.MV_TASK_STAGE_PREFIX))
       {
@@ -1450,7 +1469,6 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
          name = nameUser.convertToKey() + name.substring(name.indexOf(":"));
       }
 
-      String ownerKey = elem.getAttribute("owner");
       owner = IdentityID.getIdentityIDFromKey(ownerKey);
 
       if(isSiteAdminImport) {

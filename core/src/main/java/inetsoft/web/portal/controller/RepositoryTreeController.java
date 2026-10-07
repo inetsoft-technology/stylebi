@@ -33,6 +33,7 @@ import inetsoft.uql.viewsheet.ViewsheetInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
+import inetsoft.util.UserMessage;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.web.RecycleBin;
@@ -515,6 +516,9 @@ public class RepositoryTreeController {
       @RequestBody RemoveRepositoryEntryEvent event,
       Principal principal)
    {
+      // the user messages are thread-local, drop anything left by an earlier request on this
+      // pooled thread so that only the messages of this delete are returned
+      Tool.clearUserMessage();
       RepositoryEntry entry = event.entry().createRepositoryEntry();
       UserEnv.setProperty(principal, entry.getName(), "");
       ActionRecord actionRecord = null;
@@ -602,6 +606,14 @@ public class RepositoryTreeController {
          }
       }
 
+      // Bug #77939, the delete is done, report what it could not finish, e.g. a permission it
+      // may not have removed
+      UserMessage userMessage = Tool.getUserMessage();
+
+      if(userMessage != null && userMessage.getMessage() != null) {
+         return MessageCommand.fromUserMessage(userMessage);
+      }
+
       return null;
    }
 
@@ -624,6 +636,30 @@ public class RepositoryTreeController {
          if(entry == null) {
             MessageCommand messageCommand = new MessageCommand();
             messageCommand.setMessage("Folder not found.");
+            messageCommand.setType(MessageCommand.Type.ERROR);
+            return messageCommand;
+         }
+
+         // Bug #77838, an edit that keeps the name only writes the alias and description, check
+         // the same permission as a rename before anything is written to the registry
+         if(!SUtil.checkPermission(principal, entry, analyticRepository, ResourceAction.WRITE)) {
+            String actionName = entry.getName().equals(name) ?
+               ActionRecord.ACTION_NAME_EDIT : ActionRecord.ACTION_NAME_RENAME;
+            ActionRecord actionRecord = new ActionRecord(SUtil.getUserName(principal), actionName,
+               Util.getObjectFullPath(RepositoryEntry.REPOSITORY | RepositoryEntry.FOLDER,
+                                      entry.getPath(), principal),
+               ActionRecord.OBJECT_TYPE_FOLDER, new Timestamp(System.currentTimeMillis()),
+               ActionRecord.ACTION_STATUS_FAILURE, "Write access denied: " + entry.getPath());
+
+            try {
+               Audit.getInstance().auditAction(actionRecord, principal);
+            }
+            catch(Exception e) {
+               LOG.error("Failed to insert audit record for editing folder: " + entry.getPath(), e);
+            }
+
+            MessageCommand messageCommand = new MessageCommand();
+            messageCommand.setMessage(catalog.getString("common.writeAuthority", entry.getPath()));
             messageCommand.setType(MessageCommand.Type.ERROR);
             return messageCommand;
          }

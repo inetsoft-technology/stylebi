@@ -282,7 +282,7 @@ public class JDBCTableNode extends XTableNode {
 
          // clear the static blobmap
          sqlTypesHelper.clearBlobmap();
-         throw new RuntimeException(e + "");
+         throw new RuntimeException(e + "", e);
       }
       finally {
          if(closeStmt) {

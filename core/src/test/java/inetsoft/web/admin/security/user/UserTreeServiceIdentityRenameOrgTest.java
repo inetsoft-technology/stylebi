@@ -224,6 +224,29 @@ class UserTreeServiceIdentityRenameOrgTest {
                            "cycle@" + ORG_A), migrations);
    }
 
+   // Bug #77798: the rename is already saved when the permission write fails, so every rename
+   // migration still runs and the failure is reported after them
+   @Test
+   void renameUser_permissionWriteFails_migrationsStillRunThenFailureReported() throws Exception {
+      IdentityID oldUser = new IdentityID("bob", ORG_A);
+      IdentityID newUser = new IdentityID("bob2", ORG_A);
+      stubUser(oldUser);
+      inetsoft.util.MessageException failure =
+         new inetsoft.util.MessageException("may not have been saved");
+      doThrow(failure).when(identityService).setIdentityPermissions(
+         any(IdentityID.class), any(IdentityID.class), any(ResourceType.class), any(), any(),
+         anyString());
+
+      Exception thrown = assertThrows(Exception.class, () ->
+         service.editUser(userModel("bob", "bob2", ORG_A), "Primary", principal));
+
+      assertSame(failure, thrown);
+      assertEquals(List.of("storage@" + ORG_A, "mvAssets@" + ORG_A, "mvUsers@" + ORG_A,
+                           "cycle@" + ORG_A), migrations);
+      verify(dependencyStorageService).migrateStorageData(oldUser, newUser);
+      verify(recycleBin).renameUser(oldUser, newUser);
+   }
+
    @Test
    void userEditWithoutRename_runsNoMigrations() throws Exception {
       stubUser(new IdentityID("bob", ORG_B));

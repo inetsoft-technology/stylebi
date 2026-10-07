@@ -20,7 +20,6 @@ package inetsoft.util.swap;
 import com.esotericsoftware.kryo.kryo5.Kryo;
 import com.esotericsoftware.kryo.kryo5.io.Input;
 import com.esotericsoftware.kryo.kryo5.io.Output;
-import inetsoft.util.FileSystemService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,6 +29,7 @@ import java.nio.channels.FileChannel;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Predicate;
 
 /**
  * XObjectFrament, the swappable object fragment.
@@ -156,9 +156,7 @@ public final class XObjectFragment<T> extends XSwappable {
       // before the data was dropped. the data in memory is the only good copy either way,
       // so remove any partial swap file to have the data written again on the next swap.
       // rewriteRequired is the actual correctness guarantee here, independent of whether the
-      // delete below succeeds: deleteSwapFiles() can fall back to a delayed/queued delete that
-      // fires after a later swap recreates one of these filenames (the sub-problem 2/3 race),
-      // so swap0() must not depend on it succeeding.
+      // delete below succeeds, so swap0() must not depend on it succeeding.
       if(this.arr != null) {
          rewriteRequired = true;
          deleteSwapFiles();
@@ -251,6 +249,13 @@ public final class XObjectFragment<T> extends XSwappable {
          // the swapper never swaps the fragment out in this state; fail loudly instead of
          // silently substituting partial data
          spos = 0;
+
+         // a timeout or cancel closed the channel, the swap file is not lost (bug #77916)
+         if(SwapReadInterruptedException.isInterrupt(ex)) {
+            LOG.debug("Read of swap file interrupted: " + file, ex);
+            throw new SwapReadInterruptedException(file, ex);
+         }
+
          LOG.error("Failed to read swap file: " + file, ex);
          throw new SwapFileReadException(file, ex);
       }
@@ -287,9 +292,10 @@ public final class XObjectFragment<T> extends XSwappable {
             break;
          }
 
-         if(!file.delete()) {
+         // a file that could not be deleted is not queued for a delayed removal, which deletes
+         // by name and would remove the file the next swap writes with the same name (#77877)
+         if(!(testDelete != null ? testDelete.test(file) : file.delete())) {
             failed = true;
-            FileSystemService.getInstance().remove(file, 30000);
          }
       }
 
@@ -297,6 +303,11 @@ public final class XObjectFragment<T> extends XSwappable {
       // a file that could not be deleted may still be there for the next swap to reuse,
       // so keep checking for it on the next change
       hasSwapFiles = failed;
+
+      // the files left no longer hold the current array, have the next swap rewrite them
+      if(failed) {
+         rewriteRequired = true;
+      }
    }
 
    /**
@@ -861,6 +872,9 @@ public final class XObjectFragment<T> extends XSwappable {
    // force a write failure deterministically without relying on platform-specific file locking
    // or permission semantics (which differ between Windows and Linux/CI). No-op in production.
    transient Runnable testBeforeWrite;
+   // test-only hook: when set, called instead of File.delete() for a swap file of a live
+   // fragment, so tests can force a delete failure on every platform. No-op in production.
+   transient Predicate<File> testDelete;
    private AtomicInteger holding = new AtomicInteger(0); // suspend swapping
    private char spos; // next serialization position
    private Class kryoClass;

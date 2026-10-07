@@ -75,7 +75,7 @@ public class InvalidateFireLockOrderTest {
 
    @AfterEach
    public void tearDown() {
-      StallPolicy.setOverride(null);
+      StallTestSupport.clearOverride();
    }
 
    @Test

@@ -26,6 +26,7 @@ import inetsoft.uql.XMetaInfo;
 import inetsoft.uql.XTable;
 import inetsoft.util.Tool;
 import inetsoft.util.stall.LockStallException;
+import inetsoft.util.swap.SwapFileReadException;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -255,7 +256,7 @@ abstract class JoinTable extends PagedTableLens {
     */
    @Override
    public Object getObject(int r, int c) {
-      if(stallFailure != null) {
+      if(stallFailure != null || swapFailure != null) {
          throwStallFailurePastEnd(r);
       }
 
@@ -274,13 +275,21 @@ abstract class JoinTable extends PagedTableLens {
    }
 
    /**
-    * Rethrow the stall a worker thread failed with, if any (bug #76967).
+    * Rethrow the stall (bug #76967) or the lost swap file (bug #77651) a worker thread failed
+    * with, if any.
     */
    private void throwStallFailure() {
       LockStallException failure = stallFailure;
 
       if(failure != null) {
          throw new LockStallException(failure);
+      }
+
+      // nor are the rows so far of a worker that lost a swap file of a base (bug #77651)
+      SwapFileReadException swapFailure = this.swapFailure;
+
+      if(swapFailure != null) {
+         throw swapFailure;
       }
    }
 
@@ -294,6 +303,14 @@ abstract class JoinTable extends PagedTableLens {
     */
    void setStallFailure(LockStallException failure) {
       stallFailure = failure;
+   }
+
+   /**
+    * Record the lost swap file a worker thread failed with, before it completes the join
+    * (bug #77651).
+    */
+   void setSwapFailure(SwapFileReadException failure) {
+      swapFailure = failure;
    }
 
    /**
@@ -342,7 +359,7 @@ abstract class JoinTable extends PagedTableLens {
     * Get the base table to delegate calls.
     */
    public TableRef getTableRef(int row, int col) {
-      if(stallFailure != null) {
+      if(stallFailure != null || swapFailure != null) {
          throwStallFailurePastEnd(row);
       }
 
@@ -633,6 +650,8 @@ abstract class JoinTable extends PagedTableLens {
    // base rows read by the workers, joined or not (bug #76967)
    private transient volatile long scannedRows;
    private transient volatile LockStallException stallFailure;
+   // the lost swap file a worker failed with (bug #77651)
+   private transient volatile SwapFileReadException swapFailure;
    // the watchdog suppliers of moreRows, see getStallProgress()
    private transient LongSupplier stallProgress;
    private transient Supplier<Thread[]> stallBlockers;

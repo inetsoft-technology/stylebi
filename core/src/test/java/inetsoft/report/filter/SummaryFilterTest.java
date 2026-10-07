@@ -22,6 +22,8 @@ import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
 import inetsoft.uql.*;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.util.swap.SwapFileReadException;
+import inetsoft.util.swap.SwapLostTestSupport.LostTable;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -33,6 +35,8 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Date;
+
+import static inetsoft.util.swap.SwapLostTestSupport.*;
 
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -442,5 +446,49 @@ public class SummaryFilterTest {
    private Date date(String date) {
       return new Date(LocalDate.parse(date).atStartOfDay()
                          .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli());
+   }
+
+   /**
+    * A lost swap file of the base fails the read of the summary on its worker, it is never a
+    * summary of the rows read before the failure (bug #77651).
+    */
+   @Test
+   public void lostSwapFileOfTheBaseFailsTheRead() throws Exception {
+      SwapFileReadException lost = swapLost();
+      SummaryFilter summary = summary(new LostTable(values(40), 21, lost));
+
+      Assertions.assertSame(lost, swapIn(failureOf(15, () -> drain(summary))));
+   }
+
+   /**
+    * A wrapped lost swap file is found in the cause chain.
+    */
+   @Test
+   public void wrappedLostSwapFileOfTheBaseFailsTheRead() throws Exception {
+      SwapFileReadException lost = swapLost();
+      SummaryFilter summary =
+         summary(new LostTable(values(40), 21, new RuntimeException("wrapped", lost)));
+
+      Assertions.assertSame(lost, swapIn(failureOf(15, () -> drain(summary))));
+   }
+
+   private static SummaryFilter summary(DefaultTableLens base) {
+      return new SummaryFilter(base, new int[] { 0 }, new int[] { 1 }, new SumFormula(),
+                               new SumFormula());
+   }
+
+   /**
+    * {@code rows} rows of {@code key, value}, key {@code k(i % 3)} and value {@code i} for
+    * row {@code i}.
+    */
+   private static Object[][] values(int rows) {
+      Object[][] data = new Object[rows + 1][];
+      data[0] = new Object[] { "key", "value" };
+
+      for(int r = 1; r <= rows; r++) {
+         data[r] = new Object[] { "k" + (r % 3), r };
+      }
+
+      return data;
    }
 }

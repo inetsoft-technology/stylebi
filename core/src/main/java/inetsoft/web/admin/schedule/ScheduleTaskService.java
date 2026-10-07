@@ -554,7 +554,8 @@ public class ScheduleTaskService {
          }
       }
       else {
-         if("".equals(taskName)) {
+         // Bug #77856, a name made only of whitespace is as empty as no name
+         if(taskName == null || taskName.trim().isEmpty()) {
             throw new Exception(catalog.getString("em.scheduler.emptyTaskName"));
          }
 
@@ -673,7 +674,8 @@ public class ScheduleTaskService {
          for(int i = 0; i < model.actions().size(); i++) {
             ScheduleAction scheduleAction = originalTask.getActionCount() > i ? originalTask.getAction(i) : null;
             ScheduleAction action =
-               scheduleService.getActionFromModel(model.actions().get(i), scheduleAction, principal, linkURI);
+               scheduleService.getActionFromModel(model.actions().get(i), scheduleAction,
+                                                  originalActions, principal, linkURI);
 
             if(action == null) {
                continue;

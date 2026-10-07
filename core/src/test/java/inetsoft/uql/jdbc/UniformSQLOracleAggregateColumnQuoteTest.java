@@ -361,21 +361,22 @@ class UniformSQLOracleAggregateColumnQuoteTest {
    }
 
    /**
-    * Bug #77686, a name with a non-ascii character is quoted as written, as before #77646.
-    * Oracle allows only alphanumeric characters and _ $ # unquoted, T.a＿b is invalid.
+    * Bug #77821, a name with a non-ascii character is not quoted, as an ascii one. Oracle folds
+    * it unquoted too (T.a＿b is valid unquoted on Oracle 23 and stored as A＿B), so the name
+    * quoted as written ("a＿b") is another column, ORA-00904. Was quoted as written (#77686).
     */
    @Test
-   void nonAsciiColumnIsQuotedAsWritten() throws Exception {
+   void nonAsciiColumnIsNotQuoted() throws Exception {
       for(String key : ORACLE) {
          for(String name : PARSED_NON_ASCII) {
-            assertEquals("select sum(T.\"" + name + "\") from T",
+            assertEquals("select sum(T." + name + ") from T",
                          aggregate(key, "select sum(T." + name + ") from T"), key + " " + name);
          }
 
-         assertEquals("select max(t.\"a＿b\") from a t", aggregate(key, "select max(t.a＿b) from a t"), key);
-         assertEquals("select count(distinct t.\"データ\") from a t",
+         assertEquals("select max(t.a＿b) from a t", aggregate(key, "select max(t.a＿b) from a t"), key);
+         assertEquals("select count(distinct t.データ) from a t",
                       aggregate(key, "select count(distinct t.データ) from a t"), key);
-         assertEquals("select T.ID, sum(T.\"名前\") from T group by T.ID order by sum(T.\"名前\") asc",
+         assertEquals("select T.ID, sum(T.名前) from T group by T.ID order by sum(T.名前) asc",
                       aggregate(key, "select T.ID, sum(T.名前) from T group by T.ID order by sum(T.名前)"), key);
          // an ascii name is still not quoted
          assertEquals("select sum(T.a_b) from T", aggregate(key, "select sum(T.a_b) from T"), key);
@@ -383,18 +384,21 @@ class UniformSQLOracleAggregateColumnQuoteTest {
    }
 
    /**
-    * Bug #77686, the worksheet push-down path, an aggregate added to the selection without
-    * parsing.
+    * Bug #77821, the worksheet push-down path, an aggregate added to the selection without
+    * parsing, is not quoted either (was quoted as written, #77686). This pins a known limit: the
+    * column there is a catalog name, and one created quoted in lower case or with a character
+    * oracle doesn't allow unquoted (a·b, a‿b) is not found, as an ascii "lv" since #77646.
+    * Nothing records whether a name came from the catalog, db.caseSensitive=true quotes it.
     */
    @Test
-   void nonAsciiColumnIsQuotedAsWrittenUnparsed() throws Exception {
+   void nonAsciiColumnIsNotQuotedUnparsed() throws Exception {
       for(String key : ORACLE) {
          for(String name : NON_ASCII) {
             UniformSQL sql = new UniformSQL();
             sql.setDataSource(source(key));
             sql.addTable("T");
             sql.getSelection().addColumn("sum(T." + name + ")");
-            assertEquals("select sum(T.\"" + name + "\") from T", regenerate(sql), key + " " + name);
+            assertEquals("select sum(T." + name + ") from T", regenerate(sql), key + " " + name);
          }
 
          UniformSQL sql = new UniformSQL();
@@ -408,7 +412,7 @@ class UniformSQLOracleAggregateColumnQuoteTest {
    private static final String[] NON_ASCII = {
       "データ", "名前", "a＿b", "ａｂ", "a‿b", "a·b", "über", "Größe"
    };
-   // the parser doesn't take a·b and Größe unquoted, and drops the ü of über
+   // names the parser takes unquoted, the names above U+00FF
    private static final String[] PARSED_NON_ASCII = { "データ", "名前", "a＿b", "ａｂ", "a‿b" };
 
    /**

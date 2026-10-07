@@ -42,6 +42,7 @@ import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.*;
 import inetsoft.util.script.graal.ScriptScope;
 import inetsoft.util.stall.LockStallException;
+import inetsoft.util.swap.SwapFileReadException;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntStack;
 import org.slf4j.Logger;
@@ -243,6 +244,13 @@ public class CalcTableLens extends DefaultTableLens {
 
          if(stall != null) {
             throw stall;
+         }
+
+         // a lost swap file of the base must not look like an empty table either (bug #77909)
+         SwapFileReadException swapFailure = SwapFileReadException.find(ex);
+
+         if(swapFailure != null) {
+            throw swapFailure;
          }
 
          LOG.error("Failed to process calctablelens", ex);
@@ -491,6 +499,15 @@ public class CalcTableLens extends DefaultTableLens {
                // not cached, a later read evaluates the formula again
                uncacheValue(r, c, expr);
                throw stall;
+            }
+
+            // nor is one that read a lost swap file, it has no value to show (bug #77909)
+            SwapFileReadException swapFailure = SwapFileReadException.find(se);
+
+            if(swapFailure != null) {
+               // not cached, a later read evaluates the formula again
+               uncacheValue(r, c, expr);
+               throw swapFailure;
             }
 
             obj = "ERROR: " + se.getMessage();

@@ -235,14 +235,13 @@ class SlotPoolProbeTest {
     * waited for.
     */
    @Test
-   @Disabled("Fails intermittently: Jenkins main #377, #386 (Bug #77830)")
    void aPullOfAHomeHeldByAClaimDoesNotWait() throws Exception {
       WorksheetScriptEnv env = softEnv();
       Tenant tenant = new Tenant();
       Slot home = homeOf(env, tenant);
       AtomicInteger spins = new AtomicInteger();
       PoolTestSupport.pullSpinHook(slot -> spins.incrementAndGet());
-      Runnable release = PoolTestSupport.holdElsewhere(home, executor);
+      Runnable release = PoolTestSupport.holdElsewhere(home);
 
       try {
          assertFalse(OwnedValueCodec.pull(new OwnedValueCodec.Home(env.pool(), home), tenant,

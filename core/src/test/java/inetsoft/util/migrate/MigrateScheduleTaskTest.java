@@ -202,6 +202,48 @@ class MigrateScheduleTaskTest {
                    ((Element) doc.getElementsByTagName("Notify").item(0)).getAttribute("email"));
    }
 
+   // Bug #77883, on a user rename without an organization, the bare name of a task with an owner
+   // key is kept, even when it starts with "<owner>:", and the task ids in the actions keep the
+   // whole name after the first ':'
+   @Test
+   void userRename_keepsColonInTaskNameAndTaskIds() throws Exception {
+      Document doc = parse(colonTask("alice:report"));
+      new MigrateScheduleTask(null, "alice", "alice2").processAssemblies(doc.getDocumentElement());
+
+      Element task = doc.getDocumentElement();
+      assertEquals("alice:report", task.getAttribute("name"));
+      assertEquals("alice2~;~" + ORG, task.getAttribute("owner"));
+      assertEquals("alice2~;~" + ORG + ":a:b", batchTaskId(doc));
+      assertEquals("alice2~;~" + ORG + ":a:b", backupTaskPath(doc));
+   }
+
+   // Bug #77883, an org migration keeps the whole task name after the first ':'
+   @Test
+   void orgMigration_keepsColonInTaskNameAndTaskIds() throws Exception {
+      Document doc = parse(colonTask("task:name"));
+      new MigrateScheduleTask(null, new Organization(ORG), new Organization("org2"))
+         .processAssemblies(doc.getDocumentElement());
+
+      assertEquals("task:name", doc.getDocumentElement().getAttribute("name"));
+      assertEquals("alice~;~org2:a:b", batchTaskId(doc));
+      assertEquals("alice~;~org2:a:b", backupTaskPath(doc));
+   }
+
+   private static String colonTask(String name) {
+      return "<Task name=\"" + name + "\" owner=\"alice~;~" + ORG + "\">" +
+         "<Action type=\"Batch\" taskId=\"alice~;~" + ORG + ":a:b\"/>" +
+         "<Action type=\"Backup\"><XAsset type=\"SCHEDULETASK\" path=\"alice~;~" + ORG +
+         ":a:b\"/></Action></Task>";
+   }
+
+   private static String batchTaskId(Document doc) {
+      return ((Element) doc.getElementsByTagName("Action").item(0)).getAttribute("taskId");
+   }
+
+   private static String backupTaskPath(Document doc) {
+      return ((Element) doc.getElementsByTagName("XAsset").item(0)).getAttribute("path");
+   }
+
    private static String serialize(Node node) throws Exception {
       StringWriter writer = new StringWriter();
       var transformer = TransformerFactory.newInstance().newTransformer();

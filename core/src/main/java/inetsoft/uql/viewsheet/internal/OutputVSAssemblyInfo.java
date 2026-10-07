@@ -476,7 +476,7 @@ public abstract class OutputVSAssemblyInfo extends VSAssemblyInfo
       if(getValue() != null) {
          String str = Tool.toString(getValue());
          writer.print("<displayValue>");
-         writer.print("<![CDATA[" + str + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(str) + "]]>");
          writer.println("</displayValue>");
       }
 
@@ -529,7 +529,7 @@ public abstract class OutputVSAssemblyInfo extends VSAssemblyInfo
 
       if(customTooltipString != null) {
          writer.print("<customTooltipStr>");
-         writer.print("<![CDATA[" + getCustomTooltipString() + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(getCustomTooltipString()) + "]]>");
          writer.println("</customTooltipStr>");
       }
    }

@@ -826,42 +826,42 @@ public abstract class AbstractEditableAuthenticationProvider
       IdentityID toRootUserID = new IdentityID(rootUserName, newOrgID);
       List<IdentityModel> rootUserPIDs = identityService.getPermission(fromRootUserID, ResourceType.SECURITY_USER, fromOrgID, principal);
 
-      identityService.setIdentityPermissions(toRootUserID, toRootUserID, ResourceType.SECURITY_USER, principal,
-                                             copyPermittedIDs(rootUserPIDs, fromOrgID, newOrgID), newOrgID);
+      setIdentityPermissionsBestEffort(identityService, toRootUserID, toRootUserID, ResourceType.SECURITY_USER, principal,
+                                       copyPermittedIDs(rootUserPIDs, fromOrgID, newOrgID), newOrgID);
       //Groups
       String rootGroupName = "Groups";
       IdentityID fromRootGroupID = new IdentityID(rootGroupName, fromOrgID);
       IdentityID toRootGroupID = new IdentityID(rootGroupName, newOrgID);
       List<IdentityModel> rootGroupPIDs = identityService.getPermission(fromRootGroupID, ResourceType.SECURITY_GROUP, fromOrgID, principal);
 
-      identityService.setIdentityPermissions(toRootGroupID, toRootGroupID, ResourceType.SECURITY_GROUP, principal,
-                                             copyPermittedIDs(rootGroupPIDs, fromOrgID, newOrgID), newOrgID);
+      setIdentityPermissionsBestEffort(identityService, toRootGroupID, toRootGroupID, ResourceType.SECURITY_GROUP, principal,
+                                       copyPermittedIDs(rootGroupPIDs, fromOrgID, newOrgID), newOrgID);
       //Roles
       String rootRoleName = "Roles";
       IdentityID fromRootID = new IdentityID(rootRoleName, fromOrgID);
       IdentityID toRootID = new IdentityID(rootRoleName, newOrgID);
       List<IdentityModel> rootRolePIDs = identityService.getPermission(fromRootID, ResourceType.SECURITY_ROLE, fromOrgID, principal);
 
-      identityService.setIdentityPermissions(toRootID, toRootID, ResourceType.SECURITY_ROLE, principal,
-                                             copyPermittedIDs(rootRolePIDs, fromOrgID, newOrgID), newOrgID);
+      setIdentityPermissionsBestEffort(identityService, toRootID, toRootID, ResourceType.SECURITY_ROLE, principal,
+                                       copyPermittedIDs(rootRolePIDs, fromOrgID, newOrgID), newOrgID);
 
       String rootOrgRoleName = "Organization Roles";
       IdentityID fromRootOrgRoleID = new IdentityID(rootOrgRoleName, fromOrgID);
       IdentityID toRootOrgRoleID = new IdentityID(rootOrgRoleName, newOrgID);
       List<IdentityModel> rootOrgRolePIDs = identityService.getPermission(fromRootOrgRoleID, ResourceType.SECURITY_ROLE, fromOrgID, principal);
 
-      identityService.setIdentityPermissions(toRootOrgRoleID, toRootOrgRoleID, ResourceType.SECURITY_ROLE, principal,
-                                             copyPermittedIDs(rootOrgRolePIDs, fromOrgID, newOrgID), newOrgID);
+      setIdentityPermissionsBestEffort(identityService, toRootOrgRoleID, toRootOrgRoleID, ResourceType.SECURITY_ROLE, principal,
+                                       copyPermittedIDs(rootOrgRolePIDs, fromOrgID, newOrgID), newOrgID);
 
       if(replace) {
-         identityService.setIdentityPermissions(fromRootUserID, fromRootUserID, ResourceType.SECURITY_USER,
-                                                 principal, null, null);
-         identityService.setIdentityPermissions(fromRootGroupID, fromRootGroupID, ResourceType.SECURITY_GROUP,
-                                                 principal, null, null);
-         identityService.setIdentityPermissions(fromRootID, fromRootID, ResourceType.SECURITY_ROLE,
-                                                principal, null, null);
-         identityService.setIdentityPermissions(fromRootOrgRoleID, fromRootOrgRoleID, ResourceType.SECURITY_ROLE,
-                                                principal, null, null);
+         setIdentityPermissionsBestEffort(identityService, fromRootUserID, fromRootUserID, ResourceType.SECURITY_USER,
+                                           principal, null, null);
+         setIdentityPermissionsBestEffort(identityService, fromRootGroupID, fromRootGroupID, ResourceType.SECURITY_GROUP,
+                                           principal, null, null);
+         setIdentityPermissionsBestEffort(identityService, fromRootID, fromRootID, ResourceType.SECURITY_ROLE,
+                                          principal, null, null);
+         setIdentityPermissionsBestEffort(identityService, fromRootOrgRoleID, fromRootOrgRoleID, ResourceType.SECURITY_ROLE,
+                                          principal, null, null);
       }
    }
 
@@ -1021,8 +1021,28 @@ public abstract class AbstractEditableAuthenticationProvider
       List<IdentityModel> updatedUPermIds = copyPermittedIDs(uPermIds, fromIdentity.orgID, toIdentity.orgID);
 
       if(!updatedUPermIds.isEmpty()) {
-         identityService.setIdentityPermissions(toIdentity, toIdentity,rType, principal,
-                                                updatedUPermIds, newOrgID);
+         setIdentityPermissionsBestEffort(identityService, toIdentity, toIdentity,rType, principal,
+                                          updatedUPermIds, newOrgID);
+      }
+   }
+
+   /**
+    * Copies the permissions on an identity during an organization copy. The copy has already
+    * changed other identities, so a failed permission write is logged and the copy continues.
+    */
+   private void setIdentityPermissionsBestEffort(IdentityService identityService, IdentityID oldID,
+                                                 IdentityID newID, ResourceType resourceType,
+                                                 Principal principal,
+                                                 List<IdentityModel> permittedIdentities,
+                                                 String newOrgId)
+   {
+      try {
+         identityService.setIdentityPermissions(oldID, newID, resourceType, principal,
+                                                permittedIdentities, newOrgId);
+      }
+      catch(RuntimeException e) {
+         LOG.error("Failed to copy the permissions of {} {} to {}, they may not have been saved",
+                   resourceType, oldID, newID, e);
       }
    }
 

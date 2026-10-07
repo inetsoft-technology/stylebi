@@ -85,6 +85,8 @@ export class PhysicalTableJoinsComponent implements DoCheck, OnDestroy {
       children: []
    };
    initialized: boolean = false;
+   // copy of the selected join bound to the edit join dialog while it is open
+   editingJoin: JoinModel;
    private _table: PhysicalTableModel;
    private differ: IterableDiffer<any>;
 
@@ -450,10 +452,16 @@ export class PhysicalTableJoinsComponent implements DoCheck, OnDestroy {
 
       const selectedJoin = this.selectedJoins[0];
       let oldJoin: JoinModel = Tool.clone<JoinModel>(selectedJoin);
+      // the dialog edits a copy so that cancel leaves the selected join untouched
+      this.editingJoin = Tool.clone<JoinModel>(selectedJoin);
 
       this.modalService.open(this.editJoinDialog, { backdrop: "static" }).result
          .then(() => {
-            if(!Tool.isEquals(selectedJoin, oldJoin)) {
+            const editedJoin = this.editingJoin;
+            this.editingJoin = null;
+
+            if(!Tool.isEquals(editedJoin, oldJoin)) {
+               Object.assign(selectedJoin, editedJoin);
                let item: EditJoinEventItem = new ModifyJoinEventItem(this.table, oldJoin,
                   selectedJoin);
                let editEvent: EditJoinsEvent = new EditJoinsEvent([ item ],
@@ -461,6 +469,9 @@ export class PhysicalTableJoinsComponent implements DoCheck, OnDestroy {
                this.httpClient.put(JOIN_EDIT_URI + "modify", editEvent)
                   .subscribe(() => this.tableChange.emit(this.table));
             }
+         },
+         () => {
+            this.editingJoin = null;
          });
    }
 
