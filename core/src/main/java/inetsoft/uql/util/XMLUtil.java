@@ -58,17 +58,25 @@ public class XMLUtil {
       XNode child = null;
       // look through the children of the xml node
       Runtime runtime = Runtime.getRuntime();
+      // a value written by XValueNode.writeXML with the ctrlEncoded marker may be split into
+      // several CDATA sections and encoded, so it is read whole and decoded. Elements without
+      // the marker are read as before.
+      boolean encoded = isCDATADataEncoded(elem);
+
+      if(encoded) {
+         setValue(root, Tool.decodeXMLIllegalChars(trimEnd(getText(elem))));
+      }
 
       for(int i = 0; i < nlist.getLength(); i++) {
          Node node = nlist.item(i);
          String value = null;
 
-         // if this is a value node
-         if(node.getNodeType() == Node.CDATA_SECTION_NODE) {
+         // if this is a value node (an encoded value is already set)
+         if(!encoded && node.getNodeType() == Node.CDATA_SECTION_NODE) {
             value = trimEnd(node.getNodeValue());
          }
          // only non-blank values in plain text nodes are used
-         else if(node.getNodeType() == Node.TEXT_NODE) {
+         else if(!encoded && node.getNodeType() == Node.TEXT_NODE) {
             value = trimEnd(node.getNodeValue());
 
             if(value.length() == 0) {
@@ -77,17 +85,7 @@ public class XMLUtil {
          }
 
          if(value != null) {
-            try {
-               if(root instanceof XValueNode) {
-                  ((XValueNode) root).parse(value);
-               }
-               else {
-                  root.setValue(value);
-               }
-            }
-            catch(Exception e) {
-               LOG.error("Failed to parse XValueNode", e);
-            }
+            setValue(root, value);
          }
 
          if(node.getNodeType() != Node.ELEMENT_NODE) {
@@ -156,6 +154,52 @@ public class XMLUtil {
          Tool.freeNode(node);
          i--;
       }
+   }
+
+   /**
+    * Set the value of a node from the text of its element.
+    */
+   private static void setValue(XNode root, String value) {
+      try {
+         if(root instanceof XValueNode) {
+            ((XValueNode) root).parse(value);
+         }
+         else {
+            root.setValue(value);
+         }
+      }
+      catch(Exception e) {
+         LOG.error("Failed to parse XValueNode", e);
+      }
+   }
+
+   /**
+    * Check if an element carries the marker written by {@link Tool#cdataDataAttr} or
+    * {@code XValueNode.writeXML} for an encoded value.
+    */
+   private static boolean isCDATADataEncoded(Node elem) {
+      return elem instanceof Element &&
+         "true".equals(((Element) elem).getAttribute(Tool.XML_ILLEGAL_CHARS_ATTR));
+   }
+
+   /**
+    * Join the CDATA sections and text of an element.
+    */
+   private static String getText(Node elem) {
+      StringBuilder buf = new StringBuilder();
+      NodeList nlist = elem.getChildNodes();
+
+      for(int i = 0; i < nlist.getLength(); i++) {
+         Node node = nlist.item(i);
+
+         if(node.getNodeType() == Node.CDATA_SECTION_NODE ||
+            node.getNodeType() == Node.TEXT_NODE)
+         {
+            buf.append(node.getNodeValue());
+         }
+      }
+
+      return buf.toString();
    }
 
    /**
@@ -305,6 +349,11 @@ public class XMLUtil {
          // _node_name is internally used to store the name of the node
          // we don't add to attr list otherwise will get multiple
          if(name.equals("_node_name")) {
+            continue;
+         }
+
+         // the encoded-value marker is read with the value, it's not a node attribute
+         if(name.equals(Tool.XML_ILLEGAL_CHARS_ATTR) && isCDATADataEncoded(elem)) {
             continue;
          }
 

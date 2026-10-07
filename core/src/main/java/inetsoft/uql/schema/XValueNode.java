@@ -128,10 +128,21 @@ public class XValueNode extends XNode {
       }
 
       writer.print(" isExpression=\"" + isExpression() + "\"");
+      String str = getValue() == null ? null : String.valueOf(format());
+      // a value holding a character XML 1.0 can't carry or ]]> is encoded, split and marked,
+      // so it is restored exactly by createValueNode(Element) and by XMLUtil.createTree,
+      // which reads each CDATA section on its own. Other values are written unchanged.
+      boolean encode = str != null && (Tool.hasXMLIllegalChars(str) || str.contains("]]>"));
+
+      if(encode) {
+         writer.print(" " + Tool.XML_ILLEGAL_CHARS_ATTR + "=\"true\"");
+         str = Tool.splitCDATAEnd(Tool.encodeXMLIllegalChars(str));
+      }
+
       writer.print(">");
 
-      if(getValue() != null) {
-         writer.print("<![CDATA[" + format() + "]]>");
+      if(str != null) {
+         writer.print("<![CDATA[" + str + "]]>");
       }
 
       writer.println("</" + tag + ">");
@@ -290,7 +301,7 @@ public class XValueNode extends XNode {
       }
 
       if(isnull == null || !isnull.equalsIgnoreCase("true")) {
-         String value = Tool.getValue(root);
+         String value = Tool.getCDATAData(root);
 
          // a date saved before #77605 may have a Buddhist or Japanese year
          if(!isExpression && (XSchema.DATE.equals(type) || XSchema.TIME_INSTANT.equals(type))) {
