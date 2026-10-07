@@ -366,7 +366,9 @@ class DeployServiceExportStoredOwnerTest {
       for(SRPrincipal caller : List.of(dave, alice, sadm)) {
          assertContent(caller, List.of(autoSave(RepositoryEntry.AUTO_SAVE_VS, vsFile, null)),
                        List.of(), VS_SECRET);
-         assertContent(caller, List.of(), List.of(required(wsFile, "AUTOSAVEWS", null)), WS_SECRET);
+         assertContent(caller, List.of(autoSave(RepositoryEntry.AUTO_SAVE_WS, wsFile, null)),
+                       List.of(), WS_SECRET);
+         assertDependentPermitted(caller, required(wsFile, "AUTOSAVEWS", null));
       }
    }
 
@@ -424,14 +426,16 @@ class DeployServiceExportStoredOwnerTest {
    // DeployUtil.getAsset() replaces the path of a dependent of any type with the name in a
    // "TableStyleAsset:[...]" detail description, the check must run on that asset
    @Test
-   void decoyDependents_withoutDetailDescription_areExported() throws Exception {
-      Map<String, String> entries = export(carol, List.of(), List.of(
-         required(CAROL_TASK, "SCHEDULETASK", CAROL), required(carolFile, "AUTOSAVEVS", CAROL)));
+   void decoyDependents_withoutDetailDescription_arePermitted() throws Exception {
+      List<RequiredAssetModel> dependents = List.of(
+         required(CAROL_TASK, "SCHEDULETASK", CAROL), required(carolFile, "AUTOSAVEVS", CAROL));
 
-      assertTrue(entries.values().stream().anyMatch(v -> v.contains("carolOwn")),
-                 entries.keySet().toString());
-      assertTrue(entries.values().stream().anyMatch(v -> v.contains("CAROL-OWN-UNSAVED-VS")),
-                 entries.keySet().toString());
+      for(RequiredAssetModel dependent : dependents) {
+         assertDependentPermitted(carol, dependent);
+      }
+
+      // Bug #77959, they are not dependencies of a selected asset, so they are not written
+      assertTrue(export(carol, List.of(), dependents).isEmpty());
    }
 
    @Test
@@ -455,15 +459,10 @@ class DeployServiceExportStoredOwnerTest {
    }
 
    @Test
-   void decoyDependentWithVictimDetailDescription_isExportedForOwner() throws Exception {
+   void decoyDependentWithVictimDetailDescription_isPermittedForOwner() throws Exception {
       // the check follows the written asset, dave may export his own task and file
-      Map<String, String> entries = export(dave, List.of(), List.of(
-         decoy(CAROL_TASK, "SCHEDULETASK", DAVE_TASK), decoy(carolFile, "AUTOSAVEVS", vsFile)));
-
-      assertTrue(entries.values().stream().anyMatch(v -> v.contains("daveSecret")),
-                 entries.keySet().toString());
-      assertTrue(entries.values().stream().anyMatch(v -> v.contains(VS_SECRET)),
-                 entries.keySet().toString());
+      assertDependentPermitted(dave, decoy(CAROL_TASK, "SCHEDULETASK", DAVE_TASK));
+      assertDependentPermitted(dave, decoy(carolFile, "AUTOSAVEVS", vsFile));
    }
 
    // ── helpers ─────────────────────────────────────────────────────────────
@@ -482,6 +481,22 @@ class DeployServiceExportStoredOwnerTest {
       }
 
       fail(caller.getName() + " exported " + entries.keySet());
+   }
+
+   // the dependent check of export/create, which runs on the asset that would be written
+   private void assertDependentPermitted(SRPrincipal caller, RequiredAssetModel model)
+      throws Exception
+   {
+      PartialDeploymentJarInfo.RequiredAsset required = new PartialDeploymentJarInfo.RequiredAsset();
+      required.setPath(model.name());
+      required.setType(model.type());
+      required.setUser(model.user());
+      required.setDetailDescription(model.detailDescription());
+
+      as(caller, () -> {
+         deployService.checkDependentAsset(required, caller);
+         return null;
+      });
    }
 
    private void assertContent(SRPrincipal caller, List<SelectedAssetModel> selected,

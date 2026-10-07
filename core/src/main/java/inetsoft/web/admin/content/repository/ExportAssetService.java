@@ -28,13 +28,17 @@ import inetsoft.web.admin.content.repository.model.*;
 import inetsoft.web.admin.deploy.*;
 import inetsoft.web.service.BinaryTransferService;
 import org.apache.commons.io.output.DeferredFileOutputStream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import java.io.*;
 import java.security.Principal;
 import java.sql.Timestamp;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
@@ -163,6 +167,18 @@ public class ExportAssetService {
          deployService.checkDependentAsset(required, principal);
       }
 
+      // Bug #77959, the dependent list comes from the client, so the unchecked global dependents
+      // could be any global asset. Keep only the dependents that are dependencies of the checked
+      // selected assets, as get-dependent-assets lists them, or are selected assets themselves.
+      // The asset that is written is compared, its path may come from the detail description.
+      Set<String> exportable = DeployUtil.getDependentAssets(assets).keySet().stream()
+         .map(XAsset::toIdentifier)
+         .collect(Collectors.toCollection(HashSet::new));
+      assets.forEach(asset -> exportable.add(asset.toIdentifier()));
+      assetDataArray = assetDataArray.stream()
+         .filter(required -> isExportableDependent(required, exportable))
+         .collect(Collectors.toList());
+
       PartialDeploymentJarInfo info = new PartialDeploymentJarInfo();
       info.setName(name);
       info.setDeploymentDate(new Timestamp(System.currentTimeMillis()));
@@ -177,6 +193,20 @@ public class ExportAssetService {
          .zipFilePath(zipfile.getPath())
          .exportID(exportId)
          .build();
+   }
+
+   private static boolean isExportableDependent(PartialDeploymentJarInfo.RequiredAsset required,
+                                                Set<String> exportable)
+   {
+      XAsset asset = DeployUtil.getAsset(required);
+
+      if(asset != null && exportable.contains(asset.toIdentifier())) {
+         return true;
+      }
+
+      LOG.warn("Dependent asset {} of type {} is not a dependency of the exported assets, " +
+                  "it is not exported", required.getPath(), required.getType());
+      return false;
    }
 
    private PartialDeploymentJarInfo.RequiredAsset createRequiredAsset(RequiredAssetModel model) {
@@ -206,4 +236,5 @@ public class ExportAssetService {
    private final FileSystemService fileSystemService;
 
    static final String FILE_LOCATION_CACHE_NAME = "exportAssetFileLocations";
+   private static final Logger LOG = LoggerFactory.getLogger(ExportAssetService.class);
 }
