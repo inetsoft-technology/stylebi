@@ -3886,7 +3886,12 @@ public class IdentityService {
                String path = permissionSet.getThird();
                Permission permission = permissionSet.getForth();
 
-               if(permission == null) {
+               // Bug #77911, a legacy key without an organization is never written back or
+               // removed. Both go through the target organization (or, for a null one, the current
+               // or default organization), so its stale copy would replace that organization's
+               // live key. The key is moved to its organizations the next time the storage is
+               // opened.
+               if(permission == null || resourceOrgID == null) {
                   continue;
                }
 
@@ -3909,8 +3914,7 @@ public class IdentityService {
                // Bug #77942, a deleted global role (null organization) is granted in every
                // organization, which the organization filter below skips, so the grants are
                // removed here as a second pass after the listener. A legacy key without an
-               // organization is left to the shared path, it must not be written to the current
-               // or default organization.
+               // organization was skipped above.
                if(newName == null && type == Identity.ROLE && oldName != null &&
                   oldName.getOrgID() == null && resourceOrgID != null)
                {
