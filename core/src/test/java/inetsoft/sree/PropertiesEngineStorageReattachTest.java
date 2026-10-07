@@ -153,6 +153,50 @@ class PropertiesEngineStorageReattachTest {
    }
 
    /**
+    * Bug #77871: a change event schedules an ordinary reload, and before it runs the held
+    * instance is evicted, another node changes a key, and another caller re-attaches. The reload
+    * the re-attach schedules merges into the pending one, so a single reload runs. It must still
+    * notify the listeners of the missed key, once, and must not notify the key that came as an
+    * event again.
+    */
+   @Test
+   void reattachWhileReloadPendingMergesIntoOneReloadAndNotifiesListeners() throws Exception {
+      ClosableStorage replacement = new ClosableStorage();
+      PropertiesEngine owner = createOwner(replacement);
+      java.util.List<PropertyChangeEvent> events = new CopyOnWriteArrayList<>();
+      owner.addPropertyChangeListener("test77871.changed", events::add);
+      owner.addPropertyChangeListener("test77871.event", events::add);
+
+      try {
+         // an event on the held instance schedules an ordinary reload 500 ms later
+         replacement.remotePut("test77871.event", "e", false);
+         ownerStorage.remotePut("test77871.event", "e", true);
+
+         // within that delay the instance is evicted, another node changes a key without an
+         // event here, and a storage read re-attaches before the scheduled reload runs
+         ownerStorage.closed = true;
+         replacement.remotePut("test77871.changed", "new", false);
+         assertEquals("new", owner.getPropertyFromStorage("test77871.changed"));
+         assertSame(replacement, getKvStorageField(owner));
+
+         waitFor(() -> "new".equals(owner.getProperty("test77871.changed")));
+         waitFor(() -> events.stream().anyMatch(e -> "test77871.changed".equals(e.getPropertyName())
+            && "old".equals(e.getOldValue()) && "new".equals(e.getNewValue())));
+
+         // the two tasks were merged into one reload, and nothing fired twice
+         Thread.sleep(800L);
+         assertEquals(1, reloads.get(), "the pending reload and the re-attach reload did not merge");
+         assertEquals(2, events.size(), events.toString());
+         assertEquals(1, events.stream()
+            .filter(e -> "test77871.event".equals(e.getPropertyName())).count(), events.toString());
+      }
+      finally {
+         owner.shutdown();
+         EarlyLoadedProperties.restore(earlyLoaded);
+      }
+   }
+
+   /**
     * Bug #77871 / Bug #77201: a re-attach after the engine shut down schedules no reload. Its
     * debouncer is closed, so a schedule would also throw out of the read.
     */
