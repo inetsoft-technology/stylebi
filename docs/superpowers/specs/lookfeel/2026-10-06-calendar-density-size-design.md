@@ -337,8 +337,18 @@ Run with the dashboard set to each tier in turn:
     comfortable and left a 6px gap at dense. That drift predates this slice; it is fixed here on the
     user's request (2026-10-07).
   - **Also covers** selection lists in bottom tabs on a density change, resized or dropdown alike.
-  - **Not covered:** a selection list resized on open, Modernize or Revert, where its size rule also
-    runs. That belongs to #6390's rule.
+  - **Modernize, Revert and the dashboard's mode switch re-flush too** (amended 2026-10-07, on a
+    stacked branch). Each re-seeds the selection family's size rule (#6157) and moves every title
+    lane between legacy and modern, so all three go through `VizModernizeUtil.moveMark`, which
+    re-flushes after seeding whenever it seeded anything. Measured on the server before the fix: a
+    list left 50px above the strip after Revert, and overlapped it by 50px after Modernize. Both
+    are composer actions, so a Save would have stored the drift.
+  - **Not covered: a restore.** A viewer open re-runs the selection size rule, so after an org
+    density change a list in bottom tabs is drawn at the new tier's height from its old top. It
+    overlapped the strip by 32px at comfortable on 2026-10-07. A dropdown's lane follows an org
+    density change on every surface (4px into the strip at comfortable). Re-flushing on open is the
+    sweep `TabVSAssemblyInfo.restoreBottomTabs` was narrowed away from (Bug #77179): it moved
+    children left off the strip on purpose and undid `onInit`/`onLoad` positions. Left open.
 - **Double calendars.**
   - One widened to 600, by the property dialog's view-mode switch (§2.2) or by the toggle, no
     longer follows density and gets no checkbox (D6). Switching it back halves it to 300, which
