@@ -269,11 +269,18 @@ public class CalendarPropertyDialogService {
             sizePositionPaneModel.setSizeFollowsDensity(null);
          }
 
-         Dimension shownSize =
-            new Dimension(dialogService.getAssemblySize(info, viewsheet.getViewsheet()));
-         VSDialogService.applyDensitySize(info, sizePositionPaneModel);
-         dialogService.setAssemblySize(info, sizePositionPaneModel);
-         VSDialogService.recordAuthorSize(info, sizePositionPaneModel, shownSize);
+         // only ticking moves a box; one already following keeps its size, and the locked fields
+         // can still hold a size from before an Apply
+         boolean keepSize = Boolean.TRUE.equals(sizePositionPaneModel.getSizeFollowsDensity()) &&
+            info.followsDensitySize();
+
+         if(!keepSize) {
+            Dimension shownSize =
+               new Dimension(dialogService.getAssemblySize(info, viewsheet.getViewsheet()));
+            VSDialogService.applyDensitySize(info, sizePositionPaneModel);
+            dialogService.setAssemblySize(info, sizePositionPaneModel);
+            VSDialogService.recordAuthorSize(info, sizePositionPaneModel, shownSize);
+         }
       }
 
       dialogService.setAssemblyPosition(info, sizePositionPaneModel);
