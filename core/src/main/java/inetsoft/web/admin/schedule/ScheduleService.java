@@ -1356,11 +1356,24 @@ public class ScheduleService {
                   int oldFormat = pModel.oldFormat();
                   ServerPathInfo oldInfo = clone.get(oldFormat);
 
+                  // Bug #77953, #77958, the editors only get a placeholder for the password of a
+                  // server location, use the stored one for a path in the location's folder that
+                  // logs in to the same server as the same user
+                  if(Util.PLACEHOLDER_PASSWORD.equals(password)) {
+                     password = Tool.defaultIfNull(
+                        getServerLocationPassword(pModel.path(), pModel.username()), password);
+                  }
+
                   // only keep the stored password for the server it was saved for
                   if(Util.PLACEHOLDER_PASSWORD.equals(password) && oldInfo != null
                      && !clone.isEmpty() && isSameServer(pModel.path(), oldInfo))
                   {
                      password = oldInfo.getPassword();
+                  }
+
+                  // a placeholder that was not resolved is not a password
+                  if(Util.PLACEHOLDER_PASSWORD.equals(password)) {
+                     password = null;
                   }
 
                   if(pModel.ftp()) {
@@ -2317,22 +2330,17 @@ public class ScheduleService {
 
    List<ServerLocation> getServerLocations(Catalog catalog) {
       List<ServerLocation> serverLocations = new ArrayList<>();
-      Map<String, String> oldPwdMap = SUtil.getServerLocationsPwdMap();
 
+      // Bug #77958, the password of a location is only a placeholder here, the stored one is
+      // looked up when a task is saved (getServerLocationPassword)
       for(ServerLocation location : SUtil.getServerLocations()) {
          ServerPathInfoModel infoModel = location.pathInfoModel();
 
          if(infoModel != null) {
-            String password = infoModel.password();
-
-            if(Util.PLACEHOLDER_PASSWORD.equals(password)) {
-               password = oldPwdMap.get(infoModel.oldPasswordKey());
-            }
-
             ServerPathInfoModel newLocation = ServerPathInfoModel.builder()
                .path(infoModel.path())
                .username(infoModel.username())
-               .password(password)
+               .password(infoModel.password() == null ? null : Util.PLACEHOLDER_PASSWORD)
                .secretId(infoModel.secretId())
                .useCredential(infoModel.useCredential())
                .ftp(infoModel.ftp())
@@ -2347,6 +2355,84 @@ public class ScheduleService {
       }
 
       return serverLocations;
+   }
+
+   /**
+    * Gets the stored password of the server location that a path is in. The path must be in the
+    * location's folder and log in to the location's server as the location's user.
+    *
+    * @param path     the FTP or SFTP path.
+    * @param username the user name entered for the path.
+    *
+    * @return the password, or {@code null} if no location with a password matches.
+    */
+   private static String getServerLocationPassword(String path, String username) {
+      FTPUtil.Endpoint endpoint = parseServerEndpoint(path);
+
+      if(endpoint == null) {
+         return null;
+      }
+
+      for(ServerLocation location : SUtil.getServerLocationsWithPasswords()) {
+         ServerPathInfoModel model = location.pathInfoModel();
+
+         if(model == null || model.useCredential() || Tool.isEmptyString(model.password())) {
+            continue;
+         }
+
+         FTPUtil.Endpoint locationEndpoint = parseServerEndpoint(model.path());
+
+         if(locationEndpoint != null &&
+            ScheduleSecretIdChecker.isInFolder(endpoint.path(), locationEndpoint.path()) &&
+            isSameLogin(path, username, model.path(), model.username()))
+         {
+            return model.password();
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * Determines if two FTP or SFTP paths log in to the same server as the same user, so that a
+    * password stored for one of them may be used for the other.
+    */
+   static boolean isSameLogin(String path, String username, String otherPath,
+                              String otherUsername)
+   {
+      FTPUtil.Endpoint endpoint = parseServerEndpoint(path);
+      FTPUtil.Endpoint otherEndpoint = parseServerEndpoint(otherPath);
+
+      if(endpoint == null || !endpoint.isSameServer(otherEndpoint)) {
+         return false;
+      }
+
+      String user = getLoginUser(endpoint, username);
+      return user != null && user.equals(getLoginUser(otherEndpoint, otherUsername));
+   }
+
+   /**
+    * Gets the user that FTPUtil logs in as for a path, the user name in the path overrides the
+    * user name field. Returns {@code null} if there is no user or the path has its own password,
+    * which is used instead of any stored one.
+    */
+   private static String getLoginUser(FTPUtil.Endpoint endpoint, String username) {
+      String userInfo = endpoint.userInfo();
+
+      if(userInfo == null) {
+         return Tool.isEmptyString(username) ? null : username;
+      }
+
+      return userInfo.isEmpty() || userInfo.contains(":") ? null : userInfo;
+   }
+
+   private static FTPUtil.Endpoint parseServerEndpoint(String path) {
+      try {
+         return path == null ? null : FTPUtil.parseEndpoint(path);
+      }
+      catch(Exception e) {
+         return null;
+      }
    }
 
    public ScheduleTaskNamesModel getScheduleTaskNamesModel(Principal principal) {

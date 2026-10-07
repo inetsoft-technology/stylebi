@@ -174,7 +174,7 @@ public class ScheduleSecretIdChecker {
       return false;
    }
 
-   private static boolean isInFolder(String path, String folder) {
+   static boolean isInFolder(String path, String folder) {
       if(path == null || folder == null || Arrays.asList(path.split("/")).contains("..")) {
          return false;
       }
