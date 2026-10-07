@@ -1590,7 +1590,9 @@ public abstract class VSAQuery {
          return;
       }
 
-      CalculateRef[] calcs = getViewsheet().getCalcFields(base);
+      // a selection table holds the calc fields of the table it selects from (77915)
+      String source = getViewsheet().getCalcFieldTable(base);
+      CalculateRef[] calcs = getViewsheet().getCalcFields(source);
 
       if(calcs == null || Arrays.stream(calcs).noneMatch(CalculateRef::isBaseOnDetail)) {
          return;
@@ -1610,7 +1612,7 @@ public abstract class VSAQuery {
       // the base table holds the calc fields as the last of the concurrent queries left them,
       // which may have validated them for its own assembly. do again on the copy what this
       // query did to the base table (getVSTableAssembly, validateCalculateRef)
-      appendCalcField(child, base, true, getViewsheet());
+      appendCalcField(child, source, true, getViewsheet());
 
       if(base.equals(validatedTable)) {
          validateCalculateRef(wrapper, base);
