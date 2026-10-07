@@ -66,7 +66,7 @@ class ImportTaskStoredPasswordTest {
    @BeforeEach
    void setUp() throws Exception {
       scheduleManager = mock(ScheduleManager.class);
-      AnalyticRepository repository = mock(AnalyticRepository.class);
+      repository = mock(AnalyticRepository.class);
       SecurityProvider provider = mock(SecurityProvider.class);
       Set<IdentityID> users = Set.of(ALICE, new IdentityID("admin", ORG_A));
       when(provider.getUser(any(IdentityID.class)))
@@ -207,6 +207,37 @@ class ImportTaskStoredPasswordTest {
       assertEquals(List.of(), response.warnings());
    }
 
+   // Bug #77950, a file with a refused task, a task whose passwords are cleared and a task
+   // without passwords warns only about the saved task that lost its passwords
+   @Test
+   void mixedImport_warnsOnlyForSavedTaskWithClearedPasswords() throws Exception {
+      when(scheduleManager.getScheduleTask(TASK_ID)).thenReturn(storedTask("Nightly"));
+      // overwriting Nightly is refused
+      when(repository.checkPermission(any(), eq(ResourceType.SCHEDULER), eq(TASK_ID),
+                                      eq(ResourceAction.ACCESS))).thenReturn(false);
+      ScheduleTask plain = storedTask("Plain");
+      ((ViewsheetAction) plain.getAction(0)).getFilePathInfo(PDF).setPassword("");
+      ((IndividualAssetBackupAction) plain.getAction(1)).getServerPath().setPassword("");
+      StringWriter plainXml = new StringWriter();
+      plain.writeXML(new PrintWriter(plainXml));
+      String xml = "<schedule>" + export("Nightly", OTHER_HOST) + export("Copy", OTHER_HOST) +
+         plainXml + "</schedule>";
+      controller.setTaskFile(FileData.builder()
+         .name("tasks.xml")
+         .content(Base64.getEncoder().encodeToString(xml.getBytes(StandardCharsets.UTF_8)))
+         .build(), request, caller);
+      @SuppressWarnings("unchecked")
+      List<ScheduleTask> parsed = (List<ScheduleTask>) sessionAttrs.get(INFO_ATTR);
+      List<String> ids = parsed.stream().map(ScheduleTask::getTaskId).toList();
+
+      response = controller.importScheduleTask(ids, request, true, "http://host", caller);
+
+      assertEquals(List.of(TASK_ID), response.failedTasks());
+      verify(scheduleManager, times(2))
+         .setScheduleTask(anyString(), any(ScheduleTask.class), any(Principal.class));
+      assertClearedWarning("Copy");
+   }
+
    private ScheduleTask importTask(String taskXml, boolean overwriting) throws Exception {
       String xml = "<schedule>" + taskXml + "</schedule>";
       controller.setTaskFile(FileData.builder()
@@ -282,6 +313,7 @@ class ImportTaskStoredPasswordTest {
    private static final String STORED = "stored-password";
 
    private ScheduleManager scheduleManager;
+   private AnalyticRepository repository;
    private OrganizationManager orgManager;
    private MockedStatic<OrganizationManager> orgStatic;
    private ImportTaskController controller;
