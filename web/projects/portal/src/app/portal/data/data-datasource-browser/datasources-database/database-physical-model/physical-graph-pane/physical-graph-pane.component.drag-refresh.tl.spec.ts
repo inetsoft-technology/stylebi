@@ -28,8 +28,9 @@
  * The host mirrors DatabasePhysicalModelComponent: onNodeSelected re-derives
  * selectedGraphModels and, when the editing table changes, calls
  * highlightConnections(null) like the PhysicalTableJoinsComponent table setter does.
- * With a join highlight set, that clear makes PhysicalGraphPane re-fetch the graph, so
- * the network graph receives NEW GraphModel objects while the drag is in progress.
+ * A model change (emitModelChange(false)) during the drag makes PhysicalGraphPane re-fetch
+ * the graph, so the network graph receives NEW GraphModel objects while the drag is in
+ * progress. (Since Bug #77995 a highlight change no longer re-fetches the graph.)
  *
  * Harness notes:
  *  - the jsPlumb getInstance spy stays active for the whole test: the network graph is
@@ -234,14 +235,12 @@ describe("PhysicalGraphPane - Bug #77976 drag across a graph refresh", () => {
       return { fixture, host, ng, nodeEl, dragIds, settle, until };
    }
 
-   /** Highlight the ORDERS-CUSTOMERS join (what selecting a join row emits) and wait for its refresh. */
+   /** Highlight the ORDERS-CUSTOMERS join (what selecting a join row emits); no refresh follows. */
    async function highlightJoin(ctx: any) {
       const before = graphPosts;
-      const oldModel = ctx.ng.graphViewModel;
       ctx.host.svc.highlightConnections([{ sourceTable: "ORDERS", targetTable: "CUSTOMERS" }]);
-      await ctx.until(() => graphPosts === before + 1);
-      expect(graphPosts).toBe(before + 1);
-      await refreshLanded(ctx, oldModel);
+      await ctx.settle();
+      expect(graphPosts).toBe(before);
    }
 
    function mousedown(el: HTMLElement, ctrlKey = false): void {
@@ -286,13 +285,15 @@ describe("PhysicalGraphPane - Bug #77976 drag across a graph refresh", () => {
       const oldModel = ctx.ng.graphViewModel;
       const posts = graphPosts;
 
-      // mousedown changes the editing table -> highlight cleared -> graph refresh
+      // mousedown changes the editing table -> highlight cleared; a model change then
+      // refreshes the graph during the drag
       mousedown(el);
       ctx.fixture.detectChanges();
       expect(ctx.dragIds()).toEqual(["PRODUCTS"]);
       const opts = draggables.get(el);
       opts.start({ el, e: new MouseEvent("mousemove"), pos: [300, 0] });
       opts.drag({ el, e: null, pos: [350, 20] });
+      ctx.host.svc.emitModelChange(false);
 
       await refreshLanded(ctx, oldModel);
       expect(graphPosts).toBe(posts + 1);
@@ -322,6 +323,7 @@ describe("PhysicalGraphPane - Bug #77976 drag across a graph refresh", () => {
       const opts = draggables.get(el);
       opts.start({ el, e: new MouseEvent("mousemove"), pos: [300, 0] });
       opts.drag({ el, e: null, pos: [350, 20] });
+      ctx.host.svc.emitModelChange(false);
       opts.stop({ el, e: new MouseEvent("mouseup"), pos: [400, 40] });
       // the move is debounced; the delayed graph response lands before it fires
       expect(pendingMove).not.toBeNull();

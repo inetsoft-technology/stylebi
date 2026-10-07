@@ -116,6 +116,9 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
 
    private nodes: {[sourceIds: string]: GraphModel} = {}; // element id --> node model
    private sourceIds: {[nodeId: string]: string} = {}; // node id --> element id
+   // "sourceId>targetId" element ids --> the join info each connection was built from,
+   // so a highlight change can restyle the connection without rebuilding the graph
+   private connectionJoins: {[connectionKey: string]: ConnectionJoin} = {};
 
    @Input() set scale(scale: number) {
       this._scale = scale;
@@ -270,6 +273,7 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
       if(changes.hasOwnProperty("graphViewModel")) {
          this.sourceIds = {};
          this.nodes = {};
+         this.connectionJoins = {};
          this.jsp.deleteEveryConnection();
          this.jsp.deleteEveryEndpoint();
       }
@@ -293,6 +297,14 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
          // any pending self-selection is now either consumed by its echo above, or
          // superseded by an unrelated selection change -- either way it's no longer pending
          this.pendingSelfSelectionIds = null;
+      }
+
+      // a refresh rebuilds every connection with the current highlight in connectNode;
+      // otherwise restyle the existing connections in place
+      if(changes.hasOwnProperty("highlightConnections") &&
+         !changes.hasOwnProperty("graphViewModel"))
+      {
+         this.updateConnectionHighlight();
       }
 
       // last, so a selection that arrives in the same pass as a refresh is also resolved
@@ -947,11 +959,54 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
          }
       ]];
 
+      const join: ConnectionJoin = { sourceTableName, targetTableName, joinInfos };
       const connection = {
          source: sourceId,
          target: targetId,
-         type: TYPE_PHYSICAL_GRAPH_CONNECTION,
-         overlays
+         overlays,
+         ...this.getConnectionStyle(sourceId, targetId, join)
+      };
+
+      this.connectionJoins[this.getConnectionKey(sourceId, targetId)] = join;
+      this.jsp.connect(connection);
+   }
+
+   /**
+    * Restyle the existing connections for the current highlightConnections, giving each
+    * one the same type and data connectNode would build for it.
+    */
+   private updateConnectionHighlight(): void {
+      if(!this.jsp) {
+         return;
+      }
+
+      this.jsp.getAllConnections().forEach((conn: any) => {
+         const join = this.connectionJoins[this.getConnectionKey(conn.sourceId, conn.targetId)];
+
+         if(!join || !this.nodes[conn.sourceId] || !this.nodes[conn.targetId]) {
+            return;
+         }
+
+         const style = this.getConnectionStyle(conn.sourceId, conn.targetId, join);
+         conn.setType(style.type, style.data);
+      });
+   }
+
+   private getConnectionKey(sourceId: string, targetId: string): string {
+      return sourceId + ">" + targetId;
+   }
+
+   /**
+    * The jsPlumb connection type and data for a join connection. The type order matters:
+    * jsPlumb merges the types in order, so e.g. a weak join's stroke overrides the
+    * highlight color, and a cycle join's red overrides the highlight color.
+    */
+   private getConnectionStyle(sourceId: string, targetId: string,
+                              join: ConnectionJoin): {type: string, data?: any}
+   {
+      const { sourceTableName, targetTableName, joinInfos } = join;
+      const connection: {type: string, data?: any} = {
+         type: TYPE_PHYSICAL_GRAPH_CONNECTION
       };
 
       const sourceNode = this.nodes[sourceId];
@@ -989,7 +1044,7 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
          connection.type += ` ${TYPE_PHYSICAL_GRAPH_REVERSE_ARROW}`;
       }
 
-      this.jsp.connect(connection);
+      return connection;
    }
 
    private isColumnExist(tableName: string, column: string): boolean {
@@ -1107,4 +1162,10 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
 
       return false;
    }
+}
+
+interface ConnectionJoin {
+   sourceTableName: string;
+   targetTableName: string;
+   joinInfos: NodeConnectionInfo[];
 }
