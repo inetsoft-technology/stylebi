@@ -272,6 +272,34 @@ public class FileAuthorizationProviderLegacyKeyCallersTest {
       assertLiveKeyKept();
    }
 
+   // an organization rename moves every entry of the organization to the new one; the legacy
+   // copy must not be written over the new organization's key, in either order of the entries
+   @ParameterizedTest
+   @ValueSource(booleans = { true, false })
+   void organizationRenameMovesTheLiveKeyNotTheLegacyCopy(boolean legacyLast) throws Exception {
+      String newOrg = "orgnew";
+      Organization org = SecurityEngine.getSecurity().getSecurityProvider().getOrganization(ORG);
+      real.put("VIEWSHEET:" + ORG + ":vsA", grant("alice")).get();
+      real.put("VIEWSHEET:vsA", grant("mallory")).get();
+      setStorage(ordered(real, legacyLast ? "VIEWSHEET:" + ORG + ":vsA" : "VIEWSHEET:vsA"));
+
+      try {
+         newService().updateIdentityPermissions(
+            Identity.ORGANIZATION, org.getIdentityID(), new IdentityID(newOrg, newOrg), ORG, newOrg,
+            true);
+      }
+      finally {
+         setStorage(real);
+      }
+
+      assertEquals(Set.of("VIEWSHEET:" + newOrg + ":vsA", "VIEWSHEET:vsA"), keys(real));
+      Permission moved = real.get("VIEWSHEET:" + newOrg + ":vsA");
+      Set<String> users = moved.getUserGrants(ResourceAction.READ, newOrg).stream()
+         .map(Permission.PermissionIdentity::getName).collect(Collectors.toSet());
+      assertEquals(Set.of("alice"), users, "the new organization's key has the wrong grants");
+      assertTrue(granted(real.get("VIEWSHEET:vsA"), "mallory"), "the legacy key was changed");
+   }
+
    private void assertLiveKeyKept() {
       assertEquals(Set.of("VIEWSHEET:" + ORG + ":vsA", "VIEWSHEET:vsA"), keys(real));
       Permission live = real.get("VIEWSHEET:" + ORG + ":vsA");
