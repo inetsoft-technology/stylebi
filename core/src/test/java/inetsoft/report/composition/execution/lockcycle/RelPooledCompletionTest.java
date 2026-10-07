@@ -87,7 +87,7 @@ public class RelPooledCompletionTest {
    public void tearDown() throws Exception {
       harness.close();
 
-      StallPolicy.setOverride(null);
+      StallTestSupport.clearOverride();
    }
 
    /**

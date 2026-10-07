@@ -58,7 +58,7 @@ public class XSwappableTableStallTest {
    @AfterEach
    public void tearDown() {
       pool.shutdownNow();
-      StallPolicy.setOverride(null);
+      StallTestSupport.clearOverride();
    }
 
    @Test

@@ -63,7 +63,7 @@ public class JoinStallTest {
       }
 
       pool.shutdownNow();
-      StallPolicy.setOverride(null);
+      StallTestSupport.clearOverride();
    }
 
    @Test

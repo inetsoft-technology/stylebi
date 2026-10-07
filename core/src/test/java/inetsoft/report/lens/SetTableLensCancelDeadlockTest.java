@@ -73,7 +73,7 @@ public class SetTableLensCancelDeadlockTest {
 
    @AfterEach
    public void tearDown() {
-      StallPolicy.setOverride(null);
+      StallTestSupport.clearOverride();
    }
 
    @Test
