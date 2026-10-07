@@ -149,7 +149,12 @@ public final class XTableFragment extends XSwappable {
     * @return <tt>true</tt> if swapped, <tt>false</tt> rejected.
     */
    public synchronized boolean swap(boolean force) {
-      if(getSwapPriority() == 0 || isSwapFileLost()) {
+      // a fragment is not swapped again until it is read. a failed write keeps all its data in
+      // memory without a file, so a forced swap (snapshot save/export) must retry the write, or
+      // the table is saved without its data (bug #77963)
+      boolean retry = force && rewriteRequired && !disposed && completed && isSwappable();
+
+      if((!retry && getSwapPriority() == 0) || isSwapFileLost()) {
          return false;
       }
 
@@ -222,6 +227,8 @@ public final class XTableFragment extends XSwappable {
          boolean[] written = new boolean[columns.length];
 
          if(!file.exists() || rewriteRequired) {
+            // cleared when the file is complete, so a failure to open the file is retried too
+            rewriteRequired = true;
             fout = new RandomAccessFile(file, "rw");
             // the file exists now (it may have just been created), so a failure from here on
             // must delete it in the finally block instead of leaving a stub to be reused
