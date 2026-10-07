@@ -723,6 +723,17 @@ public class IdentityService {
                eprovider.copyOrganization(oldOrg, (Organization) identity, id, identity.getName(),
                                           this, themeService, dashboardRegistryManager, dataCycleManager,
                                           ThreadContext.getContextPrincipal(), true);
+
+               // Bug #77940, report a permission the ID change could not remove from the old ID
+               if(!Tool.equals(oId, id)) {
+                  String leftoverWarning = getRenamedOrgLeftoverPermissionsWarning(
+                     oID, id, ThreadContext.getContextPrincipal());
+
+                  if(leftoverWarning != null) {
+                     Tool.addUserMessage(leftoverWarning);
+                  }
+               }
+
                logManager.renameOrgLogLevels(oId, id);
             }
 
@@ -4131,6 +4142,39 @@ public class IdentityService {
       catch(Exception e) {
          LOG.warn("Failed to get the message for the permissions left after deleting {}", id, e);
          return id.getName() + " was deleted, but some of its permissions may not have been removed.";
+      }
+   }
+
+   /**
+    * Bug #77940, gets the message reporting that some permissions of an organization whose ID was
+    * changed may remain under the old ID, or {@code null} if none is left. It never throws,
+    * because the ID is already changed.
+    *
+    * @param oldId    the identity of the organization before the change, with the old ID.
+    * @param newOrgId the new organization ID.
+    */
+   private String getRenamedOrgLeftoverPermissionsWarning(IdentityID oldId, String newOrgId,
+                                                          Principal principal)
+   {
+      List<String> leftovers = findLeftoverPermissions(Identity.ORGANIZATION, oldId);
+
+      if(leftovers.isEmpty()) {
+         return null;
+      }
+
+      LOG.warn("The organization ID was changed from {} to {}, but these permission entries " +
+               "are still stored under the old ID and may be received by an organization " +
+               "created later with that ID: {}", oldId.getOrgID(), newOrgId, leftovers);
+
+      try {
+         return Catalog.getCatalog(principal).getString(
+            "em.security.renameOrgPermissionsMayRemain", oldId.getOrgID(), newOrgId);
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to get the message for the permissions left after changing the " +
+                  "organization ID from {} to {}", oldId.getOrgID(), newOrgId, e);
+         return "The organization ID was changed from " + oldId.getOrgID() + " to " + newOrgId +
+            ", but some permissions of " + oldId.getOrgID() + " may not have been removed.";
       }
    }
 
