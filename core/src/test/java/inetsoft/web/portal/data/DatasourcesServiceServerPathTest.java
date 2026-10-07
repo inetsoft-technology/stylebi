@@ -190,6 +190,32 @@ class DatasourcesServiceServerPathTest {
       verifyNothingSaved();
    }
 
+   @Test
+   void renameKeepsUnchangedRootFolderOutsideAllowedRoots() throws Exception {
+      storeSource(outside.toFile());
+      when(securityEngine.checkPermission(any(), eq(ResourceType.DATA_SOURCE), eq("files"),
+                                          eq(ResourceAction.DELETE))).thenReturn(true);
+      DataSourceDefinition renamed = definition(outside.toFile());
+      renamed.setName("renamed");
+
+      service.updateDataSource("files", renamed, principal);
+
+      assertEquals(outside.toFile(), savedFolder("files"));
+   }
+
+   @Test
+   void renameRefusesChangedRootFolderOutsideAllowedRoots() throws Exception {
+      storeSource(outside.toFile());
+      when(securityEngine.checkPermission(any(), eq(ResourceType.DATA_SOURCE), eq("files"),
+                                          eq(ResourceAction.DELETE))).thenReturn(true);
+      DataSourceDefinition renamed = definition(temp.toFile());
+      renamed.setName("renamed");
+
+      assertThrows(MessageException.class,
+                   () -> service.updateDataSource("files", renamed, principal));
+      verifyNothingSaved();
+   }
+
    private void setAllowedRoots(Path root) {
       sreeEnv.when(() -> SreeEnv.getProperty(
          ServerFilePathPolicy.ALLOWED_ROOTS_PROPERTY, false, false)).thenReturn(root.toString());
