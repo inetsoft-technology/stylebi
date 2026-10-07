@@ -1364,9 +1364,11 @@ public class ScheduleService {
                         getServerLocationPassword(pModel.path(), pModel.username()), password);
                   }
 
-                  // only keep the stored password for the server it was saved for
-                  if(Util.PLACEHOLDER_PASSWORD.equals(password) && oldInfo != null
-                     && !clone.isEmpty() && isSameServer(pModel.path(), oldInfo))
+                  // Bug #77979, only keep the stored password for the server and the user it
+                  // was saved for, the user in the path overrides the user name field
+                  if(Util.PLACEHOLDER_PASSWORD.equals(password) && oldInfo != null &&
+                     isSameLogin(pModel.path(), pModel.username(), oldInfo.getPath(),
+                                 oldInfo.getUsername()))
                   {
                      password = oldInfo.getPassword();
                   }
@@ -1564,12 +1566,15 @@ public class ScheduleService {
          ServerPathInfo newServerPathInfo = Tool.defaultIfNull(backupActionModel.backupPathsEnabled(), false) ?
             new ServerPathInfo(backupActionModel.backupServerPath()) : null;
 
-         if(oldServerPath != null && newServerPathInfo != null &&
-            Tool.equals(newServerPathInfo.getUsername(), oldServerPath.getUsername()) &&
-            Util.PLACEHOLDER_PASSWORD.equals(newServerPathInfo.getPassword()) &&
-            isSameServer(newServerPathInfo.getPath(), oldServerPath))
+         // Bug #77979, only keep the stored password for the server and the user it was saved
+         // for, and never store a placeholder that isn't resolved
+         if(newServerPathInfo != null &&
+            Util.PLACEHOLDER_PASSWORD.equals(newServerPathInfo.getPassword()))
          {
-            newServerPathInfo.setPassword(oldServerPath.getPassword());
+            boolean sameLogin = oldServerPath != null &&
+               isSameLogin(newServerPathInfo.getPath(), newServerPathInfo.getUsername(),
+                           oldServerPath.getPath(), oldServerPath.getUsername());
+            newServerPathInfo.setPassword(sameLogin ? oldServerPath.getPassword() : null);
          }
 
          backupAction.setServerPaths(newServerPathInfo);
@@ -2449,19 +2454,6 @@ public class ScheduleService {
       }
 
       return builder.build();
-   }
-
-   /**
-    * Determines if a path points to the same FTP or SFTP server as a stored path.
-    */
-   private static boolean isSameServer(String path, ServerPathInfo oldInfo) {
-      try {
-         return path != null && oldInfo.getPath() != null &&
-            FTPUtil.parseEndpoint(path).isSameServer(FTPUtil.parseEndpoint(oldInfo));
-      }
-      catch(Exception e) {
-         return false;
-      }
    }
 
    private NameLabelTuple createTaskTuple(ScheduleTask task) {

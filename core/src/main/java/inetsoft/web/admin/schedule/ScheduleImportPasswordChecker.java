@@ -28,9 +28,10 @@ import java.util.*;
 /**
  * Bug #77936, applies the stored password rule of the task editor (#77192) to an imported
  * schedule task. The task editor keeps the stored password of a save-to-server path only for the
- * server it was saved for. An imported file names the server and holds the password side by
- * side, so a local (not secret id) password of the file is only kept if the stored task that the
- * import replaces already has the same user name and password for the same server. Otherwise the
+ * server and the login user it was saved for. An imported file names the server and holds the
+ * password side by side, so a local (not secret id) password of the file is only kept if the
+ * stored task that the import replaces already has the same password for the same server and
+ * login user, the user in the path overriding the user name field (Bug #77979). Otherwise the
  * password is cleared and must be entered again in the task editor. Secret id paths are checked
  * by {@link ScheduleSecretIdChecker}.
  * <p>
@@ -47,7 +48,7 @@ public final class ScheduleImportPasswordChecker {
 
    /**
     * Clears the local passwords of the save-to-server paths of an imported task that the stored
-    * task doesn't already hold for the same server and user name. A path whose user name and
+    * task doesn't already hold for the same server and login user. A path whose user name and
     * password are those of a secret id that the stored task uses for the same server is set
     * back to that secret id, it isn't cleared.
     *
@@ -101,19 +102,15 @@ public final class ScheduleImportPasswordChecker {
    }
 
    /**
-    * Determines if a stored path has the same user name and password for the same server.
+    * Determines if a stored path has the same password for the same server and login user.
+    * Bug #77979, the user in the path overrides the user name field, as it does when the file is
+    * uploaded.
     */
    private static boolean isStoredPassword(ServerPathInfo path, List<ServerPathInfo> originalPaths) {
-      FTPUtil.Endpoint endpoint = parseEndpoint(path);
-
-      if(endpoint == null) {
-         return false;
-      }
-
       for(ServerPathInfo originalPath : originalPaths) {
-         if(Objects.equals(path.getUsername(), originalPath.getUsername()) &&
-            Objects.equals(path.getPassword(), originalPath.getPassword()) &&
-            endpoint.isSameServer(parseEndpoint(originalPath)))
+         if(Objects.equals(path.getPassword(), originalPath.getPassword()) &&
+            ScheduleService.isSameLogin(path.getPath(), path.getUsername(),
+                                        originalPath.getPath(), originalPath.getUsername()))
          {
             return true;
          }
@@ -142,7 +139,12 @@ public final class ScheduleImportPasswordChecker {
       }
 
       for(ServerPathInfo originalPath : originalSecretPaths) {
-         if(!endpoint.isSameServer(parseEndpoint(originalPath))) {
+         FTPUtil.Endpoint originalEndpoint = parseEndpoint(originalPath);
+
+         // Bug #77979, the user in the path overrides the secret's user name
+         if(!endpoint.isSameServer(originalEndpoint) ||
+            !ScheduleSecretIdChecker.isSamePathUser(endpoint, originalEndpoint))
+         {
             continue;
          }
 
