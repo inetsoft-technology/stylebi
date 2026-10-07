@@ -647,12 +647,12 @@ public class ScheduleTaskFolderService {
    public void moveTask(AssetEntry targetEntry, AssetEntry parentEntry, AssetEntry taskEntry, Principal principal)
       throws Exception
    {
-      // Bug #77549, a task refused by setScheduleTask (a batch action query in another
-      // organization) is refused before the folders are changed
+      // Bug #77549, #77863, a task refused by setScheduleTask (e.g. a batch action query or a
+      // viewsheet action sheet in another organization) is refused before the folders are changed
       ScheduleTask task = scheduleManager.getScheduleTask(taskEntry.getName());
 
       if(task != null) {
-         scheduleManager.checkBatchQueryOrganization(task.getTaskId(), task, principal);
+         scheduleManager.checkScheduleTaskSave(task.getTaskId(), task, principal);
       }
 
       AssetFolder npfolder = getTaskFolder(targetEntry.toIdentifier());
@@ -683,8 +683,9 @@ public class ScheduleTaskFolderService {
          return;
       }
 
-      // Bug #77549, checked before the path of the stored task is changed
-      scheduleManager.checkBatchQueryOrganization(task.getTaskId(), task, principal);
+      // Bug #77549, #77863, every refusal of the save is checked before the path of the stored
+      // (cached) task is changed
+      scheduleManager.checkScheduleTaskSave(task.getTaskId(), task, principal);
       String oldPath = task.getPath();
       String newPath = parentEntry.getPath();
       task.setPath(parentEntry.getPath());
