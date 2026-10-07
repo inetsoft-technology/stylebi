@@ -111,7 +111,14 @@ public class DataSourceController {
                                                   Principal principal)
    {
       String fullPath = Util.getObjectFullPath(RepositoryEntry.DATA_SOURCE_FOLDER, path, principal);
-      return dataSourceBrowserService.deleteDataSourceFolder(path, fullPath, force, principal);
+      CoreTool.clearUserMessage();
+
+      try {
+         return dataSourceBrowserService.deleteDataSourceFolder(path, fullPath, force, principal);
+      }
+      finally {
+         sendDeleteMessage(principal);
+      }
    }
 
    /**
@@ -363,7 +370,14 @@ public class DataSourceController {
       DatabaseDefinition databaseDefinition = new DatabaseDefinition();
       databaseDefinition.setName(dataSourceName);
       String fullPath = this.databaseDatasourcesService.getDataSourceAuditPath(path, databaseDefinition, principal);
-      return datasourcesService.deleteDataSource(path, fullPath, force);
+      CoreTool.clearUserMessage();
+
+      try {
+         return datasourcesService.deleteDataSource(path, fullPath, force);
+      }
+      finally {
+         sendDeleteMessage(principal);
+      }
    }
 
    /**
@@ -380,31 +394,37 @@ public class DataSourceController {
 
       Set<String> folders = getPaths(request.folders());
       Set<String> dataSources = getPaths(request.dataSources());
+      CoreTool.clearUserMessage();
 
-      for (SelectedDataSourceItem d : request.dataSources()) {
-         // Bug #77725, deleted with the folder at its path, and audited with it (Bug #77819)
-         if(folders.contains(d.path())) {
-            continue;
+      try {
+         for (SelectedDataSourceItem d : request.dataSources()) {
+            // Bug #77725, deleted with the folder at its path, and audited with it (Bug #77819)
+            if(folders.contains(d.path())) {
+               continue;
+            }
+
+            DatabaseDefinition databaseDefinition = new DatabaseDefinition();
+            databaseDefinition.setName(d.name());
+            String fullPath = this.databaseDatasourcesService.getDataSourceAuditPath(d.path(), databaseDefinition, principal);
+            datasourcesService.deleteDataSource(d.path(), fullPath, true);
          }
 
-         DatabaseDefinition databaseDefinition = new DatabaseDefinition();
-         databaseDefinition.setName(d.name());
-         String fullPath = this.databaseDatasourcesService.getDataSourceAuditPath(d.path(), databaseDefinition, principal);
-         datasourcesService.deleteDataSource(d.path(), fullPath, true);
+         for (SelectedDataSourceItem f : request.folders()) {
+            String fullPath = Util.getObjectFullPath(RepositoryEntry.DATA_SOURCE_FOLDER, f.path(), principal);
+            // Bug #77725, with the data source at its path if that is selected too
+            ConnectionStatus status = dataSources.contains(f.path()) ?
+               dataSourceBrowserService.deleteDataSourceFolder(
+                  f.path(), fullPath, true, true, principal) :
+               dataSourceBrowserService.deleteDataSourceFolder(f.path(), fullPath, true, principal);
+
+            // refused after the check, e.g. a permission changed since, so don't report success
+            if(status != null) {
+               throw new MessageException(status.getStatus());
+            }
+         }
       }
-
-      for (SelectedDataSourceItem f : request.folders()) {
-         String fullPath = Util.getObjectFullPath(RepositoryEntry.DATA_SOURCE_FOLDER, f.path(), principal);
-         // Bug #77725, with the data source at its path if that is selected too
-         ConnectionStatus status = dataSources.contains(f.path()) ?
-            dataSourceBrowserService.deleteDataSourceFolder(
-               f.path(), fullPath, true, true, principal) :
-            dataSourceBrowserService.deleteDataSourceFolder(f.path(), fullPath, true, principal);
-
-         // refused after the check, e.g. a permission changed since, so don't report success
-         if(status != null) {
-            throw new MessageException(status.getStatus());
-         }
+      finally {
+         sendDeleteMessage(principal);
       }
    }
 
@@ -770,6 +790,24 @@ public class DataSourceController {
       }
 
       return def2;
+   }
+
+   /**
+    * Bug #77941, sends the user message left by a delete, e.g. a permission it may not have
+    * removed, to the requesting user. The message is sent even if the delete failed later, since
+    * the items deleted before that are gone.
+    */
+   private void sendDeleteMessage(Principal principal) {
+      UserMessage msg = CoreTool.getUserMessage();
+
+      if(msg != null && msg.getMessage() != null) {
+         try {
+            notificationService.sendNotificationToUser(msg.getMessage(), principal);
+         }
+         catch(Exception e) {
+            LOG.info("Failed to send notification: ", e);
+         }
+      }
    }
 
    @PostMapping("/api/portal/data/datasources/oauth-params")

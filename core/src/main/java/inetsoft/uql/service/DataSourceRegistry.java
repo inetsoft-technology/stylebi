@@ -23,6 +23,7 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.*;
 import inetsoft.uql.*;
+import inetsoft.uql.asset.AbstractAssetEngine;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.internal.AssetFolder;
@@ -1854,6 +1855,9 @@ public class DataSourceRegistry implements MessageListener {
          }
          catch(Exception e) {
             LOG.warn("Failed to remove the permission of {} {}", type, resource, e);
+            // Bug #77941, the resource is already removed, so report a permission left at its
+            // name, which a folder, data source or connection created later with it would get
+            AbstractAssetEngine.reportPermissionMayRemain(engine, type, resource);
          }
       }
    }
