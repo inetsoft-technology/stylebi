@@ -272,7 +272,6 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
          this.nodes = {};
          this.jsp.deleteEveryConnection();
          this.jsp.deleteEveryEndpoint();
-         this.remapDragNodes();
       }
 
       if(changes["selectedGraphModels"] && this.selectedGraphModels) {
@@ -294,6 +293,12 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
          // any pending self-selection is now either consumed by its echo above, or
          // superseded by an unrelated selection change -- either way it's no longer pending
          this.pendingSelfSelectionIds = null;
+      }
+
+      // last, so a selection that arrives in the same pass as a refresh is also resolved
+      // against the current model
+      if(changes.hasOwnProperty("graphViewModel") || changes["selectedGraphModels"]) {
+         this.remapDragNodes();
       }
    }
 

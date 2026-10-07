@@ -45,7 +45,7 @@ import { Component, NO_ERRORS_SCHEMA } from "@angular/core";
 import { provideHttpClient } from "@angular/common/http";
 import { By } from "@angular/platform-browser";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
-import { render, waitFor } from "@testing-library/angular";
+import { render } from "@testing-library/angular";
 import { http, HttpResponse } from "msw";
 import { server } from "@test-mocks/server";
 import { jsPlumbLib } from "../../../../../../composer/gui/ws/jsplumb/jsplumb";
@@ -205,18 +205,6 @@ describe("PhysicalGraphPane - Bug #77976 drag across a graph refresh", () => {
          ],
       });
 
-      await waitFor(() => {
-         fixture.detectChanges();
-         expect(fixture.debugElement.queryAll(By.directive(JoinNodeGraphComponent)).length).toBe(3);
-      });
-
-      const host = fixture.componentInstance;
-      const ng = fixture.debugElement.query(By.directive(PhysicalModelNetworkGraphComponent))
-         .componentInstance as PhysicalModelNetworkGraphComponent;
-      const nodeEl = (name: string): HTMLElement => fixture.debugElement
-         .queryAll(By.directive(JoinNodeGraphComponent))
-         .find(d => d.componentInstance.graph.node.id === name).nativeElement;
-      const dragIds = (): string[] => (ng as any).dragNodes.map(g => g.node.id);
       const settle = async () => {
          await new Promise(r => setTimeout(r, 50));
          fixture.detectChanges();
@@ -232,6 +220,17 @@ describe("PhysicalGraphPane - Bug #77976 drag across a graph refresh", () => {
          await settle();
       };
 
+      const count = () => fixture.debugElement.queryAll(By.directive(JoinNodeGraphComponent)).length;
+      await until(() => count() === 3);
+      expect(count()).toBe(3);
+
+      const host = fixture.componentInstance;
+      const ng = fixture.debugElement.query(By.directive(PhysicalModelNetworkGraphComponent))
+         .componentInstance as PhysicalModelNetworkGraphComponent;
+      const nodeEl = (name: string): HTMLElement => fixture.debugElement
+         .queryAll(By.directive(JoinNodeGraphComponent))
+         .find(d => d.componentInstance.graph.node.id === name).nativeElement;
+      const dragIds = (): string[] => (ng as any).dragNodes.map(g => g.node.id);
       return { fixture, host, ng, nodeEl, dragIds, settle, until };
    }
 
@@ -426,5 +425,25 @@ describe("PhysicalGraphPane - Bug #77976 drag across a graph refresh", () => {
       expect(moves.length).toBe(1);
 
       expect(movedBounds()).toEqual({ PRODUCTS: { x: 400, y: 40, width: 100, height: 50 } });
+   });
+
+   it("resolves a selection built from the old model against a refresh landing in the same pass", async () => {
+      const ctx = await setup();
+      const oldModel = ctx.ng.graphViewModel;
+
+      // the refresh drops CUSTOMERS; before it lands, selectAll() makes the host derive
+      // selectedGraphModels from the old model, so both inputs change in one pass
+      nextResponse = () => graphResponse(["ORDERS", "PRODUCTS"]);
+      ctx.host.svc.emitModelChange(false);
+      ctx.ng.selectAll();
+      expect(ctx.host.selectedGraphModels.map(g => g.node.id)).toEqual(["ORDERS", "CUSTOMERS", "PRODUCTS"]);
+
+      await refreshLanded(ctx, oldModel);
+      await ctx.until(() => ctx.fixture.debugElement
+         .queryAll(By.directive(JoinNodeGraphComponent)).length === 2);
+
+      expect(ctx.dragIds()).toEqual(["ORDERS", "PRODUCTS"]);
+      const current = ctx.ng.graphViewModel.graphs;
+      (ctx.ng as any).dragNodes.forEach(g => expect(current).toContain(g));
    });
 });
