@@ -151,6 +151,70 @@ describe("VSRangeSlider – refresh while the range is being changed (Bug #77917
          expect(sent()).toEqual(["1-2"]);
       });
 
+      it("does not override a refresh with a key that doesn't change the range", () => {
+         key(NavigationKeys.LEFT);
+         expect(shown()).toBe("0-4");
+
+         vi.advanceTimersByTime(100);
+         refresh({ selectStart: 2, selectEnd: 4 });
+         expect(shown()).toBe("2-4");
+
+         vi.advanceTimersByTime(300);
+         expect(sent()).toEqual([]);
+         expect(shown()).toBe("2-4");
+      });
+
+      it("keeps the refreshed range when the keys make no net change", () => {
+         key(NavigationKeys.RIGHT);
+         key(NavigationKeys.LEFT);
+         vi.advanceTimersByTime(100);
+         refresh({ selectStart: 2, selectEnd: 3 });
+         vi.advanceTimersByTime(300);
+
+         expect(sent()).toEqual([]);
+         expect(shown()).toBe("2-3");
+         expect(ctx.comp.leftHandlePosition).toBeCloseTo(2 * TICK);
+         expect(ctx.comp.rightHandlePosition).toBeCloseTo(3 * TICK);
+      });
+
+      it("ends the key change inside the Angular zone", () => {
+         key(NavigationKeys.RIGHT);
+         const run = (ctx.comp as any).zone.run;
+         run.mockClear();
+         vi.advanceTimersByTime(300);
+
+         expect(run).toHaveBeenCalledTimes(1);
+         expect(sent()).toEqual(["1-4"]);
+      });
+
+      it("is not affected by another slider with the same name", () => {
+         const first = ctx;
+         const debounceService = (first.comp as any).debounceService;
+         create();
+         (ctx.comp as any).debounceService = debounceService;
+         const second = ctx;
+         ctx = first;
+
+         key(NavigationKeys.RIGHT);
+         second.comp.ngOnDestroy();
+         vi.advanceTimersByTime(300);
+         expect(sent()).toEqual(["1-4"]);
+
+         refresh({ selectStart: 2, selectEnd: 3 });
+         expect(shown()).toBe("2-3");
+         expect(ctx.comp.leftHandlePosition).toBeCloseTo(2 * TICK);
+      });
+
+      it("applies the rest of a refresh in the key window when a drag starts", () => {
+         key(NavigationKeys.RIGHT);
+         refresh({ selectStart: 1, selectEnd: 4, maxRangeBarWidth: 400 });
+         press(ctx.comp.handleType.Left, 100);
+
+         expect(sent()).toEqual(["1-4"]);
+         expect(ctx.comp.widthBetweenTicks).toBeCloseTo((400 - 9) / 4);
+         expect(ctx.comp.leftHandlePosition).toBeCloseTo((400 - 9) / 4);
+      });
+
       it("does not send a pending key range after the slider is destroyed", () => {
          key(NavigationKeys.RIGHT);
          ctx.comp.ngOnDestroy();

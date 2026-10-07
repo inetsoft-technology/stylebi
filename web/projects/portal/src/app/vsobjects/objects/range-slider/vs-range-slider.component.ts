@@ -80,6 +80,7 @@ const RANGESLIDER_PROPERTY_URI: string = "composer/vs/range-slider-property-dial
 const URI_UPDATE_TITLE_RATIO: string = "/events/composer/viewsheet/currentSelection/titleRatio/";
 const RANGE_SLIDER_MAX_MODE_URL: string = "/events/vs/assembly/max-mode/toggle";
 enum Handle { Left, Middle, Right, None }
+let nextInstanceId: number = 0;
 
 @Component({
     selector: "vs-range-slider",
@@ -141,10 +142,13 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
    // a range change by a drag or a pending key send, the labels/values it was made on, and the
    // server range of a refresh during the change
    private keyPending: boolean = false;
+   private keyStartRange: {start: number, end: number};
    private changeLabels: string[];
    private changeValues: string[];
    private refreshedRange: {start: number, end: number};
    private removeDragListeners: () => void;
+   // unique per instance, another slider with the same name must not cancel this one's send
+   private readonly applyDebounceKey: string = `VSRangeSlider.ApplyEvent.${nextInstanceId++}`;
 
    get mobilePadding(): number {
       return this.hasMobilePadding ? 10 : 0;
@@ -192,7 +196,7 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
                private modelService: ModelService,
                private modalService: DialogService,
                private adhocFilterService: AdhocFilterService,
-               zone: NgZone,
+               private zone: NgZone,
                protected context: ContextProvider,
                protected dataTipService: DataTipService,
                private debounceService: DebounceService,
@@ -348,9 +352,7 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
       super.ngOnDestroy();
       this.endDragListeners();
 
-      if(this.model) {
-         this.debounceService.cancel(this.getApplyDebounceKey());
-      }
+      this.debounceService.cancel(this.applyDebounceKey);
 
       if(this.actionSubscription) {
          this.actionSubscription.unsubscribe();
@@ -386,7 +388,7 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
 
    private rebaseRangeChange(): void {
       if(this.keyPending) {
-         this.debounceService.cancel(this.getApplyDebounceKey());
+         this.debounceService.cancel(this.applyDebounceKey);
          this.keyPending = false;
       }
 
@@ -529,9 +531,9 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
          return;
       }
 
-      // send a pending key range now, so the drag starts from it and isn't overwritten by it
+      // end a pending key change now, so the drag starts from it and isn't overwritten by it
       if(this.keyPending) {
-         this.updateSelections(this.model.selectStart, this.model.selectEnd);
+         this.endKeyChange(this.model.selectStart, this.model.selectEnd);
       }
 
       this.timeHandleClicked = Date.now();
@@ -767,7 +769,7 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
 
    private updateSelections(start?: number, end?: number) {
       // a newer range replaces a pending keyboard range, which must not be sent after it
-      this.debounceService.cancel(this.getApplyDebounceKey());
+      this.debounceService.cancel(this.applyDebounceKey);
       this.keyPending = false;
 
       if(this.model.submitOnChange) {
@@ -1198,9 +1200,8 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
          const movement: number = key == NavigationKeys.RIGHT ?
             this.widthBetweenTicks : -this.widthBetweenTicks;
 
-         if(!this.keyPending) {
-            this.startRangeChange();
-         }
+         const oldStart: number = this.model.selectStart;
+         const oldEnd: number = this.model.selectEnd;
 
          switch(this.mouseHandle) {
          case Handle.Left:
@@ -1219,27 +1220,52 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
          default:
          }
 
+         if(!this.keyPending) {
+            // a key that doesn't change the range (e.g. at the end of the bar) starts nothing
+            if(this.model.selectStart === oldStart && this.model.selectEnd === oldEnd) {
+               return;
+            }
+
+            this.startRangeChange();
+            this.keyStartRange = {start: oldStart, end: oldEnd};
+         }
+
          // send the range chosen by the keys, a refresh during the wait keeps the local range
          // (see the model setter) and the next key continues from it
          const callback: (start: number, end: number) => void = (start, end) => {
-            this.updateSelections(start, end);
-
-            // apply the rest of a refresh that arrived during the wait (e.g. the bar width)
-            if(this.refreshedRange) {
-               this.refreshedRange = null;
-               this.calculatePositions();
-            }
-
-            this.focusSelectedHandle();
+            this.zone.run(() => {
+               this.endKeyChange(start, end);
+               this.focusSelectedHandle();
+            });
          };
          this.keyPending = true;
-         this.debounceService.debounce(this.getApplyDebounceKey(), callback, 300,
+         this.debounceService.debounce(this.applyDebounceKey, callback, 300,
             [this.model.selectStart, this.model.selectEnd]);
       }
    }
 
-   private getApplyDebounceKey(): string {
-      return `VSRangeSlider.ApplyEvent.${this.model.absoluteName}`;
+   /**
+    * Ends a pending key change. Sends the range chosen by the keys, or, like a drag that ends
+    * where it started, keeps the range of a refresh during the wait if the keys made no net change.
+    */
+   private endKeyChange(start: number, end: number): void {
+      const refreshedRange = this.refreshedRange;
+      this.debounceService.cancel(this.applyDebounceKey);
+      this.keyPending = false;
+      this.refreshedRange = null;
+
+      if(start !== this.keyStartRange.start || end !== this.keyStartRange.end) {
+         this.updateSelections(start, end);
+      }
+      else if(refreshedRange) {
+         this.model.selectStart = refreshedRange.start;
+         this.model.selectEnd = refreshedRange.end;
+      }
+
+      // apply the rest of a refresh that arrived during the wait (e.g. the bar width)
+      if(refreshedRange) {
+         this.calculatePositions();
+      }
    }
 
    private focusSelectedHandle(): void {

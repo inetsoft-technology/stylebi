@@ -490,6 +490,19 @@ describe("VSRangeSlider – display / rendering (P3)", () => {
          fixture.detectChanges();
       }));
 
+      // Bug #77917
+      it("should cancel the drag when a touch on any handle is cancelled", () => {
+         const cancelDrag = vi.spyOn(fixture.componentInstance, "cancelDrag");
+         const handles = [".range-slider-left-handle", ".range-slider-right-handle",
+            ".thumb-middle"];
+
+         for(const handle of handles) {
+            fixture.nativeElement.querySelector(handle).dispatchEvent(new Event("touchcancel"));
+         }
+
+         expect(cancelDrag).toHaveBeenCalledTimes(3);
+      });
+
       // Bug #18972
       it("should apply text-decoration format to the range slider body", () => {
          const model = makeVSRangeSliderModel();
