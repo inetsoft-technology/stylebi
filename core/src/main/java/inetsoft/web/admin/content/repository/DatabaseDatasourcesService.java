@@ -137,8 +137,15 @@ public class DatabaseDatasourcesService {
       boolean root = (path == null || path.isEmpty() || "/".equals(path));
 
       if(root) {
-         securityEngine.checkPermission(
-            principal, ResourceType.DATA_SOURCE_FOLDER, "/", ResourceAction.ADMIN);
+         // Bug #77926, the endpoint gate checks the request path, which may be "" rather than the
+         // root, and the controller reads the folder again after a save without a gate
+         if(!securityEngine.checkPermission(
+            principal, ResourceType.DATA_SOURCE_FOLDER, "/", ResourceAction.ADMIN))
+         {
+            throw new SecurityException(
+               "User=" + SUtil.getUserName(principal) + ", Path=/api/em/settings/content/" +
+               "repository/dataSourceFolder, Read=/");
+         }
 
          builder.name(null);
          builder.root(true);
@@ -207,14 +214,8 @@ public class DatabaseDatasourcesService {
           ActionRecord.ACTION_NAME_EDIT, auditPath, ActionRecord.OBJECT_TYPE_FOLDER,
           actionTimestamp, ActionRecord.ACTION_STATUS_FAILURE, null);
 
-      if(model.root()) {
-         securityEngine.checkPermission(
-            principal, ResourceType.DATA_SOURCE_FOLDER, "/", ResourceAction.ADMIN);
-      }
-      else {
-         securityEngine.checkPermission(
-            principal, ResourceType.DATA_SOURCE_FOLDER, path, ResourceAction.ADMIN);
-
+      // the endpoint gate checks ADMIN on the path, the only resource this method writes
+      if(!model.root()) {
          DataSourceFolder folder = repository.getDataSourceFolder(path, true);
 
          if(folder == null) {
@@ -224,6 +225,15 @@ public class DatabaseDatasourcesService {
          // Bug #77733, a name with a slash would move the folder under another parent without
          // the checks of the move
          Tool.checkFolderNameSeparator(model.name());
+
+         // Bug #77926, an empty name would rename the folder to its parent path ("" for a root
+         // level folder). Only a blank name is refused here, a folder created in EM may have a
+         // name the portal refuses, and a save of its permissions sends that name again.
+         if(model.name() == null || model.name().trim().isEmpty()) {
+            throw new MessageException(Catalog.getCatalog(principal).getString(
+               "common.datasource.nameNotEmpty"));
+         }
+
          String parent = DataSourceFolder.getParentName(path);
 
          if(parent == null) {
