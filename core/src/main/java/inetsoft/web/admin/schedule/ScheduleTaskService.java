@@ -945,6 +945,7 @@ public class ScheduleTaskService {
             vsa.setNotifications(origVsa.getNotifications());
             vsa.setNotifyError(origVsa.isNotifyError());
             vsa.setLink(origVsa.isLink());
+            restoreLinkURI(vsa, origVsa);
          }
          else {
             vsa.setNotifications(null);
@@ -971,6 +972,10 @@ public class ScheduleTaskService {
             vsa.setEmailCSVConfig(origVsa.getEmailCSVConfig());
             vsa.setAttachmentName(origVsa.getAttachmentName());
             vsa.setCompressFile(origVsa.isCompressFile());
+            vsa.setUseCredential(origVsa.isUseCredential());
+            vsa.setSecretId(origVsa.getSecretId());
+            vsa.setPassword(origVsa.getPassword());
+            restoreLinkURI(vsa, origVsa);
          }
          else {
             vsa.setEmails(null);
@@ -989,6 +994,9 @@ public class ScheduleTaskService {
             vsa.setEmailCSVConfig(null);
             vsa.setAttachmentName(null);
             vsa.setCompressFile(false);
+            vsa.setUseCredential(false);
+            vsa.setSecretId(null);
+            vsa.setPassword(null);
          }
       }
 
@@ -1014,6 +1022,18 @@ public class ScheduleTaskService {
             vsa.setSaveToServerOnlyDataComponents(origVsa.isSaveToServerOnlyDataComponents());
             vsa.setSaveExportAllTabbedTables(origVsa.isSaveExportAllTabbedTables());
          }
+      }
+   }
+
+   /**
+    * Keeps the link URI of a restored notification or email delivery. The link URI is the
+    * server's address, which the save sets from the request whenever notifications or email
+    * delivery are on in the request. It is restored from the stored action only when the request
+    * turned both off, so a restored link still has an address to point to.
+    */
+   private void restoreLinkURI(ViewsheetAction vsa, ViewsheetAction origVsa) {
+      if(vsa.getLinkURI() == null) {
+         vsa.setLinkURI(origVsa.getLinkURI());
       }
    }
 
