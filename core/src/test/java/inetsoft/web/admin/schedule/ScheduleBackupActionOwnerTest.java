@@ -292,9 +292,10 @@ class ScheduleBackupActionOwnerTest {
          service, "getResavedActionModel", action, LINK, alice, true)));
    }
 
-   // an auto-save asset has the owner __NULL__ in the action model
+   // an auto-save asset has the owner __NULL__ in the action model, the owner is the user in the
+   // file name (Bug #77924)
    @Test
-   void autoSaveAsset_nullOwner_isAllowed() throws Exception {
+   void ownAutoSaveAsset_nullModelOwner_isAllowed() throws Exception {
       XAsset autoSave = spy(SUtil.getXAsset(
          VSAutoSaveAsset.AUTOSAVEVS, "4^VIEWSHEET^" + CAROL.convertToKey() + "^vs1^127.0.0.1",
          null));

@@ -234,8 +234,9 @@ class DeployServiceExportOwnerTest {
    }
 
    @Test
-   void getEntryAssets_autoSaveAsset_hasNoOwner() throws Exception {
-      // an auto-save asset reports the owner __NULL__ (round-tripped by the backup action model)
+   void getEntryAssets_ownAutoSaveAsset_isAllowed() throws Exception {
+      // an auto-save asset reports the owner __NULL__ (round-tripped by the backup action model),
+      // the owner is the user in the file name (Bug #77924)
       SelectedAssetModel entity = SelectedAssetModel.builder()
          .path("4^VIEWSHEET^carol~;~" + ORG_A + "^vs1^127.0.0.1")
          .type(RepositoryEntry.AUTO_SAVE_VS)
