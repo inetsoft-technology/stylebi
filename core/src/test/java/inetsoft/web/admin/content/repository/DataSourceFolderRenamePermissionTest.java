@@ -83,6 +83,8 @@ class DataSourceFolderRenamePermissionTest {
    @Autowired
    private XRepository repository;
    private Set<ResourceAction> granted;
+   private SecurityEngine security;
+   private final Permission folderPermission = new Permission();
    private RenameTransformHandler transforms;
    private MockedStatic<SUtil> sUtilMock;
    private DataSourceController proxy;
@@ -92,9 +94,11 @@ class DataSourceFolderRenamePermissionTest {
    void setUp() throws Exception {
       registry.init();
       granted = EnumSet.noneOf(ResourceAction.class);
-      SecurityEngine security = mock(SecurityEngine.class);
+      security = mock(SecurityEngine.class);
       when(security.checkPermission(any(), eq(ResourceType.DATA_SOURCE_FOLDER), anyString(), any()))
          .thenAnswer(inv -> granted.contains(inv.<ResourceAction>getArgument(3)));
+      when(security.getPermission(eq(ResourceType.DATA_SOURCE_FOLDER), anyString()))
+         .thenReturn(folderPermission);
       AnalyticRepository analyticRepository = mock(AnalyticRepository.class);
       when(analyticRepository.checkPermission(
          any(), eq(ResourceType.DATA_SOURCE_FOLDER), anyString(), any()))
@@ -158,6 +162,8 @@ class DataSourceFolderRenamePermissionTest {
       assertThrows(MessageException.class, () -> rename("rpA", "rpA2"));
 
       verifyNoInteractions(transforms);
+      // the folder permission is not copied to the new path
+      verify(security, never()).setPermission(any(), anyString(), any(Permission.class));
       registry.clearCache();
       assertNotNull(registry.getDataSourceFolder("rpA"));
       assertNotNull(registry.getDataSourceFolder("rpA/G"));
@@ -190,6 +196,7 @@ class DataSourceFolderRenamePermissionTest {
       assertNull(registry.getDataSourceFolder("rpB"));
       assertNotNull(registry.getDataSourceFolder("rpB2"));
       assertNotNull(registry.getDataSourceFolder("rpB2/G"));
+      verify(security).setPermission(ResourceType.DATA_SOURCE_FOLDER, "rpB2", folderPermission);
    }
 
    private void rename(String path, String name) throws Exception {
