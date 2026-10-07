@@ -147,6 +147,9 @@ public class RepositoryObjectService {
          }
       }
 
+      // Bug #77947, the owner of an auto-save file is in its name, not the client-supplied owner
+      AutoSaveUtils.checkAutoSavePermission(
+         autoSaveNodes.stream().map(TreeNodeInfo::path).toList(), principal);
       deleteAutoSaveNodes(autoSaveNodes, principal);
       List<TreeNodeInfo> list = new ArrayList<TreeNodeInfo>();
 

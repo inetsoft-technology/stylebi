@@ -148,11 +148,28 @@ public final class XAssetExportPermission {
    }
 
    /**
-    * The auto-save file is read from {@code recycle/} + the file name with the user of its third
-    * field moved to the current organization (VSAutoSaveAsset/WSAutoSaveAsset.writeContent), so
-    * the owner is resolved from the name in the same way.
+    * Checks if a principal may get the content of an auto-save file. The auto-save file is read
+    * from {@code recycle/} + the file name with the user of its third field moved to the current
+    * organization (VSAutoSaveAsset/WSAutoSaveAsset.writeContent), so the owner is resolved from
+    * the name in the same way.
+    * <p>
+    * Bug #77947, also used by the EM endpoints that delete, restore or get the time of a named
+    * auto-save file.
+    *
+    * @param path      the name of the auto-save file, without the {@code recycle/} prefix.
+    * @param principal the principal.
+    *
+    * @return {@code true} if permitted.
     */
-   private static boolean isAutoSavePermitted(String path, Principal principal) {
+   public static boolean isAutoSavePermitted(String path, Principal principal) {
+      if(!SecurityEngine.getSecurity().isSecurityEnabled()) {
+         return true;
+      }
+
+      if(principal == null) {
+         return false;
+      }
+
       String name = SUtil.addAutoSaveOrganization(SUtil.trimAutoSaveOrganization(path));
       String[] fields = name == null ? new String[0] : Tool.split(name, '^');
 

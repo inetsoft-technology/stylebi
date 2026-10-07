@@ -28,6 +28,7 @@ import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.web.*;
+import inetsoft.web.admin.deploy.XAssetExportPermission;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -59,6 +60,8 @@ public class AutoSaveController {
        throws Exception
    {
       String[] ids = Tool.split(entryPath.get("ids"), ',');
+      // Bug #77947, every file is checked before any is deleted
+      AutoSaveUtils.checkAutoSavePermission(Arrays.asList(ids), user);
 
       for(int i = 0; i < ids.length; i++) {
          String path = ids[i];
@@ -91,6 +94,12 @@ public class AutoSaveController {
       String id = entryPath.get("id");
       String clientTimeZone = entryPath.get("timezoneid");
 
+      // Bug #77947, answered as for a missing file, so the time is not an oracle for the files
+      // of other users
+      if(!XAssetExportPermission.isAutoSavePermitted(id, user)) {
+         return "";
+      }
+
       return AutoSaveUtils.getAutoSavedTime(id, user, clientTimeZone);
    }
 
@@ -113,6 +122,9 @@ public class AutoSaveController {
       String fileName = entryPath.get("name");
       String folder = entryPath.get("folder");
       String assetName = "/".equals(folder) ? fileName : folder + "/" + fileName;
+      // Bug #77947, the auto-save file is read without a permission check, so every file is
+      // checked before any is restored or deleted
+      AutoSaveUtils.checkAutoSavePermission(Arrays.asList(ids), user);
 
       if(ids.length == 1) {
          restoreAutoSaveAsset(ids[0], assetName, overwrite, user);
