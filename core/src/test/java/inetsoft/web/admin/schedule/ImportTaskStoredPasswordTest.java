@@ -148,6 +148,24 @@ class ImportTaskStoredPasswordTest {
       assertPasswords(imported, STORED_HOST, "");
    }
 
+   // each path is checked on its own, only the path moved to another server loses its password
+   @Test
+   void overwrite_onlyBackupServerChanged_clearsOnlyBackupPassword() throws Exception {
+      when(scheduleManager.getScheduleTask(TASK_ID)).thenReturn(storedTask("Nightly"));
+      String xml = export("Nightly", STORED_HOST)
+         .replace("ftp://" + STORED_HOST + "/backup", "ftp://" + OTHER_HOST + "/backup");
+
+      ScheduleTask imported = importTask(xml, true);
+
+      ServerPathInfo vsPath = ((ViewsheetAction) imported.getAction(0)).getFilePathInfo(PDF);
+      ServerPathInfo backupPath =
+         ((IndividualAssetBackupAction) imported.getAction(1)).getServerPath();
+      assertEquals("ftp://" + STORED_HOST + "/out", vsPath.getPath());
+      assertEquals("ftp://" + OTHER_HOST + "/backup", backupPath.getPath());
+      assertEquals(STORED, vsPath.getPassword(), "save-to-server password");
+      assertEquals("", backupPath.getPassword(), "backup password");
+   }
+
    // a copy replaces no stored task, so there is nothing that already holds the password
    @Test
    void copy_changedServer_clearsPassword() throws Exception {
