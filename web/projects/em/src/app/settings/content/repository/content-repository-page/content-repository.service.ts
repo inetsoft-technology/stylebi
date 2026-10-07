@@ -133,7 +133,20 @@ export class ContentRepositoryService implements OnDestroy {
       return this.deleteNodes$
          .pipe(catchError((() => this.getDeleteNodesObservable())))
          .subscribe((connectionStatus: ConnectionStatus) => {
-            if(!!connectionStatus && connectionStatus.status) {
+            // Bug #77939, the delete is done but reports a warning, e.g. a permission it may not
+            // have removed. It's only shown, not confirmed and sent again like the other statuses
+            if(!!connectionStatus && /^warning:/.test(connectionStatus.status)) {
+               this.dialog.open(MessageDialog, <MatDialogConfig>{
+                  data: {
+                     title: "_#(js:Warning)",
+                     content: connectionStatus.status.substring(8),
+                     type: MessageDialogType.WARNING
+                  }
+               });
+
+               this.refreshAfterDelete();
+            }
+            else if(!!connectionStatus && connectionStatus.status) {
                let prompt = connectionStatus.status;
                const corrupt = /^corrupt:.+$/.test(connectionStatus.status);
 
@@ -156,11 +169,15 @@ export class ContentRepositoryService implements OnDestroy {
                });
             }
             else {
-               if(!this.selectedNodes.some(node => !this.isLibraryNode(node.data))) {
-                  this._needRefreshAfterDelete.next();
-               }
+               this.refreshAfterDelete();
             }
          });
+   }
+
+   private refreshAfterDelete(): void {
+      if(!this.selectedNodes.some(node => !this.isLibraryNode(node.data))) {
+         this._needRefreshAfterDelete.next();
+      }
    }
 
    private isLibraryNode(node: RepositoryTreeNode): boolean {
