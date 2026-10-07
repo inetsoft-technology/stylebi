@@ -37,6 +37,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * (Buddhist for th_TH, Japanese imperial for ja_JP_JP). An explicit database locale keeps its
  * own calendar. The runtime (CubeQuery) and the data source preview (XmlaDatasourceService)
  * must agree.
+ *
+ * Bug #77876: a two-digit year (MM/dd/yy) must also read as Gregorian 2026, not 2526 (th_TH) or
+ * 26 (ja_JP_JP) from a two-digit-year window computed in the default locale's calendar.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = BaseTestConfiguration.class,
@@ -77,6 +80,34 @@ class CubeQueryCalendarSystemTest {
       }
    }
 
+   @Test
+   void cubeQueryParsesTwoDigitYearGregorianWithoutLocale() throws Exception {
+      for(Locale locale : List.of(Locale.US, TH, JA)) {
+         try {
+            Locale.setDefault(locale);
+            assertEquals(2026, parseYear(cubeQueryFormat(createInfo(null, "MM/dd/yy")),
+                                         "01/15/26"), "default locale " + locale);
+         }
+         finally {
+            Locale.setDefault(oldLocale);
+         }
+      }
+   }
+
+   @Test
+   void previewParsesTwoDigitYearGregorianWithoutLocale() throws Exception {
+      for(Locale locale : List.of(Locale.US, TH, JA)) {
+         try {
+            Locale.setDefault(locale);
+            assertEquals(2026, parseYear(previewFormat(createInfo(null, "MM/dd/yy")),
+                                         "01/15/26"), "default locale " + locale);
+         }
+         finally {
+            Locale.setDefault(oldLocale);
+         }
+      }
+   }
+
    // an explicit Thai database locale means the captions use the Buddhist calendar
    @Test
    void explicitThaiLocaleKeepsBuddhistCalendar() throws Exception {
@@ -87,9 +118,13 @@ class CubeQueryCalendarSystemTest {
    }
 
    private static XMetaInfo createInfo(Locale locale) {
+      return createInfo(locale, "yyyy-MM-dd");
+   }
+
+   private static XMetaInfo createInfo(Locale locale, String pattern) {
       XMetaInfo minfo = new XMetaInfo();
       minfo.setAsDate(true);
-      minfo.setDatePattern("yyyy-MM-dd");
+      minfo.setDatePattern(pattern);
       minfo.setLocale(locale);
       return minfo;
    }
@@ -112,7 +147,11 @@ class CubeQueryCalendarSystemTest {
    // read the year of the parsed date in the Gregorian calendar, never through a formatter of
    // the default locale, which would hide a calendar shift
    private static int parseYear(SimpleDateFormat format) throws Exception {
-      Date date = format.parse("2026-01-01");
+      return parseYear(format, "2026-01-01");
+   }
+
+   private static int parseYear(SimpleDateFormat format, String text) throws Exception {
+      Date date = format.parse(text);
       Calendar calendar = new GregorianCalendar();
       calendar.setTime(date);
       return calendar.get(Calendar.YEAR);
