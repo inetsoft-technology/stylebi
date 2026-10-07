@@ -259,21 +259,39 @@ class CalendarDensitySizeTest {
       assertEquals(new Point(78, 722 - 266), info(calendar).getPixelOffset());
    }
 
-   // only a box the density moved is re-flushed; an author's placement is left alone
+   // a dropdown sits on the strip by its title lane, which follows density while its box does not
    @Test
-   void aDensityChangeLeavesAnUnresizedBottomTabsChildWhereItIs() {
+   void aDensityChangeKeepsABottomTabsDropdownOnTheStrip() {
       CalendarVSAssembly calendar = created("compact", VizMark.MODERN_LIGHT);
-      info(calendar).setPixelSize(new Dimension(300, 380));
-      info(calendar).setUserSize(true);
-      info(calendar).setPixelOffset(new Point(78, 300));
+      info(calendar).setShowTypeValue(CalendarVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
+      info(calendar).setPixelSize(new Dimension(300, 20));
+      info(calendar).setPixelOffset(new Point(78, 722 - 26));
       Viewsheet vs = calendar.getViewsheet();
       bottomTabs(vs, calendar.getName());
 
       vs.getViewsheetInfo().setVizDensity("comfortable");
       VizModernizeUtil.reseed(vs);
+      assertEquals(new Point(78, 722 - 30), info(calendar).getPixelOffset());
 
-      assertEquals(new Dimension(300, 380), info(calendar).getPixelSize());
-      assertEquals(new Point(78, 300), info(calendar).getPixelOffset());
+      vs.getViewsheetInfo().setVizDensity("dense");
+      VizModernizeUtil.reseed(vs);
+      assertEquals(new Point(78, 722 - 20), info(calendar).getPixelOffset());
+   }
+
+   // top tabs hang their children below the strip, so a resize there needs no move
+   @Test
+   void aDensityChangeLeavesATopTabsChildWhereItIs() {
+      CalendarVSAssembly calendar = created("compact", VizMark.MODERN_LIGHT);
+      info(calendar).setPixelOffset(new Point(78, 746));
+      Viewsheet vs = calendar.getViewsheet();
+      TabVSAssembly tab = bottomTabs(vs, calendar.getName());
+      ((TabVSAssemblyInfo) tab.getVSAssemblyInfo()).setBottomTabsValue(false);
+
+      vs.getViewsheetInfo().setVizDensity("comfortable");
+      VizModernizeUtil.reseed(vs);
+
+      assertEquals(new Dimension(300, 332), info(calendar).getPixelSize());
+      assertEquals(new Point(78, 746), info(calendar).getPixelOffset());
    }
 
    // guards: these paths must never resize, before or after the reseed change
