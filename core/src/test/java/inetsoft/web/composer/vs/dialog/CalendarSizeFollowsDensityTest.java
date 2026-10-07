@@ -207,6 +207,29 @@ class CalendarSizeFollowsDensityTest {
       assertEquals(new Dimension(300, 20), result.getPixelSize());
    }
 
+   @Test
+   void anUntickSavedWithASwitchIsKept() throws Exception {
+      CalendarVSAssemblyInfo result =
+         save(calendar(VizMark.MODERN_LIGHT, new Dimension(300, 332)), Boolean.FALSE,
+              new Dimension(600, 332), CalendarVSAssemblyInfo.CALENDAR_SHOW_TYPE,
+              CalendarVSAssemblyInfo.DOUBLE_CALENDAR_MODE);
+
+      assertEquals(new Dimension(600, 332), result.getPixelSize());
+      assertTrue(result.isUserSize());
+   }
+
+   // the box stays on screen after an Apply to double, so it can still be unticked before OK
+   @Test
+   void anUntickOnADoubleCalendarIsKept() throws Exception {
+      CalendarVSAssemblyInfo info = calendar(VizMark.MODERN_LIGHT, new Dimension(600, 332));
+      info.setViewModeValue(CalendarVSAssemblyInfo.DOUBLE_CALENDAR_MODE);
+
+      CalendarVSAssemblyInfo result = save(info, Boolean.FALSE, new Dimension(600, 332));
+
+      assertEquals(new Dimension(600, 332), result.getPixelSize());
+      assertTrue(result.isUserSize());
+   }
+
    private static CalendarVSAssemblyInfo calendar(VizMark mark, Dimension size) {
       CalendarVSAssemblyInfo info = new CalendarVSAssemblyInfo();
       info.setVizMark(mark);

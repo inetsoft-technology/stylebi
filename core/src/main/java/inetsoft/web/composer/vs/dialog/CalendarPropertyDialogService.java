@@ -250,14 +250,21 @@ public class CalendarPropertyDialogService {
       // neither reset to the density size nor recorded as the author's
       boolean switched = calendarAdvancedPaneModel.getShowType() != info.getShowTypeValue() ||
          calendarAdvancedPaneModel.getViewMode() != info.getViewModeValue();
+      Boolean followsSize = sizePositionPaneModel.getSizeFollowsDensity();
 
       if(switched) {
          dialogService.setAssemblySize(info, sizePositionPaneModel);
+
+         // an untick never resizes, so it holds through the switch
+         if(Boolean.FALSE.equals(followsSize)) {
+            info.setUserSize(true);
+         }
       }
       else {
-         // Apply keeps the dialog open, so the answer can predate a switch to dropdown or double
-         if(calendarAdvancedPaneModel.getShowType() != CalendarVSAssemblyInfo.CALENDAR_SHOW_TYPE ||
-            calendarAdvancedPaneModel.getViewMode() != CalendarVSAssemblyInfo.SINGLE_CALENDAR_MODE)
+         // Apply keeps the dialog open, so a tick can predate a switch to dropdown or double
+         if(Boolean.TRUE.equals(followsSize) &&
+            (calendarAdvancedPaneModel.getShowType() != CalendarVSAssemblyInfo.CALENDAR_SHOW_TYPE ||
+             calendarAdvancedPaneModel.getViewMode() != CalendarVSAssemblyInfo.SINGLE_CALENDAR_MODE))
          {
             sizePositionPaneModel.setSizeFollowsDensity(null);
          }
