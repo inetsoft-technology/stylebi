@@ -181,7 +181,7 @@ class TimeSliderCheckpointTest {
       TimeSliderSelection read = new TimeSliderSelection();
       assertDoesNotThrow(() -> read.parseXML(
          Tool.parseXML(new StringReader(buf.toString())).getDocumentElement(), parsed));
-      assertEquals(6, parsed.getSelectionValueCount(), "the parsed list is kept");
+      assertEquals(6, parsed.getSelectionValueCount(), "parseXML leaves the passed-in list unchanged");
       assertEquals(written.getSelectionValue(0).getValue(), parsed.getSelectionValue(0).getValue());
    }
 

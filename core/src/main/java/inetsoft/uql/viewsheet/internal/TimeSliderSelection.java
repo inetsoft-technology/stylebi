@@ -239,7 +239,8 @@ public class TimeSliderSelection implements Cloneable {
          }
 
          // the values don't match the value format (e.g. written with another date level).
-         // keep the parsed selection list, the next query rebuilds the full range
+         // the stored list has no values, so the slider loads empty and the next query
+         // rebuilds the full range (the selected range is reset)
          if(firstSelectedDate == null || lastSelectedDate == null || startDate == null ||
             endDate == null)
          {
