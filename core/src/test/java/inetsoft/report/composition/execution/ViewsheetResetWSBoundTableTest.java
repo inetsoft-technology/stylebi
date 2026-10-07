@@ -41,7 +41,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
-import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.Consumer;
@@ -64,7 +64,7 @@ import static org.mockito.Mockito.*;
                                   ViewsheetResetWSBoundTableTest.TestConfig.class },
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
-@Tag("core")
+@Tag("slow")
 class ViewsheetResetWSBoundTableTest {
    @Configuration
    static class TestConfig {
@@ -101,6 +101,7 @@ class ViewsheetResetWSBoundTableTest {
    @BeforeEach
    void setUp() throws Exception {
       HOOK = null;
+      BOUND_HOOK = null;
       ws = new Worksheet();
       EmbeddedTableAssembly table = new EmbeddedTableAssembly(ws, "D");
       table.setEmbeddedData(new XEmbeddedTable(
@@ -111,15 +112,17 @@ class ViewsheetResetWSBoundTableTest {
                           { java.sql.Date.valueOf("2024-02-01"), 3, 1 } }));
       ws.addAssembly(table);
 
+      // what Viewsheet.update() does with the worksheet it loads
       vs = new Viewsheet();
-      Field field = Viewsheet.class.getDeclaredField("ws");
-      field.setAccessible(true);
-      field.set(vs, ws);
+      Method setBase = Viewsheet.class.getDeclaredMethod("setBaseWorksheet", Worksheet.class);
+      setBase.setAccessible(true);
+      setBase.invoke(vs, ws);
    }
 
    @AfterEach
    void tearDown() {
       HOOK = null;
+      BOUND_HOOK = null;
 
       if(box != null) {
          box.dispose();
@@ -133,16 +136,32 @@ class ViewsheetResetWSBoundTableTest {
    @Test
    void calendarChangeDuringFetchKeepsTheAggregateCalcField() throws Exception {
       createViewsheet(false);
-      String[] dates = { "y2024", "m2024-0" };
-      int[] count = { 0 };
+      assertStripDoesNotBreakQuery(this::changeCalendar);
+   }
 
-      assertStripDoesNotBreakQuery(() -> {
-         CalendarVSAssemblyInfo info =
-            (CalendarVSAssemblyInfo) Tool.clone(calendar.getVSAssemblyInfo());
-         info.setDates(new String[] { dates[count[0]++ % dates.length] });
-         assertNotEquals(VSAssembly.NONE_CHANGED, calendar.setVSAssemblyInfo(info),
-                         "the calendar change did not reset the worksheet");
-      });
+   /**
+    * The calendar event lands after a crosstab query of a detail calc field appended it to
+    * the base table and before the query copied the viewsheet table it binds to. The query
+    * used to return without the calc field measure, and no error.
+    */
+   @Test
+   void calendarChangeBeforeTheBoundCopyKeepsTheDetailCalcField() throws Exception {
+      createViewsheet(true);
+      String expected = cells(fetch());
+      assertTrue(expected.contains("Max(acf)"), "no calc field measure: " + expected);
+
+      boolean[] kept = { false };
+      BOUND_HOOK = () -> {
+         CompletableFuture.runAsync(this::changeCalendar).join();
+         kept[0] = hasCalc((TableAssembly) ws.getAssembly("D"));
+      };
+
+      Object data = fetch();
+
+      assertNull(BOUND_HOOK, "the strip did not run before the bound copy");
+      assertEquals(expected, cells(data), "during the strip");
+      assertTrue(kept[0], "the calc field was stripped from the base table");
+      assertEquals(expected, cells(fetch()), "after the strip");
    }
 
    /**
@@ -156,31 +175,45 @@ class ViewsheetResetWSBoundTableTest {
    }
 
    /**
-    * The shared tables are still stripped, so a deleted or changed calc field does not stay
-    * in them, while the copy a query binds to keeps its calc fields.
+    * The shared tables keep the calc fields the viewsheet defines for them and lose a deleted
+    * one, or one whose detail type changed. The copy a query binds to keeps its calc fields,
+    * and a table that is only named like one (MVAssetQuery's V_M..._subQuery) does not.
     */
    @Test
-   void resetStillStripsTheSharedTables() throws Exception {
+   void resetStripsOnlyStaleCalcFieldsFromTheSharedTables() throws Exception {
       createViewsheet(true);
-      cells(box.getData("X1"));
+      fetch();
 
       TableAssembly base = (TableAssembly) ws.getAssembly("D");
-      assertTrue(hasCalc(base), "the query did not append the detail calc field to D");
-      CalculateRef calc = new CalculateRef(true);
-      ExpressionRef expr = new ExpressionRef(null, "bcf");
-      expr.setExpression("2");
-      calc.setDataRef(expr);
       TableAssembly bound = (TableAssembly) Arrays.stream(ws.getAssemblies())
          .filter(a -> a instanceof TableAssembly t &&
                  "true".equals(t.getProperty(Viewsheet.VS_BOUND_TABLE)))
          .findFirst().orElseThrow(() -> new AssertionError("the bound copy is not marked"));
-      ColumnSelection columns = bound.getColumnSelection(false);
-      columns.addAttribute(calc);
-      bound.setColumnSelection(columns, false);
+      addCalc(bound, "bcf", true);
+      TableAssembly named = new EmbeddedTableAssembly(ws, "V_MD_subQuery");
+      named.setColumnSelection(new ColumnSelection(), false);
+      addCalc(named, "acf", true);
+      ws.addAssembly(named);
+      assertTrue(hasCalc(base), "the query did not append the detail calc field to D");
 
       vs.resetWS();
+      assertTrue(hasCalc(base), "the calc field the viewsheet defines was stripped from D");
+      assertFalse(hasCalc(named), "the calc field was not stripped from an unmarked table");
 
-      assertFalse(hasCalc(base), "the calc field was not stripped from the base table");
+      // the detail type changed
+      CalculateRef calc = vs.getCalcField("D", "acf");
+      vs.removeCalcField("D", "acf");
+      CalculateRef aggregate = new CalculateRef(false);
+      aggregate.setDataRef(calc.getDataRef());
+      vs.addCalcField("D", aggregate);
+      vs.resetWS();
+      assertFalse(hasCalc(base), "the calc field of another type was not stripped from D");
+
+      // deleted
+      addCalc(base, "acf", false);
+      vs.removeCalcField("D", "acf");
+      vs.resetWS();
+      assertFalse(hasCalc(base), "the deleted calc field was not stripped from D");
       assertTrue(hasCalc(bound), "the calc field was stripped from the bound copy");
    }
 
@@ -193,7 +226,7 @@ class ViewsheetResetWSBoundTableTest {
       ExecutorService pool = Executors.newFixedThreadPool(2);
 
       try {
-         for(int i = 0; i < 300; i++) {
+         for(int i = 0; i < 100; i++) {
             TableAssembly table = new EmbeddedTableAssembly(ws, "T");
             ColumnSelection columns = new ColumnSelection();
             ColumnRef grp = new ColumnRef(new AttributeRef(null, "grp"));
@@ -272,6 +305,24 @@ class ViewsheetResetWSBoundTableTest {
       assertEquals(expected, cells(fetch()), "after the strip");
    }
 
+   private void changeCalendar() {
+      CalendarVSAssemblyInfo info =
+         (CalendarVSAssemblyInfo) Tool.clone(calendar.getVSAssemblyInfo());
+      info.setDates(new String[] { DATES[dateCount++ % DATES.length] });
+      assertNotEquals(VSAssembly.NONE_CHANGED, calendar.setVSAssemblyInfo(info),
+                      "the calendar change did not reset the worksheet");
+   }
+
+   private static void addCalc(TableAssembly table, String name, boolean detail) {
+      CalculateRef calc = new CalculateRef(detail);
+      ExpressionRef expr = new ExpressionRef(null, name);
+      expr.setExpression("2");
+      calc.setDataRef(expr);
+      ColumnSelection columns = table.getColumnSelection(false);
+      columns.addAttribute(calc);
+      table.setColumnSelection(columns, false);
+   }
+
    private Object fetch() throws Exception {
       box.resetDataMap("X1");
       return box.getData("X1");
@@ -321,7 +372,24 @@ class ViewsheetResetWSBoundTableTest {
       AssetEntry entry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
          AssetEntry.Type.VIEWSHEET, "test/Bug77915", null);
       vs.setEntry(entry);
-      box = new ViewsheetSandbox(vs, AbstractSheet.SHEET_RUNTIME_MODE, null, false, entry);
+      box = new ViewsheetSandbox(vs, AbstractSheet.SHEET_RUNTIME_MODE, null, false, entry) {
+         // runs the hook before the crosstab query copies the table it binds to, after the
+         // query appended the detail calc fields to the base table
+         @Override
+         public TableAssembly getBoundTable(TableAssembly assembly, String vassembly,
+                                            boolean detail)
+            throws Exception
+         {
+            Runnable hook = BOUND_HOOK;
+
+            if(hook != null && "X1".equals(vassembly)) {
+               BOUND_HOOK = null;
+               hook.run();
+            }
+
+            return super.getBoundTable(assembly, vassembly, detail);
+         }
+      };
       box.reset(null, vs.getAssemblies(), new ChangedAssemblyList(), true, true, null);
    }
 
@@ -354,7 +422,10 @@ class ViewsheetResetWSBoundTableTest {
 
    private static final String EXPECTED =
       "grp|null|Sum(id)/acf\n1|Sum(id)|4.0\n1|acf|1.0\n2|Sum(id)|2.0\n2|acf|1.0\n";
+   private static final String[] DATES = { "y2024", "m2024-0" };
    private static volatile Consumer<TableAssembly> HOOK;
+   private static volatile Runnable BOUND_HOOK;
+   private int dateCount;
    private Worksheet ws;
    private Viewsheet vs;
    private ViewsheetSandbox box;

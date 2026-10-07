@@ -466,13 +466,15 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
                continue;
             }
 
+            CalculateRef[] calcs = getCalcFields(table.getName());
             List<DataRef> newCols = cols.stream()
                // @by stephenwebster, For Bug #9172
                // Avoid removing attributes from dynamically created assemblies
                // as this may cause the assembly to fail since it cannot find the
                // calculated field.
                .filter(col -> !(col instanceof CalculateRef) ||
-                  "true".equals(table.getProperty("output.temp.table")))
+                  "true".equals(table.getProperty("output.temp.table")) ||
+                  isCurrentCalcField((CalculateRef) col, calcs))
                .collect(Collectors.toList());
 
             if(newCols.size() != cols.getAttributeCount()) {
@@ -523,6 +525,28 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       }
 
       this.varmap = varmap;
+   }
+
+   /**
+    * Check if a calc field in a worksheet table is still defined for the table. Only a deleted
+    * or renamed calc field (or one whose detail type changed) is removed from the table: a
+    * query appends the current calc fields to the table and replaces an edited one by name,
+    * and may be reading the table now without the sandbox lock (77915).
+    */
+   private static boolean isCurrentCalcField(CalculateRef col, CalculateRef[] calcs) {
+      if(calcs == null) {
+         return false;
+      }
+
+      for(CalculateRef calc : calcs) {
+         if(Objects.equals(calc.getName(), col.getName()) &&
+            calc.isBaseOnDetail() == col.isBaseOnDetail())
+         {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    private void addCalcRefs(TableAssembly table) {
