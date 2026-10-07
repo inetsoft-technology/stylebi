@@ -213,6 +213,22 @@ describe("VSRangeSlider – refresh while the range is being changed (Bug #77917
          expect(ctx.comp.leftHandlePosition).toBeCloseTo(3 * TICK);
       });
 
+      it("sends the release range of a middle handle drag when a refresh arrives mid-drag", () => {
+         create({ selectStart: 0, selectEnd: 2 });
+         press(ctx.comp.handleType.Middle, 100);
+         move(100 + TICK);
+         refresh({ selectStart: 0, selectEnd: 3 });
+         expect(shown()).toBe("1-3");
+
+         move(100 + 2 * TICK);
+         release();
+
+         expect(sent()).toEqual(["2-4"]);
+         expect(shown()).toBe("2-4");
+         expect(ctx.comp.leftHandlePosition).toBeCloseTo(2 * TICK);
+         expect(ctx.comp.rightHandlePosition).toBeCloseTo(4 * TICK);
+      });
+
       it("keeps the refreshed range when the drag ends where it started", () => {
          press(ctx.comp.handleType.Left, 100);
          move(100 + TICK);
