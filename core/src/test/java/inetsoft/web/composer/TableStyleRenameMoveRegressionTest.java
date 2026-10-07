@@ -30,7 +30,6 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.sync.RenameTransformHandler;
-import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.util.Catalog;
 import inetsoft.web.composer.model.ChangeAssetEvent;
 import inetsoft.web.composer.model.RenameAssetEvent;
@@ -282,9 +281,7 @@ class TableStyleRenameMoveRegressionTest {
 
    private RenameAssetController renameController() throws Exception {
       return new RenameAssetController(repo, SUtil.getRepletRepository(), vsService(),
-                                       mock(SecurityProvider.class),
-                                       LibManagerProvider.getInstance(),
-                                       mock(DataSourceRegistry.class));
+                                       LibManagerProvider.getInstance());
    }
 
    private static ViewsheetService vsService() throws Exception {
