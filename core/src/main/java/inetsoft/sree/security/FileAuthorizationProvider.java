@@ -326,8 +326,15 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
          pair -> {
             String key = pair.getKey();
             int delimiter = key.indexOf(":");
+            ResourceType type = delimiter < 0 ? null : parseResourceType(key.substring(0, delimiter));
 
-            ResourceType type = ResourceType.valueOf(key.substring(0, delimiter));
+            // Bug #77911, a key that can't be parsed (kept by the migration in init()) is skipped,
+            // or it would break every caller, like the organization delete and identity rename
+            if(type == null) {
+               logUnparsableKey(key);
+               return null;
+            }
+
             String path = key.substring(delimiter + 1);
             delimiter = path.indexOf(":");
             String orgID = null;
@@ -340,7 +347,29 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
             return new Tuple4<>(type, orgID, path, pair.getValue());
          };
 
-      return storage.stream().map(mapper).collect(Collectors.toList());
+      return storage.stream().map(mapper).filter(Objects::nonNull).collect(Collectors.toList());
+   }
+
+   private static ResourceType parseResourceType(String name) {
+      try {
+         return ResourceType.valueOf(name);
+      }
+      catch(IllegalArgumentException e) {
+         return null;
+      }
+   }
+
+   /**
+    * Logs a permission key that can't be parsed. init() already warns about it on each start and
+    * the permissions are listed on every identity change, so a key is warned about only once.
+    */
+   private void logUnparsableKey(String key) {
+      if(unparsableKeys.add(key)) {
+         LOG.warn("Ignoring the permission {}, its key has no valid resource type", key);
+      }
+      else {
+         LOG.debug("Ignoring the permission {}, its key has no valid resource type", key);
+      }
    }
 
    /**
@@ -416,7 +445,10 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
       for(Tuple4<ResourceType, String, String, Permission> permissionSet : getPermissions()) {
          String resourceOrgID = permissionSet.getSecond();
 
-         if(resourceOrgID != null && !Tool.equals(resourceOrgID, orgId)) {
+         // Bug #77911, a legacy key without an organization is skipped. Removing it by a null
+         // organization would remove the current or default organization's key instead, and the
+         // key is moved to its organizations the next time the storage is opened.
+         if(resourceOrgID == null || !Tool.equals(resourceOrgID, orgId)) {
             continue;
          }
 
@@ -585,6 +617,7 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
    }
 
    private KeyValueStorage<Permission> storage;
+   private final Set<String> unparsableKeys = ConcurrentHashMap.newKeySet();
    private static final Logger LOG = LoggerFactory.getLogger(FileAuthorizationProvider.class);
 
    private static final class LoadPermissionsTask extends LoadKeyValueTask<Permission> {
