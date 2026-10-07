@@ -246,11 +246,22 @@ public class CalendarPropertyDialogService {
       info.setTitleVisibleValue(titlePropPaneModel.isVisible());
       info.setTitleValue(titlePropPaneModel.getTitle());
 
-      Dimension shownSize =
-         new Dimension(dialogService.getAssemblySize(info, viewsheet.getViewsheet()));
-      VSDialogService.applyDensitySize(info, sizePositionPaneModel);
-      dialogService.setAssemblySize(info, sizePositionPaneModel);
-      VSDialogService.recordAuthorSize(info, sizePositionPaneModel, shownSize);
+      // the dialog resizes the box itself on a show type or view mode switch, so that size is
+      // neither reset to the density size nor recorded as the author's
+      boolean switched = calendarAdvancedPaneModel.getShowType() != info.getShowTypeValue() ||
+         calendarAdvancedPaneModel.getViewMode() != info.getViewModeValue();
+
+      if(switched) {
+         dialogService.setAssemblySize(info, sizePositionPaneModel);
+      }
+      else {
+         Dimension shownSize =
+            new Dimension(dialogService.getAssemblySize(info, viewsheet.getViewsheet()));
+         VSDialogService.applyDensitySize(info, sizePositionPaneModel);
+         dialogService.setAssemblySize(info, sizePositionPaneModel);
+         VSDialogService.recordAuthorSize(info, sizePositionPaneModel, shownSize);
+      }
+
       dialogService.setAssemblyPosition(info, sizePositionPaneModel);
       Boolean followsDensity = sizePositionPaneModel.getTitleHeightFollowsDensity();
 
