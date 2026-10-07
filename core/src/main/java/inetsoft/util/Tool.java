@@ -1092,6 +1092,105 @@ public final class Tool extends CoreTool {
    }
 
    /**
+    * Make free user text (a script, expression, label, title, description, tooltip,
+    * alias or name) safe to write between {@code <![CDATA[} and {@code ]]>}. This is
+    * lossy: each character XML 1.0 can't carry (see {@link #hasXMLIllegalChars}) becomes
+    * one space, then {@code ]]>} is split as in {@link #splitCDATAEnd}. TAB, LF, CR, C1
+    * controls and DEL are kept. A string with neither is returned unchanged. No reader
+    * change is needed. Use {@link #cdataDataAttr} and {@link #cdataData} instead for a
+    * value that must be restored exactly.
+    *
+    * @param str the string to write in a CDATA section.
+    *
+    * @return the CDATA-safe string, or null if str is null.
+    */
+   public static String cdataText(String str) {
+      return splitCDATAEnd(replaceXMLIllegalChars(str));
+   }
+
+   /**
+    * Replace each character XML 1.0 can't carry (see {@link #hasXMLIllegalChars}) with
+    * one space. TAB, LF, CR, C1 controls and DEL are kept.
+    *
+    * @param str the string.
+    *
+    * @return the string with the characters replaced, the same string if it has none,
+    *         or null if str is null.
+    */
+   public static String replaceXMLIllegalChars(String str) {
+      if(!hasXMLIllegalChars(str)) {
+         return str;
+      }
+
+      StringBuilder buf = new StringBuilder(str);
+
+      for(int i = 0; i < buf.length(); i++) {
+         if(isXMLIllegalChar(buf.charAt(i))) {
+            buf.setCharAt(i, ' ');
+         }
+      }
+
+      return buf.toString();
+   }
+
+   /**
+    * The marker attribute to put inside the start tag of the element that holds
+    * {@link #cdataData cdataData(str)}: {@code ctrlEncoded="true"} (with a leading space)
+    * when the value holds a character XML 1.0 can't carry, otherwise an empty string.
+    *
+    * @param str the value written by {@link #cdataData}.
+    *
+    * @return the attribute text, or an empty string.
+    */
+   public static String cdataDataAttr(String str) {
+      return hasXMLIllegalChars(str) ? " " + XML_ILLEGAL_CHARS_ATTR + "=\"true\"" : "";
+   }
+
+   /**
+    * Make a data value (a selected value, list value or alias key that is matched with
+    * data) safe to write between {@code <![CDATA[} and {@code ]]>}, losslessly. If the
+    * value holds a character XML 1.0 can't carry, it is encoded with
+    * {@link #encodeXMLIllegalChars}; the element must then carry
+    * {@link #cdataDataAttr cdataDataAttr(str)} and be read with {@link #getCDATAData}.
+    * {@code ]]>} is split as in {@link #splitCDATAEnd}. Other text is returned unchanged.
+    *
+    * @param str the value to write in a CDATA section.
+    *
+    * @return the CDATA-safe string, or null if str is null.
+    */
+   public static String cdataData(String str) {
+      return splitCDATAEnd(hasXMLIllegalChars(str) ? encodeXMLIllegalChars(str) : str);
+   }
+
+   /**
+    * Read a value written with {@link #cdataDataAttr} and {@link #cdataData}. The text is
+    * read with {@link #getValue(Node)} and decoded with {@link #decodeXMLIllegalChars}
+    * only when the element carries the marker attribute, so unmarked (older) values are
+    * returned exactly as stored.
+    *
+    * @param node the element holding the value.
+    *
+    * @return the value, or null if there is none.
+    */
+   public static String getCDATAData(Node node) {
+      String value = getValue(node);
+
+      if(value != null && node instanceof Element &&
+         "true".equals(((Element) node).getAttribute(XML_ILLEGAL_CHARS_ATTR)))
+      {
+         value = decodeXMLIllegalChars(value);
+      }
+
+      return value;
+   }
+
+   /**
+    * The marker attribute on an element whose CDATA text was encoded by
+    * {@link #cdataData}.
+    */
+   public static final String XML_ILLEGAL_CHARS_ATTR = "ctrlEncoded";
+
+   /**
     * Encode the characters that XML 1.0 can't carry (see {@link #hasXMLIllegalChars})
     * so the string can be written to XML. Each such character becomes a backslash, 'u'
     * and four hex digits, and each backslash is doubled, so

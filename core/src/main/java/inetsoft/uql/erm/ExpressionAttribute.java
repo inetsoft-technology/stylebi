@@ -124,8 +124,8 @@ public class ExpressionAttribute extends XAttribute {
       // the description is free text, so write it in CDATA (with any ]]> split) so that
       // characters such as & and < don't make the logical model unreadable
       writer.println("<description>" + (desc == null || desc.isEmpty() ? "" :
-         "<![CDATA[" + Tool.splitCDATAEnd(desc) + "]]>") + "</description>");
-      writer.println("<expr><![CDATA[" + Tool.splitCDATAEnd(getExpression()) + "]]></expr>");
+         "<![CDATA[" + Tool.cdataText(desc) + "]]>") + "</description>");
+      writer.println("<expr><![CDATA[" + Tool.cdataText(getExpression()) + "]]></expr>");
 
       if(getBrowseDataQuery() != null) {
          writer.print("<browseDataQuery>");

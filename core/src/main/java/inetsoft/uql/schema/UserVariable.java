@@ -427,13 +427,14 @@ public class UserVariable extends XVariable {
             writer.print("<choice><item>");
 
             if(choices[i] != null) {
-               writer.print("<![CDATA[" + choices[i] + "]]>");
+               writer.print("<![CDATA[" + Tool.cdataText(String.valueOf(choices[i])) + "]]>");
             }
 
-            writer.print("</item><value>");
+            String str = values[i] == null ? null : String.valueOf(values[i]);
+            writer.print("</item><value" + Tool.cdataDataAttr(str) + ">");
 
-            if(values[i] != null) {
-               writer.print("<![CDATA[" + values[i] + "]]>");
+            if(str != null) {
+               writer.print("<![CDATA[" + Tool.cdataData(str) + "]]>");
             }
 
             writer.println("</value></choice>");
@@ -520,7 +521,7 @@ public class UserVariable extends XVariable {
 
                if(name.getLength() > 0 && value.getLength() > 0) {
                   choices[k] = Tool.getValue(name.item(0));
-                  values[k] = Tool.getValue(value.item(0));
+                  values[k] = Tool.getCDATAData(value.item(0));
                   values[k] = Tool.getData(getTypeNode().getType(), values[k]);
                }
             }

@@ -497,11 +497,11 @@ public class TableCellBinding extends GroupableCellBinding {
       }
 
       if(formula != null) {
-         writer.print("<formula><![CDATA[" + Tool.splitCDATAEnd(formula) + "]]></formula>");
+         writer.print("<formula><![CDATA[" + Tool.cdataText(formula) + "]]></formula>");
       }
 
       if(expression != null) {
-         writer.print("<expression><![CDATA[" + Tool.splitCDATAEnd(expression) + "]]></expression>");
+         writer.print("<expression><![CDATA[" + Tool.cdataText(expression) + "]]></expression>");
       }
 
       if(orderInfo != null) {

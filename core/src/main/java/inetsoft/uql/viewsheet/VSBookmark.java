@@ -426,8 +426,8 @@ public class VSBookmark implements XMLSerializable {
          String val = Encoder.encodeAsciiHex(bytes);
 
          writer.println("<bookmark>");
-         writer.print("<name>");
-         writer.print("<![CDATA[" + key + "]]>");
+         writer.print("<name" + Tool.cdataDataAttr(key) + ">");
+         writer.print("<![CDATA[" + Tool.cdataData(key) + "]]>");
          writer.println("</name>");
          writer.print("<value>");
          writer.print("<![CDATA[" + val + "]]>");
@@ -483,7 +483,7 @@ public class VSBookmark implements XMLSerializable {
          Element createTimeNode =
                  Tool.getChildNodeByTagName(bnode, "createTime");
 
-         String name = Tool.getValue(nnode);
+         String name = Tool.getCDATAData(nnode);
 
          // for BC, remove the old initalize bookmark status
          if("__DEFAULT_BOOKMARK__".equals(name)) {

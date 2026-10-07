@@ -1673,13 +1673,13 @@ public class AssetEntry implements AssetObject, Comparable<AssetEntry>, DataSeri
 
       if(!compact && alias != null && alias.length() != 0) {
          writer.print("<alias>");
-         writer.print("<![CDATA[" + Tool.splitCDATAEnd(alias) + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(alias) + "]]>");
          writer.println("</alias>");
       }
 
       if(!compact) {
          writer.print("<description>");
-         writer.print("<![CDATA[" + Tool.splitCDATAEnd(getDescription()) + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(getDescription()) + "]]>");
          writer.println("</description>");
 
          if(favoritesUser != null) {
@@ -1792,11 +1792,11 @@ public class AssetEntry implements AssetObject, Comparable<AssetEntry>, DataSeri
       for(String key : prop.keySet()) {
          writer.println("<property>");
          writer.print("<key>");
-         writer.print("<![CDATA[" + Tool.splitCDATAEnd(key) + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(key) + "]]>");
          writer.print("</key>");
          String val = prop.get(key);
          writer.print("<value>");
-         writer.print("<![CDATA[" + Tool.splitCDATAEnd(val) + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(val) + "]]>");
          writer.print("</value>");
          writer.println("</property>");
       }

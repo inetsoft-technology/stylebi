@@ -71,4 +71,28 @@ class ViewsheetAssetAliasCdataTest {
       new ViewsheetAsset(imported).parseContent0(doc.getDocumentElement());
       assertEquals(alias, imported.getAlias());
    }
+
+   /**
+    * Bug #77892: a control character in the alias is written as a space instead of making the
+    * exported entry unreadable.
+    */
+   @Test
+   void exportedAliasHoldingControlCharacterIsReadBack() throws Exception {
+      AssetEntry entry = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET,
+                                        "vs77892", null,
+                                        OrganizationManager.getInstance().getCurrentOrgID());
+      entry.setAlias("Q1\u0001Q2\t]]>");
+      StringWriter buf = new StringWriter();
+      PrintWriter writer = new PrintWriter(buf);
+      new ViewsheetAsset(entry).writeContent0(new Viewsheet(), writer);
+      writer.flush();
+
+      Document doc = Tool.parseXML(
+         new ByteArrayInputStream(buf.toString().getBytes(StandardCharsets.UTF_8)));
+      AssetEntry imported = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+                                           AssetEntry.Type.VIEWSHEET, "vs77892", null,
+                                           entry.getOrgID());
+      new ViewsheetAsset(imported).parseContent0(doc.getDocumentElement());
+      assertEquals("Q1 Q2\t]]>", imported.getAlias());
+   }
 }

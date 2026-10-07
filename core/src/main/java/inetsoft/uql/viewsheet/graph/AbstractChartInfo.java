@@ -2479,7 +2479,7 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
 
       if(customTooltip != null) {
          writer.println("<customTooltip><![CDATA[");
-         writer.println(customTooltip);
+         writer.println(Tool.cdataText(customTooltip));
          writer.println("]]></customTooltip>");
       }
 

@@ -946,7 +946,7 @@ public class XLogicalModel
       if(description != null) {
          writer.println("<Description>");
          writer.print("<![CDATA[");
-         writer.print(Tool.splitCDATAEnd(description));
+         writer.print(Tool.cdataText(description));
          writer.println("]]>");
          writer.println("</Description>");
       }
