@@ -29,6 +29,12 @@ public abstract class ImportTaskResponse {
    @Nullable
    public abstract List<String> failedTasks();
 
+   /**
+    * Warnings about tasks that were imported, e.g. stored passwords that were cleared. A warning
+    * does not mark the import as failed.
+    */
+   public abstract List<String> warnings();
+
    @Value.Default
    public boolean failed() { return false; }
 

@@ -24,6 +24,7 @@ import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
+import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.admin.model.FileData;
 import inetsoft.web.admin.schedule.model.*;
@@ -138,6 +139,7 @@ public class ImportTaskController {
    {
       HttpSession session = request.getSession(true);
       List<String> failedList = new ArrayList<>();
+      List<String> warnings = new ArrayList<>();
 
       List<ScheduleTask> tasklist = (ArrayList<ScheduleTask>)session.getAttribute(INFO_ATTR);
       session.removeAttribute(INFO_ATTR);
@@ -216,12 +218,18 @@ public class ImportTaskController {
 
             // Bug #77936, a stored password in the file is only kept for the server and user
             // that the replaced task already uses it for, the same as the task editor
-            if(!identityChecker.isUnrestricted(principal)) {
+            List<String> clearedPaths = identityChecker.isUnrestricted(principal) ?
+               Collections.emptyList() :
                ScheduleImportPasswordChecker.clearUnboundPasswords(task, oldTask);
-            }
 
             updateTaskInfo(task, linkURI);
             scheduleManager.setScheduleTask(taskId, task, principal);
+
+            // Bug #77950, tell the user that the saved task needs its passwords re-entered
+            if(!clearedPaths.isEmpty()) {
+               warnings.add(Catalog.getCatalog(principal).getString(
+                  "em.import.task.passwordsCleared", task.getName()));
+            }
 
             if(move) {
                moveTask(task, path, principal);
@@ -231,6 +239,7 @@ public class ImportTaskController {
 
       return ImportTaskResponse.builder()
               .failedTasks(failedList)
+              .warnings(warnings)
               .build();
    }
 
