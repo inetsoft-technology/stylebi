@@ -55,9 +55,18 @@ public interface XSerializable extends Serializable {
    public boolean isSerializable();
 
    /**
-    * Swap data to file.
+    * Swap data to file. The caller invalidates the serializable once the whole file is
+    * written.
     */
    public void swap(File file, FileChannel fc) throws Exception;
+
+   /**
+    * Check if the data of this serializable is in its swap file, so it may be invalidated.
+    * @return <tt>true</tt> if the data was written to the swap file.
+    */
+   public default boolean hasSwapData() {
+      return true;
+   }
 
    /**
     * Clear out the internal array (after swapping).
