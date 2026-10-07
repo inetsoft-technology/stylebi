@@ -214,6 +214,12 @@ public class ImportTaskController {
                continue;
             }
 
+            // Bug #77936, a stored password in the file is only kept for the server and user
+            // that the replaced task already uses it for, the same as the task editor
+            if(!identityChecker.isUnrestricted(principal)) {
+               ScheduleImportPasswordChecker.clearUnboundPasswords(task, oldTask);
+            }
+
             updateTaskInfo(task, linkURI);
             scheduleManager.setScheduleTask(taskId, task, principal);
 

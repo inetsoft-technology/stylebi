@@ -26,6 +26,7 @@ import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.internal.AssetFolder;
 import inetsoft.util.IndexedStorage;
 import inetsoft.util.Tool;
+import inetsoft.web.admin.schedule.ScheduleImportPasswordChecker;
 import inetsoft.web.admin.schedule.ScheduleTaskIdentityChecker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -275,6 +276,7 @@ public class ScheduleTaskAsset extends AbstractXAsset {
    public synchronized void parseContent(InputStream input, XAssetConfig config, boolean isImport, boolean isSiteAdmin)
       throws Exception
    {
+      clearedPasswordPaths = Collections.emptyList();
       Element elem = Tool.parseXML(input).getDocumentElement();
       IndexedStorage indexedStorage = IndexedStorage.getIndexedStorage();
       Element folders = Tool.getChildNodeByTagName(elem, "folders");
@@ -357,6 +359,13 @@ public class ScheduleTaskAsset extends AbstractXAsset {
       ScheduleTask existing = manager.getScheduleTask(newTask.getTaskId());
 
       if(overwriting || existing == null) {
+         // Bug #77936, a stored password in the file is only kept for the server and user that
+         // the replaced task already uses it for, the same as the task editor
+         if(restrictedImporter != null) {
+            clearedPasswordPaths = ScheduleImportPasswordChecker.clearUnboundPasswords(
+               newTask, existing);
+         }
+
          // Bug #77549, #77863, every refusal of the save (as the owner principal it's saved as)
          // is made before the stored task is removed, so it isn't lost
          manager.checkScheduleTaskSave(newTask.getTaskId(), newTask, principal);
@@ -587,8 +596,17 @@ public class ScheduleTaskAsset extends AbstractXAsset {
       this.restrictedImporter = principal;
    }
 
+   /**
+    * Bug #77936, gets the save-to-server paths whose stored password was cleared by the last
+    * import, because the replaced task didn't use it for the same server and user.
+    */
+   public List<String> getClearedPasswordPaths() {
+      return clearedPasswordPaths;
+   }
+
    private String task;
    private IdentityID user;
    private transient Principal restrictedImporter;
+   private transient List<String> clearedPasswordPaths = Collections.emptyList();
    private static final Logger LOG = LoggerFactory.getLogger(ScheduleTaskAsset.class);
 }
