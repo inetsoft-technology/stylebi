@@ -297,34 +297,73 @@ public class PageGroup extends XSwappable {
       }
 
       getSwapper().waitForMemory();
-      valid = true;
+      ObjectInputStream in = null;
+      InputStream input = null;
+      boolean done = false;
 
+      // the group is valid only after the whole file is read. a failed read leaves it invalid,
+      // so swap() can not rewrite the swap file from the pages that were not read (bug #77984)
       try {
-         InputStream input = new FileInputStream(swapfile);
+         input = new FileInputStream(swapfile);
          input = Tool.createUncompressInputStream(input);
-         ObjectInputStream in = new ObjectInputStream(new BufferedInputStream(input));
+         in = new ObjectInputStream(new BufferedInputStream(input));
 
          for(int i = 0; i < count; i++) {
             pages[i].restore(in, false);
          }
 
          userObj = in.readObject();
-         in.close();
 
          if(isCountRW) {
             monitor.countRead(swapfile.length(), XSwappableMonitor.SHEET);
          }
-      }
-      catch(OptionalDataException ex) {
-         LOG.error("Failed to restore pages: " + ex.length + " eof: " + ex.eof, ex);
+
+         valid = true;
+         done = true;
       }
       catch(Exception ex) {
-         LOG.error("Failed to validate pages", ex);
+         throw new SwapFileReadException(swapfile, ex);
       }
       finally {
+         try {
+            if(in != null) {
+               in.close();
+            }
+            else if(input != null) {
+               input.close();
+            }
+         }
+         catch(Throwable ex) {
+            // ignore it
+         }
+
+         // put every page back to its swapped state, so a retry reads the whole file again
+         // in step with the pages
+         if(!done) {
+            resetRestored();
+         }
+
          // clear object cache when reading objects over
          ObjectCache.clear();
       }
+   }
+
+   /**
+    * Drop the data restored by a failed read. The pages and the user object are all in the
+    * swap file.
+    */
+   private void resetRestored() {
+      for(int i = 0; i < count; i++) {
+         try {
+            // clears a swapped page that is in memory, see the reuse path of swap0()
+            pages[i].swap(null, false);
+         }
+         catch(Throwable ex) {
+            LOG.warn("Failed to clear a page after a failed read", ex);
+         }
+      }
+
+      userObj = null;
    }
 
    /**
@@ -343,9 +382,17 @@ public class PageGroup extends XSwappable {
          return;
       }
 
+      Throwable failure = null;
+
       // if not to dispose style pages, we need to restore them first
       if(!removal) {
-         access(-1);
+         try {
+            access(-1);
+         }
+         catch(Throwable ex) {
+            // still dispose the group and delete the swap file
+            failure = ex;
+         }
       }
 
       disposed = true;
@@ -362,6 +409,13 @@ public class PageGroup extends XSwappable {
       }
 
       swapfile = null;
+
+      if(failure instanceof Error) {
+         throw (Error) failure;
+      }
+      else if(failure != null) {
+         LOG.warn("Failed to restore pages before disposing them", failure);
+      }
    }
 
    /**
