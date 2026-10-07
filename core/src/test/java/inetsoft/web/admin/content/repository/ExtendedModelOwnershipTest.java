@@ -327,6 +327,43 @@ class ExtendedModelOwnershipTest {
       assertEquals(List.of("p/q"), portalExtendedViews("pP", "v"));
    }
 
+   // the same cases for a data source in a folder, whose path has "/" in it: the cross-type
+   // rename, the slash-named sibling, an unreadable entry with two possible owners and the
+   // portal names are told apart below the path of the data source, not the folder
+   @Test
+   void dataSourceInFolder() throws Exception {
+      registry.setDataSourceFolder(new DataSourceFolder("fF", LocalDateTime.now(), null));
+      String ds = "fF/fP";
+      seedSlashSiblings(ds);
+      XLogicalModel zy = new XLogicalModel("z/y");
+      zy.setConnection("connZY");
+      model(ds).getLogicalModel("Orders").addLogicalModel(zy, true);
+      setUnreadableEntry(AssetEntry.Type.EXTENDED_LOGIC_MODEL, ds + "/Orders/x/bad");
+
+      assertEquals(List.of("ext", "z/y"), extendedModels(ds, "Orders"));
+      assertEquals(List.of("e"), extendedModels(ds, "Orders/x"));
+      assertEquals(List.of("ext", "z/y"), portalExtendedModels(ds, "Orders"));
+      assertEquals("connZY", portalModel(ds, "Orders").getExtendModels().stream()
+         .filter(model -> "z/y".equals(model.getName())).findFirst().orElseThrow()
+         .getConnection());
+      assertEquals(List.of("pe"), portalExtendedViews(ds, "Orders"));
+      List<String> before = state("fF");
+
+      assertThrows(MessageException.class,
+                   () -> model(ds).renameLogicalModel("Orders", "O2", null));
+      assertEquals(before, state("fF"));
+
+      model(ds).renamePartition("Orders", "V2", null);
+
+      List<String> after = state("fF");
+      assertEquals(List.of("EXTENDED_PARTITION fF/fP/Orders/pe", "PARTITION fF/fP/Orders"),
+                   diff(before, after));
+      assertEquals(List.of("ext", "z/y"), extendedModels(ds, "Orders"));
+      assertEquals(List.of("e"), extendedModels(ds, "Orders/x"));
+      assertEquals(List.of("ye"), extendedViews(ds, "Orders/y"));
+      assertEquals(List.of("pe"), extendedViews(ds, "V2"));
+   }
+
    // control: without a shared name or "/" a rename and remove take everything of the model
    @Test
    void noSlashControl() {
