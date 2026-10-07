@@ -327,18 +327,18 @@ Run with the dashboard set to each tier in turn:
   and the bottom-tabs toggle recomputed it (`TabVSAssemblyInfo.java:460`, `:551`). So a density
   change left a resized calendar 32px into the tab strip at comfortable and 34px short of it at
   dense. Manual check MT-25 confirmed this in the composer and the viewer on 2026-10-07.
-  - **The fix:** `VizModernizeUtil.reseed` records each target's size before seeding. Afterwards,
-    any target whose size changed and that sits in a bottom-tabs container is re-flushed with
-    `TabVSAssemblyInfo.repositionChildForBottomTabs`, the helper the property-dialog path already
-    uses. A child whose size did not change keeps its position.
-  - **Also covers** a selection list in bottom tabs on a density change, since its size moves in
-    `seedChromeDefaults` inside the same re-seed.
+  - **The fix:** after seeding, `VizModernizeUtil.reseed` puts every child of each bottom-tabs
+    container back on its strip with `TabVSAssemblyInfo.repositionChildForBottomTabs`, the helper the
+    property-dialog path already uses. A bottom-tabs child belongs on its strip anyway, so a child
+    already there does not move.
+  - **Covers** a box the size rule resized, and a *dropdown* whose title lane moved: a dropdown is
+    placed by its lane (`getBottomTabChildHeight`), which follows density while its stored size does
+    not. Measured on the server before the fix, the dropdown drifted 4px into the strip at
+    comfortable and left a 6px gap at dense. That drift predates this slice; it is fixed here on the
+    user's request (2026-10-07).
+  - **Also covers** selection lists in bottom tabs on a density change, resized or dropdown alike.
   - **Not covered:** a selection list resized on open, Modernize or Revert, where its size rule also
     runs. That belongs to #6390's rule.
-  - **Not covered, and not caused by this slice:** a *dropdown* in bottom tabs is placed by its
-    title lane (`getBottomTabChildHeight`), which follows density at read time while its stored
-    size does not change. Measured on 2026-10-07: 4px into the strip at comfortable and a 6px gap at
-    dense, starting from flush at compact.
 - **Double calendars.**
   - One widened to 600, by the property dialog's view-mode switch (§2.2) or by the toggle, no
     longer follows density and gets no checkbox (D6). Switching it back halves it to 300, which
@@ -354,4 +354,3 @@ Run with the dashboard set to each tier in turn:
   need a model field, because the constant is also read on the server and by the composer layout.
 - **The weekday-header path split**, a stored-format change tracked on the roadmap as its own
   initiative.
-- **Re-aligning a bottom-tabs dropdown after a density change** (§7). This predates this slice.
