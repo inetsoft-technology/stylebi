@@ -230,6 +230,28 @@ class CalendarSizeFollowsDensityTest {
       assertTrue(result.isUserSize());
    }
 
+   // a Modernized legacy calendar opens ticked at 300x300; OK for another edit must not resize it
+   @Test
+   void okOnAnAlreadyTickedCalendarLeavesItsSize() throws Exception {
+      CalendarVSAssemblyInfo result =
+         save(calendar(VizMark.MODERN_LIGHT, new Dimension(300, 300)), Boolean.TRUE,
+              new Dimension(300, 300));
+
+      assertEquals(new Dimension(300, 300), result.getPixelSize());
+      assertFalse(result.isUserSize());
+   }
+
+   // after a ticked Apply the locked fields still hold the old size; OK must not write it back
+   @Test
+   void okAfterATickedApplyKeepsTheTierSize() throws Exception {
+      CalendarVSAssemblyInfo result =
+         save(calendar(VizMark.MODERN_LIGHT, new Dimension(300, 332)), Boolean.TRUE,
+              new Dimension(400, 500));
+
+      assertEquals(new Dimension(300, 332), result.getPixelSize());
+      assertFalse(result.isUserSize());
+   }
+
    private static CalendarVSAssemblyInfo calendar(VizMark mark, Dimension size) {
       CalendarVSAssemblyInfo info = new CalendarVSAssemblyInfo();
       info.setVizMark(mark);
@@ -262,9 +284,10 @@ class CalendarSizeFollowsDensityTest {
       throws Exception
    {
       when(calendarAssembly.getVSAssemblyInfo()).thenReturn(info);
-      doCallRealMethod().when(dialogService)
+      // a save that keeps a following box's size never writes it
+      lenient().doCallRealMethod().when(dialogService)
          .setAssemblySize(any(), any(SizePositionPaneModel.class));
-      doCallRealMethod().when(dialogService).setAssemblySize(any(), anyInt(), anyInt());
+      lenient().doCallRealMethod().when(dialogService).setAssemblySize(any(), anyInt(), anyInt());
 
       SizePositionPaneModel size = new SizePositionPaneModel();
       size.setSizeFollowsDensity(follows);
