@@ -61,6 +61,21 @@ public final class StallTestSupport {
       StallDumper.global().resetForTest();
    }
 
+   /**
+    * Clear the {@link StallPolicy} override and wait for a dump that is still being written.
+    * The global dumper resolves its directory and writes and closes the file inside the
+    * synchronized {@link StallDumper#dump(StallDumper.Kind, String)}. So after the override
+    * is cleared, a synchronized call on the global dumper returns only when a dump into the
+    * test's dump directory has closed its file, and any later dump goes to the default
+    * directory. A test with a {@code @TempDir} dump directory calls this in its tear-down so
+    * JUnit can delete the directory (bug #77562). The order matters: waiting first and then
+    * clearing the override leaves a window for a new dump into the test's directory.
+    */
+   public static void clearOverride() {
+      StallPolicy.setOverride(null);
+      StallDumper.global().getDumpCount();
+   }
+
    public static boolean isReader() {
       return READER.get();
    }

@@ -68,7 +68,7 @@ public class SummaryFilterStallTest {
       }
 
       pool.shutdownNow();
-      StallPolicy.setOverride(null);
+      StallTestSupport.clearOverride();
    }
 
    @Test

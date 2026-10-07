@@ -107,7 +107,7 @@ public class RelSlowSummaryCreditTest {
    @AfterEach
    public void tearDown() throws Exception {
       harness.close();
-      StallPolicy.setOverride(null);
+      StallTestSupport.clearOverride();
    }
 
    /**

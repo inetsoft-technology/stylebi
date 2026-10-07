@@ -61,7 +61,7 @@ public class CrossTabFilterStallTest {
       }
 
       pool.shutdownNow();
-      StallPolicy.setOverride(null);
+      StallTestSupport.clearOverride();
    }
 
    @Test

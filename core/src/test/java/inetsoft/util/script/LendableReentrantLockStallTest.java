@@ -19,6 +19,7 @@ package inetsoft.util.script;
 
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.stall.StallPolicy;
+import inetsoft.util.stall.StallTestSupport;
 import inetsoft.util.stall.WaitRecord;
 import inetsoft.util.stall.WaitRegistry;
 import org.junit.jupiter.api.*;
@@ -47,7 +48,7 @@ public class LendableReentrantLockStallTest {
    @AfterEach
    public void tearDown() {
       release.countDown();
-      StallPolicy.setOverride(null);
+      StallTestSupport.clearOverride();
    }
 
    @Test
