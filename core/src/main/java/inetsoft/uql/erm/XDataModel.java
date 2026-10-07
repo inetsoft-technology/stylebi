@@ -24,6 +24,7 @@ import inetsoft.uql.erm.vpm.VirtualPrivateModel;
 import inetsoft.uql.erm.vpm.VpmCondition;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.ConnectionProcessor;
+import inetsoft.uql.util.XUtil;
 import inetsoft.util.Tool;
 import inetsoft.util.XMLSerializable;
 import inetsoft.util.xml.XMLStorage.Filter;
@@ -160,6 +161,12 @@ public class XDataModel implements Cloneable, Serializable, XDomain,
     * @param newName the new name of the logical model.
     */
    public void renameLogicalModel(String oldName, String newName, String description) {
+      // Bug #77852: the rename writes the registry and starts the rename pipeline for any
+      // data model a script builds, so a script may not call it. Java callers still can
+      if(XUtil.isDirectScriptCall(XDataModel.class)) {
+         throw new java.lang.SecurityException("A script may not rename a logical model");
+      }
+
       XLogicalModel model = getLogicalModel(oldName);
 
       if(model != null) {

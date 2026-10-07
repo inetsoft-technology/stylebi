@@ -27,6 +27,7 @@ import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.schema.XVariable;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.ConnectionProcessor;
+import inetsoft.uql.util.XUtil;
 import inetsoft.util.*;
 import inetsoft.util.xml.XMLStorage.XMLFragment;
 import org.slf4j.Logger;
@@ -1485,6 +1486,11 @@ public class XLogicalModel
     * rename a child XLogicalModel.
     */
    public void renameLogicalModel(String oname, XLogicalModel extend) {
+      // Bug #77852: as XDataModel.renameLogicalModel
+      if(XUtil.isDirectScriptCall(XLogicalModel.class)) {
+         throw new java.lang.SecurityException("A script may not rename a logical model");
+      }
+
       XLogicalModel clone = (XLogicalModel) extend.clone();
       clone.setName(oname);
       DependencyHandler.getInstance().updateModelDependencies(clone, false);
