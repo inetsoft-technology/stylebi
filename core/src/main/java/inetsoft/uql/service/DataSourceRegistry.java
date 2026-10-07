@@ -1735,6 +1735,20 @@ public class DataSourceRegistry implements MessageListener {
     * "F/P/add". The parent path must resolve to a data source that supports additional
     * connections and that has an additional connection with the last path segment as its name.
     * A data source in a data source folder, e.g. "F/P", is not an additional connection.
+    * <p>
+    * If the parent can't be loaded (e.g. its stored definition is damaged), the decision is made
+    * from the stored entries instead (Bug #77772): the path is that of an additional connection
+    * if a data source entry is stored at the parent path, an entry is stored at the path, and it
+    * isn't the data source of a data source folder at the parent path
+    * ({@link #isFolderDataSourcePath(String, String)}). This is the structural rule the listings
+    * use, so:
+    * <ul>
+    *    <li>an entry whose parent entry is missing (an orphan) is not an additional connection;</li>
+    *    <li>an entry that can't be read is taken for an additional connection, as with a loaded
+    *    parent;</li>
+    *    <li>the parent's type isn't known, so a stored entry under a damaged parent of a type
+    *    without additional connections is also taken for one.</li>
+    * </ul>
     *
     * @param path the registry path.
     *
@@ -1751,10 +1765,20 @@ public class DataSourceRegistry implements MessageListener {
          return false;
       }
 
-      XDataSource parent = getDataSource(path.substring(0, index));
-      return parent instanceof AdditionalConnectionDataSource<?> ads &&
-         ads.containDatasource(path.substring(index + 1)) &&
-         !isFolderDataSourcePath(path.substring(0, index), path);
+      String parentPath = path.substring(0, index);
+      XDataSource parent = getDataSource(parentPath);
+
+      if(parent != null) {
+         return parent instanceof AdditionalConnectionDataSource<?> ads &&
+            ads.containDatasource(path.substring(index + 1)) &&
+            !isFolderDataSourcePath(parentPath, path);
+      }
+
+      return containObject(new AssetEntry(
+         AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE, parentPath, null)) &&
+         containObject(new AssetEntry(
+            AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE, path, null)) &&
+         !isFolderDataSourcePath(parentPath, path);
    }
 
    /**
