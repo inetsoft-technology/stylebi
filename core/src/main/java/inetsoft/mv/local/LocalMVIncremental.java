@@ -21,7 +21,9 @@ import inetsoft.mv.*;
 import inetsoft.mv.data.*;
 import inetsoft.mv.fs.*;
 import inetsoft.mv.fs.internal.CacheBlockFile;
+import inetsoft.report.TableLens;
 import inetsoft.report.composition.WorksheetWrapper;
+import inetsoft.report.composition.execution.AssetDataCache;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
@@ -175,6 +177,15 @@ public class LocalMVIncremental extends MVIncremental {
          MVBuilder builder = new MVBuilder(
             lens, mvdef, aggregated, storage.get(MVStorage.getFile(name)));
          MV nMV = builder.getMV();
+         Exception loadException = lens instanceof TableLens ?
+            AssetDataCache.getLoadException((TableLens) lens) : null;
+
+         // the query failed while its rows were read, don't append the rows read before the
+         // failure (Bug #77901)
+         if(loadException != null) {
+            throw new RuntimeException("MV incremental failed to read the query result, " +
+               "the data is not appended: " + loadException.getMessage(), loadException);
+         }
 
          // 8. dispatch the append record
          result = dispatchRecord(nMV, builder.getSubMVs());

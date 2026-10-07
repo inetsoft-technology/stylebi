@@ -27,6 +27,7 @@ import inetsoft.report.internal.Util;
 import inetsoft.report.internal.XNodeMetaTable;
 import inetsoft.report.internal.table.CancellableTableLens;
 import inetsoft.report.lens.SetTableLens;
+import inetsoft.report.lens.xnode.XNodeTableLens;
 import inetsoft.report.script.formula.AssetQueryScope;
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.*;
@@ -162,6 +163,43 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
       }
 
       return false;
+   }
+
+   /**
+    * Get the exception that stopped loading the rows of a query result under a lens, e.g. a
+    * database error raised while reading the result set. The lens holds only the rows read
+    * before the failure, so it must not be reused or materialized (Bug #77901). It looks
+    * through the same wrappers as {@link #isCancelled(TableLens)}.
+    *
+    * @param lens the lens to check.
+    *
+    * @return the load failure, or {@code null} if no query result under the lens has one.
+    */
+   public static Exception getLoadException(TableLens lens) {
+      if(lens instanceof XNodeTableLens) {
+         return ((XNodeTableLens) lens).getLoadException();
+      }
+
+      if(lens instanceof SetTableLens) {
+         for(int i = 0; i < ((SetTableLens) lens).getTableCount(); i++) {
+            Exception ex = getLoadException(((SetTableLens) lens).getTable(i));
+
+            if(ex != null) {
+               return ex;
+            }
+         }
+
+         return null;
+      }
+      else if(lens instanceof BinaryTableFilter) {
+         Exception ex = getLoadException(((BinaryTableFilter) lens).getLeftTable());
+         return ex != null ? ex : getLoadException(((BinaryTableFilter) lens).getRightTable());
+      }
+      else if(lens instanceof TableFilter) {
+         return getLoadException(((TableFilter) lens).getTable());
+      }
+
+      return null;
    }
 
    /**

@@ -689,6 +689,15 @@ public class XNodeTable implements XTable {
             // kept before complete() below wakes a reader waiting for the rows, so the reader
             // sees the failure when it finds no more rows
             setLoadException(ex);
+
+            // mark the table cancelled before complete() too, as the caller's catch does
+            // afterwards, so a reader woken at the end of the rows (or a cache check) never
+            // takes the truncated table for a complete one (Bug #77901). A ClassCastException
+            // is rethrown to the reader by moreRows instead (see the background catch).
+            if(!(ex instanceof ClassCastException)) {
+               cancelled = true;
+            }
+
             throw ex;
          }
          finally {
@@ -977,7 +986,7 @@ public class XNodeTable implements XTable {
    }
 
    private transient XTable delegate;
-   private boolean cancelled = false;
+   private volatile boolean cancelled = false;
    private Exception loadDataException = null;
    // not serialized, a load failure only matters to the caller that ran the query
    private transient volatile Exception loadException;
