@@ -73,6 +73,9 @@ public class RemoveAssetController {
    public MessageCommand removeAsset(
       @RequestBody RemoveAssetEvent event, Principal principal) throws Exception
    {
+      // the user messages are thread-local, drop anything left by an earlier request on this
+      // pooled thread so that only the messages of this delete are returned
+      Tool.clearUserMessage();
       AssetEntry entry = event.entry();
 
       // log action
@@ -191,6 +194,14 @@ public class RemoveAssetController {
          if(actionRecord != null) {
             Audit.getInstance().auditAction(actionRecord, principal);
          }
+      }
+
+      // Bug #77939, the delete is done, report what it could not finish, e.g. a permission it
+      // may not have removed
+      UserMessage userMessage = Tool.getUserMessage();
+
+      if(userMessage != null && userMessage.getMessage() != null) {
+         return MessageCommand.fromUserMessage(userMessage);
       }
 
       return null;

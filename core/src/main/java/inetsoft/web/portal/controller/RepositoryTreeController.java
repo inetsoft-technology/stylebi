@@ -33,6 +33,7 @@ import inetsoft.uql.viewsheet.ViewsheetInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
+import inetsoft.util.UserMessage;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.web.RecycleBin;
@@ -515,6 +516,9 @@ public class RepositoryTreeController {
       @RequestBody RemoveRepositoryEntryEvent event,
       Principal principal)
    {
+      // the user messages are thread-local, drop anything left by an earlier request on this
+      // pooled thread so that only the messages of this delete are returned
+      Tool.clearUserMessage();
       RepositoryEntry entry = event.entry().createRepositoryEntry();
       UserEnv.setProperty(principal, entry.getName(), "");
       ActionRecord actionRecord = null;
@@ -600,6 +604,14 @@ public class RepositoryTreeController {
          if(actionRecord != null) {
             Audit.getInstance().auditAction(actionRecord, principal);
          }
+      }
+
+      // Bug #77939, the delete is done, report what it could not finish, e.g. a permission it
+      // may not have removed
+      UserMessage userMessage = Tool.getUserMessage();
+
+      if(userMessage != null && userMessage.getMessage() != null) {
+         return MessageCommand.fromUserMessage(userMessage);
       }
 
       return null;
