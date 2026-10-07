@@ -106,6 +106,20 @@ class UserVariableCdataTest {
       }
    }
 
+   /**
+    * A default with {@code ]]>} but no control character is marked too, so its backslashes
+    * (including backslash-u-hex text) must come back unchanged.
+    */
+   @Test
+   void cdataEndDefaultWithBackslashesRoundTripsInXmlAndJson() throws Exception {
+      String p = "c:\\x \\u0041]]>b\\";
+      UserVariable var = new UserVariable("p");
+      var.setValueNode(XValueNode.createValueNode((Object) p, "default"));
+
+      assertEquals(p, xmlRoundTrip(var).getValueNode().getValue());
+      assertEquals(p, jsonRoundTrip(var).getValueNode().getValue());
+   }
+
    @Test
    void characterDefaultWithControlCharacterRoundTrips() throws Exception {
       UserVariable var = new UserVariable("p");

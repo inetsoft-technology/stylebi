@@ -48,7 +48,8 @@ class ProcedureSQLInputCdataTest {
    @Test
    void inputParameterValueRoundTrips() throws Exception {
       String[] values = {
-         "x ]]> y", "]]>", "x]]]>>y", "a\u0001b\\x", "a\\u0001]]>b\u001F", "lit\\u0041z \\ c:\\x"
+         "x ]]> y", "]]>", "x]]]>>y", "a\u0001b\\x", "a\\u0001]]>b\u001F", "lit\\u0041z \\ c:\\x",
+         "c:\\x \\u0041]]>b\\"
       };
 
       for(String p : values) {
