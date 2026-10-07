@@ -48,6 +48,7 @@
  *   Group 19 [baseline] — timeConditions getter Set membership
  *   Group 20 [baseline] — convertTime: UTC-offset arithmetic
  *   Group 21 [baseline] — ngOnChanges: listView false flip → addCondition
+ *   Group 22 [Risk 3] — init keeps a stored time zone outside the option list (Bug #77511)
  *
  * Out of scope (Pass 2 / Pass 3):
  *   deleteCondition — destructive + async modal
@@ -64,11 +65,13 @@ import { of } from "rxjs";
 import { vi } from "vitest";
 import { TimeConditionModel, TimeConditionType, TimeRange } from "../../../../../../../shared/schedule/model/time-condition-model";
 import { TimeZoneModel } from "../../../../../../../shared/schedule/model/time-zone-model";
+import { TimeZoneService } from "../../../../../../../shared/schedule/time-zone.service";
 import {
    makeDailyCondition,
    makeWeeklyCondition,
    makeMonthlyCondition,
    makeHourlyCondition,
+   makeRunOnceCondition,
    makeModel,
    modalMock,
    taskNamesMock,
@@ -903,5 +906,107 @@ describe("Group 21 — ngOnChanges: listView false flip triggers addCondition", 
 
          expect(button.disabled).toBe(false);
       });
+   });
+});
+
+// ===========================================================================
+// Group 22 — init keeps a stored time zone outside the option list (Bug #77511)
+// ===========================================================================
+// The server sends TimeZoneModel's fixed list, with the server zone first. Most canonical IANA ids
+// (America/New_York, Europe/Paris) aren't in it. These tests don't add the stored id to the
+// options by hand, which is how the #6108 tests above missed the bug.
+describe("Group 22 — init keeps a stored time zone outside the option list (Bug #77511)", () => {
+   const serverOptions = (): TimeZoneModel[] => [
+      { timeZoneId: "Etc/UTC", label: "Coordinated Universal Time (Server)", hourOffset: "(UTC+00:00)", minuteOffset: 0 },
+      { timeZoneId: "US/Pacific", label: "Pacific Time", hourOffset: "(UTC-08:00)", minuteOffset: -480 },
+      { timeZoneId: "US/Eastern", label: "Eastern Time", hourOffset: "(UTC-05:00)", minuteOffset: -300 },
+   ];
+
+   const conditionTypes: [string, (o: Partial<TimeConditionModel>) => TimeConditionModel][] = [
+      ["daily", makeDailyCondition],
+      ["weekly", makeWeeklyCondition],
+      ["monthly", makeMonthlyCondition],
+      ["run-once", makeRunOnceCondition],
+   ];
+
+   async function renderStored(cond: TimeConditionModel, serverDisplay: boolean,
+                               timeZoneOptions: TimeZoneModel[] = serverOptions())
+   {
+      if(serverDisplay) {
+         localStorage.setItem(TZ_LS_KEY, "true");
+      }
+
+      let saved: TimeConditionModel = null;
+      const saveTask = vi.fn().mockImplementation(() => {
+         saved = JSON.parse(JSON.stringify(cond));
+         return Promise.resolve();
+      });
+      const result = await renderTaskConditionPane({
+         model: makeModel({ conditions: [cond], serverTimeZoneId: "Etc/UTC" }),
+         timeZoneOptions,
+         saveTask,
+      });
+      return { ...result, saved: () => saved };
+   }
+
+   for(const serverDisplay of [false, true]) {
+      const mode = serverDisplay ? "server" : "local";
+
+      for(const [type, make] of conditionTypes) {
+         for(const [zone, label] of [["America/New_York", null], ["Europe/Paris", "Central European Time"]]) {
+            it(`keeps ${zone} (label ${label}) on a ${type} condition through init and save, ${mode} display`, async () => {
+               const cond = make({ timeZone: zone, timeZoneLabel: label });
+               const { hour, minute } = cond;
+               const { comp, saved } = await renderStored(cond, serverDisplay);
+
+               expect(comp.serverTimeZone).toBe(serverDisplay);
+               expect([cond.timeZone, cond.timeZoneLabel]).toEqual([zone, label]);
+               // the pane shows the zone it saves
+               expect(comp.localTimeZoneId).toBe(zone);
+               expect(comp.timeZoneOptions.some(o => o.timeZoneId == zone)).toBe(true);
+
+               comp.save(true);
+               await waitFor(() => expect(saved()).not.toBeNull());
+
+               expect([saved().timeZone, saved().timeZoneLabel]).toEqual([zone, label]);
+               expect([saved().hour, saved().minute]).toEqual([hour, minute]);
+            });
+         }
+      }
+
+      it(`keeps an unlisted zone when the list was already repaired by TimeZoneService, ${mode} display`, async () => {
+         const cond = makeDailyCondition({ timeZone: "Europe/Paris", timeZoneLabel: null });
+         const options = new TimeZoneService().updateTimeZoneOptions(serverOptions(), [cond]);
+         const { comp, saved } = await renderStored(cond, serverDisplay, options);
+
+         comp.save(true);
+         await waitFor(() => expect(saved()).not.toBeNull());
+
+         expect([saved().timeZone, saved().timeZoneLabel]).toEqual(["Europe/Paris", null]);
+      });
+   }
+
+   it("keeps a listed zone and its stored label", async () => {
+      const cond = makeDailyCondition({ timeZone: "US/Eastern", timeZoneLabel: "EST" });
+      const { comp } = await renderStored(cond, false);
+
+      expect([cond.timeZone, cond.timeZoneLabel]).toEqual(["US/Eastern", "EST"]);
+      expect(comp.timeZoneOptions.map(o => o.timeZoneId)).toEqual(["Etc/UTC", "US/Pacific", "US/Eastern"]);
+   });
+
+   it("still fills a null zone from the first option in local display (new-task default)", async () => {
+      const cond = makeDailyCondition({ timeZone: null });
+      await renderStored(cond, false);
+
+      expect(cond.timeZone).toBe("Etc/UTC");
+   });
+
+   it("still changes the zone and label when the user selects one", async () => {
+      const cond = makeDailyCondition({ timeZone: "America/New_York", timeZoneLabel: null });
+      const { comp } = await renderStored(cond, false);
+
+      comp.setLocalTimeZone("US/Pacific");
+
+      expect([cond.timeZone, cond.timeZoneLabel]).toEqual(["US/Pacific", "Pacific Time"]);
    });
 });
