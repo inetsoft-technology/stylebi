@@ -40,6 +40,7 @@ import java.io.*;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -130,6 +131,99 @@ class SnapshotSwapWriteFailureTest {
       finally {
          table1.dispose();
          table2.dispose();
+      }
+   }
+
+   /**
+    * Edited data whose swap write fails, with no read before the next save, is written by the
+    * next save, and a save after that keeps the same files.
+    */
+   @Test
+   void failedSaveOfEditedDataIsWrittenByNextSaveWithoutRead() throws Exception {
+      XSwappableTable table1 = createTable("old", ROWS);
+      SnapshotEmbeddedTableAssembly assembly = createAssembly(table1);
+      XSwappableTable table2 = createTable("new", 80);
+
+      try {
+         writeEmbeddedData(assembly);
+         String[] paths0 = assembly.getDataPaths();
+
+         assembly.setEmbeddedData(new XEmbeddedTable(table2));
+         XTableFragment fragment = table2.getTables()[0];
+         fragment.testBeforeWrite = FAIL;
+         writeEmbeddedData(assembly);
+         fragment.testBeforeWrite = null;
+         assertEquals(true, getField(assembly, "fileDirty"), "dirty flag cleared");
+
+         String xml2 = writeEmbeddedData(assembly);
+         String[] paths2 = assembly.getDataPaths();
+         assertFalse(Arrays.equals(paths0, paths2), "edited data not written");
+         assertEquals("new4", reload(xml2).getObject(5, 1));
+
+         String xml3 = writeEmbeddedData(assembly);
+         assertArrayEquals(paths2, assembly.getDataPaths());
+         assertEquals("new79", reload(xml3).getObject(80, 1));
+      }
+      finally {
+         table1.dispose();
+         table2.dispose();
+      }
+   }
+
+   /**
+    * A write failure in one fragment of a table with several fragments does not save the
+    * files of the other fragments, and the next save writes all of them.
+    */
+   @Test
+   void failedFragmentOfManyIsWrittenByNextSave() throws Exception {
+      int rows = 8192 * 2 + 10;
+      XSwappableTable table = createTable("m", rows);
+      SnapshotEmbeddedTableAssembly assembly = createAssembly(table);
+      XTableFragment fragment = table.getTables()[1];
+
+      try {
+         fragment.testBeforeWrite = FAIL;
+         String xml1 = writeEmbeddedData(assembly);
+         fragment.testBeforeWrite = null;
+         assertFalse(xml1.contains("<path>"), "data paths saved without all data files");
+
+         String xml2 = writeEmbeddedData(assembly);
+         assertNotNull(assembly.getDataPaths(), "second save did not write the data");
+         assertEquals(table.getPrefixes().length, assembly.getDataPaths().length);
+
+         XSwappableTable reloaded = reload(xml2);
+         assertEquals(rows + 1, reloaded.getRowCount());
+         assertEquals("m4", reloaded.getObject(5, 1));
+         assertEquals("m8199", reloaded.getObject(8200, 1));
+         assertEquals("m" + (rows - 1), reloaded.getObject(rows, 1));
+      }
+      finally {
+         table.dispose();
+      }
+   }
+
+   /**
+    * Saves keep failing while the write fails, and the first save after it succeeds writes the
+    * data.
+    */
+   @Test
+   void repeatedFailedSavesAreWrittenByNextSave() throws Exception {
+      XSwappableTable table = createTable("s", ROWS);
+      SnapshotEmbeddedTableAssembly assembly = createAssembly(table);
+      XTableFragment fragment = table.getTables()[0];
+
+      try {
+         fragment.testBeforeWrite = FAIL;
+         assertFalse(writeEmbeddedData(assembly).contains("<path>"));
+         assertFalse(writeEmbeddedData(assembly).contains("<path>"));
+         fragment.testBeforeWrite = null;
+
+         String xml = writeEmbeddedData(assembly);
+         assertTrue(xml.contains("<path>"), "save after the failures did not write the data");
+         assertEquals("s49", reload(xml).getObject(ROWS, 1));
+      }
+      finally {
+         table.dispose();
       }
    }
 
