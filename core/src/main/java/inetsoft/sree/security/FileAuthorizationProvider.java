@@ -20,6 +20,7 @@ package inetsoft.sree.security;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.TimeRange;
 import inetsoft.storage.*;
+import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,6 +49,139 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
          "defaultSecurityPermissions", new LoadPermissionsTask());
 
       isolatePermissionForOrg();
+      repairStoredGlobalRoleGrants();
+   }
+
+   /**
+    * Repairs the global role grants that were read back from a JSON key-value engine or a
+    * storage backup with the organization "null" instead of null (Bug #77965). Such a grant
+    * matches no role, so it neither grants the role nor is removed when the role is deleted.
+    *
+    * <p>The repair runs when the storage is opened, and must also be run after values were
+    * written into the live storage directly, like a storage restore does.
+    */
+   public synchronized void repairGlobalRoleGrants() {
+      if(storage == null || storage.isClosed()) {
+         init();
+      }
+      else {
+         repairStoredGlobalRoleGrants();
+      }
+   }
+
+   /**
+    * A role grant with the organization "null" is turned back into the global role grant only
+    * where that is the only meaning it can have, and the role still exists:
+    * <ul>
+    * <li>The key of the permission belongs to an organization other than "null". The key of an
+    * organization whose id is "null" could hold a grant of that organization's role, so it is
+    * left as it is.</li>
+    * <li>The security provider confirms that the global role exists. A grant of a global role
+    * that was deleted, or that can't be looked up now (like a failing LDAP server), is kept as
+    * it is. It stays inert, it is never removed, and it is checked again the next time.</li>
+    * </ul>
+    */
+   private void repairStoredGlobalRoleGrants() {
+      List<KeyValuePair<Permission>> list;
+
+      try {
+         list = storage.stream().collect(Collectors.toList());
+      }
+      catch(RuntimeException e) {
+         LOG.error("Failed to read the permissions to repair the global role grants", e);
+         return;
+      }
+
+      Map<String, Boolean> globalRoles = new HashMap<>();
+      Set<String> kept = new TreeSet<>();
+
+      for(KeyValuePair<Permission> pair : list) {
+         try {
+            // read the key again so an edit made since the stream above is not overwritten
+            Permission permission = hasStringNullRoleGrant(pair.getValue()) ?
+               storage.get(pair.getKey()) : null;
+
+            if(repairGlobalRoleGrants(pair.getKey(), permission, globalRoles, kept)) {
+               storage.put(pair.getKey(), permission).get(10L, TimeUnit.SECONDS);
+            }
+         }
+         catch(InterruptedException e) {
+            // the remaining keys are repaired the next time
+            Thread.currentThread().interrupt();
+            LOG.error("Interrupted while repairing the global role grants", e);
+            break;
+         }
+         catch(Exception e) {
+            LOG.error("Failed to repair the global role grants of the permission {}, it is " +
+                      "kept as it is", pair.getKey(), e);
+         }
+      }
+
+      if(!kept.isEmpty()) {
+         LOG.warn("These role grants have the organization \"null\" and are not used, because " +
+                  "the global role doesn't exist or the permission belongs to the organization " +
+                  "\"null\": {}", kept);
+      }
+   }
+
+   private boolean repairGlobalRoleGrants(String key, Permission permission,
+                                          Map<String, Boolean> globalRoles, Set<String> kept)
+   {
+      if(permission == null) {
+         return false;
+      }
+
+      int typeEnd = key.indexOf(":");
+      int orgEnd = typeEnd < 0 ? -1 : key.indexOf(":", typeEnd + 1);
+      String orgID = orgEnd < 0 ? null : key.substring(typeEnd + 1, orgEnd);
+      boolean changed = false;
+
+      for(ResourceAction action : ResourceAction.values()) {
+         Set<Permission.PermissionIdentity> roles =
+            permission.getGrants(action, Identity.ROLE, null);
+         Set<Permission.PermissionIdentity> repaired = new HashSet<>();
+
+         for(Permission.PermissionIdentity role : roles) {
+            if(!"null".equals(role.getOrganizationID())) {
+               repaired.add(role);
+            }
+            else if(orgID != null && !"null".equals(orgID) &&
+                    globalRoles.computeIfAbsent(role.getName(), this::isGlobalRole))
+            {
+               repaired.add(new Permission.PermissionIdentity(role.getName(), null));
+               changed = true;
+            }
+            else {
+               repaired.add(role);
+               kept.add(key + " " + action + " " + role.getName());
+            }
+         }
+
+         if(!repaired.equals(roles)) {
+            permission.setGrants(action, Identity.ROLE, repaired);
+         }
+      }
+
+      return changed;
+   }
+
+   private static boolean hasStringNullRoleGrant(Permission permission) {
+      return permission != null && Arrays.stream(ResourceAction.values())
+         .flatMap(action -> permission.getGrants(action, Identity.ROLE, null).stream())
+         .anyMatch(role -> "null".equals(role.getOrganizationID()));
+   }
+
+   // a custom provider that doesn't override AbstractAuthenticationProvider.getRole() returns a
+   // role for any name, so on such a chain every global role counts as existing
+   private boolean isGlobalRole(String name) {
+      try {
+         return SecurityEngine.getSecurity().getSecurityProvider()
+            .getRole(new IdentityID(name, null)) != null;
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to look up the global role {}, its grants are repaired later", name, e);
+         return false;
+      }
    }
 
    /**
