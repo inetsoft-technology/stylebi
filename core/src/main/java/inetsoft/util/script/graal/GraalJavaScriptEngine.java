@@ -22,7 +22,6 @@ import inetsoft.util.script.LendableReentrantLock;
 import inetsoft.util.script.ScriptException;
 import inetsoft.util.script.graal.pool.WsExecContext;
 import inetsoft.util.swap.DataUnavailable;
-import inetsoft.util.swap.SwapReadInterruptedException;
 import org.graalvm.polyglot.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -2609,18 +2608,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             // a lock stall or a lost swap file of Java code the script called, e.g. a read of
             // a table, is not a script error: rethrow it as it is so the reader gets it, and do
             // not count it toward the script's errors (bugs #76967, #77910)
-            // a swap read that this exec's timeout interrupted is the timeout, which stops the
-            // script like one that fires in script code, and the swap file is not lost (bug #77916)
-            boolean timedOutRead = false;
-
             if(ex.isHostException()) {
-               RuntimeException unavailable = DataUnavailable.find(ex.asHostException());
-               timedOutRead = unavailable instanceof SwapReadInterruptedException &&
-                  guard != null && guard.interruptFired();
-
-               if(unavailable != null && !timedOutRead) {
-                  throw unavailable;
-               }
+               DataUnavailable.rethrow(ex.asHostException());
             }
 
             // FIX B: increment per-Source error count and warn when limit first crossed
@@ -2651,7 +2640,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             ScriptException se = new ScriptException(ex.getMessage() + loc);
             se.setStackTrace(ex.getStackTrace());
             // what the dropped cause said: stopped by a timeout or cancel, not failed
-            se.setStopped(ex.isInterrupted() || ex.isCancelled() || timedOutRead);
+            se.setStopped(ex.isInterrupted() || ex.isCancelled());
             throw se;
          }
          finally {

@@ -19,30 +19,27 @@ package inetsoft.util.script.graal;
 
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
-import inetsoft.util.script.ScriptException;
-import inetsoft.util.swap.SwapFileReadException;
 import inetsoft.util.swap.SwapReadInterruptedException;
 import inetsoft.util.swap.XIntFragment;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.lang.reflect.Field;
 import java.util.HashMap;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Bug #77916: a script timeout interrupts the exec thread, so a swap read of Java code the
- * script calls fails with a {@link SwapReadInterruptedException}. exec reports it as the
- * timeout, a stopped script, not as a lost swap file. An interrupt that is not this exec's
- * timeout, e.g. a cancel, still reaches the caller as the swap read failure.
+ * Bug #77916: a script timeout or a cancel interrupts the exec thread, so a swap read of Java
+ * code the script calls fails with a {@link SwapReadInterruptedException}. exec rethrows it as
+ * it is, like any swap read failure (bug #77910): the reader does not go on without the data,
+ * and it is not counted as a script error.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
 @Tag("core")
 class GraalJavaScriptEngineSwapInterruptTest {
@@ -67,15 +64,13 @@ class GraalJavaScriptEngineSwapInterruptTest {
    }
 
    @Test
-   void timeoutDuringHostSwapReadStopsTheScript() throws Exception {
+   void timeoutDuringHostSwapReadReachesTheCallerAsTheSwapReadFailure() throws Exception {
       Object src = engine.compile("host.loop()");
 
-      ScriptException ex = assertThrows(ScriptException.class, () -> engine.exec(src, null, null));
-      assertTrue(ex.isStopped(), "a timeout is a stopped script");
-      assertTrue(ScriptTimeoutGuard.isStop(ex));
-      assertNull(SwapFileReadException.find(ex), "a timeout is not a lost swap file");
-      assertInstanceOf(SwapReadInterruptedException.class, host.failure,
-                       "the timeout did not interrupt a swap read");
+      SwapReadInterruptedException ex = assertThrows(SwapReadInterruptedException.class,
+         () -> engine.exec(src, null, null));
+      assertSame(host.failure, ex);
+      assertFalse(errorCounts().containsKey(src), "an interrupted swap read is not a script error");
       assertFalse(Thread.currentThread().isInterrupted(), "the timeout left the flag set");
       assertEquals(1005, host.fragment.getSafely(5));
    }
@@ -87,8 +82,15 @@ class GraalJavaScriptEngineSwapInterruptTest {
       SwapReadInterruptedException ex = assertThrows(SwapReadInterruptedException.class,
          () -> engine.exec(src, null, null));
       assertSame(host.failure, ex);
+      assertFalse(errorCounts().containsKey(src), "an interrupted swap read is not a script error");
       Thread.interrupted();
       assertEquals(1005, host.fragment.getSafely(5));
+   }
+
+   private Map<?, ?> errorCounts() throws Exception {
+      Field errorCountsField = GraalJavaScriptEngine.class.getDeclaredField("errorCounts");
+      errorCountsField.setAccessible(true);
+      return (Map<?, ?>) errorCountsField.get(engine);
    }
 
    private static void refreshTimeout() throws Exception {
