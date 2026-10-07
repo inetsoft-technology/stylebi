@@ -2400,10 +2400,18 @@ public class ScheduleService {
 
    /**
     * Determines if two FTP or SFTP paths log in to the same server as the same user, so that a
-    * password stored for one of them may be used for the other.
+    * password stored for one of them may be used for the other. Two paths without a user log in
+    * the same way (Bug #77952).
+    *
+    * @param path          the FTP or SFTP path.
+    * @param username      the user name entered for the path.
+    * @param otherPath     the other FTP or SFTP path.
+    * @param otherUsername the user name entered for the other path.
+    *
+    * @return {@code true} if the paths log in to the same server as the same user.
     */
-   static boolean isSameLogin(String path, String username, String otherPath,
-                              String otherUsername)
+   public static boolean isSameLogin(String path, String username, String otherPath,
+                                     String otherUsername)
    {
       FTPUtil.Endpoint endpoint = parseServerEndpoint(path);
       FTPUtil.Endpoint otherEndpoint = parseServerEndpoint(otherPath);
@@ -2418,14 +2426,14 @@ public class ScheduleService {
 
    /**
     * Gets the user that FTPUtil logs in as for a path, the user name in the path overrides the
-    * user name field. Returns {@code null} if there is no user or the path has its own password,
-    * which is used instead of any stored one.
+    * user name field. Returns an empty string if there is no user, and {@code null} if the path
+    * has its own password, which is used instead of any stored one.
     */
    private static String getLoginUser(FTPUtil.Endpoint endpoint, String username) {
       String userInfo = endpoint.userInfo();
 
       if(userInfo == null) {
-         return Tool.isEmptyString(username) ? null : username;
+         return Tool.isEmptyString(username) ? "" : username;
       }
 
       return userInfo.isEmpty() || userInfo.contains(":") ? null : userInfo;
