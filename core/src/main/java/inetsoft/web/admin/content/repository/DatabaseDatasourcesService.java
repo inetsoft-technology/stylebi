@@ -350,34 +350,47 @@ public class DatabaseDatasourcesService {
       return JDBCUtil.buildDatabaseDefinition(database, type);
    }
 
-   @Audited(
-      objectType = ActionRecord.OBJECT_TYPE_DATASOURCE
-   )
    public ConnectionStatus saveDatabase(String path, DataSourceSettingsModel model,
-                                        @AuditActionName String actionName,
-                                        @SuppressWarnings("unused") @AuditObjectName String objectName,
-                                        @SuppressWarnings("unused") @AuditActionError String actionError,
-                                        Principal principal) throws Exception
-   {
-      return saveDatabase(path, model, actionName, principal);
-   }
-
-   @Audited(
-      objectType = ActionRecord.OBJECT_TYPE_DATASOURCE
-   )
-   public ConnectionStatus saveDatabase(String path,
-                                        @AuditObjectName("dataSource().getName()") DataSourceSettingsModel model,
-                                        @SuppressWarnings("unused") @AuditActionName String actionName,
-                                        Principal principal)
+                                        String actionName, Principal principal)
       throws Exception
    {
+      String objectName = model.dataSource() == null ? null : model.dataSource().getName();
+      return saveDatabase(path, model, actionName, objectName, null, principal);
+   }
+
+   public ConnectionStatus saveDatabase(String path, DataSourceSettingsModel model,
+                                        String actionName, String objectName,
+                                        String actionError, Principal principal) throws Exception
+   {
+      // Bug #77844, audited here, not with @Audited, as a returned status is a refusal
+      // ("Duplicate", "Duplicate Folder", "Invalid Folder"), not a success
+      ActionRecord actionRecord = SUtil.getActionRecord(
+         SUtil.getUserName(principal), actionName, objectName,
+         ActionRecord.OBJECT_TYPE_DATASOURCE, new Timestamp(System.currentTimeMillis()),
+         actionError, principal, false);
+      actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_FAILURE);
+
       try {
          DataSourceRegistry.IGNORE_GLOBAL_SHARE.set(true);
-         return saveDatabaseDefinition(path, model.dataSource(), actionName, principal,
-                                       () -> model.additionalDataSources());
+         ConnectionStatus status = saveDatabaseDefinition(
+            path, model.dataSource(), actionName, principal, () -> model.additionalDataSources());
+
+         if(status != null) {
+            actionRecord.setActionError(status.getStatus());
+         }
+         else {
+            actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_SUCCESS);
+         }
+
+         return status;
+      }
+      catch(Exception ex) {
+         actionRecord.setActionError(ex.getMessage());
+         throw ex;
       }
       finally {
          DataSourceRegistry.IGNORE_GLOBAL_SHARE.remove();
+         Audit.getInstance().auditAction(actionRecord, principal);
       }
    }
 
