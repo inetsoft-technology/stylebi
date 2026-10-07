@@ -68,7 +68,7 @@ class RenameTransformQueueReplayTest {
    void setUp() throws Exception {
       // start every test from an empty queue store and reverse index
       cluster().awaitTasks();
-      manager.close();
+      closeStores();
       engine().deleteStorage(QUEUE_STORE);
       engine().deleteStorage(ORG_STORE);
       restart();
@@ -87,9 +87,11 @@ class RenameTransformQueueReplayTest {
    }
 
    @AfterEach
-   void tearDown() {
+   void tearDown() throws Exception {
       logger.detachAppender(appender);
       cluster().dropRenameTransform = false;
+      // the context closes the stores after the last test
+      dss.awaitQueueOpen();
    }
 
    @Test
@@ -217,13 +219,22 @@ class RenameTransformQueueReplayTest {
       handler().addTransformTask(task, true);
       cluster().dropRenameTransform = false;
 
-      CompletableFuture<Void> wait =
-         CompletableFuture.runAsync(() -> handler().waitUntilRenameFinished());
-      Thread.sleep(500L);
-      assertFalse(wait.isDone(), "waits while the rename is queued");
+      Thread wait = new Thread(() -> handler().waitUntilRenameFinished());
+      wait.start();
 
-      // it polls every 5 s; seeing it still waiting is enough, so don't wait for the next poll
-      cluster().submit(QUEUE_STORE, new RenameTransformTask.Remove(task)).get(10, TimeUnit.SECONDS);
+      try {
+         Thread.sleep(500L);
+         assertTrue(wait.isAlive(), "waits while the rename is queued");
+
+         // it polls every 5 s; seeing it still waiting is enough, so don't wait for the next poll
+         cluster().submit(QUEUE_STORE, new RenameTransformTask.Remove(task))
+            .get(10, TimeUnit.SECONDS);
+      }
+      finally {
+         // stop it, or it reads the queue up to 5 s later, in a later test or class
+         wait.interrupt();
+         wait.join(10000L);
+      }
    }
 
    @Test
@@ -257,6 +268,7 @@ class RenameTransformQueueReplayTest {
     */
    @Test
    void firstUseOnTheRenameThreadDoesNotWaitForTheQueueService() throws Exception {
+      dss.awaitQueueOpen(); // the stores are closed on the rename thread below
       CountDownLatch go = new CountDownLatch(1);
       Future<?> firstUse = cluster().submit("renameTransform", new TestTask(() -> {
          try {
@@ -297,7 +309,7 @@ class RenameTransformQueueReplayTest {
             throw new RuntimeException(e);
          }
       }));
-      manager.close(); // the queue store evicted from the storage manager
+      closeStores(); // the queue store evicted from the storage manager
 
       RenameDependencyInfo task = newTask();
 
@@ -327,7 +339,7 @@ class RenameTransformQueueReplayTest {
 
    private void restart() throws Exception {
       cluster().awaitTasks();
-      manager.close();
+      closeStores();
       engine().reopen();
       cluster().destroyReplicatedMap("inetsoft.storage.kv." + QUEUE_STORE);
       cluster().destroyReplicatedMap("inetsoft.storage.kv." + ORG_STORE);
@@ -344,7 +356,7 @@ class RenameTransformQueueReplayTest {
     */
    private void restartWithoutOpeningQueue() throws Exception {
       cluster().awaitTasks();
-      manager.close();
+      closeStores();
       engine().reopen();
       cluster().destroyReplicatedMap("inetsoft.storage.kv." + QUEUE_STORE);
       cluster().destroyReplicatedMap("inetsoft.storage.kv." + ORG_STORE);
@@ -353,11 +365,22 @@ class RenameTransformQueueReplayTest {
 
    private void reopenWithoutRestart() throws Exception {
       cluster().awaitTasks();
-      manager.close();
+      closeStores();
       cluster().resetSubmissions();
       dss.initStorage();
       dss.getQueue();
       cluster().awaitTasks();
+   }
+
+   /**
+    * Closes every key-value store. Waits first for the queue store open that the last
+    * {@code initStorage()} started without waiting: if it ran on past the close, it would reopen
+    * the store bound to the replicated map that a restart then drops, so the restart would neither
+    * replay the queue nor see its changes (Bug #78008).
+    */
+   private void closeStores() throws Exception {
+      dss.awaitQueueOpen();
+      manager.close();
    }
 
    private RenameDependencyInfo newTask() throws Exception {
