@@ -186,6 +186,27 @@ class CalendarSizeFollowsDensityTest {
       assertTrue(result.followsDensitySize());
    }
 
+   // Apply keeps the dialog open, so OK resends the answer read while the calendar was single
+   @Test
+   void okAfterApplyKeepsADoubleCalendarsWidth() throws Exception {
+      CalendarVSAssemblyInfo info = calendar(VizMark.MODERN_LIGHT, new Dimension(600, 332));
+      info.setViewModeValue(CalendarVSAssemblyInfo.DOUBLE_CALENDAR_MODE);
+
+      CalendarVSAssemblyInfo result = save(info, Boolean.TRUE, new Dimension(600, 332));
+
+      assertEquals(new Dimension(600, 332), result.getPixelSize());
+   }
+
+   @Test
+   void okAfterApplyLeavesADropdownsSize() throws Exception {
+      CalendarVSAssemblyInfo info = calendar(VizMark.MODERN_LIGHT, new Dimension(300, 20));
+      info.setShowTypeValue(CalendarVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
+
+      CalendarVSAssemblyInfo result = save(info, Boolean.TRUE, new Dimension(300, 20));
+
+      assertEquals(new Dimension(300, 20), result.getPixelSize());
+   }
+
    private static CalendarVSAssemblyInfo calendar(VizMark mark, Dimension size) {
       CalendarVSAssemblyInfo info = new CalendarVSAssemblyInfo();
       info.setVizMark(mark);
