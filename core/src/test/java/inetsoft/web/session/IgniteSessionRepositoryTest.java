@@ -109,12 +109,16 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.session.FindByIndexNameSessionRepository;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import javax.cache.Cache;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Proxy;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -739,6 +743,102 @@ class IgniteSessionRepositoryTest {
                           "removeAttribute() must no-op, not NPE, when the map is gone");
       assertTrue(session.getAttributeNames().isEmpty(),
                  "getAttributeNames() must return empty, not NPE, when the map is gone");
+   }
+
+   /**
+    * Bug #77886: in production the repository's session cache is a
+    * {@code withExpiryPolicy(PropertyAccessedExpiryPolicy)} view, so every {@code get} through it
+    * renews the session's Ignite TTL. A background scan that read each live session through
+    * findById() (a {@code get}) kept an idle session's TTL from firing at its timeout. The scans
+    * must read the iterated value instead and never {@code get} a live session.
+    * ({@link MockCluster} ignores the expiry policy, so this counts {@code get} calls instead.)
+    */
+   @Test
+   void backgroundScans_doNotReadLiveSessionsThroughRenewingGet() throws Exception {
+      SRPrincipal principal = mockPrincipal("admin", "127.0.0.1");
+      IgniteSessionRepository.IgniteSession session = repository.createSession();
+      session.setAttribute(RepletRepository.PRINCIPAL_COOKIE, principal);
+      repository.save(session);
+
+      AtomicInteger gets = countGets();
+
+      repository.checkSessions();
+      assertEquals(1, repository.getActiveSessions().size(), "the live session is still listed");
+      repository.findByIndexNameAndIndexValue(
+         FindByIndexNameSessionRepository.PRINCIPAL_NAME_INDEX_NAME, "admin");
+      repository.updatePrincipalRolesAndGroups(
+         new IdentityID("nobody", "host-org"), new IdentityID[0], new String[0],
+         mock(AuthenticationProvider.class));
+
+      assertEquals(0, gets.get(), "background scans must not renew a live session's TTL");
+      verifyNoInteractions(authenticationService);
+      assertNotNull(repository.findById(session.getId()), "the live session must not be deleted");
+   }
+
+   /**
+    * Bug #77886: checkSessions() skipped sessions past their timeout, so nothing deleted an idle
+    * session that no other reader touched; it lived until Ignite's TTL fired. It must now delete
+    * the expired session and log it off with the session-timeout reason.
+    */
+   @Test
+   void checkSessions_deletesExpiredSession() {
+      SRPrincipal principal = mockPrincipal("admin", "127.0.0.1");
+      // the logout deregisters the principal, as AuthenticationService does, so the cache-removal
+      // listener's own reaction to the same deletion is gated by isActiveUser()
+      AtomicBoolean active = new AtomicBoolean(true);
+      when(securityEngine.isActiveUser(principal)).thenAnswer(invocation -> active.get());
+      doAnswer(invocation -> {
+         active.set(false);
+         return null;
+      }).when(authenticationService).logout(any(), anyString(), anyString());
+
+      IgniteSessionRepository.IgniteSession session = repository.createSession();
+      session.setAttribute(RepletRepository.PRINCIPAL_COOKIE, principal);
+      repository.save(session);
+      String id = session.getId();
+      session.setLastAccessedTime(Instant.now().minus(session.getMaxInactiveInterval())
+                                     .minusSeconds(1));
+      repository.save(session);
+
+      @SuppressWarnings("unchecked")
+      Cache<String, org.springframework.session.MapSession> rawSessions =
+         cluster.getCache(IgniteSessionRepository.DEFAULT_SESSION_MAP_NAME, true, null);
+      assertTrue(rawSessions.get(id).isExpired(), "premise: the stored session is expired");
+
+      repository.checkSessions();
+
+      verify(authenticationService, times(1))
+         .logout(same(principal), eq("127.0.0.1"), eq(SessionRecord.LOGOFF_SESSION_TIMEOUT));
+      assertNull(rawSessions.get(id), "checkSessions() must delete the expired session");
+   }
+
+   /**
+    * Replaces the repository's session cache with a proxy that counts {@code get} calls and
+    * delegates everything to the original cache.
+    */
+   @SuppressWarnings("unchecked")
+   private AtomicInteger countGets() throws Exception {
+      Field field = IgniteSessionRepository.class.getDeclaredField("sessions");
+      field.setAccessible(true);
+      Cache<String, org.springframework.session.MapSession> delegate =
+         (Cache<String, org.springframework.session.MapSession>) field.get(repository);
+      AtomicInteger gets = new AtomicInteger();
+      Object proxy = Proxy.newProxyInstance(
+         Cache.class.getClassLoader(), new Class<?>[] { Cache.class },
+         (p, method, args) -> {
+            if("get".equals(method.getName())) {
+               gets.incrementAndGet();
+            }
+
+            try {
+               return method.invoke(delegate, args);
+            }
+            catch(InvocationTargetException e) {
+               throw e.getCause();
+            }
+         });
+      field.set(repository, proxy);
+      return gets;
    }
 
    @SuppressWarnings("unchecked")

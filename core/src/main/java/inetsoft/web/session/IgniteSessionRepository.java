@@ -217,6 +217,27 @@ public class IgniteSessionRepository
       return new IgniteSession(saved, false);
    }
 
+   /**
+    * Resolves a session read by a background scan of {@link #sessions} (an {@code iterator()}
+    * entry) without renewing its Ignite access TTL, unlike {@link #findById}. Any {@code get}
+    * through {@link #sessions} resets the TTL (see {@link PropertyAccessedExpiryPolicy}); iteration
+    * does not. Only the request path ({@link #findById} for the requesting session) should keep a
+    * session alive. A background reader that renewed every live session kept the TTL from firing
+    * when an idle session timed out, so the session ended late (Bug #77886).
+    *
+    * <p>An expired session is still swept here. It is re-read through {@link #findById}, which
+    * deletes it if it is still expired (so a session renewed by a concurrent request since the
+    * iteration is not deleted). Returns {@code null} for a session that is deleted or no longer
+    * exists.
+    */
+   private IgniteSession findIteratedSession(MapSession session) {
+      if(session.isExpired()) {
+         return findById(session.getId());
+      }
+
+      return new IgniteSession(session, false);
+   }
+
    @Override
    public void deleteById(String id) {
       MapSession session = this.sessions.get(id);
@@ -255,7 +276,7 @@ public class IgniteSessionRepository
       try {
          while(iter.hasNext()) {
             Cache.Entry<String, MapSession> session = iter.next();
-            IgniteSession igniteSession = findById(session.getValue().getId());
+            IgniteSession igniteSession = findIteratedSession(session.getValue());
 
             // could be out of sync due to session expiration, need to check for null
             if(igniteSession != null && isSessionForUser(igniteSession, indexValue)) {
@@ -410,7 +431,7 @@ public class IgniteSessionRepository
          try {
             while(iter.hasNext()) {
                Cache.Entry<String, MapSession> entry = iter.next();
-               IgniteSession igniteSession = findById(entry.getValue().getId());
+               IgniteSession igniteSession = findIteratedSession(entry.getValue());
 
                // could be out of sync due to session expiration, need to check for null
                if(igniteSession != null &&
@@ -435,7 +456,8 @@ public class IgniteSessionRepository
       try {
          while(iter.hasNext()) {
             Cache.Entry<String, MapSession> session = iter.next();
-            IgniteSessionRepository.IgniteSession igniteSession = findById(session.getValue().getId());
+            IgniteSessionRepository.IgniteSession igniteSession =
+               findIteratedSession(session.getValue());
 
             // could be out of sync due to session expiration, need to check for null
             if(igniteSession != null) {
@@ -462,7 +484,7 @@ public class IgniteSessionRepository
       try {
          while(iter.hasNext()) {
             Cache.Entry<String, MapSession> entry = iter.next();
-            IgniteSession igniteSession = findById(entry.getValue().getId());
+            IgniteSession igniteSession = findIteratedSession(entry.getValue());
 
             if(igniteSession != null) {
                updatePrincipalInSession(
@@ -526,9 +548,14 @@ public class IgniteSessionRepository
             long sessionRemainingTime = lastAccessedTime.toEpochMilli() +
                maxInactiveInterval.toMillis() - currentTime;
 
-            // only check sessions that haven't expired already
-            if(sessionRemainingTime > 0) {
-               IgniteSession igniteSession = findById(session.getId());
+            // an expired session is deleted now (findById() re-checks and deletes it) instead of
+            // being left for Ignite's TTL; live sessions are read without renewing the TTL
+            // (Bug #77886)
+            if(sessionRemainingTime <= 0) {
+               findById(session.getId());
+            }
+            else {
+               IgniteSession igniteSession = findIteratedSession(session);
 
                // could be out of sync due to session expiration, need to check for null
                if(igniteSession == null) {
