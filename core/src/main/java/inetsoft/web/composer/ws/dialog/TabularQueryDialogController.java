@@ -37,6 +37,7 @@ import org.springframework.web.bind.annotation.*;
 import java.io.File;
 import java.io.FileFilter;
 import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.security.Principal;
 import java.util.*;
 
@@ -294,9 +295,12 @@ public class TabularQueryDialogController extends WorksheetController {
                }
             }
             else {
-               File[] list = fileSystemService
-                  .getFile(relativeTo + "/" + path + "/")
-                  .listFiles(filter);
+               File folder = fileSystemService.getFile(relativeTo + "/" + path + "/");
+               // Bug #64331, the query picker only lists the root folder of the data source
+               // and the folders under it, a path such as ../.. can't leave it
+               File[] list = "/".equals(relativeTo) ||
+                  ServerFilePathPolicy.isUnderFolder(Paths.get(relativeTo), folder.toPath()) ?
+                  folder.listFiles(filter) : null;
 
                if(list != null) {
                   for(File file : list) {

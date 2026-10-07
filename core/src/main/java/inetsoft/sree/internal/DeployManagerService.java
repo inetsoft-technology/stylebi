@@ -32,6 +32,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.sync.*;
 import inetsoft.uql.service.DataSourceRegistry;
+import inetsoft.uql.tabular.ServerFilePathPolicy;
 import inetsoft.uql.tabular.TabularDataSource;
 import inetsoft.uql.util.Identity;
 import inetsoft.uql.util.XUtil;
@@ -1473,6 +1474,17 @@ public class DeployManagerService {
                return false;
             }
 
+            // Bug #64331, the server paths of the data source xml are not trusted
+            if(asset instanceof XDataSourceAsset && principal != null &&
+               !isImportedServerPathsAllowed(file, principal))
+            {
+               String msg = catalog.getString("em.import.file.failed.serverPathNotAllowed",
+                  asset.getType() + " " + path);
+               failedList.add(msg);
+               LOG.warn(msg);
+               return false;
+            }
+
             if(asset instanceof ScheduleTaskAsset && principal != null &&
                !isImportedScheduleSecretIdsAllowed(file, principal))
             {
@@ -1718,6 +1730,48 @@ public class DeployManagerService {
       Predicate<String> check = new SecretIdAuthorizer(securityEngine, dataSourceRegistry)
          .createCheck(stored, principal);
       return secretIds.stream().allMatch(check);
+   }
+
+   /**
+    * Bug #64331, determines if the importer may save the server paths, such as the root folder
+    * of a Text/Excel Directory data source, that the data sources of an imported data source
+    * asset set. A path is allowed when the importer may use any path, when it is under an
+    * allowed root, or when it is the same as the path of the data source that it overwrites.
+    */
+   boolean isImportedServerPathsAllowed(File file, Principal principal) throws Exception {
+      ServerFilePathPolicy policy = ServerFilePathPolicy.create(securityEngine);
+
+      if(policy.isUnrestricted(principal)) {
+         return true;
+      }
+
+      try(InputStream input = new FileInputStream(file)) {
+         Document doc = input.available() > 0 ? Tool.parseXML(input) : null;
+
+         if(doc == null) {
+            return true;
+         }
+
+         NodeList nodes = doc.getDocumentElement().getElementsByTagName("datasource");
+
+         for(int i = 0; i < nodes.getLength(); i++) {
+            XDataSourceWrapper wrapper = new XDataSourceWrapper();
+            wrapper.parseXML((Element) nodes.item(i));
+            XDataSource source = wrapper.getSource();
+
+            if(source == null) {
+               continue;
+            }
+
+            XDataSource stored = dataSourceRegistry.getDataSource(source.getFullName());
+
+            if(policy.getRefusedPath(source, stored, principal) != null) {
+               return false;
+            }
+         }
+      }
+
+      return true;
    }
 
    /**

@@ -83,7 +83,17 @@ public class ServerFileQuery extends SelectableTabularQuery {
          ServerFileDataSource ds = (ServerFileDataSource) getDataSource();
 
          if(ds.getFile() != null) {
-            return new File(ds.getFile(), relativeFilePath);
+            File file = new File(ds.getFile(), relativeFilePath);
+
+            // Bug #64331, a stored path such as ../.. (from a worksheet file or an old query)
+            // can't read a file outside of the root folder of the data source
+            if(!ServerFilePathPolicy.isUnderFolder(ds.getFile().toPath(), file.toPath())) {
+               LOG.warn("The file or folder {} of the query is not under the root folder {} " +
+                           "of its data source and is ignored", relativeFilePath, ds.getFile());
+               return null;
+            }
+
+            return file;
          }
       }
 
@@ -103,6 +113,15 @@ public class ServerFileQuery extends SelectableTabularQuery {
          if(ds.getFile() != null) {
             Path root = ds.getFile().toPath().toAbsolutePath();
             Path path = file.toPath().toAbsolutePath();
+
+            // Bug #64331, a query may only use the root folder of its data source and the
+            // files under it, any other path is refused and the current one is kept
+            if(!ServerFilePathPolicy.isUnderFolder(root, path)) {
+               LOG.warn("Refusing the file or folder {} of the query, it is not under the " +
+                           "root folder {} of its data source", file, ds.getFile());
+               return;
+            }
+
             relativeFilePath = root.relativize(path).toString();
          }
          else {
@@ -580,7 +599,7 @@ public class ServerFileQuery extends SelectableTabularQuery {
       }
 
       File file = getFileFolder();
-      return file.isDirectory() || ServerFileUtil.isExcel(file.getAbsolutePath());
+      return file != null && (file.isDirectory() || ServerFileUtil.isExcel(file.getAbsolutePath()));
    }
 
    /**
@@ -592,7 +611,7 @@ public class ServerFileQuery extends SelectableTabularQuery {
       }
 
       File file = getFileFolder();
-      return file.isDirectory() || !ServerFileUtil.isExcel(file.getAbsolutePath());
+      return file != null && (file.isDirectory() || !ServerFileUtil.isExcel(file.getAbsolutePath()));
    }
 
    /**

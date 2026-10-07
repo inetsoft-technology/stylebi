@@ -22,6 +22,7 @@ import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
+import inetsoft.uql.tabular.ServerFilePathPolicy;
 import inetsoft.uql.tabular.TabularUtil;
 import inetsoft.uql.tabular.oauth.AuthorizationClient;
 import inetsoft.uql.tabular.oauth.Tokens;
@@ -50,6 +51,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.io.File;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.Principal;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -563,7 +565,24 @@ public class DataSourceController {
       HttpServletRequest request,
       Principal principal) throws Exception
    {
-      path = Tool.byteDecode(path);
+      return getRootFolder(
+         Tool.byteDecode(path), principal, ServerFilePathPolicy.create(securityEngine));
+   }
+
+   /**
+    * Gets the tree model of a server folder for the Browse Folder dialog. A site admin, or
+    * anyone when security is disabled, may browse the whole server. Anyone else only sees the
+    * allowed roots and the folders under them (Bug #64331).
+    *
+    * @param path      the decoded path, "/" for the top level.
+    * @param principal the user.
+    * @param policy    the policy that decides which paths the user may browse.
+    */
+   TreeNodeModel getRootFolder(String path, Principal principal, ServerFilePathPolicy policy) {
+      if(!policy.isUnrestricted(principal)) {
+         return getAllowedFolder(path, policy.getAllowedRoots(principal));
+      }
+
       File[] fileRoots;
       boolean root = "/".equals(path);
 
@@ -636,6 +655,63 @@ public class DataSourceController {
       rootNodeBuilder.addChildren(folderNodes.toArray(new TreeNodeModel[0]));
 
       return rootNodeBuilder.build();
+   }
+
+   /**
+    * Gets the tree model of a server folder for a user who may only browse the allowed roots.
+    * The top level lists the allowed roots, and a folder that is not under one of them lists
+    * nothing.
+    */
+   private TreeNodeModel getAllowedFolder(String path, List<Path> roots) {
+      List<TreeNodeModel> folderNodes = new ArrayList<>();
+
+      if("/".equals(path)) {
+         for(Path rootPath : roots) {
+            File file = rootPath.toFile();
+
+            if(file.isDirectory() && Files.isReadable(rootPath)) {
+               String name = file.getAbsolutePath();
+               folderNodes.add(createFolderNode(name, name.replace(File.separator, "/"), file));
+            }
+         }
+      }
+      else {
+         File folder = fileSystemService.getFile(path + File.separator);
+         File[] files = ServerFilePathPolicy.isUnderAnyRoot(folder, roots) ?
+            folder.listFiles() : null;
+
+         if(files != null) {
+            for(File file : files) {
+               if(file.isDirectory() && Files.isReadable(file.toPath()) && !file.isHidden()) {
+                  String childPath = (path + File.separator + file.getName())
+                     .replace(File.separator, "/");
+                  folderNodes.add(createFolderNode(file.getName(), childPath, file));
+               }
+            }
+         }
+      }
+
+      TabularFileModel tabularFileModel = new TabularFileModel();
+      tabularFileModel.setFolder(true);
+      tabularFileModel.setPath(path);
+
+      return TreeNodeModel.builder()
+         .data(tabularFileModel)
+         .addChildren(folderNodes.toArray(new TreeNodeModel[0]))
+         .build();
+   }
+
+   private static TreeNodeModel createFolderNode(String label, String path, File file) {
+      TabularFileModel tabularFileModel = new TabularFileModel();
+      tabularFileModel.setFolder(true);
+      tabularFileModel.setPath(path);
+      tabularFileModel.setAbsolutePath(file.getAbsolutePath());
+
+      return TreeNodeModel.builder()
+         .data(tabularFileModel)
+         .label(label)
+         .leaf(false)
+         .build();
    }
 
    /**

@@ -328,6 +328,9 @@ public abstract class DatasourcesBaseService {
       return TabularDataSource.withCredentialFetchGate(check, () -> {
          XDataSource result = createDataSource(definition, ds);
          SecretIdAuthorizer.checkSecretId(SecretIdAuthorizer.getCloudSecretId(result), check);
+         // Bug #64331, a server path, such as the root folder of a Text/Excel Directory data
+         // source, must be under an allowed root unless it is unchanged
+         ServerFilePathPolicy.create(securityEngine).checkDataSource(result, stored, principal);
          List<AdditionalConnectionDataSource<?>> additionals = null;
 
          // additional connections are added after the data source is saved, so create them now
