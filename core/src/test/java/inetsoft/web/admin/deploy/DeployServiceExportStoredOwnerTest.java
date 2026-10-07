@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.deploy;
 
+import inetsoft.sree.ClientInfo;
 import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
@@ -27,6 +28,7 @@ import inetsoft.sree.security.support.SecurityTestDataBuilder;
 import inetsoft.test.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
 import inetsoft.util.dep.*;
@@ -370,6 +372,38 @@ class DeployServiceExportStoredOwnerTest {
                     List.of(), NULL_SECRET);
    }
 
+   // the file is named by AutoSaveUtils itself, saved in a session with a client address and
+   // moved to the recycle bin at logout, and carol names herself as the owner of the dependent
+   @Test
+   void autoSave_recycledByAutoSaveUtils_isRefusedWhateverOwnerIsSent() throws Exception {
+      String file = writeRecycledAutoSave(
+         new SRPrincipal(dave, new ClientInfo(DAVE, "0:0:0:0:0:0:0:1")), "Real-1", VS_SECRET);
+      assertEquals("8^VIEWSHEET^" + DAVE.convertToKey() + "^Real-1^0_0_0_0_0_0_0_1~", file);
+
+      assertRefused(carol, List.of(), List.of(required(file, "AUTOSAVEVS", carol.getIdentityID())));
+      assertRefused(carol, List.of(autoSave(RepositoryEntry.AUTO_SAVE_VS, file, carol.getIdentityID())),
+                    List.of());
+      assertTrue(preflight(carol, autoSave(RepositoryEntry.AUTO_SAVE_VS, file, null)).isEmpty());
+
+      for(SRPrincipal caller : List.of(dave, alice)) {
+         assertContent(caller, List.of(autoSave(RepositoryEntry.AUTO_SAVE_VS, file, null)),
+                       List.of(), VS_SECRET);
+      }
+   }
+
+   @Test
+   void autoSave_ofAnonymousSession_isAdminOnly() throws Exception {
+      IdentityID anonymous = new IdentityID(XPrincipal.ANONYMOUS, ORG_A);
+      String file = writeRecycledAutoSave(
+         new SRPrincipal(new ClientInfo(anonymous, "10.0.0.9"), new IdentityID[0], new String[0],
+                          ORG_A, 1L), "Anon-1", NULL_SECRET);
+
+      assertRefused(carol, List.of(autoSave(RepositoryEntry.AUTO_SAVE_VS, file, null)), List.of());
+      assertRefused(carol, List.of(), List.of(required(file, "AUTOSAVEVS", carol.getIdentityID())));
+      assertContent(alice, List.of(autoSave(RepositoryEntry.AUTO_SAVE_VS, file, null)),
+                    List.of(), NULL_SECRET);
+   }
+
    @Test
    void autoSave_malformedName_isRefused() throws Exception {
       // SUtil.getXAsset() can't build it, check the helper on its own
@@ -477,6 +511,22 @@ class DeployServiceExportStoredOwnerTest {
                                          AutoSaveUtils.RECYCLE_PREFIX + file, dave);
          assertTrue(AutoSaveUtils.exists(AutoSaveUtils.RECYCLE_PREFIX + file, dave), file);
          return null;
+      });
+   }
+
+   // returns the repository tree path of the recycled file, the name without the recycle prefix
+   private String writeRecycledAutoSave(SRPrincipal session, String sheet, String content)
+      throws Exception
+   {
+      return as(session, () -> {
+         AssetEntry entry = new AssetEntry(
+            AssetRepository.TEMPORARY_SCOPE, AssetEntry.Type.VIEWSHEET, sheet, null);
+         AutoSaveUtils.writeAutoSaveFile(content.getBytes(StandardCharsets.UTF_8), entry, session);
+         AutoSaveUtils.recycleUserAutoSave(session);
+         List<String> files = AutoSaveUtils.getAutoSavedFiles(session, true).stream()
+            .filter(f -> f.contains("^" + sheet + "^")).toList();
+         assertEquals(1, files.size(), "recycled " + files);
+         return files.get(0).substring(AutoSaveUtils.RECYCLE_PREFIX.length());
       });
    }
 
