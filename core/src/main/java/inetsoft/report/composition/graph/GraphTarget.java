@@ -718,7 +718,28 @@ public class GraphTarget implements Cloneable, Serializable, XMLSerializable {
     * Create a text format.
     */
    private MessageFormat createMessageFormat(String fmtStr) {
-      MessageFormat fmt = new java.text.MessageFormat(fmtStr);
+      MessageFormat fmt;
+
+      try {
+         fmt = new java.text.MessageFormat(fmtStr);
+      }
+      catch(IllegalArgumentException ex) {
+         // an unparsable label (e.g. unmatched braces) shouldn't fail the whole
+         // chart, show the target value instead (77805)
+         String msg = "Failed to parse target label \"" + fmtStr +
+            "\", the target value is shown instead";
+         Tool.addUserWarning(msg);
+
+         if(LOG.isDebugEnabled()) {
+            LOG.debug(msg, ex);
+         }
+         else {
+            LOG.warn("{}: {}", msg, ex.toString());
+         }
+
+         return new java.text.MessageFormat("{0}");
+      }
+
       int i = 0;
 
       for(Format fm : fmt.getFormats()) {
