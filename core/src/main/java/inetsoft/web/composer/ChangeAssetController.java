@@ -281,8 +281,15 @@ public class ChangeAssetController {
       // Defensive guard: a null/legacy styleID (or one that no longer resolves) would
       // otherwise NPE on the tableStyle.getName() permission checks below.
       if(tableStyle == null) {
-         throw new MessageException("Table style not found: " +
-            (styleID != null ? styleID : entry.getName()));
+         throw new MessageException(Catalog.getCatalog().getString(
+            "common.assetNotFound", styleID != null ? styleID : entry.getName()));
+      }
+
+      // Bug #77837, the target folder comes from the request. A folder that doesn't exist would
+      // inherit the root permission and leave the style in a folder the tree never shows.
+      if(!Tool.isEmptyString(folder) && !manager.containsFolder(folder)) {
+         throw new MessageException(Catalog.getCatalog().getString(
+            "common.folderNotFound", folder));
       }
 
       if(!assetRepository.checkPermission(principal, ResourceType.TABLE_STYLE, tableStyle.getName(),
@@ -311,8 +318,10 @@ public class ChangeAssetController {
 
 
       XTableStyle style = tableStyle.clone();
-      String name = Tool.isEmptyString(folder) ? entry.getName() :
-         folder + LibManager.SEPARATOR + entry.getName();
+      // Bug #77837, keep the leaf of the stored style. The leaf of the request entry may carry a
+      // separator and would put the style in a subfolder whose WRITE permission isn't checked.
+      String leaf = AssetEventUtil.getTableStyleLeaf(tableStyle.getName());
+      String name = Tool.isEmptyString(folder) ? leaf : folder + LibManager.SEPARATOR + leaf;
       style.setName(name);
       // Keep the ID stable so the remove and the recreate act on the same key.
       style.setID(styleID);

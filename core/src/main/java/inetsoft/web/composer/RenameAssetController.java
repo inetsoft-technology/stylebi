@@ -91,10 +91,17 @@ public class RenameAssetController {
             libManagerProvider.getManager(principal).getTableStyle(styleID);
 
          if(tableStyle == null) {
+            String message = Catalog.getCatalog().getString(
+               "common.assetNotFound", styleID != null ? styleID : entry.getName());
             MessageCommand messageCommand = new MessageCommand();
-            messageCommand.setMessage(
-               "Table style not found: " + (styleID != null ? styleID : entry.getName()));
+            messageCommand.setMessage(message);
             messageCommand.setType(MessageCommand.Type.ERROR);
+
+            if(actionRecord != null) {
+               actionRecord.setActionError(message);
+               Audit.getInstance().auditAction(actionRecord, principal);
+            }
+
             return messageCommand;
          }
 

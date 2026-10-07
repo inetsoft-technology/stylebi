@@ -82,6 +82,21 @@ class TableStyleRenameFolderTest {
       manager.save();
    }
 
+   @AfterEach
+   void tearDown() throws Exception {
+      for(String id : addedStyles) {
+         manager.removeTableStyle(id);
+      }
+
+      for(String folder : addedFolders) {
+         manager.removeTableStyleFolder(folder);
+      }
+
+      addedStyles.clear();
+      addedFolders.clear();
+      manager.save();
+   }
+
    @Test
    void renameWithTildeIsRefused() throws Exception {
       addStyle("Ren77837", "Ren77837");
@@ -213,6 +228,56 @@ class TableStyleRenameFolderTest {
       assertEquals("MvDup77837", manager.getTableStyle("MvDupB77837").getName());
    }
 
+   @Test
+   void renameOntoExistingNameInStoredFolderIsRefused() throws Exception {
+      addStyle("RnDupA77837", SECRET + "~RnDupA77837");
+      addStyle("RnDupB77837", SECRET + "~RnDupB77837");
+      AssetEntry entry = styleEntry("RnDupA77837");
+      entry.setProperty("folder", null);
+      MessageCommand[] r = new MessageCommand[1];
+      allow(() -> r[0] = renameController().renameAsset(rename(entry, "RnDupB77837"), admin()));
+
+      assertError(r[0]);
+      assertEquals(SECRET + "~RnDupA77837", manager.getTableStyle("RnDupA77837").getName());
+   }
+
+   @Test
+   void moveWithForgedLeafKeepsStoredLeaf() throws Exception {
+      String sub = SECRET + "~Sub77837";
+      addFolder(sub);
+      addStyle("MvLeaf77837", "MvLeaf77837");
+      AssetEntry entry = styleEntry("MvLeaf77837", "Sub77837~Pwn77837");
+      MessageCommand[] r = new MessageCommand[1];
+      denyWriteOn(sub, () -> r[0] = move(entry, SECRET));
+
+      String name = manager.getTableStyle("MvLeaf77837").getName();
+      assertFalse(name.startsWith(sub + "~"), "style was placed in the denied folder: " + name);
+      assertNull(r[0]);
+      assertEquals(SECRET + "~MvLeaf77837", name);
+   }
+
+   @Test
+   void moveWithForgedLeafChecksDuplicateOfStoredLeaf() throws Exception {
+      addStyle("MvCollA77837", SECRET + "~MvColl77837");
+      addStyle("MvCollB77837", "MvColl77837");
+      AssetEntry entry = styleEntry("MvCollB77837", "Other77837");
+      MessageCommand[] r = new MessageCommand[1];
+      allow(() -> r[0] = move(entry, SECRET));
+
+      assertError(r[0]);
+      assertEquals("MvColl77837", manager.getTableStyle("MvCollB77837").getName());
+   }
+
+   @Test
+   void moveIntoMissingFolderIsRefused() throws Exception {
+      addStyle("MvGhost77837", "MvGhost77837");
+      MessageCommand[] r = new MessageCommand[1];
+      allow(() -> r[0] = move(styleEntry("MvGhost77837"), "Nope77837"));
+
+      assertNotNull(r[0], "expected the request to be refused");
+      assertEquals("MvGhost77837", manager.getTableStyle("MvGhost77837").getName());
+   }
+
    // ---- helpers ----
 
    private static void assertError(MessageCommand command) {
@@ -226,13 +291,25 @@ class TableStyleRenameFolderTest {
       style.setName(name);
       manager.setTableStyle(id, style);
       manager.save();
+      addedStyles.add(id);
+   }
+
+   private void addFolder(String folder) throws Exception {
+      manager.addTableStyleFolder(folder);
+      manager.save();
+      addedFolders.add(folder);
    }
 
    /** Builds the entry the way AbstractAssetEngine.getTableStyleEntries does. */
    private AssetEntry styleEntry(String id) {
       String full = manager.getTableStyle(id).getName();
+      return styleEntry(id, full.substring(full.lastIndexOf(LibManager.SEPARATOR) + 1));
+   }
+
+   /** Same as {@link #styleEntry(String)}, with the entry path's leaf set to {@code leaf}. */
+   private AssetEntry styleEntry(String id, String leaf) {
+      String full = manager.getTableStyle(id).getName();
       int idx = full.lastIndexOf(LibManager.SEPARATOR);
-      String leaf = full.substring(idx + 1);
       AssetEntry entry = new AssetEntry(AssetRepository.COMPONENT_SCOPE, AssetEntry.Type.TABLE_STYLE,
                                         "Table Style/" + leaf, null);
       entry.setProperty("styleName", full);
@@ -316,4 +393,6 @@ class TableStyleRenameFolderTest {
 
    private AssetRepository repo;
    private LibManager manager;
+   private final List<String> addedStyles = new ArrayList<>();
+   private final List<String> addedFolders = new ArrayList<>();
 }

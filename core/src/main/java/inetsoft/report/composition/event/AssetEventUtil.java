@@ -1410,9 +1410,11 @@ public class AssetEventUtil {
             return false;
          }
 
+         // The move keeps the leaf of the stored style, not the leaf of the request entry.
          folder = getTableStyleFolder(tableStyle.getName());
-         duplicate = !Tool.equals(folder, folder2) && (isDuplicateStyle(folder2, nentry.getName()) ||
-            isDuplicateFolder(folder2, nentry.getName()));
+         String leaf = getTableStyleLeaf(tableStyle.getName());
+         duplicate = !Tool.equals(folder, folder2) && (isDuplicateStyle(folder2, leaf) ||
+            isDuplicateFolder(folder2, leaf));
       }
       else if(nentry.isTableStyleFolder()) {
          String nFolder = folder.contains(LibManager.SEPARATOR) ? folder.substring(0,
@@ -1434,6 +1436,18 @@ public class AssetEventUtil {
    public static String getTableStyleFolder(String styleName) {
       int idx = styleName == null ? -1 : styleName.lastIndexOf(LibManager.SEPARATOR);
       return idx < 0 ? null : styleName.substring(0, idx);
+   }
+
+   /**
+    * Gets the name of a table style without its folder.
+    *
+    * @param styleName the full name of the table style.
+    *
+    * @return the name after the last folder separator.
+    */
+   public static String getTableStyleLeaf(String styleName) {
+      int idx = styleName == null ? -1 : styleName.lastIndexOf(LibManager.SEPARATOR);
+      return idx < 0 ? styleName : styleName.substring(idx + 1);
    }
 
    public static boolean isDuplicateFolder(String folder1, String folder2) {
