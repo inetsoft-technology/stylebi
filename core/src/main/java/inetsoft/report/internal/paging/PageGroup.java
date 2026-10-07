@@ -170,7 +170,10 @@ public class PageGroup extends XSwappable {
    }
 
    /**
-    * Swap the swappable.
+    * Swap the swappable. The pages are written to the swap file, and a later swap reuses the
+    * file if the completed state is unchanged. The pages are freed only after the whole file is
+    * written. A failed write deletes the file and keeps the pages in memory, so the file is
+    * rewritten by the next swap instead of being reused (bug #77962).
     * @param fast true to not check the completed state.
     * @return <tt>true</tt> if swapped, <tt>false</tt> rejected.
     */
@@ -178,40 +181,95 @@ public class PageGroup extends XSwappable {
       valid = false;
       // if the paging process is not batch waiting, the swap process does not
       // care complete or not, so for this case, completed is always true
-      byte completed = fast ? lcompleted :
+      byte completed = fast && !rewriteRequired ? lcompleted :
          (proc != null && (!proc.isBatchWaiting() || proc.isCompleted()) ?
             COMPLETED : UNCOMPLETED);
+      boolean write = rewriteRequired || !swapfile.exists() || lcompleted != completed;
+      FileOutputStream fout = null;
+      ObjectOutputStream out = null;
+      boolean done = false;
 
       try {
-         OutputStream fout = swapfile.exists() && lcompleted == completed ?
-            null : new FileOutputStream(swapfile);
-
-         if(fout != null) {
-            fout = Tool.createCompressOutputStream(fout);
-         }
-
-         ObjectOutputStream out = fout == null ? null :
-            new ObjectOutputStream(new BufferedOutputStream(fout));
-         lcompleted = completed;
-
-         for(int i = 0; i < count; i++) {
-            pages[i].swap(out, completed == COMPLETED);
-         }
-
-         if(out != null) {
-            out.writeObject(userObj);
-            out.close();
-
-            if(isCountRW) {
-               monitor.countWrite(swapfile.length(), XSwappableMonitor.SHEET);
+         if(!write) {
+            for(int i = 0; i < count; i++) {
+               pages[i].swap(null, completed == COMPLETED);
             }
+
+            userObj = null;
+            done = true;
+            return true;
+         }
+
+         // the file is created or truncated here, so it is incomplete until it is closed
+         rewriteRequired = true;
+         fout = new FileOutputStream(swapfile);
+         out = new ObjectOutputStream(
+            new BufferedOutputStream(Tool.createCompressOutputStream(fout)));
+         boolean[] full = new boolean[count];
+
+         // the pages keep their data in memory until the file is complete
+         for(int i = 0; i < count; i++) {
+            if(testBeforeWrite != null) {
+               testBeforeWrite.run();
+            }
+
+            full[i] = pages[i].swap(out, completed == COMPLETED);
+         }
+
+         if(testBeforeWrite != null) {
+            testBeforeWrite.run();
+         }
+
+         out.writeObject(userObj);
+         out.close();
+         lcompleted = completed;
+         rewriteRequired = false;
+         done = true;
+
+         // the file is complete, drop the data of the pages that are in it
+         for(int i = 0; i < count; i++) {
+            pages[i].swapCompleted(full[i]);
+         }
+
+         userObj = null;
+
+         if(isCountRW) {
+            monitor.countWrite(swapfile.length(), XSwappableMonitor.SHEET);
          }
       }
       catch(Exception ex) {
          LOG.error("Failed to swap pages to disk", ex);
       }
+      finally {
+         // an incomplete file must not be reused by a later swap. the pages and the user
+         // object are all still in memory, so the group stays valid
+         if(!done) {
+            if(out != null) {
+               try {
+                  out.close();
+               }
+               catch(Throwable ex) {
+                  // ignore it
+               }
+            }
 
-      userObj = null;
+            if(fout != null) {
+               try {
+                  fout.close();
+               }
+               catch(Throwable ex) {
+                  // ignore it
+               }
+
+               if(!swapfile.delete() && swapfile.exists()) {
+                  LOG.warn("Failed to delete incomplete page swap file: " + swapfile);
+               }
+            }
+
+            valid = true;
+         }
+      }
+
       return true;
    }
 
@@ -411,11 +469,15 @@ public class PageGroup extends XSwappable {
    private boolean valid; // valid flag
    private boolean lastValid;
    private byte lcompleted; // last completed flag
+   // the swap file is incomplete (a write failed), it must be rewritten and not reused
+   private boolean rewriteRequired;
    private long accessed; // last accessed timestamp
    private boolean disposed; // disposed flag
    private transient XSwappableMonitor monitor;
    private transient boolean isCountHM; // is hit/misses level qualified
    private transient boolean isCountRW; // is read/write level qualified
+   // test-only hook, run before each page and the user object is written to the swap file
+   transient Runnable testBeforeWrite;
 
    private static final Logger LOG = LoggerFactory.getLogger(PageGroup.class);
 }
