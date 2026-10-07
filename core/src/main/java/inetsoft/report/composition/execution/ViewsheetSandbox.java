@@ -1207,6 +1207,8 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       }
 
       TableAssembly ntable = copyBoundTable(assembly, nname);
+      // keep Viewsheet.resetWS() off the copy the query runs on (77915)
+      ntable.setProperty(Viewsheet.VS_BOUND_TABLE, "true");
       ws.addAssembly(ntable);
       MVManager mgr = MVManager.getManager();
 

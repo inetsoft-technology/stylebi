@@ -90,6 +90,11 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
    public static final String VS_MIRROR_TABLE = "vs_mirror_table";
 
    /**
+    * Marks the copy of a viewsheet table a query binds to (ViewsheetSandbox.getBoundTable).
+    */
+   public static final String VS_BOUND_TABLE = "vs_bound_table";
+
+   /**
     * Merge a variable array to list.
     * @param list the specified list.
     * @param vars the specified variable array.
@@ -442,28 +447,37 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
 
       // if any table name changed, we should keep the viewsheet table
       // in sync, fix bug1328194963858
-      for(Assembly assembly : ws.getAssemblies()) {
-         if(!(assembly instanceof TableAssembly table)) {
-            continue;
-         }
+      // queries of other requests change the tables in place under the worksheet lock (77867)
+      synchronized(ws) {
+         for(Assembly assembly : ws.getAssemblies()) {
+            if(!(assembly instanceof TableAssembly table)) {
+               continue;
+            }
 
-         ColumnSelection cols = table.getColumnSelection();
+            // the bound copy belongs to a query that may be running now without the sandbox
+            // lock (74001), and every query makes a new one with the current calc fields (77915)
+            if("true".equals(table.getProperty(VS_BOUND_TABLE))) {
+               continue;
+            }
 
-         if(cols == null || cols.isEmpty()) {
-            continue;
-         }
+            ColumnSelection cols = table.getColumnSelection();
 
-         List<DataRef> newCols = cols.stream()
-            // @by stephenwebster, For Bug #9172
-            // Avoid removing attributes from dynamically created assemblies
-            // as this may cause the assembly to fail since it cannot find the
-            // calculated field.
-            .filter(col -> !(col instanceof CalculateRef) ||
-               "true".equals(table.getProperty("output.temp.table")))
-            .collect(Collectors.toList());
+            if(cols == null || cols.isEmpty()) {
+               continue;
+            }
 
-         if(newCols.size() != cols.getAttributeCount()) {
-            table.setColumnSelection(new ColumnSelection(newCols));
+            List<DataRef> newCols = cols.stream()
+               // @by stephenwebster, For Bug #9172
+               // Avoid removing attributes from dynamically created assemblies
+               // as this may cause the assembly to fail since it cannot find the
+               // calculated field.
+               .filter(col -> !(col instanceof CalculateRef) ||
+                  "true".equals(table.getProperty("output.temp.table")))
+               .collect(Collectors.toList());
+
+            if(newCols.size() != cols.getAttributeCount()) {
+               table.setColumnSelection(new ColumnSelection(newCols));
+            }
          }
       }
 
