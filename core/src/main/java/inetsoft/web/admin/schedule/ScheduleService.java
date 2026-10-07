@@ -391,11 +391,11 @@ public class ScheduleService {
          currTask.setOwner(owner);
       }
 
-      // Bug #77359, check the owner organization before the task is removed, a renamed task
-      // whose owner is in another organization is refused by setScheduleTask() and would be lost
-      scheduleManager.checkReplaceOwnerOrganization(oldId, newId, currTask, principal);
-      // Bug #77549, the same for a batch action query in another organization
-      scheduleManager.checkBatchQueryOrganization(newId, currTask, principal);
+      // Bug #77359, #77549, #77863, every refusal of setScheduleTask() (e.g. an owner or a batch
+      // action query or a viewsheet action sheet in another organization) is checked before the
+      // task is removed, with the stored actions the renamed task is saved with, a refused
+      // renamed task would be lost
+      scheduleManager.checkReplaceScheduleTask(oldId, newId, currTask, principal);
       scheduleManager.removeScheduleTask(oldId, principal);
       String newName = newId;
 
