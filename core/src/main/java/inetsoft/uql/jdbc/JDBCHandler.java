@@ -2530,6 +2530,7 @@ public class JDBCHandler extends XHandler {
       }
 
       XNode root = getDBProperties(additional);
+      schema = "true".equals(root.getAttribute("hasSchema"));
       String catalogName = null;
       String escapedCatalogName = null;
       String schemaName = (String) mtype.getAttribute("schema");
@@ -2775,13 +2776,16 @@ public class JDBCHandler extends XHandler {
    private String getUser(DatabaseMetaData meta, XNode mtype) throws Exception {
       String user = (String) mtype.getAttribute("schema");
 
-      if(user == null && schema) {
-         XNode query = new XNode();
-         query.setAttribute("type", "DBPROPERTIES");
-         // get child meta-data through repository so that cache is used/updated
-         XNode root = checkDBProperties(
-            repository.getMetaData(session, getDataSource(), query, true, null));
+      XNode root = null;
 
+      if(user == null) {
+         // read hasSchema from the cached database properties, the schema field is only
+         // set if this handler loaded the properties itself (Bug #77938)
+         root = getDBProperties((String) mtype.getAttribute("additional"));
+         schema = "true".equals(root.getAttribute("hasSchema"));
+      }
+
+      if(user == null && schema) {
          if(xds.getDatabaseType() == JDBCDataSource.JDBC_SYBASE) {
             user = "dbo";
          }
