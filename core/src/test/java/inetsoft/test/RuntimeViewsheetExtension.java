@@ -77,6 +77,9 @@ public class RuntimeViewsheetExtension implements BeforeEachCallback, AfterEachC
       Principal principal = SUtil.getPrincipal(
          new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getInstance().getCurrentOrgID()),
          null, false);
+      // install the principal on the thread so that permission checks made while opening and
+      // running the viewsheet don't use a principal left on the thread by an earlier test class
+      ThreadContext.setPrincipal(principal);
       GenericMessage<String> message = new GenericMessage<>("test");
       MessageAttributes messageAttributes = new MessageAttributes(message);
       StompHeaderAccessor headerAccessor = messageAttributes.getHeaderAccessor();

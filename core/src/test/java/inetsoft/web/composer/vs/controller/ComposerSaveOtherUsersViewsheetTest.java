@@ -36,6 +36,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.util.XSessionService;
+import inetsoft.util.ThreadContext;
 import inetsoft.web.composer.ws.event.SaveSheetEvent;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
@@ -45,6 +46,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+
+import java.security.Principal;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -71,9 +74,12 @@ class ComposerSaveOtherUsersViewsheetTest {
    private IdentityID bobId;
    private String runtimeId;
    private SRPrincipal admin;
+   private Principal savedPrincipal;
 
    @BeforeEach
    void setUp() throws Exception {
+      // opening the viewsheet as admin sets the thread's principal, restored in tearDown()
+      savedPrincipal = ThreadContext.getPrincipal();
       SecurityEngineOverrides.assertInstalled(SecurityEngine.getSecurity());
       overrides.setSecurityEnabled(true);
       assertTrue(SecurityEngine.getSecurity().isSecurityEnabled(), "test requires security on");
@@ -114,6 +120,7 @@ class ComposerSaveOtherUsersViewsheetTest {
       finally {
          runtimeId = null;
          overrides.clear();
+         ThreadContext.setPrincipal(savedPrincipal);
       }
    }
 
