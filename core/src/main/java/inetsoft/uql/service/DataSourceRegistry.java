@@ -646,6 +646,98 @@ public class DataSourceRegistry implements MessageListener {
       return result.toArray(new AssetEntry[0]);
    }
 
+   /**
+    * Gets the extended models of a logical model, or the extended views of a physical view, of
+    * a data source (see {@link #getDataSourceEntries(String, String, AssetEntry.Type, boolean)}).
+    * Bug #77842, a logical model and a physical view may have the same name, and a model name
+    * may have "/" in it, so the entries under the path of a model may be another model's: an
+    * extended model is the model's only if it has the matching type and is stored with the
+    * rest of the path as its name, e.g. "x/e" at "P/m/x/e" is model m's, and "e" at the same
+    * path is model "m/x"'s.
+    *
+    * @param dataSource   the path of the data source, e.g. "P".
+    * @param basePath     the path of the model, e.g. "P/m".
+    * @param extendedType {@link AssetEntry.Type#EXTENDED_LOGIC_MODEL} or
+    *                     {@link AssetEntry.Type#EXTENDED_PARTITION}.
+    * @param refuse       {@code true} to change the entries (a rename or remove): an entry that
+    *                     can't be read is the model's if no other model of the type has a path
+    *                     above it, and is refused if one has. {@code false} to list them: an
+    *                     entry that can't be read is left out.
+    *
+    * @return the entries.
+    *
+    * @throws MessageException if {@code refuse} and an entry can't be read to tell whose it is.
+    */
+   public AssetEntry[] getExtendedModelEntries(String dataSource, String basePath,
+                                               AssetEntry.Type extendedType, boolean refuse)
+   {
+      AssetEntry.Type baseType = extendedType == AssetEntry.Type.EXTENDED_LOGIC_MODEL ?
+         AssetEntry.Type.LOGIC_MODEL : extendedType == AssetEntry.Type.EXTENDED_PARTITION ?
+         AssetEntry.Type.PARTITION : null;
+
+      if(baseType == null) {
+         throw new IllegalArgumentException("Not an extended model type: " + extendedType);
+      }
+
+      List<AssetEntry> result = new ArrayList<>();
+
+      for(AssetEntry entry :
+         getDataSourceEntries(dataSource, basePath + "/", extendedType, refuse))
+      {
+         String storedName = getStoredModelName(entry);
+
+         if(storedName != null) {
+            if(entry.getPath().equals(basePath + "/" + storedName)) {
+               result.add(entry);
+            }
+            else {
+               // another model's, or one whose stored name doesn't match its path (left alone)
+               LOG.debug("Extended model {} is stored as \"{}\", not a child of {}",
+                         entry.getPath(), storedName, basePath);
+            }
+
+            continue;
+         }
+
+         if(!refuse) {
+            continue;
+         }
+
+         List<String> bases = getExtendedModelBases(dataSource, entry.getPath(), baseType);
+
+         if(bases.contains(basePath)) {
+            if(bases.size() > 1) {
+               throw new MessageException(Catalog.getCatalog().getString(
+                  "common.datasource.extendedModelUnreadable", basePath, entry.getPath()));
+            }
+
+            result.add(entry);
+         }
+      }
+
+      return result.toArray(new AssetEntry[0]);
+   }
+
+   // the paths of the models of the type an extended model at the path may be under, the ones
+   // at each "/" in the path after the data source
+   private List<String> getExtendedModelBases(String dataSource, String path,
+                                              AssetEntry.Type baseType)
+   {
+      List<String> bases = new ArrayList<>();
+
+      for(int index = path.indexOf('/', dataSource.length() + 1); index > 0;
+          index = path.indexOf('/', index + 1))
+      {
+         String base = path.substring(0, index);
+
+         if(containObject(new AssetEntry(AssetRepository.QUERY_SCOPE, baseType, base, null))) {
+            bases.add(base);
+         }
+      }
+
+      return bases;
+   }
+
    // the paths above a path that a data source and a data source folder share, the top first
    private List<String> getDataSourcePathClashesAbove(String path) {
       List<String> clashes = new ArrayList<>();
