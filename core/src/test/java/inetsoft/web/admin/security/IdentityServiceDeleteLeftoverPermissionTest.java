@@ -264,6 +264,75 @@ class IdentityServiceDeleteLeftoverPermissionTest {
       assertTrue(admin(CAROL, ResourceType.SECURITY_USER, BOB), "carol must keep ADMIN on bob");
    }
 
+   // an own key is matched by its type too: deleting the user "sales" keeps the group's own key
+   @Test
+   void deleteUser_groupWithSameNameKeepsItsOwnKey() throws Exception {
+      authc.addUser(new FSUser(new IdentityID("sales", ORG)));
+
+      assertEquals(List.of(), delete(new IdentityID("sales", ORG), Identity.USER));
+
+      assertNotNull(authz.getPermission(ResourceType.SECURITY_GROUP, SALES.convertToKey(), ORG));
+      assertTrue(admin(BOB, ResourceType.SECURITY_GROUP, SALES), "bob must keep ADMIN on the group");
+   }
+
+   // a site administrator may have stored the own key under another organization
+   @Test
+   void deleteUser_ownKeyStoredUnderOtherOrganizationRemoved() throws Exception {
+      Permission own = new Permission();
+      own.setGrants(ResourceAction.ADMIN, Identity.USER,
+                    new HashSet<>(Set.of(new Permission.PermissionIdentity(BOB))));
+      authz.setPermission(ResourceType.SECURITY_USER, ALICE.convertToKey(), own, OTHER_ORG);
+
+      try {
+         assertEquals(List.of(), delete(ALICE, Identity.USER));
+         assertNull(authz.getPermission(ResourceType.SECURITY_USER, ALICE.convertToKey(), OTHER_ORG));
+      }
+      finally {
+         authz.removePermission(ResourceType.SECURITY_USER, ALICE.convertToKey(), OTHER_ORG);
+      }
+   }
+
+   // a global role's grant left in another organization is reported too
+   @Test
+   void deleteGlobalRole_leftoverInOtherOrganization_warns() throws Exception {
+      String otherKey = "VIEWSHEET:" + OTHER_ORG + ":" + VS;
+      Permission perm = new Permission();
+      perm.setGrants(ResourceAction.READ, Identity.ROLE,
+                     new HashSet<>(Set.of(new Permission.PermissionIdentity(GVIEWER))));
+      authz.setPermission(ResourceType.VIEWSHEET, VS, perm, OTHER_ORG);
+
+      try {
+         failWrites(otherKey, false, false);
+         List<String> warnings = delete(GVIEWER, Identity.ROLE);
+
+         assertEquals(1, warnings.size(), String.valueOf(warnings));
+         assertTrue(warnings.get(0).startsWith("gviewer was deleted"), warnings.get(0));
+      }
+      finally {
+         authz.removePermission(ResourceType.VIEWSHEET, VS, OTHER_ORG);
+      }
+   }
+
+   // a user with the same name in another organization is another identity: its grant is kept
+   // and is not reported as a leftover
+   @Test
+   void deleteUser_sameNameInOtherOrganization_keptAndNotReported() throws Exception {
+      IdentityID otherAlice = new IdentityID("alice", OTHER_ORG);
+      String otherKey = "VIEWSHEET:" + OTHER_ORG + ":" + VS;
+      Permission perm = new Permission();
+      perm.setGrants(ResourceAction.READ, Identity.USER,
+                     new HashSet<>(Set.of(new Permission.PermissionIdentity(otherAlice))));
+      authz.setPermission(ResourceType.VIEWSHEET, VS, perm, OTHER_ORG);
+
+      try {
+         assertEquals(List.of(), delete(ALICE, Identity.USER));
+         assertTrue(granted(otherKey, otherAlice, Identity.USER));
+      }
+      finally {
+         authz.removePermission(ResourceType.VIEWSHEET, VS, OTHER_ORG);
+      }
+   }
+
    // ---- no false report --------------------------------------------------------------------
 
    @Test
