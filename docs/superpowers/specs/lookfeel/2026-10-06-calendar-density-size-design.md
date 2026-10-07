@@ -62,7 +62,7 @@ step with the tier.
     sets the show type or view mode at runtime (the `typeSValid` / `modeSValid` flags, set only by
     `CalendarVSAScriptable.java:108`, `:125`).
 - **The property dialog's frontend resizes the box when the show type or view mode is switched**
-  (`calendar-property-dialog.component.ts:109-119`). It doubles the width for double and halves it
+  (`calendar-property-dialog.component.ts:110-120`). It doubles the width for double and halves it
   for single, and sets the height to 20 for a dropdown and 180 for a full calendar. The server stores
   that size as sent, except in the bottom-tabs branch (§5). *Corrected 2026-10-06: this bullet first
   said the dialog left the size alone, which is true of the server only. The Task 4 review found it.*
@@ -217,6 +217,10 @@ change.
   author's either, so a double calendar switched back to a single 300-wide box follows density
   again. This matches #6390's D7, where a dialog's show-type switch is a derived write that never
   sets the flag.
+- **A save of a dropdown or double calendar ignores the checkbox answer.** Apply keeps the dialog
+  open with the model it was opened with, so after an Apply that switched to double or dropdown, OK
+  can resend the answer read while the calendar was single. The save clears it, so OK cannot reset
+  that calendar to the 300-wide density size.
 
 **No frontend change.** The calendar's general pane already embeds `<size-position-pane>`
 (`calendar-general-pane.component.html:27`). The pane shows the checkbox whenever
