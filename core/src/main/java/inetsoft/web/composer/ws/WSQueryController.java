@@ -49,6 +49,7 @@ public class WSQueryController extends WorksheetController {
 
    @InitWSExecution
    @LoadingMask
+   // listed in SheetEventOrderInterceptor, which does not queue it behind the sheet's events
    @MessageMapping("composer/worksheet/query/stop")
    public void stopQuery(
       @Payload WSAssemblyEvent event, Principal principal,
