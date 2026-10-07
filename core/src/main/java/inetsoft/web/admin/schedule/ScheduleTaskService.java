@@ -554,7 +554,8 @@ public class ScheduleTaskService {
          }
       }
       else {
-         if("".equals(taskName)) {
+         // Bug #77856, a name made only of whitespace is as empty as no name
+         if(taskName == null || taskName.trim().isEmpty()) {
             throw new Exception(catalog.getString("em.scheduler.emptyTaskName"));
          }
 

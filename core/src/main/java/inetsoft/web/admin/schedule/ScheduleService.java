@@ -152,6 +152,12 @@ public class ScheduleService {
       }
 
       if(!taskName.equals(oldName)) {
+         // Bug #77856, refuse a blank name before the rename is queued for the dependencies
+         if(isBlankTaskName(taskName)) {
+            throw new Exception(Catalog.getCatalog(principal).getString(
+               "em.scheduler.emptyTaskName"));
+         }
+
          String path = scheduleManager.getScheduleTask(oldName).getPath();
          renameTransformHandler.addTransformTask(
             getDependencyInfo(oldName, taskName, path, path, scheduleManager));
@@ -162,6 +168,24 @@ public class ScheduleService {
       }
 
       return oldName;
+   }
+
+   /**
+    * Checks if the name part of a task id is empty or made only of whitespace. The owner key of
+    * an id ({@code name~;~org:task}) contains the key delimiter, the name follows the first
+    * colon after it. An id without an owner (security disabled) is the name itself.
+    */
+   static boolean isBlankTaskName(String taskId) {
+      if(taskId == null) {
+         return true;
+      }
+
+      int delimiter = taskId.indexOf(IdentityID.KEY_DELIMITER);
+      int colon = delimiter < 0 ? -1 :
+         taskId.indexOf(':', delimiter + IdentityID.KEY_DELIMITER.length());
+      String name = colon < 0 ? taskId : taskId.substring(colon + 1);
+
+      return name.trim().isEmpty();
    }
 
    public static RenameDependencyInfo getDependencyInfo(String oname, String nname,

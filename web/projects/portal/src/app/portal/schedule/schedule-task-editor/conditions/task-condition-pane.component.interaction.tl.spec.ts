@@ -57,7 +57,9 @@
  */
 
 import { SimpleChange } from "@angular/core";
-import { waitFor } from "@testing-library/angular";
+import { screen, waitFor } from "@testing-library/angular";
+import { UntypedFormControl, UntypedFormGroup } from "@angular/forms";
+import { FormValidators } from "../../../../../../../shared/util/form-validators";
 import { of } from "rxjs";
 import { vi } from "vitest";
 import { TimeConditionModel, TimeConditionType, TimeRange } from "../../../../../../../shared/schedule/model/time-condition-model";
@@ -872,5 +874,34 @@ describe("Group 21 — ngOnChanges: listView false flip triggers addCondition", 
       } finally {
          spy.mockRestore();
       }
+   });
+
+   // Bug #77856, the Save button of the multiple-conditions list must not save a task whose
+   // name the editor marks invalid (e.g. a name made only of whitespace)
+   describe("list view Save", () => {
+      async function renderListView(name: string) {
+         const { comp, fixture, saveTask } = await renderTaskConditionPane();
+         comp.parentForm = new UntypedFormGroup({
+            name: new UntypedFormControl(name, FormValidators.required)
+         });
+         comp.listView = true;
+         fixture.detectChanges();
+         const button = screen.getByRole("button", { name: "_#(Save)" }) as HTMLButtonElement;
+         return { button, saveTask };
+      }
+
+      it("is disabled while the task name is whitespace only", async () => {
+         const { button, saveTask } = await renderListView(" ");
+
+         expect(button.disabled).toBe(true);
+         button.click();
+         expect(saveTask).not.toHaveBeenCalled();
+      });
+
+      it("is enabled when the task name is valid", async () => {
+         const { button } = await renderListView("Task");
+
+         expect(button.disabled).toBe(false);
+      });
    });
 });

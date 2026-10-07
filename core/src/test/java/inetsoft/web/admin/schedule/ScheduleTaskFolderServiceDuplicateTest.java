@@ -479,6 +479,50 @@ class ScheduleTaskFolderServiceDuplicateTest {
       return (AssetFolder) store.get(folder("/").toIdentifier());
    }
 
+   // Bug #77856, a folder name made only of whitespace is refused with a "required" message,
+   // on add and on rename; leading and trailing spaces stay legal
+   @Test
+   void addBlankName_isRefused() {
+      for(String name : new String[] { " ", "   ", "	" }) {
+         MessageException ex = assertThrows(MessageException.class, () -> service.addFolder(
+            folder("/"), name, "/", AssetRepository.GLOBAL_SCOPE, principal));
+
+         assertEquals(Catalog.getCatalog().getString("folder.required"), ex.getMessage());
+         assertFalse(store.containsKey(folder(name).toIdentifier()));
+         assertFalse(root().containsEntry(folder(name)));
+      }
+   }
+
+   @Test
+   void renameToBlankName_isRefused() {
+      MessageException ex = assertThrows(MessageException.class,
+                                         () -> service.renameFolder(renameModel("A", "  "), principal));
+
+      assertEquals(Catalog.getCatalog().getString("folder.required"), ex.getMessage());
+      assertTrue(store.containsKey(folder("A").toIdentifier()));
+      assertFalse(store.containsKey(folder("  ").toIdentifier()));
+      assertSame(permA, perms.get("A"));
+   }
+
+   @Test
+   void nameWithLeadingAndTrailingSpaces_isAdded() throws Exception {
+      service.addFolder(folder("/"), " N ", "/", AssetRepository.GLOBAL_SCOPE, principal);
+
+      assertTrue(store.containsKey(folder(" N ").toIdentifier()));
+   }
+
+   // a folder stored with a blank name before the fix can still be renamed to a valid name
+   @Test
+   void existingBlankFolder_canBeRenamed() throws Exception {
+      addFolder("A/ ");
+
+      AssetEntry renamed = service.renameFolder(renameModel("A/ ", "fixed"), principal);
+
+      assertEquals("A/fixed", renamed.getPath());
+      assertTrue(store.containsKey(folder("A/fixed").toIdentifier()));
+      assertFalse(store.containsKey(folder("A/ ").toIdentifier()));
+   }
+
    private void addFolder(String path) {
       AssetEntry entry = folder(path);
       AssetFolder parent = (AssetFolder) store.get(entry.getParent().toIdentifier());
