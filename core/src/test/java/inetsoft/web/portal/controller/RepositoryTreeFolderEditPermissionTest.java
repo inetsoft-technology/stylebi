@@ -33,6 +33,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.util.*;
+import java.util.function.Predicate;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -115,10 +116,75 @@ class RepositoryTreeFolderEditPermissionTest {
       assertEquals("NewDesc", registry().getFolderDescription(folder));
    }
 
+   @Test
+   @Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+   void myDashboardFolderEditByOwnerStillWorks() throws Exception {
+      String folder = SUtil.MY_REPORT + "/F77838d";
+      RepletRegistry reg = userRegistry();
+      addFolder(reg, folder, "OldAlias", "OldDesc");
+      List<List<Object>> calls = new ArrayList<>();
+
+      // a My Dashboard folder is checked as READ on My Dashboards, not as WRITE on the path
+      MessageCommand[] result = new MessageCommand[1];
+      withRefused(c -> c.equals(List.of(ResourceType.REPORT, folder, ResourceAction.WRITE)), calls,
+                  () -> result[0] = controller().addRepositoryFolder(
+                     editEvent(folder, "F77838d", "NewAlias", "NewDesc"), user()));
+
+      assertNull(result[0], () -> "edit refused: " + result[0].getMessage());
+      assertTrue(calls.contains(List.of(ResourceType.MY_DASHBOARDS, "*", ResourceAction.READ)),
+                 () -> "My Dashboards access was not checked: " + calls);
+      RepletRegistryManager.getInstance().clear(user().getIdentityID().convertToKey());
+      assertEquals("NewAlias", userRegistry().getFolderAlias(folder));
+      assertEquals("NewDesc", userRegistry().getFolderDescription(folder));
+   }
+
+   @Test
+   @Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+   void myDashboardFolderEditWithoutMyDashboardsAccessIsRefused() throws Exception {
+      String folder = SUtil.MY_REPORT + "/F77838e";
+      addFolder(userRegistry(), folder, "OldAlias", "OldDesc");
+
+      MessageCommand[] result = new MessageCommand[1];
+      withRefused(c -> c.get(0) == ResourceType.MY_DASHBOARDS, new ArrayList<>(),
+                  () -> result[0] = controller().addRepositoryFolder(
+                     editEvent(folder, "F77838e", "NewAlias", "NewDesc"), user()));
+
+      assertNotNull(result[0], "the edit was not refused");
+      assertEquals(MessageCommand.Type.ERROR, result[0].getType());
+      RepletRegistryManager.getInstance().clear(user().getIdentityID().convertToKey());
+      assertEquals("OldAlias", userRegistry().getFolderAlias(folder));
+      assertEquals("OldDesc", userRegistry().getFolderDescription(folder));
+   }
+
+   @Test
+   @Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+   void rootEditWithoutWriteOnRootIsRefused() throws Exception {
+      String alias = registry().getFolderAlias("/");
+      String description = registry().getFolderDescription("/");
+      List<List<Object>> calls = new ArrayList<>();
+
+      MessageCommand[] result = new MessageCommand[1];
+      withWriteRefusedOn("/", calls, () -> result[0] = controller().addRepositoryFolder(
+         editEvent("/", "/", "NewAlias", "NewDesc"), user()));
+
+      assertNotNull(result[0], "the edit was not refused");
+      assertEquals(MessageCommand.Type.ERROR, result[0].getType());
+      assertTrue(calls.contains(List.of(ResourceType.REPORT, "/", ResourceAction.WRITE)),
+                 () -> "WRITE on the root was not checked: " + calls);
+      RepletRegistryManager.getInstance().clearOrgCache(orgId);
+      assertEquals(alias, registry().getFolderAlias("/"));
+      assertEquals(description, registry().getFolderDescription("/"));
+   }
+
    // ---- helpers ----
 
    private void addFolder(String path, String alias, String description) throws Exception {
-      RepletRegistry reg = registry();
+      addFolder(registry(), path, alias, description);
+   }
+
+   private static void addFolder(RepletRegistry reg, String path, String alias,
+                                 String description) throws Exception
+   {
       reg.addFolder(path);
       reg.setFolderAlias(path, alias);
       reg.setFolderDescription(path, description);
@@ -127,6 +193,10 @@ class RepositoryTreeFolderEditPermissionTest {
 
    private RepletRegistry registry() throws Exception {
       return RepletRegistryManager.getInstance().getRegistry(orgId);
+   }
+
+   private RepletRegistry userRegistry() throws Exception {
+      return RepletRegistryManager.getInstance().getRegistry(user().getIdentityID());
    }
 
    private static AddRepositoryFolderEvent editEvent(String path, String name, String alias,
@@ -163,6 +233,18 @@ class RepositoryTreeFolderEditPermissionTest {
    private static void withWriteRefusedOn(String folder, List<List<Object>> calls, Body body)
       throws Exception
    {
+      withRefused(c -> c.equals(List.of(ResourceType.REPORT, folder, ResourceAction.WRITE)),
+                  calls, body);
+   }
+
+   /**
+    * Runs the body with a security engine that refuses the (type, resource, action) checks the
+    * predicate matches, allows every other permission check and records each one it is asked.
+    */
+   private static void withRefused(Predicate<List<Object>> refused,
+                                   List<List<Object>> calls, Body body)
+      throws Exception
+   {
       SecurityEngine real = SecurityEngine.getSecurity();
       SecurityEngine spy = mock(SecurityEngine.class, withSettings().spiedInstance(real)
          .defaultAnswer(inv -> {
@@ -171,9 +253,9 @@ class RepositoryTreeFolderEditPermissionTest {
             }
 
             Object[] args = inv.getArguments();
-            calls.add(Arrays.asList(args[1], args[2], args[3]));
-            return !(args[1] == ResourceType.REPORT && folder.equals(args[2]) &&
-               args[3] == ResourceAction.WRITE);
+            List<Object> call = Arrays.asList(args[1], args[2], args[3]);
+            calls.add(call);
+            return !refused.test(call);
          }));
 
       try(MockedStatic<SecurityEngine> st = mockStatic(SecurityEngine.class, CALLS_REAL_METHODS)) {
