@@ -430,6 +430,15 @@ public class DataSourceBrowserService {
       // Bug #77733, a name with a slash would move the folder under another parent without the
       // checks of the move
       Tool.checkFolderNameSeparator(newName);
+
+      // Bug #77926, an empty name would rename the folder to its parent path ("" for a root level
+      // folder). The same rule as a new folder of the portal.
+      String nameValid = XUtil.isNameValid(newName);
+
+      if(!"Valid".equals(nameValid)) {
+         throw new MessageException(nameValid);
+      }
+
       String parent = DataSourceFolder.getParentName(path);
 
       if(parent == null) {
