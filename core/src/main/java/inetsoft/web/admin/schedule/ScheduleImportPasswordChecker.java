@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.schedule;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import inetsoft.sree.schedule.*;
 import inetsoft.util.Tool;
 import org.slf4j.Logger;
@@ -32,6 +33,13 @@ import java.util.*;
  * import replaces already has the same user name and password for the same server. Otherwise the
  * password is cleared and must be entered again in the task editor. Secret id paths are checked
  * by {@link ScheduleSecretIdChecker}.
+ * <p>
+ * Bug #77951, a deploy export writes a secret id path as the user name and password that the
+ * secret resolves to, without the id. If the stored task uses a secret id for the same server
+ * and that secret resolves to the same user name and password, the path gets the stored secret
+ * id back instead of being cleared. Only ids of the stored task are restored, never one of the
+ * file, so the path is bound to nothing that {@link ScheduleSecretIdChecker} doesn't already
+ * accept for it.
  */
 public final class ScheduleImportPasswordChecker {
    private ScheduleImportPasswordChecker() {
@@ -39,7 +47,9 @@ public final class ScheduleImportPasswordChecker {
 
    /**
     * Clears the local passwords of the save-to-server paths of an imported task that the stored
-    * task doesn't already hold for the same server and user name.
+    * task doesn't already hold for the same server and user name. A path whose user name and
+    * password are those of a secret id that the stored task uses for the same server is set
+    * back to that secret id, it isn't cleared.
     *
     * @param task     the imported task, it's changed in place.
     * @param original the stored task that the import replaces, or {@code null} if none.
@@ -48,16 +58,33 @@ public final class ScheduleImportPasswordChecker {
     */
    public static List<String> clearUnboundPasswords(ScheduleTask task, ScheduleTask original) {
       List<ServerPathInfo> originalPaths = new ArrayList<>();
+      List<ServerPathInfo> originalSecretPaths = new ArrayList<>();
 
       for(ScheduleAction action : getActions(original)) {
          originalPaths.addAll(getPasswordPaths(action));
+         originalSecretPaths.addAll(getSecretPaths(action));
       }
 
       List<String> cleared = new ArrayList<>();
+      Map<String, Optional<JsonNode>> credentials = new HashMap<>();
 
       for(ScheduleAction action : getActions(task)) {
          for(ServerPathInfo path : getPasswordPaths(action)) {
-            if(!isStoredPassword(path, originalPaths)) {
+            if(isStoredPassword(path, originalPaths)) {
+               continue;
+            }
+
+            String secretId = getStoredSecretId(path, originalSecretPaths, credentials);
+
+            if(secretId != null) {
+               path.setUseCredential(true);
+               path.setSecretId(secretId);
+               path.setUsername(null);
+               path.setPassword(null);
+               LOG.debug("The save-to-server path {} of the imported task {} uses the secret " +
+                         "id of the stored task again", path.getPath(), task.getTaskId());
+            }
+            else {
                path.setPassword("");
                cleared.add(path.getPath());
             }
@@ -95,6 +122,62 @@ public final class ScheduleImportPasswordChecker {
       return false;
    }
 
+   /**
+    * Gets the secret id that a stored path uses for the same server, if the secret resolves to
+    * the user name and password of the path.
+    *
+    * @param credentials the secrets resolved so far, by id. A secret that fails to resolve is
+    *                    empty, it matches no path.
+    *
+    * @return the secret id, or {@code null} if none.
+    */
+   private static String getStoredSecretId(ServerPathInfo path,
+                                           List<ServerPathInfo> originalSecretPaths,
+                                           Map<String, Optional<JsonNode>> credentials)
+   {
+      FTPUtil.Endpoint endpoint = parseEndpoint(path);
+
+      if(endpoint == null) {
+         return null;
+      }
+
+      for(ServerPathInfo originalPath : originalSecretPaths) {
+         if(!endpoint.isSameServer(parseEndpoint(originalPath))) {
+            continue;
+         }
+
+         String secretId = originalPath.getSecretId();
+         JsonNode credential = credentials
+            .computeIfAbsent(secretId, ScheduleImportPasswordChecker::loadCredentials)
+            .orElse(null);
+
+         // the deploy export writes the secret's user name and password, or no attribute if the
+         // secret has none, which parses as an empty string
+         if(credential != null &&
+            getText(credential, "username").equals(Objects.toString(path.getUsername(), "")) &&
+            getText(credential, "password").equals(path.getPassword()))
+         {
+            return secretId;
+         }
+      }
+
+      return null;
+   }
+
+   private static Optional<JsonNode> loadCredentials(String secretId) {
+      try {
+         return Optional.ofNullable(Tool.loadCredentials(secretId));
+      }
+      catch(RuntimeException e) {
+         LOG.debug("Failed to load the secret of a stored schedule path", e);
+         return Optional.empty();
+      }
+   }
+
+   private static String getText(JsonNode credential, String field) {
+      return credential.has(field) ? credential.get(field).asText() : "";
+   }
+
    private static FTPUtil.Endpoint parseEndpoint(ServerPathInfo path) {
       try {
          return path.getPath() == null ? null : FTPUtil.parseEndpoint(path);
@@ -109,6 +192,12 @@ public final class ScheduleImportPasswordChecker {
     * Gets the save-to-server paths of an action that log in with a local password.
     */
    private static List<ServerPathInfo> getPasswordPaths(ScheduleAction action) {
+      List<ServerPathInfo> paths = getServerPaths(action);
+      paths.removeIf(path -> path.isUseCredential() || Tool.isEmptyString(path.getPassword()));
+      return paths;
+   }
+
+   private static List<ServerPathInfo> getServerPaths(ScheduleAction action) {
       List<ServerPathInfo> paths = new ArrayList<>();
 
       if(action instanceof ViewsheetAction viewsheetAction &&
@@ -120,8 +209,16 @@ public final class ScheduleImportPasswordChecker {
          paths.add(backupAction.getServerPath());
       }
 
-      paths.removeIf(path -> path == null || path.isUseCredential() ||
-         Tool.isEmptyString(path.getPassword()));
+      paths.removeIf(Objects::isNull);
+      return paths;
+   }
+
+   /**
+    * Gets the save-to-server paths of an action that log in with a secret id.
+    */
+   private static List<ServerPathInfo> getSecretPaths(ScheduleAction action) {
+      List<ServerPathInfo> paths = getServerPaths(action);
+      paths.removeIf(path -> !path.isUseCredential() || Tool.isEmptyString(path.getSecretId()));
       return paths;
    }
 
