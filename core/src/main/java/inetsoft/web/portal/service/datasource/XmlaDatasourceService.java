@@ -315,6 +315,10 @@ public class XmlaDatasourceService extends DatasourcesBaseService {
          ((DataSourceXmlaDefinition) definition).getDomain() != null)
       {
          Domain domain = convertToDomain(((DataSourceXmlaDefinition) definition).getDomain());
+         // Bug #77843, the domain is stored by its data source name, and the editor keeps the name
+         // that it loaded when the data source is renamed, which would write the domain under the
+         // old name again
+         domain.setDataSource(ds.getFullName());
 
          try {
             XDomain odomain = getRepository().getDomain(ds.getFullName());
