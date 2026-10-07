@@ -241,9 +241,17 @@ public class ScheduleTaskFolderController {
    })
    @PostMapping("api/portal/schedule/move/checkDuplicate")
    public CheckDuplicateResponse checkItemsDuplicate(
-      @RequestBody CheckTaskDuplicateRequest request)
+      @RequestBody CheckTaskDuplicateRequest request, Principal principal)
       throws Exception
    {
+      // Bug #77812, without the WRITE on the target that move-items checks first, the answer
+      // doesn't depend on which folders exist. The move that follows is refused with its message.
+      if(!scheduleTaskFolderService.checkFolderPermission(
+         request.path(), principal, ResourceAction.WRITE))
+      {
+         return new CheckDuplicateResponse(false);
+      }
+
       AssetEntry parent
          = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER, request.path(), null);
       return scheduleTaskFolderService.checkItemsDuplicate(request.folders(), parent);
@@ -259,9 +267,21 @@ public class ScheduleTaskFolderController {
    })
    @PostMapping("api/portal/schedule/rename/checkDuplicate")
    public CheckDuplicateResponse checkRenameItemDuplicate(
-      @RequestBody EditTaskFolderDialogModel model)
+      @RequestBody EditTaskFolderDialogModel model, Principal principal)
       throws Exception
    {
+      // Bug #77812, without the DELETE and WRITE on the folder that rename-folder checks first,
+      // the answer doesn't depend on which folders exist. It isn't refused, because New Folder
+      // asks this with a made-up path in the parent before add/checkDuplicate.
+      if(model != null &&
+         (!scheduleTaskFolderService.checkFolderPermission(
+            model.oldPath(), principal, ResourceAction.DELETE) ||
+          !scheduleTaskFolderService.checkFolderPermission(
+             model.oldPath(), principal, ResourceAction.WRITE)))
+      {
+         return new CheckDuplicateResponse(false);
+      }
+
       return scheduleTaskFolderService.checkRenameDuplicate(model);
    }
 
