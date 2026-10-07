@@ -217,6 +217,28 @@ public class IgniteSessionRepository
       return new IgniteSession(saved, false);
    }
 
+   /**
+    * Resolves a session read by a background scan of {@link #sessions} (an {@code iterator()}
+    * entry) without renewing its Ignite access TTL, unlike {@link #findById}. Any {@code get}
+    * through {@link #sessions} resets the TTL (see {@link PropertyAccessedExpiryPolicy}); iteration
+    * does not. Only the request path ({@link #findById} for the requesting session) should keep a
+    * session alive. A background reader that renewed every live session kept the TTL from firing
+    * when an idle session timed out, so the session ended late (Bug #77886).
+    *
+    * <p>An expired session is still swept here. It is re-read through {@link #findById}, which
+    * deletes it if it is still expired (so a session renewed by a concurrent request since the
+    * iteration is not deleted). Returns {@code null} only on that expired path, when the session
+    * is deleted or already gone. A live session is always returned as a wrapper of the iterated
+    * value, even if another thread deletes it concurrently.
+    */
+   private IgniteSession findIteratedSession(MapSession session) {
+      if(session.isExpired()) {
+         return findById(session.getId());
+      }
+
+      return new IgniteSession(session, false);
+   }
+
    @Override
    public void deleteById(String id) {
       MapSession session = this.sessions.get(id);
@@ -255,7 +277,7 @@ public class IgniteSessionRepository
       try {
          while(iter.hasNext()) {
             Cache.Entry<String, MapSession> session = iter.next();
-            IgniteSession igniteSession = findById(session.getValue().getId());
+            IgniteSession igniteSession = findIteratedSession(session.getValue());
 
             // could be out of sync due to session expiration, need to check for null
             if(igniteSession != null && isSessionForUser(igniteSession, indexValue)) {
@@ -410,7 +432,7 @@ public class IgniteSessionRepository
          try {
             while(iter.hasNext()) {
                Cache.Entry<String, MapSession> entry = iter.next();
-               IgniteSession igniteSession = findById(entry.getValue().getId());
+               IgniteSession igniteSession = findIteratedSession(entry.getValue());
 
                // could be out of sync due to session expiration, need to check for null
                if(igniteSession != null &&
@@ -435,7 +457,8 @@ public class IgniteSessionRepository
       try {
          while(iter.hasNext()) {
             Cache.Entry<String, MapSession> session = iter.next();
-            IgniteSessionRepository.IgniteSession igniteSession = findById(session.getValue().getId());
+            IgniteSessionRepository.IgniteSession igniteSession =
+               findIteratedSession(session.getValue());
 
             // could be out of sync due to session expiration, need to check for null
             if(igniteSession != null) {
@@ -462,7 +485,7 @@ public class IgniteSessionRepository
       try {
          while(iter.hasNext()) {
             Cache.Entry<String, MapSession> entry = iter.next();
-            IgniteSession igniteSession = findById(entry.getValue().getId());
+            IgniteSession igniteSession = findIteratedSession(entry.getValue());
 
             if(igniteSession != null) {
                updatePrincipalInSession(
@@ -507,7 +530,11 @@ public class IgniteSessionRepository
       }
    }
 
-   @Scheduled(fixedRate = 20000) // Check every 20 seconds
+   // Every 10 seconds: this pass is what ends an idle session (it deletes the sessions past their
+   // timeout), so its period bounds how late the end can be. Every node runs it, but the nodes'
+   // phases are arbitrary and can coincide, so the bound is one period, not a fraction of it
+   // (Bug #77886: three nodes ran their 20 s passes within 5 s of each other).
+   @Scheduled(fixedRate = 10000)
    public void checkSessions() {
       long currentTime = System.currentTimeMillis();
       long protectionExpirationTime = nodeProtectionService.getExpirationTime();
@@ -526,9 +553,20 @@ public class IgniteSessionRepository
             long sessionRemainingTime = lastAccessedTime.toEpochMilli() +
                maxInactiveInterval.toMillis() - currentTime;
 
-            // only check sessions that haven't expired already
-            if(sessionRemainingTime > 0) {
-               IgniteSession igniteSession = findById(session.getId());
+            // an expired session is deleted now (findById() re-checks and deletes it) instead of
+            // being left for Ignite's TTL; live sessions are read without renewing the TTL
+            // (Bug #77886)
+            if(sessionRemainingTime <= 0) {
+               // one failed deletion must not skip the rest of the pass
+               try {
+                  findById(session.getId());
+               }
+               catch(RuntimeException e) {
+                  LOG.warn("Failed to delete expired session {}", session.getId(), e);
+               }
+            }
+            else {
+               IgniteSession igniteSession = findIteratedSession(session);
 
                // could be out of sync due to session expiration, need to check for null
                if(igniteSession == null) {
@@ -661,7 +699,7 @@ public class IgniteSessionRepository
    // mutated concurrently from at least three independent thread contexts (request threads via
    // createSessionAttributeMap()/getSessionAttributeMap()'s cold-path put, the single-threaded
    // Ignite cache-event listener executor via destroySessionAttributeMap(), and the
-   // @Scheduled(fixedRate = 20000) checkSessions() thread's cold-path put for every session
+   // @Scheduled checkSessions() thread's cold-path put for every session
    // cluster-wide). Concurrent put/remove on a plain HashMap can corrupt its internal structure
    // badly enough to spuriously null out (or lose) an entirely unrelated key, with the damage
    // persisting for the life of the map -- this was the root cause of Bug #77306 (a sibling
