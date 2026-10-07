@@ -813,6 +813,54 @@ class IgniteSessionRepositoryTest {
    }
 
    /**
+    * Bug #77886: getActiveSessions() no longer reads live sessions through the renewing get, but
+    * it must still sweep expired ones. It is the periodic deleter at the default monitor level
+    * (MonitorSchedulingTask -> UserService.updateMetrics0, every 30 s on every node), so a scan
+    * that only listed sessions would leave an expired one to Ignite's TTL. The expired session must
+    * be deleted and logged off with the session-timeout reason, and not listed; the live one must
+    * be listed and kept.
+    */
+   @Test
+   void getActiveSessions_deletesExpiredSessionAndKeepsLiveOne() {
+      SRPrincipal expiredPrincipal = mockPrincipal("expired", "127.0.0.1");
+      SRPrincipal livePrincipal = mockPrincipal("live", "127.0.0.2");
+      AtomicBoolean active = new AtomicBoolean(true);
+      when(securityEngine.isActiveUser(expiredPrincipal)).thenAnswer(invocation -> active.get());
+      doAnswer(invocation -> {
+         active.set(false);
+         return null;
+      }).when(authenticationService).logout(same(expiredPrincipal), anyString(), anyString());
+
+      IgniteSessionRepository.IgniteSession expired = repository.createSession();
+      expired.setAttribute(RepletRepository.PRINCIPAL_COOKIE, expiredPrincipal);
+      repository.save(expired);
+      String expiredId = expired.getId();
+      expired.setLastAccessedTime(Instant.now().minus(expired.getMaxInactiveInterval())
+                                     .minusSeconds(1));
+      repository.save(expired);
+
+      IgniteSessionRepository.IgniteSession live = repository.createSession();
+      live.setAttribute(RepletRepository.PRINCIPAL_COOKIE, livePrincipal);
+      repository.save(live);
+      String liveId = live.getId();
+
+      @SuppressWarnings("unchecked")
+      Cache<String, org.springframework.session.MapSession> rawSessions =
+         cluster.getCache(IgniteSessionRepository.DEFAULT_SESSION_MAP_NAME, true, null);
+      assertTrue(rawSessions.get(expiredId).isExpired(), "premise: the stored session is expired");
+
+      List<SRPrincipal> listed = repository.getActiveSessions();
+
+      assertEquals(1, listed.size(), "only the live session is listed");
+      assertSame(livePrincipal, listed.get(0), "only the live session is listed");
+      verify(authenticationService, times(1))
+         .logout(same(expiredPrincipal), eq("127.0.0.1"), eq(SessionRecord.LOGOFF_SESSION_TIMEOUT));
+      verify(authenticationService, never()).logout(same(livePrincipal), anyString(), anyString());
+      assertNull(rawSessions.get(expiredId), "getActiveSessions() must delete the expired session");
+      assertNotNull(rawSessions.get(liveId), "the live session must be kept");
+   }
+
+   /**
     * Replaces the repository's session cache with a proxy that counts {@code get} calls and
     * delegates everything to the original cache.
     */
