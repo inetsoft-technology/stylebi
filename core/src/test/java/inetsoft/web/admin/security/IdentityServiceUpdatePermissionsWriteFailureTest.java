@@ -99,8 +99,12 @@ class IdentityServiceUpdatePermissionsWriteFailureTest {
 
       assertDoesNotThrow(() -> service.updateIdentityPermissions(
          Identity.USER, oldId, null, ORG, ORG, true));
-      verify(authz, times(perms.size()))
-         .setPermission(any(ResourceType.class), anyString(), any(), any());
+      // the deleted user's own key is only removed (Bug #77834), the other user's is still updated
+      verify(authz).removePermission(ResourceType.SECURITY_USER, oldId.convertToKey(), ORG);
+      verify(authz, never())
+         .setPermission(any(ResourceType.class), eq(oldId.convertToKey()), any(), any());
+      verify(authz).setPermission(eq(ResourceType.SECURITY_USER),
+                                  eq(new IdentityID("bob", ORG).convertToKey()), any(), any());
    }
 
    private static IdentityService newService(AuthorizationProvider authz) {
