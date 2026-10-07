@@ -348,6 +348,15 @@ public class ScheduleTaskAsset extends AbstractXAsset {
          }
       }
 
+      // Bug #77883, a data cycle task is generated from its data cycle, which is imported as its
+      // own asset. It is never stored, replaced or toggled by the import. Its id used to be
+      // mangled by parseXML so it never matched the generated task, now it does.
+      if(newTask.getType() == ScheduleTask.Type.CYCLE_TASK) {
+         LOG.debug("Data cycle task {} is not imported, it's generated from its data cycle",
+                   newTask.getTaskId());
+         return;
+      }
+
       String parentPath = newTask.getPath();
 
       SRPrincipal principal = new SRPrincipal(newTask.getOwner());
