@@ -159,6 +159,33 @@ class ServerFilePathPolicyTest {
       assertEquals(1, ServerFilePathPolicy.getServerPaths(source(temp.toFile())).size());
    }
 
+   @Test
+   void missingRequiredPathIsRefusedUnlessTheStoredOneIsMissing() throws IOException {
+      Path root = Files.createDirectories(temp.resolve("data"));
+      ServerFilePathPolicy policy = policy(true, false, root.toString());
+
+      File refused = policy.getRefusedPath(source(null), null, USER);
+      assertNotNull(refused);
+      assertTrue(ServerFilePathPolicy.isEmptyPath(refused));
+      assertNotNull(policy.getRefusedPath(source(new File("")), null, USER));
+      // clearing a stored path is a change
+      assertNotNull(policy.getRefusedPath(source(null), source(root.toFile()), USER));
+      // a stored data source without a path may still be edited
+      assertNull(policy.getRefusedPath(source(null), source(null), USER));
+      assertThrows(MessageException.class, () -> policy.checkDataSource(source(null), null, USER));
+      // unrestricted users may leave it out
+      assertNull(policy(true, true, null).getRefusedPath(source(null), null, USER));
+   }
+
+   @Test
+   void missingOptionalPathIsAllowed() {
+      OptionalPathDataSource ds = new OptionalPathDataSource();
+
+      assertNull(policy(true, false, null).getRefusedPath(ds, null, USER));
+      assertTrue(ServerFilePathPolicy.hasServerPaths(OptionalPathDataSource.class));
+      assertFalse(ServerFilePathPolicy.hasServerPaths(NoPathDataSource.class));
+   }
+
    private static ServerFilePathPolicy policy(boolean securityEnabled, boolean siteAdmin,
                                               String roots)
    {
@@ -183,7 +210,31 @@ class ServerFilePathPolicyTest {
          return null;
       }
 
-      @Property(label = "Root Folder")
+      @Property(label = "Root Folder", required = true)
+      public File getFile() {
+         return file;
+      }
+
+      public void setFile(File file) {
+         this.file = file;
+      }
+
+      private File file;
+   }
+
+   public static final class OptionalPathDataSource
+      extends TabularDataSource<OptionalPathDataSource>
+   {
+      public OptionalPathDataSource() {
+         super("TEST_OPTIONAL_PATH", OptionalPathDataSource.class);
+      }
+
+      @Override
+      protected CredentialType getCredentialType() {
+         return null;
+      }
+
+      @Property(label = "Folder")
       public File getFile() {
          return file;
       }

@@ -216,6 +216,48 @@ class DatasourcesServiceServerPathTest {
       verifyNothingSaved();
    }
 
+   @Test
+   void createRefusesMissingRootFolder() {
+      setAllowedRoots(allowed);
+
+      // the root folder is required only in the editor, a request may leave it out
+      assertThrows(MessageException.class, () -> service.createNewDataSource(
+         definition(null), false, principal));
+      assertThrows(MessageException.class, () -> service.createNewDataSource(
+         definition(new File("")), false, principal));
+
+      verifyNothingSaved();
+   }
+
+   @Test
+   void updateRefusesClearingRootFolder() throws Exception {
+      setAllowedRoots(allowed);
+      storeSource(allowed.toFile());
+
+      assertThrows(MessageException.class, () -> service.updateDataSource(
+         "files", definition(null), principal));
+
+      verifyNothingSaved();
+   }
+
+   @Test
+   void updateKeepsMissingRootFolderOfStoredSource() throws Exception {
+      storeSource(null);
+
+      service.updateDataSource("files", definition(null), principal);
+
+      assertNull(savedFolder("files"));
+   }
+
+   @Test
+   void siteAdminMaySaveMissingRootFolder() throws Exception {
+      when(orgManager.isSiteAdmin(principal)).thenReturn(true);
+
+      service.createNewDataSource(definition(null), false, principal);
+
+      assertNull(savedFolder(null));
+   }
+
    private void setAllowedRoots(Path root) {
       sreeEnv.when(() -> SreeEnv.getProperty(
          ServerFilePathPolicy.ALLOWED_ROOTS_PROPERTY, false, false)).thenReturn(root.toString());

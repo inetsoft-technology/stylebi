@@ -72,7 +72,7 @@ class TabularQueryDialogBrowsePathTest {
          mock(TabularQueryDialogServiceProxy.class), new FileSystemService(null, null),
          securityEngine);
 
-      PathQuery query = new PathQuery();
+      query = new PathQuery();
       query.rootFolder = root.toFile().getAbsolutePath();
       tabularUtil = mockStatic(TabularUtil.class, CALLS_REAL_METHODS);
       tabularUtil.when(() -> TabularUtil.createQuery(DS)).thenReturn(query);
@@ -102,6 +102,19 @@ class TabularQueryDialogBrowsePathTest {
       assertTrue(names(browse("../data2")).isEmpty());
    }
 
+   @Test
+   void dataSourceWithoutRootFolderListsNothing() {
+      String outsidePath = temp.toFile().getAbsolutePath().replace('\\', '/');
+
+      for(String rootFolder : new String[] { null, "", " " }) {
+         query.rootFolder = rootFolder;
+
+         // an empty root folder used to be taken for "/", listing every drive and any folder
+         assertTrue(browse("/").children().isEmpty(), "root folder: " + rootFolder);
+         assertTrue(browse(outsidePath).children().isEmpty(), "root folder: " + rootFolder);
+      }
+   }
+
    private TreeNodeModel browse(String path) {
       return controller.browse(DS, "fileFolder", path, false, new TabularView(), USER);
    }
@@ -116,6 +129,7 @@ class TabularQueryDialogBrowsePathTest {
    @TempDir
    Path temp;
    private Path root;
+   private PathQuery query;
    private TabularQueryDialogController controller;
    private MockedStatic<TabularUtil> tabularUtil;
    private static final String DS = "files";

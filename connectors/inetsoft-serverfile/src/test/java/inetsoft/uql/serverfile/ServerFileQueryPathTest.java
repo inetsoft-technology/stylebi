@@ -92,6 +92,24 @@ class ServerFileQueryPathTest {
       assertEquals(root.resolve("sales.csv").toFile(), query.getFileFolder());
    }
 
+   @Test
+   void dataSourceWithoutRootFolderRefusesAnyPath() {
+      ((ServerFileDataSource) query.getDataSource()).setFile(null);
+      query.setFileFolder(outside.toFile());
+
+      assertNull(query.getFileFolder());
+      assertNull(query.getRootFolder());
+   }
+
+   @Test
+   void storedAbsolutePathIsIgnoredWithoutRootFolder() throws Exception {
+      ((ServerFileDataSource) query.getDataSource()).setFile(null);
+      query.parseContents(queryXml(outside.toFile().getAbsolutePath()));
+
+      assertNull(query.getFileFolder());
+      assertFalse(query.isText());
+   }
+
    private static org.w3c.dom.Element queryXml(String fileFolder) throws Exception {
       String xml = "<query><fileFolder><![CDATA[" + fileFolder + "]]></fileFolder>" +
          "<headerColumnCount><![CDATA[0]]></headerColumnCount></query>";

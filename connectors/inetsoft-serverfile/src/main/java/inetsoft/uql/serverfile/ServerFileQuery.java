@@ -95,6 +95,12 @@ public class ServerFileQuery extends SelectableTabularQuery {
 
             return file;
          }
+
+         // Bug #64331, a data source without a root folder has no file, the path is not used
+         // as an absolute path of the server
+         LOG.debug("The data source of the query has no root folder, the file or folder {} is " +
+                      "ignored", relativeFilePath);
+         return null;
       }
 
       return new File(relativeFilePath);
@@ -125,7 +131,10 @@ public class ServerFileQuery extends SelectableTabularQuery {
             relativeFilePath = root.relativize(path).toString();
          }
          else {
-            relativeFilePath = file.getPath();
+            // Bug #64331, a data source without a root folder can't have a file, any path is
+            // refused and the current one is kept
+            LOG.warn("Refusing the file or folder {} of the query, its data source has no " +
+                        "root folder", file);
          }
       }
       else {
@@ -430,6 +439,12 @@ public class ServerFileQuery extends SelectableTabularQuery {
     */
    public String getRootFolder() {
       ServerFileDataSource datasource = (ServerFileDataSource) getDataSource();
+
+      // Bug #64331, a data source without a root folder has nothing to browse
+      if(datasource == null || datasource.getFile() == null) {
+         return null;
+      }
+
       return datasource.getFile().getAbsolutePath();
    }
 

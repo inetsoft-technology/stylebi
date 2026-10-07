@@ -671,23 +671,24 @@ public class DataSourceController {
 
             if(file.isDirectory() && Files.isReadable(rootPath)) {
                String name = file.getAbsolutePath();
-               folderNodes.add(createFolderNode(name, name.replace(File.separator, "/"), file));
+               String nodePath = name.replace(File.separator, "/");
+
+               // an allowed root of / has the path of the top level, its folders are listed
+               // instead so that expanding it doesn't list the allowed roots again
+               if("/".equals(nodePath)) {
+                  addFolderNodes(folderNodes, file, "");
+               }
+               else {
+                  folderNodes.add(createFolderNode(name, nodePath, file));
+               }
             }
          }
       }
       else {
          File folder = fileSystemService.getFile(path + File.separator);
-         File[] files = ServerFilePathPolicy.isUnderAnyRoot(folder, roots) ?
-            folder.listFiles() : null;
 
-         if(files != null) {
-            for(File file : files) {
-               if(file.isDirectory() && Files.isReadable(file.toPath()) && !file.isHidden()) {
-                  String childPath = (path + File.separator + file.getName())
-                     .replace(File.separator, "/");
-                  folderNodes.add(createFolderNode(file.getName(), childPath, file));
-               }
-            }
+         if(ServerFilePathPolicy.isUnderAnyRoot(folder, roots)) {
+            addFolderNodes(folderNodes, folder, path);
          }
       }
 
@@ -699,6 +700,25 @@ public class DataSourceController {
          .data(tabularFileModel)
          .addChildren(folderNodes.toArray(new TreeNodeModel[0]))
          .build();
+   }
+
+   /**
+    * Adds the nodes of the readable, visible folders in a folder.
+    *
+    * @param path the node path of the folder.
+    */
+   private static void addFolderNodes(List<TreeNodeModel> folderNodes, File folder, String path) {
+      File[] files = folder.listFiles();
+
+      if(files != null) {
+         for(File file : files) {
+            if(file.isDirectory() && Files.isReadable(file.toPath()) && !file.isHidden()) {
+               String childPath = (path + File.separator + file.getName())
+                  .replace(File.separator, "/");
+               folderNodes.add(createFolderNode(file.getName(), childPath, file));
+            }
+         }
+      }
    }
 
    private static TreeNodeModel createFolderNode(String label, String path, File file) {

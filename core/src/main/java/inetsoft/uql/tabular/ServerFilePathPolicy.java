@@ -120,8 +120,11 @@ public final class ServerFilePathPolicy {
       File refused = getRefusedPath(dataSource, stored, principal);
 
       if(refused != null) {
-         throw new MessageException(Catalog.getCatalog(principal).getString(
-            "data.datasources.serverPathNotAllowed", refused.getPath()), LogLevel.WARN, false);
+         Catalog catalog = Catalog.getCatalog(principal);
+         String message = isEmptyPath(refused) ?
+            catalog.getString("data.datasources.serverPathRequired") :
+            catalog.getString("data.datasources.serverPathNotAllowed", refused.getPath());
+         throw new MessageException(message, LogLevel.WARN, false);
       }
    }
 
@@ -132,7 +135,8 @@ public final class ServerFilePathPolicy {
     * @param stored     the data source stored at the path being saved, {@code null} if none.
     * @param principal  the user.
     *
-    * @return the first path that is not allowed, {@code null} if all are allowed.
+    * @return the first path that is not allowed, {@code null} if all are allowed. A required
+    *         path that is not set is returned as an empty path (see {@link #isEmptyPath(File)}).
     */
    public File getRefusedPath(XDataSource dataSource, XDataSource stored, Principal principal) {
       if(!(dataSource instanceof TabularDataSource<?>)) {
@@ -145,14 +149,28 @@ public final class ServerFilePathPolicy {
          return null;
       }
 
-      Map<String, File> storedPaths = stored != null && stored.getClass() == dataSource.getClass() ?
-         getServerPaths(stored) : Collections.emptyMap();
+      boolean sameType = stored != null && stored.getClass() == dataSource.getClass();
+      Map<String, File> storedPaths = sameType ? getServerPaths(stored) : Collections.emptyMap();
+      Set<String> requiredPaths = getRequiredServerPaths(dataSource.getClass());
       List<Path> roots = null;
 
       for(Map.Entry<String, File> entry : paths.entrySet()) {
          File file = entry.getValue();
 
-         if(file == null || isSamePath(file, storedPaths.get(entry.getKey()))) {
+         // a required path that is not set, such as the root folder of a Text/Excel Directory
+         // data source, would leave the data source without a folder to keep its queries in, so
+         // it is only allowed when the stored data source doesn't have one either
+         if(isEmptyPath(file)) {
+            if(requiredPaths.contains(entry.getKey()) &&
+               !(sameType && isEmptyPath(storedPaths.get(entry.getKey()))))
+            {
+               return new File("");
+            }
+
+            continue;
+         }
+
+         if(isSamePath(file, storedPaths.get(entry.getKey()))) {
             continue;
          }
 
@@ -182,16 +200,55 @@ public final class ServerFilePathPolicy {
       }
 
       for(PropertyMeta prop : TabularUtil.findProperties(bean.getClass())) {
-         Class<?> type = prop.getDescriptor().getPropertyType();
-
-         if(type != null && File.class.isAssignableFrom(type) &&
-            prop.getDescriptor().getReadMethod() != null)
-         {
+         if(isServerPath(prop)) {
             paths.put(prop.getName(), (File) prop.getValue(bean));
          }
       }
 
       return paths;
+   }
+
+   /**
+    * Determines if a tabular bean class has a server path, a {@link Property} annotated property
+    * of type {@link File}.
+    */
+   public static boolean hasServerPaths(Class<?> cls) {
+      if(cls == null) {
+         return false;
+      }
+
+      for(PropertyMeta prop : TabularUtil.findProperties(cls)) {
+         if(isServerPath(prop)) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Determines if a server path is not set, that is {@code null} or an empty path.
+    */
+   public static boolean isEmptyPath(File file) {
+      return file == null || file.getPath().isBlank();
+   }
+
+   private static Set<String> getRequiredServerPaths(Class<?> cls) {
+      Set<String> names = new HashSet<>();
+
+      for(PropertyMeta prop : TabularUtil.findProperties(cls)) {
+         if(isServerPath(prop) && prop.getProperty() != null && prop.getProperty().required()) {
+            names.add(prop.getName());
+         }
+      }
+
+      return names;
+   }
+
+   private static boolean isServerPath(PropertyMeta prop) {
+      Class<?> type = prop.getDescriptor().getPropertyType();
+      return type != null && File.class.isAssignableFrom(type) &&
+         prop.getDescriptor().getReadMethod() != null;
    }
 
    /**

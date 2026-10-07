@@ -178,6 +178,65 @@ class DeployManagerServiceServerPathImportTest {
       verify(registry).setDataSource(any(XDataSource.class), eq(true));
    }
 
+   @Test
+   void rejectsDataSourceWithoutRootFolder() throws Exception {
+      setAllowedRoots(allowed);
+
+      List<String> failed = importEntry(entry(null), false);
+
+      assertRejected(failed);
+   }
+
+   @Test
+   void rejectsMissingRootFolderOverwritingSourceWithRootFolder() throws Exception {
+      setAllowedRoots(allowed);
+      doReturn(true).when(registry).containDatasource("imported");
+      doReturn(source(allowed.toFile())).when(registry).getDataSource("imported");
+
+      List<String> failed = importEntry(entry(null), true);
+
+      assertRejected(failed);
+   }
+
+   @Test
+   void acceptsMissingRootFolderOfOverwrittenSourceWithoutOne() throws Exception {
+      doReturn(true).when(registry).containDatasource("imported");
+      doReturn(source(null)).when(registry).getDataSource("imported");
+
+      List<String> failed = importEntry(entry(null), true);
+
+      assertTrue(failed.isEmpty(), failed.toString());
+      verify(registry).updateDataSource(eq("imported"), any(), eq(true));
+   }
+
+   @Test
+   void existingSourceThatIsNotOverwrittenIsNotReported() throws Exception {
+      doReturn(true).when(registry).containDatasource("imported");
+      doReturn(source(allowed.toFile())).when(registry).getDataSource("imported");
+
+      List<String> failed = importEntry(entry(outside.toFile()), false);
+
+      assertTrue(failed.isEmpty(), failed.toString());
+      verify(registry, never()).setDataSource(any(XDataSource.class), anyBoolean());
+      verify(registry, never()).updateDataSource(anyString(), any(), anyBoolean());
+   }
+
+   @Test
+   void typesWithoutServerPathAreNotParsed() throws Exception {
+      Config config = Config.getConfig();
+      when(config.getDataSourceClass(NO_PATH_TYPE)).thenReturn(NoPathTestDs.class.getName());
+      doReturn(NoPathTestDs.class).when(config)
+         .getClass(NO_PATH_TYPE, NoPathTestDs.class.getName());
+      NoPathTestDs.parsed = 0;
+      File file = tempDir.resolve("nopath.xml").toFile();
+      Files.writeString(file.toPath(), "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><registry>" +
+         "<datasource name=\"other\" type=\"" + NO_PATH_TYPE + "\"><ds_" + NO_PATH_TYPE +
+         "/></datasource></registry>", StandardCharsets.UTF_8);
+
+      assertTrue(service.isImportedServerPathsAllowed(file, principal));
+      assertEquals(0, NoPathTestDs.parsed);
+   }
+
    private void setAllowedRoots(Path root) {
       sreeEnv.when(() -> SreeEnv.getProperty(
          ServerFilePathPolicy.ALLOWED_ROOTS_PROPERTY, false, false)).thenReturn(root.toString());
@@ -235,6 +294,41 @@ class DeployManagerServiceServerPathImportTest {
    }
 
    static final String TYPE = "ServerPathImportTest";
+   static final String NO_PATH_TYPE = "ServerPathImportNoPathTest";
+
+   public static class NoPathTestDs extends TabularDataSource<NoPathTestDs> {
+      public NoPathTestDs() {
+         super(NO_PATH_TYPE, NoPathTestDs.class);
+      }
+
+      @Override
+      protected CredentialType getCredentialType() {
+         return null;
+      }
+
+      @Override
+      public String[] getDataSourceNames() {
+         return new String[0];
+      }
+
+      @Property(label = "URL")
+      public String getUrl() {
+         return url;
+      }
+
+      public void setUrl(String url) {
+         this.url = url;
+      }
+
+      @Override
+      public void parseContents(Element root) throws Exception {
+         parsed++;
+         super.parseContents(root);
+      }
+
+      static int parsed;
+      private String url;
+   }
 
    public static class FolderTestDs extends TabularDataSource<FolderTestDs> {
       public FolderTestDs() {
