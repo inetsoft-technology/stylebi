@@ -207,6 +207,32 @@ class ScriptDataModelWriteAccessTest {
                           "A script may not remove a virtual private model");
    }
 
+   /**
+    * A write that Java calls back for the script, a script function or the member itself
+    * passed as a Java functional interface, is still the script's call and is refused.
+    */
+   @Test
+   void callbackRouteRefused() throws Exception {
+      String list = "var L = new (Java.type('java.util.ArrayList'))(); L.add('p'); L.add('v1');";
+      Map<String, String> calls = new LinkedHashMap<>();
+      calls.put("forEach(function)", list + " L.forEach(function(n) { dm.removePartition(n); })");
+      calls.put("forEach(member)", list + " L.subList(1, 2).forEach(dm.removeVirtualPrivateModel)");
+      calls.put("sort(comparator)", list + " Java.type('java.util.Collections').sort(L," +
+                   " function(a, b) { dm.removeVirtualPrivateModels(); return 0; })");
+      calls.put("stream().map(function)", list + " L.stream().map(function(n) {" +
+                   " dm.removePartition(n); return n; }).toArray()");
+
+      for(Map.Entry<String, String> call : calls.entrySet()) {
+         List<String> before = state();
+         Object result = run(PRELUDE + " var dm = new (Java.type('" +
+                                XDataModel.class.getName() + "'))('" + ds + "'); " +
+                                call.getValue() + "; 'ok'");
+
+         assertEquals(before, state(), call.getKey() + ": " + result);
+         assertErrorContains(call.getKey(), result, REFUSED);
+      }
+   }
+
    /** A script still reads the data model, its extended models and its partitions. */
    @Test
    void scriptReadsStillAllowed() throws Exception {
