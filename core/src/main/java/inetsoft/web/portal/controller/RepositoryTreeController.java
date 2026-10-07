@@ -628,6 +628,15 @@ public class RepositoryTreeController {
             return messageCommand;
          }
 
+         // Bug #77838, an edit that keeps the name only writes the alias and description, check
+         // the same permission as a rename before anything is written to the registry
+         if(!SUtil.checkPermission(principal, entry, analyticRepository, ResourceAction.WRITE)) {
+            MessageCommand messageCommand = new MessageCommand();
+            messageCommand.setMessage(catalog.getString("common.writeAuthority", entry.getPath()));
+            messageCommand.setType(MessageCommand.Type.ERROR);
+            return messageCommand;
+         }
+
          String ppath = entry.getPath();
          int idx = ppath.lastIndexOf("/");
 
