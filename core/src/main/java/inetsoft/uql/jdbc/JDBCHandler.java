@@ -2776,33 +2776,36 @@ public class JDBCHandler extends XHandler {
    private String getUser(DatabaseMetaData meta, XNode mtype) throws Exception {
       String user = (String) mtype.getAttribute("schema");
 
-      XNode root = null;
+      // the user name is only a guess of the default schema
+      boolean loginUser = false;
 
       if(user == null) {
          // read hasSchema from the cached database properties, the schema field is only
          // set if this handler loaded the properties itself (Bug #77938)
-         root = getDBProperties((String) mtype.getAttribute("additional"));
+         XNode root = getDBProperties((String) mtype.getAttribute("additional"));
          schema = "true".equals(root.getAttribute("hasSchema"));
-      }
 
-      if(user == null && schema) {
-         if(xds.getDatabaseType() == JDBCDataSource.JDBC_SYBASE) {
-            user = "dbo";
-         }
-         else if(xds.getDatabaseType() == JDBCDataSource.JDBC_POSTGRESQL) {
-            // @by davidd v11.4, Postgres' default schema is "public"
-            user = "public";
-         }
-         else if(root.getAttribute("defaultSchema") != null) {
-            user = (String) root.getAttribute("defaultSchema");
-         }
-         else if(meta.supportsSchemasInTableDefinitions() &&
-                 meta.getUserName() != null)
-         {
-            user = meta.getUserName();
-         }
-         else if(xds.getUser() != null && !xds.getUser().trim().equals("")) {
-            user = xds.getUser();
+         if(schema) {
+            if(xds.getDatabaseType() == JDBCDataSource.JDBC_SYBASE) {
+               user = "dbo";
+            }
+            else if(xds.getDatabaseType() == JDBCDataSource.JDBC_POSTGRESQL) {
+               // @by davidd v11.4, Postgres' default schema is "public"
+               user = "public";
+            }
+            else if(root.getAttribute("defaultSchema") != null) {
+               user = (String) root.getAttribute("defaultSchema");
+            }
+            else if(meta.supportsSchemasInTableDefinitions() &&
+                    meta.getUserName() != null)
+            {
+               user = meta.getUserName();
+               loginUser = true;
+            }
+            else if(xds.getUser() != null && !xds.getUser().trim().equals("")) {
+               user = xds.getUser();
+               loginUser = true;
+            }
          }
       }
 
@@ -2816,14 +2819,23 @@ public class JDBCHandler extends XHandler {
             user = user.toUpperCase();
          }
          else {
+            boolean found = false;
+
             try(ResultSet schemas = meta.getSchemas()) {
                // correct case
                while(schemas.next()) {
                   if(user.equalsIgnoreCase(schemas.getString(1))) {
                      user = schemas.getString(1);
+                     found = true;
                      break;
                   }
                }
+            }
+
+            // a user name that is not a schema would match no table, don't qualify the
+            // name with it (Bug #77938)
+            if(!found && loginUser) {
+               user = null;
             }
          }
       }

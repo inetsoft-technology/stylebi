@@ -41,12 +41,13 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import javax.sql.DataSource;
-import java.io.File;
+import java.io.*;
 import java.lang.reflect.*;
 import java.nio.file.Path;
 import java.sql.*;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -70,6 +71,7 @@ import static org.mockito.Mockito.*;
 @Tag("core")
 class JDBCHandlerDefaultSchemaMetaDataTest {
    private static final AtomicBoolean DOWN = new AtomicBoolean(false);
+   private static final AtomicReference<String> LOGIN = new AtomicReference<>();
 
    @Configuration
    static class JdbcConfig {
@@ -87,7 +89,8 @@ class JDBCHandlerDefaultSchemaMetaDataTest {
          return new Plugins(blobStorageManager.getStorage("plugins", true), cluster, eventPublisher);
       }
 
-      // embedded Derby behind a proxy that fails getConnection() while DOWN is set
+      // embedded Derby behind a proxy that fails getConnection() while DOWN is set, and
+      // connects as the LOGIN user while it is set
       @Bean
       public ConnectionPoolFactory connectionPoolFactory() {
          EmbeddedDataSource derby = new EmbeddedDataSource();
@@ -98,6 +101,10 @@ class JDBCHandlerDefaultSchemaMetaDataTest {
             (p, m, a) -> {
                if(m.getName().equals("getConnection") && DOWN.get()) {
                   throw new SQLException("simulated database outage");
+               }
+
+               if(m.getName().equals("getConnection") && LOGIN.get() != null) {
+                  return derby.getConnection(LOGIN.get(), LOGIN.get());
                }
 
                try {
@@ -184,6 +191,7 @@ class JDBCHandlerDefaultSchemaMetaDataTest {
    @AfterEach
    void tearDown() throws Exception {
       DOWN.set(false);
+      LOGIN.set(null);
       waitForCacheWrites();
 
       if(savedMetadataDir == null) {
@@ -292,6 +300,28 @@ class JDBCHandlerDefaultSchemaMetaDataTest {
       }
    }
 
+   @Test
+   void loginNameThatIsNotASchemaIsNotUsedAsDefaultSchema() throws Exception {
+      String name = "bug77938login";
+      JDBCDataSource ds = createDataSource(name);
+      new JDBCHandler().getRootMetaData(ds, "DBPROPERTIES");
+
+      // without a default schema lookup for the database type, the login name is the only
+      // guess of the default schema, and here no schema has that name
+      getMetaDataCache().forEach((key, node) -> {
+         if(key.contains("__" + name + "__") && key.contains("DBPROPERTIES")) {
+            node.setAttribute("defaultSchema", null);
+         }
+      });
+      LOGIN.set("JDOE");
+
+      // the name isn't qualified with the login name, which would match no table
+      assertEquals("schema=null columns=[OA, OB]",
+                   describeColumns(getMetaData("session1", ds, "ONLYS1", null)));
+      assertEquals(List.of("S1.OA"), getKeys(getMetaData("session1", ds, "ONLYS1", "PRIMARYKEY"),
+                                             "pkTableSchem", "pkColumnName"));
+   }
+
    private XNode getMetaData(Object session, JDBCDataSource ds, String name, String type)
       throws Exception
    {
@@ -357,8 +387,8 @@ class JDBCHandlerDefaultSchemaMetaDataTest {
       return "schema=" + node.getAttribute("schema") + " columns=" + columns;
    }
 
-   // metadata files are written by background threads, wait until no more appear so that
-   // they are on disk and closed
+   // metadata files are written by background threads, wait until no more appear and each
+   // one is complete, so that they are on disk and closed
    private void waitForCacheWrites() throws Exception {
       long end = System.currentTimeMillis() + 10_000L;
       int count = -1;
@@ -367,12 +397,25 @@ class JDBCHandlerDefaultSchemaMetaDataTest {
          File[] files = metaDir.listFiles();
          int next = files == null ? 0 : files.length;
 
-         if(next == count) {
+         if(next == count && Arrays.stream(files).allMatch(this::isComplete)) {
             break;
          }
 
          count = next;
          Thread.sleep(500);
+      }
+   }
+
+   // a file is complete once the build number and the node can be read back, which is
+   // only after the buffered stream was closed
+   private boolean isComplete(File file) {
+      try(ObjectInputStream in = new ObjectInputStream(new FileInputStream(file))) {
+         in.readObject();
+         in.readObject();
+         return true;
+      }
+      catch(Exception ex) {
+         return false;
       }
    }
 
