@@ -22,11 +22,8 @@ import inetsoft.uql.viewsheet.TabVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 
-import java.awt.Dimension;
 import java.util.ArrayList;
-import java.util.IdentityHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Predicate;
 
 /**
@@ -109,13 +106,6 @@ public final class VizModernizeUtil {
     */
    public static int reseed(Viewsheet vs) {
       List<VSAssemblyInfo> targets = collect(vs, info -> true);
-      Map<VSAssemblyInfo, Dimension> before = new IdentityHashMap<>();
-
-      for(VSAssemblyInfo info : targets) {
-         Dimension size = info.getPixelSize();
-         before.put(info, size == null ? null : new Dimension(size));
-      }
-
       // mark is inert here: nothing is stamped, so every target keeps the one it has
       int seeded = seedAll(vs, null, targets, false, false);
 
@@ -124,30 +114,35 @@ public final class VizModernizeUtil {
          info.seedDensitySize(VizContext.of(info));
       }
 
-      for(VSAssemblyInfo info : targets) {
-         Dimension size = info.getPixelSize();
-
-         if(size != null && !size.equals(before.get(info))) {
-            keepOnBottomTabs(vs, info, size);
-         }
-      }
-
+      keepOnBottomTabs(vs);
       return seeded;
    }
 
    /**
-    * A bottom-tabs strip sits under its children, so a child the density resized has to move to
-    * keep its bottom edge on the strip.
+    * A bottom-tabs strip sits under its children, and a density change can alter how tall a child
+    * stands on it: a box the size rule resized, or a dropdown's title lane. Re-flush them all.
     */
-   private static void keepOnBottomTabs(Viewsheet vs, VSAssemblyInfo info, Dimension size) {
-      Assembly assembly = vs.getAssembly(info.getAbsoluteName());
+   private static void keepOnBottomTabs(Viewsheet vs) {
+      for(Assembly assembly : vs.getAssemblies()) {
+         if(!(assembly instanceof TabVSAssembly tab) ||
+            !((TabVSAssemblyInfo) tab.getVSAssemblyInfo()).getBottomTabsValue())
+         {
+            continue;
+         }
 
-      if(assembly instanceof VSAssembly child &&
-         child.getContainer() instanceof TabVSAssembly tab &&
-         ((TabVSAssemblyInfo) tab.getVSAssemblyInfo()).getBottomTabsValue())
-      {
-         TabVSAssemblyInfo.repositionChildForBottomTabs(
-            (TabVSAssemblyInfo) tab.getVSAssemblyInfo(), info, size);
+         TabVSAssemblyInfo tabInfo = (TabVSAssemblyInfo) tab.getVSAssemblyInfo();
+         String[] children = tab.getAssemblies();
+
+         if(children == null) {
+            continue;
+         }
+
+         for(String name : children) {
+            if(vs.getAssembly(name) instanceof VSAssembly child) {
+               TabVSAssemblyInfo.repositionChildForBottomTabs(
+                  tabInfo, child.getVSAssemblyInfo(), child.getPixelSize());
+            }
+         }
       }
    }
 
