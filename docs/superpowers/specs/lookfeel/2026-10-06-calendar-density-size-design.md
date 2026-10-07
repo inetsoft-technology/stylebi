@@ -321,14 +321,24 @@ Run with the dashboard set to each tier in turn:
 
 ## 7. Risks and accepted costs
 
-- **Bottom-tabs alignment after a density change.** In the viewer, a full calendar inside a
-  bottom-tabs container is drawn at its stored top (`vs-calendar.component.ts:186`), and that top is
-  `tab top − height`. Only the property dialog and the bottom-tabs toggle recompute it
-  (`TabVSAssemblyInfo.java:460`, `:551`). A density change that resizes such a calendar therefore
-  leaves it 32px into the tab strip (compact to comfortable) or 34px short of it (compact to dense).
-  This has been read in the code but not yet seen in a browser. The selection lists' size rule has
-  the same exposure. **Not fixed in this slice.** Manual check 7 confirms or refutes it. If it is
-  confirmed, the fix belongs in the shared re-seed path so it covers both types, as a follow-up.
+- **Bottom-tabs alignment after a density change: fixed in this slice** (amended 2026-10-07).
+  In the viewer, a full calendar inside a bottom-tabs container is drawn at its stored top
+  (`vs-calendar.component.ts:186`), and that top is `tab top − height`. Only the property dialog
+  and the bottom-tabs toggle recomputed it (`TabVSAssemblyInfo.java:460`, `:551`). So a density
+  change left a resized calendar 32px into the tab strip at comfortable and 34px short of it at
+  dense. Manual check MT-25 confirmed this in the composer and the viewer on 2026-10-07.
+  - **The fix:** `VizModernizeUtil.reseed` records each target's size before seeding. Afterwards,
+    any target whose size changed and that sits in a bottom-tabs container is re-flushed with
+    `TabVSAssemblyInfo.repositionChildForBottomTabs`, the helper the property-dialog path already
+    uses. A child whose size did not change keeps its position.
+  - **Also covers** a selection list in bottom tabs on a density change, since its size moves in
+    `seedChromeDefaults` inside the same re-seed.
+  - **Not covered:** a selection list resized on open, Modernize or Revert, where its size rule also
+    runs. That belongs to #6390's rule.
+  - **Not covered, and not caused by this slice:** a *dropdown* in bottom tabs is placed by its
+    title lane (`getBottomTabChildHeight`), which follows density at read time while its stored
+    size does not change. Measured on 2026-10-07: 4px into the strip at comfortable and a 6px gap at
+    dense, starting from flush at compact.
 - **Double calendars.**
   - One widened to 600, by the property dialog's view-mode switch (§2.2) or by the toggle, no
     longer follows density and gets no checkbox (D6). Switching it back halves it to 300, which
@@ -344,4 +354,4 @@ Run with the dashboard set to each tier in turn:
   need a model field, because the constant is also read on the server and by the composer layout.
 - **The weekday-header path split**, a stored-format change tracked on the roadmap as its own
   initiative.
-- **The bottom-tabs re-alignment fix** (§7).
+- **Re-aligning a bottom-tabs dropdown after a density change** (§7). This predates this slice.
