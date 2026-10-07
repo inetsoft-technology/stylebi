@@ -61,8 +61,11 @@ step with the tier.
   - `fixCalendarSize()` (`:1515`) does the same, and pins a dropdown to 18px, but only after a script
     sets the show type or view mode at runtime (the `typeSValid` / `modeSValid` flags, set only by
     `CalendarVSAScriptable.java:108`, `:125`).
-- The property dialog changes the stored show type and view mode without touching the size, except
-  in the bottom-tabs branch (§5).
+- **The property dialog's frontend resizes the box when the show type or view mode is switched**
+  (`calendar-property-dialog.component.ts:109-119`). It doubles the width for double and halves it
+  for single, and sets the height to 20 for a dropdown and 180 for a full calendar. The server stores
+  that size as sent, except in the bottom-tabs branch (§5). *Corrected 2026-10-06: this bullet first
+  said the dialog left the size alone, which is true of the server only. The Task 4 review found it.*
 - `fitCalendarHeightToTitle()` (`:1569`) grows the box only when the title lane is at least the box
   height. No tier size comes near that.
 - A **dropdown** ignores its stored height. Closed, it is title-lane tall. Open, its body is a fixed
@@ -208,6 +211,12 @@ change.
 - **Save:** `VSDialogService.applyDensitySize` before the existing `dialogService.setAssemblySize`
   (`CalendarPropertyDialogService.java:245`), then `VSDialogService.recordAuthorSize` after it, with
   the size as it was before the save.
+- **A save that switches the show type or view mode applies neither** (added 2026-10-06). The size
+  the dialog wrote for the switch (§2.2) is stored as sent. It is not reset to the density size, so a
+  ticked single calendar switched to double keeps its doubled width. It is not flagged as the
+  author's either, so a double calendar switched back to a single 300-wide box follows density
+  again. This matches #6390's D7, where a dialog's show-type switch is a derived write that never
+  sets the flag.
 
 **No frontend change.** The calendar's general pane already embeds `<size-position-pane>`
 (`calendar-general-pane.component.html:27`). The pane shows the checkbox whenever
