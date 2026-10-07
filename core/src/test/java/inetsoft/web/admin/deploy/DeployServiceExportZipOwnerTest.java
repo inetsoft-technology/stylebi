@@ -137,7 +137,12 @@ class DeployServiceExportZipOwnerTest {
       builder.setup();
 
       saveSheet(BOB, AssetEntry.Type.WORKSHEET, "bobWs", new Worksheet());
-      saveSheet(BOB, AssetEntry.Type.VIEWSHEET, "bobVs", new Viewsheet());
+      // bob's worksheet is a real dependency of his viewsheet, export/create writes only the
+      // dependents of the selected assets (Bug #77959)
+      Viewsheet bobVs = new Viewsheet();
+      bobVs.setBaseEntry(new AssetEntry(AssetRepository.USER_SCOPE, AssetEntry.Type.WORKSHEET,
+                                        "bobWs", BOB, ORG_B));
+      saveSheet(BOB, AssetEntry.Type.VIEWSHEET, "bobVs", bobVs);
       saveSheet(CAROL, AssetEntry.Type.WORKSHEET, "carolWs", new Worksheet());
 
       VSDashboard dashboard = new VSDashboard();
