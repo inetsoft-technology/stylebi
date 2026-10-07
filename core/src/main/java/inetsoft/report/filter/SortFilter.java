@@ -24,12 +24,14 @@ import inetsoft.report.lens.AbstractTableLens;
 import inetsoft.report.lens.ChainScriptLock;
 import inetsoft.util.Collator_CN;
 import inetsoft.util.CoreTool;
+import inetsoft.util.MessageException;
 import inetsoft.util.algo.*;
 import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.ExpressionFailedException;
 import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.script.LendableReentrantLock;
+import inetsoft.util.script.ScriptException;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.swap.SwapFileReadException;
 import inetsoft.util.swap.XSwappableIntList;
@@ -237,6 +239,15 @@ public class SortFilter extends AbstractTableLens
 
          if(swapFailure != null) {
             throw swapFailure;
+         }
+
+         // nor a failure to read the base, e.g. of a set table (bug #77524), the rows stay
+         // unsorted and a later read sorts again. a script failure keeps the log (bug #77875)
+         MessageException baseFailure = ex instanceof ScriptException ? null :
+            MessageException.find(ex);
+
+         if(baseFailure != null) {
+            throw baseFailure;
          }
 
          LOG.error("Failed to process sort filter", ex);

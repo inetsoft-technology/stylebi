@@ -345,6 +345,21 @@ class RowFetchFailureTest {
       assertTrue(String.valueOf(ex.getMessage()).contains(DB_MESSAGE), String.valueOf(ex));
    }
 
+   /**
+    * A summary restarts after it reported a base failure (bug #77875). A base that failed to
+    * load keeps its load exception, so the next read of a scheduled run fails again instead of
+    * taking the rows read so far.
+    */
+   @Test
+   void scheduledSummaryFailsAgainOnTheNextRead() throws Exception {
+      TableLens base = baseLens(true, true);
+      SummaryFilter summary = summary(base);
+
+      assertThrows(RuntimeException.class, () -> dataRows(summary));
+      RuntimeException ex = assertThrows(RuntimeException.class, () -> dataRows(summary));
+      assertNotNull(TableLoadException.find(ex), String.valueOf(ex));
+   }
+
    @Test
    void interactiveSummaryWarns() throws Exception {
       TableLens base = baseLens(true, false);
