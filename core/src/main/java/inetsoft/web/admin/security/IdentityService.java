@@ -1126,14 +1126,11 @@ public class IdentityService {
    private boolean removeDroppedMember(EditableAuthenticationProvider eprovider, IdentityID id,
                                        int type, String orgID)
    {
-      boolean synced = false;
-
       try {
          OrganizationManager.runInOrgScope(orgID, () -> {
             syncIdentity(eprovider, new DefaultIdentity(id, type), null);
             return null;
          });
-         synced = true;
       }
       catch(Exception ex) {
          LOG.warn("Failed to clean up the removed organization member: {}", id, ex);
