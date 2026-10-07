@@ -43,6 +43,7 @@ import { PhysicalTableModel } from "../../../../../model/datasources/database/ph
 import {
    EditJoinsEvent, ModifyJoinEventItem
 } from "../../../../../model/datasources/database/events/edit-joins-event";
+import { Tool } from "../../../../../../../../../../shared/util/tool";
 import { TreeComponent } from "../../../../../../../widget/tree/tree.component";
 import { ModalHeaderComponent } from "../../../../../../../widget/modal-header/modal-header.component";
 import { AddJoinDialog } from "./add-join-dialog/add-join-dialog.component";
@@ -378,5 +379,87 @@ describe("PhysicalTableJoinsComponent.editJoin - dialog cancel / commit (Bug #77
 
       req.flush({});
       expect(tableChange).toHaveBeenCalledWith(table);
+   });
+
+   /**
+    * Bug #77977, closing Edit Join with OK and no change must not send join/modify and must
+    * leave the model join exactly as the server sent it (the parent physical model view marks
+    * itself modified on any deep difference).
+    */
+   describe("unchanged OK (Bug #77977)", () => {
+      /** A join shaped like the server's JoinModel JSON: no client-only "delete" key. */
+      function makeServerJoin(): JoinModel {
+         return JSON.parse(JSON.stringify({
+            ...makeJoin({ type: JoinType.EQUAL, cardinality: Cardinality.ONE_TO_ONE }),
+            relationship: null,
+            cycle: false,
+            supportFullOuter: true,
+         }));
+      }
+
+      function dialogButton(label: string): HTMLButtonElement {
+         const buttons: HTMLButtonElement[] = dialogView.rootNodes
+            .flatMap((n: HTMLElement) => Array.from(n.querySelectorAll?.("button") ?? []));
+         return buttons.find(b => b.textContent.includes(label));
+      }
+
+      async function openDialog(comp: PhysicalTableJoinsComponent) {
+         comp.editJoin();
+         dialogView.detectChanges();
+         // let ngModel write its initial values before the user clicks
+         await settle();
+         dialogView.detectChanges();
+      }
+
+      it("should not send join/modify or change the join when OK is clicked without a change",
+         async () => {
+            const join = makeServerJoin();
+            expect("delete" in join).toBe(false);
+            const { comp, table } = createWithSelectedJoin(join);
+            const modelBefore = structuredClone(table);
+            const tableChange = vi.fn();
+            comp.tableChange.subscribe(tableChange);
+
+            await openDialog(comp);
+            dialogButton("OK").click();
+            await settle();
+
+            http.expectNone(() => true);
+            expect(tableChange).not.toHaveBeenCalled();
+            expect(table.joins[0]).toBe(join);
+            expect("delete" in join).toBe(false);
+            // same deep comparison DatabasePhysicalModelComponent.ngDoCheck uses for isModified
+            expect(Tool.isEquals(table, modelBefore)).toBe(true);
+         });
+
+      it("should still send join/modify when OK is clicked after a change", async () => {
+         const join = makeServerJoin();
+         const { comp, table } = createWithSelectedJoin(join);
+         const modelBefore = structuredClone(table);
+
+         await openDialog(comp);
+         dialog.joinModel.weak = true;
+         dialogButton("OK").click();
+         await settle();
+
+         const req = http.expectOne(JOIN_MODIFY_URL);
+         expect(req.request.method).toBe("PUT");
+         expect(join.weak).toBe(true);
+         expect(Tool.isEquals(table, modelBefore)).toBe(false);
+         req.flush({});
+      });
+
+      it("should send nothing and leave the join unchanged when Cancel is clicked", async () => {
+         const join = makeServerJoin();
+         const { comp, table } = createWithSelectedJoin(join);
+         const modelBefore = structuredClone(table);
+
+         await openDialog(comp);
+         dialogButton("Cancel").click();
+         await settle();
+
+         http.expectNone(() => true);
+         expect(Tool.isEquals(table, modelBefore)).toBe(true);
+      });
    });
 });
