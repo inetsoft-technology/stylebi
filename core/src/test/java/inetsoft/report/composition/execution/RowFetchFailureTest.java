@@ -20,6 +20,12 @@ package inetsoft.report.composition.execution;
 import inetsoft.mv.MVDef;
 import inetsoft.mv.MVDispatcher;
 import inetsoft.mv.MVManager;
+import inetsoft.mv.data.MV;
+import inetsoft.mv.data.MVBuilder;
+import inetsoft.mv.fs.FSConfig;
+import inetsoft.mv.fs.FSService;
+import inetsoft.mv.fs.XFileSystem;
+import inetsoft.mv.fs.XServerNode;
 import inetsoft.report.TableLens;
 import inetsoft.report.XSessionManager;
 import inetsoft.report.composition.graph.VSDataSet;
@@ -48,6 +54,7 @@ import inetsoft.util.credential.CredentialService;
 import org.apache.derby.jdbc.EmbeddedDataSource;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.MockedStatic;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
@@ -64,8 +71,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 /**
  * Bug #77901: a database error raised while the rows of a query result are fetched (here a
@@ -263,17 +269,31 @@ class RowFetchFailureTest {
 
    @Test
    void userCancelStaysSilent() throws Exception {
-      Worksheet ws = new Worksheet();
-      sqlTable(ws, "T1", false);
-      AssetQuerySandbox box = new AssetQuerySandbox(ws);
+      // a cross join three times the size of big, so the cancel lands while the rows are
+      // fetched; a cancel after the end of the rows is a no-op and would prove nothing
+      int total = ROWS * 3;
+      boolean landed = false;
 
-      TableLens lens = box.getTableLens("T1", AssetQuerySandbox.RUNTIME_MODE, new VariableTable());
-      XNodeTableLens xlens = (XNodeTableLens) Util.getNestedTable(lens, XNodeTableLens.class);
-      xlens.cancel();
-      dataRows(lens);
+      for(int i = 0; i < 5 && !landed; i++) {
+         CoreTool.clearUserMessage();
+         Worksheet ws = new Worksheet();
+         sqlTable(ws, "T1", "select a.id, a.g, b.g as x from big a, big b where b.id < 4 and " +
+                  "a.id > -" + RUN.incrementAndGet());
+         AssetQuerySandbox box = new AssetQuerySandbox(ws);
 
-      assertNull(xlens.getLoadException());
-      assertNull(CoreTool.getUserMessage());
+         TableLens lens = box.getTableLens("T1", AssetQuerySandbox.RUNTIME_MODE, new VariableTable());
+         XNodeTableLens xlens = (XNodeTableLens) Util.getNestedTable(lens, XNodeTableLens.class);
+         xlens.cancel();
+         landed = dataRows(lens) < total;
+
+         if(landed) {
+            assertTrue(xlens.isCancelled());
+            assertNull(xlens.getLoadException());
+            assertNull(CoreTool.getUserMessage());
+         }
+      }
+
+      assertTrue(landed, "the cancel never landed before the end of the rows");
    }
 
    @Test
@@ -328,6 +348,71 @@ class RowFetchFailureTest {
       assertTrue(dispatcher.isCanceled());
    }
 
+   // the real MVSingleDispatcher.dispatch0 stops before it saves the MV files of a failed
+   // read, and reaches the save for a successful one
+   @Test
+   void mvCreationDoesNotSaveAFailedRead() throws Exception {
+      for(boolean fail : new boolean[] { true, false }) {
+         Worksheet ws = new Worksheet();
+         SQLBoundTableAssembly t1 = sqlTable(ws, "T1", fail);
+         AssetQuerySandbox box = new AssetQuerySandbox(ws);
+         // as MVDispatcher.getData reads the MV data, which dispatch0 then finds set
+         XTable data = AssetDataCache.getCache().getData(
+            null, t1, box, null, AssetQuerySandbox.RUNTIME_MODE, false,
+            System.currentTimeMillis(), box.getQueryManager());
+
+         MVDef def = mock(MVDef.class);
+         when(def.getName()).thenReturn("mv77901");
+         // MVSingleDispatcher and the methods stubbed below are not visible from this package
+         Constructor<?> ctor = Class.forName("inetsoft.mv.MVSingleDispatcher")
+            .getDeclaredConstructor(MVDef.class);
+         ctor.setAccessible(true);
+         MVDispatcher dispatcher = (MVDispatcher) spy(ctor.newInstance(def));
+         Field field = MVDispatcher.class.getDeclaredField("data");
+         field.setAccessible(true);
+         field.set(dispatcher, data);
+
+         Method getBuilder = MVDispatcher.class.getDeclaredMethod("getMVBuilder");
+         getBuilder.setAccessible(true);
+         Method saveTempFile = MVDispatcher.class.getDeclaredMethod("saveTempFile",
+                                                                    MVBuilder.class);
+         saveTempFile.setAccessible(true);
+         Method dispatch0 = MVDispatcher.class.getDeclaredMethod("dispatch0");
+         dispatch0.setAccessible(true);
+
+         MVBuilder builder = mock(MVBuilder.class);
+         when(builder.getMV()).thenReturn(mock(MV.class));
+         // like the real MVBuilder, it reads all the rows
+         getBuilder.invoke(doAnswer(inv -> {
+            data.moreRows(XTable.EOT);
+            return builder;
+         }).when(dispatcher));
+         RuntimeException saved = new RuntimeException("MV files saved");
+         saveTempFile.invoke(doThrow(saved).when(dispatcher), builder);
+
+         XServerNode server = mock(XServerNode.class);
+         when(server.getConfig()).thenReturn(mock(FSConfig.class));
+         when(server.getFSystem()).thenReturn(mock(XFileSystem.class));
+         Throwable thrown = null;
+
+         try(MockedStatic<FSService> fsService = mockStatic(FSService.class)) {
+            fsService.when(FSService::getServer).thenReturn(server);
+            dispatch0.invoke(dispatcher);
+         }
+         catch(InvocationTargetException ex) {
+            thrown = ex.getCause();
+         }
+
+         if(fail) {
+            assertInstanceOf(CancelledException.class, thrown);
+            saveTempFile.invoke(verify(dispatcher, never()), builder);
+         }
+         else {
+            assertSame(saved, thrown);
+         }
+      }
+   }
+
    private static int dataRows(TableLens lens) {
       assertNotNull(lens, "the query failed, see the log");
       lens.moreRows(XTable.EOT);
@@ -345,8 +430,15 @@ class RowFetchFailureTest {
    private static SQLBoundTableAssembly sqlTable(Worksheet ws, String name, boolean fail)
       throws Exception
    {
-      String text = "select big.id, big.g, " + (fail ? "1/(big.id-" + FAIL_ROW + ")" : "big.g") +
-         " as x from big where big.id > -" + RUN.incrementAndGet();
+      return sqlTable(ws, name, "select big.id, big.g, " +
+         (fail ? "1/(big.id-" + FAIL_ROW + ")" : "big.g") + " as x from big where big.id > -" +
+         RUN.incrementAndGet());
+   }
+
+   // the query must return the columns id, g and x
+   private static SQLBoundTableAssembly sqlTable(Worksheet ws, String name, String text)
+      throws Exception
+   {
       UniformSQL usql = new UniformSQL();
       Method parse = UniformSQL.class.getDeclaredMethod("parse", String.class, int.class,
                                                         long.class);
