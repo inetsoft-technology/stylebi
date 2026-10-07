@@ -421,6 +421,23 @@ public class DatabaseDatasourcesService {
       Predicate<String> secretIdCheck = secretIdAuthorizer.createCheck(dataSource, principal);
       checkSecretIds(database, getAdditionals.get(), secretIdCheck);
 
+      // a new name is joined to the folder of the data source, a '/' in it would move the data
+      // source to another folder without the checks of a move (Bug #77836). Only a new or changed
+      // name is checked, since older data sources may have names the check refuses
+      if(dataSource == null || !ActionRecord.ACTION_NAME_EDIT.equals(actionName) ||
+         !oname.equals(name))
+      {
+         checkNameValid(name);
+      }
+
+      if(getAdditionals.get() != null) {
+         for(DatabaseDefinition additional : getAdditionals.get()) {
+            if(additional != null && !Tool.equals(additional.getOldName(), additional.getName())) {
+               checkNameValid(additional.getName());
+            }
+         }
+      }
+
       if(checkDuplicate(actionName, oname, name)) {
          return new ConnectionStatus("Duplicate");
       }
@@ -930,6 +947,22 @@ public class DatabaseDatasourcesService {
          catch(Exception e) {
             LOG.warn("Failed to remove the legacy test query of {}", fullName);
          }
+      }
+   }
+
+   /**
+    * Checks a new name of a data source or an additional connection as the other data source
+    * saves do, see DatasourcesBaseService.checkDatasourceNameValid. A path separator is refused.
+    *
+    * @param name the new name.
+    *
+    * @throws MessageException if the name is not valid.
+    */
+   private static void checkNameValid(String name) {
+      String validity = XUtil.isNameValid(name);
+
+      if(!"Valid".equals(validity)) {
+         throw new MessageException(validity);
       }
    }
 
