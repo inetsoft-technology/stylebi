@@ -502,6 +502,89 @@ class IdentityServiceDeleteLeftoverPermissionTest {
       }
    }
 
+   // Bug #77942, the second pass removes a global role's grants for every action and resource
+   // type, not only READ on a viewsheet
+   @Test
+   void deleteGlobalRole_grantsOnSeveralActionsAndTypesRepaired_noWarning() throws Exception {
+      String dsKey = "DATA_SOURCE:" + OTHER_ORG + ":r77942/ds";
+      IdentityID erin = new IdentityID("erin", OTHER_ORG);
+      ResourceAction[] actions = { ResourceAction.READ, ResourceAction.WRITE, ResourceAction.DELETE };
+      Permission vs = authz.getPermission(ResourceType.VIEWSHEET, VS, ORG);
+
+      for(ResourceAction action : actions) {
+         Set<Permission.PermissionIdentity> roles = vs.getAllRoleGrants(action);
+         roles.add(new Permission.PermissionIdentity(GVIEWER));
+         vs.setGrants(action, Identity.ROLE, roles);
+      }
+
+      authz.setPermission(ResourceType.VIEWSHEET, VS, vs, ORG);
+      Permission ds = new Permission();
+      ds.setGrants(ResourceAction.READ, Identity.ROLE,
+                   new HashSet<>(Set.of(new Permission.PermissionIdentity(GVIEWER))));
+      ds.setGrants(ResourceAction.WRITE, Identity.ROLE,
+                   new HashSet<>(Set.of(new Permission.PermissionIdentity(GVIEWER))));
+      ds.setGrants(ResourceAction.WRITE, Identity.USER,
+                   new HashSet<>(Set.of(new Permission.PermissionIdentity(erin))));
+      authz.setPermission(ResourceType.DATA_SOURCE, "r77942/ds", ds, OTHER_ORG);
+
+      try {
+         assertNotNull(storage().get(dsKey), "precondition: the data source key");
+         AtomicInteger vsWrites = failWrites(VS_KEY, false, true);
+         AtomicInteger dsWrites = failWrites(dsKey, false, true);
+
+         assertEquals(List.of(), delete(GVIEWER, Identity.ROLE));
+         assertEquals(2, vsWrites.get());
+         assertEquals(2, dsWrites.get());
+
+         for(String key : new String[] { VS_KEY, dsKey }) {
+            Permission perm = storage().get(key);
+
+            for(ResourceAction action : ResourceAction.values()) {
+               assertFalse(perm.getGrants(action, Identity.ROLE, null)
+                              .contains(new Permission.PermissionIdentity(GVIEWER)),
+                           key + " " + action);
+            }
+         }
+
+         assertTrue(granted(VS_KEY, VIEWER, Identity.ROLE));
+         assertTrue(storage().get(dsKey).getGrants(ResourceAction.WRITE, Identity.USER, null)
+                       .contains(new Permission.PermissionIdentity(erin)));
+      }
+      finally {
+         authz.removePermission(ResourceType.DATA_SOURCE, "r77942/ds", OTHER_ORG);
+      }
+   }
+
+   // Bug #77942, without a failure the listener cleans the entries, and the second pass writes
+   // no entry that no longer names the role (a rewrite of an unchanged entry only adds a chance
+   // to lose its grants, as in #77945)
+   @Test
+   @SuppressWarnings({ "unchecked", "rawtypes" })
+   void deleteGlobalRole_noFailure_secondPassWritesNothing() throws Exception {
+      String otherKey = "VIEWSHEET:" + OTHER_ORG + ":" + VS;
+      Permission perm = new Permission();
+      perm.setGrants(ResourceAction.READ, Identity.ROLE,
+                     new HashSet<>(Set.of(new Permission.PermissionIdentity(GVIEWER))));
+      authz.setPermission(ResourceType.VIEWSHEET, VS, perm, OTHER_ORG);
+
+      try {
+         KeyValueStorage<Permission> real = currentStorage();
+         realStorage = storage();
+         KeyValueStorage counting = mock(KeyValueStorage.class, AdditionalAnswers.delegatesTo(real));
+         setStorage(counting);
+
+         assertEquals(List.of(), delete(GVIEWER, Identity.ROLE));
+
+         verify(counting, times(1)).put(eq(VS_KEY), any());
+         verify(counting, times(1)).put(eq(otherKey), any());
+         assertFalse(granted(VS_KEY, GVIEWER, Identity.ROLE));
+         assertFalse(granted(otherKey, GVIEWER, Identity.ROLE));
+      }
+      finally {
+         authz.removePermission(ResourceType.VIEWSHEET, VS, OTHER_ORG);
+      }
+   }
+
    // one failed write is repaired by the second pass, but a grant whose every write fails is
    // left and must be reported
    @Test
