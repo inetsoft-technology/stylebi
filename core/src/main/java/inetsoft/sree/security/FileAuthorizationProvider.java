@@ -97,8 +97,12 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
 
       for(KeyValuePair<Permission> pair : list) {
          try {
-            if(repairGlobalRoleGrants(pair.getKey(), pair.getValue(), globalRoles, kept)) {
-               storage.put(pair.getKey(), pair.getValue()).get(10L, TimeUnit.SECONDS);
+            // read the key again so an edit made since the stream above is not overwritten
+            Permission permission = hasStringNullRoleGrant(pair.getValue()) ?
+               storage.get(pair.getKey()) : null;
+
+            if(repairGlobalRoleGrants(pair.getKey(), permission, globalRoles, kept)) {
+               storage.put(pair.getKey(), permission).get(10L, TimeUnit.SECONDS);
             }
          }
          catch(InterruptedException e) {
@@ -161,6 +165,14 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
       return changed;
    }
 
+   private static boolean hasStringNullRoleGrant(Permission permission) {
+      return permission != null && Arrays.stream(ResourceAction.values())
+         .flatMap(action -> permission.getGrants(action, Identity.ROLE, null).stream())
+         .anyMatch(role -> "null".equals(role.getOrganizationID()));
+   }
+
+   // a custom provider that doesn't override AbstractAuthenticationProvider.getRole() returns a
+   // role for any name, so on such a chain every global role counts as existing
    private boolean isGlobalRole(String name) {
       try {
          return SecurityEngine.getSecurity().getSecurityProvider()

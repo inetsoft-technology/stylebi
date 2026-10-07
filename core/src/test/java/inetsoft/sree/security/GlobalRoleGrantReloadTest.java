@@ -239,6 +239,28 @@ class GlobalRoleGrantReloadTest {
       assertEquals(Set.of(new Permission.PermissionIdentity(GLOBAL_ROLE, null)), roleGrants());
    }
 
+   // a grant that the repair keeps because the role lookup failed must not drop the role half
+   // of an AND condition until the next start
+   @Test
+   void keptGrantStillRestrictsUnderAndCondition() throws Exception {
+      SreeEnv.setProperty(AND_CONDITION, "true");
+      PermissionChecker.resetAndConditionCache();
+      authz.setPermission(ResourceType.VIEWSHEET, VS, corrupted(GLOBAL_ROLE), ORG);
+      SecurityEngine engine = mock(SecurityEngine.class);
+      SecurityProvider failing = mock(SecurityProvider.class,
+         AdditionalAnswers.delegatesTo(SecurityEngine.getSecurity().getSecurityProvider()));
+      when(engine.getSecurityProvider()).thenReturn(failing);
+      doThrow(new IllegalStateException("simulated provider outage")).when(failing).getRole(any());
+
+      try(MockedStatic<SecurityEngine> statics = mockStatic(SecurityEngine.class)) {
+         statics.when(SecurityEngine::getSecurity).thenReturn(engine);
+         reopen();
+      }
+
+      assertEquals(Set.of(new Permission.PermissionIdentity(GLOBAL_ROLE, "null")), roleGrants());
+      assertFalse(check("bob"), "the kept grant dropped the role half of the AND condition");
+   }
+
    @Test
    void storedStringNullGrantUnderOrganizationNamedNullIsKept() throws Exception {
       String key = "VIEWSHEET:null:" + VS;
