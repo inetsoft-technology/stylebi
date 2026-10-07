@@ -404,8 +404,23 @@ public class DataSourceBrowserService {
       Principal principal) throws Exception
    {
       String newPath;
-      securityEngine.checkPermission(
-         principal, ResourceType.DATA_SOURCE_FOLDER, path, ResourceAction.ADMIN);
+
+      // Bug #77840, a rename is a move within the parent: it needs WRITE and DELETE on the
+      // folder, the same as the move and the Rename action of the portal
+      if(!securityEngine.checkPermission(
+         principal, ResourceType.DATA_SOURCE_FOLDER, path, ResourceAction.WRITE))
+      {
+         throw new MessageException(Catalog.getCatalog(principal).getString(
+            "common.writeAuthority", path));
+      }
+
+      if(!securityEngine.checkPermission(
+         principal, ResourceType.DATA_SOURCE_FOLDER, path, ResourceAction.DELETE))
+      {
+         throw new MessageException(Catalog.getCatalog(principal).getString(
+            "common.deleteAuthority", path));
+      }
+
       DataSourceFolder folder = repository.getDataSourceFolder(path, true);
 
       if(folder == null) {
