@@ -3846,6 +3846,19 @@ public class IdentityService {
                   continue;
                }
 
+               // Bug #77942, a deleted global role (null organization) is granted in every
+               // organization, which the organization filter below skips, so the grants are
+               // removed here as a second pass after the listener. A legacy key without an
+               // organization is left to the shared path, it must not be written to the current
+               // or default organization.
+               if(newName == null && type == Identity.ROLE && oldName != null &&
+                  oldName.getOrgID() == null && resourceOrgID != null)
+               {
+                  removeGlobalRoleGrants(aprovider, resourceType, resourceOrgID, path, permission,
+                                         oldName);
+                  continue;
+               }
+
                if(resourceOrgID != null && !Tool.equals(resourceOrgID, oldOrgId) && !Tool.equals(resourceOrgID, newOrgId) ||
                   newName == null && path.contains(IdentityID.KEY_DELIMITER) && IdentityID.getIdentityIDFromKey(path).orgID != null &&
                      !Tool.equals(IdentityID.getIdentityIDFromKey(path).orgID, oldName.orgID) &&
@@ -3920,6 +3933,42 @@ public class IdentityService {
                             "have been saved", resourceType, path, oldName, newName, e);
                }
             }
+         }
+      }
+   }
+
+   /**
+    * Removes the grants of a deleted global role from one permission entry, and writes the entry
+    * back to its own organization only if a grant was removed. A grant to a role with the same
+    * name in an organization belongs to that role and is kept. A failed write is logged and not
+    * thrown, because the role is already deleted; the grant left is then reported by
+    * {@link #findLeftoverPermissions}.
+    */
+   private void removeGlobalRoleGrants(AuthorizationProvider aprovider,
+                                       ResourceType resourceType, String resourceOrgID,
+                                       String path, Permission permission, IdentityID role)
+   {
+      boolean changed = false;
+
+      for(ResourceAction action : ResourceAction.values()) {
+         Set<Permission.PermissionIdentity> grants =
+            permission.getGrants(action, Identity.ROLE, null);
+
+         if(grants.removeIf(grant -> Tool.equals(grant.getName(), role.getName()) &&
+            (grant.getOrganizationID() == null || GLOBAL_ORG_KEY.equals(grant.getOrganizationID()))))
+         {
+            permission.setGrants(action, Identity.ROLE, grants);
+            changed = true;
+         }
+      }
+
+      if(changed) {
+         try {
+            aprovider.setPermission(resourceType, path, permission, resourceOrgID);
+         }
+         catch(RuntimeException e) {
+            LOG.error("Failed to remove the deleted global role {} from the permission of {} {} " +
+                      "in {}, it may still be granted", role, resourceType, path, resourceOrgID, e);
          }
       }
    }
@@ -4448,6 +4497,8 @@ public class IdentityService {
    private final SecurityProvider securityProvider;
    private final IdentityThemeService themeService;
    private final Logger LOG = LoggerFactory.getLogger(IdentityService.class);
+   // the organization of a global identity in a permission grant, as Permission stores it
+   private static final String GLOBAL_ORG_KEY = "__GLOBAL__";
    private final AuthenticationService authenticationService;
    private final BlobStorageManager blobStorageManager;
    private final FavoritesService favoritesService;
