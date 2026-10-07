@@ -445,6 +445,9 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
 
       ws.getWorksheetInfo().setDesignMaxRows(getViewsheetInfo().getDesignMaxRows());
 
+      // a selection table holds the calc fields of the table it selects from
+      Map<String, String> calcSources = getSelectionTableSources();
+
       // if any table name changed, we should keep the viewsheet table
       // in sync, fix bug1328194963858
       // queries of other requests change the tables in place under the worksheet lock (77867)
@@ -466,7 +469,8 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
                continue;
             }
 
-            CalculateRef[] calcs = getCalcFields(table.getName());
+            CalculateRef[] calcs =
+               getCalcFields(calcSources.getOrDefault(table.getName(), table.getName()));
             List<DataRef> newCols = cols.stream()
                // @by stephenwebster, For Bug #9172
                // Avoid removing attributes from dynamically created assemblies
@@ -549,6 +553,49 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       return false;
    }
 
+   /**
+    * Get the table whose calc fields a worksheet table holds: the table a selection table
+    * selects from, otherwise the table itself.
+    */
+   public String getCalcFieldTable(String table) {
+      return getSelectionTableSources().getOrDefault(table, table);
+   }
+
+   /**
+    * Get the tables the selection tables of the selection assemblies select from, by the
+    * selection table name.
+    */
+   private Map<String, String> getSelectionTableSources() {
+      Map<String, String> sources = new HashMap<>();
+
+      for(Assembly assembly : getAssemblies()) {
+         if(!(assembly instanceof SelectionVSAssembly sassembly)) {
+            continue;
+         }
+
+         if(sassembly.isSelectionUnion()) {
+            List<String> tableNames = sassembly.getTableNames();
+            List<String> selectionTableNames = sassembly.getSelectionTableNames();
+            List<String> subtableNames = createSubtableNames(sassembly);
+
+            for(int i = 0; i < tableNames.size(); i++) {
+               if(i < selectionTableNames.size()) {
+                  sources.put(selectionTableNames.get(i), tableNames.get(i));
+               }
+
+               if(i < subtableNames.size()) {
+                  sources.put(subtableNames.get(i), tableNames.get(i));
+               }
+            }
+         }
+         else if(sassembly.getTableName() != null) {
+            sources.put(sassembly.getSelectionTableName(), sassembly.getTableName());
+         }
+      }
+
+      return sources;
+   }
+
    private void addCalcRefs(TableAssembly table) {
       addCalcRefs(table, table.getName());
    }
@@ -557,13 +604,25 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       final List<CalculateRef> calculateRefs = calcmap.get(name);
 
       if(calculateRefs != null && !calculateRefs.isEmpty()) {
-         final ColumnSelection columnSelection = table.getColumnSelection(false);
+         // resetWS keeps the current calc fields in the shared tables, so replace an edited
+         // one, under the worksheet lock the queries copy the tables with (77867, 77915)
+         synchronized(ws) {
+            final ColumnSelection columnSelection = table.getColumnSelection(false);
 
-         synchronized(calculateRefs) {
-            calculateRefs.forEach((c) -> columnSelection.addAttribute(c.clone()));
+            synchronized(calculateRefs) {
+               calculateRefs.forEach((c) -> {
+                  DataRef old = columnSelection.getAttribute(c.getName());
+
+                  if(old instanceof CalculateRef) {
+                     columnSelection.removeAttribute(old);
+                  }
+
+                  columnSelection.addAttribute(c.clone());
+               });
+            }
+
+            table.resetColumnSelection();
          }
-
-         table.resetColumnSelection();
       }
    }
 

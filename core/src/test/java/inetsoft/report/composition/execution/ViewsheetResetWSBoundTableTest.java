@@ -102,6 +102,10 @@ class ViewsheetResetWSBoundTableTest {
    void setUp() throws Exception {
       HOOK = null;
       BOUND_HOOK = null;
+      BOUND_DONE = null;
+      BOUND_HOOK_TARGET = "X1";
+      RESET_HOOK = null;
+      resetThread = null;
       ws = new Worksheet();
       EmbeddedTableAssembly table = new EmbeddedTableAssembly(ws, "D");
       table.setEmbeddedData(new XEmbeddedTable(
@@ -123,6 +127,9 @@ class ViewsheetResetWSBoundTableTest {
    void tearDown() {
       HOOK = null;
       BOUND_HOOK = null;
+      BOUND_DONE = null;
+      RESET_HOOK = null;
+      resetThread = null;
 
       if(box != null) {
          box.dispose();
@@ -172,6 +179,135 @@ class ViewsheetResetWSBoundTableTest {
    void resetRuntimeDuringFetchKeepsTheAggregateCalcField() throws Exception {
       createViewsheet(false);
       assertStripDoesNotBreakQuery(() -> box.resetRuntime());
+   }
+
+   /**
+    * A calendar bound to a detail calc field copies the selection table S_D, which holds the
+    * calc fields of D, while another request resets the worksheet. The copy is taken after the
+    * reset stripped the calc fields and before it added them to the selection tables again.
+    * The table the query reads used to miss the calc field, and the calendar lost its date
+    * range with no error when the query read it before the reset added the field again.
+    */
+   @Test
+   void resetDuringTheCalendarCopyKeepsTheSelectionTableCalcField() throws Exception {
+      createViewsheet(false, true);
+      String expected = range(fetchCalendar());
+      assertNotEquals("null", expected, "no date range");
+
+      CountDownLatch inWindow = new CountDownLatch(1);
+      CountDownLatch copied = new CountDownLatch(1);
+      boolean[] kept = { false };
+      boolean[] read = { false };
+      Throwable[] resetError = { null };
+      BOUND_HOOK_TARGET = "Calendar1";
+      BOUND_HOOK = () -> {
+         RESET_HOOK = () -> {
+            kept[0] = hasCalc((TableAssembly) ws.getAssembly("S_D"));
+            inWindow.countDown();
+
+            try {
+               assertTrue(copied.await(30, TimeUnit.SECONDS), "the calendar did not copy");
+            }
+            catch(InterruptedException ex) {
+               Thread.currentThread().interrupt();
+            }
+         };
+         resetThread = new Thread(() -> {
+            try {
+               vs.resetWS();
+            }
+            catch(Throwable ex) {
+               resetError[0] = ex;
+            }
+         }, "b77915-reset");
+         resetThread.start();
+
+         try {
+            assertTrue(inWindow.await(30, TimeUnit.SECONDS), "the reset did not create mirrors");
+         }
+         catch(InterruptedException ex) {
+            Thread.currentThread().interrupt();
+         }
+      };
+
+      // the calendar query copies S_D right after the hook, inside the window. it must not
+      // get the range of the first query from the data cache
+      BOUND_DONE = table -> {
+         TableAssembly inner = ((MirrorTableAssembly) table).getTableAssembly();
+         read[0] = inner != null && hasCalc(inner);
+         copied.countDown();
+      };
+      AssetDataCache.getCache().clearCache();
+      Object data;
+
+      try {
+         data = fetchCalendar();
+      }
+      finally {
+         copied.countDown();
+      }
+
+      resetThread.join(30_000);
+      assertNull(resetError[0], "the reset failed");
+      assertNull(BOUND_HOOK, "the reset did not run before the calendar copy");
+      assertEquals(expected, range(data), "during the reset");
+      assertTrue(kept[0], "the calc field was stripped from the selection table");
+      assertTrue(read[0], "the table the calendar query reads has no calc field");
+      assertEquals(expected, range(fetchCalendar()), "after the reset");
+   }
+
+   /**
+    * A calendar query of a detail calc field prunes and validates the calc fields of its own
+    * copy of the selection table, not the shared one that resetWS and other queries change
+    * (77867). It used to work on the shared selection table, for the calc fields of a selection
+    * table are defined for the table it selects from.
+    */
+   @Test
+   void calendarQueryRunsOnItsOwnCopyOfTheSelectionTable() throws Exception {
+      createViewsheet(false, true);
+      fetchCalendar();
+      List<String> fetched = new ArrayList<>();
+      HOOK = table -> {
+         TableAssembly inner = table;
+
+         while(inner instanceof MirrorTableAssembly mirror && !"S_D".equals(inner.getName())) {
+            inner = mirror.getTableAssembly();
+         }
+
+         if(inner != null && "S_D".equals(inner.getName())) {
+            fetched.add(table.getName() + (inner == ws.getAssembly("S_D") ? ":shared" : ":own"));
+         }
+      };
+
+      AssetDataCache.getCache().clearCache();
+      fetchCalendar();
+      HOOK = null;
+
+      assertFalse(fetched.isEmpty(), "the calendar query did not fetch S_D");
+      assertTrue(fetched.stream().allMatch(f -> f.endsWith(":own")),
+                 "the calendar query runs on the shared selection table: " + fetched);
+   }
+
+   /**
+    * An edited calc field expression reaches the base table and its selection table at the
+    * next reset, as it did when the reset stripped every calc field.
+    */
+   @Test
+   void resetRefreshesAnEditedCalcField() throws Exception {
+      createViewsheet(false, true);
+      fetchCalendar();
+      assertEquals("field['d']", expression("D", "dcf"));
+      assertEquals("field['d']", expression("S_D", "dcf"));
+
+      CalculateRef edited = (CalculateRef) vs.getCalcField("D", "dcf").clone();
+      ExpressionRef expr = new ExpressionRef(null, "dcf");
+      expr.setExpression("dateAdd('d', 1, field['d'])");
+      edited.setDataRef(expr);
+      vs.addCalcField("D", edited);
+      vs.resetWS();
+
+      assertEquals("dateAdd('d', 1, field['d'])", expression("D", "dcf"), "base table");
+      assertEquals("dateAdd('d', 1, field['d'])", expression("S_D", "dcf"), "selection table");
    }
 
    /**
@@ -323,6 +459,22 @@ class ViewsheetResetWSBoundTableTest {
       table.setColumnSelection(columns, false);
    }
 
+   private Object fetchCalendar() throws Exception {
+      box.resetDataMap("Calendar1");
+      return box.getData("Calendar1");
+   }
+
+   private static String range(Object data) {
+      return data instanceof Object[] array ? Arrays.deepToString(array) : String.valueOf(data);
+   }
+
+   private String expression(String table, String calc) {
+      DataRef ref = ((TableAssembly) ws.getAssembly(table)).getColumnSelection(false)
+         .getAttribute(calc);
+      assertInstanceOf(CalculateRef.class, ref, calc + " is not in " + table);
+      return ((ExpressionRef) ((CalculateRef) ref).getDataRef()).getExpression();
+   }
+
    private Object fetch() throws Exception {
       box.resetDataMap("X1");
       return box.getData("X1");
@@ -333,6 +485,16 @@ class ViewsheetResetWSBoundTableTest {
     * the same table, as the reported viewsheet has.
     */
    private void createViewsheet(boolean detail) throws Exception {
+      createViewsheet(detail, false);
+   }
+
+   /**
+    * @param calendarOnCalc bind the calendar to a detail calc date field (dcf) of D, and add a
+    *                       text that runs RESET_HOOK when resetWS creates the mirror tables,
+    *                       after it stripped the calc fields and before it adds them to the
+    *                       selection tables again.
+    */
+   private void createViewsheet(boolean detail, boolean calendarOnCalc) throws Exception {
       CalculateRef calc = new CalculateRef(detail);
       ExpressionRef expr = new ExpressionRef(null, "acf");
       expr.setExpression("1");
@@ -364,16 +526,39 @@ class ViewsheetResetWSBoundTableTest {
       calendar = new CalendarVSAssembly(vs, "Calendar1");
       CalendarVSAssemblyInfo info = (CalendarVSAssemblyInfo) calendar.getVSAssemblyInfo();
       info.setTableName("D");
-      ColumnRef date = new ColumnRef(new AttributeRef(null, "d"));
+      ColumnRef date = new ColumnRef(new AttributeRef(null, calendarOnCalc ? "dcf" : "d"));
       date.setDataType(XSchema.DATE);
       info.setDataRef(date);
       vs.addAssembly(calendar);
+
+      if(calendarOnCalc) {
+         CalculateRef dcf = new CalculateRef(true);
+         ExpressionRef dexpr = new ExpressionRef(null, "dcf");
+         dexpr.setExpression("field['d']");
+         dcf.setDataRef(dexpr);
+         dcf.setDataType(XSchema.DATE);
+         vs.addCalcField("D", dcf);
+
+         vs.addAssembly(new TextVSAssembly(vs, "Text1") {
+            @Override
+            public String getTableName() {
+               Runnable hook = RESET_HOOK;
+
+               if(hook != null && Thread.currentThread() == resetThread) {
+                  RESET_HOOK = null;
+                  hook.run();
+               }
+
+               return super.getTableName();
+            }
+         });
+      }
 
       AssetEntry entry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
          AssetEntry.Type.VIEWSHEET, "test/Bug77915", null);
       vs.setEntry(entry);
       box = new ViewsheetSandbox(vs, AbstractSheet.SHEET_RUNTIME_MODE, null, false, entry) {
-         // runs the hook before the crosstab query copies the table it binds to, after the
+         // runs the hooks before and after the query copies the table it binds to, after the
          // query appended the detail calc fields to the base table
          @Override
          public TableAssembly getBoundTable(TableAssembly assembly, String vassembly,
@@ -382,12 +567,20 @@ class ViewsheetResetWSBoundTableTest {
          {
             Runnable hook = BOUND_HOOK;
 
-            if(hook != null && "X1".equals(vassembly)) {
+            if(hook != null && BOUND_HOOK_TARGET.equals(vassembly)) {
                BOUND_HOOK = null;
                hook.run();
             }
 
-            return super.getBoundTable(assembly, vassembly, detail);
+            TableAssembly table = super.getBoundTable(assembly, vassembly, detail);
+            Consumer<TableAssembly> done = BOUND_DONE;
+
+            if(done != null && BOUND_HOOK_TARGET.equals(vassembly)) {
+               BOUND_DONE = null;
+               done.accept(table);
+            }
+
+            return table;
          }
       };
       box.reset(null, vs.getAssemblies(), new ChangedAssemblyList(), true, true, null);
@@ -425,6 +618,10 @@ class ViewsheetResetWSBoundTableTest {
    private static final String[] DATES = { "y2024", "m2024-0" };
    private static volatile Consumer<TableAssembly> HOOK;
    private static volatile Runnable BOUND_HOOK;
+   private static volatile Consumer<TableAssembly> BOUND_DONE;
+   private static volatile String BOUND_HOOK_TARGET = "X1";
+   private static volatile Runnable RESET_HOOK;
+   private static volatile Thread resetThread;
    private int dateCount;
    private Worksheet ws;
    private Viewsheet vs;
