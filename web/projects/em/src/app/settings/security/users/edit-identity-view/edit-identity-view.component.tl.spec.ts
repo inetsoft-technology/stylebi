@@ -833,6 +833,23 @@ describe("EditIdentityViewComponent — isModelChanged() and structural guards",
       expect(comp.isModelChanged()).toBe(false);
    });
 
+   // Bug #77935: only an unassigned theme (null vs "") is treated as unchanged. Switching an
+   // assigned theme to the default ("") is a real change that Apply must send, and reset undoes it.
+   it("should return true when an assigned theme is switched to the default, and false after reset", async () => {
+      const { comp } = await renderWithLiveFormSync(
+         makeUserModel({ name: "original", password: null, theme: "theme1" }));
+
+      comp.form.controls["theme"].setValue("");
+
+      expect(comp.model.theme).toBe("");
+      expect(comp.isModelChanged()).toBe(true);
+
+      comp.reset();
+
+      expect(comp.model.theme).toBe("theme1");
+      expect(comp.isModelChanged()).toBe(false);
+   });
+
    // when model.editable=false the entire form must be disabled
    // so read-only users cannot modify any field.
    it("should disable the entire form when model.editable is false", async () => {
