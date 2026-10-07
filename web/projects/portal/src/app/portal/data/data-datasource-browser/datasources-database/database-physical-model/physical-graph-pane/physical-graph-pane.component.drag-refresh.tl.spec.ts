@@ -363,4 +363,68 @@ describe("PhysicalGraphPane - Bug #77976 drag across a graph refresh", () => {
       // the model's own graphs array is never mutated by the selection bookkeeping
       expect(ctx.ng.graphViewModel.graphs.map(g => g.node.id)).toEqual(["ORDERS", "CUSTOMERS"]);
    });
+
+   /** Select ORDERS, ctrl-select PRODUCTS, and start dragging PRODUCTS (the drag leader). */
+   async function startMultiDrag(ctx: any) {
+      mousedown(ctx.nodeEl("ORDERS"));
+      ctx.fixture.detectChanges();
+      const el = ctx.nodeEl("PRODUCTS");
+      mousedown(el, true);
+      ctx.fixture.detectChanges();
+      await ctx.settle();
+      expect(ctx.dragIds()).toEqual(["ORDERS", "PRODUCTS"]);
+
+      const opts = draggables.get(el);
+      opts.start({ el, e: new MouseEvent("mousemove"), pos: [300, 0] });
+      opts.drag({ el, e: null, pos: [350, 20] });
+      return { el, opts };
+   }
+
+   function movedBounds(): Record<string, any> {
+      const bounds: Record<string, any> = {};
+      moves.forEach(m => bounds[m.table] = m.bounds);
+      return bounds;
+   }
+
+   it("sends the move of every selected table when a refresh lands during a multi-table drag", async () => {
+      const ctx = await setup();
+      const { el, opts } = await startMultiDrag(ctx);
+      const oldModel = ctx.ng.graphViewModel;
+
+      ctx.host.svc.emitModelChange(false);
+      await refreshLanded(ctx, oldModel);
+      expect(ctx.dragIds()).toEqual(["ORDERS", "PRODUCTS"]);
+
+      opts.stop({ el, e: new MouseEvent("mouseup"), pos: [400, 40] });
+      pendingMove?.();
+      await ctx.until(() => moves.length >= 2);
+      expect(moves.length).toBe(2);
+
+      // both tables get the leader's offset (+100, +40) applied to the refreshed bounds
+      expect(movedBounds()).toEqual({
+         ORDERS: { x: 100, y: 40, width: 100, height: 50 },
+         PRODUCTS: { x: 400, y: 40, width: 100, height: 50 },
+      });
+   });
+
+   it("still sends the other tables' moves when a refresh during the drag removes a dragged table", async () => {
+      const ctx = await setup();
+      const { el, opts } = await startMultiDrag(ctx);
+      const oldModel = ctx.ng.graphViewModel;
+
+      nextResponse = () => graphResponse(["CUSTOMERS", "PRODUCTS"]);
+      ctx.host.svc.emitModelChange(false);
+      await refreshLanded(ctx, oldModel);
+      await ctx.until(() => ctx.fixture.debugElement
+         .queryAll(By.directive(JoinNodeGraphComponent)).length === 2);
+      expect(ctx.dragIds()).toEqual(["PRODUCTS"]);
+
+      opts.stop({ el, e: new MouseEvent("mouseup"), pos: [400, 40] });
+      pendingMove?.();
+      await ctx.until(() => moves.length > 0);
+      await ctx.settle();
+      expect(moves.length).toBe(1);
+
+      expect(movedBounds()).toEqual({ PRODUCTS: { x: 400, y: 40, width: 100, height: 50 } });
+   });
 });
