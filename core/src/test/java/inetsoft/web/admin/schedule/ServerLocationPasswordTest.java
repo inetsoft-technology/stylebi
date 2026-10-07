@@ -29,19 +29,27 @@ import inetsoft.test.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.viewsheet.FileFormatInfo;
+import inetsoft.util.Tool;
 import inetsoft.web.admin.deploy.DeployService;
 import inetsoft.web.admin.schedule.model.*;
+import org.apache.commons.net.ftp.FTPClient;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
+import org.mockito.MockedConstruction;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.Principal;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 /**
@@ -192,6 +200,43 @@ class ServerLocationPasswordTest {
                                                  "typed"));
    }
 
+   @Test
+   void savedLocationPathUploadsWithLocationLogin(@TempDir Path dir) throws Throwable {
+      ServerPathInfo saved = saveToServerPath("ftp://files.corp.example/reports/a.pdf", "svc",
+                                              PLACEHOLDER);
+
+      // the task is stored with the password encrypted and loaded again before it runs
+      StringWriter xml = new StringWriter();
+
+      try(PrintWriter writer = new PrintWriter(xml)) {
+         saved.writeXML(writer);
+      }
+
+      assertFalse(xml.toString().contains(PASSWORD), xml.toString());
+      assertFalse(xml.toString().contains(PLACEHOLDER), xml.toString());
+      ServerPathInfo loaded = new ServerPathInfo();
+      loaded.parseXML(Tool.parseXML(new StringReader(xml.toString())).getDocumentElement());
+
+      Path file = Files.writeString(dir.resolve("a.pdf"), "report");
+      List<String> logins = new ArrayList<>();
+
+      try(MockedConstruction<FTPClient> ftp = mockConstruction(FTPClient.class, (m, ctx) -> {
+         when(m.getReplyCode()).thenReturn(220);
+         when(m.login(any(), any())).thenAnswer(inv -> {
+            logins.add(inv.getArgument(0) + "/" + inv.getArgument(1));
+            return true;
+         });
+         when(m.storeFile(anyString(), any())).thenReturn(true);
+      }))
+      {
+         FTPUtil.uploadToFTP(loaded.getPath(), file.toFile(), loaded, false);
+         verify(ftp.constructed().get(0)).connect("files.corp.example");
+         verify(ftp.constructed().get(0)).storeFile(eq("/reports/a.pdf"), any());
+      }
+
+      assertEquals(List.of("svc/" + PASSWORD), logins);
+   }
+
    private static void saveLocation(String path, String label, String username, String password,
                                     String oldPasswordKey)
    {
@@ -219,6 +264,12 @@ class ServerLocationPasswordTest {
    private static String saveToServerPassword(String path, String username, String password)
       throws Exception
    {
+      return saveToServerPath(path, username, password).getPassword();
+   }
+
+   private static ServerPathInfo saveToServerPath(String path, String username, String password)
+      throws Exception
+   {
       ScheduleService service = new ScheduleService(
          null, null, null, null, null, mock(DeployService.class), null, null, null, null, null,
          null, null);
@@ -232,7 +283,7 @@ class ServerLocationPasswordTest {
 
       ViewsheetAction action = (ViewsheetAction) service.getActionFromModel(
          model, null, mock(Principal.class), "http://host/");
-      return action.getFilePathInfo(PDF).getPassword();
+      return action.getFilePathInfo(PDF);
    }
 
    private static final String PROPERTY = "server.save.locations";
