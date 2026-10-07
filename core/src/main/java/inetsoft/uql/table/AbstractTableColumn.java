@@ -115,6 +115,13 @@ public abstract class AbstractTableColumn implements XTableColumn, XSerializable
          copyFromBuffer(buf);
       }
       catch(Exception ex) {
+         // a timeout or cancel closed the channel, the swap file is not lost. the data array
+         // is left null so a later access reads the file again (bug #77916)
+         if(SwapReadInterruptedException.isInterrupt(ex)) {
+            LOG.debug("Read of swap file interrupted: " + swapInfo, ex);
+            throw new SwapReadInterruptedException(swapfile, ex);
+         }
+
          if(!swapfile.exists()) {
             Tool.addUserMessage(Catalog.getCatalog().getString("common.worksheet.swap.missing"));
             LOG.error("Failed to read swap file: " + swapInfo + " missing", ex);

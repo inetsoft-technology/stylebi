@@ -28,7 +28,12 @@ import java.util.Set;
  */
 public class SwapFileReadException extends RuntimeException {
    public SwapFileReadException(File file, Throwable cause) {
-      super("Could not read swap file " + file + ", the swapped data is not available", cause);
+      this(file, "Could not read swap file " + file + ", the swapped data is not available",
+           cause);
+   }
+
+   protected SwapFileReadException(File file, String message, Throwable cause) {
+      super(message, cause);
       this.file = file;
    }
 

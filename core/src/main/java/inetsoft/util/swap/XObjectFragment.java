@@ -249,6 +249,13 @@ public final class XObjectFragment<T> extends XSwappable {
          // the swapper never swaps the fragment out in this state; fail loudly instead of
          // silently substituting partial data
          spos = 0;
+
+         // a timeout or cancel closed the channel, the swap file is not lost (bug #77916)
+         if(SwapReadInterruptedException.isInterrupt(ex)) {
+            LOG.debug("Read of swap file interrupted: " + file, ex);
+            throw new SwapReadInterruptedException(file, ex);
+         }
+
          LOG.error("Failed to read swap file: " + file, ex);
          throw new SwapFileReadException(file, ex);
       }
