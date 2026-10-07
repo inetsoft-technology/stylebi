@@ -588,6 +588,9 @@ public class IdentityService {
 
       Identity nid = new DefaultIdentity(identityId, type);
       Identity oid = oID == null ? null : new DefaultIdentity(oID, type);
+      // a renamed user's or group's dashboards are read before the provider write, which
+      // changes how they are computed once the old user is gone. They are moved after it.
+      String[] renamedDashboards = null;
 
       if(oID == null) {
          // a deleted user, group or role is cleaned up in removeIdentity(), after it has been
@@ -598,15 +601,19 @@ public class IdentityService {
             smanager.identityRemoved(identity, eprovider);
          }
       }
-      else {
-         if((type == Identity.USER || type == Identity.GROUP) && !identityId.equals(oID)) {
-            smanager.identityRenamed(oID, identity);
-            dmanager.setDashboards(nid, dmanager.getDashboards(oid));
-            dmanager.setDashboards(oid, null);
-            dmanager.removeDashboards(oid);
-            dashboardRegistryManager.clear(oID);
-         }
+      else if((type == Identity.USER || type == Identity.GROUP) && !identityId.equals(oID)) {
+         renamedDashboards = dmanager.getDashboards(oid);
       }
+
+      final String[] dashboards = renamedDashboards;
+      // moves a renamed user's or group's schedule tasks and dashboards to the new name
+      RenameStep renameTasksAndDashboards = () -> {
+         smanager.identityRenamed(oID, identity);
+         dmanager.setDashboards(nid, dashboards);
+         dmanager.setDashboards(oid, null);
+         dmanager.removeDashboards(oid);
+         dashboardRegistryManager.clear(oID);
+      };
 
       AuthorizationChain authoc = (AuthorizationChain) securityProvider.getAuthorizationProvider();
 
@@ -633,19 +640,24 @@ public class IdentityService {
                LOG.debug("User {} not found, skipping the custom theme cleanup", identityId);
             }
          }
-         else {
-            if(!identityId.equals(oID)) {
-               String orgId = identityId.orgID;
-               //rep.renameUser(oID, identityId);
-               repletRegistryManager.renameUser(oID, identityId);
-               dashboardRegistryManager.clear(identityId);
-               dashboardRegistryManager.renameUser(oID, identityId);
-               dashboardRegistryManager.clear(oID);
-               updateUserAutoSaveFiles(oID, identityId);
-               //update user identityId inside of permissions
-               updateIdentityPermissions(type, oID, identityId, orgId, orgId, true);
-            }
+         else if(!identityId.equals(oID)) {
+            String orgId = identityId.orgID;
 
+            renameIdentity(eprovider, identityId, type, () -> eprovider.setUser(oID, (User) identity),
+               () -> {
+                  renameTasksAndDashboards.run();
+                  //rep.renameUser(oID, identityId);
+                  repletRegistryManager.renameUser(oID, identityId);
+                  dashboardRegistryManager.clear(identityId);
+                  dashboardRegistryManager.renameUser(oID, identityId);
+                  dashboardRegistryManager.clear(oID);
+                  updateUserAutoSaveFiles(oID, identityId);
+                  // update user identityId inside of permissions. The provider's change listener
+                  // renames the grantees too, but not the permissions keyed by the user's resources
+                  updateIdentityPermissions(type, oID, identityId, orgId, orgId, true);
+               });
+         }
+         else {
             eprovider.setUser(oID, (User) identity);
          }
       }
@@ -730,28 +742,37 @@ public class IdentityService {
          }
          else {
             boolean changed = !identityId.equals(oID);
+            RenameStep write = type == Identity.GROUP ?
+               () -> eprovider.setGroup(identityId, (Group) identity) :
+               () -> eprovider.setRole(identityId, (Role) identity);
 
             if(changed) {
+               // the new record is saved first, then the old name's data is moved to it. The old
+               // record is removed last: its removal is a delete event, which takes the old name
+               // out of every grant, membership and inheriting role.
                if(type == Identity.GROUP) {
-                  //update group name inside of permissions
                   String orgId = eprovider.getGroup(oID).getOrganizationID();
-                  updateIdentityPermissions(type, oID, identityId, orgId, orgId, true);
-                  updatePrincipalGroup(oID, identityId);
+
+                  renameIdentity(eprovider, identityId, type, write, () -> {
+                     renameTasksAndDashboards.run();
+                     //update group name inside of permissions
+                     updateIdentityPermissions(type, oID, identityId, orgId, orgId, true);
+                     updatePrincipalGroup(oID, identityId);
+                  });
                }
                else {
-                  //update role identityId inside of permissions
                   String orgId = eprovider.getRole(oID) != null && eprovider.getRole(oID).getOrganizationID() != null ?
                      eprovider.getRole(oID).getOrganizationID() : null;
-                  updateIdentityPermissions(type, oID, identityId, orgId, orgId, true);
-                  syncRoles(eprovider, oID, identityId);
+
+                  renameIdentity(eprovider, identityId, type, write, () -> {
+                     //update role identityId inside of permissions
+                     updateIdentityPermissions(type, oID, identityId, orgId, orgId, true);
+                     syncRoles(eprovider, oID, identityId);
+                  });
                }
             }
-
-            if(type == Identity.GROUP) {
-               eprovider.setGroup(identityId, (Group) identity);
-            }
             else {
-               eprovider.setRole(identityId, (Role) identity);
+               write.run();
             }
 
             if(changed) {
@@ -820,6 +841,70 @@ public class IdentityService {
          // assume it does, so its tasks and dashboards are kept
          return true;
       }
+   }
+
+   /**
+    * Saves a renamed user, group or role, then moves the old name's data (schedule tasks,
+    * dashboards, permissions, memberships) to the new name. The save can fail after the new
+    * record was saved, when the old one could not be removed and the admin is told to delete it;
+    * the data is moved then too, and the error is rethrown. Otherwise a failed save moves
+    * nothing, so the data stays with the identity that still exists.
+    *
+    * @param write   saves the renamed identity to the provider.
+    * @param migrate moves the old name's data to the new name.
+    */
+   private void renameIdentity(EditableAuthenticationProvider eprovider, IdentityID newId,
+                               int type, RenameStep write, RenameStep migrate)
+      throws Exception
+   {
+      try {
+         write.run();
+      }
+      catch(Exception ex) {
+         if(!renamedIdentitySaved(eprovider, newId, type)) {
+            throw ex;
+         }
+
+         LOG.warn("Renaming to {} failed after it was saved, moving the data to the new name",
+                  newId, ex);
+
+         try {
+            migrate.run();
+         }
+         catch(Exception migrateError) {
+            ex.addSuppressed(migrateError);
+         }
+
+         throw ex;
+      }
+
+      migrate.run();
+   }
+
+   /**
+    * Checks whether a renamed identity was saved. Unlike identityExists(), a failed read counts
+    * as not saved, so the old name's data is not moved to an identity that may not exist.
+    */
+   private boolean renamedIdentitySaved(EditableAuthenticationProvider eprovider,
+                                        IdentityID identityId, int type)
+   {
+      try {
+         return switch(type) {
+            case Identity.USER -> eprovider.getUser(identityId) != null;
+            case Identity.GROUP -> eprovider.getGroup(identityId) != null;
+            default -> eprovider.getRole(identityId) != null;
+         };
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to check whether the renamed identity {} was saved, keeping the data " +
+                     "on the old name", identityId, e);
+         return false;
+      }
+   }
+
+   @FunctionalInterface
+   private interface RenameStep {
+      void run() throws Exception;
    }
 
    /**
@@ -2800,7 +2885,6 @@ public class IdentityService {
       user.setActive(model.status());
       user.setOrganization(model.organization());
       user.setGoogleSSOId(ouser.getGoogleSSOId());
-      renameOrganizationMember(model.organization(), ouser.getName(), model.name(), eprovider);
 
       Properties localeProperties = SUtil.loadLocaleProperties();
       String localeString = null;
@@ -2848,7 +2932,16 @@ public class IdentityService {
          }
       }
 
-      syncIdentity(eprovider, user, oIdentity);
+      if(Tool.equals(ouser.getName(), model.name())) {
+         syncIdentity(eprovider, user, oIdentity);
+      }
+      else {
+         // the organization's member list is renamed once the renamed user is saved
+         renameIdentity(eprovider, user.getIdentityID(), Identity.USER,
+                        () -> syncIdentity(eprovider, user, oIdentity),
+                        () -> renameOrganizationMember(model.organization(), ouser.getName(),
+                                                       model.name(), eprovider));
+      }
 
       if(sessionRepository != null) {
          try {
@@ -2903,7 +2996,6 @@ public class IdentityService {
       final FSGroup group = new FSGroup(id, locale, memberNames, roles);
 
       group.setOrganization(model.organization());
-      renameOrganizationMember(model.organization(), oldGroup.getName(), model.name(), eprovider);
 
       IdentityID[] mgroups = new IdentityID[groupV.size()];
       groupV.toArray(mgroups);
@@ -2927,7 +3019,17 @@ public class IdentityService {
          if(oID.name.equals(pgroup.getName()) && Tool.equals(oID.orgID, pgroup.getOrganizationID()))
          {
             group.setGroups(pgroup.getGroups());
-            syncIdentity(eprovider, group, oID);
+            if(Tool.equals(oldGroup.getName(), model.name())) {
+               syncIdentity(eprovider, group, oID);
+            }
+            else {
+               // the organization's member list is renamed once the renamed group is saved
+               renameIdentity(eprovider, id, Identity.GROUP,
+                              () -> syncIdentity(eprovider, group, oID),
+                              () -> renameOrganizationMember(model.organization(),
+                                                             oldGroup.getName(), model.name(),
+                                                             eprovider));
+            }
             continue;
          }
 
