@@ -63,7 +63,7 @@ import static org.mockito.Mockito.*;
                                   DataSourcePathClashTest.Beans.class },
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
-@Tag("core")
+@Tag("slow")
 class ExtendedModelOwnershipTest {
    private static final String URL = "jdbc:derby:memory:bug77842;create=true";
 
