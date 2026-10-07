@@ -251,6 +251,16 @@ class FTPUtilEndpointTest {
             "ftp://bob@files.corp.example/r.pdf", file(), info, false));
          assertTrue(ex.getMessage().contains("the user does not match the saved path"),
                     ex.getMessage());
+
+         // a value in the file part with an '@' and the same host moves the saved user into a
+         // longer user name
+         ServerPathInfo user =
+            new ServerPathInfo("ftp://alice@files.corp.example/out/{0}", "alice", "alice-pw");
+         String url = MessageFormat.format(user.getPath(), "x@files.corp.example/r.pdf");
+         assertEquals("alice@files.corp.example/out/x", FTPUtil.parseEndpoint(url).userInfo());
+         ex = assertThrows(Exception.class, () -> FTPUtil.uploadToFTP(url, file(), user, false));
+         assertTrue(ex.getMessage().contains("the user does not match the saved path"),
+                    ex.getMessage());
          assertTrue(ftp.constructed().isEmpty());
       }
    }
@@ -296,6 +306,8 @@ class FTPUtilEndpointTest {
             "ftp://bob@files.corp.example/out/r.pdf", file(), none, false));
          assertTrue(ex.getMessage().contains("the user does not match the saved path"),
                     ex.getMessage());
+         // refused before the secret is loaded
+         tool.verify(() -> Tool.loadCredentials(anyString()), never());
          assertTrue(ftp.constructed().isEmpty());
       }
 
