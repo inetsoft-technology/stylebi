@@ -27,6 +27,7 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.table.*;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.util.*;
+import inetsoft.util.log.LogLevel;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.groovy.io.StringBuilderWriter;
 import org.slf4j.Logger;
@@ -284,28 +285,14 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
     */
    @Override
    protected synchronized void writeEmbeddedData(PrintWriter writer) {
-      try {
-         // If undo was done, especially after a "save as" action then
-         // there is a chance that two tables from different worksheets could share
-         // the same data files. To prevent that, rename the data files when writing to xml
-         // to be safe.
-         if(undo && !Worksheet.isTemp()) {
-            pasted();
-            undo = false;
-         }
+      dataWriteFailed = false;
 
-         XSwappableTable stable = getTable();
+      try {
+         XSwappableTable stable = prepareWrite();
 
          // make sure table is inited
          if(stable == null) {
             return;
-         }
-
-         if(!fileDirty && dataPaths != null) {
-            // if data file has changed, don't reuse it otherwise the row count
-            // and data may be out of sync. (56584)
-            fileDirty = Arrays.stream(dataPaths)
-               .anyMatch(p -> getLastModified(p, Long.MAX_VALUE) > dataTS);
          }
 
          boolean writeDateFile = dataPaths == null || fileDirty;
@@ -313,6 +300,11 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
 
          if(writeDateFile) {
             dataSaved = writeDataFiles(stable);
+         }
+
+         // the data is not stored, a worksheet save must not report success (bug #77986)
+         if(!dataSaved) {
+            dataWriteFailed = true;
          }
 
          // init row count after load complete
@@ -425,8 +417,139 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
          writer.println("</sembeddedData>");
       }
       catch(Exception exc) {
+         dataWriteFailed = true;
          LOG.error("Failed to write data XML", exc);
       }
+   }
+
+   /**
+    * Get the table to write, after checking whether its data files must be written again.
+    */
+   private XSwappableTable prepareWrite() {
+      // If undo was done, especially after a "save as" action then
+      // there is a chance that two tables from different worksheets could share
+      // the same data files. To prevent that, rename the data files when writing to xml
+      // to be safe.
+      if(undo && !Worksheet.isTemp()) {
+         pasted();
+         undo = false;
+      }
+
+      XSwappableTable stable = getTable();
+
+      if(stable != null && !fileDirty && dataPaths != null) {
+         // if data file has changed, don't reuse it otherwise the row count
+         // and data may be out of sync. (56584)
+         fileDirty = Arrays.stream(dataPaths)
+            .anyMatch(p -> getLastModified(p, Long.MAX_VALUE) > dataTS);
+      }
+
+      return stable;
+   }
+
+   /**
+    * Write the data files of the snapshot tables of a worksheet before the worksheet is saved,
+    * so that a failed write stops the save before anything is stored, and the stored worksheet
+    * keeps its previous data. The files replaced by the new ones are kept until
+    * {@link #finishSave(Worksheet, boolean)} is called after the worksheet is stored, so a
+    * failed save never leaves the stored worksheet pointing at deleted files (bug #77986).
+    *
+    * @param ws the worksheet to save.
+    *
+    * @throws MessageException if the data of a table could not be written.
+    */
+   public static void writeDataFilesForSave(Worksheet ws) {
+      try {
+         for(SnapshotEmbeddedTableAssembly table : getSnapshotTables(ws)) {
+            table.writeDataFilesForSave();
+         }
+      }
+      catch(RuntimeException ex) {
+         finishSave(ws, false);
+         throw ex;
+      }
+   }
+
+   /**
+    * Finish a save started by {@link #writeDataFilesForSave(Worksheet)}. If the worksheet was
+    * stored, the data files replaced by the saved ones are deleted.
+    *
+    * @param ws    the saved worksheet.
+    * @param saved {@code true} if the worksheet was stored.
+    *
+    * @throws MessageException if the worksheet was stored without the data of a table.
+    */
+   public static void finishSave(Worksheet ws, boolean saved) {
+      List<String> failed = new ArrayList<>();
+
+      for(SnapshotEmbeddedTableAssembly table : getSnapshotTables(ws)) {
+         if(table.finishSave(saved)) {
+            failed.add(table.getName());
+         }
+      }
+
+      if(!failed.isEmpty()) {
+         throw new MessageException(
+            Catalog.getCatalog().getString("common.worksheetSnapshotDataNotStored",
+                                           String.join(", ", failed)),
+            LogLevel.ERROR, false, ConfirmException.ERROR);
+      }
+   }
+
+   private static List<SnapshotEmbeddedTableAssembly> getSnapshotTables(Worksheet ws) {
+      List<SnapshotEmbeddedTableAssembly> tables = new ArrayList<>();
+
+      if(ws != null) {
+         for(Assembly assembly : ws.getAssemblies()) {
+            if(assembly instanceof SnapshotEmbeddedTableAssembly) {
+               tables.add((SnapshotEmbeddedTableAssembly) assembly);
+            }
+         }
+      }
+
+      return tables;
+   }
+
+   private synchronized void writeDataFilesForSave() {
+      dataWriteFailed = false;
+      deferOldFileDelete = true;
+
+      try {
+         XSwappableTable stable = prepareWrite();
+
+         if(stable != null && (dataPaths == null || fileDirty) && !writeDataFiles(stable)) {
+            throw new IOException("Table swap file is missing");
+         }
+      }
+      catch(Exception ex) {
+         LOG.error("Failed to write the data files of snapshot table: {}", getName(), ex);
+         MessageException mex = new MessageException(
+            Catalog.getCatalog().getString("common.worksheetSnapshotDataNotSaved", getName()),
+            LogLevel.ERROR, false, ConfirmException.ERROR);
+         mex.initCause(ex);
+         throw mex;
+      }
+   }
+
+   /**
+    * @return {@code true} if the worksheet was stored without the data of this table.
+    */
+   private synchronized boolean finishSave(boolean saved) {
+      deferOldFileDelete = false;
+
+      if(!saved) {
+         return false;
+      }
+
+      if(dataWriteFailed) {
+         return true;
+      }
+
+      if(!Worksheet.isTemp() && !dataPathsPendingDelete.isEmpty()) {
+         deleteOldFiles(dataPaths);
+      }
+
+      return false;
    }
 
    private static long getLastModified(String path, long def) {
@@ -499,8 +622,9 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
          }
       }
 
-      // if worksheet is saved, then delete the old files (including non-temp)
-      if(!Worksheet.isTemp() && !dataPathsPendingDelete.isEmpty()) {
+      // if worksheet is saved, then delete the old files (including non-temp). during a save
+      // they are deleted after the worksheet is stored (bug #77986)
+      if(!Worksheet.isTemp() && !deferOldFileDelete && !dataPathsPendingDelete.isEmpty()) {
          deleteOldFiles(dataPaths);
       }
 
@@ -699,6 +823,8 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
          table2.stable = stable;
          table2.originalSTable = originalSTable;
          table2.columns = table2.getColumnSelection(false);
+         table2.dataWriteFailed = false;
+         table2.deferOldFileDelete = false;
          snapshots.add(new WeakReference<>(table2));
          return table2;
       }
@@ -999,6 +1125,10 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
    private boolean undo = false;
    private transient boolean shouldDeleteOldFiles = true;
    private transient boolean dataPathsUpdated;
+   // the last write of the data did not store it (bug #77986)
+   private transient boolean dataWriteFailed;
+   // a save is in progress, keep the replaced files until the worksheet is stored (bug #77986)
+   private transient boolean deferOldFileDelete;
 
    public static final String FILE_REFERENCES_MAP = "inetsoft.snapshot.file.map";
    public static final String FILE_REFERENCES_MAP_LOCK = "inetsoft.snapshot.file.map.lock";
