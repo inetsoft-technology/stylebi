@@ -747,6 +747,18 @@ public class ScheduleTaskFolderService {
       else {
          AssetEntry folderEntry = new AssetEntry( AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER,
             path, null);
+
+         // Bug #77906, the Move dialog only opens folders this browser listed, which need READ,
+         // so refuse a folder without READ before reading it. Then an existing and a missing
+         // folder get the same answer. The root is always shown, as in the schedule tree.
+         if(!"/".equals(path) &&
+            !checkFolderPermission(folderEntry.getPath(), principal, ResourceAction.READ))
+         {
+            throw new SecurityException(
+               "Unauthorized access to resource \"" + folderEntry.getPath() + "\" by user " +
+                  principal);
+         }
+
          ArrayList<TreeNodeModel> result = new ArrayList<>();
          AssetFolder folder = getTaskFolder(folderEntry.toIdentifier());
          AssetEntry[] entries = folder.getEntries();
@@ -914,6 +926,17 @@ public class ScheduleTaskFolderService {
     * @throws Exception
     */
    public EditTaskFolderDialogModel getFolderEditModel(String folderPath, Principal principal) throws Exception {
+      // Bug #77906, the same DELETE and WRITE check renameFolder makes, before the folder is
+      // read, so the dialog doesn't tell a user who can't edit the folder its owner or whether
+      // it exists
+      if(!checkFolderPermission(folderPath, principal, ResourceAction.DELETE) ||
+         !checkFolderPermission(folderPath, principal, ResourceAction.WRITE))
+      {
+         throw new SecurityException(
+            "Unauthorized access to resource \"" + getFolderEntry(folderPath).getPath() +
+               "\" by user " + principal);
+      }
+
       EditTaskFolderDialogModel.Builder model = EditTaskFolderDialogModel.builder();
       AssetEntry entry = getFolderEntry(folderPath);
       model.oldPath(folderPath);

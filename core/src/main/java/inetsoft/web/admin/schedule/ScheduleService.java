@@ -2196,6 +2196,13 @@ public class ScheduleService {
       Vector<ScheduleTask> allTasks = getScheduleTasks("", "", true, principal);
 
       for(String folderPath: model.taskNames()) {
+         // Bug #77906, skip a folder without the DELETE that folder/remove checks per path, before
+         // reading it, so the answer doesn't depend on which folders exist or what is in them.
+         // A multi-selection may hold such paths; folder/remove reports them itself.
+         if(!taskFolderService.checkFolderPermission(folderPath, principal, ResourceAction.DELETE)) {
+            continue;
+         }
+
          AssetEntry taskEntry = taskFolderService.getFolderEntry(folderPath);
 
          checkScheduledTaskDependency0(allTasks, builder, taskEntry);
@@ -2213,6 +2220,13 @@ public class ScheduleService {
       }
 
       AssetFolder taskFolder = taskFolderService.getTaskFolder(folderEntry.toIdentifier());
+
+      // Bug #77906, a missing folder has no dependents. Don't fail, so a missing path and an
+      // existing one without dependents get the same answer.
+      if(taskFolder == null) {
+         return;
+      }
+
       AssetEntry[] entries = taskFolder.getEntries();
 
       for(AssetEntry entry : entries) {
