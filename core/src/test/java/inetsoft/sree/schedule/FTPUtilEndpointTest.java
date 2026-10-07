@@ -222,6 +222,113 @@ class FTPUtilEndpointTest {
       assertNull(FTPUtil.splitPassword(null, false));
    }
 
+   @Test
+   void storedPasswordIsNotSentAsAnotherUser() throws Throwable {
+      // Bug #77970, a task parameter in the user part of the path changed the login user, and the
+      // stored password was sent with it
+      ServerPathInfo info =
+         new ServerPathInfo("ftp://{u}@files.corp.example/out/{0}", "alice", "alice-pw");
+
+      try(MockedConstruction<FTPClient> ftp = mockFtp()) {
+         Exception ex = assertThrows(Exception.class, () -> FTPUtil.uploadToFTP(
+            "ftp://bob@files.corp.example/out/r.pdf", file(), info, false));
+         assertTrue(ex.getMessage().contains("the user does not match the saved path"),
+                    ex.getMessage());
+         assertTrue(ftp.constructed().isEmpty());
+      }
+
+      assertTrue(logins.isEmpty());
+   }
+
+   @Test
+   void storedPasswordIsNotSentAsUserAddedByParameter() throws Throwable {
+      // Bug #77970, a user added to a path without one overrides the stored user name
+      ServerPathInfo info =
+         new ServerPathInfo("ftp://files.corp.example/{0}", "alice", "alice-pw");
+
+      try(MockedConstruction<FTPClient> ftp = mockFtp()) {
+         Exception ex = assertThrows(Exception.class, () -> FTPUtil.uploadToFTP(
+            "ftp://bob@files.corp.example/r.pdf", file(), info, false));
+         assertTrue(ex.getMessage().contains("the user does not match the saved path"),
+                    ex.getMessage());
+         assertTrue(ftp.constructed().isEmpty());
+      }
+   }
+
+   @Test
+   void storedPasswordIsSentAsTheSavedUser() throws Throwable {
+      ServerPathInfo field = new ServerPathInfo("ftp://files.corp.example/out/{0}", "alice", "pw");
+      ServerPathInfo path = new ServerPathInfo("ftp://alice@files.corp.example/out/{0}", "x", "pw");
+
+      try(MockedConstruction<FTPClient> ftp = mockFtp()) {
+         FTPUtil.uploadToFTP("ftp://files.corp.example/out/r.pdf", file(), field, false);
+         FTPUtil.uploadToFTP("ftp://alice@files.corp.example/out/r.pdf", file(), path, false);
+      }
+
+      assertEquals(List.of("alice/pw", "alice/pw"), logins);
+   }
+
+   @Test
+   void pathWithItsOwnPasswordDoesNotUseTheStoredOne() throws Throwable {
+      // the formatted path brings its own password, the stored one is not sent
+      ServerPathInfo info =
+         new ServerPathInfo("ftp://{u}@files.corp.example/out/{0}", "alice", "alice-pw");
+
+      try(MockedConstruction<FTPClient> ftp = mockFtp()) {
+         FTPUtil.uploadToFTP("ftp://bob:bob-pw@files.corp.example/out/r.pdf", file(), info, false);
+      }
+
+      assertEquals(List.of("bob/bob-pw"), logins);
+   }
+
+   @Test
+   void credentialIsNotSentAsAnotherUser() throws Throwable {
+      // Bug #77970, the user in the path overrides the user name of the secret
+      ServerPathInfo user = credentialPath("ftp://{u}@files.corp.example/out/{0}");
+      ServerPathInfo none = credentialPath("ftp://files.corp.example/out/{0}");
+
+      try(MockedStatic<Tool> tool = mockTool(); MockedConstruction<FTPClient> ftp = mockFtp()) {
+         Exception ex = assertThrows(Exception.class, () -> FTPUtil.uploadToFTP(
+            "ftp://bob@files.corp.example/out/r.pdf", file(), user, false));
+         assertTrue(ex.getMessage().contains("the user does not match the saved path"),
+                    ex.getMessage());
+         ex = assertThrows(Exception.class, () -> FTPUtil.uploadToFTP(
+            "ftp://bob@files.corp.example/out/r.pdf", file(), none, false));
+         assertTrue(ex.getMessage().contains("the user does not match the saved path"),
+                    ex.getMessage());
+         assertTrue(ftp.constructed().isEmpty());
+      }
+
+      assertTrue(logins.isEmpty());
+   }
+
+   @Test
+   void credentialIsSentAsTheSavedUser() throws Throwable {
+      ServerPathInfo info = credentialPath("ftp://own-user@files.corp.example/out/{0}");
+
+      try(MockedStatic<Tool> tool = mockTool(); MockedConstruction<FTPClient> ftp = mockFtp()) {
+         FTPUtil.uploadToFTP("ftp://own-user@files.corp.example/out/r.pdf", file(), info, false);
+      }
+
+      assertEquals(List.of("own-user/own-password"), logins);
+   }
+
+   @Test
+   void sftpStoredPasswordIsNotSentAsAnotherUser() throws Throwable {
+      ServerPathInfo info =
+         new ServerPathInfo("sftp://{u}@files.corp.example/out/{0}", "alice", "alice-pw");
+
+      try(MockedConstruction<com.jcraft.jsch.JSch> jsch =
+             mockConstruction(com.jcraft.jsch.JSch.class))
+      {
+         Exception ex = assertThrows(Exception.class, () -> FTPUtil.uploadToFTP(
+            "sftp://bob@files.corp.example/out/r.pdf", file(), info, false));
+         assertTrue(ex.getMessage().contains("the user does not match the saved path"),
+                    ex.getMessage());
+         assertTrue(jsch.constructed().isEmpty());
+      }
+   }
+
    private static ServerPathInfo credentialPath(String path) {
       ServerPathInfo info = new ServerPathInfo(path);
       info.setUseCredential(true);

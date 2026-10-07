@@ -30,6 +30,7 @@ import org.slf4j.LoggerFactory;
 import java.io.*;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
+import java.util.Objects;
 
 /**
  * Utility class for FTP related methods
@@ -55,12 +56,9 @@ public class FTPUtil {
       String pass = null;
 
       // the formatted path may contain parameter values, so make sure that a stored credential
-      // is only sent to the server that the saved path names
-      if((pathInfo.isUseCredential() || !Tool.isEmptyString(pathInfo.getPassword())) &&
-         !isSameServer(endpoint, pathInfo))
-      {
-         throw new Exception("Failed to save file to FTP server: " + host +
-            ", the server does not match the saved path");
+      // is only sent to the server and as the user that the saved path names
+      if(pathInfo.isUseCredential() || !Tool.isEmptyString(pathInfo.getPassword())) {
+         checkSameLogin(endpoint, pathInfo);
       }
 
       if(pathInfo.isUseCredential()) {
@@ -248,16 +246,40 @@ public class FTPUtil {
    }
 
    /**
-    * Checks if the formatted path points to the server of the saved path. A saved path that
-    * can't be parsed, such as one with a parameter in the host or the port, never matches.
+    * Checks that the formatted path logs in to the server of the saved path as the same user, so
+    * that a stored credential may be sent. A saved path that can't be parsed, such as one with a
+    * parameter in the host or the port, never matches. The user name in a path overrides the
+    * stored one, so the user names in the two paths must be the same; a parameter in the user
+    * name of the saved path never matches. A formatted path with its own password doesn't use
+    * the stored one, so only its server is checked.
+    *
+    * @throws Exception if the stored credential may not be sent.
     */
-   private static boolean isSameServer(Endpoint endpoint, ServerPathInfo pathInfo) {
+   private static void checkSameLogin(Endpoint endpoint, ServerPathInfo pathInfo)
+      throws Exception
+   {
+      Endpoint saved;
+
       try {
-         return endpoint.isSameServer(parseEndpoint(pathInfo));
+         saved = parseEndpoint(pathInfo);
       }
       catch(MalformedURLException ex) {
          LOG.debug("Failed to parse the saved path: " + pathInfo.getPath(), ex);
-         return false;
+         saved = null;
+      }
+
+      if(!endpoint.isSameServer(saved)) {
+         throw new Exception("Failed to save file to FTP server: " + endpoint.host() +
+            ", the server does not match the saved path");
+      }
+
+      String userInfo = endpoint.userInfo();
+
+      if((userInfo == null || !userInfo.contains(":")) &&
+         !Objects.equals(userInfo, saved.userInfo()))
+      {
+         throw new Exception("Failed to save file to FTP server: " + endpoint.host() +
+            ", the user does not match the saved path");
       }
    }
 
