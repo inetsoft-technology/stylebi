@@ -470,14 +470,17 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
       this.restoreState();
       this.setOriginalState();
 
-      this.form.controls["name"].setValue(this.originalModel.name);
-      this.form.controls["theme"].setValue(this.originalModel.theme || "");
+      // the form is only synced to the restored model here, so it must not emit to the
+      // valueChanges subscription made in init(). updateModel() would write form values back
+      // into the model (e.g. a null theme becomes ""), leaving isModelChanged() true after reset.
+      this.form.controls["name"].setValue(this.originalModel.name, {emitEvent: false});
+      this.form.controls["theme"].setValue(this.originalModel.theme || "", {emitEvent: false});
 
       if(this.user) {
          (<UntypedFormGroup>this.form.controls["changePassword"])
-            .controls["password"].setValue("");
+            .controls["password"].setValue("", {emitEvent: false});
          (<UntypedFormGroup>this.form.controls["changePassword"])
-            .controls["confirmPassword"].setValue("");
+            .controls["confirmPassword"].setValue("", {emitEvent: false});
 
          if(this.isNewUser) {
             this.updatePassword(true);
@@ -495,31 +498,32 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
       }
 
       if(this.role) {
-         this.form.controls["defaultRole"].setValue((<EditRolePaneModel> this.originalModel).defaultRole);
-         this.form.controls["description"].setValue((<EditRolePaneModel> this.originalModel).description);
-         this.form.controls["sysAdmin"].setValue((<EditRolePaneModel> this.originalModel).isSysAdmin);
-         this.form.get("organization").setValue((<EditRolePaneModel> this.originalModel).organization);
+         this.form.controls["defaultRole"].setValue((<EditRolePaneModel> this.originalModel).defaultRole, {emitEvent: false});
+         this.form.controls["description"].setValue((<EditRolePaneModel> this.originalModel).description, {emitEvent: false});
+         this.form.controls["sysAdmin"].setValue((<EditRolePaneModel> this.originalModel).isSysAdmin, {emitEvent: false});
+         this.form.get("organization").setValue((<EditRolePaneModel> this.originalModel).organization, {emitEvent: false});
 
       }
       else if(this.user) {
-         this.form.get("active").setValue((<EditUserPaneModel> this.originalModel).status);
-         this.form.get("alias").setValue((<EditUserPaneModel> this.originalModel).alias);
-         this.form.get("email").setValue((<EditUserPaneModel> this.originalModel).email);
-         this.form.get("locale").setValue((<EditUserPaneModel> this.originalModel).locale);
-         this.form.get("organization").setValue((<EditUserPaneModel> this.originalModel).organization);
+         this.form.get("active").setValue((<EditUserPaneModel> this.originalModel).status, {emitEvent: false});
+         this.form.get("alias").setValue((<EditUserPaneModel> this.originalModel).alias, {emitEvent: false});
+         this.form.get("email").setValue((<EditUserPaneModel> this.originalModel).email, {emitEvent: false});
+         this.form.get("locale").setValue((<EditUserPaneModel> this.originalModel).locale, {emitEvent: false});
+         this.form.get("organization").setValue((<EditUserPaneModel> this.originalModel).organization, {emitEvent: false});
       }
       else if(this.organization) {
-         this.form.get("id").setValue((<EditOrganizationPaneModel> this.originalModel).id);
-         this.form.get("locale").setValue((<EditOrganizationPaneModel> this.originalModel).locale);
+         this.form.get("id").setValue((<EditOrganizationPaneModel> this.originalModel).id, {emitEvent: false});
+         this.form.get("locale").setValue((<EditOrganizationPaneModel> this.originalModel).locale, {emitEvent: false});
       }
       else if(this.group) {
-         this.form.get("organization").setValue((<EditGroupPaneModel> this.originalModel).organization);
+         this.form.get("organization").setValue((<EditGroupPaneModel> this.originalModel).organization, {emitEvent: false});
       }
 
       this.members = this.originalModel.members.slice(0);
       this.permittedIdentities = this.originalModel.permittedIdentities.slice(0);
       this.roles = this.originalModel.roles.map((role) =>
          <IdentityModel>{identityID: role, type: IdentityType.ROLE});
+      this.changingPassword = !!this.form.get("changePasswordEnabled").value || this.isNewUser;
       this.pageChanged.emit(false);
    }
 

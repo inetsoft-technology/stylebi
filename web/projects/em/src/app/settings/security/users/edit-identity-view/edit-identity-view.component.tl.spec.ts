@@ -792,11 +792,17 @@ describe("EditIdentityViewComponent — isModelChanged() and structural guards",
 
    // isModelChanged() false → true → false cycle validates that original-state bookkeeping
    // is correct across the full edit/reset lifecycle.
+   // init() subscribes form.valueChanges -> updateModel() only after a 200 ms setTimeout, so a
+   // real user always edits and resets with the subscription live. Wait it out so the test does
+   // not pass or fail on wall-clock speed (Bug #77944).
+   const waitForFormSubscription = () => new Promise(resolve => setTimeout(resolve, 250));
+
    it("should return false initially, true after a name edit, and false again after reset", async () => {
       const { comp } = await renderComponent({
          model: makeUserModel({ name: "original" }),
          type: IdentityType.USER,
       });
+      await waitForFormSubscription();
 
       expect(comp.isModelChanged()).toBe(false);
 
@@ -806,6 +812,31 @@ describe("EditIdentityViewComponent — isModelChanged() and structural guards",
 
       comp.reset();
       expect(comp.isModelChanged()).toBe(false);
+   });
+
+   // The server sends password=null and theme=null for an existing user without a theme.
+   // reset() must not route its form writes through updateModel(), which turns the null theme
+   // into "" and leaves Apply enabled after Reset.
+   it("should return false after reset for a server-shaped user model with null theme and password", async () => {
+      const { comp } = await renderComponent({
+         model: makeUserModel({ name: "original", password: null, theme: null }),
+         type: IdentityType.USER,
+      });
+      await waitForFormSubscription();
+
+      comp.form.controls["name"].setValue("changed");
+      expect(comp.model.name).toBe("changed");
+      expect(comp.isModelChanged()).toBe(true);
+
+      comp.reset();
+      expect(comp.form.controls["name"].value).toBe("original");
+      expect(comp.model.theme).toBeNull();
+      expect((comp.model as EditUserPaneModel).password).toBeNull();
+      expect(comp.isModelChanged()).toBe(false);
+
+      // the subscription stays live after reset, so later edits still reach the model
+      comp.form.controls["name"].setValue("again");
+      expect(comp.model.name).toBe("again");
    });
 
    // when model.editable=false the entire form must be disabled
