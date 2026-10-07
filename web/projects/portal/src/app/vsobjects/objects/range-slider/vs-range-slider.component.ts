@@ -138,10 +138,13 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
    private clickTime: number = 200;
    private startingSelectStart: number;
    private startingSelectEnd: number;
-   // labels/values when the drag started, and the server range of a refresh during the drag
-   private dragLabels: string[];
-   private dragValues: string[];
+   // a range change by a drag or a pending key send, the labels/values it was made on, and the
+   // server range of a refresh during the change
+   private keyPending: boolean = false;
+   private changeLabels: string[];
+   private changeValues: string[];
    private refreshedRange: {start: number, end: number};
+   private removeDragListeners: () => void;
 
    get mobilePadding(): number {
       return this.hasMobilePadding ? 10 : 0;
@@ -215,14 +218,29 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
 
    @Input()
    set model(model: VSRangeSliderModel) {
-      // a refresh during a drag keeps the dragged range until the mouse is released
-      if(this.isMouseDown && this._model && model && model !== this._model) {
-         this.refreshedRange = {start: model.selectStart, end: model.selectEnd};
-         model.selectStart = this._model.selectStart;
-         model.selectEnd = this._model.selectEnd;
+      let rebase: boolean = false;
+
+      // a refresh during a range change keeps the changed range until it's applied
+      if(this.isChangingRange() && this._model && model && model !== this._model) {
+         if(Tool.isEquals(this.changeLabels, model.labels) &&
+            Tool.isEquals(this.changeValues, model.values))
+         {
+            this.refreshedRange = {start: model.selectStart, end: model.selectEnd};
+            model.selectStart = this._model.selectStart;
+            model.selectEnd = this._model.selectEnd;
+         }
+         else {
+            // the changed indexes don't apply to different labels, continue from the refresh
+            rebase = true;
+         }
       }
 
       this._model = model;
+
+      if(rebase) {
+         this.rebaseRangeChange();
+      }
+
       this.setTopPositions();
 
       if(!this.adhocFilterListener && this._model.adhocFilter && !this._model.container) {
@@ -328,6 +346,11 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
 
    ngOnDestroy(): void {
       super.ngOnDestroy();
+      this.endDragListeners();
+
+      if(this.model) {
+         this.debounceService.cancel(this.getApplyDebounceKey());
+      }
 
       if(this.actionSubscription) {
          this.actionSubscription.unsubscribe();
@@ -341,14 +364,39 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
    }
 
    ngOnChanges(changes: SimpleChanges) {
-      // don't move the handles under the mouse, mouseUp() recalculates the positions
-      if(!this.isMouseDown) {
+      // don't move the handles during a range change, they're recalculated when it ends
+      if(!this.isChangingRange()) {
          this.calculatePositions();
       }
 
       if(changes["selected"] && !this.selected) {
          this.editingTitle = false;
       }
+   }
+
+   private isChangingRange(): boolean {
+      return this.isMouseDown || this.keyPending;
+   }
+
+   private startRangeChange(): void {
+      this.changeLabels = this.model.labels;
+      this.changeValues = this.model.values;
+      this.refreshedRange = null;
+   }
+
+   private rebaseRangeChange(): void {
+      if(this.keyPending) {
+         this.debounceService.cancel(this.getApplyDebounceKey());
+         this.keyPending = false;
+      }
+
+      if(this.isMouseDown) {
+         this.startingSelectStart = this.model.selectStart;
+         this.startingSelectEnd = this.model.selectEnd;
+      }
+
+      this.startRangeChange();
+      this.calculatePositions();
    }
 
    private updateLabels(): void {
@@ -474,16 +522,22 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
    }
 
    mouseDown(event: MouseEvent|TouchEvent, handle: Handle) {
+      // a drag whose release was never seen must not keep its range
+      this.cancelDrag();
+
       if(this.model.selectEnd == this.model.selectStart || this.vsWizard) {
          return;
+      }
+
+      // send a pending key range now, so the drag starts from it and isn't overwritten by it
+      if(this.keyPending) {
+         this.updateSelections(this.model.selectStart, this.model.selectEnd);
       }
 
       this.timeHandleClicked = Date.now();
       this.startingSelectStart = this.model.selectStart;
       this.startingSelectEnd = this.model.selectEnd;
-      this.dragLabels = this.model.labels;
-      this.dragValues = this.model.values;
-      this.refreshedRange = null;
+      this.startRangeChange();
 
       if(GuiTool.isButton1(event)) {
          this.mouseHandle = handle;
@@ -494,19 +548,52 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
             event.preventDefault();
          }
 
-         if(this.mouseHandle != Handle.None && !GuiTool.isTouch(event)) {
-            const mouseMoveListener = this.renderer.listen(
-               "document", "mousemove", (evt: MouseEvent) => {
-                  this.mouseMove(evt);
-               });
+         if(this.mouseHandle != Handle.None) {
+            const listeners: (() => void)[] = [];
 
-            const mouseUpListener = this.renderer.listen(
-               "document", "mouseup", (evt: MouseEvent) => {
-                  this.mouseUp(evt);
-                  mouseMoveListener();
-                  mouseUpListener();
-               });
+            if(!GuiTool.isTouch(event)) {
+               listeners.push(this.renderer.listen(
+                  "document", "mousemove", (evt: MouseEvent) => {
+                     this.mouseMove(evt);
+                  }));
+
+               listeners.push(this.renderer.listen(
+                  "document", "mouseup", (evt: MouseEvent) => {
+                     this.mouseUp(evt);
+                  }));
+            }
+
+            // a release outside the window is never seen, end the drag when it loses focus
+            listeners.push(this.renderer.listen("window", "blur", () => this.cancelDrag()));
+            this.removeDragListeners = () => listeners.forEach(listener => listener());
          }
+      }
+   }
+
+   /**
+    * Ends a drag without applying it, e.g. on touchcancel or when the release is missed.
+    */
+   cancelDrag(): void {
+      this.endDragListeners();
+
+      if(!this.isMouseDown) {
+         return;
+      }
+
+      const range = this.refreshedRange ||
+         {start: this.startingSelectStart, end: this.startingSelectEnd};
+      this.model.selectStart = range.start;
+      this.model.selectEnd = range.end;
+      this.refreshedRange = null;
+      this.mouseHandle = Handle.None;
+      this.isMouseDown = false;
+      this.calculatePositions();
+   }
+
+   private endDragListeners(): void {
+      if(this.removeDragListeners) {
+         this.removeDragListeners();
+         this.removeDragListeners = null;
       }
    }
 
@@ -553,6 +640,7 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
    }
 
    mouseUp(event: MouseEvent|TouchEvent): void {
+      this.endDragListeners();
       const handle = this.mouseHandle;
       let moved: boolean = handle != Handle.None;
       const selectionChanged = this.model.selectStart !== this.startingSelectStart ||
@@ -562,11 +650,9 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
       this.refreshedRange = null;
 
       if(refreshedRange) {
-         // the model was refreshed during the drag. Keep the refreshed range unless the drag
-         // changed the range, and the dragged indexes still refer to the same labels.
-         if(!send || !Tool.isEquals(this.dragLabels, this.model.labels) ||
-            !Tool.isEquals(this.dragValues, this.model.values))
-         {
+         // the model was refreshed during the drag (with the same labels, see the model setter).
+         // Keep the refreshed range unless the drag changed the range.
+         if(!send) {
             this.model.selectStart = refreshedRange.start;
             this.model.selectEnd = refreshedRange.end;
             send = false;
@@ -682,6 +768,7 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
    private updateSelections(start?: number, end?: number) {
       // a newer range replaces a pending keyboard range, which must not be sent after it
       this.debounceService.cancel(this.getApplyDebounceKey());
+      this.keyPending = false;
 
       if(this.model.submitOnChange) {
          this.updateSelections0(start, end, this.model.absoluteName);
@@ -1111,6 +1198,10 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
          const movement: number = key == NavigationKeys.RIGHT ?
             this.widthBetweenTicks : -this.widthBetweenTicks;
 
+         if(!this.keyPending) {
+            this.startRangeChange();
+         }
+
          switch(this.mouseHandle) {
          case Handle.Left:
             this._leftHandlePosition = this.handleMoved(movement, this._leftHandlePosition);
@@ -1128,11 +1219,20 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
          default:
          }
 
-         // send the range chosen by this key, a refresh may replace the model before it's sent
+         // send the range chosen by the keys, a refresh during the wait keeps the local range
+         // (see the model setter) and the next key continues from it
          const callback: (start: number, end: number) => void = (start, end) => {
             this.updateSelections(start, end);
+
+            // apply the rest of a refresh that arrived during the wait (e.g. the bar width)
+            if(this.refreshedRange) {
+               this.refreshedRange = null;
+               this.calculatePositions();
+            }
+
             this.focusSelectedHandle();
          };
+         this.keyPending = true;
          this.debounceService.debounce(this.getApplyDebounceKey(), callback, 300,
             [this.model.selectStart, this.model.selectEnd]);
       }

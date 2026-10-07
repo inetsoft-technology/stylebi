@@ -118,18 +118,60 @@ describe("VSRangeSlider – refresh while the range is being changed (Bug #77917
          expect(sent()).toEqual(["1-4", "2-4"]);
       });
 
+      it("continues the next key from the local range after a refresh in the debounce window", () => {
+         key(NavigationKeys.RIGHT);
+         vi.advanceTimersByTime(300);
+         key(NavigationKeys.RIGHT);
+         vi.advanceTimersByTime(100);
+         refresh({ selectStart: 1, selectEnd: 4 });
+         expect(shown()).toBe("2-4");
+         expect(ctx.comp.leftHandlePosition).toBeCloseTo(2 * TICK);
+
+         key(NavigationKeys.RIGHT);
+         vi.advanceTimersByTime(300);
+
+         expect(sent()).toEqual(["1-4", "3-4"]);
+         expect(shown()).toBe("3-4");
+      });
+
+      it("drops a pending key range when a refresh changes the labels", () => {
+         key(NavigationKeys.RIGHT);
+         vi.advanceTimersByTime(100);
+         refresh({
+            labels: ["A", "B", "C"], values: ["10", "20", "30"], selectStart: 0, selectEnd: 2,
+         });
+         expect(shown()).toBe("0-2");
+         expect(ctx.comp.rightHandlePosition).toBeCloseTo(191);
+
+         vi.advanceTimersByTime(300);
+         expect(sent()).toEqual([]);
+
+         key(NavigationKeys.RIGHT);
+         vi.advanceTimersByTime(300);
+         expect(sent()).toEqual(["1-2"]);
+      });
+
+      it("does not send a pending key range after the slider is destroyed", () => {
+         key(NavigationKeys.RIGHT);
+         ctx.comp.ngOnDestroy();
+         vi.advanceTimersByTime(300);
+
+         expect(sent()).toEqual([]);
+      });
+
       it("does not send a pending key range after a newer mouse range", () => {
          key(NavigationKeys.RIGHT);
          expect(shown()).toBe("1-4");
 
-         // drag the left handle from 1 to 3 before the key debounce fires
+         // drag the left handle from 1 to 3 before the key debounce fires. The pressed key
+         // range is sent when the drag starts, never after the drag.
          press(ctx.comp.handleType.Left, 100);
          move(100 + 2 * TICK);
          release();
-         expect(sent()).toEqual(["3-4"]);
+         expect(sent()).toEqual(["1-4", "3-4"]);
 
          vi.advanceTimersByTime(300);
-         expect(sent()).toEqual(["3-4"]);
+         expect(sent()).toEqual(["1-4", "3-4"]);
       });
 
       it("stores the key range when the slider is not submitted on change", () => {
@@ -190,11 +232,56 @@ describe("VSRangeSlider – refresh while the range is being changed (Bug #77917
          refresh({
             labels: ["A", "B", "C"], values: ["10", "20", "30"], selectStart: 0, selectEnd: 2,
          });
+         expect(ctx.comp.currentLabel).toBe("A..C");
+         expect(ctx.comp.leftHandlePosition).toBeCloseTo(0);
          release();
 
          expect(sent()).toEqual([]);
          expect(shown()).toBe("0-2");
          expect(ctx.comp.rightHandlePosition).toBeCloseTo(191);
+      });
+
+      it("applies refreshes after a touch is cancelled", () => {
+         press(ctx.comp.handleType.Left, 100);
+         move(100 + TICK);
+         ctx.comp.cancelDrag();
+         expect(shown()).toBe("0-4");
+
+         refresh({ selectStart: 2, selectEnd: 3 });
+
+         expect(sent()).toEqual([]);
+         expect(shown()).toBe("2-3");
+         expect(ctx.comp.leftHandlePosition).toBeCloseTo(2 * TICK);
+      });
+
+      it("ends the drag when the window loses focus before the release", () => {
+         press(ctx.comp.handleType.Left, 100);
+         move(100 + TICK);
+         refresh({ selectStart: 2, selectEnd: 3 });
+
+         const blur = ctx.renderer.listen.mock.calls
+            .find((call: any[]) => call[0] === "window" && call[1] === "blur");
+         blur[2]();
+         expect(shown()).toBe("2-3");
+
+         refresh({ selectStart: 3, selectEnd: 4 });
+         expect(sent()).toEqual([]);
+         expect(shown()).toBe("3-4");
+         expect(ctx.comp.leftHandlePosition).toBeCloseTo(3 * TICK);
+      });
+
+      it("drops a drag whose release was missed when the next drag starts", () => {
+         press(ctx.comp.handleType.Left, 100);
+         move(100 + TICK);
+         refresh({ selectStart: 2, selectEnd: 3 });
+
+         press(ctx.comp.handleType.Left, 300);
+         expect(shown()).toBe("2-3");
+         release();
+
+         expect(sent()).toEqual([]);
+         expect(shown()).toBe("2-3");
+         expect(ctx.comp.leftHandlePosition).toBeCloseTo(2 * TICK);
       });
 
       it("applies a refresh immediately when no drag is in progress", () => {
