@@ -344,7 +344,7 @@ public class TableRow implements ArrayObject, ScriptArrayScope {
                }
                catch(Exception e) {
                   rethrowUnavailable(e);
-                  LOG.error("Failed to get table row property " +
+                  logFailedRead(id, "Failed to get table row property " +
                      id + " for column " + col, e);
                   // a failed read of this row is not an absent column: do not fall through
                   // to notfound.add(id) below, which would read it as undefined on every
@@ -366,7 +366,7 @@ public class TableRow implements ArrayObject, ScriptArrayScope {
                   }
                   catch(Exception e) {
                      rethrowUnavailable(e);
-                     LOG.error("Failed to get table row property " +
+                     logFailedRead(id, "Failed to get table row property " +
                         id + " in base table at row " + brow +
                         " and column " + tcol.column, e);
                      // row-dependent, as below: must not mark the column absent (#77910)
@@ -395,6 +395,20 @@ public class TableRow implements ArrayObject, ScriptArrayScope {
       }
 
       return members.get(id);
+   }
+
+   /**
+    * Log a failed cell read. A column that fails on every row would otherwise log a stack
+    * trace per row, so only the first failure of each column is logged at error level and
+    * later ones at debug level (#77910).
+    */
+   private void logFailedRead(String id, String msg, Exception e) {
+      if(failedLogged.add(id)) {
+         LOG.error(msg, e);
+      }
+      else if(LOG.isDebugEnabled()) {
+         LOG.debug(msg, e);
+      }
    }
 
    /**
@@ -757,6 +771,8 @@ public class TableRow implements ArrayObject, ScriptArrayScope {
    private Map<String, Integer> colmap0 = new Object2ObjectOpenHashMap<>();
    private Map<String, Object> colcache = new Object2ObjectOpenHashMap<>(); // column cache
    private Set<String> notfound = new ObjectOpenHashSet<>(); // not found id cache
+   // columns whose failed read has already been logged at error level, kept across setRow()
+   private Set<String> failedLogged = new ObjectOpenHashSet<>();
    private boolean headerInit = false; // column header initialized
    private transient TableRow prevRow = null;
    private transient int prevIndex = Integer.MIN_VALUE;

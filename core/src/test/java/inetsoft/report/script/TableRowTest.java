@@ -18,6 +18,9 @@
 
 package inetsoft.report.script;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import inetsoft.report.TableLens;
 import inetsoft.report.filter.ColumnMapFilter;
 import inetsoft.report.filter.SortFilter;
@@ -28,6 +31,7 @@ import inetsoft.util.swap.SwapFileReadException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
+import org.slf4j.LoggerFactory;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -293,6 +297,75 @@ public class TableRowTest {
       tableRow.setRow(3);
       assertTrue(tableRow.hasMember("id"), "a failed read must not mark the column absent");
       assertEquals(3, tableRow.getMember("id"), "later rows must still resolve");
+   }
+
+   /**
+    * #77910: a column whose reads fail on many rows logs one error with its stack trace, not one
+    * per row; later failures go to debug. Good rows of the same column still resolve.
+    */
+   @Test
+   void failedColumnReadLogsOneError() {
+      ch.qos.logback.classic.Logger logger =
+         (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(TableRow.class);
+      Level oldLevel = logger.getLevel();
+      ListAppender<ILoggingEvent> appender = new ListAppender<>();
+      appender.start();
+      logger.addAppender(appender);
+      logger.setLevel(Level.DEBUG);
+
+      try {
+         DefaultTableLens base = new FailingColumnTable(objData);
+         base.moreRows(TableLens.EOT);
+
+         // a column of the table itself, then a column only in the base table
+         for(TableLens table : new TableLens[]{ base, new ColumnMapFilter(base, new int[]{ 0 }) }) {
+            appender.list.clear();
+            tableRow = new TableRow(table, 1);
+
+            for(int r = 1; r <= 4; r++) {
+               tableRow.setRow(r);
+
+               if(r == 3) {
+                  assertEquals(3, tableRow.getMember("id"), "a good row must still resolve");
+               }
+               else {
+                  assertNull(tableRow.getMember("id"));
+               }
+            }
+
+            assertEquals(1, countLevel(appender, Level.ERROR), "one error per failing column");
+            assertEquals(2, countLevel(appender, Level.DEBUG), "later failures go to debug");
+            assertNotNull(appender.list.stream().filter(ev -> ev.getLevel() == Level.ERROR)
+                             .findFirst().get().getThrowableProxy(), "the error keeps the stack");
+         }
+      }
+      finally {
+         logger.detachAppender(appender);
+         logger.setLevel(oldLevel);
+      }
+   }
+
+   private static long countLevel(ListAppender<ILoggingEvent> appender, Level level) {
+      return appender.list.stream().filter(ev -> ev.getLevel() == level).count();
+   }
+
+   /**
+    * A table whose column 1 fails on every row except row 3. Public, so TableRow searches it as
+    * a base table and calls getObject reflectively.
+    */
+   public static class FailingColumnTable extends DefaultTableLens {
+      public FailingColumnTable(Object[][] data) {
+         super(data);
+      }
+
+      @Override
+      public Object getObject(int r, int c) {
+         if(r > 0 && r != 3 && c == 1) {
+            throw new IllegalStateException("broken");
+         }
+
+         return super.getObject(r, c);
+      }
    }
 
    /**
