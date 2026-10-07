@@ -1363,8 +1363,11 @@ public class Permission implements Serializable, Cloneable, XMLSerializable {
          }
          else {
             ObjectNode obj = (ObjectNode) item;
+            // a global role has no organization, which is written as JSON null. asText() would
+            // read it as the string "null", which no longer matches the role (Bug #77965)
+            JsonNode org = obj.get("organization");
             identity = new PermissionIdentity(
-               obj.get("name").asText(), obj.get("organization").asText());
+               obj.get("name").asText(), org == null || org.isNull() ? null : org.asText());
          }
 
          return identity;
