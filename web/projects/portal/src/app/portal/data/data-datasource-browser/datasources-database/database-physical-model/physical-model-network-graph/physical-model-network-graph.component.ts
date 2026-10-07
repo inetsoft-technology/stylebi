@@ -294,6 +294,12 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
          // superseded by an unrelated selection change -- either way it's no longer pending
          this.pendingSelfSelectionIds = null;
       }
+
+      // last, so a selection that arrives in the same pass as a refresh is also resolved
+      // against the current model
+      if(changes.hasOwnProperty("graphViewModel") || changes["selectedGraphModels"]) {
+         this.remapDragNodes();
+      }
    }
 
    ngAfterViewChecked(): void {
@@ -506,23 +512,52 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
       return PHYSICAL_ENDPOINTS;
    }
 
+   /**
+    * A graph refresh replaces every GraphModel object, so re-resolve the selection by node
+    * id against the new model (keeping a drag in progress, or a pending move, on its tables)
+    * and drop the tables the new model no longer has. Builds a new array because dragNodes
+    * may be the old model's own graphs array (selectAll()).
+    */
+   private remapDragNodes(): void {
+      if(!this.dragNodes?.length) {
+         return;
+      }
+
+      const graphs = new Map<string, GraphModel>();
+      (this.graphViewModel?.graphs ?? [])
+         .filter(graph => !!graph?.node)
+         .forEach(graph => graphs.set(graph.node.id, graph));
+
+      this.dragNodes = this.dragNodes
+         .map(graph => graphs.get(graph.node.id))
+         .filter(graph => !!graph);
+   }
+
    private refreshDragSelection(): void {
       this.jsp.clearDragSelection();
       const elements: string[] = [];
+      let changed = false;
 
-      this.dragNodes
-         .forEach((graph, index) => {
-            const id = graph.node.id;
-            const elemId = this.sourceIds[id];
-            const g = this.nodes[elemId];
+      // Match registered nodes by id, not object identity. Nodes register one at a time
+      // after a refresh, so a selected node that is not registered yet is kept (tables
+      // removed by the refresh were already dropped in remapDragNodes()). Never modify
+      // dragNodes in place: it may be the model's own graphs array.
+      const selection = this.dragNodes.map(graph => {
+         const elemId = this.sourceIds[graph.node.id];
+         const registered = elemId != null ? this.nodes[elemId] : null;
 
-            if(g === graph) {
-               elements.push(elemId);
-            }
-            else {
-               this.dragNodes.splice(index, 1);
-            }
-         });
+         if(!registered) {
+            return graph;
+         }
+
+         elements.push(elemId);
+         changed = changed || registered !== graph;
+         return registered;
+      });
+
+      if(changed) {
+         this.dragNodes = selection;
+      }
 
       this.jsp.addToDragSelection(elements);
    }
