@@ -267,6 +267,37 @@ class DatabaseDatasourcesServiceSaveAuditTest {
    }
 
    @Test
+   void recordKeepsUserAndOrganization() throws Exception {
+      // the user and organization fields are the ones @Audited wrote before the save was
+      // audited by hand
+      Principal user = new SRPrincipal(
+         new IdentityID("auditor", Organization.getDefaultOrganizationID()), new IdentityID[0],
+         new String[0], Organization.getDefaultOrganizationID(),
+         Tool.getSecureRandom().nextLong());
+      DatabaseDefinition refused = edit(source("aDup"));
+      DatabaseDefinition saved4 = edit(source("aUser4"));
+      DatabaseDefinition saved6 = edit(source("aUser6"));
+
+      service.saveDatabase("", settings(refused), ActionRecord.ACTION_NAME_CREATE, user);
+      service.saveDatabase("", settings(refused), ActionRecord.ACTION_NAME_CREATE,
+                           "Data Source/aDup", null, user);
+      service.saveDatabase("", settings(saved4), ActionRecord.ACTION_NAME_CREATE, user);
+      service.saveDatabase("", settings(saved6), ActionRecord.ACTION_NAME_CREATE,
+                           "Data Source/aUser6", null, user);
+
+      assertEquals(4, records.size());
+
+      for(ActionRecord record : records) {
+         assertEquals(user.getName(), record.getUserSessionID());
+         assertEquals("auditor", record.getUserName());
+         assertEquals(Organization.getDefaultOrganizationID(), record.getOrganizationId());
+         assertEquals(Organization.getDefaultOrganizationID(), record.getResourceOrganization());
+         assertEquals(Organization.getDefaultOrganizationName(),
+                      record.getResourceOrganizationName());
+      }
+   }
+
+   @Test
    void refusalThroughRealControllers() throws Exception {
       DatabaseDatasourcesController portal = new DatabaseDatasourcesController(
          service, null, null, mock(DataSourceService.class), repository);
