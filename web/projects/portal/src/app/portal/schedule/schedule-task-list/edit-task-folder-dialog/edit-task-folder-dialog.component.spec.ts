@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpClient } from "@angular/common/http";
+import { TestBed } from "@angular/core/testing";
 import { of } from "rxjs";
 import { describe, expect, it, vi } from "vitest";
 import { EditTaskFolderDialog } from "./edit-task-folder-dialog.component";
@@ -82,5 +83,60 @@ describe("EditTaskFolderDialog (portal) folder name", () => {
       dialog.ok();
 
       expect(commit).toHaveBeenCalledWith(expect.objectContaining({ folderName: "Renamed" }));
+   });
+});
+
+// Bug #77856, the rendered dialog shows the "name required" message and disables OK for a
+// whitespace-only name, as it does for an empty one
+describe("EditTaskFolderDialog (portal) rendered folder name", () => {
+   function render(folderName: string = "") {
+      TestBed.configureTestingModule({
+         imports: [EditTaskFolderDialog],
+         providers: [{ provide: HttpClient, useValue: { post: vi.fn(() => of({ duplicate: false })) } }]
+      });
+      const fixture = TestBed.createComponent(EditTaskFolderDialog);
+      fixture.componentInstance.model = {
+         folderName,
+         oldPath: "x",
+         securityEnabled: true,
+         owner: { name: "null", orgID: null }
+      };
+      fixture.detectChanges();
+      return fixture;
+   }
+
+   function type(fixture: any, value: string) {
+      const input: HTMLInputElement = fixture.nativeElement.querySelector("#inputNameField");
+      input.value = value;
+      input.dispatchEvent(new Event("input"));
+      fixture.detectChanges();
+      return input;
+   }
+
+   function okButton(fixture: any): HTMLButtonElement {
+      return fixture.nativeElement.querySelector(".modal-footer .btn-primary");
+   }
+
+   function feedback(fixture: any): string[] {
+      return Array.from(fixture.nativeElement.querySelectorAll(".invalid-feedback") as NodeListOf<HTMLElement>)
+         .map(e => e.textContent.trim());
+   }
+
+   it.each([" ", "   "])("shows the required message and disables OK for %j", (name) => {
+      const fixture = render();
+      const input = type(fixture, name);
+
+      expect(input.classList.contains("is-invalid")).toBe(true);
+      expect(feedback(fixture)).toEqual([expect.stringContaining("viewer.nameValid")]);
+      expect(okButton(fixture).disabled).toBe(true);
+   });
+
+   it.each(["a", " a", "a "])("shows no message and enables OK for %j", (name) => {
+      const fixture = render();
+      const input = type(fixture, name);
+
+      expect(input.classList.contains("is-invalid")).toBe(false);
+      expect(feedback(fixture)).toEqual([]);
+      expect(okButton(fixture).disabled).toBe(false);
    });
 });

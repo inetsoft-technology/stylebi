@@ -111,6 +111,28 @@ class ScheduleTaskBlankNameTest {
          new IdentityID("a:b", "orga").convertToKey() + ": "));
    }
 
+   // a colon is a legal task name character, a rename to a name with a colon passes the blank
+   // check and goes on to look up the task (the rename itself is not under test here)
+   @ParameterizedTest
+   @ValueSource(strings = { "task:name", "a: b", " :", OWNER_KEY + ":task:name" })
+   void updateTaskName_nameWithColon_isNotRefused(String name) {
+      assertFalse(ScheduleService.isBlankTaskName(OWNER_KEY + ":" + name));
+      assertFalse(ScheduleService.isBlankTaskName(
+         new IdentityID("admin", "host-org").convertToKey() + ":" + name));
+
+      ScheduleService service = new ScheduleService(null, scheduleManager, mock(ScheduleClient.class),
+                                                    null, null, null, null, null, null, null,
+                                                    null, null, null);
+      IdentityID owner = new IdentityID("alice", "orga");
+
+      // the mocked manager has no task, so the rename fails after the blank check
+      Exception ex = assertThrows(Exception.class,
+                                  () -> service.updateTaskName(OLD_ID, name, owner, principal));
+
+      assertNotEquals(Catalog.getCatalog().getString("em.scheduler.emptyTaskName"), ex.getMessage());
+      verify(scheduleManager).getScheduleTask(OLD_ID);
+   }
+
    private static ScheduleTaskEditorModel model(String name) {
       return ScheduleTaskEditorModel.builder()
          .taskName(name)
