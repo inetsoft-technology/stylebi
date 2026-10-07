@@ -366,7 +366,6 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
       const dialogRef = this.dialog.open(MessageDialog, this.setConfigs(`_#(js:Confirmation)`, body, MessageDialogType.DELETE));
       dialogRef.afterClosed().subscribe(result => {
          if(result) {
-            let model = new TaskListModel(this.getTaskNames());
             let selection: ScheduleTaskModel[] = [];
 
             for(let task of this.selection.selected) {
@@ -375,48 +374,45 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
                selection.push(taskClone);
             }
 
-            this.http.post(CHECK_TASK_DEPENDENCY, selection).subscribe(
-               (dependencies: string[]) => {
-                  if(dependencies.length) {
-                     // we make a copy so that pointer won"t get messed up
-                     let paramCopy = model.taskNames.slice();
+            this.http.post<TaskListModel>(CHECK_TASK_DEPENDENCY, selection).subscribe(
+               (taskListModel: TaskListModel) => {
+                  const dependencies: string[] = taskListModel?.taskNames ?? [];
 
-                     // filter out all the dependency tasks by keeping those that are not found in dependencies
-                     // we delete the filtered list
-                     model.taskNames = paramCopy.filter(task => !dependencies.includes(task));
-
-                     // if dependencies exist, we won"t delete them; let user know there are dependencies
+                  if(dependencies.length > 0) {
+                     // other tasks depend on the selected tasks, so don't remove anything (same as portal)
                      this.dialog.open(MessageDialog, this.setConfigs(`_#(js:em.schedule.dependenciesFound)`,
-                        `Because there are dependents of these tasks, we cannot delete the following: [${dependencies}]`,
+                        Tool.formatCatalogString("_#(js:em.schedule.task.removeDependency)",
+                           [dependencies.join(", ")]),
                         MessageDialogType.DEPENDENCY
                      ));
                   }
+                  else {
+                     // REMOVE TASKS
+                     this.http.post<ScheduleTaskList>(REMOVE_TASKS_URI, selection).subscribe(
+                        (list) => {
+                           if(this.showTasksAsList) {
+                              this.setTasks(list.tasks);
+                           }
 
-                  // REMOVE TASKS
-                  this.http.post<ScheduleTaskList>(REMOVE_TASKS_URI, selection).subscribe(
-                     (list) => {
-                        if(this.showTasksAsList) {
-                           this.setTasks(list.tasks);
+                           this.updateTaskList();
+                           this.loadDistributionChart();
+
+                           if(!this.showTasksAsList) {
+                              this.loadTasks();
+                           }
+                        },
+                        (error) => {
+                           const message = error.error != null && error.error.type == "MessageException" ?
+                              error.error.message : "Failed to remove selected tasks";
+
+                           this.dialog.open(MessageDialog, this.setConfigs(`_#(js:Error)`,
+                              message, MessageDialogType.ERROR));
                         }
+                     );
 
-                        this.updateTaskList();
-                        this.loadDistributionChart();
-
-                        if(!this.showTasksAsList) {
-                           this.loadTasks();
-                        }
-                     },
-                     (error) => {
-                        const message = error.error != null && error.error.type == "MessageException" ?
-                           error.error.message : "Failed to remove selected tasks";
-
-                        this.dialog.open(MessageDialog, this.setConfigs(`_#(js:Error)`,
-                           message, MessageDialogType.ERROR));
-                     }
-                  );
-
-                  // to clear the selection model after we delete them so the top checkbox would not be checked
-                  this.selection.clear();
+                     // to clear the selection model after we delete them so the top checkbox would not be checked
+                     this.selection.clear();
+                  }
                },
                () => {
                   this.dialog.open(MessageDialog, this.setConfigs(`_#(js:Error)`,
