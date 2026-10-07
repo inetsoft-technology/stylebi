@@ -172,6 +172,45 @@ class ScheduleTaskColonNameTest {
       assertFalse(IndexedStorage.getIndexedStorage().contains(key, HOST), "orphan removed");
    }
 
+   // Bug #73029, the asset deploy import (ScheduleTaskAsset.parseContent) of a 13.x export,
+   // shaped like the #73029 attachment: <Task name="user0:Task1" owner="user0">. The name's
+   // user prefix is replaced by the owner key, the task is stored and listed under that id
+   @Test
+   void deployImport_legacyXml_userPrefixedName_isRewritten() throws Exception {
+      String id = ADMIN.convertToKey() + ":Legacy77883";
+      keys.add(key(id));
+
+      deployImport("<Task name=\"admin:Legacy77883\" owner=\"admin\" enabled=\"true\" " +
+                   "editable=\"true\" removable=\"true\" path=\"/\"/>");
+
+      assertNotNull(load(key(id)), "stored under the rewritten id");
+      assertEquals(id, scheduleManager.getScheduleTask(id, HOST).getTaskId());
+      assertNull(scheduleManager.getScheduleTask(ADMIN.convertToKey() + ":admin:Legacy77883",
+                                                 HOST));
+   }
+
+   // the asset deploy import of a current export keeps a ':' in the name
+   @Test
+   void deployImport_currentXml_colonName_isNotRewritten() throws Exception {
+      String id = ADMIN.convertToKey() + ":admin:Current77883";
+      keys.add(key(id));
+
+      deployImport("<Task name=\"admin:Current77883\" owner=\"" + ADMIN.convertToKey() +
+                   "\" enabled=\"true\" editable=\"true\" removable=\"true\" path=\"/\"/>");
+
+      ScheduleTask loaded = load(key(id));
+      assertEquals("admin:Current77883", loaded.getName());
+      assertEquals(id, loaded.getTaskId());
+      assertTrue(listedIds().contains(id), "portal/EM schedule list");
+   }
+
+   private static void deployImport(String taskXml) throws Exception {
+      String xml = "<ScheduleTask>" + taskXml + "</ScheduleTask>";
+      new inetsoft.util.dep.ScheduleTaskAsset().parseContent(
+         new java.io.ByteArrayInputStream(xml.getBytes(java.nio.charset.StandardCharsets.UTF_8)),
+         null, true, false);
+   }
+
    private String save(ScheduleTask task) throws Exception {
       String key = key(task.getTaskId());
       keys.add(key);
