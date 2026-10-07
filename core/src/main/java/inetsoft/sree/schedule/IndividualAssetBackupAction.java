@@ -31,6 +31,7 @@ import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.util.Tool;
 import inetsoft.util.dep.*;
 import inetsoft.web.admin.deploy.DeployUtil;
+import inetsoft.web.admin.deploy.XAssetExportPermission;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
@@ -60,7 +61,7 @@ public class IndividualAssetBackupAction implements ScheduleAction, HttpXMLSeria
       }
 
       Object[] msgParams = { assets.getFirst().getPath(), new Date() };
-      File srcFile = deploy();
+      File srcFile = deploy(getPermissionPrincipal(principal));
 
       String path = pathInfo.getPath();
       int idx = path.indexOf("?");
@@ -109,14 +110,61 @@ public class IndividualAssetBackupAction implements ScheduleAction, HttpXMLSeria
       }
    }
 
-   private File deploy() throws Exception {
+   /**
+    * Gets the principal that the assets are checked against, the owner of the task. The run
+    * principal is the execute-as identity, which is named after the group or role for a group or
+    * role identity, and the owner, not the execute-as identity, controls where the backup goes.
+    */
+   private Principal getPermissionPrincipal(Principal principal) {
+      if(taskOwner == null) {
+         LOG.warn("The owner of the schedule task \"{}\" is not set, checking the backup assets " +
+                     "against the run principal {}", taskId, principal);
+         return principal;
+      }
+
+      return SUtil.getScheduleTaskOwnerPrincipal(taskOwner, null, false);
+   }
+
+   private File deploy(Principal principal) throws Exception {
+      // Bug #77922, the assets are checked when they are added in the task editor, but a backup
+      // action stored by another path (task import, an older version, the API) is not, so check
+      // every asset when the task runs. The dependencies are found by reading the assets, so the
+      // assets are checked first.
+      checkAssetsPermitted(assets, true, principal);
       List<XAsset> dependencies = DeployUtil.getDependentAssetsList(assets);
+      checkAssetsPermitted(dependencies, false, principal);
 
       List<XAsset> allAssets = new ArrayList<>(assets);
       allAssets.addAll(dependencies);
       testAssetsExist(allAssets);
 
       return DeployUtil.deploy("backupAssetFile_TEMP", true, assets, dependencies);
+   }
+
+   /**
+    * Checks the assets as the repository export and the task editor do, a selected global asset
+    * needs ADMIN permission and a global dependency is not checked. A refused asset fails the
+    * whole action, as a missing asset does.
+    */
+   private void checkAssetsPermitted(List<XAsset> list, boolean selected, Principal principal) {
+      List<String> refused = new ArrayList<>();
+
+      for(XAsset asset : list) {
+         // the same resource path as the task editor checks for an asset without a resource
+         String path = asset.getPath() == null ? null : SUtil.getUnscopedPath(asset.getPath());
+
+         if(!XAssetExportPermission.isPermitted(asset, path, selected, principal)) {
+            refused.add(asset.toIdentifier());
+         }
+      }
+
+      if(!refused.isEmpty()) {
+         String msg = "Schedule task \"" + taskId + "\" may not back up asset(s) " + refused +
+            ", the task owner " + (taskOwner != null ? taskOwner.convertToKey() : principal) +
+            " has no permission to export them";
+         LOG.error(msg);
+         throw new RuntimeException(msg);
+      }
    }
 
    private void testAssetsExist(List<XAsset> dependencies) {
@@ -325,9 +373,23 @@ public class IndividualAssetBackupAction implements ScheduleAction, HttpXMLSeria
       this.pathInfo = path;
    }
 
+   /**
+    * Sets the task that runs this action, the assets are checked against its owner when the
+    * action runs. It is set on the runtime copy of the task and is not stored.
+    *
+    * @param taskId the task id, for the log.
+    * @param owner  the task owner.
+    */
+   public void setTaskOwner(String taskId, IdentityID owner) {
+      this.taskId = taskId;
+      this.taskOwner = owner;
+   }
+
    private List<XAsset> assets = new ArrayList<>();
    private ServerPathInfo pathInfo;
    private boolean encoding = true;
+   private transient String taskId;
+   private transient IdentityID taskOwner;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(IndividualAssetBackupAction.class);

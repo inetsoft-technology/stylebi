@@ -630,6 +630,11 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
             waited = true;
          }
 
+         // Bug #77922, the backup assets are checked against the task owner when they are written
+         if(act instanceof IndividualAssetBackupAction backup) {
+            backup.setTaskOwner(SUtil.getTaskNameForLogging(getTaskId()), getOwner());
+         }
+
          Runnable r = new ThreadPool.AbstractContextRunnable() {
             { addRecord("ScheduleTask:" + ScheduleTask.this.getTaskId()); }
 
