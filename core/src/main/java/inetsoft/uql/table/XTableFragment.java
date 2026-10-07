@@ -223,9 +223,11 @@ public final class XTableFragment extends XSwappable {
 
          if(!file.exists() || rewriteRequired) {
             fout = new RandomAccessFile(file, "rw");
+            // the file exists now (it may have just been created), so a failure from here on
+            // must delete it in the finally block instead of leaving a stub to be reused
+            swapped = false;
             fout.setLength(0);
             channel = fout.getChannel();
-            swapped = false;
             footer = ByteBuffer.allocate(columns.length * 16);
          }
 
