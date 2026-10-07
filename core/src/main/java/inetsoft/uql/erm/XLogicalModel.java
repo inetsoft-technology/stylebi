@@ -1353,9 +1353,10 @@ public class XLogicalModel
                  AssetEntry.Type.EXTENDED_LOGIC_MODEL, path, null);
          result = (XLogicalModel) getRegistry().getObject(entry, true);
 
+         // Bug #77943: don't cache the returned copy, or a caller's unsaved change to it is
+         // seen by every later reader on the node
          if(result != null) {
             result.setBaseModel(this);
-            getRegistry().setCache(entry, result);
          }
       }
 

@@ -146,9 +146,10 @@ public class XPartition implements Cloneable, Serializable, XMLSerializable, XML
                  AssetEntry.Type.EXTENDED_PARTITION, path, null);
          result = (XPartition) getRegistry().getObject(entry, true);
 
+         // Bug #77943: don't cache the returned copy, or a caller's unsaved change to it is
+         // seen by every later reader on the node
          if(result != null) {
             result.setBaseParitition(this);
-            getRegistry().setCache(entry, result);
          }
       }
 
