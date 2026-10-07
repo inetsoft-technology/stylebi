@@ -465,6 +465,10 @@ class CalendarPropertyDialogServiceTest {
       given(calendarPropertyDialogModel.getCalendarAdvancedPaneModel()
                .getShowType())
          .willReturn(newShowType);
+      // the dialog sends the stored view mode back unless the author changes it
+      given(calendarPropertyDialogModel.getCalendarAdvancedPaneModel()
+               .getViewMode())
+         .willReturn(info.getViewModeValue());
 
       service.setCalendarPropertyModel("Viewsheet1", "Calendar1",
                                        calendarPropertyDialogModel,

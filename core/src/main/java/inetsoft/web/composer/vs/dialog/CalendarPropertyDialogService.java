@@ -255,6 +255,13 @@ public class CalendarPropertyDialogService {
          dialogService.setAssemblySize(info, sizePositionPaneModel);
       }
       else {
+         // Apply keeps the dialog open, so the answer can predate a switch to dropdown or double
+         if(calendarAdvancedPaneModel.getShowType() != CalendarVSAssemblyInfo.CALENDAR_SHOW_TYPE ||
+            calendarAdvancedPaneModel.getViewMode() != CalendarVSAssemblyInfo.SINGLE_CALENDAR_MODE)
+         {
+            sizePositionPaneModel.setSizeFollowsDensity(null);
+         }
+
          Dimension shownSize =
             new Dimension(dialogService.getAssemblySize(info, viewsheet.getViewsheet()));
          VSDialogService.applyDensitySize(info, sizePositionPaneModel);
