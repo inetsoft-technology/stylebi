@@ -663,11 +663,7 @@ public class Worksheet extends AbstractSheet implements VariableProvider {
 
          MirrorAssembly massembly = (MirrorAssembly) assembly;
 
-         // don't update if not auto-update only if it already contains the mirror.
-         // otherwise it will always be null. (50056)
-         if(!assembly.isVisible() || !massembly.isAutoUpdate() && massembly.getAssembly() != null ||
-            !massembly.isOuterMirror() || offline)
-         {
+         if(!isUpdatedOnLoad(massembly)) {
             continue;
          }
 
@@ -708,6 +704,51 @@ public class Worksheet extends AbstractSheet implements VariableProvider {
 
       removeOrphanedOuterAssemblies(engine, user);
       return ok;
+   }
+
+   /**
+    * Check if an outer mirror's assemblies are copied again from its worksheet when this
+    * worksheet is opened.
+    */
+   private boolean isUpdatedOnLoad(MirrorAssembly mirror) {
+      // don't update if not auto-update only if it already contains the mirror.
+      // otherwise it will always be null. (50056)
+      return ((WSAssembly) mirror).isVisible() &&
+         (mirror.isAutoUpdate() || mirror.getAssembly() == null) &&
+         mirror.isOuterMirror() && !offline;
+   }
+
+   /**
+    * Check if an outer assembly is frozen, i.e. it is kept as stored instead of being copied
+    * again from its worksheet when this worksheet is opened. Two mirrors may share the copies of
+    * one worksheet, so the copies are frozen only if none of those mirrors updates them.
+    */
+   synchronized boolean isFrozenOuterAssembly(WSAssembly assembly) {
+      if(!assembly.isOuter()) {
+         return false;
+      }
+
+      boolean frozen = false;
+
+      for(WSAssembly mirror : assemblies) {
+         if(!(mirror instanceof MirrorAssembly) || !((MirrorAssembly) mirror).isOuterMirror()) {
+            continue;
+         }
+
+         AssetEntry entry = ((MirrorAssembly) mirror).getEntry();
+
+         if(entry == null || !assembly.getName().startsWith(AssetUtil.createPrefix(entry))) {
+            continue;
+         }
+
+         if(isUpdatedOnLoad((MirrorAssembly) mirror)) {
+            return false;
+         }
+
+         frozen = true;
+      }
+
+      return frozen;
    }
 
    /**
@@ -1288,9 +1329,10 @@ public class Worksheet extends AbstractSheet implements VariableProvider {
             boolean needWrite = true;
 
             // Bug #45308. .tdat file only write once
-            // when write SnapshotEmbeddedTableAssembly of dependent ws
+            // when write SnapshotEmbeddedTableAssembly of dependent ws. an outer copy that owns
+            // its files writes them (bug #78023)
             if(anArr instanceof SnapshotEmbeddedTableAssembly
-               && anArr.getName().startsWith(AssetUtil.OUTER_PREFIX))
+               && !((SnapshotEmbeddedTableAssembly) anArr).ownsDataFiles())
             {
                needWrite = false;
             }
@@ -1317,7 +1359,10 @@ public class Worksheet extends AbstractSheet implements VariableProvider {
 
    public void clearSnapshot() {
       for(WSAssembly assembly : assemblies) {
-         if(assembly instanceof SnapshotEmbeddedTableAssembly) {
+         // an outer copy may name the files of the worksheet it was copied from (bug #78022)
+         if(assembly instanceof SnapshotEmbeddedTableAssembly &&
+            ((SnapshotEmbeddedTableAssembly) assembly).ownsDataFiles())
+         {
             ((SnapshotEmbeddedTableAssembly) assembly).deleteDataFiles("Worksheet removed");
          }
       }
