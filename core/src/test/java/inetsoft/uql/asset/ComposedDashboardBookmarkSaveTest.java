@@ -257,9 +257,14 @@ class ComposedDashboardBookmarkSaveTest {
       return vs;
    }
 
+   // a real admin session is in SecurityEngine's logged-in map; admin-of-owner checks on another
+   // user's private asset now ask SecurityEngine, which refuses a principal that is not (Bug #78075)
    private static SRPrincipal principal(IdentityID id) {
-      return new SRPrincipal(id, new IdentityID[] { new IdentityID("Administrator", null) },
-                             new String[0], id.getOrgID(), 1L);
+      SRPrincipal principal = new SRPrincipal(
+         id, new IdentityID[] { new IdentityID("Administrator", null) }, new String[0],
+         id.getOrgID(), 1L);
+      principal.setIgnoreLogin(true);
+      return principal;
    }
 
    @AfterEach

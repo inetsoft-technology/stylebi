@@ -212,7 +212,12 @@ class NonOwnerViewsheetBookmarkSaveTest {
          roleIds[i] = new IdentityID(roles[i], null);
       }
 
-      return new SRPrincipal(new IdentityID(name, orgId), roleIds, new String[0], orgId, 1L);
+      SRPrincipal principal =
+         new SRPrincipal(new IdentityID(name, orgId), roleIds, new String[0], orgId, 1L);
+      // a real session is in SecurityEngine's logged-in map; admin-of-owner checks on another
+      // user's private asset now ask SecurityEngine, which refuses a principal that is not (Bug #78075)
+      principal.setIgnoreLogin(true);
+      return principal;
    }
 
    @FunctionalInterface
