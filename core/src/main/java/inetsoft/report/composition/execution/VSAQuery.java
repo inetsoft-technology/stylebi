@@ -1071,7 +1071,15 @@ public abstract class VSAQuery {
       QueryManager qmgr = box.getQueryManager(vname);
 
       if(Q_CANCEL.get() != Boolean.FALSE) {
-         qmgr.cancel();
+         qmgr.cancelForQuery();
+      }
+
+      // another cancel from here on may stop the fetch, or the reading of the table it
+      // returns, early (#78033)
+      synchronized(qmgr) {
+         fetchQueryManager = qmgr;
+         fetchCancelCount = qmgr.getCancelCount();
+         fetchQueryCancelCount = qmgr.getQueryCancelCount();
       }
 
       wbox.setQueryManager(qmgr); // was box.getQueryManager()
@@ -1798,6 +1806,41 @@ public abstract class VSAQuery {
    }
 
    /**
+    * Check if the data this query returned may have been cut short, i.e. its query manager
+    * was cancelled after the query fetched its table. Only a query whose data is complete
+    * when it is returned can tell. The reader of a table checks the table itself.
+    * @param data the data returned by this query.
+    */
+   public boolean isDataCancelled(Object data) {
+      return false;
+   }
+
+   /**
+    * Check if the query manager was cancelled after this query started its fetch.
+    */
+   protected boolean isFetchCancelled() {
+      QueryManager qmgr = fetchQueryManager;
+      return qmgr != null && qmgr.getCancelCount() != fetchCancelCount;
+   }
+
+   /**
+    * Check if every cancel of the query manager after this query started its fetch was done
+    * by another query of the assembly starting, not by a user or by the sandbox.
+    */
+   public boolean isFetchCancelledByQuery() {
+      QueryManager qmgr = fetchQueryManager;
+
+      if(qmgr == null) {
+         return false;
+      }
+
+      synchronized(qmgr) {
+         return qmgr.getCancelCount() - fetchCancelCount <=
+            qmgr.getQueryCancelCount() - fetchQueryCancelCount;
+      }
+   }
+
+   /**
     * Replace all condition ref to self data ref so that mv can hit.
     */
    private void replaceConditionRef(TableAssembly table) {
@@ -2039,6 +2082,9 @@ public abstract class VSAQuery {
    protected ViewsheetSandbox box;
    protected String vname;
    protected long createdTime;
+   private QueryManager fetchQueryManager;
+   private long fetchCancelCount;
+   private long fetchQueryCancelCount;
    protected Locale locale;
    private Worksheet ws = null;
    private String validatedTable; // the base table whose calc fields this query validated

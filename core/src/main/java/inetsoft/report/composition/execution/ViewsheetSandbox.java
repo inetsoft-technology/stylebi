@@ -5922,9 +5922,23 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
          try {
             long ts1 = System.currentTimeMillis();
+            boolean[] cancelled = { false, false };
 
-            obj = executeData(name, type);
+            obj = executeData(name, type, cancelled);
             Long ts = tmap.get(name);
+
+            // a cancel of the assembly's query manager while the data was fetched or read,
+            // e.g. by the next query of a brushed chart, cuts the data short or leaves none,
+            // so it's not the data. Don't cache it, and run the query again once if only
+            // other queries of the assembly cancelled it and it wasn't reset since (#78033)
+            if(cancelled[0] && cancelled[1] && (ts == null || ts1 >= ts)) {
+               obj = executeData(name, type, cancelled);
+               ts = tmap.get(name);
+            }
+
+            if(cancelled[0]) {
+               cache = false;
+            }
 
             // do not cache executing result if query should be discarded
             // when executing the query
@@ -6477,15 +6491,20 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    /**
     * Execute the data of an assembly.
     * @param name the name of the specified assembly.
+    * @param cancelled set to whether the data may have been cut short by a cancel of the
+    *                  assembly's query manager, and whether only other queries of the
+    *                  assembly cancelled it, see VSAQuery.isDataCancelled().
     * @return execution result.
     */
-   private Object executeData(String name, int type) throws Exception {
+   private Object executeData(String name, int type, boolean[] cancelled) throws Exception {
+      cancelled[0] = cancelled[1] = false;
+
       if(disposed) {
          return null;
       }
 
       return GroupedThread.runWithRecordContext(
-         () -> getLogRecords(name), () -> doExecuteData(name, type));
+         () -> getLogRecords(name), () -> doExecuteData(name, type, cancelled));
    }
 
    private Collection<?> getLogRecords(String name) {
@@ -6499,7 +6518,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       return records;
    }
 
-   private Object doExecuteData(String name, int type) throws Exception {
+   private Object doExecuteData(String name, int type, boolean[] cancelled) throws Exception {
       // execute combobox column option data
       if(name.contains(FORM_OPTION)) {
          String[] params = name.split("\\^");
@@ -6555,6 +6574,8 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          }
 
          result = query.getData();
+         cancelled[0] = query.isDataCancelled(result);
+         cancelled[1] = cancelled[0] && query.isFetchCancelledByQuery();
 
          if(result instanceof TableLens) {
             result = new TextSizeLimitTableLens((TableLens) result, Util.getOrganizationMaxCellSize());
