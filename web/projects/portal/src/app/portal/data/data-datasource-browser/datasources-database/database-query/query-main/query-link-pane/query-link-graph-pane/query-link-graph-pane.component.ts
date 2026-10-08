@@ -32,6 +32,9 @@ import { DataQueryModelService } from "../../../data-query-model.service";
 import { LoadingIndicatorPaneComponent } from "../../../../common-components/loading-indicator-pane/loading-indicator-pane.component";
 import { QueryJoinEditPane } from "../query-join-editor-pane/query-join-edit-pane.component";
 import { QueryNetworkGraphPaneComponent } from "../query-network-graph-pane/query-network-graph-pane.component";
+import {
+   GraphNodeMove
+} from "../../../../database-physical-model/physical-model-network-graph/physical-model-network-graph.component";
 
 
 const CLOSE_JOIN_EDIT_PANE_URI = "../api/data/datasource/query/join-edit/close";
@@ -56,6 +59,13 @@ export class QueryLinkGraphPaneComponent implements OnInit, OnDestroy {
    option: string;
    scrollPoint: Point = new Point();
    private subscriptions: Subscription = new Subscription();
+   // incremented when a graph request is sent
+   private graphRequestSeq = 0;
+   // the graphRequestSeq of the latest graph response applied
+   private lastAppliedSeq = 0;
+   // node id --> the latest move of the node, and the graphRequestSeq when its PUT was sent.
+   // A graph request sent before then was built without the move.
+   private movedNodes = new Map<string, {move: GraphNodeMove, sentAt: number}>();
 
    constructor(private httpClient: HttpClient,
                private queryModelService: DataQueryModelService)
@@ -85,16 +95,70 @@ export class QueryLinkGraphPaneComponent implements OnInit, OnDestroy {
 
       const event = new GetGraphModelEvent(this.datasource, runtimeId, null,
          null, joinEditInfo);
+      const requestSeq = ++this.graphRequestSeq;
       this.loadingGraphPane = true;
 
       this.httpClient.post<JoinGraphModel>(QUERY_GRAPH_PANE_MODEL_URI, event)
          .subscribe(pgm => {
-            this.loadingGraphPane = false;
+            // the responses can arrive out of order: a response to an older request than the
+            // one applied last has an older table set and positions, so it is discarded
+            if(requestSeq < this.lastAppliedSeq) {
+               return;
+            }
+
+            this.lastAppliedSeq = requestSeq;
+            this.clearLoading(requestSeq);
+            this.applyMovedNodes(pgm, requestSeq);
             this.restoreJoinEditPaneModel(pgm, this.graphPaneModel);
             this.restoreGraphViewModel(pgm, this.graphPaneModel);
             this.graphPaneModel = pgm;
             this.editingJoinChanged.emit(this.graphPaneModel.joinEdit);
-         }, () => this.loadingGraphPane = false);
+         }, () => this.clearLoading(requestSeq));
+   }
+
+   /**
+    * The loading mask stays until the latest graph request completes.
+    */
+   private clearLoading(requestSeq: number): void {
+      if(requestSeq === this.graphRequestSeq) {
+         this.loadingGraphPane = false;
+      }
+   }
+
+   /**
+    * Track a node move sent by the network graph, see applyMovedNodes.
+    */
+   nodeMoved(move: GraphNodeMove): void {
+      if(move.saved == null) {
+         this.movedNodes.set(move.nodeId, {move, sentAt: this.graphRequestSeq});
+      }
+      // the server kept the old position; unless a later move of the node replaced this one
+      else if(!move.saved && this.movedNodes.get(move.nodeId)?.move === move) {
+         this.movedNodes.delete(move.nodeId);
+      }
+   }
+
+   /**
+    * A graph request sent before a node move was sent (e.g. by a table drop the user started
+    * just before dragging) returns the node's old position. It still has the change of the
+    * action, so apply it, but with the moved position. A request sent after the move reaches
+    * the server after it, so its response has the move or a later server position, and the
+    * move is no longer tracked.
+    */
+   private applyMovedNodes(pgm: JoinGraphModel, requestSeq: number): void {
+      this.movedNodes.forEach((entry, nodeId) => {
+         if(requestSeq > entry.sentAt) {
+            this.movedNodes.delete(nodeId);
+            return;
+         }
+
+         const graph = pgm?.graphViewModel?.graphs?.find(g => g?.node?.id === nodeId);
+
+         if(graph?.bounds) {
+            graph.bounds.x = entry.move.bounds.x;
+            graph.bounds.y = entry.move.bounds.y;
+         }
+      });
    }
 
    restoreJoinEditPaneModel(newModel: JoinGraphModel, oldModel: JoinGraphModel): void {

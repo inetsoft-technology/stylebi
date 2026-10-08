@@ -29,6 +29,7 @@
         [ngClass]="getThumbnailClasses(graph)"
         [runtimeId]="runtimeId"
         [selected]="getSelectedNode(graph.node)"
+        [dragging]="isNodeDragging(graph)"
         [graph]="graph" [graphEndpoints]="graphEndpoints"
         [dataType]="dataType"
         [tableAliasCheck]="isDuplicateTableAlias"

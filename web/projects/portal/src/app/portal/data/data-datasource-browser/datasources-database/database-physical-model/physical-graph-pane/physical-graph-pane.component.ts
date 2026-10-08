@@ -85,6 +85,8 @@ export class PhysicalGraphPane implements OnInit, AfterViewChecked, OnDestroy {
    option: string;
    // incremented when a graph request is sent
    private graphRequestSeq = 0;
+   // the graphRequestSeq of the latest graph response applied
+   private lastAppliedSeq = 0;
    // node id --> the latest move of the node, and the graphRequestSeq when its PUT was sent.
    // A graph request sent before then was built without the move.
    private movedNodes = new Map<string, {move: GraphNodeMove, sentAt: number}>();
@@ -178,7 +180,14 @@ export class PhysicalGraphPane implements OnInit, AfterViewChecked, OnDestroy {
 
       this.httpClient.post<JoinGraphModel>(PHYSICAL_GRAPH_PANE_MODEL_URI, event)
          .subscribe(pgm => {
-            this.loadingGraphPane = false;
+            // the responses can arrive out of order: a response to an older request than the
+            // one applied last has an older table set and positions, so it is discarded
+            if(requestSeq < this.lastAppliedSeq) {
+               return;
+            }
+
+            this.lastAppliedSeq = requestSeq;
+            this.clearLoading(requestSeq);
             this.applyMovedNodes(pgm, requestSeq);
             this.restoreJoinEditPaneModel(pgm, this.physicalGraph);
             this.restoreGraphViewModel(pgm, this.physicalGraph);
@@ -189,7 +198,16 @@ export class PhysicalGraphPane implements OnInit, AfterViewChecked, OnDestroy {
             if(pgm.joinEdit) {
                this.physicalModelService.refreshWarning(runtimeId);
             }
-         }, () => this.loadingGraphPane = false);
+         }, () => this.clearLoading(requestSeq));
+   }
+
+   /**
+    * The loading mask stays until the latest graph request completes.
+    */
+   private clearLoading(requestSeq: number): void {
+      if(requestSeq === this.graphRequestSeq) {
+         this.loadingGraphPane = false;
+      }
    }
 
    /**
