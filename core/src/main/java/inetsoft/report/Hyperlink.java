@@ -1749,7 +1749,8 @@ public class Hyperlink implements XMLSerializable, Serializable, Cloneable {
                value = value.substring(1, value.length() - 1);
             }
 
-            setParameter(name, Tool.getData(type, value));
+            // a date saved before #77605 may have a Buddhist or Japanese year
+            setParameter(name, Tool.getPersistentData(type, value, false));
          }
       }
 

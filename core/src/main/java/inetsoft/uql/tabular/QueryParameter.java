@@ -143,7 +143,8 @@ public class QueryParameter implements XMLSerializable, Cloneable {
          value = Tool.getValue(node);
       }
       else {
-         value = Tool.getData(type.type(), Tool.getValue(node));
+         // a date saved before #77605 may have a Buddhist or Japanese year
+         value = Tool.getPersistentData(type.type(), Tool.getValue(node), false);
       }
    }
 
