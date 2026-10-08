@@ -380,6 +380,8 @@ class SheetEventOrderInterceptorTest {
       channel.send(event("s1", "vs1", "/events/composer/viewsheet/save", 1, "save"));
       channel.send(event("s1", "vs1", "/events/composer/viewsheet/close", 2, "close"));
 
+      // busy runs on a pool thread, wait for it before checking that nothing else ran
+      awaitHandled(handled, "busy");
       Thread.sleep(100);
       assertEquals(List.of("busy"), handled);
 
@@ -436,6 +438,9 @@ class SheetEventOrderInterceptorTest {
       channel.send(event("s1", "h1", "vs1", "/events/selectionList/update/List1", 1, "held"));
       channel.send(disconnect("s1"));
       channel.send(event("s2", "h1", "vs1", "/events/selectionList/update/List1", 2, "after"));
+      // other HTTP sessions are not ordered after busy, so wait for busy to run before sending
+      // one, otherwise the two handlers can run in either order on the pool (Bug #78020)
+      awaitHandled(handled, "busy");
       channel.send(event("s3", "h2", "vs1", "/events/vs/refresh", 3, "otherHttpSession"));
 
       awaitHandled(handled, "otherHttpSession", WHILE_BUSY);
