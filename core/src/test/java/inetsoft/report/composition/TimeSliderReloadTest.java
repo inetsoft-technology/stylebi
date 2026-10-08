@@ -44,6 +44,7 @@ import java.time.Duration;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -229,6 +230,75 @@ class TimeSliderReloadTest {
 
       query(loaded, data);
       assertSameSlider(ts, slider(loaded));
+   }
+
+   /**
+    * An undo checkpoint of a decimal-step slider with the last 3 ticks selected, read back
+    * when the checkpoints are rebuilt from the runtime cache, keeps the last-N window when the
+    * data shrinks.
+    */
+   @Test
+   void checkpointRebuildKeepsDecimalLastN() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      TimeSliderVSAssembly ts = createNumberSlider(vs);
+      Object[] data = { 0, 1 };
+      query(vs, data);
+      int n = ts.getSelectionList().getSelectionValueCount();
+      select(ts, n - 3, n - 1);
+      query(vs, data);
+
+      RuntimeSheet.XSwappableSheetList points = new RuntimeSheet.XSwappableSheetList(null);
+      points.add(vs.prepareCheckpoint());
+      String[] point = points.getXmlForState(0);
+      RuntimeSheetState state = new RuntimeSheetState();
+      state.setPoints(List.of(point[0], point[1]));
+      String sheetXml = xml(vs);
+      RuntimeSheet.encodePointDeltas(state, sheetXml);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class, CALLS_REAL_METHODS);
+      rvs.decodePointDeltas(state.getPointDeltas(), sheetXml,
+                            x -> RuntimeSheet.loadXml(new Viewsheet(), x));
+      assertEquals(1, rvs.points.size());
+      Viewsheet restored = (Viewsheet) rvs.points.get(0);
+      assertSameSlider(ts, slider(restored));
+
+      // the data shrinks
+      Object[] shrunk = { 0, 0.8 };
+      query(vs, shrunk);
+      query(restored, shrunk);
+
+      assertEquals(List.of("0.76", "0.78", "0.8"), state(ts));
+      assertSameSlider(ts, slider(restored));
+   }
+
+   /**
+    * Going to a bookmark of a log scale slider with a format, over the saved sheet, keeps the
+    * bookmarked range on the next query.
+    */
+   @Test
+   void bookmarkOfLogScaleKeepsRange() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      TimeSliderVSAssembly ts = createNumberSlider(vs);
+      Object[] data = { 1, 1000 };
+      query(vs, data);
+      ((TimeSliderVSAssemblyInfo) ts.getInfo()).setLogScaleValue(true);
+      query(vs, data);
+      select(ts, 0, 1);
+      query(vs, data);
+      String saved = xml(vs);
+
+      select(ts, 3, 5);
+      query(vs, data);
+      StringWriter buf = new StringWriter();
+      PrintWriter writer = new PrintWriter(buf);
+      vs.writeState(writer, true);
+      writer.flush();
+
+      Viewsheet opened = RuntimeSheet.loadXml(new Viewsheet(), saved);
+      opened.parseState(Tool.parseXML(new StringReader(buf.toString())).getDocumentElement());
+      query(opened, data);
+
+      assertEquals(List.of("8", "16", "32"), state(ts));
+      assertSameSlider(ts, slider(opened));
    }
 
    /**
