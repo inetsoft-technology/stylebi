@@ -87,6 +87,7 @@ public class RuntimeWorksheet extends RuntimeSheet
       this.box.setWSEntry(entry);
       this.box.setBaseUser(user);
       this.box.setActive(true);
+      this.box.setRuntimeWorksheet(true);
       this.box.setQueryManager(new QueryManager());
       this.preview = "true".equals(entry.getProperty("preview"));
       this.gettingStarted = "true".equals(entry.getProperty("gettingStarted"));
@@ -127,6 +128,7 @@ public class RuntimeWorksheet extends RuntimeSheet
          box.setWSEntry(entry);
          box.setBaseUser(user);
          box.setActive(true);
+         box.setRuntimeWorksheet(true);
          box.setQueryManager(new QueryManager());
       }
 

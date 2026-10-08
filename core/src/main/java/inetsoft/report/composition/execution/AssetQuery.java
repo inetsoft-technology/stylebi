@@ -23,6 +23,7 @@ import inetsoft.mv.trans.NamedGroupTransformer;
 import inetsoft.mv.trans.TransformationDescriptor;
 import inetsoft.report.*;
 import inetsoft.report.composition.WorksheetService;
+import inetsoft.report.composition.WorksheetWrapper;
 import inetsoft.report.filter.*;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.XNodeMetaTable;
@@ -89,14 +90,14 @@ public abstract class AssetQuery extends PreAssetQuery {
 
          TableAssembly ntable = null;
          TableAssembly rmvtable = MVTransformer.findMVTable(table);
+         // the table without the worksheet mvs attached below, queried live if they fail
+         TableAssembly otable = table;
 
-         // don't apply ws mv during ws design as per Bug #33943
-         /*
-         if(rmvtable == null && !box.isActive() && SreeEnv.getBooleanProperty("ws.mv.enabled")) {
-            applyWSRuntimeMV(table, box, user);
-            rmvtable = MVTransformer.findMVTable(table);
+         // the worksheet mvs are used by the queries of a viewsheet over the worksheet (78053),
+         // but not while the worksheet is designed (33943)
+         if(rmvtable == null && !metadata && isWSMVEnabled(box, mode)) {
+            table = applyWSRuntimeMV(table, box, user);
          }
-         */
 
          rrinfo = rmvtable == null ? null : rmvtable.getRuntimeMV();
 
@@ -131,6 +132,8 @@ public abstract class AssetQuery extends PreAssetQuery {
             }
 
             table.setRuntimeMV(null);
+            // drop every worksheet mv attached above, not only one on the root (78053)
+            table = otable;
          }
          catch(Exception ex) {
             boolean required = "true".equals(SreeEnv.getProperty("mv.required"));
@@ -143,6 +146,7 @@ public abstract class AssetQuery extends PreAssetQuery {
             else {
                LOG.warn("MV not supported for " + table, ex);
                table.setRuntimeMV(null);
+               table = otable;
             }
          }
 
@@ -358,6 +362,104 @@ public abstract class AssetQuery extends PreAssetQuery {
       query.validate();
 
       return query;
+   }
+
+   /**
+    * Check if the worksheet mvs may be used by the queries of a sandbox. They are used by a
+    * viewsheet over the worksheet, its preview and its export (78053), and not by the runtime
+    * worksheet of the worksheet composer (33943) or by the creation of an mv.
+    */
+   private static boolean isWSMVEnabled(AssetQuerySandbox box, int mode) {
+      AssetEntry wsEntry = box.getWSEntry();
+
+      // the base of a viewsheet may be a logical model or a query, which has no worksheet mv.
+      // the sandbox creating an mv has no worksheet entry
+      if(wsEntry == null || !wsEntry.isWorksheet() || box.isCreatingMV() ||
+         box.isRuntimeWorksheet() || AssetQuerySandbox.isDesignMode(mode))
+      {
+         return false;
+      }
+
+      ViewsheetSandbox vbox = box.getViewsheetSandbox();
+
+      if(vbox != null && !vbox.isMVEnabled()) {
+         return false;
+      }
+
+      return SreeEnv.getBooleanProperty("ws.mv.enabled");
+   }
+
+   /**
+    * Attach the worksheet mvs of the bound tables under a table. They are attached to copies,
+    * since the tables of the sandbox worksheet are shared by the other queries.
+    * @return the copy of the table holding the mvs, or the table if none is found.
+    */
+   private static TableAssembly applyWSRuntimeMV(TableAssembly table, AssetQuerySandbox box,
+                                                 XPrincipal user)
+   {
+      // not on the table itself. WSMVTransformer drops the runtime conditions of a bound root,
+      // and they hold the conditions and selections of a viewsheet
+      if(!(table instanceof ComposedTableAssembly) || table.getWorksheet() == null) {
+         return table;
+      }
+
+      Map<String, RuntimeMV> mvs = new HashMap<>();
+      findWSRuntimeMV((ComposedTableAssembly) table, box.getWSEntry(), user, mvs,
+                      new HashSet<>());
+
+      if(mvs.isEmpty()) {
+         return table;
+      }
+
+      // the wrapper copies a sub table from the worksheet when it is looked up
+      WorksheetWrapper wrapper = new WorksheetWrapper(table.getWorksheet(), true);
+      TableAssembly ntable = (TableAssembly) table.clone();
+      wrapper.addAssembly(ntable);
+
+      for(Map.Entry<String, RuntimeMV> entry : mvs.entrySet()) {
+         Assembly sub = wrapper.getAssembly(entry.getKey());
+
+         if(sub instanceof TableAssembly) {
+            ((TableAssembly) sub).setRuntimeMV(entry.getValue());
+         }
+      }
+
+      return ntable;
+   }
+
+   /**
+    * Find the worksheet mvs of the bound tables under a table, per the identity of the user.
+    */
+   private static void findWSRuntimeMV(ComposedTableAssembly table, AssetEntry wsEntry,
+                                       XPrincipal user, Map<String, RuntimeMV> mvs,
+                                       Set<String> visited)
+   {
+      TableAssembly[] subs = table.getTableAssemblies(false);
+
+      if(subs == null) {
+         return;
+      }
+
+      for(TableAssembly sub : subs) {
+         if(sub == null || !visited.add(sub.getName())) {
+            continue;
+         }
+
+         // a worksheet mv is created for a bound table only (WSMVAnalyzer)
+         if(sub instanceof BoundTableAssembly) {
+            if(sub.getRuntimeMV() == null) {
+               RuntimeMV rmv = MVManager.getManager().findRuntimeMV(
+                  wsEntry, null, null, sub.getName(), user, null, true, true);
+
+               if(rmv != null) {
+                  mvs.put(sub.getName(), rmv);
+               }
+            }
+         }
+         else if(sub instanceof ComposedTableAssembly) {
+            findWSRuntimeMV((ComposedTableAssembly) sub, wsEntry, user, mvs, visited);
+         }
+      }
    }
 
    private static TableAssembly getNoAggregateTable(MirrorTableAssembly mvtable,
