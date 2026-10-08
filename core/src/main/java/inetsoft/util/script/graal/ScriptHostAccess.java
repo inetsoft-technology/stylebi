@@ -547,7 +547,46 @@ public final class ScriptHostAccess {
                   .deny(inetsoft.graph.mxgraph.io.mxCodec.class)
                   .deny(inetsoft.graph.mxgraph.io.mxCodecRegistry.class)
                   .deny(inetsoft.graph.mxgraph.io.mxObjectCodec.class)
-                  .deny(inetsoft.graph.mxgraph.io.mxGdCodec.class);
+                  .deny(inetsoft.graph.mxgraph.io.mxGdCodec.class)
+                  // Bug #78079: #78064 stopped construction-by-name through the mxgraph
+                  // codec, but the sandbox still keys its file/network boundary on class
+                  // name (classFilter admits the inetsoft.graph./report./uql. prefixes;
+                  // BLOCKED_PACKAGES blocks java.io/nio/net by name only) and never looks
+                  // at what a method does. So any public member of an admitted,
+                  // non-type-denied class that performs file/URL I/O with a
+                  // script-controlled path, or that mints a java.io.File a script then
+                  // feeds to a File-typed sink, runs that I/O for a restricted script even
+                  // though the script cannot name java.io.* itself. Graal 24.1.2 has no
+                  // member-level deny (HostAccess$Builder exposes only denyAccess(Class[,
+                  // boolean]) with allowPublicAccess(true)), so each offending class is
+                  // denied whole. The deny must sit on the class that DECLARES the
+                  // raw-read/write member (the sink owner) and on the File-minting source,
+                  // not on the input builder: BeanUtil.readPropertyValue builds a MetaImage
+                  // around any ImageLocation, so denying MetaImage (not ImageLocation)
+                  // closes getInputStream; and TransformDescriptor.getInputFile/
+                  // getOutputFile re-open every File-typed sink regardless of other denies,
+                  // so it must be denied too. None of these is script API (no shipped
+                  // script references any of them); only Java callers use them, and a type
+                  // deny limits only GUEST/script member access, so Java callers are
+                  // unaffected. Image-only members (loadImage, getImage parity, #33237) are
+                  // left reachable on purpose. mxUtils is NOT denied here: it also
+                  // exposes the benign eval/loadImage script helpers, so its three raw
+                  // I/O statics (readFile/writeFile/loadDocument) were relocated to the
+                  // already-blocked inetsoft.graph.mxgraph.io package (mxFileIO) instead.
+                  // -- confirmed reproduced (restricted script got raw content / a write):
+                  .deny(inetsoft.report.internal.MetaImage.class)
+                  .deny(inetsoft.report.pdf.CMap.class)
+                  .deny(inetsoft.uql.util.filereader.CSVLoader.class)
+                  .deny(inetsoft.uql.jdbc.drivers.DriverPluginGenerator.class)
+                  // the File-minting source that feeds every File-typed sink
+                  .deny(inetsoft.uql.erm.transform.TransformDescriptor.class)
+                  // -- same class of defect (a public member reaches a file/the network or
+                  // a File-minter/System.exit), denied for the same reason but not
+                  // individually reproduced:
+                  .deny(inetsoft.graph.internal.GDebug.class)
+                  .deny(inetsoft.report.internal.graph.MapHelper.class)
+                  .deny(inetsoft.report.afm.afm.AFMGenerator.class)
+                  .deny(inetsoft.uql.erm.transform.ERMExporter.class);
 
                builder
                   // legacy convenience: scripts pass JS numbers to Java APIs.
