@@ -82,8 +82,10 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import javax.sql.DataSource;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.lang.reflect.*;
+import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.Statement;
 import java.util.Optional;
@@ -92,6 +94,7 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.IntStream;
+import java.util.zip.ZipInputStream;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -811,6 +814,58 @@ class RowFetchFailureTest {
          assertNull(TableLoadException.find(error), script + ": " + error);
          assertTrue(error.getMessage().contains(successful[i]), script + ": " + error);
       }));
+   }
+
+   // Bug #78083: a scheduled CSV export of a calc table whose range condition reads a hidden
+   // table that failed to load fails, instead of exporting the sum of every row as if the
+   // condition selected them all. The hidden table is not exported, so its own read does not
+   // fail the export. Interactive and successful exports are unchanged (no row selected)
+   @Test
+   void scheduledExportOfARangeConditionOverAHiddenFailedTable() throws Exception {
+      String formula = "sum(data['id?TableV.table.length < 0'])";
+
+      for(int run = 0; run < 3; run++) {
+         boolean fail = run != 2;
+         boolean scheduler = run != 1;
+         ViewsheetSandbox box = conditionSandbox(fail, scheduler, formula);
+         VSAssembly hidden = (VSAssembly) box.getViewsheet().getAssembly("TableV");
+         hidden.getVSAssemblyInfo().setVisibleValue(String.valueOf(VSAssembly.ALWAYS_HIDE));
+         assertFalse(hidden.isVisible());
+         ByteArrayOutputStream out = new ByteArrayOutputStream();
+         CSVVSExporter exporter = new CSVVSExporter(out, null);
+         CoreTool.clearUserMessage();
+
+         if(fail && scheduler) {
+            assertLoadFailure(() -> {
+               exporter.export(box, "Calc", null);
+               exporter.write();
+            });
+            continue;
+         }
+
+         exporter.export(box, "Calc", null);
+         exporter.write();
+         String csv = "";
+
+         try(ZipInputStream zip =
+                new ZipInputStream(new ByteArrayInputStream(out.toByteArray())))
+         {
+            while(zip.getNextEntry() != null) {
+               csv += new String(zip.readAllBytes(), StandardCharsets.UTF_8);
+            }
+         }
+
+         // the empty cell of Calc1, no row of T2 selected
+         assertFalse(csv.contains("1800030000"), "run " + run + ": " + csv);
+         assertTrue(csv.startsWith(","), "run " + run + ": " + csv);
+
+         if(fail) {
+            assertWarned();
+         }
+         else {
+            assertNull(CoreTool.getUserMessage());
+         }
+      }
    }
 
    // the error of an onLoad script of a viewsheet with the calc table Calc1 (sum of id) and
