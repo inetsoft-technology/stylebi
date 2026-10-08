@@ -66,7 +66,9 @@ import java.util.*;
  * {@link #headerRowOffset} resolves the live {@link FormTableLens} and adds its own
  * {@code getHeaderRowCount()} (not hardcoded to 1) to the caller's index before any native event
  * is built, so {@code index}/{@code row}/{@code rows} genuinely mean "0-based data row" the way
- * this class's own javadoc on each method already promised.
+ * this class's own javadoc on each method already promised. The row snapshot every method returns
+ * uses the same space: {@code rows[k]} is data row {@code k}, and the header row is returned
+ * separately as {@code columns} (see {@link #populateSnapshot}).
  */
 @Service
 public class FormTableRowService {
@@ -345,8 +347,20 @@ public class FormTableRowService {
     * Pulls the {@code LoadTableDataCommand} every {@code VSFormTableService} method dispatches
     * (via {@code BaseTableService.loadTableData}) out of the capturing dispatcher, the same
     * technique {@code ViewsheetFormatService.getCellFormat} uses to read a command-delivered
-    * result back outside a live browser session. Limited to the first 100 rows -- the same window
-    * {@code VSFormTableService} itself reloads on every call.
+    * result back outside a live browser session. Limited to the window
+    * {@code VSFormTableService} itself reloads on every call (the first 100 lens rows, header
+    * included).
+    *
+    * <p><b>{@code rows} holds DATA rows only, in the same 0-based index space this class's
+    * {@code index}/{@code row}/{@code rows} inputs use.</b> The command's {@code tableCells} are
+    * absolute lens rows {@code start..end-1}, so when {@code start} is inside the header the first
+    * {@code headerRowCount - start} of them are header rows; those are dropped from {@code rows}
+    * and the last of them is returned as {@code columns} instead (the visible column names, in the
+    * same order {@code col} indexes). {@code rowCount} is the command's
+    * {@code runtimeDataRowCount}, which is already data rows only. Every caller here passes
+    * {@code start = 0}, so {@code rows[k]} is data row {@code k}; a non-zero {@code start} would
+    * make {@code rows[0]} data row {@code start - headerRowCount} and would need that offset
+    * exposed as well.
     */
    private static void populateSnapshot(Map<String, Object> result,
                                         CapturingCommandDispatcher dispatcher, String assemblyName)
@@ -363,33 +377,44 @@ public class FormTableRowService {
 
       if(load == null) {
          result.put("rowCount", null);
+         result.put("columns", List.of());
          result.put("rows", List.of());
          return;
       }
 
+      BaseTableCellModel[][] cells = load.tableCells();
+      int headerRows = cells == null ? 0 :
+         Math.min(cells.length, Math.max(0, load.headerRowCount() - load.start()));
+
       result.put("rowCount", load.runtimeDataRowCount());
-      result.put("rows", toRows(load));
+      result.put("columns", headerRows > 0 ? toRow(cells[headerRows - 1]) : List.of());
+      result.put("rows", toRows(cells, headerRows));
    }
 
-   private static List<List<Object>> toRows(LoadTableDataCommand load) {
-      BaseTableCellModel[][] cells = load.tableCells();
+   private static List<List<Object>> toRows(BaseTableCellModel[][] cells, int skip) {
       List<List<Object>> rows = new ArrayList<>();
 
       if(cells == null) {
          return rows;
       }
 
-      for(BaseTableCellModel[] rowCells : cells) {
-         List<Object> row = new ArrayList<>();
-
-         for(BaseTableCellModel cell : rowCells) {
-            row.add(cell == null ? null : cell.getCellData());
-         }
-
-         rows.add(row);
+      for(int i = skip; i < cells.length; i++) {
+         rows.add(toRow(cells[i]));
       }
 
       return rows;
+   }
+
+   private static List<Object> toRow(BaseTableCellModel[] rowCells) {
+      List<Object> row = new ArrayList<>();
+
+      if(rowCells != null) {
+         for(BaseTableCellModel cell : rowCells) {
+            row.add(cell == null ? null : cell.getCellData());
+         }
+      }
+
+      return row;
    }
 
    private final ViewsheetSessionService sessions;

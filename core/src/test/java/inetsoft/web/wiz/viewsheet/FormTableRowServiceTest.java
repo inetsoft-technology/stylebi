@@ -353,6 +353,8 @@ class FormTableRowServiceTest {
 
       LoadTableDataCommand load = mock(LoadTableDataCommand.class);
       when(load.runtimeDataRowCount()).thenReturn(1);
+      when(load.headerRowCount()).thenReturn(0);
+      when(load.start()).thenReturn(0);
       when(load.tableCells()).thenReturn(new BaseTableCellModel[][]{ { cellA, cellB } });
 
       CapturingCommandDispatcher.Command captured =
@@ -363,6 +365,49 @@ class FormTableRowServiceTest {
 
       assertEquals(1, result.get("rowCount"));
       assertEquals(List.of(List.of("A", 42)), result.get("rows"));
+      assertEquals(List.of(), result.get("columns"));
+   }
+
+   /**
+    * Bug #78067: {@code LoadTableDataCommand.tableCells} starts at absolute lens row
+    * {@code start} (0), i.e. at the header row, while every input index is a 0-based data row.
+    * {@code rows} must drop the header rows so {@code rows[k]} is data row {@code k}, and the
+    * header is surfaced as {@code columns} instead. {@code rowCount} is passed through unchanged.
+    */
+   @Test
+   void snapshotRowsSkipTheHeaderRowAndExposeItAsColumns() throws Exception {
+      Harness h = harnessWith(tableWith(true, true, true, true));
+
+      LoadTableDataCommand load = mock(LoadTableDataCommand.class);
+      when(load.runtimeDataRowCount()).thenReturn(3);
+      when(load.headerRowCount()).thenReturn(1);
+      when(load.start()).thenReturn(0);
+      // built before stubbing tableCells(): cell() stubs its own mock
+      BaseTableCellModel[][] cells = {
+         { cell("ID"), cell("NAME") },
+         { cell(1), cell("Alice") },
+         { cell(2), cell("Bobby") },
+         { cell(3), cell("Carol") }
+      };
+      when(load.tableCells()).thenReturn(cells);
+
+      CapturingCommandDispatcher.Command captured =
+         new CapturingCommandDispatcher.Command("Table1", "LoadTableDataCommand", load);
+      when(h.dispatcher.getCapturedCommands()).thenReturn(List.of(captured));
+
+      Map<String, Object> result = h.service.setCell("tok", principal(), "Table1", 1, 1, "Bobby", "");
+
+      assertEquals(3, result.get("rowCount"));
+      assertEquals(List.of("ID", "NAME"), result.get("columns"));
+      assertEquals(List.of(List.of(1, "Alice"), List.of(2, "Bobby"), List.of(3, "Carol")),
+                   result.get("rows"));
+      assertEquals(List.of(2, "Bobby"), ((List<?>) result.get("rows")).get(1));
+   }
+
+   private static BaseTableCellModel cell(Object data) {
+      BaseTableCellModel cell = mock(BaseTableCellModel.class);
+      when(cell.getCellData()).thenReturn(data);
+      return cell;
    }
 
    @Test
@@ -372,6 +417,7 @@ class FormTableRowServiceTest {
       Map<String, Object> result = h.service.insertRow("tok", principal(), "Table1", 0, false, "");
 
       assertNull(result.get("rowCount"));
+      assertEquals(List.of(), result.get("columns"));
       assertEquals(List.of(), result.get("rows"));
    }
 
