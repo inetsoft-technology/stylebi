@@ -45,7 +45,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * the side effects of calling the removed XUtil.call/field from script, and checks
  * that the helpers' legitimate uses still work: every public static XUtil member
  * stays visible, every built-in TableStyle can still be created by name, and the
- * mxgraph codec still round-trips a model.
+ * mxgraph codec still round-trips a model for its Java callers (since #78064 it is
+ * refused to scripts).
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -114,14 +115,11 @@ class ScriptHelperClassLoadEnginesTest {
       assertEquals("OK:null", run(STYLE + ".createTableStyle('" + StyleSentinel.class.getName() + "')"));
       assertFalse(styleInitialized || styleConstructed, "createTableStyle ran a non-TableStyle class");
 
-      assertEquals("OK:null", run(REGISTRY + ".getClassForName('" + ClassSentinel.class.getName() + "')"));
-      assertFalse(classInitialized, "getClassForName initialized a filtered class");
-      assertEquals("OK:null",
-                   run(REGISTRY + ".getInstanceForName('" + InstanceSentinel.class.getName() + "')"));
+      // Bug #78064: the codec registry is no longer script API
+      String registry = run(REGISTRY + ".getInstanceForName('" + InstanceSentinel.class.getName() + "')");
+      assertTrue(registry.startsWith("ERR:"), registry);
       assertFalse(instanceInitialized || instanceConstructed,
                   "getInstanceForName ran a filtered class");
-      // java.lang.Thread through the package-prefixed retry
-      assertEquals("OK:null", run(REGISTRY + ".getInstanceForName('Thread')"));
 
       String expr = EvalSentinel.class.getName() + ".VALUE";
       assertEquals("OK:" + expr, run(UTILS + ".eval('" + expr + "')"));
@@ -199,15 +197,27 @@ class ScriptHelperClassLoadEnginesTest {
       }
    }
 
+   /**
+    * Bug #78064: the mxgraph codec constructs classes by name and reads and writes
+    * object state by Java reflection, so it is refused to scripts. Its Java callers
+    * still resolve the same names, and mxUtils.eval stays script API.
+    */
    @ParameterizedTest
    @ValueSource(strings = { "base", "report" })
-   void mxgraphNamesStillResolveFromScript(String kind) throws Exception {
+   void mxgraphCodecIsRefusedToScripts(String kind) throws Exception {
       open(kind);
+
+      for(String name : new String[] { "mxCodec", "mxCodecRegistry", "mxObjectCodec",
+                                       "mxCellCodec", "mxGdCodec" })
+      {
+         String result = run("Java.type('inetsoft.graph.mxgraph.io." + name + "')");
+         assertTrue(result.startsWith("ERR:"), name + ": " + result);
+      }
 
       for(String name : new String[] { "mxCell", "mxGraphModel", "mxGeometry", "mxPoint",
                                        "mxRectangle", "mxStylesheet", "mxChildChange", "ArrayList" })
       {
-         assertEquals("OK:true", run(REGISTRY + ".getCodec('" + name + "') != null"), name);
+         assertNotNull(inetsoft.graph.mxgraph.io.mxCodecRegistry.getCodec(name), name);
       }
 
       assertEquals("OK:true", run(UTILS + ".eval('mxEdgeStyle.ElbowConnector') === " +

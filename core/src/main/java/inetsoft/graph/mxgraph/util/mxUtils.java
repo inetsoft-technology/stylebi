@@ -20,6 +20,7 @@ package inetsoft.graph.mxgraph.util;
 import inetsoft.graph.mxgraph.io.mxCodecRegistry;
 import inetsoft.graph.mxgraph.model.*;
 import inetsoft.graph.mxgraph.view.mxCellState;
+import inetsoft.util.script.graal.ScriptHostAccess;
 import org.w3c.dom.*;
 
 import javax.imageio.ImageIO;
@@ -32,6 +33,7 @@ import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import java.awt.image.ImageObserver;
 import java.io.*;
+import java.lang.reflect.Field;
 import java.net.URL;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -2250,8 +2252,16 @@ public class mxUtils {
 
          if(clazz != null) {
             try {
-               return clazz.getField(expression.substring(dot + 1)).get(
-                  null);
+               Field field = clazz.getField(expression.substring(dot + 1));
+
+               // Bug #78064: this method is visible to scripts, so don't read a
+               // static that the script host access denies, such as one inherited
+               // from a denied supertype
+               if(ScriptHostAccess.isTypeDenied(field.getDeclaringClass())) {
+                  throw new SecurityException("Field " + expression + " is not allowed in scripts");
+               }
+
+               return field.get(null);
             }
             catch(Exception e) {
                log.log(Level.SEVERE, "Failed to eval expression: " + expression, e);
