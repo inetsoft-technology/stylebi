@@ -19,6 +19,7 @@ package inetsoft.report.composition.execution;
 
 import inetsoft.mv.*;
 import inetsoft.mv.formula.CompositeVarianceFormula;
+import inetsoft.mv.trans.AbstractTransformer;
 import inetsoft.mv.trans.NamedGroupTransformer;
 import inetsoft.mv.trans.TransformationDescriptor;
 import inetsoft.report.*;
@@ -447,7 +448,8 @@ public abstract class AssetQuery extends PreAssetQuery {
 
          // a worksheet mv is created for a bound table only (WSMVAnalyzer)
          if(sub instanceof BoundTableAssembly) {
-            if(sub.getRuntimeMV() == null) {
+            // the mv holds the data for the default values of the variables
+            if(sub.getRuntimeMV() == null && !isVariableDependent(sub, new HashSet<>())) {
                RuntimeMV rmv = MVManager.getManager().findRuntimeMV(
                   wsEntry, null, null, sub.getName(), user, null, true, true);
 
@@ -460,6 +462,118 @@ public abstract class AssetQuery extends PreAssetQuery {
             findWSRuntimeMV((ComposedTableAssembly) sub, wsEntry, user, mvs, visited);
          }
       }
+   }
+
+   /**
+    * Check if the data of a table depends on variables (parameters or session variables). A
+    * worksheet mv is created with the default values of the variables (MVCreatorUtil), so it
+    * doesn't hold the data for other values. The rules are those of a viewsheet mv, whose
+    * analysis moves such conditions out of the mv or doesn't create the mv
+    * (AbstractTransformer.isDynamicFilter, TransformationDescriptor.processDynamicExpressions,
+    * VSMVAnalyzer.containsQueryVariable and containsNamedGroupVariable). The runtime
+    * conditions (the conditions and selections of a viewsheet) are applied on the mv, so they
+    * are not checked.
+    */
+   private static boolean isVariableDependent(TableAssembly table, Set<String> visited) {
+      if(table == null || !visited.add(table.getName())) {
+         return false;
+      }
+
+      List<ConditionListWrapper> conds = new ArrayList<>();
+      conds.add(table.getPreConditionList());
+      conds.add(table.getPostConditionList());
+      conds.add(table.getRankingConditionList());
+
+      // the condition assemblies are added to the pre conditions by BoundQuery
+      if(table instanceof BoundTableAssembly) {
+         for(ConditionAssembly cond : ((BoundTableAssembly) table).getConditionAssemblies()) {
+            conds.add(cond.getConditionList());
+         }
+      }
+
+      TransformationDescriptor desc = new TransformationDescriptor();
+
+      for(ConditionListWrapper wrapper : conds) {
+         if(AbstractTransformer.isDynamicFilter(desc, wrapper, null) ||
+            isSubQueryVariableDependent(wrapper, table.getWorksheet(), visited))
+         {
+            return true;
+         }
+      }
+
+      if(table instanceof SQLBoundTableAssembly) {
+         JDBCQuery query = ((SQLBoundTableAssemblyInfo) table.getInfo()).getQuery();
+
+         // includes the session variables
+         if(query != null && query.getAllDefinedVariables().hasMoreElements()) {
+            return true;
+         }
+      }
+
+      AggregateInfo ainfo = table.getAggregateInfo();
+
+      if(ainfo != null) {
+         for(GroupRef group : ainfo.getGroups()) {
+            XNamedGroupInfo info = group.getNamedGroupInfo();
+
+            if(info != null && info.getAllVariables().length > 0) {
+               return true;
+            }
+         }
+      }
+
+      ColumnSelection cols = table.getColumnSelection(false);
+
+      for(int i = 0; i < cols.getAttributeCount(); i++) {
+         DataRef ref = cols.getAttribute(i);
+         ref = ref instanceof ColumnRef ? ((ColumnRef) ref).getDataRef() : ref;
+
+         // e.g. parameter.x in an expression
+         if(ref instanceof ExpressionRef &&
+            !MVTool.isExpressionMVCompatible(((ExpressionRef) ref).getExpression()))
+         {
+            return true;
+         }
+      }
+
+      if(table instanceof ComposedTableAssembly) {
+         for(TableAssembly sub : ((ComposedTableAssembly) table).getTableAssemblies(false)) {
+            if(isVariableDependent(sub, visited)) {
+               return true;
+            }
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Check if a condition uses a sub query on a table depending on variables.
+    */
+   private static boolean isSubQueryVariableDependent(ConditionListWrapper wrapper, Worksheet ws,
+                                                      Set<String> visited)
+   {
+      ConditionList list = wrapper == null ? null : wrapper.getConditionList();
+
+      if(list == null || ws == null) {
+         return false;
+      }
+
+      for(int i = 0; i < list.getSize(); i += 2) {
+         XCondition cond = list.getConditionItem(i).getXCondition();
+         SubQueryValue val = cond instanceof AssetCondition ?
+            ((AssetCondition) cond).getSubQueryValue() : null;
+         Assembly stable = val == null || val.getQuery() == null ?
+            null : ws.getAssembly(val.getQuery());
+
+         if(stable instanceof TableAssembly &&
+            isVariableDependent((TableAssembly) stable, visited))
+         {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    private static TableAssembly getNoAggregateTable(MirrorTableAssembly mvtable,

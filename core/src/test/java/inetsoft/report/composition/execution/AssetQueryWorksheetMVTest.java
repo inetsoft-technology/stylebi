@@ -163,6 +163,52 @@ class AssetQueryWorksheetMVTest {
    }
 
    @Test
+   void conditionWithAVariableIsNotGivenTheMV() throws Exception {
+      // the mv holds the rows for the default value of the variable (MVCreatorUtil)
+      customers.setPreConditionList(cityCondition("$(pCity)"));
+
+      assertFalse(subQuery(createQuery(viewsheetBox(), root, AssetQuerySandbox.RUNTIME_MODE,
+                                       false)) instanceof MVAssetQuery,
+                  "a worksheet condition on a parameter must be evaluated live");
+      verifyNoLookup();
+   }
+
+   @Test
+   void conditionWithASessionVariableIsNotGivenTheMV() throws Exception {
+      // the mv holds the rows for the session of the identity it was created for
+      customers.setPreConditionList(cityCondition("$(_USER_)"));
+
+      assertFalse(subQuery(createQuery(viewsheetBox(), root, AssetQuerySandbox.RUNTIME_MODE,
+                                       false)) instanceof MVAssetQuery,
+                  "a worksheet condition on a session variable must be evaluated live");
+      verifyNoLookup();
+   }
+
+   @Test
+   void conditionWithoutAVariableUsesTheMV() throws Exception {
+      // a constant condition of the worksheet is in the mv already
+      customers.setPreConditionList(cityCondition("Paris"));
+
+      assertInstanceOf(MVAssetQuery.class,
+                       subQuery(createQuery(viewsheetBox(), root, AssetQuerySandbox.RUNTIME_MODE,
+                                            false)));
+   }
+
+   @Test
+   void aggregatedViewsheetQueryUsesTheWorksheetMV() throws Exception {
+      // a chart or crosstab groups the viewsheet table (WSMVAggregateDownTransformer)
+      ColumnSelection cols = root.getColumnSelection(false);
+      AggregateInfo ainfo = new AggregateInfo();
+      ainfo.addGroup(new GroupRef(cols.getAttribute(1)));
+      ainfo.addAggregate(new AggregateRef(cols.getAttribute(0), AggregateFormula.COUNT_ALL));
+      root.setAggregateInfo(ainfo);
+
+      AssetQuery query = createQuery(viewsheetBox(), root, AssetQuerySandbox.RUNTIME_MODE, false);
+
+      assertInstanceOf(MVAssetQuery.class, subQuery(query));
+   }
+
+   @Test
    void boundRootIsNotGivenTheMV() throws Exception {
       // WSMVTransformer drops the runtime conditions of a bound root
       AssetQuery query = createQuery(viewsheetBox(), customers, AssetQuerySandbox.RUNTIME_MODE,
@@ -298,6 +344,15 @@ class AssetQueryWorksheetMVTest {
       }
 
       return null;
+   }
+
+   private static ConditionList cityCondition(String value) {
+      ConditionList conds = new ConditionList();
+      AssetCondition cond = new AssetCondition(XSchema.STRING);
+      cond.setOperation(XCondition.EQUAL_TO);
+      cond.addValue(value);
+      conds.append(new ConditionItem(column("CUSTOMERS", "CITY", XSchema.STRING), cond, 0));
+      return conds;
    }
 
    private static ColumnRef column(String entity, String name, String type) {
