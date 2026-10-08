@@ -25,6 +25,7 @@ import inetsoft.util.script.ScriptException;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.swap.LostSwapFile;
 import inetsoft.util.swap.SwapFileReadException;
+import org.graalvm.polyglot.proxy.ProxyExecutable;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.annotation.DirtiesContext;
@@ -90,6 +91,21 @@ class OutputVSAScriptableStallTest {
       doThrow(new RuntimeException("view failed", stall)).when(box).executeView("Gauge1", false);
 
       assertSame(stall, assertThrows(LockStallException.class, () -> gauge.getMember("value")));
+   }
+
+   /**
+    * #78000: the gauge used as a scalar reads its value the same way as .value, so a stall
+    * under that read reaches the script too.
+    */
+   @Test
+   void stalledScalarCoercionThrowsTheStall() throws Exception {
+      LockStallException stall = new LockStallException("test.site", "worker", 1234, null);
+      when(box.getData("Gauge1")).thenThrow(stall);
+
+      for(String member : new String[] { "valueOf", "toString" }) {
+         ProxyExecutable coerce = (ProxyExecutable) gauge.getMember(member);
+         assertSame(stall, assertThrows(LockStallException.class, coerce::execute));
+      }
    }
 
    /**
