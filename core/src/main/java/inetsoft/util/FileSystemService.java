@@ -593,6 +593,9 @@ public class FileSystemService {
                try {
                   XSwapper.RegisteredSwapFiles registered =
                      new XSwapper.RegisteredSwapFiles(FileSystemService.this.cluster);
+                  // Bug #78082, the snapshot copies of a node that is gone are not in use
+                  SnapshotEmbeddedTableAssembly.removeStaleFileReferences(
+                     FileSystemService.this.cluster);
                   Map<String, Integer> snapshotMap = FileSystemService.this.cluster.getMap(SnapshotEmbeddedTableAssembly.FILE_REFERENCES_MAP);
                   XSwapper swapper = XSwapper.getSwapper();
 
@@ -610,6 +613,9 @@ public class FileSystemService {
                         !files[i].getName().startsWith(DriverCache.DRIVER_CACHE_FILE_NAME) &&
                         !registered.contains(files[i]) &&
                         !snapshotMap.containsKey(files[i].getAbsolutePath()) &&
+                        // Bug #78082, the count of a copy that this JVM reads may be gone
+                        !SnapshotEmbeddedTableAssembly.isFileInUseLocally(
+                           files[i].getAbsolutePath()) &&
                         !swapper.isOwnSwapFile(files[i].getName()) &&
                         (!files[i].getName().endsWith(".tdat") ||
                          System.currentTimeMillis() - files[i].lastModified() >=
