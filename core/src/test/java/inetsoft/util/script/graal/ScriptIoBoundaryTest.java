@@ -242,6 +242,29 @@ class ScriptIoBoundaryTest {
       }));
    }
 
+   // ---- Util.verifyDirectory: mkdir + existence oracle, relocated out of Util ----------
+
+   /**
+    * Bug #78079 (review round 1, finding I1): {@code Util.verifyDirectory(String,String)}
+    * was a reachable mkdir + directory-existence oracle on the script-admitted
+    * {@code inetsoft.report.internal.Util}. It was relocated to its only caller
+    * {@code inetsoft.sree.internal.SUtil} (not script-admitted), so a restricted script
+    * can no longer invoke it: the member is gone from {@code Util}, the call is refused,
+    * and the directory is not created.
+    */
+   @Test
+   void utilVerifyDirectoryIsRefused() {
+      assertAll(engines().stream().map(e -> () -> {
+         File dir = tmp.resolve("verify-" + e.name()).toFile();
+         dir.delete();
+         String src = "Java.type('inetsoft.report.internal.Util')"
+            + ".verifyDirectory('" + js(dir) + "', 'log'); 'done'";
+         run(e.engine(), src);
+         assertFalse(dir.exists(),
+                     e.name() + ": Util.verifyDirectory created a directory " + dir);
+      }));
+   }
+
    // ---- LB3: CMap.getCMapData(absolute path) raw read ---------------------------------
 
    @Test
