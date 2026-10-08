@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.schedule;
 
+import inetsoft.report.internal.Util;
 import inetsoft.sree.AnalyticRepository;
 import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.schedule.*;
@@ -262,6 +263,92 @@ class ScheduleTaskItemPairingTest {
       assertEquals(15, kept.getMinute());
    }
 
+   @Test
+   void deleteFirstBackupActionKeepsFtpPasswordOfKeptAction() throws Exception {
+      ScheduleTask stored = storedTask(backup("ftp://files.example/bk/a.zip", "ftpA"),
+                                       backup("ftp://files.example/bk/b.zip", "ftpB"));
+      List<ScheduleActionModel> actions = editorActions();
+      assertEquals(Util.PLACEHOLDER_PASSWORD,
+                   ((BackupActionModel) actions.get(1)).backupServerPath().password());
+      actions.remove(0);
+      ScheduleTask saved = save(stored, actions, true);
+      assertEquals(1, saved.getActionCount());
+      ServerPathInfo kept = ((IndividualAssetBackupAction) saved.getAction(0)).getServerPath();
+      assertEquals("ftp://files.example/bk/b.zip", kept.getPath());
+      assertEquals("ftpB", kept.getPassword());
+   }
+
+   @Test
+   void multiDeleteWithTwoDigitIndexesKeepsEachKeptActionsOwnValues() throws Exception {
+      deny("emailDelivery");
+      ScheduleAction[] all = new ScheduleAction[12];
+
+      for(int i = 0; i < all.length; i++) {
+         all[i] = action(SHEET, "a" + i + "@x.com", "pw" + i);
+      }
+
+      ScheduleTask stored = storedTask(all);
+      List<ScheduleActionModel> actions = editorActions();
+      // the portal removes the selected indexes [2, 10] from the end
+      actions.remove(10);
+      actions.remove(2);
+      ScheduleTask saved = save(stored, actions, true);
+      assertEquals(10, saved.getActionCount());
+      int[] kept = { 0, 1, 3, 4, 5, 6, 7, 8, 9, 11 };
+
+      for(int i = 0; i < kept.length; i++) {
+         ViewsheetAction action = (ViewsheetAction) saved.getAction(i);
+         assertEquals("a" + kept[i] + "@x.com", action.getEmails());
+         assertEquals("pw" + kept[i], action.getPassword());
+      }
+   }
+
+   @Test
+   void reorderedActionsKeepTheirOwnValues() throws Exception {
+      deny("emailDelivery");
+      ScheduleTask stored = storedTask(action(SHEET, "a@x.com", "pwA"),
+                                       action(SHEET, "b@x.com", "pwB"));
+      List<ScheduleActionModel> actions = editorActions();
+      Collections.reverse(actions);
+      ScheduleTask saved = save(stored, actions, true);
+      assertEquals("b@x.com", ((ViewsheetAction) saved.getAction(0)).getEmails());
+      assertEquals("pwB", password(saved, 0));
+      assertEquals("a@x.com", ((ViewsheetAction) saved.getAction(1)).getEmails());
+      assertEquals("pwA", password(saved, 1));
+   }
+
+   @Test
+   void editedKeptActionKeepsItsPasswordAfterDelete() throws Exception {
+      ScheduleTask stored = storedTask(action(SHEET, "a@x.com", "pwA"),
+                                       action(SHEET, "b@x.com", "pwB"));
+      List<ScheduleActionModel> actions = editorActions();
+      actions.remove(0);
+      // the editor changes the recipients and sends the password placeholder back
+      actions.set(0, GeneralActionModel.builder().from((GeneralActionModel) actions.get(0))
+         .to("b2@x.com").build());
+      ScheduleTask saved = save(stored, actions, true);
+      assertEquals("b2@x.com", ((ViewsheetAction) saved.getAction(0)).getEmails());
+      assertEquals("pwB", password(saved, 0));
+   }
+
+   @Test
+   void portalSaveDeleteFirstActionKeepsZipPasswordOfKeptAction() throws Exception {
+      ScheduleTask stored = storedTask(action(SHEET, "a@x.com", "pwA"),
+                                       action(SHEET, "b@x.com", "pwB"));
+      List<ScheduleActionModel> actions =
+         new ArrayList<>(service.getTaskActions(TASK, principal, false).actions());
+      actions.remove(0);
+      service.saveTask(ScheduleTaskEditorModel.builder()
+                          .taskName(TASK).oldTaskName(TASK).options(mock(TaskOptionsPaneModel.class))
+                          .addAllActions(actions).itemsIdentified(true).build(),
+                       LINK, principal, false);
+      ArgumentCaptor<ScheduleTask> captor = ArgumentCaptor.forClass(ScheduleTask.class);
+      verify(scheduleService).saveTask(anyString(), captor.capture(), any());
+      assertEquals(1, captor.getValue().getActionCount());
+      assertEquals("b@x.com", ((ViewsheetAction) captor.getValue().getAction(0)).getEmails());
+      assertEquals("pwB", password(captor.getValue(), 0));
+   }
+
    private ViewsheetAction deleteFirstAction(ScheduleAction a, ScheduleAction b)
       throws Exception
    {
@@ -350,6 +437,12 @@ class ScheduleTaskItemPairingTest {
       action.setCompressFile(true);
       action.setPassword(password);
       action.setMatchLayout(true);
+      return action;
+   }
+
+   private static IndividualAssetBackupAction backup(String path, String password) {
+      IndividualAssetBackupAction action = new IndividualAssetBackupAction();
+      action.setServerPaths(new ServerPathInfo(path, "u", password));
       return action;
    }
 
