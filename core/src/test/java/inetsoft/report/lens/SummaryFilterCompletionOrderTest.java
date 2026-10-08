@@ -24,6 +24,7 @@ import inetsoft.report.filter.SummaryFilter;
 import inetsoft.report.internal.table.MergedTable;
 import inetsoft.test.*;
 import inetsoft.uql.table.XSwappableTable;
+import inetsoft.util.stall.LockStallException;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.context.ContextConfiguration;
@@ -34,13 +35,14 @@ import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
 import java.lang.reflect.Field;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * A summary filter whose pass failed to read the base fails a cell read that its completed
- * rows release, even while the worker has not yet marked the pass completed, it never reads
- * the empty rows as the end of the table (bug #78011).
+ * rows release, even before the worker marks the pass completed. It never reads the empty
+ * rows as the end of the table (bug #78011).
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class },
@@ -63,6 +65,43 @@ public class SummaryFilterCompletionOrderTest {
       assertThrows(SetTableLens.SetOperationException.class,
                    () -> summary.moreRows(TableLens.EOT));
 
+      assertGatedReadFails(summary, SetTableLens.SetOperationException.class, "baseFailure");
+   }
+
+   /**
+    * The same for a pass whose worker stalled reading the base: the read must fail with the
+    * stall, not return null (bug #76967).
+    */
+   @Test
+   public void getObjectReleasedByCompletedRowsOfStalledPassThrows() throws Exception {
+      AtomicBoolean stall = new AtomicBoolean();
+      DefaultTableLens base = new DefaultTableLens(data(5)) {
+         @Override
+         public Object getObject(int r, int c) {
+            if(stall.get()) {
+               throw new LockStallException("test base read", "worker", 1000, null);
+            }
+
+            return super.getObject(r, c);
+         }
+      };
+      SummaryFilter summary =
+         new SummaryFilter(base, new int[] { 0 }, new int[] { 1 }, new SumFormula(), null);
+      // the first read of the summary starts the worker, whose first base read stalls
+      stall.set(true);
+
+      assertGatedReadFails(summary, LockStallException.class, "stallFailure");
+   }
+
+   /**
+    * Hold the worker of the current pass right after it completes the rows of the pass, read
+    * past them, and assert that the read fails with the failure the pass recorded.
+    */
+   private static void assertGatedReadFails(SummaryFilter summary,
+                                            Class<? extends RuntimeException> type,
+                                            String failureField)
+      throws Exception
+   {
       Object pass = get(SummaryFilter.class, summary, "pass");
       XSwappableTable rows = (XSwappableTable) get(pass.getClass(), pass, "rows");
       GatedRows gated = new GatedRows(rows.getColCount(), Thread.currentThread(), summary);
@@ -73,12 +112,13 @@ public class SummaryFilterCompletionOrderTest {
       try {
          result = summary.getObject(1, 1);
       }
-      catch(SetTableLens.SetOperationException ex) {
+      catch(RuntimeException ex) {
+         assertInstanceOf(type, ex);
          assertTrue(gated.held, "the worker was held after it completed the rows");
          return;
       }
       finally {
-         gated.release(pass);
+         gated.release(pass, failureField);
       }
 
       // the pass as the reader saw it, the worker is still held
@@ -88,9 +128,9 @@ public class SummaryFilterCompletionOrderTest {
       // and once the worker finished it
       Thread.sleep(300);
       fail("a failed summary returned a result: " + result + ", the pass had completed=" +
-           completed + ", baseFailure=" + failure + " at the read, and completed=" +
-           get(pass.getClass(), pass, "completed") + ", baseFailure=" +
-           get(pass.getClass(), pass, "baseFailure") + " 300 ms later");
+           completed + ", " + failureField + "=" + failure + " at the read, and completed=" +
+           get(pass.getClass(), pass, "completed") + ", " + failureField + "=" +
+           get(pass.getClass(), pass, failureField) + " 300 ms later");
    }
 
    private static Object get(Class<?> type, Object obj, String name) throws Exception {
@@ -139,10 +179,10 @@ public class SummaryFilterCompletionOrderTest {
        * Called by the reader once its read returned, the worker is still held: keep the state
        * of the pass the reader saw, and let the worker go on.
        */
-      void release(Object pass) {
+      void release(Object pass, String failureField) {
          try {
             completedAtRead = get(pass.getClass(), pass, "completed");
-            failureAtRead = get(pass.getClass(), pass, "baseFailure");
+            failureAtRead = get(pass.getClass(), pass, failureField);
          }
          catch(Exception ex) {
             failureAtRead = ex;
