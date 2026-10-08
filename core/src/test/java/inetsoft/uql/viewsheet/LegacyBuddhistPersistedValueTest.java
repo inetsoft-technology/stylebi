@@ -94,6 +94,19 @@ class LegacyBuddhistPersistedValueTest {
       assertEquals("2539-02-29", table.getStateDataMap().get(new CellRef("s", 0)));
    }
 
+   // in a viewsheet the state of a text input replaces its value, so the info is read alone
+   @ParameterizedTest
+   @ValueSource(booleans = { true, false })
+   void textInputInfoValue(boolean on) throws Exception {
+      TextInputVSAssemblyInfo info = new TextInputVSAssemblyInfo();
+      info.setDataType(XSchema.DATE);
+      info.setValue(new java.sql.Date(date(1996, 2, 29)));
+      TextInputVSAssemblyInfo info2 = new TextInputVSAssemblyInfo();
+      parse(info2, legacy(toXML(info)), on);
+
+      assertDate(on, info2.getValue());
+   }
+
    @ParameterizedTest
    @ValueSource(booleans = { true, false })
    void viewsheetBookmarkState(boolean on) throws Exception {
