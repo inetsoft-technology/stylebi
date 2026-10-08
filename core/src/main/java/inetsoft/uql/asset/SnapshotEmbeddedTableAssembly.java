@@ -296,6 +296,9 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
     */
    public void setDataOwner(boolean dataOwner) {
       this.dataOwner = dataOwner;
+      // called with false when a copy is made for a worksheet that embeds the table, a table
+      // parsed from a stored worksheet is not one (bug #78036)
+      this.embeddedCopy = !dataOwner;
    }
 
    public void deleteDataFiles(String reason) {
@@ -576,6 +579,19 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
          frozenCopyPaths = getFrozenCopyDataPaths(repository, entry);
       }
 
+      // a frozen copy in a worksheet that is open and not saved yet is not stored, so it isn't
+      // found above (bug #78036)
+      if(saved && frozenCopyPaths != null &&
+         tables.stream().anyMatch(SnapshotEmbeddedTableAssembly::hasReplacedFiles))
+      {
+         Set<String> openPaths = getOpenFrozenCopyDataPaths();
+
+         if(!openPaths.isEmpty()) {
+            frozenCopyPaths = new HashSet<>(frozenCopyPaths);
+            frozenCopyPaths.addAll(openPaths);
+         }
+      }
+
       for(SnapshotEmbeddedTableAssembly table : tables) {
          if(table.finishSave(saved, frozenCopyPaths)) {
             failed.add(table.getName());
@@ -650,6 +666,50 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
          LOG.warn("Failed to read the worksheets embedding {}, its replaced snapshot data " +
                   "files are kept", entry, ex);
          return null;
+      }
+
+      return paths;
+   }
+
+   /**
+    * Get the data files that frozen outer copies in worksheets open in this server name without
+    * owning them. A worksheet that embeds a worksheet with Auto Update off, and is not saved yet,
+    * holds a copy of the embedded table that names the same files and is not stored, so it is not
+    * found by {@link #getFrozenCopyDataPaths}. The copy must keep its data until the mirror is
+    * updated, so the files are kept when the owner is saved, and the copy is not moved to the
+    * owner's new files (bug #78036). A copy of a mirror that updates on load is not frozen, it
+    * is copied again from the owner, and the copies made for a query of the owner's own table
+    * are not outer, so both are still moved to the new files (bug #58476).
+    * <p>
+    * Only the copies in this JVM are found, the snapshot tables are tracked per JVM. A copy
+    * that is open and not saved in another node of a cluster can't be known here, as before the
+    * files it names are deleted.
+    */
+   static Set<String> getOpenFrozenCopyDataPaths() {
+      List<SnapshotEmbeddedTableAssembly> holders = new ArrayList<>();
+
+      // the worksheets are locked after the list is released, to keep the lock order of the saves
+      synchronized(snapshots) {
+         for(Reference<SnapshotEmbeddedTableAssembly> ref : snapshots) {
+            SnapshotEmbeddedTableAssembly holder = ref.get();
+
+            if(holder != null && holder.isOuter() && holder.embeddedCopy) {
+               holders.add(holder);
+            }
+         }
+      }
+
+      Set<String> paths = new HashSet<>();
+
+      for(SnapshotEmbeddedTableAssembly holder : holders) {
+         String[] dataPaths = holder.getDataPaths();
+         Worksheet hws = holder.getWorksheet();
+
+         if(dataPaths != null && hws != null && !holder.ownsDataFiles() &&
+            hws.isFrozenOuterAssembly(holder))
+         {
+            paths.addAll(Arrays.asList(dataPaths));
+         }
       }
 
       return paths;
@@ -1413,6 +1473,9 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
    private boolean undo = false;
    // an outer copy wrote the data files it names, see ownsDataFiles() (bug #78022, #78023)
    private boolean dataOwner = false;
+   // set for the copy made when a worksheet is embedded, which is not stored until its worksheet
+   // is saved. it is cloned with the table, and it is not set for a parsed table (bug #78036)
+   private boolean embeddedCopy = false;
    private transient boolean dataPathsUpdated;
    // the last write of the data did not store it (bug #77986)
    private transient boolean dataWriteFailed;

@@ -181,6 +181,61 @@ class SnapshotOwnerFrozenCopyFilesTest {
       assertEquals("old4", table.getObject(5, 1));
    }
 
+   // bug #78036: W2 embeds W1 with Auto Update off and is not saved, so it is not in the
+   // dependency storage. W1's save in another session keeps its data
+   @Test
+   void unsavedFrozenCopyKeepsItsDataDuringOwnerSave() throws Exception {
+      AssetEntry e1 = entry("ofc_unsaved_w1");
+      String[] paths1 = saveOwner(e1, "old", 50);
+      Worksheet ws2 = embed(e1, false);
+      SnapshotEmbeddedTableAssembly copy = outerCopy(ws2);
+      assertArrayEquals(paths1, copy.getDataPaths());
+      repository().clearCache(e1);
+
+      String[] paths2 = resaveOwner(e1, "new", 80);
+
+      assertArrayEquals(paths1, copy.getDataPaths(), "unsaved frozen copy moved to W1's files");
+      assertFilesExist(paths1, true, "files of the unsaved frozen copy deleted by W1's save");
+      clearCaches(e1, paths1, paths2);
+      XSwappableTable table = copy.getTable();
+      table.moreRows(XTable.EOT);
+      assertEquals(51, table.getRowCount());
+      assertEquals("old4", table.getObject(5, 1));
+
+      // a second save of W1 still keeps them
+      resaveOwner(e1, "newer", 90);
+      assertFilesExist(paths1, true, "files of the unsaved frozen copy deleted by W1's 2nd save");
+      assertArrayEquals(paths1, copy.getDataPaths());
+
+      // saving W2 gives the copy its own files with the old data
+      AssetEntry e2 = entry("ofc_unsaved_w2");
+      save(ws2, e2);
+      assertTrue(copy.ownsDataFiles());
+      assertEquals("old4", coldLoad(e2, null, paths1, paths2).getObject(5, 1));
+   }
+
+   // control: an unsaved copy that updates on load is moved to W1's new files, as a copy used by
+   // a query of W1's own table is (bug #58476)
+   @Test
+   void unsavedAutoUpdateCopyIsMovedToNewFilesDuringOwnerSave() throws Exception {
+      AssetEntry e1 = entry("ofc_unsaved_auto_w1");
+      String[] paths1 = saveOwner(e1, "old", 50);
+      Worksheet ws2 = embed(e1, true);
+      SnapshotEmbeddedTableAssembly copy = outerCopy(ws2);
+      assertArrayEquals(paths1, copy.getDataPaths());
+      repository().clearCache(e1);
+
+      String[] paths2 = resaveOwner(e1, "new", 80);
+
+      assertFilesExist(paths1, false, "W1's replaced files not deleted");
+      assertArrayEquals(paths2, copy.getDataPaths());
+      clearCaches(e1, paths1);
+      XSwappableTable table = copy.getTable();
+      table.moreRows(XTable.EOT);
+      assertEquals(81, table.getRowCount());
+      assertEquals("new4", table.getObject(5, 1));
+   }
+
    // only the files the frozen copy names are kept, later replaced files of W1 are deleted, and an
    // auto-updated copy next to the frozen one gets W1's new data
    @Test
