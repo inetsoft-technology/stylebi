@@ -312,6 +312,37 @@ class SnapshotOuterCopyOwnershipTest {
       }
    }
 
+   // a save of W2 must not rewrite W1's files to clear their temp flag, they are W1's to keep
+   @Test
+   void savingEmbeddingWorksheetLeavesOwnerTempFilesAlone() throws Exception {
+      AssetEntry e1 = entry("own_temp_w1");
+      AssetEntry e2 = entry("own_temp_w2");
+      String[] paths1 = saveOwner(e1, "old", 50).getDataPaths();
+      Worksheet ws2 = embed(e1, true);
+      save(ws2, e2);
+
+      // W1 stored naming temp files, as a save after undo did before bug #78012
+      EmbeddedTableStorage storage = EmbeddedTableStorage.getInstance();
+
+      for(String path : paths1) {
+         byte[] data;
+
+         try(InputStream input = storage.readTable(path + "_s.tdat")) {
+            data = input.readAllBytes();
+         }
+
+         storage.writeTable(path + "_s.tdat", new ByteArrayInputStream(data), true);
+      }
+
+      save(ws2, e2);
+
+      for(String path : paths1) {
+         assertTrue(storage.isTempTable(path + "_s.tdat"), "W1's file rewritten by W2: " + path);
+      }
+
+      assertArrayEquals(paths1, storedCopy(e2).getDataPaths());
+   }
+
    // W1's own frozen copy of W0, copied into W2, still belongs to W1
    @Test
    void removingWorksheetKeepsFilesOfNestedCopy() throws Exception {
@@ -344,7 +375,7 @@ class SnapshotOuterCopyOwnershipTest {
       assertEquals(0, countExportedFiles(auto), "shared files exported with W2");
    }
 
-   // a failed save of W1 queued its stored files for deletion, a save of W2 must not delete them
+   // after a failed save of W1, which wrote new files, a save of W2 must not delete W1's stored ones
    @Test
    void savingEmbeddingWorksheetAfterFailedOwnerSaveKeepsOwnerFiles() throws Exception {
       AssetEntry e1 = entry("own_failed_w1");
@@ -399,7 +430,7 @@ class SnapshotOuterCopyOwnershipTest {
 
    /**
     * Give both tables of W1 new data and save it, the write of the second table fails after the
-    * first one queued its old files for deletion.
+    * first one wrote its new files.
     */
    private void failOwnerSave(AssetEntry entry) throws Exception {
       Worksheet ws = open(entry);
