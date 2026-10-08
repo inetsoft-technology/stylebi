@@ -26,8 +26,7 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Helpers of the lock-stall watchdog tests (bug #76967). The test's own reader threads come
@@ -140,6 +139,30 @@ public final class StallTestSupport {
       }
 
       throw new AssertionError("not a lock stall: " + failure, failure);
+   }
+
+   /**
+    * Check that {@code actual} is {@code expected} or a copy of it: the same class, message,
+    * fields and cause. A table keeps a copy of a stall it rethrows to its later readers, and
+    * the script engine rethrows a copy, so the stall is not always the same instance
+    * (bug #78084).
+    */
+   public static void assertStallOf(LockStallException expected, Throwable actual,
+                                    String message)
+   {
+      assertNotNull(actual, message);
+      assertEquals(expected.getClass(), actual.getClass(), message);
+      LockStallException stall = (LockStallException) actual;
+      assertEquals(expected.getMessage(), stall.getMessage(), message);
+      assertEquals(expected.getSite(), stall.getSite(), message);
+      assertEquals(expected.getThreadName(), stall.getThreadName(), message);
+      assertEquals(expected.getStalledMillis(), stall.getStalledMillis(), message);
+      assertEquals(expected.getDumpPath(), stall.getDumpPath(), message);
+      assertSame(expected.getCause(), stall.getCause(), message);
+   }
+
+   public static void assertStallOf(LockStallException expected, Throwable actual) {
+      assertStallOf(expected, actual, null);
    }
 
    public static void awaitTrue(BooleanSupplier condition, long capSeconds, String what)

@@ -457,7 +457,7 @@ public class SummaryFilterTest {
       SwapFileReadException lost = swapLost();
       SummaryFilter summary = summary(new LostTable(values(40), 21, lost));
 
-      Assertions.assertSame(lost, swapIn(failureOf(15, () -> drain(summary))));
+      assertSwapOf(lost, swapIn(failureOf(15, () -> drain(summary))));
    }
 
    /**
@@ -469,7 +469,7 @@ public class SummaryFilterTest {
       SummaryFilter summary =
          summary(new LostTable(values(40), 21, new RuntimeException("wrapped", lost)));
 
-      Assertions.assertSame(lost, swapIn(failureOf(15, () -> drain(summary))));
+      assertSwapOf(lost, swapIn(failureOf(15, () -> drain(summary))));
    }
 
    private static SummaryFilter summary(DefaultTableLens base) {

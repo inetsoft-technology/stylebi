@@ -114,14 +114,14 @@ public class LensStallTest {
       TableLens lens = pool.submit(() -> build(kind, base)).get(15, TimeUnit.SECONDS);
       Future<List<List<Object>>> reader = pool.submit(() -> drain(lens));
 
-      assertSame(original, stallIn(failureOf(reader, 15)).getCause());
+      assertStallOf(original, stallIn(failureOf(reader, 15)).getCause());
 
       // the rows so far are not the whole table either
       Future<Integer> count = pool.submit(lens::getRowCount);
-      assertSame(original, stallIn(failureOf(count, 15)).getCause(),
+      assertStallOf(original, stallIn(failureOf(count, 15)).getCause(),
                  "getRowCount() rethrows the worker's stall");
       Future<Object> value = pool.submit(() -> lens.getObject(1000, 1));
-      assertSame(original, stallIn(failureOf(value, 15)).getCause(),
+      assertStallOf(original, stallIn(failureOf(value, 15)).getCause(),
                  "getObject() past the rows so far rethrows the worker's stall");
    }
 
@@ -140,9 +140,9 @@ public class LensStallTest {
       TableLens lens = pool.submit(() -> build(kind, base)).get(15, TimeUnit.SECONDS);
       Future<List<List<Object>>> reader = pool.submit(() -> drain(lens));
 
-      assertSame(original, stallIn(failureOf(reader, 15)).getCause(),
+      assertStallOf(original, stallIn(failureOf(reader, 15)).getCause(),
                  "the reader rethrows the wrapped stall");
-      assertSame(original, stallIn(failureOf(pool.submit(lens::getRowCount), 15)).getCause());
+      assertStallOf(original, stallIn(failureOf(pool.submit(lens::getRowCount), 15)).getCause());
    }
 
    @ParameterizedTest
@@ -165,9 +165,9 @@ public class LensStallTest {
 
       try {
          LockStallException stall = assertThrows(LockStallException.class, () -> drain(lens));
-         assertSame(original, stallIn(stall.getCause()),
+         assertStallOf(original, stallIn(stall.getCause()),
                     "the lock holder rethrows the wrapped stall");
-         assertSame(original, stallIn(assertThrows(LockStallException.class, lens::getRowCount)
+         assertStallOf(original, stallIn(assertThrows(LockStallException.class, lens::getRowCount)
                                          .getCause()), "getRowCount() rethrows the stall");
       }
       finally {
@@ -180,7 +180,7 @@ public class LensStallTest {
       int row = kind == Kind.SET ? 1 : 1000;
       long start = System.nanoTime();
       Future<Boolean> other = pool.submit(() -> lens.moreRows(row));
-      assertSame(original, stallIn(failureOf(other, 15)).getCause());
+      assertStallOf(original, stallIn(failureOf(other, 15)).getCause());
       // the same stall shows it is the worker's, not one of the second reader; the bound only
       // catches a hang and leaves slack for a loaded machine
       assertTrue(System.nanoTime() - start < TimeUnit.SECONDS.toNanos(5),
@@ -196,10 +196,10 @@ public class LensStallTest {
       Future<List<List<Object>>> reader = pool.submit(() -> drain(lens));
 
       // the worker's stall is rethrown at once, not after a stall of the reader
-      assertSame(original, stallIn(failureOf(reader, 15)).getCause());
+      assertStallOf(original, stallIn(failureOf(reader, 15)).getCause());
       assertTrue(System.nanoTime() - start < TimeUnit.SECONDS.toNanos(5),
                  "rethrown at once, not after a hang of the reader");
-      assertSame(original, stallIn(failureOf(pool.submit(lens::getRowCount), 15)).getCause(),
+      assertStallOf(original, stallIn(failureOf(pool.submit(lens::getRowCount), 15)).getCause(),
                  "getRowCount() rethrows the worker's stall");
    }
 

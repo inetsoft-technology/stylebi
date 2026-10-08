@@ -39,6 +39,7 @@ import inetsoft.util.script.ScriptSpan;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.stall.WaitRecord;
 import inetsoft.util.stall.WaitRegistry;
+import inetsoft.util.swap.DataUnavailable;
 import inetsoft.util.swap.SwapFileReadException;
 import inetsoft.util.swap.XSwappableObjectList;
 import inetsoft.util.swap.XSwapper;
@@ -957,8 +958,10 @@ public class SummaryFilter extends AbstractGroupedTable
       }
       catch(LockStallException ex) {
          // the readers rethrow it rather than take the rows so far for the whole table
-         // (bug #76967)
-         pass.stallFailure = ex;
+         // (bug #76967). a copy is kept, which is never thrown: the stall is thrown on, maybe
+         // through a script, which adds a suppressed stack trace element that cannot be
+         // serialized to it (bug #78084)
+         pass.stallFailure = ex.copy();
          throw ex;
       }
       catch(RuntimeException ex) {
@@ -966,7 +969,8 @@ public class SummaryFilter extends AbstractGroupedTable
          LockStallException stall = LockStallException.find(ex);
 
          if(stall != null) {
-            pass.stallFailure = stall;
+            // a copy, which is never thrown (bug #78084)
+            pass.stallFailure = stall.copy();
          }
          // nor take the rows so far of a lost swap file of the base (bug #77651), of a base
          // that failed to load for a reader that has to fail, e.g. a scheduled run (bug #77901),
@@ -994,7 +998,8 @@ public class SummaryFilter extends AbstractGroupedTable
       }
 
       if(baseFailure != null && pass.stallFailure == null) {
-         pass.baseFailure = baseFailure;
+         // a copy, which is never thrown, as for a stall (bug #78084)
+         pass.baseFailure = DataUnavailable.copy(baseFailure);
       }
 
       return baseFailure != null;
@@ -2242,7 +2247,8 @@ public class SummaryFilter extends AbstractGroupedTable
       RuntimeException failure = pass.baseFailure;
 
       if(pass.completed && failure != null) {
-         throw failure;
+         // a new instance of a lost swap file or a load failure for each reader (bug #78084)
+         throw DataUnavailable.copy(failure);
       }
    }
 

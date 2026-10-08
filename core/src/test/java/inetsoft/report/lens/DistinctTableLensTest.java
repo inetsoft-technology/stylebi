@@ -35,6 +35,8 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import java.io.File;
 import java.io.IOException;
 
+import static inetsoft.util.swap.SwapLostTestSupport.assertSwapOf;
+
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
@@ -61,7 +63,7 @@ public class DistinctTableLensTest {
       FailingBase base = new FailingBase(failure, 3);
       DistinctTableLens lens = new DistinctTableLens(base, DISTINCT_COLS, false);
 
-      Assertions.assertSame(failure, Assertions.assertThrows(
+      assertSwapOf(failure, Assertions.assertThrows(
          SwapFileReadException.class, () -> lens.moreRows(XTable.EOT)));
    }
 
@@ -79,7 +81,7 @@ public class DistinctTableLensTest {
       FailingSortedBase base = new FailingSortedBase(failure, 3);
       DistinctTableLens lens = new DistinctTableLens(base, DISTINCT_COLS, false);
 
-      Assertions.assertSame(failure, Assertions.assertThrows(
+      assertSwapOf(failure, Assertions.assertThrows(
          SwapFileReadException.class, () -> lens.moreRows(XTable.EOT)));
    }
 
@@ -96,7 +98,7 @@ public class DistinctTableLensTest {
       FailingBase base = new FailingBase(failure, 3);
       DistinctTableLens lens = new DistinctTableLens(base, DISTINCT_COLS_SINGLE, false);
 
-      Assertions.assertSame(failure, Assertions.assertThrows(
+      assertSwapOf(failure, Assertions.assertThrows(
          SwapFileReadException.class, () -> lens.moreRows(XTable.EOT)));
    }
 
