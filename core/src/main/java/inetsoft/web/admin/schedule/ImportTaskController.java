@@ -39,6 +39,7 @@ import org.springframework.web.bind.annotation.*;
 import org.w3c.dom.*;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.security.Principal;
 import java.util.*;
@@ -205,12 +206,13 @@ public class ImportTaskController {
                continue;
             }
 
-            // Bug #77549, a batch action query in another organization is refused by
-            // setScheduleTask, check it first so the refusal doesn't abort the rest of the import
+            // Bug #77549, #77972, every refusal of setScheduleTask (e.g. a batch action query in
+            // another organization or a batch action target task the caller may not see) is
+            // checked first so the refusal doesn't abort the rest of the import
             try {
-               scheduleManager.checkBatchQueryOrganization(taskId, task, principal);
+               scheduleManager.checkScheduleTaskSave(taskId, task, principal);
             }
-            catch(inetsoft.sree.security.SecurityException e) {
+            catch(inetsoft.sree.security.SecurityException | IOException e) {
                LOG.warn("Task {} is not imported: {}", taskId, e.getMessage());
                failedList.add(taskId);
                continue;

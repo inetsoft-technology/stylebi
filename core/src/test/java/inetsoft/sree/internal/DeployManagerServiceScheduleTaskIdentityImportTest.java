@@ -274,7 +274,9 @@ class DeployManagerServiceScheduleTaskIdentityImportTest {
 
          ArgumentCaptor<ScheduleTask> stored = ArgumentCaptor.forClass(ScheduleTask.class);
          verify(scheduleManager).setScheduleTask(anyString(), stored.capture(), isNull(),
-                                                 any(Principal.class));
+                                                 any(Principal.class),
+                                                 // Bug #77972, saved with the replaced task as the baseline
+                                                 nullable(ScheduleTask.class));
          assertEquals(BOB, stored.getValue().getOwner());
          assertTrue(stored.getValue().isRemovable());
          assertTrue(stored.getValue().isEditable());

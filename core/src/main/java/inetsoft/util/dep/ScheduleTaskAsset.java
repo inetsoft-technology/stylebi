@@ -383,7 +383,8 @@ public class ScheduleTaskAsset extends AbstractXAsset {
             manager.removeScheduleTask(newTask.getTaskId(), principal);
          }
 
-         manager.setScheduleTask(newTask.getTaskId(), newTask, null, principal);
+         // Bug #77972, the batch action targets are checked against the removed task's targets
+         manager.setScheduleTask(newTask.getTaskId(), newTask, null, principal, existing);
 
          if(folders != null) {
             moveTask(newTask, parentPath, indexedStorage, manager, principal);
