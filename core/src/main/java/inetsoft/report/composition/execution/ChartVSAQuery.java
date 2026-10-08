@@ -227,6 +227,16 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
       return dataset;
    }
 
+   /**
+    * The chart data set reads all rows of the table before it is returned, so a cancel of
+    * the query manager after the fetch started may have cut it short. A show details
+    * table is read later and checked when it is read.
+    */
+   @Override
+   public boolean isDataCancelled(Object data) {
+      return !(data instanceof TableLens) && isFetchCancelled();
+   }
+
    @Override
    public TableAssembly createBindableTable() {
       for_bindable = true;

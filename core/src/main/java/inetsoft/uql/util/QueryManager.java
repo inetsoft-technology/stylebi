@@ -120,6 +120,7 @@ public class QueryManager {
       synchronized(this) {
          queries = new ArrayList<>(this.queries);
          ts = System.currentTimeMillis();
+         cancelCount++;
       }
 
       int cnt = 0;
@@ -137,6 +138,36 @@ public class QueryManager {
       }
 
       return cnt;
+   }
+
+   /**
+    * Cancel all pending queries for a new query of the same source, which cancels the
+    * queries it replaces when it starts.
+    * @return the cancelled query count.
+    */
+   public int cancelForQuery() {
+      // counted before the cancel, so a cancel count read at any time never includes this
+      // cancel without counting it as a query's cancel
+      synchronized(this) {
+         queryCancelCount++;
+      }
+
+      return cancel();
+   }
+
+   /**
+    * Get the number of times the pending queries were cancelled.
+    */
+   public synchronized long getCancelCount() {
+      return cancelCount;
+   }
+
+   /**
+    * Get the number of times the pending queries were cancelled for a new query, see
+    * {@link #cancelForQuery()}.
+    */
+   public synchronized long getQueryCancelCount() {
+      return queryCancelCount;
    }
 
    /**
@@ -161,6 +192,8 @@ public class QueryManager {
    private static Map cancelled = Collections.synchronizedMap(new WeakHashMap());
    private List<WeakReference> queries = new ArrayList<>();
    private long ts = 0L;
+   private long cancelCount = 0L;
+   private long queryCancelCount = 0L;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(QueryManager.class);
