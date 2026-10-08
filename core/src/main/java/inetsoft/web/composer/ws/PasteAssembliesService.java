@@ -134,16 +134,11 @@ public class PasteAssembliesService extends WorksheetControllerService {
          return;
       }
 
-      Worksheet ws = rws.getWorksheet();
-      java.util.List<AssetEntry> outer = new ArrayList<>(
-         Arrays.asList(ws.getOuterDependents()));
       Worksheet sws = srws.getWorksheet();
       // source worksheet entry
       AssetEntry sentry = srws.getEntry();
       // current worksheet entry
       AssetEntry entry = rws.getEntry();
-      outer.add(entry);
-      outer.add(sentry);
       Set<String> copied = new HashSet<>();
 
       for(int i = 0; i < nnames.length; i++) {
@@ -159,11 +154,12 @@ public class PasteAssembliesService extends WorksheetControllerService {
             AssetEntry tentry = ((MirrorAssembly) ass).getEntry();
             MirrorAssembly mass = (MirrorAssembly) ass;
 
-            if(tentry == null || outer.contains(tentry)) {
+            // paste the mirror's own copies even if the current worksheet already embeds
+            // the same worksheet. Sharing the existing copies loses a frozen mirror's rows,
+            // and an auto mirror sharing a frozen mirror's copies unfreezes them (bug #78037)
+            if(tentry == null || tentry.equals(entry) || tentry.equals(sentry)) {
                continue;
             }
-
-            outer.add(entry);
 
             // do not use AssetUtil.copyOuterAssemblies, cause the mirror
             // outer assembly may be not auto update. Find the copies from the mirror, not by
