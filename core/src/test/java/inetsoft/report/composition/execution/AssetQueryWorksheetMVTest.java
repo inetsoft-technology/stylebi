@@ -18,6 +18,7 @@
 package inetsoft.report.composition.execution;
 
 import inetsoft.mv.*;
+import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.IdentityID;
@@ -223,6 +224,29 @@ class AssetQueryWorksheetMVTest {
       assertFalse(subQuery(createQuery(box, root, AssetQuerySandbox.RUNTIME_MODE, false))
                      instanceof MVAssetQuery);
       verifyNoLookup();
+   }
+
+   @Test
+   void runtimeWorksheetOfAViewsheetKeepsTheMV() throws Exception {
+      // the viewer and the export wrap the viewsheet box in a runtime worksheet before the
+      // queries, e.g. CoreLifecycleService.executeVariablesQuery
+      AssetQuerySandbox box = viewsheetBox();
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getBaseWorksheet()).thenReturn(ws);
+      when(vs.getBaseEntry()).thenReturn(wsEntry);
+      ViewsheetSandbox vbox = mock(ViewsheetSandbox.class);
+      when(vbox.getAssetQuerySandbox()).thenReturn(box);
+      when(vbox.getUser()).thenReturn(user);
+      RuntimeViewsheet rvs = new RuntimeViewsheet();
+      setField(rvs, "vs", vs);
+      setField(rvs, "box", vbox);
+
+      RuntimeWorksheet rws = rvs.getRuntimeWorksheet();
+
+      assertSame(box, rws.getAssetQuerySandbox());
+      assertFalse(box.isRuntimeWorksheet());
+      assertInstanceOf(MVAssetQuery.class,
+                       subQuery(createQuery(box, root, AssetQuerySandbox.RUNTIME_MODE, false)));
    }
 
    @Test
@@ -475,6 +499,12 @@ class AssetQueryWorksheetMVTest {
       ColumnRef col = new ColumnRef(new AttributeRef(entity, name));
       col.setDataType(type);
       return col;
+   }
+
+   private static void setField(Object obj, String name, Object value) throws Exception {
+      Field field = obj.getClass().getDeclaredField(name);
+      field.setAccessible(true);
+      field.set(obj, value);
    }
 
    private static Object invoke(Object obj, String name) throws Exception {
