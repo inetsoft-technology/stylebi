@@ -227,6 +227,24 @@ export class TaskOptionsPane {
       return !!this.optionsForm.get("taskEnabled").value;
    }
 
+   /**
+    * Bug #78038, a task without an execute-as identity runs as its owner, so the Execute As
+    * field shows the owner as its placeholder. This is display only. The owner is never written
+    * to the executeAs control or to model.idName, or it would be saved as an explicit execute-as
+    * identity that no longer follows the owner (#77512). Computed on every change detection, so
+    * it follows owner changes (model.owner is updated in fireModelChanged) and the late arrival
+    * of the admin name.
+    */
+   get executeAsFallback(): string {
+      // no fallback for an explicit identity, for the anonymous rule ("") or when the
+      // execute-as identity is blank because security is disabled
+      if(!this.model || this._executeAs != null || this.adminName && !this.model.securityEnabled) {
+         return null;
+      }
+
+      return this.model.owner || null;
+   }
+
    fireModelChanged(): void {
       const tzValue = this.optionsForm.get("timeZone").value as TimeZoneValue;
       this.model.enabled = !!this.optionsForm.get("taskEnabled").value;
