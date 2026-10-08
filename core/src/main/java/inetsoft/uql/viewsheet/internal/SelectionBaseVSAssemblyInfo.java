@@ -523,9 +523,15 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
       writer.print(" sortType=\"" + getSortType() + "\"");
       writer.print(" sortTypeValue=\"" + sortTypeValue.getDValue() + "\"");
       writer.print(" showText=\"" + isShowText() + "\"");
-      writer.print(" showTextValue=\"" + isShowTextValue() + "\"");
+      // persist the stored design values, not isShowTextValue()/isShowBarValue(),
+      // so a $(var), =expr or truthy literal such as "yes" is not rewritten to false
+      String showTextValue = mtextValue.getDValue();
+      writer.print(" showTextValue=\"" +
+         Tool.escape(showTextValue == null ? "true" : showTextValue) + "\"");
       writer.print(" showBar=\"" + isShowBar() + "\"");
-      writer.print(" showBarValue=\"" + isShowBarValue() + "\"");
+      String showBarValue = mbarValue.getDValue();
+      writer.print(" showBarValue=\"" +
+         Tool.escape(showBarValue == null ? "false" : showBarValue) + "\"");
       writer.print(" listHeight=\"" + listHeight + "\"");
       writer.print(" cellHeight=\"" + cellHeight + "\"");
       writer.print(" listHeightScale=\"" + listHeightScale + "\"");
