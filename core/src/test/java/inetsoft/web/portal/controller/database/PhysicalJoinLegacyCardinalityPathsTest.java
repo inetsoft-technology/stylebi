@@ -125,6 +125,9 @@ class PhysicalJoinLegacyCardinalityPathsTest {
       setCardinality(normal.getRelationship(0), XRelationship.MANY, XRelationship.ONE);
       ObjectNode json = clientJson(normal, "ORDERS", "CUSTOMERS", false);
       assertEquals(JoinCardinality.MANY_TO_ONE.toValue(), json.get("cardinality").asInt());
+
+      // an untouched legacy view has trap checking off
+      assertFalse(trap(legacyPartition(), "ORDERS", "CUSTOMERS").isCheckTrap());
    }
 
    // ---------------------------------------------------------------- legacy edits
@@ -251,6 +254,23 @@ class PhysicalJoinLegacyCardinalityPathsTest {
 
       assertCardinality(find(stored(id), "ORDERS", "CUSTOMERS"),
                         XRelationship.MANY, XRelationship.ONE);
+   }
+
+   @Test
+   void newJoinWithoutCardinalityIsStoredAsManyToMany() throws Exception {
+      // e.g. the public REST API (Join.toJoinModel) passes an omitted cardinality as null;
+      // only the edit paths keep a stored 0/0, a new join is still stored as MANY/MANY
+      ObjectNode json = newJoin("ORDERS", "CUSTOMERS");
+      json.putNull("cardinality");
+
+      String id = open(twoTables());
+      manager.addJoin(id, objectMapper.treeToValue(json, JoinModel.class), "ORDERS");
+      assertCardinality(find(stored(id), "ORDERS", "CUSTOMERS"),
+                        XRelationship.MANY, XRelationship.MANY);
+
+      XRelationship created = PhysicalModelService.createJoin(
+         "ORDERS", objectMapper.treeToValue(json, JoinModel.class));
+      assertCardinality(created, XRelationship.MANY, XRelationship.MANY);
    }
 
    @Test

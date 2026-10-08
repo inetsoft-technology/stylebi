@@ -358,7 +358,16 @@ public class PhysicalGraphModelController {
       }
 
       XRelationship join = joins.getFirst();
+      int dependentCardinality = join.getDependentCardinality();
+      int independentCardinality = join.getIndependentCardinality();
       event.getJoinModel().store(join.getDependentTable(), join);
+
+      // a legacy join without a stored cardinality (0/0) is sent as null, keep it as is
+      if(event.getJoinModel().getCardinality() == null) {
+         join.setDependentCardinality(dependentCardinality);
+         join.setIndependentCardinality(independentCardinality);
+      }
+
       runtimePartitionService.updatePartition(event.getDetailJoinInfo().getRuntimeId(), partition);
    }
 

@@ -138,11 +138,6 @@ public class JoinModel {
       relationship.setOrder(getOrderPriority());
       relationship.setWeakJoin(isWeak());
 
-      // a legacy join without a stored cardinality (0/0) is sent as null, keep it as is
-      if(getCardinality() == null) {
-         return;
-      }
-
       if(getCardinality() == JoinCardinality.ONE_TO_ONE) {
          relationship.setDependentCardinality(XRelationship.ONE);
          relationship.setIndependentCardinality(XRelationship.ONE);
