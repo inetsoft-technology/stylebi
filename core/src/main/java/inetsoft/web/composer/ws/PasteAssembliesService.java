@@ -144,7 +144,7 @@ public class PasteAssembliesService extends WorksheetControllerService {
       AssetEntry entry = rws.getEntry();
       outer.add(entry);
       outer.add(sentry);
-      int len = sws.getAssemblies().length;
+      Set<String> copied = new HashSet<>();
 
       for(int i = 0; i < nnames.length; i++) {
          Assembly ass = sws.getAssembly(nnames[i]);
@@ -164,19 +164,16 @@ public class PasteAssembliesService extends WorksheetControllerService {
             }
 
             outer.add(entry);
-            String prefix = AssetUtil.createPrefix(tentry);
 
             // do not use AssetUtil.copyOuterAssemblies, cause the mirror
-            // outer assembly may be not auto update
-            for(int j = 0; j < len; j++) {
-               WSAssembly wass = (WSAssembly) sws.getAssembly(prefix + j);
-
-               if(wass != null && wass.isOuter() &&
-                  !ws.containsAssembly(prefix + j))
-               {
-                  WSAssembly nass = copyAssembly(rws, wass.getName(), runtimeId, event, principal,
-                                                 nameMap,
-                                                 x, y, pos.x, pos.y, true);
+            // outer assembly may be not auto update. Find the copies from the mirror, not by
+            // the name prefix of its worksheet, which the copies don't have after that
+            // worksheet is renamed (bug #78030). A copy whose name is taken in the target is
+            // pasted with a new name, and the mirror is pointed to it through nameMap
+            for(WSAssembly wass : sws.getOuterCopies(mass)) {
+               if(copied.add(wass.getName())) {
+                  copyAssembly(rws, wass.getName(), runtimeId, event, principal, nameMap,
+                               x, y, pos.x, pos.y, true);
                }
             }
          }
