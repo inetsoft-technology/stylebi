@@ -673,6 +673,8 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
                // save position to server
                this.http.put(MOVE_GRAPH_NODE_URI, event)
                   .pipe(finalize(() => {
+                     // the same object is emitted again: the pane matches it by identity
+                     // to tell whether it is still the node's latest move
                      move.saved = !!move.saved;
                      this.onNodeMove.emit(move);
                   }))

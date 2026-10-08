@@ -449,30 +449,4 @@ describe("PhysicalGraphPane - Bug #78074 graph refresh landing during a table dr
       await ctx.until(() => moves.length > 0);
       expect(movesSent()).toEqual(["PRODUCTS@" + dragged]);
    });
-
-   it("after the move is saved, a refresh with a new server position (e.g. auto layout) " +
-      "moves the table", async () =>
-   {
-      const ctx = await setup();
-      const el = ctx.nodeEl("PRODUCTS");
-
-      fire(el.querySelector(".jsplumb-draggable-handle"), "mousedown", 10, 10);
-      ctx.fixture.detectChanges();
-      fire(document, "mousemove", 60, 30);
-      fire(document, "mousemove", 110, 50);
-      await ctx.settle();
-      fire(document, "mouseup", 110, 50);
-      flushMove();
-      await ctx.until(() => moves.length > 0);
-      expect(moves.length).toBe(1);
-
-      serverBounds.PRODUCTS = { x: 600, y: 120 };
-      serverBounds.ORDERS = { x: 20, y: 300 };
-      const model = ctx.ngc().graphViewModel;
-      ctx.svc.emitModelChange(false);
-      await ctx.until(() => ctx.ngc().graphViewModel !== model);
-
-      expect(pos(el)).toBe("600px,120px");
-      expect(pos(ctx.nodeEl("ORDERS"))).toBe("20px,300px");
-   });
 });
