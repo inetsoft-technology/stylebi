@@ -23,6 +23,7 @@ import inetsoft.util.FileSystemService;
 import java.io.File;
 import java.io.Serializable;
 import java.util.Comparator;
+import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
 /**
  * XSwappable, it is swappable to save memory.
@@ -113,11 +114,31 @@ public abstract class XSwappable implements Serializable {
    }
 
    /**
-    * Get the file by name.
+    * Get the file by name. The file is in the cache directory that was in effect when this
+    * swappable first resolved a file, so the files it swapped out are still found (and deleted)
+    * after <tt>replet.cache.directory</tt> is changed. A changed directory applies to new
+    * swappables only.
     * @return the file by name.
     */
    protected final File getFile(String name) {
-      return FileSystemService.getInstance().getCacheFile(name);
+      // always resolved through the service, which creates the cache directory
+      File file = FileSystemService.getInstance().getCacheFile(name);
+      File dir = swapDirectory;
+
+      if(dir == null && file != null && file.getParentFile() != null) {
+         // set once, so concurrent first calls agree on one directory
+         if(SWAP_DIRECTORY.compareAndSet(this, null, file.getParentFile())) {
+            return file;
+         }
+
+         dir = swapDirectory;
+      }
+
+      if(dir != null && (file == null || !dir.equals(file.getParentFile()))) {
+         return new File(dir, name);
+      }
+
+      return file;
    }
 
    /**
@@ -159,6 +180,8 @@ public abstract class XSwappable implements Serializable {
       try {
          XSwappable swap = (XSwappable) super.clone();
          swap.initPrefix();
+         // the clone has its own files, which go to the current cache directory
+         swap.swapDirectory = null;
          return swap;
       }
       catch(Exception ex) {
@@ -202,6 +225,10 @@ public abstract class XSwappable implements Serializable {
       Integer.parseInt(SreeEnv.getProperty("swappable.alive.period", "1500"));
    protected String prefix;
    protected transient XSwapper swapper;
+   // the cache directory of this swappable's files, set by the first getFile() call
+   private transient volatile File swapDirectory;
+   private static final AtomicReferenceFieldUpdater<XSwappable, File> SWAP_DIRECTORY =
+      AtomicReferenceFieldUpdater.newUpdater(XSwappable.class, File.class, "swapDirectory");
    private transient double priority;
    private transient Comparator comp;
 }

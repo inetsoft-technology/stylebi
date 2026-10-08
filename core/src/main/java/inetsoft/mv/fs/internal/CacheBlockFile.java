@@ -41,6 +41,15 @@ public class CacheBlockFile implements BlockFile {
       this.cacheFile = FileSystemService.getInstance().getCacheFile(name);
    }
 
+   /**
+    * Create a block file for a cache file that was already resolved, e.g. in the directory a
+    * swappable keeps its swap files in.
+    */
+   public CacheBlockFile(String name, File cacheFile) {
+      this.name = name;
+      this.cacheFile = cacheFile;
+   }
+
    public CacheBlockFile(String prefix, String suffix) {
       this.cacheFile = FileSystemService.getInstance().getCacheTempFile(prefix, suffix);
       this.name = cacheFile.getName();
