@@ -65,6 +65,8 @@ class VSUtilGetBookmarksScriptTest {
    private static final String SHEET = FOLDER + "/Sheet";
    // a sheet of aliceA's own organization that she has no READ grant on
    private static final String HIDDEN_SHEET = FOLDER + "/Hidden";
+   // annA's private (USER_SCOPE) sheet
+   private static final String PRIVATE_SHEET = "Private78057";
 
    // lists the bookmarks the script gets as name|owner, and mints an IdentityID for any
    // user without Java.type('...IdentityID') through a USER-scope asset identifier
@@ -82,6 +84,7 @@ class VSUtilGetBookmarksScriptTest {
    private AssetEntry entryA;
    private AssetEntry entryB;
    private AssetEntry hiddenEntryA;
+   private AssetEntry annPrivateEntry;
    private String oldProvider;
    private Principal savedContextPrincipal;
    private Principal savedPrincipal;
@@ -106,6 +109,13 @@ class VSUtilGetBookmarksScriptTest {
          .grantPermission(ResourceType.REPORT, SHEET, ResourceAction.READ,
                           "aliceA", Identity.USER, ORG_A)
          .markPermissionEdited(ResourceType.REPORT, SHEET, ORG_A)
+         // both may use My Dashboards, so only the owner check refuses aliceA on annA's
+         // private sheet
+         .grantPermission(ResourceType.MY_DASHBOARDS, "*", ResourceAction.READ,
+                          "aliceA", Identity.USER, ORG_A)
+         .grantPermission(ResourceType.MY_DASHBOARDS, "*", ResourceAction.READ,
+                          "annA", Identity.USER, ORG_A)
+         .markPermissionEdited(ResourceType.MY_DASHBOARDS, "*", ORG_A)
          .setup();
 
       entryA = saveSheet(SHEET, ORG_A);
@@ -116,6 +126,9 @@ class VSUtilGetBookmarksScriptTest {
       saveBookmarks(entryB, new IdentityID("bobB", ORG_B), "BobPrivate", "BobShared");
       saveBookmarks(hiddenEntryA, new IdentityID("annA", ORG_A), "AnnHiddenPrivate",
                     "AnnHiddenShared");
+      annPrivateEntry = savePrivateSheet(PRIVATE_SHEET, new IdentityID("annA", ORG_A));
+      saveBookmarks(annPrivateEntry, new IdentityID("annA", ORG_A), "AnnOwnPrivate",
+                    "AnnOwnShared");
 
       SRPrincipal alice = builder.principalOf("aliceA", ORG_A);
       ThreadContext.setContextPrincipal(alice);
@@ -175,6 +188,27 @@ class VSUtilGetBookmarksScriptTest {
                               ORG_A + "')))"));
       assertEquals("", run("list(V.getBookmarks(" + q(hiddenEntryA) + ", id('annA', '" +
                               ORG_A + "')))"));
+   }
+
+   /**
+    * Another same-org user's private sheet lists nothing, while its owner still gets her
+    * view, so the check is the one opening the viewsheet uses. (Bug #78057)
+    */
+   @Test
+   void otherUsersPrivateSheetListsNothing() throws Exception {
+      assertEquals("", run("list(V.getBookmarks(" + q(annPrivateEntry) + ", id('aliceA', '" +
+                              ORG_A + "')))"));
+      assertEquals("", run("list(V.getBookmarks(" + q(annPrivateEntry) + ", id('annA', '" +
+                              ORG_A + "')))"));
+
+      SRPrincipal ann = builder.principalOf("annA", ORG_A);
+      ThreadContext.setContextPrincipal(ann);
+      ThreadContext.setPrincipal(ann);
+      Object own = run("list(V.getBookmarks(" + q(annPrivateEntry) + ", id('annA', '" +
+                          ORG_A + "')))");
+
+      assertInstanceOf(String.class, own, String.valueOf(own));
+      assertTrue(((String) own).contains("AnnOwnShared|annA@" + ORG_A), String.valueOf(own));
    }
 
    /** A minted other-org id on that org's sheet lists nothing. */
@@ -271,6 +305,22 @@ class VSUtilGetBookmarksScriptTest {
             repository.addFolder(folder, null);
          }
 
+         repository.setSheet(entry, new Viewsheet(), null, true);
+      }
+      finally {
+         OrganizationContextHolder.setCurrentOrgId(null);
+      }
+
+      return entry;
+   }
+
+   private static AssetEntry savePrivateSheet(String path, IdentityID owner) throws Exception {
+      AssetRepository repository = AssetUtil.getAssetRepository(false);
+      AssetEntry entry = new AssetEntry(AssetRepository.USER_SCOPE, AssetEntry.Type.VIEWSHEET,
+                                        path, owner, owner.getOrgID());
+      OrganizationContextHolder.setCurrentOrgId(owner.getOrgID());
+
+      try {
          repository.setSheet(entry, new Viewsheet(), null, true);
       }
       finally {

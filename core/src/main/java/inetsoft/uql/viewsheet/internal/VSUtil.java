@@ -6894,7 +6894,7 @@ public final class VSUtil {
          }
 
          try {
-            rep.checkAssetPermission(principal, aEntry, ResourceAction.READ);
+            rep.checkAssetPermission(principal, aEntry, ResourceAction.READ, true);
          }
          catch(MessageException ex) {
             return new VSBookmarkInfo[0];
