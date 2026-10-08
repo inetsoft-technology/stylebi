@@ -18,6 +18,8 @@
 package inetsoft.web;
 
 import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.report.composition.RuntimeWorksheet;
+import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.report.composition.WorksheetService;
 import inetsoft.sree.internal.DeployManagerService;
 import inetsoft.sree.security.OrganizationManager;
@@ -43,6 +45,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import java.lang.reflect.Constructor;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
@@ -173,6 +176,40 @@ class SnapshotFileGcServiceTest {
       gcService.removeOrphanedPermanentSnapshotFiles(now3);
       assertFilesExist(paths, true,
                        "imported worksheet's referenced file was deleted after the full sweep");
+   }
+
+   // refuter's recheck-1 addendum: a snapshot table present in a worksheet at the moment a user
+   // enters the "join tables" editor, then removed from the top-level worksheet while that
+   // join-edit clone is still open and uncommitted, is referenced only by
+   // RuntimeWorksheetState.getJoinWS() -- a VCDIFF-encoded delta against the parent ws, never the
+   // top-level ws itself. RuntimeSheetCache.getOpenWorksheetDataPaths() must recurse into it, not
+   // just read the top-level ws, or this path would be invisible to the live-session signal and
+   // only protected by the grace period plus the next full sweep, same as before this fix.
+   @Test
+   void joinEditCloneKeepsItsTableVisibleToTheLiveSessionScan() throws Exception {
+      AssetEntry e = entry("gc_joinws_w1");
+      String[] paths = saveOwner(e, "x", 10);
+
+      String id = worksheetService.openWorksheet((AssetEntry) e.clone(), null);
+
+      try {
+         RuntimeWorksheet rws = worksheetService.getWorksheet(id, null);
+         rws.cloneWS();
+         assertTrue(rws.getWorksheet().removeAssembly(NAME),
+                    "table missing from the top-level worksheet before the test scenario even starts");
+         worksheetService.putRuntimeSheet(id, rws);
+
+         WorksheetEngine engine = (WorksheetEngine) worksheetService;
+         Set<String> openPaths = engine.getRuntimeSheetCache().getOpenWorksheetDataPaths();
+
+         for(String path : paths) {
+            assertTrue(openPaths.contains(path),
+                       "join-edit clone's own data path invisible to the live-session scan: " + path);
+         }
+      }
+      finally {
+         worksheetService.closeWorksheet(id, null);
+      }
    }
 
    private String[] saveOwner(AssetEntry entry, String tag, int rows) throws Exception {
