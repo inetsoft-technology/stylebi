@@ -370,7 +370,8 @@ public abstract class VSImageable extends VSFloatable {
     * Get the index of the color a range band's gradient ends at: the color of the next
     * row that has a value (a row without a value is not a band, so its color is skipped),
     * or, when no later row has a value, the gradient blend slot after the last row
-    * (colors[ranges.length]).
+    * (colors[ranges.length]). Pass RangeOutputVSAssemblyInfo.getRangeRenderColors(), which
+    * keeps the design blend color in that slot when a script shortened the ranges (#78086).
     *
     * @param ranges the range values; NaN marks a row without a value.
     * @param colors the range colors, which may be shorter or longer than ranges.

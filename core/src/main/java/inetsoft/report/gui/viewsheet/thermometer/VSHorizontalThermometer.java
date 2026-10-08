@@ -77,7 +77,7 @@ public class VSHorizontalThermometer extends VSThermometer {
       ThermometerVSAssemblyInfo info =
          (ThermometerVSAssemblyInfo) getAssemblyInfo();
       double[] ranges = info.getRanges();
-      Color[] colors = info.getRangeColors();
+      Color[] colors = info.getRangeRenderColors();
 
       if(ranges == null || colors == null || ranges.length == 0 || colors.length == 0) {
          return;

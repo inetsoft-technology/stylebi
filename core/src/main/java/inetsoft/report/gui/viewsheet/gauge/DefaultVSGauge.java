@@ -187,7 +187,7 @@ public class DefaultVSGauge extends VSGauge {
 
       GaugeVSAssemblyInfo info = getGaugeAssemblyInfo();
       double[] ranges = info.getRanges();
-      Color[] rangeColors = info.getRangeColors();
+      Color[] rangeColors = info.getRangeRenderColors();
       fillRanges0(g2d, ranges, rangeColors, info.isRangeGradient());
    }
 
