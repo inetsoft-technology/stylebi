@@ -2426,7 +2426,13 @@ public class SummaryFilter extends AbstractGroupedTable
             return pass.rows.getObject(r, c);
          }
 
-         throwStallFailure(pass);
+         // the worker completes the rows before it marks the pass complete, both in this
+         // filter's monitor: a reader the rows released waits for the mark here, or it reads
+         // a failed pass as the end of the table (bug #78011)
+         synchronized(this) {
+            throwStallFailure(pass);
+         }
+
          return null;
       }
    }
