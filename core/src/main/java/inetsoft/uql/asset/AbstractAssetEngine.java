@@ -3447,7 +3447,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
       }
 
       if(sheet instanceof Worksheet) {
-         ((Worksheet) sheet).clearSnapshot();
+         ((Worksheet) sheet).clearSnapshot(this, entry);
       }
 
       DependencyHandler.getInstance().deleteDependencies(entry);

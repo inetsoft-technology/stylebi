@@ -23,6 +23,9 @@ import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.Organization;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.*;
+import inetsoft.uql.asset.sync.DependenciesInfo;
+import inetsoft.uql.asset.sync.DependencyStorageService;
+import inetsoft.uql.asset.sync.RenameTransformObject;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.table.*;
 import inetsoft.uql.util.XEmbeddedTable;
@@ -541,10 +544,40 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
     * @throws MessageException if the worksheet was stored without the data of a table.
     */
    public static void finishSave(Worksheet ws, boolean saved) {
-      List<String> failed = new ArrayList<>();
+      finishSave(ws, saved, null, null);
+   }
 
-      for(SnapshotEmbeddedTableAssembly table : getSnapshotTables(ws)) {
-         if(table.finishSave(saved)) {
+   /**
+    * Finish a save started by {@link #writeDataFilesForSave(Worksheet)}. If the worksheet was
+    * stored, the data files that the previously stored version named and the saved one no
+    * longer names are deleted, unless a frozen outer copy in a stored worksheet embedding this
+    * one still names them (bug #78032).
+    *
+    * @param ws         the saved worksheet.
+    * @param saved      {@code true} if the worksheet was stored.
+    * @param repository the repository the worksheet is stored in.
+    * @param entry      the entry the worksheet is stored as, or {@code null} to not look for
+    *                   worksheets embedding it.
+    *
+    * @throws MessageException if the worksheet was stored without the data of a table.
+    */
+   public static void finishSave(Worksheet ws, boolean saved, AssetRepository repository,
+                                 AssetEntry entry)
+   {
+      List<String> failed = new ArrayList<>();
+      List<SnapshotEmbeddedTableAssembly> tables = getSnapshotTables(ws);
+      Set<String> frozenCopyPaths = Collections.emptySet();
+
+      // the embedding worksheets are read before any table is locked, and only if a file
+      // would be deleted
+      if(saved && entry != null && repository != null &&
+         tables.stream().anyMatch(SnapshotEmbeddedTableAssembly::hasReplacedFiles))
+      {
+         frozenCopyPaths = getFrozenCopyDataPaths(repository, entry);
+      }
+
+      for(SnapshotEmbeddedTableAssembly table : tables) {
+         if(table.finishSave(saved, frozenCopyPaths)) {
             failed.add(table.getName());
          }
       }
@@ -555,6 +588,91 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
                                            String.join(", ", failed)),
             LogLevel.ERROR, false, ConfirmException.ERROR);
       }
+   }
+
+   /**
+    * Get the data files that frozen outer copies in the stored worksheets embedding a worksheet
+    * name without owning them. A copy stored before bug #78023 was fixed shares the files of
+    * the worksheet it was copied from until its own worksheet is saved again, so those files
+    * must not be deleted when that worksheet is saved or removed (bug #78032). The embedding
+    * worksheets are found in the dependency storage and read as stored, without opening or
+    * locking them.
+    *
+    * @param repository the repository the worksheet is stored in.
+    * @param entry      the entry of the worksheet.
+    *
+    * @return the data paths, or {@code null} if the embedding worksheets could not be read.
+    */
+   static Set<String> getFrozenCopyDataPaths(AssetRepository repository, AssetEntry entry) {
+      Set<String> paths = new HashSet<>();
+
+      try {
+         RenameTransformObject info = DependencyStorageService.getInstance()
+            .getWithOrg(entry.toIdentifier(), entry.getOrgID());
+
+         if(!(info instanceof DependenciesInfo)) {
+            return paths;
+         }
+
+         List<AssetObject> dependents = new ArrayList<>();
+         Optional.ofNullable(((DependenciesInfo) info).getDependencies())
+            .ifPresent(dependents::addAll);
+         Optional.ofNullable(((DependenciesInfo) info).getEmbedDependencies())
+            .ifPresent(dependents::addAll);
+
+         for(AssetObject dependent : dependents) {
+            if(!(dependent instanceof AssetEntry) || !((AssetEntry) dependent).isWorksheet()) {
+               continue;
+            }
+
+            AssetEntry dentry = (AssetEntry) dependent;
+            Object sheet = repository.getStorage(dentry)
+               .getXMLSerializable(dentry.toIdentifier(), null);
+
+            if(!(sheet instanceof Worksheet)) {
+               continue;
+            }
+
+            Worksheet dws = (Worksheet) sheet;
+
+            for(SnapshotEmbeddedTableAssembly table : getSnapshotTables(dws)) {
+               String[] dataPaths = table.getDataPaths();
+
+               if(dataPaths != null && !table.ownsDataFiles() &&
+                  dws.isFrozenOuterAssembly(table))
+               {
+                  paths.addAll(Arrays.asList(dataPaths));
+               }
+            }
+         }
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to read the worksheets embedding {}, its replaced snapshot data " +
+                  "files are kept", entry, ex);
+         return null;
+      }
+
+      return paths;
+   }
+
+   /**
+    * Check if any of the data files may still be named by a frozen outer copy in a stored
+    * worksheet.
+    *
+    * @param frozenCopyPaths the paths from {@link #getFrozenCopyDataPaths}, {@code null} if
+    *                        they are not known.
+    */
+   static boolean isNamedByFrozenCopy(String[] dataPaths, Set<String> frozenCopyPaths) {
+      return frozenCopyPaths == null ||
+         Arrays.stream(dataPaths).anyMatch(frozenCopyPaths::contains);
+   }
+
+   /**
+    * Check if the save that is finishing replaced data files this table owns.
+    */
+   private synchronized boolean hasReplacedFiles() {
+      return !dataWriteFailed && !Worksheet.isTemp() && dataPaths != null && ownsDataFiles() &&
+         committedDataPaths != null && !Arrays.equals(committedDataPaths, dataPaths);
    }
 
    private static List<SnapshotEmbeddedTableAssembly> getSnapshotTables(Worksheet ws) {
@@ -662,7 +780,7 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
    /**
     * @return {@code true} if the worksheet was stored without the data of this table.
     */
-   private synchronized boolean finishSave(boolean saved) {
+   private synchronized boolean finishSave(boolean saved, Set<String> frozenCopyPaths) {
       if(!saved) {
          return false;
       }
@@ -683,7 +801,16 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
       if(ownsDataFiles() && committedDataPaths != null &&
          !Arrays.equals(committedDataPaths, dataPaths))
       {
-         deleteOldFiles(committedDataPaths, dataPaths);
+         // a frozen copy stored before bug #78023 was fixed still reads the replaced files.
+         // they are kept, and the tables naming them are not moved to the new files (bug #78032)
+         if(isNamedByFrozenCopy(committedDataPaths, frozenCopyPaths)) {
+            LOG.info("Snapshot data files of {} kept, a frozen outer copy in another " +
+                     "worksheet may still name them: {}", getName(),
+                     Arrays.toString(committedDataPaths));
+         }
+         else {
+            deleteOldFiles(committedDataPaths, dataPaths);
+         }
       }
 
       committedDataPaths = dataPaths.clone();
