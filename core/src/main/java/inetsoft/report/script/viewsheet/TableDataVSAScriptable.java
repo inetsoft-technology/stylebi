@@ -32,6 +32,7 @@ import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.script.XTableRow;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
@@ -377,8 +378,13 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
          catch(Exception ex) {
             // a lock stall or a lost swap file is not a missing table: rethrow it, and keep a
             // cleared table dirty so the next read fetches it again instead of reading the old
-            // one (#77123, #77910)
+            // one (#77123, #77910). Nor is a table that failed to load for a reader that has to
+            // fail, e.g. a scheduled run (#78083)
             RuntimeException unavailable = DataUnavailable.find(ex);
+
+            if(unavailable == null) {
+               unavailable = TableLoadException.find(ex);
+            }
 
             if(unavailable != null) {
                if(dirty && table != null) {
@@ -722,6 +728,9 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
          // a lock stall or a lost swap file is not a missing table, which TableArray reads as
          // an empty one and getTableArray()/getTableData() would cache (#77123, #77910)
          DataUnavailable.rethrow(ex);
+         // nor is a table that failed to load for a reader that has to fail, e.g. a scheduled
+         // run (#78083)
+         TableLoadException.rethrow(ex);
 
          if(!box.isCancelled(ts)) {
             if(LOG.isDebugEnabled()) {

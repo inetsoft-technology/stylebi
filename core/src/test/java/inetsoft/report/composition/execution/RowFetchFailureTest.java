@@ -82,8 +82,10 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import javax.sql.DataSource;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.lang.reflect.*;
+import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.Statement;
 import java.util.Optional;
@@ -91,6 +93,8 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.stream.IntStream;
+import java.util.zip.ZipInputStream;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -736,6 +740,200 @@ class RowFetchFailureTest {
             assertTrue(error.getMessage().contains("read " + (FAIL_ROW - 1)), error.getMessage());
          }
       }
+   }
+
+   // Bug #78083: a range condition that reads another table, which failed to load in a
+   // scheduled run, must fail the calc read. The swallowed condition read null, which the range
+   // took as "selected", so the cell summed every row of the good table. Interactive and
+   // successful runs select no row (TableV has rows), as before
+   @Test
+   void scriptReadInARangeConditionOverAFailedTable() throws Exception {
+      String formula = "sum(data['id?TableV.table.length < 0'])";
+      assertLoadFailure(() -> calcCells(
+         (TableLens) conditionSandbox(true, true, formula).getData("Calc1")), formula);
+
+      for(boolean fail : new boolean[] { true, false }) {
+         CoreTool.clearUserMessage();
+         Object[][] cells = calcCells(
+            (TableLens) conditionSandbox(fail, !fail, formula).getData("Calc1"));
+         assertNull(cells[0][0], "fail " + fail);
+      }
+   }
+
+   // Bug #78083: a range condition of a summary formula over a table that failed to load in a
+   // scheduled run fails the calc read instead of giving a null cell
+   @Test
+   void scriptReadInASummaryRangeOverAFailedTable() throws Exception {
+      for(String formula : new String[] { "sum(data, 'id?g > 3')", "none(data, 'id?g > 3')" }) {
+         boolean sum = formula.startsWith("sum");
+         assertLoadFailure(() -> calcCells(
+            (TableLens) calcSandbox(true, true, formula).getData("Calc1")), formula);
+
+         CoreTool.clearUserMessage();
+         Object[][] cells = calcCells(
+            (TableLens) calcSandbox(true, false, formula).getData("Calc1"));
+         assertWarned(formula);
+         // the sum of the ids with g > 3 of the rows read before the failure
+         assertEquals(sum ? 7.50045E8 : FAIL_ROW - 1, ((Number) cells[0][0]).doubleValue(),
+                      formula);
+
+         CoreTool.clearUserMessage();
+         cells = calcCells((TableLens) calcSandbox(false, true, formula).getData("Calc1"));
+         assertNull(CoreTool.getUserMessage(), formula);
+         assertEquals(sum ? 1.080054E9 : ROWS - 1, ((Number) cells[0][0]).doubleValue(),
+                      formula);
+      }
+   }
+
+   // Bug #78083: an onLoad script that reads a calc table, or an output bound to a table, which
+   // failed to load in a scheduled run stops at that read, as for a plain table (#78071),
+   // instead of going on with a null table or value
+   @Test
+   void scriptReadOfACalcTableOrOutputOverAFailedTable() throws Exception {
+      String[] scripts = {
+         "var t = Calc1.table; throw new Error(t == null ? 'null' : 'len ' + t.length);",
+         "var t = Calc1.data; throw new Error(t == null ? 'null' : 'len ' + t.length);",
+         "var v = Text1.value; throw new Error('v=' + v);" };
+      String[] successful = { "len 2", "len 2", "v=1800030000" };
+
+      // every script is checked, also when an earlier one fails
+      assertAll(IntStream.range(0, scripts.length).mapToObj(i -> (Executable) () -> {
+         String script = scripts[i];
+         Exception error = onLoadError(true, true, script);
+         assertNotNull(error, script);
+         assertNotNull(TableLoadException.find(error), script + ": " + error);
+         assertTrue(error.getMessage().contains(DB_MESSAGE), script + ": " + error);
+
+         // interactive: the old warn-and-partial-rows behaviour, no load failure
+         error = onLoadError(true, false, script);
+         assertNotNull(error, script);
+         assertNull(TableLoadException.find(error), script + ": " + error);
+
+         error = onLoadError(false, true, script);
+         assertNotNull(error, script);
+         assertNull(TableLoadException.find(error), script + ": " + error);
+         assertTrue(error.getMessage().contains(successful[i]), script + ": " + error);
+      }));
+   }
+
+   // Bug #78083: a scheduled CSV export of a calc table whose range condition reads a hidden
+   // table that failed to load fails, instead of exporting the sum of every row as if the
+   // condition selected them all. The hidden table is not exported, so its own read does not
+   // fail the export. Interactive and successful exports are unchanged (no row selected)
+   @Test
+   void scheduledExportOfARangeConditionOverAHiddenFailedTable() throws Exception {
+      String formula = "sum(data['id?TableV.table.length < 0'])";
+
+      for(int run = 0; run < 3; run++) {
+         boolean fail = run != 2;
+         boolean scheduler = run != 1;
+         ViewsheetSandbox box = conditionSandbox(fail, scheduler, formula);
+         VSAssembly hidden = (VSAssembly) box.getViewsheet().getAssembly("TableV");
+         hidden.getVSAssemblyInfo().setVisibleValue(String.valueOf(VSAssembly.ALWAYS_HIDE));
+         assertFalse(hidden.isVisible());
+         ByteArrayOutputStream out = new ByteArrayOutputStream();
+         CSVVSExporter exporter = new CSVVSExporter(out, null);
+         CoreTool.clearUserMessage();
+
+         if(fail && scheduler) {
+            assertLoadFailure(() -> {
+               exporter.export(box, "Calc", null);
+               exporter.write();
+            });
+            continue;
+         }
+
+         exporter.export(box, "Calc", null);
+         exporter.write();
+         String csv = "";
+
+         try(ZipInputStream zip =
+                new ZipInputStream(new ByteArrayInputStream(out.toByteArray())))
+         {
+            while(zip.getNextEntry() != null) {
+               csv += new String(zip.readAllBytes(), StandardCharsets.UTF_8);
+            }
+         }
+
+         // the empty cell of Calc1, no row of T2 selected
+         assertFalse(csv.contains("1800030000"), "run " + run + ": " + csv);
+         assertTrue(csv.startsWith(","), "run " + run + ": " + csv);
+
+         if(fail) {
+            assertWarned();
+         }
+         else {
+            assertNull(CoreTool.getUserMessage());
+         }
+      }
+   }
+
+   // the error of an onLoad script of a viewsheet with the calc table Calc1 (sum of id) and
+   // the text Text1 (Sum of id), both bound to T1
+   private static Exception onLoadError(boolean fail, boolean scheduler, String script)
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      sqlTable(ws, "T1", fail);
+      Viewsheet vs = viewsheet(ws);
+      vs.addAssembly(calcTable(vs, "T1", "sum(data['id'])"));
+      TextVSAssembly text = new TextVSAssembly(vs, "Text1");
+      ScalarBindingInfo binding = new ScalarBindingInfo();
+      binding.setTableName("T1");
+      binding.setColumnValue("id");
+      binding.setColumn(new ColumnRef(new AttributeRef(null, "id")));
+      binding.setAggregateValue("Sum");
+      binding.changeColumnType("Sum", XSchema.INTEGER);
+      text.setScalarBindingInfo(binding);
+      vs.addAssembly(text);
+      vs.getViewsheetInfo().setOnLoad(script);
+
+      ViewsheetSandbox vbox = viewsheetSandbox(vs, querySandbox(ws, scheduler));
+      vbox.prepareForExport();
+      return vbox.getExportScriptError();
+   }
+
+   // a viewsheet with the table TableV bound to T1, which fails if fail, and the calc table
+   // Calc1 bound to the good table T2, whose cell A1 is the formula
+   private static ViewsheetSandbox conditionSandbox(boolean fail, boolean scheduler,
+                                                    String formula)
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      sqlTable(ws, "T1", fail);
+      sqlTable(ws, "T2", false);
+      Viewsheet vs = viewsheet(ws);
+      TableVSAssembly table = new TableVSAssembly(vs, "TableV");
+      table.setSourceInfo(new SourceInfo(XSourceInfo.ASSET, null, "T1"));
+      ColumnSelection cols = new ColumnSelection();
+
+      for(String name : new String[] { "id", "g", "x" }) {
+         cols.addAttribute(new ColumnRef(new AttributeRef(null, name)));
+      }
+
+      table.setColumnSelection(cols);
+      vs.addAssembly(table);
+      vs.addAssembly(calcTable(vs, "T2", formula));
+      return viewsheetSandbox(vs, querySandbox(ws, scheduler));
+   }
+
+   // the calc table Calc1 bound to the worksheet table, whose cell A1 is the formula
+   private static CalcTableVSAssembly calcTable(Viewsheet vs, String source, String formula) {
+      CalcTableVSAssembly calc = new CalcTableVSAssembly(vs, "Calc1");
+      calc.setSourceInfo(new SourceInfo(XSourceInfo.ASSET, null, source));
+      calc.getTableLayout().setCellBinding(
+         0, 0, new TableCellBinding(CellBinding.BIND_FORMULA, formula));
+      return calc;
+   }
+
+   private static AssetQuerySandbox querySandbox(Worksheet ws, boolean scheduler) {
+      AssetQuerySandbox box = new AssetQuerySandbox(ws);
+
+      if(scheduler) {
+         box.getVariableTable().put("__is_scheduler__", "true");
+      }
+
+      return box;
    }
 
    // Bug #78071: every reader of a failed merge join gets the failure, also a later reader on
