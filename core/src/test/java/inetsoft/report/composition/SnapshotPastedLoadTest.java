@@ -18,6 +18,8 @@
 package inetsoft.report.composition;
 
 import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.OrganizationContextHolder;
 import inetsoft.storage.KeyValueStorageManager;
 import inetsoft.test.*;
 import inetsoft.uql.XTable;
@@ -39,6 +41,7 @@ import inetsoft.web.viewsheet.controller.UndoRedoService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.MockedStatic;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -51,7 +54,7 @@ import java.lang.reflect.Field;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.*;
 
 /**
  * Bug #78029, a snapshot table read from a stored worksheet has its rows only in the data files
@@ -179,6 +182,33 @@ class SnapshotPastedLoadTest {
 
       assertTrue(ex.getMessage().contains(NAME), ex.getMessage());
       assertArrayEquals(paths, table.getDataPaths());
+   }
+
+   // in another org that sees the default org, the files of a default-org worksheet are read
+   // from the default org. pasted() loads them from there, as the table's own load does, and
+   // doesn't report them missing
+   @Test
+   void pastedLoadsDataFilesFromDefaultOrg() throws Exception {
+      AssetEntry entry = createStored("ws78029g");
+      SnapshotEmbeddedTableAssembly hidden = loadStoredTable(entry);
+      SnapshotEmbeddedTableAssembly visible = loadStoredTable(entry);
+      clearLocalCopies(hidden.getDataPaths());
+
+      try(MockedStatic<SUtil> sutil = mockStatic(SUtil.class, CALLS_REAL_METHODS)) {
+         OrganizationContextHolder.setCurrentOrgId("org78029");
+
+         sutil.when(SUtil::isDefaultVSGloballyVisible).thenReturn(false);
+         assertThrows(MessageException.class, hidden::pasted);
+
+         sutil.when(SUtil::isDefaultVSGloballyVisible).thenReturn(true);
+         visible.pasted();
+      }
+      finally {
+         OrganizationContextHolder.clear();
+      }
+
+      assertNull(visible.getDataPaths());
+      assertRows(visible.getTable(), 51, "old4");
    }
 
    // tables whose data is not in files they own still save-as and paste: a new table, a table
