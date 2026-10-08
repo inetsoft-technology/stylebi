@@ -22,6 +22,7 @@ import inetsoft.uql.viewsheet.TabVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 
+import java.awt.Point;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
@@ -213,6 +214,43 @@ public final class VizModernizeUtil {
    public static void reseedAfterRestore(VSAssemblyInfo info) {
       if(info != null) {
          info.seedChromeDefaults(VizContext.of(info));
+      }
+   }
+
+   /**
+    * reseedAfterRestore for an assembly in its sheet. When the seed changes how tall a bottom-tabs
+    * child stands on its strip, the child shifts so its bottom edge stays put. A shift rather than
+    * a re-flush, so a child off the strip keeps its distance from it, and one a script placed is
+    * left alone.
+    */
+   public static void reseedRestored(VSAssembly assembly) {
+      VSAssemblyInfo info = assembly.getVSAssemblyInfo();
+      // measured only on a strip: a sheet's own size can lay it out
+      boolean onStrip = info != null && !info.isPositionByScript() &&
+         assembly.getViewsheet() != null && TabVSAssemblyInfo.isInBottomTabs(assembly);
+      int before = onStrip ?
+         TabVSAssemblyInfo.getBottomTabChildHeight(info, assembly.getPixelSize()) : 0;
+
+      reseedAfterRestore(info);
+
+      if(!onStrip) {
+         return;
+      }
+
+      int dy = before - TabVSAssemblyInfo.getBottomTabChildHeight(info, assembly.getPixelSize());
+
+      if(dy == 0) {
+         return;
+      }
+
+      Point pos = info.getPixelOffset();
+
+      if(pos != null) {
+         info.setPixelOffset(new Point(pos.x, pos.y + dy));
+      }
+
+      if(info.getLayoutPosition() != null) {
+         info.getLayoutPosition().translate(0, dy);
       }
    }
 

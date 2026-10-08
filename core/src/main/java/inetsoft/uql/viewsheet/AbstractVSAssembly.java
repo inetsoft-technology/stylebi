@@ -653,7 +653,7 @@ public abstract class AbstractVSAssembly extends AbstractAssembly implements VSA
          after.setVizMark(mark);
       }
 
-      VizModernizeUtil.reseedAfterRestore(after);
+      VizModernizeUtil.reseedRestored(this);
    }
 
    /**
