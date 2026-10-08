@@ -163,11 +163,13 @@ class DashboardSelectionCallerConcurrencyTest {
    void emOrderSave_racingGlobalRename_keepsTheRenamedDashboard() throws Exception {
       globalNames.addAll(List.of("G__GLOBAL", "K__GLOBAL"));
       seed(anonymous, List.of("G__GLOBAL", "K__GLOBAL"), List.of());
-      manager.arm(() -> {
+      // a registry renames the stored names and its own entry in one runLocked(), so that the
+      // caller's getDashboards() can't see the new name before the registry lists it and prune it
+      manager.arm(() -> manager.runLocked(() -> {
          manager.renameDashboard("G__GLOBAL", "H__GLOBAL");
          globalNames.remove("G__GLOBAL");
          globalNames.add("H__GLOBAL");
-      });
+      }));
 
       runCaller(() -> service.setDashboardFolderSettings(order("K__GLOBAL", "G__GLOBAL"),
                                                          principal()));
