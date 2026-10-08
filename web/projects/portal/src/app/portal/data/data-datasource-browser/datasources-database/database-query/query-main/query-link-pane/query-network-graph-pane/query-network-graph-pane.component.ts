@@ -39,6 +39,7 @@ import {
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { ConnectionMadeEventInfo } from "jsplumb";
 import { Observable, Subscription, timer as observableTimer } from "rxjs";
+import { finalize } from "rxjs/operators";
 import { AssetEntry } from "../../../../../../../../../../../shared/data/asset-entry";
 import { Tool } from "../../../../../../../../../../../shared/util/tool";
 import { AssemblyActionGroup } from "../../../../../../../../common/action/assembly-action-group";
@@ -103,6 +104,9 @@ import {
 } from "../../../../common-components/join-thumbnail.service";
 import { DataQueryModelService } from "../../../data-query-model.service";
 import { JoinNodeGraphComponent } from "../../../../common-components/join-node-graph/join-node-graph.component";
+import {
+   GraphNodeMove
+} from "../../../../database-physical-model/physical-model-network-graph/physical-model-network-graph.component";
 import { OutOfZoneDirective } from "../../../../../../../../widget/directive/out-of-zone.directive";
 
 const OPEN_JOIN_EDIT_PANE_URI = "../api/data/datasource/query/join-edit/open/";
@@ -136,6 +140,9 @@ export class QueryNetworkGraphPaneComponent implements OnInit, AfterViewInit,
    @Output() onNodeSelected: EventEmitter<string> = new EventEmitter<string>();
    @Output() onRemoveTable: EventEmitter<GraphModel[]> = new EventEmitter<GraphModel[]>();
    @Output() onQueryPropertiesChanged = new EventEmitter<any>();
+   // a node move is sent to the server: emitted before the PUT, and again (the same object,
+   // with saved set) when it completes
+   @Output() onNodeMove = new EventEmitter<GraphNodeMove>();
    @ViewChild("jspContainerMain") jspContainerMain: ElementRef<HTMLDivElement>;
    @ViewChild("graphPane") graphPane: ElementRef<HTMLDivElement>;
 
@@ -294,6 +301,7 @@ export class QueryNetworkGraphPaneComponent implements OnInit, AfterViewInit,
          this.jsp.deleteEveryConnection();
          this.jsp.deleteEveryEndpoint();
          this.updateUnjoinedTables();
+         this.remapDragNodes();
       }
    }
 
@@ -513,23 +521,52 @@ export class QueryNetworkGraphPaneComponent implements OnInit, AfterViewInit,
       return PHYSICAL_ENDPOINTS;
    }
 
+   /**
+    * A graph refresh replaces every GraphModel object, so re-resolve the selection by node
+    * id against the new model (keeping a drag in progress, or a pending move, on its tables)
+    * and drop the tables the new model no longer has. Builds a new array because dragNodes
+    * may be the old model's own graphs array (selectAll()).
+    */
+   private remapDragNodes(): void {
+      if(!this.dragNodes?.length) {
+         return;
+      }
+
+      const graphs = new Map<string, GraphModel>();
+      (this.graphViewModel?.graphs ?? [])
+         .filter(graph => !!graph?.node)
+         .forEach(graph => graphs.set(graph.node.id, graph));
+
+      this.dragNodes = this.dragNodes
+         .map(graph => graphs.get(graph.node.id))
+         .filter(graph => !!graph);
+   }
+
    private refreshDragSelection(): void {
       this.jsp.clearDragSelection();
       const elements: string[] = [];
+      let changed = false;
 
-      this.dragNodes
-         .forEach((graph, index) => {
-            const id = graph.node.id;
-            const elemId = this.sourceIds[id];
-            const g = this.nodes[elemId];
+      // Match registered nodes by id, not object identity. Nodes register one at a time
+      // after a refresh, so a selected node that is not registered yet is kept (tables
+      // removed by the refresh were already dropped in remapDragNodes()). Never modify
+      // dragNodes in place: it may be the model's own graphs array.
+      const selection = this.dragNodes.map(graph => {
+         const elemId = this.sourceIds[graph.node.id];
+         const registered = elemId != null ? this.nodes[elemId] : null;
 
-            if(g === graph) {
-               elements.push(elemId);
-            }
-            else {
-               this.dragNodes.splice(index, 1);
-            }
-         });
+         if(!registered) {
+            return graph;
+         }
+
+         elements.push(elemId);
+         changed = changed || registered !== graph;
+         return registered;
+      });
+
+      if(changed) {
+         this.dragNodes = selection;
+      }
 
       this.jsp.addToDragSelection(elements);
    }
@@ -591,9 +628,9 @@ export class QueryNetworkGraphPaneComponent implements OnInit, AfterViewInit,
 
       const oldStop = options.stop;
       options.stop = (params: any) => {
-         // this.zone.run(() => {
-         //    this.nodeMoving = false;
-         // });
+         this.zone.run(() => {
+            this.nodeMoving = false;
+         });
 
          oldStop(params);
          this.dsHandler.reset();
@@ -619,8 +656,23 @@ export class QueryNetworkGraphPaneComponent implements OnInit, AfterViewInit,
 
                let event = new MoveGraphEvent(this.runtimeId, graph.node.name,
                   null, graph.bounds);
+               const move: GraphNodeMove = {
+                  nodeId: graph.node.id,
+                  bounds: new Rectangle(left, top, graph.bounds.width, graph.bounds.height)
+               };
+               this.onNodeMove.emit(move);
+
                // save position to server
-               this.http.put(GRAPH_MOVE_TABLES_URI, event).subscribe(() => {});
+               this.http.put(GRAPH_MOVE_TABLES_URI, event)
+                  .pipe(finalize(() => {
+                     // the same object is emitted again: the pane matches it by identity
+                     // to tell whether it is still the node's latest move
+                     move.saved = !!move.saved;
+                     this.onNodeMove.emit(move);
+                  }))
+                  .subscribe(() => {
+                     move.saved = true;
+                  });
 
                this.renderer.setStyle(el, "left", left + "px");
                this.renderer.setStyle(el, "top", top + "px");
@@ -825,6 +877,14 @@ export class QueryNetworkGraphPaneComponent implements OnInit, AfterViewInit,
       this.dragNodes = [];
       this.fireSelectedNodesChanged();
       this.jsp.setSuspendDrawing(false, true);
+   }
+
+   /**
+    * Whether the node is being dragged now, as the dragged node or as part of the drag
+    * selection that moves with it.
+    */
+   isNodeDragging(graph: GraphModel): boolean {
+      return this.nodeMoving && this.dragNodes.some(n => n.node.id === graph.node.id);
    }
 
    getThumbnailClasses(graph: GraphModel): {[className: string]: boolean} {

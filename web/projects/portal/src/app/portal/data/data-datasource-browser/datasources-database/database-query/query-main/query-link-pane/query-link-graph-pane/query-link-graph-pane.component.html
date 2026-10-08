@@ -40,6 +40,7 @@
           [selectedGraphNodePath]="selectedGraphNodePath"
           (onRefreshGraph)="onRefreshGraph($event)"
           (onNodeSelected)="onNodeSelected.emit($event)"
+          (onNodeMove)="nodeMoved($event)"
           (onQueryPropertiesChanged)="refresh()">
         </query-network-graph-pane>
       }
