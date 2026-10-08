@@ -113,7 +113,11 @@ public class SummaryFilterCompletionOrderTest {
          result = summary.getObject(1, 1);
       }
       catch(RuntimeException ex) {
-         assertInstanceOf(type, ex);
+         // keep the stack of any other exception
+         if(!type.isInstance(ex)) {
+            throw ex;
+         }
+
          assertTrue(gated.held, "the worker was held after it completed the rows");
          return;
       }
