@@ -565,8 +565,15 @@ public class WorksheetReadService {
       String logicalModel = null;
       String sourceTable = null;
       String attribute = null;
+      String type = null;
 
-      if(attachedSource != null && attachedSource.getType() == SourceInfo.ASSET) {
+      // The two attachment modes are exclusive: AttachedAssemblyImpl's setters never clear the
+      // other mode's fields, so a stored group (e.g. one saved before retargeting cleared them)
+      // can carry both. The attached type decides which side is reported.
+      if(nga.getAttachedType() == AttachedAssembly.DATA_TYPE_ATTACHED) {
+         type = nga.getAttachedDataType();
+      }
+      else if(attachedSource != null && attachedSource.getType() == SourceInfo.ASSET) {
          table = attachedSource.getSource();
          column = attachedAttr != null ? attachedAttr.getAttribute() : null;
       }
@@ -634,7 +641,7 @@ public class WorksheetReadService {
       }
 
       return new WorksheetModel.NamedGroupModel(
-         name, table, column, datasource, logicalModel, sourceTable, attribute, mappings,
+         name, table, column, datasource, logicalModel, sourceTable, attribute, type, mappings,
          groupOthers);
    }
 

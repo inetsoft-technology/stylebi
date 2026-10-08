@@ -1755,6 +1755,43 @@ class WorksheetReadServiceTest {
    }
 
    @Test
+   void readsTypeAttachedGroupWithTypeAndNoStaleSource() throws Exception {
+      Worksheet ws = new Worksheet();
+      ColumnRef col = new ColumnRef(new AttributeRef(null, "CITY"));
+      col.setDataType(XSchema.STRING);
+      SourceInfo src = new SourceInfo(SourceInfo.PHYSICAL_TABLE, "Examples/Orders", "SA.CUSTOMERS");
+      DefaultNamedGroupAssembly g = namedGroup(ws, "G", src, col, "Low",
+         new WorksheetMutationSupport.GroupMapping("Low", List.of("1")));
+      // saved-worksheet shape: type mode written over a column attachment without clearing it
+      g.setAttachedType(AttachedAssembly.DATA_TYPE_ATTACHED);
+      g.setAttachedDataType(XSchema.INTEGER);
+
+      WorksheetModel.NamedGroupModel ng = namedGroupNamed(read(ws), "G");
+      assertEquals(XSchema.INTEGER, ng.type());
+      assertNull(ng.datasource());
+      assertNull(ng.sourceTable());
+      assertNull(ng.attribute());
+      assertNull(ng.table());
+      assertNull(ng.column());
+   }
+
+   @Test
+   void readsColumnAttachedGroupWithoutStaleType() throws Exception {
+      Worksheet ws = new Worksheet();
+      ColumnRef col = new ColumnRef(new AttributeRef(null, "CITY"));
+      col.setDataType(XSchema.STRING);
+      SourceInfo src = new SourceInfo(SourceInfo.PHYSICAL_TABLE, "Examples/Orders", "SA.CUSTOMERS");
+      DefaultNamedGroupAssembly g = namedGroup(ws, "G", src, col, "N",
+         new WorksheetMutationSupport.GroupMapping("N", List.of("N")));
+      g.setAttachedDataType(XSchema.INTEGER);
+
+      WorksheetModel.NamedGroupModel ng = namedGroupNamed(read(ws), "G");
+      assertNull(ng.type());
+      assertEquals("SA.CUSTOMERS", ng.sourceTable());
+      assertEquals("CITY", ng.attribute());
+   }
+
+   @Test
    void readsNegatedEqualityOperationOnStandaloneGroup() throws Exception {
       Worksheet ws = new Worksheet();
       namedGroup(ws, "NotNYNJ", null, null, "NotNYNJ",

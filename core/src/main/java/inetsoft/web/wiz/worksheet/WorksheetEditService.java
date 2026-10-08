@@ -42,6 +42,7 @@ import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.ScriptEnvRepository;
 import java.awt.Point;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
 import inetsoft.web.composer.ws.RenameColumnController;
@@ -1239,13 +1240,14 @@ public class WorksheetEditService {
             throw new PairingException("Join assembly not found in worksheet: " + name);
          }
 
-         if(AssetEventUtil.hasDependent(a, ws, Set.of(name))) {
+         List<String> dependents = dependentNames(a);
+
+         if(!dependents.isEmpty()) {
             throw new PairingException(
-               "\"" + name + "\" cannot be removed because other assemblies are built on it. " +
-               "Removing it would leave them referencing an assembly that no longer exists, every " +
-               "query against them failing, and nothing able to repair them. Remove the " +
-               "assemblies that depend on it first -- read_worksheet_model reports each table's " +
-               "sources field, which is what references what.");
+               "\"" + name + "\" cannot be removed because other assemblies are built on it: " +
+               String.join(", ", dependents) + ". Removing it would leave them referencing an " +
+               "assembly that no longer exists, every query against them failing, and nothing " +
+               "able to repair them. Remove or repoint those assemblies first.");
          }
 
          ws.removeAssembly(name);
@@ -2051,13 +2053,14 @@ public class WorksheetEditService {
          // carries on with the rest. This op deletes one named table per call -- there is no rest
          // to carry on with, and skipping silently would report success for a deletion that never
          // happened.
-         if(AssetEventUtil.hasDependent(a, ws, Set.of(table))) {
+         List<String> dependents = dependentNames(a);
+
+         if(!dependents.isEmpty()) {
             throw new PairingException(
-               "\"" + table + "\" cannot be deleted because other assemblies are built on it. " +
-               "Deleting it would leave them referencing a table that no longer exists, every " +
-               "query against them failing, and nothing able to repair them. Delete the " +
-               "assemblies that depend on it first -- read_worksheet_model reports each table's " +
-               "`sources`, which is what references what.");
+               "\"" + table + "\" cannot be deleted because other assemblies are built on it: " +
+               String.join(", ", dependents) + ". Deleting it would leave them referencing a " +
+               "table that no longer exists, every query against them failing, and nothing " +
+               "able to repair them. Delete or repoint those assemblies first.");
          }
 
          ws.removeAssembly(table);
@@ -3797,6 +3800,10 @@ public class WorksheetEditService {
          if(retargeting) {
             nga.setAttachedType(AttachedAssembly.DATA_TYPE_ATTACHED);
             nga.setAttachedDataType(type);
+            // a previous column-attached mode leaves its source/attribute behind; clear them as
+            // the native grouping dialog does on every retarget
+            nga.setAttachedSource(null);
+            nga.setAttachedAttribute(null);
          }
 
          // A GroupRef bound to this named group holds a one-time clone of its mapping
@@ -3828,6 +3835,25 @@ public class WorksheetEditService {
       }
 
       /**
+       * Names of the assemblies, other than {@code a} itself, that depend on it, sorted. Empty
+       * means nothing is built on it.
+       */
+      private List<String> dependentNames(Assembly a) {
+         String self = a.getName();
+         java.util.TreeSet<String> names = new java.util.TreeSet<>();
+
+         for(AssemblyRef ref : ws.getDependings(a.getAssemblyEntry())) {
+            String refName = ref.getEntry().getName();
+
+            if(!self.equals(refName)) {
+               names.add(refName);
+            }
+         }
+
+         return new ArrayList<>(names);
+      }
+
+      /**
        * Removes a named group assembly from the worksheet.
        *
        * <p>Refuses if a worksheet-side aggregate (set_group_aggregate's {@code
@@ -3848,11 +3874,13 @@ public class WorksheetEditService {
             throw new PairingException("Named group assembly not found: " + name);
          }
 
-         if(AssetEventUtil.hasDependent(a, ws, Set.of(name))) {
+         List<String> dependents = dependentNames(a);
+
+         if(!dependents.isEmpty()) {
             throw new PairingException(
-               "\"" + name + "\" cannot be deleted because a worksheet aggregate still groups " +
-               "by it (set_group_aggregate's namedGroup). Remove that reference first -- " +
-               "read_worksheet_model reports each table's group-by fields.");
+               "\"" + name + "\" cannot be deleted because it is still referenced by: " +
+               String.join(", ", dependents) + ". Remove those references first (e.g. a " +
+               "set_group_aggregate that groups by this named group).");
          }
 
          ws.removeAssembly(name);

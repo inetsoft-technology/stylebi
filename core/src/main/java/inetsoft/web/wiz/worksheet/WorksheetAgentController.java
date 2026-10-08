@@ -1626,6 +1626,9 @@ public class WorksheetAgentController {
          nga.setAttachedType(AttachedAssembly.COLUMN_ATTACHED);
          nga.setAttachedSource(sinfo);
          nga.setAttachedAttribute(ref);
+         // a previous type-attached mode leaves its data type behind; clear it as the native
+         // grouping dialog does on every retarget
+         nga.setAttachedDataType(null);
 
          for(Assembly assembly : ws.getAssemblies()) {
             if(!(assembly instanceof TableAssembly table)) {
