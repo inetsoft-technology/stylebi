@@ -418,6 +418,8 @@ class HashJoinTable extends JoinTable {
 
                   if(loadFailure != null) {
                      joinTable.setLoadFailure(loadFailure);
+                     // the readers rethrow it, it was logged where it happened
+                     return;
                   }
                }
 

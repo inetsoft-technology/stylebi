@@ -480,8 +480,35 @@ class RowFetchFailureTest {
 
       assertEquals(FAIL_ROW - 1, dataRows(lens));
       assertWarned();
-      // the rows read before the failure are still sorted
-      assertSortedDescending(lens);
+      // the rows read before the failure are sorted. this worksheet sort's base is not a
+      // lens that reports the failure as a cancel, sortOverAFailedBaseIsSorted covers one
+      assertSortedDescending(lens, FAIL_ROW - 1);
+   }
+
+   // a failed query result reports isCancelled() (bug #77901), which must not be taken for a
+   // user cancel that skips the sort
+   @Test
+   void sortOverAFailedBaseIsSorted() throws Exception {
+      TableLens base = Util.getNestedTable(baseLens(true, false), XNodeTableLens.class);
+      // read to the end first, so the base has failed when the sort reads it
+      dataRows(base);
+      assertTrue(((XNodeTableLens) base).isCancelled());
+      CoreTool.clearUserMessage();
+      SortFilter sort = new SortFilter(base, new int[] { 1 }, false);
+
+      assertEquals(FAIL_ROW - 1, dataRows(sort));
+      assertWarned();
+      Integer prev = null;
+      int rows = 0;
+
+      // g, column 1, descending; getRowCount() is the base's, so the rows are counted here
+      for(int r = sort.getHeaderRowCount(); sort.moreRows(r); r++, rows++) {
+         int g = ((Number) sort.getObject(r, 1)).intValue();
+         assertTrue(prev == null || prev >= g, "not sorted at row " + r);
+         prev = g;
+      }
+
+      assertEquals(FAIL_ROW - 1, rows);
    }
 
    @Test
@@ -490,7 +517,7 @@ class RowFetchFailureTest {
 
       assertEquals(ROWS, dataRows(lens));
       assertNull(CoreTool.getUserMessage());
-      assertSortedDescending(lens);
+      assertSortedDescending(lens, ROWS);
    }
 
    // Bug #77966: every reader of a worker lens over a failed fetch gets the failure, not only
@@ -500,7 +527,7 @@ class RowFetchFailureTest {
    @Test
    void concurrentReadersOfAWorkerLensAllGetTheFailure() throws Exception {
       for(boolean scheduler : new boolean[] { false, true }) {
-         for(String shape : new String[] { "distinct1", "distinct3", "join" }) {
+         for(String shape : new String[] { "distinct1", "distinct3", "sort", "join" }) {
             TableLens base = baseLens(true, scheduler);
             TableLens other = shape.equals("join") ? baseLens(false, scheduler) : null;
             TableLens lens = workerLens(shape, base, other);
@@ -610,16 +637,20 @@ class RowFetchFailureTest {
    }
 
    // g descending, the sort column
-   private static void assertSortedDescending(TableLens lens) {
+   private static void assertSortedDescending(TableLens lens, int rows) {
       int col = Util.findColumn(lens, "g");
       assertTrue(col >= 0, "no column g");
       Integer prev = null;
+      int count = 0;
 
-      for(int r = lens.getHeaderRowCount(); lens.moreRows(r); r++) {
+      // the rows are counted here, a getRowCount() of a sort is the base's
+      for(int r = lens.getHeaderRowCount(); lens.moreRows(r); r++, count++) {
          Integer g = ((Number) lens.getObject(r, col)).intValue();
          assertTrue(prev == null || prev >= g, "not sorted at row " + r);
          prev = g;
       }
+
+      assertEquals(rows, count);
    }
 
    // T1 with Distinct and Merge SQL off, so the distinct rows are found in memory: one

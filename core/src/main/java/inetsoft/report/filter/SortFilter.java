@@ -577,7 +577,18 @@ public class SortFilter extends AbstractTableLens
       }
 
       XSwappableIntList rowmap = getRowMap();
-      return rowmap != null && row < rowmap.size();
+
+      if(rowmap != null && row < rowmap.size()) {
+         return true;
+      }
+
+      // the end of the sorted rows: the base, already read to its end, reports a failure to
+      // load its rows to this reader too, not only to the reader that sorted (bug #77966)
+      if(rowmap != null) {
+         table.moreRows(row);
+      }
+
+      return false;
    }
 
    /**

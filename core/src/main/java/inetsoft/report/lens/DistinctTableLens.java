@@ -296,6 +296,13 @@ public class DistinctTableLens extends AbstractTableLens
                try {
                   validate0(target, true);
                }
+               catch(RuntimeException ex) {
+                  // a load failure of the base was logged where it happened and the readers
+                  // rethrow it, the pool needn't log it again (bug #77966)
+                  if(TableLoadException.find(ex) == null) {
+                     throw ex;
+                  }
+               }
                finally {
                   borrower.end();
                }
