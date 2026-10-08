@@ -715,7 +715,7 @@ public class VSCylinder extends VSImageable implements Cloneable {
    private void fillRanges(Graphics2D g) {
       CylinderVSAssemblyInfo info = (CylinderVSAssemblyInfo) getAssemblyInfo();
       double[] ranges = info.getRanges();
-      Color[] colors = info.getRangeColors();
+      Color[] colors = info.getRangeRenderColors();
 
       if(ranges == null || colors == null || ranges.length == 0 || colors.length == 0) {
          return;

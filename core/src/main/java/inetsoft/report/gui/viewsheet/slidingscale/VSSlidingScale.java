@@ -444,7 +444,7 @@ public class VSSlidingScale extends VSImageable implements Cloneable {
    private void fillRanges(Graphics2D g) {
       SlidingScaleVSAssemblyInfo info = getInfo();
       double[] ranges = info.getRanges();
-      Color[] colors = info.getRangeColors();
+      Color[] colors = info.getRangeRenderColors();
 
       if(ranges == null || colors == null || ranges.length == 0 || colors.length == 0) {
          return;

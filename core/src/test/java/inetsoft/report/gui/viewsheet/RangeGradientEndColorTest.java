@@ -17,6 +17,7 @@
  */
 package inetsoft.report.gui.viewsheet;
 
+import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.gui.viewsheet.cylinder.VSCylinder;
 import inetsoft.report.gui.viewsheet.gauge.DefaultVSGauge;
 import inetsoft.report.gui.viewsheet.gauge.VSGauge;
@@ -24,9 +25,12 @@ import inetsoft.report.gui.viewsheet.slidingscale.VSSlidingScale;
 import inetsoft.report.gui.viewsheet.thermometer.VSHorizontalThermometer;
 import inetsoft.report.gui.viewsheet.thermometer.VSThermometer;
 import inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer;
+import inetsoft.report.script.viewsheet.GaugeVSAScriptable;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
+import inetsoft.uql.viewsheet.GaugeVSAssembly;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.*;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -47,6 +51,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockingDetails;
+import static org.mockito.Mockito.when;
 
 /**
  * Bug #78009: the end color of a range band's gradient is the color of the next row that
@@ -54,6 +59,9 @@ import static org.mockito.Mockito.mockingDetails;
  * (rangeColors[ranges.length]) when set, else the band's own darker() color. Each case
  * renders the real gauge/cylinder/thermometer/sliding-scale classes on a recording
  * Graphics2D and reads the gradient paints they set.
+ *
+ * Bug #78086: when a script shortens the ranges of a dialog design and does not set the
+ * colors, the last band ends at the design blend color, not at a dropped row's color.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = BaseTestConfiguration.class,
@@ -223,6 +231,185 @@ class RangeGradientEndColorTest {
       List<String> bands = render(kind, info);
 
       assertTrue(bands.contains(band(R, Y)), bands::toString);
+   }
+
+   // ---- #78086: a script shortens the ranges of a dialog design ----
+
+   @ParameterizedTest
+   @EnumSource(Kind.class)
+   void scriptShortenedRangesEndLastBandAtBlendColor(Kind kind) throws Exception {
+      RangeOutputVSAssemblyInfo info = createDesign(kind);
+      info.setRanges(new Object[] { "5", "15", "20" });
+
+      List<String> bands = render(kind, info);
+
+      assertTrue(bands.contains(band(Y, R)), bands::toString);
+      assertTrue(bands.contains(band(R, BLEND)), bands::toString);
+      assertFalse(bands.contains(band(R, O)), bands::toString);
+   }
+
+   @ParameterizedTest
+   @EnumSource(Kind.class)
+   void scriptFourRangesEndLastBandAtBlendColor(Kind kind) throws Exception {
+      RangeOutputVSAssemblyInfo info = createDesign(kind);
+      info.setRanges(new Object[] { "5", "10", "15", "20" });
+
+      List<String> bands = render(kind, info);
+
+      assertTrue(bands.contains(band(R, O)), bands::toString);
+      assertTrue(bands.contains(band(O, BLEND)), bands::toString);
+      assertFalse(bands.contains(band(O, P)), bands::toString);
+   }
+
+   @ParameterizedTest
+   @EnumSource(Kind.class)
+   void scriptShortenedRangesOfDesignWithEmptyRowsEndAtBlendColor(Kind kind) throws Exception {
+      RangeOutputVSAssemblyInfo info = createInfo(kind);
+      info.setMin("0");
+      info.setMax("25");
+      info.setRangeValues(new String[] { "5", "15", "20", "", "" });
+      info.setRangeColorsValue(new Color[] { G, Y, R, null, null, BLEND });
+      info.setRangeGradientValue(true);
+      info.setRanges(new Object[] { "5", "15" });
+
+      List<String> bands = render(kind, info);
+
+      assertTrue(bands.contains(band(G, Y)), bands::toString);
+      assertTrue(bands.contains(band(Y, BLEND)), bands::toString);
+      assertFalse(bands.contains(band(Y, R)), bands::toString);
+   }
+
+   @Test
+   void gaugeScriptRangesThroughScriptableEndAtBlendAndKeepScriptColors() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.getVSAssemblyInfo().setName("vs1");
+      GaugeVSAssembly assembly = new GaugeVSAssembly();
+      GaugeVSAssemblyInfo info = (GaugeVSAssemblyInfo) assembly.getVSAssemblyInfo();
+      info.setName("Gauge1");
+      vs.addAssembly(assembly);
+      setDesign(info);
+
+      ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+      when(box.getID()).thenReturn("vs1");
+      when(box.getViewsheet()).thenReturn(vs);
+      GaugeVSAScriptable scriptable = new GaugeVSAScriptable(box);
+      scriptable.setAssembly("Gauge1");
+
+      // Gauge1.ranges = [5, 15, 20]
+      scriptable.putMember("ranges", new String[] { "5", "15", "20" });
+
+      assertEquals(List.of(band(G, Y), band(Y, R), band(R, BLEND)), render(Kind.GAUGE, info));
+      // the rangeColors a script reads is unchanged: all 6 design colors
+      assertArrayEquals(new Color[] { G, Y, R, O, P, BLEND }, info.getRangeColors());
+   }
+
+   @ParameterizedTest
+   @EnumSource(Kind.class)
+   void scriptColorsEqualToDesignKeepPositionalEndColor(Kind kind) throws Exception {
+      // intended seam: colors set by a script are positional, even when they equal the
+      // design colors, so the last band fades into colors[ranges.length] as before
+      RangeOutputVSAssemblyInfo info = createDesign(kind);
+      info.setRangeColors(new Color[] { G, Y, R, O, P, BLEND });
+      info.setRanges(new Object[] { "5", "15", "20" });
+
+      List<String> bands = render(kind, info);
+
+      assertTrue(bands.contains(band(R, O)), bands::toString);
+      assertFalse(bands.contains(band(R, BLEND)), bands::toString);
+   }
+
+   @ParameterizedTest
+   @EnumSource(Kind.class)
+   void scriptColorsWithBlendKeepTheirBlend(Kind kind) throws Exception {
+      RangeOutputVSAssemblyInfo info = createDesign(kind);
+      info.setRanges(new Object[] { "5", "15", "20" });
+      info.setRangeColors(new Color[] { G, Y, R, BLEND });
+
+      List<String> bands = render(kind, info);
+
+      assertTrue(bands.contains(band(R, BLEND)), bands::toString);
+   }
+
+   @ParameterizedTest
+   @EnumSource(Kind.class)
+   void legacyDesignWithoutBlendEndsAtDarkerColor(Kind kind) throws Exception {
+      // known limit: an older 3-row design has its 3 colors padded to 4 slots, the 4th unset,
+      // so a script that shortens it to 2 ranges ends the last band at Y.darker() (was R),
+      // the same way the unscripted design ends its last band at R.darker()
+      RangeOutputVSAssemblyInfo info = createInfo(kind);
+      info.setMin("0");
+      info.setMax("25");
+      info.setRangeValues(new String[] { "5", "15", "20" });
+      info.setRangeColorsValue(new Color[] { G, Y, R });
+      info.setRangeGradientValue(true);
+      info.setRanges(new Object[] { "5", "15" });
+
+      List<String> bands = render(kind, info);
+
+      assertTrue(bands.contains(band(Y, Y.darker())), bands::toString);
+      assertFalse(bands.contains(band(Y, R)), bands::toString);
+   }
+
+   @ParameterizedTest
+   @EnumSource(Kind.class)
+   void resetRuntimeValuesRestoresDesignAndClearsScriptColors(Kind kind) throws Exception {
+      RangeOutputVSAssemblyInfo info = createDesign(kind);
+      info.setRangeColors(new Color[] { G, Y, R, O, P, BLEND });
+      info.setRanges(new Object[] { "5", "15", "20" });
+      info.resetRuntimeValues();
+
+      List<String> bands = render(kind, info);
+      assertTrue(bands.contains(band(O, P)), bands::toString);
+      assertTrue(bands.contains(band(P, BLEND)), bands::toString);
+
+      // the script colors are gone, so a later ranges-only script ends at the blend color
+      info.setRanges(new Object[] { "5", "15", "20" });
+      bands = render(kind, info);
+      assertTrue(bands.contains(band(R, BLEND)), bands::toString);
+   }
+
+   @Test
+   void copyInfoAndCloneCarryScriptColorsState() throws Exception {
+      GaugeVSAssemblyInfo design = new GaugeVSAssemblyInfo();
+      setDesign(design);
+
+      // the script colors equal the design colors: only the script-set state differs
+      GaugeVSAssemblyInfo scripted = (GaugeVSAssemblyInfo) design.clone();
+      scripted.setRangeColors(new Color[] { G, Y, R, O, P, BLEND });
+
+      GaugeVSAssemblyInfo target = new GaugeVSAssemblyInfo();
+      setDesign(target);
+      target.copyInfo(scripted);
+      target.setRanges(new Object[] { "5", "15", "20" });
+      List<String> bands = render(Kind.GAUGE, target);
+      assertTrue(bands.contains(band(R, O)), bands::toString);
+
+      GaugeVSAssemblyInfo clean = new GaugeVSAssemblyInfo();
+      setDesign(clean);
+      target.copyInfo(clean);
+      target.setRanges(new Object[] { "5", "15", "20" });
+      bands = render(Kind.GAUGE, target);
+      assertTrue(bands.contains(band(R, BLEND)), bands::toString);
+
+      GaugeVSAssemblyInfo cloned = (GaugeVSAssemblyInfo) scripted.clone();
+      cloned.setRanges(new Object[] { "5", "15", "20" });
+      bands = render(Kind.GAUGE, cloned);
+      assertTrue(bands.contains(band(R, O)), bands::toString);
+   }
+
+   /** A dialog design: 5 rows 5..25 with colors G,Y,R,O,P and the blend color, max 25. */
+   private static RangeOutputVSAssemblyInfo createDesign(Kind kind) {
+      RangeOutputVSAssemblyInfo info = createInfo(kind);
+      setDesign(info);
+      return info;
+   }
+
+   private static void setDesign(RangeOutputVSAssemblyInfo info) {
+      info.setMin("0");
+      info.setMax("25");
+      info.setRangeValues(new String[] { "5", "10", "15", "20", "25" });
+      info.setRangeColorsValue(new Color[] { G, Y, R, O, P, BLEND });
+      info.setRangeGradientValue(true);
    }
 
    // ---- helpers ----
