@@ -17,6 +17,7 @@
  */
 package inetsoft.util.script.graal;
 
+import inetsoft.graph.mxgraph.io.mxCodecRegistry;
 import inetsoft.report.script.graal.ReportGraalJavaScriptEngine;
 import inetsoft.uql.tabular.TabularEditor;
 import inetsoft.uql.tabular.TabularUtil;
@@ -79,25 +80,25 @@ class ScriptHostAccessHelperClassLoadTest {
 
    @Test
    void codecRegistryRefusesFilteredClass() throws Exception {
-      String registry = type("inetsoft.graph.mxgraph.io.mxCodecRegistry");
+      // Bug #78064: the codec is not script API at all; mxUtils.eval, which is,
+      // still resolves classes through getClassForName, so it keeps the name gate
+      assertNull(eval(type("inetsoft.graph.mxgraph.io.mxCodecRegistry")));
 
-      assertNull(eval(registry + ".getClassForName('" + ClassSentinel.class.getName() + "')"));
+      assertNull(mxCodecRegistry.getClassForName(ClassSentinel.class.getName()));
       assertFalse(classInitialized, "getClassForName initialized a filtered class");
 
-      assertNull(eval(registry + ".getInstanceForName('" + InstanceSentinel.class.getName() + "')"));
+      assertNull(mxCodecRegistry.getInstanceForName(InstanceSentinel.class.getName()));
       assertFalse(instanceInitialized, "getInstanceForName initialized a filtered class");
       assertFalse(instanceConstructed, "getInstanceForName constructed a filtered class");
 
-      assertNull(eval(registry + ".getInstanceForName('java.util.concurrent.ConcurrentHashMap')"));
+      assertNull(mxCodecRegistry.getInstanceForName("java.util.concurrent.ConcurrentHashMap"));
       // the package-prefixed retry is gated too
-      assertNull(eval(registry + ".getInstanceForName('concurrent.ConcurrentHashMap')"));
+      assertNull(mxCodecRegistry.getInstanceForName("concurrent.ConcurrentHashMap"));
 
       // admitted mxgraph classes, by full and by short (package-prefixed) name
-      assertEquals(Boolean.TRUE, eval(
-         registry + ".getClassForName('inetsoft.graph.mxgraph.view.mxEdgeStyle') != null"));
-      assertEquals(Boolean.TRUE, eval(
-         registry + ".getInstanceForName('mxGeometry') instanceof " +
-            type("inetsoft.graph.mxgraph.model.mxGeometry")));
+      assertNotNull(mxCodecRegistry.getClassForName("inetsoft.graph.mxgraph.view.mxEdgeStyle"));
+      assertTrue(mxCodecRegistry.getInstanceForName("mxGeometry") instanceof
+                    inetsoft.graph.mxgraph.model.mxGeometry);
    }
 
    @Test

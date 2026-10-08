@@ -297,7 +297,8 @@ public class JavaScriptEngine {
    /**
     * Create a new instance of an object. The class must be visible to scripts
     * according to the script class filter; the name is checked before the class
-    * is loaded so a rejected class is never initialized.
+    * is loaded so a rejected class is never initialized. A class the script host
+    * access denies by type is refused too, as {@code new (Java.type(cls))()} is.
     */
    public static Object newInstance(String cls) throws Exception {
       if(cls == null || cls.isBlank()) {
