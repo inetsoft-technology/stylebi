@@ -210,6 +210,8 @@ public class ClearOldCacheFilesRunnable extends TimedQueue.TimedRunnable {
          long curr = System.currentTimeMillis();
          XSwapper.RegisteredSwapFiles swapFiles =
             new XSwapper.RegisteredSwapFiles(Cluster.getInstance());
+         // Bug #78082, the snapshot copies of a node that is gone are not in use
+         SnapshotEmbeddedTableAssembly.removeStaleFileReferences(Cluster.getInstance());
          Map<String, Integer> snapshotFileMap = Cluster.getInstance().getMap(
             SnapshotEmbeddedTableAssembly.FILE_REFERENCES_MAP);
          XSwapper swapper = XSwapper.getSwapper();

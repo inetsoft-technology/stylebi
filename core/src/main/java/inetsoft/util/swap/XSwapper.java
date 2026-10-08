@@ -22,6 +22,7 @@ import com.sun.management.VMOption;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.DistributedMap;
+import inetsoft.uql.asset.SnapshotEmbeddedTableAssembly;
 import inetsoft.util.*;
 import inetsoft.util.ConfigurationContext;
 import jakarta.annotation.PreDestroy;
@@ -481,6 +482,9 @@ public final class XSwapper {
                }
 
                registered.removeStaleEntries();
+               // Bug #78082, e.g. of the JVM this one replaced in a rolling restart, so that
+               // the copies this JVM makes of the same snapshots are deleted when closed
+               SnapshotEmbeddedTableAssembly.removeStaleFileReferences(cluster);
             }
             finally {
                try {
