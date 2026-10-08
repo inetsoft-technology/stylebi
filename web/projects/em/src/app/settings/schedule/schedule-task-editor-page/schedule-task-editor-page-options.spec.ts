@@ -179,6 +179,8 @@ describe("ScheduleTaskEditorPageComponent Options tab (Bug #77512)", () => {
       expect(saved[0].options.owner).toBe("admin");
       expect(saved[0].options.description).toBe("newer description");
       expect(saved[0].options.idName).toBeNull();
+      // the placeholder owner is shown as the Execute As fallback, after the save re-bind too
+      expect(pane.executeAsFallback).toBe("admin");
    });
 
    it("sends a stored execute-as identity back unchanged", () => {
@@ -195,6 +197,8 @@ describe("ScheduleTaskEditorPageComponent Options tab (Bug #77512)", () => {
       fixture.detectChanges();
       expect(saveEnabled()).toBe(true);
       expect(pane.optionsForm.get("executeAs").value || null).toBeNull();
+      // the owner is shown as the Execute As fallback only (#78038)
+      expect(pane.executeAsFallback).toBe("dave");
 
       save();
       expect(saved[0].options.idName).toBeNull();

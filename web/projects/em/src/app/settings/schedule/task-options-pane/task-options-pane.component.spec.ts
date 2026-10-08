@@ -17,8 +17,10 @@
  */
 import { HttpClientTestingModule, HttpTestingController } from "@angular/common/http/testing";
 import { TestBed } from "@angular/core/testing";
+import { provideNativeDateAdapter } from "@angular/material/core";
 import { MatDialog } from "@angular/material/dialog";
-import { BehaviorSubject, of } from "rxjs";
+import { NoopAnimationsModule } from "@angular/platform-browser/animations";
+import { BehaviorSubject, Observable, of, Subject } from "rxjs";
 import { TaskOptionsPaneModel } from "../../../../../../shared/schedule/model/task-options-pane-model";
 import { ScheduleUsersService } from "../../../../../../shared/schedule/schedule-users.service";
 import { KEY_DELIMITER } from "../../security/users/identity-id";
@@ -58,11 +60,13 @@ describe("TaskOptionsPane owner validity and Execute As (Bug #77512)", () => {
    let dialogResult: any;
    let dialogData: any;
 
-   function create(sso: boolean, model: TaskOptionsPaneModel) {
+   function create(sso: boolean, model: TaskOptionsPaneModel,
+                   adminName: Observable<string> = new BehaviorSubject("dave" + KEY_DELIMITER + ORG))
+   {
       // org admin dave is the editor; adminName is set because the owner list isn't empty
       const usersService = {
          getOwners: () => new BehaviorSubject([owner("dave"), owner("erin")]),
-         getAdminName: () => new BehaviorSubject("dave" + KEY_DELIMITER + ORG),
+         getAdminName: () => adminName,
          getSSOEnable: () => new BehaviorSubject(sso)
       };
       const dialog = {
@@ -184,11 +188,81 @@ describe("TaskOptionsPane owner validity and Execute As (Bug #77512)", () => {
    });
 
    describe("Execute As", () => {
-      it("is empty when the task has no execute-as identity, and is saved as none", () => {
+      it("shows the owner only as a fallback when the task has no execute-as identity, and saves none (#78038)", () => {
          const { comp, emitted } = create(false, taskModel({ owner: "dave" }));
+         // the owner is shown as the placeholder, never written into the control (#77512)
+         expect(comp.executeAsFallback).toBe("dave");
          expect(comp.optionsForm.get("executeAs").value || null).toBeNull();
          editDescription(comp);
          expect(emitted[0].model.idName).toBeNull();
+         expect(comp.executeAsFallback).toBe("dave");
+      });
+
+      it("shows the owner fallback for a new task (#78038)", () => {
+         // a new task: the server sends the owner and no execute-as identity
+         const { comp, emitted } = create(false, taskModel({ owner: "dave", description: null }));
+         expect(comp.executeAsFallback).toBe("dave");
+         comp.optionsForm.get("taskEnabled").setValue(false);
+         comp.fireModelChanged();
+         comp.model = emitted[0].model;   // the editor page re-binds the emitted copy
+         editDescription(comp);
+         expect(emitted.map(e => e.model.idName)).toEqual([null, null]);
+         expect(comp.executeAsFallback).toBe("dave");
+      });
+
+      it("follows an owner change in the fallback and still saves no execute-as (#78038)", () => {
+         const { comp, emitted } = create(false, taskModel({ owner: "dave" }));
+         changeOwner(comp, "erin");
+         expect(comp.executeAsFallback).toBe("erin");
+         expect(emitted[0].model.idName).toBeNull();
+
+         comp.model = emitted[0].model;   // the editor page re-binds the emitted copy
+         expect(comp.executeAsFallback).toBe("erin");
+         expect(comp.optionsForm.get("executeAs").value || null).toBeNull();
+         editDescription(comp);
+         expect(emitted[1].model.idName).toBeNull();
+      });
+
+      it("shows an explicit execute-as identity itself, without the owner fallback (#78038)", () => {
+         const { comp } = create(false, taskModel({ owner: "dave", idName: "erin" }));
+         expect(comp.optionsForm.get("executeAs").value).toBe("erin");
+         expect(comp.executeAsFallback).toBeNull();
+      });
+
+      it("shows no owner fallback once the Execute As dialog picks an identity (#78038)", () => {
+         dialogResult = { idName: "erin", idType: ExecuteAsType.USER };
+         const { comp, emitted } = create(false, taskModel({ owner: "dave" }));
+         comp.openExecuteAsDialog();
+         expect(emitted[0].model.idName).toBe("erin");
+         expect(comp.optionsForm.get("executeAs").value).toBe("erin");
+         expect(comp.executeAsFallback).toBeNull();
+      });
+
+      it("keeps the owner fallback and saves nothing when the Execute As dialog is cancelled (#78038)", () => {
+         dialogResult = undefined;
+         const { comp, emitted } = create(false, taskModel({ owner: "dave" }));
+         comp.openExecuteAsDialog();
+         expect(dialogData.idName).toBeNull();
+         expect(emitted.length).toBe(0);
+         expect(comp.executeAsFallback).toBe("dave");
+         editDescription(comp);
+         expect(emitted[0].model.idName).toBeNull();
+      });
+
+      it("shows no owner fallback when security is disabled, even if the admin name arrives late (#78038)", () => {
+         const admin = new Subject<string>();
+         const { comp, emitted } = create(false, taskModel({ owner: "dave", securityEnabled: false }),
+                                          admin);
+         admin.next("dave" + KEY_DELIMITER + ORG);
+         expect(comp.executeAsFallback).toBeNull();
+         editDescription(comp);
+         expect(emitted[0].model.idName).toBeNull();
+      });
+
+      it("keeps the anonymous execute-as blank, without the owner fallback (#78038)", () => {
+         const { comp } = create(false, taskModel({ owner: "dave", idName: "anonymous" }));
+         expect(comp.optionsForm.get("executeAs").value).toBe("");
+         expect(comp.executeAsFallback).toBeNull();
       });
 
       it("sends a stored execute-as identity that names the owner back unchanged", () => {
@@ -233,15 +307,72 @@ describe("TaskOptionsPane owner validity and Execute As (Bug #77512)", () => {
          expect(emitted[0].model.idType).toBe(ExecuteAsType.USER);
          expect(emitted[0].valid).toBe(true);
          expect(comp.optionsForm.get("executeAs").value || null).toBeNull();
+         // the task runs as its owner again, shown as the fallback (#78038)
+         expect(comp.executeAsFallback).toBe("dave");
       });
 
-      it("stays empty after Clear when the parent re-binds the edited model", () => {
+      it("shows only the owner fallback after Clear when the parent re-binds the edited model", () => {
          const { comp, emitted } = create(false, taskModel({ owner: "dave", idName: "erin" }));
          comp.clearUser();
          comp.model = emitted[0].model;
          expect(comp.optionsForm.get("executeAs").value || null).toBeNull();
+         expect(comp.executeAsFallback).toBe("dave");
          editDescription(comp);
          expect(emitted[1].model.idName).toBeNull();
       });
+   });
+});
+
+/**
+ * Bug #78038: with the real template, the Execute As field of a task without an execute-as
+ * identity shows the owner as a placeholder that is visible without focus.
+ */
+describe("TaskOptionsPane Execute As owner fallback rendering (Bug #78038)", () => {
+   function render(model: TaskOptionsPaneModel) {
+      TestBed.configureTestingModule({
+         imports: [HttpClientTestingModule, NoopAnimationsModule, TaskOptionsPane],
+         providers: [
+            {
+               provide: ScheduleUsersService,
+               useValue: {
+                  getOwners: () => new BehaviorSubject([owner("dave"), owner("erin")]),
+                  getAdminName: () => new BehaviorSubject("dave" + KEY_DELIMITER + ORG),
+                  getSSOEnable: () => new BehaviorSubject(false)
+               }
+            },
+            { provide: MatDialog, useValue: { open: vi.fn() } },
+            provideNativeDateAdapter()
+         ]
+      });
+
+      const fixture = TestBed.createComponent(TaskOptionsPane);
+      TestBed.inject(HttpTestingController).expectOne("../api/em/navbar/organization").flush(ORG);
+      fixture.componentInstance.timeZoneOptions = [];
+      fixture.componentInstance.model = model;
+      fixture.componentInstance.originalOwner = model.owner;
+      fixture.detectChanges();
+      return fixture;
+   }
+
+   function executeAsField(fixture: any) {
+      const input: HTMLInputElement =
+         fixture.nativeElement.querySelector("input[formcontrolname='executeAs']");
+      return { input, field: input.closest("mat-form-field") as HTMLElement };
+   }
+
+   it("shows the owner as an always-visible placeholder when there is no execute-as identity", () => {
+      const fixture = render(taskModel({ owner: "dave" }));
+      const { input, field } = executeAsField(fixture);
+      expect(input.value).toBe("");
+      expect(input.placeholder).toBe("dave");
+      // the label floats without focus, so the placeholder is visible
+      expect(field.classList).toContain("mat-mdc-form-field-label-always-float");
+   });
+
+   it("shows an explicit execute-as identity as the value", () => {
+      const fixture = render(taskModel({ owner: "dave", idName: "erin" }));
+      const { input } = executeAsField(fixture);
+      expect(input.value).toBe("erin");
+      expect(input.placeholder).not.toBe("dave");
    });
 });
