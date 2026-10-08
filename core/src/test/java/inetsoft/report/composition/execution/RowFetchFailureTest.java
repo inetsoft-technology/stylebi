@@ -75,6 +75,7 @@ import javax.sql.DataSource;
 import java.lang.reflect.*;
 import java.sql.Connection;
 import java.sql.Statement;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -490,6 +491,116 @@ class RowFetchFailureTest {
       assertEquals(ROWS, dataRows(lens));
       assertNull(CoreTool.getUserMessage());
       assertSortedDescending(lens);
+   }
+
+   // Bug #77966: every reader of a worker lens over a failed fetch gets the failure, not only
+   // the first one, each reader gets one copy of the warning also through stacked worker
+   // lenses, and a user cancel of the fetch stays silent through each lens
+
+   @Test
+   void concurrentReadersOfAWorkerLensAllGetTheFailure() throws Exception {
+      for(boolean scheduler : new boolean[] { false, true }) {
+         for(String shape : new String[] { "distinct1", "distinct3", "join" }) {
+            TableLens base = baseLens(true, scheduler);
+            TableLens other = shape.equals("join") ? baseLens(false, scheduler) : null;
+            TableLens lens = workerLens(shape, base, other);
+            int readers = 4;
+            CyclicBarrier barrier = new CyclicBarrier(readers);
+            String[] results = new String[readers];
+            Thread[] threads = new Thread[readers];
+
+            for(int i = 0; i < readers; i++) {
+               int idx = i;
+               threads[i] = new Thread(() -> {
+                  try {
+                     CoreTool.clearUserMessage();
+                     barrier.await();
+                     dataRows(lens);
+                     UserMessage message = CoreTool.getUserMessage();
+                     results[idx] = message == null ? null : message.getMessage();
+                  }
+                  catch(Throwable ex) {
+                     results[idx] = TableLoadException.find(ex) != null ?
+                        "TableLoadException" : String.valueOf(ex);
+                  }
+               });
+               threads[i].start();
+            }
+
+            for(Thread thread : threads) {
+               thread.join(60000);
+               assertFalse(thread.isAlive(), shape + " reader hung");
+            }
+
+            String expected = scheduler ? "TableLoadException" :
+               Catalog.getCatalog().getString("common.table.getDataFailed") + ": " + DB_MESSAGE;
+
+            for(String result : results) {
+               assertEquals(expected, result, shape + " scheduler=" + scheduler);
+            }
+         }
+      }
+   }
+
+   @Test
+   void stackedWorkerLensesWarnOnce() throws Exception {
+      // a sort over a multi-column distinct over a join whose two sides both fail
+      TableLens join = new JoinTableLens(baseLens(true, false), baseLens(true, false),
+                                         new int[] { 0 }, new int[] { 0 });
+      TableLens sort = new SortFilter(new DistinctTableLens(join, new int[] { 0, 1 }, false),
+                                      new int[] { 1 }, false);
+      CoreTool.clearUserMessage();
+
+      for(int i = 0; i < 3; i++) {
+         assertEquals(FAIL_ROW - 1, dataRows(sort));
+      }
+
+      assertWarned();
+   }
+
+   @Test
+   void userCancelStaysSilentThroughWorkerLenses() throws Exception {
+      for(boolean scheduler : new boolean[] { false, true }) {
+         for(String shape : new String[] { "distinct1", "distinct3", "sort", "join" }) {
+            CoreTool.clearUserMessage();
+            Worksheet ws = new Worksheet();
+            // three times the size of big, so the cancel lands while the rows are fetched
+            sqlTable(ws, "T1", "select a.id, a.g, b.g as x from big a, big b where b.id < 4 " +
+                     "and a.id > -" + RUN.incrementAndGet());
+            AssetQuerySandbox box = new AssetQuerySandbox(ws);
+            VariableTable vars = new VariableTable();
+
+            if(scheduler) {
+               vars.put("__is_scheduler__", Boolean.TRUE);
+            }
+
+            TableLens base = box.getTableLens("T1", AssetQuerySandbox.RUNTIME_MODE, vars);
+            XNodeTableLens xlens = (XNodeTableLens) Util.getNestedTable(base, XNodeTableLens.class);
+            TableLens other = shape.equals("join") ? baseLens(false, scheduler) : null;
+            TableLens lens = workerLens(shape, base, other);
+            xlens.cancel();
+
+            dataRows(lens);
+            assertTrue(xlens.getRowCount() - 1 < ROWS * 3, shape + " the cancel did not land");
+            assertNull(xlens.getLoadException());
+            assertNull(CoreTool.getUserMessage(), shape + " scheduler=" + scheduler);
+         }
+      }
+   }
+
+   private static TableLens workerLens(String shape, TableLens base, TableLens other) {
+      switch(shape) {
+      case "distinct1":
+         return new DistinctTableLens(base, new int[] { 1 }, true);
+      case "distinct3":
+         return new DistinctTableLens(base, new int[] { 0, 1, 2 }, false);
+      case "sort":
+         return new SortFilter(base, new int[] { 1, 0 }, false);
+      case "join":
+         return new JoinTableLens(base, other, new int[] { 0 }, new int[] { 0 });
+      default:
+         throw new IllegalArgumentException(shape);
+      }
    }
 
    private static void assertLoadFailure(Executable read) {
