@@ -172,6 +172,18 @@ public class ComposerControllerErrorHandler {
 
    @MessageExceptionHandler(Exception.class)
    public void handleException(Exception e, CommandDispatcher commandDispatcher) throws Exception {
+      // a cancelled query is not an error to show. A newer change of the viewsheet that
+      // cancels a query and doesn't reload its assembly makes the sandbox run it again, so
+      // what reaches here was superseded (the newer request loads the assembly), cancelled by
+      // the user or by a drill, or its sheet was closed. The cause chain is checked since a
+      // cluster proxy may wrap it, which a CancelledException handler wouldn't match (#78024)
+      CancelledException cancelled = CancelledException.find(e);
+
+      if(cancelled != null) {
+         LOG.debug("Request cancelled: {}", cancelled.getMessage(), e);
+         return;
+      }
+
       MessageCommand command = new MessageCommand();
 
       if(GlobalExceptionHandler.isCacheStoppedException(e)) {

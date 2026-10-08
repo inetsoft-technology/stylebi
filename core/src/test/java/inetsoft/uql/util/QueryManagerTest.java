@@ -103,4 +103,26 @@ public class QueryManagerTest {
       assertEquals(2, qmgr.getCancelCount(), "any cancel is counted");
       assertEquals(1, qmgr.getQueryCancelCount(), "another cancel is not a query's cancel");
    }
+
+   /**
+    * Bug #78024: the sandbox runs a query again only if newer changes of the viewsheet alone
+    * cancelled it, so a change's cancel is counted apart from the user's or a query's.
+    */
+   @Test
+   void cancelForChangeIsCountedApartFromOtherCancels() {
+      QueryManager qmgr = new QueryManager();
+      long[] counts = qmgr.getCancelCounts();
+      assertFalse(qmgr.isCancelledForChangeOnly(counts), "nothing cancelled yet");
+
+      qmgr.cancelForChange();
+      assertTrue(qmgr.isCancelledForChangeOnly(counts), "only a change cancelled it");
+      assertEquals(1, qmgr.getCancelCount(), "a change's cancel is a cancel");
+
+      qmgr.cancel();
+      assertFalse(qmgr.isCancelledForChangeOnly(counts), "a plain cancel too, e.g. the user");
+
+      counts = qmgr.getCancelCounts();
+      qmgr.cancelForQuery();
+      assertFalse(qmgr.isCancelledForChangeOnly(counts), "a newer query's cancel is not a change");
+   }
 }

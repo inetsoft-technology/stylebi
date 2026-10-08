@@ -121,6 +121,12 @@ public class QueryManager {
          queries = new ArrayList<>(this.queries);
          ts = System.currentTimeMillis();
          cancelCount++;
+
+         // counted with the cancel, so a reader never sees one without the other
+         if(FOR_CHANGE.get() != null) {
+            FOR_CHANGE.remove();
+            changeCancelCount++;
+         }
       }
 
       int cnt = 0;
@@ -154,6 +160,40 @@ public class QueryManager {
       }
 
       return cancel();
+   }
+
+   /**
+    * Cancel all pending queries for a newer change of the viewsheet, which cancels the
+    * queries of the request it supersedes.
+    * @return the cancelled query count.
+    */
+   public int cancelForChange() {
+      FOR_CHANGE.set(Boolean.TRUE);
+
+      try {
+         return cancel();
+      }
+      finally {
+         FOR_CHANGE.remove();
+      }
+   }
+
+   /**
+    * Get the cancel count and the change cancel count (see {@link #cancelForChange()}) as one
+    * snapshot, to pass to {@link #isCancelledForChangeOnly(long[])} later.
+    */
+   public synchronized long[] getCancelCounts() {
+      return new long[] { cancelCount, changeCancelCount };
+   }
+
+   /**
+    * Check if the pending queries were cancelled since the snapshot, and only by newer changes
+    * of the viewsheet, see {@link #cancelForChange()}.
+    * @param counts a snapshot from {@link #getCancelCounts()}.
+    */
+   public synchronized boolean isCancelledForChangeOnly(long[] counts) {
+      long cancels = cancelCount - counts[0];
+      return cancels > 0 && cancels == changeCancelCount - counts[1];
    }
 
    /**
@@ -195,6 +235,9 @@ public class QueryManager {
    private long ts = 0L;
    private long cancelCount = 0L;
    private long queryCancelCount = 0L;
+   private long changeCancelCount = 0L;
+   // set while cancelForChange() runs cancel() on this thread
+   private static final ThreadLocal<Boolean> FOR_CHANGE = new ThreadLocal<>();
 
    private static final Logger LOG =
       LoggerFactory.getLogger(QueryManager.class);

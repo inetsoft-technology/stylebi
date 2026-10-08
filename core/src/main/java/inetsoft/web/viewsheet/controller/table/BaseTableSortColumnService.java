@@ -28,6 +28,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
+import inetsoft.util.CancelledException;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.command.SetVSBindingModelCommand;
 import inetsoft.web.binding.model.BindingModel;
@@ -37,6 +38,8 @@ import inetsoft.web.viewsheet.command.UpdateSortInfoCommand;
 import inetsoft.web.viewsheet.event.table.SortColumnEvent;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
@@ -76,6 +79,12 @@ public class BaseTableSortColumnService extends BaseTableService<SortColumnEvent
          tableSortColumn(rvs, box.get(), event, principal, dispatcher, linkUri);
       }
       catch(Exception e) {
+         // a cancelled query is not a sort failure, see ComposerControllerErrorHandler (#78024)
+         if(CancelledException.find(e) != null) {
+            LOG.debug("Sort of {} cancelled", event.getAssemblyName(), e);
+            return null;
+         }
+
          MessageCommand command = new MessageCommand();
          command.setMessage("Failed to process sort filter");
          command.setType(MessageCommand.Type.ERROR);
@@ -563,4 +572,5 @@ public class BaseTableSortColumnService extends BaseTableService<SortColumnEvent
    }
 
    protected final VSBindingService bindingFactory;
+   private static final Logger LOG = LoggerFactory.getLogger(BaseTableSortColumnService.class);
 }
