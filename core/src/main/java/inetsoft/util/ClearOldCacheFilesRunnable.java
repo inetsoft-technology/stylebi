@@ -225,7 +225,10 @@ public class ClearOldCacheFilesRunnable extends TimedQueue.TimedRunnable {
 
             // file in use, skip. Bug #77600, files of this JVM's swapper are live
             // Bug #78044, a registered file of a JVM that is gone is not in use
+            // Bug #78082, a snapshot copy that this JVM reads is in use, even if its count
+            // is gone
             if(swapFiles.contains(files[i]) || snapshotFileMap.containsKey(filePath) ||
+               SnapshotEmbeddedTableAssembly.isFileInUseLocally(filePath) ||
                swapper.isOwnSwapFile(files[i].getName()))
             {
                continue;

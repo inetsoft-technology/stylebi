@@ -56,7 +56,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * of an older version, which has no owner, must still protect its file.
  *
  * The maps are of a real two-node Ignite cluster with the product configuration. The node that
- * stops is a separate Ignite node, the other node stays up, as in a rolling restart.
+ * stops is a separate Ignite node, the other node stays up, as in a rolling restart. The counts
+ * of another JVM are written to the maps as EmbeddedTableReference writes them, because the
+ * tables of this JVM are in use by this JVM whatever node id they were counted under.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = {
@@ -121,8 +123,7 @@ class SnapshotFileReferencesStaleNodeTest {
    @Test
    void laterCopyIsDeletedWhenItsLastTableClosesAfterTheOwnerNodeStopped() throws Exception {
       File file = createCopy("t78082a_1_s.tdat");
-      current = stopping;
-      addReference(file);
+      addCountOfOtherJvm(file, stopping);
       assertEquals(1, survivorCount(file));
 
       stopNode();
@@ -139,8 +140,7 @@ class SnapshotFileReferencesStaleNodeTest {
    @Test
    void closeKeepsCopyThatAnotherLiveNodeHolds() throws Exception {
       File file = createCopy("t78082b_1_s.tdat");
-      current = stopping;
-      addReference(file);
+      addCountOfOtherJvm(file, stopping);
       current = survivor;
       Object reference = addReference(file);
       close(reference);
@@ -195,19 +195,17 @@ class SnapshotFileReferencesStaleNodeTest {
    }
 
    /**
-    * A copy held by the node that stops, one held by the node that stays up and one counted by a
-    * JVM of an older version (a count without an owner), all past every age gate. The node has
-    * stopped when this returns.
+    * A copy held by another JVM on the node that stops, one held by another JVM on the node that
+    * stays up and one counted by a JVM of an older version (a count without an owner), all past
+    * every age gate. The node has stopped when this returns.
     */
    private final class Fixture {
       Fixture(String name) throws Exception {
          stale = createCopy("t78082" + name + "_1_s.tdat");
          live = createCopy("t78082" + name + "_2_s.tdat");
          older = createCopy("t78082" + name + "_3_s.tdat");
-         current = stopping;
-         addReference(stale);
-         current = survivor;
-         addReference(live);
+         addCountOfOtherJvm(stale, stopping);
+         addCountOfOtherJvm(live, survivor);
          survivor.<String, Integer>getMap(SnapshotEmbeddedTableAssembly.FILE_REFERENCES_MAP)
             .put(older.getAbsolutePath(), 1);
          stopNode();
@@ -253,6 +251,30 @@ class SnapshotFileReferencesStaleNodeTest {
       tables.add(table);
       references.add(reference);
       return reference;
+   }
+
+   /**
+    * Adds a count of a live table of another JVM on a node to a copy, as EmbeddedTableReference
+    * does on that JVM.
+    */
+   private static void addCountOfOtherJvm(File file, IgniteCluster node) {
+      String path = file.getAbsolutePath();
+      Lock lock = node.getLock(SnapshotEmbeddedTableAssembly.FILE_REFERENCES_MAP_LOCK);
+      lock.lock();
+
+      try {
+         Map<String, Integer> map = node.getMap(SnapshotEmbeddedTableAssembly.FILE_REFERENCES_MAP);
+         Map<String, HashMap<String, Integer>> owners =
+            node.getMap(SnapshotEmbeddedTableAssembly.FILE_OWNERS_MAP);
+         map.put(path, map.getOrDefault(path, 0) + 1);
+         HashMap<String, Integer> fileOwners = owners.get(path);
+         fileOwners = fileOwners == null ? new HashMap<>() : fileOwners;
+         fileOwners.merge(node.getLocalNodeId(), 1, Integer::sum);
+         owners.put(path, fileOwners);
+      }
+      finally {
+         lock.unlock();
+      }
    }
 
    private static void close(Object reference) throws Exception {
