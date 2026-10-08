@@ -17,7 +17,10 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
+import inetsoft.report.composition.FormTableLens;
+import inetsoft.report.composition.FormTableRow;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
 import inetsoft.web.viewsheet.command.LoadTableDataCommand;
@@ -32,6 +35,7 @@ import org.mockito.ArgumentCaptor;
 import java.security.Principal;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -121,6 +125,34 @@ class FormTableRowServiceTest {
       assertFalse(captor.getValue().insert());
    }
 
+   /**
+    * Bug #77042 Problem 1: {@code FormTableLens.insertRow}/{@code appendRow} index from row 0 =
+    * the header row, but this class's own contract is a 0-based DATA row -- so index 0 (first
+    * data row) must become the lens's {@code getHeaderRowCount()} (1 here), not 0.
+    */
+   @Test
+   void insertRowOffsetsIndexByTheLensOwnHeaderRowCount() throws Exception {
+      Harness h = harnessWithLens(tableWith(true, true, true, true), lensWith(1, true));
+
+      h.service.insertRow("tok", principal(), "Table1", 0, false, "");
+
+      ArgumentCaptor<InsertTableRowEvent> captor = ArgumentCaptor.forClass(InsertTableRowEvent.class);
+      verify(h.forms).addRow(eq("rt1"), captor.capture(), eq(""), any(), any());
+      assertEquals(1, captor.getValue().row());
+   }
+
+   /** Not hardcoded to 1 -- a lens reporting more header rows offsets by that many instead. */
+   @Test
+   void insertRowOffsetUsesTheLensOwnHeaderRowCountNotAConstant() throws Exception {
+      Harness h = harnessWithLens(tableWith(true, true, true, true), lensWith(3, true));
+
+      h.service.insertRow("tok", principal(), "Table1", 2, false, "");
+
+      ArgumentCaptor<InsertTableRowEvent> captor = ArgumentCaptor.forClass(InsertTableRowEvent.class);
+      verify(h.forms).addRow(eq("rt1"), captor.capture(), eq(""), any(), any());
+      assertEquals(5, captor.getValue().row());
+   }
+
    // ── deleteRows ────────────────────────────────────────────────────────────
 
    @Test
@@ -157,6 +189,22 @@ class FormTableRowServiceTest {
       assertEquals(List.of(2, 0), captor.getValue().rows());
    }
 
+   /**
+    * Bug #77042 Problem 1: {@code FormTableLens.deleteRow(0)} has NO header guard at all (unlike
+    * {@code insertRow}) -- it silently deletes the header -- so every data index must be offset
+    * by the header row count before reaching the native event, same as insert.
+    */
+   @Test
+   void deleteRowsOffsetsEveryIndexByTheLensOwnHeaderRowCount() throws Exception {
+      Harness h = harnessWithLens(tableWith(true, true, true, true), lensWith(1, true));
+
+      h.service.deleteRows("tok", principal(), "Table1", List.of(2, 0), "");
+
+      ArgumentCaptor<DeleteTableRowsEvent> captor = ArgumentCaptor.forClass(DeleteTableRowsEvent.class);
+      verify(h.forms).deleteRows(eq("rt1"), captor.capture(), eq(""), any(), any());
+      assertEquals(List.of(3, 1), captor.getValue().rows());
+   }
+
    // ── setCell ───────────────────────────────────────────────────────────────
 
    /** setCell only requires isForm(), not isInsert()/isDel() -- editing a cell is neither. */
@@ -172,6 +220,79 @@ class FormTableRowServiceTest {
       assertEquals(0, captor.getValue().row());
       assertEquals(1, captor.getValue().col());
       assertEquals("hello", captor.getValue().data());
+   }
+
+   /** Bug #77042 Problem 1: same header-row offset as insert/delete, applied to setCell's row. */
+   @Test
+   void setCellOffsetsRowByTheLensOwnHeaderRowCount() throws Exception {
+      FormTableLens lens = lensWith(1, true, rowWith(FormTableRow.OLD), rowWith(FormTableRow.OLD));
+      ColumnOption option = optionWith(true);
+      when(lens.getVisibleColumnOption(1)).thenReturn(option);
+      Harness h = harnessWithLens(tableWith(true, true, true, true), lens);
+
+      h.service.setCell("tok", principal(), "Table1", 0, 1, "hello", "");
+
+      ArgumentCaptor<ChangeFormTableCellInputEvent> captor =
+         ArgumentCaptor.forClass(ChangeFormTableCellInputEvent.class);
+      verify(h.forms).changeFormInput(eq("rt1"), captor.capture(), eq(""), any(), any());
+      assertEquals(1, captor.getValue().row());
+   }
+
+   /**
+    * Bug #77042 Problem 3: the native {@code changeFormInput} enforces no editable-state check at
+    * all -- this class must refuse a pre-existing (not {@code FormTableRow.ADDED}) row's cell
+    * when the table's Edit switch is off, mirroring {@code BaseTableCellModel.createFormCell}'s
+    * own display-time condition exactly.
+    */
+   @Test
+   void setCellRefusesAPreExistingRowsCellWhenEditIsOff() {
+      // index 0 is the header placeholder (never touched, nativeRow is 1); index 1 is the row
+      // data index 0 resolves to once offset by headerRowCount.
+      FormTableLens lens = lensWith(1, false, rowWith(FormTableRow.OLD), rowWith(FormTableRow.OLD));
+      ColumnOption option = optionWith(true);
+      when(lens.getVisibleColumnOption(1)).thenReturn(option);
+      Harness h = harnessWithLens(tableWith(true, true, true, true), lens);
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> h.service.setCell("tok", principal(), "Table1", 0, 1, "hello", ""));
+
+      assertTrue(e.getMessage().contains("not editable"), e.getMessage());
+      verifyNoInteractions(h.forms);
+   }
+
+   /**
+    * The other half of the same condition: a column that is not form-optioned at all is refused
+    * regardless of row state or Edit switch.
+    */
+   @Test
+   void setCellRefusesAColumnThatIsNotFormOptioned() {
+      FormTableLens lens = lensWith(1, true, rowWith(FormTableRow.ADDED), rowWith(FormTableRow.ADDED));
+      ColumnOption option = optionWith(false);
+      when(lens.getVisibleColumnOption(1)).thenReturn(option);
+      Harness h = harnessWithLens(tableWith(true, true, true, true), lens);
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> h.service.setCell("tok", principal(), "Table1", 0, 1, "hello", ""));
+
+      assertTrue(e.getMessage().contains("not editable"), e.getMessage());
+      verifyNoInteractions(h.forms);
+   }
+
+   /**
+    * A row just added via {@code form_table_insert_row} ({@code FormTableRow.ADDED}) is editable
+    * on its form-optioned columns even while the table's Edit switch is off -- exactly the
+    * "new row" half of {@code BaseTableCellModel}'s own condition.
+    */
+   @Test
+   void setCellAllowsANewlyAddedRowsCellEvenWhenEditIsOff() throws Exception {
+      FormTableLens lens = lensWith(1, false, rowWith(FormTableRow.ADDED), rowWith(FormTableRow.ADDED));
+      ColumnOption option = optionWith(true);
+      when(lens.getVisibleColumnOption(1)).thenReturn(option);
+      Harness h = harnessWithLens(tableWith(true, true, true, true), lens);
+
+      h.service.setCell("tok", principal(), "Table1", 0, 1, "hello", "");
+
+      verify(h.forms).changeFormInput(eq("rt1"), any(), eq(""), any(), any());
    }
 
    // ── apply ─────────────────────────────────────────────────────────────────
@@ -254,6 +375,61 @@ class FormTableRowServiceTest {
       assertEquals(List.of(), result.get("rows"));
    }
 
+   // ── warnings (Bug #77042 Problem 2) ─────────────────────────────────────
+
+   /**
+    * {@code ViewsheetSessionService.mutate} already extracts any {@code MessageCommand} WARNING
+    * the mutation dispatched (via {@code CapturingCommandDispatcher.getWarnings()}) and returns
+    * it -- e.g. the max-row-count insert warning ({@code VSFormTableService.addRow}) or the
+    * oversized-cell truncation warning ({@code changeFormInput}). Before this fix,
+    * {@code insertRow}/{@code deleteRows}/{@code setCell} called {@code mutate} as a bare
+    * statement and threw that return value away, so the tool reported an unconditional success
+    * with no way to tell the write was altered or skipped. (An ERROR-type MessageCommand -- e.g.
+    * {@code option.validate()} rejection -- is a different case already handled: {@code mutate}
+    * converts it to a thrown {@code CommandErrorException}, which a dedicated
+    * {@code WizControllerErrorHandler} handler already maps to a named HTTP 409, so it was never
+    * silently dropped the way a WARNING was.)
+    */
+   @Test
+   void insertRowSurfacesWarningsMutateReturned() throws Exception {
+      Harness h = harnessWithWarnings(tableWith(true, true, true, true),
+                                      List.of("Reached the maximum number of rows allowed."));
+
+      Map<String, Object> result = h.service.insertRow("tok", principal(), "Table1", 0, false, "");
+
+      assertEquals(List.of("Reached the maximum number of rows allowed."), result.get("warnings"));
+   }
+
+   @Test
+   void setCellSurfacesWarningsMutateReturned() throws Exception {
+      Harness h = harnessWithWarnings(tableWith(true, false, false, true),
+                                      List.of("The value was truncated."));
+
+      Map<String, Object> result =
+         h.service.setCell("tok", principal(), "Table1", 0, 1, "a very long value", "");
+
+      assertEquals(List.of("The value was truncated."), result.get("warnings"));
+   }
+
+   @Test
+   void deleteRowsSurfacesWarningsMutateReturned() throws Exception {
+      Harness h = harnessWithWarnings(tableWith(true, true, true, true), List.of("Some warning."));
+
+      Map<String, Object> result = h.service.deleteRows("tok", principal(), "Table1", List.of(0), "");
+
+      assertEquals(List.of("Some warning."), result.get("warnings"));
+   }
+
+   /** No `warnings` key at all when nothing warned -- not an empty list sitting in the response. */
+   @Test
+   void insertRowOmitsTheWarningsKeyWhenNothingWarned() throws Exception {
+      Harness h = harnessWith(tableWith(true, true, true, true));
+
+      Map<String, Object> result = h.service.insertRow("tok", principal(), "Table1", 0, false, "");
+
+      assertFalse(result.containsKey("warnings"), result.toString());
+   }
+
    // ── fixtures ──────────────────────────────────────────────────────────────
 
    private record Harness(FormTableRowService service, VSFormTableService forms,
@@ -287,7 +463,7 @@ class FormTableRowServiceTest {
          doAnswer(invocation -> {
             ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
             mutation.run(rvs, "rt1", dispatcher);
-            return null;
+            return List.of();
          }).when(sessions).mutate(anyString(), any(Principal.class), any());
       }
       catch(Exception e) {
@@ -295,6 +471,98 @@ class FormTableRowServiceTest {
       }
 
       return new Harness(new FormTableRowService(sessions, forms), forms, dispatcher);
+   }
+
+   /**
+    * Like {@link #harnessWith}, but {@code mutate}'s own mock also returns {@code warnings}, the
+    * same {@code List<String>} {@code ViewsheetSessionService.mutate}'s real implementation
+    * returns from {@code CapturingCommandDispatcher.getWarnings()}.
+    */
+   private static Harness harnessWithWarnings(VSAssembly assembly, List<String> warnings) {
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssembly(anyString())).thenReturn(assembly);
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+
+      VSFormTableService forms = mock(VSFormTableService.class);
+      CapturingCommandDispatcher dispatcher = mock(CapturingCommandDispatcher.class);
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+
+      try {
+         doAnswer(invocation -> {
+            ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
+            mutation.run(rvs, "rt1", dispatcher);
+            return warnings;
+         }).when(sessions).mutate(anyString(), any(Principal.class), any());
+      }
+      catch(Exception e) {
+         throw new IllegalStateException(e);
+      }
+
+      return new Harness(new FormTableRowService(sessions, forms), forms, dispatcher);
+   }
+
+   /**
+    * Like {@link #harnessWith}, but {@code rvs.getViewsheetSandbox()} resolves to a lens that
+    * reports {@code headerRowCount} -- for the row-index-offset and editable-cell tests, which
+    * need a real {@link FormTableLens} to read {@code getHeaderRowCount()}/{@code rows()}/
+    * {@code isEdit()}/{@code getVisibleColumnOption(col)} from.
+    */
+   private static Harness harnessWithLens(VSAssembly assembly, FormTableLens lens) {
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssembly(anyString())).thenReturn(assembly);
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+
+      ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+
+      try {
+         when(box.getFormTableLens(anyString())).thenReturn(lens);
+      }
+      catch(Exception e) {
+         throw new IllegalStateException(e);
+      }
+
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
+
+      VSFormTableService forms = mock(VSFormTableService.class);
+      CapturingCommandDispatcher dispatcher = mock(CapturingCommandDispatcher.class);
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+
+      try {
+         doAnswer(invocation -> {
+            ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
+            mutation.run(rvs, "rt1", dispatcher);
+            return List.of();
+         }).when(sessions).mutate(anyString(), any(Principal.class), any());
+      }
+      catch(Exception e) {
+         throw new IllegalStateException(e);
+      }
+
+      return new Harness(new FormTableRowService(sessions, forms), forms, dispatcher);
+   }
+
+   private static FormTableLens lensWith(int headerRowCount, boolean edit, FormTableRow... rows) {
+      FormTableLens lens = mock(FormTableLens.class);
+      when(lens.getHeaderRowCount()).thenReturn(headerRowCount);
+      when(lens.isEdit()).thenReturn(edit);
+      when(lens.rows()).thenReturn(rows);
+      return lens;
+   }
+
+   private static FormTableRow rowWith(int state) {
+      FormTableRow row = mock(FormTableRow.class);
+      when(row.getRowState()).thenReturn(state);
+      return row;
+   }
+
+   private static ColumnOption optionWith(boolean isForm) {
+      ColumnOption option = mock(ColumnOption.class);
+      when(option.isForm()).thenReturn(isForm);
+      return option;
    }
 
    private static Principal principal() {
