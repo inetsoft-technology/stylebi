@@ -3372,12 +3372,18 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          }
       }
 
+      // the applied selections each assembly was last evaluated against, see
+      // reevaluateStaleAssociations()
+      final List<Map<String, Map<String, Set<Object>>>> evaluatedInputs =
+         new ArrayList<>(Collections.nCopies(sarr.length, null));
+
       for(int i = 0; i < sarr.length; i++) {
          if(isCancelled(myTS)) {
             return;
          }
 
          final SelectionVSAssembly selectionVSAssembly = sarr[i];
+         evaluatedInputs.set(i, getAssociationInput(selectionVSAssembly, appliedSelections));
          refreshSelectionValue(selectionVSAssembly, appliedSelections, allSelections, clist);
 
          // table is ready to execute now
@@ -3435,6 +3441,17 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          }
       }
 
+      if(selectionTS == myTS) {
+         boolean addReady = clist.isBreakable() && !singleSelectionReset &&
+            autoSelectFirstMaxIndex < 0;
+
+         if(!reevaluateStaleAssociations(sarr, evaluatedInputs, appliedSelections,
+                                         allSelections, clist, myTS, addReady, pos))
+         {
+            return;
+         }
+      }
+
       if(selectionTS == myTS && (singleSelectionReset || autoSelectFirstMaxIndex >= 0)) {
          int refreshSelectionUpToIndex = -1;
 
@@ -3477,6 +3494,105 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             clist.addReady(sarr[0].getAssemblyEntry(), true);
          }
       }
+   }
+
+   /**
+    * Re-evaluate the selection assemblies whose association input changed after they were
+    * evaluated in the pass of {@link #processAssociation}. An assembly evaluated later in the
+    * pass removes its selected but excluded values from {@code appliedSelections}, so an
+    * assembly evaluated before it computed its association states from selections that are no
+    * longer applied (Bug #78080). Only the assemblies whose input actually changed are
+    * evaluated again, against the same maps, until nothing changes. The number of rounds is
+    * bounded because evaluating an assembly can also add selections back (single selection
+    * auto-select, select first item).
+    *
+    * @param evaluatedInputs the input each assembly in {@code sarr} was last evaluated against.
+    *
+    * @return {@code false} if the processing was cancelled.
+    */
+   private boolean reevaluateStaleAssociations(
+      SelectionVSAssembly[] sarr,
+      List<Map<String, Map<String, Set<Object>>>> evaluatedInputs,
+      Map<String, Map<String, Collection<Object>>> appliedSelections,
+      Map<String, Map<String, Collection<Object>>> allSelections,
+      ChangedAssemblyList clist, long myTS, boolean addReady, int pos) throws Exception
+   {
+      for(int round = 0; round < sarr.length; round++) {
+         boolean changed = false;
+
+         for(int i = 0; i < sarr.length; i++) {
+            if(isCancelled(myTS)) {
+               return false;
+            }
+
+            final Map<String, Map<String, Set<Object>>> input =
+               getAssociationInput(sarr[i], appliedSelections);
+
+            if(input.equals(evaluatedInputs.get(i))) {
+               continue;
+            }
+
+            evaluatedInputs.set(i, input);
+            refreshSelectionValue(sarr[i], appliedSelections, allSelections, clist);
+            changed = true;
+
+            if(selectionTS != myTS) {
+               return true;
+            }
+
+            // the first assembly is added to the ready list at the end of processAssociation
+            if(addReady && i > 0) {
+               clist.addReady(sarr[i].getAssemblyEntry(), i >= pos);
+            }
+         }
+
+         if(!changed) {
+            return true;
+         }
+      }
+
+      LOG.debug("Selection association did not converge in {} rounds", sarr.length);
+      return true;
+   }
+
+   /**
+    * Get the applied selections that the association values of a selection assembly are
+    * computed from in {@link #getAssociatedValues}, by table and selection key.
+    */
+   private Map<String, Map<String, Set<Object>>> getAssociationInput(
+      SelectionVSAssembly sassembly,
+      Map<String, Map<String, Collection<Object>>> appliedSelections)
+   {
+      final Map<String, Map<String, Set<Object>>> input = new HashMap<>();
+
+      if(!(sassembly instanceof AssociatedSelectionVSAssembly)) {
+         return input;
+      }
+
+      final boolean idMode = sassembly instanceof SelectionTreeVSAssembly &&
+         ((SelectionTreeVSAssembly) sassembly).isIDMode();
+
+      for(String tableName : sassembly.getTableNames()) {
+         final Map<String, Collection<Object>> tableSelections = appliedSelections.get(tableName);
+         final Map<String, Collection<Object>> tmap =
+            tableSelections == null ? new HashMap<>() : new HashMap<>(tableSelections);
+
+         if(!idMode) {
+            removeNeighborSelections(sassembly, tmap);
+         }
+
+         final Map<String, Set<Object>> tableInput = new HashMap<>();
+
+         for(Map.Entry<String, Collection<Object>> entry : tmap.entrySet()) {
+            if(entry.getValue() != null && !entry.getValue().isEmpty()) {
+               tableInput.put(entry.getKey(), new HashSet<>(entry.getValue()));
+            }
+         }
+
+         input.put(tableName, tableInput);
+      }
+
+      return input;
    }
 
    /**
