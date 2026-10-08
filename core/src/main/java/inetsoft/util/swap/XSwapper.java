@@ -21,6 +21,7 @@ import com.sun.management.HotSpotDiagnosticMXBean;
 import com.sun.management.VMOption;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.internal.cluster.DistributedMap;
 import inetsoft.util.*;
 import inetsoft.util.ConfigurationContext;
 import jakarta.annotation.PreDestroy;
@@ -440,6 +441,8 @@ public final class XSwapper {
 
       DEBUG_LOG.debug("Swap dir is {}", cdir);
       final File file = fileSystemService.getFile(cdir);
+      // Bug #78044, before any swap file with this seed can be registered
+      registerSeed();
 
       if(file.isDirectory()) {
          // the cache directory could be very large so do it in background
@@ -461,7 +464,7 @@ public final class XSwapper {
             }
 
             try {
-               Map<String, Integer> map = cluster.getMap(SWAP_FILE_MAP);
+               RegisteredSwapFiles registered = new RegisteredSwapFiles(cluster);
                File[] files = file.listFiles();
 
                for(int i = 0; files != null && i < files.length; i++) {
@@ -469,13 +472,15 @@ public final class XSwapper {
                   // Bug #77627, another JVM's file may still be inside its own
                   // registration window (see SWAP_FILE_GRACE_PERIOD)
                   if(!files[i].isDirectory() && files[i].getName().endsWith(".tdat") &&
-                     !map.containsKey(files[i].getAbsolutePath()) &&
+                     !registered.contains(files[i]) &&
                      !isOwnSwapFile(files[i].getName()) &&
                      System.currentTimeMillis() - files[i].lastModified() >= SWAP_FILE_GRACE_PERIOD)
                   {
                      files[i].delete();
                   }
                }
+
+               registered.removeStaleEntries();
             }
             finally {
                try {
@@ -485,7 +490,7 @@ public final class XSwapper {
                   DEBUG_LOG.debug("Unable to release swap file map lock", e);
                }
             }
-         })).start();
+         }, CACHE_SWEEP_THREAD)).start();
       }
 
       // Bug #77649, the swapper threads are JVM-wide and swap the data of every user and
@@ -1023,6 +1028,69 @@ public final class XSwapper {
    }
 
    /**
+    * Bug #78044, records in {@link #SWAP_SEED_MAP} that this swapper's seed belongs to the
+    * local node, so that the cache sweeps of other JVMs can tell when the JVM that registered
+    * a swap file in {@link #SWAP_FILE_MAP} is gone.
+    */
+   private void registerSeed() {
+      try {
+         Cluster cluster = Cluster.getInstance();
+
+         if(!registerSeed(cluster.getMap(SWAP_SEED_MAP), seed, cluster.getLocalNodeId())) {
+            LOG.debug("Unable to register swapper seed {}", seed);
+         }
+      }
+      catch(Exception e) {
+         // the files of an unregistered seed stay protected by their swap file map entries
+         LOG.debug("Unable to register swapper seed, cluster may be stopped", e);
+      }
+   }
+
+   /**
+    * Adds a node to the owners of a seed in {@link #SWAP_SEED_MAP}.
+    * @return <tt>true</tt> if the node is registered.
+    */
+   static boolean registerSeed(Map<Long, String> seeds, long seed, String nodeId) {
+      // several JVMs get the same seed if they start in the same millisecond, so the value
+      // lists every node that uses the seed
+      for(int i = 0; i < 100; i++) {
+         String owners = seeds.putIfAbsent(seed, nodeId);
+
+         if(owners == null || Arrays.asList(owners.split(",")).contains(nodeId) ||
+            seeds.replace(seed, owners, owners + "," + nodeId))
+         {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Gets the seed of the swapper that created a swap file.
+    * @param name the file name.
+    * @return the seed or <tt>null</tt> if the name does not have a swapper prefix.
+    */
+   static Long getSwapFileSeed(String name) {
+      if(name == null || !name.startsWith("s")) {
+         return null;
+      }
+
+      int index = name.indexOf('_', 1);
+
+      if(index < 2) {
+         return null;
+      }
+
+      try {
+         return Long.parseLong(name.substring(1, index));
+      }
+      catch(NumberFormatException e) {
+         return null;
+      }
+   }
+
+   /**
     * Register a swappable.
     * @param swappable the specified swappable.
     */
@@ -1536,6 +1604,10 @@ public final class XSwapper {
 
    public static final String SWAP_FILE_MAP = "inetsoft.swap.file.map";
    public static final String SWAP_FILE_MAP_LOCK = "inetsoft.swap.file.map.lock";
+   // Bug #78044, swapper seed -> comma-separated ids of the nodes whose swapper uses it
+   public static final String SWAP_SEED_MAP = "inetsoft.swap.seed.map";
+   // name of the thread of the cache sweep that runs when a swapper is created
+   public static final String CACHE_SWEEP_THREAD = "XSwapper cache sweep";
 
    // Bug #77627, swapRemaining() writes a whole batch of swap files to disk before
    // registering any of them in SWAP_FILE_MAP (one lock acquisition for the batch). A file
@@ -1544,6 +1616,108 @@ public final class XSwapper {
    // age gate of their own must wait at least this long after a file's last modification
    // before treating it as orphaned, so they don't land inside that window.
    public static final long SWAP_FILE_GRACE_PERIOD = 60000L; // 1 min
+
+   /**
+    * Bug #78044, the view of {@link #SWAP_FILE_MAP} that a cache sweep uses to decide if a file
+    * is still in use. Entries are removed only by {@link XSwappableReference#close()} in the JVM
+    * that added them, and the map lives as long as the cluster, so the entries of a JVM that
+    * stopped while other nodes stayed up (e.g. in a rolling restart) would protect its files
+    * forever. An entry protects its file unless the seed in the file name is registered in
+    * {@link #SWAP_SEED_MAP} and none of the nodes that use the seed is in the cluster anymore. A
+    * seed that is not registered (e.g. of a JVM of an older version) is assumed to be alive.
+    * An instance is meant for a single sweep.
+    */
+   public static final class RegisteredSwapFiles {
+      public RegisteredSwapFiles(Cluster cluster) {
+         this.cluster = cluster;
+         this.map = cluster.getMap(SWAP_FILE_MAP);
+         this.seeds = cluster.getMap(SWAP_SEED_MAP);
+      }
+
+      /**
+       * Checks if a file is registered in the swap file map by a JVM that may still be running.
+       * @param file the file.
+       * @return <tt>true</tt> if the file is in use.
+       */
+      public boolean contains(File file) {
+         return map.containsKey(file.getAbsolutePath()) && !isStale(file.getName());
+      }
+
+      /**
+       * Removes the swap file map entries and the seeds of the JVMs that are gone, so that the
+       * maps don't grow with every restart. The caller must hold {@link #SWAP_FILE_MAP_LOCK}.
+       */
+      public void removeStaleEntries() {
+         try {
+            Set<String> stale = new HashSet<>();
+
+            for(String path : map.keySet()) {
+               if(isStale(new File(path).getName())) {
+                  stale.add(path);
+               }
+            }
+
+            if(!stale.isEmpty()) {
+               map.removeAll(stale);
+            }
+
+            // only after the entries are gone, a seed that is not registered protects its files.
+            // A dead seed without entries is removed too, e.g. of a JVM that had closed all its
+            // swap files
+            for(Long seed : seeds.keySet()) {
+               if(dead.computeIfAbsent(seed, this::isDead)) {
+                  // not if a node was added to the seed since
+                  seeds.remove(seed, deadOwners.get(seed));
+               }
+            }
+         }
+         catch(Exception e) {
+            LOG.debug("Failed to remove stale swap file map entries", e);
+         }
+      }
+
+      private boolean isStale(String name) {
+         Long seed = getSwapFileSeed(name);
+         return seed != null && dead.computeIfAbsent(seed, this::isDead);
+      }
+
+      private boolean isDead(Long seed) {
+         try {
+            String owners = seeds.get(seed);
+
+            if(owners == null || owners.isEmpty()) {
+               return false;
+            }
+
+            List<String> ids = Arrays.asList(owners.split(","));
+
+            if(nodes != null && ids.stream().anyMatch(nodes::contains)) {
+               return false;
+            }
+
+            // read the topology again, the owner may have joined after it was last read
+            nodes = cluster.getClusterNodeIds();
+
+            if(ids.stream().anyMatch(nodes::contains)) {
+               return false;
+            }
+
+            deadOwners.put(seed, owners);
+            return true;
+         }
+         catch(Exception e) {
+            LOG.debug("Unable to check if swapper seed {} is alive", seed, e);
+            return false;
+         }
+      }
+
+      private final Cluster cluster;
+      private final DistributedMap<String, Integer> map;
+      private final Map<Long, String> seeds;
+      private final Map<Long, Boolean> dead = new HashMap<>();
+      private final Map<Long, String> deadOwners = new HashMap<>();
+      private Set<String> nodes;
+   }
 
    public static final class XSwappableReference extends Cleaner.Reference<XSwappable> {
       public XSwappableReference(XSwappable referent, File[] files) {
