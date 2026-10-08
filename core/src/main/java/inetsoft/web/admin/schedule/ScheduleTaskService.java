@@ -1847,6 +1847,20 @@ public class ScheduleTaskService {
    private Identity getNewIdentity(TaskOptionsPaneModel model, Identity oldIdentity,
                                    Principal principal)
    {
+      // Bug #77168, the EM Options-pane always posts a null idName when security is disabled
+      // (task-options-pane.component.ts nulls _executeAs whenever model.securityEnabled is
+      // false), even when the save didn't touch execute-as at all, so a null idName here
+      // doesn't mean the caller asked to clear it -- unlike the "Clear" action offered by the
+      // security-enabled UI, which must still fall through to null/owner below. Leave the
+      // stored identity alone in that case, so a kept placeholder for an unresolvable
+      // execute-as (ScheduleTask.parseXML, Bug #77120) survives an unrelated edit instead of
+      // being dropped. Use the server's own security state (the same check that produces
+      // model.securityEnabled() for the client in the first place), not the client-supplied
+      // model.securityEnabled(), which the save path has never trusted for anything else.
+      if(model.idName() == null && !isSecurityEnabled()) {
+         return oldIdentity;
+      }
+
       int type = model.idType();
       IdentityID newIdentityID = getIdentityId(model.idName(), principal);
       Identity newIdentity = SUtil.getIdentity(newIdentityID, type);
