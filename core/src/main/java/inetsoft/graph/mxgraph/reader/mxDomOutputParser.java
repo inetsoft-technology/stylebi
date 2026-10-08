@@ -31,7 +31,7 @@ import java.util.Map;
  * {
  * String filename = Test.class.getResource(
  * "/inetsoft.graph.mxgraph/online/exported.xml").getPath();
- * String xml = mxUtils.readFile(filename);
+ * String xml = mxFileIO.readFile(filename);
  * System.out.println("xml=" + xml);
  * <p>
  * Document doc = mxUtils.parseXml(xml);
