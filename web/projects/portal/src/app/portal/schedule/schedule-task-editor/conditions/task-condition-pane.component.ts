@@ -673,7 +673,8 @@ export class TaskConditionPane implements OnInit, OnChanges {
          (result: string) => {
             if(result === "ok") {
                const conditions: number[] = Tool.clone(this.selectedConditions);
-               conditions.sort();
+               // Bug #77973, sort the indexes as numbers, not as strings
+               conditions.sort((a, b) => a - b);
                conditions.reverse();
 
                for(let index of conditions) {

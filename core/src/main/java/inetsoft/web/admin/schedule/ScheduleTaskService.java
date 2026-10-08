@@ -362,9 +362,12 @@ public class ScheduleTaskService {
 
       TaskConditionPaneModel.Builder builder = TaskConditionPaneModel.builder();
 
-      task.getConditionStream()
-         .map(condition -> scheduleConditionService.getConditionModel(condition, principal))
-         .forEach(builder::addConditions);
+      // Bug #77973, the stored position identifies the condition when the editor saves it
+      for(int i = 0; i < task.getConditionCount(); i++) {
+         ScheduleConditionModel model =
+            scheduleConditionService.getConditionModel(task.getCondition(i), principal);
+         builder.addConditions(withOriginalIndex(model, i));
+      }
 
       String timeProp = SreeEnv.getProperty("format.time");
 
@@ -399,10 +402,16 @@ public class ScheduleTaskService {
 
       TaskActionPaneModel.Builder builder = TaskActionPaneModel.builder();
 
-      task.getActionStream()
-         .map(a -> scheduleService.getActionModel(a, principal, em))
-         .filter(Objects::nonNull)
-         .forEach(builder::addActions);
+      // Bug #77973, the stored position (before the actions without a model are skipped)
+      // identifies the action when the editor saves it
+      for(int i = 0; i < task.getActionCount(); i++) {
+         ScheduleActionModel model =
+            scheduleService.getActionModel(task.getAction(i), principal, em);
+
+         if(model != null) {
+            builder.addActions(withOriginalIndex(model, i));
+         }
+      }
 
       AssetEntry[] viewsheets = scheduleService.getViewsheets(principal);
       final Map<String, String> viewsheetMap = new HashMap<>();
@@ -650,11 +659,20 @@ public class ScheduleTaskService {
       throws Exception
    {
       Set<TimeRange> ranges = new HashSet<>();
+      boolean identified = Boolean.TRUE.equals(model.itemsIdentified());
+      List<ScheduleCondition> originalConditions = new ArrayList<>();
+      originalTask.getConditionStream().forEach(originalConditions::add);
+      List<StoredItem<ScheduleCondition>> conditionPairs = pairWithStored(
+         model.conditions().stream().map(ScheduleConditionModel::originalIndex).toList(),
+         identified, originalConditions);
+      List<ScheduleCondition> pairedConditions = new ArrayList<>();
 
       for(int i = 0; i < model.conditions().size(); i++) {
          int index = i >= task.getConditionCount() ? -1 : i;
+         ScheduleCondition pairedCondition = conditionPairs.get(i).paired();
          TimeRange range = scheduleService.setTaskCondition(
-            taskName, index, model.conditions().get(i), catalog, task);
+            taskName, index, model.conditions().get(i), catalog, task, pairedCondition);
+         pairedConditions.add(pairedCondition);
 
          if(range != null) {
             ranges.add(range);
@@ -665,23 +683,26 @@ public class ScheduleTaskService {
          task.removeCondition(i);
       }
 
-      sanitizeConditions(task, originalTask, principal);
+      sanitizeConditions(task, pairedConditions, principal);
 
       if(!internalTask) {
          List<ScheduleAction> originalActions = new ArrayList<>();
          originalTask.getActionStream().forEach(originalActions::add);
+         List<StoredItem<ScheduleAction>> actionPairs = pairWithStored(
+            model.actions().stream().map(ScheduleActionModel::originalIndex).toList(),
+            identified, originalActions);
 
          for(int i = 0; i < model.actions().size(); i++) {
-            ScheduleAction scheduleAction = originalTask.getActionCount() > i ? originalTask.getAction(i) : null;
+            StoredItem<ScheduleAction> pair = actionPairs.get(i);
             ScheduleAction action =
-               scheduleService.getActionFromModel(model.actions().get(i), scheduleAction,
+               scheduleService.getActionFromModel(model.actions().get(i), pair.secretSource(),
                                                   originalActions, principal, linkURI);
 
             if(action == null) {
                continue;
             }
 
-            sanitizeAction(action, scheduleAction, principal, originalActions);
+            sanitizeAction(action, pair.paired(), principal, originalActions);
 
             if(action instanceof IndividualAssetBackupAction) {
                IndividualAssetBackupAction backupAction = (IndividualAssetBackupAction) action;
@@ -834,6 +855,23 @@ public class ScheduleTaskService {
    public void sanitizeConditions(ScheduleTask task, ScheduleTask originalTask,
                                   Principal principal)
    {
+      List<ScheduleCondition> originalConditions = new ArrayList<>();
+      originalTask.getConditionStream().forEach(originalConditions::add);
+      sanitizeConditions(task, originalConditions, principal);
+   }
+
+   /**
+    * Restores the times of the conditions that the principal is not permitted to change.
+    *
+    * @param task               the task being saved.
+    * @param originalConditions the stored condition each condition of the task replaces, by the
+    *                           position of the condition in the task, a {@code null} item (or
+    *                           no item) if it replaces none.
+    * @param principal          the principal saving the task.
+    */
+   public void sanitizeConditions(ScheduleTask task, List<ScheduleCondition> originalConditions,
+                                  Principal principal)
+   {
       boolean canSetStartTime = scheduleService.checkPermission(
          principal, ResourceType.SCHEDULE_OPTION, "startTime");
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
@@ -853,8 +891,8 @@ public class ScheduleTaskService {
             continue;
          }
 
-         TimeCondition origTc = i < originalTask.getConditionCount() &&
-            originalTask.getCondition(i) instanceof TimeCondition o ? o : null;
+         TimeCondition origTc = i < originalConditions.size() &&
+            originalConditions.get(i) instanceof TimeCondition o ? o : null;
          boolean sameType = origTc != null && origTc.getType() == tc.getType();
 
          if(!canSetStartTime) {
@@ -1841,6 +1879,73 @@ public class ScheduleTaskService {
    private final ScheduleTaskFolderService scheduleTaskFolderService;
    private final SecurityEngine securityEngine;
    private final ScheduleTaskIdentityChecker identityChecker;
+
+   /**
+    * Bug #77973, pairs the items the editor sends with the stored items they replace.
+    *
+    * @param originalIndexes the original index of each item the editor sends.
+    * @param identified      true if the items carry their original index. If not (an older
+    *                        client), an item is paired with the stored item at its position.
+    * @param stored          the stored items.
+    *
+    * @return the stored item each item replaces and takes its secrets from, by the position of
+    *         the item. An index that isn't a stored position is a new item. Only the first item
+    *         that claims a stored item replaces it, a later one is a copy of it, which takes the
+    *         secrets (the editors only send placeholders for them) but is a new item otherwise.
+    */
+   static <T> List<StoredItem<T>> pairWithStored(List<Integer> originalIndexes,
+                                                 boolean identified, List<T> stored)
+   {
+      List<StoredItem<T>> pairs = new ArrayList<>();
+      Set<Integer> claimed = new HashSet<>();
+
+      for(int i = 0; i < originalIndexes.size(); i++) {
+         Integer index = identified ? originalIndexes.get(i) : Integer.valueOf(i);
+
+         if(index == null || index < 0 || index >= stored.size()) {
+            pairs.add(new StoredItem<>(null, null));
+            continue;
+         }
+
+         T item = stored.get(index);
+         pairs.add(new StoredItem<>(claimed.add(index) ? item : null, item));
+      }
+
+      return pairs;
+   }
+
+   /**
+    * The stored item an item of the editor replaces, and the one it takes its secrets from.
+    */
+   record StoredItem<T>(T paired, T secretSource) {
+   }
+
+   private static ScheduleActionModel withOriginalIndex(ScheduleActionModel model, int index) {
+      if(model instanceof GeneralActionModel general) {
+         return GeneralActionModel.builder().from(general).originalIndex(index).build();
+      }
+      else if(model instanceof BackupActionModel backup) {
+         return BackupActionModel.builder().from(backup).originalIndex(index).build();
+      }
+      else if(model instanceof BatchActionModel batch) {
+         return BatchActionModel.builder().from(batch).originalIndex(index).build();
+      }
+
+      return model;
+   }
+
+   private static ScheduleConditionModel withOriginalIndex(ScheduleConditionModel model,
+                                                           int index)
+   {
+      if(model instanceof TimeConditionModel time) {
+         return TimeConditionModel.builder().from(time).originalIndex(index).build();
+      }
+      else if(model instanceof CompletionConditionModel completion) {
+         return CompletionConditionModel.builder().from(completion).originalIndex(index).build();
+      }
+
+      return model;
+   }
 
    private static final ObjectMapper CONTENT_MAPPER = new ObjectMapper();
    private static final Logger LOG =

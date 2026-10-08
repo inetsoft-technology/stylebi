@@ -18,6 +18,8 @@
 export interface ScheduleConditionModel {
    label: string;
    conditionType: ScheduleConditionModelType;
+   // Bug #77973, the position of the stored condition when the editor got it, none for a new one
+   originalIndex?: number;
 }
 
 export type ScheduleConditionModelType =

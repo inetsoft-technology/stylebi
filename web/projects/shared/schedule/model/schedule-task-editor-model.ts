@@ -26,4 +26,6 @@ export class ScheduleTaskEditorModel {
    actions: ScheduleActionModel[];
    options: TaskOptionsPaneModel;
    orgId?: string;
+   // Bug #77973, the actions and conditions carry their originalIndex
+   itemsIdentified?: boolean;
 }

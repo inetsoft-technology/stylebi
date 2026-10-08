@@ -181,7 +181,8 @@ export class ScheduleTaskEditorComponent implements OnInit {
          oldTaskName: this.model.name,
          conditions: this.model.taskConditionPaneModel.conditions,
          actions: this.model.taskActionPaneModel.actions,
-         options: this.model.taskOptionsPaneModel
+         options: this.model.taskOptionsPaneModel,
+         itemsIdentified: true
       };
 
       return new Promise((resolve) => this.http.post<ScheduleTaskDialogModel>(SAVE_TASKS_URI, model)

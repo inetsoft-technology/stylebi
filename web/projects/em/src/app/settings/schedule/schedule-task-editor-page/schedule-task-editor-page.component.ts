@@ -365,7 +365,8 @@ export class ScheduleTaskEditorPageComponent implements OnInit {
          conditions: this.model.taskConditionPaneModel.conditions,
          actions: this.model.taskActionPaneModel.actions,
          options: this.model.taskOptionsPaneModel,
-         orgId: this.pageTitle.currentOrgId
+         orgId: this.pageTitle.currentOrgId,
+         itemsIdentified: true
       };
 
       // remove folderPermission property from actions as it's only used on the portal side
