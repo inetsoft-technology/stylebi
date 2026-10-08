@@ -229,11 +229,6 @@ abstract class UnavailableFailureSerializationChecks {
    {
       for(Kind kind : Kind.values()) {
          for(Helper helper : helpers) {
-            // a row of a script does not let a load failure through yet, it is null (#78083)
-            if(kind == Kind.LOAD && helper == Helper.ROW) {
-               continue;
-            }
-
             readScriptFirst(kind, helper, lens, moreRows);
             readPlainFirst(kind, helper, lens, moreRows);
          }
