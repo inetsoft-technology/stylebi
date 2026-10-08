@@ -927,7 +927,7 @@ public class LocalDependencyHandler implements DependencyHandler {
          }
 
          if(source == null) {
-            return;
+            continue;
          }
 
          // update dependency for logical model.
