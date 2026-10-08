@@ -679,7 +679,7 @@ public abstract class SetTableLens
             Exception last = failure;
 
             if(!validated && last != null) {
-               throw new SetOperationException(last);
+               throw new SetOperationException(readerFailure(last));
             }
          }
 
@@ -754,6 +754,17 @@ public abstract class SetTableLens
    }
 
    /**
+    * The cause of the exception thrown to a reader for the kept failure of a pass: a new copy
+    * of a lost swap file or a load failure, by itself or in the chain of the kept failure. A
+    * reader finds it by its class and may throw it on through a script, which must never get
+    * the kept instance (bug #78084).
+    */
+   private static Exception readerFailure(Exception last) {
+      Throwable copy = DataUnavailable.copyInChain(last);
+      return copy instanceof Exception ex ? ex : last;
+   }
+
+   /**
     * Rethrow the failure of the last pass until the retry delay passed. Called holding this
     * lens's monitor (bug #77524).
     */
@@ -763,7 +774,7 @@ public abstract class SetTableLens
       if(last != null &&
          System.nanoTime() - failureTime < TimeUnit.MILLISECONDS.toNanos(getFailureRetryDelay()))
       {
-         throw new SetOperationException(last);
+         throw new SetOperationException(readerFailure(last));
       }
    }
 
@@ -945,7 +956,7 @@ public abstract class SetTableLens
                // the pass this read waited for failed, fail even if the retry delay passed
                // (bug #77524)
                if(!validated && last != null && last != oldFailure) {
-                  throw new SetOperationException(last);
+                  throw new SetOperationException(readerFailure(last));
                }
 
                validate();

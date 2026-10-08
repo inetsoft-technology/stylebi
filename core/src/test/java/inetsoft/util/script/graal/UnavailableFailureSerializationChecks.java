@@ -21,6 +21,8 @@ import inetsoft.report.TableLens;
 import inetsoft.report.filter.SumFormula;
 import inetsoft.report.filter.SummaryFilter;
 import inetsoft.report.lens.*;
+import inetsoft.report.script.TableArray;
+import inetsoft.report.script.TableRow;
 import inetsoft.sree.internal.cluster.ignite.IgniteUtils;
 import inetsoft.uql.util.TableLoadException;
 import inetsoft.util.stall.LockStallException;
@@ -55,8 +57,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * failure that leaves the script engine, and the failure a table kept for its later readers,
  * must still serialize, by Java serialization and by the Ignite marshaller of a cluster call
  * response, whichever reader (script or not) read the table first. Run by
- * {@link UnavailableFailureSerializationTest} (Java serialization, core) and
- * {@link UnavailableFailureIgniteMarshalTest} (with a started Ignite node, slow).
+ * {@link UnavailableFailureIgniteMarshalTest} (slow, with a started Ignite node);
+ * {@link UnavailableFailureSerializationTest} runs the engine check alone in the core tests.
  */
 @Timeout(value = 120, unit = TimeUnit.SECONDS)
 abstract class UnavailableFailureSerializationChecks {
@@ -136,6 +138,10 @@ abstract class UnavailableFailureSerializationChecks {
     */
    @Test
    void hostFailureThroughExecSerializes() throws Exception {
+      checkHostFailureThroughExec(engine);
+   }
+
+   static void checkHostFailureThroughExec(GraalJavaScriptEngine engine) throws Exception {
       Host host = new Host();
       engine.put("host", host);
       Object script = engine.compile("host.value()");
@@ -160,37 +166,77 @@ abstract class UnavailableFailureSerializationChecks {
       }
    }
 
-   /** A script reads a distinct table first, a later plain read gets a failure that serializes. */
+   /** A distinct table, which reads its base on the script's thread when a script reads it. */
    @Test
-   void distinctTableReadByScriptFirst() throws Exception {
-      for(Kind kind : Kind.values()) {
-         readScriptFirst(kind, DistinctTableLens::new);
-      }
+   void distinctTableReadByScript() throws Exception {
+      checkReads(DistinctTableLens::new);
    }
 
-   /** A plain read, a script read and a plain read of a distinct table all serialize. */
-   @Test
-   void distinctTableReadByScriptBetweenPlainReads() throws Exception {
-      for(Kind kind : Kind.values()) {
-         readPlainFirst(kind, DistinctTableLens::new);
-      }
-   }
-
-   /** The same for a join, whose workers keep the failure of a base. */
+   /** A join, whose workers keep the failure of a base. */
    @Test
    void joinReadByScript() throws Exception {
-      for(Kind kind : Kind.values()) {
-         readScriptFirst(kind, UnavailableFailureSerializationChecks::join);
-         readPlainFirst(kind, UnavailableFailureSerializationChecks::join);
-      }
+      // a script row of the join is not read here: in this harness the row read of an
+      // interrupted swap read of the base is not always a failure, which is not this bug
+      checkReads(UnavailableFailureSerializationChecks::join, false,
+                 EnumSet.of(Helper.ARRAY, Helper.DIRECT));
    }
 
-   /** The same for a summary filter, which keeps the failure of a pass. */
+   /** A summary filter, which keeps the failure of a pass. */
    @Test
    void summaryFilterReadByScript() throws Exception {
+      checkReads(UnavailableFailureSerializationChecks::summary);
+   }
+
+   /**
+    * A union, which keeps the failure of a pass and throws it to the readers as the cause of
+    * a set operation failure, from which the script read helpers take it out by its class.
+    */
+   @Test
+   void unionReadByScript() throws Exception {
+      checkReads(base -> new UnionTableLens(base, new DefaultTableLens(FailingTable.data())));
+   }
+
+   /**
+    * A cross join, which keeps the failure of a worker, from a row count of its base read after
+    * the cross join was created, as the cause of its own failure.
+    */
+   @Test
+   void crossJoinReadByScript() throws Exception {
+      // a script row reads the rows loaded so far only, without loading the cross join
+      checkReads(base -> new CrossJoinTableLens(
+         base, new DefaultTableLens(new Object[][] { { "x" }, { 1 } })), true,
+                 EnumSet.of(Helper.ARRAY, Helper.DIRECT));
+   }
+
+   /**
+    * Read a table over a base that fails with each kind of failure, by a script through each
+    * read helper and by plain Java, in both orders. Every read fails and its failure
+    * serializes: a script read never leaves a failure the table keeps for its later readers
+    * changed by the script engine.
+    */
+   private void checkReads(Function<TableLens, TableLens> lens) throws Exception {
+      checkReads(lens, false, EnumSet.allOf(Helper.class));
+   }
+
+   /**
+    * @param moreRows {@code true} if the base fails in {@code moreRows} too, not only in
+    *                 {@code getObject}.
+    * @param helpers  how the scripts read the table.
+    */
+   private void checkReads(Function<TableLens, TableLens> lens, boolean moreRows,
+                           Set<Helper> helpers)
+      throws Exception
+   {
       for(Kind kind : Kind.values()) {
-         readScriptFirst(kind, UnavailableFailureSerializationChecks::summary);
-         readPlainFirst(kind, UnavailableFailureSerializationChecks::summary);
+         for(Helper helper : helpers) {
+            // a row of a script does not let a load failure through yet, it is null (#78083)
+            if(kind == Kind.LOAD && helper == Helper.ROW) {
+               continue;
+            }
+
+            readScriptFirst(kind, helper, lens, moreRows);
+            readPlainFirst(kind, helper, lens, moreRows);
+         }
       }
    }
 
@@ -199,28 +245,42 @@ abstract class UnavailableFailureSerializationChecks {
     * reads its base synchronously throws the failure of the base to the script. Then a plain
     * read, as of another assembly over the same table.
     */
-   private void readScriptFirst(Kind kind, Function<TableLens, TableLens> lens) throws Exception {
-      TableLens table = lens.apply(new FailingTable(kind));
-      String what = kind + " " + table.getClass().getSimpleName() + " script first";
+   private void readScriptFirst(Kind kind, Helper helper, Function<TableLens, TableLens> lens,
+                                boolean moreRows)
+      throws Exception
+   {
+      FailingTable base = new FailingTable(kind, moreRows);
+      TableLens table = lens.apply(base);
+      base.armed = true;
+      String what = kind + " " + table.getClass().getSimpleName() + " " + helper +
+         " script first";
 
-      assertReadFails(kind, readByScript(table), what + ", script read");
+      assertReadFails(kind, readByScript(table, helper), what + ", script read");
       assertReadFails(kind, readPlain(table), what + ", plain read");
-      assertReadFails(kind, readByScript(table), what + ", second script read");
+      assertReadFails(kind, readByScript(table, helper), what + ", second script read");
       assertReadFails(kind, readPlain(table), what + ", second plain read");
    }
 
-   private void readPlainFirst(Kind kind, Function<TableLens, TableLens> lens) throws Exception {
-      TableLens table = lens.apply(new FailingTable(kind));
-      String what = kind + " " + table.getClass().getSimpleName() + " plain first";
+   private void readPlainFirst(Kind kind, Helper helper, Function<TableLens, TableLens> lens,
+                               boolean moreRows)
+      throws Exception
+   {
+      FailingTable base = new FailingTable(kind, moreRows);
+      TableLens table = lens.apply(base);
+      base.armed = true;
+      String what = kind + " " + table.getClass().getSimpleName() + " " + helper +
+         " plain first";
 
       assertReadFails(kind, readPlain(table), what + ", plain read");
-      assertReadFails(kind, readByScript(table), what + ", script read");
+      assertReadFails(kind, readByScript(table, helper), what + ", script read");
       assertReadFails(kind, readPlain(table), what + ", second plain read");
    }
 
-   private Throwable readByScript(TableLens table) throws Exception {
+   private Throwable readByScript(TableLens table, Helper helper) throws Exception {
       engine.put("lens", table);
-      Object script = engine.compile("lens.moreRows(2147483647)");
+      engine.put("row", new TableRow(table, 5));
+      engine.put("tarr", new TableArray(table));
+      Object script = engine.compile(helper.script);
 
       try {
          engine.exec(script, null, null);
@@ -229,6 +289,22 @@ abstract class UnavailableFailureSerializationChecks {
       catch(Throwable ex) {
          return ex;
       }
+   }
+
+   /** How a script reads the table. */
+   private enum Helper {
+      // a row of the table, as the row of a formula reads it
+      ROW("row[1]"),
+      // a column of the table, as Table.table['col'] reads it
+      ARRAY("tarr['value']"),
+      // the table itself, e.g. one a script got from an assembly
+      DIRECT("lens.moreRows(2147483647)");
+
+      Helper(String script) {
+         this.script = script;
+      }
+
+      final String script;
    }
 
    private static Throwable readPlain(TableLens table) {
@@ -252,6 +328,7 @@ abstract class UnavailableFailureSerializationChecks {
       assertNotNull(thrown, what + ": the read did not fail");
       RuntimeException found = kind.find(thrown);
       assertNotNull(found, what + ": no " + kind + " in " + thrown);
+      assertEquals(kind.create().getClass(), found.getClass(), what);
       assertEquals(kind.message, found.getMessage(), what);
       assertSerializes(thrown, what);
    }
@@ -259,7 +336,7 @@ abstract class UnavailableFailureSerializationChecks {
    /**
     * {@code thrown} is a copy of {@code found}: the same class, message, fields and cause.
     */
-   private static void assertSameFailure(RuntimeException found, Throwable thrown, String what) {
+   static void assertSameFailure(RuntimeException found, Throwable thrown, String what) {
       assertEquals(found.getClass(), thrown.getClass(), what);
       assertEquals(found.getMessage(), thrown.getMessage(), what);
       assertSame(found.getCause(), thrown.getCause(), what);
@@ -282,7 +359,7 @@ abstract class UnavailableFailureSerializationChecks {
     * The failure survives Java serialization and the Ignite marshaller of the response of a
     * cluster call, with its class and message.
     */
-   private static void assertSerializes(Throwable failure, String what) throws Exception {
+   static void assertSerializes(Throwable failure, String what) throws Exception {
       Throwable copy = assertDoesNotThrow(() -> jdkRoundTrip(failure), what + ": Java serialization");
       assertEquals(failure.getClass(), copy.getClass(), what);
       assertEquals(failure.getMessage(), copy.getMessage(), what);
@@ -354,6 +431,19 @@ abstract class UnavailableFailureSerializationChecks {
             return SwapFileReadException.find(failure);
          }
       },
+      INTERRUPTED("The read of swap file read.tdat was interrupted, the swapped data was " +
+                  "not read") {
+         @Override
+         RuntimeException create() {
+            return new SwapReadInterruptedException(new File("read.tdat"),
+                                                    new ClosedByInterruptException());
+         }
+
+         @Override
+         RuntimeException find(Throwable failure) {
+            return SwapFileReadException.find(failure);
+         }
+      },
       LOAD("Test load failure") {
          @Override
          RuntimeException create() {
@@ -378,11 +468,15 @@ abstract class UnavailableFailureSerializationChecks {
       final String message;
    }
 
-   /** A base whose data row 5 fails with a new failure on each read. */
+   /**
+    * A base whose data row 5 fails with a new failure on each read, and if asked, whose row
+    * count fails once the table over it is created.
+    */
    private static final class FailingTable extends DefaultTableLens {
-      FailingTable(Kind kind) {
+      FailingTable(Kind kind, boolean moreRows) {
          super(data());
          this.kind = kind;
+         this.moreRows = moreRows;
       }
 
       static Object[][] data() {
@@ -405,7 +499,18 @@ abstract class UnavailableFailureSerializationChecks {
          return super.getObject(r, c);
       }
 
+      @Override
+      public boolean moreRows(int r) {
+         if(moreRows && armed) {
+            throw kind.create();
+         }
+
+         return super.moreRows(r);
+      }
+
       private final Kind kind;
+      private final boolean moreRows;
+      boolean armed;
    }
 
    public static final class Host {
