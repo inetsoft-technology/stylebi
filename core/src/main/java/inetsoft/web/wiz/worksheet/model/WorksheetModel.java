@@ -405,6 +405,9 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
     * @param sourceTable entity name (when {@code logicalModel} is present) or physical table name,
     *                    within {@code datasource}
     * @param attribute   attribute/column name within {@code sourceTable}
+    * @param type        data type this group is attached to (e.g. {@code "integer"}) when it is a
+    *                    standalone type-attached group; mutually exclusive with every attachment
+    *                    field above -- never both non-null
     * @param groupMappings list of group name to values mappings
     * @param groupOthers {@code true} if unmapped values are grouped as "Others"
     */
@@ -417,6 +420,7 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
       String logicalModel,
       String sourceTable,
       String attribute,
+      String type,
       List<GroupMappingModel> groupMappings,
       boolean groupOthers
    ) {}

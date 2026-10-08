@@ -6607,6 +6607,81 @@ class WorksheetEditServiceMutatorsTest {
       assertTrue(ex.getMessage().contains("NoSuchGroup"), ex.getMessage());
    }
 
+   /** The refusal must name the referencing assemblies, not just the group (Redmine #77002 WBS-090). */
+   @Test
+   void deleteNamedGroupRefusalNamesTheReferencingTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "state", "amount");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.addNamedGroup("NG", "T", "state", null,
+            List.of(new WorksheetMutationSupport.GroupMapping("A", List.of("NY"))), true));
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T",
+            List.of(new WorksheetMutationSupport.GroupSpec("state", null, "NG")),
+            List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null))));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.deleteNamedGroup("NG")));
+
+      assertTrue(ex.getMessage().contains("referenced by: T."), ex.getMessage());
+      assertNotNull(ws.getAssembly("NG"));
+   }
+
+   @Test
+   void deleteTableAndRemoveJoinRefusalsListEveryDependent() throws Exception {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(TestWorksheets.tableWithColumns(ws, "A", "id"));
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      svc.apply("TOK", agent, ed -> {
+         ed.addMirror("M2", "A");
+         ed.addMirror("M1", "A");
+      });
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.deleteTable("A")));
+      assertTrue(ex.getMessage().contains("built on it: M1, M2."), ex.getMessage());
+
+      ws.addAssembly(TestWorksheets.tableWithColumns(ws, "R", "id"));
+      svc.apply("TOK", agent, ed -> {
+         ed.addJoin("J", "A", "id", "R", "id", "LEFT", null, null);
+         ed.addMirror("MJ", "J");
+      });
+      PairingException ex2 = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.removeJoin("J")));
+      assertTrue(ex2.getMessage().contains("built on it: MJ."), ex2.getMessage());
+   }
+
+   /** Retargeting a datasource-attached group to a data type must not leave the old attachment. */
+   @Test
+   void editNamedGroupTypeRetargetClearsStaleSourceAndAttribute() throws Exception {
+      Worksheet ws = new Worksheet();
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      svc.apply("TOK", agent, ed ->
+         ed.addNamedGroup("G", null, null, XSchema.STRING, List.of(), false));
+
+      DefaultNamedGroupAssembly g = (DefaultNamedGroupAssembly) ws.getAssembly("G");
+      ColumnRef col = new ColumnRef(new AttributeRef(null, "CITY"));
+      col.setDataType(XSchema.STRING);
+      g.setAttachedType(AttachedAssembly.COLUMN_ATTACHED);
+      g.setAttachedSource(new SourceInfo(SourceInfo.PHYSICAL_TABLE, "Examples/Orders", "SA.CUSTOMERS"));
+      g.setAttachedAttribute(col);
+      g.setAttachedDataType(null);
+
+      svc.apply("TOK", agent, ed -> ed.editNamedGroup("G", XSchema.INTEGER,
+         List.of(new WorksheetMutationSupport.GroupMapping("Low", List.of("1", "2"))), false));
+
+      assertEquals(AttachedAssembly.DATA_TYPE_ATTACHED, g.getAttachedType());
+      assertEquals(XSchema.INTEGER, g.getAttachedDataType());
+      assertNull(g.getAttachedSource());
+      assertNull(g.getAttachedAttribute());
+   }
+
    /**
     * {@code editNamedGroup}'s standalone/{@code DATA_TYPE_ATTACHED} retarget path (the {@code type}
     * argument): refuses loud, before mutating anything, when an existing worksheet-side reference
