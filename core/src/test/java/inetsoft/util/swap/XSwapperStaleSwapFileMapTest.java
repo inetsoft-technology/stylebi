@@ -33,6 +33,7 @@ import java.io.File;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.util.*;
+import java.util.concurrent.locks.Lock;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -130,6 +131,42 @@ class XSwapperStaleSwapFileMapTest {
       assertTrue(fixture.unknown.exists(), "registered file of an unknown seed was deleted");
    }
 
+   @Test
+   void sweepsKeepRecentRegisteredFileOfDeadJvmWithinGracePeriod() throws Exception {
+      Cluster cluster = Cluster.getInstance();
+      Map<Long, String> seeds = cluster.getMap(XSwapper.SWAP_SEED_MAP);
+      seeds.put(401L, DEAD_NODE);
+      seeds.put(402L, DEAD_NODE);
+      // the old file is deleted by the same sweep, so it marks when the sweep has run
+      File marker = createRegistered("s401_1_s.tdat");
+      // a JVM that was killed right after writing a swap file
+      File recent = createRegistered("s402_1_s.tdat");
+      assertTrue(recent.setLastModified(System.currentTimeMillis()));
+
+      FileSystemService.getInstance().clearCacheFiles(null);
+      waitUntilDeleted(marker);
+      assertFalse(marker.exists(), "registered file of a dead JVM was not deleted");
+      assertTrue(recent.exists(), "clean up deleted a file within its grace period");
+
+      // the clean up removed the stale entries and seeds
+      seeds.put(401L, DEAD_NODE);
+      seeds.put(402L, DEAD_NODE);
+      cluster.<String, Integer>getMap(XSwapper.SWAP_FILE_MAP).put(recent.getAbsolutePath(), 1);
+      marker = createRegistered("s401_2_s.tdat");
+      assertTrue(recent.setLastModified(System.currentTimeMillis()));
+      XSwapper swapper = new XSwapper();
+
+      try {
+         waitUntilDeleted(marker);
+      }
+      finally {
+         swapper.stop();
+      }
+
+      assertFalse(marker.exists(), "registered file of a dead JVM was not deleted");
+      assertTrue(recent.exists(), "startup sweep deleted a file within its grace period");
+   }
+
    private static void waitUntilDeleted(File file) throws InterruptedException {
       // the sweeps run in a background thread
       long end = System.currentTimeMillis() + 30000L;
@@ -137,6 +174,11 @@ class XSwapperStaleSwapFileMapTest {
       while(file.exists() && System.currentTimeMillis() < end) {
          Thread.sleep(50L);
       }
+
+      // the sweep holds the lock until it has removed the stale entries
+      Lock lock = Cluster.getInstance().getLock(XSwapper.SWAP_FILE_MAP_LOCK);
+      lock.lock();
+      lock.unlock();
    }
 
    /**
