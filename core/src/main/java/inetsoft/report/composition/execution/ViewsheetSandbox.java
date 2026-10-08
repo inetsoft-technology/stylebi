@@ -3011,7 +3011,14 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             ListInputVSAssembly lassembly = (ListInputVSAssembly) assembly;
 
             if(data != null) {
-               ListData ldata = (ListData) data;
+               // Sort and format a copy the same way executeView() does, so that the
+               // automatic value (first value) picked by validate() and written to the
+               // variable table by refreshVariable() is the first displayed value, not
+               // the first unsorted one. Inputs sharing a variable then start in sync
+               // on that value (Bug #78081).
+               ListData ldata = (ListData) ((ListData) data).clone();
+               VSAQuery query = VSAQuery.createVSAQuery(this, lassembly, DataMap.NORMAL);
+               ((InputVSAQuery) query).refreshView(ldata);
                lassembly.setLabels(ldata.getLabels());
                lassembly.setValues(ldata.getValues());
                lassembly.setFormats(ldata.getFormats());
@@ -4527,6 +4534,18 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          return;
       }
 
+      // refreshVariable() runs more than once for the same assembly in one init cycle
+      // (inputDataChanged and resetAssembly both reach it), and after the first call the
+      // variable table holds the value the assembly wrote itself. Only the table as it was
+      // at the first lookup can hold a passed parameter, so mark the assembly here, before
+      // the lookup, whether or not an entry is found. Otherwise the second call reads back
+      // the assembly's own automatic value and fixes it as the selection (Bug #78081).
+      // Use the absolute name as the dedup key so that same-named assemblies in parent and
+      // embedded viewsheets are tracked independently.
+      if(!parametersAppliedAssemblies.add(iassembly.getAbsoluteName())) {
+         return;
+      }
+
       VariableTable vt = wbox.getVariableTable();
       // Hyperlink parameters are keyed by the assembly's local name.
       String name = iassembly.getName();
@@ -4550,14 +4569,6 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          else {
             return;
          }
-      }
-
-      // Dependency chains can cause refreshVariable() to be called more than once for
-      // the same assembly before parametersApplied is set. Use the absolute name as the
-      // dedup key so that same-named assemblies in parent and embedded viewsheets are
-      // tracked independently.
-      if(!parametersAppliedAssemblies.add(iassembly.getAbsoluteName())) {
-         return;
       }
 
       Object val;

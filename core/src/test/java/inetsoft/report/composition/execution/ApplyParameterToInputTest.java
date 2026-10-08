@@ -173,6 +173,23 @@ class ApplyParameterToInputTest {
       assertEquals("first", assembly.getSelectedObject());
    }
 
+   @Test
+   void valueWrittenAfterFirstLookupWithNoEntryIsNotApplied() throws Exception {
+      // Bug #78081: the first lookup in a cycle finds no entry, then refreshVariable()
+      // writes the assembly's own automatic value into the table. The second lookup in
+      // the same cycle must not read that value back as a passed parameter.
+      TextInputVSAssembly assembly = new TextInputVSAssembly();
+      assembly.getVSAssemblyInfo().setName("TextInput1");
+      Object before = assembly.getSelectedObject();
+
+      invoke(assembly);
+      variableTable.put("TextInput1", "selfWritten");
+      invoke(assembly);
+
+      assertEquals(before, assembly.getSelectedObject());
+      assertNotEquals("selfWritten", assembly.getSelectedObject());
+   }
+
    // ── CompositeInputVSAssembly ───────────────────────────────────────────────
 
    @Test
