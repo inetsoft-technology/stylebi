@@ -24,7 +24,9 @@ import inetsoft.test.LibManagerTestConfiguration;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.SelectionListVSAssembly;
 import inetsoft.uql.viewsheet.TabVSAssembly;
+import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.util.Tool;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.annotation.DirtiesContext;
@@ -33,6 +35,9 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.Dimension;
 import java.awt.Point;
+import java.io.PrintWriter;
+import java.io.StringReader;
+import java.io.StringWriter;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -52,6 +57,7 @@ class BottomTabsReseedTest {
    @AfterEach
    void reset() {
       SreeEnv.setProperty("viewsheet.modernVisualization", null);
+      SreeEnv.setProperty("viewsheet.density", null);
    }
 
    private static void gate(boolean on) {
@@ -161,6 +167,93 @@ class BottomTabsReseedTest {
 
       assertEquals(new Dimension(124, 170), list.getPixelSize(), "premise: the size rule ran");
       assertEquals(new Point(78, STRIP + 24), list.getPixelOffset());
+   }
+
+   // a sheet following the org density, with a list modernized at compact and on the strip
+   private static SelectionListVSAssemblyInfo restoredList(boolean bottom, int top) {
+      gate(false);
+      Viewsheet vs = new Viewsheet();
+      SreeEnv.setProperty("viewsheet.density", "compact");
+      SelectionListVSAssemblyInfo list = legacyList(vs, "SelA");
+      tabs(vs, bottom, "SelA");
+      gate(true);
+      VizModernizeUtil.modernize(vs);
+      list.setPixelOffset(new Point(78, top));
+      return list;
+   }
+
+   private static void restore(SelectionListVSAssemblyInfo list) throws Exception {
+      VSAssembly assembly = (VSAssembly) list.getViewsheet().getAssembly(list.getAbsoluteName());
+      StringWriter sw = new StringWriter();
+      assembly.writeState(new PrintWriter(sw), true);
+      assembly.parseState(Tool.parseXML(new StringReader(sw.toString())).getDocumentElement());
+   }
+
+   // an open after the org density moved re-runs the size rule; the bottom edge stays put
+   @Test
+   void aRestoreKeepsAResizedBottomTabsListOnTheStrip() throws Exception {
+      SelectionListVSAssemblyInfo list = restoredList(true, STRIP - 170);
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+
+      restore(list);
+
+      assertEquals(new Dimension(132, 202), list.getPixelSize(), "premise: the size rule ran");
+      assertEquals(new Point(78, STRIP - 202), list.getPixelOffset());
+   }
+
+   @Test
+   void aRestoreToASmallerTierKeepsTheListOnTheStrip() throws Exception {
+      SelectionListVSAssemblyInfo list = restoredList(true, STRIP - 170);
+      SreeEnv.setProperty("viewsheet.density", "dense");
+
+      restore(list);
+
+      assertEquals(new Dimension(116, 136), list.getPixelSize(), "premise: the size rule ran");
+      assertEquals(new Point(78, STRIP - 136), list.getPixelOffset());
+   }
+
+   // a shift, not a re-flush: a child off the strip keeps its distance from it
+   @Test
+   void aRestoreKeepsTheBottomEdgeOfAChildOffTheStrip() throws Exception {
+      SelectionListVSAssemblyInfo list = restoredList(true, 300);
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+
+      restore(list);
+
+      assertEquals(new Point(78, 300 + 170 - 202), list.getPixelOffset());
+   }
+
+   @Test
+   void aRestoreAtTheSameTierMovesNothing() throws Exception {
+      SelectionListVSAssemblyInfo list = restoredList(true, 300);
+
+      restore(list);
+
+      assertEquals(new Dimension(124, 170), list.getPixelSize());
+      assertEquals(new Point(78, 300), list.getPixelOffset());
+   }
+
+   @Test
+   void aRestoreLeavesATopTabsChildsTopAlone() throws Exception {
+      SelectionListVSAssemblyInfo list = restoredList(false, STRIP + 24);
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+
+      restore(list);
+
+      assertEquals(new Dimension(132, 202), list.getPixelSize(), "premise: the size rule ran");
+      assertEquals(new Point(78, STRIP + 24), list.getPixelOffset());
+   }
+
+   // a position a script set is the script's to keep
+   @Test
+   void aRestoreLeavesAScriptPositionAlone() throws Exception {
+      SelectionListVSAssemblyInfo list = restoredList(true, 300);
+      list.setPositionByScript(true);
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+
+      restore(list);
+
+      assertEquals(new Point(78, 300), list.getPixelOffset());
    }
 
    // nothing to modernize means nothing moves, even a child an author left off the strip
