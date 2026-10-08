@@ -450,6 +450,13 @@ export class ChartAxisArea extends ChartObjectAreaBase<Axis> implements OnChange
    }
 
    onDown(event: MouseEvent): void {
+      // A press on the sort icon is not an axis gesture: disarm so the matching pointerup
+      // doesn't select the label under the icon or start a resize.
+      if(this.isSortIconEvent(event)) {
+         this.isMouseDown = false;
+         return;
+      }
+
       if(event.type === "pointerdown" ||
          event.type === "mousedown" && !GuiTool.supportPointEvent())
       {
@@ -473,6 +480,7 @@ export class ChartAxisArea extends ChartObjectAreaBase<Axis> implements OnChange
 
    onUp(event: MouseEvent): void {
       if(this.isMouseDown && event.clientX == this.eventXdown && event.clientY == this.eventYdown &&
+         !this.isSortIconEvent(event) &&
          (event.type === "pointerup" || event.type === "contextmenu"
          || event.type === "mouseup" && !GuiTool.supportPointEvent()))
       {
@@ -554,7 +562,19 @@ export class ChartAxisArea extends ChartObjectAreaBase<Axis> implements OnChange
    }
 
    onDblClick(event: MouseEvent): void {
+      if(this.isSortIconEvent(event)) {
+         return;
+      }
+
       this.brushChart.emit();
+   }
+
+   /**
+    * Check if the event was raised on the sort icon, which sits inside the axis area and
+    * would otherwise also be handled as a click on the axis label under it.
+    */
+   private isSortIconEvent(event: Event): boolean {
+      return !!(event?.target as Element)?.closest?.(".axis__sort-icon");
    }
 
    /**
