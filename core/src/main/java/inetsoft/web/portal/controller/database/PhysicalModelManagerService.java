@@ -1669,6 +1669,11 @@ public class PhysicalModelManagerService {
       relationship.setOrder(join.getOrderPriority());
       relationship.setWeakJoin(join.isWeak());
 
+      // a legacy join without a stored cardinality (0/0) is sent as null, leave it at 0/0
+      if(join.getCardinality() == null) {
+         return relationship;
+      }
+
       if(join.getCardinality() == JoinCardinality.ONE_TO_ONE) {
          relationship.setDependentCardinality(XRelationship.ONE);
          relationship.setIndependentCardinality(XRelationship.ONE);
