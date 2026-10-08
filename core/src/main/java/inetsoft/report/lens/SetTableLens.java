@@ -36,6 +36,7 @@ import inetsoft.util.script.LendableReentrantLock;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.stall.WaitRecord;
 import inetsoft.util.stall.WaitRegistry;
+import inetsoft.util.swap.DataUnavailable;
 import inetsoft.util.swap.XSwappableObjectList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -608,7 +609,10 @@ public abstract class SetTableLens
 
          if(stall != null) {
             synchronized(this) {
-               stallFailure = stall;
+               // a copy is kept, which is never thrown: the stall is thrown on, maybe through
+               // a script, which adds a suppressed stack trace element that cannot be
+               // serialized to it (bug #78084)
+               stallFailure = stall.copy();
 
                if(rows != null) {
                   rows.complete();
@@ -726,7 +730,7 @@ public abstract class SetTableLens
       completed = false;
       validated = false;
       scannedRows = 0;
-      failure = ex;
+      failure = keptFailure(ex);
       failureTime = System.nanoTime();
    }
 
@@ -735,10 +739,18 @@ public abstract class SetTableLens
     * holding this lens's monitor (bug #77524).
     */
    private SetOperationException recordFailure(Exception ex) {
-      failure = ex;
+      failure = keptFailure(ex);
       failureTime = System.nanoTime();
       LOG.error("Failed to create the merged table of a set operation", ex);
       return new SetOperationException(ex);
+   }
+
+   /**
+    * The failure of a pass to keep for the later readers: a copy of a lost swap file or a
+    * load failure, which is never thrown itself (bug #78084).
+    */
+   private static Exception keptFailure(Exception ex) {
+      return ex instanceof RuntimeException rex ? DataUnavailable.copy(rex) : ex;
    }
 
    /**
@@ -821,7 +833,8 @@ public abstract class SetTableLens
          }
          else if(rows == pass.target) {
             if(stall != null) {
-               stallFailure = stall;
+               // a copy, which is never thrown (bug #78084)
+               stallFailure = stall.copy();
             }
 
             pass.target.complete();

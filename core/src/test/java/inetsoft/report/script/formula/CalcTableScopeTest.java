@@ -42,6 +42,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import java.util.Date;
 import java.util.stream.Stream;
 
+import static inetsoft.util.stall.StallTestSupport.assertStallOf;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -473,7 +474,7 @@ public class CalcTableScopeTest {
       // sanity: the condition selects rows 2..4, id2 = 3 + 2 + 4
       assertEquals(9.0, calcTableScope.sum(conditionTable(null), "id2", "id1>1"));
 
-      assertSame(stall, assertThrows(LockStallException.class,
+      assertStallOf(stall, assertThrows(LockStallException.class,
          () -> calcTableScope.sum(conditionTable(stall), "id2", "id1>1")));
    }
 
@@ -488,7 +489,7 @@ public class CalcTableScopeTest {
       // sanity: the expression reads id1 on every row, 1 + 2 + 3 + 2
       assertEquals(8.0, calcTableScope.sum(conditionTable(null), "=id1", null));
 
-      assertSame(stall, assertThrows(LockStallException.class,
+      assertStallOf(stall, assertThrows(LockStallException.class,
          () -> calcTableScope.sum(conditionTable(stall), "=id1", null)));
    }
 

@@ -2607,10 +2607,16 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          }
          catch(PolyglotException ex) {
             // a lock stall or a lost swap file of Java code the script called, e.g. a read of
-            // a table, is not a script error: rethrow it as it is so the reader gets it, and do
-            // not count it toward the script's errors (bugs #76967, #77910)
+            // a table, is not a script error: rethrow it so the reader gets it, and do not
+            // count it toward the script's errors (bugs #76967, #77910). Rethrow a copy: the
+            // instance the Java code threw carries a suppressed Truffle stack trace element,
+            // which cannot be serialized, e.g. in the response of a cluster call (bug #78084)
             if(ex.isHostException()) {
-               DataUnavailable.rethrow(ex.asHostException());
+               RuntimeException unavailable = DataUnavailable.find(ex.asHostException());
+
+               if(unavailable != null) {
+                  throw DataUnavailable.copy(unavailable);
+               }
             }
 
             // nor is the load failure of a table the script read, for a reader that has to fail,

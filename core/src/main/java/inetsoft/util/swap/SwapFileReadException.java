@@ -38,6 +38,19 @@ public class SwapFileReadException extends RuntimeException {
    }
 
    /**
+    * Copy this failure: a new instance of the same class with the same file, message, cause
+    * and stack trace, and none of its suppressed exceptions. The copy does not keep this
+    * instance in its cause chain, so it can be kept or thrown where this instance may have
+    * been thrown through a script, which adds a suppressed stack trace element that cannot be
+    * serialized to the instance (bug #78084). A subclass overrides it to keep its class.
+    */
+   public SwapFileReadException copy() {
+      SwapFileReadException copy = new SwapFileReadException(file, getMessage(), getCause());
+      copy.setStackTrace(getStackTrace());
+      return copy;
+   }
+
+   /**
     * Get the swap file that could not be read.
     */
    public File getFile() {

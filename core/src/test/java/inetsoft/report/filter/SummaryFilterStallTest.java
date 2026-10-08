@@ -98,11 +98,11 @@ public class SummaryFilterStallTest {
       Future<List<List<Object>>> reader = pool.submit(() -> drain(summary));
 
       LockStallException stall = stallIn(failureOf(reader, 15));
-      assertSame(original, stall.getCause(), "the reader rethrows the worker's stall");
+      assertStallOf(original, stall.getCause(), "the reader rethrows the worker's stall");
 
       // the rows so far are not the whole table either
       Future<Integer> count = pool.submit(summary::getRowCount);
-      assertSame(original, stallIn(failureOf(count, 15)).getCause(),
+      assertStallOf(original, stallIn(failureOf(count, 15)).getCause(),
                  "getRowCount() rethrows the worker's stall");
    }
 
@@ -123,8 +123,9 @@ public class SummaryFilterStallTest {
       Future<List<List<Object>>> reader = pool.submit(() -> drain(summary));
 
       LockStallException stall = stallIn(failureOf(reader, 15));
-      assertSame(original, stall.getCause(), "the reader rethrows the wrapped stall");
-      assertSame(original, stallIn(failureOf(pool.submit(summary::getRowCount), 15)).getCause());
+      assertStallOf(original, stall.getCause(), "the reader rethrows the wrapped stall");
+      assertStallOf(original,
+                    stallIn(failureOf(pool.submit(summary::getRowCount), 15)).getCause());
    }
 
    @Test

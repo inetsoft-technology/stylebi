@@ -30,6 +30,7 @@ import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.Map;
 
+import static inetsoft.util.swap.SwapLostTestSupport.assertSwapOf;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -69,7 +70,7 @@ class GraalJavaScriptEngineSwapInterruptTest {
 
       SwapReadInterruptedException ex = assertThrows(SwapReadInterruptedException.class,
          () -> engine.exec(src, null, null));
-      assertSame(host.failure, ex);
+      assertSwapOf(host.failure, ex);
       assertFalse(errorCounts().containsKey(src), "an interrupted swap read is not a script error");
       assertFalse(Thread.currentThread().isInterrupted(), "the timeout left the flag set");
       assertEquals(1005, host.fragment.getSafely(5));
@@ -81,7 +82,7 @@ class GraalJavaScriptEngineSwapInterruptTest {
 
       SwapReadInterruptedException ex = assertThrows(SwapReadInterruptedException.class,
          () -> engine.exec(src, null, null));
-      assertSame(host.failure, ex);
+      assertSwapOf(host.failure, ex);
       assertFalse(errorCounts().containsKey(src), "an interrupted swap read is not a script error");
       Thread.interrupted();
       assertEquals(1005, host.fragment.getSafely(5));

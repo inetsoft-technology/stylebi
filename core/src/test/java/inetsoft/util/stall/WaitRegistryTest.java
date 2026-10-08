@@ -34,6 +34,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
+import static inetsoft.util.stall.StallTestSupport.assertStallOf;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -399,7 +400,7 @@ public class WaitRegistryTest {
    }
 
    @Test
-   public void failedWaitRethrowsTheSameException() {
+   public void failedWaitRethrowsTheSameStall() {
       AtomicLong rows = new AtomicLong();
       WaitRecord record = registry.open("site", rows::get, NONE);
       advance(1500);
@@ -409,7 +410,8 @@ public class WaitRegistryTest {
       rows.incrementAndGet();
       LockStallException again = assertThrows(LockStallException.class, record::checkStall,
                                               "a failed wait must not continue silently");
-      assertSame(first, again);
+      // a copy: the first may have been thrown through a script (bug #78084)
+      assertStallOf(first, again);
       assertEquals(1, dumper.getDumpCount());
       record.close();
    }

@@ -34,6 +34,8 @@ import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.Map;
 
+import static inetsoft.util.swap.SwapLostTestSupport.assertSwapOf;
+import static inetsoft.util.stall.StallTestSupport.assertStallOf;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -87,18 +89,18 @@ class GraalJavaScriptEngineUnavailableCountTest {
       // more lost swap files and stalls than the limit: each reaches the caller as itself
       for(int i = 0; i < 3; i++) {
          host.failure = swap;
-         assertSame(swap, assertThrows(SwapFileReadException.class, () -> engine.exec(src, null, null)));
+         assertSwapOf(swap, assertThrows(SwapFileReadException.class, () -> engine.exec(src, null, null)));
          host.failure = new IllegalStateException("wrapped", swap);
-         assertSame(swap, assertThrows(SwapFileReadException.class, () -> engine.exec(src, null, null)));
+         assertSwapOf(swap, assertThrows(SwapFileReadException.class, () -> engine.exec(src, null, null)));
          host.failure = stall;
-         assertSame(stall, assertThrows(LockStallException.class, () -> engine.exec(src, null, null)));
+         assertStallOf(stall, assertThrows(LockStallException.class, () -> engine.exec(src, null, null)));
       }
 
       assertFalse(errorCounts().containsKey(src), "unavailable data is not a script error");
 
       // a stall below a swap failure in the chain wins
       host.failure = new SwapFileReadException(new File("x.tdat"), stall);
-      assertSame(stall, assertThrows(LockStallException.class, () -> engine.exec(src, null, null)));
+      assertStallOf(stall, assertThrows(LockStallException.class, () -> engine.exec(src, null, null)));
 
       // ordinary host failures: counted, cause-less ScriptException, until the limit
       host.failure = new IllegalStateException("bad cell");

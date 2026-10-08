@@ -27,6 +27,7 @@ import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.stall.WaitRecord;
 import inetsoft.util.stall.WaitRegistry;
+import inetsoft.util.swap.DataUnavailable;
 import inetsoft.util.swap.SwapFileReadException;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -434,11 +435,13 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
       Throwable workerFailure = this.workerFailure;
 
       if(workerFailure != null) {
-         // a lost swap file is rethrown as is, as JoinTable does (bug #77651)
+         // a lost swap file is rethrown as a lost swap file, as JoinTable does (bug #77651)
          SwapFileReadException swapFailure = SwapFileReadException.find(workerFailure);
 
          if(swapFailure != null) {
-            throw swapFailure;
+            // a new instance for each reader: one thrown through a script gets a suppressed
+            // stack trace element that cannot be serialized (bug #78084)
+            throw swapFailure.copy();
          }
 
          throw new CrossJoinException(workerFailure);
@@ -1136,7 +1139,8 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
             if(stall != null) {
                synchronized(CrossJoinTableLens.this) {
                   if(!this.disposed) {
-                     stallFailure = stall;
+                     // a copy, which is never thrown (bug #78084)
+                     stallFailure = stall.copy();
                      CrossJoinTableLens.this.notifyAll();
                   }
                }
@@ -1150,7 +1154,10 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
                   if(!this.disposed && this == (left ? lthread : rthread) &&
                      !CrossJoinTableLens.this.disposed && !cancelled)
                   {
-                     workerFailure = ex;
+                     // a copy of a lost swap file or a load failure, which is never
+                     // thrown (bug #78084)
+                     workerFailure = ex instanceof RuntimeException rex ?
+                        DataUnavailable.copy(rex) : ex;
                      CrossJoinTableLens.this.notifyAll();
                   }
                }

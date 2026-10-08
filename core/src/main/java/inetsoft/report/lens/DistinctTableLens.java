@@ -32,6 +32,7 @@ import inetsoft.util.script.LendableReentrantLock;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.stall.WaitRecord;
 import inetsoft.util.stall.WaitRegistry;
+import inetsoft.util.swap.DataUnavailable;
 import inetsoft.util.swap.SwapFileReadException;
 import inetsoft.util.swap.XSwappableIntList;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
@@ -424,12 +425,15 @@ public class DistinctTableLens extends AbstractTableLens
          return;
       }
 
+      // copies are kept, which are never thrown: the pass throws the failure on, maybe
+      // through a script, which adds a suppressed stack trace element that cannot be
+      // serialized to it (bug #78084)
       if(stall != null) {
-         stallFailure = stall;
+         stallFailure = stall.copy();
       }
 
       if(baseFailure != null) {
-         this.baseFailure = baseFailure;
+         this.baseFailure = DataUnavailable.copy(baseFailure);
       }
 
       userMsg = msg;
@@ -785,7 +789,8 @@ public class DistinctTableLens extends AbstractTableLens
       RuntimeException baseFailure = this.baseFailure;
 
       if(baseFailure != null) {
-         throw baseFailure;
+         // a new instance for each reader (bug #78084)
+         throw DataUnavailable.copy(baseFailure);
       }
    }
 

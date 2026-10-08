@@ -28,6 +28,7 @@ import inetsoft.uql.util.TableLoadException;
 import inetsoft.util.Tool;
 import inetsoft.util.UserMessage;
 import inetsoft.util.stall.LockStallException;
+import inetsoft.util.swap.DataUnavailable;
 import inetsoft.util.swap.SwapFileReadException;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import org.slf4j.Logger;
@@ -294,7 +295,9 @@ abstract class JoinTable extends PagedTableLens {
       RuntimeException baseFailure = this.baseFailure;
 
       if(baseFailure != null) {
-         throw baseFailure;
+         // a new instance for each reader: one thrown through a script cannot be serialized
+         // once it is thrown again (bug #78084)
+         throw DataUnavailable.copy(baseFailure);
       }
    }
 
@@ -316,10 +319,12 @@ abstract class JoinTable extends PagedTableLens {
    protected abstract Thread[] getWorkerThreads();
 
    /**
-    * Record the stall a worker thread failed with (bug #76967).
+    * Record the stall a worker thread failed with (bug #76967). A copy is kept, which is never
+    * thrown: the failure may be thrown on through a script, which adds a suppressed stack
+    * trace element that cannot be serialized to it (bug #78084).
     */
    void setStallFailure(LockStallException failure) {
-      stallFailure = failure;
+      stallFailure = failure.copy();
    }
 
    /**
@@ -327,7 +332,8 @@ abstract class JoinTable extends PagedTableLens {
     * (bug #77651).
     */
    void setSwapFailure(SwapFileReadException failure) {
-      baseFailure = failure;
+      // a copy, as for a stall (bug #78084)
+      baseFailure = failure.copy();
    }
 
    /**
@@ -335,7 +341,8 @@ abstract class JoinTable extends PagedTableLens {
     * join (bug #77966).
     */
    void setLoadFailure(TableLoadException failure) {
-      baseFailure = failure;
+      // a copy, as for a stall (bug #78084)
+      baseFailure = DataUnavailable.copy(failure);
    }
 
    /**

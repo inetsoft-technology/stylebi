@@ -327,12 +327,14 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
       // the next pass early nor fail it with its stale stall (bug #77397)
       synchronized(SelfJoinTableLens.this) {
          if(rows == rows2) {
+            // copies are kept, which are never thrown: a failure thrown through a script gets
+            // a suppressed stack trace element that cannot be serialized (bug #78084)
             if(stall != null) {
-               stallFailure = stall;
+               stallFailure = stall.copy();
             }
 
             if(swapFailure != null) {
-               SelfJoinTableLens.this.swapFailure = swapFailure;
+               SelfJoinTableLens.this.swapFailure = swapFailure.copy();
             }
 
             if(baseFailure != null) {
@@ -468,7 +470,8 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
       SwapFileReadException swapFailure = this.swapFailure;
 
       if(swapFailure != null) {
-         throw swapFailure;
+         // a new instance for each reader (bug #78084)
+         throw swapFailure.copy();
       }
 
       MessageException baseFailure = this.baseFailure;

@@ -17,6 +17,7 @@
  */
 package inetsoft.util.swap;
 
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.util.stall.LockStallException;
 
 /**
@@ -57,5 +58,46 @@ public final class DataUnavailable {
       if(unavailable != null) {
          throw unavailable;
       }
+   }
+
+   /**
+    * Copy a lock stall, a swap file read failure or a table load failure: a new instance of
+    * the same class with the same message, fields, cause and stack trace, and none of its
+    * suppressed exceptions. The copy does not keep {@code failure} in its cause chain.
+    * <p>
+    * A failure that Java code called by a script throws gets a suppressed Truffle stack trace
+    * element added to it, which cannot be serialized, e.g. in the response of a cluster call.
+    * So the script engine rethrows a copy of such a failure, and a table that keeps a failure
+    * for its later readers keeps a copy that is never thrown itself, and throws a new instance
+    * to each reader (bug #78084).
+    *
+    * @return the copy, {@code failure} itself if it is none of these failures, or
+    * {@code null} if it is {@code null}.
+    */
+   public static RuntimeException copy(RuntimeException failure) {
+      if(failure instanceof LockStallException stall) {
+         return stall.copy();
+      }
+      else if(failure instanceof SwapFileReadException swap) {
+         return swap.copy();
+      }
+      else if(failure instanceof TableLoadException load) {
+         return copy(load);
+      }
+
+      return failure;
+   }
+
+   /**
+    * Copy a table load failure, see {@link #copy(RuntimeException)}.
+    */
+   public static TableLoadException copy(TableLoadException failure) {
+      if(failure == null) {
+         return null;
+      }
+
+      TableLoadException copy = new TableLoadException(failure.getMessage(), failure.getCause());
+      copy.setStackTrace(failure.getStackTrace());
+      return copy;
    }
 }
