@@ -1244,6 +1244,15 @@ public abstract class WorksheetEngine extends SheetLibraryEngine implements Work
    }
 
    /**
+    * Get the cluster-wide cache of currently open runtime worksheet/viewsheet sessions. Used by
+    * the orphaned permanent snapshot file cleanup (bug #78035) as a "referenced by a live
+    * session" signal, additive to its stored-content scan.
+    */
+   public RuntimeSheetCache getRuntimeSheetCache() {
+      return amap;
+   }
+
+   /**
     * Print the current status.
     */
    public void print() {

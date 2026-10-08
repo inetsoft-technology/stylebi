@@ -29,6 +29,8 @@ import inetsoft.sree.ClientInfo;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.SRPrincipal;
+import inetsoft.uql.asset.SnapshotEmbeddedTableAssembly;
+import inetsoft.uql.asset.Worksheet;
 import inetsoft.util.Tool;
 import inetsoft.web.json.ThirdPartySupportModule;
 import org.apache.ignite.IgniteCache;
@@ -40,6 +42,7 @@ import org.w3c.dom.Document;
 
 import javax.cache.Cache;
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.*;
@@ -757,6 +760,102 @@ public class RuntimeSheetCache
       }
 
       return count >= n;
+   }
+
+   /**
+    * Collects the snapshot table data paths named by every currently open worksheet session's
+    * worksheet content, cluster-wide (including a session's uncommitted "join tables" editor
+    * clone, {@link RuntimeWorksheetState#getJoinWS()}). Used by the orphaned permanent snapshot
+    * file cleanup (bug #78035) as a "referenced by a live session" signal, additive to its
+    * stored-content scan: this cache answers "does some open-but-unsaved session currently hold
+    * this path in memory," which reading only committed storage structurally cannot answer.
+    *
+    * @return the data paths named by every open worksheet session, never {@code null}.
+    */
+   public Set<String> getOpenWorksheetDataPaths() {
+      Set<String> paths = new HashSet<>();
+      Iterator<Cache.Entry<AffinityKey<String>, CompressedSheetState>> iter = cache.iterator();
+
+      try {
+         while(iter.hasNext()) {
+            Cache.Entry<AffinityKey<String>, CompressedSheetState> e = iter.next();
+
+            if(e.getValue().getType() != CompressedSheetState.SheetType.WORKSHEET) {
+               continue;
+            }
+
+            try {
+               RuntimeSheetState state = decompressState(e.getValue());
+
+               if(state instanceof RuntimeWorksheetState wsState) {
+                  collectOpenWorksheetDataPaths(wsState, null, paths);
+               }
+            }
+            catch(Exception ex) {
+               LOG.warn("Failed to decompress cached worksheet state while scanning for " +
+                        "referenced snapshot data files", ex);
+            }
+         }
+      }
+      catch(NoSuchElementException e) {
+         // Ignite closes distributed iterators mid-scan during topology changes. A single
+         // cycle's partial result here is absorbed by the stored-content scan, the grace period
+         // and the weekly full sweep this signal is additive to, the same as every other kind of
+         // staleness this cleanup already tolerates.
+         LOG.warn("Cache iterator closed during the orphaned snapshot file scan, returning " +
+                  "partial results", e);
+      }
+      finally {
+         Tool.closeIterator(iter);
+      }
+
+      return paths;
+   }
+
+   /**
+    * Extract a cached worksheet state's snapshot data paths, then recurse into its nested
+    * "join tables" editor clone, decoding its VCDIFF delta against the parent {@code ws} the same
+    * way {@link RuntimeWorksheet}'s own deserializing constructor does. Without this recursion, a
+    * snapshot table referenced only by an open, uncommitted join-edit clone would be invisible to
+    * this signal (bug #78035).
+    *
+    * @param state        the state to scan.
+    * @param parentWsXml  the parent state's already-decoded worksheet XML, used to decode
+    *                     {@code state}'s own {@code ws} if it is only present as a delta, or
+    *                     {@code null} if {@code state} is the top-level state (whose {@code ws}
+    *                     is always stored in full, never as a delta).
+    * @param paths        the set to add the found data paths to.
+    */
+   private void collectOpenWorksheetDataPaths(RuntimeWorksheetState state, String parentWsXml,
+                                               Set<String> paths)
+   {
+      if(state == null) {
+         return;
+      }
+
+      String wsXml = state.getWs();
+
+      if(wsXml == null && state.getWsDelta() != null && parentWsXml != null) {
+         try {
+            byte[] parentBytes = parentWsXml.getBytes(StandardCharsets.UTF_8);
+            byte[] wsBytes = RuntimeSheet.applyVcdiffDelta(parentBytes, state.getWsDelta());
+            wsXml = new String(wsBytes, StandardCharsets.UTF_8);
+         }
+         catch(IOException ex) {
+            LOG.warn("Failed to decode a join-edit worksheet delta while scanning for " +
+                     "referenced snapshot data files", ex);
+         }
+      }
+
+      if(wsXml != null) {
+         Worksheet ws = RuntimeSheet.loadXml(new Worksheet(), wsXml);
+
+         if(ws != null) {
+            paths.addAll(SnapshotEmbeddedTableAssembly.getDataPaths(ws));
+         }
+      }
+
+      collectOpenWorksheetDataPaths(state.getJoinWS(), wsXml, paths);
    }
 
    public boolean isLocal(String id) {
