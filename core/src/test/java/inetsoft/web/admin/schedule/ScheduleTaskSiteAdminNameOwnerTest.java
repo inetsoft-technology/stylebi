@@ -110,6 +110,15 @@ class ScheduleTaskSiteAdminNameOwnerTest {
          .addUserToRole("carol", SCHEDULE_ROLE, ORG_B)
          .grantPermission(ResourceType.SCHEDULER, "*", ResourceAction.ACCESS,
                           SCHEDULE_ROLE, Identity.ROLE, ORG_B);
+      // Bug #77972, carol's task may only batch a task carol may see, the leaf task of
+      // nestedBatchChild_runsWithItsOwnPrincipal
+      for(ResourceAction action : List.of(ResourceAction.READ, ResourceAction.WRITE,
+                                          ResourceAction.DELETE))
+      {
+         builder.grantPermission(ResourceType.SCHEDULE_TASK, ZED_IN_B.convertToKey() +
+                                 ":SanoBatchLeaf", action, "carol", Identity.USER, ORG_B);
+      }
+
       builder.setup();
       // pin the security state to the builder's providers (Bug #77346), see
       // ScheduleIdentityRemovedMissingOwnerTest
@@ -370,7 +379,7 @@ class ScheduleTaskSiteAdminNameOwnerTest {
    // Bug #77452 Option 1: each level of nested batch actions runs its child with that child's
    // own principal. parent (org admin) -> batch -> mid (carol, holds a batch) -> leaf (owned by
    // zed, a missing user with no site admin of the same name, so no roles). The mid task's
-   // batch action runs in the schedule thread pool.
+   // batch action runs in the schedule thread pool. carol may see the leaf task (Bug #77972).
    @Test
    void nestedBatchChild_runsWithItsOwnPrincipal() throws Throwable {
       IdentityID carol = new IdentityID("carol", ORG_B);

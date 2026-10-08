@@ -635,6 +635,11 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
             backup.setTaskOwner(SUtil.getTaskNameForLogging(getTaskId()), getOwner());
          }
 
+         // Bug #77972, the target task of a batch action is checked against the task owner
+         if(act instanceof BatchAction batch) {
+            batch.setTaskOwner(getOwner());
+         }
+
          Runnable r = new ThreadPool.AbstractContextRunnable() {
             { addRecord("ScheduleTask:" + ScheduleTask.this.getTaskId()); }
 

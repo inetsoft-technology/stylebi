@@ -263,7 +263,9 @@ class DeployManagerServiceScheduleSecretIdRedeployTest {
       assertEquals(List.of(), failed);
       ArgumentCaptor<ScheduleTask> stored = ArgumentCaptor.forClass(ScheduleTask.class);
       verify(scheduleManager).setScheduleTask(eq(TASK_ID), stored.capture(), isNull(),
-                                              any(Principal.class));
+                                              any(Principal.class),
+                                              // Bug #77972, saved with the replaced task as the baseline
+                                              nullable(ScheduleTask.class));
       return stored.getValue();
    }
 

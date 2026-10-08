@@ -40,7 +40,9 @@ import static org.mockito.Mockito.*;
  * Bug #77549, ScheduleManager.setScheduleTask refuses a task whose batch action query is in
  * another organization. ImportTaskController.importScheduleTask saves the tasks one by one with
  * no handler of its own (Bug #77503), so the refusal is checked first: the refused task is
- * reported as failed and not saved, and the other tasks are still imported.
+ * reported as failed and not saved, and the other tasks are still imported. Since Bug #77972
+ * every refusal of the save is checked first (ScheduleManager.checkScheduleTaskSave), e.g. a
+ * batch action target task the caller may not see, or the scheduler permission (IOException).
  *
  * <p>The refusal is mocked: an uploaded task is parsed with parseImportedTask, which moves the
  * query to the caller's organization, so a foreign-org query isn't expected on this path. The
@@ -95,7 +97,7 @@ class ImportTaskControllerBatchQueryOrgTest {
       String refusedId = refused.getTaskId();
       doThrow(new inetsoft.sree.security.SecurityException("Unauthorized access to query"))
          .when(scheduleManager)
-         .checkBatchQueryOrganization(eq(refusedId), same(refused), eq(principal));
+         .checkScheduleTaskSave(eq(refusedId), same(refused), eq(principal));
 
       ImportTaskResponse response = assertDoesNotThrow(
          () -> importTasks(refused, other), "the refusal escaped importScheduleTask");
@@ -105,6 +107,26 @@ class ImportTaskControllerBatchQueryOrgTest {
       assertTrue(response.failedTasks().contains(refused.getTaskId()),
                  "the refused task must be reported as failed: " + response.failedTasks());
       assertFalse(response.failedTasks().contains(other.getTaskId()), response.failedTasks().toString());
+   }
+
+   // Bug #77972, the other refusals of the save fail only their own task too
+   @Test
+   void refusedSave_ioException_taskIsReportedAndNotSaved_otherTasksAreImported()
+      throws Exception
+   {
+      ScheduleTask refused = task("t1");
+      ScheduleTask other = task("t2");
+      String refusedId = refused.getTaskId();
+      doThrow(new java.io.IOException("User 'orgadmin' doesn't have schedule permission."))
+         .when(scheduleManager)
+         .checkScheduleTaskSave(eq(refusedId), same(refused), eq(principal));
+
+      ImportTaskResponse response = assertDoesNotThrow(
+         () -> importTasks(refused, other), "the refusal escaped importScheduleTask");
+
+      verify(scheduleManager, never()).setScheduleTask(eq(refused.getTaskId()), any(), any());
+      verify(scheduleManager).setScheduleTask(other.getTaskId(), other, principal);
+      assertEquals(List.of(refusedId), response.failedTasks());
    }
 
    private ImportTaskResponse importTasks(ScheduleTask... tasks) throws Exception {

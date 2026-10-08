@@ -408,6 +408,10 @@ public class ScheduleService {
             "em.schedule.task.renameDependency", oldId));
       }
 
+      // Bug #77972, the stored task, the batch action targets of the renamed task are checked
+      // against its targets when it's saved, after it was removed
+      ScheduleTask storedTask = currTask;
+
       // Bug #77359, the task is renamed for an owner change, check and save it with the new
       // owner. Change a copy, the stored task is cached and is kept if the check refuses.
       if(owner != null && !owner.equals(currTask.getOwner())) {
@@ -451,7 +455,7 @@ public class ScheduleService {
          }
 
          renameTaskBackupPaths(currTask, oldPath, oldId, newId);
-         scheduleManager.setScheduleTask(newId, currTask, folderEntry, principal);
+         scheduleManager.setScheduleTask(newId, currTask, folderEntry, principal, storedTask);
          taskFolderService.removeTaskFromFolder(oldId, oldPath);
          actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_SUCCESS);
          actionRecord.setActionError("new name: " + SUtil.getTaskName(newId));
