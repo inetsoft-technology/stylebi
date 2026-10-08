@@ -24,6 +24,7 @@ import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.report.script.TableArray;
 import inetsoft.uql.XTable;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.util.script.ScriptUtil;
 import inetsoft.util.swap.DataUnavailable;
@@ -146,6 +147,9 @@ public class TableAssemblyScriptable extends TableArray {
          // a lock stall or a lost swap file is not a missing table, which TableArray reads as
          // an empty one (#77123, #77910)
          DataUnavailable.rethrow(ex);
+         // nor has a table that failed to load for a reader that has to fail, e.g. a
+         // scheduled run (#78083)
+         TableLoadException.rethrow(ex);
 
          // ignore if box has been disposed
          if(!box.isDisposed()) {

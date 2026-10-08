@@ -20,6 +20,7 @@ package inetsoft.report.script.formula;
 import inetsoft.report.script.TableRow;
 import inetsoft.report.script.TableRowScope;
 import inetsoft.sree.security.OrganizationManager;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.util.script.*;
 import inetsoft.util.script.graal.ScriptScope;
 import inetsoft.util.script.graal.ScriptTimeoutGuard;
@@ -180,6 +181,9 @@ public class FormulaEvaluator {
          DataUnavailable.rethrow(ex);
          // nor has a read or condition stopped by a script timeout or cancel (#78076)
          ScriptTimeoutGuard.rethrowStop(ex);
+         // nor has a table that failed to load for a reader that has to fail, e.g. a
+         // scheduled run (#78083)
+         TableLoadException.rethrow(ex);
 
          LOG.error("Failed to execute formula script: " + expr, ex);
       }

@@ -24,6 +24,7 @@ import inetsoft.report.internal.table.RuntimeCalcTableLens;
 import inetsoft.report.lens.CalcTableLens;
 import inetsoft.report.script.*;
 import inetsoft.report.script.graal.ReportGraalJavaScriptEngine;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.util.script.DynamicScope;
 import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.script.graal.ScopeLocals;
@@ -809,6 +810,9 @@ public class CalcTableScope extends PropertyScriptable implements DynamicScope {
          // a script timeout or cancel (#77949)
          DataUnavailable.rethrow(ex);
          ScriptTimeoutGuard.rethrowStop(ex);
+         // nor has a table that failed to load for a reader that has to fail, e.g. a
+         // scheduled run (#78083)
+         TableLoadException.rethrow(ex);
 
          LOG.warn("Failed to summarize range " + range +
             " using formula " + sum, ex);

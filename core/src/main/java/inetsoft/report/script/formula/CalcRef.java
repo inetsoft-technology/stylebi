@@ -18,6 +18,7 @@
 package inetsoft.report.script.formula;
 
 import inetsoft.report.internal.table.*;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.util.script.FormulaContext;
 import inetsoft.util.script.graal.ScriptArrayScope;
 import inetsoft.util.script.graal.ScriptTimeoutGuard;
@@ -377,11 +378,13 @@ public class CalcRef implements ScriptArrayScope {
     * return, so a reference read must not turn the failure into a null script value: the
     * referencing cell would complete and cache a wrong value (e.g. {@code $A + 1}). Other
     * failures keep degrading to null (#77123). Nor does a cell whose formula was stopped by
-    * a script timeout or cancel have a value (#77949).
+    * a script timeout or cancel have a value (#77949), nor a table that failed to load for a
+    * reader that has to fail, e.g. a scheduled run (#78083).
     */
    private static void rethrowUnavailable(Exception ex) {
       DataUnavailable.rethrow(ex);
       ScriptTimeoutGuard.rethrowStop(ex);
+      TableLoadException.rethrow(ex);
    }
 
    private RuntimeCalcTableLens table;

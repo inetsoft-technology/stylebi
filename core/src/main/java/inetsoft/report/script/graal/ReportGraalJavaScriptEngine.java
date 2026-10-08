@@ -27,6 +27,7 @@ import inetsoft.report.script.formula.PositionalCellRange;
 import inetsoft.report.script.formula.TableRangeProcessor;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.schema.*;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.CoreTool;
 import inetsoft.util.ThreadContext;
@@ -431,6 +432,9 @@ public class ReportGraalJavaScriptEngine extends GraalJavaScriptEngine {
             // a stalled table or one whose swap file is lost has no value to return, the
             // failure is not a script value (#77123, #77910)
             DataUnavailable.rethrow(ex);
+            // nor has a table that failed to load for a reader that has to fail, e.g. a
+            // scheduled run (#78083)
+            TableLoadException.rethrow(ex);
 
             LOG.error("Failed to get cell region from range: " + range, ex);
             return null;
@@ -482,6 +486,9 @@ public class ReportGraalJavaScriptEngine extends GraalJavaScriptEngine {
             DataUnavailable.rethrow(ex);
             // nor has a read or condition stopped by a script timeout or cancel (#78076)
             ScriptTimeoutGuard.rethrowStop(ex);
+            // nor has a table that failed to load for a reader that has to fail, e.g. a
+            // scheduled run (#78083)
+            TableLoadException.rethrow(ex);
 
             LOG.error("Failed to calculate sum for range: " + range, ex);
             return null;

@@ -22,6 +22,7 @@ import inetsoft.report.filter.CrossTabFilter;
 import inetsoft.report.internal.Util;
 import inetsoft.uql.XTable;
 import inetsoft.uql.asset.internal.ColumnIndexMap;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.util.script.ArrayObject;
 import inetsoft.util.script.graal.ScriptArrayScope;
 import inetsoft.util.script.graal.ScriptTimeoutGuard;
@@ -476,11 +477,13 @@ public class TableRow implements ArrayObject, ScriptArrayScope {
    /**
     * Rethrow the lock stall or lost swap file of a failed cell read, such a table has no value
     * to return (bugs #76967, #77910), nor has a cell whose formula was stopped by a script
-    * timeout or cancel (bug #77949).
+    * timeout or cancel (bug #77949), nor a table that failed to load for a reader that has to
+    * fail, e.g. a scheduled run (bug #78083).
     */
    private static void rethrowUnavailable(Exception ex) {
       DataUnavailable.rethrow(ex);
       ScriptTimeoutGuard.rethrowStop(ex);
+      TableLoadException.rethrow(ex);
    }
 
    /**
