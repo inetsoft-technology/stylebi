@@ -29,6 +29,11 @@ package inetsoft.web.admin.schedule;
  * StubAssetEngine inherits AbstractAssetEngine.checkPermission(), which always grants, so the
  * same-org and site admin controls only show that the org check lets them through;
  * DenyingStubAssetEngine stands in for a same-org user without the REPORT READ ACL.
+ *
+ * Bug #78057: on bob's private (USER_SCOPE) viewsheet the 3-arg checkAssetPermission let any
+ * same-org user through (its owner check is a no-op), so carol saw bob's shared bookmarks. The
+ * service now uses checkAssetPermission(..., READ, true), the check that opening the viewsheet
+ * uses.
  */
 
 import inetsoft.report.LibManagerProvider;
@@ -71,12 +76,15 @@ class ScheduleTaskActionServiceBookmarksTest {
    private static final String ORG_A = "orga_id";
    private static final String ORG_B = "orgb_id";
    private static final String ORG_B_VS = "1^128^__NULL__^Finance/Secret77210^" + ORG_B;
+   private static final String BOB_PRIVATE_VS =
+      "4^128^bob~;~" + ORG_B + "^Private/Dash78057^" + ORG_B;
    private static final String SHARED = "secretShared";
    private static final String PRIVATE = "secretPrivate";
 
    private static SecurityTestDataBuilder builder;
    private static SRPrincipal orgAUser;
    private static SRPrincipal orgBUser;
+   private static SRPrincipal bobUser;
    private static SRPrincipal siteAdmin;
 
    @Autowired
@@ -99,6 +107,7 @@ class ScheduleTaskActionServiceBookmarksTest {
          .setup();
       orgAUser = builder.principalOf("orgAUser", ORG_A);
       orgBUser = builder.principalOf("carol", ORG_B);
+      bobUser = builder.principalOf("bob", ORG_B);
       siteAdmin = builder.principalOf("siteAdmin77210", ORG_A);
    }
 
@@ -114,16 +123,10 @@ class ScheduleTaskActionServiceBookmarksTest {
       ThreadContext.setContextPrincipal(null);
       storage = new BlobIndexedStorage(blobStorageManager);
 
-      // bob (org B) saved one shared and one private bookmark on an org B viewsheet
-      AssetEntry vsEntry = AssetEntry.createAssetEntry(ORG_B_VS);
-      IdentityID bob = new IdentityID("bob", ORG_B);
-      AssetEntry bookmarkEntry = new AssetEntry(
-         AssetRepository.USER_SCOPE, AssetEntry.Type.VIEWSHEET_BOOKMARK,
-         VSUtil.createBookmarkIdentifier(vsEntry), bob, ORG_B);
-      VSBookmark bookmark = new VSBookmark(ORG_B_VS, bob);
-      bookmark.addBookmark(SHARED, new Viewsheet(), VSBookmarkInfo.ALLSHARE, false, false);
-      bookmark.addBookmark(PRIVATE, new Viewsheet(), VSBookmarkInfo.PRIVATE, false, false);
-      storage.putXMLSerializable(bookmarkEntry.toIdentifier(), bookmark);
+      // bob (org B) saved one shared and one private bookmark on an org B viewsheet and on
+      // his own private viewsheet
+      seedBookmarks(ORG_B_VS);
+      seedBookmarks(BOB_PRIVATE_VS);
 
       sutil = Mockito.mockStatic(SUtil.class, Mockito.CALLS_REAL_METHODS);
       sutil.when(SUtil::isMultiTenant).thenReturn(true);
@@ -179,13 +182,36 @@ class ScheduleTaskActionServiceBookmarksTest {
    }
 
    @Test
+   void otherUsersPrivateViewsheet_sameOrgUser_listsNoBookmarks() {
+      ThreadContext.setContextPrincipal(orgBUser);
+      StubAssetEngine engine = new StubAssetEngine(storage);
+      ScheduleTaskActionService service = service(engine);
+
+      // the seeded bookmark is reachable through the real storage path (unguarded sink)
+      assertTrue(names(VSUtil.getBookmarks(AssetEntry.createAssetEntry(BOB_PRIVATE_VS),
+                                           new IdentityID("carol", ORG_B))).contains(SHARED));
+
+      assertEquals(Collections.emptyList(), service.getBookmarks(BOB_PRIVATE_VS, false, orgBUser));
+      assertEquals(Collections.emptyList(), service.getBookmarks(BOB_PRIVATE_VS, true, orgBUser));
+   }
+
+   @Test
+   void privateViewsheet_owner_listsOwnBookmarks() {
+      ThreadContext.setContextPrincipal(bobUser);
+      List<String> names = modelNames(service(new StubAssetEngine(storage))
+                                         .getBookmarks(BOB_PRIVATE_VS, false, bobUser));
+      assertTrue(names.contains(SHARED), names.toString());
+      assertTrue(names.contains(PRIVATE), names.toString());
+   }
+
+   @Test
    void nullOrMalformedId_returnsEmptyWithoutPermissionCheck() throws Exception {
       AssetRepository repository = mock(AssetRepository.class);
       ScheduleTaskActionService service = service(repository);
 
       assertEquals(Collections.emptyList(), service.getBookmarks(null, false, orgAUser));
       assertEquals(Collections.emptyList(), service.getBookmarks("not-an-identifier", false, orgAUser));
-      verify(repository, never()).checkAssetPermission(any(), any(), any());
+      verify(repository, never()).checkAssetPermission(any(), any(), any(), anyBoolean());
    }
 
    @Test
@@ -195,17 +221,29 @@ class ScheduleTaskActionServiceBookmarksTest {
 
       assertEquals(Collections.emptyList(), service(repository).getBookmarks(ORG_B_VS, false, plain));
       assertEquals(Collections.emptyList(), service(repository).getBookmarks(ORG_B_VS, false, null));
-      verify(repository, never()).checkAssetPermission(any(), any(), any());
+      verify(repository, never()).checkAssetPermission(any(), any(), any(), anyBoolean());
    }
 
    @Test
    void unexpectedPermissionCheckFailure_returnsEmpty() throws Exception {
       AssetRepository repository = mock(AssetRepository.class);
       doThrow(new IllegalStateException("boom"))
-         .when(repository).checkAssetPermission(any(), any(), any());
+         .when(repository).checkAssetPermission(any(), any(), any(), anyBoolean());
 
       assertEquals(Collections.emptyList(),
                    service(repository).getBookmarks(ORG_B_VS, true, orgBUser));
+   }
+
+   private void seedBookmarks(String vsId) throws Exception {
+      AssetEntry vsEntry = AssetEntry.createAssetEntry(vsId);
+      IdentityID bob = new IdentityID("bob", ORG_B);
+      AssetEntry bookmarkEntry = new AssetEntry(
+         AssetRepository.USER_SCOPE, AssetEntry.Type.VIEWSHEET_BOOKMARK,
+         VSUtil.createBookmarkIdentifier(vsEntry), bob, ORG_B);
+      VSBookmark bookmark = new VSBookmark(vsId, bob);
+      bookmark.addBookmark(SHARED, new Viewsheet(), VSBookmarkInfo.ALLSHARE, false, false);
+      bookmark.addBookmark(PRIVATE, new Viewsheet(), VSBookmarkInfo.PRIVATE, false, false);
+      storage.putXMLSerializable(bookmarkEntry.toIdentifier(), bookmark);
    }
 
    private ScheduleTaskActionService service(AssetRepository repository) {

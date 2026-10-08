@@ -25,6 +25,10 @@ package inetsoft.web.composer.vs.dialog;
  * through the real asset repository; only SecurityEngine.getSecurity is stubbed to a non-virtual
  * provider so VSUtil.getBookmarks enumerates bookmark users, and whose per-resource ACL grants
  * everything, so the cross-org check in AbstractAssetEngine.checkAssetPermission0 is what denies.
+ *
+ * Bug #78057: the same check passed a same-org peer on the victim's private (USER_SCOPE)
+ * viewsheet, because the 3-arg checkAssetPermission does not enforce the owner. getHyperlink now
+ * uses checkAssetPermission(..., READ, true), the check that opening the viewsheet uses.
  */
 
 import inetsoft.report.Hyperlink;
@@ -61,12 +65,15 @@ class HyperlinkBookmarkCrossOrgTest {
    private static final String ORG_B = "gapOrgB";
    private static final IdentityID ATTACKER = new IdentityID("attacker", ORG_A);
    private static final IdentityID VICTIM = new IdentityID("victim", ORG_B);
+   private static final IdentityID PEER = new IdentityID("peer", ORG_B);
    private static final String SECRET_BOOKMARK = "SecretBookmarkOfOrgB";
 
    private AssetRepository repository;
    private AssetEntry victimEntry;
+   private AssetEntry victimPrivateEntry;
    private SRPrincipal attacker;
    private SRPrincipal victim;
+   private SRPrincipal peer;
 
    @BeforeEach
    void setUp() throws Exception {
@@ -90,6 +97,11 @@ class HyperlinkBookmarkCrossOrgTest {
          bookmark.setUser(VICTIM);
          bookmark.addBookmark(SECRET_BOOKMARK, vs, VSBookmarkInfo.ALLSHARE, false, false);
          repository.setVSBookmark(victimEntry, bookmark, new XPrincipal(VICTIM));
+
+         victimPrivateEntry = new AssetEntry(AssetRepository.USER_SCOPE,
+            AssetEntry.Type.VIEWSHEET, "GapPrivate78057", VICTIM, ORG_B);
+         repository.setSheet(victimPrivateEntry, vs, null, true);
+         repository.setVSBookmark(victimPrivateEntry, bookmark, new XPrincipal(VICTIM));
       }
       finally {
          OrganizationContextHolder.setCurrentOrgId(null);
@@ -97,6 +109,7 @@ class HyperlinkBookmarkCrossOrgTest {
 
       attacker = new SRPrincipal(ATTACKER, new IdentityID[0], new String[0], ORG_A, 1L);
       victim = new SRPrincipal(VICTIM, new IdentityID[0], new String[0], ORG_B, 2L);
+      peer = new SRPrincipal(PEER, new IdentityID[0], new String[0], ORG_B, 3L);
    }
 
    @AfterEach
@@ -107,7 +120,7 @@ class HyperlinkBookmarkCrossOrgTest {
 
    @Test
    void otherOrgViewsheet_bookmarkOwnerNotResolved() throws Exception {
-      Hyperlink link = getHyperlink(attacker, ORG_A);
+      Hyperlink link = getHyperlink(attacker, ORG_A, victimEntry);
 
       assertNull(link.getBookmarkUser(),
          "an org B bookmark (and its owner) must not be resolved for an org A caller, got " +
@@ -119,13 +132,34 @@ class HyperlinkBookmarkCrossOrgTest {
 
    @Test
    void sameOrgViewsheet_bookmarkStillResolved() throws Exception {
-      Hyperlink link = getHyperlink(victim, ORG_B);
+      Hyperlink link = getHyperlink(victim, ORG_B, victimEntry);
 
       assertEquals(SECRET_BOOKMARK, link.getBookmarkName());
       assertEquals(VICTIM.convertToKey(), link.getBookmarkUser());
    }
 
-   private Hyperlink getHyperlink(SRPrincipal caller, String orgId) throws Exception {
+   @Test
+   void otherUsersPrivateViewsheet_bookmarkOwnerNotResolved() throws Exception {
+      Hyperlink link = getHyperlink(peer, ORG_B, victimPrivateEntry);
+
+      assertNull(link.getBookmarkUser(),
+         "a bookmark (and its owner) of another user's private viewsheet must not be resolved, got " +
+            link.getBookmarkName() + " / " + link.getBookmarkUser());
+      assertNull(link.getBookmarkName());
+      assertEquals(victimPrivateEntry.toIdentifier(), link.getLink());
+   }
+
+   @Test
+   void ownPrivateViewsheet_bookmarkStillResolved() throws Exception {
+      Hyperlink link = getHyperlink(victim, ORG_B, victimPrivateEntry);
+
+      assertEquals(SECRET_BOOKMARK, link.getBookmarkName());
+      assertEquals(VICTIM.convertToKey(), link.getBookmarkUser());
+   }
+
+   private Hyperlink getHyperlink(SRPrincipal caller, String orgId, AssetEntry target)
+      throws Exception
+   {
       HyperlinkDialogService service = new HyperlinkDialogService(
          null, null, null, null, null, null, null, repository);
       Method getHyperlink = HyperlinkDialogService.class.getDeclaredMethod(
@@ -134,7 +168,7 @@ class HyperlinkBookmarkCrossOrgTest {
 
       HyperlinkDialogModel model = new HyperlinkDialogModel();
       model.setLinkType(Hyperlink.VIEWSHEET_LINK);
-      model.setAssetLinkId(victimEntry.toIdentifier());
+      model.setAssetLinkId(target.toIdentifier());
       model.setBookmark(SECRET_BOOKMARK + "(whoever)");
 
       // VSUtil.getBookmarks() only enumerates bookmark users for a non-virtual provider; the test
