@@ -167,7 +167,8 @@ public class DimValueList {
             }
          }
          else {
-            File file = getFile(i / FRAGMENT_SIZE);
+            // the file the fragment was written to, the cache directory may have changed
+            File file = seg < fragmentFiles.size() ? fragmentFiles.get(seg) : getFile(seg);
 
             try(FileChannel fc = new RandomAccessFile(file, "r").getChannel()) {
                buf = fc.map(FileChannel.MapMode.READ_ONLY, 0, file.length());

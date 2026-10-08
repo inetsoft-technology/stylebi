@@ -480,7 +480,8 @@ public abstract class XDimIndex extends XSwappable {
       if(newbuf) {
          BlockFile ofile = file;
          long ofpos = fpos;
-         file = new CacheBlockFile(prefix + EXTENSION);
+         // in the directory dispose() deletes from, even if the cache directory changes
+         file = new CacheBlockFile(prefix + EXTENSION, getFile(prefix + EXTENSION));
          fpos = 0;
 
          try {
