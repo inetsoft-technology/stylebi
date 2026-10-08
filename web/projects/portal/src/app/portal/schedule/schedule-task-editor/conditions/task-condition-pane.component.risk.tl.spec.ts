@@ -109,6 +109,24 @@ describe("TaskConditionPane — risk tests", () => {
          });
       });
 
+      // Bug #77973, the indexes are sorted as numbers, sorted as strings [2, 10] became
+      // [10, 2] and the reverse splice removed the original index 11 instead of 10
+      it("removes exactly the selected conditions when an index has two digits", async () => {
+         const labels = Array.from({ length: 12 }, (_, i) => "C" + i);
+         const model = makeModel({
+            conditions: labels.map(label => makeDailyCondition({ label })),
+         });
+         const { comp } = await renderTaskConditionPane({ model });
+
+         comp.selectedConditions = [2, 10];
+         mockModalOk();
+         comp.deleteCondition();
+
+         await waitFor(() => expect(model.conditions.length).toBe(10));
+         expect(model.conditions.map(c => c.label))
+            .toEqual(labels.filter((_, i) => i !== 2 && i !== 10));
+      });
+
       it("resets selectedConditions and updates conditionIndex after deletion", async () => {
          const model = makeModel({
             conditions: [makeDailyCondition({ label: "A" }), makeDailyCondition({ label: "B" })],

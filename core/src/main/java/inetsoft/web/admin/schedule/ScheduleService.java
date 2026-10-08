@@ -253,6 +253,32 @@ public class ScheduleService {
                                      Catalog catalog, ScheduleTask task)
       throws Exception
    {
+      ScheduleCondition storedCondition = index < 0 || index >= task.getConditionCount() ?
+         null : task.getCondition(index);
+      return setTaskCondition(taskName, index, model, catalog, task, storedCondition);
+   }
+
+   /**
+    * Sets a condition on a task.
+    *
+    * @param taskName        the name of the task.
+    * @param index           the index of the condition.
+    * @param model           the DTO containing the condition definition.
+    * @param catalog         the localization catalog.
+    * @param task            the task.
+    * @param storedCondition the stored condition that the condition replaces, or {@code null}
+    *                        if none. Its balanced time is kept (Bug #77973, it isn't always the
+    *                        condition at the index, an earlier condition may have been removed).
+    *
+    * @return the time range that needs to be rebalanced or {@code null} if none.
+    *
+    * @throws Exception if the task could not be saved.
+    */
+   public TimeRange setTaskCondition(String taskName, int index, ScheduleConditionModel model,
+                                     Catalog catalog, ScheduleTask task,
+                                     ScheduleCondition storedCondition)
+      throws Exception
+   {
       ScheduleCondition condition = scheduleConditionService.getConditionFromModel(model);
       ScheduleCondition ocondition = null;
 
@@ -281,7 +307,7 @@ public class ScheduleService {
       else if(condition instanceof TimeCondition) {
          TimeCondition timeCondition = (TimeCondition) condition;
          TimeCondition oTimeCondition =
-            (ocondition instanceof TimeCondition) ? ((TimeCondition) ocondition) : null;
+            (storedCondition instanceof TimeCondition) ? ((TimeCondition) storedCondition) : null;
 
          if(timeCondition.getTimeRange() != null) {
             if(oTimeCondition != null &&
@@ -1521,6 +1547,11 @@ public class ScheduleService {
                   Util.PLACEHOLDER_PASSWORD.equals(password))
                {
                   password = oldViewsheetAction.getPassword();
+               }
+
+               // Bug #77973, a placeholder that was not resolved is not a password
+               if(Util.PLACEHOLDER_PASSWORD.equals(password)) {
+                  password = null;
                }
 
                abstractAction.setPassword(password);

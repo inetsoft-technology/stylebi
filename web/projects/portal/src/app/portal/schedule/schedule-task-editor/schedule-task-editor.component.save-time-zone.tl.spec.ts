@@ -223,3 +223,20 @@ describe("ScheduleTaskEditorComponent - unedited save keeps the time zone (Bug #
       expect(saved.timeZone).toBe(browserZone);
    });
 });
+
+describe("ScheduleTaskEditorComponent - save sends the item identity (Bug #77973)", () => {
+   afterEach(() => {
+      localStorage.clear();
+      window.history.replaceState(null, "", "/");
+      vi.restoreAllMocks();
+   });
+
+   it("posts the marker and the original index the condition was loaded with", async () => {
+      const opened = await openEditor(
+         { ...dailyCondition("America/New_York"), originalIndex: 0 }, DEEP_LINK);
+      const saved = await saveUnedited(opened);
+
+      expect(opened.posted().itemsIdentified).toBe(true);
+      expect(saved.originalIndex).toBe(0);
+   });
+});

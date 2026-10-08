@@ -787,7 +787,7 @@ class ScheduleTaskServiceOwnershipTest {
       });
       when(scheduleConditionService.getConditionFromModel(any())).thenAnswer(inv ->
          timeCondition(inv.getArgument(0)));
-      when(scheduleService.setTaskCondition(any(), anyInt(), any(), any(), any()))
+      when(scheduleService.setTaskCondition(any(), anyInt(), any(), any(), any(), any()))
          .thenAnswer(inv -> {
             TimeCondition condition = timeCondition(inv.getArgument(2));
             ScheduleTask task = inv.getArgument(4);

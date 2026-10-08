@@ -415,7 +415,8 @@ export class TaskActionPane implements OnInit {
          (result: string) => {
             if(result === "ok") {
                const actions: number[] = Tool.clone(this.selectedActions);
-               actions.sort();
+               // Bug #77973, sort the indexes as numbers, not as strings
+               actions.sort((a, b) => a - b);
 
                for(let i = actions.length - 1; i >= 0; i--) {
                   this._model.actions.splice(actions[i], 1);
