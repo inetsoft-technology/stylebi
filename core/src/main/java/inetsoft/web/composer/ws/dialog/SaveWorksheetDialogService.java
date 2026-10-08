@@ -374,6 +374,13 @@ public class SaveWorksheetDialogService extends WorksheetControllerService {
       Worksheet worksheet = rws.getWorksheet();
 
       if(worksheet != null) {
+         // fail before any table is changed if the data of a table can't be loaded (bug #78029)
+         for(Assembly obj : worksheet.getAssemblies()) {
+            if(obj instanceof SnapshotEmbeddedTableAssembly) {
+               ((SnapshotEmbeddedTableAssembly) obj).checkDataLoaded();
+            }
+         }
+
          for(Assembly obj : worksheet.getAssemblies()) {
             if(obj instanceof AbstractWSAssembly) {
                // calls pasted which resets the table ids and renames the data files

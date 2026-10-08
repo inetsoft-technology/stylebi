@@ -152,14 +152,19 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
 
    @Override
    public synchronized void pasted() {
-      super.pasted();
-
       // an outer copy keeps naming the files of the worksheet it was copied from, they are not
       // its to replace. a copy that isn't copied again on load gets its own files when its
       // worksheet is saved (bug #78022, #78023)
       if(!ownsDataFiles()) {
+         super.pasted();
          return;
       }
+
+      // load the rows before the paths are dropped, or an empty table is written in their place.
+      // if they can't be loaded, fail and keep the paths. the copy must not share them, it would
+      // own files the original still names (bug #78029)
+      checkDataLoaded();
+      super.pasted();
 
       // make sure data files are saved to a new file instead of sharing with original assembly
       this.dataPaths = null;
@@ -169,6 +174,26 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
       // don't delete data files of the original assembly, the stored worksheet it came from
       // still names them
       committedDataPaths = null;
+   }
+
+   /**
+    * Load the data of this table if its rows are only in the data files it names, so that new
+    * files can be written for it. Call it before a copy of the table is added anywhere, so a
+    * table whose data is gone fails before anything is changed (bug #78029).
+    *
+    * @throws MessageException if the data of the table could not be loaded.
+    */
+   public synchronized void checkDataLoaded() {
+      // a table read from a stored worksheet has its rows only in the files it names
+      if(ownsDataFiles() && dataPaths != null && !fileDirty) {
+         XSwappableTable table = getTable();
+
+         if(table == null || table == incompleteTable) {
+            throw new MessageException(
+               Catalog.getCatalog().getString("common.worksheetSnapshotDataNotLoaded", getName()),
+               LogLevel.ERROR, false, ConfirmException.ERROR);
+         }
+      }
    }
 
    /**
@@ -1056,6 +1081,7 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
                Map<String, String> absolutePathsLoadVersion = new HashMap<>();
                List<File> tempFiles = new ArrayList<>();
                FileSystemService fileSystemService = FileSystemService.getInstance();
+               boolean complete = true;
 
                // copy pdata to cache folder
                for(int i = 0; i < paths.length; i++) {
@@ -1114,6 +1140,7 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
                         absolutePathsLoadVersion.put(paths[i], dataPathsLoadVersion.get(dataPaths[i]));
                      }
                      else {
+                        complete = false;
                         LOG.error("Snapshot data file missing: " + path +
                                      " updated: " + dataPathsUpdated + " (" + this + ")");
                      }
@@ -1152,7 +1179,15 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
 
                originalSTable = stable;
                this.stable = stable;
-               SnapshotEmbeddedTableDataCache.getInstance().set(cacheKey, stable);
+
+               // a table with missing files has null rows in their place, don't hand it to
+               // other tables as their data (bug #78029)
+               if(complete) {
+                  SnapshotEmbeddedTableDataCache.getInstance().set(cacheKey, stable);
+               }
+               else {
+                  incompleteTable = stable;
+               }
             }
             finally {
                lock.unlock();
@@ -1227,6 +1262,8 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
    private ColumnSelection columns;
    private XSwappableTable stable;
    private XSwappableTable originalSTable;
+   // a table loaded while some of its data files were missing (bug #78029)
+   private transient XSwappableTable incompleteTable;
    private int rowCnt = -1;
    private Object[] headers;
    private String[] creators;
