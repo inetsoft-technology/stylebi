@@ -19,11 +19,11 @@
 package inetsoft.uql.viewsheet.internal;
 
 import java.io.PrintWriter;
-import java.math.BigDecimal;
 import java.text.*;
 import java.util.*;
 import inetsoft.uql.viewsheet.SelectionList;
 import inetsoft.uql.viewsheet.SelectionValue;
+import inetsoft.uql.viewsheet.TimeSliderVSAssembly;
 import inetsoft.util.DecimalPatternUtil;
 import inetsoft.util.ExtendedDateFormat;
 import inetsoft.util.Tool;
@@ -285,8 +285,8 @@ public class TimeSliderSelection implements Cloneable {
    }
 
    /**
-    * Rebuild the ticks start + i * increment (as the query creates them, without accumulating
-    * a rounding error) and select [firstSelected, lastSelected].
+    * Rebuild the ticks with the query's own tick generator and select
+    * [firstSelected, lastSelected].
     * @return the values, or null if the range is not on a grid of the increment.
     */
    private ArrayList<SelectionValue> populateNumberList(double start, double end,
@@ -311,14 +311,22 @@ public class TimeSliderSelection implements Cloneable {
          return null;
       }
 
-      BigDecimal bstart = BigDecimal.valueOf(start);
-      BigDecimal binc = BigDecimal.valueOf(increment);
+      // the same values (including float noise) as TimeSliderVSAQuery's linear ticks
+      double[] ticks = TimeSliderVSAssembly.getPreferredTicks(start, end, 0, false, false,
+                                                              increment);
+
+      if(ticks.length != (int) count + 1) {
+         LOG.debug("number range not rebuilt, {} ticks for start: {}, end: {}, increment: {}",
+                   ticks.length, start, end, increment);
+         return null;
+      }
+
       double firstIdx = Math.rint((firstSelected - start) / increment);
       double lastIdx = Math.rint((lastSelected - start) / increment);
       ArrayList<SelectionValue> repopList = new ArrayList<>();
 
-      for(int i = 0; i <= count; i++) {
-         double s = bstart.add(binc.multiply(BigDecimal.valueOf(i))).doubleValue();
+      for(int i = 0; i < ticks.length; i++) {
+         double s = ticks[i];
          String val = Tool.toString(s);
          String label = (fmt != null && !(fmt instanceof DateFormat))
             ? fmt.format(s) : Tool.toString(s);

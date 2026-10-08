@@ -188,6 +188,28 @@ class TimeSliderReloadTest {
    }
 
    /**
+    * A number range written before #77998 on a grid whose query ticks carry float noise
+    * (-0.57 step 0.01: the tick at 0 is 7.1e-17) is rebuilt with the query's own tick values.
+    */
+   @Test
+   void oldNumberRangeRebuildsQueryTickValues() throws Exception {
+      double[] ticks = TimeSliderVSAssembly.getPreferredTicks(-0.57, 0.5, 0, false, false, 0.01);
+      String[] vals = new String[ticks.length];
+
+      for(int i = 0; i < ticks.length; i++) {
+         vals[i] = Tool.toString(ticks[i]);
+      }
+
+      assertNotEquals("0", vals[57], "the query's tick 57 is not exactly 0");
+      SelectionList written = numbers(vals, 56, 58);
+      SelectionList parsed = new SelectionList();
+      parseTss(writeTss(written, 0.01), parsed);
+
+      assertEquals(values(written), values(parsed));
+      assertEquals(List.of(56, 57, 58), selected(parsed));
+   }
+
+   /**
     * A log scale slider saved before #77998 (with the stale linear range) reopens with its
     * selection and condition.
     */
