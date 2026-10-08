@@ -2578,7 +2578,8 @@ public class ScheduleManager {
          ViewsheetAction vaction = (ViewsheetAction) action;
 
          if(vaction.getViewsheet() != null) {
-            IdentityID oldUser = vaction.getViewsheetEntry().getUser();
+            AssetEntry vsEntry = vaction.getViewsheetEntry();
+            IdentityID oldUser = vsEntry == null ? null : vsEntry.getUser();
 
             if(oldUser != null && oldUser.equals(oid) && !oldUser.equals(id)) {
                String newViewsheet = vaction.getViewsheet().replace(oldUser.convertToKey(), id.convertToKey());
@@ -2861,6 +2862,11 @@ public class ScheduleManager {
             if(action instanceof ViewsheetAction) {
                ViewsheetAction vsAction = (ViewsheetAction) action;
                AssetEntry vsEntry = vsAction.getViewsheetEntry();
+
+               if(vsEntry == null) {
+                  continue;
+               }
+
                String path = vsEntry.getPath();
 
                if(path != null && path.startsWith(prefix) &&
@@ -2921,7 +2927,11 @@ public class ScheduleManager {
                   String opath = oentry.getPath();
                   String npath = nentry.getPath();
                   AssetEntry ventry = AssetEntry.createAssetEntry(vaction.getViewsheetName());
-                  assert ventry != null;
+
+                  if(ventry == null) {
+                     continue;
+                  }
+
                   String vpath = ventry.getPath();
 
                   if(vpath.startsWith(opath + "/")) {
