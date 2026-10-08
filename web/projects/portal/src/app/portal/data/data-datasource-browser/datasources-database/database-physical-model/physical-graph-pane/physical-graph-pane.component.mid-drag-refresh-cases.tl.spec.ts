@@ -566,6 +566,33 @@ describe("PhysicalGraphPane - Bug #78074 more cases for a refresh during a table
       expect(pos(el)).toBe("700px,400px");
    });
 
+   it("auto layout clicked while the move PUT response is still in flight moves the table to " +
+      "its layout position", async () =>
+   {
+      const ctx = await setup();
+      const el = await startDrag(ctx, "PRODUCTS");
+      expect(pos(el)).not.toBe("300px,6px");
+      moveGate = gate();
+      fire(document, "mouseup", 110, 50);
+      flushMove();
+      await ctx.until(() => moves.length > 0);
+
+      // the server applied the move on arrival; its response is held while the user lays out
+      const m = ctx.ngc().graphViewModel;
+      ctx.pane().autoLayout();
+      await ctx.until(() => ctx.ngc().graphViewModel !== m);
+      expect(pos(el)).toBe("700px,400px");
+
+      moveGate.open();
+      await ctx.settle();
+      await ctx.settle();
+      const m2 = ctx.ngc().graphViewModel;
+      ctx.svc.emitModelChange(false);
+      await ctx.until(() => ctx.ngc().graphViewModel !== m2);
+      expect(pos(el)).toBe("700px,400px");
+      expect(ctx.pane().movedNodes?.size ?? 0).toBe(0);
+   });
+
    it("two quick drags of the same table: a stale response landing after both keeps the second position", async () => {
       const ctx = await setup(ordersTable());
       graphGate = gate();

@@ -85,9 +85,9 @@ export class PhysicalGraphPane implements OnInit, AfterViewChecked, OnDestroy {
    option: string;
    // incremented when a graph request is sent
    private graphRequestSeq = 0;
-   // node id --> the latest move of the node, and the graphRequestSeq when it was saved
-   // (null while it is in flight). A graph response requested before then may not have it.
-   private movedNodes = new Map<string, {move: GraphNodeMove, savedAt: number}>();
+   // node id --> the latest move of the node, and the graphRequestSeq when its PUT was sent.
+   // A graph request sent before then was built without the move.
+   private movedNodes = new Map<string, {move: GraphNodeMove, sentAt: number}>();
 
    get modelInitializing(): boolean {
       return this.physicalModelService.loadingModel;
@@ -197,34 +197,24 @@ export class PhysicalGraphPane implements OnInit, AfterViewChecked, OnDestroy {
     */
    nodeMoved(move: GraphNodeMove): void {
       if(move.saved == null) {
-         this.movedNodes.set(move.nodeId, {move, savedAt: null});
-         return;
+         this.movedNodes.set(move.nodeId, {move, sentAt: this.graphRequestSeq});
       }
-
-      const entry = this.movedNodes.get(move.nodeId);
-
-      // a later move of the node replaced this one
-      if(entry?.move !== move) {
-         return;
-      }
-
-      if(move.saved) {
-         entry.savedAt = this.graphRequestSeq;
-      }
-      else {
+      // the server kept the old position; unless a later move of the node replaced this one
+      else if(!move.saved && this.movedNodes.get(move.nodeId)?.move === move) {
          this.movedNodes.delete(move.nodeId);
       }
    }
 
    /**
-    * A graph request sent before a node move was saved (e.g. by an action the user started
-    * just before dragging) can return the node's old position. It still has the change of
-    * the action, so apply it, but with the moved position. Responses to requests sent after
-    * the move was saved have the move, so stop tracking it then.
+    * A graph request sent before a node move was sent (e.g. by an action the user started
+    * just before dragging) returns the node's old position. It still has the change of the
+    * action, so apply it, but with the moved position. A request sent after the move reaches
+    * the server after it, so its response has the move or a later server position (e.g. auto
+    * layout), and the move is no longer tracked.
     */
    private applyMovedNodes(pgm: JoinGraphModel, requestSeq: number): void {
       this.movedNodes.forEach((entry, nodeId) => {
-         if(entry.savedAt != null && requestSeq > entry.savedAt) {
+         if(requestSeq > entry.sentAt) {
             this.movedNodes.delete(nodeId);
             return;
          }
