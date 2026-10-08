@@ -30,6 +30,7 @@ import { By } from "@angular/platform-browser";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { render } from "@testing-library/angular";
 import { http, HttpResponse } from "msw";
+import { config as rxjsConfig } from "rxjs";
 import { server } from "@test-mocks/server";
 import { PhysicalGraphPane } from "./physical-graph-pane.component";
 import { PhysicalModelNetworkGraphComponent } from "../physical-model-network-graph/physical-model-network-graph.component";
@@ -126,6 +127,7 @@ function gate(): Gate {
 }
 
 const ORIG_NAMES = [...NAMES];
+const rxjsOnUnhandledError = rxjsConfig.onUnhandledError;
 
 describe("PhysicalGraphPane - Bug #78074 more cases for a refresh during a table drag", () => {
    let joins: any[];
@@ -135,6 +137,9 @@ describe("PhysicalGraphPane - Bug #78074 more cases for a refresh during a table
    let graphGate: Gate | null;
    let upGate: Gate | null;
    let moveGate: Gate | null;
+   // the server applies a move only once this opens (a graph request can overtake it)
+   let moveApplyGate: Gate | null;
+   let failMove: boolean;
    let pendingMove: (() => void) | null;
    let realDebounce: boolean;
    let layoutBounds: {[name: string]: {x: number, y: number}};
@@ -153,6 +158,8 @@ describe("PhysicalGraphPane - Bug #78074 more cases for a refresh during a table
       graphGate = null;
       upGate = null;
       moveGate = null;
+      moveApplyGate = null;
+      failMove = false;
       pendingMove = null;
       realDebounce = false;
       errors = [];
@@ -182,6 +189,15 @@ describe("PhysicalGraphPane - Bug #78074 more cases for a refresh during a table
          http.put("*/api/data/physicalmodel/graph/move", async ({ request }) => {
             const move: any = await request.json();
             moves.push(move);
+
+            if(moveApplyGate) {
+               await moveApplyGate.p;
+            }
+
+            if(failMove) {
+               return new HttpResponse(null, { status: 500 });
+            }
+
             // the server applies the move on arrival; only the response is held
             serverBounds[move.table] = { x: move.bounds.x, y: move.bounds.y };
 
@@ -205,6 +221,7 @@ describe("PhysicalGraphPane - Bug #78074 more cases for a refresh during a table
 
    afterEach(() => {
       vi.restoreAllMocks();
+      rxjsConfig.onUnhandledError = rxjsOnUnhandledError;
       NAMES.length = 0;
       NAMES.push(...ORIG_NAMES);
    });
@@ -653,4 +670,180 @@ describe("PhysicalGraphPane - Bug #78074 more cases for a refresh during a table
       expect(pos(el)).toBe(dragged);
    });
 
+   it("a graph request sent after the move PUT but answered before the server applies it " +
+      "(server reordering) shows the old position until the next refresh", async () =>
+   {
+      const ctx = await setup();
+      const el = await startDrag(ctx, "PRODUCTS");
+      const dragged = pos(el);
+      moveApplyGate = gate();
+      fire(document, "mouseup", 110, 50);
+      flushMove();
+      await ctx.until(() => moves.length > 0);
+      const m = ctx.ngc().graphViewModel;
+      ctx.svc.emitModelChange(false);
+      await ctx.until(() => ctx.ngc().graphViewModel !== m);
+      const overtaken = pos(el);
+      moveApplyGate.open();
+      await ctx.settle();
+      await ctx.settle();
+      const m2 = ctx.ngc().graphViewModel;
+      ctx.svc.emitModelChange(false);
+      await ctx.until(() => ctx.ngc().graphViewModel !== m2);
+      // known limit (same as main): the overtaking response has the old position
+      expect(overtaken).toBe("300px,6px");
+      expect(pos(el)).toBe(dragged);
+      expect(ctx.pane().movedNodes.size).toBe(0);
+   });
+
+   for(const when of ["before", "after"]) {
+      it("a failed move PUT (failing " + when + " the stale response lands) ends the " +
+         "tracking and a later refresh shows the server position", async () =>
+      {
+         failMove = true;
+         // the move PUT has no error handler (same as main): keep its 500 out of the run
+         rxjsConfig.onUnhandledError = () => {};
+         const { ctx, el, dragged } = await dragDuringAction(joinAdd);
+         const oldModel = ctx.ngc().graphViewModel;
+
+         if(when === "after") {
+            moveApplyGate = gate();
+         }
+
+         fire(document, "mouseup", 110, 50);
+         flushMove();
+         await ctx.until(() => moves.length > 0);
+         await ctx.settle();
+         graphGate.open();
+         await ctx.until(() => ctx.ngc().graphViewModel !== oldModel);
+         const afterStale = pos(el);
+
+         if(when === "after") {
+            moveApplyGate.open();
+            await ctx.settle();
+            await ctx.settle();
+         }
+
+         graphGate = null;
+         const m2 = ctx.ngc().graphViewModel;
+         ctx.svc.emitModelChange(false);
+         await ctx.until(() => ctx.ngc().graphViewModel !== m2);
+         // the server kept 300,6
+         expect(afterStale).toBe(when === "before" ? "300px,6px" : dragged);
+         expect(pos(el)).toBe("300px,6px");
+         expect(ctx.pane().movedNodes.size).toBe(0);
+      });
+   }
+
+   for(const mode of ["4a", "4b"]) {
+      it(mode + " second drag of the same table while its first move PUT is in flight, " +
+         "across a join add refresh: the second position wins", async () =>
+      {
+         const ctx = await setup(ordersTable());
+         const el = await startDrag(ctx, "PRODUCTS");
+         moveGate = gate();
+         fire(document, "mouseup", 110, 50);
+         flushMove();
+         await ctx.until(() => moves.length === 1);
+         const d1 = pos(el);
+         // join add right after the first drop, then the second drag
+         graphGate = gate();
+         upGate = gate();
+         joinAdd.change();
+         joinAdd.start(ctx);
+         ctx.fixture.detectChanges();
+         await ctx.settle();
+         fire(handle(el), "mousedown", 10, 10);
+         ctx.fixture.detectChanges();
+         fire(document, "mousemove", 40, 90);
+         fire(document, "mousemove", 70, 140);
+         await ctx.settle();
+         const d2 = pos(el);
+         expect(d2).not.toBe(d1);
+         upGate.open();
+         await ctx.until(() => graphPosts === 2);
+         const oldModel = ctx.ngc().graphViewModel;
+
+         if(mode === "4a") {
+            graphGate.open();
+            await ctx.until(() => ctx.ngc().graphViewModel !== oldModel);
+            expect(pos(el)).toBe(d2);
+            fire(document, "mouseup", 70, 140);
+            flushMove();
+            await ctx.until(() => moves.length === 2);
+         }
+         else {
+            fire(document, "mouseup", 70, 140);
+            flushMove();
+            await ctx.until(() => moves.length === 2);
+            graphGate.open();
+            await ctx.until(() => ctx.ngc().graphViewModel !== oldModel);
+         }
+
+         expect(pos(el)).toBe(d2);
+         await ctx.until(() => ctx.connections() === 3);
+         expect(ctx.connections()).toBe(3);
+         moveGate.open();
+         await ctx.settle();
+         graphGate = null;
+         const m2 = ctx.ngc().graphViewModel;
+         ctx.svc.emitModelChange(false);
+         await ctx.until(() => ctx.ngc().graphViewModel !== m2);
+         expect(movesSent()[1]).toBe("PRODUCTS@" + d2);
+         expect(pos(el)).toBe(d2);
+         expect(ctx.pane().movedNodes.size).toBe(0);
+      });
+   }
+
+   for(const mode of ["4a", "4b"]) {
+      it(mode + " drag table A, then a join add, then drag table B across its refresh: " +
+         "both keep their moved positions", async () =>
+      {
+         const ctx = await setup(ordersTable());
+         const a = await startDrag(ctx, "CUSTOMERS");
+         fire(document, "mouseup", 110, 50);
+         flushMove();
+         await ctx.until(() => moves.length === 1);
+         const aPos = pos(a);
+         graphGate = gate();
+         upGate = gate();
+         joinAdd.start(ctx);
+         ctx.fixture.detectChanges();
+         await ctx.settle();
+         const b = await startDrag(ctx, "PRODUCTS");
+         const bPos = pos(b);
+         joinAdd.change();
+         upGate.open();
+         await ctx.until(() => graphPosts === 2);
+         const oldModel = ctx.ngc().graphViewModel;
+
+         if(mode === "4a") {
+            graphGate.open();
+            await ctx.until(() => ctx.ngc().graphViewModel !== oldModel);
+            expect(pos(b)).toBe(bPos);
+            fire(document, "mouseup", 110, 50);
+            flushMove();
+            await ctx.until(() => moves.length === 2);
+         }
+         else {
+            fire(document, "mouseup", 110, 50);
+            flushMove();
+            await ctx.until(() => moves.length === 2);
+            graphGate.open();
+            await ctx.until(() => ctx.ngc().graphViewModel !== oldModel);
+         }
+
+         expect(pos(a)).toBe(aPos);
+         expect(pos(b)).toBe(bPos);
+         await ctx.until(() => ctx.connections() === 3);
+         expect(ctx.connections()).toBe(3);
+         graphGate = null;
+         const m2 = ctx.ngc().graphViewModel;
+         ctx.svc.emitModelChange(false);
+         await ctx.until(() => ctx.ngc().graphViewModel !== m2);
+         expect(movesSent()).toEqual(["CUSTOMERS@" + aPos, "PRODUCTS@" + bPos]);
+         expect(pos(a)).toBe(aPos);
+         expect(pos(b)).toBe(bPos);
+      });
+   }
 });
