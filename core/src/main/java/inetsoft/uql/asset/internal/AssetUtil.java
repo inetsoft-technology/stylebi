@@ -1972,6 +1972,13 @@ public class AssetUtil {
       for(int i = 0; i < assemblies.length; i++) {
          WSAssembly assembly2 = (WSAssembly) assemblies[i].clone();
          assembly2.setOuter(true);
+
+         // the copy names the data files of the worksheet it is copied from, even if that table
+         // is an outer copy owning its files (bug #78022)
+         if(assembly2 instanceof SnapshotEmbeddedTableAssembly) {
+            ((SnapshotEmbeddedTableAssembly) assembly2).setDataOwner(false);
+         }
+
          assembly2.setPixelOffset(new Point(pos.x, pos.y + ((counter++) * AssetUtil.defh)));
 
          if(assembly2 instanceof TableAssembly) {
