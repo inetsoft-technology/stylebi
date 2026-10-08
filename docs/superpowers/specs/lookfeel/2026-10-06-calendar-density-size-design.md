@@ -343,12 +343,18 @@ Run with the dashboard set to each tier in turn:
     re-flushes after seeding whenever it seeded anything. Measured on the server before the fix: a
     list left 50px above the strip after Revert, and overlapped it by 50px after Modernize. Both
     are composer actions, so a Save would have stored the drift.
-  - **Not covered: a restore.** A viewer open re-runs the selection size rule, so after an org
-    density change a list in bottom tabs is drawn at the new tier's height from its old top. It
-    overlapped the strip by 32px at comfortable on 2026-10-07. A dropdown's lane follows an org
-    density change on every surface (4px into the strip at comfortable). Re-flushing on open is the
-    sweep `TabVSAssemblyInfo.restoreBottomTabs` was narrowed away from (Bug #77179): it moved
-    children left off the strip on purpose and undid `onInit`/`onLoad` positions. Left open.
+  - **A restore shifts rather than re-flushes** (amended 2026-10-08). A viewer open re-runs the
+    selection size rule, so after an org density change a list in bottom tabs was drawn at the new
+    tier's height from its old top: 32px into the strip at comfortable, measured 2026-10-07.
+    `AbstractVSAssembly.parseState` now re-seeds through `VizModernizeUtil.reseedRestored`, which
+    moves a bottom-tabs child by however much the seed changed its height on the strip, so its
+    bottom edge stays where it was. Re-flushing on open is the sweep
+    `TabVSAssemblyInfo.restoreBottomTabs` was narrowed away from (Bug #77179): it moved children
+    left off the strip on purpose and undid `onInit`/`onLoad` positions. A shift moves neither, and a
+    child whose position a script set is skipped.
+  - **Not covered: a dropdown's lane after an org density change.** The lane follows the org
+    density on every surface (4px into the strip at comfortable), but no seed changes it, so
+    nothing records the lane its stored top was laid out for. Left open.
 - **Double calendars.**
   - One widened to 600, by the property dialog's view-mode switch (§2.2) or by the toggle, no
     longer follows density and gets no checkbox (D6). Switching it back halves it to 300, which
