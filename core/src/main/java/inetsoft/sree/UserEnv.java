@@ -381,7 +381,8 @@ public class UserEnv {
                                  arr[k] = Tool.getValue(item);
 
                                  if(tp != null) {
-                                    arr[k] = Tool.getData(tp, (String) arr[k]);
+                                    // a date saved before #77605 may have a Buddhist or Japanese year
+                                    arr[k] = Tool.getPersistentData(tp, (String) arr[k], false);
                                  }
                               }
 
@@ -391,7 +392,8 @@ public class UserEnv {
                               value = Tool.getValue(subnode);
 
                               if(type != null) {
-                                 value = Tool.getData(type, (String) value);
+                                 // a date saved before #77605 may have a Buddhist or Japanese year
+                                 value = Tool.getPersistentData(type, (String) value, false);
                               }
                            }
                         }

@@ -32,11 +32,13 @@ import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.internal.ColumnIndexMap;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
 import inetsoft.util.script.ScriptEnv;
 import inetsoft.web.AutoSaveUtils;
+import inetsoft.web.composer.model.vs.DynamicValueModel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
@@ -544,13 +546,23 @@ public class BatchAction extends AbstractAction {
             String value = readCDATAElement(valNode);
             String type = Tool.getValue(typeNode);
             String dataType = Tool.getValue(dataTypeNode);
+
+            // a date value saved before #77605 may have a Buddhist or Japanese year, it is
+            // kept as a string as before
+            if(DynamicValueModel.VALUE.equals(type) &&
+               (XSchema.DATE.equals(dataType) || XSchema.TIME_INSTANT.equals(dataType)))
+            {
+               value = Tool.toGregorianPersistentDate(value);
+            }
+
             map.put(key, new DynamicParameterValue(value, type, dataType));
          }
          else {
             Element valNode = Tool.getChildNodeByTagName(propNode, "value");
             Element valTypeNode = Tool.getChildNodeByTagName(propNode, "valueType");
             String valType = Tool.getValue(valTypeNode);
-            Object val = Tool.getData(valType, readCDATAElement(valNode));
+            // a date saved before #77605 may have a Buddhist or Japanese year
+            Object val = Tool.getPersistentData(valType, readCDATAElement(valNode), false);
             map.put(key, val);
          }
       }

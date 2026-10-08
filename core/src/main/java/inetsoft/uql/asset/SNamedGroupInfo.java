@@ -325,7 +325,8 @@ public class SNamedGroupInfo implements XNamedGroupInfo, XMLSerializable {
             if(this instanceof DCNamedGroupInfo && !Tool.isEmptyString(val) &&
                !DCNamedGroupInfo.SEPARATOR.equals(val))
             {
-               value.add(Tool.parseDate(val));
+               // a date saved before #77605 may have a Buddhist or Japanese year
+               value.add(Tool.parseDate(Tool.toGregorianPersistentDate(val)));
             }
             else {
                value.add(val);

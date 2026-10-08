@@ -120,7 +120,8 @@ public class TextInputVSAssembly extends InputVSAssembly
       super.parseStateContent(elem, runtime);
 
       Element snode = Tool.getChildNodeByTagName(elem, "state_selectedObject");
-      Object obj = Tool.getData(getDataType(), Tool.getCDATAData(snode));
+      // a date saved before #77605 may have a Buddhist or Japanese year
+      Object obj = Tool.getPersistentData(getDataType(), Tool.getCDATAData(snode), false);
       setSelectedObject(obj);
    }
 }

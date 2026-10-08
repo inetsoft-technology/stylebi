@@ -481,8 +481,9 @@ public abstract class ListInputVSAssemblyInfo extends InputVSAssemblyInfo
             values = new Object[valuesList.getLength()];
 
             for(int i = 0; i < valuesList.getLength(); i++) {
-               values[i] = Tool.getData(getDataType(),
-                  Tool.getCDATAData(valuesList.item(i)));
+               // a date saved before #77605 may have a Buddhist or Japanese year
+               values[i] = Tool.getPersistentData(getDataType(),
+                  Tool.getCDATAData(valuesList.item(i)), false);
             }
          }
       }

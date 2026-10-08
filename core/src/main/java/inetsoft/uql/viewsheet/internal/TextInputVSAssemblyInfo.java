@@ -288,7 +288,8 @@ public class TextInputVSAssemblyInfo extends ClickableInputVSAssemblyInfo {
       Element node = Tool.getChildNodeByTagName(elem, "value");
 
       if(node != null) {
-         value = Tool.getData(getDataType(), Tool.getCDATAData(node));
+         // a date saved before #77605 may have a Buddhist or Japanese year
+         value = Tool.getPersistentData(getDataType(), Tool.getCDATAData(node), false);
       }
 
       node = Tool.getChildNodeByTagName(elem, "defaultText");

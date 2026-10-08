@@ -22,12 +22,15 @@ import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.SRPrincipal;
 import inetsoft.util.DataSpace;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.MockedStatic;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
 import java.security.Principal;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -235,6 +238,65 @@ class UserEnvTest {
          assertEquals("false", UserEnv.getProperty(sameSession, "annotation"));
          verify(space, never()).getInputStream(anyString(), anyString());
       }
+   }
+
+   // a user file saved on a th_TH server before #77605 holds Buddhist years (Bug #78040)
+   @ParameterizedTest
+   @ValueSource(booleans = { true, false })
+   void legacyBuddhistUserFile_readByCompatSetting(boolean on) throws Exception {
+      SRPrincipal writer = principal("writer", "compatOrg" + on, "sessW" + on);
+      SRPrincipal reader = principal("reader", "compatOrg" + on, "sessR" + on);
+      DataSpace space = mock(DataSpace.class);
+      DataSpace.Transaction tx = mock(DataSpace.Transaction.class);
+      ByteArrayOutputStream saved = new ByteArrayOutputStream();
+      when(space.beginTransaction()).thenReturn(tx);
+      when(tx.newStream(anyString(), anyString())).thenReturn(saved);
+
+      try(MockedStatic<DataSpace> ds = mockStatic(DataSpace.class);
+          MockedStatic<SUtil> sutil = mockStatic(SUtil.class);
+          MockedStatic<SreeEnv> sree = mockStatic(SreeEnv.class))
+      {
+         ds.when(DataSpace::getDataSpace).thenReturn(space);
+         sutil.when(SUtil::isSecurityOn).thenReturn(true);
+         sree.when(() -> SreeEnv.getProperty("date.legacy.buddhist.compat"))
+            .thenReturn(String.valueOf(on));
+
+         Map<String, Object> prop = new HashMap<>();
+         prop.put("d", new java.sql.Date(date(1996, 2, 29)));
+         prop.put("arr", new Object[] { new java.sql.Date(date(1996, 2, 29)) });
+         prop.put("s", "1996-02-29");
+         UserEnv.save(writer, prop);
+
+         String legacy = saved.toString(StandardCharsets.UTF_8).replace("1996-", "2539-");
+         assertTrue(legacy.contains("2539-02-29"), legacy);
+         when(space.getInputStream(USER_DIR, "reader_compatOrg" + on + ".xml"))
+            .thenReturn(new ByteArrayInputStream(legacy.getBytes(StandardCharsets.UTF_8)));
+
+         assertLegacyDate(on, UserEnv.getProperty(reader, "d"));
+         assertLegacyDate(on, ((Object[]) UserEnv.getProperty(reader, "arr"))[0]);
+         assertEquals("2539-02-29", UserEnv.getProperty(reader, "s"));
+      }
+   }
+
+   private static void assertLegacyDate(boolean on, Object value) {
+      assertInstanceOf(Date.class, value);
+      GregorianCalendar cal = new GregorianCalendar();
+      cal.setTime((Date) value);
+
+      if(on) {
+         assertEquals(date(1996, 2, 29), cal.getTimeInMillis());
+      }
+      else {
+         // CE 2539 has no Feb 29, the lenient parse rolls it
+         assertEquals(2539, cal.get(Calendar.YEAR));
+      }
+   }
+
+   private static long date(int year, int month, int day) {
+      GregorianCalendar cal = new GregorianCalendar();
+      cal.clear();
+      cal.set(year, month - 1, day);
+      return cal.getTimeInMillis();
    }
 
    private static SRPrincipal principal(String name, String orgID, String session) {
