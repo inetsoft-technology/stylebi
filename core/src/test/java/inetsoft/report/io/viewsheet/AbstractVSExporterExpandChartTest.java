@@ -223,6 +223,36 @@ class AbstractVSExporterExpandChartTest {
       assertCappedChartIsWrittenAtTheNaturalSize(true);
    }
 
+   // Bug #77978: Excel/PowerPoint slice the expanded graph of a capped chart too
+   @Test
+   void cappedHeightChartIsSlicedFromTheExpandedGraph() throws Exception {
+      ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) getChart().getVSAssemblyInfo();
+      VSChartInfo cinfo = info.getVSChartInfo();
+      swapAxes(cinfo);
+      cinfo.setHeightResized(true);
+      cinfo.setUnitHeightRatio(CAPPED_RATIO);
+      info.setPixelSize(new Dimension(300, 500));
+      CapturingExporter exporter = new CapturingExporter();
+
+      export(exporter);
+
+      assertTrue(exporter.written.isEmpty(), "the chart should not be written unsliced");
+      assertEquals(1, exporter.slices.size(), "precondition: the chart should be sliced");
+      Slice slice = exporter.slices.get(0);
+      ChartVSAssemblyInfo ninfo = (ChartVSAssemblyInfo) slice.assembly.getVSAssemblyInfo();
+      double natural = slice.pair.getExpandedVGraph().getSize().getHeight();
+      assertTrue(natural > 10000 && ninfo.getPixelSize().height < natural,
+         "precondition: the expanded height (" + natural + ") is capped at " +
+         ninfo.getPixelSize().height);
+      assertFalse(slice.match, "the capped chart should be sliced from the expanded graph");
+      // the expanded graph still fits the assembly on the axis that is not capped
+      double graphWidth = slice.pair.getExpandedVGraph().getSize().getWidth();
+      int contentWidth = written(slice.assembly, slice.pair.getExpandedVGraph()).contentSize.width;
+      assertTrue(graphWidth <= contentWidth + 1,
+         "the expanded graph width (" + graphWidth + ") should fit the chart content (" +
+         contentWidth + ")");
+   }
+
    private void assertCappedChartIsWrittenAtTheNaturalSize(boolean width) throws Exception {
       CapturingPdfExporter exporter = new CapturingPdfExporter();
 
@@ -244,6 +274,14 @@ class AbstractVSExporterExpandChartTest {
       assertEquals(natural, graph, 1,
          "the capped chart should be painted at its natural size (and clipped), not " +
          "squeezed into the capped assembly (" + assembly + ")");
+
+      // the axis that is not capped still fits the assembly
+      double other = width ? written.graph.getSize().getHeight() :
+         written.graph.getSize().getWidth();
+      int content = width ? written.contentSize.height : written.contentSize.width;
+      assertTrue(other <= content + 1,
+         "the graph (" + other + ") should fit the chart content (" + content +
+         ") on the axis that is not capped");
    }
 
    private static void swapAxes(VSChartInfo cinfo) {
