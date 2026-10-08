@@ -2641,6 +2641,11 @@ public class CoreLifecycleService {
          int start = ((TableDataVSAssembly) assembly).getLastStartRow();
          BaseTableService.loadTableData(rvs, name, mode, start, num, uri, dispatcher, refreshData);
       }
+      catch(ChangeCancelledException e) {
+         // only newer changes or queries cancelled its query and one of them loads it, skip it
+         // but go on with the request's other tables. Any other cancel stops the request (#78024)
+         LOG.debug("Loading {} skipped, cancelled by a newer request", name, e);
+      }
       catch(ExpiredSheetException | CancelledException | ConfirmException | MessageException |
             ColumnNotFoundException e)
       {
