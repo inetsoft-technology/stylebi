@@ -341,26 +341,12 @@ class MergeJoinTable extends JoinTable {
             // are kept for the readers before the join completes (bug #78071). A join run on
             // the constructing thread leaves them to that thread
             if(Thread.currentThread() == this) {
-               keepUserMessages();
+               keepWorkerMessages();
             }
 
             leftTable.invalidate();
             rightTable.invalidate();
             complete();
-         }
-      }
-
-      private void keepUserMessages() {
-         try {
-            UserMessage msg = Tool.getUserMessage();
-
-            if(msg != null) {
-               addWorkerMessage(msg);
-            }
-         }
-         catch(RuntimeException ex) {
-            LOG.warn("Failed to collect the join user messages", ex);
-            Tool.clearUserMessage();
          }
       }
 

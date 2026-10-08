@@ -2644,9 +2644,12 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             // across the cluster (e.g. an Ignite affinity-call response). The
             // message already carries the JS error text and line; copy the
             // merged host/guest stack trace so nothing useful is lost. (#75555)
+            // Nor the load failure itself, which carries a suppressed Truffle stack trace
+            // element once it crossed the engine: keep a copy of it (bug #78071)
             ScriptException se = loadFailure == null ?
                new ScriptException(ex.getMessage() + loc) :
-               new ScriptException(ex.getMessage() + loc, loadFailure);
+               new ScriptException(ex.getMessage() + loc, new TableLoadException(
+                  loadFailure.getMessage(), loadFailure.getCause()));
             se.setStackTrace(ex.getStackTrace());
             // what the dropped cause said: stopped by a timeout or cancel, not failed. Also
             // when Java code the script called was stopped, e.g. a read of a formula cell

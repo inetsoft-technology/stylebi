@@ -5673,8 +5673,11 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                   // retry only re-reads the missing file, so don't cache it either (#77908)
                   // Nor a script stopped by its timeout or a cancel, e.g. a freehand table's
                   // formula: the next read would take it for no table (#77949)
+                  // Nor a table that failed to load in a scheduled run: a reader that swallowed
+                  // it, e.g. an export precheck, would leave the export no table (#78071)
                   if(LockStallException.find(ex) != null ||
-                     SwapFileReadException.find(ex) != null || ScriptTimeoutGuard.isStop(ex))
+                     SwapFileReadException.find(ex) != null || ScriptTimeoutGuard.isStop(ex) ||
+                     TableLoadException.find(ex) != null)
                   {
                      cache = false;
                   }
@@ -5967,7 +5970,10 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
                // the MV query wraps any failure, a lost swap file must not be cached as no
                // data either, see catch(Exception) below (#77908), nor a stopped script (#77949)
-               if(SwapFileReadException.find(ex) != null || ScriptTimeoutGuard.isStop(ex)) {
+               // nor a scheduled load failure (#78071)
+               if(SwapFileReadException.find(ex) != null || ScriptTimeoutGuard.isStop(ex) ||
+                  TableLoadException.find(ex) != null)
+               {
                   cache = false;
                }
 
@@ -5984,8 +5990,12 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             // are still cached as NULL, so e.g. a slow failing SQL query is not re-run on
             // every read (#77908). A script stopped by its timeout or a cancel is not cached
             // either, e.g. a freehand table's formula, or it would read as no data (#77949)
+            // Nor a load failure of a scheduled run, which only a reader that must fail gets:
+            // a reader that swallowed it, e.g. an export precheck, would leave the next one
+            // no data (#78071)
             if(LockStallException.find(ex) != null || SwapFileReadException.find(ex) != null ||
-               ScriptTimeoutGuard.isStop(ex))
+               ScriptTimeoutGuard.isStop(ex) ||
+               TableLoadException.find(ex) != null)
             {
                cache = false;
             }

@@ -32,6 +32,7 @@ import inetsoft.report.TableCellBinding;
 import inetsoft.report.TableLayout;
 import inetsoft.report.TableLens;
 import inetsoft.report.XSessionManager;
+import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.composition.graph.VSDataSet;
 import inetsoft.report.filter.CrossTabFilter;
@@ -40,6 +41,8 @@ import inetsoft.report.filter.SortFilter;
 import inetsoft.report.filter.SumFormula;
 import inetsoft.report.filter.SummaryFilter;
 import inetsoft.report.internal.Util;
+import inetsoft.report.io.viewsheet.excel.CSVUtil;
+import inetsoft.report.io.viewsheet.excel.CSVVSExporter;
 import inetsoft.report.lens.DistinctTableLens;
 import inetsoft.report.lens.JoinTableLens;
 import inetsoft.report.lens.xnode.XNodeTableLens;
@@ -79,9 +82,11 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import javax.sql.DataSource;
+import java.io.ByteArrayOutputStream;
 import java.lang.reflect.*;
 import java.sql.Connection;
 import java.sql.Statement;
+import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -658,6 +663,43 @@ class RowFetchFailureTest {
             assertEquals(ROWS + 1, cells.length, formula);
          }
       }
+   }
+
+   // Bug #78071: a reader that swallows the load failure of a scheduled calc table, e.g. the
+   // large-table precheck of an Excel export, must not leave the sandbox a cached "no data":
+   // every later read fails with the load failure too
+   @Test
+   void scheduledCalcFailsAgainAfterASwallowedRead() throws Exception {
+      for(String formula : new String[] { "sum(data['id'])", "rowList(data, 'g')" }) {
+         ViewsheetSandbox box = calcSandbox(true, true, formula);
+         RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+         when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
+         when(rvs.getViewsheet()).thenReturn(box.getViewsheet());
+
+         // as ViewsheetAction does before an Excel export
+         assertFalse(CSVUtil.hasLargeDataTable(rvs), formula);
+
+         assertLoadFailure(() -> calcCells(box.getVSTableLens("Calc1", false)), formula);
+         assertLoadFailure(() -> calcCells((TableLens) box.getData("Calc1")), formula);
+         // and again, a failed read is not cached either
+         assertLoadFailure(() -> calcCells((TableLens) box.getData("Calc1")), formula);
+      }
+   }
+
+   // the export after the precheck fails with the database error, not with no calc table
+   @Test
+   void scheduledCsvExportAfterThePrecheckFails() throws Exception {
+      ViewsheetSandbox box = calcSandbox(true, true, "sum(data['id'])");
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
+      when(rvs.getViewsheet()).thenReturn(box.getViewsheet());
+      assertFalse(CSVUtil.hasLargeDataTable(rvs));
+
+      CSVVSExporter exporter = new CSVVSExporter(new ByteArrayOutputStream(), null);
+      assertLoadFailure(() -> {
+         exporter.export(box, "Calc", null);
+         exporter.write();
+      });
    }
 
    // Bug #78071: a viewsheet onLoad script stops at its read of a table that failed to load

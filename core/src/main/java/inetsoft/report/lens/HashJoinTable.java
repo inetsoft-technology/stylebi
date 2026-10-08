@@ -22,8 +22,6 @@ import inetsoft.report.TableLens;
 import inetsoft.uql.util.TableLoadException;
 import inetsoft.util.GroupedThread;
 import inetsoft.util.ThreadContext;
-import inetsoft.util.Tool;
-import inetsoft.util.UserMessage;
 import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.swap.SwapFileReadException;
@@ -437,7 +435,7 @@ class HashJoinTable extends JoinTable {
             // are kept for the readers before the join completes (bug #77966). a scan on the
             // constructing thread leaves them to that thread
             if(Thread.currentThread() == this) {
-               keepUserMessages();
+               joinTable.keepWorkerMessages();
             }
 
             synchronized(map) {
@@ -458,20 +456,6 @@ class HashJoinTable extends JoinTable {
                   }
                }
             }
-         }
-      }
-
-      private void keepUserMessages() {
-         try {
-            UserMessage msg = Tool.getUserMessage();
-
-            if(msg != null) {
-               joinTable.addWorkerMessage(msg);
-            }
-         }
-         catch(RuntimeException ex) {
-            LOG.warn("Failed to collect the join user messages", ex);
-            Tool.clearUserMessage();
          }
       }
 
