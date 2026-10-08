@@ -222,6 +222,30 @@ class ChangeCancelledQueryTest {
    }
 
    /**
+    * A's selection on T changes the crosstab. While it loads, a newer query of the crosstab
+    * that isn't a change (e.g. an export of the live viewsheet) cancels A's query. Nothing
+    * resets the crosstab, and that query doesn't send it to the client, so A must load it.
+    */
+   @Test
+   void newerQueryWithoutResetDoesNotLeaveTableUnloaded() throws Exception {
+      Fixture f = otherTablesFixture("Y78024");
+      Viewsheet vs = f.box.getViewsheet();
+      ApplySelectionListEvent eventA = selectionEvent(firstValue(vs, SEL + "T"));
+      eventA.setEventSource(SEL + "T");
+      Object[] exported = { null };
+      Result r = run(f,
+         d -> selectionService.applySelection(f.rid, SEL + "T", eventA, f.principal, d, ""),
+         d -> exported[0] = f.box.getData(XT));
+
+      assertTrue(r.changeCancelled, "the newer query must cancel A's query");
+      assertNull(r.thrownB, "the newer query must complete");
+      assertNotNull(exported[0], "the newer query must get the crosstab's data");
+      assertNull(r.thrownA, "A must load the crosstab, but threw " + r.thrownA);
+      assertTrue(loadedCrosstab(r.dispatcherA), "A must send the crosstab's data");
+      assertNoError(r);
+   }
+
+   /**
     * The calendar on the base table T, the crosstab on its mirror U, a table x2 on T, a
     * selection on U and one on T.
     */
@@ -341,6 +365,28 @@ class ChangeCancelledQueryTest {
       assertEquals(2, fetch.qmgr.attempts, "the change-cancelled query must run again");
       assertInstanceOf(ChangeCancelledException.class, fetch.thrown,
                        "the run's data must be dropped once the change reset the assembly");
+   }
+
+   /**
+    * A newer query of the assembly that cancels the fetch, with no reset, makes it run again,
+    * and the run again doesn't cancel that query back.
+    */
+   @Test
+   void newerQueryCancelRunsAgainWithoutCancellingIt() throws Exception {
+      Fixture f = fixture();
+      long[] after = { -1 };
+      Fetch fetch = fetch(f, 2, (attempt, box, qmgr) -> {
+         if(attempt == 1) {
+            qmgr.cancelForQuery();
+            after[0] = qmgr.getCancelCount();
+         }
+      });
+
+      assertNull(fetch.thrown, "the query must run again, but threw " + fetch.thrown);
+      assertNotNull(fetch.data, "the crosstab must get data");
+      assertEquals(2, fetch.qmgr.attempts, "the query must run again once");
+      assertEquals(after[0], fetch.qmgr.getCancelCount(),
+                   "the run again must not cancel the newer query");
    }
 
    /** Every unrelated change that cancels the fetch makes it run again, more than 3 times. */

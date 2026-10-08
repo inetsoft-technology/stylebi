@@ -185,7 +185,7 @@ public class QueryManager {
    /**
     * Get the cancel count, the change cancel count (see {@link #cancelForChange()}) and the
     * query cancel count (see {@link #cancelForQuery()}) as one snapshot, to pass to
-    * {@link #isCancelledForNewerOnly(long[])} and {@link #isCancelledForQuery(long[])} later.
+    * {@link #isCancelledForNewerOnly(long[])} later.
     */
    public synchronized long[] getCancelCounts() {
       return new long[] { cancelCount, changeCancelCount, queryCancelCount };
@@ -201,15 +201,6 @@ public class QueryManager {
       long cancels = cancelCount - counts[0];
       return cancels > 0 &&
          cancels == changeCancelCount - counts[1] + queryCancelCount - counts[2];
-   }
-
-   /**
-    * Check if a newer query of the same source cancelled the pending queries since the
-    * snapshot, see {@link #cancelForQuery()}.
-    * @param counts a snapshot from {@link #getCancelCounts()}.
-    */
-   public synchronized boolean isCancelledForQuery(long[] counts) {
-      return queryCancelCount > counts[2];
    }
 
    /**

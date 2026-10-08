@@ -6529,14 +6529,16 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    }
 
    /**
-    * Execute the data of an assembly, see executeData(), and run it again when a newer change of
-    * the viewsheet cancelled it without resetting the assembly. That change won't load the
-    * assembly again, so dropping the cancelled request would leave its old data showing.
-    * When only newer changes and newer queries of the assembly cancelled it, and one of the
-    * changes reset the assembly or a newer query runs it, the newer request loads it, so a
-    * ChangeCancelledException tells this request to skip it and load its other assemblies.
-    * Any other cancel (the user's, a drill's, a dispose) is thrown as is and stops the request
-    * (#78024).
+    * Execute the data of an assembly, see executeData(), and handle a cancel by newer work
+    * (#78024):
+    * - When only newer changes of the viewsheet or newer queries of the assembly (e.g. an
+    *   export) cancelled it and a change reset the assembly, the newer request loads it, so a
+    *   ChangeCancelledException tells this request to skip it and load its other assemblies.
+    * - When they cancelled it without a reset, nothing else is known to load it to the client,
+    *   so it runs again. The run again doesn't cancel the other queries of the assembly, so it
+    *   can't cancel the newer query back and the two can't keep cancelling each other.
+    * - Any other cancel (the user's, a drill's, a dispose) is thrown as is and stops the
+    *   request.
     */
    private Object executeDataAfterChangeCancel(String name, int type, boolean[] cancelled)
       throws Exception
@@ -6547,11 +6549,17 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
       QueryManager qmgr = getQueryManager(name);
       CancelledException cancel = null;
+      Boolean qcancel = VSAQuery.Q_CANCEL.get();
 
       for(int attempt = 1; ; attempt++) {
          long[] counts = qmgr.getCancelCounts();
          long start = System.currentTimeMillis();
          Object data;
+
+         // a run again leaves the queries of the assembly that cancelled it alone
+         if(attempt > 1) {
+            VSAQuery.Q_CANCEL.set(Boolean.FALSE);
+         }
 
          try {
             data = executeData(name, type, cancelled);
@@ -6564,12 +6572,12 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             // a reset in the same millisecond as the start may be this request's own, so only
             // a later one counts. A change whose cancel lands before its reset is run again,
             // which only costs a query, see below
-            if(qmgr.isCancelledForQuery(counts) || isResetAfter(name, start)) {
+            if(isResetAfter(name, start)) {
                throw new ChangeCancelledException(ex);
             }
 
-            // every run again needs another change's cancel, i.e. one more event. Give up on
-            // an assembly that changes keep cancelling, e.g. a refresh timer faster than its
+            // every run again needs another newer change or query, i.e. one more event. Give
+            // up on an assembly that they keep cancelling, e.g. a refresh timer faster than its
             // query, with a warning, not silently
             if(attempt >= MAX_CHANGE_CANCEL_ATTEMPTS) {
                LOG.warn("Query of {} cancelled by {} changes in a row, not run again",
@@ -6579,10 +6587,18 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                throw new ChangeCancelledException(ex);
             }
 
-            LOG.debug("Query of {} cancelled by a change that doesn't reload it, run it again",
+            LOG.debug("Query of {} cancelled by newer work that doesn't reload it, run it again",
                       name);
             cancel = ex;
             continue;
+         }
+         finally {
+            if(attempt > 1 && qcancel == null) {
+               VSAQuery.Q_CANCEL.remove();
+            }
+            else if(attempt > 1) {
+               VSAQuery.Q_CANCEL.set(qcancel);
+            }
          }
 
          // the change reset the assembly while it ran again, e.g. its cancel landed before
