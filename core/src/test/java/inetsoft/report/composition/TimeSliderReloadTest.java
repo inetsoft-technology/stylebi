@@ -210,6 +210,46 @@ class TimeSliderReloadTest {
    }
 
    /**
+    * A number range written before #77998 whose query ticks used another step than the saved
+    * increment (3e-4 with a non-round minimum: 46 ticks at 2e-4, whose span is still a multiple
+    * of 3e-4) is not rebuilt as another list; the next query rebuilds it.
+    */
+   @Test
+   void oldNumberRangeOnAnotherStepIsNotRebuiltWrong() throws Exception {
+      double min = -0.05878111372580869;
+      double[] ticks = TimeSliderVSAssembly.getPreferredTicks(
+         min, min + 0.0134, 0, true, false, 3e-4);
+      assertEquals(46, ticks.length);
+      String[] vals = new String[ticks.length];
+
+      for(int i = 0; i < ticks.length; i++) {
+         vals[i] = Tool.toString(ticks[i]);
+      }
+
+      SelectionList written = numbers(vals, 10, 12);
+      SelectionList parsed = new SelectionList();
+      parseTss(writeTss(written, 3e-4), parsed);
+
+      assertTrue(parsed.getSelectionValueCount() == 0 || values(written).equals(values(parsed)),
+                 "the query's " + vals.length + " ticks, read back " + values(parsed));
+   }
+
+   /**
+    * A single-value number range (min == max) written before #77998 with an increment is
+    * rebuilt as its one value.
+    */
+   @Test
+   void oldSingleValueRangeWithIncrementRebuildsOneValue() {
+      SelectionList written = numbers(new String[] { "5" }, 0, 0);
+      String tss = writeTss(written, 1);
+      SelectionList parsed = new SelectionList();
+
+      assertTimeoutPreemptively(Duration.ofSeconds(2), () -> parseTss(tss, parsed));
+      assertEquals(List.of("5"), values(parsed));
+      assertEquals(List.of(0), selected(parsed));
+   }
+
+   /**
     * A log scale slider saved before #77998 (with the stale linear range) reopens with its
     * selection and condition.
     */

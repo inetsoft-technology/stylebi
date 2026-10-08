@@ -311,11 +311,16 @@ public class TimeSliderSelection implements Cloneable {
          return null;
       }
 
-      // the same values (including float noise) as TimeSliderVSAQuery's linear ticks
-      double[] ticks = TimeSliderVSAssembly.getPreferredTicks(start, end, 0, false, false,
-                                                              increment);
+      // the same values (including float noise) as TimeSliderVSAQuery's linear ticks. A single
+      // value (min == max) is just the start
+      double[] ticks = count == 0 ? new double[] { start } :
+         TimeSliderVSAssembly.getPreferredTicks(start, end, 0, false, false, increment);
 
-      if(ticks.length != (int) count + 1) {
+      // the generator may build another grid (e.g. a truncated step) that doesn't end at the
+      // saved end; the query's list can't be known then
+      if(ticks.length != (int) count + 1 ||
+         Math.abs(ticks[ticks.length - 1] - end) > tolerance)
+      {
          LOG.debug("number range not rebuilt, {} ticks for start: {}, end: {}, increment: {}",
                    ticks.length, start, end, increment);
          return null;
