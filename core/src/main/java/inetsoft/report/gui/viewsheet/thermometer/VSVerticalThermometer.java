@@ -108,7 +108,9 @@ public class VSVerticalThermometer extends VSThermometer {
          }
 
          Color c1 = colors[i];
-         Color c2 = (i < n - 1) ? colors[i + 1] : c1.darker();
+         // the next row with a value, else the blend slot (#78009)
+         int end = getRangeEndColorIndex(ranges, colors, i);
+         Color c2 = end >= 0 ? colors[end] : c1.darker();
          double hrate = (range - (i > 0 ? ranges[i - 1] : min)) / (max - min);
          double yrate = (range - min) / (max - min);
          int height = (int) (hrate * rangeHeight);

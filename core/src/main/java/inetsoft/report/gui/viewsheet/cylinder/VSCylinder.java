@@ -736,21 +736,24 @@ public class VSCylinder extends VSImageable implements Cloneable {
          range = range < min ? min : range;
          range = range > max ? max : range;
          Color c1 = colors[i];
-         Color c2 = (i < n - 1) ? colors[i + 1] : null;
-
-         if(c2 == null && c1 != null) {
-            c2 = c1.darker();
-         }
 
          // set the range color same with previous one when the color is null,
          if(c1 == null) {
-            if(i < n - 1 && c2 != null) {
-               c1 = c2;
-               colors[i] = c2;
+            if(i < n - 1 && colors[i + 1] != null) {
+               c1 = colors[i + 1];
+               colors[i] = c1;
             }
             else {
                continue;
             }
+         }
+
+         // the next row with a value, else the blend slot (#78009)
+         int end = getRangeEndColorIndex(ranges, colors, i);
+         Color c2 = end >= 0 ? colors[end] : null;
+
+         if(c2 == null) {
+            c2 = c1.darker();
          }
 
          double hrate = (range - (i > 0 ? ranges[i - 1] : min)) / (max - min);
