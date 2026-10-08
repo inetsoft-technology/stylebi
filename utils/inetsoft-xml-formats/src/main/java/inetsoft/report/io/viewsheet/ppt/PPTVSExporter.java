@@ -630,7 +630,7 @@ public class PPTVSExporter extends AbstractVSExporter {
          }
 
          if(info instanceof TextVSAssemblyInfo) {
-            shadowed = ((TextVSAssemblyInfo) info).getShadowValue();
+            shadowed = ((TextVSAssemblyInfo) info).isShadow();
          }
 
          writeText(txt, coordinator.getBounds(info), getTextFormat(info), shadowed);
