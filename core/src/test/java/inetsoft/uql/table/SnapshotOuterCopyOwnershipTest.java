@@ -24,6 +24,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.util.FileSystemService;
+import inetsoft.util.IndexedStorage;
 import inetsoft.util.MessageException;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -144,6 +145,58 @@ class SnapshotOuterCopyOwnershipTest {
       XSwappableTable table = coldLoad(e2, null, copyPaths, paths1);
       assertEquals(51, table.getRowCount());
       assertEquals("old4", table.getObject(5, 1));
+   }
+
+   // a frozen W2 stored before the fix names W1's files without the ownership flag, it gets its
+   // own files on its first save
+   @Test
+   void legacyFrozenCopyGetsItsOwnFilesOnSave() throws Exception {
+      AssetEntry e1 = entry("own_legacy_w1");
+      AssetEntry e2 = entry("own_legacy_w2");
+      String[] paths1 = saveOwner(e1, "old", 50).getDataPaths();
+      save(embed(e1, true), e2);
+
+      // store W2 with Auto Update off, as an older server did, without the composer save
+      IndexedStorage storage = repository().getStorage(e2);
+      Worksheet stored = (Worksheet) storage.getXMLSerializable(e2.toIdentifier(), null);
+      ((MirrorTableAssembly) stored.getAssembly(MIRROR)).setAutoUpdate(false);
+      storage.putXMLSerializable(e2.toIdentifier(), stored);
+      assertArrayEquals(paths1, storedCopy(e2).getDataPaths());
+      assertFalse(storedCopy(e2).ownsDataFiles());
+
+      clearCaches(e2, paths1);
+      Worksheet ws2 = open(e2);
+      assertArrayEquals(paths1, outerCopy(ws2).getDataPaths(), "frozen copy made again on load");
+      save(ws2, e2);
+      String[] copyPaths = storedCopy(e2).getDataPaths();
+      assertFalse(Arrays.equals(paths1, copyPaths), "frozen copy should have its own files");
+      assertFilesExist(paths1, true, "W1's files deleted by saving W2");
+
+      String[] paths2 = resaveOwner(e1, "new", 80);
+      XSwappableTable table = coldLoad(e2, null, copyPaths, paths1);
+      assertEquals(51, table.getRowCount());
+      assertEquals("old4", table.getObject(5, 1));
+
+      save(open(e2), e2);
+      assertArrayEquals(copyPaths, storedCopy(e2).getDataPaths(), "frozen copy wrote files again");
+
+      repository().removeSheet(e2, null, true);
+      assertFilesExist(copyPaths, false, "frozen copy's files not deleted with W2");
+      assertFilesExist(paths2, true, "W1's files deleted by removing W2");
+   }
+
+   // an auto-updated copy shows W1's new data after W1 is saved
+   @Test
+   void autoUpdatedCopyShowsOwnerDataAfterOwnerSave() throws Exception {
+      AssetEntry e1 = entry("own_autonew_w1");
+      AssetEntry e2 = entry("own_autonew_w2");
+      String[] paths1 = saveOwner(e1, "old", 50).getDataPaths();
+      save(embed(e1, true), e2);
+
+      String[] paths2 = resaveOwner(e1, "new", 80);
+      XSwappableTable table = coldLoad(e2, null, paths1, paths2);
+      assertEquals(81, table.getRowCount());
+      assertEquals("new4", table.getObject(5, 1));
    }
 
    // a stored frozen copy whose shared files are already gone can't get its own files, the save
