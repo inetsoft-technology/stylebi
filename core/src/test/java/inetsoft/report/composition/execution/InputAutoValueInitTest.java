@@ -64,7 +64,7 @@ import static org.mockito.Mockito.when;
    InputAutoValueInitTest.TestConfig.class
 }, initializers = ConfigurationContextInitializer.class)
 @SreeHome
-@Tag("core")
+@Tag("slow")
 class InputAutoValueInitTest {
    @Configuration
    static class TestConfig {
@@ -287,6 +287,66 @@ class InputAutoValueInitTest {
       assertEquals("Sum", getExplicitSelection(combo));
       assertEquals("Sum", combo.getSelectedObject());
       assertEquals("Sum", box.getVariableTable().get("ComboBox1"));
+   }
+
+   // ── Inputs sharing one variable, and the first value of other list inputs ──
+
+   @Test
+   void siblingInputsBoundToSameVariableStartInSync() throws Exception {
+      // Two untouched inputs on the same worksheet variable must agree with the variable
+      // that drives the queries, on open and after a Composer Refresh.
+      Viewsheet vs = new Viewsheet();
+      Worksheet ws = createVariableWorksheet("v");
+      ComboBoxVSAssembly combo1 = createCombo(vs, "ComboBox1");
+      combo1.setVariable(true);
+      combo1.setTableName("$(v)");
+      ComboBoxVSAssembly combo2 = new ComboBoxVSAssembly(vs, "ComboBox2");
+      setEmbeddedValues(combo2, "Sum", "Average", "Count");
+      vs.addAssembly(combo2);
+      combo2.setVariable(true);
+      combo2.setTableName("$(v)");
+      box = createSandbox(vs, ws, "test/InputAutoValueInitTest/sibling");
+
+      openReset(vs);
+      assertEquals("Average", combo1.getSelectedObject());
+      assertEquals("Average", combo2.getSelectedObject());
+      assertEquals("Average", box.getVariableTable().get("v"));
+
+      composerRefresh(vs);
+      assertEquals("Average", combo1.getSelectedObject());
+      assertEquals("Average", combo2.getSelectedObject());
+      assertEquals("Average", box.getVariableTable().get("v"));
+   }
+
+   @Test
+   void untouchedRadioButtonRenderedOnlyStartsOnFirstSortedValue() throws Exception {
+      // Reference: the view path alone (executeView sorts before validate) starts an
+      // untouched radio on the first sorted value.
+      Viewsheet vs = new Viewsheet();
+      RadioButtonVSAssembly radio = new RadioButtonVSAssembly(vs, "RadioButton1");
+      setEmbeddedValues(radio, "c", "a", "b");
+      vs.addAssembly(radio);
+      box = createSandbox(vs, new Worksheet(), "test/InputAutoValueInitTest/radioView");
+
+      box.executeView("RadioButton1", true);
+
+      assertEquals("a", radio.getSelectedObject());
+   }
+
+   @Test
+   void untouchedRadioButtonOpenStartsOnFirstSortedValue() throws Exception {
+      // The init reset (inputDataChanged path) must agree with the view path above and
+      // with the variable, instead of fixing the first unsorted value.
+      Viewsheet vs = new Viewsheet();
+      RadioButtonVSAssembly radio = new RadioButtonVSAssembly(vs, "RadioButton1");
+      setEmbeddedValues(radio, "c", "a", "b");
+      vs.addAssembly(radio);
+      box = createSandbox(vs, new Worksheet(), "test/InputAutoValueInitTest/radioOpen");
+
+      openReset(vs);
+
+      assertEquals("a", radio.getSelectedObject());
+      assertEquals("a", box.getVariableTable().get("RadioButton1"));
    }
 
    // ── helpers ───────────────────────────────────────────────────────────────

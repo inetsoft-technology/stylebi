@@ -3011,7 +3011,14 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             ListInputVSAssembly lassembly = (ListInputVSAssembly) assembly;
 
             if(data != null) {
-               ListData ldata = (ListData) data;
+               // Sort and format a copy the same way executeView() does, so that the
+               // automatic value (first value) picked by validate() and written to the
+               // variable table by refreshVariable() is the first displayed value, not
+               // the first unsorted one. Inputs sharing a variable then start in sync
+               // on that value (Bug #78081).
+               ListData ldata = (ListData) ((ListData) data).clone();
+               VSAQuery query = VSAQuery.createVSAQuery(this, lassembly, DataMap.NORMAL);
+               ((InputVSAQuery) query).refreshView(ldata);
                lassembly.setLabels(ldata.getLabels());
                lassembly.setValues(ldata.getValues());
                lassembly.setFormats(ldata.getFormats());
