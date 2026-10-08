@@ -208,7 +208,7 @@ public class ComboBoxVSAssemblyInfo extends ListInputVSAssemblyInfo {
          writer.print(" defaultValue=\"" + Tool.NULL_PARAMETER_VALUE + "\"");
       }
       else {
-         writer.print(" defaultValue=\"" + getDefaultValue() + "\"");
+         writer.print(" defaultValue=\"" + Tool.encodeHTMLAttribute(getDefaultValue()) + "\"");
       }
 
    }
