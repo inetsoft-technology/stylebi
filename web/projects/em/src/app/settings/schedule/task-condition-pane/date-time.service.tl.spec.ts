@@ -26,8 +26,9 @@
  *   Group 4 [Risk 2] — early returns: applyTimeZoneOffsetDifference (both empty) and
  *                       updateStartTimeDataTimeZone (both null)
  *   Group 5 [Risk 3] — applyTimeZoneOffsetDifference: real TZ shifts via Asia/Kolkata (no DST)
- *   Group 6 [Risk 3] — Bug: applyTimeZoneOffsetDifference / applyDateTimeZoneOffsetDifference crash
- *                       when oldTZ="" (empty) and newTZ is a valid timezone string
+ *   Group 6 [Risk 3] — applyTimeZoneOffsetDifference / applyDateTimeZoneOffsetDifference treat an
+ *                       empty oldTZ as the local zone (used to throw RangeError)
+ *   Group 7 [Risk 3] — Bug #78045: offsets do not depend on the browser's default locale
  *
  * KEY contracts:
  *   - setStartTime parses "HH:mm:ss" → condition.hour / minute / second.
@@ -46,16 +47,11 @@
  *   - updateStartTimeDataTimeZone always returns a NEW object (not the same reference) when a
  *     timezone shift is applied; timeRange and startTimeSelected are preserved unchanged.
  *
- * CONFIRMED BUG (Group 6):
- *   applyTimeZoneOffsetDifference early-return guard is `Tool.isEmpty(oldTZ) && Tool.isEmpty(newTZ)`.
- *   When only ONE timezone is empty (e.g. oldTZ="" and newTZ="America/New_York"), the guard is
- *   false, so execution falls through to `toLocaleString([], { timeZone: "" })` which throws
- *   RangeError: Invalid time zone specified: .
- *   Trigger: user opens an existing task saved before TZ support (timeZone="") and selects a TZ.
- *   Compare: getLocalTimezoneOffset() handles empty string with `if(!!timeZoneId)` — consistent
- *   fix would be to use the same guard in applyTimeZoneOffsetDifference.
- *   applyDateTimeZoneOffsetDifference has an analogous bug (guard is `oldTZ==null && newTZ==null`
- *   which also does not exclude the empty-string case).
+ * Group 6 (fixed with Bug #78045):
+ *   When only ONE timezone is empty (e.g. oldTZ="" and newTZ="America/New_York"), the methods used
+ *   to call `toLocaleString([], { timeZone: "" })`, which throws RangeError. The offsets now come
+ *   from getTimeZoneOffset(), which treats an empty zone as the browser's local zone, the same as
+ *   getLocalTimezoneOffset() always did.
  */
 
 import { DateTimeService } from "./date-time.service";
@@ -256,37 +252,110 @@ describe("DateTimeService — applyTimeZoneOffsetDifference: real timezone shift
 // Group 6 [Risk 3] — Bug: empty-string oldTZ crashes toLocaleString
 // ---------------------------------------------------------------------------
 
-describe("DateTimeService — Bug: applyTimeZoneOffsetDifference crashes when oldTZ='' and newTZ is valid", () => {
+describe("DateTimeService — empty oldTZ is treated as the local zone", () => {
 
    // Boundary / defensive only (legacy data): normal "create new condition" UI initializes
    // TimeCondition.timeZone from timeZoneOptions[0] (non-empty). oldTZ=="" mainly comes from
    // upgrade/legacy tasks persisted before TZ support was added.
-   // Known bug: the early-return guard is `Tool.isEmpty(oldTZ) && Tool.isEmpty(newTZ)`.
-   // When only ONE side is empty (oldTZ="" from a legacy condition, newTZ="America/New_York"),
-   // the guard is false and execution falls through to:
-   //   new Date(date.toLocaleString([], { timeZone: "" }))
-   // which throws RangeError: Invalid time zone specified:
-   //
    // Trigger path in production:
    //   1. User opens an existing schedule task saved before TZ support was added (timeZone="").
    //   2. User selects any timezone in the dropdown.
    //   3. fireModelChanged() captures oldTZ="" and newTZ="America/New_York".
-   //   4. updateStartTimeDataTimeZone → applyTimeZoneOffsetDifference("10:00:00", "", "America/New_York") → 💥
-   //
-   // Fix: mirror getLocalTimezoneOffset's guard: `if(!!oldTZ)` before calling toLocaleString,
-   // treating empty string as "system timezone" (or as "no conversion needed from empty side").
-   it.fails("should not throw when oldTZ is empty string and newTZ is a valid timezone (bug: RangeError)", () => {
-      // This currently throws: RangeError: Invalid time zone specified:
+   //   4. updateStartTimeDataTimeZone → applyTimeZoneOffsetDifference("10:00:00", "", "America/New_York")
+   // This used to throw RangeError; the empty side now means the browser's local zone.
+   it("should not throw when oldTZ is empty string and newTZ is a valid timezone", () => {
       expect(() => service.applyTimeZoneOffsetDifference("10:00:00", "", "America/New_York"))
          .not.toThrow();
    });
 
-   // Boundary / defensive only: analogous behavior in applyDateTimeZoneOffsetDifference — its guard
-   // is `oldTZ==null && newTZ==null` (null-only), so oldTZ=="" also falls through and crashes.
-   it.fails("applyDateTimeZoneOffsetDifference: should not throw when oldTZ='' and newTZ is valid (bug: RangeError)", () => {
+   // Boundary / defensive only: the same for applyDateTimeZoneOffsetDifference, whose guard is
+   // `oldTZ==null && newTZ==null` (null-only).
+   it("applyDateTimeZoneOffsetDifference: should not throw when oldTZ='' and newTZ is valid", () => {
       const dateValue = new Date(2026, 3, 8, 10, 0, 0);
       expect(() => service.applyDateTimeZoneOffsetDifference("10:00:00", "", "America/New_York", dateValue))
          .not.toThrow();
    });
+
+});
+
+// ---------------------------------------------------------------------------
+// Group 7 [Risk 3] — Bug #78045: offsets do not depend on the browser's default locale
+// ---------------------------------------------------------------------------
+
+describe("DateTimeService — Bug #78045: offsets with a non-US default locale", () => {
+
+   // The old code parsed toLocaleString([], {timeZone}) back with new Date(). With a day-first
+   // default locale that is NaN from the 13th (applyTimeZoneOffsetDifference returned null, and
+   // applyDateTimeZoneOffsetDifference an Invalid Date, even for the same zone), and NaN every day
+   // with ko-KR. The default locale is forced by wrapping Date.prototype.toLocaleString.
+   function forceDefaultLocale(locale: string): void {
+      const nativeToLocaleString = Date.prototype.toLocaleString;
+
+      vi.spyOn(Date.prototype, "toLocaleString").mockImplementation(
+         function(this: Date, locales?: Intl.LocalesArgument, options?: Intl.DateTimeFormatOptions) {
+            const useDefault = locales == null || (Array.isArray(locales) && locales.length === 0);
+            return nativeToLocaleString.call(this, useDefault ? locale : locales, options);
+         });
+   }
+
+   function setNow(utcMillis: number): void {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(utcMillis);
+   }
+
+   afterEach(() => {
+      vi.useRealTimers();
+      vi.restoreAllMocks();
+   });
+
+   const cases: [string, string, number][] = [
+      ["en-US (control)", "en-US", Date.UTC(2026, 9, 20, 3, 0)],
+      ["en-GB on day 20", "en-GB", Date.UTC(2026, 9, 20, 3, 0)],
+      ["de-DE on day 20", "de-DE", Date.UTC(2026, 9, 20, 3, 0)],
+      ["en-GB, 5th in UTC but 6th in Bangkok", "en-GB", Date.UTC(2026, 9, 5, 23, 30)],
+      ["ko-KR on day 5", "ko-KR", Date.UTC(2026, 9, 5, 3, 0)],
+   ];
+
+   for(const [name, locale, now] of cases) {
+      describe(name, () => {
+         beforeEach(() => {
+            forceDefaultLocale(locale);
+            setNow(now);
+         });
+
+         it("applyTimeZoneOffsetDifference keeps the time for the same zone", () => {
+            expect(service.applyTimeZoneOffsetDifference("09:30:00", "Asia/Bangkok", "Asia/Bangkok"))
+               .toBe("09:30:00");
+         });
+
+         it("applyTimeZoneOffsetDifference shifts by the zone difference (half-hour zone)", () => {
+            expect(service.applyTimeZoneOffsetDifference("10:00:00", "UTC", "Asia/Kolkata"))
+               .toBe("15:30:00");
+            expect(service.applyTimeZoneOffsetDifference("09:30:00", "Asia/Bangkok", "Asia/Kolkata"))
+               .toBe("08:00:00");
+         });
+
+         it("applyDateTimeZoneOffsetDifference keeps the date and time for the same zone", () => {
+            const result = service.applyDateTimeZoneOffsetDifference("09:30:00", "Asia/Bangkok",
+               "Asia/Bangkok", new Date(2026, 10, 20));
+            expect(result.getTime()).toBe(new Date(2026, 10, 20, 9, 30).getTime());
+         });
+
+         it("applyDateTimeZoneOffsetDifference moves to the next day across midnight", () => {
+            // 22:00 UTC is 05:00 the next day in Bangkok
+            const result = service.applyDateTimeZoneOffsetDifference("22:00:00", "UTC",
+               "Asia/Bangkok", new Date(2026, 10, 20));
+            expect(result.getFullYear()).toBe(2026);
+            expect(result.getMonth()).toBe(10);
+            expect(result.getDate()).toBe(21);
+            expect(service.getTimeString(result)).toBe("05:00:00");
+         });
+
+         it("getLocalTimezoneOffset returns UTC minus the zone", () => {
+            expect(service.getLocalTimezoneOffset("Asia/Bangkok")).toBe(-420 * 60000);
+            expect(service.getLocalTimezoneOffset("UTC")).toBe(0);
+         });
+      });
+   }
 
 });

@@ -18,6 +18,7 @@
 import { Injectable } from "@angular/core";
 import dayjs from "dayjs";
 import { TimeConditionModel } from "../../../../../../shared/schedule/model/time-condition-model";
+import { getTimeZoneOffset } from "../../../../../../shared/schedule/time-zone-offset";
 import { DateTypeFormatter } from "../../../../../../shared/util/date-type-formatter";
 import { Tool } from "../../../../../../shared/util/tool";
 import { StartTimeData } from "./start-time-editor/start-time-editor.component";
@@ -83,20 +84,11 @@ export class DateTimeService {
       return new Date(time);
    }
 
+   /**
+    * Returns UTC minus the time zone, in milliseconds (the sign of Date.getTimezoneOffset()).
+    */
    getLocalTimezoneOffset(timeZoneId: string): number {
-      let localTimeZoneOffset;
-      let date = new Date();
-
-      if(!!timeZoneId) {
-         const UTC = new Date(date.toLocaleString([], { timeZone: "UTC" }));
-         const selectedTZ = new Date(date.toLocaleString([], { timeZone: timeZoneId }));
-         localTimeZoneOffset = (UTC.getTime() - selectedTZ.getTime());
-      }
-      else {
-         localTimeZoneOffset = new Date().getTimezoneOffset() * 60000;
-      }
-
-      return localTimeZoneOffset;
+      return -getTimeZoneOffset(timeZoneId) || 0;
    }
 
    updateStartTimeDataTimeZone(startTimeData: StartTimeData, oldTZ: string, newTZ: string): StartTimeData {
@@ -129,10 +121,8 @@ export class DateTimeService {
          DateTypeFormatter.toTimeInstant(this.validateTimeValue(value),
             DateTypeFormatter.ISO_8601_TIME_FORMAT)).getTime();
 
-      let date = new Date();
-      const oldTZOffset = new Date(date.toLocaleString([], { timeZone: oldTZ })).getTime();
-      const newTZOffset = new Date(date.toLocaleString([], { timeZone: newTZ })).getTime();
-      time += newTZOffset - oldTZOffset;
+      const date = new Date();
+      time += getTimeZoneOffset(newTZ, date) - getTimeZoneOffset(oldTZ, date);
 
       return this.getTimeString(new Date(time));
    }
@@ -161,10 +151,8 @@ export class DateTimeService {
       }
 
       let time = datePart + timePart;
-      let date = new Date();
-      const oldTZOffset = new Date(date.toLocaleString([], { timeZone: oldTZ })).getTime();
-      const newTZOffset = new Date(date.toLocaleString([], { timeZone: newTZ })).getTime();
-      time += newTZOffset - oldTZOffset;
+      const date = new Date();
+      time += getTimeZoneOffset(newTZ, date) - getTimeZoneOffset(oldTZ, date);
 
       return new Date(time);
    }

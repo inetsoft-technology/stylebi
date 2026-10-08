@@ -21,6 +21,7 @@ import { Injectable } from "@angular/core";
 import { ScheduleConditionModel } from "./model/schedule-condition-model";
 import { TimeConditionModel } from "./model/time-condition-model";
 import { TimeZoneModel } from "./model/time-zone-model";
+import { getTimeZoneOffset } from "./time-zone-offset";
 
 @Injectable({
    providedIn: "root"
@@ -103,19 +104,7 @@ export class TimeZoneService {
     * @param tzId time zone id
     */
    public calculateTimezoneOffset(tzId: string): number {
-      let offset = 0;
-      let date = new Date();
-
-      if(!!tzId) {
-         const UTC = new Date(date.toLocaleString([], { timeZone: "UTC" }));
-         const selectedTZ = new Date(date.toLocaleString([], { timeZone: tzId }));
-         offset = (selectedTZ.getTime() - UTC.getTime());
-      }
-      else {
-         offset = -new Date().getTimezoneOffset() * 60000;
-      }
-
-      return offset;
+      return getTimeZoneOffset(tzId);
    }
 
    private getUTCOffset(timeZoneId: string): string {
