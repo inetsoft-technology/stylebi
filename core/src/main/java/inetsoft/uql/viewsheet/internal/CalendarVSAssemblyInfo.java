@@ -767,8 +767,10 @@ public class CalendarVSAssemblyInfo extends SelectionVSAssemblyInfo
       writer.print(" daySelectionValue=\"" +
          daySelectionValue.getDValue() + "\"");
       writer.print(" period=\"" + period + "\"");
-      writer.print(" weekFormat=\"" + getWeekFormat() + "\"");
-      writer.print(" weekFormatValue=\"" + weekFormatValue.getDValue() + "\"");
+      writer.print(" weekFormat=\"" +
+         Tool.encodeHTMLAttribute(String.valueOf(getWeekFormat())) + "\"");
+      writer.print(" weekFormatValue=\"" +
+         Tool.encodeHTMLAttribute(String.valueOf(weekFormatValue.getDValue())) + "\"");
 
       if(getSelectedDateFormat() != null) {
          writer.print(" selectedDateFormat=\"" + getSelectedDateFormat() + "\"");
