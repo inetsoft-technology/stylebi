@@ -624,6 +624,151 @@ class RowFetchFailureTest {
       }
    }
 
+   // Bug #78071: the calc formula cases through the real ViewsheetSandbox and the real
+   // worksheet table binding, nothing mocked: a scheduled read fails, an interactive one
+   // warns with the rows read, and a successful one is unchanged
+   @Test
+   void calcFormulaThroughTheViewsheetSandbox() throws Exception {
+      for(String formula : new String[] { "sum(data['id'])", "rowList(data, 'g')" }) {
+         boolean sum = formula.startsWith("sum");
+         ViewsheetSandbox scheduled = calcSandbox(true, true, formula);
+         assertLoadFailure(() -> calcCells((TableLens) scheduled.getData("Calc1")), formula);
+
+         CoreTool.clearUserMessage();
+         Object[][] cells = calcCells((TableLens) calcSandbox(true, false, formula).getData("Calc1"));
+         assertWarned(formula);
+
+         if(sum) {
+            assertEquals((FAIL_ROW - 1) * (double) FAIL_ROW / 2,
+                         ((Number) cells[0][0]).doubleValue(), formula);
+         }
+         else {
+            // a row per base row read, then the second row of the default layout
+            assertEquals(FAIL_ROW, cells.length, formula);
+         }
+
+         CoreTool.clearUserMessage();
+         cells = calcCells((TableLens) calcSandbox(false, true, formula).getData("Calc1"));
+         assertNull(CoreTool.getUserMessage(), formula);
+
+         if(sum) {
+            assertEquals(ROWS * (ROWS + 1.0) / 2, ((Number) cells[0][0]).doubleValue(), formula);
+         }
+         else {
+            assertEquals(ROWS + 1, cells.length, formula);
+         }
+      }
+   }
+
+   // Bug #78071: a viewsheet onLoad script stops at its read of a table that failed to load
+   // in a scheduled run, and the export records that as the script error, instead of the
+   // script going on with a null column. Like any onLoad error it does not fail the run. An
+   // interactive script reads the rows that were loaded, as before
+   @Test
+   void onLoadScriptOverAFailedTable() throws Exception {
+      String script = "var a = TableV.table['id']; " +
+         "throw new Error(a == null ? 'null column' : 'read ' + a.length);";
+
+      for(boolean scheduler : new boolean[] { true, false }) {
+         Worksheet ws = new Worksheet();
+         sqlTable(ws, "T1", true);
+         AssetQuerySandbox box = new AssetQuerySandbox(ws);
+
+         if(scheduler) {
+            box.getVariableTable().put("__is_scheduler__", "true");
+         }
+
+         ViewsheetSandbox vbox = vsTable(ws, box);
+         vbox.getViewsheet().getViewsheetInfo().setOnLoad(script);
+         vbox.prepareForExport();
+         Exception error = vbox.getExportScriptError();
+
+         assertNotNull(error, "scheduler " + scheduler);
+
+         if(scheduler) {
+            assertNotNull(TableLoadException.find(error), String.valueOf(error));
+            assertTrue(error.getMessage().contains(DB_MESSAGE), error.getMessage());
+         }
+         else {
+            assertNull(TableLoadException.find(error), String.valueOf(error));
+            assertTrue(error.getMessage().contains("read " + (FAIL_ROW - 1)), error.getMessage());
+         }
+      }
+   }
+
+   // Bug #78071: every reader of a failed merge join gets the failure, also a later reader on
+   // another thread, and a user cancel of a base of a merge join stays silent
+   @Test
+   void mergeJoinLaterReaderAndUserCancel() throws Exception {
+      for(boolean scheduler : new boolean[] { true, false }) {
+         withMemoryState(XSwapper.LOW_MEM, () -> {
+            TableLens lens = joinLens(TableAssemblyOperator.INNER_JOIN, true, false, scheduler);
+            assertMergeJoin(Util.getNestedTable(lens, JoinTableLens.class));
+
+            for(int i = 0; i < 2; i++) {
+               Throwable[] failure = new Throwable[1];
+               Thread reader = new Thread(() -> {
+                  try {
+                     CoreTool.clearUserMessage();
+
+                     if(scheduler) {
+                        assertLoadFailure(() -> dataRows(lens), "scheduled reader");
+                     }
+                     else {
+                        assertEquals(FAIL_ROW - 1, dataRows(lens));
+                        assertWarned("interactive reader");
+                     }
+                  }
+                  catch(Throwable ex) {
+                     failure[0] = ex;
+                  }
+               });
+
+               reader.start();
+               reader.join(60000);
+               assertFalse(reader.isAlive(), "reader " + i + " never finished");
+
+               if(failure[0] != null) {
+                  throw new AssertionError("reader " + i + ", scheduler " + scheduler,
+                                           failure[0]);
+               }
+            }
+
+            return null;
+         });
+      }
+
+      for(boolean scheduler : new boolean[] { true, false }) {
+         boolean landed = false;
+
+         for(int i = 0; i < 5 && !landed; i++) {
+            TableLens left = baseLens(false, scheduler);
+            TableLens right = baseLens(false, scheduler);
+            XNodeTableLens xlens =
+               (XNodeTableLens) Util.getNestedTable(left, XNodeTableLens.class);
+            xlens.cancel();
+            CoreTool.clearUserMessage();
+
+            int rows = withMemoryState(XSwapper.LOW_MEM, () -> {
+               JoinTableLens join =
+                  new JoinTableLens(left, right, new int[] { 0 }, new int[] { 0 });
+               assertMergeJoin(join);
+               return dataRows(join);
+            });
+
+            landed = rows < ROWS;
+
+            if(landed) {
+               assertTrue(xlens.isCancelled());
+               assertNull(xlens.getLoadException());
+               assertNull(CoreTool.getUserMessage());
+            }
+         }
+
+         assertTrue(landed, "the cancel never landed before the end of the rows");
+      }
+   }
+
    @Test
    void scheduledSortFails() throws Exception {
       assertLoadFailure(() -> dataRows(sortLens(true, true)));
@@ -890,6 +1035,33 @@ class RowFetchFailureTest {
       }
 
       return cells;
+   }
+
+   // a viewsheet with the calc table Calc1 bound to the worksheet table T1, whose cell A1 is
+   // the formula, expanded vertically unless it is a sum
+   private static ViewsheetSandbox calcSandbox(boolean fail, boolean scheduler, String formula)
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      sqlTable(ws, "T1", fail);
+      AssetQuerySandbox box = new AssetQuerySandbox(ws);
+
+      if(scheduler) {
+         box.getVariableTable().put("__is_scheduler__", "true");
+      }
+
+      Viewsheet vs = viewsheet(ws);
+      CalcTableVSAssembly calc = new CalcTableVSAssembly(vs, "Calc1");
+      calc.setSourceInfo(new SourceInfo(XSourceInfo.ASSET, null, "T1"));
+      TableCellBinding cell = new TableCellBinding(CellBinding.BIND_FORMULA, formula);
+
+      if(!formula.startsWith("sum")) {
+         cell.setExpansion(GroupableCellBinding.EXPAND_V);
+      }
+
+      calc.getTableLayout().setCellBinding(0, 0, cell);
+      vs.addAssembly(calc);
+      return viewsheetSandbox(vs, box);
    }
 
    // g descending, the sort column
