@@ -34,6 +34,7 @@ import inetsoft.report.script.viewsheet.ViewsheetScope;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.DateRangeRef;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.*;
 import inetsoft.util.audit.AuditRecordUtils;
@@ -272,6 +273,14 @@ public class CalcTableLens extends DefaultTableLens {
 
          if(swapFailure != null) {
             throw swapFailure;
+         }
+
+         // nor a base that failed to load, for a reader that has to fail, e.g. a scheduled
+         // run (bug #78071)
+         TableLoadException loadFailure = TableLoadException.find(ex);
+
+         if(loadFailure != null) {
+            throw loadFailure;
          }
 
          // nor may a formula stopped by a script timeout or cancel (bug #77949)
@@ -543,6 +552,16 @@ public class CalcTableLens extends DefaultTableLens {
                // not cached, a later read evaluates the formula again
                uncacheValue(r, c, expr);
                throw swapFailure;
+            }
+
+            // nor is one that read a table that failed to load, for a reader that has to
+            // fail, e.g. a scheduled run (bug #78071)
+            TableLoadException loadFailure = TableLoadException.find(se);
+
+            if(loadFailure != null) {
+               // not cached, a later read evaluates the formula again
+               uncacheValue(r, c, expr);
+               throw loadFailure;
             }
 
             // nor is one stopped by a script timeout or cancel: the reader gets the stop, and

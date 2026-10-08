@@ -19,6 +19,7 @@ package inetsoft.util.script.graal;
 
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.util.script.ScriptException;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.swap.SwapFileReadException;
@@ -28,8 +29,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
-import java.io.File;
-import java.io.IOException;
+import java.io.*;
 import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.Map;
@@ -117,12 +117,53 @@ class GraalJavaScriptEngineUnavailableCountTest {
       assertEquals(12, host.calls, "the capped script is not run");
    }
 
+   /**
+    * Bug #78071: the load failure of a table the script read stays a ScriptException for the
+    * callers that take any script error, with the failure as its cause for a calc table that
+    * must fail with it, and it is not counted toward the limit. The cause is a copy of the
+    * failure, which Truffle has not touched, so the script error stays serializable (#75555).
+    */
+   @Test
+   void loadFailureIsTheCauseAndNotCounted() throws Exception {
+      Host host = new Host();
+      engine.put("host", host);
+      Object src = engine.compile("host.value()");
+      TableLoadException load = new TableLoadException("db down", new IOException("db down"));
+
+      for(int i = 0; i < 3; i++) {
+         host.failure = i == 0 ? load : new IllegalStateException("wrapped", load);
+         ScriptException ex =
+            assertThrows(ScriptException.class, () -> engine.exec(src, null, null));
+         TableLoadException cause = assertInstanceOf(TableLoadException.class, ex.getCause());
+         assertEquals("db down", cause.getMessage());
+         assertSame(load.getCause(), cause.getCause());
+         assertEquals("db down", roundTrip(ex).getCause().getMessage());
+      }
+
+      assertFalse(errorCounts().containsKey(src), "a load failure is not a script error");
+      assertEquals(3, host.calls);
+   }
+
    @Test
    void scriptErrorIsStillCounted() throws Exception {
       Object src = engine.compile("throw new Error('js failure')");
       ScriptException ex = assertThrows(ScriptException.class, () -> engine.exec(src, null, null));
       assertTrue(ex.getMessage().contains("js failure"), ex.getMessage());
       assertEquals(1, errorCounts().get(src));
+   }
+
+   private static Throwable roundTrip(Throwable failure) throws Exception {
+      ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+
+      try(ObjectOutputStream out = new ObjectOutputStream(bytes)) {
+         out.writeObject(failure);
+      }
+
+      try(ObjectInputStream in =
+             new ObjectInputStream(new ByteArrayInputStream(bytes.toByteArray())))
+      {
+         return (Throwable) in.readObject();
+      }
    }
 
    private Map<?, ?> errorCounts() throws Exception {

@@ -348,6 +348,25 @@ abstract class JoinTable extends PagedTableLens {
    }
 
    /**
+    * Keep the user messages of the calling worker thread, e.g. the warning of a base that failed
+    * to load, for the readers. Called by a worker before it completes the join (bugs #77966,
+    * #78071).
+    */
+   void keepWorkerMessages() {
+      try {
+         UserMessage msg = Tool.getUserMessage();
+
+         if(msg != null) {
+            addWorkerMessage(msg);
+         }
+      }
+      catch(RuntimeException ex) {
+         LOG.warn("Failed to collect the join user messages", ex);
+         Tool.clearUserMessage();
+      }
+   }
+
+   /**
     * Count a base row read by a worker thread, progress for the lock-stall watchdog even if
     * the row joins nothing (bug #76967). Two workers may race on the increment; a lost
     * update still changes the value, which is all the watchdog checks.

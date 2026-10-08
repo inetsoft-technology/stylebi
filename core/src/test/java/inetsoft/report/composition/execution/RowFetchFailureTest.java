@@ -26,8 +26,13 @@ import inetsoft.mv.fs.FSConfig;
 import inetsoft.mv.fs.FSService;
 import inetsoft.mv.fs.XFileSystem;
 import inetsoft.mv.fs.XServerNode;
+import inetsoft.report.CellBinding;
+import inetsoft.report.GroupableCellBinding;
+import inetsoft.report.TableCellBinding;
+import inetsoft.report.TableLayout;
 import inetsoft.report.TableLens;
 import inetsoft.report.XSessionManager;
+import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.composition.graph.VSDataSet;
 import inetsoft.report.filter.CrossTabFilter;
@@ -36,6 +41,8 @@ import inetsoft.report.filter.SortFilter;
 import inetsoft.report.filter.SumFormula;
 import inetsoft.report.filter.SummaryFilter;
 import inetsoft.report.internal.Util;
+import inetsoft.report.io.viewsheet.excel.CSVUtil;
+import inetsoft.report.io.viewsheet.excel.CSVVSExporter;
 import inetsoft.report.lens.DistinctTableLens;
 import inetsoft.report.lens.JoinTableLens;
 import inetsoft.report.lens.xnode.XNodeTableLens;
@@ -59,6 +66,9 @@ import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.util.*;
 import inetsoft.util.credential.CredentialService;
+import inetsoft.util.script.JavaScriptEngine;
+import inetsoft.util.script.graal.GraalJavaScriptEnv;
+import inetsoft.util.swap.XSwapper;
 import org.apache.derby.jdbc.EmbeddedDataSource;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -72,11 +82,15 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import javax.sql.DataSource;
+import java.io.ByteArrayOutputStream;
 import java.lang.reflect.*;
 import java.sql.Connection;
 import java.sql.Statement;
+import java.util.Optional;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReentrantLock;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -469,6 +483,334 @@ class RowFetchFailureTest {
       assertNull(CoreTool.getUserMessage());
    }
 
+   // Bug #78071: below the NORM memory state JoinTableLens joins with a MergeJoinTable, whose
+   // join thread sorts and reads the bases. A base that failed to load must fail a scheduled
+   // reader and warn an interactive one, as the hash join does (bug #77966), not end the join
+   // with the rows so far (none in a scheduled run).
+   private static final int[] JOIN_TYPES = {
+      TableAssemblyOperator.INNER_JOIN, TableAssemblyOperator.LEFT_JOIN,
+      TableAssemblyOperator.RIGHT_JOIN, TableAssemblyOperator.FULL_JOIN };
+
+   @Test
+   void scheduledMergeJoinFails() throws Exception {
+      for(int type : JOIN_TYPES) {
+         for(boolean failLeft : new boolean[] { true, false }) {
+            assertLoadFailure(() -> mergeJoinRows(type, failLeft, !failLeft, true),
+                              "join " + type + " failLeft " + failLeft);
+         }
+      }
+   }
+
+   @Test
+   void interactiveMergeJoinWarns() throws Exception {
+      for(int type : JOIN_TYPES) {
+         for(boolean failLeft : new boolean[] { true, false }) {
+            String shape = "join " + type + " failLeft " + failLeft;
+            // an outer join keeps all the rows of the side that loaded
+            boolean keepsAll = type == TableAssemblyOperator.FULL_JOIN ||
+               type == TableAssemblyOperator.LEFT_JOIN && !failLeft ||
+               type == TableAssemblyOperator.RIGHT_JOIN && failLeft;
+
+            CoreTool.clearUserMessage();
+            assertEquals(keepsAll ? ROWS : FAIL_ROW - 1,
+                         mergeJoinRows(type, failLeft, !failLeft, false), shape);
+            assertWarned(shape);
+         }
+      }
+   }
+
+   @Test
+   void successfulMergeJoinIsUnchanged() throws Exception {
+      for(int type : JOIN_TYPES) {
+         assertEquals(ROWS, mergeJoinRows(type, false, false, true), "join " + type);
+         assertNull(CoreTool.getUserMessage(), "join " + type);
+      }
+   }
+
+   // a MergeJoinTable created under a held script lock joins on the constructing thread
+   @Test
+   void mergeJoinOnTheConstructingThreadFailsOrWarns() throws Exception {
+      for(boolean scheduler : new boolean[] { true, false }) {
+         TableLens left = baseLens(true, scheduler);
+         TableLens right = baseLens(false, scheduler);
+         CoreTool.clearUserMessage();
+
+         withMemoryState(XSwapper.LOW_MEM, () -> {
+            JoinTableLens join;
+            JavaScriptEngine.pushHeldScriptLock(new ReentrantLock());
+
+            try {
+               join = new JoinTableLens(left, right, new int[] { 0 }, new int[] { 0 });
+            }
+            finally {
+               JavaScriptEngine.popHeldScriptLock();
+            }
+
+            assertMergeJoin(join);
+
+            if(scheduler) {
+               assertLoadFailure(() -> dataRows(join));
+            }
+            else {
+               assertEquals(FAIL_ROW - 1, dataRows(join));
+               assertWarned();
+            }
+
+            return null;
+         });
+      }
+   }
+
+   // Bug #78071: a calc table formula that reads a table which failed to load must fail a
+   // scheduled run, not compute a null value or an "ERROR:" cell from the rows it never read
+   private static final String[] CALC_FORMULAS = {
+      "sum(data['id'])", "rowList(data, 'g')", "toList(data['g'])", "data['id'].length" };
+
+   @Test
+   void scheduledCalcFormulaFails() throws Exception {
+      for(String formula : CALC_FORMULAS) {
+         TableLens data = baseLens(true, true);
+         ViewsheetSandbox box = mock(ViewsheetSandbox.class, RETURNS_DEEP_STUBS);
+         CalcTableVSAQuery query = calcQuery(box, data, formula);
+
+         assertLoadFailure(() -> calcCells(query.getTableLens()), formula);
+         // the sandbox write lock is still released
+         verify(box).unlockWrite();
+      }
+   }
+
+   @Test
+   void interactiveCalcFormulaWarns() throws Exception {
+      for(String formula : CALC_FORMULAS) {
+         TableLens data = baseLens(true, false);
+         CoreTool.clearUserMessage();
+         ViewsheetSandbox box = mock(ViewsheetSandbox.class, RETURNS_DEEP_STUBS);
+         TableLens lens = calcQuery(box, data, formula).getTableLens();
+         Object[][] cells = calcCells(lens);
+
+         assertWarned(formula);
+
+         if(formula.startsWith("sum")) {
+            // the sum of the ids read before the failure
+            assertEquals((FAIL_ROW - 1) * (double) FAIL_ROW / 2,
+                         ((Number) cells[0][0]).doubleValue(), formula);
+         }
+         else if(formula.startsWith("rowList")) {
+            // a row per base row read, then the second row of the default layout
+            assertEquals(FAIL_ROW, cells.length, formula);
+         }
+      }
+   }
+
+   @Test
+   void successfulCalcFormulaIsUnchanged() throws Exception {
+      for(String formula : CALC_FORMULAS) {
+         TableLens data = baseLens(false, true);
+         CoreTool.clearUserMessage();
+         ViewsheetSandbox box = mock(ViewsheetSandbox.class, RETURNS_DEEP_STUBS);
+         Object[][] cells = calcCells(calcQuery(box, data, formula).getTableLens());
+
+         assertNull(CoreTool.getUserMessage(), formula);
+
+         switch(formula.substring(0, 3)) {
+         case "sum":
+            assertEquals(ROWS * (ROWS + 1.0) / 2, ((Number) cells[0][0]).doubleValue());
+            break;
+         case "row":
+            assertEquals(ROWS + 1, cells.length);
+            break;
+         case "toL":
+            // the distinct values of g, 0 to 9
+            assertEquals(11, cells.length);
+            break;
+         default:
+            assertEquals(ROWS, ((Number) cells[0][0]).intValue());
+         }
+      }
+   }
+
+   // Bug #78071: the calc formula cases through the real ViewsheetSandbox and the real
+   // worksheet table binding, nothing mocked: a scheduled read fails, an interactive one
+   // warns with the rows read, and a successful one is unchanged
+   @Test
+   void calcFormulaThroughTheViewsheetSandbox() throws Exception {
+      for(String formula : new String[] { "sum(data['id'])", "rowList(data, 'g')" }) {
+         boolean sum = formula.startsWith("sum");
+         ViewsheetSandbox scheduled = calcSandbox(true, true, formula);
+         assertLoadFailure(() -> calcCells((TableLens) scheduled.getData("Calc1")), formula);
+
+         CoreTool.clearUserMessage();
+         Object[][] cells = calcCells((TableLens) calcSandbox(true, false, formula).getData("Calc1"));
+         assertWarned(formula);
+
+         if(sum) {
+            assertEquals((FAIL_ROW - 1) * (double) FAIL_ROW / 2,
+                         ((Number) cells[0][0]).doubleValue(), formula);
+         }
+         else {
+            // a row per base row read, then the second row of the default layout
+            assertEquals(FAIL_ROW, cells.length, formula);
+         }
+
+         CoreTool.clearUserMessage();
+         cells = calcCells((TableLens) calcSandbox(false, true, formula).getData("Calc1"));
+         assertNull(CoreTool.getUserMessage(), formula);
+
+         if(sum) {
+            assertEquals(ROWS * (ROWS + 1.0) / 2, ((Number) cells[0][0]).doubleValue(), formula);
+         }
+         else {
+            assertEquals(ROWS + 1, cells.length, formula);
+         }
+      }
+   }
+
+   // Bug #78071: a reader that swallows the load failure of a scheduled calc table, e.g. the
+   // large-table precheck of an Excel export, must not leave the sandbox a cached "no data":
+   // every later read fails with the load failure too
+   @Test
+   void scheduledCalcFailsAgainAfterASwallowedRead() throws Exception {
+      for(String formula : new String[] { "sum(data['id'])", "rowList(data, 'g')" }) {
+         ViewsheetSandbox box = calcSandbox(true, true, formula);
+         RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+         when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
+         when(rvs.getViewsheet()).thenReturn(box.getViewsheet());
+
+         // as ViewsheetAction does before an Excel export
+         assertFalse(CSVUtil.hasLargeDataTable(rvs), formula);
+
+         assertLoadFailure(() -> calcCells(box.getVSTableLens("Calc1", false)), formula);
+         assertLoadFailure(() -> calcCells((TableLens) box.getData("Calc1")), formula);
+         // and again, a failed read is not cached either
+         assertLoadFailure(() -> calcCells((TableLens) box.getData("Calc1")), formula);
+      }
+   }
+
+   // the export after the precheck fails with the database error, not with no calc table
+   @Test
+   void scheduledCsvExportAfterThePrecheckFails() throws Exception {
+      ViewsheetSandbox box = calcSandbox(true, true, "sum(data['id'])");
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
+      when(rvs.getViewsheet()).thenReturn(box.getViewsheet());
+      assertFalse(CSVUtil.hasLargeDataTable(rvs));
+
+      CSVVSExporter exporter = new CSVVSExporter(new ByteArrayOutputStream(), null);
+      assertLoadFailure(() -> {
+         exporter.export(box, "Calc", null);
+         exporter.write();
+      });
+   }
+
+   // Bug #78071: a viewsheet onLoad script stops at its read of a table that failed to load
+   // in a scheduled run, and the export records that as the script error, instead of the
+   // script going on with a null column. Like any onLoad error it does not fail the run. An
+   // interactive script reads the rows that were loaded, as before
+   @Test
+   void onLoadScriptOverAFailedTable() throws Exception {
+      String script = "var a = TableV.table['id']; " +
+         "throw new Error(a == null ? 'null column' : 'read ' + a.length);";
+
+      for(boolean scheduler : new boolean[] { true, false }) {
+         Worksheet ws = new Worksheet();
+         sqlTable(ws, "T1", true);
+         AssetQuerySandbox box = new AssetQuerySandbox(ws);
+
+         if(scheduler) {
+            box.getVariableTable().put("__is_scheduler__", "true");
+         }
+
+         ViewsheetSandbox vbox = vsTable(ws, box);
+         vbox.getViewsheet().getViewsheetInfo().setOnLoad(script);
+         vbox.prepareForExport();
+         Exception error = vbox.getExportScriptError();
+
+         assertNotNull(error, "scheduler " + scheduler);
+
+         if(scheduler) {
+            assertNotNull(TableLoadException.find(error), String.valueOf(error));
+            assertTrue(error.getMessage().contains(DB_MESSAGE), error.getMessage());
+         }
+         else {
+            assertNull(TableLoadException.find(error), String.valueOf(error));
+            assertTrue(error.getMessage().contains("read " + (FAIL_ROW - 1)), error.getMessage());
+         }
+      }
+   }
+
+   // Bug #78071: every reader of a failed merge join gets the failure, also a later reader on
+   // another thread, and a user cancel of a base of a merge join stays silent
+   @Test
+   void mergeJoinLaterReaderAndUserCancel() throws Exception {
+      for(boolean scheduler : new boolean[] { true, false }) {
+         withMemoryState(XSwapper.LOW_MEM, () -> {
+            TableLens lens = joinLens(TableAssemblyOperator.INNER_JOIN, true, false, scheduler);
+            assertMergeJoin(Util.getNestedTable(lens, JoinTableLens.class));
+
+            for(int i = 0; i < 2; i++) {
+               Throwable[] failure = new Throwable[1];
+               Thread reader = new Thread(() -> {
+                  try {
+                     CoreTool.clearUserMessage();
+
+                     if(scheduler) {
+                        assertLoadFailure(() -> dataRows(lens), "scheduled reader");
+                     }
+                     else {
+                        assertEquals(FAIL_ROW - 1, dataRows(lens));
+                        assertWarned("interactive reader");
+                     }
+                  }
+                  catch(Throwable ex) {
+                     failure[0] = ex;
+                  }
+               });
+
+               reader.start();
+               reader.join(60000);
+               assertFalse(reader.isAlive(), "reader " + i + " never finished");
+
+               if(failure[0] != null) {
+                  throw new AssertionError("reader " + i + ", scheduler " + scheduler,
+                                           failure[0]);
+               }
+            }
+
+            return null;
+         });
+      }
+
+      for(boolean scheduler : new boolean[] { true, false }) {
+         boolean landed = false;
+
+         for(int i = 0; i < 5 && !landed; i++) {
+            TableLens left = baseLens(false, scheduler);
+            TableLens right = baseLens(false, scheduler);
+            XNodeTableLens xlens =
+               (XNodeTableLens) Util.getNestedTable(left, XNodeTableLens.class);
+            xlens.cancel();
+            CoreTool.clearUserMessage();
+
+            int rows = withMemoryState(XSwapper.LOW_MEM, () -> {
+               JoinTableLens join =
+                  new JoinTableLens(left, right, new int[] { 0 }, new int[] { 0 });
+               assertMergeJoin(join);
+               return dataRows(join);
+            });
+
+            landed = rows < ROWS;
+
+            if(landed) {
+               assertTrue(xlens.isCancelled());
+               assertNull(xlens.getLoadException());
+               assertNull(CoreTool.getUserMessage());
+            }
+         }
+
+         assertTrue(landed, "the cancel never landed before the end of the rows");
+      }
+   }
+
    @Test
    void scheduledSortFails() throws Exception {
       assertLoadFailure(() -> dataRows(sortLens(true, true)));
@@ -631,9 +973,137 @@ class RowFetchFailureTest {
    }
 
    private static void assertLoadFailure(Executable read) {
-      RuntimeException ex = assertThrows(RuntimeException.class, read);
-      assertNotNull(TableLoadException.find(ex), String.valueOf(ex));
-      assertTrue(String.valueOf(ex.getMessage()).contains(DB_MESSAGE), String.valueOf(ex));
+      assertLoadFailure(read, "");
+   }
+
+   private static void assertLoadFailure(Executable read, String shape) {
+      RuntimeException ex = assertThrows(RuntimeException.class, read, shape);
+      assertNotNull(TableLoadException.find(ex), shape + ": " + ex);
+      assertTrue(String.valueOf(ex.getMessage()).contains(DB_MESSAGE), shape + ": " + ex);
+   }
+
+   // the joined rows of T1 joined with T2 on id by a MergeJoinTable, as JoinTableLens creates
+   // below the NORM memory state; the state stays low for the read, which may create the
+   // join again
+   private static int mergeJoinRows(int type, boolean failLeft, boolean failRight,
+                                    boolean scheduler)
+      throws Exception
+   {
+      return withMemoryState(XSwapper.LOW_MEM, () -> {
+         TableLens lens = joinLens(type, failLeft, failRight, scheduler);
+         assertMergeJoin(Util.getNestedTable(lens, JoinTableLens.class));
+         return dataRows(lens);
+      });
+   }
+
+   private static void assertMergeJoin(TableLens join) throws Exception {
+      assertNotNull(join, "no join");
+      Field field = JoinTableLens.class.getDeclaredField("delegate");
+      field.setAccessible(true);
+      assertEquals("MergeJoinTable", field.get(join).getClass().getSimpleName());
+   }
+
+   // run with the memory state of the swapper fixed, then restore it
+   private static <T> T withMemoryState(int state, Callable<T> call) throws Exception {
+      XSwapper swapper = XSwapper.getSwapper();
+      Field stateField = XSwapper.class.getDeclaredField("cachedState");
+      Field timeField = XSwapper.class.getDeclaredField("stateTS");
+      stateField.setAccessible(true);
+      timeField.setAccessible(true);
+      Object oldState = stateField.get(swapper);
+      Object oldTime = timeField.get(swapper);
+
+      try {
+         stateField.set(swapper, state);
+         // a reading time in the future, so the state is not read again
+         timeField.set(swapper, Long.MAX_VALUE / 2);
+         return call.call();
+      }
+      finally {
+         stateField.set(swapper, oldState);
+         timeField.set(swapper, oldTime);
+      }
+   }
+
+   // a calc table whose cell A1 is the formula, expanded vertically unless it is a sum, over
+   // the data lens; as CalcTableVSAQuerySwapLostTest, only the sandbox is mocked
+   private static CalcTableVSAQuery calcQuery(ViewsheetSandbox box, TableLens data,
+                                              String formula)
+   {
+      Viewsheet vs = new Viewsheet();
+      CalcTableVSAssembly cassembly = new CalcTableVSAssembly(vs, "Calc1");
+      vs.addAssembly(cassembly);
+      TableLayout layout = cassembly.getTableLayout();
+      TableCellBinding cell = new TableCellBinding(CellBinding.BIND_FORMULA, formula);
+
+      if(!formula.startsWith("sum")) {
+         cell.setExpansion(GroupableCellBinding.EXPAND_V);
+      }
+
+      layout.setCellBinding(0, 0, cell);
+      GraalJavaScriptEnv env = new GraalJavaScriptEnv();
+      env.init();
+      when(box.getViewsheet()).thenReturn(vs);
+      when(box.getVariableTable()).thenReturn(new VariableTable());
+      when(box.getID()).thenReturn("vs1");
+      when(box.getScope().getScriptEnv()).thenReturn(env);
+      TableAssembly table = mock(TableAssembly.class);
+
+      return new CalcTableVSAQuery(box, "Calc1", false) {
+         @Override
+         public TableAssembly getTableAssembly() {
+            return table;
+         }
+
+         @Override
+         protected TableLens getTableLens(TableAssembly table) {
+            return data;
+         }
+      };
+   }
+
+   // the cells of a calc table, none of which may be an error
+   private static Object[][] calcCells(TableLens lens) {
+      assertNotNull(lens, "no calc table, see the log");
+      lens.moreRows(XTable.EOT);
+      Object[][] cells = new Object[lens.getRowCount()][lens.getColCount()];
+
+      for(int r = 0; r < cells.length; r++) {
+         for(int c = 0; c < cells[r].length; c++) {
+            cells[r][c] = lens.getObject(r, c);
+            assertFalse(String.valueOf(cells[r][c]).startsWith("ERROR:"),
+                        "cell " + r + "," + c + ": " + cells[r][c]);
+         }
+      }
+
+      return cells;
+   }
+
+   // a viewsheet with the calc table Calc1 bound to the worksheet table T1, whose cell A1 is
+   // the formula, expanded vertically unless it is a sum
+   private static ViewsheetSandbox calcSandbox(boolean fail, boolean scheduler, String formula)
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      sqlTable(ws, "T1", fail);
+      AssetQuerySandbox box = new AssetQuerySandbox(ws);
+
+      if(scheduler) {
+         box.getVariableTable().put("__is_scheduler__", "true");
+      }
+
+      Viewsheet vs = viewsheet(ws);
+      CalcTableVSAssembly calc = new CalcTableVSAssembly(vs, "Calc1");
+      calc.setSourceInfo(new SourceInfo(XSourceInfo.ASSET, null, "T1"));
+      TableCellBinding cell = new TableCellBinding(CellBinding.BIND_FORMULA, formula);
+
+      if(!formula.startsWith("sum")) {
+         cell.setExpansion(GroupableCellBinding.EXPAND_V);
+      }
+
+      calc.getTableLayout().setCellBinding(0, 0, cell);
+      vs.addAssembly(calc);
+      return viewsheetSandbox(vs, box);
    }
 
    // g descending, the sort column
@@ -690,16 +1160,23 @@ class RowFetchFailureTest {
       return lens;
    }
 
-   // T1 INNER JOIN T2 on id with Merge SQL off, so the join is a hash join in memory
    private static TableLens innerJoinLens(boolean fail, boolean scheduler) throws Exception {
+      return joinLens(TableAssemblyOperator.INNER_JOIN, fail, false, scheduler);
+   }
+
+   // T1 joined with T2 on id with Merge SQL off, so the join is done in memory
+   private static TableLens joinLens(int type, boolean failLeft, boolean failRight,
+                                     boolean scheduler)
+      throws Exception
+   {
       Worksheet ws = new Worksheet();
-      SQLBoundTableAssembly t1 = sqlTable(ws, "T1", fail);
-      SQLBoundTableAssembly t2 = sqlTable(ws, "T2", false);
+      SQLBoundTableAssembly t1 = sqlTable(ws, "T1", failLeft);
+      SQLBoundTableAssembly t2 = sqlTable(ws, "T2", failRight);
       t1.setSQLMergeable(false);
       t2.setSQLMergeable(false);
       TableAssemblyOperator operator = new TableAssemblyOperator();
       TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
-      op.setOperation(TableAssemblyOperator.INNER_JOIN);
+      op.setOperation(type);
       op.setLeftTable("T1");
       op.setRightTable("T2");
       op.setLeftAttribute(t1.getColumnSelection(false).getAttribute("id"));
@@ -876,10 +1353,14 @@ class RowFetchFailureTest {
    }
 
    private static void assertWarned() {
+      assertWarned("");
+   }
+
+   private static void assertWarned(String shape) {
       UserMessage message = CoreTool.getUserMessage();
-      assertNotNull(message, "no message for the failed fetch");
+      assertNotNull(message, shape + ": no message for the failed fetch");
       assertEquals(Catalog.getCatalog().getString("common.table.getDataFailed") + ": " +
-                   DB_MESSAGE, message.getMessage());
+                   DB_MESSAGE, message.getMessage(), shape);
    }
 
    // a distinct where clause per table, so no case reads a cached result of another
