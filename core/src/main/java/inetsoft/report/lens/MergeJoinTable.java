@@ -22,6 +22,7 @@ import inetsoft.report.TableLens;
 import inetsoft.report.filter.SortFilter;
 import inetsoft.report.filter.SortedTable;
 import inetsoft.report.internal.ComparatorComparer;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.util.*;
 import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.stall.LockStallException;
@@ -314,6 +315,17 @@ class MergeJoinTable extends JoinTable {
                if(swapFailure != null) {
                   setSwapFailure(swapFailure);
                }
+               else {
+                  // nor a base that failed to load, for a reader that has to fail, e.g. a
+                  // scheduled run, as in HashJoinTable (bug #78071)
+                  TableLoadException loadFailure = TableLoadException.find(ex);
+
+                  if(loadFailure != null) {
+                     setLoadFailure(loadFailure);
+                     // the readers rethrow it, it was logged where it happened
+                     return;
+                  }
+               }
 
                throw ex;
             }
@@ -325,9 +337,30 @@ class MergeJoinTable extends JoinTable {
             }
          }
          finally {
+            // the user messages of this thread, e.g. the warning of a base that failed to load,
+            // are kept for the readers before the join completes (bug #78071). A join run on
+            // the constructing thread leaves them to that thread
+            if(Thread.currentThread() == this) {
+               keepUserMessages();
+            }
+
             leftTable.invalidate();
             rightTable.invalidate();
             complete();
+         }
+      }
+
+      private void keepUserMessages() {
+         try {
+            UserMessage msg = Tool.getUserMessage();
+
+            if(msg != null) {
+               addWorkerMessage(msg);
+            }
+         }
+         catch(RuntimeException ex) {
+            LOG.warn("Failed to collect the join user messages", ex);
+            Tool.clearUserMessage();
          }
       }
 

@@ -18,6 +18,7 @@
 package inetsoft.util.script.graal;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.util.script.LendableReentrantLock;
 import inetsoft.util.script.ScriptException;
 import inetsoft.util.script.graal.pool.WsExecContext;
@@ -2612,10 +2613,16 @@ public class GraalJavaScriptEngine implements AutoCloseable {
                DataUnavailable.rethrow(ex.asHostException());
             }
 
+            // nor is the load failure of a table the script read, for a reader that has to fail,
+            // e.g. a scheduled run. It is kept as the cause, for the readers that look for it
+            // (a calc table), and other callers get the script error as before (bug #78071)
+            TableLoadException loadFailure = ex.isHostException() ?
+               TableLoadException.find(ex.asHostException()) : null;
+
             // FIX B: increment per-Source error count and warn when limit first crossed
             int limit = maxErrors();
 
-            if(limit > 0) {
+            if(limit > 0 && loadFailure == null) {
                int prev = errorCounts().getOrDefault(script, 0);
                int next = prev + 1;
                errorCounts().put(script, next);
@@ -2637,7 +2644,9 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             // across the cluster (e.g. an Ignite affinity-call response). The
             // message already carries the JS error text and line; copy the
             // merged host/guest stack trace so nothing useful is lost. (#75555)
-            ScriptException se = new ScriptException(ex.getMessage() + loc);
+            ScriptException se = loadFailure == null ?
+               new ScriptException(ex.getMessage() + loc) :
+               new ScriptException(ex.getMessage() + loc, loadFailure);
             se.setStackTrace(ex.getStackTrace());
             // what the dropped cause said: stopped by a timeout or cancel, not failed. Also
             // when Java code the script called was stopped, e.g. a read of a formula cell

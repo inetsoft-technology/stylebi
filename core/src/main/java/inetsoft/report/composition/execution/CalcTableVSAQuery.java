@@ -31,6 +31,7 @@ import inetsoft.uql.asset.internal.ConditionUtil;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Catalog;
@@ -358,6 +359,14 @@ public class CalcTableVSAQuery extends DataVSAQuery {
 
             if(swapFailure != null) {
                throw swapFailure;
+            }
+
+            // nor a base that failed to load, for a reader that has to fail, e.g. a scheduled
+            // run (bug #78071)
+            TableLoadException loadFailure = TableLoadException.find(e);
+
+            if(loadFailure != null) {
+               throw loadFailure;
             }
 
             LOG.error("Failed to create calc table: " + e, e);

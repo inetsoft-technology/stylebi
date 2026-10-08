@@ -19,6 +19,7 @@ package inetsoft.util.script.graal;
 
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.util.script.ScriptException;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.swap.SwapFileReadException;
@@ -115,6 +116,29 @@ class GraalJavaScriptEngineUnavailableCountTest {
       host.failure = swap;
       assertNull(engine.exec(src, null, null));
       assertEquals(12, host.calls, "the capped script is not run");
+   }
+
+   /**
+    * Bug #78071: the load failure of a table the script read stays a ScriptException for the
+    * callers that take any script error, with the failure as its cause for a calc table that
+    * must fail with it, and it is not counted toward the limit.
+    */
+   @Test
+   void loadFailureIsTheCauseAndNotCounted() throws Exception {
+      Host host = new Host();
+      engine.put("host", host);
+      Object src = engine.compile("host.value()");
+      TableLoadException load = new TableLoadException("db down", new IOException("db down"));
+
+      for(int i = 0; i < 3; i++) {
+         host.failure = i == 0 ? load : new IllegalStateException("wrapped", load);
+         ScriptException ex =
+            assertThrows(ScriptException.class, () -> engine.exec(src, null, null));
+         assertSame(load, ex.getCause());
+      }
+
+      assertFalse(errorCounts().containsKey(src), "a load failure is not a script error");
+      assertEquals(3, host.calls);
    }
 
    @Test

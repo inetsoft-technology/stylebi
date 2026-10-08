@@ -26,6 +26,7 @@ import inetsoft.report.lens.SubTableLens;
 import inetsoft.report.internal.Util;
 import inetsoft.report.script.formula.CellRange;
 import inetsoft.uql.XTable;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.util.Tool;
 import inetsoft.util.script.ArrayObject;
 import inetsoft.util.script.graal.ScriptArrayScope;
@@ -254,6 +255,14 @@ public class TableArray implements ArrayObject, ScriptArrayScope {
          // a stalled table or one whose swap file is lost has no value to return, the failure
          // is not a script value (#77123, #77910)
          DataUnavailable.rethrow(ex);
+
+         // nor has a table that failed to load, for a reader that has to fail, e.g. a
+         // scheduled run (bug #78071)
+         TableLoadException loadFailure = TableLoadException.find(ex);
+
+         if(loadFailure != null) {
+            throw loadFailure;
+         }
 
          LOG.warn("Failed to get table property: " + id, ex);
       }
