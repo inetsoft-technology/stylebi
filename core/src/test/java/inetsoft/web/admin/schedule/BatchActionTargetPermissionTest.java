@@ -537,6 +537,98 @@ class BatchActionTargetPermissionTest {
       assertEquals(List.of("BatpNoSecurity", ALICE_TASK), startedTasks());
    }
 
+   // --- the saving principal, the editor re-save and the legitimate run -----------------------
+
+   // the owner (an org admin) may see mate's task, the delegated saver may not, the target it
+   // adds is refused for the saver
+   @Test
+   void delegatedSaver_addedTargetOnlyTheOwnerMaySee_isRefused() throws Exception {
+      String targetId = storeTask("BatpMateTask", "mate", null);
+      String holderId = storeTask("BatpDelegatedHolder", "oadmin", null);
+      SRPrincipal granted = principal("granted");
+      SRPrincipal oadmin = principal("oadmin");
+      ScheduleTask edited = scheduleManager.getScheduleTask(holderId, ORG).clone();
+      edited.addAction(batchAction(targetId));
+
+      assertThrows(inetsoft.sree.security.SecurityException.class,
+         () -> as(granted, () -> {
+            scheduleManager.setScheduleTask(holderId, edited, granted);
+            return null;
+         }));
+      assertEquals(0, assertPersisted(holderId).getActionCount(), "nothing was saved");
+
+      // the owner itself may add it
+      as(oadmin, () -> {
+         scheduleManager.setScheduleTask(holderId, edited.clone(), oadmin);
+         return null;
+      });
+      assertEquals(targetId, target(assertPersisted(holderId)));
+   }
+
+   // the EM import pre-check (ImportTaskController) refuses an added target and lets a kept one
+   // through
+   @Test
+   void importPreCheck_addedTargetRefused_keptTargetAllowed() throws Exception {
+      String addedId = storeTask("BatpImportAdded", "mallory", null);
+      String keptId = storeTask("BatpImportKept", "mallory", ALICE_TASK_ID);
+      SRPrincipal mallory = principal("mallory");
+
+      assertThrows(inetsoft.sree.security.SecurityException.class,
+         () -> as(mallory, () -> {
+            scheduleManager.checkScheduleTaskSave(
+               addedId, newTask("BatpImportAdded", "mallory", ALICE_TASK_ID), mallory);
+            return null;
+         }));
+
+      as(mallory, () -> {
+         scheduleManager.checkScheduleTaskSave(
+            keptId, newTask("BatpImportKept", "mallory", ALICE_TASK_ID), mallory);
+         return null;
+      });
+   }
+
+   // the editor rebuilds the batch action from the model, a kept target the owner no longer sees
+   // still saves, and the run refuses it
+   @Test
+   void editorResave_keptTargetTheOwnerNoLongerSees_isSavedAndRefusedAtRun() throws Throwable {
+      String holderId = storeTask("BatpEditorKept", "mallory", ALICE_TASK_ID);
+      SRPrincipal mallory = principal("mallory");
+
+      as(mallory, () -> service.saveTask(batchModel(holderId, ALICE_TASK_ID), LINK, mallory,
+                                         true));
+      ScheduleTask holder = assertPersisted(holderId);
+      assertEquals(ALICE_TASK_ID, target(holder));
+
+      Throwable thrown = assertThrows(Throwable.class, () -> runTask(holder));
+
+      assertInstanceOf(inetsoft.sree.security.SecurityException.class, thrown);
+      assertEquals(List.of("BatpEditorKept"), startedTasks(), "the target task is not run");
+   }
+
+   // a target the owner may see runs as before: as the target's owner, with the parameters of the
+   // batch action in its viewsheet request and variables
+   @Test
+   void run_permittedTargetOfAnotherOwner_runsAsTheTargetOwnerWithTheBatchParameters()
+      throws Throwable
+   {
+      ScheduleTask alice = newTask(ALICE_TASK, "alice", null);
+      ViewsheetAction vsAction = new ViewsheetAction(
+         "1^128^__NULL__^BatpVs^" + ORG, new inetsoft.sree.RepletRequest());
+      vsAction.setEmails("$(region)@example.com");
+      alice.addAction(vsAction);
+      storeRawTask(alice, ORG);
+      String holderId = storeTask("BatpRunPermitted", "oadmin", ALICE_TASK_ID);
+      SreeEnv.setProperty("schedule.task.listener", ChildRecordingListener.class.getName());
+      ChildRecordingListener.RUNS.clear();
+      ScheduleTask holder = scheduleManager.getScheduleTask(holderId, ORG);
+      Principal principal = SUtil.getScheduleTaskRunPrincipal(holder, null, false);
+      ThreadContext.setContextPrincipal(principal);
+
+      holder.run(principal);
+
+      assertEquals(List.of(ALICE_TASK + "|alice|x|x@example.com"), ChildRecordingListener.RUNS);
+   }
+
    // --- helpers --------------------------------------------------------------------------------
 
    private ScheduleService renameService() {
@@ -704,6 +796,30 @@ class BatchActionTargetPermissionTest {
       @Override
       public void taskStarted(ScheduleTask task, Principal user) {
          RUNS.add(task.getName());
+      }
+
+      @Override
+      public void taskCompleted(ScheduleTask task, Principal user, List<Throwable> errors) {
+      }
+
+      static final List<String> RUNS = Collections.synchronizedList(new ArrayList<>());
+   }
+
+   /**
+    * Records each started task that has a viewsheet action (name, user, parameter, emails) and
+    * cancels its viewsheet actions, so no viewsheet is run.
+    */
+   public static final class ChildRecordingListener implements TaskListener {
+      @Override
+      public void taskStarted(ScheduleTask task, Principal user) {
+         for(int i = 0; i < task.getActionCount(); i++) {
+            if(task.getAction(i) instanceof ViewsheetAction vs) {
+               RUNS.add(task.getName() + "|" +
+                        IdentityID.getIdentityIDFromKey(user.getName()).getName() + "|" +
+                        vs.getViewsheetRequest().getParameter("region") + "|" + vs.getEmails());
+               vs.cancel();
+            }
+         }
       }
 
       @Override
