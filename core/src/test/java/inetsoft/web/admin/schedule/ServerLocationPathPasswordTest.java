@@ -175,6 +175,31 @@ class ServerLocationPathPasswordTest {
       assertEquals(PASSWORD, path.getPassword());
    }
 
+   @Test
+   void taskOutsideLocationLoginDoesNotGetPathPassword() throws Exception {
+      SreeEnv.setProperty(PROPERTY, LOCATION + "|Reports");
+
+      assertEquals(PASSWORD, saveToServerPath("ftp://files.corp.example/reports/a.pdf", "svc",
+                                              PLACEHOLDER).getPassword());
+      assertNull(saveToServerPath("ftp://bob@files.corp.example/reports/a.pdf", null, PLACEHOLDER)
+                    .getPassword());
+      assertNull(saveToServerPath("ftp://svc@other.example/reports/a.pdf", null, PLACEHOLDER)
+                    .getPassword());
+      assertNull(saveToServerPath("ftp://svc@files.corp.example/other/a.pdf", null, PLACEHOLDER)
+                    .getPassword());
+      assertNull(saveToServerPath("sftp://svc@files.corp.example/reports/a.pdf", null, PLACEHOLDER)
+                    .getPassword());
+   }
+
+   @Test
+   void relabeledLocationKeepsPathPassword() {
+      SreeEnv.setProperty(PROPERTY, LOCATION + "|Reports");
+      ServerLocation location = SUtil.getServerLocations().get(0);
+      saveLocations(ServerLocation.builder().from(location).label("Archive").build());
+
+      assertEquals(SPLIT + "|Archive|svc|" + PASSWORD, stored());
+   }
+
    private static ServerLocation location(String path, String username, String password,
                                           boolean ftp)
    {
