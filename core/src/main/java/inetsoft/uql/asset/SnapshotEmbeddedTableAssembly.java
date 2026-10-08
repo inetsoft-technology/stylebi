@@ -158,8 +158,9 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
       this.fileDirty = true;
       prefix = count.getAndIncrement();
 
-      // don't delete data files of the original assembly
-      dataPathsPendingDelete.clear();
+      // don't delete data files of the original assembly, the stored worksheet it came from
+      // still names them
+      committedDataPaths = null;
    }
 
    /**
@@ -450,9 +451,11 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
    /**
     * Write the data files of the snapshot tables of a worksheet before the worksheet is saved,
     * so that a failed write stops the save before anything is stored, and the stored worksheet
-    * keeps its previous data. The files replaced by the new ones are kept until
+    * keeps its previous data. The files named by the stored worksheet are kept until
     * {@link #finishSave(Worksheet, boolean)} is called after the worksheet is stored, so a
     * failed save never leaves the stored worksheet pointing at deleted files (bug #77986).
+    * The files the saved worksheet names are marked as not temporary before it is stored, so
+    * they are not removed as expired temp files later (bug #78012).
     *
     * @param ws the worksheet to save.
     *
@@ -472,7 +475,8 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
 
    /**
     * Finish a save started by {@link #writeDataFilesForSave(Worksheet)}. If the worksheet was
-    * stored, the data files replaced by the saved ones are deleted.
+    * stored, the data files that the previously stored version named and the saved one no
+    * longer names are deleted. Nothing else ever deletes them (bug #78012).
     *
     * @param ws    the saved worksheet.
     * @param saved {@code true} if the worksheet was stored.
@@ -512,13 +516,25 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
 
    private synchronized void writeDataFilesForSave() {
       dataWriteFailed = false;
-      deferOldFileDelete = true;
 
       try {
          XSwappableTable stable = prepareWrite();
 
          if(stable != null && (dataPaths == null || fileDirty) && !writeDataFiles(stable)) {
             throw new IOException("Table swap file is missing");
+         }
+
+         // files written by a temp write (undo checkpoint, cache flush) that the saved worksheet
+         // names must not expire as temp files. the table is not dirty after such a write, so
+         // writeDataFiles did not run (bug #78012)
+         if(stable != null && dataPaths != null && !Worksheet.isTemp()) {
+            EmbeddedTableStorage storage = EmbeddedTableStorage.getInstance();
+
+            for(String dataPath : dataPaths) {
+               if(storage.clearTempFlag(dataPath + "_s.tdat")) {
+                  dataTS = System.currentTimeMillis();
+               }
+            }
          }
       }
       catch(Exception ex) {
@@ -535,8 +551,6 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
     * @return {@code true} if the worksheet was stored without the data of this table.
     */
    private synchronized boolean finishSave(boolean saved) {
-      deferOldFileDelete = false;
-
       if(!saved) {
          return false;
       }
@@ -545,10 +559,19 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
          return true;
       }
 
-      if(!Worksheet.isTemp() && !dataPathsPendingDelete.isEmpty()) {
-         deleteOldFiles(dataPaths);
+      if(Worksheet.isTemp() || dataPaths == null) {
+         return false;
       }
 
+      // the stored worksheet now names dataPaths. delete the files the previously stored version
+      // named and this one does not. the files a temp write (cache flush, undo checkpoint) or
+      // another copy of the worksheet replaced are not deleted, since the stored worksheet may
+      // still name them (bug #78012)
+      if(committedDataPaths != null && !Arrays.equals(committedDataPaths, dataPaths)) {
+         deleteOldFiles(committedDataPaths, dataPaths);
+      }
+
+      committedDataPaths = dataPaths.clone();
       return false;
    }
 
@@ -612,38 +635,42 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
                }
             }
          }
-
-         // don't change the original datafiles when save worksheet for autosave.
-         if(shouldDeleteOldFiles && this.dataPaths != null &&
-            !Arrays.equals(dataPaths, this.dataPaths) &&
-            dataPaths.length == this.dataPaths.length)
-         {
-            dataPathsPendingDelete.add(this.dataPaths);
-         }
       }
 
-      // if worksheet is saved, then delete the old files (including non-temp). during a save
-      // they are deleted after the worksheet is stored (bug #77986)
-      if(!Worksheet.isTemp() && !deferOldFileDelete && !dataPathsPendingDelete.isEmpty()) {
-         deleteOldFiles(dataPaths);
-      }
-
+      // the replaced files are not deleted here. a stored worksheet may still name them, and
+      // only finishSave() after a successful save may delete them (bug #78012)
       this.dataPaths = dataPaths;
       fileDirty = false;
-      shouldDeleteOldFiles = true;
       return true;
    }
 
-   private void deleteOldFiles(String[] newDataPaths) {
-      for(String[] oldDataPaths : dataPathsPendingDelete) {
-         // only delete file if different files are written. (50334)
-         deleteDataFiles(oldDataPaths, "Data file overwritten: " + getName() + " files: " +
-                                       Arrays.toString(oldDataPaths) + " replaced by: " +
-                                       Arrays.toString(newDataPaths));
-         updateDataFiles(stable, newDataPaths, oldDataPaths);
+   /**
+    * Delete the files that the previously stored worksheet named and the saved one does not.
+    */
+   private void deleteOldFiles(String[] oldDataPaths, String[] newDataPaths) {
+      Set<String> kept = new HashSet<>(Arrays.asList(newDataPaths));
+      List<String> replaced = new ArrayList<>();
+
+      for(String oldDataPath : oldDataPaths) {
+         if(!kept.contains(oldDataPath)) {
+            replaced.add(oldDataPath);
+         }
       }
 
-      dataPathsPendingDelete.clear();
+      if(replaced.isEmpty()) {
+         return;
+      }
+
+      // only delete file if different files are written. (50334) a file may already be deleted
+      // by the save of another copy of the worksheet
+      String[] existing = replaced.stream()
+         .filter(path -> dataFileExist(path + "_s.tdat"))
+         .toArray(String[]::new);
+      deleteDataFiles(existing, "Data file overwritten: " + getName() + " files: " +
+                                Arrays.toString(oldDataPaths) + " replaced by: " +
+                                Arrays.toString(newDataPaths));
+      // keep other copies (e.g. another session) from saving the deleted files again
+      updateDataFiles(stable, newDataPaths, oldDataPaths);
    }
 
    // the snapshot assembly may be cloned in CompositeTableAssembly.getTableAssemblies(true)
@@ -727,6 +754,8 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
 
          dataPathsLoadVersion.put(dataPaths[i], loadVersion);
       }
+
+      committedDataPaths = dataPaths.clone();
 
       Element hnode = Tool.getChildNodeByTagName(delem, "headers");
       NodeList hnodes = Tool.getChildNodesByTagName(hnode, "header");
@@ -824,7 +853,9 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
          table2.originalSTable = originalSTable;
          table2.columns = table2.getColumnSelection(false);
          table2.dataWriteFailed = false;
-         table2.deferOldFileDelete = false;
+         // each copy keeps its own state, so one copy never deletes the files another copy
+         // (or the stored worksheet) still names (bug #78012)
+         table2.committedDataPaths = committedDataPaths == null ? null : committedDataPaths.clone();
          snapshots.add(new WeakReference<>(table2));
          return table2;
       }
@@ -1093,10 +1124,6 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
       return undoable;
    }
 
-   public void setShouldDeleteOldFiles(boolean shouldDeleteOldFiles) {
-      this.shouldDeleteOldFiles = shouldDeleteOldFiles;
-   }
-
    private static final AtomicInteger count = new AtomicInteger(0);
    private static final String PDATA = "pdata";
    private static final Logger LOG = LoggerFactory.getLogger(SnapshotEmbeddedTableAssembly.class);
@@ -1113,22 +1140,20 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
    // 1. memory only (no file): dataPaths == null
    // 2. memory and file in sync: dataPaths != null && !fileDirty
    // 3. memory and file out of sync: dataPaths != null && fileDirty
-   // dirty file will be removed when new files are written or
-   // sheet is saved and the delete flag is true
+   // replaced files are removed only after the worksheet is saved (finishSave)
    private String[] dataPaths = null;
-   private Set<String[]> dataPathsPendingDelete = new HashSet<>();
+   // the data paths named by the stored worksheet this table was loaded from or last saved to.
+   // only these may be deleted, by a save that no longer names them (bug #78012)
+   private String[] committedDataPaths = null;
    private Map<String, String> dataPathsLoadVersion = new HashMap<>();
    private Map<String, XMetaInfo> metaInfoMap = null;
    private long dataTS = 0;
    private boolean fileDirty = false;
    private boolean deleted = false;
    private boolean undo = false;
-   private transient boolean shouldDeleteOldFiles = true;
    private transient boolean dataPathsUpdated;
    // the last write of the data did not store it (bug #77986)
    private transient boolean dataWriteFailed;
-   // a save is in progress, keep the replaced files until the worksheet is stored (bug #77986)
-   private transient boolean deferOldFileDelete;
 
    public static final String FILE_REFERENCES_MAP = "inetsoft.snapshot.file.map";
    public static final String FILE_REFERENCES_MAP_LOCK = "inetsoft.snapshot.file.map.lock";

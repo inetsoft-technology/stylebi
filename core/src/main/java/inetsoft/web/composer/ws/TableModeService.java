@@ -209,6 +209,13 @@ public class TableModeService extends WorksheetControllerService {
       checkCubeTableReadPermission(principal, tableName);
       TableAssembly table = (TableAssembly) ws.getAssembly(tableName);
 
+      // a snapshot table has no edit mode (it is not editable in the composer). its data is in
+      // stored files that a cell edit must not touch before the worksheet is saved (bug #78012)
+      if(table instanceof SnapshotEmbeddedTableAssembly) {
+         LOG.warn("Edit mode is not supported for snapshot table: {}", tableName);
+         return null;
+      }
+
       if(table != null) {
          table.setRuntime(false);
          table.setEditMode(true);

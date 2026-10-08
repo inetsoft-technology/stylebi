@@ -58,6 +58,16 @@ public class WSEditTableDataService extends WorksheetControllerService {
    public Void editTableData(@ClusterProxyKey String runtimeId,  WSEditTableDataEvent event,
                              Principal principal, CommandDispatcher commandDispatcher) throws Exception
    {
+      RuntimeWorksheet rws = super.getRuntimeWorksheet(runtimeId, principal);
+
+      // a snapshot table is not editable, its data is in stored files (bug #78012)
+      if(rws.getWorksheet().getAssembly(event.getTableName()) instanceof
+         SnapshotEmbeddedTableAssembly)
+      {
+         LOG.warn("Cell editing is not supported for snapshot table: {}", event.getTableName());
+         return null;
+      }
+
       final WSEditTableDataKeyTuple keyTuple =
          new WSEditTableDataKeyTuple(runtimeId, event.getTableName());
       WSEditTableDataQueue<WSEditTableDataEvent> queue;
@@ -79,7 +89,6 @@ public class WSEditTableDataService extends WorksheetControllerService {
          return null;
       }
 
-      RuntimeWorksheet rws = super.getRuntimeWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
       String name = event.getTableName();
       EmbeddedTableAssembly table =
@@ -143,11 +152,6 @@ public class WSEditTableDataService extends WorksheetControllerService {
 
          if(!error) {
             queue.lastSuccesfulEvent = event;
-         }
-
-         if(table instanceof SnapshotEmbeddedTableAssembly) {
-            ((SnapshotEmbeddedTableAssembly) table).deleteDataFiles(
-               "Embedded data edited: " + name);
          }
 
          if(error) {
