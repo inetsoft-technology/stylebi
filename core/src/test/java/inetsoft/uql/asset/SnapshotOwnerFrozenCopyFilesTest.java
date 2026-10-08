@@ -40,6 +40,9 @@ import org.springframework.context.annotation.*;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import inetsoft.util.Tool;
+
+import java.io.*;
 import java.lang.reflect.Constructor;
 import java.util.*;
 
@@ -181,6 +184,161 @@ class SnapshotOwnerFrozenCopyFilesTest {
       assertEquals("old4", table.getObject(5, 1));
    }
 
+   // bug #78036: W2 embeds W1 with Auto Update off and is not saved, so it is not in the
+   // dependency storage. W1's save in another session keeps its data
+   @Test
+   void unsavedFrozenCopyKeepsItsDataDuringOwnerSave() throws Exception {
+      AssetEntry e1 = entry("ofc_unsaved_w1");
+      String[] paths1 = saveOwner(e1, "old", 50);
+      Worksheet ws2 = embed(e1, false);
+      SnapshotEmbeddedTableAssembly copy = outerCopy(ws2);
+      assertArrayEquals(paths1, copy.getDataPaths());
+      repository().clearCache(e1);
+
+      String[] paths2 = resaveOwner(e1, "new", 80);
+
+      assertArrayEquals(paths1, copy.getDataPaths(), "unsaved frozen copy moved to W1's files");
+      assertFilesExist(paths1, true, "files of the unsaved frozen copy deleted by W1's save");
+      clearCaches(e1, paths1, paths2);
+      XSwappableTable table = copy.getTable();
+      table.moreRows(XTable.EOT);
+      assertEquals(51, table.getRowCount());
+      assertEquals("old4", table.getObject(5, 1));
+
+      // a second save of W1 still keeps them
+      resaveOwner(e1, "newer", 90);
+      assertFilesExist(paths1, true, "files of the unsaved frozen copy deleted by W1's 2nd save");
+      assertArrayEquals(paths1, copy.getDataPaths());
+
+      // saving W2 gives the copy its own files with the old data
+      AssetEntry e2 = entry("ofc_unsaved_w2");
+      save(ws2, e2);
+      assertTrue(copy.ownsDataFiles());
+      assertEquals("old4", coldLoad(e2, null, paths1, paths2).getObject(5, 1));
+   }
+
+   // control: an unsaved copy that updates on load is moved to W1's new files, as a copy used by
+   // a query of W1's own table is (bug #58476)
+   @Test
+   void unsavedAutoUpdateCopyIsMovedToNewFilesDuringOwnerSave() throws Exception {
+      AssetEntry e1 = entry("ofc_unsaved_auto_w1");
+      String[] paths1 = saveOwner(e1, "old", 50);
+      Worksheet ws2 = embed(e1, true);
+      SnapshotEmbeddedTableAssembly copy = outerCopy(ws2);
+      assertArrayEquals(paths1, copy.getDataPaths());
+      repository().clearCache(e1);
+
+      String[] paths2 = resaveOwner(e1, "new", 80);
+
+      assertFilesExist(paths1, false, "W1's replaced files not deleted");
+      assertArrayEquals(paths2, copy.getDataPaths());
+      clearCaches(e1, paths1);
+      XSwappableTable table = copy.getTable();
+      table.moreRows(XTable.EOT);
+      assertEquals(81, table.getRowCount());
+      assertEquals("new4", table.getObject(5, 1));
+   }
+
+   // a runtime worksheet moved to the cache storage and restored is written and parsed again
+   @Test
+   void reparsedUnsavedFrozenCopyKeepsItsDataDuringOwnerSave() throws Exception {
+      AssetEntry e1 = entry("ofc_reparse_w1");
+      String[] paths1 = saveOwner(e1, "old", 50);
+      Worksheet ws2 = embed(e1, false);
+      SnapshotEmbeddedTableAssembly original = outerCopy(ws2);
+      Worksheet reparsed = reparse(ws2);
+      SnapshotEmbeddedTableAssembly copy = outerCopy(reparsed);
+      assertFalse(copy.ownsDataFiles());
+      assertArrayEquals(paths1, copy.getDataPaths());
+      assertTrue(SnapshotEmbeddedTableAssembly.getOpenFrozenCopies().contains(copy),
+                 "reparsed copy not known as an unsaved frozen copy");
+      // only the reparsed copy is left to hold the files, the original is not collected yet
+      original.setDataOwner(true);
+      assertFalse(SnapshotEmbeddedTableAssembly.getOpenFrozenCopies().contains(original));
+      repository().clearCache(e1);
+
+      String[] paths2 = resaveOwner(e1, "new", 80);
+
+      assertArrayEquals(paths1, copy.getDataPaths(), "reparsed frozen copy moved to W1's files");
+      assertFilesExist(paths1, true, "files of the reparsed frozen copy deleted by W1's save");
+      clearCaches(e1, paths1, paths2);
+      XSwappableTable table = copy.getTable();
+      table.moreRows(XTable.EOT);
+      assertEquals(51, table.getRowCount());
+      assertEquals("old4", table.getObject(5, 1));
+   }
+
+   // a table stored with its own files is not an unsaved copy any more
+   @Test
+   void savedFrozenCopyIsNotWrittenAsEmbeddedCopy() throws Exception {
+      AssetEntry e1 = entry("ofc_flag_w1");
+      AssetEntry e2 = entry("ofc_flag_w2");
+      saveOwner(e1, "old", 50);
+      Worksheet ws2 = embed(e1, false);
+      save(ws2, e2);
+
+      assertTrue(outerCopy(ws2).ownsDataFiles());
+      assertFalse(SnapshotEmbeddedTableAssembly.getOpenFrozenCopies().contains(outerCopy(ws2)));
+      assertTrue(storedCopy(e2).ownsDataFiles());
+      assertFalse(SnapshotEmbeddedTableAssembly.getOpenFrozenCopies()
+                     .contains(outerCopy(reparse(ws2))));
+   }
+
+   // an unsaved frozen copy and an unsaved auto-update copy are open together: the old files are
+   // kept for the frozen copy only, the auto-update copy is moved to the new files
+   @Test
+   void unsavedFrozenAndAutoUpdateCopiesDuringOwnerSave() throws Exception {
+      AssetEntry e1 = entry("ofc_both_w1");
+      String[] paths1 = saveOwner(e1, "old", 50);
+      SnapshotEmbeddedTableAssembly frozen = outerCopy(embed(e1, false));
+      SnapshotEmbeddedTableAssembly auto = outerCopy(embed(e1, true));
+      repository().clearCache(e1);
+
+      String[] paths2 = resaveOwner(e1, "new", 80);
+
+      assertArrayEquals(paths1, frozen.getDataPaths(), "frozen copy moved to W1's files");
+      assertArrayEquals(paths2, auto.getDataPaths(), "auto update copy left on the old files");
+      assertFilesExist(paths1, true, "files of the frozen copy deleted by W1's save");
+      clearCaches(e1, paths1, paths2);
+      XSwappableTable table = frozen.getTable();
+      table.moreRows(XTable.EOT);
+      assertEquals("old4", table.getObject(5, 1));
+      table = auto.getTable();
+      table.moreRows(XTable.EOT);
+      assertEquals(81, table.getRowCount());
+      assertEquals("new4", table.getObject(5, 1));
+   }
+
+   // a copy of the owner's own table made for a query (bug #58476) is moved to the new files,
+   // with and without a frozen copy that keeps the old ones
+   @Test
+   void queryCloneOfOwnerTableIsMovedToNewFiles() throws Exception {
+      AssetEntry e1 = entry("ofc_clone_w1");
+      String[] paths1 = saveOwner(e1, "old", 50);
+      Worksheet ws1 = open(e1);
+      SnapshotEmbeddedTableAssembly clone =
+         (SnapshotEmbeddedTableAssembly) ws1.getAssembly(NAME).clone();
+      assertArrayEquals(paths1, clone.getDataPaths());
+
+      String[] paths2 = resaveOwner(e1, "new", 80);
+
+      assertArrayEquals(paths2, clone.getDataPaths(), "clone left on the replaced files");
+      assertFilesExist(paths1, false, "W1's replaced files not deleted");
+
+      SnapshotEmbeddedTableAssembly frozen = outerCopy(embed(e1, false));
+      assertArrayEquals(paths2, frozen.getDataPaths());
+      repository().clearCache(e1);
+      Worksheet ws1b = open(e1);
+      SnapshotEmbeddedTableAssembly clone2 =
+         (SnapshotEmbeddedTableAssembly) ws1b.getAssembly(NAME).clone();
+
+      String[] paths3 = resaveOwner(e1, "newer", 90);
+
+      assertArrayEquals(paths2, frozen.getDataPaths());
+      assertArrayEquals(paths3, clone2.getDataPaths(), "clone left on the kept files");
+      assertFilesExist(paths2, true, "files of the frozen copy deleted by W1's save");
+   }
+
    // only the files the frozen copy names are kept, later replaced files of W1 are deleted, and an
    // auto-updated copy next to the frozen one gets W1's new data
    @Test
@@ -320,6 +478,23 @@ class SnapshotOwnerFrozenCopyFilesTest {
       ws.addAssembly(mirror);
       ws.setPrimaryAssembly(MIRROR);
       return ws;
+   }
+
+   // write and parse a worksheet as a runtime worksheet moved to the cache storage is
+   private static Worksheet reparse(Worksheet ws) throws Exception {
+      StringWriter buffer = new StringWriter();
+      Worksheet.setIsTEMP(true);
+
+      try(PrintWriter writer = new PrintWriter(buffer)) {
+         ws.writeXML(writer);
+      }
+      finally {
+         Worksheet.setIsTEMP(false);
+      }
+
+      Worksheet result = new Worksheet();
+      result.parseXML(Tool.parseXML(new StringReader(buffer.toString())).getDocumentElement());
+      return result;
    }
 
    // as the composer saves, updating the dependency storage
