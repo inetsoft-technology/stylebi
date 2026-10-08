@@ -461,5 +461,82 @@ describe("PhysicalTableJoinsComponent.editJoin - dialog cancel / commit (Bug #77
          http.expectNone(() => true);
          expect(Tool.isEquals(table, modelBefore)).toBe(true);
       });
+
+      /**
+       * Bug #77997, the join type select must keep joinModel.type a number. With
+       * <option [value]> a user change stored the DOM string ("1"), so changing the type away
+       * and back made the join compare unequal and OK sent join/modify.
+       */
+      describe("join type select (Bug #77997)", () => {
+         function joinTypeSelect(): HTMLSelectElement {
+            return dialogView.rootNodes
+               .map((n: HTMLElement) => n.querySelector?.("select"))
+               .find(s => !!s);
+         }
+
+         async function chooseJoinType(type: JoinType) {
+            const select = joinTypeSelect();
+            select.selectedIndex = dialog.joinTypes.findIndex(o => o.value === type);
+            expect(select.selectedIndex).toBeGreaterThanOrEqual(0);
+            select.dispatchEvent(new Event("change"));
+            dialogView.detectChanges();
+            await settle();
+            dialogView.detectChanges();
+         }
+
+         it("should preselect the join's current type when the dialog opens", async () => {
+            const join = makeServerJoin();
+            join.type = JoinType.GREATER;
+            const { comp } = createWithSelectedJoin(join);
+
+            await openDialog(comp);
+
+            const select = joinTypeSelect();
+            const greater = dialog.joinTypes.findIndex(o => o.value === JoinType.GREATER);
+            expect(select.selectedIndex).toBe(greater);
+            expect(select.options[select.selectedIndex].textContent.trim())
+               .toBe(dialog.joinTypes[greater].label);
+         });
+
+         it("should send nothing when the type is changed away and back before OK", async () => {
+            const join = makeServerJoin();
+            const { comp, table } = createWithSelectedJoin(join);
+            const modelBefore = structuredClone(table);
+            const tableChange = vi.fn();
+            comp.tableChange.subscribe(tableChange);
+
+            await openDialog(comp);
+            await chooseJoinType(JoinType.LEFT_OUTER);
+            await chooseJoinType(JoinType.EQUAL);
+            dialogButton("OK").click();
+            await settle();
+
+            http.expectNone(() => true);
+            expect(tableChange).not.toHaveBeenCalled();
+            expect(join.type).toBe(JoinType.EQUAL);
+            // same deep comparison DatabasePhysicalModelComponent.ngDoCheck uses for isModified
+            expect(Tool.isEquals(table, modelBefore)).toBe(true);
+         });
+
+         it("should send one join/modify with a numeric type for a real change", async () => {
+            const join = makeServerJoin();
+            const { comp, table } = createWithSelectedJoin(join);
+            const modelBefore = structuredClone(table);
+
+            await openDialog(comp);
+            await chooseJoinType(JoinType.GREATER);
+            dialogButton("OK").click();
+            await settle();
+
+            const req = http.expectOne(JOIN_MODIFY_URL);
+            expect(req.request.method).toBe("PUT");
+            const item = (req.request.body as EditJoinsEvent).joinItems[0] as ModifyJoinEventItem;
+            expect(item.join.type).toBe(JoinType.GREATER);
+            expect(item.oldJoin.type).toBe(JoinType.EQUAL);
+            expect(join.type).toBe(JoinType.GREATER);
+            expect(Tool.isEquals(table, modelBefore)).toBe(false);
+            req.flush({});
+         });
+      });
    });
 });
