@@ -310,7 +310,7 @@ public class HTMLVSExporter extends AbstractVSExporter {
          boolean shadow = false;
 
          if(assembly instanceof TextVSAssembly) {
-            shadow = ((TextVSAssemblyInfo) info).getShadowValue();
+            shadow = ((TextVSAssemblyInfo) info).isShadow();
          }
 
          Rectangle2D bounds = helper.getBounds(info);
