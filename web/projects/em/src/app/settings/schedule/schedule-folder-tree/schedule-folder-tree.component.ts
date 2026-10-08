@@ -40,6 +40,7 @@ import { StompClientConnection } from "../../../../../../shared/stomp/stomp-clie
 import { EmScheduleChangeService } from "../schedule-task-list/em-schedule-change.service";
 import { MultiSelectTreeNodeDirective } from "../../../common/util/tree/multi-select-tree-node.directive";
 import { TopScrollDirective } from "../../../top-scroll/top-scroll.directive";
+import { Tool } from "../../../../../../shared/util/tool";
 
 const TASKS_CHECK_FOLDER_URI = "../api/em/schedule/check-folder";
 const TASKS_MOVE_FOLDER_URI = "../api/em/schedule/move-folder";
@@ -445,39 +446,36 @@ export class ScheduleFolderTreeComponent implements OnInit, OnDestroy {
                   .filter(path => path != "/");
             }
 
-            this.http.post(CHECK_FOLDER_DEPENDENCY, model).subscribe(
-               (dependencies: string[]) => {
-                  if(dependencies.length) {
-                     // we make a copy so that pointer won"t get messed up
-                     let paramCopy = model.taskNames.slice();
+            this.http.post<TaskListModel>(CHECK_FOLDER_DEPENDENCY, model).subscribe(
+               (taskListModel: TaskListModel) => {
+                  const dependencies: string[] = taskListModel?.taskNames ?? [];
 
-                     // filter out all the dependency tasks by keeping those that are not found in dependencies
-                     // we delete the filtered list
-                     model.taskNames = paramCopy.filter(task => !dependencies.includes(task));
-
-                     // if dependencies exist, we won"t delete them; let user know there are dependencies
+                  if(dependencies.length > 0) {
+                     // tasks in these folders have dependents, so don't remove anything (same as portal)
                      this.dialog.open(MessageDialog, this.setConfigs(`_#(js:em.schedule.dependenciesFound)`,
-                        `Because there are dependents of these tasks, we cannot delete the following: [${dependencies}]`,
+                        Tool.formatCatalogString("_#(js:em.schedule.task.removeDependency)",
+                           [dependencies.join(", ")]),
                         MessageDialogType.DEPENDENCY
                      ));
                   }
+                  else {
+                     // REMOVE TASKS
+                     this.http.post<ScheduleTaskList>(REMOVE_FOLDER_URI, model).subscribe(
+                        () => {
+                           let pathParent = this.selectedNodes[0].data.path;
+                           let index = pathParent.indexOf(this.selectedNodes[0].label);
+                           pathParent = index > 0 ? pathParent.substr(0, index - 1) : "/";
+                           this.safeRefreshTree(false, pathParent);
+                        },
+                        (error) => {
+                           const message = error.error != null && error.error.type == "MessageException" ?
+                              error.error.message : "Failed to remove selected tasks";
 
-                  // REMOVE TASKS
-                  this.http.post<ScheduleTaskList>(REMOVE_FOLDER_URI, model).subscribe(
-                     () => {
-                        let pathParent = this.selectedNodes[0].data.path;
-                        let index = pathParent.indexOf(this.selectedNodes[0].label);
-                        pathParent = index > 0 ? pathParent.substr(0, index - 1) : "/";
-                        this.safeRefreshTree(false, pathParent);
-                     },
-                     (error) => {
-                        const message = error.error != null && error.error.type == "MessageException" ?
-                           error.error.message : "Failed to remove selected tasks";
-
-                        this.dialog.open(MessageDialog, this.setConfigs(`_#(js:Error)`,
-                           message, MessageDialogType.ERROR));
-                     }
-                  );
+                           this.dialog.open(MessageDialog, this.setConfigs(`_#(js:Error)`,
+                              message, MessageDialogType.ERROR));
+                        }
+                     );
+                  }
                },
                () => {
                   this.dialog.open(MessageDialog, this.setConfigs(`_#(js:Error)`,
