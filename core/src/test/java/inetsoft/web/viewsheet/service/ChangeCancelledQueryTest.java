@@ -133,9 +133,99 @@ class ChangeCancelledQueryTest {
       // the other order of A's loop is covered by the calendar tests, the loop is the same
    }
 
+   /**
+    * The user's Cancel during A's crosstab fetch is a plain cancel: it stops A's request, so A
+    * loads no other table either, and it shows no error.
+    */
+   @Test
+   void userCancelStopsTheRequest() throws Exception {
+      Fixture f = otherTablesFixture("Y78024");
+      Result r = run(f,
+         d -> calendarService().applyCalendar(f.rid, CAL, calendarEvent("m2024-0"), f.principal,
+                                              d, ""),
+         d -> f.box.cancelAllQueries());
+
+      assertTrue(r.changeCancelled, "the user's cancel must cancel the crosstab's query");
+      assertInstanceOf(CancelledException.class, r.thrownA, "the user's cancel stops A");
+      assertFalse(r.thrownA instanceof ChangeCancelledException,
+                  "the user's cancel must not be skipped like a newer request's");
+      assertFalse(loaded(r.dispatcherA, XT), "A must not load the cancelled crosstab");
+      assertFalse(loaded(r.dispatcherA, "Y78024"), "A must not go on loading other tables");
+      assertNoError(r);
+   }
+
+   /**
+    * Changes that keep cancelling the crosstab's query while a calendar change loads it: the
+    * request warns (a WARNING message, not an ERROR) and still loads its other tables.
+    */
+   @Test
+   void changesThatKeepCancellingWarnTheRequest() throws Exception {
+      Fixture f = otherTablesFixture("Y78024");
+      CancellingQueryManager qmgr = new CancellingQueryManager();
+      queryManagers(f.box).put(XT, qmgr);
+      CommandDispatcher d = dispatcher();
+      Exception thrown = null;
+      qmgr.thread = Thread.currentThread();
+
+      try {
+         calendarService().applyCalendar(f.rid, CAL, calendarEvent("m2024-0"), f.principal, d, "");
+      }
+      catch(Exception ex) {
+         thrown = ex;
+      }
+      finally {
+         qmgr.thread = null;
+      }
+
+      assertTrue(qmgr.cancels > 3, "the query must be run again: " + qmgr.cancels);
+      assertTrue(thrown == null || thrown instanceof ChangeCancelledException,
+                 "only a skipped query may end the request: " + thrown);
+      List<MessageCommand> messages = mockingDetails(d).getInvocations().stream()
+         .flatMap(inv -> Arrays.stream(inv.getArguments()))
+         .filter(MessageCommand.class::isInstance)
+         .map(MessageCommand.class::cast)
+         .toList();
+      assertTrue(messages.stream().anyMatch(m -> m.getType() == MessageCommand.Type.WARNING &&
+         m.getMessage().contains(XT)), "the user must be warned: " + messages);
+      assertTrue(loaded(d, "Y78024"), "the other tables must still load");
+      Result r = new Result();
+      r.dispatcherA = d;
+      r.dispatcherB = dispatcher();
+      r.thrownA = thrown;
+      assertNoError(r);
+   }
+
    private void supersededCancelDoesNotStopLoading(String x2, boolean selectionA)
       throws Exception
    {
+      Fixture f = otherTablesFixture(x2);
+      Viewsheet vs = f.box.getViewsheet();
+      String value = firstValue(vs, SEL + "T");
+
+      VSCalendarService calendarService = calendarService();
+      ApplySelectionListEvent event = selectionEvent("NAMED");
+      ApplySelectionListEvent eventA = selectionEvent(value);
+      eventA.setEventSource(SEL + "T");
+      Call a = selectionA ?
+         d -> selectionService.applySelection(f.rid, SEL + "T", eventA, f.principal, d, "") :
+         d -> calendarService.applyCalendar(f.rid, CAL, calendarEvent("m2024-0"), f.principal, d, "");
+      Result r = run(f, a,
+         d -> selectionService.applySelection(f.rid, SEL, event, f.principal, d, ""));
+
+      assertTrue(r.changeCancelled, x2 + ": B's change must cancel the crosstab's query");
+      assertNull(r.thrownB, x2 + ": B must complete");
+      assertTrue(loaded(r.dispatcherB, XT), x2 + ": B loads the crosstab it reset");
+      assertFalse(loaded(r.dispatcherB, x2), x2 + ": B must not load the table it didn't change");
+      assertNull(r.thrownA, x2 + ": A must skip the crosstab B loads, but threw " + r.thrownA);
+      assertTrue(loaded(r.dispatcherA, x2), x2 + ": A must load the table B doesn't");
+      assertNoError(r);
+   }
+
+   /**
+    * The calendar on the base table T, the crosstab on its mirror U, a table x2 on T, a
+    * selection on U and one on T.
+    */
+   private Fixture otherTablesFixture(String x2) throws Exception {
       Fixture f = fixture();
       Viewsheet vs = f.box.getViewsheet();
       DataVSAssembly xt = (DataVSAssembly) vs.getAssembly(XT);
@@ -160,25 +250,7 @@ class ChangeCancelledQueryTest {
       baseInfo.setDataRef(new ColumnRef(new AttributeRef(null, "name")));
       vs.addAssembly(baseSelection);
       f.box.reset(null, vs.getAssemblies(), new ChangedAssemblyList(), true, true, null);
-      String value = firstValue(vs, SEL + "T");
-
-      VSCalendarService calendarService = calendarService();
-      ApplySelectionListEvent event = selectionEvent("NAMED");
-      ApplySelectionListEvent eventA = selectionEvent(value);
-      eventA.setEventSource(SEL + "T");
-      Call a = selectionA ?
-         d -> selectionService.applySelection(f.rid, SEL + "T", eventA, f.principal, d, "") :
-         d -> calendarService.applyCalendar(f.rid, CAL, calendarEvent("m2024-0"), f.principal, d, "");
-      Result r = run(f, a,
-         d -> selectionService.applySelection(f.rid, SEL, event, f.principal, d, ""));
-
-      assertTrue(r.changeCancelled, x2 + ": B's change must cancel the crosstab's query");
-      assertNull(r.thrownB, x2 + ": B must complete");
-      assertTrue(loaded(r.dispatcherB, XT), x2 + ": B loads the crosstab it reset");
-      assertFalse(loaded(r.dispatcherB, x2), x2 + ": B must not load the table it didn't change");
-      assertNull(r.thrownA, x2 + ": A must skip the crosstab B loads, but threw " + r.thrownA);
-      assertTrue(loaded(r.dispatcherA, x2), x2 + ": A must load the table B doesn't");
-      assertNoError(r);
+      return f;
    }
 
    /**
@@ -694,6 +766,46 @@ class ChangeCancelledQueryTest {
     * The crosstab's query manager. It holds the fetching thread where each of its first
     * attempts checks for a cancel (the query was created by then), and counts the attempts.
     */
+   /**
+    * The crosstab's query manager. Each time the crosstab's query checks for a cancel on the
+    * thread, a newer change cancels it first, as if changes kept coming.
+    */
+   private static final class CancellingQueryManager extends QueryManager {
+      CancellingQueryManager() {
+         super(true);
+      }
+
+      @Override
+      public long lastCancelled() {
+         if(Thread.currentThread() == thread && !inside &&
+            HoldingQueryManager.isQueryCancelCheck())
+         {
+            inside = true;
+
+            try {
+               // later than the query, to the millisecond
+               long now = System.currentTimeMillis();
+
+               while(System.currentTimeMillis() <= now) {
+                  Thread.onSpinWait();
+               }
+
+               cancelForChange();
+               cancels++;
+            }
+            finally {
+               inside = false;
+            }
+         }
+
+         return super.lastCancelled();
+      }
+
+      volatile Thread thread;
+      boolean inside;
+      int cancels;
+   }
+
    private static final class HoldingQueryManager extends QueryManager {
       HoldingQueryManager(int holds) {
          super(true);
