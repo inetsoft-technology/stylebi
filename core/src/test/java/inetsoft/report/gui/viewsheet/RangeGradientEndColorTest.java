@@ -97,9 +97,12 @@ class RangeGradientEndColorTest {
                    bands);
    }
 
-   @Test
-   void gaugeBandBeforeEmptyMiddleRowFadesIntoNextValuedRow() throws Exception {
-      List<String> bands = render(Kind.GAUGE, "25",
+   @ParameterizedTest
+   @EnumSource(Kind.class)
+   void bandBeforeEmptyMiddleRowFadesIntoNextValuedRow(Kind kind) throws Exception {
+      // the cylinder and thermometers also paint a zero-height band for the empty row
+      // (its null color filled from the next row), so check with contains, not equals
+      List<String> bands = render(kind, "25",
          new String[] { "5", "15", "", "20", "" },
          new Color[] { G, Y, null, R, null, BLEND });
 
@@ -109,9 +112,10 @@ class RangeGradientEndColorTest {
       assertFalse(bands.contains(band(Y, Y.darker())), bands::toString);
    }
 
-   @Test
-   void gaugeRowWithColorButNoValueDoesNotLeakItsColor() throws Exception {
-      List<String> bands = render(Kind.GAUGE, "25",
+   @ParameterizedTest
+   @EnumSource(Kind.class)
+   void rowWithColorButNoValueDoesNotLeakItsColor(Kind kind) throws Exception {
+      List<String> bands = render(kind, "25",
          new String[] { "5", "15", "20", "", "" },
          new Color[] { G, Y, R, O, null, BLEND });
 

@@ -72,7 +72,7 @@ import static org.mockito.Mockito.*;
 @ContextConfiguration(classes = BaseTestConfiguration.class,
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
-@Tag("slow")
+@Tag("core")
 class GaugeRangeGradientBlendPathTest {
    private static final Color G = new Color(0x00aa00);
    private static final Color Y = new Color(0xffcc00);
