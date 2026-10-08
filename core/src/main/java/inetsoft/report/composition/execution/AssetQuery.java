@@ -451,7 +451,7 @@ public abstract class AssetQuery extends PreAssetQuery {
             // the mv holds the data for the default values of the variables
             if(sub.getRuntimeMV() == null && !isVariableDependent(sub, new HashSet<>())) {
                RuntimeMV rmv = MVManager.getManager().findRuntimeMV(
-                  wsEntry, null, null, sub.getName(), user, null, true, true);
+                  wsEntry, null, null, getWSTableName(sub), user, null, true, true);
 
                if(rmv != null) {
                   mvs.put(sub.getName(), rmv);
@@ -462,6 +462,26 @@ public abstract class AssetQuery extends PreAssetQuery {
             findWSRuntimeMV((ComposedTableAssembly) sub, wsEntry, user, mvs, visited);
          }
       }
+   }
+
+   /**
+    * Get the name of a bound table in the worksheet, which is the name its worksheet mv is
+    * registered with (WSMVAnalyzer). In the worksheet of a viewsheet, a table T bound by a
+    * viewsheet assembly is renamed to T_O under a mirror T (Viewsheet.createMirrorTable).
+    */
+   private static String getWSTableName(TableAssembly table) {
+      String name = table.getName();
+      String wsName = VSUtil.stripOuter(name);
+      Worksheet ws = table.getWorksheet();
+
+      if(wsName.equals(name) || ws == null) {
+         return name;
+      }
+
+      // only a table renamed by the viewsheet, not one named T_O in the worksheet
+      return ws.getAssembly(wsName) instanceof MirrorTableAssembly mirror &&
+         "true".equals(mirror.getProperty(Viewsheet.VS_MIRROR_TABLE)) &&
+         name.equals(mirror.getAssemblyName()) ? wsName : name;
    }
 
    /**

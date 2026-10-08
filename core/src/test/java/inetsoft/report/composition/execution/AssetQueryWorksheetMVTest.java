@@ -27,6 +27,8 @@ import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.viewsheet.TableVSAssembly;
+import inetsoft.uql.viewsheet.Viewsheet;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -97,13 +99,7 @@ class AssetQueryWorksheetMVTest {
       mvManager.when(MVManager::getManager).thenReturn(mgr);
 
       ws = new Worksheet();
-      customers = new PhysicalBoundTableAssembly(ws, "CUSTOMERS");
-      customers.setSourceInfo(new SourceInfo(SourceInfo.PHYSICAL_TABLE, "Orders", "CUSTOMERS"));
-      ColumnSelection cols = new ColumnSelection();
-      cols.addAttribute(column("CUSTOMERS", "CUSTOMER_ID", XSchema.INTEGER));
-      cols.addAttribute(column("CUSTOMERS", "CITY", XSchema.STRING));
-      customers.setColumnSelection(cols);
-      ws.addAssembly(customers);
+      customers = customersTable(ws, "CUSTOMERS");
       // the table a viewsheet queries is a copy of the mirror of the worksheet table, see
       // VSAQuery.getVSTableAssembly and ViewsheetSandbox.getBoundTable
       TableAssembly vtable = ws.getVSTableAssembly("CUSTOMERS");
@@ -293,6 +289,126 @@ class AssetQueryWorksheetMVTest {
          assertFalse(WSMVTransformer.containsWSRuntimeMV((TableAssembly) invoke(query, "getTable")),
                      "no worksheet mv may be left on the live query");
       }
+   }
+
+   @Test
+   void tableBoundByAViewsheetAssemblyUsesTheWorksheetMV() throws Exception {
+      // the viewsheet renames the bound table CUSTOMERS to CUSTOMERS_O under a mirror CUSTOMERS
+      TableAssembly vroot = viewsheetRoot();
+      assertSame(customers, ws.getAssembly("CUSTOMERS_O"));
+      assertInstanceOf(MirrorTableAssembly.class, ws.getAssembly("CUSTOMERS"));
+
+      AssetQuery query = createQuery(viewsheetBox(), vroot, AssetQuerySandbox.RUNTIME_MODE,
+                                     false);
+
+      assertInstanceOf(MVAssetQuery.class, deepestQuery(query),
+                       "the bound table must be read from the worksheet mv, not the database");
+      // the mv is registered with the name of the table in the worksheet
+      verify(mgr).findRuntimeMV(any(), any(), any(), eq("CUSTOMERS"), any(), any(),
+                                anyBoolean(), anyBoolean());
+      assertNull(customers.getRuntimeMV());
+   }
+
+   @Test
+   void viewsheetConditionOnTheMirrorIsKeptWithTheMV() throws Exception {
+      TableAssembly vroot = viewsheetRoot();
+      // ViewsheetSandbox.getBoundTable puts the viewsheet conditions and selections on the
+      // table the viewsheet table mirrors, which is the mirror CUSTOMERS here
+      ConditionList conds = new ConditionList();
+      Condition cond = new Condition(XSchema.STRING);
+      cond.setOperation(XCondition.EQUAL_TO);
+      cond.addValue("Paris");
+      conds.append(new ConditionItem(column("CUSTOMERS", "CITY", XSchema.STRING), cond, 0));
+      ((TableAssembly) ws.getAssembly("CUSTOMERS")).setPreRuntimeConditionList(conds);
+
+      AssetQuery query = createQuery(viewsheetBox(), vroot, AssetQuerySandbox.RUNTIME_MODE,
+                                     false);
+
+      assertInstanceOf(MVAssetQuery.class, deepestQuery(query));
+      String filter = String.valueOf(findCondition((TableAssembly) invoke(query, "getTable")));
+      assertTrue(filter.contains("CITY") && filter.contains("Paris"),
+                 "the viewsheet condition must not be dropped: " + filter);
+   }
+
+   @Test
+   void variableConditionOfATableBoundByAViewsheetAssemblyIsNotGivenTheMV() throws Exception {
+      // the renamed table is the worksheet table, with its conditions
+      customers.setPreConditionList(cityCondition("$(pCity)"));
+      TableAssembly vroot = viewsheetRoot();
+
+      assertFalse(deepestQuery(createQuery(viewsheetBox(), vroot,
+                                           AssetQuerySandbox.RUNTIME_MODE, false))
+                     instanceof MVAssetQuery);
+      verifyNoLookup();
+   }
+
+   @Test
+   void worksheetTableNamedLikeARenamedTableIsLookedUpByItsName() throws Exception {
+      // a worksheet table named CUSTOMERS_O by its author is not the viewsheet copy of CUSTOMERS
+      Worksheet ws2 = new Worksheet();
+      customersTable(ws2, "CUSTOMERS");
+      customersTable(ws2, "CUSTOMERS_O");
+      TableAssembly vroot = (TableAssembly) ws2.getVSTableAssembly("CUSTOMERS_O")
+         .copyAssembly("V_MCUSTOMERS_O_Table1");
+      ws2.addAssembly(vroot);
+      AssetQuerySandbox box = new AssetQuerySandbox(ws2, user, new VariableTable());
+      box.setWSName("ws1");
+      box.setWSEntry(wsEntry);
+
+      assertFalse(subQuery(createQuery(box, vroot, AssetQuerySandbox.RUNTIME_MODE, false))
+                     instanceof MVAssetQuery);
+      verify(mgr).findRuntimeMV(any(), any(), any(), eq("CUSTOMERS_O"), any(), any(),
+                                anyBoolean(), anyBoolean());
+      verify(mgr, never()).findRuntimeMV(any(), any(), any(), eq("CUSTOMERS"), any(), any(),
+                                         anyBoolean(), anyBoolean());
+   }
+
+   /**
+    * Bind a table assembly of a viewsheet to CUSTOMERS and give the viewsheet the worksheet,
+    * which renames the bound table like a viewsheet opened in the viewer
+    * (Viewsheet.setBaseWorksheet, resetWS and createMirrorTables).
+    * @return the table the query of the viewsheet table assembly runs.
+    */
+   private TableAssembly viewsheetRoot() throws Exception {
+      Viewsheet vs = new Viewsheet(wsEntry);
+      TableVSAssembly table = new TableVSAssembly(vs, "TableView1");
+      table.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, "CUSTOMERS"));
+      vs.addAssembly(table);
+
+      Worksheet vws = new Worksheet();
+      vws.addAssembly(customers);
+      customers.setWorksheet(vws);
+      Method setBase = Viewsheet.class.getDeclaredMethod("setBaseWorksheet", Worksheet.class);
+      setBase.setAccessible(true);
+      setBase.invoke(vs, vws);
+      ws = vs.getBaseWorksheet();
+
+      TableAssembly vroot = (TableAssembly) ws.getVSTableAssembly("CUSTOMERS")
+         .copyAssembly("V_MCUSTOMERS_TableView1");
+      ws.addAssembly(vroot);
+      return vroot;
+   }
+
+   /**
+    * The query of the bound table, under the mirror queries.
+    */
+   private static AssetQuery deepestQuery(AssetQuery query) throws Exception {
+      while(query instanceof MirrorQuery) {
+         query = subQuery(query);
+      }
+
+      return query;
+   }
+
+   private static PhysicalBoundTableAssembly customersTable(Worksheet ws, String name) {
+      PhysicalBoundTableAssembly table = new PhysicalBoundTableAssembly(ws, name);
+      table.setSourceInfo(new SourceInfo(SourceInfo.PHYSICAL_TABLE, "Orders", "CUSTOMERS"));
+      ColumnSelection cols = new ColumnSelection();
+      cols.addAttribute(column("CUSTOMERS", "CUSTOMER_ID", XSchema.INTEGER));
+      cols.addAttribute(column("CUSTOMERS", "CITY", XSchema.STRING));
+      table.setColumnSelection(cols);
+      ws.addAssembly(table);
+      return table;
    }
 
    /**
