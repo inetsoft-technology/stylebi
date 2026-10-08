@@ -120,7 +120,60 @@ public class TableBindingService {
          event.setName(assemblyName);
          event.setBinding(model);
          bindingModelService.setBinding(runtimeId, event, user, dispatcher);
+         restoreFormRefInvariant(assembly, shelf);
       });
+   }
+
+   /**
+    * A Form-enabled Table's {@code ColumnSelection} must stay entirely {@link FormRef} --
+    * {@code VSFormTableService.changeFormInput}/{@code addRow} cast every bound column to
+    * {@code FormRef} unconditionally once {@code TableVSAssemblyInfo.isForm()} is true, with no
+    * fallback for a plain {@code ColumnRef}. Two native paths already maintain that invariant:
+    * {@code TableViewPropertyDialogService.apply} converts every existing column the moment
+    * {@code form} flips off-to-on, and {@code VSTableBindingHandler.addColumns} (the Composer's
+    * own drag-and-drop-onto-table path) wraps each newly dropped column the same way. This wiz
+    * endpoint is a third write path -- the generic {@code TableBindingModel}/details-shelf apply
+    * via {@link VSTableBindingFactory#updateTableAssembly} -- that does neither: it only
+    * PRESERVES {@code FormRef}-ness an incoming field already has (copying the old column's
+    * {@code ColumnOption} across), it never ESTABLISHES it, and assumes without checking that
+    * every same-named existing column is already a {@code FormRef}.
+    *
+    * <p>Confirmed live (bug #77042 follow-up): binding a field to an already form-enabled table
+    * via {@code set_table_fields}/{@code add_table_field} left it a plain {@code ColumnRef} --
+    * the table rendered fine, {@code get_assembly_properties} read back {@code form: true}, and
+    * nothing about the write was reported as a problem -- until the first {@code
+    * form_table_set_cell}/{@code form_table_insert_row} on that column crashed the server with a
+    * {@code ClassCastException}/{@code NullPointerException} instead of a named error. Run after
+    * every details-shelf write so the invariant holds regardless of call order (enabling Form
+    * before or after fields are bound), the same way the two native paths above hold it
+    * regardless of which one a human happens to use.
+    */
+   private static void restoreFormRefInvariant(VSAssembly assembly, String shelf) {
+      String normalizedShelf = shelf == null ? "" : shelf.trim().toLowerCase();
+
+      if(!"details".equals(normalizedShelf) && !"detail".equals(normalizedShelf)) {
+         return;
+      }
+
+      if(!(assembly instanceof TableVSAssembly)) {
+         return;
+      }
+
+      TableVSAssemblyInfo info = (TableVSAssemblyInfo) assembly.getVSAssemblyInfo();
+
+      if(!info.isForm()) {
+         return;
+      }
+
+      ColumnSelection cols = info.getColumnSelection();
+
+      for(int i = 0; i < cols.getAttributeCount(); i++) {
+         DataRef ref = cols.getAttribute(i);
+
+         if(ref != null && !(ref instanceof FormRef)) {
+            cols.setAttribute(i, FormRef.toFormRef(ref));
+         }
+      }
    }
 
    /**
@@ -352,7 +405,7 @@ public class TableBindingService {
    public void addField(String sessionToken, Principal user, String assemblyName, String shelf,
                         FieldRef field, Integer position, String sourceTable) throws Exception
    {
-      applyWithContext(sessionToken, user, assemblyName,
+      applyWithContext(sessionToken, user, assemblyName, shelf,
          (model, rvs, source) -> {
             applySource(model, sourceTable);
             requireSourceForFieldWrite(assemblyName, shelf, model.getSource(),
@@ -391,7 +444,7 @@ public class TableBindingService {
    public void removeField(String sessionToken, Principal user, String assemblyName,
                            String shelf, String column) throws Exception
    {
-      applyWithContext(sessionToken, user, assemblyName,
+      applyWithContext(sessionToken, user, assemblyName, shelf,
          (model, rvs, source) ->
             TableBindingMutator.removeField(model, shelf, column, rvs, source, refModelService));
    }
@@ -400,7 +453,7 @@ public class TableBindingService {
                          String fromShelf, String toShelf, String column, Integer position)
       throws Exception
    {
-      applyWithContext(sessionToken, user, assemblyName,
+      applyWithContext(sessionToken, user, assemblyName, toShelf,
          (model, rvs, source) ->
             TableBindingMutator.moveField(model, fromShelf, toShelf, column, position, rvs,
                                           source, refModelService));
@@ -1653,7 +1706,7 @@ public class TableBindingService {
    }
 
    private void applyWithContext(String sessionToken, Principal user, String assemblyName,
-                                 ContextualShelfMutation mutation) throws Exception
+                                 String shelf, ContextualShelfMutation mutation) throws Exception
    {
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          BaseTableBindingModel model = requireTableBinding(rvs, assemblyName);
@@ -1668,6 +1721,12 @@ public class TableBindingService {
          event.setName(assemblyName);
          event.setBinding(model);
          bindingModelService.setBinding(runtimeId, event, user, dispatcher);
+         // See restoreFormRefInvariant's own doc -- addField is the other wiz entry point
+         // (besides setShelf) that can introduce a brand-new column onto a Table's details
+         // shelf, so it needs the same safety net. removeField/moveField never introduce a new
+         // column, but passing their shelf through too is cheap and keeps all three callers of
+         // this shared method uniform.
+         restoreFormRefInvariant(assembly, shelf);
       });
    }
 

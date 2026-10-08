@@ -17,7 +17,11 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
+import inetsoft.report.composition.FormTableLens;
+import inetsoft.report.composition.FormTableRow;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.uql.viewsheet.ColumnOption;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -53,6 +57,16 @@ import java.util.*;
  * button would have done. This class refuses instead, named, before ever calling into the native
  * service -- the same defensive posture {@code insert_row}/{@code delete_row} already take for a
  * worksheet's {@code EMBEDDED_SNAPSHOT} table.
+ *
+ * <p><b>Row indices this class accepts are 0-based DATA rows, not {@link FormTableLens}'s own
+ * absolute (header-inclusive) rows.</b> {@code FormTableLens.insertRow}/{@code deleteRow}/
+ * {@code setObject} all index from row 0 = the header row -- {@code insertRow(0)} explicitly
+ * refuses with "Insert header cell is not allowed!", and {@code deleteRow(0)} has no such guard
+ * at all, so an unadjusted index would either throw confusingly or silently delete the header.
+ * {@link #headerRowOffset} resolves the live {@link FormTableLens} and adds its own
+ * {@code getHeaderRowCount()} (not hardcoded to 1) to the caller's index before any native event
+ * is built, so {@code index}/{@code row}/{@code rows} genuinely mean "0-based data row" the way
+ * this class's own javadoc on each method already promised.
  */
 @Service
 public class FormTableRowService {
@@ -71,13 +85,13 @@ public class FormTableRowService {
    {
       Map<String, Object> result = new LinkedHashMap<>();
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          requireInsertable(rvs, assemblyName);
 
          InsertTableRowEvent event = InsertTableRowEvent.builder()
             .assemblyName(assemblyName)
             .insert(!append)
-            .row(index)
+            .row(index + headerRowOffset(rvs, assemblyName))
             .start(0)
             .build();
          formTableService.addRow(runtimeId, event, linkUri, dispatcher, user);
@@ -85,6 +99,7 @@ public class FormTableRowService {
       });
 
       result.put("assembly", assemblyName);
+      putWarnings(result, warnings);
       return result;
    }
 
@@ -100,12 +115,19 @@ public class FormTableRowService {
 
       Map<String, Object> result = new LinkedHashMap<>();
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          requireDeletable(rvs, assemblyName);
+
+         int offset = headerRowOffset(rvs, assemblyName);
+         List<Integer> nativeRows = new ArrayList<>(rows.size());
+
+         for(int r : rows) {
+            nativeRows.add(r + offset);
+         }
 
          DeleteTableRowsEvent event = DeleteTableRowsEvent.builder()
             .assemblyName(assemblyName)
-            .addAllRows(rows)
+            .addAllRows(nativeRows)
             .start(0)
             .build();
          formTableService.deleteRows(runtimeId, event, linkUri, dispatcher, user);
@@ -113,6 +135,7 @@ public class FormTableRowService {
       });
 
       result.put("assembly", assemblyName);
+      putWarnings(result, warnings);
       return result;
    }
 
@@ -126,12 +149,15 @@ public class FormTableRowService {
    {
       Map<String, Object> result = new LinkedHashMap<>();
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          requireForm(rvs, assemblyName);
+
+         int nativeRow = row + headerRowOffset(rvs, assemblyName);
+         requireEditableCell(rvs, assemblyName, nativeRow, row, col);
 
          ChangeFormTableCellInputEvent event = ChangeFormTableCellInputEvent.builder()
             .assemblyName(assemblyName)
-            .row(row)
+            .row(nativeRow)
             .col(col)
             .data(value)
             .start(0)
@@ -143,6 +169,7 @@ public class FormTableRowService {
       result.put("assembly", assemblyName);
       result.put("row", row);
       result.put("col", col);
+      putWarnings(result, warnings);
       return result;
    }
 
@@ -239,6 +266,78 @@ public class FormTableRowService {
             "'" + assemblyName + "' does not have write-back enabled in Table > Form Options. " +
             "writeBackFormData silently does nothing for this case rather than throwing, so it " +
             "is refused here instead with a named reason.");
+      }
+   }
+
+   /**
+    * The offset between this class's caller-facing "0-based data row" and the absolute,
+    * header-inclusive row index every {@link FormTableLens} method (and {@code
+    * VSFormTableService}/the native STOMP controller it wraps) actually expects. Equal to the
+    * resolved lens's own {@code getHeaderRowCount()} (ordinarily 1, never hardcoded to that in
+    * case a future table type has more than one header row).
+    *
+    * <p>Returns 0 -- i.e. no translation -- when the lens cannot be resolved at all (sandbox not
+    * runtime-mode, disposed, ...): the native call is going to fail downstream regardless of
+    * what offset is applied here, since {@code VSFormTableService} needs the identical lens to
+    * do anything.
+    */
+   private static int headerRowOffset(RuntimeViewsheet rvs, String assemblyName) throws Exception {
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return 0;
+      }
+
+      FormTableLens lens = box.get().getFormTableLens(assemblyName);
+      return lens == null ? 0 : lens.getHeaderRowCount();
+   }
+
+   /**
+    * Mirrors the exact editable condition {@code BaseTableCellModel.createFormCell} computes for
+    * display -- new row (column is form-optioned) OR table Edit is on (and column is
+    * form-optioned) -- and refuses a {@code setCell} that would violate it, the same posture
+    * {@link #requireInsertable}/{@link #requireDeletable}/{@link #requireWriteBack} already take
+    * for the other three write paths. {@code VSFormTableService.changeFormInput} itself enforces
+    * none of this: it would otherwise let a STOMP-bypassing caller change a cell the Preview
+    * toolbar's own grid would render as non-editable and refuse to let a human click into.
+    *
+    * <p>A no-op (same "fail downstream instead" reasoning as {@link #headerRowOffset}) when the
+    * lens can't be resolved, or {@code nativeRow} is out of the lens's own row range -- in both
+    * cases the native call is about to fail on its own terms regardless of this check.
+    */
+   private static void requireEditableCell(RuntimeViewsheet rvs, String assemblyName,
+                                           int nativeRow, int dataRow, int col) throws Exception
+   {
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return;
+      }
+
+      FormTableLens lens = box.get().getFormTableLens(assemblyName);
+
+      if(lens == null || lens.rows() == null || nativeRow < 0 || nativeRow >= lens.rows().length) {
+         return;
+      }
+
+      ColumnOption option = lens.getVisibleColumnOption(col);
+      boolean newRow = FormTableRow.ADDED == lens.rows()[nativeRow].getRowState();
+      boolean editable = newRow ? option.isForm() : lens.isEdit() && option.isForm();
+
+      if(!editable) {
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "'[" + dataRow + "][" + col + "] is not editable -- its column " +
+            "is not form-optioned, or (for a pre-existing row, not one just added via " +
+            "form_table_insert_row) the table's Edit switch in Table > Form Options is off. " +
+            "The underlying service does not check this itself, so it is refused here instead " +
+            "of silently doing what the Preview toolbar's own grid would refuse to let a human " +
+            "click into.");
+      }
+   }
+
+   private static void putWarnings(Map<String, Object> result, List<String> warnings) {
+      if(warnings != null && !warnings.isEmpty()) {
+         result.put("warnings", warnings);
       }
    }
 
