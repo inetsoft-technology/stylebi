@@ -69,7 +69,7 @@ public class LensStallTest {
       }
 
       pool.shutdownNow();
-      StallPolicy.setOverride(null);
+      StallTestSupport.clearOverride();
    }
 
    @ParameterizedTest

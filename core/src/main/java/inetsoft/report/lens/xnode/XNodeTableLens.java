@@ -29,6 +29,7 @@ import inetsoft.uql.*;
 import inetsoft.uql.asset.internal.ColumnIndexMap;
 import inetsoft.uql.jdbc.JDBCTableNode;
 import inetsoft.uql.table.XSwappableTable;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.uql.util.XNodeTable;
 import inetsoft.uql.util.XTableTableNode;
 import inetsoft.util.*;
@@ -171,7 +172,65 @@ public class XNodeTableLens extends AbstractTableLens
          }
       }
 
+      if(!result) {
+         checkLoadException();
+      }
+
       return result;
+   }
+
+   /**
+    * Report a failure that stopped loading the rows once a reader reaches the end of the rows
+    * that were read before it (Bug #77901). The rows after the failure are missing, so an
+    * interactive reader gets the same warning as a query that fails when it is executed, and a
+    * reader that has to fail instead (a scheduled run) gets the exception. A user cancel has no
+    * load exception and stays silent.
+    */
+   private void checkLoadException() {
+      Exception loadException = getLoadException();
+
+      if(loadException == null) {
+         return;
+      }
+
+      if(failOnLoadException) {
+         throw new TableLoadException(getRootCauseMessage(loadException), loadException);
+      }
+
+      String message = Catalog.getCatalog().getString("common.table.getDataFailed") + ": " +
+         getRootCauseMessage(loadException);
+
+      // addUserWarning keeps one copy of a message
+      Tool.addUserWarning(message);
+   }
+
+   private static String getRootCauseMessage(Throwable ex) {
+      Throwable cause = ex;
+
+      while(cause.getCause() != null && cause.getCause() != cause) {
+         cause = cause.getCause();
+      }
+
+      return cause.getMessage() != null ? cause.getMessage() : cause.toString();
+   }
+
+   /**
+    * Set whether a reader that reaches the end of the rows of a table whose loading failed gets
+    * the load exception thrown instead of a warning. It is set for the readers of a scheduled
+    * run, which must fail rather than send or save partial data.
+    *
+    * @param failOnLoadException {@code true} to throw the load exception.
+    */
+   public void setFailOnLoadException(boolean failOnLoadException) {
+      this.failOnLoadException = failOnLoadException;
+   }
+
+   /**
+    * Check whether a reader that reaches the end of the rows of a table whose loading failed
+    * gets the load exception thrown instead of a warning.
+    */
+   public boolean isFailOnLoadException() {
+      return failOnLoadException;
    }
 
    /**
@@ -386,6 +445,7 @@ public class XNodeTableLens extends AbstractTableLens
       obj.delegate = delegate;
       obj.table = table;
       obj.init();
+      obj.failOnLoadException = failOnLoadException;
       // don't copy the matrix which is set through setObject()
 
       // increment ref count, used by XNodeTable to see if cancel is ok
@@ -758,6 +818,7 @@ public class XNodeTableLens extends AbstractTableLens
    private SparseMatrix matrix = null;
    private boolean hmodified = false;
    private HashMap maxRowHintMap;
+   private boolean failOnLoadException;
 
    private transient TableDataDescriptor descriptor;
    private static final Logger LOG = LoggerFactory.getLogger(XNodeTableLens.class);

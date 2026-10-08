@@ -295,6 +295,11 @@ public class SaveWorksheetDialogService extends WorksheetControllerService {
                return null;
             }
 
+            // give the tables their own data files, and write them before the worksheet being
+            // overwritten is removed, so a failed write does not lose that worksheet (bug #77986)
+            ensureWorksheetDistinct(rws);
+            SnapshotEmbeddedTableAssembly.writeDataFilesForSave(rws.getWorksheet());
+
             if(!entry.equals(rws.getEntry())) {
                // make sure cleanup logic is run for old sheet
                if(engine.getAssetRepository().containsEntry(entry)) {
@@ -313,7 +318,6 @@ public class SaveWorksheetDialogService extends WorksheetControllerService {
             }
 
             WorksheetEventUtil.updateWorksheetMode(rws);
-            ensureWorksheetDistinct(rws);
             engine.setWorksheet(rws.getWorksheet(), entry, principal, true, !model.updateDep());
             actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_SUCCESS);
             SaveWorksheetService.initWorksheetOldName(rws);
@@ -370,6 +374,13 @@ public class SaveWorksheetDialogService extends WorksheetControllerService {
       Worksheet worksheet = rws.getWorksheet();
 
       if(worksheet != null) {
+         // fail before any table is changed if the data of a table can't be loaded (bug #78029)
+         for(Assembly obj : worksheet.getAssemblies()) {
+            if(obj instanceof SnapshotEmbeddedTableAssembly) {
+               ((SnapshotEmbeddedTableAssembly) obj).checkDataLoaded();
+            }
+         }
+
          for(Assembly obj : worksheet.getAssemblies()) {
             if(obj instanceof AbstractWSAssembly) {
                // calls pasted which resets the table ids and renames the data files

@@ -27,6 +27,7 @@ import inetsoft.report.lens.ChainScriptLock;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.internal.ColumnIndexMap;
 import inetsoft.uql.table.XSwappableTable;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.*;
 import inetsoft.util.audit.ExecutionBreakDownRecord;
@@ -38,6 +39,7 @@ import inetsoft.util.script.ScriptSpan;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.stall.WaitRecord;
 import inetsoft.util.stall.WaitRegistry;
+import inetsoft.util.swap.SwapFileReadException;
 import inetsoft.util.swap.XSwappableObjectList;
 import inetsoft.util.swap.XSwapper;
 import org.slf4j.Logger;
@@ -653,6 +655,25 @@ public class SummaryFilter extends AbstractGroupedTable
    }
 
    /**
+    * Initialize the header on the reading thread. A failed read of the base header leaves
+    * the header to the next read, which fails again or adds it. A header that is never added
+    * would be waited for forever (bug #77875).
+    * @param pass the pass whose rows get the header rows.
+    */
+   private void initReaderHeader(Pass pass) {
+      try {
+         initHeader(pass);
+      }
+      catch(RuntimeException ex) {
+         if(getRowCount(pass.rows) == 0) {
+            pass.hinited = false;
+         }
+
+         throw ex;
+      }
+   }
+
+   /**
     * Generate the crosstab.
     * @param pass the pass to process, it stops once invalidate() replaces it.
     */
@@ -683,6 +704,9 @@ public class SummaryFilter extends AbstractGroupedTable
          //process0();
       }
       catch(ScriptException scriptException) {
+         // a script may wrap a lost swap file of a base cell, the readers rethrow it
+         // (bug #77651)
+         recordBaseFailure(pass, scriptException);
          // Script Exceptions are already logged
          Tool.addUserMessage(scriptException.getMessage());
       }
@@ -690,7 +714,17 @@ public class SummaryFilter extends AbstractGroupedTable
          // logged by the wait site, process0() kept it for the readers (bug #76967)
       }
       catch(Exception ex) {
-         LOG.error("Failed to process summary filter", ex);
+         // the fragment already logged a lost swap file, a load failure of the base was logged
+         // where it happened, and process0() kept any other failure to read the base for the
+         // readers, who rethrow them (bug #77651, #77901, #77875)
+         recordBaseFailure(pass, ex);
+
+         if(pass.baseFailure != null) {
+            LOG.debug("Summary filter failed to read the base table", ex);
+         }
+         else {
+            LOG.error("Failed to process summary filter", ex);
+         }
       }
    }
 
@@ -934,9 +968,36 @@ public class SummaryFilter extends AbstractGroupedTable
          if(stall != null) {
             pass.stallFailure = stall;
          }
+         // nor take the rows so far of a lost swap file of the base (bug #77651), of a base
+         // that failed to load for a reader that has to fail, e.g. a scheduled run (bug #77901),
+         // or of any other failure to read the base: the readers rethrow it. a script failure
+         // keeps its user message and the partial table, though its cause may be such a
+         // failure, unless it is a lost swap file or a load failure (bug #77875)
+         else if(!recordBaseFailure(pass, ex) && !(ex instanceof ScriptException)) {
+            pass.baseFailure = MessageException.find(ex);
+         }
 
          throw ex;
       }
+   }
+
+   /**
+    * Keep the lost swap file (bug #77651) or the load failure of the base (bug #77901) a pass
+    * failed with for the readers as its base failure, unless it failed with a stall.
+    * @return {@code true} if the failure is a lost swap file or a load failure.
+    */
+   private static boolean recordBaseFailure(Pass pass, Throwable ex) {
+      RuntimeException baseFailure = SwapFileReadException.find(ex);
+
+      if(baseFailure == null) {
+         baseFailure = TableLoadException.find(ex);
+      }
+
+      if(baseFailure != null && pass.stallFailure == null) {
+         pass.baseFailure = baseFailure;
+      }
+
+      return baseFailure != null;
    }
 
    /**
@@ -2031,7 +2092,7 @@ public class SummaryFilter extends AbstractGroupedTable
    @Override
    public boolean moreRows(int row) {
       if(row < hcount) {
-         initHeader(pass);
+         initReaderHeader(pass);
          return true;
       }
 
@@ -2044,6 +2105,10 @@ public class SummaryFilter extends AbstractGroupedTable
          boolean more = pass.rows.moreRows(row);
 
          if(this.pass != pass) {
+            // a failed pass that a reader restarted fails this read too, never as the end
+            // of the table (bug #77875)
+            throwBaseFailure(pass);
+
             if(retry < MAX_READ_RETRIES) {
                continue;
             }
@@ -2140,8 +2205,9 @@ public class SummaryFilter extends AbstractGroupedTable
    }
 
    /**
-    * Rethrow the stall the worker failed with, if the table is complete because of it. A
-    * stall must never look like the end of the table (bug #76967).
+    * Rethrow the stall or the base read failure the worker failed with, if the table is
+    * complete because of it. A stall must never look like the end of the table (bug #76967),
+    * neither must a failure to read the base (bug #77875).
     * @param pass the pass that was read.
     */
    private void throwStallFailure(Pass pass) {
@@ -2149,6 +2215,34 @@ public class SummaryFilter extends AbstractGroupedTable
 
       if(pass.completed && failure != null) {
          throw new LockStallException(failure);
+      }
+
+      if(pass.completed && pass.baseFailure != null) {
+         synchronized(this) {
+            // the failure is reported, the next read processes the rows again: the base may
+            // recover, e.g. a set table after its retry delay (bug #77524). a base that failed
+            // to load keeps its load exception and fails the next read too (bug #77901). the
+            // data did not change, so no change event (bug #77875)
+            if(this.pass == pass) {
+               invalidate0();
+            }
+         }
+
+         throwBaseFailure(pass);
+      }
+   }
+
+   /**
+    * Rethrow the base read failure of a pass if the pass completed because of it: a lost swap
+    * file (bug #77651), a load failure of the base (bug #77901), or another failure to read the
+    * base (bug #77875).
+    * @param pass the pass that was read.
+    */
+   private static void throwBaseFailure(Pass pass) {
+      RuntimeException failure = pass.baseFailure;
+
+      if(pass.completed && failure != null) {
+         throw failure;
       }
    }
 
@@ -2289,7 +2383,7 @@ public class SummaryFilter extends AbstractGroupedTable
                checkInit();
             }
             else if(!pass.hinited) {
-               initHeader(pass);
+               initReaderHeader(pass);
             }
          }
 
@@ -2317,6 +2411,9 @@ public class SummaryFilter extends AbstractGroupedTable
                                            pass.getStallProgress(), pass.getStallBlockers());
 
          if(this.pass != pass) {
+            // a failed pass that a reader restarted fails this read too (bug #77875)
+            throwBaseFailure(pass);
+
             if(retry < MAX_READ_RETRIES) {
                continue;
             }
@@ -2329,7 +2426,13 @@ public class SummaryFilter extends AbstractGroupedTable
             return pass.rows.getObject(r, c);
          }
 
-         throwStallFailure(pass);
+         // the worker completes the rows before it marks the pass complete, both in this
+         // filter's monitor: a reader the rows released waits for the mark here, or it reads
+         // a failed pass as the end of the table (bug #78011)
+         synchronized(this) {
+            throwStallFailure(pass);
+         }
+
          return null;
       }
    }
@@ -3770,6 +3873,9 @@ public class SummaryFilter extends AbstractGroupedTable
       // the base row the worker has reached, and the stall it failed with (bug #76967)
       transient volatile int processedRows;
       transient volatile LockStallException stallFailure;
+      // the failure to read the base the worker failed with: a lost swap file, a load failure
+      // or another failure of the base read (bug #77651, #77901, #77875)
+      transient volatile RuntimeException baseFailure;
       // the watchdog suppliers of getObject and waitForRow (bug #76967)
       private transient LongSupplier stallProgress;
       private transient Supplier<Thread[]> stallBlockers;

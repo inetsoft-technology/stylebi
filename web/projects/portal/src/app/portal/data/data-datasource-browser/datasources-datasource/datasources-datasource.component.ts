@@ -488,10 +488,16 @@ export class DatasourcesDatasourceComponent implements OnInit, OnDestroy{
          const ds = dss[0];
 
          const dialog = ComponentTool.showDialog(this.modalService, InputNameDescDialog, (result) => {
-            this.datasource.additionalConnections[this.selectedAdditionalIndex[0]].name =
-               result.name;
-            this.datasource.additionalConnections[this.selectedAdditionalIndex[0]].description =
-               result.description;
+            const additional = this.datasource.additionalConnections[this.selectedAdditionalIndex[0]];
+
+            // Bug #77843, the old name tells the server that the connection is renamed, not
+            // replaced, so that it keeps its permission
+            if(!additional.oldName && additional.name !== result.name) {
+               additional.oldName = additional.name;
+            }
+
+            additional.name = result.name;
+            additional.description = result.description;
             this.updateAdditionalList();
          });
 

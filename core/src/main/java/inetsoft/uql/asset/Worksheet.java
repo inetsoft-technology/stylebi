@@ -663,11 +663,7 @@ public class Worksheet extends AbstractSheet implements VariableProvider {
 
          MirrorAssembly massembly = (MirrorAssembly) assembly;
 
-         // don't update if not auto-update only if it already contains the mirror.
-         // otherwise it will always be null. (50056)
-         if(!assembly.isVisible() || !massembly.isAutoUpdate() && massembly.getAssembly() != null ||
-            !massembly.isOuterMirror() || offline)
-         {
+         if(!isUpdatedOnLoad(massembly)) {
             continue;
          }
 
@@ -706,8 +702,133 @@ public class Worksheet extends AbstractSheet implements VariableProvider {
          }
       }
 
-      removeOrphanedOuterAssemblies(engine, user);
+      removeOrphanedOuterAssemblies();
       return ok;
+   }
+
+   /**
+    * Check if an outer mirror's assemblies are copied again from its worksheet when this
+    * worksheet is opened.
+    */
+   private boolean isUpdatedOnLoad(MirrorAssembly mirror) {
+      // don't update if not auto-update only if it already contains the mirror.
+      // otherwise it will always be null. (50056)
+      return ((WSAssembly) mirror).isVisible() &&
+         (mirror.isAutoUpdate() || mirror.getAssembly() == null) &&
+         mirror.isOuterMirror() && !offline;
+   }
+
+   /**
+    * Check if an outer assembly is frozen, i.e. it is kept as stored instead of being copied
+    * again from its worksheet when this worksheet is opened. Two mirrors may share the copies of
+    * one worksheet, so the copies are frozen only if none of those mirrors updates them.
+    */
+   synchronized boolean isFrozenOuterAssembly(WSAssembly assembly) {
+      if(!assembly.isOuter()) {
+         return false;
+      }
+
+      boolean frozen = false;
+
+      for(Assembly mirror : getAssemblies()) {
+         if(!(mirror instanceof MirrorAssembly) || !((MirrorAssembly) mirror).isOuterMirror() ||
+            !isOuterCopyOf(assembly, (MirrorAssembly) mirror))
+         {
+            continue;
+         }
+
+         if(isUpdatedOnLoad((MirrorAssembly) mirror)) {
+            return false;
+         }
+
+         frozen = true;
+      }
+
+      return frozen;
+   }
+
+   /**
+    * Check if an outer assembly is one of the copies made for an outer mirror. The copies are
+    * found from the mirrored assembly, not from the name prefix of the mirror's worksheet: the
+    * copies keep their names when that worksheet is renamed or moved, and the prefix of one
+    * worksheet may be the start of another's.
+    */
+   private boolean isOuterCopyOf(WSAssembly assembly, MirrorAssembly mirror) {
+      for(WSAssembly copy : getOuterCopies(mirror)) {
+         if(copy.getName().equals(assembly.getName())) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Get the outer assemblies copied for an outer mirror, i.e. the outer assemblies the mirrored
+    * assembly depends on, itself included. Like isOuterCopyOf, it doesn't use the name prefix of
+    * the mirror's worksheet (bug #78030).
+    */
+   public synchronized WSAssembly[] getOuterCopies(MirrorAssembly mirror) {
+      String name = mirror.getAssemblyName();
+      Assembly root = name == null ? null : getAssembly(name);
+
+      if(root == null) {
+         return new WSAssembly[0];
+      }
+
+      return Arrays.stream(AssetUtil.getDependedAssemblies(this, root, true))
+         .filter(copy -> copy instanceof WSAssembly && ((WSAssembly) copy).isOuter())
+         .toArray(WSAssembly[]::new);
+   }
+
+   /**
+    * Get the names of the outer copies that updating an outer mirror replaces: its copies that
+    * no outer mirror uses except the mirrors sharing them (the ones mirroring the same assembly),
+    * which are pointed to the new copies.
+    */
+   public synchronized Set<String> getReplacedOuterCopies(MirrorAssembly mirror) {
+      Set<String> sharing = new HashSet<>();
+
+      for(WSAssembly assembly : assemblies) {
+         if(assembly instanceof MirrorAssembly && ((MirrorAssembly) assembly).isOuterMirror() &&
+            Tool.equals(mirror.getAssemblyName(), ((MirrorAssembly) assembly).getAssemblyName()))
+         {
+            sharing.add(assembly.getName());
+         }
+      }
+
+      Set<String> used = getUsedOuterCopies(sharing);
+      Set<String> replaced = new HashSet<>();
+
+      for(WSAssembly copy : getOuterCopies(mirror)) {
+         if(!used.contains(copy.getName())) {
+            replaced.add(copy.getName());
+         }
+      }
+
+      return replaced;
+   }
+
+   /**
+    * Get the names of the outer copies used by the outer mirrors of this worksheet. A mirror
+    * that is itself an outer copy (a nested worksheet's mirror) is reached through the mirror
+    * the copy belongs to.
+    * @param excluded the names of the mirrors whose copies are not counted.
+    */
+   private Set<String> getUsedOuterCopies(Set<String> excluded) {
+      Set<String> used = new HashSet<>();
+
+      for(WSAssembly assembly : assemblies) {
+         if(assembly instanceof MirrorAssembly && ((MirrorAssembly) assembly).isOuterMirror() &&
+            !assembly.isOuter() && !excluded.contains(assembly.getName()))
+         {
+            for(WSAssembly copy : getOuterCopies((MirrorAssembly) assembly)) {
+               used.add(copy.getName());
+            }
+         }
+      }
+
+      return used;
    }
 
    /**
@@ -725,7 +846,6 @@ public class Worksheet extends AbstractSheet implements VariableProvider {
          return;
       }
 
-      AssetEntry entry = massembly.getEntry();
       String rname = massembly.getAssemblyName();
       Assembly root = ws.getAssembly(rname);
 
@@ -739,15 +859,14 @@ public class Worksheet extends AbstractSheet implements VariableProvider {
          return;
       }
 
-      String prefix = AssetUtil.createPrefix(entry);
+      // remove the copies of the removed mirror, not the assemblies with its worksheet's name
+      // prefix, which may be another mirror's copies (bug #78030)
+      Set<String> copies = Arrays.stream(getOuterCopies(massembly))
+         .map(Assembly::getName).collect(Collectors.toSet());
+      copies.removeAll(getUsedOuterCopies(Collections.emptySet()));
 
-      for(int i = assemblies.size() - 1; i >= 0 ; i--) {
-         Assembly tassembly = assemblies.get(i);
-
-         if(tassembly.getName().startsWith(prefix)) {
-            assemblies.remove(i);
-            amap = null;
-         }
+      if(assemblies.removeIf(tassembly -> copies.contains(tassembly.getName()))) {
+         amap = null;
       }
    }
 
@@ -1288,9 +1407,10 @@ public class Worksheet extends AbstractSheet implements VariableProvider {
             boolean needWrite = true;
 
             // Bug #45308. .tdat file only write once
-            // when write SnapshotEmbeddedTableAssembly of dependent ws
+            // when write SnapshotEmbeddedTableAssembly of dependent ws. an outer copy that owns
+            // its files writes them (bug #78023)
             if(anArr instanceof SnapshotEmbeddedTableAssembly
-               && anArr.getName().startsWith(AssetUtil.OUTER_PREFIX))
+               && !((SnapshotEmbeddedTableAssembly) anArr).ownsDataFiles())
             {
                needWrite = false;
             }
@@ -1315,11 +1435,46 @@ public class Worksheet extends AbstractSheet implements VariableProvider {
       }
    }
 
-   public void clearSnapshot() {
+   /**
+    * Delete the data files of the snapshot tables of a removed worksheet.
+    *
+    * @param repository the repository the worksheet was stored in.
+    * @param entry      the entry of the removed worksheet.
+    */
+   public void clearSnapshot(AssetRepository repository, AssetEntry entry) {
+      Set<String> frozenCopyPaths = null;
+      boolean found = false;
+
       for(WSAssembly assembly : assemblies) {
-         if(assembly instanceof SnapshotEmbeddedTableAssembly) {
-            ((SnapshotEmbeddedTableAssembly) assembly).deleteDataFiles("Worksheet removed");
+         // an outer copy may name the files of the worksheet it was copied from (bug #78022)
+         if(!(assembly instanceof SnapshotEmbeddedTableAssembly) ||
+            !((SnapshotEmbeddedTableAssembly) assembly).ownsDataFiles())
+         {
+            continue;
          }
+
+         SnapshotEmbeddedTableAssembly table = (SnapshotEmbeddedTableAssembly) assembly;
+         String[] dataPaths = table.getDataPaths();
+
+         if(dataPaths == null) {
+            continue;
+         }
+
+         if(!found) {
+            frozenCopyPaths =
+               SnapshotEmbeddedTableAssembly.getFrozenCopyDataPaths(repository, entry);
+            found = true;
+         }
+
+         // a frozen copy stored before bug #78023 was fixed still reads them (bug #78032)
+         if(SnapshotEmbeddedTableAssembly.isNamedByFrozenCopy(dataPaths, frozenCopyPaths)) {
+            LOG.info("Snapshot data files of {} kept, a frozen outer copy in another " +
+                     "worksheet may still name them: {}", table.getName(),
+                     Arrays.toString(dataPaths));
+            continue;
+         }
+
+         table.deleteDataFiles("Worksheet removed");
       }
    }
 
@@ -1343,34 +1498,16 @@ public class Worksheet extends AbstractSheet implements VariableProvider {
    }
 
    /**
-    * Removes outer assemblies that don't have a dependency to an outer mirror
+    * Removes outer assemblies that don't have a dependency to an outer mirror. The copies are
+    * found from the mirrors, not from names derived from the mirrors' current worksheet entries,
+    * which no longer match the copies after a mirrored worksheet is renamed (bug #78030).
     */
-   private void removeOrphanedOuterAssemblies(AssetRepository engine, Principal user) {
-      try {
-         List<WSAssembly> assemblyList = new ArrayList<>(this.assemblies);
-         Set<String> outerAssemblyNames = new HashSet<>();
+   private synchronized void removeOrphanedOuterAssemblies() {
+      Set<String> used = getUsedOuterCopies(Collections.emptySet());
 
-         for(int i = assemblyList.size() - 1; i >= 0; i--) {
-            WSAssembly assembly = assemblyList.get(i);
-
-            if(assembly instanceof MirrorAssembly && ((MirrorAssembly) assembly).isOuterMirror()) {
-               assemblyList.remove(i);
-               outerAssemblyNames.addAll(
-                  AssetUtil.getOuterAssemblyNames(engine, ((MirrorAssembly) assembly).getEntry(),
-                                                  user));
-            }
-         }
-
-         // check if outer assembly has dependency on outer mirror
-         for(WSAssembly assembly : assemblyList) {
-            // remove the outer assembly if there is no dependency
-            if(assembly.isOuter() && !outerAssemblyNames.contains(assembly.getName())) {
-               this.assemblies.remove(assembly);
-            }
-         }
-      }
-      catch(Exception e) {
-         LOG.debug("Failed to remove orphaned outer tables", e);
+      if(assemblies.removeIf(assembly -> assembly.isOuter() && !used.contains(assembly.getName())))
+      {
+         amap = null;
       }
    }
 

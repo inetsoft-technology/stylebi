@@ -27,6 +27,7 @@ package inetsoft.uql.asset;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
+import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.sync.DependenciesInfo;
 import inetsoft.uql.asset.sync.DependencyStorageService;
@@ -133,6 +134,53 @@ class LocalDependencyHandlerTest {
       assertTrue(capturedDependencies(identifier(AssetEntry.Type.PARTITION, PHYSICAL_VIEW_NAME))
                     .isEmpty(),
                  "the extended model should no longer depend on the physical view");
+   }
+
+   /*
+    * Bug #78034: updateWorksheetDependencies() returned from the whole method when it met a bound
+    * or attached assembly with no source, such as a variable assembly without a table/query choice
+    * source. Every assembly after it was never indexed, so a worksheet holding a variable before a
+    * mirror of another worksheet was missing from that worksheet's reverse dependencies. Saving
+    * runs the same loop with add=false for the old sheet, so removal stopped there as well.
+    */
+   @Test
+   void assemblyAfterASourcelessVariableIsStillIndexed() throws Exception {
+      handler.updateSheetDependencies(worksheetWithVariableBeforeMirror(), worksheet("W2"), true);
+
+      assertEquals(List.of(worksheet("W2").toIdentifier()),
+                   capturedDependencies(worksheet("W1").toIdentifier()));
+   }
+
+   @Test
+   void assemblyAfterASourcelessVariableIsStillRemoved() throws Exception {
+      DependenciesInfo stored = new DependenciesInfo();
+      stored.setDependencies(new ArrayList<>(List.of(worksheet("W2"))));
+      when(dependencyStorageService.get(worksheet("W1").toIdentifier())).thenReturn(stored);
+
+      handler.updateSheetDependencies(worksheetWithVariableBeforeMirror(), worksheet("W2"), false);
+
+      assertTrue(capturedDependencies(worksheet("W1").toIdentifier()).isEmpty(),
+                 "W2 should no longer depend on W1");
+   }
+
+   /**
+    * Creates a worksheet holding a variable assembly with no source followed by an outer mirror of
+    * worksheet "W1".
+    */
+   private Worksheet worksheetWithVariableBeforeMirror() {
+      VariableAssembly variable = mock(VariableAssembly.class);
+      MirrorTableAssembly mirror = mock(MirrorTableAssembly.class);
+      when(mirror.isOuterMirror()).thenReturn(true);
+      when(mirror.getEntry()).thenReturn(worksheet("W1"));
+      when(mirror.getColumnSelection(false)).thenReturn(new ColumnSelection());
+
+      Worksheet ws = mock(Worksheet.class);
+      when(ws.getAssemblies()).thenReturn(new Assembly[] { variable, mirror });
+      return ws;
+   }
+
+   private AssetEntry worksheet(String name) {
+      return new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, name, null);
    }
 
    /**

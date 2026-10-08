@@ -111,8 +111,10 @@ public class PagedEnumeration implements IndexedEnumeration {
       int index = idx % lastIdx.length;
 
       if(lastIdx[index] != idx) {
+         // cache the page only after it is read, a failed read must not leave a stale page
+         StylePage page = cache.getPage(id, idx);
          lastIdx[index] = idx;
-         lastPage[index] = cache.getPage(id, idx);
+         lastPage[index] = page;
       }
 
       return lastPage[index];

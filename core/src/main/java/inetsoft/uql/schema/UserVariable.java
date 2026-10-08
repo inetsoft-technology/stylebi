@@ -427,13 +427,14 @@ public class UserVariable extends XVariable {
             writer.print("<choice><item>");
 
             if(choices[i] != null) {
-               writer.print("<![CDATA[" + choices[i] + "]]>");
+               writer.print("<![CDATA[" + Tool.cdataText(String.valueOf(choices[i])) + "]]>");
             }
 
-            writer.print("</item><value>");
+            String str = values[i] == null ? null : String.valueOf(values[i]);
+            writer.print("</item><value" + Tool.cdataDataAttr(str) + ">");
 
-            if(values[i] != null) {
-               writer.print("<![CDATA[" + values[i] + "]]>");
+            if(str != null) {
+               writer.print("<![CDATA[" + Tool.cdataData(str) + "]]>");
             }
 
             writer.println("</value></choice>");
@@ -446,12 +447,13 @@ public class UserVariable extends XVariable {
          value.writeXML(writer);
 
          if(value.getValue() != null) {
-            writer.println("<valueString><![CDATA[" +
-                           Tool.getDataString(value.getValue()) +
-                           "]]></valueString>");
+            String str = Tool.getDataString(value.getValue());
+            writer.println("<valueString" + Tool.cdataDataAttr(str) + "><![CDATA[" +
+                           Tool.cdataData(str) + "]]></valueString>");
 
+            // valueString2 is not read back
             writer.println("<valueString2><![CDATA[" +
-                           AbstractCondition.getValueString(value.getValue()) +
+                           Tool.cdataText(AbstractCondition.getValueString(value.getValue())) +
                            "]]></valueString2>");
          }
       }
@@ -520,7 +522,7 @@ public class UserVariable extends XVariable {
 
                if(name.getLength() > 0 && value.getLength() > 0) {
                   choices[k] = Tool.getValue(name.item(0));
-                  values[k] = Tool.getValue(value.item(0));
+                  values[k] = Tool.getCDATAData(value.item(0));
                   values[k] = Tool.getData(getTypeNode().getType(), values[k]);
                }
             }
@@ -534,7 +536,7 @@ public class UserVariable extends XVariable {
             value = XValueNode.createValueNode(telem);
          }
          else if(telem.getTagName().equals("valueString") && value == null) {
-            String val = Tool.getValue(telem);
+            String val = Tool.getCDATAData(telem);
             // a date saved before #77605 may have a Buddhist or Japanese year
             Object valueString =
                Tool.getPersistentData(getTypeNode().getType(), val, false);

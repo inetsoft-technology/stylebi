@@ -55,7 +55,8 @@ public class MessageFormat extends Format {
             String pattern = ((DecimalFormat) fmts[i]).toPattern();
 
             if(ExtendedDecimalFormat.isExtendedFormat(pattern)) {
-               fmt.setFormatByArgumentIndex(i, new ExtendedDecimalFormat(pattern));
+               // fmts is in element order, so replace by element index, not argument index
+               fmt.setFormat(i, new ExtendedDecimalFormat(pattern));
             }
          }
       }
@@ -125,7 +126,7 @@ public class MessageFormat extends Format {
    }
 
    /**
-    * Set the format to use for the format element with the format element index.
+    * Set the format to use for the format elements that use the given argument index.
     */
    public void setFormatByArgumentIndex(int idx, Format fmt) {
       this.fmt.setFormatByArgumentIndex(idx, fmt);

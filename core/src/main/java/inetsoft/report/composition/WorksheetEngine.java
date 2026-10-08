@@ -641,7 +641,24 @@ public abstract class WorksheetEngine extends SheetLibraryEngine implements Work
                                        ownerName, unameName), LogLevel.WARN, false);
       }
 
-      ((AbstractAssetEngine) engine).setSheet(entry, sheet, user, force, true, updateDependency);
+      if(!(sheet instanceof Worksheet)) {
+         ((AbstractAssetEngine) engine).setSheet(entry, sheet, user, force, true, updateDependency);
+         return;
+      }
+
+      // write the snapshot data before the worksheet is stored, so that a failed write
+      // fails the save instead of storing the worksheet without its data (bug #77986)
+      Worksheet ws = (Worksheet) sheet;
+      boolean saved = false;
+
+      try {
+         SnapshotEmbeddedTableAssembly.writeDataFilesForSave(ws);
+         ((AbstractAssetEngine) engine).setSheet(entry, sheet, user, force, true, updateDependency);
+         saved = true;
+      }
+      finally {
+         SnapshotEmbeddedTableAssembly.finishSave(ws, saved, engine, entry);
+      }
    }
 
    /**

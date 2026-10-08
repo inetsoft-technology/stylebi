@@ -31,6 +31,7 @@ import org.w3c.dom.Element;
 import java.awt.*;
 import java.io.PrintWriter;
 import java.io.Serializable;
+import java.math.RoundingMode;
 import java.text.*;
 import java.util.*;
 
@@ -245,9 +246,14 @@ public class TableFormat implements XMLSerializable, Serializable, Cloneable {
                   fmt = NumberFormat.getInstance(locale);
                }
                else if(rounding != null) {
-                  fmt = new RoundDecimalFormat(format_spec,
-                                               new DecimalFormatSymbols(locale));
-                  ((RoundDecimalFormat) fmt).setRoundingByName(rounding);
+                  // keep the K/M/B, suffix and other extended patterns, and round the
+                  // number as displayed (e.g. after the division for K)
+                  ExtendedDecimalFormat efmt = new ExtendedDecimalFormat(
+                     format_spec, new DecimalFormatSymbols(locale));
+                  fmt = efmt;
+                  // an invalid option keeps a working format that rounds ROUND_HALF_EVEN
+                  efmt.setRounding(RoundingMode.HALF_EVEN);
+                  efmt.setRoundingByName(rounding);
                }
                else {
                   fmt = new ExtendedDecimalFormat(format_spec,
@@ -264,10 +270,16 @@ public class TableFormat implements XMLSerializable, Serializable, Cloneable {
                   // @by stephenwebster, For Bug #6026
                   // Handle special case where regular percent format causes
                   // loss of precision for rounding purposes.
-                  DecimalFormat decimalFormat = new DecimalFormat("#,##0.#%");
-                  fmt = new RoundDecimalFormat(decimalFormat.toPattern(),
-                                               new DecimalFormatSymbols(locale));
-                  ((RoundDecimalFormat) fmt).setRoundingByName(rounding);
+                  RoundDecimalFormat rfmt = new RoundDecimalFormat(
+                     "#,##0.#%", new DecimalFormatSymbols(locale));
+                  fmt = rfmt;
+                  rfmt.setRoundingByName(rounding);
+
+                  // a rounding option rounds to a whole percent, ROUND_HALF_EVEN (or an
+                  // invalid option) keeps one decimal
+                  if(rfmt.getRoundingMode() != RoundingMode.HALF_EVEN) {
+                     rfmt.applyPattern("#,##0%");
+                  }
                }
                else {
                   fmt = NumberFormat.getPercentInstance(locale);

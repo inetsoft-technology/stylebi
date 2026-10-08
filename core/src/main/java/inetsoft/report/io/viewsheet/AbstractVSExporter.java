@@ -1239,6 +1239,7 @@ public abstract class AbstractVSExporter implements VSExporter {
       this.index = index;
       this.box = box;
       expandedCharts.clear();
+      cappedCharts.clear();
       Viewsheet origViewsheet = box.getViewsheet();
       Viewsheet rvsOrigViewsheet = rvs != null ? rvs.getViewsheet() : null;
 
@@ -1697,8 +1698,12 @@ public abstract class AbstractVSExporter implements VSExporter {
       // re-generated at the expanded size and the real size graph is laid out to fill
       // the expanded assembly. the expanded graph of the new pair may still be larger
       // than the assembly (e.g. the plot resize ratio is a percent of the current plot
-      // size, or the size is capped) and would be clipped. (77224)
-      return isMatchLayout() || expandedCharts.contains(name);
+      // size) and would be clipped. (77224)
+      // if the expanded size is capped, the real size graph would squeeze all the
+      // rows/columns into the capped size, write the expanded graph (clipped) at its
+      // natural size instead. (77978)
+      return isMatchLayout() ||
+         expandedCharts.contains(name) && !cappedCharts.contains(name);
    }
 
    /**
@@ -2278,6 +2283,12 @@ public abstract class AbstractVSExporter implements VSExporter {
 
          if(wchanged || hchanged) {
             expandedCharts.add(name);
+         }
+
+         if(wchanged && evgraph.getSize().getWidth() > 10000 ||
+            hchanged && evgraph.getSize().getHeight() > 10000)
+         {
+            cappedCharts.add(name);
          }
 
          info.setPixelSize(pixelsize2);
@@ -4634,6 +4645,8 @@ public abstract class AbstractVSExporter implements VSExporter {
    protected boolean onlyDataComponents;
    // charts expanded to the full chart size in the current sheet
    private final Set<String> expandedCharts = new HashSet<>();
+   // expanded charts whose expanded size is capped (10000px) in the current sheet
+   private final Set<String> cappedCharts = new HashSet<>();
    private static int fileType = -1;
 
    private static final Logger LOG =

@@ -37,9 +37,10 @@ import java.util.*;
  * organization, so an id is only accepted if one of these holds:
  * <ul>
  *    <li>the stored task already uses it in the same kind of field. A server path must also
- *    point to the same server as the stored one;</li>
+ *    point to the same server as the stored one, with the same user in the path;</li>
  *    <li>it is the id of an administrator-configured server location, and the path points to
- *    the server of that location and is inside the location's folder;</li>
+ *    the server of that location, with the same user in the path, and is inside the location's
+ *    folder;</li>
  *    <li>the caller is a site administrator, or an organization administrator when
  *    multi-tenancy is off.</li>
  * </ul>
@@ -123,7 +124,7 @@ public class ScheduleSecretIdChecker {
    }
 
    /**
-    * Determines if a stored path uses the same secret id for the same server.
+    * Determines if a stored path uses the same secret id for the same server and user in the path.
     */
    private static boolean isStoredPath(ServerPathInfo path, List<ServerPathInfo> originalPaths) {
       FTPUtil.Endpoint endpoint = parseEndpoint(path);
@@ -133,14 +134,31 @@ public class ScheduleSecretIdChecker {
       }
 
       for(ServerPathInfo originalPath : originalPaths) {
+         FTPUtil.Endpoint originalEndpoint = parseEndpoint(originalPath);
+
          if(Objects.equals(path.getSecretId(), originalPath.getSecretId()) &&
-            endpoint.isSameServer(parseEndpoint(originalPath)))
+            endpoint.isSameServer(originalEndpoint) && isSamePathUser(endpoint, originalEndpoint))
          {
             return true;
          }
       }
 
       return false;
+   }
+
+   /**
+    * Bug #77979, determines if two paths have the same user in the path. The user in the path
+    * overrides the user name of the secret when the file is uploaded, so a secret may only be
+    * used with the path user it is stored or configured with.
+    */
+   static boolean isSamePathUser(FTPUtil.Endpoint endpoint, FTPUtil.Endpoint other) {
+      return other != null && Objects.equals(getPathUser(endpoint), getPathUser(other));
+   }
+
+   private static String getPathUser(FTPUtil.Endpoint endpoint) {
+      String userInfo = endpoint.userInfo();
+      int colon = userInfo == null ? -1 : userInfo.indexOf(':');
+      return colon < 0 ? userInfo : userInfo.substring(0, colon);
    }
 
    /**
@@ -165,6 +183,7 @@ public class ScheduleSecretIdChecker {
          FTPUtil.Endpoint locationEndpoint = parseEndpoint(new ServerPathInfo(model));
 
          if(locationEndpoint != null && endpoint.isSameServer(locationEndpoint) &&
+            isSamePathUser(endpoint, locationEndpoint) &&
             isInFolder(endpoint.path(), locationEndpoint.path()))
          {
             return true;
@@ -174,7 +193,7 @@ public class ScheduleSecretIdChecker {
       return false;
    }
 
-   private static boolean isInFolder(String path, String folder) {
+   static boolean isInFolder(String path, String folder) {
       if(path == null || folder == null || Arrays.asList(path.split("/")).contains("..")) {
          return false;
       }

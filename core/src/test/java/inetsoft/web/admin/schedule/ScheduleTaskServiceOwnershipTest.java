@@ -779,13 +779,15 @@ class ScheduleTaskServiceOwnershipTest {
          actionModel(((BatchAction) inv.getArgument(0)).getTaskId()));
       when(scheduleService.getActionFromModel(any(), any(), any(), any())).thenAnswer(inv ->
          batchAction(keyOf(actionModels, inv.getArgument(0))));
+      when(scheduleService.getActionFromModel(any(), any(), any(), any(), any())).thenAnswer(inv ->
+         batchAction(keyOf(actionModels, inv.getArgument(0))));
       when(scheduleConditionService.getConditionModel(any(), any())).thenAnswer(inv -> {
          TimeCondition condition = inv.getArgument(0);
          return conditionModel(condition.getHour() * 60 + condition.getMinute());
       });
       when(scheduleConditionService.getConditionFromModel(any())).thenAnswer(inv ->
          timeCondition(inv.getArgument(0)));
-      when(scheduleService.setTaskCondition(any(), anyInt(), any(), any(), any()))
+      when(scheduleService.setTaskCondition(any(), anyInt(), any(), any(), any(), any()))
          .thenAnswer(inv -> {
             TimeCondition condition = timeCondition(inv.getArgument(2));
             ScheduleTask task = inv.getArgument(4);

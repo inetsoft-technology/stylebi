@@ -24,6 +24,7 @@ import inetsoft.test.*;
 import inetsoft.uql.table.XSwappableTable;
 import inetsoft.util.script.LendableReentrantLock;
 import inetsoft.util.stall.StallPolicy;
+import inetsoft.util.stall.StallTestSupport;
 import inetsoft.util.stall.StallWatchdog;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -53,7 +54,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome()
-@Tag("core")
+@Tag("slow")
 public class SummaryFilterInvalidateRaceTest {
    @BeforeEach
    public void setUp() {
@@ -68,7 +69,7 @@ public class SummaryFilterInvalidateRaceTest {
    @AfterEach
    public void tearDown() {
       pool.shutdownNow();
-      StallPolicy.setOverride(null);
+      StallTestSupport.clearOverride();
    }
 
    /**

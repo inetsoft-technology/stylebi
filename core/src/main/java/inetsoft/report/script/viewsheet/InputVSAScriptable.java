@@ -58,7 +58,42 @@ public class InputVSAScriptable extends VSAScriptable {
          return null;
       }
 
+      // the assembly used as a scalar coerces to its selected value(s) (#78000)
+      if(ScalarCoercion.isCoercionMember(name) && !super.hasMember(name)) {
+         return ScalarCoercion.member(name, this::getScalarValue);
+      }
+
       return super.getMember(name);
+   }
+
+   /**
+    * Indicate whether or not a named property is defined in an object.
+    */
+   @Override
+   public boolean hasMember(String name) {
+      if(super.hasMember(name)) {
+         return true;
+      }
+
+      return ScalarCoercion.isCoercionMember(name) && getVSAssembly() instanceof InputVSAssembly;
+   }
+
+   /**
+    * Get the value the assembly coerces to when used as a scalar: the selected object of a
+    * single input, the selected objects of a composite input (Rhino getDefaultValue before
+    * Feature #75423).
+    */
+   private Object getScalarValue() {
+      VSAssembly vassembly = getVSAssembly();
+
+      if(vassembly instanceof SingleInputVSAssembly) {
+         return ((SingleInputVSAssembly) vassembly).getSelectedObject();
+      }
+      else if(vassembly instanceof CompositeInputVSAssembly) {
+         return ((CompositeInputVSAssembly) vassembly).getSelectedObjects();
+      }
+
+      return null;
    }
 
    @Override
@@ -239,12 +274,6 @@ public class InputVSAScriptable extends VSAScriptable {
 
       return null;
    }
-
-   // NOTE (Feature #75423): Rhino getDefaultValue(Class) — which returned the
-   // input's selected value when the scriptable was used as a scalar (e.g.
-   // name + 2) — has no direct equivalent in the GraalJS ProxyObject model and
-   // is removed per the migration recipe. Revisit if scalar coercion of input
-   // scriptables is required post-cutover.
 
    public Object getSelectedObject() {
       VSAssembly vassembly = getVSAssembly();

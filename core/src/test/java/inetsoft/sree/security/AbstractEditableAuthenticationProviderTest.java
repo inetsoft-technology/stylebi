@@ -136,6 +136,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.security.Principal;
 import java.util.*;
@@ -501,6 +502,43 @@ class AbstractEditableAuthenticationProviderTest {
 
       verify(identityService).setIdentityPermissions(
          eq(to), eq(to), eq(ResourceType.SECURITY_USER), eq(principal), any(), eq("orgB"));
+   }
+
+   // Bug #77868: a role copy carries the role's ASSIGN grantees, not its ADMIN ones
+   @Test
+   @SuppressWarnings("unchecked")
+   void updatePermittedIdentities_role_copiesAssignGrantees() {
+      AuthorizationProvider authz = mock(AuthorizationProvider.class);
+      SecurityProvider securityProvider = mock(SecurityProvider.class);
+      when(securityProvider.getAuthorizationProvider()).thenReturn(authz);
+      when(securityProvider.checkAnyPermission(any(), any(), anyString(), any())).thenReturn(true);
+      IdentityService identityService =
+         mock(IdentityService.class, withSettings().defaultAnswer(CALLS_REAL_METHODS));
+      ReflectionTestUtils.setField(identityService, "securityProvider", securityProvider);
+      doNothing().when(identityService)
+         .setIdentityPermissions(any(), any(), any(), any(), any(), any());
+
+      for(String name : List.of("alice", "creator")) {
+         FSUser user = new FSUser(new IdentityID(name, "orgA"));
+         user.setOrganization("orgA");
+         provider.stubUser(new IdentityID(name, "orgA"), user);
+      }
+
+      IdentityID from = new IdentityID("Designer", "orgA");
+      IdentityID to   = new IdentityID("Designer", "orgB");
+      Permission permission = new Permission();
+      permission.setUserGrantsForOrg(ResourceAction.ASSIGN, Set.of("alice"), "orgA");
+      permission.setUserGrantsForOrg(ResourceAction.ADMIN, Set.of("creator"), "orgA");
+      when(authz.getPermission(ResourceType.SECURITY_ROLE, from, "orgA")).thenReturn(permission);
+      Principal principal = mock(Principal.class);
+
+      provider.updatePermittedIdentities(Identity.ROLE, identityService, principal, from, to, "orgB", "orgA");
+
+      ArgumentCaptor<List<IdentityModel>> captor = ArgumentCaptor.forClass(List.class);
+      verify(identityService).setIdentityPermissions(
+         eq(to), eq(to), eq(ResourceType.SECURITY_ROLE), eq(principal), captor.capture(), eq("orgB"));
+      assertEquals(List.of(new IdentityID("alice", "orgB")),
+                   captor.getValue().stream().map(IdentityModel::identityID).toList());
    }
 
    // -------------------------------------------------------------------------

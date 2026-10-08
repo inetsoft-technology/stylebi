@@ -327,9 +327,9 @@ public class CheckBoxVSAssemblyInfo extends ListInputVSAssemblyInfo
          writer.print("<selectedObjects>");
 
          for(int i = 0; i < selectedObjects.length; i++) {
-            writer.print("<selectedObject>");
-            writer.print("<![CDATA[" + Tool.getPersistentDataString(selectedObjects[i],
-                         getDataType()) + "]]>");
+            String str = Tool.getPersistentDataString(selectedObjects[i], getDataType());
+            writer.print("<selectedObject" + Tool.cdataDataAttr(str) + ">");
+            writer.print("<![CDATA[" + Tool.cdataData(str) + "]]>");
             writer.print("</selectedObject>");
          }
 
@@ -358,7 +358,7 @@ public class CheckBoxVSAssemblyInfo extends ListInputVSAssemblyInfo
 
             for(int i = 0; i < slist.getLength(); i++) {
                selectedObjects[i] =
-                       getPersistentData(getDataType(), Tool.getValue(slist.item(i)));
+                       getPersistentData(getDataType(), Tool.getCDATAData(slist.item(i)));
             }
          }
       }

@@ -24,7 +24,8 @@ import inetsoft.uql.XTable;
 import inetsoft.uql.asset.internal.ColumnIndexMap;
 import inetsoft.util.script.ArrayObject;
 import inetsoft.util.script.graal.ScriptArrayScope;
-import inetsoft.util.stall.LockStallException;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
+import inetsoft.util.swap.DataUnavailable;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import org.slf4j.Logger;
@@ -343,9 +344,13 @@ public class TableRow implements ArrayObject, ScriptArrayScope {
                   return get(table, getMethod, row, (Integer) col);
                }
                catch(Exception e) {
-                  rethrowStall(e);
-                  LOG.error("Failed to get table row property " +
+                  rethrowUnavailable(e);
+                  logFailedRead(id, "Failed to get table row property " +
                      id + " for column " + col, e);
+                  // a failed read of this row is not an absent column: do not fall through
+                  // to notfound.add(id) below, which would read it as undefined on every
+                  // later row too (#77910)
+                  return members.get(id);
                }
             }
          }
@@ -361,10 +366,12 @@ public class TableRow implements ArrayObject, ScriptArrayScope {
                      return get(tcol.table, tcol.getMethod, brow, tcol.column);
                   }
                   catch(Exception e) {
-                     rethrowStall(e);
-                     LOG.error("Failed to get table row property " +
+                     rethrowUnavailable(e);
+                     logFailedRead(id, "Failed to get table row property " +
                         id + " in base table at row " + brow +
                         " and column " + tcol.column, e);
+                     // row-dependent, as below: must not mark the column absent (#77910)
+                     return members.get(id);
                   }
                }
                else {
@@ -389,6 +396,20 @@ public class TableRow implements ArrayObject, ScriptArrayScope {
       }
 
       return members.get(id);
+   }
+
+   /**
+    * Log a failed cell read. A column that fails on every row would otherwise log a stack
+    * trace per row, so only the first failure of each column is logged at error level and
+    * later ones at debug level (#77910).
+    */
+   private void logFailedRead(String id, String msg, Exception e) {
+      if(failedLogged.add(id)) {
+         LOG.error(msg, e);
+      }
+      else if(LOG.isDebugEnabled()) {
+         LOG.debug(msg, e);
+      }
    }
 
    /**
@@ -422,7 +443,7 @@ public class TableRow implements ArrayObject, ScriptArrayScope {
             return get(table, getMethod, row, index);
          }
          catch(Exception ex) {
-            rethrowStall(ex);
+            rethrowUnavailable(ex);
             LOG.error("Failed to get table row indexed property: " + index, ex);
          }
       }
@@ -453,15 +474,13 @@ public class TableRow implements ArrayObject, ScriptArrayScope {
    }
 
    /**
-    * Rethrow the lock stall of a failed cell read, a stalled table has no value to return
-    * (bug #76967).
+    * Rethrow the lock stall or lost swap file of a failed cell read, such a table has no value
+    * to return (bugs #76967, #77910), nor has a cell whose formula was stopped by a script
+    * timeout or cancel (bug #77949).
     */
-   private static void rethrowStall(Exception ex) {
-      LockStallException stall = LockStallException.find(ex);
-
-      if(stall != null) {
-         throw stall;
-      }
+   private static void rethrowUnavailable(Exception ex) {
+      DataUnavailable.rethrow(ex);
+      ScriptTimeoutGuard.rethrowStop(ex);
    }
 
    /**
@@ -755,6 +774,8 @@ public class TableRow implements ArrayObject, ScriptArrayScope {
    private Map<String, Integer> colmap0 = new Object2ObjectOpenHashMap<>();
    private Map<String, Object> colcache = new Object2ObjectOpenHashMap<>(); // column cache
    private Set<String> notfound = new ObjectOpenHashSet<>(); // not found id cache
+   // columns whose failed read has already been logged at error level, kept across setRow()
+   private Set<String> failedLogged = new ObjectOpenHashSet<>();
    private boolean headerInit = false; // column header initialized
    private transient TableRow prevRow = null;
    private transient int prevIndex = Integer.MIN_VALUE;

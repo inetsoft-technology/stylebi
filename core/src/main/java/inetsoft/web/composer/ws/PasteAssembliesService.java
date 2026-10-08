@@ -72,6 +72,7 @@ public class PasteAssembliesService extends WorksheetControllerService {
       String tprimary = ws.getPrimaryAssemblyName();
       // source worksheet primary
       String sprimary = null;
+      checkSnapshotData(sws, nnames, runtimeId, event);
       copyOuterEntry(rws, srws, runtimeId, event, principal, nameMap,
                      nnames, commandDispatcher, x, y, topLeft);
 
@@ -133,17 +134,12 @@ public class PasteAssembliesService extends WorksheetControllerService {
          return;
       }
 
-      Worksheet ws = rws.getWorksheet();
-      java.util.List<AssetEntry> outer = new ArrayList<>(
-         Arrays.asList(ws.getOuterDependents()));
       Worksheet sws = srws.getWorksheet();
       // source worksheet entry
       AssetEntry sentry = srws.getEntry();
       // current worksheet entry
       AssetEntry entry = rws.getEntry();
-      outer.add(entry);
-      outer.add(sentry);
-      int len = sws.getAssemblies().length;
+      Set<String> copied = new HashSet<>();
 
       for(int i = 0; i < nnames.length; i++) {
          Assembly ass = sws.getAssembly(nnames[i]);
@@ -158,25 +154,61 @@ public class PasteAssembliesService extends WorksheetControllerService {
             AssetEntry tentry = ((MirrorAssembly) ass).getEntry();
             MirrorAssembly mass = (MirrorAssembly) ass;
 
-            if(tentry == null || outer.contains(tentry)) {
+            // paste the mirror's own copies even if the current worksheet already embeds
+            // the same worksheet. Sharing the existing copies loses a frozen mirror's rows,
+            // and an auto mirror sharing a frozen mirror's copies unfreezes them (bug #78037)
+            if(tentry == null || tentry.equals(entry) || tentry.equals(sentry)) {
                continue;
             }
 
-            outer.add(entry);
-            String prefix = AssetUtil.createPrefix(tentry);
-
             // do not use AssetUtil.copyOuterAssemblies, cause the mirror
-            // outer assembly may be not auto update
-            for(int j = 0; j < len; j++) {
-               WSAssembly wass = (WSAssembly) sws.getAssembly(prefix + j);
-
-               if(wass != null && wass.isOuter() &&
-                  !ws.containsAssembly(prefix + j))
-               {
-                  WSAssembly nass = copyAssembly(rws, wass.getName(), runtimeId, event, principal,
-                                                 nameMap,
-                                                 x, y, pos.x, pos.y, true);
+            // outer assembly may be not auto update. Find the copies from the mirror, not by
+            // the name prefix of its worksheet, which the copies don't have after that
+            // worksheet is renamed (bug #78030). A copy whose name is taken in the target is
+            // pasted with a new name, and the mirror is pointed to it through nameMap
+            for(WSAssembly wass : sws.getOuterCopies(mass)) {
+               if(copied.add(wass.getName())) {
+                  copyAssembly(rws, wass.getName(), runtimeId, event, principal, nameMap,
+                               x, y, pos.x, pos.y, true);
                }
+            }
+         }
+      }
+   }
+
+   /**
+    * Load the data of the snapshot tables the paste copies before any copy is added to the
+    * target worksheet. A copy whose data can't be loaded fails the paste, and the copies added
+    * before it would stay in the worksheet with their dependencies not renamed (bug #78029).
+    */
+   private void checkSnapshotData(Worksheet sws, String[] nnames, String runtimeId,
+                                  WSPasteAssembliesEvent event)
+   {
+      if(isCut(event) && isSame(runtimeId, event)) {
+         return;
+      }
+
+      boolean outerMirror = false;
+
+      for(String name : nnames) {
+         Assembly assembly = sws.getAssembly(name);
+
+         if(assembly instanceof SnapshotEmbeddedTableAssembly) {
+            ((SnapshotEmbeddedTableAssembly) assembly).checkDataLoaded();
+         }
+
+         outerMirror = outerMirror ||
+            assembly instanceof MirrorAssembly && ((MirrorAssembly) assembly).isOuterMirror();
+      }
+
+      // the outer copies of a pasted mirror are copied too (copyOuterEntry). only a copy that
+      // wrote its own files is loaded, the others keep naming the files of their worksheet
+      if(outerMirror && !isSame(runtimeId, event)) {
+         for(Assembly assembly : sws.getAssemblies()) {
+            if(assembly instanceof SnapshotEmbeddedTableAssembly &&
+               ((SnapshotEmbeddedTableAssembly) assembly).isOuter())
+            {
+               ((SnapshotEmbeddedTableAssembly) assembly).checkDataLoaded();
             }
          }
       }

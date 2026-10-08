@@ -401,9 +401,20 @@ public class XSwappableTable implements XTable, Externalizable {
             }
             else {
                XTableColumn col = tables[tidx].getColumns()[c];
+               String inMemory;
+
+               try {
+                  inMemory = String.valueOf(col.getInMemoryLength());
+               }
+               catch(Exception memEx) {
+                  // the column may have been swapped out and its swap file lost, don't let the
+                  // diagnostic replace the original exception (bug #77895)
+                  inMemory = "unavailable (" + memEx + ")";
+               }
+
                LOG.error("Table row index out of bounds: " + r + " of " + count + " frag: " + tidx +
                          " column: " + col.getClass() + " with length: " + col.length() +
-                         " in memory: " + col.getInMemoryLength() + " completed: " + completed +
+                         " in memory: " + inMemory + " completed: " + completed +
                          " snapshot: " + tables[tidx].getSnapshotPath() +
                          " more: " + moreRows(r) + " paths: " + Arrays.toString(paths) +
                          " swapinfo: " + col.getSwapLog() +

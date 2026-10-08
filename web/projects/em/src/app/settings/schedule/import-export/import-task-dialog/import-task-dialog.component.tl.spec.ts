@@ -39,6 +39,7 @@
  *   - loading=true  → uploadForm.get("file").disabled === true.
  *   - loading=false → uploadForm.get("file").disabled === false.
  *   - onImportComplete: failedTasks.length > 0 → WARNING dialog; else → INFO dialog.
+ *   - onImportComplete: non-empty warnings → WARNING dialog with the warnings appended (Bug #77950).
  *   - onImportComplete: after dialog closes → dialogRef.close(true) in both branches.
  */
 
@@ -360,6 +361,46 @@ describe("ImportTaskDialogComponent — onImportComplete(): dialog type and clos
       expect(dialogData.type).not.toBe(MessageDialogType.WARNING); // right output, right reason
 
       await waitFor(() => expect(dialogRefSpy.close).toHaveBeenCalledWith(true));
+   });
+
+   // 🔁 Regression-sensitive (Bug #77950): a task saved without its stored passwords must not be
+   // reported as a plain success, the warning tells the user to re-enter them.
+   it("should open a WARNING dialog with the warnings when the tasks were imported with warnings", async () => {
+      const { comp, matDialogSpy, dialogRefSpy } = await renderComp({ dialogClosesWith: undefined });
+      const warning = "The schedule task Nightly is imported without the stored passwords.";
+
+      const response: ImportTaskResponse = { failedTasks: [], failed: false, warnings: [warning] };
+      comp.onImportComplete(response);
+
+      expect(matDialogSpy.open).toHaveBeenCalledTimes(1);
+      const dialogData = matDialogSpy.open.mock.calls[0][1].data;
+      expect(dialogData.type).toBe(MessageDialogType.WARNING);
+      expect(dialogData.content).toContain(warning);
+
+      await waitFor(() => expect(dialogRefSpy.close).toHaveBeenCalledWith(true));
+   });
+
+   // Risk Point/Contract: the warnings are shown together with the failed tasks.
+   it("should append the warnings to the failed tasks warning", async () => {
+      const { comp, matDialogSpy } = await renderComp({ dialogClosesWith: undefined });
+      const warning = "The schedule task Nightly is imported without the stored passwords.";
+
+      const response: ImportTaskResponse = { failedTasks: ["Task1"], failed: false, warnings: [warning] };
+      comp.onImportComplete(response);
+
+      const dialogData = matDialogSpy.open.mock.calls[0][1].data;
+      expect(dialogData.type).toBe(MessageDialogType.WARNING);
+      expect(dialogData.content).toContain("Task1");
+      expect(dialogData.content).toContain(warning);
+   });
+
+   // Risk Point/Contract: an empty warnings list is still a plain success.
+   it("should open an INFO dialog when warnings is empty", async () => {
+      const { comp, matDialogSpy } = await renderComp({ dialogClosesWith: undefined });
+
+      comp.onImportComplete({ failedTasks: [], failed: false, warnings: [] });
+
+      expect(matDialogSpy.open.mock.calls[0][1].data.type).toBe(MessageDialogType.INFO);
    });
 
 });

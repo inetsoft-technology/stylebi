@@ -26,7 +26,7 @@ import {
   ViewChild,
   ElementRef
 } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { EditTaskFolderDialogModel } from "../../../../../../../em/src/app/settings/schedule/model/edit-task-folder-dialog-model";
 import { HttpClient } from "@angular/common/http";
@@ -72,7 +72,7 @@ export class EditTaskFolderDialog implements OnInit, OnChanges, AfterViewInit {
   private initFormControl() {
     this.form = new UntypedFormGroup({
       "folderName": new UntypedFormControl(this.model.folderName,
-         [Validators.required, FormValidators.invalidTaskName])
+         [FormValidators.required, FormValidators.invalidTaskName])
     });
 
     this.form.get("folderName").valueChanges.subscribe(() => {
@@ -82,6 +82,10 @@ export class EditTaskFolderDialog implements OnInit, OnChanges, AfterViewInit {
   }
 
   ok(): void {
+    if(this.form.invalid) {
+      return;
+    }
+
     this.model.folderName = this.form.get("folderName").value;
 
     if(this.model.folderName == this.oldModel.folderName &&

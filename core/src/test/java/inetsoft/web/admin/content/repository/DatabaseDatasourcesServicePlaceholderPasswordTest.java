@@ -36,8 +36,12 @@ import inetsoft.web.admin.content.database.types.CustomDatabaseType;
 import inetsoft.web.admin.general.DatabaseSettingsService;
 import inetsoft.web.portal.service.datasource.DataSourceStatusService;
 import inetsoft.web.session.IgniteSessionRepository;
+import inetsoft.test.*;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.MockedStatic;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -47,6 +51,11 @@ import static org.mockito.Mockito.*;
  * Bug #77174: the placeholder password in the JDBC editor may only stand for a stored password
  * when the caller can edit the data source the stored password is read from.
  */
+// the save is audited, which reaches Spring beans (Bug #77844)
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = BaseTestConfiguration.class,
+                      initializers = ConfigurationContextInitializer.class)
+@SreeHome
 @Tag("core")
 class DatabaseDatasourcesServicePlaceholderPasswordTest {
    @BeforeEach

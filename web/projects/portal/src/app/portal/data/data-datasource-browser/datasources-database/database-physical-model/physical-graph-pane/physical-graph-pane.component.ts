@@ -97,9 +97,10 @@ export class PhysicalGraphPane implements OnInit, AfterViewChecked, OnDestroy {
       });
 
       this.subscription.add(this.physicalModelService.onHighlightConnections.subscribe(infos => {
+         // the highlight is client-side only: the network graph restyles its connections
+         // on the input change, so the graph is not fetched again
          if(!Tool.isEquals(this.highlightConnections, infos)) {
             this.highlightConnections = infos;
-            this.refreshPhysicalGraphModel();
          }
       }));
    }

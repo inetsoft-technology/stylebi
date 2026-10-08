@@ -25,12 +25,14 @@ import inetsoft.report.composition.execution.lockcycle.LockCycleHarness.SlowTabl
 import inetsoft.report.composition.execution.lockcycle.LockCycleHarness.Started;
 import inetsoft.report.composition.execution.TableFilter2;
 import inetsoft.report.filter.ColumnMapFilter;
+import inetsoft.report.filter.CrossTabFilter;
 import inetsoft.report.filter.DefaultTableFilter;
+import inetsoft.report.filter.Formula;
 import inetsoft.report.filter.SortFilter;
+import inetsoft.report.filter.SumFormula;
 import inetsoft.report.lens.*;
 import inetsoft.test.*;
 import org.junit.jupiter.api.*;
-import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -72,22 +74,75 @@ public class MonitorFirstLensCycleTest {
    }
 
    /**
-    * Bug #76960 B (R2), a monitor-first lens over a filtered formula table. The lens monitor
-    * held across the base read is:
+    * Bug #76960 B (R2), a monitor-first lens over a filtered formula table, with the gate in
+    * the formula's base: T1 parks there holding E. The lens monitor held across the base read
+    * was:
     * <ul>
     * <li>SORT: {@code SortFilter.checkInit} → {@code sort()} under {@code synchronized(lock)};</li>
     * <li>UNION_ALL: non-distinct {@code UnionTableLens.moreRows} under {@code synchronized(this)};</li>
-    * <li>RANKING: the {@code synchronized RankingTableLens.validate}.</li>
+    * <li>RANKING: the {@code synchronized RankingTableLens.validate};</li>
+    * <li>UNION_DISTINCT, INTERSECT, MINUS: {@code SetTableLens.moreRows} → {@code validate()}
+    * → {@code MergedTable.addTable};</li>
+    * <li>CROSSTAB: {@code CrossTabFilter.getData} under {@code synchronized(this)}.</li>
     * </ul>
-    * MAX_ROWS is fixed, see {@link #maxRowsOverFilteredFormula()}.
+    * UNION_ALL and RANKING hung in this order. Fixed by bug #77874: the non-distinct union
+    * reads its bases without its monitor, the other lenses take the chain's engine lock before
+    * their monitor. MAX_ROWS is fixed, see {@link #maxRowsOverFilteredFormula()}. CROSSTAB
+    * is not run in the shapes with a condition filter over the lens: building that filter
+    * reads the crosstab's header, which computes the crosstab on the test thread before T1
+    * reads it, so see {@link #scriptHolderOverGatedLens(Kind)}.
     */
    @ParameterizedTest
-   @EnumSource(value = Kind.class, names = "MAX_ROWS", mode = EnumSource.Mode.EXCLUDE)
-   @Tag("known-deadlock")
-   @EnabledIfSystemProperty(named = "lockcycle.known", matches = "true")
+   @EnumSource(value = Kind.class, names = { "MAX_ROWS", "CROSSTAB" }, mode = EnumSource.Mode.EXCLUDE)
    public void lensOverFilteredFormula(Kind kind) throws Exception {
+      // about 5-10 s a kind for the slow base, and without E there is no cycle to provoke
+      assumeFalse(POOL, "the cycle needs the engine lock, which a pooled env does not take");
       runShared(g -> s -> build(kind, () -> s.filteredFormula(new SlowTable(ROWS, Slow.EVERYWHERE, g))),
-                KNOWN_CAP);
+                ACTIVE_CAP);
+   }
+
+   /**
+    * Bug #77874, the order that forms the R2 cycle for every monitor-first lens kind: the gate
+    * sits between the lens and its filtered base, so T1 parks inside the lens monitor without
+    * the engine lock E, and T2 populates its condition filter over the lens first
+    * ({@code moreRows(EOT)}), taking E before it reads the lens (a header cell read takes no
+    * E, so no cycle could form from it). Before the fix every kind hung: T2 held E and was
+    * BLOCKED on the lens monitor, T1 held the monitor and waited for E in the inner condition
+    * filter. With the fix T1 holds E before the monitor (or, for UNION_ALL, holds no monitor
+    * while it reads the base), so T2 waits for E and both complete.
+    *
+    * <p>With the pool on no condition filter takes E, so there is no cycle to provoke and
+    * this only checks the rows; the cycle is exercised with {@code -Dlockcycle.pool=false}.
+    */
+   @ParameterizedTest
+   @EnumSource(value = Kind.class, names = { "MAX_ROWS", "CROSSTAB" }, mode = EnumSource.Mode.EXCLUDE)
+   public void lensOverGatedFilteredFormula(Kind kind) throws Exception {
+      Gate gate = harness.gate();
+      Function<Sandbox, TableLens> build = s -> build(
+         kind, () -> new GateFilter(s.filteredFormula(new SlowTable(ROWS, Slow.NONE)), gate));
+      Sandbox control = harness.control();
+      TableLens controlLens = harness.track(build.apply(control));
+      List<List<Object>> expectedLens = harness.await(
+         harness.submit(() -> drain(controlLens)), ACTIVE_CAP, "control lens");
+      List<List<Object>> expectedOuter = harness.await(
+         harness.submit(() -> drain(cf2(controlLens, null))), ACTIVE_CAP, "control filter");
+      assertTrue(expectedLens.size() > 2, "control pipeline is empty");
+
+      Sandbox sandbox = harness.sandbox();
+      TableLens lens = harness.track(build.apply(sandbox));
+      TableLens outer = harness.track(cf2(lens, sandbox.box));
+
+      Started<List<List<Object>>> t1 = harness.startGated(gate, () -> drain(lens));
+      assertTrue(gate.awaitEntered(ACTIVE_CAP), "T1 never read the lens's base");
+      Started<List<List<Object>>> t2 = harness.start(() -> {
+         outer.moreRows(TableLens.EOT);
+         return drain(outer);
+      });
+      releaseAfter(gate, t2, ACTIVE_CAP);
+
+      assertEquals(expectedOuter, harness.await(t2.future, ACTIVE_CAP, "T2, the filter lock holder"));
+      assertEquals(expectedLens, harness.await(t1.future, ACTIVE_CAP, "T1, the unlocked lens reader"));
+      assertFalse(sandbox.lock.isLocked());
    }
 
    /**
@@ -180,6 +235,72 @@ public class MonitorFirstLensCycleTest {
    }
 
    /**
+    * Bug #77874, no condition filter over the lens: T2 is a script thread of the sandbox (a
+    * worksheet script reading the shared table by name) holding E, and reads the lens while
+    * T1 is parked between the lens and its filtered base. Before the fix every kind hung, T1
+    * holding the lens monitor without E and T2 holding E BLOCKED on that monitor; this is the
+    * only one of these shapes that reaches the crosstab, whose computation is its row count.
+    * With the fix T1 takes E before the monitor (or, for UNION_ALL, reads the base without
+    * it), so T2 waits for E and both complete.
+    *
+    * <p>With the pool on the guest holds a pooled context and the lens reads take no E, so
+    * this only checks the rows; the cycle is exercised with {@code -Dlockcycle.pool=false}.
+    */
+   @ParameterizedTest
+   @EnumSource(value = Kind.class, names = "MAX_ROWS", mode = EnumSource.Mode.EXCLUDE)
+   public void scriptHolderOverGatedLens(Kind kind) throws Exception {
+      Gate gate = harness.gate();
+      Function<Sandbox, TableLens> build = s -> build(
+         kind, () -> new GateFilter(s.filteredFormula(new SlowTable(ROWS, Slow.NONE)), gate));
+      Sandbox control = harness.control();
+      TableLens controlLens = harness.track(build.apply(control));
+      List<List<Object>> expectedLens = harness.await(
+         harness.submit(() -> drain(controlLens)), ACTIVE_CAP, "control lens");
+      assertTrue(expectedLens.size() > 2, "control pipeline is empty");
+
+      Sandbox sandbox = harness.sandbox();
+      TableLens lens = harness.track(build.apply(sandbox));
+
+      Started<List<List<Object>>> t1 = harness.startGated(gate, () -> drain(lens));
+      assertTrue(gate.awaitEntered(ACTIVE_CAP), "T1 never read the lens's base");
+      Started<List<List<Object>>> t2 = harness.start(() -> sandbox.asGuest(() -> drain(lens)));
+      releaseAfter(gate, t2, ACTIVE_CAP);
+
+      assertEquals(expectedLens, harness.await(t2.future, ACTIVE_CAP, "T2, the script lock holder"));
+      assertEquals(expectedLens, harness.await(t1.future, ACTIVE_CAP, "T1, the unlocked lens reader"));
+      assertFalse(sandbox.lock.isLocked());
+   }
+
+   /**
+    * Bug #77874: a condition filter whose row map is completed takes no engine lock when it
+    * is read, so {@code ChainScriptLock.find} does not return its lock once the formula lens
+    * below is completed too; the lenses that take the chain's lock first then take none over
+    * it, and add no wait for the lock under a lock-free reader's monitor. A lens over the
+    * completed chain still reads every row.
+    */
+   @Test
+   public void completedFilterTakesNoLock() throws Exception {
+      assumeFalse(POOL, "a pooled condition filter never takes the engine lock");
+      Sandbox sandbox = harness.sandbox();
+      TableLens filtered = harness.track(sandbox.filteredFormula(new SlowTable(FREE_ROWS, Slow.NONE)));
+      assertSame(sandbox.lock, ChainScriptLock.find(filtered),
+                 "an incomplete filter over a formula lens takes the engine lock");
+
+      List<List<Object>> expected = harness.await(
+         harness.submit(() -> drain(filtered)), ACTIVE_CAP, "completing the filter");
+      assertNull(ChainScriptLock.find(filtered),
+                 "a completed filter over a completed formula lens takes no lock");
+
+      // distinct rows come sorted, every row of the filter is distinct (unique id)
+      TableLens distinct = harness.track(new DistinctTableLens(filtered));
+      List<List<Object>> rows = harness.await(harness.submit(() -> drain(distinct)), ACTIVE_CAP,
+                                              "distinct over the completed filter");
+      assertEquals(expected.size(), rows.size());
+      assertEquals(new java.util.HashSet<>(expected), new java.util.HashSet<>(rows));
+      assertFalse(sandbox.lock.isLocked());
+   }
+
+   /**
     * The result of a worksheet table with an expression column and a post condition, as
     * {@code AssetQuery.getRuntimeTableLens} builds it: max rows over the visible columns over
     * the condition filter.
@@ -206,10 +327,10 @@ public class MonitorFirstLensCycleTest {
    /**
     * Bug #76935: over a formula-free base no condition filter takes the engine lock, so the
     * R2 shape has no cycle. Pins the narrowing: if condition filters locked unconditionally
-    * again, these would hang like {@link #lensOverFilteredFormula(Kind)}.
+    * again, these would take the engine lock like {@link #lensOverFilteredFormula(Kind)}.
     */
    @ParameterizedTest
-   @EnumSource(Kind.class)
+   @EnumSource(value = Kind.class, names = { "SORT", "MAX_ROWS", "UNION_ALL", "RANKING" })
    public void lensOverFormulaFreeFilter(Kind kind) throws Exception {
       runShared(g -> s -> build(kind, () -> cf2(new SlowTable(FREE_ROWS, Slow.EVERYWHERE, g), s.box)),
                 ACTIVE_CAP);
@@ -264,6 +385,16 @@ public class MonitorFirstLensCycleTest {
          ranking.setRankingColumn(1);
          ranking.setRankingN(10);
          return ranking;
+      case UNION_DISTINCT:
+         return new UnionTableLens(base.get(), base.get());
+      case INTERSECT:
+         return new IntersectTableLens(base.get(), base.get());
+      case MINUS:
+         // only the first rows on the right, so the difference is not empty
+         return new MinusTableLens(base.get(), new MaxRowsTableLens(base.get(), 10));
+      case CROSSTAB:
+         return new CrossTabFilter(base.get(), new int[] {0}, new int[0], new int[] {1},
+                                   new Formula[] {new SumFormula()});
       default:
          throw new IllegalArgumentException(kind.name());
       }
@@ -292,7 +423,7 @@ public class MonitorFirstLensCycleTest {
    }
 
    public enum Kind {
-      SORT, MAX_ROWS, UNION_ALL, RANKING
+      SORT, MAX_ROWS, UNION_ALL, RANKING, UNION_DISTINCT, INTERSECT, MINUS, CROSSTAB
    }
 
    private static final int ROWS = 300;

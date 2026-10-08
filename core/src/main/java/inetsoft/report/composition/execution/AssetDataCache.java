@@ -26,7 +26,10 @@ import inetsoft.report.filter.BinaryTableFilter;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.XNodeMetaTable;
 import inetsoft.report.internal.table.CancellableTableLens;
+import inetsoft.report.lens.CalcTableLens;
+import inetsoft.report.lens.FormulaTableLens;
 import inetsoft.report.lens.SetTableLens;
+import inetsoft.report.lens.xnode.XNodeTableLens;
 import inetsoft.report.script.formula.AssetQueryScope;
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.*;
@@ -116,7 +119,9 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
 
       TableFilter2 filter = (TableFilter2) get(key, ts);
 
-      if(filter != null && (filter.isChanged() || isCancelled(filter) ||
+      // a table whose formula a script timeout stopped fails the reads of that cell: computed
+      // again, not handed to another reader (bug #77949)
+      if(filter != null && (filter.isChanged() || isCancelled(filter) || isStopped(filter) ||
          isFailedQueryDefaultMetaTable(filter)))
       {
          filter = null;
@@ -159,6 +164,75 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
       }
       else if(lens instanceof TableFilter) {
          return isCancelled(((TableFilter) lens).getTable());
+      }
+
+      return false;
+   }
+
+   /**
+    * Get the exception that stopped loading the rows of a query result under a lens, e.g. a
+    * database error raised while reading the result set. The lens holds only the rows read
+    * before the failure, so it must not be reused or materialized (Bug #77901). It looks
+    * through the same wrappers as {@link #isCancelled(TableLens)}.
+    *
+    * @param lens the lens to check.
+    *
+    * @return the load failure, or {@code null} if no query result under the lens has one.
+    */
+   public static Exception getLoadException(TableLens lens) {
+      if(lens instanceof XNodeTableLens) {
+         return ((XNodeTableLens) lens).getLoadException();
+      }
+
+      if(lens instanceof SetTableLens) {
+         for(int i = 0; i < ((SetTableLens) lens).getTableCount(); i++) {
+            Exception ex = getLoadException(((SetTableLens) lens).getTable(i));
+
+            if(ex != null) {
+               return ex;
+            }
+         }
+
+         return null;
+      }
+      else if(lens instanceof BinaryTableFilter) {
+         Exception ex = getLoadException(((BinaryTableFilter) lens).getLeftTable());
+         return ex != null ? ex : getLoadException(((BinaryTableFilter) lens).getRightTable());
+      }
+      else if(lens instanceof TableFilter) {
+         return getLoadException(((TableFilter) lens).getTable());
+      }
+
+      return null;
+   }
+
+   /**
+    * Check if a formula of the table or a sub-table was stopped by a script timeout or cancel,
+    * so its cell fails every read. A cache treats such a table as not cached, and the next
+    * reader computes it again with fresh formula vars (bug #77949).
+    */
+   public static boolean isStopped(TableLens lens) {
+      if(lens instanceof FormulaTableLens formula && formula.isStopped() ||
+         lens instanceof CalcTableLens calc && calc.isStopped())
+      {
+         return true;
+      }
+
+      if(lens instanceof SetTableLens) {
+         for(int i = 0; i < ((SetTableLens) lens).getTableCount(); i++) {
+            if(isStopped(((SetTableLens) lens).getTable(i))) {
+               return true;
+            }
+         }
+
+         return false;
+      }
+      else if(lens instanceof BinaryTableFilter) {
+         return isStopped(((BinaryTableFilter) lens).getLeftTable()) ||
+            isStopped(((BinaryTableFilter) lens).getRightTable());
+      }
+      else if(lens instanceof TableFilter) {
+         return isStopped(((TableFilter) lens).getTable());
       }
 
       return false;

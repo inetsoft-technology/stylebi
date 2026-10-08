@@ -23,11 +23,14 @@ import inetsoft.report.script.viewsheet.CalcTableVSAScriptable;
 import inetsoft.test.*;
 import inetsoft.util.script.FormulaContext;
 import inetsoft.util.stall.LockStallException;
+import inetsoft.util.swap.LostSwapFile;
+import inetsoft.util.swap.SwapFileReadException;
 import org.graalvm.polyglot.proxy.ProxyExecutable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
+import org.mockito.stubbing.Answer;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -40,7 +43,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
 @Tag("core")
@@ -376,5 +379,44 @@ public class CalcRefTest {
       when(mockGroup.getValue(mockContext)).thenThrow(failure);
       when(mockGroup.getValue(org.mockito.ArgumentMatchers.eq(mockContext), anyInt()))
          .thenThrow(failure);
+   }
+
+   /**
+    * #77910: a reference read of a group whose table's swap file is lost must throw the swap
+    * file read failure, not read as null.
+    */
+   @Test
+   void lostSwapFileReferenceReadsThrowTheSwapFailure() {
+      FormulaContext.pushCellLocation(point0);
+
+      try(LostSwapFile lost = new LostSwapFile()) {
+         when(mockRuntimeCalcTableLens.getCellContext(0, 0)).thenReturn(mockContext);
+         CalcCellContext.Group mockGroup = mock(CalcCellContext.Group.class);
+         when(mockContext.getGroup("cell1")).thenReturn(mockGroup);
+         when(mockGroup.getPosition()).thenReturn(0);
+         Answer<Object> lostRead = inv -> {
+            lost.read();
+            return null;
+         };
+         when(mockGroup.getValue(mockContext)).thenAnswer(lostRead);
+         when(mockGroup.getValue(org.mockito.ArgumentMatchers.eq(mockContext), anyInt()))
+            .thenAnswer(lostRead);
+         calcRef = new CalcRef(mockRuntimeCalcTableLens, "cell1");
+
+         assertEquals(lost.getFile(), assertThrows(SwapFileReadException.class,
+            () -> calcRef.getMember(".")).getFile());
+         // positional reference: must not be swallowed and retried through getBySpec
+         assertEquals(lost.getFile(), assertThrows(SwapFileReadException.class,
+            () -> calcRef.getMember("1")).getFile());
+         assertEquals(lost.getFile(), assertThrows(SwapFileReadException.class,
+            () -> calcRef.getArrayElement(0)).getFile());
+
+         ProxyExecutable valueOf = (ProxyExecutable) calcRef.getMember("valueOf");
+         assertEquals(lost.getFile(), assertThrows(SwapFileReadException.class,
+            () -> valueOf.execute()).getFile());
+      }
+      finally {
+         FormulaContext.popCellLocation();
+      }
    }
 }

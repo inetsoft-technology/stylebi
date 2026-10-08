@@ -54,7 +54,10 @@ export interface VSRangeSliderTestContext {
    formDataService: { checkFormData: ReturnType<typeof vi.fn> };
    modelService: { getModel: ReturnType<typeof vi.fn> };
    modalService: { open: ReturnType<typeof vi.fn> };
-   debounceService: { debounce: ReturnType<typeof vi.fn> };
+   debounceService: {
+      debounce: ReturnType<typeof vi.fn>;
+      cancel: ReturnType<typeof vi.fn>;
+   };
    dropdownService: { open: ReturnType<typeof vi.fn> };
    globalSubmitService: {
       globalSubmit: ReturnType<typeof vi.fn>;
@@ -133,7 +136,10 @@ export function createVSRangeSlider(
    );
    const dataTipService = { isDataTip: vi.fn().mockReturnValue(false) };
    const debounceService = {
-      debounce: vi.fn().mockImplementation((_key: any, fn: any) => fn()),
+      debounce: vi.fn().mockImplementation(
+         (_key: any, fn: any, _delay: any, args: any[] = []) => fn(...(args ?? [])),
+      ),
+      cancel: vi.fn(),
    };
    const dropdownService = { open: vi.fn() };
    const globalSubmitService = {

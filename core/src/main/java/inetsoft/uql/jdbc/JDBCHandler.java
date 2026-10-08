@@ -30,6 +30,7 @@ import inetsoft.uql.jdbc.util.*;
 import inetsoft.uql.path.XSelection;
 import inetsoft.uql.schema.*;
 import inetsoft.uql.service.DataSourceRegistry;
+import inetsoft.uql.service.XEngine;
 import inetsoft.uql.service.XHandler;
 import inetsoft.uql.table.XObjectColumn;
 import inetsoft.uql.table.XTableColumnCreator;
@@ -1790,6 +1791,41 @@ public class JDBCHandler extends XHandler {
    }
 
    /**
+    * Gets the cached database properties that other meta data of this data source is
+    * built on.
+    *
+    * @param additional the additional connection name.
+    *
+    * @return the database properties.
+    *
+    * @throws Exception if the properties could not be loaded.
+    */
+   private XNode getDBProperties(String additional) throws Exception {
+      return checkDBProperties(getRootMetaData(getDataSource(), "DBPROPERTIES", additional));
+   }
+
+   /**
+    * Checks that cached database properties aren't a cached failure. A failure node has
+    * none of the properties, so meta data built on it, which is cached permanently, would
+    * be missing schemas or schema qualification. Failing here instead lets the derived
+    * meta data be cached as a failure that is retried later (Bug #77801).
+    *
+    * @param root the database properties.
+    *
+    * @return the database properties.
+    *
+    * @throws Exception if the database properties are a cached failure.
+    */
+   private XNode checkDBProperties(XNode root) throws Exception {
+      if(XEngine.isMetaDataFailure(root)) {
+         throw new SQLException(
+            "Database properties are unavailable for data source: " + xds.getFullName());
+      }
+
+      return root;
+   }
+
+   /**
     * Determines if the database is MySQL version 5 or greater.
     *
     * @param meta the database meta-data.
@@ -2128,7 +2164,7 @@ public class JDBCHandler extends XHandler {
     * @throws Exception if the table types could not be loaded.
     */
    private XNode getTableTypeList(DatabaseMetaData meta, String additional) throws Exception {
-      XNode root = getRootMetaData(getDataSource(), "DBPROPERTIES", additional);
+      XNode root = getDBProperties(additional);
 
       for(String type : getTableTypes(meta)) {
          root.addChild(new XMetaDataNode(type), false, false);
@@ -2149,7 +2185,7 @@ public class JDBCHandler extends XHandler {
    private XNode getSchemaList(final DatabaseMetaData meta, String additional)
       throws Exception
    {
-      XNode root = getRootMetaData(getDataSource(), "DBPROPERTIES", additional);
+      XNode root = getDBProperties(additional);
 
       // @by stephenwebster, Fix bug1405624532928
       // When using remote repository, the state of these variables is lost
@@ -2392,7 +2428,7 @@ public class JDBCHandler extends XHandler {
          additional = (String) mtype.getAttribute("additional");
       }
 
-      XNode root = getRootMetaData(getDataSource(), "DBPROPERTIES", additional);
+      XNode root = getDBProperties(additional);
       schema = "true".equals(root.getAttribute("hasSchema"));
 
       String catalogName = null;
@@ -2493,7 +2529,8 @@ public class JDBCHandler extends XHandler {
          additional = (String) mtype.getAttribute("additional");
       }
 
-      XNode root = getRootMetaData(getDataSource(), "DBPROPERTIES", additional);
+      XNode root = getDBProperties(additional);
+      schema = "true".equals(root.getAttribute("hasSchema"));
       String catalogName = null;
       String escapedCatalogName = null;
       String schemaName = (String) mtype.getAttribute("schema");
@@ -2739,29 +2776,36 @@ public class JDBCHandler extends XHandler {
    private String getUser(DatabaseMetaData meta, XNode mtype) throws Exception {
       String user = (String) mtype.getAttribute("schema");
 
-      if(user == null && schema) {
-         XNode query = new XNode();
-         query.setAttribute("type", "DBPROPERTIES");
-         // get child meta-data through repository so that cache is used/updated
-         XNode root = repository.getMetaData(session, getDataSource(), query, true, null);
+      // the user name is only a guess of the default schema
+      boolean loginUser = false;
 
-         if(xds.getDatabaseType() == JDBCDataSource.JDBC_SYBASE) {
-            user = "dbo";
-         }
-         else if(xds.getDatabaseType() == JDBCDataSource.JDBC_POSTGRESQL) {
-            // @by davidd v11.4, Postgres' default schema is "public"
-            user = "public";
-         }
-         else if(root.getAttribute("defaultSchema") != null) {
-            user = (String) root.getAttribute("defaultSchema");
-         }
-         else if(meta.supportsSchemasInTableDefinitions() &&
-                 meta.getUserName() != null)
-         {
-            user = meta.getUserName();
-         }
-         else if(xds.getUser() != null && !xds.getUser().trim().equals("")) {
-            user = xds.getUser();
+      if(user == null) {
+         // read hasSchema from the cached database properties, the schema field is only
+         // set if this handler loaded the properties itself (Bug #77938)
+         XNode root = getDBProperties((String) mtype.getAttribute("additional"));
+         schema = "true".equals(root.getAttribute("hasSchema"));
+
+         if(schema) {
+            if(xds.getDatabaseType() == JDBCDataSource.JDBC_SYBASE) {
+               user = "dbo";
+            }
+            else if(xds.getDatabaseType() == JDBCDataSource.JDBC_POSTGRESQL) {
+               // @by davidd v11.4, Postgres' default schema is "public"
+               user = "public";
+            }
+            else if(root.getAttribute("defaultSchema") != null) {
+               user = (String) root.getAttribute("defaultSchema");
+            }
+            else if(meta.supportsSchemasInTableDefinitions() &&
+                    meta.getUserName() != null)
+            {
+               user = meta.getUserName();
+               loginUser = true;
+            }
+            else if(xds.getUser() != null && !xds.getUser().trim().equals("")) {
+               user = xds.getUser();
+               loginUser = true;
+            }
          }
       }
 
@@ -2775,14 +2819,23 @@ public class JDBCHandler extends XHandler {
             user = user.toUpperCase();
          }
          else {
+            boolean found = false;
+
             try(ResultSet schemas = meta.getSchemas()) {
                // correct case
                while(schemas.next()) {
                   if(user.equalsIgnoreCase(schemas.getString(1))) {
                      user = schemas.getString(1);
+                     found = true;
                      break;
                   }
                }
+            }
+
+            // a user name that is not a schema would match no table, don't qualify the
+            // name with it (Bug #77938)
+            if(!found && loginUser) {
+               user = null;
             }
          }
       }

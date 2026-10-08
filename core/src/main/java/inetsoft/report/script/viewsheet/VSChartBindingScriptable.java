@@ -33,6 +33,8 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.DateComparisonInfo;
+import inetsoft.uql.viewsheet.internal.DateComparisonUtil;
 import inetsoft.uql.viewsheet.internal.DrillFilterInfo;
 import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.Tool;
@@ -268,10 +270,14 @@ public class VSChartBindingScriptable extends AbstractChartBindingScriptable {
                   info.addYField(aref);
                   info.updateChartType(!info.isMultiStyles());
 
-                  if(cinfo.getDateComparisonInfo() != null) {
+                  // read the share-resolved dc, a sharer's own dc may be a stale snapshot
+                  DateComparisonInfo dcInfo = chartAssembly.getViewsheet() != null ?
+                     DateComparisonUtil.getDateComparison(cinfo, chartAssembly.getViewsheet()) :
+                     cinfo.getDateComparisonInfo();
+
+                  if(dcInfo != null) {
                      ChartDcProcessor processor = new ChartDcProcessor(
-                        cinfo.getVSChartInfo(), cinfo.getDateComparisonInfo(),
-                        VizContext.of(cinfo));
+                        cinfo.getVSChartInfo(), dcInfo, VizContext.of(cinfo));
                      processor.updateDateComparisonChartType(cinfo.getVSChartInfo());
                   }
                }

@@ -143,9 +143,17 @@ public abstract class AbstractStorageTransfer implements StorageTransfer {
          importBlobs(zip);
       }
 
+      afterImport();
+
       if(oPrincipal == null) {
          ThreadContext.setPrincipal(oPrincipal);
       }
+   }
+
+   /**
+    * Called after the contents were imported.
+    */
+   protected void afterImport() {
    }
 
    protected abstract Stream<String> getKeyValueStoreIds();

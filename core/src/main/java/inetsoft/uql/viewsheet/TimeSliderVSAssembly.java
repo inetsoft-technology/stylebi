@@ -1201,7 +1201,9 @@ public class TimeSliderVSAssembly extends AbstractSelectionVSAssembly
          TimeSliderVSAssembly assembly2 = (TimeSliderVSAssembly) super.clone();
 
          if(slist != null) {
-            assembly2.slist = (SelectionList) slist.clone();
+            // keep a state selection that can't be read back unreadable in the clone, an
+            // empty state would silently select nothing, e.g. after an undo (bug #77864)
+            assembly2.slist = slist.cloneKeepingLost();
          }
 
          return assembly2;

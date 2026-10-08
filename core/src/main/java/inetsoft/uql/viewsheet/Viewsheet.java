@@ -90,6 +90,11 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
    public static final String VS_MIRROR_TABLE = "vs_mirror_table";
 
    /**
+    * Marks the copy of a viewsheet table a query binds to (ViewsheetSandbox.getBoundTable).
+    */
+   public static final String VS_BOUND_TABLE = "vs_bound_table";
+
+   /**
     * Merge a variable array to list.
     * @param list the specified list.
     * @param vars the specified variable array.
@@ -440,30 +445,45 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
 
       ws.getWorksheetInfo().setDesignMaxRows(getViewsheetInfo().getDesignMaxRows());
 
+      // a selection table holds the calc fields of the table it selects from
+      Map<String, String> calcSources = getSelectionTableSources();
+
       // if any table name changed, we should keep the viewsheet table
       // in sync, fix bug1328194963858
-      for(Assembly assembly : ws.getAssemblies()) {
-         if(!(assembly instanceof TableAssembly table)) {
-            continue;
-         }
+      // queries of other requests change the tables in place under the worksheet lock (77867)
+      synchronized(ws) {
+         for(Assembly assembly : ws.getAssemblies()) {
+            if(!(assembly instanceof TableAssembly table)) {
+               continue;
+            }
 
-         ColumnSelection cols = table.getColumnSelection();
+            // the bound copy belongs to a query that may be running now without the sandbox
+            // lock (74001), and every query makes a new one with the current calc fields (77915)
+            if("true".equals(table.getProperty(VS_BOUND_TABLE))) {
+               continue;
+            }
 
-         if(cols == null || cols.isEmpty()) {
-            continue;
-         }
+            ColumnSelection cols = table.getColumnSelection();
 
-         List<DataRef> newCols = cols.stream()
-            // @by stephenwebster, For Bug #9172
-            // Avoid removing attributes from dynamically created assemblies
-            // as this may cause the assembly to fail since it cannot find the
-            // calculated field.
-            .filter(col -> !(col instanceof CalculateRef) ||
-               "true".equals(table.getProperty("output.temp.table")))
-            .collect(Collectors.toList());
+            if(cols == null || cols.isEmpty()) {
+               continue;
+            }
 
-         if(newCols.size() != cols.getAttributeCount()) {
-            table.setColumnSelection(new ColumnSelection(newCols));
+            CalculateRef[] calcs =
+               getCalcFields(calcSources.getOrDefault(table.getName(), table.getName()));
+            List<DataRef> newCols = cols.stream()
+               // @by stephenwebster, For Bug #9172
+               // Avoid removing attributes from dynamically created assemblies
+               // as this may cause the assembly to fail since it cannot find the
+               // calculated field.
+               .filter(col -> !(col instanceof CalculateRef) ||
+                  "true".equals(table.getProperty("output.temp.table")) ||
+                  isCurrentCalcField((CalculateRef) col, calcs))
+               .collect(Collectors.toList());
+
+            if(newCols.size() != cols.getAttributeCount()) {
+               table.setColumnSelection(new ColumnSelection(newCols));
+            }
          }
       }
 
@@ -511,6 +531,71 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       this.varmap = varmap;
    }
 
+   /**
+    * Check if a calc field in a worksheet table is still defined for the table. Only a deleted
+    * or renamed calc field (or one whose detail type changed) is removed from the table: a
+    * query appends the current calc fields to the table and replaces an edited one by name,
+    * and may be reading the table now without the sandbox lock (77915).
+    */
+   private static boolean isCurrentCalcField(CalculateRef col, CalculateRef[] calcs) {
+      if(calcs == null) {
+         return false;
+      }
+
+      for(CalculateRef calc : calcs) {
+         if(Objects.equals(calc.getName(), col.getName()) &&
+            calc.isBaseOnDetail() == col.isBaseOnDetail())
+         {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Get the table whose calc fields a worksheet table holds: the table a selection table
+    * selects from, otherwise the table itself.
+    */
+   public String getCalcFieldTable(String table) {
+      return getSelectionTableSources().getOrDefault(table, table);
+   }
+
+   /**
+    * Get the tables the selection tables of the selection assemblies select from, by the
+    * selection table name.
+    */
+   private Map<String, String> getSelectionTableSources() {
+      Map<String, String> sources = new HashMap<>();
+
+      for(Assembly assembly : getAssemblies()) {
+         if(!(assembly instanceof SelectionVSAssembly sassembly)) {
+            continue;
+         }
+
+         if(sassembly.isSelectionUnion()) {
+            List<String> tableNames = sassembly.getTableNames();
+            List<String> selectionTableNames = sassembly.getSelectionTableNames();
+            List<String> subtableNames = createSubtableNames(sassembly);
+
+            for(int i = 0; i < tableNames.size(); i++) {
+               if(i < selectionTableNames.size()) {
+                  sources.put(selectionTableNames.get(i), tableNames.get(i));
+               }
+
+               if(i < subtableNames.size()) {
+                  sources.put(subtableNames.get(i), tableNames.get(i));
+               }
+            }
+         }
+         else if(sassembly.getTableName() != null) {
+            sources.put(sassembly.getSelectionTableName(), sassembly.getTableName());
+         }
+      }
+
+      return sources;
+   }
+
    private void addCalcRefs(TableAssembly table) {
       addCalcRefs(table, table.getName());
    }
@@ -519,13 +604,25 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       final List<CalculateRef> calculateRefs = calcmap.get(name);
 
       if(calculateRefs != null && !calculateRefs.isEmpty()) {
-         final ColumnSelection columnSelection = table.getColumnSelection(false);
+         // resetWS keeps the current calc fields in the shared tables, so replace an edited
+         // one, under the worksheet lock the queries copy the tables with (77867, 77915)
+         synchronized(ws) {
+            final ColumnSelection columnSelection = table.getColumnSelection(false);
 
-         synchronized(calculateRefs) {
-            calculateRefs.forEach((c) -> columnSelection.addAttribute(c.clone()));
+            synchronized(calculateRefs) {
+               calculateRefs.forEach((c) -> {
+                  DataRef old = columnSelection.getAttribute(c.getName());
+
+                  if(old instanceof CalculateRef) {
+                     columnSelection.removeAttribute(old);
+                  }
+
+                  columnSelection.addAttribute(c.clone());
+               });
+            }
+
+            table.resetColumnSelection();
          }
-
-         table.resetColumnSelection();
       }
    }
 
@@ -3751,10 +3848,13 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
    }
 
    /**
-    * Add the uploaded images.
+    * Add the uploaded images. A null image is ignored and leaves any existing
+    * entry unchanged, because writeXML() encodes every value in the map.
     */
    public void addUploadedImage(String name, byte[] image) {
-      imgmap.put(name, image);
+      if(image != null) {
+         imgmap.put(name, image);
+      }
    }
 
    /**

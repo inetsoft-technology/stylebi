@@ -464,7 +464,8 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
                this.http.post(NEW_TASKS_FOLDER_URI, addFolderEvent).subscribe(() => {
                   this.loadTaskFolderTree();
                   this.loadTasks();
-               });
+               },
+               (error) => this.showFolderError(error));
             }
          });
       };
@@ -510,13 +511,23 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
                let commit = (result) => {
                   this.http.post<string>(TASKS_FOLDER_NAME_URI, result).subscribe((newPath) => {
                      this.loadTaskFolderTree(!!newPath ? [newPath] : null);
-                  });
+                  },
+                  (error) => this.showFolderError(error));
                };
 
                const dialog = ComponentTool.showDialog(this.modal, EditTaskFolderDialog, commit);
                dialog.model = data;
             }
          });
+   }
+
+   /**
+    * Shows the message of a refused folder add or rename, e.g. a blank or invalid name.
+    */
+   private showFolderError(error: any): void {
+      if(error?.error?.message) {
+         ComponentTool.showMessageDialog(this.modal, "_#(js:Error)", error.error.message);
+      }
    }
 
    getTaskName(task: ScheduleTaskModel): string {

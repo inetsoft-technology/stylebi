@@ -19,7 +19,7 @@ package inetsoft.uql.asset;
 
 import inetsoft.sree.security.*;
 import inetsoft.test.*;
-import inetsoft.util.MessageException;
+import inetsoft.util.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.MockedStatic;
@@ -74,5 +74,41 @@ class AbstractAssetEngineUpdatePermissionFailureTest {
       // both steps are still attempted, as before the writers threw
       verify(security).removePermission(ResourceType.ASSET, "a");
       verify(security).setPermission(eq(ResourceType.ASSET), eq("b"), any());
+
+      // Bug #77939, the permission is still stored at the old path, which is reported
+      UserMessage message = Tool.getUserMessage();
+      assertNotNull(message, "the permission left at the old path was not reported");
+      assertEquals(ConfirmException.WARNING, message.getLevel());
+   }
+
+   // Bug #77939, a repository folder's permission is moved again by RepletEngine, which reports
+   // it if that fails too, so a failure of this first pass is not reported
+   @Test
+   void repositoryFolderRemoveFails_notReported() throws Exception {
+      AbstractAssetEngine engine = mock(AbstractAssetEngine.class, withSettings().defaultAnswer(CALLS_REAL_METHODS));
+      AssetEntry oentry = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.REPOSITORY_FOLDER, "a", null);
+      AssetEntry nentry = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.REPOSITORY_FOLDER, "b", null);
+      SecurityEngine security = mock(SecurityEngine.class);
+      when(security.getPermission(ResourceType.REPORT, "a")).thenReturn(new Permission());
+      doThrow(new MessageException("simulated, may not have been saved"))
+         .when(security).removePermission(any(ResourceType.class), anyString());
+
+      Method method = AbstractAssetEngine.class.getDeclaredMethod(
+         "updatePermission", AssetEntry.class, AssetEntry.class);
+      method.setAccessible(true);
+
+      try(MockedStatic<SecurityEngine> statics = mockStatic(SecurityEngine.class)) {
+         statics.when(SecurityEngine::getSecurity).thenReturn(security);
+         method.invoke(engine, oentry, nentry);
+      }
+
+      verify(security).removePermission(ResourceType.REPORT, "a");
+      assertNull(Tool.getUserMessage());
+   }
+
+   @BeforeEach
+   @AfterEach
+   void clearUserMessages() {
+      Tool.clearUserMessage();
    }
 }

@@ -383,6 +383,11 @@ export class JoinThumbnailService implements OnDestroy {
                return;
             }
 
+            // nothing was changed in the dialog, don't rewrite the join on the server
+            if(Tool.isEquals(joinModel, join)) {
+               return;
+            }
+
             const event: EditJoinEvent = {
                joinModel,
                detailJoinInfo: joinInfo

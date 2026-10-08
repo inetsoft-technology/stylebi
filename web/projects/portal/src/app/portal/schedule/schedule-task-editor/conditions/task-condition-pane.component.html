@@ -561,7 +561,7 @@
             [disabled]="selectedConditions.length != 1 || model.conditions.length < 1"
             (click)="editCondition()">_#(Edit)</button>
     <button type="button" class="btn btn-primary"
-            (click)="save(true)">_#(Save)</button>
+            [disabled]="parentForm?.invalid" (click)="save(true)">_#(Save)</button>
     <button type="button" class="btn btn-default" (click)="closeEditor.emit(model)">_#(Close)</button>
     <button *ngIf="newTask" type="button" class="btn btn-default" (click)="cancelTask.emit()">
       _#(Cancel)

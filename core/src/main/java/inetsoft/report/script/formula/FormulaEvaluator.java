@@ -22,7 +22,7 @@ import inetsoft.report.script.TableRowScope;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.script.*;
 import inetsoft.util.script.graal.ScriptScope;
-import inetsoft.util.stall.LockStallException;
+import inetsoft.util.swap.DataUnavailable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -173,13 +173,10 @@ public class FormulaEvaluator {
          }
       }
       catch(Exception ex) {
-         // a stalled table has no value to return: a stall under a rowValue[...] read must not
-         // turn into a null value or a false row condition (#77123)
-         LockStallException stall = LockStallException.find(ex);
-
-         if(stall != null) {
-            throw stall;
-         }
+         // a stalled table or one whose swap file is lost has no value to return: such a
+         // failure under a rowValue[...] read must not turn into a null value or a false row
+         // condition (#77123, #77910)
+         DataUnavailable.rethrow(ex);
 
          LOG.error("Failed to execute formula script: " + expr, ex);
       }

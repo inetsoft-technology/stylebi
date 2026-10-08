@@ -513,12 +513,9 @@ public class DataSourceService {
       List<PhysicalModel> result = new ArrayList<>();
       String basePath = parent.getPath();
 
-      if(basePath != null && !basePath.endsWith("/")) {
-         basePath += "/";
-      }
-
-      // Bug #77820, not the views of a data source of a folder at the path of the data source
-      AssetEntry[] entries = dataSourceRegistry.getDataSourceEntries(
+      // Bug #77820, not the views of a data source of a folder at the path of the data source.
+      // Bug #77842, not the ones of a view "<name>/..." or of an unreadable entry
+      AssetEntry[] entries = dataSourceRegistry.getExtendedModelEntries(
          database, basePath, AssetEntry.Type.EXTENDED_PARTITION, false);
 
       if(entries != null) {
@@ -530,8 +527,11 @@ public class DataSourceService {
                continue;
             }
 
-            result.add(buildPhysicalModel(entry, database, basePartition, parent.getName(),
-               basePartition.getFolder(), principal, provider));
+            PhysicalModel view = buildPhysicalModel(entry, database, basePartition,
+               parent.getName(), basePartition.getFolder(), principal, provider);
+            // the name may have "/" in it, the entry name is only its last part
+            view.setName(entry.getPath().substring(basePath.length() + 1));
+            result.add(view);
          }
       }
 
@@ -658,15 +658,10 @@ public class DataSourceService {
       List<LogicalModel> result = new ArrayList<>();
       String basePath = parent.getPath();
 
-      if(basePath != null && !basePath.endsWith("/")) {
-         basePath += "/";
-      }
-
-      // Bug #77820, not the models of a data source of a folder at the path of the data source
-      AssetEntry[] extendModels = dataSourceRegistry.getDataSourceEntries(
+      // Bug #77820, not the models of a data source of a folder at the path of the data source.
+      // Bug #77842, not the ones of a model "<name>/..." or of an unreadable entry
+      AssetEntry[] extendModels = dataSourceRegistry.getExtendedModelEntries(
          database, basePath, AssetEntry.Type.EXTENDED_LOGIC_MODEL, false);
-      String connection = null;
-      XLogicalModel childModel = null;
 
       if(extendModels != null) {
          for(AssetEntry entry : extendModels) {
@@ -681,15 +676,15 @@ public class DataSourceService {
                continue;
             }
 
-            childModel = baseModel.getLogicalModel(entry.getName());
-
-            if(childModel != null) {
-               connection = childModel.getConnection();
-            }
-
+            // Bug #77842, the name may have "/" in it, the entry name is only its last part
+            String name = entry.getPath().substring(basePath.length() + 1);
+            XLogicalModel childModel = baseModel.getLogicalModel(name);
+            String connection = childModel != null ? childModel.getConnection() : null;
             entry.setProperty(XUtil.DATASOURCE_ADDITIONAL, connection);
-            result.add(buildLogicalModel(entry, database, baseModel, physicalView,
-                  parent.getName(), baseModel.getFolder(), connection, provider, principal));
+            LogicalModel model = buildLogicalModel(entry, database, baseModel, physicalView,
+                  parent.getName(), baseModel.getFolder(), connection, provider, principal);
+            model.setName(name);
+            result.add(model);
          }
       }
 

@@ -2183,7 +2183,7 @@ public class RepletEngine extends AbstractAssetEngine
    /**
     * Removes the permission of an asset that is being moved or removed. The write is a side
     * effect of the structural change, so a failure is logged and does not stop the rest of the
-    * change.
+    * change. A permission that may still be stored is reported to the user (Bug #77939).
     */
    private static void removePermissionBestEffort(SecurityEngine security, ResourceType type,
                                                   String path)
@@ -2194,6 +2194,7 @@ public class RepletEngine extends AbstractAssetEngine
       catch(RuntimeException e) {
          LOG.error("Failed to remove the permission of {} {}, it may still be stored",
                    type, path, e);
+         reportPermissionMayRemain(security, type, path);
       }
    }
 

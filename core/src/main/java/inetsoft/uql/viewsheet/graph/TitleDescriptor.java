@@ -289,13 +289,13 @@ public class TitleDescriptor implements AssetObject, ContentObject{
 
       if(title.getDValue() != null) {
          writer.print("<title>");
-         writer.print("<![CDATA[" + Tool.splitCDATAEnd(title.getDValue()) + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(title.getDValue()) + "]]>");
          writer.println("</title>");
       }
 
       if(getTitle() != null) {
          writer.print("<titleRValue>");
-         writer.print("<![CDATA[" + Tool.splitCDATAEnd(getTitle()) + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(getTitle()) + "]]>");
          writer.print("</titleRValue>");
       }
    }

@@ -28,6 +28,7 @@ import inetsoft.util.*;
 import inetsoft.util.config.*;
 import inetsoft.web.messaging.MessageContextHolder;
 import org.apache.ignite.*;
+import org.apache.ignite.binary.BinaryObject;
 import org.apache.ignite.cache.*;
 import org.apache.ignite.cache.affinity.Affinity;
 import org.apache.ignite.cache.query.FieldsQueryCursor;
@@ -2569,7 +2570,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
     * Implements both IgnitePredicate (for localListen with replicated caches)
     * and IgniteBiPredicate (for remoteListen with partitioned caches).
     */
-   private static final class CacheEventListenerAdapter<K, V>
+   static final class CacheEventListenerAdapter<K, V>
       implements IgnitePredicate<CacheEvent>, IgniteBiPredicate<UUID, CacheEvent>
    {
       CacheEventListenerAdapter(String cacheName, ExecutorService executor) {
@@ -2598,20 +2599,50 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
          if(event.type() == EventType.EVT_CACHE_OBJECT_PUT) {
             if(event.oldValue() == null) {
-               executor.submit(() -> listeners.forEach(l -> l.entryAdded(entryEvent)));
+               dispatch(() -> listeners.forEach(l -> l.entryAdded(entryEvent)));
             }
             else {
-               executor.submit(() -> listeners.forEach(l -> l.entryUpdated(entryEvent)));
+               dispatch(() -> listeners.forEach(l -> l.entryUpdated(entryEvent)));
             }
          }
          else if(event.type() == EventType.EVT_CACHE_OBJECT_REMOVED) {
-            executor.submit(() -> listeners.forEach(l -> l.entryRemoved(entryEvent)));
+            dispatch(() -> listeners.forEach(l -> l.entryRemoved(entryEvent)));
          }
          else if(event.type() == EventType.EVT_CACHE_OBJECT_EXPIRED) {
-            executor.submit(() -> listeners.forEach(l -> l.entryExpired(entryEvent)));
+            // Ignite records EVT_CACHE_OBJECT_EXPIRED with keepBinary=true
+            // (GridCacheMapEntry.onExpired), so an expired entry's old value arrives as a
+            // BinaryObject, not as the cached type the listeners expect. Passed on as is, it made
+            // IgniteSessionRepository.entryExpired() fail its MapSession cast on every TTL expiry,
+            // so a session ended by its TTL was never logged out (Bug #77886).
+            dispatch(() -> {
+               EntryEvent expiredEvent = new EntryEvent<>(
+                  cacheName, (K) event.key(), (V) deserialize(event.oldValue()),
+                  (V) event.newValue());
+               listeners.forEach(l -> l.entryExpired(expiredEvent));
+            });
          }
 
          return true;
+      }
+
+      /**
+       * Runs a listener notification on the listener executor. A failure is logged here: the
+       * {@code Future} returned by {@code submit} is never read, so an exception thrown by a
+       * listener was otherwise lost without a trace (Bug #77886).
+       */
+      private void dispatch(Runnable notification) {
+         executor.submit(() -> {
+            try {
+               notification.run();
+            }
+            catch(RuntimeException e) {
+               LOG.warn("Failed to handle a cache event for {}", cacheName, e);
+            }
+         });
+      }
+
+      static Object deserialize(Object value) {
+         return value instanceof BinaryObject binary ? binary.deserialize() : value;
       }
 
       public void addListener(MapChangeListener<K, V> listener) {

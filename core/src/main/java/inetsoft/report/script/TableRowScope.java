@@ -54,7 +54,21 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
 
    @Override
    public boolean hasMember(String id) {
-      return valmap.containsKey(id) || owned.contains(id) || base.hasMember(id);
+      if(valmap.containsKey(id) || owned.contains(id)) {
+         return true;
+      }
+
+      // a builtin this scope defers to (see getMember) is absent here, so the name resolves
+      // to the global builtin, not to a same-named column (Bug #77999)
+      return !isDeferredBuiltin(id) && base.hasMember(id);
+   }
+
+   /**
+    * Whether a column named {@code id} must not hide the global builtin of that name: Array
+    * and Math always, Date when {@link #setBuiltinDate} is set.
+    */
+   private boolean isDeferredBuiltin(String id) {
+      return "Array".equals(id) || "Math".equals(id) || builtinDate && "Date".equals(id);
    }
 
    /**
@@ -490,16 +504,10 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
          return base;
       }
 
-      // avoid overriding builtin from column; returning null lets the
-      // engine resolve the builtin (Array/Math/Date) from the global scope
-      switch(id) {
-      case "Array":
-      case "Math":
+      // avoid overriding builtin from column: hasMember reports these names absent, so the
+      // engine resolves the builtin (Array/Math/Date) from the global scope
+      if(isDeferredBuiltin(id)) {
          return null;
-      case "Date":
-         if(builtinDate) {
-            return null;
-         }
       }
 
       return base.getMember(id);

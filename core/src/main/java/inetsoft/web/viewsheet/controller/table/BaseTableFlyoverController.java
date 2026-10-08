@@ -43,6 +43,7 @@ public class BaseTableFlyoverController {
    }
 
    @LoadingMask
+   // listed in SheetEventOrderInterceptor, which does not queue it behind the sheet's events
    @MessageMapping("/table/flyover")
    public void eventHandler(@Payload FlyoverEvent event, Principal principal,
                             CommandDispatcher dispatcher, @LinkUri String linkUri)

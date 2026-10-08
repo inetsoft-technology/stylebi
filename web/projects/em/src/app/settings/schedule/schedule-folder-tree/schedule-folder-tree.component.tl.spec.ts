@@ -58,6 +58,7 @@ import { ScheduleFolderTreeComponent } from "./schedule-folder-tree.component";
 import { EmScheduleChangeService } from "../schedule-task-list/em-schedule-change.service";
 import { ScheduleTaskDragService } from "../schedule-task-list/schedule-task-drag.service";
 import { StompClientService } from "../../../../../../shared/stomp/stomp-client.service";
+import { Tool } from "../../../../../../shared/util/tool";
 import { RepositoryFlatNode, RepositoryTreeNode } from "../../content/repository/repository-tree-node";
 import { RepositoryEntryType } from "../../../../../../shared/data/repository-entry-type.enum";
 
@@ -491,6 +492,69 @@ describe("ScheduleFolderTreeComponent — excludeCurrentPath: recursive removal"
 
       const parent = makeTreeNode("parent", "parent", []);
       expect(() => comp.excludeCurrentPath(parent, ["parent/x"])).not.toThrow();
+   });
+
+});
+
+// ---------------------------------------------------------------------------
+// Group 6 [Risk 3] — removeTasks: folder dependency check (Bug #78002)
+// ---------------------------------------------------------------------------
+
+describe("ScheduleFolderTreeComponent — removeTasks: folder dependency check", () => {
+
+   async function deleteFolder(dependencies: string[]) {
+      let removeBodies: any[] = [];
+      let checkCalled = false;
+      server.use(
+         http.post("*/api/em/schedule/folder/check-dependency", () => {
+            checkCalled = true;
+            // server returns a TaskListModel object, never a bare array
+            return MswHttpResponse.json({ taskNames: dependencies });
+         }),
+         http.post("*/api/em/schedule/folder/remove", async ({ request }) => {
+            removeBodies.push(await request.json());
+            return MswHttpResponse.json({});
+         }),
+      );
+
+      const { comp } = await renderComponent();
+      vi.spyOn(comp as any, "safeRefreshTree").mockImplementation(() => {});
+      // confirm dialog answers OK, every later dialog is just recorded
+      const dialogOpen = vi.fn().mockReturnValue({ afterClosed: () => of(true) });
+      comp.dialog.open = dialogOpen;
+
+      const folder = makeRepositoryFlatNode("f1", "f1");
+      comp.selectedNodes = [folder];
+      comp.removeTasks(folder.data);
+
+      await waitFor(() => expect(checkCalled).toBe(true));
+      return { dialogOpen, removeBodies: () => removeBodies };
+   }
+
+   // Bug #78002: a folder whose tasks have dependents shows the dependency message and removes nothing
+   it("should show the dependency dialog and not remove the folder when tasks have dependents", async () => {
+      const formatSpy = vi.spyOn(Tool, "formatCatalogString");
+      const { dialogOpen, removeBodies } = await deleteFolder(["B"]);
+
+      await waitFor(() => expect(dialogOpen).toHaveBeenCalledTimes(2));
+      const [, cfg] = dialogOpen.mock.calls[1] as any[];
+      expect(cfg.data.title).toBe("_#(js:em.schedule.dependenciesFound)");
+      // the catalog is not loaded in tests, so check the dependent names passed to the message format
+      expect(formatSpy).toHaveBeenCalledWith("_#(js:em.schedule.task.removeDependency)", ["B"]);
+      expect(cfg.data.content).toBe(formatSpy.mock.results.at(-1).value);
+
+      // give a stray remove request the chance to arrive before asserting it never did
+      await new Promise(resolve => setTimeout(resolve, 50));
+      expect(removeBodies()).toEqual([]);
+   });
+
+   // Bug #78002: no dependents -> the folder is removed and no dependency dialog is shown
+   it("should remove the folder when there are no dependents", async () => {
+      const { dialogOpen, removeBodies } = await deleteFolder([]);
+
+      await waitFor(() => expect(removeBodies().length).toBe(1));
+      expect(removeBodies()[0].taskNames).toEqual(["f1"]);
+      expect(dialogOpen).toHaveBeenCalledTimes(1);
    });
 
 });

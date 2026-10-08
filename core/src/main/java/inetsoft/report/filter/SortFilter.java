@@ -18,15 +18,22 @@
 package inetsoft.report.filter;
 
 import inetsoft.report.*;
+import inetsoft.report.composition.execution.AssetDataCache;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.table.*;
 import inetsoft.report.lens.AbstractTableLens;
+import inetsoft.report.lens.ChainScriptLock;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.util.Collator_CN;
 import inetsoft.util.CoreTool;
+import inetsoft.util.MessageException;
 import inetsoft.util.algo.*;
 import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.ExpressionFailedException;
+import inetsoft.util.script.JavaScriptEngine;
+import inetsoft.util.script.LendableReentrantLock;
+import inetsoft.util.script.ScriptException;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.swap.SwapFileReadException;
 import inetsoft.util.swap.XSwappableIntList;
@@ -236,6 +243,24 @@ public class SortFilter extends AbstractTableLens
             throw swapFailure;
          }
 
+         // nor a base that failed to load, for a reader that has to fail, e.g. a scheduled
+         // run; the failure was logged where it happened (bug #77966). checked first, the
+         // load failure may have a MessageException cause
+         TableLoadException loadFailure = TableLoadException.find(ex);
+
+         if(loadFailure != null) {
+            throw loadFailure;
+         }
+
+         // nor a failure to read the base, e.g. of a set table (bug #77524), the rows stay
+         // unsorted and a later read sorts again. a script failure keeps the log (bug #77875)
+         MessageException baseFailure = ex instanceof ScriptException ? null :
+            MessageException.find(ex);
+
+         if(baseFailure != null) {
+            throw baseFailure;
+         }
+
          LOG.error("Failed to process sort filter", ex);
       }
    }
@@ -370,7 +395,11 @@ public class SortFilter extends AbstractTableLens
       }
 
       if(useCache) {
-         if(table instanceof CancellableTableLens && ((CancellableTableLens) table).isCancelled()) {
+         // a base that failed to load also reports a cancel (bug #77901), its rows so far are
+         // still sorted for a reader that gets the failure's warning (bug #77966)
+         if(table instanceof CancellableTableLens && ((CancellableTableLens) table).isCancelled() &&
+            AssetDataCache.getLoadException(table) == null)
+         {
             return;
          }
 
@@ -548,7 +577,18 @@ public class SortFilter extends AbstractTableLens
       }
 
       XSwappableIntList rowmap = getRowMap();
-      return rowmap != null && row < rowmap.size();
+
+      if(rowmap != null && row < rowmap.size()) {
+         return true;
+      }
+
+      // the end of the sorted rows: the base, already read to its end, reports a failure to
+      // load its rows to this reader too, not only to the reader that sorted (bug #77966)
+      if(rowmap != null) {
+         table.moreRows(row);
+      }
+
+      return false;
    }
 
    /**
@@ -981,11 +1021,39 @@ public class SortFilter extends AbstractTableLens
    private XSwappableIntList getRowMap() {
       XSwappableIntList rowmap = this.rowmap;
 
-      if(rowmap == null) {
-         rowmap = checkInit();
+      if(rowmap != null) {
+         return rowmap;
       }
 
-      return rowmap;
+      // the sort reads the whole base under the lock, so it takes the engine lock the base
+      // needs before it, like a condition filter (bug #76918): a thread holding that lock may
+      // be waiting for the lock to read this filter, it would wait forever for a reader
+      // holding it between two base rows (bug #77874)
+      LendableReentrantLock execLock = getUnheldChainScriptLock();
+
+      if(execLock == null) {
+         return checkInit();
+      }
+
+      execLock.lock();
+      JavaScriptEngine.pushHeldScriptLock(execLock);
+
+      try {
+         return checkInit();
+      }
+      finally {
+         JavaScriptEngine.popHeldScriptLock();
+         execLock.unlock();
+      }
+   }
+
+   /**
+    * Get the engine lock reading the base may take if the current thread does not hold it
+    * (bug #77874).
+    */
+   private LendableReentrantLock getUnheldChainScriptLock() {
+      LendableReentrantLock execLock = ChainScriptLock.find(table);
+      return execLock != null && !execLock.isHeldByCurrentThread() ? execLock : null;
    }
 
    /**

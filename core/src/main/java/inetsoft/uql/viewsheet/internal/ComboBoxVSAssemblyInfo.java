@@ -243,9 +243,9 @@ public class ComboBoxVSAssemblyInfo extends ListInputVSAssemblyInfo {
    protected void writeContents(PrintWriter writer) {
       super.writeContents(writer);
 
-      writer.print("<selectedObject>");
-      writer.print("<![CDATA[" + Tool.getPersistentDataString(selectedObject,
-         getDataType()) + "]]>");
+      String str = Tool.getPersistentDataString(selectedObject, getDataType());
+      writer.print("<selectedObject" + Tool.cdataDataAttr(str) + ">");
+      writer.print("<![CDATA[" + Tool.cdataData(str) + "]]>");
       writer.print("</selectedObject>");
 
       if(minDate.getDValue() != null) {
@@ -271,7 +271,7 @@ public class ComboBoxVSAssemblyInfo extends ListInputVSAssemblyInfo {
       super.parseContents(elem, isSiteAdminImport);
 
       Element snode = Tool.getChildNodeByTagName(elem, "selectedObject");
-      selectedObject = getPersistentData(getDataType(), Tool.getValue(snode));
+      selectedObject = getPersistentData(getDataType(), Tool.getCDATAData(snode));
 
       minDate.setDValue(getContentsStr(elem, "minDate", ""));
       maxDate.setDValue(getContentsStr(elem, "maxDate", ""));

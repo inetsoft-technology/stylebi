@@ -144,8 +144,6 @@ class XObjectFragmentChangeTest {
 
    @Test
    void setAfterFailedDeleteIsWrittenOnNextSwap() throws Exception {
-      // the delayed removal would delete whatever is at the path later, including a new file
-      doNothing().when(fileSystemService).remove(any(File.class), anyInt());
       XSwappableObjectList<String> list = createObjectList();
 
       try {
@@ -156,7 +154,8 @@ class XObjectFragmentChangeTest {
 
          withReadOnlyDirectory(file.getParentFile(), () -> list.set(8200, "NEW"));
          assertTrue(file.exists(), "swap file was deleted from a read-only directory");
-         verify(fileSystemService).remove(eq(file), anyInt());
+         // a delayed removal would delete the file the next swap writes with this name (#77877)
+         verify(fileSystemService, never()).remove(any(File.class), anyInt());
 
          // the file is still there, so this set() must delete it
          list.set(8201, "NEW2");

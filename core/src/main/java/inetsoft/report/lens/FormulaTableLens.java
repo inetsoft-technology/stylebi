@@ -43,15 +43,19 @@ import inetsoft.util.script.graal.pool.WorksheetScriptEnv;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.stall.WaitRecord;
 import inetsoft.util.stall.WaitRegistry;
+import inetsoft.util.swap.SwapFileReadException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.*;
 import java.io.*;
+import java.lang.ref.WeakReference;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -323,6 +327,10 @@ public class FormulaTableLens extends AbstractTableLens
             rows = nrows;
          }
 
+         // the stopped rows of the old row table are not cleared here, without the lens lock:
+         // a reader that still reads the old table must still get the stop. They are for the
+         // old table only, the new one computes them again (bug #77949)
+
          // the compiled scripts and row scriptable are rebuilt by the next batch, since they
          // belong to the old row table (TableRow2.batchRows); an in-flight batch keeps its own.
          // completed is not reset: once the lens has computed all its rows, cancel() leaves
@@ -557,12 +565,26 @@ public class FormulaTableLens extends AbstractTableLens
                stalled = true;
                throw ex;
             }
+            // a lost swap file is not a script error either: like a stall, the row is not
+            // kept, and the reader gets the failure itself, so a later read computes the row
+            // again instead of reading a null cell (bug #77912)
+            catch(SwapFileReadException ex) {
+               stalled = true;
+               throw ex;
+            }
             catch(ScriptException ex) {
                LockStallException stall = LockStallException.find(ex);
 
                if(stall != null) {
                   stalled = true;
                   throw stall;
+               }
+
+               SwapFileReadException swap = SwapFileReadException.find(ex);
+
+               if(swap != null) {
+                  stalled = true;
+                  throw swap;
                }
 
                String colName = getColName(j + ncols);
@@ -581,6 +603,16 @@ public class FormulaTableLens extends AbstractTableLens
                   }
 
                   failure.addFailedRow(i);
+                  // the row is kept, so the later rows go on from the vars as the stopped
+                  // exec left them, but its cells from the stopped column on are not values:
+                  // every read of them fails with the stop instead of reading null. The row is
+                  // not computed again from that state: only a new row table is (bug #77949)
+                  failure.setStopped(true);
+                  // the records of a replaced row table are kept until now, for a reader that
+                  // still reads it (they hold it weakly)
+                  final XSwappableTable stoppedTable = target;
+                  stoppedRows.values().removeIf(s -> s.rows().get() != stoppedTable);
+                  stoppedRows.put(i, new StoppedRow(new WeakReference<>(target), j, failure));
                   throw failure;
                }
 
@@ -1208,14 +1240,23 @@ public class FormulaTableLens extends AbstractTableLens
             }
          }
 
-         try {
-            if(isCancelled()) {
-               return null;
-            }
+         if(isCancelled()) {
+            return null;
+         }
 
+         checkStopped(rows, r, c - ncols);
+
+         try {
             return rows.getObject(row + 1, c - ncols);
          }
          catch(Exception ex) {
+            // a lost swap file is not a null value (bug #77912)
+            SwapFileReadException swap = SwapFileReadException.find(ex);
+
+            if(swap != null) {
+               throw swap;
+            }
+
             // row is out of bound
             return null;
          }
@@ -1495,11 +1536,23 @@ public class FormulaTableLens extends AbstractTableLens
             // an earlier row of this batch's own row table, where it is computed: after an
             // invalidate() the lens's current row table does not hold it, and reading that
             // would compute rows into it from inside this batch (bug #77243)
+            if(isCancelled()) {
+               return null;
+            }
+
+            checkStopped(batchRows, row, col - batchNcols);
+
             try {
-               return isCancelled() ? null
-                  : batchRows.getObject(row - batchHrows + 1, col - batchNcols);
+               return batchRows.getObject(row - batchHrows + 1, col - batchNcols);
             }
             catch(Exception ex) {
+               // a lost swap file is not a null value (bug #77912)
+               SwapFileReadException swap = SwapFileReadException.find(ex);
+
+               if(swap != null) {
+                  throw swap;
+               }
+
                return null;
             }
          }
@@ -1580,6 +1633,13 @@ public class FormulaTableLens extends AbstractTableLens
 
             if(stall != null) {
                throw stall;
+            }
+
+            // nor is a lost swap file, which the failure below would drop (bug #77912)
+            SwapFileReadException swap = SwapFileReadException.find(ex);
+
+            if(swap != null) {
+               throw swap;
             }
 
             ScriptException failure = new ScriptException(ex.getMessage());
@@ -1819,6 +1879,13 @@ public class FormulaTableLens extends AbstractTableLens
             throw stall;
          }
 
+         // nor is a lost swap file (bug #77912)
+         SwapFileReadException swap = SwapFileReadException.find(ex);
+
+         if(swap != null) {
+            throw swap;
+         }
+
          // if in design mode, ignore the error
          // @by larryl, we must run the formula script since the
          // formula lens may be refreshed as part of saving to archive
@@ -1965,6 +2032,59 @@ public class FormulaTableLens extends AbstractTableLens
    }
 
    /**
+    * Fail the read of a cell of a row that a script timeout or cancel stopped, from the
+    * stopped column on, with the stop: the cell has no value (bug #77949).
+    *
+    * @param rows the row table the cell is read from.
+    * @param r    the lens row.
+    * @param col  the formula column, from 0.
+    */
+   private void checkStopped(XSwappableTable rows, int r, int col) {
+      StoppedRow stopped = stoppedRows.isEmpty() ? null : stoppedRows.get(r);
+
+      if(stopped != null && stopped.rows().get() == rows && col >= stopped.col()) {
+         // a new exception for each read: a reader may add to the one it gets
+         ExpressionFailedException failure = stopped.failure();
+         ExpressionFailedException stop = new ExpressionFailedException(
+            failure.getColIndex(), failure.getColName(), failure.getTableName(),
+            failure.getOriginalException());
+
+         for(int failedRow : failure.getFailedRows()) {
+            stop.addFailedRow(failedRow);
+         }
+
+         stop.setStopped(true);
+         throw stop;
+      }
+   }
+
+   /**
+    * Check if a script timeout or cancel stopped a row of this table as it is computed now:
+    * the cells of that row fail every read, so a cache must not hand this table to another
+    * reader, which would get the same failure, but compute the table again (bug #77949).
+    */
+   public boolean isStopped() {
+      XSwappableTable rows = this.rows;
+
+      for(StoppedRow stopped : stoppedRows.values()) {
+         if(rows != null && stopped.rows().get() == rows) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * A row of {@code rows} whose formula of column {@code col} was stopped. The row table is
+    * held weakly: a record of a replaced row table must not keep it.
+    */
+   private record StoppedRow(WeakReference<XSwappableTable> rows, int col,
+                             ExpressionFailedException failure)
+   {
+   }
+
+   /**
     * Cancel the table lens and running queries if supported.
     */
    @Override
@@ -2026,12 +2146,28 @@ public class FormulaTableLens extends AbstractTableLens
    // the current row table is read as it is (bug #77243)
    private static final int MAX_READ_RETRIES = 100;
 
+   /**
+    * A table with a stopped row is not written: its stopped cells would be read back as null.
+    * A cache that writes it fails to, and the reader of the other copy computes it again
+    * (bug #77949).
+    */
+   @Serial
+   private void writeObject(ObjectOutputStream out) throws IOException {
+      if(isStopped()) {
+         throw new NotSerializableException(
+            "A formula table whose row was stopped by a script timeout is not written");
+      }
+
+      out.defaultWriteObject();
+   }
+
    @Serial
    private void readObject(ObjectInputStream in) throws ClassNotFoundException, IOException {
       in.defaultReadObject();
       cancelLock = new ReentrantLock();
       lock = new OwnedLock();
       senv = new GraalJavaScriptEnv();
+      stoppedRows = new ConcurrentHashMap<>();
    }
 
    private TableLens table;
@@ -2058,6 +2194,8 @@ public class FormulaTableLens extends AbstractTableLens
    private List<FormulaHeaderInfo> hinfos;
    private volatile boolean completed;       // completed flag
    private volatile boolean cancelled;       // cancelled flag
+   // the rows a script timeout or cancel stopped, by lens row (bug #77949)
+   private transient Map<Integer, StoppedRow> stoppedRows = new ConcurrentHashMap<>();
    private transient Lock cancelLock = new ReentrantLock();
 
    private transient Object[] scripts; // compiled javascripts

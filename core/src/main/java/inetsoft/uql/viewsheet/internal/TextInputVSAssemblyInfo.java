@@ -262,25 +262,27 @@ public class TextInputVSAssemblyInfo extends ClickableInputVSAssemblyInfo {
 
       if(val != null) {
          writer.print("<text>");
-         writer.print("<![CDATA[" + val + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(String.valueOf(val)) + "]]>");
          writer.println("</text>");
       }
 
       if(value != null) {
-         writer.print("<value>");
-         writer.print("<![CDATA[" + Tool.getDataString(value) + "]]>");
+         String str = Tool.getDataString(value);
+         writer.print("<value" + Tool.cdataDataAttr(str) + ">");
+         writer.print("<![CDATA[" + Tool.cdataData(str) + "]]>");
          writer.println("</value>");
       }
 
       if(defaultText != null && defaultText.getDValue() != null) {
-         writer.print("<defaultText>");
-         writer.print("<![CDATA[" + Tool.getDataString(defaultText) + "]]>");
+         String str = Tool.getDataString(defaultText);
+         writer.print("<defaultText" + Tool.cdataDataAttr(str) + ">");
+         writer.print("<![CDATA[" + Tool.cdataData(str) + "]]>");
          writer.println("</defaultText>");
       }
 
       if(toolTip != null) {
          writer.print("<toolTip>");
-         writer.print("<![CDATA[" + Tool.getDataString(toolTip) + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(Tool.getDataString(toolTip)) + "]]>");
          writer.println("</toolTip>");
       }
 
@@ -316,13 +318,13 @@ public class TextInputVSAssemblyInfo extends ClickableInputVSAssemblyInfo {
       Element node = Tool.getChildNodeByTagName(elem, "value");
 
       if(node != null) {
-         value = Tool.getData(getDataType(), Tool.getValue(node));
+         value = Tool.getData(getDataType(), Tool.getCDATAData(node));
       }
 
       node = Tool.getChildNodeByTagName(elem, "defaultText");
 
       if(node != null) {
-         defaultText.setDValue(Tool.getValue(node));
+         defaultText.setDValue(Tool.getCDATAData(node));
       }
 
       node = Tool.getChildNodeByTagName(elem, "toolTip");

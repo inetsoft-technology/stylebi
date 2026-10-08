@@ -501,16 +501,22 @@ public abstract class VSAQuery {
          VSUtil.shrinkTable(vs, ws);
       }
 
-      TableAssembly base = (TableAssembly) ws.getAssembly(name);
-      VSAQuery.appendCalcField(base, name, true, vs);
+      // the base table and its viewsheet table are shared by the queries of all the requests
+      // on the viewsheet, which fetch their data without the sandbox lock (74001). they are
+      // changed in place here, so change them under the worksheet lock the copies of them
+      // are taken with (77867)
+      synchronized(ws) {
+         TableAssembly base = (TableAssembly) ws.getAssembly(name);
+         VSAQuery.appendCalcField(base, name, true, vs);
 
-      TableAssembly table = ws.getVSTableAssembly(name);
+         TableAssembly table = ws.getVSTableAssembly(name);
 
-      if(table instanceof MirrorTableAssembly) {
-         ((MirrorTableAssembly) table).updateColumnSelection();
+         if(table instanceof MirrorTableAssembly) {
+            ((MirrorTableAssembly) table).updateColumnSelection();
+         }
+
+         return table;
       }
-
-      return table;
    }
 
    /**
@@ -1065,7 +1071,15 @@ public abstract class VSAQuery {
       QueryManager qmgr = box.getQueryManager(vname);
 
       if(Q_CANCEL.get() != Boolean.FALSE) {
-         qmgr.cancel();
+         qmgr.cancelForQuery();
+      }
+
+      // another cancel from here on may stop the fetch, or the reading of the table it
+      // returns, early (#78033)
+      synchronized(qmgr) {
+         fetchQueryManager = qmgr;
+         fetchCancelCount = qmgr.getCancelCount();
+         fetchQueryCancelCount = qmgr.getQueryCancelCount();
       }
 
       wbox.setQueryManager(qmgr); // was box.getQueryManager()
@@ -1462,47 +1476,66 @@ public abstract class VSAQuery {
       }
 
       CalculateRef[] calcs = vs.getCalcFields(tname);
+
+      if(calcs == null) {
+         return;
+      }
+
+      Worksheet ws = table.getWorksheet();
+
+      // the table is shared by concurrent queries, see getVSTableAssembly (77867)
+      if(ws != null) {
+         synchronized(ws) {
+            appendCalcFields(table, calcs, detail, rangeOnly);
+         }
+      }
+      else {
+         appendCalcFields(table, calcs, detail, rangeOnly);
+      }
+   }
+
+   private static void appendCalcFields(TableAssembly table, CalculateRef[] calcs,
+                                        boolean detail, boolean rangeOnly)
+   {
       boolean isCube = table.getName().startsWith(Assembly.CUBE_VS);
 
-      if(calcs != null) {
-         ColumnSelection columns = table.getColumnSelection(false);
-         boolean changed = false;
+      ColumnSelection columns = table.getColumnSelection(false);
+      boolean changed = false;
 
-         for(int i = 0; i < calcs.length; i++) {
-            boolean valid = isCube ? true : (detail == calcs[i].isBaseOnDetail());
+      for(int i = 0; i < calcs.length; i++) {
+         boolean valid = isCube ? true : (detail == calcs[i].isBaseOnDetail());
 
-            if(!valid) {
-               continue;
-            }
-
-            // Only append Range@ calc fields in the cube path to avoid double-appending
-            // detail calc fields that are already merged via SQL (Bug #73963 / Bug #73410).
-            if(rangeOnly && !calcs[i].getName().startsWith("Range@")) {
-               continue;
-            }
-
-            // clear the mirror table entity-prefixed calc_field
-            // to avoid duplicates when adding the bare calc_field
-            DataRef old = columns.getAttribute(calcs[i].getName());
-
-            if(old != null) {
-               columns.removeAttribute(old);
-            }
-
-            calcs[i].setVisible(true);
-            columns.addAttribute((CalculateRef) calcs[i].clone());
-            changed = true;
+         if(!valid) {
+            continue;
          }
 
-         List<CalculateRef> calcsToProcess = rangeOnly
-            ? Arrays.stream(calcs).filter(c -> c.getName().startsWith("Range@"))
-               .collect(Collectors.toList())
-            : Arrays.asList(calcs);
-         changed = VSUtil.addCalcBaseRefs(columns, null, calcsToProcess) || changed;
-
-         if(changed) {
-            table.resetColumnSelection();
+         // Only append Range@ calc fields in the cube path to avoid double-appending
+         // detail calc fields that are already merged via SQL (Bug #73963 / Bug #73410).
+         if(rangeOnly && !calcs[i].getName().startsWith("Range@")) {
+            continue;
          }
+
+         // clear the mirror table entity-prefixed calc_field
+         // to avoid duplicates when adding the bare calc_field
+         DataRef old = columns.getAttribute(calcs[i].getName());
+
+         if(old != null) {
+            columns.removeAttribute(old);
+         }
+
+         calcs[i].setVisible(true);
+         columns.addAttribute((CalculateRef) calcs[i].clone());
+         changed = true;
+      }
+
+      List<CalculateRef> calcsToProcess = rangeOnly
+         ? Arrays.stream(calcs).filter(c -> c.getName().startsWith("Range@"))
+            .collect(Collectors.toList())
+         : Arrays.asList(calcs);
+      changed = VSUtil.addCalcBaseRefs(columns, null, calcsToProcess) || changed;
+
+      if(changed) {
+         table.resetColumnSelection();
       }
    }
 
@@ -1532,10 +1565,65 @@ public abstract class VSAQuery {
    // regardless of whether it's actually used. this function removes any calc field
    // that is not referenced anywhere in the output (column list or aggregate info).
    private void removeUnusedCalcFields(TableAssembly table) {
+      isolateBaseTable(table);
+
       // need to run in a look since calc field referenced by removed calc field can only
       // be removed after the calc field has been removed.
       while(removeUnusedCalcField(table)) {
          // continue until no more to remove
+      }
+   }
+
+   /**
+    * Give a table bound to a worksheet table with detail calc fields its own copy of that
+    * worksheet table, for the unused calc fields are removed from the table it mirrors. The
+    * worksheet table is shared by the queries of all the requests on the viewsheet, and they
+    * fetch their data at the same time (77867). The copy keeps the name of the worksheet table,
+    * which the mirror finds it by and selection assemblies are bound to.
+    */
+   private void isolateBaseTable(TableAssembly table) {
+      if(!(table instanceof MirrorTableAssembly)) {
+         return;
+      }
+
+      Worksheet ws = table.getWorksheet();
+      String base = ((MirrorTableAssembly) table).getAssemblyName();
+
+      // a worksheet wrapper holds copies already. a mirrored viewsheet (V_) table is kept by
+      // the mirror and not shared. the viewsheet table of the base table is itself shared,
+      // only the copy of it bound to this query (ViewsheetSandbox.getBoundTable) is moved
+      if(ws == null || ws instanceof WorksheetWrapper || base == null ||
+         base.startsWith(Assembly.TABLE_VS) || table.getName().equals(Assembly.TABLE_VS + base))
+      {
+         return;
+      }
+
+      // a selection table holds the calc fields of the table it selects from (77915)
+      String source = getViewsheet().getCalcFieldTable(base);
+      CalculateRef[] calcs = getViewsheet().getCalcFields(source);
+
+      if(calcs == null || Arrays.stream(calcs).noneMatch(CalculateRef::isBaseOnDetail)) {
+         return;
+      }
+
+      // the wrapper copies the base table from the worksheet when the mirror looks it up. it
+      // lists the assemblies of the worksheet too, so the mv transformation and the other code
+      // that walks the assemblies of the table's worksheet see the same ones as before
+      WorksheetWrapper wrapper = new WorksheetWrapper(ws, true);
+      wrapper.addAssembly(table);
+      TableAssembly child = ((MirrorTableAssembly) table).getTableAssembly();
+
+      if(child == null) {
+         return;
+      }
+
+      // the base table holds the calc fields as the last of the concurrent queries left them,
+      // which may have validated them for its own assembly. do again on the copy what this
+      // query did to the base table (getVSTableAssembly, validateCalculateRef)
+      appendCalcField(child, source, true, getViewsheet());
+
+      if(base.equals(validatedTable)) {
+         validateCalculateRef(wrapper, base);
       }
    }
 
@@ -1718,6 +1806,41 @@ public abstract class VSAQuery {
    }
 
    /**
+    * Check if the data this query returned may have been cut short, i.e. its query manager
+    * was cancelled after the query fetched its table. Only a query whose data is complete
+    * when it is returned can tell. The reader of a table checks the table itself.
+    * @param data the data returned by this query.
+    */
+   public boolean isDataCancelled(Object data) {
+      return false;
+   }
+
+   /**
+    * Check if the query manager was cancelled after this query started its fetch.
+    */
+   protected boolean isFetchCancelled() {
+      QueryManager qmgr = fetchQueryManager;
+      return qmgr != null && qmgr.getCancelCount() != fetchCancelCount;
+   }
+
+   /**
+    * Check if every cancel of the query manager after this query started its fetch was done
+    * by another query of the assembly starting, not by a user or by the sandbox.
+    */
+   public boolean isFetchCancelledByQuery() {
+      QueryManager qmgr = fetchQueryManager;
+
+      if(qmgr == null) {
+         return false;
+      }
+
+      synchronized(qmgr) {
+         return qmgr.getCancelCount() - fetchCancelCount <=
+            qmgr.getQueryCancelCount() - fetchQueryCancelCount;
+      }
+   }
+
+   /**
     * Replace all condition ref to self data ref so that mv can hit.
     */
    private void replaceConditionRef(TableAssembly table) {
@@ -1768,15 +1891,21 @@ public abstract class VSAQuery {
     * Validate calculate ref.
     */
    protected void validateCalculateRef(Worksheet ws, String name) {
-      TableAssembly table = (TableAssembly) ws.getAssembly(name);
+      validatedTable = name;
 
-      if(table == null) {
-         return;
+      // the calc fields of the base table are changed in place by concurrent queries under the
+      // worksheet lock, see getVSTableAssembly (77867)
+      synchronized(ws) {
+         TableAssembly table = (TableAssembly) ws.getAssembly(name);
+
+         if(table == null) {
+            return;
+         }
+
+         ColumnSelection cols = table.getColumnSelection();
+         cols.stream().filter(CalculateRef.class::isInstance)
+            .forEach(c -> validateCalculateRef((CalculateRef) c));
       }
-
-      ColumnSelection cols = table.getColumnSelection();
-      cols.stream().filter(CalculateRef.class::isInstance)
-         .forEach(c -> validateCalculateRef((CalculateRef) c));
    }
 
    /**
@@ -1953,8 +2082,12 @@ public abstract class VSAQuery {
    protected ViewsheetSandbox box;
    protected String vname;
    protected long createdTime;
+   private QueryManager fetchQueryManager;
+   private long fetchCancelCount;
+   private long fetchQueryCancelCount;
    protected Locale locale;
    private Worksheet ws = null;
+   private String validatedTable; // the base table whose calc fields this query validated
    private boolean shrink = true;
    private boolean meta = false;
 

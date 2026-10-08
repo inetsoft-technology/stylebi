@@ -586,15 +586,15 @@ public class RecycleBin implements XMLSerializable, AutoCloseable {
          writer.println("<entry>");
 
          if(getPath() != null) {
-            writer.format("<path><![CDATA[%s]]></path>%n", getPath());
+            writer.format("<path><![CDATA[%s]]></path>%n", Tool.splitCDATAEnd(getPath()));
          }
 
          if(getOriginalPath() != null) {
-            writer.format("<originalPath><![CDATA[%s]]></originalPath>%n", getOriginalPath());
+            writer.format("<originalPath><![CDATA[%s]]></originalPath>%n", Tool.splitCDATAEnd(getOriginalPath()));
          }
 
          if(getName() != null) {
-            writer.format("<name><![CDATA[%s]]></name>%n", getName());
+            writer.format("<name><![CDATA[%s]]></name>%n", Tool.splitCDATAEnd(getName()));
          }
 
          if(getTimestamp() != null) {

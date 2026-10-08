@@ -24,6 +24,7 @@ import inetsoft.uql.erm.vpm.VirtualPrivateModel;
 import inetsoft.uql.erm.vpm.VpmCondition;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.ConnectionProcessor;
+import inetsoft.uql.util.XUtil;
 import inetsoft.util.Tool;
 import inetsoft.util.XMLSerializable;
 import inetsoft.util.xml.XMLStorage.Filter;
@@ -104,6 +105,13 @@ public class XDataModel implements Cloneable, Serializable, XDomain,
     * @param modelChange when update dependencies or import, return not change.
     */
    public void addLogicalModel(XLogicalModel model, boolean modelChange) {
+      // Bug #77918: this and the other add, remove, rename and update members write the data
+      // source registry for the data source a script names, so a script may not call them.
+      // Java callers still can. Guarding the innermost overload also refuses the others
+      if(XUtil.isDirectScriptCall(XDataModel.class)) {
+         throw new java.lang.SecurityException("A script may not add a logical model");
+      }
+
       model.setDataModel(this);
       String path = getDataSource() + "/" + model.getName();
       AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
@@ -149,8 +157,14 @@ public class XDataModel implements Cloneable, Serializable, XDomain,
       return list.toArray(filters);
    }
 
+   /**
+    * Rename a logical model in this data model, keeping its description.
+    *
+    * @param oldName the old name of the logical model.
+    * @param newName the new name of the logical model.
+    */
    public void renameLogicalModel(String oldName, String newName) {
-      renameLogicalModel(oldName, newName);
+      renameLogicalModel(oldName, newName, null);
    }
 
    /**
@@ -160,6 +174,12 @@ public class XDataModel implements Cloneable, Serializable, XDomain,
     * @param newName the new name of the logical model.
     */
    public void renameLogicalModel(String oldName, String newName, String description) {
+      // Bug #77852: the rename writes the registry and starts the rename pipeline for any
+      // data model a script builds, so a script may not call it. Java callers still can
+      if(XUtil.isDirectScriptCall(XDataModel.class)) {
+         throw new java.lang.SecurityException("A script may not rename a logical model");
+      }
+
       XLogicalModel model = getLogicalModel(oldName);
 
       if(model != null) {
@@ -167,9 +187,10 @@ public class XDataModel implements Cloneable, Serializable, XDomain,
          String newPath = getDataSource() + "/" + newName;
          // Bug #77820, read before anything is renamed: not the entries of a data source of a
          // folder at the path of the data source, which may be stored under the path of the
-         // model
-         AssetEntry[] children =
-            getRegistry().getDataSourceEntries(getDataSource(), oldPath + "/", null, true);
+         // model. Bug #77842, only its own extended models: not the extended views of a view
+         // with the same name, or the models "<oldName>/..." and their extended models
+         AssetEntry[] children = getRegistry().getExtendedModelEntries(getDataSource(), oldPath,
+            AssetEntry.Type.EXTENDED_LOGIC_MODEL, true);
          DependencyHandler.getInstance().updateModelDependencies(model, false);
          model.setName(newName);
 
@@ -202,6 +223,11 @@ public class XDataModel implements Cloneable, Serializable, XDomain,
     */
    public void renameVirtualPrivateModel(String oldName,
                                          VirtualPrivateModel vpm) {
+      // Bug #77918: as addLogicalModel
+      if(XUtil.isDirectScriptCall(XDataModel.class)) {
+         throw new java.lang.SecurityException("A script may not rename a virtual private model");
+      }
+
       String oldPath = getDataSource() + "/" + oldName;
       String newPath = getDataSource() + "/" + vpm.getName();
       vpm.setLastModified(System.currentTimeMillis());
@@ -348,10 +374,16 @@ public class XDataModel implements Cloneable, Serializable, XDomain,
     * Remove a logical model from this data model.
     */
    public boolean removeLogicalModel(String name, boolean removeAnyWay) {
+      // Bug #77918: as addLogicalModel
+      if(XUtil.isDirectScriptCall(XDataModel.class)) {
+         throw new java.lang.SecurityException("A script may not remove a logical model");
+      }
+
       String path = getDataSource() + "/" + name;
       // Bug #77820, not the extended models of a data source of a folder at the path of the
-      // data source. Before the try, which only logs a failure
-      AssetEntry[] children = getRegistry().getDataSourceEntries(getDataSource(), path + "/",
+      // data source. Bug #77842, not the ones of a model "<name>/...". Before the try, which
+      // only logs a failure
+      AssetEntry[] children = getRegistry().getExtendedModelEntries(getDataSource(), path,
             AssetEntry.Type.EXTENDED_LOGIC_MODEL, true);
 
       try {
@@ -381,6 +413,11 @@ public class XDataModel implements Cloneable, Serializable, XDomain,
     * @param change check whether the last modified time is updated
     */
    public void addVirtualPrivateModel(VirtualPrivateModel model, boolean change) {
+      // Bug #77918: as addLogicalModel
+      if(XUtil.isDirectScriptCall(XDataModel.class)) {
+         throw new java.lang.SecurityException("A script may not add a virtual private model");
+      }
+
       String path = getDataSource() + "/" + model.getName();
       AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
               AssetEntry.Type.VPM, path, null);
@@ -478,6 +515,11 @@ public class XDataModel implements Cloneable, Serializable, XDomain,
     * @param name the name of the virtual private model to remove.
     */
    public void removeVirtualPrivateModel(String name) {
+      // Bug #77918: as addLogicalModel
+      if(XUtil.isDirectScriptCall(XDataModel.class)) {
+         throw new java.lang.SecurityException("A script may not remove a virtual private model");
+      }
+
       AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
               AssetEntry.Type.VPM, getDataSource() + "/" + name, null);
       getRegistry().removeObject(entry);
@@ -496,6 +538,11 @@ public class XDataModel implements Cloneable, Serializable, XDomain,
     * Remove all the virtual private models from this data model.
     */
    public void removeVirtualPrivateModels() {
+      // Bug #77918: as addLogicalModel
+      if(XUtil.isDirectScriptCall(XDataModel.class)) {
+         throw new java.lang.SecurityException("A script may not remove a virtual private model");
+      }
+
       try {
          AssetEntry[] vpmEntries = getRegistry().getDataSourceEntries(getDataSource(),
                  getDataSource() + "/", AssetEntry.Type.VPM, true);
@@ -526,6 +573,11 @@ public class XDataModel implements Cloneable, Serializable, XDomain,
     * @param isImport
     */
    public void addPartition(XPartition partition, boolean isImport) {
+      // Bug #77918: as addLogicalModel
+      if(XUtil.isDirectScriptCall(XDataModel.class)) {
+         throw new java.lang.SecurityException("A script may not add a partition");
+      }
+
       if(partition == null) {
          return;
       }
@@ -662,10 +714,16 @@ public class XDataModel implements Cloneable, Serializable, XDomain,
     * @param name the name of the partition to remove.
     */
    public void removePartition(String name) {
+      // Bug #77918: as addLogicalModel
+      if(XUtil.isDirectScriptCall(XDataModel.class)) {
+         throw new java.lang.SecurityException("A script may not remove a partition");
+      }
+
       String path = getDataSource() + "/" + name;
       // Bug #77820, not the extended views of a data source of a folder at the path of the
-      // data source. Before the try, which only logs a failure
-      AssetEntry[] children = getRegistry().getDataSourceEntries(getDataSource(), path + "/",
+      // data source. Bug #77842, not the ones of a view "<name>/...". Before the try, which
+      // only logs a failure
+      AssetEntry[] children = getRegistry().getExtendedModelEntries(getDataSource(), path,
               AssetEntry.Type.EXTENDED_PARTITION, true);
 
       try {
@@ -685,6 +743,11 @@ public class XDataModel implements Cloneable, Serializable, XDomain,
    }
 
    public void updatePartition(String partitionName) {
+      // Bug #77918: as addLogicalModel
+      if(XUtil.isDirectScriptCall(XDataModel.class)) {
+         throw new java.lang.SecurityException("A script may not update a partition");
+      }
+
       XPartition partition = getPartition(partitionName);
 
       if(partition != null) {
@@ -705,14 +768,20 @@ public class XDataModel implements Cloneable, Serializable, XDomain,
     * @param newName the new name of the partition.
     */
    public void renamePartition(String oldName, String newName, String description) {
+      // Bug #77918: as addLogicalModel
+      if(XUtil.isDirectScriptCall(XDataModel.class)) {
+         throw new java.lang.SecurityException("A script may not rename a partition");
+      }
+
       XPartition partition = getPartition(oldName);
 
       if(partition != null) {
          // Bug #77820, read before anything is renamed: not the entries of a data source of a
          // folder at the path of the data source, which may be stored under the path of the
-         // view
-         AssetEntry[] children = getRegistry().getDataSourceEntries(getDataSource(),
-                 getDataSource() + "/" + oldName + "/", null, true);
+         // view. Bug #77842, only its own extended views: not the extended models of a logical
+         // model with the same name, or the views "<oldName>/..." and their extended views
+         AssetEntry[] children = getRegistry().getExtendedModelEntries(getDataSource(),
+                 getDataSource() + "/" + oldName, AssetEntry.Type.EXTENDED_PARTITION, true);
          partition.setName(newName);
 
          if(description != null) {

@@ -20,6 +20,7 @@ package inetsoft.web.admin.schedule;
 import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.schedule.ScheduleTask;
 import inetsoft.sree.security.*;
+import inetsoft.util.MessageException;
 import inetsoft.web.admin.content.repository.ContentRepositoryTreeNode;
 import inetsoft.web.admin.schedule.model.*;
 import org.junit.jupiter.api.*;
@@ -105,7 +106,8 @@ class EMScheduleTaskFolderControllerMoveNameTest {
    void moveFolder_checksTheTaskThatIsMoved() throws Exception {
       when(scheduleTaskService.canDeleteTask(victimTask, principal)).thenReturn(false);
 
-      controller.moveFolder(request, principal);
+      // Bug #77813, the refusal is an error, not a 200 as if the move had worked
+      assertThrows(MessageException.class, () -> controller.moveFolder(request, principal));
 
       verify(folderService, never().description(
          "moveFolder passed the permission check on the task stored under 'nightly' and moved " +

@@ -92,8 +92,11 @@ public class ScheduleManager {
    }
 
    public static ScheduleTaskMetaData getTaskMetaData(String taskId) {
-      if(taskId.contains(":")) {
-         return new ScheduleTaskMetaData(taskId.split(":")[1], taskId.split(":")[0]);
+      // Bug #77883, the owner key ends at the first ':', the task name may contain ':'
+      int index = taskId.indexOf(':');
+
+      if(index >= 0) {
+         return new ScheduleTaskMetaData(taskId.substring(index + 1), taskId.substring(0, index));
       }
       else {
          return new ScheduleTaskMetaData(taskId, null);
@@ -800,6 +803,22 @@ public class ScheduleManager {
    }
 
    /**
+    * Saves a schedule task in place of a stored task that the caller already removed (e.g. to
+    * rename it). Bug #77972, the batch action targets of the task are checked against the targets
+    * of that stored task, which can no longer be read when the task is saved, a kept target is
+    * not checked again.
+    *
+    * @param stored the task as it was stored before the caller removed it, or {@code null} if
+    *               there was none.
+    */
+   public synchronized void setScheduleTask(String taskId, ScheduleTask task, AssetEntry parent,
+                                            Principal principal, ScheduleTask stored)
+      throws Exception
+   {
+      setScheduleTask(taskId, task, parent, isInternalTask(taskId), principal, false, stored);
+   }
+
+   /**
     * Replaces a stored task with a task, i.e. removes the task stored under the old id and saves
     * the task under its own id. Bug #77359, the owner organization of the task is checked before
     * the old task is removed, against the task stored before this change, so a task that is
@@ -819,15 +838,103 @@ public class ScheduleManager {
 
       String taskId = task.getTaskId();
       boolean ownerChecked = task.getOwner() != null;
+      // Bug #77972, the stored task is read before it's removed, the save checks the batch
+      // action targets against it
+      ScheduleTask stored = getStoredTask(oldTaskId, taskId, principal);
+      // Bug #77549, #77863, every refusal of the save is made before the stored task is
+      // removed, so it isn't lost
+      checkReplaceScheduleTask(oldTaskId, taskId, task, principal);
+      removeScheduleTask(oldTaskId, principal);
+      setScheduleTask(taskId, task, parent, isInternalTask(taskId), principal, ownerChecked,
+                      stored);
+   }
+
+   /**
+    * Bug #77863, checks, before a stored task is removed or rewritten (e.g. its folder) to save a
+    * task with {@link #setScheduleTask(String, ScheduleTask, AssetEntry, Principal)}, that the
+    * save will not be refused, so a refused save doesn't lose or change the stored task. Makes
+    * every refusal the save makes, with the same rules, and changes nothing.
+    *
+    * @param taskId    the id the task is saved under.
+    * @param task      the task as it will be saved.
+    * @param principal the principal the task is saved as.
+    *
+    * @throws Exception if the save would be refused.
+    */
+   public synchronized void checkScheduleTaskSave(String taskId, ScheduleTask task,
+                                                  Principal principal)
+      throws Exception
+   {
+      checkScheduleTaskSave(taskId, task, principal, false,
+                            getStoredTask(taskId, taskId, principal));
+   }
+
+   /**
+    * Bug #77863, checks, before a stored task is removed to save a task in its place (e.g. to
+    * rename it), that the save will not be refused, so a refused save doesn't lose the stored
+    * task. The owner organization is checked against the stored task, as
+    * {@link #checkReplaceOwnerOrganization}, every other refusal as
+    * {@link #checkScheduleTaskSave}.
+    *
+    * @param oldTaskId the id of the stored task, which is removed.
+    * @param taskId    the id the task is saved under.
+    * @param task      the task as it will be saved.
+    * @param principal the principal the task is saved as.
+    *
+    * @throws Exception if the save would be refused.
+    */
+   public synchronized void checkReplaceScheduleTask(String oldTaskId, String taskId,
+                                                     ScheduleTask task, Principal principal)
+      throws Exception
+   {
+      if(task == null) {
+         return;
+      }
+
+      boolean ownerChecked = task.getOwner() != null;
 
       if(ownerChecked) {
          checkReplaceOwnerOrganization(oldTaskId, taskId, task, principal);
       }
 
-      // Bug #77549, refused before the stored task is removed, so it isn't lost
-      checkBatchQueryOrganization(taskId, task, principal);
-      removeScheduleTask(oldTaskId, principal);
-      setScheduleTask(taskId, task, parent, isInternalTask(taskId), principal, ownerChecked);
+      checkScheduleTaskSave(taskId, task, principal, ownerChecked,
+                            getStoredTask(oldTaskId, taskId, principal));
+   }
+
+   /**
+    * Gets the stored task that a task saved under an id replaces, the task stored under the old
+    * id, in the organization the task is saved in.
+    */
+   private ScheduleTask getStoredTask(String oldTaskId, String taskId, Principal principal) {
+      if(oldTaskId == null || taskId == null) {
+         return null;
+      }
+
+      String orgID = isInternalTask(taskId) ? Organization.getDefaultOrganizationID() :
+         OrganizationManager.getInstance().getCurrentOrgID(principal);
+      return orgID == null ? null : getScheduleTask(oldTaskId, orgID);
+   }
+
+   /**
+    * Makes the refusals of a {@link #setScheduleTask(String, ScheduleTask, AssetEntry, Principal)}
+    * save without saving: a task with an internal id is saved trusted and a data cycle task is
+    * never saved as a schedule task, neither is refused.
+    */
+   private void checkScheduleTaskSave(String taskId, ScheduleTask task, Principal principal,
+                                      boolean ownerChecked, ScheduleTask stored)
+      throws Exception
+   {
+      if(task == null || isInternalTask(taskId) ||
+         task.getType() == ScheduleTask.Type.CYCLE_TASK)
+      {
+         return;
+      }
+
+      String orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
+      Principal savePrincipal = getSavePrincipal(principal);
+      IdentityID newOwner = task.getOwner() == null ?
+         getNewTaskOwner(savePrincipal, orgID, false) : null;
+      checkSaveRefusals(taskId, task, newOwner, orgID, savePrincipal, ownerChecked, stored);
    }
 
    /**
@@ -873,7 +980,7 @@ public class ScheduleManager {
          setScheduleTask(taskId, task, parent, true, principal);
       }
       else {
-         setScheduleTask(taskId, task, parent, orgID, false, true, principal, false);
+         setScheduleTask(taskId, task, parent, orgID, false, true, principal, false, null);
       }
    }
 
@@ -886,15 +993,36 @@ public class ScheduleManager {
          return;
       }
 
-      final String orgID;
-      if(internal) {
-         orgID = Organization.getDefaultOrganizationID();
-      }
-      else {
-         orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
+      // Bug #77972, the task stored under the id, read before the task is put in its place
+      ScheduleTask stored = internal ? null :
+         getScheduleTask(taskId, getSaveOrgID(false, principal));
+      setScheduleTask(taskId, task, parent, internal, principal, ownerChecked, stored);
+   }
+
+   /**
+    * @param stored the task as it's stored before this save, the batch action targets are
+    *               checked against its targets.
+    */
+   private synchronized void setScheduleTask(String taskId, ScheduleTask task, AssetEntry parent,
+                                             boolean internal, Principal principal,
+                                             boolean ownerChecked, ScheduleTask stored)
+      throws Exception
+   {
+      if(task == null) {
+         return;
       }
 
-      setScheduleTask(taskId, task, parent, orgID, internal, internal, principal, ownerChecked);
+      String orgID = getSaveOrgID(internal, principal);
+      setScheduleTask(taskId, task, parent, orgID, internal, internal, principal, ownerChecked,
+                      stored);
+   }
+
+   /**
+    * Gets the organization a task is saved in.
+    */
+   private static String getSaveOrgID(boolean internal, Principal principal) {
+      return internal ? Organization.getDefaultOrganizationID() :
+         OrganizationManager.getInstance().getCurrentOrgID(principal);
    }
 
    /**
@@ -904,10 +1032,12 @@ public class ScheduleManager {
     *                 isn't moved to the organization.
     * @param trusted  if the scheduler permission and the owner organization aren't checked and
     *                 the owner isn't granted permissions.
+    * @param stored   the task as it's stored before this save, for the checks of an untrusted save.
     */
    private synchronized void setScheduleTask(String taskId, ScheduleTask task, AssetEntry parent,
                                              String orgID, boolean internal, boolean trusted,
-                                             Principal principal, boolean ownerChecked)
+                                             Principal principal, boolean ownerChecked,
+                                             ScheduleTask stored)
       throws Exception
    {
       if(task == null) {
@@ -939,88 +1069,20 @@ public class ScheduleManager {
          return;
       }
 
-      if(principal == null) {
-         String addr = null;
+      principal = getSavePrincipal(principal);
+      boolean ownerless = task.getOwner() == null;
+      IdentityID newOwner = ownerless ? getNewTaskOwner(principal, orgID, internal) : null;
 
-         try {
-            addr = Tool.getIP();
-         }
-         catch(Exception e) {
-            LOG.warn("Failed to get local IP address", e);
-         }
-
-         IdentityID clientID = new IdentityID(ClientInfo.ANONYMOUS, Organization.getDefaultOrganizationID());
-         principal = new SRPrincipal(new ClientInfo(clientID, addr),
-                                     new IdentityID[0], new String[0], null, 1L);
-         ((SRPrincipal) principal).setProperty("__internal__", "true");
-      }
-
-      IdentityID user = IdentityID.getIdentityIDFromKey(principal.getName());
-
-      // if a task is not removable, it's an internally created task. the schedule permission
-      // is used to control whether a user can create schedule tasks (from the gui). internal
-      // tasks (such as MV ondemand) are created without user intervention, and the originating
-      // task (such as creating MV) is already controlled by a permission, so we shouldn't
-      // check the permission here again.
-      if(!trusted && task.isRemovable() &&
-         !engine.checkPermission(principal, ResourceType.SCHEDULER, "*", ResourceAction.ACCESS))
-      {
-         throw new IOException("User '" + user.getName() + "' doesn't have schedule permission.");
-      }
-
-      // Bug #77549, a batch action query in another organization is refused
+      // Bug #77863, every refusal of a save is made by checkSaveRefusals(), which callers that
+      // remove or rewrite the stored task before saving also call first (checkScheduleTaskSave),
+      // so the two can't disagree and a refused save never loses the stored task
       if(!trusted) {
-         checkBatchQueryOrganization(task, orgID, principal);
+         checkSaveRefusals(taskId, task, newOwner, orgID, principal, ownerChecked, stored);
       }
 
-      // @by mikec, here we shouldn't modify the task's owner.
-      // For example if a task was defined by a user A, we should
-      // not change it's owner to 'Admin' when admin changed the task
-      // in Enterprise Manager.
-      // The rule here should be, any role have permisstion on the task
-      // (currently it is the admin) should be able to change the task,
-      // but the owner should not be changed.
-      user = SUtil.getOwnerForNewTask(user);
-
-      if(task.getOwner() == null) {
-         // Bug #77359, the owner organization is part of the task id, which is the scheduler
-         // (quartz) key of the task in all organizations, keep it the organization the task is
-         // stored in (e.g. a site admin working in another organization), the same as a
-         // materialized view task (MVSupportService)
-         if(!internal && user != null && user.orgID != null && orgID != null &&
-            !user.orgID.equalsIgnoreCase(orgID))
-         {
-            user = SUtil.getOwnerForNewTask(user, orgID);
-         }
-
-         // Bug #77309, the caller becomes the owner of the task, a task whose owner doesn't
-         // exist and has the name of a site admin in another organization runs with elevated
-         // roles (the org admin roles of its org since Bug #77452)
-         if(!trusted && getSecurityEngine().isSecurityEnabled() &&
-            !OrganizationManager.getInstance().isSiteAdmin(principal) &&
-            SUtil.getSameNameSiteAdmin(getSecurityEngine().getSecurityProvider(), user) != null)
-         {
-            throw new inetsoft.sree.security.SecurityException(String.format(
-               "Unauthorized creation of a task owned by \"%s\" by %s, the owner doesn't " +
-               "exist and has the name of a site admin", user, principal));
-         }
-
-         task.setOwner(user);
+      if(ownerless) {
+         task.setOwner(newOwner);
          taskId = task.getTaskId();
-      }
-
-      if(!ownerChecked) {
-         checkOwnerOrganization(taskId, task, orgID, trusted);
-      }
-
-      // Bug #77530, every save path converges here (the EM/portal task editor via
-      // ScheduleTaskService.saveTask() and the viewer's own "Schedule" dialog via
-      // ScheduleDialogService.scheduleVS()), and both let a client-supplied ViewsheetAction
-      // sheet identifier through with no check of its own. Reject one that doesn't belong to
-      // the saving principal's organization here, the one place both paths reach, the same as
-      // the scheduler-permission and owner-organization checks right above.
-      if(!trusted) {
-         checkActionOrgBoundary(task, orgID, principal);
       }
 
       ScheduleTaskMessage.Action action;
@@ -1069,6 +1131,224 @@ public class ScheduleManager {
          LOG.error("Failed to set permission on scheduled task " +
                task.getTaskId() + " for user " + owner.getName(), e);
       }
+   }
+
+   /**
+    * Gets the principal a task is saved as, an internal anonymous principal for a null one.
+    */
+   private static Principal getSavePrincipal(Principal principal) {
+      if(principal != null) {
+         return principal;
+      }
+
+      String addr = null;
+
+      try {
+         addr = Tool.getIP();
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to get local IP address", e);
+      }
+
+      IdentityID clientID = new IdentityID(ClientInfo.ANONYMOUS, Organization.getDefaultOrganizationID());
+      SRPrincipal internalPrincipal = new SRPrincipal(new ClientInfo(clientID, addr),
+                                                      new IdentityID[0], new String[0], null, 1L);
+      internalPrincipal.setProperty("__internal__", "true");
+      return internalPrincipal;
+   }
+
+   /**
+    * Gets the owner a task without an owner gets when it's saved by a principal.
+    */
+   private static IdentityID getNewTaskOwner(Principal principal, String orgID, boolean internal) {
+      // @by mikec, here we shouldn't modify the task's owner.
+      // For example if a task was defined by a user A, we should
+      // not change it's owner to 'Admin' when admin changed the task
+      // in Enterprise Manager.
+      // The rule here should be, any role have permisstion on the task
+      // (currently it is the admin) should be able to change the task,
+      // but the owner should not be changed.
+      IdentityID user =
+         SUtil.getOwnerForNewTask(IdentityID.getIdentityIDFromKey(principal.getName()));
+
+      // Bug #77359, the owner organization is part of the task id, which is the scheduler
+      // (quartz) key of the task in all organizations, keep it the organization the task is
+      // stored in (e.g. a site admin working in another organization), the same as a
+      // materialized view task (MVSupportService)
+      if(!internal && user != null && user.orgID != null && orgID != null &&
+         !user.orgID.equalsIgnoreCase(orgID))
+      {
+         user = SUtil.getOwnerForNewTask(user, orgID);
+      }
+
+      return user;
+   }
+
+   /**
+    * Makes every refusal of a non-trusted {@link #setScheduleTask} save. Nothing is changed, so
+    * it's also run before a stored task is removed or rewritten to save a task in its place
+    * ({@link #checkScheduleTaskSave}). Bug #77863, a new refusal of a save must be added here,
+    * never to setScheduleTask itself, or a caller that removes the stored task first loses it.
+    * <p>
+    * Bug #77972, the stored task is the one {@link #getScheduleTask} returns, the instance
+    * cached by the task map. A caller must change a clone of it, never that instance, or a batch
+    * action target it adds is already in the stored task and isn't checked as added.
+    *
+    * @param newOwner     the owner the task gets if it has no owner.
+    * @param ownerChecked if the owner organization was already checked by the caller.
+    * @param stored       the task as it's stored before the save, or {@code null} if none.
+    */
+   private void checkSaveRefusals(String taskId, ScheduleTask task, IdentityID newOwner,
+                                  String orgID, Principal principal, boolean ownerChecked,
+                                  ScheduleTask stored)
+      throws Exception
+   {
+      IdentityID user = IdentityID.getIdentityIDFromKey(principal.getName());
+
+      // if a task is not removable, it's an internally created task. the schedule permission
+      // is used to control whether a user can create schedule tasks (from the gui). internal
+      // tasks (such as MV ondemand) are created without user intervention, and the originating
+      // task (such as creating MV) is already controlled by a permission, so we shouldn't
+      // check the permission here again.
+      if(task.isRemovable() && !SUtil.getRepletRepository().checkPermission(
+         principal, ResourceType.SCHEDULER, "*", ResourceAction.ACCESS))
+      {
+         throw new IOException("User '" + user.getName() + "' doesn't have schedule permission.");
+      }
+
+      // Bug #77549, a batch action query in another organization is refused
+      checkBatchQueryOrganization(task, orgID, principal);
+      ScheduleTask checkedTask = task;
+      String checkedTaskId = taskId;
+
+      if(task.getOwner() == null) {
+         // Bug #77309, the caller becomes the owner of the task, a task whose owner doesn't
+         // exist and has the name of a site admin in another organization runs with elevated
+         // roles (the org admin roles of its org since Bug #77452)
+         if(getSecurityEngine().isSecurityEnabled() &&
+            !OrganizationManager.getInstance().isSiteAdmin(principal) &&
+            SUtil.getSameNameSiteAdmin(getSecurityEngine().getSecurityProvider(), newOwner) != null)
+         {
+            throw new inetsoft.sree.security.SecurityException(String.format(
+               "Unauthorized creation of a task owned by \"%s\" by %s, the owner doesn't " +
+               "exist and has the name of a site admin", newOwner, principal));
+         }
+
+         // the owner is checked as the task is saved, with its new owner, on a copy so a check
+         // never changes the task
+         checkedTask = task.clone();
+         checkedTask.setOwner(newOwner);
+         checkedTaskId = checkedTask.getTaskId();
+      }
+
+      if(!ownerChecked) {
+         checkOwnerOrganization(checkedTaskId, checkedTask, orgID, false);
+      }
+
+      // Bug #77972, a batch action runs its target task as the target's owner, only a task
+      // that the owner of this task and the saving principal may see can be targeted
+      checkBatchActionTargets(task, checkedTask.getOwner(), stored, orgID, principal);
+
+      // Bug #77530, every save path converges here (the EM/portal task editor via
+      // ScheduleTaskService.saveTask() and the viewer's own "Schedule" dialog via
+      // ScheduleDialogService.scheduleVS()), and both let a client-supplied ViewsheetAction
+      // sheet identifier through with no check of its own. Reject one that doesn't belong to
+      // the saving principal's organization here, the one place every save reaches, the same as
+      // the scheduler-permission and owner-organization checks right above.
+      checkActionOrgBoundary(task, orgID, principal);
+   }
+
+   /**
+    * Bug #77972, refuses a batch action target task that the owner of the task, or the saving
+    * principal, may not see ({@link #isBatchTargetPermitted}). Only a target that isn't held by a
+    * batch action of the stored task is checked against the saving principal, so a stored task
+    * whose target is no longer visible can still be changed, renamed or moved; the run-time check
+    * in {@link BatchAction#run} still refuses to run it. Every target is checked against the owner
+    * when the owner changes. A site admin saving principal isn't checked, the owner always is, so
+    * a task isn't saved that would be refused at run time. A target that doesn't exist (e.g. not
+    * imported yet) is left to the run-time check. Internal targets are checked by the Bug #77531
+    * rule alone, and nothing is checked without security.
+    */
+   private void checkBatchActionTargets(ScheduleTask task, IdentityID owner, ScheduleTask stored,
+                                        String orgID, Principal principal)
+      throws inetsoft.sree.security.SecurityException
+   {
+      if(!getSecurityEngine().isSecurityEnabled()) {
+         return;
+      }
+
+      Set<String> storedTargets = getBatchActionTargets(stored);
+      boolean ownerChanged = stored == null || !Objects.equals(owner, stored.getOwner());
+      boolean siteAdmin = OrganizationManager.getInstance().isSiteAdmin(principal);
+      Principal ownerPrincipal = null;
+
+      for(String targetId : getBatchActionTargets(task)) {
+         boolean added = !storedTargets.contains(targetId);
+
+         if(isInternalTask(targetId) || !added && !ownerChanged) {
+            continue;
+         }
+
+         ScheduleTask target = getScheduleTask(targetId, orgID);
+
+         if(target == null) {
+            continue;
+         }
+
+         if(ownerPrincipal == null && owner != null) {
+            ownerPrincipal = SUtil.getScheduleTaskOwnerPrincipal(owner, null, false);
+         }
+
+         if(!isBatchTargetPermitted(target, ownerPrincipal) ||
+            added && !siteAdmin && !isBatchTargetPermitted(target, principal))
+         {
+            throw new inetsoft.sree.security.SecurityException(String.format(
+               "Unauthorized access to resource \"%s\" by %s, the batch action target task " +
+               "isn't accessible to the task owner %s or the user", targetId, principal, owner));
+         }
+      }
+   }
+
+   /**
+    * Gets the target task ids of the batch actions of a task.
+    */
+   private static Set<String> getBatchActionTargets(ScheduleTask task) {
+      Set<String> targets = new LinkedHashSet<>();
+
+      for(int i = 0; task != null && i < task.getActionCount(); i++) {
+         if(task.getAction(i) instanceof BatchAction batch &&
+            !StringUtils.isEmpty(batch.getTaskId()))
+         {
+            targets.add(batch.getTaskId());
+         }
+      }
+
+      return targets;
+   }
+
+   /**
+    * Bug #77972, whether a principal may make a batch action run a target task: when it may see
+    * the task, by the rule that lists the tasks a batch action may target
+    * ({@link RepletEngine#hasTaskPermission}). Fails closed when the rule isn't available.
+    *
+    * @param target    the target task.
+    * @param principal the principal, the owner of the task that holds the batch action or the
+    *                  principal that saves it.
+    */
+   static boolean isBatchTargetPermitted(ScheduleTask target, Principal principal) {
+      if(principal == null || target == null || target.getOwner() == null) {
+         return false;
+      }
+
+      RepletEngine engine = SUtil.getRepletEngine(SUtil.getRepletRepository());
+
+      if(engine == null) {
+         LOG.warn("The schedule task permissions can't be checked, the batch action target " +
+                  "task \"{}\" is refused", target.getTaskId());
+         return false;
+      }
+
+      return engine.hasTaskPermission(target, principal);
    }
 
    /**
@@ -1400,7 +1680,20 @@ public class ScheduleManager {
       // not an ext task? check if a normal task
       if(!ext) {
          if(task != null) {
-            getOrgTaskMap(orgID).remove(getTaskIdentifier(task.getTaskId(), orgID));
+            String identifier = getTaskIdentifier(task.getTaskId(), orgID);
+            String requested = getTaskIdentifier(taskName, orgID);
+            getOrgTaskMap(orgID).remove(identifier);
+
+            // Bug #77883, a task stored under the requested id that loads with another id (e.g.
+            // its name was changed when it was loaded) is removed by the key it's stored under
+            if(!requested.equals(identifier)) {
+               ScheduleTask stored = getOrgTaskMap(orgID).get(requested);
+
+               if(stored != null && Tool.equals(stored.getTaskId(), task.getTaskId())) {
+                  getOrgTaskMap(orgID).remove(requested);
+               }
+            }
+
             dependencyHandler.updateTaskDependencies(task, false);
          }
          else {
@@ -2285,7 +2578,8 @@ public class ScheduleManager {
          ViewsheetAction vaction = (ViewsheetAction) action;
 
          if(vaction.getViewsheet() != null) {
-            IdentityID oldUser = vaction.getViewsheetEntry().getUser();
+            AssetEntry vsEntry = vaction.getViewsheetEntry();
+            IdentityID oldUser = vsEntry == null ? null : vsEntry.getUser();
 
             if(oldUser != null && oldUser.equals(oid) && !oldUser.equals(id)) {
                String newViewsheet = vaction.getViewsheet().replace(oldUser.convertToKey(), id.convertToKey());
@@ -2568,6 +2862,11 @@ public class ScheduleManager {
             if(action instanceof ViewsheetAction) {
                ViewsheetAction vsAction = (ViewsheetAction) action;
                AssetEntry vsEntry = vsAction.getViewsheetEntry();
+
+               if(vsEntry == null) {
+                  continue;
+               }
+
                String path = vsEntry.getPath();
 
                if(path != null && path.startsWith(prefix) &&
@@ -2628,7 +2927,11 @@ public class ScheduleManager {
                   String opath = oentry.getPath();
                   String npath = nentry.getPath();
                   AssetEntry ventry = AssetEntry.createAssetEntry(vaction.getViewsheetName());
-                  assert ventry != null;
+
+                  if(ventry == null) {
+                     continue;
+                  }
+
                   String vpath = ventry.getPath();
 
                   if(vpath.startsWith(opath + "/")) {

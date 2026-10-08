@@ -23,6 +23,7 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.util.*;
+import inetsoft.util.swap.SwapFileReadException;
 import inetsoft.util.css.CSSConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -241,7 +242,15 @@ public class SelectionListVSAssemblyInfo extends SelectionBaseVSAssemblyInfo {
             }
 
             if(selectionList != null) {
-               info.selectionList = (SelectionList) selectionList.clone();
+               try {
+                  info.selectionList = (SelectionList) selectionList.clone();
+               }
+               catch(SwapFileReadException ex) {
+                  // the swapped values are lost. don't fail the whole clone (e.g. an undo checkpoint),
+                  // leave the selection list out so it is queried again (bug #77864)
+                  LOG.warn("Selection list not cloned, its swap file is lost: " + ex.getFile());
+                  info.selectionList = null;
+               }
             }
          }
 

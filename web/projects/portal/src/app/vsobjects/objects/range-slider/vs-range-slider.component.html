@@ -187,6 +187,7 @@
         (touchstart)="mouseDown($event, handleType.Left)"
         (touchmove)="mouseMove($event)"
         (touchend)="mouseUp($event)"
+        (touchcancel)="cancelDrag()"
         (dblclick)="setMaxRange()"
         (mousedown)="mouseDown($event, handleType.Left)" #leftHandle>
         @if (!isMouseDown && mouseHandle === handleType.Left) {
@@ -210,6 +211,7 @@
         (touchstart)="mouseDown($event, handleType.Right)"
         (touchmove)="mouseMove($event)"
         (touchend)="mouseUp($event)"
+        (touchcancel)="cancelDrag()"
         (dblclick)="setMaxRange()"
         (mousedown)="mouseDown($event, handleType.Right)" #rightHandle>
         @if (!isMouseDown && mouseHandle === handleType.Right) {
@@ -225,6 +227,7 @@
         (touchstart)="mouseDown($event, handleType.Middle)"
         (touchmove)="mouseMove($event)"
         (touchend)="mouseUp($event)"
+        (touchcancel)="cancelDrag()"
         (mousedown)="mouseDown($event, handleType.Middle)" #middleHandle>
         @if (!isMouseDown && mouseHandle === handleType.Middle) {
           <div

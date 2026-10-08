@@ -360,6 +360,16 @@ public abstract class AbstractConditionFilter extends AbstractTableLens
    }
 
    /**
+    * @return whether the row map is completed with at least one row, headers included (the
+    * published completed count is above 0), read without the monitor. A completed map with no
+    * rows at all reads as not completed. Like {@link #isPastCompletedMap(int)}, the answer
+    * may be stale once returned: {@code invalidate} may reset the map at any time (bug #77874).
+    */
+   protected final boolean hasNonEmptyCompletedMap() {
+      return completedCount > 0;
+   }
+
+   /**
     * @return the rows, headers included, the last population published for
     * {@link #isRowMapped(int)}; exact when read under this filter's monitor.
     */

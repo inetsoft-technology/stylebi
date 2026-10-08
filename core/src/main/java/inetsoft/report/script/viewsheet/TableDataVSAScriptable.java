@@ -38,7 +38,7 @@ import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
 import inetsoft.util.script.ArrayObject;
 import inetsoft.util.script.JavaScriptEngine;
-import inetsoft.util.stall.LockStallException;
+import inetsoft.util.swap.DataUnavailable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -375,16 +375,17 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
             }
          }
          catch(Exception ex) {
-            // a lock stall is not a missing table: rethrow it, and keep a cleared table
-            // dirty so the next read fetches it again instead of reading the old one (#77123)
-            LockStallException stall = LockStallException.find(ex);
+            // a lock stall or a lost swap file is not a missing table: rethrow it, and keep a
+            // cleared table dirty so the next read fetches it again instead of reading the old
+            // one (#77123, #77910)
+            RuntimeException unavailable = DataUnavailable.find(ex);
 
-            if(stall != null) {
+            if(unavailable != null) {
                if(dirty && table != null) {
                   table.setIsDirty(true);
                }
 
-               throw stall;
+               throw unavailable;
             }
 
             String msg = "Failed to get table for: " + getVSAssemblyInfo().getAbsoluteName();
@@ -718,13 +719,9 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
          return vslens ? box.getVSTableLens(assembly, false) : box.getTableData(assembly);
       }
       catch(Exception ex) {
-         // a lock stall is not a missing table, which TableArray reads as an empty one and
-         // getTableArray()/getTableData() would cache (#77123)
-         LockStallException stall = LockStallException.find(ex);
-
-         if(stall != null) {
-            throw stall;
-         }
+         // a lock stall or a lost swap file is not a missing table, which TableArray reads as
+         // an empty one and getTableArray()/getTableData() would cache (#77123, #77910)
+         DataUnavailable.rethrow(ex);
 
          if(!box.isCancelled(ts)) {
             if(LOG.isDebugEnabled()) {

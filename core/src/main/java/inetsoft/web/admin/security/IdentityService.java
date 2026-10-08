@@ -243,6 +243,15 @@ public class IdentityService {
                if(type == Identity.USER) {
                   deleteUserIDs.add(identityId);
                }
+
+               // Bug #77834, report a permission the delete could not remove. The identity is
+               // deleted, so its IdentityInfo record is still written; the warning makes the
+               // action record a failure after the loop
+               String leftoverWarning = getLeftoverPermissionsWarning(type, identityId, principal);
+
+               if(leftoverWarning != null) {
+                  warnings.add(leftoverWarning);
+               }
             }
             catch(Exception ex) {
                actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_FAILURE);
@@ -588,6 +597,9 @@ public class IdentityService {
 
       Identity nid = new DefaultIdentity(identityId, type);
       Identity oid = oID == null ? null : new DefaultIdentity(oID, type);
+      // a renamed user's or group's dashboards are read before the provider write, which
+      // changes how they are computed once the old user is gone. They are moved after it.
+      String[] renamedDashboards = null;
 
       if(oID == null) {
          // a deleted user, group or role is cleaned up in removeIdentity(), after it has been
@@ -598,15 +610,19 @@ public class IdentityService {
             smanager.identityRemoved(identity, eprovider);
          }
       }
-      else {
-         if((type == Identity.USER || type == Identity.GROUP) && !identityId.equals(oID)) {
-            smanager.identityRenamed(oID, identity);
-            dmanager.setDashboards(nid, dmanager.getDashboards(oid));
-            dmanager.setDashboards(oid, null);
-            dmanager.removeDashboards(oid);
-            dashboardRegistryManager.clear(oID);
-         }
+      else if((type == Identity.USER || type == Identity.GROUP) && !identityId.equals(oID)) {
+         renamedDashboards = dmanager.getDashboards(oid);
       }
+
+      final String[] dashboards = renamedDashboards;
+      // moves a renamed user's or group's schedule tasks and dashboards to the new name
+      RenameStep renameTasksAndDashboards = () -> {
+         smanager.identityRenamed(oID, identity);
+         dmanager.setDashboards(nid, dashboards);
+         dmanager.setDashboards(oid, null);
+         dmanager.removeDashboards(oid);
+         dashboardRegistryManager.clear(oID);
+      };
 
       AuthorizationChain authoc = (AuthorizationChain) securityProvider.getAuthorizationProvider();
 
@@ -633,19 +649,24 @@ public class IdentityService {
                LOG.debug("User {} not found, skipping the custom theme cleanup", identityId);
             }
          }
-         else {
-            if(!identityId.equals(oID)) {
-               String orgId = identityId.orgID;
-               //rep.renameUser(oID, identityId);
-               repletRegistryManager.renameUser(oID, identityId);
-               dashboardRegistryManager.clear(identityId);
-               dashboardRegistryManager.renameUser(oID, identityId);
-               dashboardRegistryManager.clear(oID);
-               updateUserAutoSaveFiles(oID, identityId);
-               //update user identityId inside of permissions
-               updateIdentityPermissions(type, oID, identityId, orgId, orgId, true);
-            }
+         else if(!identityId.equals(oID)) {
+            String orgId = identityId.orgID;
 
+            renameIdentity(eprovider, identityId, type, () -> eprovider.setUser(oID, (User) identity),
+               () -> {
+                  renameTasksAndDashboards.run();
+                  //rep.renameUser(oID, identityId);
+                  repletRegistryManager.renameUser(oID, identityId);
+                  dashboardRegistryManager.clear(identityId);
+                  dashboardRegistryManager.renameUser(oID, identityId);
+                  dashboardRegistryManager.clear(oID);
+                  updateUserAutoSaveFiles(oID, identityId);
+                  // update user identityId inside of permissions. The provider's change listener
+                  // renames the grantees too, but not the permissions keyed by the user's resources
+                  updateIdentityPermissions(type, oID, identityId, orgId, orgId, true);
+               });
+         }
+         else {
             eprovider.setUser(oID, (User) identity);
          }
       }
@@ -702,6 +723,17 @@ public class IdentityService {
                eprovider.copyOrganization(oldOrg, (Organization) identity, id, identity.getName(),
                                           this, themeService, dashboardRegistryManager, dataCycleManager,
                                           ThreadContext.getContextPrincipal(), true);
+
+               // Bug #77940, report a permission the ID change could not remove from the old ID
+               if(!Tool.equals(oId, id)) {
+                  String leftoverWarning = getRenamedOrgLeftoverPermissionsWarning(
+                     oID, id, ThreadContext.getContextPrincipal());
+
+                  if(leftoverWarning != null) {
+                     Tool.addUserMessage(leftoverWarning);
+                  }
+               }
+
                logManager.renameOrgLogLevels(oId, id);
             }
 
@@ -730,28 +762,37 @@ public class IdentityService {
          }
          else {
             boolean changed = !identityId.equals(oID);
+            RenameStep write = type == Identity.GROUP ?
+               () -> eprovider.setGroup(identityId, (Group) identity) :
+               () -> eprovider.setRole(identityId, (Role) identity);
 
             if(changed) {
+               // the new record is saved first, then the old name's data is moved to it. The old
+               // record is removed last: its removal is a delete event, which takes the old name
+               // out of every grant, membership and inheriting role.
                if(type == Identity.GROUP) {
-                  //update group name inside of permissions
                   String orgId = eprovider.getGroup(oID).getOrganizationID();
-                  updateIdentityPermissions(type, oID, identityId, orgId, orgId, true);
-                  updatePrincipalGroup(oID, identityId);
+
+                  renameIdentity(eprovider, identityId, type, write, () -> {
+                     renameTasksAndDashboards.run();
+                     //update group name inside of permissions
+                     updateIdentityPermissions(type, oID, identityId, orgId, orgId, true);
+                     updatePrincipalGroup(oID, identityId);
+                  });
                }
                else {
-                  //update role identityId inside of permissions
                   String orgId = eprovider.getRole(oID) != null && eprovider.getRole(oID).getOrganizationID() != null ?
                      eprovider.getRole(oID).getOrganizationID() : null;
-                  updateIdentityPermissions(type, oID, identityId, orgId, orgId, true);
-                  syncRoles(eprovider, oID, identityId);
+
+                  renameIdentity(eprovider, identityId, type, write, () -> {
+                     //update role identityId inside of permissions
+                     updateIdentityPermissions(type, oID, identityId, orgId, orgId, true);
+                     syncRoles(eprovider, oID, identityId);
+                  });
                }
             }
-
-            if(type == Identity.GROUP) {
-               eprovider.setGroup(identityId, (Group) identity);
-            }
             else {
-               eprovider.setRole(identityId, (Role) identity);
+               write.run();
             }
 
             if(changed) {
@@ -820,6 +861,70 @@ public class IdentityService {
          // assume it does, so its tasks and dashboards are kept
          return true;
       }
+   }
+
+   /**
+    * Saves a renamed user, group or role, then moves the old name's data (schedule tasks,
+    * dashboards, permissions, memberships) to the new name. The save can fail after the new
+    * record was saved, when the old one could not be removed and the admin is told to delete it;
+    * the data is moved then too, and the error is rethrown. Otherwise a failed save moves
+    * nothing, so the data stays with the identity that still exists.
+    *
+    * @param write   saves the renamed identity to the provider.
+    * @param migrate moves the old name's data to the new name.
+    */
+   private void renameIdentity(EditableAuthenticationProvider eprovider, IdentityID newId,
+                               int type, RenameStep write, RenameStep migrate)
+      throws Exception
+   {
+      try {
+         write.run();
+      }
+      catch(Exception ex) {
+         if(!renamedIdentitySaved(eprovider, newId, type)) {
+            throw ex;
+         }
+
+         LOG.warn("Renaming to {} failed after it was saved, moving the data to the new name",
+                  newId, ex);
+
+         try {
+            migrate.run();
+         }
+         catch(Exception migrateError) {
+            ex.addSuppressed(migrateError);
+         }
+
+         throw ex;
+      }
+
+      migrate.run();
+   }
+
+   /**
+    * Checks whether a renamed identity was saved. Unlike identityExists(), a failed read counts
+    * as not saved, so the old name's data is not moved to an identity that may not exist.
+    */
+   private boolean renamedIdentitySaved(EditableAuthenticationProvider eprovider,
+                                        IdentityID identityId, int type)
+   {
+      try {
+         return switch(type) {
+            case Identity.USER -> eprovider.getUser(identityId) != null;
+            case Identity.GROUP -> eprovider.getGroup(identityId) != null;
+            default -> eprovider.getRole(identityId) != null;
+         };
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to check whether the renamed identity {} was saved, keeping the data " +
+                     "on the old name", identityId, e);
+         return false;
+      }
+   }
+
+   @FunctionalInterface
+   private interface RenameStep {
+      void run() throws Exception;
    }
 
    /**
@@ -1071,20 +1176,38 @@ public class IdentityService {
             return false;
          }
 
-         if(removed) {
-            String cleanupOrgId = memberOrgId != null ? memberOrgId :
-               id.orgID != null ? id.orgID : orgID;
+         String cleanupOrgId = memberOrgId != null ? memberOrgId :
+            id.orgID != null ? id.orgID : orgID;
+         boolean removedHere = removed;
 
-            try {
-               OrganizationManager.runInOrgScope(orgID, () -> {
-                  cleanUpRemovedIdentity(new DefaultIdentity(id, type), cleanupOrgId);
-                  return null;
-               });
-            }
-            catch(Exception cleanupEx) {
-               LOG.warn("Failed to clean up the removed organization member: {}", id, cleanupEx);
-            }
+         try {
+            OrganizationManager.runInOrgScope(orgID, () -> {
+               if(removedHere) {
+                  cleanUpDroppedMember(id, type, cleanupOrgId);
+               }
+               // Bug #77964, the member was already gone, so the delete failed after the removal
+               // or the removal completed after it failed. Its permissions are cleaned up only if
+               // some are left, so the organization's entries are not all written again.
+               else if(!findLeftoverPermissions(type, id).isEmpty()) {
+                  String permissionOrgId = type == Identity.USER ? id.orgID : cleanupOrgId;
+                  updateIdentityPermissions(type, id, null, permissionOrgId, permissionOrgId, true);
+               }
+
+               return null;
+            });
          }
+         catch(Exception cleanupEx) {
+            LOG.warn("Failed to clean up the removed organization member: {}", id, cleanupEx);
+         }
+      }
+
+      // Bug #77834, report a permission the delete could not remove. The member is gone here,
+      // whether it was removed by the delete or by the retry above.
+      String leftoverWarning = getLeftoverPermissionsWarning(
+         type, id, ThreadContext.getContextPrincipal());
+
+      if(leftoverWarning != null) {
+         Tool.addUserMessage(leftoverWarning);
       }
 
       try {
@@ -1099,6 +1222,46 @@ public class IdentityService {
       }
 
       return true;
+   }
+
+   /**
+    * Runs the steps of syncIdentity()'s delete branch that follow the removal from the provider,
+    * for a dropped organization member that removeDroppedMember() removed after the delete failed
+    * to (Bug #77964). Without them the member's own permission key was kept, so a new identity
+    * with the same name was administered by the old grantee. Each step is guarded, so one failure
+    * does not skip the rest.
+    */
+   private void cleanUpDroppedMember(IdentityID id, int type, String orgId) {
+      Identity identity = new DefaultIdentity(id, type);
+      cleanUpRemovedIdentity(identity, orgId);
+      // like the delete, a user's permissions are updated under the organization of its id
+      String permissionOrgId = type == Identity.USER ? id.orgID : orgId;
+      runCleanupStep("permissions", id,
+                     () -> updateIdentityPermissions(type, id, null, permissionOrgId,
+                                                     permissionOrgId, true));
+
+      if(type == Identity.USER) {
+         runCleanupStep("user-scoped assets", id, () -> removeUserScopedAssets(identity));
+         runCleanupStep("user environment", id, () -> UserEnv.removeUser(id));
+         runCleanupStep("auto-save files", id, () -> AutoSaveUtils.deleteUserAutoSaveFiles(id));
+         removeIdentityFromThemes(id, orgId, CustomTheme::getUsers);
+      }
+      else if(type == Identity.GROUP) {
+         runCleanupStep("groups of the current user", id, () -> updatePrincipalGroup(null, id));
+         removeIdentityFromThemes(id, orgId, CustomTheme::getGroups);
+      }
+      else {
+         removeIdentityFromThemes(id, orgId, CustomTheme::getRoles);
+      }
+   }
+
+   private void runCleanupStep(String step, IdentityID id, RenameStep cleanup) {
+      try {
+         cleanup.run();
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to clean up the {} of the removed organization member {}", step, id, e);
+      }
    }
 
    private void updateOrganizationMembers(Organization identity, List<IdentityModel> memberModels,
@@ -1812,10 +1975,17 @@ public class IdentityService {
          .collect(Collectors.toList());
    }
 
+   /**
+    * Gets the grantees of the action that {@link #setIdentityPermissions} writes for the
+    * resource: ASSIGN for a role other than the {@code Roles} and {@code Organization Roles}
+    * roots, ADMIN for the roots and every other identity type. The grant is read from the
+    * permission storage of {@code orgID} with grantee scope {@code orgID}, and only grantees the
+    * principal can administer are returned.
+    */
    public List<IdentityModel> getPermission(IdentityID resourceID, ResourceType resourceType, String orgID,
                                             Principal principal)
    {
-      ResourceAction action = ResourceAction.ADMIN;;
+      ResourceAction action = getIdentityGrantAction(resourceID, resourceType);
       EnumSet<ResourceAction> actions = EnumSet.of(ResourceAction.ADMIN);
 
       AuthorizationProvider authz = this.securityProvider.getAuthorizationProvider();
@@ -1830,6 +2000,23 @@ public class IdentityService {
          .filter(identity -> securityProvider.checkAnyPermission(
             principal, getResourceType(identity.type()), identity.identityID().convertToKey(), actions))
          .collect(Collectors.toList());
+   }
+
+   /**
+    * Bug #77868, a role's grant is stored under ASSIGN except for the role roots, which
+    * setIdentityPermissions stores under ADMIN. The root is decided by name, since the writer's
+    * root key depends on its caller's org argument rather than on the resource.
+    */
+   private static ResourceAction getIdentityGrantAction(IdentityID resourceID,
+                                                        ResourceType resourceType)
+   {
+      if(resourceType == ResourceType.SECURITY_ROLE && resourceID != null &&
+         !"Roles".equals(resourceID.name) && !"Organization Roles".equals(resourceID.name))
+      {
+         return ResourceAction.ASSIGN;
+      }
+
+      return ResourceAction.ADMIN;
    }
 
    private List<IdentityModel> getIdentityGrants(Permission resourcePerm, ResourceAction action,
@@ -2776,7 +2963,6 @@ public class IdentityService {
       user.setActive(model.status());
       user.setOrganization(model.organization());
       user.setGoogleSSOId(ouser.getGoogleSSOId());
-      renameOrganizationMember(model.organization(), ouser.getName(), model.name(), eprovider);
 
       Properties localeProperties = SUtil.loadLocaleProperties();
       String localeString = null;
@@ -2824,7 +3010,16 @@ public class IdentityService {
          }
       }
 
-      syncIdentity(eprovider, user, oIdentity);
+      if(Tool.equals(ouser.getName(), model.name())) {
+         syncIdentity(eprovider, user, oIdentity);
+      }
+      else {
+         // the organization's member list is renamed once the renamed user is saved
+         renameIdentity(eprovider, user.getIdentityID(), Identity.USER,
+                        () -> syncIdentity(eprovider, user, oIdentity),
+                        () -> renameOrganizationMember(model.organization(), ouser.getName(),
+                                                       model.name(), eprovider));
+      }
 
       if(sessionRepository != null) {
          try {
@@ -2879,7 +3074,6 @@ public class IdentityService {
       final FSGroup group = new FSGroup(id, locale, memberNames, roles);
 
       group.setOrganization(model.organization());
-      renameOrganizationMember(model.organization(), oldGroup.getName(), model.name(), eprovider);
 
       IdentityID[] mgroups = new IdentityID[groupV.size()];
       groupV.toArray(mgroups);
@@ -2903,7 +3097,17 @@ public class IdentityService {
          if(oID.name.equals(pgroup.getName()) && Tool.equals(oID.orgID, pgroup.getOrganizationID()))
          {
             group.setGroups(pgroup.getGroups());
-            syncIdentity(eprovider, group, oID);
+            if(Tool.equals(oldGroup.getName(), model.name())) {
+               syncIdentity(eprovider, group, oID);
+            }
+            else {
+               // the organization's member list is renamed once the renamed group is saved
+               renameIdentity(eprovider, id, Identity.GROUP,
+                              () -> syncIdentity(eprovider, group, oID),
+                              () -> renameOrganizationMember(model.organization(),
+                                                             oldGroup.getName(), model.name(),
+                                                             eprovider));
+            }
             continue;
          }
 
@@ -3659,6 +3863,10 @@ public class IdentityService {
       SecurityProvider provider = securityEngine.getSecurityProvider();
       Organization oldOrganization = oldOrgId == null || oldOrgId.isEmpty() ?
          null : provider.getOrganization(oldOrgId);
+      // Bug #77771, the deleted self user's resources are removed after the permissions are
+      // written back. The registry removes their grants (and those of nested resources and
+      // additional connections), which the write-back of the snapshot would otherwise re-create.
+      List<Tuple2<ResourceType, String>> selfResources = new ArrayList<>();
 
       //iterate through all providers when updating permissions, else only first is found and set permissions can be lost
       for(AuthorizationProvider aprovider : securityEngine.getAuthorizationChain().get().getProviders()) {
@@ -3678,7 +3886,40 @@ public class IdentityService {
                String path = permissionSet.getThird();
                Permission permission = permissionSet.getForth();
 
-               if(permission == null) {
+               // Bug #77911, a legacy key without an organization is never written back or
+               // removed. Both go through the target organization (or, for a null one, the current
+               // or default organization), so its stale copy would replace that organization's
+               // live key. The key is moved to its organizations the next time the storage is
+               // opened.
+               if(permission == null || resourceOrgID == null) {
+                  continue;
+               }
+
+               // Bug #77834, a deleted identity's own key (who may administer it) is removed and
+               // not put back, or a new identity with the same name would get its grants. It is
+               // checked before the organization filter, because a global role's own key is
+               // stored in every organization. The other identities' keys are left alone.
+               if(newName == null && isOwnPermissionKey(type, resourceType, path, oldName)) {
+                  try {
+                     aprovider.removePermission(resourceType, path, resourceOrgID);
+                  }
+                  catch(RuntimeException e) {
+                     LOG.error("Failed to remove the permission of {} {} for {}, it may still be stored",
+                               resourceType, path, oldName, e);
+                  }
+
+                  continue;
+               }
+
+               // Bug #77942, a deleted global role (null organization) is granted in every
+               // organization, which the organization filter below skips, so the grants are
+               // removed here as a second pass after the listener. A legacy key without an
+               // organization was skipped above.
+               if(newName == null && type == Identity.ROLE && oldName != null &&
+                  oldName.getOrgID() == null && resourceOrgID != null)
+               {
+                  removeGlobalRoleGrants(aprovider, resourceType, resourceOrgID, path, permission,
+                                         oldName);
                   continue;
                }
 
@@ -3689,18 +3930,6 @@ public class IdentityService {
                {
                   //skip permissions not in this organization
                   continue;
-               }
-
-               if(containsOrgID(path, oldName.getOrgID()) && newName == null) {
-                  // best-effort per item: a failed write must not stop the other items or the
-                  // caller's later steps (the identity delete/rename/org migration)
-                  try {
-                     aprovider.removePermission(resourceType, path, resourceOrgID);
-                  }
-                  catch(RuntimeException e) {
-                     LOG.error("Failed to remove the permission of {} {} for {}, it may still be stored",
-                               resourceType, path, oldName, e);
-                  }
                }
 
                for(ResourceAction action : ResourceAction.values()) {
@@ -3719,7 +3948,7 @@ public class IdentityService {
                         if(permission.isBlank() && !empty && oldName != null &&
                            Tool.equals(oldName.getOrgID(), Organization.getSelfOrganizationID()))
                         {
-                           removeSelfResource(resourceType, path);
+                           selfResources.add(new Tuple2<>(resourceType, path));
                         }
                      }
                      else if(type == Identity.GROUP) {
@@ -3770,6 +3999,46 @@ public class IdentityService {
             }
          }
       }
+
+      for(Tuple2<ResourceType, String> selfResource : selfResources) {
+         removeSelfResource(selfResource.getFirst(), selfResource.getSecond());
+      }
+   }
+
+   /**
+    * Removes the grants of a deleted global role from one permission entry, and writes the entry
+    * back to its own organization only if a grant was removed. A grant to a role with the same
+    * name in an organization belongs to that role and is kept. A failed write is logged and not
+    * thrown, because the role is already deleted; the grant left is then reported by
+    * {@link #findLeftoverPermissions}.
+    */
+   private void removeGlobalRoleGrants(AuthorizationProvider aprovider,
+                                       ResourceType resourceType, String resourceOrgID,
+                                       String path, Permission permission, IdentityID role)
+   {
+      boolean changed = false;
+
+      for(ResourceAction action : ResourceAction.values()) {
+         Set<Permission.PermissionIdentity> grants =
+            permission.getGrants(action, Identity.ROLE, null);
+
+         if(grants.removeIf(grant -> Tool.equals(grant.getName(), role.getName()) &&
+            (grant.getOrganizationID() == null || GLOBAL_ORG_KEY.equals(grant.getOrganizationID()))))
+         {
+            permission.setGrants(action, Identity.ROLE, grants);
+            changed = true;
+         }
+      }
+
+      if(changed) {
+         try {
+            aprovider.setPermission(resourceType, path, permission, resourceOrgID);
+         }
+         catch(RuntimeException e) {
+            LOG.error("Failed to remove the deleted global role {} from the permission of {} {} " +
+                      "in {}, it may still be granted", role, resourceType, path, resourceOrgID, e);
+         }
+      }
    }
 
    private void removeSelfResource(ResourceType resourceType, String path) {
@@ -3814,6 +4083,155 @@ public class IdentityService {
 
       if(doReplace && (!Tool.equals(oorgId, norgId) || !Tool.equals(newPath, path))) {
          provider.removePermission(type, path, oorgId);
+      }
+   }
+
+   /**
+    * Determines if a permission entry is the identity's own key, the permission of who may
+    * administer the user, group or role. The key is parsed, so a global identity's key matches
+    * in both its {@code ~;~__GLOBAL__} and {@code ~;~null} forms.
+    */
+   private static boolean isOwnPermissionKey(int type, ResourceType resourceType, String path,
+                                             IdentityID id)
+   {
+      boolean ownType = type == Identity.USER && resourceType == ResourceType.SECURITY_USER ||
+         type == Identity.GROUP && resourceType == ResourceType.SECURITY_GROUP ||
+         type == Identity.ROLE && resourceType == ResourceType.SECURITY_ROLE;
+
+      return ownType && id != null && path != null && path.contains(IdentityID.KEY_DELIMITER) &&
+         id.equals(IdentityID.getIdentityIDFromKey(path));
+   }
+
+   /**
+    * Bug #77834, finds the permission entries that still refer to a deleted user, group, role or
+    * organization after its delete, which a new identity with the same name would receive. An
+    * entry is left if it grants the deleted user, group or role (matched by name and organization,
+    * in every organization, so a global role is found too) or is its own key, or if it belongs to
+    * the deleted organization. Legacy keys without an organization are not checked (Bug #77911).
+    *
+    * @return the keys of the entries that are left, or an empty list if none is left or the
+    *         permissions cannot be read. It never throws.
+    */
+   private List<String> findLeftoverPermissions(int type, IdentityID id) {
+      List<String> leftovers = new ArrayList<>();
+
+      if(id == null) {
+         return leftovers;
+      }
+
+      try {
+         Optional<AuthorizationChain> chain = securityEngine.getAuthorizationChain();
+
+         if(chain.isEmpty()) {
+            return leftovers;
+         }
+
+         Permission.PermissionIdentity grantee = new Permission.PermissionIdentity(id);
+
+         for(AuthorizationProvider aprovider : chain.get().getProviders()) {
+            List<Tuple4<ResourceType, String, String, Permission>> permissionSetList;
+
+            try {
+               permissionSetList = aprovider.getPermissions();
+            }
+            catch(UnsupportedOperationException e) {
+               LOG.debug("The permissions of {} cannot be listed, the delete of {} is not checked",
+                         aprovider.getProviderName(), id);
+               continue;
+            }
+
+            if(permissionSetList == null) {
+               continue;
+            }
+
+            for(Tuple4<ResourceType, String, String, Permission> permissionSet : permissionSetList) {
+               ResourceType resourceType = permissionSet.getFirst();
+               String resourceOrgID = permissionSet.getSecond();
+               String path = permissionSet.getThird();
+               Permission permission = permissionSet.getForth();
+
+               if(resourceOrgID == null) {
+                  continue;
+               }
+
+               boolean left;
+
+               if(type == Identity.ORGANIZATION) {
+                  left = Tool.equals(resourceOrgID, id.getOrgID());
+               }
+               else {
+                  left = isOwnPermissionKey(type, resourceType, path, id) ||
+                     permission != null && Arrays.stream(ResourceAction.values())
+                        .anyMatch(action -> permission.getGrants(action, type, null).contains(grantee));
+               }
+
+               if(left) {
+                  leftovers.add(resourceType + ":" + resourceOrgID + ":" + path);
+               }
+            }
+         }
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to check the permissions left after deleting {}", id, e);
+      }
+
+      return leftovers;
+   }
+
+   /**
+    * Gets the message reporting that some permissions of a deleted identity may remain, or
+    * {@code null} if none is left. It never throws, because the identity is already deleted.
+    */
+   private String getLeftoverPermissionsWarning(int type, IdentityID id, Principal principal) {
+      List<String> leftovers = findLeftoverPermissions(type, id);
+
+      if(leftovers.isEmpty()) {
+         return null;
+      }
+
+      LOG.warn("{} was deleted, but these permission entries still refer to it and may be " +
+               "received by an identity created later with the same name: {}", id, leftovers);
+
+      try {
+         return Catalog.getCatalog(principal).getString(
+            "em.security.deletePermissionsMayRemain", id.getName());
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to get the message for the permissions left after deleting {}", id, e);
+         return id.getName() + " was deleted, but some of its permissions may not have been removed.";
+      }
+   }
+
+   /**
+    * Bug #77940, gets the message reporting that some permissions of an organization whose ID was
+    * changed may remain under the old ID, or {@code null} if none is left. It never throws,
+    * because the ID is already changed.
+    *
+    * @param oldId    the identity of the organization before the change, with the old ID.
+    * @param newOrgId the new organization ID.
+    */
+   private String getRenamedOrgLeftoverPermissionsWarning(IdentityID oldId, String newOrgId,
+                                                          Principal principal)
+   {
+      List<String> leftovers = findLeftoverPermissions(Identity.ORGANIZATION, oldId);
+
+      if(leftovers.isEmpty()) {
+         return null;
+      }
+
+      LOG.warn("The organization ID was changed from {} to {}, but these permission entries " +
+               "are still stored under the old ID and may be received by an organization " +
+               "created later with that ID: {}", oldId.getOrgID(), newOrgId, leftovers);
+
+      try {
+         return Catalog.getCatalog(principal).getString(
+            "em.security.renameOrgPermissionsMayRemain", oldId.getOrgID(), newOrgId);
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to get the message for the permissions left after changing the " +
+                  "organization ID from {} to {}", oldId.getOrgID(), newOrgId, e);
+         return "The organization ID was changed from " + oldId.getOrgID() + " to " + newOrgId +
+            ", but some permissions of " + oldId.getOrgID() + " may not have been removed.";
       }
    }
 
@@ -3979,10 +4397,12 @@ public class IdentityService {
       Set<Permission.PermissionIdentity> grants = new HashSet<>();
 
       if(orgScopedGrants != null) {
-         // remove identity
-         if(newIdentityID == null && orgScopedGrants.contains(oldIdentityID)) {
+         // remove identity, keep every other grantee. The grants are PermissionIdentity
+         // objects, so compare the name and organization rather than the IdentityID itself.
+         if(newIdentityID == null) {
             orgScopedGrants.stream()
-               .filter(identityID -> !Tool.equals(identityID, oldIdentityID))
+               .filter(identityID -> !(Tool.equals(identityID.getName(), oldIdentityID.getName()) &&
+                  Tool.equals(identityID.getOrganizationID(), oldIdentityID.getOrgID())))
                .forEach(identityID -> grants.add(identityID));
          }
          // sync id
@@ -4178,6 +4598,8 @@ public class IdentityService {
    private final SecurityProvider securityProvider;
    private final IdentityThemeService themeService;
    private final Logger LOG = LoggerFactory.getLogger(IdentityService.class);
+   // the organization of a global identity in a permission grant, as Permission stores it
+   private static final String GLOBAL_ORG_KEY = "__GLOBAL__";
    private final AuthenticationService authenticationService;
    private final BlobStorageManager blobStorageManager;
    private final FavoritesService favoritesService;

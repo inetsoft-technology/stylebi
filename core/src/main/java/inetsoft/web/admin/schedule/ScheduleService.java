@@ -152,6 +152,12 @@ public class ScheduleService {
       }
 
       if(!taskName.equals(oldName)) {
+         // Bug #77856, refuse a blank name before the rename is queued for the dependencies
+         if(isBlankTaskName(taskName)) {
+            throw new Exception(Catalog.getCatalog(principal).getString(
+               "em.scheduler.emptyTaskName"));
+         }
+
          String path = scheduleManager.getScheduleTask(oldName).getPath();
          renameTransformHandler.addTransformTask(
             getDependencyInfo(oldName, taskName, path, path, scheduleManager));
@@ -162,6 +168,24 @@ public class ScheduleService {
       }
 
       return oldName;
+   }
+
+   /**
+    * Checks if the name part of a task id is empty or made only of whitespace. The owner key of
+    * an id ({@code name~;~org:task}) contains the key delimiter, the name follows the first
+    * colon after it. An id without an owner (security disabled) is the name itself.
+    */
+   static boolean isBlankTaskName(String taskId) {
+      if(taskId == null) {
+         return true;
+      }
+
+      int delimiter = taskId.indexOf(IdentityID.KEY_DELIMITER);
+      int colon = delimiter < 0 ? -1 :
+         taskId.indexOf(':', delimiter + IdentityID.KEY_DELIMITER.length());
+      String name = colon < 0 ? taskId : taskId.substring(colon + 1);
+
+      return name.trim().isEmpty();
    }
 
    public static RenameDependencyInfo getDependencyInfo(String oname, String nname,
@@ -229,6 +253,32 @@ public class ScheduleService {
                                      Catalog catalog, ScheduleTask task)
       throws Exception
    {
+      ScheduleCondition storedCondition = index < 0 || index >= task.getConditionCount() ?
+         null : task.getCondition(index);
+      return setTaskCondition(taskName, index, model, catalog, task, storedCondition);
+   }
+
+   /**
+    * Sets a condition on a task.
+    *
+    * @param taskName        the name of the task.
+    * @param index           the index of the condition.
+    * @param model           the DTO containing the condition definition.
+    * @param catalog         the localization catalog.
+    * @param task            the task.
+    * @param storedCondition the stored condition that the condition replaces, or {@code null}
+    *                        if none. Its balanced time is kept (Bug #77973, it isn't always the
+    *                        condition at the index, an earlier condition may have been removed).
+    *
+    * @return the time range that needs to be rebalanced or {@code null} if none.
+    *
+    * @throws Exception if the task could not be saved.
+    */
+   public TimeRange setTaskCondition(String taskName, int index, ScheduleConditionModel model,
+                                     Catalog catalog, ScheduleTask task,
+                                     ScheduleCondition storedCondition)
+      throws Exception
+   {
       ScheduleCondition condition = scheduleConditionService.getConditionFromModel(model);
       ScheduleCondition ocondition = null;
 
@@ -257,7 +307,7 @@ public class ScheduleService {
       else if(condition instanceof TimeCondition) {
          TimeCondition timeCondition = (TimeCondition) condition;
          TimeCondition oTimeCondition =
-            (ocondition instanceof TimeCondition) ? ((TimeCondition) ocondition) : null;
+            (storedCondition instanceof TimeCondition) ? ((TimeCondition) storedCondition) : null;
 
          if(timeCondition.getTimeRange() != null) {
             if(oTimeCondition != null &&
@@ -384,6 +434,10 @@ public class ScheduleService {
             "em.schedule.task.renameDependency", oldId));
       }
 
+      // Bug #77972, the stored task, the batch action targets of the renamed task are checked
+      // against its targets when it's saved, after it was removed
+      ScheduleTask storedTask = currTask;
+
       // Bug #77359, the task is renamed for an owner change, check and save it with the new
       // owner. Change a copy, the stored task is cached and is kept if the check refuses.
       if(owner != null && !owner.equals(currTask.getOwner())) {
@@ -391,11 +445,11 @@ public class ScheduleService {
          currTask.setOwner(owner);
       }
 
-      // Bug #77359, check the owner organization before the task is removed, a renamed task
-      // whose owner is in another organization is refused by setScheduleTask() and would be lost
-      scheduleManager.checkReplaceOwnerOrganization(oldId, newId, currTask, principal);
-      // Bug #77549, the same for a batch action query in another organization
-      scheduleManager.checkBatchQueryOrganization(newId, currTask, principal);
+      // Bug #77359, #77549, #77863, every refusal of setScheduleTask() (e.g. an owner or a batch
+      // action query or a viewsheet action sheet in another organization) is checked before the
+      // task is removed, with the stored actions the renamed task is saved with, a refused
+      // renamed task would be lost
+      scheduleManager.checkReplaceScheduleTask(oldId, newId, currTask, principal);
       scheduleManager.removeScheduleTask(oldId, principal);
       String newName = newId;
 
@@ -427,7 +481,7 @@ public class ScheduleService {
          }
 
          renameTaskBackupPaths(currTask, oldPath, oldId, newId);
-         scheduleManager.setScheduleTask(newId, currTask, folderEntry, principal);
+         scheduleManager.setScheduleTask(newId, currTask, folderEntry, principal, storedTask);
          taskFolderService.removeTaskFromFolder(oldId, oldPath);
          actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_SUCCESS);
          actionRecord.setActionError("new name: " + SUtil.getTaskName(newId));
@@ -1259,6 +1313,23 @@ public class ScheduleService {
                                             String linkURI)
       throws Exception
    {
+      return getActionFromModel(model, oldAction,
+                                oldAction == null ? List.of() : List.of(oldAction), principal,
+                                linkURI);
+   }
+
+   /**
+    * Gets the ScheduleAction from the model.
+    *
+    * @param oldAction     the stored action that it replaces, or {@code null} if none.
+    * @param storedActions all the actions of the stored task. An asset that one of their backup
+    *                      actions already holds may be kept.
+    */
+   public ScheduleAction getActionFromModel(ScheduleActionModel model, ScheduleAction oldAction,
+                                            Collection<ScheduleAction> storedActions,
+                                            Principal principal, String linkURI)
+      throws Exception
+   {
       ScheduleAction action = null;
 
       if(model instanceof GeneralActionModel actionModel) {
@@ -1315,11 +1386,26 @@ public class ScheduleService {
                   int oldFormat = pModel.oldFormat();
                   ServerPathInfo oldInfo = clone.get(oldFormat);
 
-                  // only keep the stored password for the server it was saved for
-                  if(Util.PLACEHOLDER_PASSWORD.equals(password) && oldInfo != null
-                     && !clone.isEmpty() && isSameServer(pModel.path(), oldInfo))
+                  // Bug #77953, #77958, the editors only get a placeholder for the password of a
+                  // server location, use the stored one for a path in the location's folder that
+                  // logs in to the same server as the same user
+                  if(Util.PLACEHOLDER_PASSWORD.equals(password)) {
+                     password = Tool.defaultIfNull(
+                        getServerLocationPassword(pModel.path(), pModel.username()), password);
+                  }
+
+                  // Bug #77979, only keep the stored password for the server and the user it
+                  // was saved for, the user in the path overrides the user name field
+                  if(Util.PLACEHOLDER_PASSWORD.equals(password) && oldInfo != null &&
+                     isSameLogin(pModel.path(), pModel.username(), oldInfo.getPath(),
+                                 oldInfo.getUsername()))
                   {
                      password = oldInfo.getPassword();
+                  }
+
+                  // a placeholder that was not resolved is not a password
+                  if(Util.PLACEHOLDER_PASSWORD.equals(password)) {
+                     password = null;
                   }
 
                   if(pModel.ftp()) {
@@ -1463,6 +1549,11 @@ public class ScheduleService {
                   password = oldViewsheetAction.getPassword();
                }
 
+               // Bug #77973, a placeholder that was not resolved is not a password
+               if(Util.PLACEHOLDER_PASSWORD.equals(password)) {
+                  password = null;
+               }
+
                abstractAction.setPassword(password);
             }
 
@@ -1490,7 +1581,15 @@ public class ScheduleService {
       else if("BackupAction".equals(model.actionType())) {
          BackupActionModel backupActionModel = (BackupActionModel) model;
          IndividualAssetBackupAction backupAction = new IndividualAssetBackupAction();
-         backupAction.setAssets(deployService.getEntryAssets(backupActionModel.assets(), principal));
+         // Bug #77862, only the assets the caller adds are checked, keeping or removing a
+         // stored asset is always allowed (Bug #77405)
+         Set<String> storedAssets = storedActions.stream()
+            .filter(IndividualAssetBackupAction.class::isInstance)
+            .flatMap(a -> ((IndividualAssetBackupAction) a).getAssets().stream())
+            .map(XAsset::toIdentifier)
+            .collect(Collectors.toSet());
+         backupAction.setAssets(
+            deployService.getEntryAssets(backupActionModel.assets(), storedAssets, principal));
          backupAction.setPaths(Tool.defaultIfNull(backupActionModel.backupPathsEnabled(), false) ? backupActionModel
             .backupPath() : null);
          ServerPathInfo oldServerPath = backupAction.getServerPath();
@@ -1502,12 +1601,15 @@ public class ScheduleService {
          ServerPathInfo newServerPathInfo = Tool.defaultIfNull(backupActionModel.backupPathsEnabled(), false) ?
             new ServerPathInfo(backupActionModel.backupServerPath()) : null;
 
-         if(oldServerPath != null && newServerPathInfo != null &&
-            Tool.equals(newServerPathInfo.getUsername(), oldServerPath.getUsername()) &&
-            Util.PLACEHOLDER_PASSWORD.equals(newServerPathInfo.getPassword()) &&
-            isSameServer(newServerPathInfo.getPath(), oldServerPath))
+         // Bug #77979, only keep the stored password for the server and the user it was saved
+         // for, and never store a placeholder that isn't resolved
+         if(newServerPathInfo != null &&
+            Util.PLACEHOLDER_PASSWORD.equals(newServerPathInfo.getPassword()))
          {
-            newServerPathInfo.setPassword(oldServerPath.getPassword());
+            boolean sameLogin = oldServerPath != null &&
+               isSameLogin(newServerPathInfo.getPath(), newServerPathInfo.getUsername(),
+                           oldServerPath.getPath(), oldServerPath.getUsername());
+            newServerPathInfo.setPassword(sameLogin ? oldServerPath.getPassword() : null);
          }
 
          backupAction.setServerPaths(newServerPathInfo);
@@ -2129,6 +2231,13 @@ public class ScheduleService {
       Vector<ScheduleTask> allTasks = getScheduleTasks("", "", true, principal);
 
       for(String folderPath: model.taskNames()) {
+         // Bug #77906, skip a folder without the DELETE that folder/remove checks per path, before
+         // reading it, so the answer doesn't depend on which folders exist or what is in them.
+         // A multi-selection may hold such paths; folder/remove reports them itself.
+         if(!taskFolderService.checkFolderPermission(folderPath, principal, ResourceAction.DELETE)) {
+            continue;
+         }
+
          AssetEntry taskEntry = taskFolderService.getFolderEntry(folderPath);
 
          checkScheduledTaskDependency0(allTasks, builder, taskEntry);
@@ -2146,6 +2255,13 @@ public class ScheduleService {
       }
 
       AssetFolder taskFolder = taskFolderService.getTaskFolder(folderEntry.toIdentifier());
+
+      // Bug #77906, a missing folder has no dependents. Don't fail, so a missing path and an
+      // existing one without dependents get the same answer.
+      if(taskFolder == null) {
+         return;
+      }
+
       AssetEntry[] entries = taskFolder.getEntries();
 
       for(AssetEntry entry : entries) {
@@ -2268,22 +2384,17 @@ public class ScheduleService {
 
    List<ServerLocation> getServerLocations(Catalog catalog) {
       List<ServerLocation> serverLocations = new ArrayList<>();
-      Map<String, String> oldPwdMap = SUtil.getServerLocationsPwdMap();
 
+      // Bug #77958, the password of a location is only a placeholder here, the stored one is
+      // looked up when a task is saved (getServerLocationPassword)
       for(ServerLocation location : SUtil.getServerLocations()) {
          ServerPathInfoModel infoModel = location.pathInfoModel();
 
          if(infoModel != null) {
-            String password = infoModel.password();
-
-            if(Util.PLACEHOLDER_PASSWORD.equals(password)) {
-               password = oldPwdMap.get(infoModel.oldPasswordKey());
-            }
-
             ServerPathInfoModel newLocation = ServerPathInfoModel.builder()
                .path(infoModel.path())
                .username(infoModel.username())
-               .password(password)
+               .password(infoModel.password() == null ? null : Util.PLACEHOLDER_PASSWORD)
                .secretId(infoModel.secretId())
                .useCredential(infoModel.useCredential())
                .ftp(infoModel.ftp())
@@ -2300,6 +2411,92 @@ public class ScheduleService {
       return serverLocations;
    }
 
+   /**
+    * Gets the stored password of the server location that a path is in. The path must be in the
+    * location's folder and log in to the location's server as the location's user.
+    *
+    * @param path     the FTP or SFTP path.
+    * @param username the user name entered for the path.
+    *
+    * @return the password, or {@code null} if no location with a password matches.
+    */
+   private static String getServerLocationPassword(String path, String username) {
+      FTPUtil.Endpoint endpoint = parseServerEndpoint(path);
+
+      if(endpoint == null) {
+         return null;
+      }
+
+      for(ServerLocation location : SUtil.getServerLocationsWithPasswords()) {
+         ServerPathInfoModel model = location.pathInfoModel();
+
+         if(model == null || model.useCredential() || Tool.isEmptyString(model.password())) {
+            continue;
+         }
+
+         FTPUtil.Endpoint locationEndpoint = parseServerEndpoint(model.path());
+
+         if(locationEndpoint != null &&
+            ScheduleSecretIdChecker.isInFolder(endpoint.path(), locationEndpoint.path()) &&
+            isSameLogin(path, username, model.path(), model.username()))
+         {
+            return model.password();
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * Determines if two FTP or SFTP paths log in to the same server as the same user, so that a
+    * password stored for one of them may be used for the other. Two paths without a user log in
+    * the same way (Bug #77952).
+    *
+    * @param path          the FTP or SFTP path.
+    * @param username      the user name entered for the path.
+    * @param otherPath     the other FTP or SFTP path.
+    * @param otherUsername the user name entered for the other path.
+    *
+    * @return {@code true} if the paths log in to the same server as the same user.
+    */
+   public static boolean isSameLogin(String path, String username, String otherPath,
+                                     String otherUsername)
+   {
+      FTPUtil.Endpoint endpoint = parseServerEndpoint(path);
+      FTPUtil.Endpoint otherEndpoint = parseServerEndpoint(otherPath);
+
+      if(endpoint == null || !endpoint.isSameServer(otherEndpoint)) {
+         return false;
+      }
+
+      String user = getLoginUser(endpoint, username);
+      return user != null && user.equals(getLoginUser(otherEndpoint, otherUsername));
+   }
+
+   /**
+    * Gets the user that FTPUtil logs in as for a path, the user name in the path overrides the
+    * user name field. Returns an empty string if there is no user, and {@code null} if the path
+    * has its own password, which is used instead of any stored one.
+    */
+   private static String getLoginUser(FTPUtil.Endpoint endpoint, String username) {
+      String userInfo = endpoint.userInfo();
+
+      if(userInfo == null) {
+         return Tool.isEmptyString(username) ? "" : username;
+      }
+
+      return userInfo.isEmpty() || userInfo.contains(":") ? null : userInfo;
+   }
+
+   private static FTPUtil.Endpoint parseServerEndpoint(String path) {
+      try {
+         return path == null ? null : FTPUtil.parseEndpoint(path);
+      }
+      catch(Exception e) {
+         return null;
+      }
+   }
+
    public ScheduleTaskNamesModel getScheduleTaskNamesModel(Principal principal) {
       ScheduleTaskNamesModel.Builder builder = ScheduleTaskNamesModel.builder();
 
@@ -2314,19 +2511,6 @@ public class ScheduleService {
       }
 
       return builder.build();
-   }
-
-   /**
-    * Determines if a path points to the same FTP or SFTP server as a stored path.
-    */
-   private static boolean isSameServer(String path, ServerPathInfo oldInfo) {
-      try {
-         return path != null && oldInfo.getPath() != null &&
-            FTPUtil.parseEndpoint(path).isSameServer(FTPUtil.parseEndpoint(oldInfo));
-      }
-      catch(Exception e) {
-         return false;
-      }
    }
 
    private NameLabelTuple createTaskTuple(ScheduleTask task) {

@@ -32,7 +32,9 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.sync.*;
 import inetsoft.uql.service.DataSourceRegistry;
+import inetsoft.uql.tabular.ServerFilePathPolicy;
 import inetsoft.uql.tabular.TabularDataSource;
+import inetsoft.uql.util.Config;
 import inetsoft.uql.util.Identity;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -1473,6 +1475,19 @@ public class DeployManagerService {
                return false;
             }
 
+            // Bug #64331, the server paths of the data source xml are not trusted. An existing
+            // data source that isn't overwritten is kept as it is, so nothing is checked
+            if(asset instanceof XDataSourceAsset dataSourceAsset && principal != null &&
+               !isKeptDataSource(dataSourceAsset, config) &&
+               !isImportedServerPathsAllowed(file, principal))
+            {
+               String msg = catalog.getString("em.import.file.failed.serverPathNotAllowed",
+                  asset.getType() + " " + path);
+               failedList.add(msg);
+               LOG.warn(msg);
+               return false;
+            }
+
             if(asset instanceof ScheduleTaskAsset && principal != null &&
                !isImportedScheduleSecretIdsAllowed(file, principal))
             {
@@ -1594,6 +1609,12 @@ public class DeployManagerService {
 
                if(asset instanceof ScheduleTaskAsset) {
                   dependencyHandler.updateTaskDependencies((ScheduleTaskAsset) asset);
+
+                  // Bug #77936, a warning, not a failure, the task is imported
+                  if(!((ScheduleTaskAsset) asset).getClearedPasswordPaths().isEmpty()) {
+                     info.getImportWarnings().add(Catalog.getCatalog().getString(
+                        "em.import.schedulePasswordsCleared", asset.getPath()));
+                  }
                }
 
                if(asset instanceof XDataSourceAsset) {
@@ -1718,6 +1739,95 @@ public class DeployManagerService {
       Predicate<String> check = new SecretIdAuthorizer(securityEngine, dataSourceRegistry)
          .createCheck(stored, principal);
       return secretIds.stream().allMatch(check);
+   }
+
+   /**
+    * Bug #64331, determines if the importer may save the server paths, such as the root folder
+    * of a Text/Excel Directory data source, that the data sources of an imported data source
+    * asset set. A path is allowed when the importer may use any path, when it is under an
+    * allowed root, or when it is the same as the path of the data source that it overwrites.
+    */
+   boolean isImportedServerPathsAllowed(File file, Principal principal) throws Exception {
+      ServerFilePathPolicy policy = ServerFilePathPolicy.create(securityEngine);
+
+      if(policy.isUnrestricted(principal)) {
+         return true;
+      }
+
+      try(InputStream input = new FileInputStream(file)) {
+         Document doc = input.available() > 0 ? Tool.parseXML(input) : null;
+
+         if(doc == null) {
+            return true;
+         }
+
+         NodeList nodes = doc.getDocumentElement().getElementsByTagName("datasource");
+
+         for(int i = 0; i < nodes.getLength(); i++) {
+            Element elem = (Element) nodes.item(i);
+
+            // only the types with a server path are parsed, such as Text/Excel Directory, so
+            // the other data sources of the file, JDBC and REST included, are not parsed here
+            if(!hasServerPaths(Tool.getAttribute(elem, "type"))) {
+               continue;
+            }
+
+            // a credential is never fetched while the paths are checked, the secret ids were
+            // already checked and are fetched when the data source is imported
+            XDataSource source = TabularDataSource.withCredentialFetchGate(id -> false, () -> {
+               try {
+                  XDataSourceWrapper wrapper = new XDataSourceWrapper();
+                  wrapper.parseXML(elem);
+                  return wrapper.getSource();
+               }
+               catch(Exception e) {
+                  LOG.warn("Failed to parse the imported data source {}",
+                           Tool.getAttribute(elem, "name"), e);
+                  return null;
+               }
+            });
+
+            // a data source with a server path that can't be parsed is refused
+            if(source == null) {
+               return false;
+            }
+
+            XDataSource stored = dataSourceRegistry.getDataSource(source.getFullName());
+
+            if(policy.getRefusedPath(source, stored, principal) != null) {
+               return false;
+            }
+         }
+      }
+
+      return true;
+   }
+
+   /**
+    * Determines if an imported data source type has a server path, such as the root folder of
+    * a Text/Excel Directory data source.
+    */
+   private static boolean hasServerPaths(String type) {
+      try {
+         String cls = type == null ? null : Config.getConfig().getDataSourceClass(type);
+         Class<?> dxClass = cls == null ? null : Config.getConfig().getClass(type, cls);
+         return dxClass != null && TabularDataSource.class.isAssignableFrom(dxClass) &&
+            ServerFilePathPolicy.hasServerPaths(dxClass);
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to get the class of the data source type {}", type, e);
+         return false;
+      }
+   }
+
+   /**
+    * Determines if the import keeps an existing data source as it is, that is when it is not
+    * overwritten (see XDataSourceAsset.parseContent).
+    */
+   private static boolean isKeptDataSource(XDataSourceAsset asset, XAssetConfig config) {
+      // an additional connection is not visible, and is written by a different branch
+      return asset.isVisible() &&
+         (config == null || !config.isOverwriting()) && asset.exists();
    }
 
    /**

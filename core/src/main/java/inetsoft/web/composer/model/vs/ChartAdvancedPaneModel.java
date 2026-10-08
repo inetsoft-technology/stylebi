@@ -67,7 +67,11 @@ public class ChartAdvancedPaneModel implements Serializable {
       // for non-bar charts even when DC will convert them to bars at runtime.
       // Exclude value-only DC (no comparison bars) and chart types DC can't run on
       // (icicle/treemap/etc. — DC silently no-ops, no bars are ever created).
-      DateComparisonInfo dcInfo = chartAssemblyInfo.getDateComparisonInfo();
+      // A sharer's own dc is a snapshot of the source taken when the share was set, so read
+      // the share-resolved dc that rendering uses.
+      DateComparisonInfo dcInfo = chartAssemblyInfo.getViewsheet() != null ?
+         DateComparisonUtil.getDateComparison(chartAssemblyInfo, chartAssemblyInfo.getViewsheet()) :
+         chartAssemblyInfo.getDateComparisonInfo();
 
       if(!chartPlotOptionsPaneModel.isBarCornerRadiusVisible() &&
          chartAssemblyInfo.isDateComparisonEnabled() &&

@@ -328,6 +328,9 @@ public abstract class DatasourcesBaseService {
       return TabularDataSource.withCredentialFetchGate(check, () -> {
          XDataSource result = createDataSource(definition, ds);
          SecretIdAuthorizer.checkSecretId(SecretIdAuthorizer.getCloudSecretId(result), check);
+         // Bug #64331, a server path, such as the root folder of a Text/Excel Directory data
+         // source, must be under an allowed root unless it is unchanged
+         ServerFilePathPolicy.create(securityEngine).checkDataSource(result, stored, principal);
          List<AdditionalConnectionDataSource<?>> additionals = null;
 
          // additional connections are added after the data source is saved, so create them now
@@ -336,7 +339,9 @@ public abstract class DatasourcesBaseService {
          if(result instanceof AdditionalConnectionDataSource<?> parent &&
             definition instanceof DataSourceDefinition dsDefinition)
          {
-            additionals = createAdditionalConnections(dsDefinition, parent);
+            additionals = createAdditionalConnections(dsDefinition, parent,
+               stored instanceof AdditionalConnectionDataSource<?> storedParent ?
+                  storedParent : parent);
 
             for(AdditionalConnectionDataSource<?> child : additionals) {
                SecretIdAuthorizer.checkSecretId(
@@ -651,8 +656,15 @@ public abstract class DatasourcesBaseService {
             "common.datasource.additionalConnectionMove"));
       }
 
-      // Bug #77725, Bug #77820, a rename that XEngine refuses, checked here because the additional
-      // connections are written under the new name before XEngine is called
+      // the name is the name of the data source in the folder of the definition. A folder in it
+      // would make this update move the data source to an ancestor folder without the checks of
+      // a move, and replace a data source of the same name there (Bug #77836)
+      if(Tool.containsPathSeparator(name)) {
+         throw new MessageException(Catalog.getCatalog(principal).getString(
+            "common.datasource.slashNotAllowed"));
+      }
+
+      // Bug #77725, Bug #77820, a rename that XEngine refuses, checked before anything is written
       if(!Tool.equals(oldName, nName)) {
          dataSourceRegistry.checkDataSourceMovePathClash(oldName);
       }
@@ -669,13 +681,27 @@ public abstract class DatasourcesBaseService {
                "data.datasources.saveDataSourceLost"));
          }
 
+         // an update that changes the path never replaces another data source or a folder
+         // (Bug #77836)
+         if(!Tool.equals(oldSrc.getFullName(), nName) &&
+            dataSourceRegistry.isDataSourcePathInUse(nName))
+         {
+            throw new MessageException(Catalog.getCatalog(principal).getString(
+               "common.datasource.moveTargetExists", nName));
+         }
+
+         // Bug #77843, the parent is renamed first. The rename moves every additional connection
+         // still under the old name, with its permission, to the new name, so they are saved and
+         // removed under the new name only after it. Saved before the rename, they would be
+         // overwritten by the stored ones that it moves, and a renamed or removed one would be
+         // moved back.
+         updateDatasource(oldName, newSrc, definition);
+
          if(authorized.additionalConnections() != null) {
             saveAdditionalConnections((DataSourceDefinition) definition,
                (AdditionalConnectionDataSource<?>) newSrc, authorized.additionalConnections(),
-               oldName);
+               newSrc.getFullName());
          }
-
-         updateDatasource(oldName, newSrc, definition);
       }
    }
 
@@ -745,9 +771,14 @@ public abstract class DatasourcesBaseService {
    /**
     * Creates the additional connections that a definition describes, without adding them to the
     * parent data source.
+    *
+    * @param stored the data source whose stored additional connections are updated, which is the
+    *               stored parent before this save. It differs from {@code parent} by name if the
+    *               save renames the parent (Bug #77843).
     */
    private List<AdditionalConnectionDataSource<?>> createAdditionalConnections(
-      DataSourceDefinition definition, AdditionalConnectionDataSource<?> parent)
+      DataSourceDefinition definition, AdditionalConnectionDataSource<?> parent,
+      AdditionalConnectionDataSource<?> stored)
    {
       List<AdditionalConnectionDataSource<?>> additionals = new ArrayList<>();
 
@@ -756,7 +787,7 @@ public abstract class DatasourcesBaseService {
             additional.setParentPath(definition.getParentPath());
             additional.setParentDataSource(definition.getName());
 
-            AdditionalConnectionDataSource<?> child = parent.getDataSource(additional.getName());
+            AdditionalConnectionDataSource<?> child = stored.getDataSource(additional.getName());
 
             if(child == null) {
                child = (AdditionalConnectionDataSource<?>) createDataSource(additional, null);
@@ -774,11 +805,14 @@ public abstract class DatasourcesBaseService {
 
    /**
     * Saves the additional connections created by
-    * {@link #createAdditionalConnections(DataSourceDefinition, AdditionalConnectionDataSource)}
+    * {@link #createAdditionalConnections(DataSourceDefinition, AdditionalConnectionDataSource,
+    * AdditionalConnectionDataSource)}
     * and removes the ones that the definition no longer contains.
     *
-    * @param oldParent the full name of the parent data source before this save, or {@code null}
-    *                  if it is created by this save.
+    * @param oldParent the full name that the stored additional connections and their permissions
+    *                  are under when this method is called, or {@code null} if the parent is
+    *                  created by this save. A renamed parent is renamed before this method is
+    *                  called, so this is its new name (Bug #77843).
     */
    private void saveAdditionalConnections(DataSourceDefinition definition,
                                           AdditionalConnectionDataSource<?> parent,
@@ -867,14 +901,14 @@ public abstract class DatasourcesBaseService {
 
    /**
     * Updates the permissions of the additional connections of a data source after they are
-    * removed or renamed. The additional connections are saved under the new parent name before
-    * the parent is renamed, and the rename moves the permissions of the additional connections
-    * still under the old parent name. So the names that are removed or renamed are removed from
-    * the old parent name, the removed ones also from the new parent name, and a renamed additional
-    * connection gets its permission under the new parent name.
+    * removed or renamed. The names that are removed or renamed are removed from the old parent
+    * name, the removed ones also from the new parent name, and a renamed additional connection
+    * gets its permission under the new parent name. A renamed parent is renamed before its
+    * additional connections are saved, which moves their permissions, so both names are its new
+    * name then (Bug #77843).
     *
-    * @param oldParent   the full name of the parent before this save, or {@code null} if it is
-    *                    created by this save.
+    * @param oldParent   the full name that the permissions of the stored additional connections
+    *                    are under, or {@code null} if the parent is created by this save.
     * @param newParent   the full name of the parent after this save.
     * @param oldRemoved  the names of the additional connections under the old parent name that
     *                    this save doesn't keep.

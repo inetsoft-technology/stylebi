@@ -480,6 +480,8 @@ public abstract class MVDecimalColumn extends AbstractMeasureColumn {
             }
             catch(Exception ex) {
                LOG.error("Failed to swap data to file: " + file, ex);
+               // keep the data in memory (newbuf stays true), its block was not written
+               return false;
             }
          }
 

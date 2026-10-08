@@ -195,6 +195,7 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
          completed = false;
          stallFailure = null;
          swapFailure = null;
+         baseFailure = null;
          scannedRows = 0;
       }
 
@@ -262,6 +263,7 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
       oplist.toArray(ops);
       LockStallException stall = null;
       SwapFileReadException swapFailure = null;
+      MessageException baseFailure = null;
 
       try {
          OUTER:
@@ -308,8 +310,16 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
             swapFailure = SwapFileReadException.find(ex);
          }
 
-         if(swapFailure == null) {
+         if(stall == null && swapFailure == null) {
+            // nor must a failure to read the base, e.g. of a set table (bug #77875)
+            baseFailure = MessageException.find(ex);
+         }
+
+         if(swapFailure == null && baseFailure == null) {
             LOG.error("Failed to validate table rows", ex);
+         }
+         else if(baseFailure != null) {
+            LOG.debug("Self join failed to read the base table", ex);
          }
       }
 
@@ -323,6 +333,10 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
 
             if(swapFailure != null) {
                SelfJoinTableLens.this.swapFailure = swapFailure;
+            }
+
+            if(baseFailure != null) {
+               SelfJoinTableLens.this.baseFailure = baseFailure;
             }
 
             completed = true;
@@ -441,7 +455,8 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
    /**
     * Rethrow the stall or swap file read failure the worker failed with, called when the
     * table is complete. A stall must never look like the end of the table (bug #76967), and
-    * neither must a swap file read failure (bug #77651).
+    * neither must a swap file read failure (bug #77651) or a failure to read the base
+    * (bug #77875).
     */
    private void throwStallFailure() {
       LockStallException failure = stallFailure;
@@ -454,6 +469,24 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
 
       if(swapFailure != null) {
          throw swapFailure;
+      }
+
+      MessageException baseFailure = this.baseFailure;
+
+      if(baseFailure != null) {
+         synchronized(this) {
+            // the failure is reported, the next read joins the rows again: the base may
+            // recover, e.g. a set table after its retry delay (bug #77524). the data did not
+            // change, so no change event (bug #77875)
+            if(this.baseFailure == baseFailure) {
+               rows = null;
+               completed = false;
+               this.baseFailure = null;
+               scannedRows = 0;
+            }
+         }
+
+         throw baseFailure;
       }
    }
 
@@ -1005,6 +1038,8 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
    private transient volatile LockStallException stallFailure;
    // the swap file read failure the worker failed with, if any (bug #77651)
    private transient volatile SwapFileReadException swapFailure;
+   // the failure to read the base the worker failed with, if any (bug #77875)
+   private transient volatile MessageException baseFailure;
 
    // retries of a read whose rows were replaced by a concurrent invalidate() (bug #77397)
    private static final int MAX_READ_RETRIES = 100;

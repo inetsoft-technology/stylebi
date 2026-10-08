@@ -21,7 +21,10 @@ import inetsoft.report.*;
 import inetsoft.report.filter.*;
 import inetsoft.report.internal.table.CancellableTableLens;
 import inetsoft.util.Tool;
+import inetsoft.util.script.JavaScriptEngine;
+import inetsoft.util.script.LendableReentrantLock;
 import inetsoft.util.stall.LockStallException;
+import inetsoft.util.swap.SwapFileReadException;
 import inetsoft.util.swap.XSwappableIntList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -297,7 +300,49 @@ public class RankingTableLens extends AbstractTableLens
    }
 
    /**
-    * Validate the ranking table lens.
+    * Get the ranked rows, ranking the table first if needed. Every read of data rows gets them
+    * here. Ranking reads the whole base under this lens's monitor, so it takes the engine lock
+    * the base needs before the monitor, like a condition filter (bug #76918): a thread holding
+    * that lock may be waiting for the monitor to read this lens, it would wait forever for a
+    * reader holding the monitor between two base rows (bug #77874).
+    */
+   private XSwappableIntList rows() {
+      XSwappableIntList rows = this.rows;
+
+      if(rows != null) {
+         return rows;
+      }
+
+      LendableReentrantLock execLock = getUnheldChainScriptLock();
+
+      if(execLock == null) {
+         return validate();
+      }
+
+      execLock.lock();
+      JavaScriptEngine.pushHeldScriptLock(execLock);
+
+      try {
+         return validate();
+      }
+      finally {
+         JavaScriptEngine.popHeldScriptLock();
+         execLock.unlock();
+      }
+   }
+
+   /**
+    * Get the engine lock reading the base may take if the current thread does not hold it
+    * (bug #77874).
+    */
+   private LendableReentrantLock getUnheldChainScriptLock() {
+      LendableReentrantLock execLock = ChainScriptLock.find(table);
+      return execLock != null && !execLock.isHeldByCurrentThread() ? execLock : null;
+   }
+
+   /**
+    * Validate the ranking table lens. Called by {@link #rows()}, or by a row count that takes
+    * no engine lock.
     */
    private synchronized XSwappableIntList validate() {
       XSwappableIntList rows = this.rows;
@@ -341,6 +386,14 @@ public class RankingTableLens extends AbstractTableLens
             throw stall;
          }
 
+         // nor is a lost swap file of the base, the fragment already logged the read failure
+         // (bug #77651)
+         SwapFileReadException swapFailure = SwapFileReadException.find(ex);
+
+         if(swapFailure != null) {
+            throw swapFailure;
+         }
+
          LOG.error("Failed to sort list", ex);
       }
 
@@ -379,9 +432,9 @@ public class RankingTableLens extends AbstractTableLens
          return true;
       }
 
-      // read the rows validate() returns, invalidate() may clear the field any time
+      // read the rows rows() returns, invalidate() may clear the field any time
       // (bug #77397)
-      XSwappableIntList rows = validate();
+      XSwappableIntList rows = rows();
 
       return rows != null && row - hrows < rows.size();
    }
@@ -394,8 +447,18 @@ public class RankingTableLens extends AbstractTableLens
     */
    @Override
    public int getRowCount() {
+      XSwappableIntList rows = this.rows;
+
+      // a row count probe (e.g. AssetQuery.validateDataTypes) ranks nothing if the base needs
+      // an engine lock this thread doesn't hold: it must not take the lock, it may be building
+      // a table inside that table's monitor (bug #77223). -1 is "loading", the first read of
+      // rows ranks them (bug #77874)
+      if(rows == null && getUnheldChainScriptLock() != null) {
+         return -1;
+      }
+
       // the published rows are always complete (bug #77397)
-      XSwappableIntList rows = validate();
+      rows = rows != null ? rows : validate();
 
       return rows.size() + hrows;
    }
@@ -808,7 +871,7 @@ public class RankingTableLens extends AbstractTableLens
          return r;
       }
 
-      XSwappableIntList rows = validate();
+      XSwappableIntList rows = rows();
 
       if(rows == null || r - hrows >= rows.size()) {
          return -1;

@@ -21,7 +21,7 @@ import { UntypedFormBuilder, ReactiveFormsModule } from "@angular/forms";
 import { MatDialog } from "@angular/material/dialog";
 import { MatSnackBar } from "@angular/material/snack-bar";
 import { ActivatedRoute, Router } from "@angular/router";
-import { EMPTY } from "rxjs";
+import { EMPTY, of } from "rxjs";
 import { GeneralActionModel } from "../../../../../../shared/schedule/model/general-action-model";
 import { ScheduleTaskDialogModel } from "../../../../../../shared/schedule/model/schedule-task-dialog-model";
 import { TimeConditionModel, TimeConditionType } from "../../../../../../shared/schedule/model/time-condition-model";
@@ -290,6 +290,88 @@ describe("ScheduleTaskEditorPageComponent", () => {
 
          expect(component.model.taskActionPaneModel.actions[1].label)
             .toBe("_#(js:Copy of) test action");
+      });
+   });
+
+   // Bug #77973, the server pairs the saved items with the stored items by their originalIndex
+   describe("save() item identity", () => {
+      let saveTask: any;
+
+      beforeEach(() => {
+         saveTask = TestBed.inject(ScheduleTaskEditorDataService).saveTask;
+         saveTask.mockReturnValue(EMPTY);
+         (TestBed.inject(MatDialog).open as any).mockReturnValue({ afterClosed: () => of(true) });
+         component.form.controls["taskName"].setValue("Test Task");
+         component.model.taskActionPaneModel.actions = [
+            { ...createAction("A"), originalIndex: 0 },
+            { ...createAction("B"), originalIndex: 1 }
+         ];
+         component.actionItems = [new TaskItem("action-0", "A"), new TaskItem("action-1", "B")];
+         component.model.taskConditionPaneModel.conditions = [
+            { ...createCondition("C0"), originalIndex: 0 },
+            { ...createCondition("C1"), originalIndex: 1 }
+         ];
+         component.conditionItems =
+            [new TaskItem("condition-0", "C0"), new TaskItem("condition-1", "C1")];
+      });
+
+      it("should send the marker and the original indexes", () => {
+         component.save();
+
+         const sent = saveTask.mock.calls[0][0];
+         expect(sent.itemsIdentified).toBe(true);
+         expect(sent.actions.map(a => a.originalIndex)).toEqual([0, 1]);
+         expect(sent.conditions.map(c => c.originalIndex)).toEqual([0, 1]);
+      });
+
+      it("should keep the original index of an item after delete, edit and copy", () => {
+         component.selectedActionIndex = 0;
+         component.deleteActions();
+         component.selectedActionIndex = 0;
+         // the action editors emit a copy of the model they were given
+         component.onActionChanged({
+            valid: true, model: { ...component.action, label: "B edited" }
+         } as any);
+         component.copyAction();
+         component.selectedConditionIndex = 0;
+         component.deleteConditions();
+         component.selectedConditionIndex = 0;
+         component.onConditionChanged({
+            valid: true, model: { ...component.condition, label: "C1 edited" }
+         } as any);
+         component.save();
+
+         const sent = saveTask.mock.calls[0][0];
+         expect(sent.actions.map(a => a.originalIndex)).toEqual([1, 1]);
+         expect(sent.actions[0].label).toBe("B edited");
+         expect(sent.conditions.map(c => [c.label, c.originalIndex]))
+            .toEqual([["C1 edited", 1]]);
+      });
+   });
+
+   // Bug #77856, a task name made only of whitespace is required, like an empty one
+   describe("taskName validation", () => {
+      it.each([" ", "   "])("should reject the whitespace-only name %j as required", (name) => {
+         const control = component.form.controls["taskName"];
+         control.setValue(name);
+
+         expect(control.errors).toEqual({ required: true });
+         expect(component.form.valid).toBe(false);
+      });
+
+      it.each(["Task", " a", "a "])("should accept the name %j", (name) => {
+         component.form.controls["taskName"].setValue(name);
+
+         expect(component.form.valid).toBe(true);
+      });
+
+      it("should disable apply when the name is whitespace only", () => {
+         component.form.controls["taskName"].setValue("Task");
+         component.taskChanged = true;
+         expect(component.valid).toBe(true);
+
+         component.form.controls["taskName"].setValue(" ");
+         expect(component.valid).toBe(false);
       });
    });
 });

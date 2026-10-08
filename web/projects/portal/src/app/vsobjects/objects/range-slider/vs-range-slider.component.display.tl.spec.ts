@@ -450,7 +450,10 @@ describe("VSRangeSlider – display / rendering (P3)", () => {
          const adhocFilterService = { showFilter: vi.fn().mockReturnValue(() => {}) };
          const dataTipService = { isDataTip: vi.fn().mockReturnValue(false), scrolled: new Subject<void>() };
          const debounceService = {
-            debounce: vi.fn().mockImplementation((_key: any, fn: any) => fn()),
+            debounce: vi.fn().mockImplementation(
+               (_key: any, fn: any, _delay: any, args: any[] = []) => fn(...(args ?? [])),
+            ),
+            cancel: vi.fn(),
          };
          const dropdownService = { open: vi.fn() };
          const globalSubmitService = {
@@ -486,6 +489,19 @@ describe("VSRangeSlider – display / rendering (P3)", () => {
          fixture.componentInstance.model = makeVSRangeSliderModel();
          fixture.detectChanges();
       }));
+
+      // Bug #77917
+      it("should cancel the drag when a touch on any handle is cancelled", () => {
+         const cancelDrag = vi.spyOn(fixture.componentInstance, "cancelDrag");
+         const handles = [".range-slider-left-handle", ".range-slider-right-handle",
+            ".thumb-middle"];
+
+         for(const handle of handles) {
+            fixture.nativeElement.querySelector(handle).dispatchEvent(new Event("touchcancel"));
+         }
+
+         expect(cancelDrag).toHaveBeenCalledTimes(3);
+      });
 
       // Bug #18972
       it("should apply text-decoration format to the range slider body", () => {

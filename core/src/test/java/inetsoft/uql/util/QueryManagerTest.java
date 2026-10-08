@@ -20,6 +20,7 @@ package inetsoft.uql.util;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -84,5 +85,22 @@ public class QueryManagerTest {
       assertFalse(qmgr.lastCancelled() > System.currentTimeMillis(),
                   "a QueryManager that was never cancelled must never satisfy the " +
                   "'lastCancelled() > created' guard, so genuine null-data failures still throw");
+   }
+
+   /**
+    * Bug #78033: a query whose data another query's cancel cut short runs again, but not one a
+    * user or the sandbox cancelled, so the two kinds of cancel are counted apart.
+    */
+   @Test
+   void cancelForQueryIsCountedApartFromOtherCancels() {
+      QueryManager qmgr = new QueryManager();
+
+      qmgr.cancelForQuery();
+      assertEquals(1, qmgr.getCancelCount(), "a query's cancel is a cancel");
+      assertEquals(1, qmgr.getQueryCancelCount(), "a query's cancel is counted as one");
+
+      qmgr.cancel();
+      assertEquals(2, qmgr.getCancelCount(), "any cancel is counted");
+      assertEquals(1, qmgr.getQueryCancelCount(), "another cancel is not a query's cancel");
    }
 }

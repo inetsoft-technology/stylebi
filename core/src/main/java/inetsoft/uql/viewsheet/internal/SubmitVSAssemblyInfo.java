@@ -197,7 +197,7 @@ public class SubmitVSAssemblyInfo extends ClickableOutputVSAssemblyInfo {
 
       if(label != null) {
          writer.print("<labelName>");
-         writer.print("<![CDATA[" + Tool.splitCDATAEnd(label) + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(label) + "]]>");
          writer.println("</labelName>");
       }
    }

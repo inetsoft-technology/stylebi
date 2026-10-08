@@ -20,8 +20,9 @@ package inetsoft.report.script.formula;
 import inetsoft.report.internal.table.*;
 import inetsoft.util.script.FormulaContext;
 import inetsoft.util.script.graal.ScriptArrayScope;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.script.graal.ScriptValueConverter;
-import inetsoft.util.stall.LockStallException;
+import inetsoft.util.swap.DataUnavailable;
 import org.graalvm.polyglot.proxy.ProxyExecutable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -118,7 +119,7 @@ public class CalcRef implements ScriptArrayScope {
                   return ScriptValueConverter.toGuest(unwrap());
                }
                catch(Exception ex) {
-                  rethrowStall(ex);
+                  rethrowUnavailable(ex);
                   LOG.warn("Failed to get reference property: " + id, ex);
                   return null;
                }
@@ -130,7 +131,7 @@ public class CalcRef implements ScriptArrayScope {
                   return String.valueOf(unwrap());
                }
                catch(Exception ex) {
-                  rethrowStall(ex);
+                  rethrowUnavailable(ex);
                   LOG.warn("Failed to get reference property: " + id, ex);
                   return null;
                }
@@ -150,7 +151,7 @@ public class CalcRef implements ScriptArrayScope {
             }
             catch(Exception ex) {
                // a stall must not fall through to getBySpec, which would read again
-               rethrowStall(ex);
+               rethrowUnavailable(ex);
                LOG.debug("Failed to get positional reference: " + id, ex);
             }
          }
@@ -158,7 +159,7 @@ public class CalcRef implements ScriptArrayScope {
          return getBySpec(id);
       }
       catch(Exception ex) {
-         rethrowStall(ex);
+         rethrowUnavailable(ex);
          LOG.warn("Failed to get reference property: " + id, ex);
       }
 
@@ -262,7 +263,7 @@ public class CalcRef implements ScriptArrayScope {
          return getByPosition(idx, false);
       }
       catch(Exception ex) {
-         rethrowStall(ex);
+         rethrowUnavailable(ex);
          LOG.warn("Failed to get indexed property: " + index, ex);
       }
 
@@ -372,16 +373,15 @@ public class CalcRef implements ScriptArrayScope {
    }
 
    /**
-    * A stalled table has no value to return (#76967), so a reference read must not turn
-    * the stall into a null script value: the referencing cell would complete and cache a
-    * wrong value (e.g. {@code $A + 1}). Other failures keep degrading to null (#77123).
+    * A stalled table (#76967) or one whose swap file is lost (#77910) has no value to
+    * return, so a reference read must not turn the failure into a null script value: the
+    * referencing cell would complete and cache a wrong value (e.g. {@code $A + 1}). Other
+    * failures keep degrading to null (#77123). Nor does a cell whose formula was stopped by
+    * a script timeout or cancel have a value (#77949).
     */
-   private static void rethrowStall(Exception ex) {
-      LockStallException stall = LockStallException.find(ex);
-
-      if(stall != null) {
-         throw stall;
-      }
+   private static void rethrowUnavailable(Exception ex) {
+      DataUnavailable.rethrow(ex);
+      ScriptTimeoutGuard.rethrowStop(ex);
    }
 
    private RuntimeCalcTableLens table;

@@ -528,13 +528,13 @@ public class LegendDescriptor implements AssetObject, ContentObject {
 
       if(title.getDValue() != null) {
          writer.print("<title>");
-         writer.print("<![CDATA[" + title.getDValue() + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(title.getDValue()) + "]]>");
          writer.println("</title>");
       }
 
       if(getTitle() != null) {
          writer.print("<titleRValue>");
-         writer.print("<![CDATA[" + getTitle() + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(getTitle()) + "]]>");
          writer.print("</titleRValue>");
       }
 
@@ -545,11 +545,12 @@ public class LegendDescriptor implements AssetObject, ContentObject {
             Object key = entry.getKey();
             String label = entry.getValue();
             writer.print("<label>");
-            writer.print("<key>");
-            writer.print("<![CDATA[" + key + "]]>");
+            String str = String.valueOf(key);
+            writer.print("<key" + Tool.cdataDataAttr(str) + ">");
+            writer.print("<![CDATA[" + Tool.cdataData(str) + "]]>");
             writer.println("</key>");
             writer.print("<value>");
-            writer.print("<![CDATA[" + label + "]]>");
+            writer.print("<![CDATA[" + Tool.cdataText(label) + "]]>");
             writer.println("</value>");
             writer.print("</label>");
          }
@@ -695,7 +696,7 @@ public class LegendDescriptor implements AssetObject, ContentObject {
          for(int i = 0; i < anodes.getLength(); i++) {
             Element anode = (Element) anodes.item(i);
             Element knode = Tool.getNthChildNode(anode, 0);
-            String key = Tool.getValue(knode);
+            String key = Tool.getCDATAData(knode);
             Element vnode = Tool.getNthChildNode(anode, 1);
             String value = Tool.getValue(vnode);
             setLabelAlias(key, value);

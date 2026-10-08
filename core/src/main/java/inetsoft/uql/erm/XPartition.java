@@ -28,6 +28,7 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.schema.XTypeNode;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.service.XHandler;
+import inetsoft.uql.util.XUtil;
 import inetsoft.uql.util.rgraph.TableNode;
 import inetsoft.util.*;
 import inetsoft.util.xml.XMLStorage.XMLFragment;
@@ -99,6 +100,11 @@ public class XPartition implements Cloneable, Serializable, XMLSerializable, XML
     * Add a child XPartition.
     */
    public void addPartition(XPartition child, boolean isImport) {
+      // Bug #77918: as XDataModel.addLogicalModel
+      if(XUtil.isDirectScriptCall(XPartition.class)) {
+         throw new java.lang.SecurityException("A script may not add a partition");
+      }
+
       String path = getDataModel().getDataSource() + "/" + getName() +
               "/" + child.getName();
       AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
@@ -140,9 +146,10 @@ public class XPartition implements Cloneable, Serializable, XMLSerializable, XML
                  AssetEntry.Type.EXTENDED_PARTITION, path, null);
          result = (XPartition) getRegistry().getObject(entry, true);
 
+         // Bug #77943: don't cache the returned copy, or a caller's unsaved change to it is
+         // seen by every later reader on the node
          if(result != null) {
             result.setBaseParitition(this);
-            getRegistry().setCache(entry, result);
          }
       }
 
@@ -178,6 +185,11 @@ public class XPartition implements Cloneable, Serializable, XMLSerializable, XML
     * Rename child partition
     */
    public void renamePartition(String oname, XPartition partition) {
+      // Bug #77918: as XDataModel.addLogicalModel
+      if(XUtil.isDirectScriptCall(XPartition.class)) {
+         throw new java.lang.SecurityException("A script may not rename a partition");
+      }
+
       String oldPath = getDataModel().getDataSource() + "/" + getName() +
               "/" + oname;
       String newPath = getDataModel().getDataSource() + "/" + getName() +
@@ -195,9 +207,10 @@ public class XPartition implements Cloneable, Serializable, XMLSerializable, XML
       try {
          String path = getDataModel().getDataSource() + "/" + getName() + "/";
          // Bug #77820, not the views of a data source of a folder at the path of the data
-         // source
-         AssetEntry[] entries = getRegistry().getDataSourceEntries(
-                 getDataModel().getDataSource(), path, AssetEntry.Type.EXTENDED_PARTITION, false);
+         // source. Bug #77842, not the ones of a view "<name>/..."
+         AssetEntry[] entries = getRegistry().getExtendedModelEntries(
+                 getDataModel().getDataSource(), getDataModel().getDataSource() + "/" + getName(),
+                 AssetEntry.Type.EXTENDED_PARTITION, false);
          result = new String[entries.length];
 
          for(int i = 0; i < entries.length; i++) {
@@ -217,6 +230,11 @@ public class XPartition implements Cloneable, Serializable, XMLSerializable, XML
     * remove a child XPartition.
     */
    public void removePartition(String name) {
+      // Bug #77918: as XDataModel.addLogicalModel
+      if(XUtil.isDirectScriptCall(XPartition.class)) {
+         throw new java.lang.SecurityException("A script may not remove a partition");
+      }
+
       AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
               AssetEntry.Type.EXTENDED_PARTITION,
               getDataModel().getDataSource() + "/" + getName() + "/" + name,
@@ -228,6 +246,11 @@ public class XPartition implements Cloneable, Serializable, XMLSerializable, XML
     * rename a child XPartition.
     */
    public void renamePartition(String oname, String nname) {
+      // Bug #77918: as XDataModel.addLogicalModel
+      if(XUtil.isDirectScriptCall(XPartition.class)) {
+         throw new java.lang.SecurityException("A script may not rename a partition");
+      }
+
       XPartition p = getPartition(oname);
 
       if(p != null) {

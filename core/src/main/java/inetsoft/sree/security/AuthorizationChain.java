@@ -233,6 +233,18 @@ public class AuthorizationChain
       }
    }
 
+   /**
+    * Repairs the global role grants of the file authorization providers, see
+    * {@link FileAuthorizationProvider#repairGlobalRoleGrants()}.
+    */
+   public void repairGlobalRoleGrants() {
+      for(AuthorizationProvider provider : getProviders()) {
+         if(provider instanceof FileAuthorizationProvider) {
+            ((FileAuthorizationProvider) provider).repairGlobalRoleGrants();
+         }
+      }
+   }
+
    private String fixOrgID(String orgID) {
       if(orgID == null) {
          orgID = OrganizationManager.getInstance().getCurrentOrgID();

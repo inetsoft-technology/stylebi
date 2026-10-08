@@ -1272,33 +1272,17 @@ public class PhysicalModelManagerService {
          XPartition.PartitionTable independentTable =
             xPartition.getPartitionTable(join.getForeignTable());
 
-         if(dependentTable != null) {
-            XNode tableNode;
-
-            if(TableType.forType(dependentTable.getType()) == TableType.PHYSICAL) {
-               tableNode = metaData.getPrimaryKeys(
-                  PhysicalModelService.getTableXNode(xPartition, tableName, metaData));
-            }
-            else {
-               tableNode = metaData.getPrimaryKeys(physicalModelService.executeSQLQuery(
-                  dependentTable.getSql(), database, principal));
-            }
-
+         // the key columns of an inline view are not known, so it counts as having no
+         // primary key (as when a join is drawn in the graph)
+         if(PhysicalModelService.isPhysicalTable(dependentTable)) {
+            XNode tableNode = metaData.getPrimaryKeys(
+               PhysicalModelService.getTableXNode(xPartition, tableName, metaData));
             isDependentKey = XUtil.isPrimaryKey(join.getColumn(), tableNode);
          }
 
-         if(independentTable != null) {
-            XNode tableNode;
-
-            if(TableType.forType(independentTable.getType()) == TableType.PHYSICAL) {
-               tableNode = metaData.getPrimaryKeys(PhysicalModelService.getTableXNode(
-                  xPartition, join.getForeignTable(), metaData));
-            }
-            else {
-               tableNode = metaData.getPrimaryKeys(physicalModelService.executeSQLQuery(
-                  independentTable.getSql(), database, principal));
-            }
-
+         if(PhysicalModelService.isPhysicalTable(independentTable)) {
+            XNode tableNode = metaData.getPrimaryKeys(PhysicalModelService.getTableXNode(
+               xPartition, join.getForeignTable(), metaData));
             isIndependentKey = XUtil.isPrimaryKey(join.getForeignColumn(), tableNode);
          }
 

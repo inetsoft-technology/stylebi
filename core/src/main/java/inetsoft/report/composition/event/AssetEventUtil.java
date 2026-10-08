@@ -1400,8 +1400,21 @@ public class AssetEventUtil {
       String folder2 = nentry.getProperty("folder");
 
       if(nentry.isTableStyle()) {
-         duplicate = !Tool.equals(folder, folder2) && (isDuplicateStyle(folder2, nentry.getName()) ||
-            isDuplicateFolder(folder2, nentry.getName()));
+         // Bug #77837, the source folder is the folder of the stored style, not the folder the
+         // request claims the style is in. A style that doesn't resolve is refused by the move.
+         String styleID = entry.getProperty("styleID");
+         LibManager manager = LibManagerProvider.getInstance().getManager();
+         XTableStyle tableStyle = styleID == null ? null : manager.getTableStyle(styleID);
+
+         if(tableStyle == null) {
+            return false;
+         }
+
+         // The move keeps the leaf of the stored style, not the leaf of the request entry.
+         folder = getTableStyleFolder(tableStyle.getName());
+         String leaf = getTableStyleLeaf(tableStyle.getName());
+         duplicate = !Tool.equals(folder, folder2) && (isDuplicateStyle(folder2, leaf) ||
+            isDuplicateFolder(folder2, leaf));
       }
       else if(nentry.isTableStyleFolder()) {
          String nFolder = folder.contains(LibManager.SEPARATOR) ? folder.substring(0,
@@ -1411,6 +1424,30 @@ public class AssetEventUtil {
       }
 
       return duplicate;
+   }
+
+   /**
+    * Gets the folder of a table style from its full name.
+    *
+    * @param styleName the full name of the table style.
+    *
+    * @return the folder, or <tt>null</tt> if the style is at the root.
+    */
+   public static String getTableStyleFolder(String styleName) {
+      int idx = styleName == null ? -1 : styleName.lastIndexOf(LibManager.SEPARATOR);
+      return idx < 0 ? null : styleName.substring(0, idx);
+   }
+
+   /**
+    * Gets the name of a table style without its folder.
+    *
+    * @param styleName the full name of the table style.
+    *
+    * @return the name after the last folder separator.
+    */
+   public static String getTableStyleLeaf(String styleName) {
+      int idx = styleName == null ? -1 : styleName.lastIndexOf(LibManager.SEPARATOR);
+      return idx < 0 ? styleName : styleName.substring(idx + 1);
    }
 
    public static boolean isDuplicateFolder(String folder1, String folder2) {

@@ -27,8 +27,10 @@ import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.report.io.viewsheet.snapshot.ViewsheetAsset2;
 import inetsoft.sree.*;
 import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.schedule.FTPUtil;
 import inetsoft.sree.schedule.ScheduleClient;
 import inetsoft.sree.schedule.ScheduleTask;
+import inetsoft.sree.schedule.ServerPathInfo;
 import inetsoft.sree.security.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
@@ -3368,11 +3370,13 @@ public class SUtil {
          return name;
       }
 
-      String[] names = name.split(":");
+      // Bug #77883, the owner key ends at the first ':', the task name may contain ':'
+      int index = name.indexOf(':');
+      String owner = name.substring(0, index);
 
-      if(names[0].indexOf(IdentityID.KEY_DELIMITER) > 0) {
-         String[] userNames = names[0].split(IdentityID.KEY_DELIMITER);
-         return userNames[0] + ":" + names[1];
+      if(owner.indexOf(IdentityID.KEY_DELIMITER) > 0) {
+         String[] userNames = owner.split(IdentityID.KEY_DELIMITER);
+         return userNames[0] + name.substring(index);
       }
 
       return name;
@@ -3383,8 +3387,8 @@ public class SUtil {
          return name;
       }
 
-      String[] names = name.split(":");
-      return names[1];
+      // Bug #77883, the task name may contain ':'
+      return name.substring(name.indexOf(':') + 1);
    }
 
    public static IdentityID getOwnerForNewTask(IdentityID user) {
@@ -3597,6 +3601,18 @@ public class SUtil {
    }
 
    public static List<ServerLocation> getServerLocations() {
+      return getServerLocations(false);
+   }
+
+   /**
+    * Gets the server locations with the stored password of each location in its path info model.
+    * Only use it on the server, never send the result to a client.
+    */
+   public static List<ServerLocation> getServerLocationsWithPasswords() {
+      return getServerLocations(true);
+   }
+
+   private static List<ServerLocation> getServerLocations(boolean withPasswords) {
       List<ServerLocation> locations = new ArrayList<>();
       String property = SreeEnv.getProperty("server.save.locations");
 
@@ -3631,15 +3647,27 @@ public class SUtil {
                }
             }
 
+            // Bug #77971, the property may be written without splitting the path
+            FTPUtil.PathPassword pathPassword =
+               splitServerLocationPassword(path, useSecretId, secretId, username);
+
+            if(pathPassword != null) {
+               path = pathPassword.path();
+               username = pathPassword.user();
+               password = pathPassword.password();
+               useSecretId = false;
+               secretId = null;
+            }
+
             path = path.replaceAll("[/\\\\]+$", "");
             ServerPathInfoModel pathInfoModel = ServerPathInfoModel.builder()
                .path(path)
                .username(username)
-               .password(password == null ? null : Util.PLACEHOLDER_PASSWORD)
+               .password(password == null || withPasswords ? password : Util.PLACEHOLDER_PASSWORD)
                .secretId(secretId)
                .useCredential(useSecretId)
                .ftp(!Tool.isEmptyString(username) || !Tool.isEmptyString(secretId))
-               .oldPasswordKey(Tool.buildString(path, label, username))
+               .oldPasswordKey(String.join("|", path, label, Objects.toString(username, "")))
                .build();
             locations.add(ServerLocation.builder().path(path).label(label).pathInfoModel(pathInfoModel).build());
          }
@@ -3649,27 +3677,32 @@ public class SUtil {
       return locations;
    }
 
-   public static Map<String, String> getServerLocationsPwdMap() {
-      HashMap map = new HashMap();
-      String val = SreeEnv.getProperty("server.save.locations");
+   /**
+    * Bug #77971, splits the password out of the user info of a server location path, as
+    * {@link ServerPathInfo} does for the path of a task, so it isn't sent to a client in the path.
+    * The password in the path wins over the password and the secret of the location.
+    *
+    * @param path        the location path.
+    * @param useSecretId {@code true} if the location uses a secret.
+    * @param secretId    the secret id of the location.
+    * @param username    the user name field of the location.
+    *
+    * @return the path without the password, the user and the password, or {@code null} if the
+    *         path has no password.
+    */
+   public static FTPUtil.PathPassword splitServerLocationPassword(String path,
+                                                                  boolean useSecretId,
+                                                                  String secretId,
+                                                                  String username)
+   {
+      ServerPathInfo info = new ServerPathInfo();
+      info.setUseCredential(useSecretId);
+      info.setSecretId(secretId);
+      info.setUsername(username);
+      info.setPath(path);
 
-      if(Tool.isEmptyString(val)) {
-         return map;
-      }
-
-      String[] paths = val.split(";");
-
-      for(int i = 0; i < paths.length; i++) {
-         String path = paths[i];
-         String[] parts = path.split("\\|");
-
-         if(parts.length == 4) {
-            String pwd = parts[3];
-            map.put(Tool.buildString(parts[0], parts[1], parts[2]), pwd);
-         }
-      }
-
-      return map;
+      return Objects.equals(path, info.getPath()) ? null :
+         new FTPUtil.PathPassword(info.getPath(), info.getUsername(), info.getPassword());
    }
 
    public static String writeCookiesString(Cookie[] cookies) {

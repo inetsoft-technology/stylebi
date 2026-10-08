@@ -950,7 +950,7 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
 
       if(desc != null) {
          writer.print("<description>");
-         writer.print("<![CDATA[" + Tool.splitCDATAEnd(desc) + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(desc) + "]]>");
          writer.println("</description>");
       }
 
@@ -966,14 +966,14 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
 
       writer.print(">");
 
-      writer.print("<![CDATA[" + Tool.splitCDATAEnd(visibleValue.getDValue()) + "]]>");
+      writer.print("<![CDATA[" + Tool.cdataText(visibleValue.getDValue()) + "]]>");
       writer.println("</visible>");
 
       writer.print("<visible2 value=\"" + this.isVisible() + "\"/>");
 
       if(enabledValue.getDValue() != null) {
          writer.print("<enabled value=\"" + isEnabled() + "\">");
-         writer.print("<![CDATA[" + Tool.splitCDATAEnd(enabledValue.getDValue()) + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(enabledValue.getDValue()) + "]]>");
          writer.println("</enabled>");
       }
 
@@ -1007,7 +1007,7 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
       }
 
       if(script != null) {
-         writer.print("<script><![CDATA[" + Tool.splitCDATAEnd(script) + "]]></script>");
+         writer.print("<script><![CDATA[" + Tool.cdataText(script) + "]]></script>");
       }
 
       fmtInfo.writeXML(writer);

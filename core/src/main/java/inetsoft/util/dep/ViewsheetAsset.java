@@ -587,7 +587,7 @@ public class ViewsheetAsset extends AbstractSheetAsset implements FolderChangeab
       writer.println("</AllBookmarks>");
 
       if(entry.getAlias() != null) {
-         writer.println("<entryAlias><![CDATA[" + Tool.splitCDATAEnd(entry.getAlias()) +
+         writer.println("<entryAlias><![CDATA[" + Tool.cdataText(entry.getAlias()) +
                         "]]></entryAlias>");
       }
 

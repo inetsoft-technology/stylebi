@@ -37,6 +37,7 @@ public class VSChartCancelController {
       this.vsChartCancelService = vsChartCancelService;
    }
 
+   // listed in SheetEventOrderInterceptor, which does not queue it behind the sheet's events
    @MessageMapping("/vschart/cancel-query")
    public void eventHandler(@Payload CancelEvent event,
                             @LinkUri String linkUri,

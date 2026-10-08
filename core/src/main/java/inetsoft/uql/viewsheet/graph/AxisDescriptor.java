@@ -698,7 +698,7 @@ public class AxisDescriptor implements Cloneable, Serializable, XMLSerializable,
          for(int i = 0; i < anodes.getLength(); i++) {
             Element anode = (Element) anodes.item(i);
             Element knode = Tool.getNthChildNode(anode, 0);
-            String key = Tool.getValue(knode);
+            String key = Tool.getCDATAData(knode);
             Element vnode = Tool.getNthChildNode(anode, 1);
             String value = Tool.getValue(vnode);
 
@@ -802,12 +802,13 @@ public class AxisDescriptor implements Cloneable, Serializable, XMLSerializable,
             Object key = keys.next();
             key = key == null ? CoreTool.FAKE_NULL : key;
             String title = titles.get(key);
+            String str = String.valueOf(key);
             writer.print("<title>");
-            writer.print("<key>");
-            writer.print("<![CDATA[" + key + "]]>");
+            writer.print("<key" + Tool.cdataDataAttr(str) + ">");
+            writer.print("<![CDATA[" + Tool.cdataData(str) + "]]>");
             writer.println("</key>");
             writer.print("<value>");
-            writer.print("<![CDATA[" + title + "]]>");
+            writer.print("<![CDATA[" + Tool.cdataText(title) + "]]>");
             writer.println("</value>");
             writer.print("</title>");
          }
@@ -825,7 +826,7 @@ public class AxisDescriptor implements Cloneable, Serializable, XMLSerializable,
             CompositeTextFormat format = fmtMap.get(key);
             writer.print("<format>");
             writer.print("<key>");
-            writer.print("<![CDATA[" + key + "]]>");
+            writer.print("<![CDATA[" + Tool.cdataText(key) + "]]>");
             writer.println("</key>");
             format.writeXML(writer);
             writer.print("</format>");

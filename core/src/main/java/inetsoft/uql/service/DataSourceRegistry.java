@@ -23,6 +23,7 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.*;
 import inetsoft.uql.*;
+import inetsoft.uql.asset.AbstractAssetEngine;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.internal.AssetFolder;
@@ -643,6 +644,98 @@ public class DataSourceRegistry implements MessageListener {
       }
 
       return result.toArray(new AssetEntry[0]);
+   }
+
+   /**
+    * Gets the extended models of a logical model, or the extended views of a physical view, of
+    * a data source (see {@link #getDataSourceEntries(String, String, AssetEntry.Type, boolean)}).
+    * Bug #77842, a logical model and a physical view may have the same name, and a model name
+    * may have "/" in it, so the entries under the path of a model may be another model's: an
+    * extended model is the model's only if it has the matching type and is stored with the
+    * rest of the path as its name, e.g. "x/e" at "P/m/x/e" is model m's, and "e" at the same
+    * path is model "m/x"'s.
+    *
+    * @param dataSource   the path of the data source, e.g. "P".
+    * @param basePath     the path of the model, e.g. "P/m".
+    * @param extendedType {@link AssetEntry.Type#EXTENDED_LOGIC_MODEL} or
+    *                     {@link AssetEntry.Type#EXTENDED_PARTITION}.
+    * @param refuse       {@code true} to change the entries (a rename or remove): an entry that
+    *                     can't be read is the model's if no other model of the type has a path
+    *                     above it, and is refused if one has. {@code false} to list them: an
+    *                     entry that can't be read is left out.
+    *
+    * @return the entries.
+    *
+    * @throws MessageException if {@code refuse} and an entry can't be read to tell whose it is.
+    */
+   public AssetEntry[] getExtendedModelEntries(String dataSource, String basePath,
+                                               AssetEntry.Type extendedType, boolean refuse)
+   {
+      AssetEntry.Type baseType = extendedType == AssetEntry.Type.EXTENDED_LOGIC_MODEL ?
+         AssetEntry.Type.LOGIC_MODEL : extendedType == AssetEntry.Type.EXTENDED_PARTITION ?
+         AssetEntry.Type.PARTITION : null;
+
+      if(baseType == null) {
+         throw new IllegalArgumentException("Not an extended model type: " + extendedType);
+      }
+
+      List<AssetEntry> result = new ArrayList<>();
+
+      for(AssetEntry entry :
+         getDataSourceEntries(dataSource, basePath + "/", extendedType, refuse))
+      {
+         String storedName = getStoredModelName(entry);
+
+         if(storedName != null) {
+            if(entry.getPath().equals(basePath + "/" + storedName)) {
+               result.add(entry);
+            }
+            else {
+               // another model's, or one whose stored name doesn't match its path (left alone)
+               LOG.debug("Extended model {} is stored as \"{}\", not a child of {}",
+                         entry.getPath(), storedName, basePath);
+            }
+
+            continue;
+         }
+
+         if(!refuse) {
+            continue;
+         }
+
+         List<String> bases = getExtendedModelBases(dataSource, entry.getPath(), baseType);
+
+         if(bases.contains(basePath)) {
+            if(bases.size() > 1) {
+               throw new MessageException(Catalog.getCatalog().getString(
+                  "common.datasource.extendedModelUnreadable", basePath, entry.getPath()));
+            }
+
+            result.add(entry);
+         }
+      }
+
+      return result.toArray(new AssetEntry[0]);
+   }
+
+   // the paths of the models of the type an extended model at the path may be under, the ones
+   // at each "/" in the path after the data source
+   private List<String> getExtendedModelBases(String dataSource, String path,
+                                              AssetEntry.Type baseType)
+   {
+      List<String> bases = new ArrayList<>();
+
+      for(int index = path.indexOf('/', dataSource.length() + 1); index > 0;
+          index = path.indexOf('/', index + 1))
+      {
+         String base = path.substring(0, index);
+
+         if(containObject(new AssetEntry(AssetRepository.QUERY_SCOPE, baseType, base, null))) {
+            bases.add(base);
+         }
+      }
+
+      return bases;
    }
 
    // the paths above a path that a data source and a data source folder share, the top first
@@ -1642,6 +1735,20 @@ public class DataSourceRegistry implements MessageListener {
     * "F/P/add". The parent path must resolve to a data source that supports additional
     * connections and that has an additional connection with the last path segment as its name.
     * A data source in a data source folder, e.g. "F/P", is not an additional connection.
+    * <p>
+    * If the parent can't be loaded (e.g. its stored definition is damaged), the decision is made
+    * from the stored entries instead (Bug #77772): the path is that of an additional connection
+    * if a data source entry is stored at the parent path, an entry is stored at the path, and it
+    * isn't the data source of a data source folder at the parent path
+    * ({@link #isFolderDataSourcePath(String, String)}). This is the structural rule the listings
+    * use, so:
+    * <ul>
+    *    <li>an entry whose parent entry is missing (an orphan) is not an additional connection;</li>
+    *    <li>an entry that can't be read is taken for an additional connection, as with a loaded
+    *    parent;</li>
+    *    <li>the parent's type isn't known, so a stored entry under a damaged parent of a type
+    *    without additional connections is also taken for one.</li>
+    * </ul>
     *
     * @param path the registry path.
     *
@@ -1658,10 +1765,20 @@ public class DataSourceRegistry implements MessageListener {
          return false;
       }
 
-      XDataSource parent = getDataSource(path.substring(0, index));
-      return parent instanceof AdditionalConnectionDataSource<?> ads &&
-         ads.containDatasource(path.substring(index + 1)) &&
-         !isFolderDataSourcePath(path.substring(0, index), path);
+      String parentPath = path.substring(0, index);
+      XDataSource parent = getDataSource(parentPath);
+
+      if(parent != null) {
+         return parent instanceof AdditionalConnectionDataSource<?> ads &&
+            ads.containDatasource(path.substring(index + 1)) &&
+            !isFolderDataSourcePath(parentPath, path);
+      }
+
+      return containObject(new AssetEntry(
+         AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE, parentPath, null)) &&
+         containObject(new AssetEntry(
+            AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE, path, null)) &&
+         !isFolderDataSourcePath(parentPath, path);
    }
 
    /**
@@ -1854,6 +1971,9 @@ public class DataSourceRegistry implements MessageListener {
          }
          catch(Exception e) {
             LOG.warn("Failed to remove the permission of {} {}", type, resource, e);
+            // Bug #77941, the resource is already removed, so report a permission left at its
+            // name, which a folder, data source or connection created later with it would get
+            AbstractAssetEngine.reportPermissionMayRemain(engine, type, resource);
          }
       }
    }
@@ -2306,13 +2426,16 @@ public class DataSourceRegistry implements MessageListener {
    }
 
    /**
-    * Get all sub children of the specified path.
+    * Get all sub children of the specified path. The path ends with "/" unless it is empty.
+    * The root ("/" or "") matches every name; any other path matches the names that start
+    * with it, so a name where the path appears again deeper (F/xF/G/x for F/G) isn't listed.
     */
    private List<String> getAllSubChildren(String path, String[] names) {
       List<String> children = new ArrayList<>();
 
       for(String name : names) {
-         if("/".equals(path) && name.indexOf('/') == -1  || name.contains(path)) {
+         // Bug #77770, match by prefix, not contains
+         if("/".equals(path) || path.isEmpty() || name.startsWith(path)) {
             children.add(name);
          }
       }

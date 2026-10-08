@@ -20,6 +20,7 @@ package inetsoft.sree.security;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.TimeRange;
 import inetsoft.storage.*;
+import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,75 +49,251 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
          "defaultSecurityPermissions", new LoadPermissionsTask());
 
       isolatePermissionForOrg();
+      repairStoredGlobalRoleGrants();
+   }
+
+   /**
+    * Repairs the global role grants that were read back from a JSON key-value engine or a
+    * storage backup with the organization "null" instead of null (Bug #77965). Such a grant
+    * matches no role, so it neither grants the role nor is removed when the role is deleted.
+    *
+    * <p>The repair runs when the storage is opened, and must also be run after values were
+    * written into the live storage directly, like a storage restore does.
+    */
+   public synchronized void repairGlobalRoleGrants() {
+      if(storage == null || storage.isClosed()) {
+         init();
+      }
+      else {
+         repairStoredGlobalRoleGrants();
+      }
+   }
+
+   /**
+    * A role grant with the organization "null" is turned back into the global role grant only
+    * where that is the only meaning it can have, and the role still exists:
+    * <ul>
+    * <li>The key of the permission belongs to an organization other than "null". The key of an
+    * organization whose id is "null" could hold a grant of that organization's role, so it is
+    * left as it is.</li>
+    * <li>The security provider confirms that the global role exists. A grant of a global role
+    * that was deleted, or that can't be looked up now (like a failing LDAP server), is kept as
+    * it is. It stays inert, it is never removed, and it is checked again the next time.</li>
+    * </ul>
+    */
+   private void repairStoredGlobalRoleGrants() {
+      List<KeyValuePair<Permission>> list;
+
+      try {
+         list = storage.stream().collect(Collectors.toList());
+      }
+      catch(RuntimeException e) {
+         LOG.error("Failed to read the permissions to repair the global role grants", e);
+         return;
+      }
+
+      Map<String, Boolean> globalRoles = new HashMap<>();
+      Set<String> kept = new TreeSet<>();
+
+      for(KeyValuePair<Permission> pair : list) {
+         try {
+            // read the key again so an edit made since the stream above is not overwritten
+            Permission permission = hasStringNullRoleGrant(pair.getValue()) ?
+               storage.get(pair.getKey()) : null;
+
+            if(repairGlobalRoleGrants(pair.getKey(), permission, globalRoles, kept)) {
+               storage.put(pair.getKey(), permission).get(10L, TimeUnit.SECONDS);
+            }
+         }
+         catch(InterruptedException e) {
+            // the remaining keys are repaired the next time
+            Thread.currentThread().interrupt();
+            LOG.error("Interrupted while repairing the global role grants", e);
+            break;
+         }
+         catch(Exception e) {
+            LOG.error("Failed to repair the global role grants of the permission {}, it is " +
+                      "kept as it is", pair.getKey(), e);
+         }
+      }
+
+      if(!kept.isEmpty()) {
+         LOG.warn("These role grants have the organization \"null\" and are not used, because " +
+                  "the global role doesn't exist or the permission belongs to the organization " +
+                  "\"null\": {}", kept);
+      }
+   }
+
+   private boolean repairGlobalRoleGrants(String key, Permission permission,
+                                          Map<String, Boolean> globalRoles, Set<String> kept)
+   {
+      if(permission == null) {
+         return false;
+      }
+
+      int typeEnd = key.indexOf(":");
+      int orgEnd = typeEnd < 0 ? -1 : key.indexOf(":", typeEnd + 1);
+      String orgID = orgEnd < 0 ? null : key.substring(typeEnd + 1, orgEnd);
+      boolean changed = false;
+
+      for(ResourceAction action : ResourceAction.values()) {
+         Set<Permission.PermissionIdentity> roles =
+            permission.getGrants(action, Identity.ROLE, null);
+         Set<Permission.PermissionIdentity> repaired = new HashSet<>();
+
+         for(Permission.PermissionIdentity role : roles) {
+            if(!"null".equals(role.getOrganizationID())) {
+               repaired.add(role);
+            }
+            else if(orgID != null && !"null".equals(orgID) &&
+                    globalRoles.computeIfAbsent(role.getName(), this::isGlobalRole))
+            {
+               repaired.add(new Permission.PermissionIdentity(role.getName(), null));
+               changed = true;
+            }
+            else {
+               repaired.add(role);
+               kept.add(key + " " + action + " " + role.getName());
+            }
+         }
+
+         if(!repaired.equals(roles)) {
+            permission.setGrants(action, Identity.ROLE, repaired);
+         }
+      }
+
+      return changed;
+   }
+
+   private static boolean hasStringNullRoleGrant(Permission permission) {
+      return permission != null && Arrays.stream(ResourceAction.values())
+         .flatMap(action -> permission.getGrants(action, Identity.ROLE, null).stream())
+         .anyMatch(role -> "null".equals(role.getOrganizationID()));
+   }
+
+   // a custom provider that doesn't override AbstractAuthenticationProvider.getRole() returns a
+   // role for any name, so on such a chain every global role counts as existing
+   private boolean isGlobalRole(String name) {
+      try {
+         return SecurityEngine.getSecurity().getSecurityProvider()
+            .getRole(new IdentityID(name, null)) != null;
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to look up the global role {}, its grants are repaired later", name, e);
+         return false;
+      }
    }
 
    /**
     * Permission was isolated by organiztion to fix bugs like Bug #7091, this function is to
     * isolate permissions by organization for old storage.
+    *
+    * Each key is decided on its own, so keys that are already isolated are never split again and
+    * running this again changes nothing (Bug #77832). A legacy key is removed only after all of its
+    * per-organization copies were written, and a failure on one key leaves that key as it is and
+    * never escapes init().
     */
    private void isolatePermissionForOrg() {
-      if(!needIsolate()) {
+      Map<String, Permission> map = new HashMap<>();
+
+      try {
+         storage.stream().forEach(pair -> map.put(pair.getKey(), pair.getValue()));
+      }
+      catch(RuntimeException e) {
+         LOG.error("Failed to read the permissions to isolate by organization", e);
          return;
       }
 
-      Map<String, Permission> map = new HashMap<>();
-      storage.stream().forEach(pair -> map.put(pair.getKey(), pair.getValue()));
-
-      try {
-         storage.removeAll(storage.keys().collect(Collectors.toSet())).get(1L, TimeUnit.MINUTES);
-      }
-      catch(InterruptedException | ExecutionException | TimeoutException e) {
-         LOG.error("Failed to remove permissions from storage", e);
-      }
+      Map<String, Boolean> knownOrgs = new HashMap<>();
 
       for(Map.Entry<String, Permission> entry : map.entrySet()) {
-         String key = entry.getKey();
-         int delimiter = key.indexOf(":");
-         ResourceType type = ResourceType.valueOf(key.substring(0, delimiter));
-         String path = key.substring(delimiter + 1);
-         Permission permission = entry.getValue();
-
-         if(permission == null) {
-            continue;
+         try {
+            isolatePermissionForOrg(entry.getKey(), entry.getValue(), knownOrgs);
          }
-
-         Map<String, Permission> permissionMap = permission.splitPermissionForOrg();
-
-         permissionMap.forEach((orgId, orgPermission) -> {
-            // no meaningful scenario for setting permissions on a global role.
-            if("null".equals(orgId)) {
-               return;
-            }
-
-            // keep the migration best-effort per entry, as it was before the writers threw: a
-            // failed re-put must not leave the loop or escape init()
-            try {
-               setPermission(type, path, orgPermission, orgId);
-            }
-            catch(RuntimeException e) {
-               LOG.error("Failed to isolate the permission of {} {} for organization {}",
-                         type, path, orgId, e);
-            }
-         });
+         catch(InterruptedException e) {
+            // the remaining keys are kept as they are
+            Thread.currentThread().interrupt();
+            LOG.error("Interrupted while isolating the permissions by organization", e);
+            break;
+         }
+         catch(Exception e) {
+            LOG.error("Failed to isolate the permission {} by organization, it is kept as it is",
+                      entry.getKey(), e);
+         }
       }
    }
 
-   private boolean needIsolate() {
-      String key = storage.keys().findFirst().orElse(null);
-
-      if(key == null) {
-         return false;
+   private void isolatePermissionForOrg(String key, Permission permission,
+                                        Map<String, Boolean> knownOrgs) throws Exception
+   {
+      if(permission == null) {
+         return;
       }
 
-      String[] arr = key.split(":");
+      int delimiter = key.indexOf(":");
 
-      if(arr.length < 3) {
+      if(delimiter < 0) {
+         LOG.warn("Ignoring the permission {}, its key has no resource type", key);
+         return;
+      }
+
+      ResourceType type = ResourceType.valueOf(key.substring(0, delimiter));
+      String path = key.substring(delimiter + 1);
+      Map<String, Permission> permissionMap = permission.splitPermissionForOrg();
+
+      if(!isLegacyKey(path, permissionMap, knownOrgs)) {
+         return;
+      }
+
+      // no meaningful scenario for setting permissions on a global role.
+      permissionMap.remove("null");
+
+      // keep the edited flag of each organization, also for an organization that was edited
+      // without granting anyone, so it does not fall back to the parent's permission
+      permission.getOrgEditedGrantAll().forEach((orgId, edited) -> {
+         if(Boolean.TRUE.equals(edited) && !Tool.isEmptyString(orgId) && !"null".equals(orgId)) {
+            permissionMap.computeIfAbsent(orgId, o -> new Permission())
+               .updateGrantAllByOrg(orgId, true);
+         }
+      });
+
+      for(Map.Entry<String, Permission> entry : permissionMap.entrySet()) {
+         String target = getResourceKey(type, path, getResourceOrgID(entry.getKey()));
+
+         // the permission already stored for the organization is the current one, a stale legacy
+         // grant must not replace it
+         if(storage.contains(target)) {
+            continue;
+         }
+
+         storage.put(target, entry.getValue()).get(10L, TimeUnit.SECONDS);
+      }
+
+      storage.remove(key).get(10L, TimeUnit.SECONDS);
+   }
+
+   /**
+    * Checks if a permission key has no organization part. The path of a legacy key may contain
+    * ':' (schedule task ids are owner:name, cubes are ds::cube), so a key with an organization
+    * part is legacy only if that part is not a known organization and some grantee belongs to
+    * another organization. The keys of an organization the security provider doesn't know, like
+    * SELF under LDAP or a deleted organization, are kept.
+    */
+   private boolean isLegacyKey(String path, Map<String, Permission> permissionMap,
+                               Map<String, Boolean> knownOrgs)
+   {
+      int delimiter = path.indexOf(":");
+
+      if(delimiter < 0) {
          return true;
       }
 
-      String orgID = arr[1];
+      String orgID = path.substring(0, delimiter);
+      boolean otherOrg = permissionMap.keySet().stream()
+         .anyMatch(o -> !"null".equals(o) && !o.equals(orgID));
 
-      return SecurityEngine.getSecurity().getSecurityProvider().getOrganization(orgID) == null;
+      return otherOrg && !knownOrgs.computeIfAbsent(orgID, o ->
+         SecurityEngine.getSecurity().getSecurityProvider().getOrganization(o) != null);
    }
 
    /**
@@ -149,8 +326,15 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
          pair -> {
             String key = pair.getKey();
             int delimiter = key.indexOf(":");
+            ResourceType type = delimiter < 0 ? null : parseResourceType(key.substring(0, delimiter));
 
-            ResourceType type = ResourceType.valueOf(key.substring(0, delimiter));
+            // Bug #77911, a key that can't be parsed (kept by the migration in init()) is skipped,
+            // or it would break every caller, like the organization delete and identity rename
+            if(type == null) {
+               logUnparsableKey(key);
+               return null;
+            }
+
             String path = key.substring(delimiter + 1);
             delimiter = path.indexOf(":");
             String orgID = null;
@@ -163,7 +347,29 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
             return new Tuple4<>(type, orgID, path, pair.getValue());
          };
 
-      return storage.stream().map(mapper).collect(Collectors.toList());
+      return storage.stream().map(mapper).filter(Objects::nonNull).collect(Collectors.toList());
+   }
+
+   private static ResourceType parseResourceType(String name) {
+      try {
+         return ResourceType.valueOf(name);
+      }
+      catch(IllegalArgumentException e) {
+         return null;
+      }
+   }
+
+   /**
+    * Logs a permission key that can't be parsed. init() already warns about it on each start and
+    * the permissions are listed on every identity change, so a key is warned about only once.
+    */
+   private void logUnparsableKey(String key) {
+      if(unparsableKeys.add(key)) {
+         LOG.warn("Ignoring the permission {}, its key has no valid resource type", key);
+      }
+      else {
+         LOG.debug("Ignoring the permission {}, its key has no valid resource type", key);
+      }
    }
 
    /**
@@ -239,7 +445,10 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
       for(Tuple4<ResourceType, String, String, Permission> permissionSet : getPermissions()) {
          String resourceOrgID = permissionSet.getSecond();
 
-         if(resourceOrgID != null && !Tool.equals(resourceOrgID, orgId)) {
+         // Bug #77911, a legacy key without an organization is skipped. Removing it by a null
+         // organization would remove the current or default organization's key instead, and the
+         // key is moved to its organizations the next time the storage is opened.
+         if(resourceOrgID == null || !Tool.equals(resourceOrgID, orgId)) {
             continue;
          }
 
@@ -408,6 +617,7 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
    }
 
    private KeyValueStorage<Permission> storage;
+   private final Set<String> unparsableKeys = ConcurrentHashMap.newKeySet();
    private static final Logger LOG = LoggerFactory.getLogger(FileAuthorizationProvider.class);
 
    private static final class LoadPermissionsTask extends LoadKeyValueTask<Permission> {

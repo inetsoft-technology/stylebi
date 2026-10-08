@@ -63,7 +63,7 @@ public final class XTableFragment extends XSwappable {
 
    @Override
    public double getSwapPriority() {
-      if(disposed || !completed || !valid || !isSwappable()) {
+      if(disposed || !completed || !valid || lost || !isSwappable()) {
          return 0;
       }
 
@@ -149,7 +149,12 @@ public final class XTableFragment extends XSwappable {
     * @return <tt>true</tt> if swapped, <tt>false</tt> rejected.
     */
    public synchronized boolean swap(boolean force) {
-      if(getSwapPriority() == 0) {
+      // a fragment is not swapped again until it is read. a failed write keeps all its data in
+      // memory without a file, so a forced swap (snapshot save/export) must retry the write, or
+      // the table is saved without its data (bug #77963)
+      boolean retry = force && rewriteRequired && !disposed && completed && isSwappable();
+
+      if((!retry && getSwapPriority() == 0) || isSwapFileLost()) {
          return false;
       }
 
@@ -181,27 +186,61 @@ public final class XTableFragment extends XSwappable {
    }
 
    /**
-    * Swap the columns.
+    * Check if the swap file of this fragment is lost. It is lost when it is missing while some
+    * of the swapped columns are not in memory, so they can't be written to a new file. Writing
+    * it anyway would create an empty file, or one that holds nulls in place of the lost data.
+    * The fragment is not swapped again once the file is lost, and reading the columns that are
+    * not in memory throws SwapFileReadException (bug #77895).
+    */
+   private boolean isSwapFileLost() {
+      if(!lost && !getSwapFile().exists()) {
+         for(XTableColumn column : columns) {
+            if(column.isSerializable() && !column.isValid()) {
+               lost = true;
+               LOG.error("Swap file is missing, the table fragment is not swapped out any " +
+                         "more: " + getSwapFile());
+               break;
+            }
+         }
+      }
+
+      return lost;
+   }
+
+   /**
+    * Swap the columns. The columns are written to the swap file once, and a later swap reuses
+    * the file. A column is invalidated only after the whole file, including the footer, is
+    * written, and only when its data is in the file. A failed or incomplete write deletes the
+    * file and keeps every column in memory, so the file is rewritten by the next swap instead
+    * of being reused (bug #77948).
     */
    private void swapColumns() {
       File file = getSwapFile();
       RandomAccessFile fout = null;
       FileChannel channel = null;
       boolean swapped = true;
+      boolean done = false;
       files.clear();
 
       try {
          ByteBuffer footer = null;
-         files.add(file);
+         boolean[] written = new boolean[columns.length];
 
-         if(!file.exists()) {
+         if(!file.exists() || rewriteRequired) {
+            // cleared when the file is complete, so a failure to open the file is retried too
+            rewriteRequired = true;
             fout = new RandomAccessFile(file, "rw");
-            channel = fout.getChannel();
+            // the file exists now (it may have just been created), so a failure from here on
+            // must delete it in the finally block instead of leaving a stub to be reused
             swapped = false;
+            fout.setLength(0);
+            channel = fout.getChannel();
             footer = ByteBuffer.allocate(columns.length * 16);
          }
 
-         for(XTableColumn column : columns) {
+         for(int i = 0; i < columns.length; i++) {
+            XTableColumn column = columns[i];
+
             if(disposed) {
                return;
             }
@@ -216,8 +255,13 @@ public final class XTableFragment extends XSwappable {
             if(!swapped) {
                long opos = channel.position();
 
+               if(testBeforeWrite != null) {
+                  testBeforeWrite.run();
+               }
+
                column.swap(file, channel);
                long npos = channel.position();
+               written[i] = npos > opos;
 
                footer.asLongBuffer().put(opos);
                XSwapUtil.position(footer, footer.position() + 8);
@@ -227,14 +271,31 @@ public final class XTableFragment extends XSwappable {
                XSwapUtil.position(footer, footer.position() + 4);
             }
             else {
-               column.invalidate();
+               written[i] = true;
             }
          }
 
          if(footer != null) {
             XSwapUtil.flip(footer);
+
+            if(testBeforeWrite != null) {
+               testBeforeWrite.run();
+            }
+
             channel.write(footer);
          }
+
+         // the file is complete, drop the data of the columns that are in it. a column whose
+         // data could not be written (e.g. a value Kryo can't serialize) stays in memory
+         for(int i = 0; i < columns.length; i++) {
+            if(written[i] && columns[i].isSerializable() && columns[i].hasSwapData()) {
+               columns[i].invalidate();
+            }
+         }
+
+         files.add(file);
+         rewriteRequired = false;
+         done = true;
       }
       catch(Exception ex) {
          LOG.error("Failed to write XTableFragment swap file: " + file, ex);
@@ -251,6 +312,16 @@ public final class XTableFragment extends XSwappable {
          }
          catch(Exception ex) {
             // ignore it
+         }
+
+         // an incomplete file must not be reused by a later swap or listed for a snapshot.
+         // no column was invalidated, so the data is all in memory
+         if(!done && !swapped) {
+            rewriteRequired = true;
+
+            if(!file.delete() && file.exists()) {
+               LOG.warn("Failed to delete incomplete XTableFragment swap file: " + file);
+            }
          }
       }
    }
@@ -507,7 +578,12 @@ public final class XTableFragment extends XSwappable {
    private List<File> files; // cache files
    private boolean completed; // completed flag
    private boolean disposed; // disposed flag
+   private volatile boolean lost; // swap file lost, see isSwapFileLost()
+   // the swap file is incomplete (a write failed), it must be rewritten and not reused
+   private boolean rewriteRequired;
    private String snappath; // snapshot path
+   // test-only hook, run before each column and the footer is written to the swap file
+   transient Runnable testBeforeWrite;
    private static final Logger LOG =
       LoggerFactory.getLogger(XTableFragment.class);
 }

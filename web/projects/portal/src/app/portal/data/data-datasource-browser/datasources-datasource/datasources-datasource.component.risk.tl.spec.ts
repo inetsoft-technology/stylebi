@@ -248,6 +248,59 @@ describe("DatasourcesDatasource — ok() saves datasource via PUT when editing",
       await waitFor(() => expect(ROUTER_MOCK.navigate).toHaveBeenCalled());
       expect(duplicateCheckCalled).toBe(false);
    });
+
+   // Bug #77843, the data source renamed P -> P2 and a connection renamed r1 -> r2 with the
+   // Rename dialog in one save. The PUT to the old name sends the renamed connection with its
+   // old name, so that the server keeps its permission, and the kept one without one.
+   it("sends the old name of a connection renamed with the Rename dialog in the PUT", async () => {
+      let body: any = null;
+
+      server.use(
+         http.get("*/api/portal/data/datasources/checkDuplicate/P2", () =>
+            HttpResponse.json(false)
+         ),
+         http.put("*/api/portal/data/datasources/P", async ({ request }) => {
+            body = await request.json();
+            return HttpResponse.json({});
+         })
+      );
+
+      const { comp } = await renderDatasource();
+      comp.datasource = makeDataSource({
+         name: "P",
+         additionalConnections: [
+            makeDataSource({ name: "k1", oldName: null }),
+            makeDataSource({ name: "r1", oldName: null }),
+         ],
+      });
+      comp.originalDatasource = makeDataSource({ name: "P" });
+      comp.datasourcePath = "P";
+      comp.editing = true;
+      comp.datasourceValid = true;
+      comp.selectedAdditionalIndex = [1];
+      const result = Promise.resolve({ name: "r2", description: "" });
+      MODAL_MOCK.open.mockImplementationOnce(() => ({
+         result,
+         componentInstance: {},
+         close: vi.fn(),
+         dismiss: vi.fn(),
+      }));
+
+      comp.renameAdditional();
+      await result;
+      comp.datasource.name = "P2";
+      comp.ok();
+
+      await waitFor(() => expect(body).not.toBeNull());
+      expect(body.name).toBe("P2");
+      const sent = body.additionalConnections
+         .map((c: any) => ({ name: c.name, oldName: c.oldName ?? null }))
+         .sort((a: any, b: any) => a.name.localeCompare(b.name));
+      expect(sent).toEqual([
+         { name: "k1", oldName: null },
+         { name: "r2", oldName: "r1" },
+      ]);
+   });
 });
 
 // ── Group 5: ok() → saveDataSource (new — POST) ───────────────────────────

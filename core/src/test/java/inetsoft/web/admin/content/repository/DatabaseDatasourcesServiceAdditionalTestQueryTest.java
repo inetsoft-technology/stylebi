@@ -43,6 +43,7 @@ import inetsoft.web.portal.service.datasource.DataSourceStatusService;
 import inetsoft.web.session.IgniteSessionRepository;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.test.context.ContextConfiguration;
@@ -64,6 +65,7 @@ import static org.mockito.Mockito.*;
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class,
+                                  SecurityEngineDispatchConfiguration.class,
                                   DatabaseDatasourcesServiceAdditionalTestQueryTest.Beans.class },
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
@@ -83,6 +85,8 @@ class DatabaseDatasourcesServiceAdditionalTestQueryTest {
       stubLifecycle();
    }
 
+   @Autowired
+   private SecurityEngineOverrides securityEngineOverrides;
    private Map<String, Object> store;
    private DatabaseDatasourcesService service;
    private Principal principal;
@@ -140,6 +144,15 @@ class DatabaseDatasourcesServiceAdditionalTestQueryTest {
 
       principal = asOrg("orga");
       JDBCDataSource parent = customSource(PARENT);
+
+      // the save is audited, and the audit record reads the name of the principal's
+      // organization, which the security provider doesn't have (Bug #77844)
+      SecurityProvider provider = spy(SecurityEngine.getSecurity().getSecurityProvider());
+      doAnswer(inv -> Set.of("orga", "orgb").contains(inv.<String>getArgument(0)) ?
+         new Organization(inv.<String>getArgument(0)) : inv.callRealMethod())
+         .when(provider).getOrganization(anyString());
+      securityEngineOverrides.setSecurityProvider(provider);
+
       store.put(PARENT, new XDataSourceWrapper(parent));
       parent.addDatasource(customSource("addOld"));
       parent.addDatasource(customSource("addGone"));
@@ -148,6 +161,7 @@ class DatabaseDatasourcesServiceAdditionalTestQueryTest {
 
    @AfterEach
    void tearDown() {
+      securityEngineOverrides.clear();
       ThreadContext.setContextPrincipal(null);
 
       for(String name : NAMES) {

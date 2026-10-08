@@ -21,7 +21,7 @@ import inetsoft.uql.*;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.*;
 import inetsoft.util.Tool;
-import inetsoft.util.stall.LockStallException;
+import inetsoft.util.swap.DataUnavailable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
@@ -581,9 +581,9 @@ public class AssetCondition extends Condition implements AssetObject {
          lresult = super.evaluate(value);
       }
       catch(RuntimeException ex) {
-         // a stalled sub-query has no result, the next evaluation of this value must not
-         // take the last one (bug #76967)
-         if(LockStallException.find(ex) != null) {
+         // a stalled sub-query or one whose swap file is lost has no result, the next
+         // evaluation of this value must not take the last one (bugs #76967, #77910)
+         if(DataUnavailable.find(ex) != null) {
             lvalue = Tool.NULL;
          }
 

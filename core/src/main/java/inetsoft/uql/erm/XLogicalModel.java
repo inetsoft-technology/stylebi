@@ -27,6 +27,7 @@ import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.schema.XVariable;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.ConnectionProcessor;
+import inetsoft.uql.util.XUtil;
 import inetsoft.util.*;
 import inetsoft.util.xml.XMLStorage.XMLFragment;
 import org.slf4j.Logger;
@@ -945,7 +946,7 @@ public class XLogicalModel
       if(description != null) {
          writer.println("<Description>");
          writer.print("<![CDATA[");
-         writer.print(Tool.splitCDATAEnd(description));
+         writer.print(Tool.cdataText(description));
          writer.println("]]>");
          writer.println("</Description>");
       }
@@ -1312,6 +1313,11 @@ public class XLogicalModel
     * Add a child XLogicalModel.
     */
    public void addLogicalModel(XLogicalModel child, boolean lmchange) {
+      // Bug #77918: as XDataModel.addLogicalModel
+      if(XUtil.isDirectScriptCall(XLogicalModel.class)) {
+         throw new java.lang.SecurityException("A script may not add a logical model");
+      }
+
       String path = getDataSource() + "/" + getName() + "/" + child.getName();
       AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
               AssetEntry.Type.EXTENDED_LOGIC_MODEL, path, null);
@@ -1347,9 +1353,10 @@ public class XLogicalModel
                  AssetEntry.Type.EXTENDED_LOGIC_MODEL, path, null);
          result = (XLogicalModel) getRegistry().getObject(entry, true);
 
+         // Bug #77943: don't cache the returned copy, or a caller's unsaved change to it is
+         // seen by every later reader on the node
          if(result != null) {
             result.setBaseModel(this);
-            getRegistry().setCache(entry, result);
          }
       }
 
@@ -1454,9 +1461,9 @@ public class XLogicalModel
       try {
          String path = getDataSource() + "/" + getName() + "/";
          // Bug #77820, not the models of a data source of a folder at the path of the data
-         // source
-         AssetEntry[] entries = getRegistry().getDataSourceEntries(getDataSource(), path,
-                 AssetEntry.Type.EXTENDED_LOGIC_MODEL, false);
+         // source. Bug #77842, not the ones of a model "<name>/..."
+         AssetEntry[] entries = getRegistry().getExtendedModelEntries(getDataSource(),
+                 getDataSource() + "/" + getName(), AssetEntry.Type.EXTENDED_LOGIC_MODEL, false);
          result = new String[entries.length];
 
          for(int i = 0; i < entries.length; i++) {
@@ -1475,6 +1482,11 @@ public class XLogicalModel
     * remove a child XLogicalModel.
     */
    public void removeLogicalModel(String name) {
+      // Bug #77918: as XDataModel.addLogicalModel
+      if(XUtil.isDirectScriptCall(XLogicalModel.class)) {
+         throw new java.lang.SecurityException("A script may not remove a logical model");
+      }
+
       AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
               AssetEntry.Type.EXTENDED_LOGIC_MODEL,
               getDataSource() + "/" + getName() + "/" + name, null);
@@ -1485,6 +1497,11 @@ public class XLogicalModel
     * rename a child XLogicalModel.
     */
    public void renameLogicalModel(String oname, XLogicalModel extend) {
+      // Bug #77852: as XDataModel.renameLogicalModel
+      if(XUtil.isDirectScriptCall(XLogicalModel.class)) {
+         throw new java.lang.SecurityException("A script may not rename a logical model");
+      }
+
       XLogicalModel clone = (XLogicalModel) extend.clone();
       clone.setName(oname);
       DependencyHandler.getInstance().updateModelDependencies(clone, false);

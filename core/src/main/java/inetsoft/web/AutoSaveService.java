@@ -102,6 +102,8 @@ public class AutoSaveService {
                                         Principal principal)
       throws Exception
    {
+      // Bug #77947, the auto-save sheet is read without a permission check
+      AutoSaveUtils.checkAutoSavePermission(List.of(id), principal);
       // Get auto save sheet from engine.
       AssetEntry entry = AutoSaveUtils.createAssetEntry(id);
       AssetRepository repository = AssetUtil.getAssetRepository(false);

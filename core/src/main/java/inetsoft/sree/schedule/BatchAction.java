@@ -26,6 +26,7 @@ import inetsoft.sree.RepletRequest;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.OrganizationManager;
+import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.*;
@@ -77,10 +78,63 @@ public class BatchAction extends AbstractAction {
                "Unauthorized access to resource \"%s\" by %s", task.getTaskId(), principal));
          }
 
+         checkTargetPermission(task, principal);
          Principal childPrincipal = getChildPrincipal(task);
          runScheduleTaskWithEmbeddedParameters(task, childPrincipal);
          runScheduleTaskWithQueryParameters(task, principal, childPrincipal);
       }
+   }
+
+   /**
+    * Bug #77972, the child task runs as its own owner with the parameters of this action, so the
+    * owner of the task that holds this action must be allowed to see the child task, the same
+    * rule that is checked when the action is saved. A batch action stored before that check, or
+    * whose owner has lost access to the child task since, is refused here. Internal child tasks
+    * are checked by the Bug #77531 rule alone, and nothing is checked without security.
+    *
+    * @param task      the child task.
+    * @param principal the run principal of the task that holds this action, used when its owner
+    *                  wasn't set.
+    */
+   private void checkTargetPermission(ScheduleTask task, Principal principal)
+      throws SecurityException
+   {
+      if(ScheduleManager.isInternalTask(task.getTaskId()) ||
+         !SecurityEngine.getSecurity().isSecurityEnabled())
+      {
+         return;
+      }
+
+      // check the owner, not the run principal, a group or role execute-as principal is named
+      // after the group or role (the same as IndividualAssetBackupAction)
+      Principal ownerPrincipal;
+
+      if(taskOwner == null) {
+         LOG.warn("The owner of the schedule task that runs the batch action of \"{}\" is not " +
+                  "set, checking the task against the run principal {}", task.getTaskId(),
+                  principal);
+         ownerPrincipal = principal;
+      }
+      else {
+         ownerPrincipal = SUtil.getScheduleTaskOwnerPrincipal(taskOwner, null, false);
+      }
+
+      if(!ScheduleManager.isBatchTargetPermitted(task, ownerPrincipal)) {
+         throw new SecurityException(String.format(
+            "Unauthorized access to resource \"%s\" by %s, the batch action target task isn't " +
+            "accessible to the task owner", task.getTaskId(),
+            taskOwner != null ? taskOwner.convertToKey() : principal));
+      }
+   }
+
+   /**
+    * Sets the owner of the task that runs this action, the target task is checked against it when
+    * the action runs. It is set on the runtime copy of the task and is not stored.
+    *
+    * @param owner the task owner.
+    */
+   public void setTaskOwner(IdentityID owner) {
+      this.taskOwner = owner;
    }
 
    /**
@@ -531,6 +585,7 @@ public class BatchAction extends AbstractAction {
    private static final String XML_ILLEGAL_CHARS_ATTR = "ctrlEncoded";
 
    private String taskId;
+   private transient IdentityID taskOwner;
    private AssetEntry queryEntry;
    private Map<String, Object> queryParameters = new LinkedHashMap<>();
    private List<Map<String, Object>> embeddedParameters = new ArrayList<>();

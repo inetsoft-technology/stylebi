@@ -1381,10 +1381,10 @@ public class CubeQuery extends AssetQuery {
       SimpleDateFormat format;
 
       if(locale == null) {
-         format = new SimpleDateFormat(minfo.getDatePattern(), Locale.getDefault());
          // Bug #77598: without a database locale the member captions are not known to be in
-         // the calendar of the JVM default locale, read them as Gregorian dates
-         format.setCalendar(new GregorianCalendar());
+         // the calendar of the JVM default locale, read them as Gregorian dates. Bug #77876:
+         // use the helper, which also moves the two-digit-year window to the Gregorian calendar
+         format = Tool.createGregorianDateFormat(minfo.getDatePattern(), Locale.getDefault());
       }
       else {
          format = new SimpleDateFormat(minfo.getDatePattern(), locale);
