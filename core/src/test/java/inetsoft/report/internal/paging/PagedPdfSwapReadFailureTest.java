@@ -143,8 +143,30 @@ class PagedPdfSwapReadFailureTest {
          PDF3Generator generator = new PDF3Generator(out);
 
          if(!fail) {
+            String diag0 = diag(cache, id, "before");
             generator.generate(penum);
-            assertEquals(9, countPages(out));
+            int cnt = countPages(out);
+
+            if(cnt != 9) {
+               StringBuilder sb = new StringBuilder("DIAG77984 cnt=" + cnt + " outlen=" + out.size() + " " + diag0 + " | " + diag(cache, id, "after") + " | penum idx=" + rfield(penum, "idx") + " lastIdx=" + Arrays.toString((int[]) rfield(penum, "lastIdx")));
+
+               for(int i = 0; i < 9; i++) {
+                  try {
+                     inetsoft.report.StylePageResult r = cache.getPageResult(id, i);
+                     sb.append(" p" + i + "=" + (r.getPage() != null) + "/" + r.isCancelled());
+                  }
+                  catch(Throwable t) {
+                     sb.append(" p" + i + "=EX:" + t);
+                  }
+               }
+
+               String pdf = new String(out.toByteArray(), StandardCharsets.ISO_8859_1);
+               sb.append(" pdfhead=").append(pdf, 0, Math.min(400, pdf.length()));
+               System.err.println(sb);
+               fail(sb.toString());
+            }
+
+            assertEquals(9, cnt);
             return;
          }
 
@@ -175,6 +197,43 @@ class PagedPdfSwapReadFailureTest {
             penum.dispose();
          }
       }
+   }
+
+   private static Object rfield(Object obj, String name) {
+      try {
+         for(Class<?> c = obj.getClass(); c != null; c = c.getSuperclass()) {
+            try {
+               Field f = c.getDeclaredField(name);
+               f.setAccessible(true);
+               return f.get(obj);
+            }
+            catch(NoSuchFieldException ignore) {
+            }
+         }
+
+         return "nofield";
+      }
+      catch(Exception ex) {
+         return "EX:" + ex;
+      }
+   }
+
+   private static String diag(ReportCache cache, Object id, String when) {
+      StringBuilder sb = new StringBuilder(when + ": status=" + cache.getProcessStatus(id) + " procs=" + cache.procs.get(id) + " workset=" + rfield(cache, "cache_workset") + " env=" + SreeEnv.getProperty("replet.cache.workset") + " pnmap=" + rfield(cache, "pnmap") + " pgmap=" + cache.pgmap.keySet() + " mem=" + inetsoft.util.swap.XSwapper.getSwapper().getMemoryState() + " principal=" + inetsoft.util.ThreadContext.getContextPrincipal());
+
+      for(int i = 0; i < 9; i += 3) {
+         PageGroup g = cache.pgmap.get(cache.getSwapFile(id, i));
+
+         if(g == null) {
+            sb.append(" g" + i + "=null");
+            continue;
+         }
+
+         Object[] pages = (Object[]) rfield(g, "pages");
+         sb.append(" g" + i + "=valid:" + g.isValid() + ",disposed:" + rfield(g, "disposed") + ",count:" + g.getPageCount() + ",pages:" + (pages == null ? "null" : Arrays.toString(pages)) + ",file:" + g.getSwapFile() + ",exists:" + (g.getSwapFile() != null && g.getSwapFile().exists()));
+      }
+
+      return sb.toString();
    }
 
    private static Object field(PagedEnumeration penum, String name) throws Exception {
