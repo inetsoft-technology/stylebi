@@ -24,6 +24,7 @@ import inetsoft.uql.XTable;
 import inetsoft.uql.asset.internal.ColumnIndexMap;
 import inetsoft.util.script.ArrayObject;
 import inetsoft.util.script.graal.ScriptArrayScope;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.swap.DataUnavailable;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
@@ -474,10 +475,12 @@ public class TableRow implements ArrayObject, ScriptArrayScope {
 
    /**
     * Rethrow the lock stall or lost swap file of a failed cell read, such a table has no value
-    * to return (bugs #76967, #77910).
+    * to return (bugs #76967, #77910), nor has a cell whose formula was stopped by a script
+    * timeout or cancel (bug #77949).
     */
    private static void rethrowUnavailable(Exception ex) {
       DataUnavailable.rethrow(ex);
+      ScriptTimeoutGuard.rethrowStop(ex);
    }
 
    /**

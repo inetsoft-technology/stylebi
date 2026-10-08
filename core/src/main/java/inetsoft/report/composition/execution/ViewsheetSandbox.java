@@ -50,6 +50,7 @@ import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.log.LogContext;
 import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.*;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.swap.SwapFileReadException;
 import inetsoft.web.viewsheet.service.SharedFilterService;
@@ -5552,7 +5553,10 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       Object obj = dmap.get(name, DataMap.VSTABLE);
       final VSAssembly assembly = vs.getAssembly(name);
 
-      if(AssetDataCache.isDebugData()) {
+      // a view table whose formula a script timeout stopped is built again (bug #77949)
+      if(AssetDataCache.isDebugData() || obj instanceof TableLens lens &&
+         AssetDataCache.isStopped(lens))
+      {
          obj = null;
       }
 
@@ -5563,7 +5567,9 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          try {
             obj = dmap.get(name, DataMap.VSTABLE);
 
-            if(AssetDataCache.isDebugData()) {
+            if(AssetDataCache.isDebugData() || obj instanceof TableLens lens &&
+               AssetDataCache.isStopped(lens))
+            {
                obj = null;
             }
 
@@ -5665,8 +5671,10 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                   // A lost swap file must fail the read, not turn into "no table" on the next
                   // read (it often appears mid-session on a table that rendered fine), and a
                   // retry only re-reads the missing file, so don't cache it either (#77908)
+                  // Nor a script stopped by its timeout or a cancel, e.g. a freehand table's
+                  // formula: the next read would take it for no table (#77949)
                   if(LockStallException.find(ex) != null ||
-                     SwapFileReadException.find(ex) != null)
+                     SwapFileReadException.find(ex) != null || ScriptTimeoutGuard.isStop(ex))
                   {
                      cache = false;
                   }
@@ -5890,8 +5898,11 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
       Object obj = dmap.get(name, type);
 
+      // a table whose formula a script timeout stopped is computed again, like a cancelled
+      // one (bug #77949)
       if(AssetDataCache.isDebugData() || isDataExpired(name, type) ||
-         obj instanceof TableLens lens && AssetDataCache.isCancelled(lens))
+         obj instanceof TableLens lens &&
+         (AssetDataCache.isCancelled(lens) || AssetDataCache.isStopped(lens)))
       {
          obj = null;
       }
@@ -5941,8 +5952,8 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                CoreTool.addUserMessage(ex.getMessage());
 
                // the MV query wraps any failure, a lost swap file must not be cached as no
-               // data either, see catch(Exception) below (#77908)
-               if(SwapFileReadException.find(ex) != null) {
+               // data either, see catch(Exception) below (#77908), nor a stopped script (#77949)
+               if(SwapFileReadException.find(ex) != null || ScriptTimeoutGuard.isStop(ex)) {
                   cache = false;
                }
 
@@ -5957,8 +5968,11 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             // data (it often appears mid-session on an assembly that rendered fine), and a
             // retry only re-reads the missing file, so don't cache it either. Other failures
             // are still cached as NULL, so e.g. a slow failing SQL query is not re-run on
-            // every read (#77908)
-            if(LockStallException.find(ex) != null || SwapFileReadException.find(ex) != null) {
+            // every read (#77908). A script stopped by its timeout or a cancel is not cached
+            // either, e.g. a freehand table's formula, or it would read as no data (#77949)
+            if(LockStallException.find(ex) != null || SwapFileReadException.find(ex) != null ||
+               ScriptTimeoutGuard.isStop(ex))
+            {
                cache = false;
             }
 

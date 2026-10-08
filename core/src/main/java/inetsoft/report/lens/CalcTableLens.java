@@ -41,6 +41,7 @@ import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.*;
 import inetsoft.util.script.graal.ScriptScope;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.swap.SwapFileReadException;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
@@ -223,6 +224,26 @@ public class CalcTableLens extends DefaultTableLens {
       super.invalidate();
       tableScope = null;
       formulaCache = null;
+      // the stopped formulas of this table's cache are dropped with it, a runtime table keeps
+      // them in place of their cells (bug #77949)
+      stopped = stopped && keepsValuesInPlace();
+   }
+
+   /**
+    * Check if a script timeout or cancel stopped a formula of this table: its cell fails every
+    * read, so a cache must not hand this table to another reader, which would get the same
+    * failure, but compute the table again (bug #77949).
+    */
+   public boolean isStopped() {
+      return stopped;
+   }
+
+   /**
+    * Whether this table keeps the values of its formulas in place of their cells, see
+    * {@link #setCachedValue(int, int, Object)}, instead of in a cache that invalidate() drops.
+    */
+   protected boolean keepsValuesInPlace() {
+      return false;
    }
 
    public RuntimeCalcTableLens process() {
@@ -252,6 +273,9 @@ public class CalcTableLens extends DefaultTableLens {
          if(swapFailure != null) {
             throw swapFailure;
          }
+
+         // nor may a formula stopped by a script timeout or cancel (bug #77949)
+         ScriptTimeoutGuard.rethrowStop(ex);
 
          LOG.error("Failed to process calctablelens", ex);
          return null;
@@ -473,8 +497,19 @@ public class CalcTableLens extends DefaultTableLens {
       if(obj instanceof Formula) {
          Object val = getCachedValue(r, c);
 
+         // a formula stopped by a script timeout or cancel has no value: every read fails
+         // with the stop, until the table is computed again (bug #77949). This table keeps
+         // it in its cache, a runtime table in place of the formula
+         if(val instanceof StoppedFormula stopped) {
+            throw stopped.stop();
+         }
+
          if(val != SparseMatrix.NULL) {
             return val;
+         }
+
+         if(obj instanceof StoppedFormula stopped) {
+            throw stopped.stop();
          }
 
          Formula expr = (Formula) obj;
@@ -508,6 +543,16 @@ public class CalcTableLens extends DefaultTableLens {
                // not cached, a later read evaluates the formula again
                uncacheValue(r, c, expr);
                throw swapFailure;
+            }
+
+            // nor is one stopped by a script timeout or cancel: the reader gets the stop, and
+            // so does every later read, instead of an error cell. It is not evaluated again,
+            // as its script may have changed the state of the formulas before it was stopped
+            // (bug #77949)
+            if(ScriptTimeoutGuard.isStop(se)) {
+               setCachedValue(r, c, new StoppedFormula(expr, se));
+               stopped = true;
+               throw se;
             }
 
             obj = "ERROR: " + se.getMessage();
@@ -1741,6 +1786,26 @@ public class CalcTableLens extends DefaultTableLens {
       }
 
       private String formula;
+   }
+
+   /**
+    * A formula that a script timeout or cancel stopped, kept in place of its value, see
+    * {@link #getValue(int, int)} (bug #77949).
+    */
+   private static final class StoppedFormula extends Formula {
+      StoppedFormula(Formula formula, ScriptException failure) {
+         super(formula.getFormula());
+         this.failure = failure;
+      }
+
+      // a new exception for each read: a reader may add to the one it gets
+      ScriptException stop() {
+         ScriptException stop = new ScriptException(failure.getMessage(), failure);
+         stop.setStopped(true);
+         return stop;
+      }
+
+      private final ScriptException failure;
    }
 
    /**
@@ -3481,6 +3546,8 @@ public class CalcTableLens extends DefaultTableLens {
    private volatile SpanMap spanMap;
    private final Object spanMapLock = new byte[0];
    private transient SparseMatrix formulaCache = null; // formula result cache
+   // set when a formula of this table was stopped by a script timeout or cancel (bug #77949)
+   private transient volatile boolean stopped;
    private transient boolean cancelled = false;
    private transient TableLens dataTable;
    private boolean fillwithzero = false;
