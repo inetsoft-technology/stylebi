@@ -23,16 +23,30 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.util.HashMap;
+
 /**
- * Bug #78084, the stall, lost swap file or load failure that leaves the script engine, or that a
- * table read by a script keeps for its later readers, survives Java serialization. The checks
- * are in {@link UnavailableFailureSerializationChecks}; {@link UnavailableFailureIgniteMarshalTest}
- * runs them with the Ignite marshaller too.
+ * Bug #78084, the stall or lost swap file that a Java method called by a script throws leaves
+ * the script engine as a copy that survives Java serialization. A small core subset of
+ * {@link UnavailableFailureSerializationChecks}: the reads of tables by scripts, and the Ignite
+ * marshaller, are checked by {@link UnavailableFailureIgniteMarshalTest} (slow).
  */
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class },
+@ContextConfiguration(classes = { BaseTestConfiguration.class },
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
 @Tag("core")
-class UnavailableFailureSerializationTest extends UnavailableFailureSerializationChecks {
+class UnavailableFailureSerializationTest {
+   @Test
+   void hostFailureThroughExecSerializes() throws Exception {
+      GraalJavaScriptEngine engine = new GraalJavaScriptEngine();
+      engine.init(new HashMap<>());
+
+      try {
+         UnavailableFailureSerializationChecks.checkHostFailureThroughExec(engine);
+      }
+      finally {
+         engine.close();
+      }
+   }
 }

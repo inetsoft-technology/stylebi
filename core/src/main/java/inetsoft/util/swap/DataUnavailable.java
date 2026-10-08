@@ -89,6 +89,34 @@ public final class DataUnavailable {
    }
 
    /**
+    * The cause for a new exception that a table throws to a reader for a failure it keeps,
+    * e.g. {@code new SetOperationException(copyInChain(kept))}. A reader finds a lock stall,
+    * a swap file read failure or a load failure in the cause chain by its class and may throw
+    * it on through a script, so the chain must not hold the kept instance of one (bug #78084).
+    *
+    * @return a copy of {@code failure} if it is such a failure, a copy of the one in its cause
+    * chain otherwise, the copy taking the place of {@code failure}, or {@code failure} itself
+    * if its chain has none.
+    */
+   public static Throwable copyInChain(Throwable failure) {
+      if(failure instanceof RuntimeException ex) {
+         RuntimeException copy = copy(ex);
+
+         if(copy != ex) {
+            return copy;
+         }
+      }
+
+      RuntimeException found = find(failure);
+
+      if(found == null) {
+         found = TableLoadException.find(failure);
+      }
+
+      return found != null ? copy(found) : failure;
+   }
+
+   /**
     * Copy a table load failure, see {@link #copy(RuntimeException)}.
     */
    public static TableLoadException copy(TableLoadException failure) {

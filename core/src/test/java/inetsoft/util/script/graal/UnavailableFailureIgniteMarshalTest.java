@@ -24,8 +24,9 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 /**
- * Bug #78084, the checks of {@link UnavailableFailureSerializationChecks} by the Ignite marshaller
- * of a started local node too, as the response of a cluster call is written. The node binds to
+ * Bug #78084, the checks of {@link UnavailableFailureSerializationChecks}, by Java serialization
+ * and by the Ignite marshaller of a started local node, as the response of a cluster call is
+ * written. The node binds to
  * 127.0.0.1 with a static IP finder (no multicast) and runs only for this class.
  */
 @ExtendWith(SpringExtension.class)

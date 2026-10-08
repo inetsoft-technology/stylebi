@@ -444,7 +444,8 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
             throw swapFailure.copy();
          }
 
-         throw new CrossJoinException(workerFailure);
+         // nor the kept instance of a load failure in its chain (bug #78084)
+         throw new CrossJoinException(DataUnavailable.copyInChain(workerFailure));
       }
    }
 
