@@ -587,8 +587,12 @@ public class TimeSliderVSAssemblyInfo extends MaxModeSelectionVSAssemblyInfo
       }
       boolean writeAllSelectedValues = true;
 
+      // only a date range is written as start/end/selected and rebuilt when read. A number
+      // list (linear, decimal or log ticks) can't always be rebuilt exactly, and a different
+      // list changes the range the next query keeps (#77998), so it is written in full.
       if(slist != null && slist.getSelectionValueCount() > 0 && timeSliderSelection != null &&
-         timeSliderSelection.getLabelFormat() != null && timeSliderSelection.getIncrement() != -1)
+         timeSliderSelection.getLabelFormat() != null && timeSliderSelection.getIncrement() != -1 &&
+         timeSliderSelection.getDateLevels() != null)
       {
          writeAllSelectedValues = false;
          timeSliderSelection.writeXML(writer, slist);
@@ -651,7 +655,9 @@ public class TimeSliderVSAssemblyInfo extends MaxModeSelectionVSAssemblyInfo
       }
 
       if(tslnode != null) {
-         timeSliderSelection.parseXML(tslnode, slist);
+         // a log scale set by an expression is not known until it runs
+         timeSliderSelection.parseXML(tslnode, slist,
+                                      !"false".equalsIgnoreCase(logScaleValue.getDValue()));
       }
 
       titleInfo.parseXML(elem);

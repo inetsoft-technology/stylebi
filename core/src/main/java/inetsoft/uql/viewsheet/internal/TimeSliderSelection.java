@@ -19,6 +19,7 @@
 package inetsoft.uql.viewsheet.internal;
 
 import java.io.PrintWriter;
+import java.math.BigDecimal;
 import java.text.*;
 import java.util.*;
 import inetsoft.uql.viewsheet.SelectionList;
@@ -85,6 +86,15 @@ public class TimeSliderSelection implements Cloneable {
    }
 
    public void parseXML(Element elem, SelectionList list) throws Exception {
+      parseXML(elem, list, false);
+   }
+
+   /**
+    * Parse the range and rebuild the selection values in the list.
+    * @param logScale true if the slider's numbers are in log scale (or may be, e.g. set by an
+    *                 expression). Number values are then not rebuilt from the range.
+    */
+   public void parseXML(Element elem, SelectionList list, boolean logScale) throws Exception {
       Element incrementNode = Tool.getChildNodeByTagName(elem, "increment");
       Element labelFmtNode = Tool.getChildNodeByTagName(elem, "labelFmt");
       Element valueFmtNode = Tool.getChildNodeByTagName(elem, "valueFmt");
@@ -206,7 +216,9 @@ public class TimeSliderSelection implements Cloneable {
          this.increment = Double.parseDouble(incrementNode.getTextContent());
          this.dateLevels = dateLvls;
 
-         List<SelectionValue> rList = repopulateList(startVal, endVal, firstSelectedVal, lastSelectedVal, lblfmt, valfmt, dateLvls);
+         List<SelectionValue> rList = repopulateList(startVal, endVal, firstSelectedVal,
+                                                     lastSelectedVal, lblfmt, valfmt, dateLvls,
+                                                     logScale);
 
          if(rList != null) {
             list.setSelectionValues(rList.toArray(new SelectionValue[0]));
@@ -216,7 +228,9 @@ public class TimeSliderSelection implements Cloneable {
 
    private List<SelectionValue> repopulateList(SelectionValue startVal, SelectionValue endVal,
                                                SelectionValue firstSelected, SelectionValue lastSelected,
-                                               Format labelfmt, Format valuefmt, int[] dateLevels){
+                                               Format labelfmt, Format valuefmt, int[] dateLevels,
+                                               boolean logScale)
+   {
       //repopulate as date
       if(dateLevels != null) {
          Date firstSelectedDate = null;
@@ -249,26 +263,69 @@ public class TimeSliderSelection implements Cloneable {
 
          return populateDateList(startDate, endDate, firstSelectedDate, lastSelectedDate, labelfmt, valuefmt, dateLevels);
       }
-      //repopulate as number
-      else if(isNumber(firstSelected.getValue()) && isNumber(lastSelected.getValue())) {
-         return populateNumberList(Double.parseDouble(startVal.getValue()),Double.parseDouble(endVal.getValue()),
-                                   Double.parseDouble(firstSelected.getValue()), Double.parseDouble(lastSelected.getValue()), labelfmt);
+      // repopulate as number. Only written before #77998 (a number slider now writes its
+      // full list). The log ticks and a zero increment (min == max) can't be rebuilt from the
+      // range; the stored list has no values, so the next query rebuilds them and the
+      // selection is restored from the state selection list.
+      else if(isNumber(firstSelected.getValue()) && isNumber(lastSelected.getValue()) &&
+         isNumber(startVal.getValue()) && isNumber(endVal.getValue()))
+      {
+         if(logScale) {
+            LOG.debug("log scale values are rebuilt by the next query");
+            return null;
+         }
+
+         return populateNumberList(Double.parseDouble(startVal.getValue()),
+                                   Double.parseDouble(endVal.getValue()),
+                                   Double.parseDouble(firstSelected.getValue()),
+                                   Double.parseDouble(lastSelected.getValue()), labelfmt);
       }
 
       return null;
    }
 
+   /**
+    * Rebuild the ticks start + i * increment (as the query creates them, without accumulating
+    * a rounding error) and select [firstSelected, lastSelected].
+    * @return the values, or null if the range is not on a grid of the increment.
+    */
    private ArrayList<SelectionValue> populateNumberList(double start, double end,
-                                                        double firstSelected, double lastSelected, Format fmt){
+                                                        double firstSelected, double lastSelected,
+                                                        Format fmt)
+   {
+      if(!(increment > 0) || Double.isInfinite(increment) || Double.isNaN(start) ||
+         Double.isNaN(end) || Double.isInfinite(start) || Double.isInfinite(end))
+      {
+         LOG.debug("number range not rebuilt, increment: {}", increment);
+         return null;
+      }
+
+      double count = Math.rint((end - start) / increment);
+      double tolerance = increment * 1e-6;
+
+      if(count < 0 || count > MAX_NUMBER_TICKS ||
+         Math.abs(start + count * increment - end) > tolerance)
+      {
+         LOG.debug("number range not rebuilt, start: {}, end: {}, increment: {}",
+                   start, end, increment);
+         return null;
+      }
+
+      BigDecimal bstart = BigDecimal.valueOf(start);
+      BigDecimal binc = BigDecimal.valueOf(increment);
+      double firstIdx = Math.rint((firstSelected - start) / increment);
+      double lastIdx = Math.rint((lastSelected - start) / increment);
       ArrayList<SelectionValue> repopList = new ArrayList<>();
 
-      for(double s = start; s <= end; s += increment) {
+      for(int i = 0; i <= count; i++) {
+         double s = bstart.add(binc.multiply(BigDecimal.valueOf(i))).doubleValue();
          String val = Tool.toString(s);
-         String label = (fmt != null) ? fmt.format(s) : Tool.toString(s);
+         String label = (fmt != null && !(fmt instanceof DateFormat))
+            ? fmt.format(s) : Tool.toString(s);
 
          SelectionValue sval = new SelectionValue(label, val);
          sval.setLevel(0);
-         sval.setSelected(true);
+         sval.setSelected(i >= firstIdx && i <= lastIdx);
          repopList.add(sval);
       }
 
@@ -282,7 +339,6 @@ public class TimeSliderSelection implements Cloneable {
       Calendar firstSelectedCal = new GregorianCalendar();
       Calendar lastSelectedCal = new GregorianCalendar();
       Calendar maxcal = new GregorianCalendar();
-      Calendar omaxcal = null;
       Calendar currcal = null;
       int counter = 0;
       int pos = -1;
@@ -314,37 +370,15 @@ public class TimeSliderSelection implements Cloneable {
          SelectionValue sval = new SelectionValue(label, val);
          sval.setLevel(0);
 
-         //if date between selected
+         // if date between selected
          if(compareLevel(firstSelectedCal, calendar, datelevels) <= 0 &&
-            compareLevel(calendar, lastSelectedCal, datelevels) >= 0) {
+            compareLevel(calendar, lastSelectedCal, datelevels) <= 0) {
             sval.setSelected(true);
          }
 
          popList.add(sval);
          calendar.add(datelevels[0], (int) increment);
          counter++;
-      }
-
-      if(omaxcal != null) {
-         calendar.add(datelevels[0], - (int) increment);
-
-         // make the max in range always >= the max in the data
-         if(compareLevel(calendar, omaxcal, datelevels) < 0) {
-            calendar.add(datelevels[0], (int) increment);
-            Object obj = calendar.getTime();
-            String label = labelfmt.format(obj);
-            String val = valuefmt.format(obj);
-            SelectionValue sval = new SelectionValue(label, val);
-            sval.setLevel(0);
-
-            //if date between selected
-            if(compareLevel(firstSelectedCal, omaxcal, datelevels) <= 0 &&
-               compareLevel(omaxcal, lastSelectedCal, datelevels) >= 0) {
-               sval.setSelected(true);
-            }
-
-            popList.add(sval);
-         }
       }
 
       return popList;
@@ -511,6 +545,8 @@ public class TimeSliderSelection implements Cloneable {
    private double increment;
    private int[] dateLevels;
 
+   // the query creates at most a few hundred number ticks
+   private static final int MAX_NUMBER_TICKS = 100000;
    private static final Logger LOG = LoggerFactory.getLogger(TimeSliderSelection.class);
 
 }
