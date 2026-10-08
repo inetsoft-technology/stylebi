@@ -22,6 +22,7 @@ import inetsoft.storage.BlobStorage;
 import inetsoft.storage.BlobStorageManager;
 import inetsoft.storage.BlobTransaction;
 import inetsoft.util.ConfigurationContext;
+import inetsoft.util.FileSystemService;
 import jakarta.annotation.PreDestroy;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
@@ -132,6 +133,48 @@ public class EmbeddedTableStorage implements AutoCloseable {
       catch(FileNotFoundException e) {
          return false;
       }
+   }
+
+   /**
+    * Mark a temporary table as not temporary, so that {@link #removeExpiredTempTables()} keeps
+    * it. The stored data is copied through a local temp file, never from the in-memory table.
+    *
+    * @param path the table path.
+    *
+    * @return {@code true} if the table was temporary and is now marked as not temporary.
+    *
+    * @throws IOException if the table is missing or could not be written.
+    */
+   public boolean clearTempFlag(String path) throws IOException {
+      if(!isTempTable(path)) {
+         return false;
+      }
+
+      File file = FileSystemService.getInstance().getCacheTempFile("tdat", "tmp");
+
+      try {
+         // read it fully before the write, the write replaces the blob being read
+         try(InputStream input = readTable(path)) {
+            if(input == null) {
+               throw new FileNotFoundException(path);
+            }
+
+            try(OutputStream output = new FileOutputStream(file)) {
+               IOUtils.copy(input, output);
+            }
+         }
+
+         try(InputStream input = new FileInputStream(file)) {
+            writeTable(path, input, false);
+         }
+      }
+      finally {
+         if(!file.delete() && file.exists()) {
+            LOG.debug("Failed to delete temp file: {}", file);
+         }
+      }
+
+      return true;
    }
 
    public void removeExpiredTempTables() {
