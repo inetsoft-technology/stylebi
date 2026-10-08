@@ -24,7 +24,9 @@ import inetsoft.report.internal.table.BinaryTableDataPath;
 import inetsoft.report.internal.table.CancellableTableLens;
 import inetsoft.uql.XMetaInfo;
 import inetsoft.uql.XTable;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.util.Tool;
+import inetsoft.util.UserMessage;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.swap.SwapFileReadException;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
@@ -204,6 +206,7 @@ abstract class JoinTable extends PagedTableLens {
       }
 
       throwStallFailure();
+      addUserMessage();
       return false;
    }
 
@@ -245,6 +248,7 @@ abstract class JoinTable extends PagedTableLens {
 
       if(count >= 0) {
          throwStallFailure();
+         addUserMessage();
       }
 
       return count;
@@ -256,7 +260,7 @@ abstract class JoinTable extends PagedTableLens {
     */
    @Override
    public Object getObject(int r, int c) {
-      if(stallFailure != null || swapFailure != null) {
+      if(stallFailure != null || baseFailure != null) {
          throwStallFailurePastEnd(r);
       }
 
@@ -275,8 +279,8 @@ abstract class JoinTable extends PagedTableLens {
    }
 
    /**
-    * Rethrow the stall (bug #76967) or the lost swap file (bug #77651) a worker thread failed
-    * with, if any.
+    * Rethrow the stall (bug #76967), the lost swap file (bug #77651) or the load failure of a
+    * base (bug #77966) a worker thread failed with, if any.
     */
    private void throwStallFailure() {
       LockStallException failure = stallFailure;
@@ -285,11 +289,24 @@ abstract class JoinTable extends PagedTableLens {
          throw new LockStallException(failure);
       }
 
-      // nor are the rows so far of a worker that lost a swap file of a base (bug #77651)
-      SwapFileReadException swapFailure = this.swapFailure;
+      // nor are the rows so far of a worker that lost a swap file of a base (bug #77651), or
+      // of a base that failed to load, for a reader that has to fail (bug #77966)
+      RuntimeException baseFailure = this.baseFailure;
 
-      if(swapFailure != null) {
-         throw swapFailure;
+      if(baseFailure != null) {
+         throw baseFailure;
+      }
+   }
+
+   /**
+    * Add the user messages of the worker threads, e.g. the warning of a base that failed to
+    * load, on the reader's thread at the end of the join (bug #77966).
+    */
+   private void addUserMessage() {
+      UserMessage msg = userMsg;
+
+      if(msg != null) {
+         Tool.addUserMessage(msg);
       }
    }
 
@@ -310,7 +327,24 @@ abstract class JoinTable extends PagedTableLens {
     * (bug #77651).
     */
    void setSwapFailure(SwapFileReadException failure) {
-      swapFailure = failure;
+      baseFailure = failure;
+   }
+
+   /**
+    * Record the load failure of a base a worker thread failed with, before it completes the
+    * join (bug #77966).
+    */
+   void setLoadFailure(TableLoadException failure) {
+      baseFailure = failure;
+   }
+
+   /**
+    * Keep the user messages of a worker thread for the readers, before it completes the join:
+    * they are lost with the worker thread otherwise (bug #77966).
+    */
+   synchronized void addWorkerMessage(UserMessage msg) {
+      UserMessage userMsg = this.userMsg;
+      this.userMsg = userMsg == null ? msg : userMsg.merge(msg);
    }
 
    /**
@@ -359,7 +393,7 @@ abstract class JoinTable extends PagedTableLens {
     * Get the base table to delegate calls.
     */
    public TableRef getTableRef(int row, int col) {
-      if(stallFailure != null || swapFailure != null) {
+      if(stallFailure != null || baseFailure != null) {
          throwStallFailurePastEnd(row);
       }
 
@@ -650,8 +684,10 @@ abstract class JoinTable extends PagedTableLens {
    // base rows read by the workers, joined or not (bug #76967)
    private transient volatile long scannedRows;
    private transient volatile LockStallException stallFailure;
-   // the lost swap file a worker failed with (bug #77651)
-   private transient volatile SwapFileReadException swapFailure;
+   // the lost swap file (bug #77651) or the base load failure (bug #77966) a worker failed with
+   private transient volatile RuntimeException baseFailure;
+   // the user messages of the worker threads, for the readers (bug #77966)
+   private transient volatile UserMessage userMsg;
    // the watchdog suppliers of moreRows, see getStallProgress()
    private transient LongSupplier stallProgress;
    private transient Supplier<Thread[]> stallBlockers;

@@ -21,8 +21,10 @@ import inetsoft.report.*;
 import inetsoft.report.filter.*;
 import inetsoft.report.internal.table.CancellableTableLens;
 import inetsoft.sree.SreeEnv;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.util.ThreadPool;
 import inetsoft.util.Tool;
+import inetsoft.util.UserMessage;
 import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.JavaScriptEngine;
@@ -242,7 +244,8 @@ public class DistinctTableLens extends AbstractTableLens
          completed = false;
          validated = false;
          stallFailure = null;
-         swapFailure = null;
+         baseFailure = null;
+         userMsg = null;
          scannedRows = 0;
       }
 
@@ -276,7 +279,7 @@ public class DistinctTableLens extends AbstractTableLens
          : JavaScriptEngine.holdsScriptLock();
 
       if(inExec) {
-         validate0(target);
+         validate0(target, false);
       }
       // concurrent process
       else {
@@ -291,7 +294,14 @@ public class DistinctTableLens extends AbstractTableLens
                borrower.begin();
 
                try {
-                  validate0(target);
+                  validate0(target, true);
+               }
+               catch(RuntimeException ex) {
+                  // a load failure of the base was logged where it happened and the readers
+                  // rethrow it, the pool needn't log it again (bug #77966)
+                  if(TableLoadException.find(ex) == null) {
+                     throw ex;
+                  }
                }
                finally {
                   borrower.end();
@@ -302,12 +312,16 @@ public class DistinctTableLens extends AbstractTableLens
       }
    }
 
-   private void validate0(XSwappableIntList target) {
+   /**
+    * @param background {@code true} if on the worker, which passes its user messages, e.g. the
+    *                   warning of a base that failed to load, to the readers (bug #77966).
+    */
+   private void validate0(XSwappableIntList target, boolean background) {
       if(cols.length == 1 || stable) {
-         hashDistinct(target);
+         hashDistinct(target, background);
       }
       else {
-         sortDistinct(target);
+         sortDistinct(target, background);
       }
    }
 
@@ -323,9 +337,9 @@ public class DistinctTableLens extends AbstractTableLens
     * Find distinct rows through a hash map.
     * @param target the rows of this pass.
     */
-   private void hashDistinct(XSwappableIntList target) {
+   private void hashDistinct(XSwappableIntList target, boolean background) {
       LockStallException stall = null;
-      SwapFileReadException swapFailure = null;
+      RuntimeException baseFailure = null;
 
       try {
          Set map = new ObjectOpenHashSet();
@@ -367,14 +381,15 @@ public class DistinctTableLens extends AbstractTableLens
 
          if(stall == null) {
             // a swap file read failure must not look like a complete (silently
-            // empty/partial) distinct table either (bug #77651)
-            swapFailure = SwapFileReadException.find(ex);
+            // empty/partial) distinct table either (bug #77651), nor a base that failed to
+            // load for a reader that has to fail, e.g. a scheduled run (bug #77966)
+            baseFailure = findBaseFailure(ex);
          }
 
          throw ex;
       }
       finally {
-         complete(target, stall, swapFailure);
+         complete(target, stall, baseFailure, background);
       }
    }
 
@@ -383,10 +398,27 @@ public class DistinctTableLens extends AbstractTableLens
     * next pass finds the rows of the table (bug #77333).
     * @param target the rows of the pass.
     * @param stall the stall the pass failed with, if any.
+    * @param baseFailure the lost swap file or the load failure of the base the pass failed
+    *                    with, if any.
+    * @param background {@code true} if on the worker: its user messages, e.g. the warning of
+    *                   a base that failed to load, are kept for the readers before they are
+    *                   woken, they are lost with the worker thread otherwise (bug #77966).
     */
    private synchronized void complete(XSwappableIntList target, LockStallException stall,
-                                       SwapFileReadException swapFailure)
+                                       RuntimeException baseFailure, boolean background)
    {
+      UserMessage msg = null;
+
+      if(background) {
+         try {
+            msg = Tool.getUserMessage();
+         }
+         catch(RuntimeException ex) {
+            LOG.warn("Failed to collect the distinct table user messages", ex);
+            Tool.clearUserMessage();
+         }
+      }
+
       // a disposed table still ends the waits of its readers
       if(rows != target && rows != null) {
          return;
@@ -396,9 +428,11 @@ public class DistinctTableLens extends AbstractTableLens
          stallFailure = stall;
       }
 
-      if(swapFailure != null) {
-         this.swapFailure = swapFailure;
+      if(baseFailure != null) {
+         this.baseFailure = baseFailure;
       }
+
+      userMsg = msg;
 
       completed = true;
 
@@ -420,13 +454,13 @@ public class DistinctTableLens extends AbstractTableLens
    /**
     * Find distinct rows through sorting.
     */
-   private void sortDistinct(XSwappableIntList target) {
+   private void sortDistinct(XSwappableIntList target, boolean background) {
       try {
          // for Feature #26586, add ui processing time record.
 
          ProfileUtils.addExecutionBreakDownRecord(getReportName(),
             ExecutionBreakDownRecord.POST_PROCESSING_CYCLE, args -> {
-               sortDistinct0(target);
+               sortDistinct0(target, background);
             });
 
          //sortDistinct0();
@@ -440,7 +474,11 @@ public class DistinctTableLens extends AbstractTableLens
          // empty/partial (bug #77651)
       }
       catch(Exception ex) {
-         LOG.error("Failed to process sort distinct", ex);
+         // a load failure of the base was logged where it happened, sortDistinct0() kept it
+         // for the readers (bug #77966)
+         if(TableLoadException.find(ex) == null) {
+            LOG.error("Failed to process sort distinct", ex);
+         }
       }
    }
 
@@ -448,9 +486,9 @@ public class DistinctTableLens extends AbstractTableLens
     * Find distinct rows through sorting.
     * @param target the rows of this pass.
     */
-   private void sortDistinct0(XSwappableIntList target) {
+   private void sortDistinct0(XSwappableIntList target, boolean background) {
       LockStallException stall = null;
-      SwapFileReadException swapFailure = null;
+      RuntimeException baseFailure = null;
 
       try {
          TableFilter sorted = createSortedTable();
@@ -510,14 +548,15 @@ public class DistinctTableLens extends AbstractTableLens
 
          if(stall == null) {
             // a swap file read failure must not look like a complete (silently
-            // empty/partial) distinct table either (bug #77651)
-            swapFailure = SwapFileReadException.find(ex);
+            // empty/partial) distinct table either (bug #77651), nor a base that failed to
+            // load for a reader that has to fail, e.g. a scheduled run (bug #77966)
+            baseFailure = findBaseFailure(ex);
          }
 
          throw ex;
       }
       finally {
-         complete(target, stall, swapFailure);
+         complete(target, stall, baseFailure, background);
       }
    }
 
@@ -631,6 +670,7 @@ public class DistinctTableLens extends AbstractTableLens
 
                if(completed) {
                   throwStallFailure();
+                  addUserMessage();
                   return false;
                }
 
@@ -699,6 +739,13 @@ public class DistinctTableLens extends AbstractTableLens
             throw new LockStallException(stall);
          }
 
+         // nor is a base that failed to load, for a reader that has to fail (bug #77966)
+         TableLoadException loadFailure = TableLoadException.find(ex);
+
+         if(loadFailure != null) {
+            throw loadFailure;
+         }
+
          synchronized(this) {
             completed = true;
          }
@@ -723,9 +770,10 @@ public class DistinctTableLens extends AbstractTableLens
    }
 
    /**
-    * Rethrow the stall or swap file read failure the worker failed with, called when the
-    * table is complete. A stall must never look like the end of the table (bug #76967), and
-    * neither must a swap file read failure (bug #77651).
+    * Rethrow the stall, swap file read failure or base load failure the worker failed with,
+    * called when the table is complete. A stall must never look like the end of the table
+    * (bug #76967), and neither must a swap file read failure (bug #77651) or a base that
+    * failed to load (bug #77966).
     */
    private void throwStallFailure() {
       LockStallException failure = stallFailure;
@@ -734,10 +782,31 @@ public class DistinctTableLens extends AbstractTableLens
          throw new LockStallException(failure);
       }
 
-      SwapFileReadException swapFailure = this.swapFailure;
+      RuntimeException baseFailure = this.baseFailure;
 
-      if(swapFailure != null) {
-         throw swapFailure;
+      if(baseFailure != null) {
+         throw baseFailure;
+      }
+   }
+
+   /**
+    * Find the lost swap file (bug #77651) or the load failure of the base (bug #77966) in the
+    * cause chain of a failure of the worker.
+    */
+   private static RuntimeException findBaseFailure(Throwable ex) {
+      RuntimeException baseFailure = SwapFileReadException.find(ex);
+      return baseFailure != null ? baseFailure : TableLoadException.find(ex);
+   }
+
+   /**
+    * Add the user messages of the worker, e.g. the warning of a base that failed to load, on
+    * the reader's thread once the table is complete (bug #77966).
+    */
+   private void addUserMessage() {
+      UserMessage msg = userMsg;
+
+      if(msg != null) {
+         Tool.addUserMessage(msg);
       }
    }
 
@@ -768,6 +837,7 @@ public class DistinctTableLens extends AbstractTableLens
          if(completed) {
             // the rows so far of a stalled worker are not the whole table (bug #76967)
             throwStallFailure();
+            addUserMessage();
          }
 
          return completed ? rows.size() : - rows.size() - 1;
@@ -787,6 +857,13 @@ public class DistinctTableLens extends AbstractTableLens
 
          if(stall != null) {
             throw new LockStallException(stall);
+         }
+
+         // nor is a base that failed to load, for a reader that has to fail (bug #77966)
+         TableLoadException loadFailure = TableLoadException.find(ex);
+
+         if(loadFailure != null) {
+            throw loadFailure;
          }
 
          completed = true;
@@ -1350,8 +1427,11 @@ public class DistinctTableLens extends AbstractTableLens
    // the base row the worker has reached, and the stall it failed with (bug #76967)
    private transient volatile int scannedRows;
    private transient volatile LockStallException stallFailure;
-   // the swap file read failure the worker failed with, if any (bug #77651)
-   private transient volatile SwapFileReadException swapFailure;
+   // the swap file read failure (bug #77651) or the base load failure (bug #77966) the worker
+   // failed with, if any
+   private transient volatile RuntimeException baseFailure;
+   // the user messages of the worker, for the readers (bug #77966)
+   private transient volatile UserMessage userMsg;
 
    // the reads of a row that invalidate() keeps replacing the rows under, after which the
    // current rows are read as they are (bug #77333)
