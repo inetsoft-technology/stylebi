@@ -1808,7 +1808,7 @@ public abstract class VSAQuery {
    /**
     * Check if the data this query returned may have been cut short, i.e. its query manager
     * was cancelled after the query fetched its table. Only a query whose data is complete
-    * when it is returned can tell, the reader of a table checks the table itself.
+    * when it is returned can tell. The reader of a table checks the table itself.
     * @param data the data returned by this query.
     */
    public boolean isDataCancelled(Object data) {

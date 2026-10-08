@@ -146,8 +146,9 @@ public class QueryManager {
     * @return the cancelled query count.
     */
    public int cancelForQuery() {
-      // counted before the cancel, so a cancel count read at any time never includes this
-      // cancel without counting it as a query's cancel
+      // counted before the cancel, so a reader that sees this cancel in the cancel count
+      // also sees it as a query's cancel. The two counts are not bumped atomically, so a
+      // snapshot taken between them may count this cancel later as a plain cancel
       synchronized(this) {
          queryCancelCount++;
       }
