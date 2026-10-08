@@ -1095,6 +1095,9 @@ public class VSAggregateRef extends AbstractDataRef implements ContentObject, XA
          DataRef ref2 = null;
          // formula parsed from an "Agg(col)" variable value, overrides the design formula
          String parsedFormula = null;
+         // runtime column value; arr may be the variable's cached value array, so it
+         // must not be rewritten or the next update() would lose the parsed formula
+         Object rvalue = arr[i];
 
          // fix Bug #41264, CalculateRef do not support formula.
          if(isApplyAlias() && ref instanceof CalculateRef) {
@@ -1120,7 +1123,7 @@ public class VSAggregateRef extends AbstractDataRef implements ContentObject, XA
                   if(formula != null) {
                      parsedFormula = agg;
                      final String name = rtext.substring(open + 1, rtext.length() - 1);
-                     arr[i] = name;
+                     rvalue = name;
                      ref = columns.getAttribute(name, getEntity());
                      shouldThrow = false;
                   }
@@ -1147,13 +1150,14 @@ public class VSAggregateRef extends AbstractDataRef implements ContentObject, XA
          // When the ref's runtime value is vingues, use its own value to create
          // alias ref.
          VSAggregateRef aref = (VSAggregateRef) this.clone();
-         aref.refValue.setRValue(arr[i]);
+         aref.refValue.setRValue(rvalue);
 
          // apply the parsed formula before the alias name is computed from the full name
          if(parsedFormula != null) {
             aref.formulaValue.setRValue(parsedFormula);
-            // the cached flag was computed from the design formula, recompute it so
-            // isAggregateEnabled() reflects the parsed formula
+            // the cached flag (true means NOT None, despite its name) was computed from
+            // the design formula, recompute it so isAggregateEnabled() reflects the
+            // parsed formula
             aref.noneFormula = isNoneFormula(parsedFormula);
          }
 

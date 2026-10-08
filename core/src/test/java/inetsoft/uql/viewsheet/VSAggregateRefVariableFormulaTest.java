@@ -127,6 +127,29 @@ class VSAggregateRefVariableFormulaTest {
    }
 
    @Test
+   void multiValuedVariableKeepsParsedFormulaOnEveryUpdate() {
+      VSAggregateRef ref = new VSAggregateRef();
+      ref.setColumnValue("$(ComboBox1)");
+      ref.setFormulaValue("Sum");
+      ref.getDynamicValues().get(0).setRValue(
+         new Object[] { "Average(" + TOTAL + ")", QUANTITY });
+
+      // update() must not rewrite the variable's cached value array, or the next
+      // update() reads the bare column and falls back to the design formula
+      for(int n = 1; n <= 3; n++) {
+         List<DataRef> refs = ref.update(null, columns());
+         assertEquals(2, refs.size(), "update #" + n);
+         VSAggregateRef first = (VSAggregateRef) refs.get(0);
+         assertEquals(TOTAL, first.getDataRef().getName(), "update #" + n);
+         assertEquals(AggregateFormula.AVG, first.getFormula(), "update #" + n);
+         assertEquals(QUANTITY, ((VSAggregateRef) refs.get(1)).getDataRef().getName(),
+                      "update #" + n);
+         assertEquals(AggregateFormula.SUM, ((VSAggregateRef) refs.get(1)).getFormula(),
+                      "update #" + n);
+      }
+   }
+
+   @Test
    void chartWithNoneSiblingResolvesOnEveryUpdate() {
       DefaultVSChartInfo info = new DefaultVSChartInfo();
       info.addYField(variableRef(new VSChartAggregateRef(), "Sum", "Sum(" + TOTAL + ")"));
