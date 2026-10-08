@@ -1381,6 +1381,13 @@ public class PhysicalModelManagerService {
 
       for(int i = 0; i < partition.getRelationshipCount(); i++) {
          if(oldRelationship.equalContents(partition.getRelationship(i))) {
+            // a legacy join without a stored cardinality (0/0) is sent as null, keep it as is
+            if(join.getCardinality() == null) {
+               XRelationship stored = partition.getRelationship(i);
+               newRelationship.setDependentCardinality(stored.getDependentCardinality());
+               newRelationship.setIndependentCardinality(stored.getIndependentCardinality());
+            }
+
             partition.setRelationship(i, newRelationship);
             break;
          }
