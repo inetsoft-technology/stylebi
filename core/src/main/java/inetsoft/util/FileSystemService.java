@@ -580,6 +580,7 @@ public class FileSystemService {
          (new Thread() {
             {
                setPriority(Thread.MIN_PRIORITY);
+               setName(CLEAR_CACHE_FILES_THREAD);
             }
 
             @Override
@@ -643,7 +644,12 @@ public class FileSystemService {
                   registered.removeStaleEntries();
                }
                finally {
-                  lock.unlock();
+                  try {
+                     lock.unlock();
+                  }
+                  catch(Exception e) {
+                     LOG.debug("Unable to release swap file map lock", e);
+                  }
                }
             }
          }).start();
@@ -779,6 +785,8 @@ public class FileSystemService {
    private final Cluster cluster;
    private final ApplicationEventPublisher eventPublisher;
 
+   // name of the thread of clearCacheFiles()
+   public static final String CLEAR_CACHE_FILES_THREAD = "Clear cache files";
    private static final AtomicLong TEMP_FILE_INDEX = new AtomicLong(System.currentTimeMillis());
    private static final int MAX_TEMP_FILE_DENIED = 20;
    private static final Logger LOG = LoggerFactory.getLogger(FileSystemService.class);

@@ -75,6 +75,16 @@ class XSwapperStaleSwapFileMapTest {
    }
 
    @Test
+   void registerSeedAddsEveryNodeOfTheSameSeedOnce() {
+      Map<Long, String> seeds = new HashMap<>();
+
+      assertTrue(XSwapper.registerSeed(seeds, 500L, "a"));
+      assertTrue(XSwapper.registerSeed(seeds, 500L, "b"));
+      assertTrue(XSwapper.registerSeed(seeds, 500L, "a"));
+      assertEquals("a,b", seeds.get(500L));
+   }
+
+   @Test
    void getSwapFileSeedParsesSwapperPrefixOnly() {
       assertEquals(1791425321674L, XSwapper.getSwapFileSeed("s1791425321674_11_s.tdat"));
       assertEquals(12L, XSwapper.getSwapFileSeed("s12_3_0.tdat"));
@@ -179,6 +189,18 @@ class XSwapperStaleSwapFileMapTest {
       Lock lock = Cluster.getInstance().getLock(XSwapper.SWAP_FILE_MAP_LOCK);
       lock.lock();
       lock.unlock();
+
+      // don't leave a sweep thread running after the test
+      for(Thread thread : Thread.getAllStackTraces().keySet()) {
+         if(XSwapper.CACHE_SWEEP_THREAD.equals(thread.getName()) ||
+            FileSystemService.CLEAR_CACHE_FILES_THREAD.equals(thread.getName()))
+         {
+            thread.join(30000L);
+            assertFalse(thread.isAlive(), "sweep thread did not finish");
+         }
+      }
+
+      assertFalse(file.exists(), "sweep did not delete " + file.getName() + " in 30 s");
    }
 
    /**
@@ -197,6 +219,8 @@ class XSwapperStaleSwapFileMapTest {
          seeds.put(deadSeed, DEAD_NODE + "," + DEAD_NODE + "2");
          seeds.put(liveSeed, OTHER_LIVE_NODE);
          seeds.put(sharedSeed, DEAD_NODE + "," + OTHER_LIVE_NODE);
+         // a JVM that had closed all its swap files before it stopped
+         seeds.put(base + 5, DEAD_NODE);
 
          own = createRegistered(XSwapper.getSwapper().getPrefix() + "_s.tdat");
          liveOther = createRegistered("s" + liveSeed + "_1_s.tdat");
@@ -219,6 +243,9 @@ class XSwapperStaleSwapFileMapTest {
 
          assertFalse(map.containsKey(dead.getAbsolutePath()), "stale entry was not removed");
          assertFalse(seeds.containsKey(deadSeed), "dead seed was not removed");
+         assertFalse(seeds.containsKey(deadSeed + 4), "dead seed without files was not removed");
+         assertTrue(seeds.containsKey(deadSeed + 1), "live seed was removed");
+         assertTrue(seeds.containsKey(deadSeed + 3), "seed with a live node was removed");
 
          for(File file : new File[] { own, liveOther, shared, unknown }) {
             assertTrue(map.containsKey(file.getAbsolutePath()), "live entry was removed");
