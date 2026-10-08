@@ -64,6 +64,9 @@ class TimeSliderTickStepTest {
       "0, 29, 0.29",
       "0, 0.057, 3e-4",
       "0, 0.003, 3e-4",
+      // negative and zero-straddling ranges
+      "-57, 0, 0.57",
+      "-29, 29, 0.29",
       // clean user-set increments replaced by a messy getNiceNumbers increment (0.304 + 5.7)
       "0, 1.001, 0.001",
       "0.304, 6.0040000000000004, 0.75"
