@@ -341,6 +341,29 @@ class ChangeCancelledQueryTest {
    }
 
    /**
+    * A change cancels the fetch without a reset, so it runs again, and the user's Cancel lands
+    * during the run again: the run again stops like any user cancel, it isn't run once more
+    * or skipped.
+    */
+   @Test
+   void userCancelDuringRunAgainStops() throws Exception {
+      Fixture f = fixture();
+      Fetch fetch = fetch(f, 3, (attempt, box, qmgr) -> {
+         if(attempt == 1) {
+            qmgr.cancelForChange();
+         }
+         else {
+            box.cancelAllQueries();
+         }
+      });
+
+      assertEquals(2, fetch.qmgr.attempts, "a user's cancel must not run the query again");
+      assertInstanceOf(CancelledException.class, fetch.thrown);
+      assertFalse(fetch.thrown instanceof ChangeCancelledException,
+                  "a user's cancel must stop the request, not be skipped");
+   }
+
+   /**
     * A change cancels the fetch but its reset lands only while the query runs again (its
     * cancel came first). The run's data is dropped, the change loads the assembly.
     */
