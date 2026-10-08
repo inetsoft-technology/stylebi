@@ -208,7 +208,8 @@ public class ClearOldCacheFilesRunnable extends TimedQueue.TimedRunnable {
             }});
 
          long curr = System.currentTimeMillis();
-         Map<String, Integer> swapFileMap = Cluster.getInstance().getMap(XSwapper.SWAP_FILE_MAP);
+         XSwapper.RegisteredSwapFiles swapFiles =
+            new XSwapper.RegisteredSwapFiles(Cluster.getInstance());
          Map<String, Integer> snapshotFileMap = Cluster.getInstance().getMap(
             SnapshotEmbeddedTableAssembly.FILE_REFERENCES_MAP);
          XSwapper swapper = XSwapper.getSwapper();
@@ -221,7 +222,8 @@ public class ClearOldCacheFilesRunnable extends TimedQueue.TimedRunnable {
             String filePath = files[i].getAbsolutePath();
 
             // file in use, skip. Bug #77600, files of this JVM's swapper are live
-            if(swapFileMap.containsKey(filePath) || snapshotFileMap.containsKey(filePath) ||
+            // Bug #78044, a registered file of a JVM that is gone is not in use
+            if(swapFiles.contains(files[i]) || snapshotFileMap.containsKey(filePath) ||
                swapper.isOwnSwapFile(files[i].getName()))
             {
                continue;

@@ -590,7 +590,8 @@ public class FileSystemService {
                lock.lock();
 
                try {
-                  Map<String, Integer> map = FileSystemService.this.cluster.getMap(XSwapper.SWAP_FILE_MAP);
+                  XSwapper.RegisteredSwapFiles registered =
+                     new XSwapper.RegisteredSwapFiles(FileSystemService.this.cluster);
                   Map<String, Integer> snapshotMap = FileSystemService.this.cluster.getMap(SnapshotEmbeddedTableAssembly.FILE_REFERENCES_MAP);
                   XSwapper swapper = XSwapper.getSwapper();
 
@@ -601,10 +602,12 @@ public class FileSystemService {
                      // but not yet registered in the swap file map (see
                      // XSwapper.SWAP_FILE_GRACE_PERIOD); give it time before treating it as
                      // orphaned
+                     // Bug #78044, a file registered in the swap file map by a JVM that is
+                     // gone is orphaned too
                      if(!files[i].isDirectory() &&
                         !files[i].getName().startsWith(Tool.PERSISTENT_PREFIX) &&
                         !files[i].getName().startsWith(DriverCache.DRIVER_CACHE_FILE_NAME) &&
-                        !map.containsKey(files[i].getAbsolutePath()) &&
+                        !registered.contains(files[i]) &&
                         !snapshotMap.containsKey(files[i].getAbsolutePath()) &&
                         !swapper.isOwnSwapFile(files[i].getName()) &&
                         (!files[i].getName().endsWith(".tdat") ||
@@ -636,6 +639,8 @@ public class FileSystemService {
                         }
                      }
                   }
+
+                  registered.removeStaleEntries();
                }
                finally {
                   lock.unlock();
