@@ -19,6 +19,7 @@ package inetsoft.web;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.WorksheetEngine;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
 import inetsoft.storage.KeyValueStorage;
 import inetsoft.storage.KeyValueStorageManager;
@@ -131,8 +132,14 @@ public class SnapshotFileGcService {
    private Set<String> collectLiveSessionDataPaths() {
       try {
          if(viewsheetService instanceof WorksheetEngine engine) {
-            return engine.getRuntimeSheetCache().getOpenWorksheetDataPaths();
+            return engine.getOpenWorksheetDataPaths();
          }
+
+         LOG.warn("Live runtime worksheet session scan skipped: {} is not a {}, so this cycle " +
+                  "has no live-session signal and relies solely on the stored-content and " +
+                  "auto-save scans",
+                  viewsheetService == null ? "null" : viewsheetService.getClass(),
+                  WorksheetEngine.class.getSimpleName());
       }
       catch(Exception ex) {
          LOG.warn("Failed to scan open runtime worksheet sessions for referenced snapshot " +
@@ -151,40 +158,59 @@ public class SnapshotFileGcService {
       OrganizationContextHolder.setCurrentOrgId(orgId);
 
       try {
-         KeyValueStorage<SnapshotGcState> store = getStateStorage(orgId);
-         SnapshotGcState state = store.get(STATE_KEY);
+         // every web-server node runs this scheduled job independently against the same
+         // per-org persisted SnapshotGcState, and -- unlike the age-only analogs this class is
+         // modeled on -- that state is read, mutated, and written back as a whole on every
+         // cycle. Without serializing the read-modify-write below, a slower node's full-sweep
+         // cycle can read a stale copy, finish after a faster node's incremental cycle has
+         // already written a corrected one, and blindly overwrite it -- resurrecting a stale
+         // candidate and ultimately deleting a file that is, in truth, still referenced. This
+         // is the same per-key cluster write-lock idiom MVSingleDispatcher.save() uses to
+         // ensure only one copy of a shared, mutated-in-place resource is modified and saved at
+         // a time (bug #78035 review round 1, Important #1).
+         String lockKey = "SnapshotFileGcService.state." + orgId;
+         Cluster.getInstance().lockKey(lockKey);
 
-         if(state == null) {
-            state = new SnapshotGcState();
+         try {
+            KeyValueStorage<SnapshotGcState> store = getStateStorage(orgId);
+            SnapshotGcState state = store.get(STATE_KEY);
+
+            if(state == null) {
+               state = new SnapshotGcState();
+            }
+
+            // a never-run org's lastFullSweep is 0, so its very first cycle is always a full
+            // sweep, which seeds the asset data paths map the same way a periodic full sweep
+            // refreshes it
+            boolean fullSweep =
+               now.toEpochMilli() - state.lastFullSweep >= FULL_SWEEP_INTERVAL.toMillis();
+
+            if(fullSweep) {
+               refreshAllWorksheetEntries(orgId, state);
+            }
+            else {
+               refreshChangedWorksheetEntries(orgId, state, now);
+            }
+
+            refreshAutoSaveEntries(orgId, state);
+
+            Set<String> referenced = new HashSet<>(liveSessionPaths);
+            state.assetDataPaths.values().forEach(referenced::addAll);
+            state.autosaveDataPaths.values().forEach(referenced::addAll);
+
+            processCandidates(orgId, now, fullSweep, referenced, state);
+
+            state.watermark = now.toEpochMilli();
+
+            if(fullSweep) {
+               state.lastFullSweep = now.toEpochMilli();
+            }
+
+            store.put(STATE_KEY, state).get(10, TimeUnit.SECONDS);
          }
-
-         // a never-run org's lastFullSweep is 0, so its very first cycle is always a full sweep,
-         // which seeds the asset data paths map the same way a periodic full sweep refreshes it
-         boolean fullSweep =
-            now.toEpochMilli() - state.lastFullSweep >= FULL_SWEEP_INTERVAL.toMillis();
-
-         if(fullSweep) {
-            refreshAllWorksheetEntries(orgId, state);
+         finally {
+            Cluster.getInstance().unlockKey(lockKey);
          }
-         else {
-            refreshChangedWorksheetEntries(orgId, state, now);
-         }
-
-         refreshAutoSaveEntries(orgId, state);
-
-         Set<String> referenced = new HashSet<>(liveSessionPaths);
-         state.assetDataPaths.values().forEach(referenced::addAll);
-         state.autosaveDataPaths.values().forEach(referenced::addAll);
-
-         processCandidates(orgId, now, fullSweep, referenced, state);
-
-         state.watermark = now.toEpochMilli();
-
-         if(fullSweep) {
-            state.lastFullSweep = now.toEpochMilli();
-         }
-
-         store.put(STATE_KEY, state).get(10, TimeUnit.SECONDS);
       }
       finally {
          OrganizationContextHolder.clear();
@@ -435,6 +461,20 @@ public class SnapshotFileGcService {
    private KeyValueStorage<SnapshotGcState> getStateStorage(String orgId) {
       String storeId = orgId.toLowerCase() + "__" + "snapshotGc";
       return keyValueStorageManager.getStorage(storeId);
+   }
+
+   /**
+    * Deletes this organization's persisted GC bookkeeping bucket entirely -- mirroring
+    * {@link inetsoft.uql.asset.sync.DependencyStorageService#removeDependencyStorage(String)}
+    * for an almost-identical per-org {@link KeyValueStorage}-backed bucket. Called from
+    * {@link inetsoft.web.admin.security.IdentityService#removeStorages(String)} on org deletion,
+    * so a deleted org doesn't leave this small, bounded bucket of GC bookkeeping (never snapshot
+    * data itself) behind forever (bug #78035 review round 1, Important #3).
+    */
+   public void removeState(String orgId) throws Exception {
+      KeyValueStorage<SnapshotGcState> store = getStateStorage(orgId);
+      store.deleteStore().get(1L, TimeUnit.MINUTES);
+      store.close();
    }
 
    /**

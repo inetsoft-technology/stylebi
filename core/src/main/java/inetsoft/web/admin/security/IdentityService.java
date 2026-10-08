@@ -52,6 +52,7 @@ import inetsoft.util.audit.*;
 import inetsoft.util.css.CSSDictionary;
 import inetsoft.util.log.LogManager;
 import inetsoft.web.AutoSaveUtils;
+import inetsoft.web.SnapshotFileGcService;
 import inetsoft.web.session.IgniteSessionRepository;
 import inetsoft.web.RecycleBin;
 import inetsoft.web.admin.favorites.FavoritesService;
@@ -101,7 +102,8 @@ public class IdentityService {
                           ExternalStorageService externalStorageService,
                           XRepository xRepository,
                           RepletRegistryManager repletRegistryManager,
-                          Optional<IgniteSessionRepository> sessionRepository)
+                          Optional<IgniteSessionRepository> sessionRepository,
+                          SnapshotFileGcService snapshotFileGcService)
    {
       this.securityEngine = securityEngine;
       this.securityProvider = securityProvider;
@@ -132,6 +134,7 @@ public class IdentityService {
       this.xRepository = xRepository;
       this.repletRegistryManager = repletRegistryManager;
       this.sessionRepository = sessionRepository.orElse(null);
+      this.snapshotFileGcService = snapshotFileGcService;
    }
 
    private AuthenticationProvider getProvider(String providerName) {
@@ -1599,6 +1602,7 @@ public class IdentityService {
       removeOldOrgTaskFormScheduleServer(orgID);
       dashboardManager.removeDashboardStorage(orgID);
       dependencyStorageService.removeDependencyStorage(orgID);
+      snapshotFileGcService.removeState(orgID);
       recycleBin.removeStorage(orgID);
       indexedStorage.removeStorage(orgID);
       libManagerProvider.getManager(orgID).close();
@@ -4626,4 +4630,5 @@ public class IdentityService {
    private final XRepository xRepository;
    private final RepletRegistryManager repletRegistryManager;
    private final IgniteSessionRepository sessionRepository;
+   private final SnapshotFileGcService snapshotFileGcService;
 }

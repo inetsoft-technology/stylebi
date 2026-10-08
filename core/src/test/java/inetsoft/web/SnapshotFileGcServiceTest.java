@@ -200,7 +200,7 @@ class SnapshotFileGcServiceTest {
          worksheetService.putRuntimeSheet(id, rws);
 
          WorksheetEngine engine = (WorksheetEngine) worksheetService;
-         Set<String> openPaths = engine.getRuntimeSheetCache().getOpenWorksheetDataPaths();
+         Set<String> openPaths = engine.getOpenWorksheetDataPaths();
 
          for(String path : paths) {
             assertTrue(openPaths.contains(path),
