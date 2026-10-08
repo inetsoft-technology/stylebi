@@ -102,8 +102,7 @@ public class IdentityService {
                           ExternalStorageService externalStorageService,
                           XRepository xRepository,
                           RepletRegistryManager repletRegistryManager,
-                          Optional<IgniteSessionRepository> sessionRepository,
-                          SnapshotFileGcService snapshotFileGcService)
+                          Optional<IgniteSessionRepository> sessionRepository)
    {
       this.securityEngine = securityEngine;
       this.securityProvider = securityProvider;
@@ -134,6 +133,16 @@ public class IdentityService {
       this.xRepository = xRepository;
       this.repletRegistryManager = repletRegistryManager;
       this.sessionRepository = sessionRepository.orElse(null);
+   }
+
+   // Bug #78035: setter injection, not a constructor parameter, so the long-standing
+   // positional test constructor calls scattered across inetsoft.sree.security and
+   // inetsoft.web.admin.security (which construct IdentityService directly, not through
+   // Spring) don't all need to be updated for this one new collaborator. Spring still wires
+   // it in production; a directly-constructed instance (as in tests) simply never gets a
+   // SnapshotFileGcService and removeStorages() below no-ops the cleanup call.
+   @Autowired(required = false)
+   public void setSnapshotFileGcService(SnapshotFileGcService snapshotFileGcService) {
       this.snapshotFileGcService = snapshotFileGcService;
    }
 
@@ -1602,7 +1611,11 @@ public class IdentityService {
       removeOldOrgTaskFormScheduleServer(orgID);
       dashboardManager.removeDashboardStorage(orgID);
       dependencyStorageService.removeDependencyStorage(orgID);
-      snapshotFileGcService.removeState(orgID);
+
+      if(snapshotFileGcService != null) {
+         snapshotFileGcService.removeState(orgID);
+      }
+
       recycleBin.removeStorage(orgID);
       indexedStorage.removeStorage(orgID);
       libManagerProvider.getManager(orgID).close();
@@ -4630,5 +4643,5 @@ public class IdentityService {
    private final XRepository xRepository;
    private final RepletRegistryManager repletRegistryManager;
    private final IgniteSessionRepository sessionRepository;
-   private final SnapshotFileGcService snapshotFileGcService;
+   private SnapshotFileGcService snapshotFileGcService;
 }
