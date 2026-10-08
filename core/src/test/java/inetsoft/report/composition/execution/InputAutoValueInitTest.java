@@ -22,6 +22,7 @@ import inetsoft.mv.MVManager;
 import inetsoft.report.composition.ChangedAssemblyList;
 import inetsoft.sree.security.Organization;
 import inetsoft.test.*;
+import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.service.DataSourceRegistry;
@@ -228,7 +229,75 @@ class InputAutoValueInitTest {
       assertEquals("Sum", box.getVariableTable().get("v"));
    }
 
+   @Test
+   void drillParametersApplyToEveryInputType() throws Exception {
+      // Feature #72693: drill-down "send selections as parameters" seeds same-named inputs.
+      // The parameters are put into the table and the runtime reset before the init reset,
+      // as CoreLifecycleService.handleOpenedSheet does. Each value differs from both the
+      // first sorted and the first unsorted value, so it can only come from the parameter.
+      Viewsheet vs = new Viewsheet();
+      ComboBoxVSAssembly section = new ComboBoxVSAssembly(vs, "section");
+      setEmbeddedValues(section, "z", "x", "y");
+      vs.addAssembly(section);
+      RadioButtonVSAssembly radio = new RadioButtonVSAssembly(vs, "Radio1");
+      setEmbeddedValues(radio, "c", "a", "b");
+      vs.addAssembly(radio);
+      CheckBoxVSAssembly checkBox = new CheckBoxVSAssembly(vs, "CheckBox1");
+      setEmbeddedValues(checkBox, "c", "a", "b");
+      vs.addAssembly(checkBox);
+      SliderVSAssembly slider = new SliderVSAssembly(vs, "Slider1");
+      vs.addAssembly(slider);
+      SpinnerVSAssembly spinner = new SpinnerVSAssembly(vs, "Spinner1");
+      vs.addAssembly(spinner);
+      TextInputVSAssembly textInput = new TextInputVSAssembly(vs, "TextInput1");
+      vs.addAssembly(textInput);
+      box = createSandbox(vs, new Worksheet(), "test/InputAutoValueInitTest/drill");
+
+      VariableTable vt = box.getVariableTable();
+      vt.put("section", "y");
+      vt.put("Radio1", "b");
+      vt.put("CheckBox1", new Object[] { "a", "b" });
+      vt.put("Slider1", "40");
+      vt.put("Spinner1", 7);
+      vt.put("TextInput1", "hello");
+      box.resetRuntime();
+      openReset(vs);
+
+      assertEquals("y", section.getSelectedObject());
+      assertEquals("b", radio.getSelectedObject());
+      assertArrayEquals(new Object[] { "a", "b" }, checkBox.getSelectedObjects());
+      assertEquals(40.0, ((Number) slider.getSelectedObject()).doubleValue(), 0.0001);
+      assertEquals(7.0, ((Number) spinner.getSelectedObject()).doubleValue(), 0.0001);
+      assertEquals("hello", textInput.getSelectedObject());
+   }
+
+   @Test
+   void explicitSelectionSurvivesComposerRefresh() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      ComboBoxVSAssembly combo = createCombo(vs, "ComboBox1");
+      box = createSandbox(vs, new Worksheet(), "test/InputAutoValueInitTest/explicit");
+      openReset(vs);
+
+      // the user picks the non-automatic value
+      combo.setSelectedObject("Sum");
+      box.processChange("ComboBox1",
+         VSAssembly.INPUT_DATA_CHANGED | VSAssembly.OUTPUT_DATA_CHANGED, new ChangedAssemblyList());
+      composerRefresh(vs);
+
+      assertEquals("Sum", getExplicitSelection(combo));
+      assertEquals("Sum", combo.getSelectedObject());
+      assertEquals("Sum", box.getVariableTable().get("ComboBox1"));
+   }
+
    // ── helpers ───────────────────────────────────────────────────────────────
+
+   private static void setEmbeddedValues(ListInputVSAssembly assembly, String... values) {
+      ListData data = new ListData();
+      data.setValues(values);
+      data.setLabels(values.clone());
+      assembly.setListData(data);
+      assembly.setSourceType(ListInputVSAssembly.EMBEDDED_SOURCE);
+   }
 
    private void openReset(Viewsheet vs) throws Exception {
       VSUtil.resetRuntimeValues(vs, false);
