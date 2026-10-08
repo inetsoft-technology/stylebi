@@ -1435,14 +1435,46 @@ public class Worksheet extends AbstractSheet implements VariableProvider {
       }
    }
 
-   public void clearSnapshot() {
+   /**
+    * Delete the data files of the snapshot tables of a removed worksheet.
+    *
+    * @param repository the repository the worksheet was stored in.
+    * @param entry      the entry of the removed worksheet.
+    */
+   public void clearSnapshot(AssetRepository repository, AssetEntry entry) {
+      Set<String> frozenCopyPaths = null;
+      boolean found = false;
+
       for(WSAssembly assembly : assemblies) {
          // an outer copy may name the files of the worksheet it was copied from (bug #78022)
-         if(assembly instanceof SnapshotEmbeddedTableAssembly &&
-            ((SnapshotEmbeddedTableAssembly) assembly).ownsDataFiles())
+         if(!(assembly instanceof SnapshotEmbeddedTableAssembly) ||
+            !((SnapshotEmbeddedTableAssembly) assembly).ownsDataFiles())
          {
-            ((SnapshotEmbeddedTableAssembly) assembly).deleteDataFiles("Worksheet removed");
+            continue;
          }
+
+         SnapshotEmbeddedTableAssembly table = (SnapshotEmbeddedTableAssembly) assembly;
+         String[] dataPaths = table.getDataPaths();
+
+         if(dataPaths == null) {
+            continue;
+         }
+
+         if(!found) {
+            frozenCopyPaths =
+               SnapshotEmbeddedTableAssembly.getFrozenCopyDataPaths(repository, entry);
+            found = true;
+         }
+
+         // a frozen copy stored before bug #78023 was fixed still reads them (bug #78032)
+         if(SnapshotEmbeddedTableAssembly.isNamedByFrozenCopy(dataPaths, frozenCopyPaths)) {
+            LOG.info("Snapshot data files of {} kept, a frozen outer copy in another " +
+                     "worksheet may still name them: {}", table.getName(),
+                     Arrays.toString(dataPaths));
+            continue;
+         }
+
+         table.deleteDataFiles("Worksheet removed");
       }
    }
 

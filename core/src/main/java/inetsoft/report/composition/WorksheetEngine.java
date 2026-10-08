@@ -657,7 +657,7 @@ public abstract class WorksheetEngine extends SheetLibraryEngine implements Work
          saved = true;
       }
       finally {
-         SnapshotEmbeddedTableAssembly.finishSave(ws, saved);
+         SnapshotEmbeddedTableAssembly.finishSave(ws, saved, engine, entry);
       }
    }
 
