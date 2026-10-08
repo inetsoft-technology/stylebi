@@ -169,6 +169,47 @@ class SnapshotPastedLoadTest {
       assertArrayEquals(paths, table.getDataPaths());
    }
 
+   // a paste that fails on a table whose files are gone leaves the target unchanged, also when
+   // the table comes after other assemblies of the selection
+   @Test
+   void failedPasteLeavesTargetUnchanged() throws Exception {
+      AssetEntry source = createStored("ws78029g");
+      AssetEntry target = copyEntry("ws78029gtarget");
+      Worksheet tws = new Worksheet();
+      tws.addAssembly(new EmbeddedTableAssembly(tws, "E1"));
+      engine.setWorksheet(tws, target, null, true, false);
+
+      String sourceId = open(source);
+      Worksheet sws = engine.getWorksheet(sourceId, null).getWorksheet();
+      EmbeddedTableAssembly plain = new EmbeddedTableAssembly(sws, "E1");
+      plain.setPixelOffset(new java.awt.Point(0, 0));
+      sws.addAssembly(plain);
+      String[] paths = getTable(sws).getDataPaths();
+      engine.putRuntimeSheet(sourceId, engine.getWorksheet(sourceId, null));
+      evictLocal(sourceId);
+      removeDataFiles(paths);
+      String targetId = open(target);
+      RuntimeWorksheet rws = engine.getWorksheet(targetId, null);
+
+      for(String[] order : new String[][] { { "E1", NAME }, { NAME, "E1" } }) {
+         WSPasteAssembliesEvent event = new WSPasteAssembliesEvent();
+         event.setAssemblies(order);
+         event.setSourceRuntimeId(sourceId);
+
+         MessageException ex = assertThrows(MessageException.class, () ->
+            new PasteAssembliesService(engine, DataSourceRegistry.getRegistry())
+               .pasteAssemblies(targetId, event, null, mock(CommandDispatcher.class)));
+
+         assertTrue(ex.getMessage().contains(NAME), ex.getMessage());
+         assertEquals(List.of("E1"), getNames(rws.getWorksheet()), Arrays.toString(order));
+      }
+
+      engine.setWorksheet(rws.getWorksheet(), target, null, true, false);
+      AssetUtil.getAssetRepository(false).clearCache(target);
+      assertEquals(List.of("E1"), getNames((Worksheet) AssetUtil.getAssetRepository(false)
+         .getSheet(target, null, false, AssetContent.ALL)));
+   }
+
    // a table already loaded with null rows for its missing files isn't copied as if it had data
    @Test
    void pastedFailsForTableLoadedWithMissingFiles() throws Exception {
@@ -238,6 +279,10 @@ class SnapshotPastedLoadTest {
       outer.setOuter(true);
       outer.pasted();
       assertArrayEquals(paths, outer.getDataPaths());
+   }
+
+   private static List<String> getNames(Worksheet ws) {
+      return Arrays.stream(ws.getAssemblies()).map(Assembly::getName).sorted().toList();
    }
 
    private void saveAs(String id, String name) throws Exception {

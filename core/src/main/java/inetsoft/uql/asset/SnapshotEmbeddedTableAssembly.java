@@ -160,20 +160,10 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
          return;
       }
 
-      // a table read from a stored worksheet has its rows only in the files it names, load them
-      // before the paths are dropped or an empty table is written in their place. if they can't
-      // be loaded, fail and keep the paths. the copy must not share them, it would own files
-      // the original still names (bug #78029)
-      if(dataPaths != null && !fileDirty) {
-         XSwappableTable table = getTable();
-
-         if(table == null || table == incompleteTable) {
-            throw new MessageException(
-               Catalog.getCatalog().getString("common.worksheetSnapshotDataNotLoaded", getName()),
-               LogLevel.ERROR, false, ConfirmException.ERROR);
-         }
-      }
-
+      // load the rows before the paths are dropped, or an empty table is written in their place.
+      // if they can't be loaded, fail and keep the paths. the copy must not share them, it would
+      // own files the original still names (bug #78029)
+      checkDataLoaded();
       super.pasted();
 
       // make sure data files are saved to a new file instead of sharing with original assembly
@@ -184,6 +174,26 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
       // don't delete data files of the original assembly, the stored worksheet it came from
       // still names them
       committedDataPaths = null;
+   }
+
+   /**
+    * Load the data of this table if its rows are only in the data files it names, so that new
+    * files can be written for it. Call it before a copy of the table is added anywhere, so a
+    * table whose data is gone fails before anything is changed (bug #78029).
+    *
+    * @throws MessageException if the data of the table could not be loaded.
+    */
+   public synchronized void checkDataLoaded() {
+      // a table read from a stored worksheet has its rows only in the files it names
+      if(ownsDataFiles() && dataPaths != null && !fileDirty) {
+         XSwappableTable table = getTable();
+
+         if(table == null || table == incompleteTable) {
+            throw new MessageException(
+               Catalog.getCatalog().getString("common.worksheetSnapshotDataNotLoaded", getName()),
+               LogLevel.ERROR, false, ConfirmException.ERROR);
+         }
+      }
    }
 
    /**

@@ -72,6 +72,7 @@ public class PasteAssembliesService extends WorksheetControllerService {
       String tprimary = ws.getPrimaryAssemblyName();
       // source worksheet primary
       String sprimary = null;
+      checkSnapshotData(sws, nnames, runtimeId, event);
       copyOuterEntry(rws, srws, runtimeId, event, principal, nameMap,
                      nnames, commandDispatcher, x, y, topLeft);
 
@@ -177,6 +178,44 @@ public class PasteAssembliesService extends WorksheetControllerService {
                                                  nameMap,
                                                  x, y, pos.x, pos.y, true);
                }
+            }
+         }
+      }
+   }
+
+   /**
+    * Load the data of the snapshot tables the paste copies before any copy is added to the
+    * target worksheet. A copy whose data can't be loaded fails the paste, and the copies added
+    * before it would stay in the worksheet with their dependencies not renamed (bug #78029).
+    */
+   private void checkSnapshotData(Worksheet sws, String[] nnames, String runtimeId,
+                                  WSPasteAssembliesEvent event)
+   {
+      if(isCut(event) && isSame(runtimeId, event)) {
+         return;
+      }
+
+      boolean outerMirror = false;
+
+      for(String name : nnames) {
+         Assembly assembly = sws.getAssembly(name);
+
+         if(assembly instanceof SnapshotEmbeddedTableAssembly) {
+            ((SnapshotEmbeddedTableAssembly) assembly).checkDataLoaded();
+         }
+
+         outerMirror = outerMirror ||
+            assembly instanceof MirrorAssembly && ((MirrorAssembly) assembly).isOuterMirror();
+      }
+
+      // the outer copies of a pasted mirror are copied too (copyOuterEntry). only a copy that
+      // wrote its own files is loaded, the others keep naming the files of their worksheet
+      if(outerMirror && !isSame(runtimeId, event)) {
+         for(Assembly assembly : sws.getAssemblies()) {
+            if(assembly instanceof SnapshotEmbeddedTableAssembly &&
+               ((SnapshotEmbeddedTableAssembly) assembly).isOuter())
+            {
+               ((SnapshotEmbeddedTableAssembly) assembly).checkDataLoaded();
             }
          }
       }
