@@ -209,9 +209,27 @@ public class MirrorAssemblyImpl implements MirrorAssembly {
 
       try {
          list.add(entry);
+         String oname = mirror;
+         // replace only this mirror's copies, found from the mirror (bug #78030)
+         Set<String> replaced = ws.getReplacedOuterCopies(this);
          WSAssembly[] created =
-            AssetUtil.copyOuterAssemblies(engine, entry, user, this.ws, null);
-         setAssembly(created[created.length - 1]);
+            AssetUtil.copyOuterAssemblies(engine, entry, user, this.ws, null, replaced);
+         WSAssembly root = created[created.length - 1];
+
+         // the mirrors of one worksheet may share its copies, point them all to the new copies
+         // so that a mirror that isn't updated keeps following the one that is
+         for(Assembly assembly : ws.getAssemblies()) {
+            if(assembly instanceof MirrorAssembly &&
+               ((MirrorAssembly) assembly).isOuterMirror() && oname != null &&
+               oname.equals(((MirrorAssembly) assembly).getAssemblyName()) &&
+               ((WSAssembly) assembly).getInfo() instanceof MirrorAssemblyInfo)
+            {
+               ((MirrorAssemblyInfo) ((WSAssembly) assembly).getInfo()).getImpl()
+                  .setAssembly(root);
+            }
+         }
+
+         setAssembly(root);
          Worksheet ws = (Worksheet) engine.getSheet(entry, user, false, AssetContent.ALL);
 
          setLastModified(ws.getLastModified());

@@ -1916,6 +1916,26 @@ public class AssetUtil {
                                                   Point pos)
       throws Exception
    {
+      return copyOuterAssemblies(engine, fentry, user, to, pos, Collections.emptySet());
+   }
+
+   /**
+    * Copy outer assemblies.
+    *
+    * @param engine   the specified asset repository.
+    * @param fentry   the worksheet entry to copy from.
+    * @param user     the specified user.
+    * @param to       the specified target worksheet to copy to.
+    * @param replaced the names of the existing copies in the target worksheet to remove, see
+    *                 Worksheet.getReplacedOuterCopies.
+    * @return the newly created assemblies.
+    */
+   public static WSAssembly[] copyOuterAssemblies(AssetRepository engine,
+                                                  AssetEntry fentry,
+                                                  Principal user, Worksheet to,
+                                                  Point pos, Set<String> replaced)
+      throws Exception
+   {
       Worksheet from = (Worksheet) engine.getSheet(fentry, user, false, AssetContent.ALL);
       Catalog catalog = Catalog.getCatalog();
 
@@ -1937,29 +1957,36 @@ public class AssetUtil {
 
       String prefix = createPrefix(fentry);
 
-      // remove existing ones
-      Assembly[] assemblies = to.getAssemblies();
-
-      for(int i = 0; i < assemblies.length; i++) {
-         String name = assemblies[i].getName();
-
-         if(name.startsWith(prefix)) {
-            to.removeAssembly(name);
-         }
+      // remove the existing copies being replaced. Not every assembly with the prefix: the
+      // prefix of one worksheet may be the start of another's, and the copies of a renamed
+      // worksheet keep the old prefix (bug #78030)
+      for(String name : replaced) {
+         to.removeAssembly(name);
       }
 
       // rename the to be copied assemblies to avoid conflict
-      assemblies = getDependedAssemblies(assembly.getSheet(), assembly, true);
+      Assembly[] assemblies = getDependedAssemblies(assembly.getSheet(), assembly, true);
 
       // sort assemblies according to dependencies
       Tool.mergeSort(assemblies, new DependencyComparator(assembly.getSheet(), true));
 
       // key = new name, value = old name
       Map<String, String> nameChangeMap = new HashMap<>();
+      // the copies of other mirrors may already use the names with the prefix
+      Set<String> usedNames = new HashSet<>();
+      Arrays.stream(to.getAssemblies()).forEach(a -> usedNames.add(a.getName().toUpperCase()));
+      Arrays.stream(from.getAssemblies()).forEach(a -> usedNames.add(a.getName().toUpperCase()));
+      int n = 0;
 
       for(int i = 0; i < assemblies.length; i++) {
          String oname = assemblies[i].getName();
-         String nname = prefix + i;
+         String nname = prefix + n++;
+
+         while(usedNames.contains(nname.toUpperCase())) {
+            nname = prefix + n++;
+         }
+
+         usedNames.add(nname.toUpperCase());
          from.renameAssembly(oname, nname, false);
          nameChangeMap.put(nname, oname);
       }
@@ -2012,34 +2039,6 @@ public class AssetUtil {
                               nameChangeMap.get(newName));
          }
       }
-   }
-
-   /**
-    * Get a set of outer assembly names given a worksheet entry. Same names as created in
-    * AssetUtil.copyOuterAssemblies
-    */
-   public static Set<String> getOuterAssemblyNames(AssetRepository engine, AssetEntry fentry,
-                                                    Principal user) throws Exception
-   {
-      Worksheet ws = (Worksheet) engine.getSheet(fentry, user, false, AssetContent.ALL);
-      WSAssembly primaryAssembly = ws.getPrimaryAssembly();
-
-      if(primaryAssembly == null) {
-         MessageException ex = new MessageException(Catalog.getCatalog().getString(
-            "common.undefinedPrimaryAssembly2", fentry));
-         throw ex;
-      }
-
-      String prefix = createPrefix(fentry);
-      Assembly[] assemblies = getDependedAssemblies(primaryAssembly.getSheet(), primaryAssembly,
-                                                    true);
-      Set<String> assemblyNames = new HashSet<>();
-
-      for(int i = 0; i < assemblies.length; i++) {
-         assemblyNames.add(prefix + i);
-      }
-
-      return assemblyNames;
    }
 
    // Bug 32520. it seems the primary table's column selection maybe corrected at some point.
