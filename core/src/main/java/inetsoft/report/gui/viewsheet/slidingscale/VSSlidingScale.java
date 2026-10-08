@@ -469,7 +469,9 @@ public class VSSlidingScale extends VSImageable implements Cloneable {
 
          if(colors[i] != null) {
             Color c1 = colors[i];
-            Color c2 = (i < n - 1) ? colors[i + 1] : c1.darker();
+            // the next row with a value, else the blend slot (#78009)
+            int end = getRangeEndColorIndex(ranges, colors, i);
+            Color c2 = end >= 0 ? colors[end] : c1.darker();
             double wrate = (range - last) / (max - min);
             double xrate = (last - min) / (max - min);
             int width = (int) (wrate * lineWidth) + 2;

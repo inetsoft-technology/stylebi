@@ -367,6 +367,30 @@ public abstract class VSImageable extends VSFloatable {
    }
 
    /**
+    * Get the index of the color a range band's gradient ends at: the color of the next
+    * row that has a value (a row without a value is not a band, so its color is skipped),
+    * or, when no later row has a value, the gradient blend slot after the last row
+    * (colors[ranges.length]).
+    *
+    * @param ranges the range values; NaN marks a row without a value.
+    * @param colors the range colors, which may be shorter or longer than ranges.
+    * @param band   the index of the band.
+    *
+    * @return the index into colors, or -1 if colors has no such slot. The color at the
+    *         index may be null.
+    */
+   protected static int getRangeEndColorIndex(double[] ranges, Color[] colors, int band) {
+      int next = band + 1;
+
+      while(next < ranges.length && Double.isNaN(ranges[next])) {
+         next++;
+      }
+
+      // next == ranges.length is the blend slot; bound by colors (#76909)
+      return next < colors.length ? next : -1;
+   }
+
+   /**
     * If the labels are showing K/M/B, only display the suffix on the
     * first label.
     */
