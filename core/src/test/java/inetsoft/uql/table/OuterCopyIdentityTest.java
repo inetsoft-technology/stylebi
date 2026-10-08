@@ -340,6 +340,103 @@ class OuterCopyIdentityTest {
       assertEquals("51/old4", mirroredValue(ws3, MIRROR + 0));
    }
 
+   // the copies are kept when the mirrored worksheet can't be loaded, the cleanup on open
+   // doesn't need it
+   @Test
+   void copiesKeptWhenMirroredWorksheetIsDeleted() throws Exception {
+      for(boolean auto : new boolean[] { false, true }) {
+         AssetEntry e1 = entry("oci_del_w1_" + auto);
+         AssetEntry e2 = entry("oci_del_w2_" + auto);
+         saveOwner(e1, "old", 50);
+         save(embed(new AssetEntry[] { e1 }, new boolean[] { auto }), e2);
+         String copy = AssetUtil.createPrefix(e1) + "0";
+         repository().removeSheet(e1, null, true);
+
+         for(int i = 0; i < 2; i++) {
+            clearCaches(e2);
+            Worksheet ws2 = open(e2);
+            assertEquals(Arrays.asList(MIRROR + 0, copy), sorted(names(ws2)));
+            assertEquals("51/old4", mirroredValue(ws2, MIRROR + 0));
+            save(ws2, e2);
+         }
+      }
+   }
+
+   // a primary depending on other tables has one copy for each, all kept after a rename
+   @Test
+   void copiesOfPrimaryWithDependenciesKeptAfterRename() throws Exception {
+      for(boolean auto : new boolean[] { false, true }) {
+         AssetEntry e1 = entry("oci_union_w1_" + auto);
+         AssetEntry e2 = entry("oci_union_w2_" + auto);
+         AssetEntry moved = entry("oci_union_w1z_" + auto);
+         saveUnionOwner(e1);
+         save(embed(new AssetEntry[] { e1 }, new boolean[] { auto }), e2);
+         repository().changeSheet(e1, moved, null, true);
+         // frozen copies keep the old names, updated ones are made from the new path
+         String prefix = AssetUtil.createPrefix(auto ? moved : e1);
+
+         for(int i = 0; i < 2; i++) {
+            clearCaches(e2);
+            Worksheet ws2 = open(e2);
+            assertEquals(Arrays.asList(MIRROR + 0, prefix + 0, prefix + 1, prefix + 2),
+                         sorted(names(ws2)));
+            assertEquals(3, ws2.getOuterCopies((MirrorAssembly) ws2.getAssembly(MIRROR + 0))
+               .length);
+            save(ws2, e2);
+         }
+      }
+   }
+
+   // W2 embeds W1 (Auto Update off), which embeds W0: the copy of W1's mirror and the copy of
+   // its copy of W0 are W2's mirror's copies too, kept on open, and frozen
+   @Test
+   void copiesOfNestedMirrorKept() throws Exception {
+      AssetEntry e0 = entry("oci_nest_w0");
+      AssetEntry e1 = entry("oci_nest_w1");
+      AssetEntry e2 = entry("oci_nest_w2");
+      saveOwner(e0, "old", 50);
+      save(embed(new AssetEntry[] { e0 }, new boolean[] { true }), e1);
+      save(embed(new AssetEntry[] { e1 }, new boolean[] { false }), e2);
+      List<String> stored = sorted(names(stored(e2)));
+      assertEquals(3, stored.size(), stored.toString());
+
+      resaveOwner(e0, "new", 80);
+
+      for(int i = 0; i < 2; i++) {
+         clearCaches(e1);
+         clearCaches(e2);
+         Worksheet ws2 = open(e2);
+         assertEquals(stored, sorted(names(ws2)));
+         // the copy of W1's mirror, reading the copy of W1's copy of W0
+         String nested = ((MirrorAssembly) ws2.getAssembly(MIRROR + 0)).getAssemblyName();
+         assertEquals("51/old4", mirroredValue(ws2, nested));
+         save(ws2, e2);
+      }
+   }
+
+   /**
+    * Save a worksheet whose primary is the union of two snapshot tables.
+    */
+   private void saveUnionOwner(AssetEntry entry) throws Exception {
+      Worksheet ws = new Worksheet();
+      SnapshotEmbeddedTableAssembly t1 = new SnapshotEmbeddedTableAssembly(ws, "T1");
+      SnapshotEmbeddedTableAssembly t2 = new SnapshotEmbeddedTableAssembly(ws, "T2");
+      ws.addAssembly(t1);
+      ws.addAssembly(t2);
+      t1.setEmbeddedData(new XEmbeddedTable(createTable("x", 10)));
+      t2.setEmbeddedData(new XEmbeddedTable(createTable("y", 10)));
+      TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
+      op.setOperation(TableAssemblyOperator.UNION);
+      op.setLeftTable("T1");
+      op.setRightTable("T2");
+      TableAssemblyOperator operator = new TableAssemblyOperator();
+      operator.addOperator(op);
+      ws.addAssembly(new ConcatenatedTableAssembly(ws, "U", new TableAssembly[] { t1, t2 },
+                                                   new TableAssemblyOperator[] { operator }));
+      ws.setPrimaryAssembly("U");
+      save(ws, entry);
+   }
+
    /**
     * Paste an assembly of one worksheet into another, as the composer does.
     */
