@@ -94,6 +94,26 @@ function graphResponse(joinProps: any = {}): any {
    };
 }
 
+/** Two joins: ORDERS -> CUSTOMERS and PRODUCTS -> CUSTOMERS. */
+function twoJoinResponse(): any {
+   const joinModel = (table: string) => ({
+      type: "=", orderPriority: 1, weak: false, cycle: false, mergingRule: null,
+      cardinality: null, table, column: "CUSTOMER_ID", foreignTable: "CUSTOMERS",
+      foreignColumn: "CUSTOMER_ID", baseJoin: false
+   });
+   const orders = { id: "ORDERS", joinModel: joinModel("ORDERS") };
+   const products = { id: "PRODUCTS", joinModel: joinModel("PRODUCTS") };
+
+   return {
+      joinEdit: false, joinEditPaneModel: null,
+      graphViewModel: { graphs: [
+         graph("ORDERS", 0, [orders]),
+         graph("CUSTOMERS", 150, [], [orders, products]),
+         graph("PRODUCTS", 300, [products]),
+      ] }
+   };
+}
+
 @Component({
    selector: "host-77995",
    template: `
@@ -204,7 +224,7 @@ describe("PhysicalGraphPane - Bug #77995 join highlight without a graph reload",
       jspMock.deleteEveryConnection.mockReset();
    });
 
-   async function setup() {
+   async function setup(connections = 1) {
       vi.spyOn(jsPlumbLib.jsPlumb, "getInstance").mockReturnValue(jspMock as any);
       vi.spyOn(PhysicalModelNetworkGraphComponent.prototype as any, "setRepaintTimer")
          .mockImplementation(() => {});
@@ -243,9 +263,9 @@ describe("PhysicalGraphPane - Bug #77995 join highlight without a graph reload",
       };
 
       const count = () => fixture.debugElement.queryAll(By.directive(JoinNodeGraphComponent)).length;
-      await until(() => count() === 3 && conns.length === 1);
+      await until(() => count() === 3 && conns.length === connections);
       expect(count()).toBe(3);
-      expect(conns.length).toBe(1);
+      expect(conns.length).toBe(connections);
 
       const host = fixture.componentInstance;
       const ng = fixture.debugElement.query(By.directive(PhysicalModelNetworkGraphComponent))
@@ -298,6 +318,26 @@ describe("PhysicalGraphPane - Bug #77995 join highlight without a graph reload",
       expect(conn.setType).toHaveBeenCalledTimes(2);
       expect(conn.type).toBe(CONN);
       expect(conn.data).toBeUndefined();
+   });
+
+   it("restyles only the connection whose highlight changes (Bug #78074)", async () => {
+      nextResponse = () => twoJoinResponse();
+      const ctx = await setup(2);
+      const connId = (name: string) => ctx.nodeEl(name).id;
+      const ordersConn = conns.find(c => c.sourceId === connId("ORDERS"));
+      const productsConn = conns.find(c => c.sourceId === connId("PRODUCTS"));
+      expect(ordersConn).toBeTruthy();
+      expect(productsConn).toBeTruthy();
+
+      await highlight(ctx, ORDERS_CUSTOMERS);
+      expect(ordersConn.setType).toHaveBeenCalledTimes(1);
+      expect(ordersConn.type).toBe(`${CONN} ${COLOR}`);
+      expect(productsConn.setType).not.toHaveBeenCalled();
+
+      await highlight(ctx, null);
+      expect(ordersConn.setType).toHaveBeenCalledTimes(2);
+      expect(ordersConn.type).toBe(CONN);
+      expect(productsConn.setType).not.toHaveBeenCalled();
    });
 
    it("leaves a connection that is not part of the highlighted join unhighlighted", async () => {
