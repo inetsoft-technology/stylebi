@@ -577,8 +577,15 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler {
          .filter(orgName -> securityEngine.getSecurityProvider().checkPermission(
             principal, ResourceType.SECURITY_ORGANIZATION, orgName, ResourceAction.ADMIN))
          .sorted()
-         .map(name -> new IdentityID(name,name))
+         .map(orgID -> new IdentityID(getStoredOrganizationName(provider, orgID), orgID))
          .collect(Collectors.toList());
+   }
+
+   // the org pane looks an organization key up by id and requires its name to match the stored name
+   private static String getStoredOrganizationName(AuthenticationProvider provider, String orgID) {
+      Organization organization = provider.getOrganization(orgID);
+      String name = organization == null ? null : organization.getName();
+      return name == null ? orgID : name;
    }
 
    public IdentityListModel getRoles(AuthenticationProviderModel model)
