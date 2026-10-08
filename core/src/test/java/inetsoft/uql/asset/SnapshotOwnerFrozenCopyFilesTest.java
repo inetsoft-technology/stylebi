@@ -17,6 +17,8 @@
  */
 package inetsoft.uql.asset;
 
+import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.WorksheetService;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.storage.KeyValueStorageManager;
@@ -59,6 +61,8 @@ import static org.mockito.Mockito.mock;
 class SnapshotOwnerFrozenCopyFilesTest {
    @Autowired
    private WorksheetService worksheetService;
+   @Autowired
+   private ViewsheetService engine;
 
    @Test
    void legacyFrozenCopyKeepsItsDataAfterOwnerSave() throws Exception {
@@ -132,6 +136,73 @@ class SnapshotOwnerFrozenCopyFilesTest {
       String[] copyPaths = storedCopy(e2).getDataPaths();
       assertFalse(Arrays.equals(paths1, copyPaths));
       assertEquals("old4", coldLoad(e2, null, copyPaths, paths1).getObject(5, 1));
+   }
+
+   // W2 open in the composer (a runtime worksheet) while W1 is saved in another one, then W2 saved
+   @Test
+   void composerOpenLegacyFrozenCopyKeepsItsDataDuringOwnerSave() throws Exception {
+      AssetEntry e1 = entry("ofc_rws_w1");
+      AssetEntry e2 = entry("ofc_rws_w2");
+      String[] paths1 = saveOwner(e1, "old", 50);
+      storeLegacyFrozen(e1, e2, paths1);
+      clearCaches(e2, paths1);
+      String id2 = engine.openWorksheet((AssetEntry) e2.clone(), null);
+
+      try {
+         Worksheet ws2 = engine.getWorksheet(id2, null).getWorksheet();
+         String id1 = engine.openWorksheet((AssetEntry) e1.clone(), null);
+
+         try {
+            RuntimeWorksheet rws1 = engine.getWorksheet(id1, null);
+            ((SnapshotEmbeddedTableAssembly) rws1.getWorksheet().getAssembly(NAME))
+               .setEmbeddedData(new XEmbeddedTable(createTable("new", 80)));
+            save(rws1.getWorksheet(), e1);
+         }
+         finally {
+            engine.closeWorksheet(id1, null);
+         }
+
+         assertArrayEquals(paths1, outerCopy(ws2).getDataPaths(), "open copy moved to W1's files");
+         XSwappableTable table = outerCopy(ws2).getTable();
+         table.moreRows(XTable.EOT);
+         assertEquals(51, table.getRowCount());
+         assertEquals("old4", table.getObject(5, 1));
+
+         save(ws2, e2);
+      }
+      finally {
+         engine.closeWorksheet(id2, null);
+      }
+
+      SnapshotEmbeddedTableAssembly copy = storedCopy(e2);
+      assertTrue(copy.ownsDataFiles());
+      XSwappableTable table = coldLoad(e2, null, copy.getDataPaths(), paths1);
+      assertEquals(51, table.getRowCount());
+      assertEquals("old4", table.getObject(5, 1));
+   }
+
+   // only the files the frozen copy names are kept, later replaced files of W1 are deleted, and an
+   // auto-updated copy next to the frozen one gets W1's new data
+   @Test
+   void ownerSavesKeepOnlyFilesNamedByLegacyCopy() throws Exception {
+      AssetEntry e1 = entry("ofc_two_w1");
+      AssetEntry e2 = entry("ofc_two_w2");
+      AssetEntry e3 = entry("ofc_two_w3");
+      String[] paths1 = saveOwner(e1, "old", 50);
+      storeLegacyFrozen(e1, e2, paths1);
+      save(embed(e1, true), e3);
+
+      String[] paths2 = resaveOwner(e1, "new", 80);
+      assertFilesExist(paths1, true, "files of the frozen copy deleted by W1's save");
+      assertEquals("new4", coldLoad(e3, null, paths1, paths2).getObject(5, 1));
+
+      String[] paths3 = resaveOwner(e1, "newer", 90);
+      assertFilesExist(paths2, false, "W1's replaced files not deleted");
+      assertFilesExist(paths1, true, "files of the frozen copy deleted by W1's second save");
+      XSwappableTable table = coldLoad(e2, null, paths1, paths2, paths3);
+      assertEquals(51, table.getRowCount());
+      assertEquals("old4", table.getObject(5, 1));
+      assertEquals("newer4", coldLoad(e3, null, paths1, paths2, paths3).getObject(5, 1));
    }
 
    // the embedding worksheets are read as stored, not opened
