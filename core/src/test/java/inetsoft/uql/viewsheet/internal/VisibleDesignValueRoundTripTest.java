@@ -79,6 +79,23 @@ class VisibleDesignValueRoundTripTest {
       { "SelectionList.showBarValue", (Supplier<VSAssemblyInfo>) SelectionListVSAssemblyInfo::new,
         "showBarValue", "false",
         (Predicate<VSAssemblyInfo>) i -> ((SelectionListVSAssemblyInfo) i).isShowBar() },
+      // the other assemblies that save the same TitleInfo, LabelInfo and
+      // SelectionBaseVSAssemblyInfo attributes through their own writeContents
+      { "Crosstab.titleVisibleValue", (Supplier<VSAssemblyInfo>) CrosstabVSAssemblyInfo::new,
+        "titleVisibleValue", "true",
+        (Predicate<VSAssemblyInfo>) i -> ((CrosstabVSAssemblyInfo) i).isTitleVisible() },
+      { "Chart.titleVisibleValue", (Supplier<VSAssemblyInfo>) ChartVSAssemblyInfo::new,
+        "titleVisibleValue", "true",
+        (Predicate<VSAssemblyInfo>) i -> ((ChartVSAssemblyInfo) i).isTitleVisible() },
+      { "CheckBox.titleVisibleValue", (Supplier<VSAssemblyInfo>) CheckBoxVSAssemblyInfo::new,
+        "titleVisibleValue", "true",
+        (Predicate<VSAssemblyInfo>) i -> ((CheckBoxVSAssemblyInfo) i).isTitleVisible() },
+      { "SelectionTree.showTextValue", (Supplier<VSAssemblyInfo>) SelectionTreeVSAssemblyInfo::new,
+        "showTextValue", "true",
+        (Predicate<VSAssemblyInfo>) i -> ((SelectionTreeVSAssemblyInfo) i).isShowText() },
+      { "SelectionTree.showBarValue", (Supplier<VSAssemblyInfo>) SelectionTreeVSAssemblyInfo::new,
+        "showBarValue", "false",
+        (Predicate<VSAssemblyInfo>) i -> ((SelectionTreeVSAssemblyInfo) i).isShowBar() },
    };
 
    static Stream<Arguments> cases() {
