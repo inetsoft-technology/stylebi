@@ -23,6 +23,7 @@ import inetsoft.report.internal.*;
 import inetsoft.report.painter.HTMLSource;
 import inetsoft.report.painter.ImagePainter;
 import inetsoft.sree.SreeEnv;
+import inetsoft.util.ShutdownException;
 import inetsoft.util.Tool;
 import inetsoft.util.graphics.SVGSupport;
 import org.slf4j.Logger;
@@ -49,10 +50,23 @@ public class Gop2D extends Gop {
    public Gop2D() {
       // This property is for Data Solutions, which uses linemetrics to
       // calculate the string position and need the use the same calculation
-      // in reports so the positions match
-      String prop = SreeEnv.getProperty("report.stringwidth.fontmetrics");
+      // in reports so the positions match. A failed read (e.g. no Spring context
+      // yet) keeps the default instead of failing the constructor, which would make
+      // Gop.getInstance() cache a plain Gop for the life of the JVM
+      String prop = null;
 
-      stringWidthFontMetrics = prop.equals("true");
+      try {
+         prop = SreeEnv.getProperty("report.stringwidth.fontmetrics");
+      }
+      catch(ShutdownException ex) {
+         LOG.debug("Spring context is not available, using the default " +
+                      "report.stringwidth.fontmetrics", ex);
+      }
+      catch(RuntimeException ex) {
+         LOG.warn("Failed to read report.stringwidth.fontmetrics, using the default", ex);
+      }
+
+      stringWidthFontMetrics = prop == null || prop.equals("true");
    }
 
    /**

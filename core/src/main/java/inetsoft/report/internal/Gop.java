@@ -67,6 +67,7 @@ public class Gop implements StyleConstants {
                      "inetsoft.report.internal.j2d.Gop2D").newInstance();
                }
                catch(Throwable e2) {
+                  LOG.warn("Failed to create a Java2D Gop, falling back to the basic Gop", ex);
                   gop = new Gop();
                }
             }
