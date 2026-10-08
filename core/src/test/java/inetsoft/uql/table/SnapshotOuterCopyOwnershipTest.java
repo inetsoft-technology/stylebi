@@ -22,6 +22,7 @@ import inetsoft.test.*;
 import inetsoft.uql.XTable;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.asset.sync.RenameTransformHandler;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.util.FileSystemService;
 import inetsoft.util.IndexedStorage;
@@ -30,6 +31,8 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
@@ -40,6 +43,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
 
 /**
  * Bug #78022, #78023: an outer copy of a snapshot table, made when a worksheet W1 is embedded in
@@ -50,7 +54,8 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class,
-                                  SnapshotWorksheetSaveFailureTest.Beans.class },
+                                  SnapshotWorksheetSaveFailureTest.Beans.class,
+                                  SnapshotOuterCopyOwnershipTest.Beans.class },
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
 @Tag("slow") // the Spring context with the real asset repository
@@ -156,11 +161,7 @@ class SnapshotOuterCopyOwnershipTest {
       String[] paths1 = saveOwner(e1, "old", 50).getDataPaths();
       save(embed(e1, true), e2);
 
-      // store W2 with Auto Update off, as an older server did, without the composer save
-      IndexedStorage storage = repository().getStorage(e2);
-      Worksheet stored = (Worksheet) storage.getXMLSerializable(e2.toIdentifier(), null);
-      ((MirrorTableAssembly) stored.getAssembly(MIRROR)).setAutoUpdate(false);
-      storage.putXMLSerializable(e2.toIdentifier(), stored);
+      storeFrozen(e2);
       assertArrayEquals(paths1, storedCopy(e2).getDataPaths());
       assertFalse(storedCopy(e2).ownsDataFiles());
 
@@ -183,6 +184,78 @@ class SnapshotOuterCopyOwnershipTest {
       repository().removeSheet(e2, null, true);
       assertFilesExist(copyPaths, false, "frozen copy's files not deleted with W2");
       assertFilesExist(paths2, true, "W1's files deleted by removing W2");
+   }
+
+   // W1 moved after W2 was stored: the copies keep the names made from W1's old path
+   @Test
+   void frozenCopyOfMovedWorksheetGetsItsOwnFiles() throws Exception {
+      AssetEntry e1 = entry("own_move_w1");
+      AssetEntry e2 = entry("own_move_w2");
+      String[] paths1 = saveOwner(e1, "old", 50).getDataPaths();
+      save(embed(e1, true), e2);
+      storeFrozen(e2);
+
+      repository().addFolder(new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+                                            AssetEntry.Type.FOLDER, "own_move_folder", null), null);
+      AssetEntry moved = entry("own_move_folder/own_move_w1");
+      repository().changeSheet(e1, moved, null, true);
+      // as the rename transform rewrites the mirror's source in the stored W2
+      IndexedStorage storage = repository().getStorage(e2);
+      Worksheet stored = (Worksheet) storage.getXMLSerializable(e2.toIdentifier(), null);
+      stored.renameOuterDependent(e1, moved);
+      storage.putXMLSerializable(e2.toIdentifier(), stored);
+
+      // as stored, opening it drops copies not named after the mirror's current worksheet
+      // (removeOrphanedOuterAssemblies), the mirror still reads the copy it found before that
+      clearCaches(e2, paths1);
+      Worksheet ws2 = (Worksheet) storage.getXMLSerializable(e2.toIdentifier(), null);
+      assertEquals(moved, ((MirrorTableAssembly) ws2.getAssembly(MIRROR)).getEntry());
+      assertTrue(outerCopy(ws2).getName().startsWith(AssetUtil.createPrefix(e1)));
+      save(ws2, e2);
+      String[] copyPaths = storedCopy(e2).getDataPaths();
+      assertFalse(Arrays.equals(paths1, copyPaths), "frozen copy should have its own files");
+
+      resaveOwner(moved, "new", 80);
+      assertFilesExist(paths1, false, "W1's replaced files not deleted");
+      assertFilesExist(copyPaths, true, "frozen copy's files deleted by W1's save");
+      clearCaches(e2, copyPaths, paths1);
+      XSwappableTable table = storedCopy(e2).getTable();
+      table.moreRows(XTable.EOT);
+      assertEquals(51, table.getRowCount());
+      assertEquals("old4", table.getObject(5, 1));
+   }
+
+   // the copies of W1 "a_b" start with the name prefix of W1 "a", an auto-updated mirror of "a"
+   // must not make them count as updated
+   @Test
+   void frozenCopyIsNotTakenForCopyOfWorksheetWithShorterName() throws Exception {
+      AssetEntry ea = entry("own_pre");
+      AssetEntry eab = entry("own_pre_b");
+      AssetEntry e2 = entry("own_pre_w2");
+      String[] pathsA = saveOwner(ea, "a", 20).getDataPaths();
+      String[] pathsAB = saveOwner(eab, "old", 50).getDataPaths();
+      assertTrue(AssetUtil.createPrefix(eab).startsWith(AssetUtil.createPrefix(ea)));
+
+      Worksheet ws2 = embed(ea, true);
+      WSAssembly[] created = AssetUtil.copyOuterAssemblies(repository(), eab, null, ws2, null);
+      MirrorTableAssembly mirror =
+         new MirrorTableAssembly(ws2, MIRROR2, eab, true, created[created.length - 1]);
+      mirror.setAutoUpdate(false);
+      ws2.addAssembly(mirror);
+      save(ws2, e2);
+
+      SnapshotEmbeddedTableAssembly copyA = (SnapshotEmbeddedTableAssembly)
+         ws2.getAssembly(AssetUtil.createPrefix(ea) + "0");
+      SnapshotEmbeddedTableAssembly copyAB = (SnapshotEmbeddedTableAssembly)
+         ws2.getAssembly(AssetUtil.createPrefix(eab) + "0");
+      assertArrayEquals(pathsA, copyA.getDataPaths(), "auto-updated copy wrote its own files");
+      String[] copyPaths = copyAB.getDataPaths();
+      assertFalse(Arrays.equals(pathsAB, copyPaths), "frozen copy should have its own files");
+      assertTrue(copyAB.ownsDataFiles());
+
+      resaveOwner(eab, "new", 80);
+      assertFilesExist(pathsAB, false, "W1's replaced files not deleted");
+      assertFilesExist(copyPaths, true, "frozen copy's files deleted by W1's save");
    }
 
    // an auto-updated copy shows W1's new data after W1 is saved
@@ -364,6 +437,16 @@ class SnapshotOuterCopyOwnershipTest {
       return ws;
    }
 
+   /**
+    * Store a worksheet with Auto Update off, as an older server did, without the composer save.
+    */
+   private static void storeFrozen(AssetEntry entry) throws Exception {
+      IndexedStorage storage = repository().getStorage(entry);
+      Worksheet stored = (Worksheet) storage.getXMLSerializable(entry.toIdentifier(), null);
+      ((MirrorTableAssembly) stored.getAssembly(MIRROR)).setAutoUpdate(false);
+      storage.putXMLSerializable(entry.toIdentifier(), stored);
+   }
+
    private void save(Worksheet ws, AssetEntry entry) throws Exception {
       worksheetService.setWorksheet(ws, entry, null, true, false);
    }
@@ -483,7 +566,18 @@ class SnapshotOuterCopyOwnershipTest {
       return table;
    }
 
+   @Configuration
+   static class Beans {
+      // moving a sheet queues the rename transform of the sheets depending on it, the tests
+      // rewrite the stored mirror themselves
+      @Bean
+      public RenameTransformHandler renameTransformHandler() {
+         return mock(RenameTransformHandler.class);
+      }
+   }
+
    private static final String NAME = "T";
    private static final String NAME2 = "T2";
    private static final String MIRROR = "M";
+   private static final String MIRROR2 = "M2";
 }

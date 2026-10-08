@@ -730,14 +730,10 @@ public class Worksheet extends AbstractSheet implements VariableProvider {
 
       boolean frozen = false;
 
-      for(WSAssembly mirror : assemblies) {
-         if(!(mirror instanceof MirrorAssembly) || !((MirrorAssembly) mirror).isOuterMirror()) {
-            continue;
-         }
-
-         AssetEntry entry = ((MirrorAssembly) mirror).getEntry();
-
-         if(entry == null || !assembly.getName().startsWith(AssetUtil.createPrefix(entry))) {
+      for(Assembly mirror : getAssemblies()) {
+         if(!(mirror instanceof MirrorAssembly) || !((MirrorAssembly) mirror).isOuterMirror() ||
+            !isOuterCopyOf(assembly, (MirrorAssembly) mirror))
+         {
             continue;
          }
 
@@ -749,6 +745,31 @@ public class Worksheet extends AbstractSheet implements VariableProvider {
       }
 
       return frozen;
+   }
+
+   /**
+    * Check if an outer assembly is one of the copies made for an outer mirror. The copies are
+    * found from the mirrored assembly, not from the name prefix of the mirror's worksheet: the
+    * copies keep their names when that worksheet is renamed or moved, and the prefix of one
+    * worksheet may be the start of another's.
+    */
+   private boolean isOuterCopyOf(WSAssembly assembly, MirrorAssembly mirror) {
+      String name = mirror.getAssemblyName();
+      Assembly root = name == null ? null : getAssembly(name);
+
+      if(root == null) {
+         return false;
+      }
+
+      for(Assembly copy : AssetUtil.getDependedAssemblies(this, root, true)) {
+         if(copy instanceof WSAssembly && ((WSAssembly) copy).isOuter() &&
+            copy.getName().equals(assembly.getName()))
+         {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    /**

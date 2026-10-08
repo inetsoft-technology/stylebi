@@ -606,12 +606,13 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
       prefix = count.getAndIncrement();
       fileDirty = true;
       boolean written = false;
+      Exception error = null;
 
       try {
          written = writeDataFiles(stable);
       }
       catch(Exception ex) {
-         LOG.debug("Failed to copy the data files of outer table: {}", getName(), ex);
+         error = ex;
       }
 
       if(written) {
@@ -630,7 +631,7 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
       dataTS = oldDataTS;
       fileDirty = oldFileDirty;
       LOG.warn("Failed to copy the data files of outer table {}, it keeps sharing them: {}",
-               getName(), Arrays.toString(oldDataPaths));
+               getName(), Arrays.toString(oldDataPaths), error);
    }
 
    /**
