@@ -6531,9 +6531,12 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    /**
     * Execute the data of an assembly, see executeData(), and run it again when a newer change of
     * the viewsheet cancelled it without resetting the assembly. That change won't load the
-    * assembly again, so dropping the cancelled request would leave its old data showing. When
-    * the change did reset the assembly (or anything else cancelled it, e.g. the user or a newer
-    * query of the assembly), the CancelledException is thrown (#78024).
+    * assembly again, so dropping the cancelled request would leave its old data showing.
+    * When only newer changes and newer queries of the assembly cancelled it, and one of the
+    * changes reset the assembly or a newer query runs it, the newer request loads it, so a
+    * ChangeCancelledException tells this request to skip it and load its other assemblies.
+    * Any other cancel (the user's, a drill's, a dispose) is thrown as is and stops the request
+    * (#78024).
     */
    private Object executeDataAfterChangeCancel(String name, int type, boolean[] cancelled)
       throws Exception
@@ -6548,36 +6551,56 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       for(int attempt = 1; ; attempt++) {
          long[] counts = qmgr.getCancelCounts();
          long start = System.currentTimeMillis();
+         Object data;
 
          try {
-            Object data = executeData(name, type, cancelled);
-            Long ts = tmap.get(name);
-
-            // the change reset the assembly while it ran again, e.g. its cancel landed before
-            // its reset, so the change loads it and this run's data may be older
-            if(cancel != null && ts != null && ts > start) {
-               throw cancel;
-            }
-
-            return data;
+            data = executeData(name, type, cancelled);
          }
          catch(CancelledException ex) {
-            Long ts = tmap.get(name);
-            cancel = ex;
+            if(disposed || !qmgr.isCancelledForNewerOnly(counts)) {
+               throw ex;
+            }
 
             // a reset in the same millisecond as the start may be this request's own, so only
             // a later one counts. A change whose cancel lands before its reset is run again,
-            // which only costs a query
-            if(attempt >= MAX_CHANGE_CANCEL_ATTEMPTS || disposed ||
-               !qmgr.isCancelledForChangeOnly(counts) || ts != null && ts > start)
-            {
-               throw ex;
+            // which only costs a query, see below
+            if(qmgr.isCancelledForQuery(counts) || isResetAfter(name, start)) {
+               throw new ChangeCancelledException(ex);
+            }
+
+            // every run again needs another change's cancel, i.e. one more event. Give up on
+            // an assembly that changes keep cancelling, e.g. a refresh timer faster than its
+            // query, with a warning, not silently
+            if(attempt >= MAX_CHANGE_CANCEL_ATTEMPTS) {
+               LOG.warn("Query of {} cancelled by {} changes in a row, not run again",
+                        name, attempt);
+               CoreTool.addUserWarning(Catalog.getCatalog().getString(
+                  "viewer.viewsheet.data.cancelledByChanges", name));
+               throw new ChangeCancelledException(ex);
             }
 
             LOG.debug("Query of {} cancelled by a change that doesn't reload it, run it again",
                       name);
+            cancel = ex;
+            continue;
          }
+
+         // the change reset the assembly while it ran again, e.g. its cancel landed before
+         // its reset, so the change loads it and this run's data may be older
+         if(cancel != null && isResetAfter(name, start)) {
+            throw new ChangeCancelledException(cancel);
+         }
+
+         return data;
       }
+   }
+
+   /**
+    * Check if the assembly was reset after the time, see reset().
+    */
+   private boolean isResetAfter(String name, long time) {
+      Long ts = tmap.get(name);
+      return ts != null && ts > time;
    }
 
    private Collection<?> getLogRecords(String name) {
@@ -8789,8 +8812,9 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    private final Map<String, FormTableLens> fmap; // form table map
    private final Set<String> scriptChangedFormSet; // form table updated by script.
    private final Map<String, Long> tmap; // clear timestamp map
-   // the times a query cancelled by a newer change is run, see executeDataAfterChangeCancel()
-   private static final int MAX_CHANGE_CANCEL_ATTEMPTS = 3;
+   // the times a query cancelled by newer changes is run at most, see
+   // executeDataAfterChangeCancel()
+   private static final int MAX_CHANGE_CANCEL_ATTEMPTS = 20;
    private final Set<String> vset; // view set
    private final Map<String, ViewsheetSandbox> bmap; // viewsheet sandbox map
    private final Map<String, Image> images; // image map

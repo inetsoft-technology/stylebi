@@ -32,6 +32,9 @@ import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.CancelledException;
+import inetsoft.util.ChangeCancelledException;
+import inetsoft.util.CoreTool;
+import inetsoft.util.UserMessage;
 import inetsoft.util.ThreadContext;
 import inetsoft.util.UpgradableReadWriteLock;
 import inetsoft.util.script.JavaScriptEngine;
@@ -103,8 +106,79 @@ class ChangeCancelledQueryTest {
       assertNull(r.thrownB, "B must complete");
       assertTrue(loadedCrosstab(r.dispatcherB), "B loads the crosstab it reset");
       assertNoError(r);
-      // B reset the crosstab before A was released, so A doesn't run the query again
-      assertInstanceOf(CancelledException.class, r.thrownA, "A's superseded query is dropped");
+      // B reset the crosstab before A was released, so A skips it and finishes
+      assertNull(r.thrownA, "A must skip the crosstab B loads, but threw " + r.thrownA);
+   }
+
+   /**
+    * A's calendar on the base table T changes the crosstab on its mirror U and a table X2 on T.
+    * B's selection on U resets only the crosstab. A skips the crosstab (B loads it) but must
+    * still load X2, which B doesn't. A's loop runs over a hash set, so two names for X2 cover
+    * both orders.
+    */
+   @Test
+   void supersededCancelDoesNotStopLoadingOtherTables() throws Exception {
+      supersededCancelDoesNotStopLoading("Y78024", false);
+   }
+
+   @Test
+   void supersededCancelDoesNotStopLoadingOtherTablesInOtherOrder() throws Exception {
+      supersededCancelDoesNotStopLoading("Z78024", false);
+   }
+
+   /** The same with A a selection on T, the path #77395 caught the cancel on. */
+   @Test
+   void supersededCancelDoesNotStopLoadingOtherTablesOnSelection() throws Exception {
+      supersededCancelDoesNotStopLoading("Y78024", true);
+      // the other order of A's loop is covered by the calendar tests, the loop is the same
+   }
+
+   private void supersededCancelDoesNotStopLoading(String x2, boolean selectionA)
+      throws Exception
+   {
+      Fixture f = fixture();
+      Viewsheet vs = f.box.getViewsheet();
+      DataVSAssembly xt = (DataVSAssembly) vs.getAssembly(XT);
+      String base = xt.getTableName();
+      String mirror =
+         ((TableVSAssembly) vs.getAssembly("TableView1")).getSourceInfo().getSource();
+      assertNotEquals(base, mirror, "TableView1 must be on a mirror of the base table");
+      xt.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, mirror));
+      TableVSAssembly table = (TableVSAssembly) vs.getAssembly("TableView1").clone();
+      table.getVSAssemblyInfo().setName(x2);
+      table.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, base));
+      vs.addAssembly(table);
+      SelectionListVSAssembly selection = new SelectionListVSAssembly(vs, SEL);
+      SelectionListVSAssemblyInfo info = (SelectionListVSAssemblyInfo) selection.getInfo();
+      info.setTableName(mirror);
+      info.setDataRef(new ColumnRef(new AttributeRef(null, "type")));
+      vs.addAssembly(selection);
+      SelectionListVSAssembly baseSelection = new SelectionListVSAssembly(vs, SEL + "T");
+      SelectionListVSAssemblyInfo baseInfo =
+         (SelectionListVSAssemblyInfo) baseSelection.getInfo();
+      baseInfo.setTableName(base);
+      baseInfo.setDataRef(new ColumnRef(new AttributeRef(null, "name")));
+      vs.addAssembly(baseSelection);
+      f.box.reset(null, vs.getAssemblies(), new ChangedAssemblyList(), true, true, null);
+      String value = firstValue(vs, SEL + "T");
+
+      VSCalendarService calendarService = calendarService();
+      ApplySelectionListEvent event = selectionEvent("NAMED");
+      ApplySelectionListEvent eventA = selectionEvent(value);
+      eventA.setEventSource(SEL + "T");
+      Call a = selectionA ?
+         d -> selectionService.applySelection(f.rid, SEL + "T", eventA, f.principal, d, "") :
+         d -> calendarService.applyCalendar(f.rid, CAL, calendarEvent("m2024-0"), f.principal, d, "");
+      Result r = run(f, a,
+         d -> selectionService.applySelection(f.rid, SEL, event, f.principal, d, ""));
+
+      assertTrue(r.changeCancelled, x2 + ": B's change must cancel the crosstab's query");
+      assertNull(r.thrownB, x2 + ": B must complete");
+      assertTrue(loaded(r.dispatcherB, XT), x2 + ": B loads the crosstab it reset");
+      assertFalse(loaded(r.dispatcherB, x2), x2 + ": B must not load the table it didn't change");
+      assertNull(r.thrownA, x2 + ": A must skip the crosstab B loads, but threw " + r.thrownA);
+      assertTrue(loaded(r.dispatcherA, x2), x2 + ": A must load the table B doesn't");
+      assertNoError(r);
    }
 
    /**
@@ -156,6 +230,135 @@ class ChangeCancelledQueryTest {
       assertThrows(IllegalStateException.class, () -> new ComposerControllerErrorHandler()
          .handleException(other, dispatcher2));
       verify(dispatcher2).sendCommand(any(MessageCommand.class));
+   }
+
+   /** The user's Cancel during the fetch is a plain cancel: the query isn't run again. */
+   @Test
+   void userCancelIsNotRunAgain() throws Exception {
+      Fixture f = fixture();
+      Fetch fetch = fetch(f, 2, (attempt, box, qmgr) -> box.cancelAllQueries());
+
+      assertEquals(1, fetch.qmgr.attempts, "a user's cancel must not run the query again");
+      assertInstanceOf(CancelledException.class, fetch.thrown);
+      assertFalse(fetch.thrown instanceof ChangeCancelledException,
+                  "a user's cancel must stop the request, not be skipped");
+   }
+
+   /**
+    * A change cancels the fetch but its reset lands only while the query runs again (its
+    * cancel came first). The run's data is dropped, the change loads the assembly.
+    */
+   @Test
+   void runAgainIsDroppedWhenTheChangeResetsDuringIt() throws Exception {
+      Fixture f = fixture();
+      Fetch fetch = fetch(f, 2, (attempt, box, qmgr) -> {
+         if(attempt == 1) {
+            qmgr.cancelForChange();
+         }
+         else {
+            long now = System.currentTimeMillis();
+
+            while(System.currentTimeMillis() <= now) {
+               Thread.onSpinWait();
+            }
+
+            resetTimes(box).put(XT, System.currentTimeMillis());
+         }
+      });
+
+      assertEquals(2, fetch.qmgr.attempts, "the change-cancelled query must run again");
+      assertInstanceOf(ChangeCancelledException.class, fetch.thrown,
+                       "the run's data must be dropped once the change reset the assembly");
+   }
+
+   /** Every unrelated change that cancels the fetch makes it run again, more than 3 times. */
+   @Test
+   void manyUnrelatedChangeCancelsStillLoad() throws Exception {
+      Fixture f = fixture();
+      Fetch fetch = fetch(f, 6, (attempt, box, qmgr) -> {
+         if(attempt <= 5) {
+            qmgr.cancelForChange();
+         }
+      });
+
+      assertNull(fetch.thrown, "the query must run until no change cancels it");
+      assertNotNull(fetch.data, "the crosstab must get data");
+      assertEquals(6, fetch.qmgr.attempts);
+      assertNull(fetch.message, "no warning");
+   }
+
+   /** Changes that keep cancelling a fetch end with a warning, not silently. */
+   @Test
+   void changesThatKeepCancellingEndWithWarning() throws Exception {
+      Fixture f = fixture();
+      Fetch fetch = fetch(f, 100, (attempt, box, qmgr) -> qmgr.cancelForChange());
+
+      assertInstanceOf(ChangeCancelledException.class, fetch.thrown);
+      assertTrue(fetch.qmgr.attempts > 3 && fetch.qmgr.attempts < 100,
+                 "bounded, but not by 3: " + fetch.qmgr.attempts);
+      assertNotNull(fetch.message, "the user must be warned");
+      assertTrue(fetch.message.getMessage().contains(XT), fetch.message.getMessage());
+   }
+
+   interface Hold {
+      void held(int attempt, ViewsheetSandbox box, HoldingQueryManager qmgr) throws Exception;
+   }
+
+   private static final class Fetch {
+      HoldingQueryManager qmgr;
+      Object data;
+      Throwable thrown;
+      UserMessage message;
+   }
+
+   /**
+    * Fetch the crosstab's data on another thread, holding each of its first attempts where its
+    * query checks for a cancel, and run the hold on this thread meanwhile.
+    */
+   private static Fetch fetch(Fixture f, int holds, Hold hold) throws Exception {
+      HoldingQueryManager qmgr = new HoldingQueryManager(holds);
+      queryManagers(f.box).put(XT, qmgr);
+      f.box.resetDataMap(XT);
+      Fetch fetch = new Fetch();
+      fetch.qmgr = qmgr;
+      ExecutorService thread = Executors.newSingleThreadExecutor();
+
+      try {
+         Future<?> future = thread.submit(() -> {
+            ThreadContext.setContextPrincipal(f.principal);
+            qmgr.heldThread = Thread.currentThread();
+            CoreTool.getUserMessage();
+
+            try {
+               fetch.data = f.box.getData(XT);
+            }
+            finally {
+               fetch.message = CoreTool.getUserMessage();
+            }
+
+            return null;
+         });
+
+         while(!future.isDone()) {
+            if(qmgr.held.tryAcquire(100, TimeUnit.MILLISECONDS)) {
+               // a cancel must be later than the query, to the millisecond
+               while(System.currentTimeMillis() <= qmgr.heldAt) {
+                  Thread.onSpinWait();
+               }
+
+               hold.held(qmgr.attempts, f.box, qmgr);
+               qmgr.release.release();
+            }
+         }
+
+         fetch.thrown = outcome(future);
+         return fetch;
+      }
+      finally {
+         qmgr.release.release(1000);
+         thread.shutdownNow();
+         thread.awaitTermination(WAIT, TimeUnit.SECONDS);
+      }
    }
 
    interface Call {
@@ -259,11 +462,22 @@ class ChangeCancelledQueryTest {
       }
    }
 
+   private static String firstValue(Viewsheet vs, String name) {
+      SelectionList list = ((SelectionListVSAssembly) vs.getAssembly(name)).getSelectionList();
+      assertNotNull(list, name + " must have values");
+      assertTrue(list.getSelectionValueCount() > 0, name + " must have values");
+      return list.getSelectionValue(0).getValue();
+   }
+
    private static boolean loadedCrosstab(CommandDispatcher dispatcher) {
+      return loaded(dispatcher, XT);
+   }
+
+   private static boolean loaded(CommandDispatcher dispatcher, String name) {
       return mockingDetails(dispatcher).getInvocations().stream()
          .filter(inv -> inv.getMethod().getName().equals("sendCommand"))
          .map(Invocation::getArguments)
-         .anyMatch(args -> Arrays.asList(args).contains(XT) &&
+         .anyMatch(args -> Arrays.asList(args).contains(name) &&
             Arrays.stream(args).anyMatch(LoadTableDataCommand.class::isInstance));
    }
 
@@ -401,6 +615,13 @@ class ChangeCancelledQueryTest {
    }
 
    @SuppressWarnings("unchecked")
+   private static Map<String, Long> resetTimes(ViewsheetSandbox box) throws Exception {
+      Field field = ViewsheetSandbox.class.getDeclaredField("tmap");
+      field.setAccessible(true);
+      return (Map<String, Long>) field.get(box);
+   }
+
+   @SuppressWarnings("unchecked")
    private static Map<String, QueryManager> queryManagers(ViewsheetSandbox box) throws Exception {
       Field field = ViewsheetSandbox.class.getDeclaredField("qmgrs");
       field.setAccessible(true);
@@ -467,6 +688,55 @@ class ChangeCancelledQueryTest {
 
       volatile Thread bThread;
       volatile int bCancels;
+   }
+
+   /**
+    * The crosstab's query manager. It holds the fetching thread where each of its first
+    * attempts checks for a cancel (the query was created by then), and counts the attempts.
+    */
+   private static final class HoldingQueryManager extends QueryManager {
+      HoldingQueryManager(int holds) {
+         super(true);
+         this.holds = holds;
+      }
+
+      @Override
+      public long lastCancelled() {
+         if(Thread.currentThread() == heldThread && isQueryCancelCheck()) {
+            attempts++;
+
+            if(attempts <= holds) {
+               heldAt = System.currentTimeMillis();
+               held.release();
+
+               try {
+                  release.tryAcquire(WAIT, TimeUnit.SECONDS);
+               }
+               catch(InterruptedException ex) {
+                  Thread.currentThread().interrupt();
+               }
+            }
+         }
+
+         return super.lastCancelled();
+      }
+
+      // VSAQuery.isCancelled() called by CrosstabVSAQuery.getTableLens(), once per attempt
+      private static boolean isQueryCancelCheck() {
+         return StackWalker.getInstance().walk(frames -> {
+            List<StackWalker.StackFrame> callers = frames.skip(2).limit(3).toList();
+            return callers.size() == 3 && callers.get(0).getMethodName().equals("isCancelled") &&
+               callers.get(1).getClassName().equals(CrosstabVSAQuery.class.getName()) &&
+               callers.get(1).getMethodName().equals("getTableLens");
+         });
+      }
+
+      private final int holds;
+      volatile Thread heldThread;
+      volatile int attempts;
+      volatile long heldAt;
+      final Semaphore held = new Semaphore(0);
+      final Semaphore release = new Semaphore(0);
    }
 
    private static final class Fixture {

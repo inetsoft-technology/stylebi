@@ -123,8 +123,13 @@ public class QueryManager {
          cancelCount++;
 
          // counted with the cancel, so a reader never sees one without the other
-         if(FOR_CHANGE.get() != null) {
-            FOR_CHANGE.remove();
+         Object kind = CANCEL_FOR.get();
+         CANCEL_FOR.remove();
+
+         if(kind == FOR_QUERY) {
+            queryCancelCount++;
+         }
+         else if(kind == FOR_CHANGE) {
             changeCancelCount++;
          }
       }
@@ -152,14 +157,7 @@ public class QueryManager {
     * @return the cancelled query count.
     */
    public int cancelForQuery() {
-      // counted before the cancel, so a reader that sees this cancel in the cancel count
-      // also sees it as a query's cancel. The two counts are not bumped atomically, so a
-      // snapshot taken between them may count this cancel later as a plain cancel
-      synchronized(this) {
-         queryCancelCount++;
-      }
-
-      return cancel();
+      return cancelFor(FOR_QUERY);
    }
 
    /**
@@ -168,32 +166,50 @@ public class QueryManager {
     * @return the cancelled query count.
     */
    public int cancelForChange() {
-      FOR_CHANGE.set(Boolean.TRUE);
+      return cancelFor(FOR_CHANGE);
+   }
+
+   // cancel() counted as a cancel of the kind, in the same block as the cancel count. It goes
+   // through cancel() so a subclass that overrides it sees every cancel
+   private int cancelFor(Object kind) {
+      CANCEL_FOR.set(kind);
 
       try {
          return cancel();
       }
       finally {
-         FOR_CHANGE.remove();
+         CANCEL_FOR.remove();
       }
    }
 
    /**
-    * Get the cancel count and the change cancel count (see {@link #cancelForChange()}) as one
-    * snapshot, to pass to {@link #isCancelledForChangeOnly(long[])} later.
+    * Get the cancel count, the change cancel count (see {@link #cancelForChange()}) and the
+    * query cancel count (see {@link #cancelForQuery()}) as one snapshot, to pass to
+    * {@link #isCancelledForNewerOnly(long[])} and {@link #isCancelledForQuery(long[])} later.
     */
    public synchronized long[] getCancelCounts() {
-      return new long[] { cancelCount, changeCancelCount };
+      return new long[] { cancelCount, changeCancelCount, queryCancelCount };
    }
 
    /**
     * Check if the pending queries were cancelled since the snapshot, and only by newer changes
-    * of the viewsheet, see {@link #cancelForChange()}.
+    * of the viewsheet or newer queries of the same source, i.e. not by the user, a drill or
+    * a dispose.
     * @param counts a snapshot from {@link #getCancelCounts()}.
     */
-   public synchronized boolean isCancelledForChangeOnly(long[] counts) {
+   public synchronized boolean isCancelledForNewerOnly(long[] counts) {
       long cancels = cancelCount - counts[0];
-      return cancels > 0 && cancels == changeCancelCount - counts[1];
+      return cancels > 0 &&
+         cancels == changeCancelCount - counts[1] + queryCancelCount - counts[2];
+   }
+
+   /**
+    * Check if a newer query of the same source cancelled the pending queries since the
+    * snapshot, see {@link #cancelForQuery()}.
+    * @param counts a snapshot from {@link #getCancelCounts()}.
+    */
+   public synchronized boolean isCancelledForQuery(long[] counts) {
+      return queryCancelCount > counts[2];
    }
 
    /**
@@ -236,8 +252,10 @@ public class QueryManager {
    private long cancelCount = 0L;
    private long queryCancelCount = 0L;
    private long changeCancelCount = 0L;
-   // set while cancelForChange() runs cancel() on this thread
-   private static final ThreadLocal<Boolean> FOR_CHANGE = new ThreadLocal<>();
+   // the kind of the cancel cancelFor() runs on this thread
+   private static final ThreadLocal<Object> CANCEL_FOR = new ThreadLocal<>();
+   private static final Object FOR_QUERY = "query";
+   private static final Object FOR_CHANGE = "change";
 
    private static final Logger LOG =
       LoggerFactory.getLogger(QueryManager.class);
