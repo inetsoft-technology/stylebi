@@ -20,6 +20,7 @@ package inetsoft.report.script.formula;
 import inetsoft.report.script.TableRow;
 import inetsoft.uql.XTable;
 import inetsoft.util.script.graal.ScriptScope;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.swap.DataUnavailable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -122,6 +123,8 @@ class RowIterator extends CellIterator {
             // a stalled table or one whose swap file is lost has no value to return, the
             // failure is not a script value (#77123, #77910)
             DataUnavailable.rethrow(ex);
+            // nor has a read or condition stopped by a script timeout or cancel (#78076)
+            ScriptTimeoutGuard.rethrowStop(ex);
 
             LOG.error("Failed to get row value", ex);
             return null;

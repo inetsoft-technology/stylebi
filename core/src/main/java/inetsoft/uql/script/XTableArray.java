@@ -22,6 +22,7 @@ import inetsoft.uql.XTable;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.script.graal.ScriptArrayScope;
 import inetsoft.util.script.graal.ScriptScope;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.swap.DataUnavailable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -138,6 +139,8 @@ public class XTableArray implements ScriptArrayScope {
          // an absent member either, so the failure reaches both getMember and hasMember
          // (#77123, #77910)
          DataUnavailable.rethrow(ex);
+         // nor has a read or condition stopped by a script timeout or cancel (#78076)
+         ScriptTimeoutGuard.rethrowStop(ex);
 
          LOG.debug("Failed to get property " + name + " from " + this, ex);
       }

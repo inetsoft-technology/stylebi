@@ -19,6 +19,7 @@ package inetsoft.report.script.formula;
 
 import inetsoft.uql.XTable;
 import inetsoft.util.script.graal.ScriptScope;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.swap.DataUnavailable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -113,6 +114,8 @@ public abstract class RangeProcessor {
                // a stalled condition, or one that read a lost swap file, is not a failed one:
                // the row must be neither selected nor dropped (#77123, #77910)
                DataUnavailable.rethrow(ex);
+               // nor has a read or condition stopped by a script timeout or cancel (#78076)
+               ScriptTimeoutGuard.rethrowStop(ex);
 
                LOG.error("Error occurred when finding rows matching condition: " +
                   cond, ex);

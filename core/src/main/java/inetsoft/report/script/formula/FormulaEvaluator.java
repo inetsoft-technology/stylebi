@@ -22,6 +22,7 @@ import inetsoft.report.script.TableRowScope;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.script.*;
 import inetsoft.util.script.graal.ScriptScope;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.swap.DataUnavailable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -177,6 +178,8 @@ public class FormulaEvaluator {
          // failure under a rowValue[...] read must not turn into a null value or a false row
          // condition (#77123, #77910)
          DataUnavailable.rethrow(ex);
+         // nor has a read or condition stopped by a script timeout or cancel (#78076)
+         ScriptTimeoutGuard.rethrowStop(ex);
 
          LOG.error("Failed to execute formula script: " + expr, ex);
       }
