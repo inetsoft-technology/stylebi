@@ -23,6 +23,7 @@ import inetsoft.report.internal.binding.OrderInfo;
 import inetsoft.report.internal.binding.TopNInfo;
 import inetsoft.report.internal.table.CalcAttr;
 import inetsoft.report.internal.table.RuntimeCalcTableLens;
+import inetsoft.report.internal.table.TableFormat;
 import inetsoft.report.lens.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
@@ -288,6 +289,18 @@ public class CalcTableVSAQuery extends DataVSAQuery {
                                  isChangeMeaningFormula(aformula))
                               {
                                  minfo.setXFormatInfo(null);
+                              }
+
+                              // a percentage summary (e.g. Sum<16>) shows a share, not a value
+                              // of the source column, so it gets the percent format the calc
+                              // lens descriptor would give it instead of the column's format.
+                              // percent is -1 for no <n> and for Correlation<-1>(col) etc.
+                              if(binding.getBType() == CellBinding.SUMMARY &&
+                                 LayoutTool.parseFormula(formula).percent > 0)
+                              {
+                                 minfo.setXFormatInfo(
+                                    new XFormatInfo(TableFormat.PERCENT_FORMAT, ""));
+                                 minfo.removeProperty("autoCreatedFormat");
                               }
                            }
                            else if(binding.getDateOption() > 0) {
