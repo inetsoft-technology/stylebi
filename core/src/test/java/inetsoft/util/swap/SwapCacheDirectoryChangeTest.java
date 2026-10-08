@@ -33,7 +33,8 @@ import java.io.File;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
-import java.util.Random;
+import java.util.*;
+import java.util.concurrent.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -225,17 +226,23 @@ class SwapCacheDirectoryChangeTest {
       index.complete();
       XSwapper.getSwapper().deregister(index);
 
-      assertTrue(fragment.swap(), "fragment was not swapped");
-      assertTrue(index.swap(), "index was not swapped");
       File fragmentFile = new File(dirA, fragment.prefix + ".tdat");
       File indexFile = new File(dirA, index.prefix + ".tdat");
-      assertTrue(fragmentFile.exists());
-      assertTrue(indexFile.exists());
 
-      changeDirectory(dirB);
-      assertTrue(index.getRows(5, false).get(1));
-      fragment.dispose();
-      index.dispose();
+      try {
+         assertTrue(fragment.swap(), "fragment was not swapped");
+         assertTrue(index.swap(), "index was not swapped");
+         assertTrue(fragmentFile.exists());
+         assertTrue(indexFile.exists());
+
+         changeDirectory(dirB);
+         assertTrue(index.getRows(5, false).get(1));
+      }
+      finally {
+         // disposed after the change, so it must delete in the original directory
+         fragment.dispose();
+         index.dispose();
+      }
 
       assertFalse(fragmentFile.exists(), "fragment swap file was left behind: " + fragmentFile);
       assertFalse(indexFile.exists(), "index swap file was left behind: " + indexFile);
@@ -260,15 +267,171 @@ class SwapCacheDirectoryChangeTest {
       }
    }
 
+   @Test
+   void dataSwappedBeforeRevertIsReadAfterRevert() {
+      XIntFragment beforeChange = new XIntFragment(createValues(1000));
+      XIntFragment between = new XIntFragment(createValues(2000));
+      XObjectFragment<String> objectBetween =
+         new XObjectFragment<>((char) 10, (char) 10, String.class);
+
+      for(int i = 0; i < 10; i++) {
+         objectBetween.add("o" + i);
+      }
+
+      objectBetween.complete();
+      XSwapper.getSwapper().deregister(objectBetween);
+
+      try {
+         assertTrue(beforeChange.swap(), "fragment was not swapped");
+         changeDirectory(dirB);
+         assertTrue(between.swap(), "fragment was not swapped");
+         assertTrue(objectBetween.swap(), "fragment was not swapped");
+         assertTrue(new File(dirB, between.prefix + ".tdat").exists());
+         assertTrue(new File(dirB, objectBetween.prefix + "_0.tdat").exists());
+
+         // changed back, the data swapped while the other directory was in effect is still read
+         changeDirectory(dirA);
+         assertEquals(2005, between.getSafely(5));
+         assertEquals("o7", objectBetween.getSafely(7));
+         assertEquals(1099, beforeChange.getSafely(99));
+      }
+      finally {
+         beforeChange.dispose();
+         between.dispose();
+         objectBetween.dispose();
+      }
+   }
+
+   @Test
+   void disposeDeletesColumnAndCheckpointFilesInOriginalDirectory() {
+      XBigObjectColumn column = new XBigObjectColumn((char) 4, (char) 16, (char) 400);
+
+      for(int i = 0; i < 100; i++) {
+         column.addObject("value" + i);
+      }
+
+      column.complete();
+      XSwapper.getSwapper().deregister(column);
+      RuntimeSheet.XSwappableSheet sheet = new RuntimeSheet.XSwappableSheet(new Worksheet(), null);
+      sheet.complete();
+      XSwapper.getSwapper().deregister(sheet);
+
+      File columnFile = new File(dirA, column.prefix + ".tdat");
+      File sheetFile = new File(dirA, sheet.prefix + ".tdat");
+
+      try {
+         assertTrue(column.swap(), "column was not swapped");
+         assertTrue(sheet.swap(), "checkpoint was not swapped");
+         assertTrue(columnFile.exists());
+         assertTrue(sheetFile.exists());
+
+         changeDirectory(dirB);
+      }
+      finally {
+         // disposed after the change, so it must delete in the original directory
+         column.dispose();
+         sheet.dispose();
+      }
+
+      assertFalse(columnFile.exists(), "column swap file was left behind: " + columnFile);
+      assertFalse(sheetFile.exists(), "checkpoint swap file was left behind: " + sheetFile);
+   }
+
+   @Test
+   void swappableCreatedBeforeChangeFirstSwapsToChangedDirectory() {
+      XIntFragment fragment = new XIntFragment(createValues());
+      XObjectFragment<String> objectFragment =
+         new XObjectFragment<>((char) 10, (char) 10, String.class);
+
+      for(int i = 0; i < 10; i++) {
+         objectFragment.add("o" + i);
+      }
+
+      objectFragment.complete();
+      XSwapper.getSwapper().deregister(objectFragment);
+
+      try {
+         // created under the first directory, swapped for the first time after the change
+         changeDirectory(dirB);
+         assertTrue(fragment.swap(), "fragment was not swapped");
+         assertTrue(objectFragment.swap(), "fragment was not swapped");
+         assertTrue(new File(dirB, fragment.prefix + ".tdat").exists(),
+                    "first swap did not use the changed directory");
+         assertTrue(new File(dirB, objectFragment.prefix + "_0.tdat").exists(),
+                    "first swap did not use the changed directory");
+         assertFalse(new File(dirA, fragment.prefix + ".tdat").exists());
+
+         assertEquals(1005, fragment.getSafely(5));
+         assertEquals("o7", objectFragment.getSafely(7));
+      }
+      finally {
+         fragment.dispose();
+         objectFragment.dispose();
+      }
+   }
+
+   @Test
+   void concurrentFirstLookupsAgreeOnOneDirectory() throws Exception {
+      int threads = 8;
+      ExecutorService pool = Executors.newFixedThreadPool(threads + 1);
+
+      try {
+         for(int round = 0; round < 50; round++) {
+            XIntFragment fragment = new XIntFragment(createValues(0));
+            CyclicBarrier barrier = new CyclicBarrier(threads + 1);
+            List<Future<File>> results = new ArrayList<>();
+            File target = round % 2 == 0 ? dirB : dirA;
+
+            // the directory changes while several threads resolve the fragment's first file
+            Future<?> change = pool.submit(() -> {
+               barrier.await();
+               changeDirectory(target);
+               return null;
+            });
+
+            for(int t = 0; t < threads; t++) {
+               results.add(pool.submit(() -> {
+                  barrier.await();
+                  File file = null;
+
+                  for(int k = 0; k < 20; k++) {
+                     file = fragment.getFile("x.tdat");
+                  }
+
+                  return file.getParentFile();
+               }));
+            }
+
+            change.get();
+            Set<File> dirs = new HashSet<>();
+
+            for(Future<File> result : results) {
+               dirs.add(result.get());
+            }
+
+            dirs.add(fragment.getFile("x.tdat").getParentFile());
+            assertEquals(1, dirs.size(), "round " + round + " resolved several directories: " + dirs);
+            fragment.dispose();
+         }
+      }
+      finally {
+         pool.shutdownNow();
+      }
+   }
+
    private void changeDirectory(File dir) {
       SreeEnv.setProperty(CACHE_DIR, dir.getPath());
    }
 
    private static int[] createValues() {
+      return createValues(1000);
+   }
+
+   private static int[] createValues(int base) {
       int[] values = new int[100];
 
       for(int i = 0; i < values.length; i++) {
-         values[i] = 1000 + i;
+         values[i] = base + i;
       }
 
       return values;
