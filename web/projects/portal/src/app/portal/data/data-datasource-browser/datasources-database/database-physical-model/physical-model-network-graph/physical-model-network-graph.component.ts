@@ -26,6 +26,7 @@ import {
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { ConnectionMadeEventInfo } from "jsplumb";
 import { Observable } from "rxjs";
+import { finalize } from "rxjs/operators";
 import { AssemblyActionGroup } from "../../../../../../common/action/assembly-action-group";
 import { Point } from "../../../../../../common/data/point";
 import { Rectangle } from "../../../../../../common/data/rectangle";
@@ -91,6 +92,8 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
    @Output() onModified: EventEmitter<boolean> = new EventEmitter<boolean>();
    @Output() onNodeSelected: EventEmitter<string[]> = new EventEmitter<string[]>();
    @Output() onRemoveTable: EventEmitter<GraphModel[]> = new EventEmitter<GraphModel[]>();
+   // emitted when a move of a node is sent to the server, and again when it is saved or fails
+   @Output() onNodeMove = new EventEmitter<GraphNodeMove>();
 
    @ViewChild("jspContainerMain") jspContainerMain: ElementRef<HTMLDivElement>;
    @ViewChild("graphPane") graphPane: ElementRef<HTMLDivElement>;
@@ -661,10 +664,22 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
                const alias = this.physicalModelService.getAutoAliasName(graph) ?? "";
 
                let event = new MoveGraphEvent(this.runtimeId, table, alias, graph.bounds);
+               const move: GraphNodeMove = {
+                  nodeId: graph.node.id,
+                  bounds: new Rectangle(left, top, graph.bounds.width, graph.bounds.height)
+               };
+               this.onNodeMove.emit(move);
+
                // save position to server
-               this.http.put(MOVE_GRAPH_NODE_URI, event).subscribe(() => {
-                  this.onModified.emit(true);
-               });
+               this.http.put(MOVE_GRAPH_NODE_URI, event)
+                  .pipe(finalize(() => {
+                     move.saved = !!move.saved;
+                     this.onNodeMove.emit(move);
+                  }))
+                  .subscribe(() => {
+                     move.saved = true;
+                     this.onModified.emit(true);
+                  });
 
                this.renderer.setStyle(el, "left", left + "px");
                this.renderer.setStyle(el, "top", top + "px");
@@ -913,6 +928,14 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
       }
    }
 
+   /**
+    * Whether the node is being dragged now, as the dragged node or as part of the drag
+    * selection that moves with it.
+    */
+   isNodeDragging(graph: GraphModel): boolean {
+      return this.nodeMoving && this.dragNodes.some(n => n.node.id === graph.node.id);
+   }
+
    getThumbnailClasses(graph: GraphModel): {[className: string]: boolean} {
       const containsNode = this.dragNodes.some(n => n.node.id === graph.node.id);
 
@@ -960,11 +983,13 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
       ]];
 
       const join: ConnectionJoin = { sourceTableName, targetTableName, joinInfos };
+      const style = this.getConnectionStyle(sourceId, targetId, join);
+      join.styleKey = JSON.stringify(style);
       const connection = {
          source: sourceId,
          target: targetId,
          overlays,
-         ...this.getConnectionStyle(sourceId, targetId, join)
+         ...style
       };
 
       this.connectionJoins[this.getConnectionKey(sourceId, targetId)] = join;
@@ -988,7 +1013,13 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
          }
 
          const style = this.getConnectionStyle(conn.sourceId, conn.targetId, join);
-         conn.setType(style.type, style.data);
+         const styleKey = JSON.stringify(style);
+
+         // setType repaints the connection, so skip the ones whose style is unchanged
+         if(styleKey !== join.styleKey) {
+            join.styleKey = styleKey;
+            conn.setType(style.type, style.data);
+         }
       });
    }
 
@@ -1168,4 +1199,15 @@ interface ConnectionJoin {
    sourceTableName: string;
    targetTableName: string;
    joinInfos: NodeConnectionInfo[];
+   styleKey?: string; // the style the connection has now, see getConnectionStyle
+}
+
+/**
+ * A node move sent to the server: saved is unset while the request is in flight, then true
+ * or false when it completes.
+ */
+export interface GraphNodeMove {
+   nodeId: string;
+   bounds: Rectangle;
+   saved?: boolean;
 }

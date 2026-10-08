@@ -38,7 +38,9 @@ import { GraphViewModel } from "../../../../model/datasources/database/physical-
 import { GraphNodeModel } from "../../../../model/datasources/database/physical-model/graph/graph-node-model";
 import { LoadingIndicatorPaneComponent } from "../../common-components/loading-indicator-pane/loading-indicator-pane.component";
 import { PhysicalJoinEditPane } from "../physical-join-edit-pane/physical-join-edit-pane.component";
-import { PhysicalModelNetworkGraphComponent } from "../physical-model-network-graph/physical-model-network-graph.component";
+import {
+   GraphNodeMove, PhysicalModelNetworkGraphComponent
+} from "../physical-model-network-graph/physical-model-network-graph.component";
 import { FixedDropdownDirective } from "../../../../../../widget/fixed-dropdown/fixed-dropdown.directive";
 
 
@@ -81,6 +83,11 @@ export class PhysicalGraphPane implements OnInit, AfterViewChecked, OnDestroy {
    loadingGraphPane: boolean = true;
    oldViewport: any;
    option: string;
+   // incremented when a graph request is sent
+   private graphRequestSeq = 0;
+   // node id --> the latest move of the node, and the graphRequestSeq when it was saved
+   // (null while it is in flight). A graph response requested before then may not have it.
+   private movedNodes = new Map<string, {move: GraphNodeMove, savedAt: number}>();
 
    get modelInitializing(): boolean {
       return this.physicalModelService.loadingModel;
@@ -166,11 +173,13 @@ export class PhysicalGraphPane implements OnInit, AfterViewChecked, OnDestroy {
 
       const event = new GetGraphModelEvent(this.datasource, runtimeId, this.physicalView,
          null, joinEditInfo);
+      const requestSeq = ++this.graphRequestSeq;
       this.loadingGraphPane = true;
 
       this.httpClient.post<JoinGraphModel>(PHYSICAL_GRAPH_PANE_MODEL_URI, event)
          .subscribe(pgm => {
             this.loadingGraphPane = false;
+            this.applyMovedNodes(pgm, requestSeq);
             this.restoreJoinEditPaneModel(pgm, this.physicalGraph);
             this.restoreGraphViewModel(pgm, this.physicalGraph);
             this.physicalGraph = pgm;
@@ -181,6 +190,52 @@ export class PhysicalGraphPane implements OnInit, AfterViewChecked, OnDestroy {
                this.physicalModelService.refreshWarning(runtimeId);
             }
          }, () => this.loadingGraphPane = false);
+   }
+
+   /**
+    * Track a node move sent by the network graph, see applyMovedNodes.
+    */
+   nodeMoved(move: GraphNodeMove): void {
+      if(move.saved == null) {
+         this.movedNodes.set(move.nodeId, {move, savedAt: null});
+         return;
+      }
+
+      const entry = this.movedNodes.get(move.nodeId);
+
+      // a later move of the node replaced this one
+      if(entry?.move !== move) {
+         return;
+      }
+
+      if(move.saved) {
+         entry.savedAt = this.graphRequestSeq;
+      }
+      else {
+         this.movedNodes.delete(move.nodeId);
+      }
+   }
+
+   /**
+    * A graph request sent before a node move was saved (e.g. by an action the user started
+    * just before dragging) can return the node's old position. It still has the change of
+    * the action, so apply it, but with the moved position. Responses to requests sent after
+    * the move was saved have the move, so stop tracking it then.
+    */
+   private applyMovedNodes(pgm: JoinGraphModel, requestSeq: number): void {
+      this.movedNodes.forEach((entry, nodeId) => {
+         if(entry.savedAt != null && requestSeq > entry.savedAt) {
+            this.movedNodes.delete(nodeId);
+            return;
+         }
+
+         const graph = pgm?.graphViewModel?.graphs?.find(g => g?.node?.id === nodeId);
+
+         if(graph?.bounds) {
+            graph.bounds.x = entry.move.bounds.x;
+            graph.bounds.y = entry.move.bounds.y;
+         }
+      });
    }
 
    private restoreGraphViewModel(newModel: JoinGraphModel,

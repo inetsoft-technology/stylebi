@@ -61,6 +61,8 @@ export class JoinNodeGraphComponent implements AfterViewInit, OnChanges {
    @Input() graph: GraphModel;
    @Input() graphEndpoints: any[];
    @Input() selected = false;
+   // true while the user drags this node (alone or as part of the drag selection)
+   @Input() dragging = false;
    @Input() dataType = DataType.PHYSICAL;
    @Input() tableAliasCheck: (graphNode: GraphNodeModel, alias: string) => boolean;
    @Output() onModified: EventEmitter<boolean> = new EventEmitter<boolean>();
@@ -95,8 +97,14 @@ export class JoinNodeGraphComponent implements AfterViewInit, OnChanges {
          // stale (pre-layout) position. Apply the new position eagerly so registration/
          // connection below sees the correct coordinates (e.g. after auto layout moves
          // every table at once).
-         this.nodeGraph.nativeElement.style.top = this.graph.bounds.y + "px";
-         this.nodeGraph.nativeElement.style.left = this.graph.bounds.x + "px";
+         // A refresh can land while the user drags this node: keep the dragged position
+         // instead of putting the node back to the server position under the cursor. The
+         // drag stop then sends the move relative to the new bounds.
+         if(!this.dragging) {
+            this.nodeGraph.nativeElement.style.top = this.graph.bounds.y + "px";
+            this.nodeGraph.nativeElement.style.left = this.graph.bounds.x + "px";
+         }
+
          this.endPointsInit();
          this.onRegisterNode.emit([this.graph, this.nodeGraph.nativeElement]);
       }
