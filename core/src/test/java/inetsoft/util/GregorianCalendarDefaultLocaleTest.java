@@ -329,6 +329,49 @@ class GregorianCalendarDefaultLocaleTest {
       assertEquals("0001-01-01", CoreTool.toGregorianPersistentDate("0001-01-01"));
    }
 
+   // a condition value or schedule parameter of 0001-01-01 is saved again as 0001-01-01,
+   // and a 1.1 Reiwa year in a condition is still read as Reiwa (Bug #78114)
+   @ParameterizedTest
+   @ValueSource(strings = { "ja-JP-u-ca-japanese", "ja-JP-x-lvariant-JP" })
+   void japaneseCompatKeepsMinimumDateInSavedConditionAndParameter(String tag) throws Exception {
+      Locale.setDefault(Locale.forLanguageTag(tag));
+      Object date = CoreTool.getPersistentData(XSchema.DATE, "0001-01-01");
+      Object ts = CoreTool.getPersistentData(XSchema.TIME_INSTANT, "0001-01-01 00:00:00");
+
+      for(Object[] pair : new Object[][] {
+         { XSchema.DATE, date, "{d '0001-01-01'}" },
+         { XSchema.TIME_INSTANT, ts, "{ts '0001-01-01 00:00:00'}" } })
+      {
+         Condition cond = new Condition((String) pair[0]);
+         cond.addValue(pair[1]);
+         String xml = toXML(cond::writeXML);
+         assertTrue(xml.contains(Tool.byteEncode((String) pair[2], true)), xml);
+
+         Condition read = new Condition();
+         read.parseXML(parse(xml).getDocumentElement());
+         assertEquals(((Date) pair[1]).getTime(), ((Date) read.getValue(0)).getTime(), tag);
+         assertEquals(xml, toXML(read::writeXML), tag);
+      }
+
+      RepletRequest request = new RepletRequest();
+      request.setParameter("d", date);
+      request.setParameter("ts", ts);
+      String xml = toXML(request::writeXML);
+      RepletRequest read = new RepletRequest();
+      read.parseXML(parse(xml).getDocumentElement());
+      assertEquals(((Date) date).getTime(), ((Date) read.getParameter("d")).getTime(), tag);
+      assertEquals(((Date) ts).getTime(), ((Date) read.getParameter("ts")).getTime(), tag);
+
+      // a condition saved by 1.1 on a ja_JP_JP server
+      Condition cond = new Condition(XSchema.DATE);
+      cond.addValue(new java.sql.Date(date(2026, 1, 15).getTime()));
+      String legacy = toXML(cond::writeXML).replace(
+         Tool.byteEncode("{d '2026-01-15'}", true), Tool.byteEncode("{d '0008-01-15'}", true));
+      Condition read11 = new Condition();
+      read11.parseXML(parse(legacy).getDocumentElement());
+      assertEquals(date(2026, 1, 15).getTime(), ((Date) read11.getValue(0)).getTime(), tag);
+   }
+
    @Test
    void plainJapaneseLocaleIsGregorian() {
       Locale.setDefault(Locale.forLanguageTag("ja-JP"));
