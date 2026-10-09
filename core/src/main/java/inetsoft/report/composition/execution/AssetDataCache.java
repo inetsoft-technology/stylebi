@@ -1292,15 +1292,23 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
       }
 
       public void join() {
+         boolean interrupted = false;
+
          synchronized(lock) {
             while(!completed) {
                try {
                   lock.wait(10000);
                }
-               catch(Exception ex) {
-                  // ignore it
+               catch(InterruptedException ex) {
+                  // keep waiting for the data, but don't lose the caller's interrupt
+                  // (bug #78135)
+                  interrupted = true;
                }
             }
+         }
+
+         if(interrupted) {
+            Thread.currentThread().interrupt();
          }
       }
 

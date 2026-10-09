@@ -169,16 +169,20 @@ abstract class JoinTable extends PagedTableLens {
     * Cancel the lens and running queries if supported
     */
    public void cancel() {
-      cancelled = cancelJoin();
+      // cancelJoin() completes a running join with the rows so far, so it is cancelled
+      // whatever its bases report: a complete base is not cancelled, and must not make the
+      // partial join look whole to a cache (bug #78135). a complete join stays not cancelled
+      boolean running = !delegate.isCompleted();
+      cancelled = running && cancelJoin() || cancelled;
 
       if(leftTable instanceof CancellableTableLens) {
          ((CancellableTableLens) leftTable).cancel();
-         cancelled = ((CancellableTableLens) leftTable).isCancelled();
+         cancelled = cancelled || ((CancellableTableLens) leftTable).isCancelled();
       }
 
       if(rightTable instanceof CancellableTableLens) {
          ((CancellableTableLens) rightTable).cancel();
-         cancelled = ((CancellableTableLens) rightTable).isCancelled();
+         cancelled = cancelled || ((CancellableTableLens) rightTable).isCancelled();
       }
 
       if(cancelled) {
