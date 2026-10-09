@@ -3228,6 +3228,137 @@ class WorksheetEditServiceMutatorsTest {
          "the rejected column must not have been created at all");
    }
 
+   // Bug #78143: add_expression_column / edit_expression `type` validation.
+
+   /**
+    * Builds {@code T(QUANTITY:integer)} for the Bug #78143 type tests.
+    */
+   private static EmbeddedTableAssembly quantityTable(Worksheet ws) {
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "QUANTITY");
+      ((ColumnRef) t.getColumnSelection(false).getAttribute("QUANTITY"))
+         .setDataType(XSchema.INTEGER);
+      ws.addAssembly(t);
+      return t;
+   }
+
+   @ParameterizedTest
+   @CsvSource({ "number", "numeric", "DOUBLE", "Double", "datetime" })
+   void addExpressionColumnRefusesAnUnrecognizedTypeWithoutCreatingTheColumn(String type)
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = quantityTable(ws);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      int before = t.getColumnSelection(false).getAttributeCount();
+
+      PairingException ex = assertThrows(PairingException.class, () -> svc.apply("TOK", agent,
+         ed -> ed.addExpressionColumn("T", "C", "field['QUANTITY'] * 2", type, false)));
+
+      assertTrue(ex.getMessage().contains("Invalid type: \"" + type + "\""), ex.getMessage());
+      assertNull(t.getColumnSelection(false).getAttribute("C"),
+                 "a refused call must not create the column as an explicit string");
+      assertEquals(before, t.getColumnSelection(false).getAttributeCount());
+   }
+
+   @Test
+   void addExpressionColumnTreatsABlankTypeAsOmittedAndInfersIt() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = quantityTable(ws);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn(
+         "T", "C", "field['QUANTITY'] * 2", "", false));
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn(
+         "T", "D", "field['QUANTITY'] * 3", "  ", false));
+
+      for(String name : new String[] { "C", "D" }) {
+         ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute(name);
+         assertNotNull(col, name);
+         assertEquals(XSchema.DOUBLE, col.getDataType(), name);
+         assertEquals(Boolean.TRUE, col.getDataTypeProvenance(),
+                      name + ": a blank type must mean omitted (inferred), not explicit string");
+      }
+   }
+
+   @Test
+   void addExpressionColumnStillStoresAValidExplicitType() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = quantityTable(ws);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn(
+         "T", "C", "field['QUANTITY'] * 2", "integer", false));
+
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("C");
+      assertEquals(XSchema.INTEGER, col.getDataType());
+      assertEquals(Boolean.FALSE, col.getDataTypeProvenance());
+   }
+
+   @Test
+   void editExpressionRefusesNumberOnAnInferredDoubleAndLeavesItInferred() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = quantityTable(ws);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn(
+         "T", "C", "field['QUANTITY'] * 2", null, false));
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("C");
+      assertEquals(XSchema.DOUBLE, col.getDataType(), "sanity check: inferred on add");
+      assertEquals(Boolean.TRUE, col.getDataTypeProvenance(), "sanity check: inferred on add");
+      String expressionBefore = ((ExpressionRef) col.getDataRef()).getExpression();
+
+      PairingException ex = assertThrows(PairingException.class, () -> svc.apply("TOK", agent,
+         ed -> ed.editExpression("T", "C", "field['QUANTITY'] * 3", "number", false)));
+      assertTrue(ex.getMessage().contains("Invalid type: \"number\""), ex.getMessage());
+
+      col = (ColumnRef) t.getColumnSelection(false).getAttribute("C");
+      assertEquals(XSchema.DOUBLE, col.getDataType(),
+                   "edit_expression type:\"number\" must not flip an inferred double to string");
+      assertEquals(Boolean.TRUE, col.getDataTypeProvenance());
+      assertEquals(expressionBefore, ((ExpressionRef) col.getDataRef()).getExpression(),
+                   "a refused edit must not change the expression either");
+
+      // The column stays re-infer eligible: a later edit with type omitted still infers.
+      svc.apply("TOK", agent, ed -> ed.editExpression(
+         "T", "C", "field['QUANTITY'] >= 5 ? 'High' : 'Low'", null, false));
+      col = (ColumnRef) t.getColumnSelection(false).getAttribute("C");
+      assertEquals(XSchema.STRING, col.getDataType());
+   }
+
+   @Test
+   void editExpressionTreatsABlankTypeAsOmittedAndLeavesProvenanceUntouched() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = quantityTable(ws);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn(
+         "T", "INFERRED", "field['QUANTITY'] * 2", null, false));
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn(
+         "T", "EXPLICIT", "field['QUANTITY'] * 2", "integer", false));
+
+      svc.apply("TOK", agent, ed -> ed.editExpression(
+         "T", "INFERRED", "field['QUANTITY'] * 3", "", false));
+      svc.apply("TOK", agent, ed -> ed.editExpression(
+         "T", "EXPLICIT", "field['QUANTITY'] * 3", " ", false));
+
+      ColumnRef inferred = (ColumnRef) t.getColumnSelection(false).getAttribute("INFERRED");
+      assertEquals(XSchema.DOUBLE, inferred.getDataType());
+      assertEquals(Boolean.TRUE, inferred.getDataTypeProvenance(),
+                   "a blank type must not stamp an inferred column explicit");
+
+      ColumnRef explicit = (ColumnRef) t.getColumnSelection(false).getAttribute("EXPLICIT");
+      assertEquals(XSchema.INTEGER, explicit.getDataType(),
+                   "a blank type must leave an explicit type unchanged, not coerce it to string");
+      assertEquals(Boolean.FALSE, explicit.getDataTypeProvenance());
+      assertTrue(((ExpressionRef) explicit.getDataRef()).getExpression().contains("* 3"),
+                 "the expression itself is still updated");
+   }
+
    // =========================================================================
    // Sort test
    // =========================================================================

@@ -869,6 +869,7 @@ public class WorksheetEditService {
          throws PairingException, SecurityException
       {
          requirePermission(ResourceType.WORKSHEET_EXPRESSION_COLUMN);
+         String dtype = normalizeExpressionType(type);
          TableAssembly t = requireTable(table);
 
          if(name != null &&
@@ -883,7 +884,7 @@ public class WorksheetEditService {
          }
 
          validateExpressionSyntax(table, name, expression, sql);
-         WorksheetMutationSupport.addExpressionColumn(t, name, expression, type, sql);
+         WorksheetMutationSupport.addExpressionColumn(t, name, expression, dtype, sql);
       }
 
       // -----------------------------------------------------------------------
@@ -2356,8 +2357,9 @@ public class WorksheetEditService {
          throws PairingException, SecurityException
       {
          requirePermission(ResourceType.WORKSHEET_EXPRESSION_COLUMN);
+         String dtype = normalizeExpressionType(type);
          validateExpressionSyntax(table, name, expression, sql);
-         WorksheetMutationSupport.editExpression(requireTable(table), name, expression, type, sql);
+         WorksheetMutationSupport.editExpression(requireTable(table), name, expression, dtype, sql);
       }
 
       /**
@@ -2414,6 +2416,34 @@ public class WorksheetEditService {
                : Catalog.getCatalog().getString("viewer.worksheet.scriptFailed", name, table);
             throw new PairingException(message);
          }
+      }
+
+      /**
+       * Validates the {@code type} of {@link #addExpressionColumn} / {@link #editExpression}
+       * before anything is written (Bug #78143). {@link ColumnRef#setDataType} coerces an
+       * unrecognized name to {@code string} and marks it as an explicit choice, so a value such
+       * as {@code "number"}, {@code "DOUBLE"} or {@code ""} used to be stored silently as an
+       * explicit {@code string} that no later edit re-infers.
+       *
+       * @param type the requested data type, or {@code null}
+       * @return {@code null} when {@code type} is null or blank (the same as omitting it: the
+       *         type is inferred), else {@code type} itself
+       * @throws PairingException if {@code type} is not an {@link XSchema} primitive type name
+       *                          (case-sensitive)
+       */
+      private String normalizeExpressionType(String type) throws PairingException {
+         if(type == null || type.isBlank()) {
+            return null;
+         }
+
+         if(!XSchema.isPrimitiveType(type)) {
+            throw new PairingException(
+               "Invalid type: \"" + type + "\". Valid types: " +
+               "string, boolean, float, double, integer, long, short, byte, " +
+               "char, date, time, timeInstant. Omit type to infer it from the expression.");
+         }
+
+         return type;
       }
 
       /**
