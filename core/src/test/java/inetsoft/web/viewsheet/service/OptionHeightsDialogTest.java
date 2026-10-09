@@ -22,6 +22,8 @@ import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.viewsheet.CheckBoxVSAssembly;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.web.composer.model.vs.SizePositionPaneModel;
 import org.junit.jupiter.api.*;
@@ -144,5 +146,102 @@ class OptionHeightsDialogTest {
       assertEquals(25, info.getCellHeightValue());
       assertTrue(info.isUserCellHeight());
       assertFalse(info.isUserTitleHeight(), "an untouched title is not flagged");
+   }
+
+   private static CheckBoxVSAssemblyInfo inViewsheet(Viewsheet vs, int height, int row) {
+      CheckBoxVSAssembly assembly = new CheckBoxVSAssembly(vs, "CheckBox1");
+      vs.addAssembly(assembly);
+      CheckBoxVSAssemblyInfo info = (CheckBoxVSAssemblyInfo) assembly.getVSAssemblyInfo();
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      info.setPixelSize(new Dimension(200, height));
+      info.setCellHeight(row);
+      return info;
+   }
+
+   private static SizePositionPaneModel readWithSize(CheckBoxVSAssemblyInfo info) {
+      SizePositionPaneModel model = read(info);
+      VSDialogService.readSizeFollowsDensity(info, model, true);
+      model.setWidth(info.getPixelSize().width);
+      model.setHeight(info.getPixelSize().height);
+      return model;
+   }
+
+   @Test
+   void anAuthorLaneWithAFollowedBoxSizesTheBoxFromTheNewLane() {
+      Viewsheet vs = new Viewsheet();
+      CheckBoxVSAssemblyInfo info = inViewsheet(vs, 58, 20);
+      SizePositionPaneModel model = readWithSize(info);
+      model.setTitleHeightFollowsDensity(false);
+      model.setTitleHeight(40);
+
+      new VSDialogService(null, null).applyOptionListSize(info, model, vs);
+
+      assertEquals(68, info.getPixelSize().height);
+      assertEquals(40, info.getTitleHeight());
+   }
+
+   @Test
+   void anUntouchedOkOnAFormerBoxLandsOnTheTierBox() {
+      Viewsheet vs = new Viewsheet();
+      CheckBoxVSAssemblyInfo info = inViewsheet(vs, 60, 40);
+      SizePositionPaneModel model = readWithSize(info);
+
+      new VSDialogService(null, null).applyOptionListSize(info, model, vs);
+
+      assertEquals(58, info.getPixelSize().height);
+      assertEquals(20, info.getCellHeightValue());
+      assertEquals(28, info.getCellHeight());
+   }
+
+   @Test
+   void anUnflaggedAuthorRowReadsUntickedAndAnOkKeepsIt() {
+      CheckBoxVSAssemblyInfo info = checkBox(VizMark.MODERN_LIGHT);
+      info.setCellHeight(35);
+      SizePositionPaneModel model = read(info);
+
+      assertEquals(Boolean.FALSE, model.getCellHeightFollowsDensity());
+      assertEquals(35, model.getCellHeight());
+
+      VSDialogService.applyOptionHeights(info, model);
+
+      assertEquals(35, info.getCellHeightValue());
+      assertTrue(info.isUserCellHeight());
+   }
+
+   @Test
+   void anUnflaggedAuthorTitleReadsUntickedAndAnOkKeepsIt() {
+      CheckBoxVSAssemblyInfo info = checkBox(VizMark.MODERN_LIGHT);
+      info.setTitleHeightValue(35);
+      SizePositionPaneModel model = read(info);
+
+      assertEquals(Boolean.FALSE, model.getTitleHeightFollowsDensity());
+      assertEquals(35, model.getTitleHeight());
+
+      VSDialogService.applyOptionHeights(info, model);
+
+      assertEquals(35, info.getTitleHeight());
+      assertTrue(info.isUserTitleHeight());
+   }
+
+   @Test
+   void aFormerRowReadsTicked() {
+      CheckBoxVSAssemblyInfo info = checkBox(VizMark.MODERN_LIGHT);
+      info.setCellHeight(40);
+
+      assertEquals(Boolean.TRUE, read(info).getCellHeightFollowsDensity());
+   }
+
+   @Test
+   void theRadioDialogReadsTheSameWay() {
+      RadioButtonVSAssemblyInfo info = new RadioButtonVSAssemblyInfo();
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      SizePositionPaneModel model = new SizePositionPaneModel();
+
+      VSDialogService.readOptionHeights(info, model);
+
+      assertEquals(30, model.getTitleHeight());
+      assertEquals(28, model.getCellHeight());
+      assertEquals(Boolean.TRUE, model.getTitleHeightFollowsDensity());
+      assertEquals(Boolean.TRUE, model.getCellHeightFollowsDensity());
    }
 }

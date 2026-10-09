@@ -242,10 +242,27 @@ public class VSDialogService {
    {
       boolean marked = info.getVizMark() != null;
       model.setTitleHeight(VSDensityDefaults.titleHeight(info, info.getTitleHeightValue()));
-      model.setTitleHeightFollowsDensity(marked ? !info.isUserTitleHeight() : null);
+      model.setTitleHeightFollowsDensity(marked ? titleFollowsDensity(info) : null);
       int cellHeight = info.getCellHeight();
       model.setCellHeight(cellHeight <= 0 ? AssetUtil.defh : cellHeight);
-      model.setCellHeightFollowsDensity(marked ? !info.isUserCellHeight() : null);
+      model.setCellHeightFollowsDensity(marked ? rowFollowsDensity(info) : null);
+   }
+
+   // the density rule owns a lane that is unflagged and at the legacy height
+   private static <T extends ListInputVSAssemblyInfo & TitledVSAssemblyInfo> boolean
+      titleFollowsDensity(T info)
+   {
+      return !info.isUserTitleHeight() &&
+         info.getTitleHeightValue() == info.getLegacyTitleHeight();
+   }
+
+   // and a row that is unflagged at the legacy height or one the former seed stored
+   private static <T extends ListInputVSAssemblyInfo & TitledVSAssemblyInfo> boolean
+      rowFollowsDensity(T info)
+   {
+      int stored = info.getCellHeightValue();
+      return !info.isUserCellHeight() &&
+         (stored == AssetUtil.defh || VSDensityDefaults.isFormerOptionRow(stored));
    }
 
    /**
@@ -278,6 +295,17 @@ public class VSDialogService {
          info.setUserCellHeight(true);
          info.setCellHeight(model.getCellHeight());
       }
+   }
+
+   /**
+    * Apply a checkbox or radio dialog's lane, row and size, in that order: a box that follows
+    * density is sized from the lane and row just written.
+    */
+   public <T extends ListInputVSAssemblyInfo & TitledVSAssemblyInfo> void applyOptionListSize(
+      T info, SizePositionPaneModel model, Viewsheet viewsheet)
+   {
+      applyOptionHeights(info, model);
+      setAssemblySizeFollowingDensity(info, model, viewsheet);
    }
 
    /**
