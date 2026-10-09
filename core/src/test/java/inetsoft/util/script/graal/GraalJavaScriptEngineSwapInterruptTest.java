@@ -19,6 +19,8 @@ package inetsoft.util.script.graal;
 
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
+import inetsoft.util.script.ScriptException;
+import inetsoft.util.swap.DataUnavailable;
 import inetsoft.util.swap.SwapReadInterruptedException;
 import inetsoft.util.swap.XIntFragment;
 import org.junit.jupiter.api.*;
@@ -30,14 +32,14 @@ import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.Map;
 
-import static inetsoft.util.swap.SwapLostTestSupport.assertSwapOf;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Bug #77916: a script timeout or a cancel interrupts the exec thread, so a swap read of Java
- * code the script calls fails with a {@link SwapReadInterruptedException}. exec rethrows it as
- * it is, like any swap read failure (bug #77910): the reader does not go on without the data,
- * and it is not counted as a script error.
+ * code the script calls fails with a {@link SwapReadInterruptedException}. The swap file is not
+ * lost: the exec was stopped. Bug #78098: exec reports it as a stopped script exception, with no
+ * swap failure in its cause chain, so a reader takes the stop path rather than running the
+ * script again as for a lost swap file. It is not counted as a script error.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -65,27 +67,35 @@ class GraalJavaScriptEngineSwapInterruptTest {
    }
 
    @Test
-   void timeoutDuringHostSwapReadReachesTheCallerAsTheSwapReadFailure() throws Exception {
+   void timeoutDuringHostSwapReadReachesTheCallerAsAStop() throws Exception {
       Object src = engine.compile("host.loop()");
 
-      SwapReadInterruptedException ex = assertThrows(SwapReadInterruptedException.class,
-         () -> engine.exec(src, null, null));
-      assertSwapOf(host.failure, ex);
+      ScriptException ex = assertThrows(ScriptException.class, () -> engine.exec(src, null, null));
+      assertInstanceOf(SwapReadInterruptedException.class, host.failure,
+                       "the timeout did not interrupt a swap read");
+      assertStop(ex);
       assertFalse(errorCounts().containsKey(src), "an interrupted swap read is not a script error");
       assertFalse(Thread.currentThread().isInterrupted(), "the timeout left the flag set");
       assertEquals(1005, host.fragment.getSafely(5));
    }
 
    @Test
-   void cancelDuringHostSwapReadReachesTheCaller() throws Exception {
+   void cancelDuringHostSwapReadReachesTheCallerAsAStop() throws Exception {
       Object src = engine.compile("host.cancelledRead()");
 
-      SwapReadInterruptedException ex = assertThrows(SwapReadInterruptedException.class,
-         () -> engine.exec(src, null, null));
-      assertSwapOf(host.failure, ex);
+      ScriptException ex = assertThrows(ScriptException.class, () -> engine.exec(src, null, null));
+      assertInstanceOf(SwapReadInterruptedException.class, host.failure,
+                       "the cancel did not interrupt a swap read");
+      assertStop(ex);
       assertFalse(errorCounts().containsKey(src), "an interrupted swap read is not a script error");
-      Thread.interrupted();
+      assertTrue(Thread.interrupted(), "the cancel's interrupt flag was cleared");
       assertEquals(1005, host.fragment.getSafely(5));
+   }
+
+   private static void assertStop(ScriptException ex) {
+      assertTrue(ex.isStopped(), "an interrupted swap read is a stop of the exec");
+      assertTrue(ScriptTimeoutGuard.isStop(ex));
+      assertNull(DataUnavailable.find(ex), "a reader would take the stop for a lost swap file");
    }
 
    private Map<?, ?> errorCounts() throws Exception {
