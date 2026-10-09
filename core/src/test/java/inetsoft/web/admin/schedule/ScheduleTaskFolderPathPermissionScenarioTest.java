@@ -112,7 +112,7 @@ class ScheduleTaskFolderPathPermissionScenarioTest {
          folderService, storage, null, mock(RenameTransformHandler.class));
       portalFolderController = new ScheduleTaskFolderController(folderService, scheduleService);
       portalScheduleController =
-         new ScheduleController(null, scheduleManager, null, scheduleService, null);
+         new ScheduleController(null, scheduleManager, scheduleService, null);
       emController = new EMScheduleTaskFolderController(
          folderService, scheduleService, mock(ScheduleTaskService.class), securityEngine,
          scheduleManager);
