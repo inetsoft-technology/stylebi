@@ -1073,6 +1073,18 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    }
 
    @Override
+   public Set<String> getMapNames(String prefix) {
+      return ignite.cacheNames().stream()
+         .filter(name -> name.startsWith(prefix))
+         .collect(Collectors.toSet());
+   }
+
+   @Override
+   public void destroyReplicatedMaps(Collection<String> names) {
+      ignite.destroyCaches(names);
+   }
+
+   @Override
    public <K, V> Cache<K, V> getCache(String name, boolean replicated, ExpiryPolicy expiryPolicy) {
       CacheConfiguration<K, V> config;
 

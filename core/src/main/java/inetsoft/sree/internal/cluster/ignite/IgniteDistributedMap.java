@@ -21,8 +21,15 @@ import inetsoft.sree.internal.cluster.DistributedMap;
 import inetsoft.util.Tool;
 import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteCache;
+import org.apache.ignite.binary.BinaryObject;
+import org.apache.ignite.cache.affinity.Affinity;
+import org.apache.ignite.cache.affinity.AffinityKey;
+import org.apache.ignite.cache.query.QueryCursor;
+import org.apache.ignite.cache.query.ScanQuery;
+import org.apache.ignite.lang.IgniteBiPredicate;
 import org.apache.ignite.lang.IgniteFuture;
 
+import javax.cache.Cache;
 import javax.cache.CacheException;
 import java.util.*;
 import java.util.function.Supplier;
@@ -188,6 +195,48 @@ public class IgniteDistributedMap<K, V> implements DistributedMap<K, V> {
       });
    }
 
+   /**
+    * Scans only the partition of {@code affinityKey}, locally when this node holds it. The scan
+    * keeps the entries binary, so binary values are not deserialized. Ignite does not store an
+    * {@code Externalizable} value in binary form, so the scan still deserializes such values of
+    * the entries in the partition (Bug #78108).
+    */
+   @Override
+   public Set<K> keySetByAffinityKey(Object affinityKey) {
+      return executeWithRetry(() -> {
+         Ignite ignite = cache.unwrap(Ignite.class);
+         Affinity<Object> affinity = ignite.affinity(cache.getName());
+         ScanQuery<Object, Object> query = new ScanQuery<>(new AffinityKeyFilter(affinityKey));
+         query.setPartition(affinity.partition(affinityKey));
+         query.setLocal(affinity.isPrimaryOrBackup(ignite.cluster().localNode(), affinityKey));
+         return scanKeys(query);
+      });
+   }
+
+   /**
+    * Scans the keys with the entries kept binary, so binary values are not deserialized
+    * (Bug #78108).
+    */
+   @Override
+   public Set<K> keySetWithoutValues() {
+      return executeWithRetry(() -> scanKeys(new ScanQuery<>()));
+   }
+
+   @SuppressWarnings("unchecked")
+   private Set<K> scanKeys(ScanQuery<Object, Object> query) {
+      IgniteCache<Object, Object> binaryCache = cache.withKeepBinary();
+      Set<K> keys = new HashSet<>();
+
+      try(QueryCursor<Cache.Entry<Object, Object>> cursor = binaryCache.query(query)) {
+         for(Cache.Entry<Object, Object> entry : cursor) {
+            Object key = entry.getKey();
+            keys.add((K) (key instanceof BinaryObject binary ? binary.deserialize() : key));
+         }
+      }
+
+      return keys;
+   }
+
    @Override
    public Collection<V> values() {
       return executeWithRetry(() -> {
@@ -294,4 +343,33 @@ public class IgniteDistributedMap<K, V> implements DistributedMap<K, V> {
 
    private final IgniteCache<K, V> cache;
    private static final int MAX_RETRIES = 5;
+
+   /**
+    * Matches the keys with a given affinity key. With a binary scan the key is a
+    * {@link BinaryObject}, so the affinity key is read from its affinity key field ({@code affKey}
+    * of an {@link AffinityKey}, or the field annotated with {@code AffinityKeyMapped}). This is a
+    * named class, not a lambda, so a remote node can load it.
+    */
+   private static final class AffinityKeyFilter implements IgniteBiPredicate<Object, Object> {
+      AffinityKeyFilter(Object affinityKey) {
+         this.affinityKey = affinityKey;
+      }
+
+      @Override
+      public boolean apply(Object key, Object value) {
+         Object keyAffinity = null;
+
+         if(key instanceof BinaryObject binary) {
+            String field = binary.type().affinityKeyFieldName();
+            keyAffinity = field != null && binary.hasField(field) ? binary.field(field) : null;
+         }
+         else if(key instanceof AffinityKey<?> affinity) {
+            keyAffinity = affinity.affinityKey();
+         }
+
+         return Objects.equals(this.affinityKey, keyAffinity);
+      }
+
+      private final Object affinityKey;
+   }
 }

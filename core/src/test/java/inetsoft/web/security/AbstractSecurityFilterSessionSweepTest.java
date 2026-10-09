@@ -38,9 +38,10 @@ package inetsoft.web.security;
  *    original instance is stored.
  *  - the HTTP session: getId() returns a fixed id and setAttribute(PRINCIPAL_COOKIE, dunpp) stamps
  *    the principal, exactly like IgniteSessionRepository.IgniteSession.setAttribute().
- *  - the per-session attribute map: a MockCluster replicated map with the production name, so
- *    IgniteSessionRepository.getSessionAttributeMap(sid) resolves it via Cluster.mapExists(). Its
- *    values are Longs, so reference semantics there do not matter.
+ *  - the session's attributes: the marker that IgniteSessionRepository.createSession() writes to
+ *    the MockCluster replicated map of all session attributes, so
+ *    IgniteSessionRepository.getSessionAttributeMap(sid) resolves it. Its values are Longs, so
+ *    reference semantics there do not matter.
  *  - a later request: RequestPrincipalFilter works on a deserialized session copy of the principal
  *    and calls setLastAccess(now); the test does the same.
  */
@@ -54,6 +55,7 @@ import inetsoft.sree.web.SessionLicenseManager;
 import inetsoft.sree.web.SessionLicenseServiceProvider;
 import inetsoft.uql.util.XSessionService;
 import inetsoft.web.session.IgniteSessionRepository;
+import inetsoft.web.session.SessionAttributeKey;
 import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
@@ -189,9 +191,11 @@ class AbstractSecurityFilterSessionSweepTest {
 
    private void login(DestinationUserNameProviderPrincipal principal) throws Exception {
       String sid = "sid-" + SEQ.incrementAndGet();
-      // IgniteSession's constructor creates the per-session attribute map for a new session
-      Cluster.getInstance().getReplicatedMap(
-         IgniteSessionRepository.class.getName() + ".sessionAttributeMap." + sid);
+      // IgniteSessionRepository.createSession() writes the marker that the session's attributes
+      // exist
+      Cluster.getInstance().<SessionAttributeKey, Object>getReplicatedMap(
+         IgniteSessionRepository.class.getName() + ".sessionAttributes")
+         .put(new SessionAttributeKey(sid, IgniteSessionRepository.class.getName() + ".created"), 0L);
 
       HttpSession session = mock(HttpSession.class);
       lenient().when(session.getId()).thenReturn(sid);
