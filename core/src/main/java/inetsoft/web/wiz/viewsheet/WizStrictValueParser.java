@@ -20,6 +20,8 @@ package inetsoft.web.wiz.viewsheet;
 import inetsoft.util.Tool;
 
 import java.math.BigDecimal;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * A strict string-to-typed-value parse for wiz tools that accept literal values.
@@ -88,6 +90,7 @@ public final class WizStrictValueParser {
             return new BigDecimal(text).longValueExact();
          }
          else if(type.equalsIgnoreCase(Tool.DOUBLE)) {
+            requireDecimal(text);
             double d = Double.parseDouble(text);
 
             if(Double.isNaN(d) || Double.isInfinite(d)) {
@@ -97,25 +100,30 @@ public final class WizStrictValueParser {
             return d;
          }
          else if(type.equalsIgnoreCase(Tool.FLOAT)) {
+            requireDecimal(text);
             float f = Float.parseFloat(text);
 
             if(Float.isNaN(f) || Float.isInfinite(f)) {
                throw new IllegalArgumentException("not a finite float");
             }
 
+            if(f == 0f && new BigDecimal(text).signum() != 0) {
+               throw new IllegalArgumentException("too small for a float");
+            }
+
             return f;
          }
          else if(type.equalsIgnoreCase(Tool.DATE)) {
             requireDate(text, Tool.DATE);
-            return Tool.getData(Tool.DATE, text, true);
+            return requireTemporal(Tool.getData(Tool.DATE, text, true));
          }
          else if(type.equalsIgnoreCase(Tool.TIME_INSTANT)) {
             requireDate(text, Tool.TIME_INSTANT);
-            return Tool.getData(Tool.TIME_INSTANT, text, true);
+            return requireTemporal(Tool.getData(Tool.TIME_INSTANT, text, true));
          }
          else if(type.equalsIgnoreCase(Tool.TIME)) {
             requireDate(text, Tool.TIME);
-            return Tool.getData(Tool.TIME, text, true);
+            return requireTemporal(Tool.getData(Tool.TIME, text, true));
          }
       }
       catch(IllegalArgumentException | ArithmeticException ex) {
@@ -127,7 +135,58 @@ public final class WizStrictValueParser {
          "Unknown data type '" + dataType + "' for value '" + value + "'.");
    }
 
+   private static final Pattern DECIMAL =
+      Pattern.compile("[+-]?(\\d+\\.?\\d*|\\.\\d+)([eE][+-]?\\d+)?");
+   private static final Pattern DATE_PART =
+      Pattern.compile("^(\\d{4})-(\\d{1,2})-(\\d{1,2})(?:[ T].*)?$");
+   private static final Pattern TIME_PART = Pattern.compile("(\\d{1,2}):(\\d{1,2}):(\\d{1,2})");
+
+   /** Java's own double grammar also takes hex floats, "NaN", and "1d"/"1f" suffixes. */
+   private static void requireDecimal(String text) {
+      if(!DECIMAL.matcher(text).matches()) {
+         throw new IllegalArgumentException("not a plain decimal number");
+      }
+   }
+
+   /**
+    * {@code Tool.getData} hands back the raw input string when a date will not parse, and its
+    * formats roll impossible values over ({@code 2026-02-30} -> Feb 28, {@code 25:61:00} -> 02:01)
+    * rather than rejecting them.
+    */
+   private static Object requireTemporal(Object parsed) {
+      if(!(parsed instanceof java.util.Date)) {
+         throw new IllegalArgumentException("not a recognizable date/time");
+      }
+
+      return parsed;
+   }
+
+   private static void requireCalendar(String text) {
+      Matcher date = DATE_PART.matcher(text);
+
+      try {
+         if(date.matches()) {
+            java.time.LocalDate.of(Integer.parseInt(date.group(1)),
+                                   Integer.parseInt(date.group(2)),
+                                   Integer.parseInt(date.group(3)));
+         }
+
+         Matcher time = TIME_PART.matcher(text);
+
+         if(time.find() && (Integer.parseInt(time.group(1)) > 23 ||
+            Integer.parseInt(time.group(2)) > 59 || Integer.parseInt(time.group(3)) > 59))
+         {
+            throw new IllegalArgumentException("not a real clock time");
+         }
+      }
+      catch(java.time.DateTimeException ex) {
+         throw new IllegalArgumentException("not a real calendar date", ex);
+      }
+   }
+
    private static void requireDate(String text, String type) {
+      requireCalendar(text);
+
       try {
          if(Tool.DATE.equals(type)) {
             try {
