@@ -51,6 +51,9 @@ import java.awt.*;
 import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import java.sql.Time;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -980,7 +983,15 @@ public class PoiExcelVSUtil {
 
          // excel doesn't support the date time earlier than 1900-01-1
          if(time > calendar.getTimeInMillis()) {
-            cell.setCellValue(new Date(time));
+            // use the LocalDateTime overload instead of setCellValue(Date) so POI computes the
+            // Excel serial date directly from the Gregorian year/day-of-year fields instead of
+            // going through org.apache.poi.util.LocaleUtil.getLocaleCalendar(), which resolves a
+            // Calendar.getInstance(tz, Locale.getDefault()) that becomes a non-Gregorian calendar
+            // (e.g. sun.util.BuddhistCalendar, java.util.JapaneseImperialCalendar) on some JVM
+            // default locales, corrupting the exported date value.
+            LocalDateTime localDateTime =
+               Instant.ofEpochMilli(time).atZone(ZoneId.systemDefault()).toLocalDateTime();
+            cell.setCellValue(localDateTime);
          }
          else {
             cell.setCellValue(defaultText);
