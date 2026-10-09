@@ -29,6 +29,7 @@ import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.service.XEngine;
 import inetsoft.uql.xmla.Domain;
 import inetsoft.uql.xmla.XMLADataSource;
+import inetsoft.util.IndexedStorage;
 import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
 import inetsoft.util.dep.XAssetConfig;
@@ -49,6 +50,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.*;
+import java.lang.reflect.Field;
 import java.security.Principal;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -136,6 +138,41 @@ class DataSourcePathClashModelEntriesTest {
       List<String> removed = diff(before, state("smF"));
       assertEquals(List.of("DATA_MODEL smF [smF [smLm]]", "DATA_SOURCE smF/smFAdd [smFAdd]",
                            "LOGIC_MODEL smF/smLm", "grant DATA_SOURCE|smF::smFAdd"), removed);
+   }
+
+   // Bug #78102: the additional connections of a data source that can't be loaded are listed
+   // from the stored entries. With a data source folder at its path that holds a data source,
+   // a delete of it alone (portal or registry) is refused and changes nothing, also not the
+   // grants of its additional connections; removing its data model takes its own additional
+   // connection and grant only, not the folder's data source, its grant, or a grant named like it
+   @Test
+   void unloadableParentWithClashTakesOnlyItsAdditionalConnectionGrants() throws Exception {
+      String path = "uaF";
+      clash(path, true, false);
+      grant(ResourceType.DATA_SOURCE, path + "::" + path + "X");
+      Field field = DataSourceRegistry.class.getDeclaredField("indexedStorage");
+      field.setAccessible(true);
+      IndexedStorage storage = (IndexedStorage) field.get(registry);
+      storage.putXMLSerializable(
+         new AssetEntry(AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE, path, null)
+            .toIdentifier(), new XDataSourceWrapper());
+      registry.clearCache();
+      assertNull(registry.getDataSource(path), "setup: " + path + " can't be loaded");
+      List<String> before = state(path);
+      assertTrue(before.contains("grant DATA_SOURCE|" + path + "::" + path + "Add"),
+                 "not seeded: " + before);
+
+      assertThrows(MessageException.class, () -> repository.removeDataSource(path, true));
+      assertEquals(before, state(path), "portal delete refused");
+      assertThrows(MessageException.class, () -> registry.removeDataSource(path));
+      assertEquals(before, state(path), "registry delete refused");
+
+      ((XEngine) repository).removeDataModel(path);
+
+      assertEquals(List.of("DATA_MODEL " + path + " [" + path + " []]",
+                           "DATA_SOURCE " + path + "/" + path + "Add [" + path + "Add]",
+                           "grant DATA_SOURCE|" + path + "::" + path + "Add"),
+                   diff(before, state(path)));
    }
 
    // S3 control: without a clash the data model is everything under P/
