@@ -197,7 +197,7 @@ public class ValueRangeInfo implements AssetObject, DataSerializable {
          for(int i = 0; i < labels.length; i++) {
             if(labels[i] != null) {
                writer.print("<label>");
-               writer.print("<![CDATA[" + labels[i] + "]]>");
+               writer.print("<![CDATA[" + Tool.cdataText(labels[i]) + "]]>");
                writer.print("</label>");
             }
             else {
