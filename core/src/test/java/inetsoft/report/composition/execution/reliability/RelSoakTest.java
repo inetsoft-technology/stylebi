@@ -66,7 +66,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * node-slot slope < 1 / 10 min, thread slope < 1 / 10 min, no open claim at any pause, no
  * leaked claim, no unclassified difference, no stall warning, no multi-threaded access, no
  * paranoia violation (run with {@code -Dscript.ws.contextPool.paranoid=true} for the paranoid
- * soak). Skipped unless {@code -Drel.long=true}.
+ * soak). Skipped unless {@code -Drel.long=true}; the sandbox-kind classification
+ * ({@link #homeBusyLossIsExcusedOnlyOnSharedSandboxes}) runs always.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class, LibManagerTestConfiguration.class, PluginsTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -289,7 +290,7 @@ public class RelSoakTest {
          try {
             if(random.nextInt(100) < LONG_LIVED_PERCENT) {
                int i = random.nextInt(longLived.length);
-               runOne(longLived[i], pick(random, normal, timeouts), "long", RelConfig.on());
+               runOne(longLived[i], pick(random, normal, timeouts), LONG, RelConfig.on());
                inc("items.long");
             }
             else {
@@ -307,8 +308,7 @@ public class RelSoakTest {
                         inc("resets.short");
                      }
 
-                     runOne(box, pick(random, normal, timeouts), reset ? "short-reset" : "short",
-                            cfg);
+                     runOne(box, pick(random, normal, timeouts), reset ? SHORT_RESET : SHORT, cfg);
                   }
                }
                finally {
@@ -372,6 +372,42 @@ public class RelSoakTest {
    }
 
    /**
+    * The soak's classification by sandbox kind, without {@code -Drel.long} and without a run:
+    * a short sandbox is its worker's own, so a var lost to a home in use by another thread is
+    * a finding there (a plain-data var at once, any other var as an unexcused difference); on
+    * a long-lived sandbox, read by all workers, the same loss is the documented
+    * B1_HOME_BUSY (#6004).
+    */
+   @Test
+   public void homeBusyLossIsExcusedOnlyOnSharedSandboxes() {
+      String data = RelMetamorphicTest.PLAIN_OBJECT_VARS.iterator().next();
+      Map<String, String> dataBusy = Map.of(RelMetamorphicTest.varNames(data).iterator().next(),
+                                            OwnedVarWarnings.HOME_IN_USE);
+      String acc = "var acc = (acc || 0) + 1; acc";
+      Map<String, String> accBusy = Map.of("acc", OwnedVarWarnings.HOME_IN_USE);
+      List<String> expected = List.of("Double:1.0", "Double:2.0", "Double:3.0");
+      List<String> actual = List.of("Double:1.0", "Double:1.0", "Double:2.0");
+
+      for(String where : List.of(SHORT, SHORT_RESET)) {
+         assertNotNull(RelMetamorphicTest.plainLoss(data, dataBusy, sharedHomes(where)), where);
+         assertEquals(RelMetamorphicTest.Drift.NONE, RelMetamorphicTest.drift(
+            expected, actual, acc, Shape.FTL, accBusy, sharedHomes(where)), where);
+      }
+
+      assertNull(RelMetamorphicTest.plainLoss(data, dataBusy, sharedHomes(LONG)));
+      assertEquals(RelMetamorphicTest.Drift.B1_HOME_BUSY, RelMetamorphicTest.drift(
+         expected, actual, acc, Shape.FTL, accBusy, sharedHomes(LONG)));
+   }
+
+   /**
+    * @return whether lenses of other workers read a sandbox of kind {@code where} at once:
+    * only the long-lived sandboxes are shared; a short one is its worker's own.
+    */
+   static boolean sharedHomes(String where) {
+      return where.equals(LONG);
+   }
+
+   /**
     * Run one work item on a sandbox and compare it with its oracle.
     */
    private static void runOne(AssetQuerySandbox box, Work w, String where, RelConfig cfg) {
@@ -406,8 +442,8 @@ public class RelSoakTest {
       }
 
       // a plain-data object var is kept: its loss is a finding, but for a home in use by
-      // another thread (long-lived sandboxes are shared; a short one is its worker's own)
-      String plainLoss = RelMetamorphicTest.plainLoss(script, lost, where.equals("long"));
+      // another thread
+      String plainLoss = RelMetamorphicTest.plainLoss(script, lost, sharedHomes(where));
 
       if(plainLoss != null) {
          inc("mismatches");
@@ -438,9 +474,8 @@ public class RelSoakTest {
       }
 
       String diff = RelMetamorphicTest.diff(expected, actual);
-      // only the long-lived sandboxes are read by several workers at once
       RelMetamorphicTest.Drift drift = RelMetamorphicTest.drift(
-         expected, actual, script, w.shape(), lost, where.equals("long"));
+         expected, actual, script, w.shape(), lost, sharedHomes(where));
       String what = w.c().label() + " " + w.shape() + " " + w.read() + " " + where + " " + cfg +
          ": " + diff;
 
@@ -803,6 +838,10 @@ public class RelSoakTest {
    private static final int SAMPLE_SECONDS = Integer.getInteger("rel.soak.sampleSeconds", 30);
    private static final int STEP = Integer.getInteger("rel.soak.step", 3);
    private static final int LONG_LIVED = 2;
+   // the kinds of sandbox a run is on, as reported in the drift counters
+   private static final String LONG = "long";
+   private static final String SHORT = "short";
+   private static final String SHORT_RESET = "short-reset";
    private static final int LONG_LIVED_PERCENT = 30;
    /** percent of picks that are a timeout script (1 by default) */
    private static final int TIMEOUT_PERCENT = Integer.getInteger("rel.soak.timeoutPercent", 1);

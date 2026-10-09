@@ -17,9 +17,13 @@
  */
 package inetsoft.util.script.graal.pool;
 
+import inetsoft.test.*;
 import inetsoft.util.script.ScriptException;
 import org.graalvm.polyglot.Value;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.time.Duration;
 import java.util.*;
@@ -41,7 +45,14 @@ import static org.junit.jupiter.api.Assertions.*;
  * <p>The clean seam is injected without a product hook: the slot's {@code cleaner} field is
  * swapped, by reflection, for a {@link CleanHelper} whose clean function is a guest function
  * of the same context that throws (or calls a host object that throws).
+ *
+ * <p>The first context of the JVM initializes {@code MapData}, which reads the
+ * {@code DataSpace} bean, so the class runs in its own Spring context.
  */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = BaseTestConfiguration.class,
+                      initializers = ConfigurationContextInitializer.class)
+@SreeHome
 @Tag("core")
 class RelFaultInjectionTest {
    @BeforeEach
@@ -50,8 +61,10 @@ class RelFaultInjectionTest {
    }
 
    @AfterEach
-   void tearDown() {
+   void tearDown() throws Exception {
       executor.shutdownNow();
+      // no task may outlive the class's Spring context
+      assertTrue(executor.awaitTermination(30, TimeUnit.SECONDS), "a task outlived its test");
 
       for(WorksheetScriptEnv env : envs) {
          env.retire();
@@ -321,6 +334,7 @@ class RelFaultInjectionTest {
       }
       finally {
          worker.shutdownNow();
+         assertTrue(worker.awaitTermination(30, TimeUnit.SECONDS), "the worker outlived its test");
       }
    }
 
@@ -429,50 +443,78 @@ class RelFaultInjectionTest {
    }
 
    /**
-    * The same race at random timing: a retire lands 0-3 ms into a depth-3 nested claim, 200
-    * times.
+    * The same race at random timing: a retire lands 0-3 ms after the owner starts a depth-3
+    * nested claim, 200 times.
+    *
+    * <p>The claim mostly lasts well under a millisecond, so most random retires land before or
+    * after it (runs counted 3 to 26 of 200 inside). Until one has landed inside, up to a
+    * deadline, more rounds retire right after the owner signals that it holds the outer claim,
+    * so the case always exercises the race whatever the machine's load or timer resolution.
     */
    @Test
    void retireAtRandomPointsOfANestedClaim() throws Exception {
       WorksheetScriptEnv env = env(PoolConfig.defaults());
       Random rnd = new Random(Long.getLong("rel.seed", 77123L) + 1);
       long doomedBefore = env.getMetrics().getDoomedCloses();
+      int rounds = 0;
 
-      for(int i = 0; i < 200; i++) {
-         CountDownLatch started = new CountDownLatch(1);
-         Future<String> owner = executor.submit(() -> {
-            started.countDown();
-            StringBuilder got = new StringBuilder();
-
-            try(SlotClaim a = env.claimSlot()) {
-               got.append(run(env, MARKED_SUM));
-
-               try(SlotClaim b = env.claimSlot()) {
-                  got.append(run(env, MARKED_SUM));
-
-                  try(SlotClaim c = env.claimSlot()) {
-                     got.append(run(env, markedLoop(2000)));
-                  }
-               }
-            }
-
-            return got.toString();
-         });
-         assertTrue(started.await(10, TimeUnit.SECONDS));
-         LockSupport_parkMicros(rnd.nextInt(3000));
-         env.retire();
-         String got = owner.get(30, TimeUnit.SECONDS);
-         // the first exec of the claim sees a clean context; later ones see its own marker
-         assertTrue(got.equals("undefined:3number:3number:1999000"), "round " + i + ": " + got);
-         assertEquals("undefined:3", run(env, MARKED_SUM), "round " + i);
+      for(; rounds < 200; rounds++) {
+         retireDuringANestedClaim(env, rounds, false, rnd.nextInt(3000));
       }
 
-      System.err.println("REL-FAULT retire-random rounds=200 doomedCloses=" +
+      long randomInside = env.getMetrics().getDoomedCloses() - doomedBefore;
+      long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+
+      while(env.getMetrics().getDoomedCloses() == doomedBefore && System.nanoTime() < deadline) {
+         retireDuringANestedClaim(env, rounds++, true, 0);
+      }
+
+      System.err.println("REL-FAULT retire-random rounds=" + rounds + " randomInside=" +
+                         randomInside + " doomedCloses=" +
                          (env.getMetrics().getDoomedCloses() - doomedBefore) + " creations=" +
                          env.getMetrics().getCreations());
       assertTrue(env.getMetrics().getDoomedCloses() > doomedBefore,
-                 "no retire ever landed inside a claim; the case did not exercise the race");
+                 "no retire ever landed inside a claim in " + rounds + " rounds");
       assertEnvConsistent(env);
+   }
+
+   /**
+    * One round: an owner thread runs a depth-3 nested claim and this thread retires the env
+    * {@code micros} after the owner starts, or after it holds the outer claim if
+    * {@code afterClaim}.
+    */
+   private void retireDuringANestedClaim(WorksheetScriptEnv env, int round, boolean afterClaim,
+                                         int micros)
+      throws Exception
+   {
+      CountDownLatch started = new CountDownLatch(1);
+      CountDownLatch claimed = new CountDownLatch(1);
+      Future<String> owner = executor.submit(() -> {
+         started.countDown();
+         StringBuilder got = new StringBuilder();
+
+         try(SlotClaim a = env.claimSlot()) {
+            claimed.countDown();
+            got.append(run(env, MARKED_SUM));
+
+            try(SlotClaim b = env.claimSlot()) {
+               got.append(run(env, MARKED_SUM));
+
+               try(SlotClaim c = env.claimSlot()) {
+                  got.append(run(env, markedLoop(2000)));
+               }
+            }
+         }
+
+         return got.toString();
+      });
+      assertTrue((afterClaim ? claimed : started).await(10, TimeUnit.SECONDS));
+      LockSupport_parkMicros(micros);
+      env.retire();
+      String got = owner.get(30, TimeUnit.SECONDS);
+      // the first exec of the claim sees a clean context; later ones see its own marker
+      assertTrue(got.equals("undefined:3number:3number:1999000"), "round " + round + ": " + got);
+      assertEquals("undefined:3", run(env, MARKED_SUM), "round " + round);
    }
 
    // ---- reset from a script callback ----
