@@ -24,6 +24,7 @@ import inetsoft.report.internal.StyleTreeModel;
 import inetsoft.report.style.XTableStyle;
 import inetsoft.sree.security.*;
 import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.*;
@@ -230,6 +231,53 @@ public class VSDialogService {
       applyDensitySize(info, model);
       setAssemblySize(info, model);
       recordAuthorSize(info, model, shown);
+   }
+
+   /**
+    * Fill a checkbox or radio dialog's lane and row: the heights drawn, and a follow checkbox for
+    * each when the assembly is marked.
+    */
+   public static <T extends ListInputVSAssemblyInfo & TitledVSAssemblyInfo> void readOptionHeights(
+      T info, SizePositionPaneModel model)
+   {
+      boolean marked = info.getVizMark() != null;
+      model.setTitleHeight(VSDensityDefaults.titleHeight(info, info.getTitleHeightValue()));
+      model.setTitleHeightFollowsDensity(marked ? !info.isUserTitleHeight() : null);
+      int cellHeight = info.getCellHeight();
+      model.setCellHeight(cellHeight <= 0 ? AssetUtil.defh : cellHeight);
+      model.setCellHeightFollowsDensity(marked ? !info.isUserCellHeight() : null);
+   }
+
+   /**
+    * Apply a checkbox or radio dialog's lane and row. No answer stores a value only when it
+    * differs from the height drawn, so an untouched field never claims it.
+    */
+   public static <T extends ListInputVSAssemblyInfo & TitledVSAssemblyInfo> void applyOptionHeights(
+      T info, SizePositionPaneModel model)
+   {
+      Boolean titleFollows = model.getTitleHeightFollowsDensity();
+
+      if(Boolean.TRUE.equals(titleFollows)) {
+         info.setUserTitleHeight(false);
+         info.setTitleHeightValue(info.getLegacyTitleHeight());
+      }
+      else if(Boolean.FALSE.equals(titleFollows) || model.getTitleHeight() !=
+         VSDensityDefaults.titleHeight(info, info.getTitleHeightValue()))
+      {
+         info.setUserTitleHeight(true);
+         info.setTitleHeightValue(model.getTitleHeight());
+      }
+
+      Boolean rowFollows = model.getCellHeightFollowsDensity();
+
+      if(Boolean.TRUE.equals(rowFollows)) {
+         info.setUserCellHeight(false);
+         info.setCellHeight(AssetUtil.defh);
+      }
+      else if(Boolean.FALSE.equals(rowFollows) || model.getCellHeight() != info.getCellHeight()) {
+         info.setUserCellHeight(true);
+         info.setCellHeight(model.getCellHeight());
+      }
    }
 
    /**
