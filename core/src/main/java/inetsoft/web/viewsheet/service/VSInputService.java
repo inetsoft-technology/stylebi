@@ -562,11 +562,9 @@ public class VSInputService {
       checkBoxAssemblyInfo.setVisibleValue(basicGeneralPaneModel.getVisible());
       checkBoxAssemblyInfo.setRefreshValue(basicGeneralPaneModel.isRefresh() + "");
 
-      dialogService.setAssemblySizeFollowingDensity(
+      dialogService.applyOptionListSize(
          checkBoxAssemblyInfo, sizePositionPaneModel, viewsheet.getViewsheet());
       dialogService.setAssemblyPosition(checkBoxAssemblyInfo, sizePositionPaneModel);
-
-      VSDialogService.applyOptionHeights(checkBoxAssemblyInfo, sizePositionPaneModel);
 
       setListValues(checkBoxAssemblyInfo, value, viewsheet, principal);
 
@@ -1312,11 +1310,9 @@ public class VSInputService {
       radioButtonAssemblyInfo.setVisibleValue(basicGeneralPaneModel.getVisible());
       radioButtonAssemblyInfo.setRefreshValue(basicGeneralPaneModel.isRefresh() + "");
 
-      dialogService.setAssemblySizeFollowingDensity(
+      dialogService.applyOptionListSize(
          radioButtonAssemblyInfo, sizePositionPaneModel, viewsheet.getViewsheet());
       dialogService.setAssemblyPosition(radioButtonAssemblyInfo, sizePositionPaneModel);
-
-      VSDialogService.applyOptionHeights(radioButtonAssemblyInfo, sizePositionPaneModel);
 
       setListValues(radioButtonAssemblyInfo, value, viewsheet, principal);
 
