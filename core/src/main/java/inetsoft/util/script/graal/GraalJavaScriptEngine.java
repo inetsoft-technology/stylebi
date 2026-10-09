@@ -23,6 +23,7 @@ import inetsoft.util.script.LendableReentrantLock;
 import inetsoft.util.script.ScriptException;
 import inetsoft.util.script.graal.pool.WsExecContext;
 import inetsoft.util.swap.DataUnavailable;
+import inetsoft.util.swap.SwapReadInterruptedException;
 import org.graalvm.polyglot.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -2613,6 +2614,18 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             // which cannot be serialized, e.g. in the response of a cluster call (bug #78084)
             if(ex.isHostException()) {
                RuntimeException unavailable = DataUnavailable.find(ex.asHostException());
+
+               // but a swap read interrupted on the exec thread means a timeout or a cancel
+               // stopped this exec, not that the data is lost: report the stop, with no
+               // swap failure in its cause chain, so a reader does not take it for a lost
+               // swap and run the script again from the state the stopped exec left, e.g. a
+               // var it already changed (bug #78098)
+               if(unavailable instanceof SwapReadInterruptedException) {
+                  ScriptException se = new ScriptException(ex.getMessage());
+                  se.setStackTrace(ex.getStackTrace());
+                  se.setStopped(true);
+                  throw se;
+               }
 
                if(unavailable != null) {
                   throw DataUnavailable.copy(unavailable);

@@ -160,7 +160,14 @@ abstract class UnavailableFailureSerializationChecks {
             Throwable thrown = assertThrows(RuntimeException.class,
                                             () -> engine.exec(script, null, null), what);
 
-            assertSameFailure(found, thrown, what);
+            if(found instanceof SwapReadInterruptedException) {
+               // a stop of the exec, not a failure to copy (bug #78098)
+               assertStop(thrown, what);
+            }
+            else {
+               assertSameFailure(found, thrown, what);
+            }
+
             assertSerializes(thrown, what);
          }
       }
@@ -250,9 +257,9 @@ abstract class UnavailableFailureSerializationChecks {
       String what = kind + " " + table.getClass().getSimpleName() + " " + helper +
          " script first";
 
-      assertReadFails(kind, readByScript(table, helper), what + ", script read");
+      assertScriptReadFails(kind, readByScript(table, helper), what + ", script read");
       assertReadFails(kind, readPlain(table), what + ", plain read");
-      assertReadFails(kind, readByScript(table, helper), what + ", second script read");
+      assertScriptReadFails(kind, readByScript(table, helper), what + ", second script read");
       assertReadFails(kind, readPlain(table), what + ", second plain read");
    }
 
@@ -267,7 +274,7 @@ abstract class UnavailableFailureSerializationChecks {
          " plain first";
 
       assertReadFails(kind, readPlain(table), what + ", plain read");
-      assertReadFails(kind, readByScript(table, helper), what + ", script read");
+      assertScriptReadFails(kind, readByScript(table, helper), what + ", script read");
       assertReadFails(kind, readPlain(table), what + ", second plain read");
    }
 
@@ -326,6 +333,32 @@ abstract class UnavailableFailureSerializationChecks {
       assertEquals(kind.create().getClass(), found.getClass(), what);
       assertEquals(kind.message, found.getMessage(), what);
       assertSerializes(thrown, what);
+   }
+
+   /**
+    * A script read failed as {@link #assertReadFails} has it, but an interrupted swap read
+    * leaves the script engine as a stop of the exec instead (bug #78098).
+    */
+   private static void assertScriptReadFails(Kind kind, Throwable thrown, String what)
+      throws Exception
+   {
+      if(kind == Kind.INTERRUPTED) {
+         assertNotNull(thrown, what + ": the read did not fail");
+         assertStop(thrown, what);
+         assertSerializes(thrown, what);
+      }
+      else {
+         assertReadFails(kind, thrown, what);
+      }
+   }
+
+   /**
+    * {@code thrown} is the stop of the exec, with no failure in its cause chain that a reader
+    * would take for a lost swap file (bug #78098).
+    */
+   static void assertStop(Throwable thrown, String what) {
+      assertTrue(ScriptTimeoutGuard.isStop(thrown), what + ": not a stop: " + thrown);
+      assertNull(DataUnavailable.find(thrown), what + ": the stop reads as a lost swap file");
    }
 
    /**
