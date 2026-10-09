@@ -37,8 +37,12 @@ import inetsoft.uql.viewsheet.CrosstabVSAssembly;
 import inetsoft.uql.viewsheet.FormatInfo;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.TextVSAssembly;
+import inetsoft.uql.viewsheet.BorderColors;
+import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.VSCompositeFormat;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.GaugeVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.TabVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.web.composer.model.vs.VSObjectFormatInfoModel;
 import inetsoft.web.composer.vs.controller.FormatPainterService;
@@ -51,6 +55,8 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import java.awt.Color;
+import java.awt.Insets;
 import java.security.Principal;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -2404,6 +2410,318 @@ class ViewsheetFormatServiceTest {
       }
 
       return sessions;
+   }
+
+   // ---- Bug #77044 items 3-5: perturbed original format and seeded stored values ----
+
+   private static ViewsheetFormatService.FormatRequest jsonRequest(String assemblies,
+                                                                   String target, String format)
+      throws Exception
+   {
+      return new ObjectMapper().readValue(
+         "{\"assemblies\":" + assemblies + ",\"target\":\"" + target + "\",\"format\":" + format +
+         "}", ViewsheetFormatService.FormatRequest.class);
+   }
+
+   private static GaugeVSAssemblyInfo gaugeInfo() {
+      GaugeVSAssemblyInfo info = mock(GaugeVSAssemblyInfo.class);
+      when(info.getFormatInfo()).thenReturn(new FormatInfo());
+      return info;
+   }
+
+   private static TabVSAssemblyInfo tabInfo() {
+      TabVSAssemblyInfo info = mock(TabVSAssemblyInfo.class);
+      when(info.getFormatInfo()).thenReturn(new FormatInfo());
+      return info;
+   }
+
+   private static RuntimeViewsheet rvsOf(Map<String, VSAssemblyInfo> infos) {
+      Viewsheet viewsheet = mock(Viewsheet.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+
+      infos.forEach((name, info) -> {
+         VSAssembly assembly = mock(VSAssembly.class);
+         when(assembly.getVSAssemblyInfo()).thenReturn(info);
+         when(viewsheet.getAssembly(name)).thenReturn(assembly);
+      });
+
+      return rvs;
+   }
+
+   private static void storedBorders(VSAssemblyInfo info, int top, int left, int bottom,
+                                     int right, Color color)
+   {
+      VSCompositeFormat format = new VSCompositeFormat();
+      format.getUserDefinedFormat().setBordersValue(new Insets(top, left, bottom, right));
+      format.getUserDefinedFormat().setBorderColorsValue(
+         new BorderColors(color, color, color, color));
+      info.getFormatInfo().setFormat(VSAssemblyInfo.OBJECTPATH, format);
+   }
+
+   private static List<FormatVSObjectEvent> paintedEvents(FormatPainterService painter,
+                                                          int times)
+      throws Exception
+   {
+      ArgumentCaptor<FormatVSObjectEvent> captor =
+         ArgumentCaptor.forClass(FormatVSObjectEvent.class);
+      verify(painter, times(times)).setFormat(eq("rt1"), captor.capture(), any(Principal.class),
+                                              any(), anyString());
+      return captor.getAllValues();
+   }
+
+   @Test
+   void aSentKeyEqualToTheBlankDefaultStillDiffersFromTheOriginalSoThePainterWritesIt()
+      throws Exception
+   {
+      FormatPainterService painter = mock(FormatPainterService.class);
+
+      serviceWith(painter).setFormat(
+         "tok", principal(),
+         jsonRequest("[\"G\"]", "object",
+                     "{\"wrapText\":false,\"roundCorner\":0,\"backgroundAlpha\":100," +
+                     "\"color\":\"#000000\",\"align\":\"left\"}"), "");
+
+      FormatVSObjectEvent event = paintedEvents(painter, 1).get(0);
+      VSObjectFormatInfoModel model = event.getFormat();
+      VSObjectFormatInfoModel orig = event.getOrigFormat();
+      assertNotEquals(model.isWrapText(), orig.isWrapText());
+      assertNotEquals(model.getRoundCorner(), orig.getRoundCorner());
+      assertNotEquals(model.getBackgroundAlpha(), orig.getBackgroundAlpha());
+      assertNotEquals(model.getColorType(), orig.getColorType());
+      assertNotEquals(model.getAlign().toAlign(), orig.getAlign().toAlign());
+      // unsent keys stay equal to the blank model, so the painter skips them as before
+      assertEquals(model.getBackgroundColorType(), orig.getBackgroundColorType());
+      assertNull(orig.getFormat(), "isFormattedStringColumn reads orig.format == null");
+   }
+
+   @Test
+   void everyAlignSentinelDiffersFromTheModelAlign() throws Exception {
+      for(String align : new String[]{ "left", "center", "right" }) {
+         FormatPainterService painter = mock(FormatPainterService.class);
+
+         serviceWith(painter).setFormat(
+            "tok", principal(),
+            jsonRequest("[\"G\"]", "object", "{\"align\":\"" + align + "\"}"), "");
+
+         FormatVSObjectEvent event = paintedEvents(painter, 1).get(0);
+         assertNotEquals(event.getFormat().getAlign().toAlign(),
+                         event.getOrigFormat().getAlign().toAlign(), align);
+      }
+   }
+
+   @Test
+   void aBorderColourOnlyWriteSeedsTheStoredStylesAndUnsentColoursAndPerturbsTheOriginal()
+      throws Exception
+   {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      GaugeVSAssemblyInfo info = gaugeInfo();
+      storedBorders(info, 1, 1, 1, 1, Color.RED);
+
+      serviceWith(painter, rvsOf(Map.of("G", info))).setFormat(
+         "tok", principal(),
+         jsonRequest("[\"G\"]", "object", "{\"borderTopColor\":\"#00ff00\"}"), "");
+
+      FormatVSObjectEvent event = paintedEvents(painter, 1).get(0);
+      VSObjectFormatInfoModel model = event.getFormat();
+      assertEquals("1", model.getBorderTopStyle());
+      assertEquals("1", model.getBorderLeftStyle());
+      assertEquals("1", model.getBorderBottomStyle());
+      assertEquals("1", model.getBorderRightStyle());
+      assertEquals("#00ff00", model.getBorderTopColor());
+      assertEquals("#ff0000", model.getBorderLeftColor().toLowerCase());
+      assertEquals("-1", event.getOrigFormat().getBorderTopStyle());
+      assertNull(event.getOrigFormat().getBorderTopColor(),
+                 "colours are parsed by the painter, so never perturbed");
+   }
+
+   @Test
+   void aBorderWidthCountsAsTheSideStyleBeingSent() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      GaugeVSAssemblyInfo info = gaugeInfo();
+      storedBorders(info, 1, 1, 1, 1, Color.RED);
+
+      serviceWith(painter, rvsOf(Map.of("G", info))).setFormat(
+         "tok", principal(),
+         jsonRequest("[\"G\"]", "object", "{\"borderTopWidth\":\"2px\"}"), "");
+
+      VSObjectFormatInfoModel model = paintedEvents(painter, 1).get(0).getFormat();
+      assertNotEquals("1", model.getBorderTopStyle(), "the sent top side is not overwritten");
+      assertEquals("1", model.getBorderLeftStyle());
+   }
+
+   @Test
+   void noBorderKeySeedsNoBorderSoThePainterSkipsTheBorderGroup() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      GaugeVSAssemblyInfo info = gaugeInfo();
+      storedBorders(info, 1, 1, 1, 1, Color.RED);
+
+      serviceWith(painter, rvsOf(Map.of("G", info))).setFormat(
+         "tok", principal(), jsonRequest("[\"G\"]", "object", "{\"color\":\"#112233\"}"), "");
+
+      FormatVSObjectEvent event = paintedEvents(painter, 1).get(0);
+      assertNull(event.getFormat().getBorderTopStyle());
+      assertNull(event.getOrigFormat().getBorderTopStyle());
+   }
+
+   @Test
+   void aCssSourcedObjectBorderHasNoUserLayerSoUnsentSidesAreNotSeeded() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      GaugeVSAssemblyInfo info = gaugeInfo();
+
+      serviceWith(painter, rvsOf(Map.of("G", info))).setFormat(
+         "tok", principal(),
+         jsonRequest("[\"G\"]", "object", "{\"borderTopColor\":\"#00ff00\"}"), "");
+
+      VSObjectFormatInfoModel model = paintedEvents(painter, 1).get(0).getFormat();
+      // Documented behaviour: with no user-defined borders the unsent sides are written as no
+      // border (the painter's all-null branch), as a hand-set single side would be.
+      assertNull(model.getBorderLeftStyle());
+      assertNull(model.getBorderLeftColor());
+   }
+
+   @Test
+   void seedsTheGaugeFillTabFlagsAndCssFromWhatIsStored() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      GaugeVSAssemblyInfo gauge = gaugeInfo();
+      when(gauge.getValueFillColorValue()).thenReturn("#abcdef");
+      VSCompositeFormat css = new VSCompositeFormat();
+      css.getCSSFormat().setCSSClass("fancy");
+      css.getCSSFormat().setCSSID("one");
+      gauge.getFormatInfo().setFormat(VSAssemblyInfo.OBJECTPATH, css);
+      TabVSAssemblyInfo tab = tabInfo();
+      when(tab.isRoundTopCornersOnly()).thenReturn(false);
+      when(tab.isRoundBottomCornersOnly()).thenReturn(true);
+
+      serviceWith(painter, rvsOf(Map.of("G", gauge, "T", tab))).setFormat(
+         "tok", principal(),
+         jsonRequest("[\"G\",\"T\"]", "object", "{\"color\":\"#112233\"}"), "");
+
+      List<FormatVSObjectEvent> events = paintedEvents(painter, 2);
+      VSObjectFormatInfoModel g = events.stream()
+         .filter(e -> e.getObjects()[0].equals("G")).findFirst().get().getFormat();
+      VSObjectFormatInfoModel t = events.stream()
+         .filter(e -> e.getObjects()[0].equals("T")).findFirst().get().getFormat();
+      assertEquals("#abcdef", g.getValueFillColor());
+      assertEquals("fancy", g.getCssClass());
+      assertEquals("one", g.getCssID());
+      assertFalse(t.isRoundTopCornersOnly());
+      assertTrue(t.isRoundBottomCornersOnly());
+      assertEquals("#112233", g.getColor(), "the copy keeps the request's own keys");
+      assertEquals("#112233", t.getColor());
+   }
+
+   @Test
+   void assembliesWithTheSameSeedShareOnePainterCall() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+
+      serviceWith(painter, rvsOf(Map.of("A", gaugeInfo(),
+                                        "B", gaugeInfo()))).setFormat(
+         "tok", principal(),
+         jsonRequest("[\"A\",\"B\"]", "object", "{\"borderTopColor\":\"#00ff00\"}"), "");
+
+      assertArrayEquals(new String[]{ "A", "B" }, paintedEvents(painter, 1).get(0).getObjects());
+   }
+
+   @Test
+   void assembliesWithDifferentBorderSeedsGetSeparatePainterCalls() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      GaugeVSAssemblyInfo a = gaugeInfo();
+      GaugeVSAssemblyInfo b = gaugeInfo();
+      storedBorders(a, 1, 1, 1, 1, Color.RED);
+      storedBorders(b, 2, 2, 2, 2, Color.BLUE);
+
+      serviceWith(painter, rvsOf(Map.of("A", a, "B", b))).setFormat(
+         "tok", principal(),
+         jsonRequest("[\"A\",\"B\"]", "object", "{\"borderTopColor\":\"#00ff00\"}"), "");
+
+      List<FormatVSObjectEvent> events = paintedEvents(painter, 2);
+      assertEquals("1", events.get(0).getFormat().getBorderLeftStyle());
+      assertEquals("2", events.get(1).getFormat().getBorderLeftStyle());
+   }
+
+   @Test
+   void aResetAndAJavaBuiltRequestKeepTheLegacyBlankOriginal() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      VSObjectFormatInfoModel format = new VSObjectFormatInfoModel();
+      format.setColor("#333333");
+      ViewsheetFormatService service = serviceWith(painter);
+
+      service.setFormat("tok", principal(),
+                        new ViewsheetFormatService.FormatRequest(List.of("G"), format, false), "");
+      service.setFormat("tok", principal(),
+                        new ViewsheetFormatService.FormatRequest(List.of("G"), null, true), "");
+
+      for(FormatVSObjectEvent event : paintedEvents(painter, 2)) {
+         assertNull(event.getOrigFormat().getColorType());
+      }
+   }
+
+   @Test
+   void aNamedDateStyleSentAloneStillMakesTheFormatGroupDiffer() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+
+      serviceWith(painter).setFormat(
+         "tok", principal(),
+         jsonRequest("[\"G\"]", "object",
+                     "{\"format\":\"DateFormat\",\"formatSpec\":\"SHORT\"}"), "");
+
+      FormatVSObjectEvent event = paintedEvents(painter, 1).get(0);
+      assertNotEquals(event.getFormat().getFormatSpec(), event.getOrigFormat().getFormatSpec());
+      assertNotEquals(event.getFormat().getDateSpec(), event.getOrigFormat().getDateSpec());
+   }
+
+   @Test
+   void aTitleWriteOfAnInheritedEqualColourIsStillPerturbed() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+
+      serviceWith(painter).setFormat(
+         "tok", principal(), jsonRequest("[\"G\"]", "title", "{\"color\":\"#000000\"}"), "");
+
+      FormatVSObjectEvent event = paintedEvents(painter, 1).get(0);
+      assertNotEquals(event.getFormat().getColorType(), event.getOrigFormat().getColorType());
+      assertArrayEquals(new TableDataPath[]{ VSAssemblyInfo.TITLEPATH }, event.getData().get(0));
+   }
+
+   @Test
+   void aBorderColourWithNoStyleOnABorderlessAssemblyWarnsThatNothingIsDrawn() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      GaugeVSAssemblyInfo bare = gaugeInfo();
+      GaugeVSAssemblyInfo bordered = gaugeInfo();
+      storedBorders(bordered, 1, 1, 1, 1, Color.RED);
+      ViewsheetFormatService service =
+         serviceWith(painter, rvsOf(Map.of("Bare", bare, "Bordered", bordered)));
+
+      ViewsheetFormatService.FormatResult result = service.setFormat(
+         "tok", principal(),
+         jsonRequest("[\"Bare\",\"Bordered\"]", "object", "{\"borderTopColor\":\"#00ff00\"}"),
+         "");
+      assertEquals(1, result.warnings().stream().filter(w -> w.contains("'Bare'")).count());
+      assertTrue(result.warnings().stream().noneMatch(w -> w.contains("'Bordered'")));
+
+      result = service.setFormat(
+         "tok", principal(),
+         jsonRequest("[\"Bare\"]", "object",
+                     "{\"borderTopColor\":\"#00ff00\",\"borderTopStyle\":\"solid\"}"), "");
+      assertTrue(result.warnings().isEmpty());
+   }
+
+   @Test
+   void calcCellFormatRequestCapturesTheSentKeys() throws Exception {
+      ViewsheetFormatService.CellFormatRequest request = new ObjectMapper().readValue(
+         "{\"assembly\":\"C\",\"row\":0,\"col\":0,\"format\":{\"wrapText\":false}}",
+         ViewsheetFormatService.CellFormatRequest.class);
+      assertEquals(java.util.Set.of("wrapText"), request.formatKeys());
+
+      FormatPainterService painter = mock(FormatPainterService.class);
+      CalcTableService calcService = mock(CalcTableService.class);
+      when(calcService.cellFormatPath(any(), eq("C"), eq(0), eq(0)))
+         .thenReturn(new TableDataPath(-1, TableDataPath.DETAIL));
+
+      serviceWith(painter, calcService).setCellFormat("tok", principal(), request, "");
+
+      FormatVSObjectEvent event = paintedEvents(painter, 1).get(0);
+      assertNotEquals(event.getFormat().isWrapText(), event.getOrigFormat().isWrapText());
    }
 
    static Principal principal() {
