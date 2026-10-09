@@ -32,8 +32,9 @@
 // host(batch): a string with one digit per object: 0 = ordinary, 1 = Proxy, 2 = host object
 // (kept by reference), 3 = a Date (interop date), 4 = other foreign value, 5 = an object whose
 // meta object is Date (an Invalid Date, or an object that inherits Date.prototype). keep(o) stores a host
-// object and returns its index; kept(i) returns it. fail(i, kind) reports a root that is lost;
-// dropped(i, what) a Date in root i that is kept as a plain Date from its time value only.
+// object and returns its index; kept(i) returns it. fail(i, kind, hides) reports a root that is
+// lost, hides true if its graph holds a value whose references the cloner cannot list (see
+// snap); dropped(i, what) a Date in root i that is kept as a plain Date from its time value only.
 //
 // The snapshot format: {"n": [node...], "r": [value per root]}. A node is
 // [0, ext, key, value...] a plain object; [4, ext, key, value...] one with a null prototype;
@@ -147,6 +148,17 @@
 
    // what a root that shares an object with a lost root is lost for (amendment A3)
    const SHARED = 'an object that it shares with a variable whose value is not kept';
+   // the builtins whose objects hold references that no own property lists
+   const OPAQUE = new M();
+   mset(OPAQUE, WeakMap.prototype, true); mset(OPAQUE, WeakSet.prototype, true);
+   mset(OPAQUE, Promise.prototype, true);
+
+   // whether an object with the prototype p may hold references that marking does not see
+   function opaqueProto(p) {
+      return p !== OP && p !== AP && p !== MP && p !== SP && p !== DP && p !== null &&
+         (mget(NAMED, p) === undefined || mget(OPAQUE, p) === true);
+   }
+
    const UNREAD = 'a value that could not be read';
    const INTERRUPTED = 'Thread was interrupted.';
 
@@ -236,7 +248,11 @@
    // a multiple of the entry cap) and the time bound: past either every root is lost, as
    // sharing can no longer be checked.
    // An alias only through a closure, a getter, a WeakMap or WeakSet, a Map or Set of a
-   // subclass or a typed array's named property is not seen.
+   // subclass or a typed array's named property is not seen. Such a lost root is reported
+   // with hides: a function (its closure, a bound target), a Proxy, an accessor, or an object
+   // of a class or of a builtin that holds hidden references (a WeakMap, a WeakSet, a
+   // Promise) in its graph. The host then names the kept roots, which may be stale copies of
+   // what it reached (Testing #77123, B1 residual).
    function snap(roots, maxEntries, maxMillis, maxMarks) {
       const put = putter(protoClean());
       const deadline = now() + maxMillis;
@@ -250,6 +266,8 @@
       const lost = [];
       // whether each lost root's graph is marked (once for all passes)
       const marked = [];
+      // whether each lost root's graph holds a value whose references are not listed
+      const hides = [];
       // the objects of the lost roots' graphs (all passes) -> the lost root
       const tainted = new M();
       let nlost = 0, late = false, changed = false, marks = 0;
@@ -257,6 +275,7 @@
       for(let i = 0; i < rl; i++) {
          put(lost, i, undefined);
          put(marked, i, false);
+         put(hides, i, false);
       }
 
       // the state of one pass
@@ -606,8 +625,14 @@
 
                const o = front[k];
                const h = charCode(kinds, k - kb) - 48;
+               const owner = mget(tainted, o);
 
-               if(mget(tainted, o) !== undefined) {
+               if(owner !== undefined) {
+                  // another lost root's graph: it may hide what this one reaches
+                  if(hides[owner]) {
+                     put(hides, j, true);
+                  }
+
                   continue;
                }
 
@@ -618,10 +643,22 @@
                   lose(own[id], SHARED);
                }
 
-               // a Proxy, a host object, a value of another engine: marked, not entered; a
-               // typed array or DataView holds only primitives: never list its elements
+               // a Proxy (its target and handler are not listed: it hides), a host object, a
+               // value of another engine: marked, not entered; a typed array or DataView holds
+               // only primitives: never list its elements
+               if(h === 1) {
+                  put(hides, j, true);
+               }
+
                if(h === 1 || h === 2 || h === 4 || isView(o)) {
                   continue;
+               }
+
+               // no Proxy here: reading the prototype runs no trap
+               const p = getProto(o);
+
+               if(typeof o === 'function' || opaqueProto(p)) {
+                  put(hides, j, true);
                }
 
                // an array too long for the cap is refused before its keys are listed
@@ -645,14 +682,16 @@
                         put(next, nl++, x);
                      }
                   }
+                  else if(d !== undefined) {
+                     // a getter or setter: what its closure reaches is not listed
+                     put(hides, j, true);
+                  }
 
                   markTick(1);
                }
 
                // a Map's keys and values, a Set's values (the intrinsic forEach of a Map or Set
                // runs no user code; one of a subclass is not entered)
-               const p = getProto(o);
-
                if(p === MP || p === SP) {
                   (p === MP ? mapEach : setEach)(o, function(x, y) {
                      if(isObj(x) && mget(tainted, x) === undefined) {
@@ -784,7 +823,7 @@
 
       for(let i = 0; i < rl; i++) {
          if(lost[i] !== undefined) {
-            fail(i, lost[i]);
+            fail(i, lost[i], hides[i]);
          }
       }
 

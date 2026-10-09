@@ -276,7 +276,8 @@ class PooledLensObjectHandOffTest {
 
       for(int i = 0; i < vars; i++) {
          String var = "\"v" + i + "\"";
-         List<String> mine = warns.stream().filter(w -> w.contains(var)).toList();
+         // a kept var may be named in a lost var's warning as a copy (hidden references)
+         List<String> mine = warns.stream().filter(w -> w.contains(var + " holds")).toList();
          String kind = kinds[i];
 
          if(kind == null) {
@@ -401,7 +402,7 @@ class PooledLensObjectHandOffTest {
                  () -> "" + warns);
       assertTrue(warns.stream().anyMatch(w -> w.contains("\"" + alias + "\" holds an object " +
          "that it shares with a variable whose value is not kept")), () -> "" + warns);
-      assertTrue(warns.stream().noneMatch(w -> w.contains("\"t\"")), () -> "" + warns);
+      assertTrue(warns.stream().noneMatch(w -> w.contains("\"t\" holds")), () -> "" + warns);
    }
 
    /**
@@ -449,7 +450,7 @@ class PooledLensObjectHandOffTest {
             "that it shares with a variable whose value is not kept")), () -> s + ": " + warns);
       }
 
-      assertTrue(warns.stream().noneMatch(w -> w.contains("\"t\"")), () -> "" + warns);
+      assertTrue(warns.stream().noneMatch(w -> w.contains("\"t\" holds")), () -> "" + warns);
    }
 
    /**
