@@ -40,6 +40,7 @@ import java.awt.*;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -511,7 +512,9 @@ public class TableArray implements ArrayObject, ScriptArrayScope {
    private static final int MAX_ROWS = 100;
    protected boolean data = false; // true if use data (non-filter) table
 
-   protected final Map<String, Object> members = new LinkedHashMap<>();
+   // pooled worksheet contexts of one sandbox reach one table array from several threads
+   protected final Map<String, Object> members =
+      Collections.synchronizedMap(new LinkedHashMap<>());
    private XTable table = null; // table lens
    private final RowWindow sharedWindow = new RowWindow();
    private String property = "Object"; // property type
