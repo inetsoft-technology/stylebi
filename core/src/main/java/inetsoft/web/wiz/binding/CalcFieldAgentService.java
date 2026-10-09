@@ -29,6 +29,7 @@ import inetsoft.web.binding.controller.ModifyCalculateFieldServiceProxy;
 import inetsoft.web.binding.drm.CalculateRefModel;
 import inetsoft.web.binding.event.ImmutableModifyCalculateFieldEvent;
 import inetsoft.web.binding.model.ExpressionRefModel;
+import inetsoft.web.wiz.binding.model.BindableField;
 import inetsoft.web.wiz.binding.model.BindableTable;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,8 +38,10 @@ import org.springframework.stereotype.Service;
 import java.security.Principal;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -161,7 +164,8 @@ public class CalcFieldAgentService {
       List<String> rewrittenDependents = new ArrayList<>();
 
       List<String> warnings = sessions.mutate(sessionToken, agent, (rvs, runtimeId, dispatcher) -> {
-         String tableName = requireBindableTable(runtimeId, req.table(), agent);
+         BindableTable bindable = requireBindableTable(runtimeId, req.table(), agent);
+         String tableName = bindable.name();
          boolean editing = !req.create();
          CalculateRef existing = editing || req.remove()
             ? rvs.getViewsheet().getCalcField(tableName, req.name()) : null;
@@ -176,6 +180,13 @@ public class CalcFieldAgentService {
                "No calc field named '" + req.name() + "' exists on '" + tableName +
                "'. Existing calc fields on it: " +
                describeCalcFields(rvs.getViewsheet().getCalcFields(tableName)) + ".");
+         }
+
+         // Viewsheet.addCalcField replaces an equal-named field, so a create or a rename onto a
+         // name another calc field on the table already holds would silently overwrite it. The
+         // native dialog refuses this ("Duplicate Name"); do the same, before anything mutates.
+         if(!req.remove() && (req.create() || !newName.equals(req.name()))) {
+            checkCalcNameFree(rvs.getViewsheet(), bindable, req, newName);
          }
 
          CalculateRefModel model = null;
@@ -226,6 +237,94 @@ public class CalcFieldAgentService {
       });
 
       return new CalcFieldResult(warnings, rewrittenDependents);
+   }
+
+   /**
+    * Refuses a create/rename whose target name (case-insensitively) is held by another calc field
+    * on {@code table}. A case-only rename of the field itself is allowed, and re-creating a field
+    * with the identical definition stays an idempotent no-op.
+    */
+   private static void checkCalcNameFree(Viewsheet vs, BindableTable bindable,
+                                         CalcFieldRequest req, String newName)
+   {
+      String table = bindable.name();
+      CalculateRef[] calcs = vs.getCalcFields(table);
+      Set<String> calcNames = new HashSet<>();
+
+      if(calcs == null) {
+         calcs = new CalculateRef[0];
+      }
+
+      for(CalculateRef calc : calcs) {
+         calcNames.add(calc.getName());
+      }
+
+      checkColumnNameFree(bindable, calcNames, table, newName);
+
+      for(CalculateRef calc : calcs) {
+         String other = calc.getName();
+
+         if(other == null || !other.equalsIgnoreCase(newName)) {
+            continue;
+         }
+
+         if(!req.create() && other.equals(req.name())) {
+            continue;
+         }
+
+         if(req.create() && other.equals(newName) && sameDefinition(calc, req)) {
+            continue;
+         }
+
+         throw new IllegalArgumentException(
+            "A calc field named '" + other + "' already exists on '" + table + "', so '" +
+            newName + "' is a duplicate name (names are compared case-insensitively). Pick a " +
+            "different name, or use edit_calc_field with name '" + other + "' to change it.");
+      }
+   }
+
+   /**
+    * Refuses a name that (case-insensitively) matches a real column of the table, as the native
+    * dialog does. The listing also carries the table's calc fields, which are checked separately
+    * above, so they are skipped here. A logical-model column is entity-qualified ("Entity:Attr");
+    * the attribute part is compared too, since that is the name a user sees and binds.
+    */
+   private static void checkColumnNameFree(BindableTable bindable, Set<String> calcNames,
+                                           String table, String newName)
+   {
+      if(bindable.fields() == null) {
+         return;
+      }
+
+      for(BindableField field : bindable.fields()) {
+         String column = field.column();
+
+         if(column == null || calcNames.contains(column)) {
+            continue;
+         }
+
+         int colon = column.lastIndexOf(':');
+         String attr = colon >= 0 ? column.substring(colon + 1) : column;
+
+         if(column.equalsIgnoreCase(newName) || attr.equalsIgnoreCase(newName)) {
+            throw new IllegalArgumentException(
+               "'" + newName + "' is a duplicate name -- '" + table + "' already has a column " +
+               "named '" + column + "' (names are compared case-insensitively). Pick a " +
+               "different name.");
+         }
+      }
+   }
+
+   private static boolean sameDefinition(CalculateRef calc, CalcFieldRequest req) {
+      if(!(calc.getDataRef() instanceof ExpressionRef)) {
+         return false;
+      }
+
+      return Objects.equals(((ExpressionRef) calc.getDataRef()).getExpression(), req.expression()) &&
+         Objects.equals(calc.getDataType() == null ? null : calc.getDataType().toLowerCase(),
+                        req.dataType() == null ? null : req.dataType().toLowerCase()) &&
+         calc.isSQL() == (req.sql() != null && req.sql()) &&
+         calc.isBaseOnDetail() == (req.baseOnDetail() == null || req.baseOnDetail());
    }
 
    /**
@@ -281,14 +380,14 @@ public class CalcFieldAgentService {
     * contract -- {@code assembly} only affects that one assembly's aggregate-info refresh, not
     * where the field is stored or which tables are valid to store it under.
     */
-   private String requireBindableTable(String runtimeId, String table, Principal agent)
+   private BindableTable requireBindableTable(String runtimeId, String table, Principal agent)
       throws Exception
    {
       List<BindableTable> tables = fieldsService.list(runtimeId, null, agent);
 
       for(BindableTable candidate : tables) {
          if(table.equalsIgnoreCase(candidate.name())) {
-            return candidate.name();
+            return candidate;
          }
       }
 

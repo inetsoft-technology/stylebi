@@ -275,6 +275,16 @@ public class ViewsheetEditService {
       }
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         // Checked before addNewObject: a colliding name would otherwise leave an orphan
+         // auto-named assembly and resize the pre-existing one.
+         if(request.assembly() != null && !request.assembly().isBlank() &&
+            rvs.getViewsheet() != null && rvs.getViewsheet().containsAssembly(request.assembly()))
+         {
+            throw new IllegalArgumentException(
+               "Edit op 'add' cannot name the new assembly '" + request.assembly() +
+               "' — an assembly with that name already exists. Pick a different 'assembly' name.");
+         }
+
          AddNewVSObjectEvent event = new AddNewVSObjectEvent();
          event.setType(request.type());
          event.setxOffset(request.x());
@@ -433,6 +443,14 @@ public class ViewsheetEditService {
          if(assembly == null) {
             throw new IllegalArgumentException(
                "Unknown assembly '" + request.assembly() + "'.");
+         }
+
+         if(!request.assembly().equals(request.newName()) &&
+            vs.containsAssembly(request.newName()))
+         {
+            throw new IllegalArgumentException(
+               "Cannot rename '" + request.assembly() + "' to '" + request.newName() +
+               "' — an assembly named '" + request.newName() + "' already exists.");
          }
 
          propertyService.editObjectProperty(rvs, assembly.getVSAssemblyInfo(),
