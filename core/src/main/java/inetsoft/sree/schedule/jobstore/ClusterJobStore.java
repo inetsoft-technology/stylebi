@@ -70,6 +70,7 @@ public class ClusterJobStore implements JobStore, Serializable {
 
       // only shutdown the cluster when running in a separate process
       shutdownClusterOnShutdown = "true".equals(System.getProperty("ScheduleServer"));
+      LIVE_STORES.add(fireInstanceIdPrefix);
       LOG.debug("Cluster Job Store Initialized.");
    }
 
@@ -93,6 +94,7 @@ public class ClusterJobStore implements JobStore, Serializable {
 
    @Override
    public void shutdown() {
+      LIVE_STORES.remove(fireInstanceIdPrefix);
       releaseOwnAcquiredTriggers();
 
       if(shutdownClusterOnShutdown) {
@@ -782,7 +784,9 @@ public class ClusterJobStore implements JobStore, Serializable {
             // Bug #77879, the trigger's transaction was rolled back, so the trigger is left as it
             // was and is skipped. The triggers acquired before it must still reach the
             // scheduler, or they would stay acquired by this live node and never fire. A trigger
-            // that fails in every pass is logged as a warning once, until it is acquired again
+            // that fails in every pass is logged as a warning once, until it is acquired again.
+            // Bug #78116, a failure while committing can leave the write applied, so the trigger
+            // is acquired by this node without the scheduler knowing; the next pass releases it
             if(failingTriggers.add(tw.key)) {
                LOG.warn("Failed to acquire trigger {}, it is skipped in this pass", tw.key, ex);
             }
@@ -865,8 +869,19 @@ public class ClusterJobStore implements JobStore, Serializable {
       if(tw.getState() == ACQUIRED || tw.getState() == BLOCKED) {
          final TriggerWrapper held = tw;
 
-         if(isOrphaned(held, topology.get(), () -> getOrphanedRunHold(held),
-                       System.currentTimeMillis()))
+         // Bug #78116, an acquisition this node's scheduler lost: an acquire whose commit failed
+         // after its write was applied, or a failed fire whose release failed too. Its owner is
+         // alive, so it is never orphaned and would not fire again until this node stops
+         if(tw.getState() == ACQUIRED && isLostByThisNode(tw)) {
+            LOG.warn("Releasing trigger {} acquired by this node ({}, store {}) since {}, " +
+                        "the scheduler no longer holds it", tw.key, tw.getOwnerMember(),
+                     tw.getOwnerStore(), tw.getOwnedSince() == null ? null :
+                        Instant.ofEpochMilli(tw.getOwnedSince()));
+            tw = newTriggerWrapper(tw, WAITING);
+            storeTriggerWrapper(tw);
+         }
+         else if(isOrphaned(held, topology.get(), () -> getOrphanedRunHold(held),
+                            System.currentTimeMillis()))
          {
             LOG.warn("Releasing trigger {} held {} by node {} ({}, store {}) since {}, " +
                         "that node is no longer in the cluster", tw.key, tw.getState(),
@@ -994,7 +1009,7 @@ public class ClusterJobStore implements JobStore, Serializable {
       catch(DistributedTransactionException ex) {
          // Bug #77879, Quartz releases triggers inside its loop over a fired batch, so a failure
          // here must not keep the other triggers of the batch from running
-         LOG.warn("Failed to release trigger {}, it stays acquired until this node stops",
+         LOG.warn("Failed to release trigger {}, the next acquire pass releases it",
                   triggerKey, ex);
       }
    }
@@ -1407,6 +1422,22 @@ public class ClusterJobStore implements JobStore, Serializable {
    }
 
    /**
+    * Checks if an ACQUIRED entry, found by an acquire pass of this store, is held by no scheduler
+    * (Bug #78116). Quartz acquires, fires and releases on one scheduler thread and holds no
+    * trigger across acquire passes, so this store's scheduler no longer holds an entry acquired by
+    * this store. Neither does a stopped scheduler of this JVM, such as the one before a restart in
+    * the same JVM, whose entries are acquired by this node (whose id outlives a scheduler restart)
+    * but by another store. An entry of another store of this JVM that has not shut down may still
+    * be held by its scheduler. Releasing an entry whose holder is stale cannot make it fire twice:
+    * firing and releasing check the fire instance id, which the next acquisition replaces.
+    */
+   boolean isLostByThisNode(TriggerWrapper tw) {
+      String store = tw.getOwnerStore();
+      return tw.getOwnerNode() != null && tw.getOwnerNode().equals(getLocalNodeId()) &&
+         (fireInstanceIdPrefix.equals(store) || store == null || !LIVE_STORES.contains(store));
+   }
+
+   /**
     * Checks if an ACQUIRED or BLOCKED entry is held by an owner that can no longer complete or
     * release it (Bug #77245): the cluster node that took the hold is no longer in the cluster. A
     * node id is unique across hosts and changes whenever the JVM (and so its Ignite node) is
@@ -1699,6 +1730,10 @@ public class ClusterJobStore implements JobStore, Serializable {
    // the instance id is "AUTO" on every node, so a random part keeps fire instance ids unique
    // across the cluster, which the ownership check in isAcquiredBy() relies on
    private final String fireInstanceIdPrefix = UUID.randomUUID() + "-";
+   // Bug #78116, the stores of this JVM that have not shut down, by fire instance id prefix. A
+   // trigger acquired by this node but by another of these stores may still be held by that
+   // store's scheduler, so only its own scheduler can tell that it is lost
+   private static final Set<String> LIVE_STORES = ConcurrentHashMap.newKeySet();
    private static final long CLOUD_RUN_LAUNCH_MARGIN = TimeUnit.MINUTES.toMillis(5);
    // the timeout of a section's transaction, which also bounds waiting for its locks
    private static final long TX_TIMEOUT = TimeUnit.MINUTES.toMillis(5);
