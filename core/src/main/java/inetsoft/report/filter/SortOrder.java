@@ -698,6 +698,15 @@ public class SortOrder implements Comparer, Cloneable, Comparator, XConstants {
       calendar.setFirstDayOfWeek(firstDayOfWeek);
       c1.setFirstDayOfWeek(firstDayOfWeek);
       c2.setFirstDayOfWeek(firstDayOfWeek);
+      // Bug #78112: same defect as above but for minimalDaysInFirstWeek -- it also inherits
+      // the JVM default locale (1 for en_US/zh_CN/root, 4 for en_GB/de_DE/fr_FR) and was never
+      // re-synced, so WEEK_OF_YEAR below (and the week grouping it feeds) silently disagreed
+      // with CALC.weeknum/the crosstab Week of Year level depending on the server's JVM
+      // locale. Match CALC.weeknum's default convention: the week containing January 1 is
+      // week 1.
+      calendar.setMinimalDaysInFirstWeek(1);
+      c1.setMinimalDaysInFirstWeek(1);
+      c2.setMinimalDaysInFirstWeek(1);
       int result = 999;
       int year1, month1, day1, hour1, minute1, second1, millisecond1;
       int weekday1, weeks1;
@@ -797,6 +806,20 @@ public class SortOrder implements Comparer, Cloneable, Comparator, XConstants {
             // next year's first week
             if(month2 == Calendar.DECEMBER && weeks2 == 1) {
                year2 += 1;
+            }
+
+            // Bug #78112: symmetric case -- a January date whose WEEK_OF_YEAR rolls backward
+            // into the previous year's last week (52 or 53). This is independent of the
+            // minimalDaysInFirstWeek fix above: it is a real case under ISO-style
+            // (minimalDaysInFirstWeek == 4) semantics too, just one this class never reached
+            // before since only the December side was handled.
+            if(month1 == Calendar.JANUARY && weeks1 >= 52) {
+               year1 -= 1;
+            }
+
+            // previous year's last week
+            if(month2 == Calendar.JANUARY && weeks2 >= 52) {
+               year2 -= 1;
             }
 
             if(year1 == year2 && h1 == h2) {

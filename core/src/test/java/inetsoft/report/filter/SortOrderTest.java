@@ -25,6 +25,7 @@ import org.junit.jupiter.params.provider.*;
 
 import java.util.Calendar;
 import java.util.Date;
+import java.util.Locale;
 import java.util.stream.Stream;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
@@ -432,6 +433,91 @@ class SortOrderTest {
       Calendar c2 = Calendar.getInstance();
       c2.set(2023, Calendar.MARCH, 13); // week 11
       assertTrue(order.compare(c1.getTime(), c2.getTime(), false) < 0);
+   }
+
+   // -------------------------------------------------------------------------
+   // compare(Date, Date) — WEEK_DATE_GROUP (named/freehand week-bucket grouping)
+   // Bug #78112: cal0/cal1/cal2 only ever re-synced firstDayOfWeek, never
+   // minimalDaysInFirstWeek, so WEEK_OF_YEAR (and the week buckets it feeds) silently
+   // disagreed with CALC.weeknum/the Week of Year crosstab level depending on the server's
+   // JVM default locale; and the December-only year-boundary fixup had no symmetric case
+   // for a January date rolling back into the previous year's week 52/53.
+   // -------------------------------------------------------------------------
+
+   @Test
+   void compareDates_weekDateGroup_decAndJanSameWeek_underEnGBLocale_groupedTogether()
+      throws InterruptedException
+   {
+      Locale old = Locale.getDefault();
+
+      try {
+         // 2025-12-28 (Sun) through 2026-01-03 (Sat) is one Sunday-start week. Under an
+         // uncorrected en-GB/de-DE JVM default locale (minimalDaysInFirstWeek == 4), Dec 28's
+         // WEEK_OF_YEAR came out as 53 (not 1), so the December-only fixup's "weeks1 == 1"
+         // guard never fired and these two dates were wrongly split into different groups.
+         Date dec28 = makeDate(2025, Calendar.DECEMBER, 28);
+         Date jan1 = makeDate(2026, Calendar.JANUARY, 1);
+         assertEquals(0, compareOnFreshThread(Locale.UK, XConstants.WEEK_DATE_GROUP, dec28, jan1),
+                      "2025-12-28 and 2026-01-01 are the same calendar week and must be " +
+                         "grouped together regardless of the JVM default locale");
+      }
+      finally {
+         Locale.setDefault(old);
+      }
+   }
+
+   @Test
+   void compareDates_weekDateGroup_decAndJanSameWeek_underEnUSLocale_groupedTogether()
+      throws InterruptedException
+   {
+      Locale old = Locale.getDefault();
+
+      try {
+         Date dec28 = makeDate(2025, Calendar.DECEMBER, 28);
+         Date jan1 = makeDate(2026, Calendar.JANUARY, 1);
+         assertEquals(0, compareOnFreshThread(Locale.US, XConstants.WEEK_DATE_GROUP, dec28, jan1),
+                      "2025-12-28 and 2026-01-01 are the same calendar week");
+      }
+      finally {
+         Locale.setDefault(old);
+      }
+   }
+
+   /**
+    * {@code SortOrder}'s {@code cal0}/{@code cal1}/{@code cal2} are static {@code ThreadLocal}s,
+    * constructed lazily on first use and kept for that thread's lifetime. Calling
+    * {@code compare} directly on the test thread would reuse whatever {@code Calendar}
+    * instance an earlier test in this class already constructed there (under whatever locale
+    * was active at that time), masking this bug: the fix sets {@code minimalDaysInFirstWeek}
+    * explicitly on every {@code compare} call, but the fresh thread also guards against
+    * accidentally relying on that -- it makes each locale's result depend only on the
+    * {@code Locale.setDefault} made just before it runs, the same discipline
+    * {@code DateRangeRefWeekOfYearLocaleTest} uses for {@code DateRangeRef}'s equivalent
+    * per-thread cache.
+    */
+   private static int compareOnFreshThread(Locale locale, int option, Date d1, Date d2)
+      throws InterruptedException
+   {
+      Locale.setDefault(locale);
+      int[] result = new int[1];
+      Thread thread = new Thread(() -> {
+         SortOrder order = new SortOrder(SortOrder.SORT_ASC);
+         order.setInterval(1, option);
+         result[0] = order.compare(d1, d2, false);
+      });
+      thread.start();
+      thread.join();
+      return result[0];
+   }
+
+   @Test
+   void compareDates_weekDateGroup_differentWeeks_stillOrdered() {
+      SortOrder order = new SortOrder(SortOrder.SORT_ASC);
+      order.setInterval(1, XConstants.WEEK_DATE_GROUP);
+      Date d1 = makeDate(2026, Calendar.JANUARY, 5);   // week 2
+      Date d2 = makeDate(2026, Calendar.JANUARY, 19);  // week 4
+      assertNotEquals(0, order.compare(d1, d2, false),
+                      "dates three weeks apart must not be grouped together");
    }
 
    // -------------------------------------------------------------------------
