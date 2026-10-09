@@ -534,7 +534,12 @@ public class CalcTextData {
    }
 
    /**
-    * Converts a text string that represents a number to a number
+    * Converts a text string that represents a number to a number.
+    * Numbers are parsed independently of the server locale: '.' is the
+    * decimal point and other non-digit characters (e.g. ',', '$') are
+    * ignored. The value is negative if the text has a leading '-' or is
+    * wrapped in parentheses, and only whitespace, '+', '(', a currency
+    * symbol, '.' or a single '-' appear before the first digit.
     * @param text text you want to convert
     * @return converted text
     */
@@ -594,8 +599,8 @@ public class CalcTextData {
             }
 
             String trimmed = text.trim();
-            boolean negative = minus && signPrefix ||
-               trimmed.startsWith("(") && trimmed.endsWith(")");
+            boolean negative = signPrefix &&
+               (minus || (trimmed.startsWith("(") && trimmed.endsWith(")")));
             double result = Double.parseDouble(data.toString());
 
             // avoid returning -0.0

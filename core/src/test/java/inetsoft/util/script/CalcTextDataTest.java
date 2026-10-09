@@ -464,6 +464,8 @@ class CalcTextDataTest {
          // a '-' after other text or after the first digit is not a sign
          assertEquals(42.0, CalcTextData.value("SKU-0042"));
          assertEquals(12.0, CalcTextData.value("abc-12"));
+         assertEquals(12.0, CalcTextData.value("(note) 12 (est)"));
+         assertEquals(12.0, CalcTextData.value("(abc-12)"));
          assertEquals(20240105.0, CalcTextData.value("2024-01-05"));
 
          // date and time text are not affected
