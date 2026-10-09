@@ -68,17 +68,24 @@ class MinorityIslandDetectorTest {
    }
 
    @Test
-   void deploymentFingerprintDependsOnBasePortAndMembersOnly() {
+   void deploymentFingerprintOfStaticMembersDependsOnBasePortOnly() {
       String a = fingerprint(47500, "10.0.0.1:47500", "10.0.0.2:47500..47501");
-      String sameReordered = fingerprint(47500, "10.0.0.2:47500..47501", "10.0.0.1:47500");
 
       assertNotNull(a);
-      assertEquals(a, sameReordered, "member order doesn't matter");
+      assertEquals(a, fingerprint(47500, "10.0.0.2:47500"),
+                   "nodes of one deployment may list their members differently");
       assertNotEquals(a, fingerprint(48500, "10.0.0.1:47500", "10.0.0.2:47500..47501"),
                       "another discovery base port is another deployment");
-      assertNotEquals(a, fingerprint(47500, "10.0.0.1:47500", "10.0.0.3:47500"),
-                      "other members are another deployment");
       assertNull(MinorityIslandDetector.getDeploymentFingerprint(null, null));
+   }
+
+   @Test
+   void azureAccountNameComesFromTheConnectionString() {
+      assertEquals("acct1", MinorityIslandDetector.getAzureAccountName(
+         "DefaultEndpointsProtocol=https;AccountName=acct1;AccountKey=secret;" +
+            "EndpointSuffix=core.windows.net"));
+      assertNull(MinorityIslandDetector.getAzureAccountName("UseDevelopmentStorage=true"));
+      assertNull(MinorityIslandDetector.getAzureAccountName(null));
    }
 
    private static String fingerprint(int port, String... members) {

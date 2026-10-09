@@ -159,6 +159,8 @@ final class MinorityIslandDetector implements AutoCloseable {
             continue;
          }
 
+         logOtherDeployment(endpoint, nodes, fingerprint);
+
          // only joined nodes of a cluster of this deployment count, and one of them must be
          // on the probed host
          List<ClusterNode> joined = nodes.stream()
@@ -180,6 +182,31 @@ final class MinorityIslandDetector implements AutoCloseable {
       }
 
       update(local, better, conclusive, System.currentTimeMillis());
+   }
+
+   /**
+    * Logs once per address and fingerprint that a cluster answering at a probed address is
+    * ignored because it is configured as another deployment, so that an operator can tell a
+    * deployment whose nodes are configured differently from one with no islands.
+    */
+   private void logOtherDeployment(Map.Entry<String, InetAddress> endpoint,
+                                   Collection<ClusterNode> nodes, Object fingerprint)
+   {
+      for(ClusterNode node : nodes) {
+         Object other = node.attribute(DEPLOYMENT_ATTR);
+
+         if(other != null && !other.equals(fingerprint) && ownsHost(node, endpoint.getValue())) {
+            if(loggedOtherDeployments.size() < 100 &&
+               loggedOtherDeployments.add(endpoint.getKey() + "|" + other))
+            {
+               LOG.info("The cluster that answers at {} has different discovery settings " +
+                           "(base port or IP finder) and is treated as another deployment, " +
+                           "not as a cluster island of this one", endpoint.getKey());
+            }
+
+            return;
+         }
+      }
    }
 
    private synchronized void update(Island local, Island better, boolean conclusive, long now) {
@@ -397,10 +424,11 @@ final class MinorityIslandDetector implements AutoCloseable {
 
    /**
     * Gets the fingerprint of the deployment a server node belongs to: a hash of its configured
-    * discovery base port and of what its IP finder looks up. Nodes of one deployment are
-    * configured the same, and two deployments that agreed on both would have joined one cluster
-    * at start, so a different fingerprint means a different deployment. It is a hash so that
-    * the node attribute doesn't show the finder settings.
+    * discovery base port and of the kind of IP finder and what it looks up (multicast group,
+    * Kubernetes label, cloud bucket, load balancer or storage account). Nodes of one deployment
+    * are configured the same, and two deployments that agreed on both would have joined one
+    * cluster at start, so a different fingerprint means a different deployment. It is a hash so
+    * that the node attribute doesn't show the finder settings.
     *
     * @return the fingerprint, or {@code null} if discovery isn't TCP discovery.
     */
@@ -412,13 +440,12 @@ final class MinorityIslandDetector implements AutoCloseable {
       StringBuilder text = new StringBuilder("port=").append(getConfiguredPort(discoverySpi));
       TcpDiscoveryIpFinder ipFinder = discoverySpi.getIpFinder();
 
-      if(ipFinder instanceof TcpDiscoveryVmIpFinder vmFinder) {
-         // the static members, with port ranges expanded, in any order
-         text.append("\nvm=").append(vmFinder.getRegisteredAddresses().stream()
-            .map(a -> a.getHostString() + ":" + a.getPort())
-            .sorted()
-            .distinct()
-            .collect(Collectors.joining(",")));
+      if(ipFinder instanceof TcpDiscoveryVmIpFinder) {
+         // Not the member list: nodes of one deployment may list their members differently.
+         // Two deployments with static members, the same base port and a shared host can't
+         // stay apart (each one's host:port entry reaches the other's node, which it joins),
+         // and the probed host must belong to the cluster that answers.
+         text.append("\nvm");
       }
       else if(ipFinder instanceof TcpDiscoveryMulticastIpFinder multicastFinder) {
          text.append("\nmulticast=").append(multicastFinder.getMulticastGroup())
@@ -447,7 +474,11 @@ final class MinorityIslandDetector implements AutoCloseable {
             }
 
             if(finderConfig.getAzureBlob() != null) {
+               // the storage account (never the key) tells deployments that share the
+               // container name apart
                text.append("\nazure=").append(finderConfig.getAzureBlob().getEndpoint())
+                  .append('|').append(getAzureAccountName(
+                     finderConfig.getAzureBlob().getConnectionString()))
                   .append('|').append(finderConfig.getAzureBlob().getContainer());
             }
          }
@@ -491,6 +522,23 @@ final class MinorityIslandDetector implements AutoCloseable {
          LOG.debug("TcpDiscoverySpi.locPort is not accessible", e);
          return null;
       }
+   }
+
+   /**
+    * Gets the {@code AccountName} of an Azure storage connection string.
+    */
+   static String getAzureAccountName(String connectionString) {
+      if(connectionString != null) {
+         for(String part : connectionString.split(";")) {
+            int index = part.indexOf('=');
+
+            if(index > 0 && "AccountName".equalsIgnoreCase(part.substring(0, index).trim())) {
+               return part.substring(index + 1).trim();
+            }
+         }
+      }
+
+      return null;
    }
 
    private static InetSocketAddress resolve(InetSocketAddress address) {
@@ -573,6 +621,7 @@ final class MinorityIslandDetector implements AutoCloseable {
    private int clearRounds; // guarded by this
    private boolean haltPending; // guarded by this
    private List<InetSocketAddress> registeredAddresses; // detector thread only
+   private final Set<String> loggedOtherDeployments = new HashSet<>(); // detector thread only
    private long registeredAddressesTime; // detector thread only
 
    private static final long DEFAULT_INTERVAL_MILLIS = 10_000L;
