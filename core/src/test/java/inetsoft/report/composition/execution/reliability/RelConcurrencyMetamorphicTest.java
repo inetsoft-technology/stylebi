@@ -214,7 +214,7 @@ public class RelConcurrencyMetamorphicTest {
                         ? RelMetamorphicTest.plainLoss(c.script(), own, false) : null;
                      failure = failure != null ? variant + " " + c.label() + " " + failure
                         : check(variant, c, Shape.FTL, ReadPattern.SEQUENTIAL, cells.get(k),
-                                own);
+                                own, true);
 
                      if(failure != null) {
                         failures.add(failure);
@@ -348,7 +348,7 @@ public class RelConcurrencyMetamorphicTest {
                   lost = recording.lost();
                }
 
-               return check(variant, c, shape, read, actual, lost);
+               return check(variant, c, shape, read, actual, lost, !ownBoxes);
             }));
          }
 
@@ -391,10 +391,13 @@ public class RelConcurrencyMetamorphicTest {
    }
 
    /**
+    * @param sharedHomes whether the threads' lenses read one sandbox, so one can hold a home
+    *                    another pulls from (a/c/d/e/f); in (b) each has its own.
     * @return {@code null} if the run gives the oracle or a classified drift, else the failure.
     */
    private static String check(String variant, RelMetamorphicTest.Case c, Shape shape,
-                               ReadPattern read, List<String> actual, Map<String, String> lost)
+                               ReadPattern read, List<String> actual, Map<String, String> lost,
+                               boolean sharedHomes)
    {
       List<String> expected = RelMetamorphicTest.comparable(ORACLES.get(key(c, shape)),
                                                             c.script());
@@ -412,12 +415,21 @@ public class RelConcurrencyMetamorphicTest {
 
       // a plain-data object var is kept: its loss is a finding, but for a home in use by
       // another thread
-      String plainLoss = RelMetamorphicTest.plainLoss(c.script(), lost, true);
+      String plainLoss = RelMetamorphicTest.plainLoss(c.script(), lost, sharedHomes);
 
       if(plainLoss != null) {
          STATS.computeIfAbsent(variant + ".unknown", k -> new AtomicLong()).incrementAndGet();
          return variant + " " + c.label() + " " + shape + " " + read + " " + plainLoss +
             "\nscript: " + c.script();
+      }
+
+      // C1 (#5809): a pooled run never gives Java a GraalJS value of a pooled context
+      String escaped = RelMetamorphicTest.escapedValue(actual);
+
+      if(escaped != null) {
+         STATS.computeIfAbsent(variant + ".unknown", k -> new AtomicLong()).incrementAndGet();
+         return variant + " " + c.label() + " " + shape + " " + read +
+            " returned a GraalJS value of a pooled context: " + escaped;
       }
 
       if(expected.equals(actual)) {
@@ -426,7 +438,7 @@ public class RelConcurrencyMetamorphicTest {
 
       String diff = RelMetamorphicTest.diff(expected, actual);
       RelMetamorphicTest.Drift drift =
-         RelMetamorphicTest.drift(expected, actual, c.script(), shape, lost);
+         RelMetamorphicTest.drift(expected, actual, c.script(), shape, lost, sharedHomes);
 
       if(drift != RelMetamorphicTest.Drift.NONE) {
          STATS.computeIfAbsent(variant + ".drift." + drift, k -> new AtomicLong())
