@@ -185,4 +185,22 @@ describe("size position pane unit case", () => {
       expect(fixture.componentInstance.form.controls["width"].disabled).toBeTruthy();
       expect(fixture.componentInstance.form.controls["height"].disabled).toBeTruthy();
    });
+
+   it("should keep width editable while a height-only size follows the density", () => {
+      fixture.componentInstance.model = createModel({sizeFollowsDensity: true, densityHeightOnly: true});
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.form.controls["width"].disabled).toBeFalsy();
+      expect(fixture.componentInstance.form.controls["height"].disabled).toBeTruthy();
+   });
+
+   it("should leave width editable when a height-only size checkbox is ticked", () => {
+      fixture.componentInstance.model = createModel({sizeFollowsDensity: false, densityHeightOnly: true});
+      fixture.detectChanges();
+
+      fixture.componentInstance.sizeFollowChanged(true);
+
+      expect(fixture.componentInstance.form.controls["width"].disabled).toBeFalsy();
+      expect(fixture.componentInstance.form.controls["height"].disabled).toBeTruthy();
+   });
 });
