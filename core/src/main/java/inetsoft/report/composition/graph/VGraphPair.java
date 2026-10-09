@@ -56,6 +56,7 @@ import inetsoft.util.css.CSSParameter;
 import inetsoft.util.graphics.SVGSupport;
 import inetsoft.util.log.LogLevel;
 import inetsoft.util.profile.ProfileUtils;
+import inetsoft.util.swap.DataUnavailable;
 import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -910,6 +911,11 @@ public class VGraphPair {
          scope.execute(script, cname);
       }
       catch(Throwable ex) {
+         // a lock stall or a lost swap file is not a script failure to swallow and render
+         // past: rethrow it so the chart fails with the swap error instead of rendering
+         // silently wrong/empty data, regardless of ignoreError (#77123, #77910, #78099)
+         DataUnavailable.rethrow(ex);
+
          if(!ignoreError) {
             LOG.debug("Script failed", ex);
 
