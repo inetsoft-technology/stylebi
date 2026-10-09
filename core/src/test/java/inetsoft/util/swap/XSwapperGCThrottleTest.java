@@ -254,42 +254,53 @@ class XSwapperGCThrottleTest {
    }
 
    /**
-    * Bug #78106: a forced collection whose pause exceeds swapper.gc.safe.pause escalates the
-    * non-waiting back-off even when memory recovers to a non-critical state afterward, but never
-    * delays a waiting caller -- a blocked request thread must still collect as soon as the base
-    * spacing throttle allows, exactly as before (Bug #77579). The test lowers the safe-pause
-    * threshold (the same test-override pattern as getGCMinInterval()/setGCMinInterval()) so a
-    * short, cheap-to-run pause can be flagged "dangerous" without inflating the 20x-pause spacing
-    * component enough to mask the back-off's own contribution.
+    * Bug #78106 review round 1: a forced collection whose pause exceeds swapper.gc.safe.pause
+    * logs a WARN for operator visibility, but must NOT additionally escalate the non-waiting
+    * back-off beyond what a genuinely critical memory state already produces. An earlier version
+    * of this fix escalated gcBackoff on "critical || dangerousPause", but that branch is
+    * mathematically inert at the shipped 5000ms default: any pause large enough to cross it also
+    * makes the pre-existing spacing formula (20x the last pause, see the class doc on
+    * doGC(boolean)) exceed MAX_GC_BACKOFF on its own, so the escalation could never be the value
+    * that actually governs scheduling. This test proves the dangerous-pause branch is gone by
+    * showing that, with memory recovered (non-critical) after the collection, a dangerous pause
+    * produces exactly the same next-call timing as a critical-free collection always has: the
+    * non-waiting call is allowed again as soon as the plain spacing interval elapses, with no
+    * extra hold-off contributed by the pause alone. The test lowers the safe-pause threshold
+    * (the same test-override pattern as getGCMinInterval()/setGCMinInterval()) so a short,
+    * cheap-to-run pause can be flagged "dangerous" while keeping the spacing component small
+    * enough for the timing assertion below to be meaningful.
     */
    @Test
-   void dangerousPauseEscalatesBackOffForNonWaitingOnly() {
+   void dangerousPauseLogsWarningButDoesNotEscalateBackoff() {
       final AtomicInteger gcs = new AtomicInteger();
-      // every collection takes 200ms: short in absolute terms (20x spacing = 4000ms, under the
-      // 10s base), but "dangerous" against the lowered 50ms test threshold below
+      // every collection takes 200ms, so plain spacing (20x the pause = 4000ms, under the 10s
+      // base) allows the next non-waiting call at +10000ms; "dangerous" only against the
+      // lowered 50ms test threshold below
       final XSwapper swapper = createSwapper(gcs, 200L);
       swapper.setGCSafePause(50L);
 
       try {
-         // memory recovers after the collection, so only the pause -- not a critical memory
-         // reading -- can explain any extra back-off below
+         // memory recovers after the collection, so a critical reading can't explain the
+         // timing below -- only the (removed) dangerous-pause escalation could
          doReturn(XSwapper.GOOD_MEM).when(swapper).getMemoryState();
 
          assertTrue(swapper.doGC(false), "first collection was throttled");
          assertEquals(1, gcs.get());
 
-         // spacing alone (base 10s; 20x the 200ms pause is only 4s) would allow the next
-         // non-waiting call at +10000ms; the dangerous-pause back-off (20s) must hold it off
-         // longer
+         // if the dangerous-pause escalation still ran, gcBackoff would have been set to 20s and
+         // this call -- 1ms past the plain 10s spacing -- would still be held off
          advance(10001L);
-         assertFalse(swapper.doGC(false),
-            "non-waiting call ran before the dangerous-pause back-off elapsed");
-
-         // a waiting caller bypasses gcBackoff entirely and only honors spacing, which already
-         // elapsed -- it must not be held off by the same escalation
-         assertTrue(swapper.doGC(true),
-            "waiting caller was delayed by the dangerous-pause back-off (would regress #77579)");
+         assertTrue(swapper.doGC(false),
+            "a dangerous pause with non-critical memory held off a non-waiting call past plain " +
+               "spacing (the inert gcBackoff escalation was supposed to be removed)");
          assertEquals(2, gcs.get());
+
+         // a waiting caller bypasses gcBackoff entirely and only honors spacing; unaffected by
+         // this change either way, kept here as a regression guard for #77579
+         advance(10001L);
+         assertTrue(swapper.doGC(true),
+            "waiting caller was delayed beyond plain spacing (would regress #77579)");
+         assertEquals(3, gcs.get());
       }
       finally {
          swapper.setGCSafePause(-1L);

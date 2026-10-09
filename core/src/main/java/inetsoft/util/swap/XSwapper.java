@@ -736,9 +736,12 @@ public final class XSwapper {
     *                interval and pauses up to 500ms the waiter gets one within 10s.
     *
     *                A collection whose pause exceeds the swapper.gc.safe.pause threshold also
-    *                escalates the back-off, regardless of waiting, so a dangerously long pause
-    *                doesn't repeat soon after (Bug #78106). This never affects a waiting call
-    *                itself, since the back-off is only consulted for non-waiting callers below.
+    *                logs a WARN for operator visibility, since a pause that long is a danger
+    *                signal for a cluster's failure-detection timeout (Bug #78106). It does not
+    *                additionally throttle future collections: for any pause large enough to
+    *                cross the default threshold, the pre-existing spacing formula above (20x
+    *                the last pause) already pushes the next collection out further than the
+    *                back-off below ever could, so no separate escalation is needed.
     *
     * @return <tt>true</tt> if a garbage collection was run.
     */
@@ -770,17 +773,19 @@ public final class XSwapper {
          if(dangerousPause) {
             LOG.warn("A garbage collection requested by the swapper paused the JVM for {}ms, " +
                         "which is above the {}ms safety threshold (swapper.gc.safe.pause) for " +
-                        "a cluster's failure detection timeout. Backing off future forced " +
-                        "collections to reduce the chance of another dangerously long pause " +
-                        "while the node is already under memory pressure.", pause, safePause);
+                        "a cluster's failure detection timeout. This is for operator visibility " +
+                        "only: the next forced collection is already spaced out at least 20x " +
+                        "this pause (see the class doc on doGC(boolean)), which throttles it " +
+                        "more than any additional back-off could for a pause this long.",
+                     pause, safePause);
          }
 
-         // a dangerously long pause is treated like a still-critical memory state for the
-         // non-waiting back-off, regardless of what memory looks like now, so the next
-         // non-waiting forced collection is pushed out further (Bug #78106). This never
-         // affects a waiting caller, since waiting callers never consult gcBackoff above.
-         gcBackoff.set(critical || dangerousPause ?
-            Math.min(Math.max(base, gcBackoff.get()) * 2, MAX_GC_BACKOFF) : 0);
+         // the non-waiting back-off still escalates only on a genuinely critical memory state
+         // (Bug #78106 originally also escalated it on a merely dangerous pause, but that is
+         // mathematically inert: any pause large enough to be "dangerous" already makes the
+         // spacing formula above exceed MAX_GC_BACKOFF on its own, so the escalation could never
+         // be the value that actually governs scheduling -- see the WARN above instead).
+         gcBackoff.set(critical ? Math.min(Math.max(base, gcBackoff.get()) * 2, MAX_GC_BACKOFF) : 0);
 
          if(!collected) {
             if(gcNotRunWarned.compareAndSet(false, true)) {
