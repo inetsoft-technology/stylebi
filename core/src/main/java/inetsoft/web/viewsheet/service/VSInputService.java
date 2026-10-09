@@ -250,6 +250,7 @@ public class VSInputService {
          assembly = vs.getAssembly(objectId);
          assemblyInfo = (ListInputVSAssemblyInfo) assembly.getVSAssemblyInfo();
          assemblyInfo.setCellHeight((int) height);
+         assemblyInfo.setUserCellHeight(true);
       }
       catch(Exception e) {
          throw e;
