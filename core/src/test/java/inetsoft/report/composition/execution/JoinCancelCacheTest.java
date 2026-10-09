@@ -133,6 +133,40 @@ class JoinCancelCacheTest {
    }
 
    /**
+    * Stop query and cancel loading after the join completed leave it whole, and the next
+    * sandbox still takes it from the cache instead of computing it again.
+    */
+   @Test
+   void cancelOfACompleteJoinKeepsItCached() throws Exception {
+      Worksheet ws = joinWorksheet();
+      AssetQuerySandbox box1 = new AssetQuerySandbox(ws);
+      box1.setQueryManager(new QueryManager());
+      TableLens lens1 = box1.getTableLens("J1", AssetQuerySandbox.RUNTIME_MODE,
+                                          new VariableTable());
+      assertNotNull(lens1, "the query failed, see the log");
+      String chain = chain(lens1);
+      assertFalse(chain.contains("AssetTableLens"), chain);
+      JoinTableLens join1 = (JoinTableLens) Util.getNestedTable(lens1, JoinTableLens.class);
+      assertNotNull(join1, chain);
+      lens1.moreRows(XTable.EOT);
+      assertEquals(FULL, join1.getRowCount() - join1.getHeaderRowCount());
+
+      ((CancellableTableLens) Util.getNestedTable(lens1, CancellableTableLens.class)).cancel();
+      box1.getQueryManager().cancel();
+
+      assertFalse(join1.isCancelled(), "a cancel of a complete join must leave it whole");
+      AssetQuerySandbox box2 = new AssetQuerySandbox(ws);
+      TableLens lens2 = box2.getTableLens("J1", AssetQuerySandbox.RUNTIME_MODE,
+                                          new VariableTable());
+      assertNotNull(lens2, "the query failed, see the log");
+      lens2.moreRows(XTable.EOT);
+
+      assertSame(join1, Util.getNestedTable(lens2, JoinTableLens.class),
+                 "the complete join was not kept in the cache");
+      assertEquals(FULL, lens2.getRowCount() - lens2.getHeaderRowCount());
+   }
+
+   /**
     * A caller of AssetDataCache.getData() that is interrupted while it waits for the query
     * still gets the whole result, and keeps its interrupt.
     */
