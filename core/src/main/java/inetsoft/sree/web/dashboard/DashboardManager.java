@@ -966,6 +966,35 @@ public class DashboardManager implements AutoCloseable {
    }
 
    /**
+    * Gets the stored selected dashboards of an identity, as they are stored, read from the
+    * cluster's replicated record under the store lock. Unlike getDashboards(Identity), the
+    * stored names are neither synchronized with the identity's groups and roles nor checked
+    * against the registries. A user rename moves these names, so it keeps every stored name
+    * (Bug #78101).
+    *
+    * @param identity the identity.
+    *
+    * @return the stored names, empty if there is no record.
+    */
+   public synchronized String[] getStoredDashboards(Identity identity) {
+      if(identity == null) {
+         return new String[0];
+      }
+
+      init();
+      Lock storeLock = getStoreLock();
+      storeLock.lock();
+
+      try {
+         DashboardData data = getDashboardStorage().get(getIdentityKey(identity));
+         return data == null ? new String[0] : data.getDashboards().toArray(new String[0]);
+      }
+      finally {
+         storeLock.unlock();
+      }
+   }
+
+   /**
     * Changes the stored selected dashboards of an identity, holding the store lock for the whole
     * read-modify-write. The stored names are changed, including the names that are not in this
     * node's cached registries, which getDashboards(Identity) leaves out, so that a dashboard

@@ -945,16 +945,15 @@ public class IdentityService {
          dashboardManager.runLocked(() -> {
             // a create of the old name that gets the lock after this fails on every node
             dashboardManager.addRenamedUser(oID, nID);
-            // not synchronized with the user's groups and roles, which the old user no longer has
+            // the names stored for the old and the new name now are kept, read from the
+            // cluster's record, so that the move never drops a name that another node has
+            // selected since the snapshot, or that the snapshot left out. They are not
+            // synchronized with the user's groups and roles, which the old user no longer has,
+            // or checked against the registries, which the reads of the new name do.
             List<String> moved = dashboards == null ?
                new ArrayList<>() : new ArrayList<>(Arrays.asList(dashboards));
-            String[] selected = dashboardManager.getDashboards(oid, false);
-
-            for(String dashboard : selected == null ? new String[0] : selected) {
-               if(!moved.contains(dashboard)) {
-                  moved.add(dashboard);
-               }
-            }
+            addMissing(moved, dashboardManager.getStoredDashboards(oid));
+            addMissing(moved, dashboardManager.getStoredDashboards(nid));
 
             dashboardManager.setDashboards(nid, moved.toArray(new String[0]));
             dashboardManager.setDashboards(oid, null);
@@ -968,6 +967,14 @@ public class IdentityService {
 
          return null;
       });
+   }
+
+   private static void addMissing(List<String> list, String[] names) {
+      for(String name : names == null ? new String[0] : names) {
+         if(!list.contains(name)) {
+            list.add(name);
+         }
+      }
    }
 
    /**

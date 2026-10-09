@@ -294,8 +294,6 @@ class IdentityServiceRenameFailureTest {
       IdentityID newId = new IdentityID("ava2", ORG);
       Identity oldIdentity = new DefaultIdentity(oldId, Identity.USER);
       when(dashboardManager.getDashboards(oldIdentity)).thenReturn(new String[] { "d1" });
-      when(dashboardManager.getDashboards(oldIdentity, false))
-         .thenReturn(new String[] { "d1", "d2" });
       boolean[] locked = new boolean[1];
       List<String> unlocked = new ArrayList<>();
       doAnswer(inv -> {
@@ -318,13 +316,21 @@ class IdentityServiceRenameFailureTest {
          .when(repletRegistryManager).renameUser(any(), any());
       doAnswer(inv -> recordUnlocked(locked, unlocked, "dashboardRegistry.renameUser"))
          .when(dashboardRegistryManager).renameUser(any(), any());
+      // read under the lock: d2 was selected on another node after the snapshot, d0 is a stored
+      // name that the snapshot left out, n1 was selected under the new name before the move
+      doAnswer(inv -> {
+         recordUnlocked(locked, unlocked, "getStoredDashboards");
+         return inv.getArgument(0).equals(oldIdentity) ?
+            new String[] { "d0", "d1", "d2" } : new String[] { "n1" };
+      }).when(dashboardManager).getStoredDashboards(any());
       doAnswer(inv -> recordUnlocked(locked, unlocked, "addRenamedUser"))
          .when(dashboardManager).addRenamedUser(any(), any());
 
       assertNull(syncIdentity(renamedUser(newId), oldId, null));
 
+      // the snapshot's order first, then every other stored name: the move drops nothing
       verify(dashboardManager).setDashboards(new DefaultIdentity(newId, Identity.USER),
-                                             new String[] { "d1", "d2" });
+                                             new String[] { "d1", "d0", "d2", "n1" });
       verify(dashboardManager).removeDashboards(oldIdentity);
       verify(repletRegistryManager).renameUser(oldId, newId);
       verify(dashboardRegistryManager).renameUser(oldId, newId);
