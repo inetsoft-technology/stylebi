@@ -360,8 +360,10 @@ public final class XTableFragment extends XSwappable {
 
    /**
     * Set explicit path, if path exists, use this path to validate data.
+    *
+    * @return {@code true} if the file exists and every column got its position in it.
     */
-   public void setSnapshotPath(String path) {
+   public boolean setSnapshotPath(String path) {
       this.path = path;
       this.snappath = path;
 
@@ -378,7 +380,7 @@ public final class XTableFragment extends XSwappable {
             if(LOG.isDebugEnabled()) {
                LOG.warn("Snapshot file missing: " + file);
             }
-            return;
+            return false;
          }
 
          files.add(file);
@@ -400,10 +402,13 @@ public final class XTableFragment extends XSwappable {
 
             column.setSwapInfo(file, pos, size, len);
          }
+
+         return true;
       }
       catch(Throwable ex) {
          LOG.error("Failed to read swap file header: " + path, ex);
          Arrays.stream(columns).forEach(c -> c.setSwapLog("Error: " + ex));
+         return false;
       }
       finally {
          if(channel != null) {

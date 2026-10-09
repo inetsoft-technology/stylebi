@@ -176,22 +176,30 @@ class SnapshotFileReferencesStaleNodeTest {
       fixture.assertSwept();
    }
 
+   // Bug #78095, the startup sweep of another JVM on the same cache directory (e.g. the
+   // scheduler JVM of the server) deleted the copies of live tables whatever their counts
    @Test
-   void startupSweepRemovesCountsOfStoppedNode() throws Exception {
+   void startupSweepDeletesCopyOfStoppedNodeOnly() throws Exception {
       Fixture fixture = new Fixture("e");
+      // a copy that a table of this JVM reads, whose count another node removed after the node
+      // id of this JVM changed
+      File local = createCopy("t78082e_4_s.tdat");
+      Object reference = addReference(local);
+      survivor.getMap(SnapshotEmbeddedTableAssembly.FILE_REFERENCES_MAP)
+         .remove(local.getAbsolutePath());
+      survivor.getMap(SnapshotEmbeddedTableAssembly.FILE_OWNERS_MAP)
+         .remove(local.getAbsolutePath());
       XSwapper swapper = new XSwapper();
 
       try {
          waitForSweep(fixture.stale, XSwapper.CACHE_SWEEP_THREAD);
+         fixture.assertSwept();
+         assertTrue(local.exists(), "copy of a live table of this JVM was deleted");
       }
       finally {
          swapper.stop();
+         close(reference);
       }
-
-      // the startup sweep deletes the copies whatever their counts, the counts must go too
-      assertNull(survivorCount(fixture.stale), "count of the stopped node was not removed");
-      assertEquals(1, survivorCount(fixture.live), "count of a live node was removed");
-      assertEquals(1, survivorCount(fixture.older), "count of an older JVM was removed");
    }
 
    /**
