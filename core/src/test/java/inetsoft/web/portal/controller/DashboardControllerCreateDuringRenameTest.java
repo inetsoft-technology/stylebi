@@ -19,6 +19,7 @@ package inetsoft.web.portal.controller;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.sree.AnalyticRepository;
+import inetsoft.sree.ViewsheetEntry;
 import inetsoft.sree.security.*;
 import inetsoft.sree.web.dashboard.*;
 import inetsoft.test.BaseTestConfiguration;
@@ -35,7 +36,6 @@ import inetsoft.web.portal.model.DashboardModel;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.MockedStatic;
-import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
@@ -59,13 +59,14 @@ import static org.mockito.Mockito.*;
  * [new][user renamed]         nothing is stored, the new viewsheet is removed, the create fails
  * [new][renamed before start]  old name not in the provider when the create starts (another
  *                              node), but recorded as renamed: the create fails
+ * [new][refused, renamed]      the viewsheet is removed under the old and the new name, without
+ *                              the user's permissions, unless a dashboard of the new name uses it
  * [new][name recreated]        a renamed name that a new user has now: the dashboard is created
  * [new][user not in provider] an SSO user is not checked, the dashboard is created
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = BaseTestConfiguration.class,
                       initializers = ConfigurationContextInitializer.class)
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
 @Tag("core")
 class DashboardControllerCreateDuringRenameTest {
@@ -80,6 +81,7 @@ class DashboardControllerCreateDuringRenameTest {
    private MockedStatic<AssetUtil> assetUtil;
    private final boolean[] locked = new boolean[1];
    private final List<String> unlocked = new ArrayList<>();
+   private final List<Boolean> ignorePermOnRemove = new ArrayList<>();
 
    @BeforeEach
    void before() throws Exception {
@@ -125,6 +127,16 @@ class DashboardControllerCreateDuringRenameTest {
       Viewsheet vs = new Viewsheet();
       vs.getViewsheetInfo().setComposedDashboard(true);
       when(engine.getSheet(any(), any(), anyBoolean(), any())).thenReturn(vs);
+      // the new viewsheet is unique when it is created, and exists when it is removed
+      when(engine.containsEntry(any()))
+         .thenAnswer(inv -> Boolean.TRUE.equals(AssetRepository.IGNORE_PERM.get()));
+      // the user is logged out and gone, so the refused create's viewsheet is removed without
+      // the user's permissions
+      doAnswer(inv -> {
+         ignorePermOnRemove.add(Boolean.TRUE.equals(AssetRepository.IGNORE_PERM.get()));
+         return null;
+      }).when(engine).removeSheet(any(), any(), anyBoolean());
+      when(registry.getDashboardNames()).thenReturn(new String[0]);
 
       assetUtil = mockStatic(AssetUtil.class, CALLS_REAL_METHODS);
       assetUtil.when(() -> AssetUtil.getAssetRepository(anyBoolean())).thenReturn(engine);
@@ -155,7 +167,8 @@ class DashboardControllerCreateDuringRenameTest {
       verify(registry, never()).putDashboard(any(), any());
       verify(dashboardManager, never()).addDashboard(any(), any());
       verify(engine).removeSheet(argThat(e -> USER.equals(e.getUser())), same(principal),
-                                 eq(false));
+                                 eq(true));
+      assertEquals(List.of(true), ignorePermOnRemove);
    }
 
    @Test
@@ -173,7 +186,44 @@ class DashboardControllerCreateDuringRenameTest {
       verify(registry, never()).putDashboard(any(), any());
       verify(dashboardManager, never()).addDashboard(any(), any());
       verify(engine).removeSheet(argThat(e -> USER.equals(e.getUser())), same(principal),
-                                 eq(false));
+                                 eq(true));
+      assertEquals(List.of(true), ignorePermOnRemove);
+   }
+
+   @Test
+   void refusedCreateRemovesItsViewsheetAlsoUnderTheNewName() throws Exception {
+      // the user's assets may already have been moved to the new name
+      IdentityID renamed = new IdentityID("u0b", "orgA");
+      when(provider.getUser(USER)).thenReturn(null);
+      when(dashboardManager.getRenamedUser(USER)).thenReturn(renamed);
+
+      assertThrows(MessageException.class,
+                   () -> controller.newDashboard(newModel("d1"), principal));
+
+      verify(engine).removeSheet(argThat(e -> USER.equals(e.getUser())), same(principal),
+                                 eq(true));
+      verify(engine).removeSheet(argThat(e -> renamed.equals(e.getUser()) &&
+                                    "d1".equals(e.getPath())), same(principal), eq(true));
+      assertEquals(List.of(true, true), ignorePermOnRemove);
+   }
+
+   @Test
+   void refusedCreateKeepsAViewsheetOfTheNewNameThatADashboardUses() throws Exception {
+      IdentityID renamed = new IdentityID("u0b", "orgA");
+      when(provider.getUser(USER)).thenReturn(null);
+      when(dashboardManager.getRenamedUser(USER)).thenReturn(renamed);
+      VSDashboard used = new VSDashboard();
+      used.setViewsheet(new ViewsheetEntry("d1", renamed));
+      when(registry.getDashboardNames()).thenReturn(new String[] { "d1" });
+      when(registry.getDashboard("d1")).thenReturn(used);
+
+      assertThrows(MessageException.class,
+                   () -> controller.newDashboard(newModel("d1"), principal));
+
+      verify(engine).removeSheet(argThat(e -> USER.equals(e.getUser())), same(principal),
+                                 eq(true));
+      verify(engine, never()).removeSheet(argThat(e -> renamed.equals(e.getUser())), any(),
+                                          anyBoolean());
    }
 
    @Test

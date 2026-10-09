@@ -411,12 +411,22 @@ public class IdentityService {
    private void logoutSession(IdentityID user) {
       SessionLicenseManager sessionLicenseManager =
          sessionLicenseServiceProvider.getSessionLicenseManager();
+      Set<SRPrincipal> principals = new LinkedHashSet<>();
 
-      if(sessionLicenseManager == null) {
-         return;
+      if(sessionLicenseManager != null) {
+         principals.addAll(sessionLicenseManager.getActiveSessions());
       }
 
-      Set<SRPrincipal> principals = sessionLicenseManager.getActiveSessions();
+      // the logged in users of every cluster node, also when there is no session license manager
+      // (CPU or elastic license) or it only knows this node's sessions (hosted license), so that a
+      // renamed or removed user's sessions can't send any more requests anywhere (Bug #78101)
+      List<SRPrincipal> active =
+         securityEngine == null ? null : securityEngine.getActivePrincipalList();
+
+      if(active != null) {
+         principals.addAll(active);
+      }
+
       Iterator<SRPrincipal> iterator  = principals.iterator();
 
       while(iterator.hasNext()) {
@@ -934,7 +944,7 @@ public class IdentityService {
       OrganizationManager.runInOrgScope(orgID, () -> {
          dashboardManager.runLocked(() -> {
             // a create of the old name that gets the lock after this fails on every node
-            dashboardManager.addRenamedUser(oID);
+            dashboardManager.addRenamedUser(oID, nID);
             // not synchronized with the user's groups and roles, which the old user no longer has
             List<String> moved = dashboards == null ?
                new ArrayList<>() : new ArrayList<>(Arrays.asList(dashboards));
@@ -3046,6 +3056,7 @@ public class IdentityService {
       groupV.toArray(groups);
       user.setGroups(Arrays.stream(groups).map(id -> id.name).toArray(String[]::new));
       User oldUser = eprovider.getUser(oIdentity);
+      boolean loggedOut = false;
 
       if(oldUser == null || Tool.isEmptyString(oldUser.getGoogleSSOId())) {
          if(model.password() != null) {
@@ -3059,6 +3070,7 @@ public class IdentityService {
                   user.setPasswordSalt(null);
                   user.setAppendPasswordSalt(false);
                   logoutSession(oIdentity);
+                  loggedOut = true;
                }
             }
          }
@@ -3067,11 +3079,13 @@ public class IdentityService {
             user.setPasswordAlgorithm(oldUser.getPasswordAlgorithm());
             user.setPasswordSalt(oldUser.getPasswordSalt());
             user.setAppendPasswordSalt(oldUser.isAppendPasswordSalt());
-
-            if(!Tool.equals(oldUser.getName(), user.getName())) {
-               logoutSession(oIdentity);
-            }
          }
+      }
+
+      // a renamed user's sessions are logged out before the rename, whatever the password and
+      // sign-in type, so that they can't store anything under the old name (Bug #78101)
+      if(!loggedOut && oldUser != null && !Tool.equals(oldUser.getName(), user.getName())) {
+         logoutSession(oIdentity);
       }
 
       if(Tool.equals(ouser.getName(), model.name())) {

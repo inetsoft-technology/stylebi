@@ -69,9 +69,10 @@ class DashboardManagerRenamedUserTest {
 
    @Test
    void renamedUserIsSeenByAnotherManager() {
-      node1.addRenamedUser(new IdentityID("u0", "OrgA"));
+      node1.addRenamedUser(new IdentityID("u0", "OrgA"), new IdentityID("u0b", "OrgA"));
 
       assertTrue(node2.isRenamedUser(new IdentityID("u0", "OrgA")));
+      assertEquals(new IdentityID("u0b", "OrgA"), node2.getRenamedUser(new IdentityID("u0", "OrgA")));
       // the org of the current-org path is lowercased
       assertTrue(node2.isRenamedUser(new IdentityID("u0", "orga")));
       assertFalse(node2.isRenamedUser(new IdentityID("u1", "OrgA")));
@@ -82,11 +83,12 @@ class DashboardManagerRenamedUserTest {
    @Test
    void expiredRenameIsIgnoredAndRemoved() {
       String old = new IdentityID("u0", "orga").convertToKey();
-      renamedUsers().put(old, System.currentTimeMillis() - TimeUnit.HOURS.toMillis(1));
+      renamedUsers().put(old, new DashboardManager.RenamedUser(
+         System.currentTimeMillis() - TimeUnit.HOURS.toMillis(1), new IdentityID("u0b", "orga")));
 
       assertFalse(node2.isRenamedUser(new IdentityID("u0", "orga")));
 
-      node1.addRenamedUser(new IdentityID("u1", "orga"));
+      node1.addRenamedUser(new IdentityID("u1", "orga"), new IdentityID("u1b", "orga"));
 
       assertFalse(renamedUsers().containsKey(old), "expired record removed by the next rename");
       assertTrue(node2.isRenamedUser(new IdentityID("u1", "orga")));
@@ -97,7 +99,7 @@ class DashboardManagerRenamedUserTest {
                                   mock(KeyValueStorageManager.class));
    }
 
-   private static Map<String, Long> renamedUsers() {
+   private static Map<String, DashboardManager.RenamedUser> renamedUsers() {
       return Cluster.getInstance().getReplicatedMap(MAP);
    }
 }

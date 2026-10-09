@@ -359,7 +359,7 @@ public class DashboardController {
          if(error[0] != null) {
             // the viewsheet just created for the dashboard would be left under the old name
             if(userGone[0] && composedDashboard) {
-               removeDashboardViewsheet(dashboard, principal);
+               removeRefusedViewsheet(entry, user, principal);
             }
 
             throw error[0];
@@ -728,6 +728,67 @@ public class DashboardController {
             // ignore exception in case the vs is already removed
          }
       }
+   }
+
+   /**
+    * Removes the composed viewsheet that a create refused because its user has been renamed or
+    * removed has just created (Bug #78101). The user is logged out and no longer exists, so the
+    * user's permissions are not checked: the entry is the one this request created. The user's
+    * assets are moved to the new name after the rename, so the same entry of the new name is
+    * removed too, unless a dashboard of the new name uses it.
+    *
+    * @param entry     the viewsheet entry the create made, owned by the old name.
+    * @param user      the old name.
+    * @param principal the principal of the create.
+    */
+   private void removeRefusedViewsheet(AssetEntry entry, IdentityID user, Principal principal) {
+      AssetRepository engine = AssetUtil.getAssetRepository(false);
+      List<AssetEntry> entries = new ArrayList<>();
+      entries.add(entry);
+      IdentityID renamed = dashboardManager.getRenamedUser(user);
+
+      if(renamed != null && !isUsedByDashboard(renamed, entry.getPath())) {
+         entries.add(new AssetEntry(entry.getScope(), entry.getType(), entry.getPath(), renamed));
+      }
+
+      AssetRepository.IGNORE_PERM.set(true);
+
+      try {
+         for(AssetEntry sheet : entries) {
+            try {
+               if(engine.containsEntry(sheet)) {
+                  engine.removeSheet(sheet, principal, true);
+               }
+            }
+            catch(Exception ex) {
+               LOG.warn("Failed to remove the viewsheet of a refused dashboard: {}", sheet, ex);
+            }
+         }
+      }
+      finally {
+         AssetRepository.IGNORE_PERM.remove();
+      }
+   }
+
+   /**
+    * Checks if a dashboard of a user uses the user's viewsheet of a path.
+    */
+   private boolean isUsedByDashboard(IdentityID user, String path) {
+      DashboardRegistry registry = dashboardRegistryManager.getRegistry(user);
+
+      for(String name : registry.getDashboardNames()) {
+         Dashboard dashboard = registry.getDashboard(name);
+         ViewsheetEntry viewsheet = dashboard instanceof VSDashboard ?
+            ((VSDashboard) dashboard).getViewsheet() : null;
+
+         if(viewsheet != null && Tool.equals(viewsheet.getPath(), path) &&
+            Tool.equals(viewsheet.getOwner(), user))
+         {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    private final AnalyticRepository analyticRepository;

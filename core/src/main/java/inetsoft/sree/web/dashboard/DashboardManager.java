@@ -114,15 +114,16 @@ public class DashboardManager implements AutoCloseable {
     * provider by the provider alone (Bug #78101). The record is kept in a replicated map, which a
     * put updates on every node before it returns, for RENAMED_USER_TIMEOUT.
     *
-    * @param user the old name of the user.
+    * @param user    the old name of the user.
+    * @param newUser the new name of the user.
     */
-   public void addRenamedUser(IdentityID user) {
-      DistributedMap<String, Long> renamed = getRenamedUsers();
+   public void addRenamedUser(IdentityID user, IdentityID newUser) {
+      DistributedMap<String, RenamedUser> renamed = getRenamedUsers();
       long now = System.currentTimeMillis();
       Set<String> expired = new HashSet<>();
 
-      for(Map.Entry<String, Long> entry : new ArrayList<>(renamed.entrySet())) {
-         if(entry.getValue() == null || now - entry.getValue() > RENAMED_USER_TIMEOUT) {
+      for(Map.Entry<String, RenamedUser> entry : new ArrayList<>(renamed.entrySet())) {
+         if(entry.getValue() == null || now - entry.getValue().time > RENAMED_USER_TIMEOUT) {
             expired.add(entry.getKey());
          }
       }
@@ -131,7 +132,7 @@ public class DashboardManager implements AutoCloseable {
          renamed.removeAll(expired);
       }
 
-      renamed.put(getRenamedUserKey(user), now);
+      renamed.put(getRenamedUserKey(user), new RenamedUser(now, newUser));
    }
 
    /**
@@ -142,11 +143,24 @@ public class DashboardManager implements AutoCloseable {
     * @return true if a user of this name was renamed within RENAMED_USER_TIMEOUT.
     */
    public boolean isRenamedUser(IdentityID user) {
-      Long time = user == null ? null : getRenamedUsers().get(getRenamedUserKey(user));
-      return time != null && System.currentTimeMillis() - time <= RENAMED_USER_TIMEOUT;
+      return getRenamedUser(user) != null;
    }
 
-   private static DistributedMap<String, Long> getRenamedUsers() {
+   /**
+    * Gets the new name of a user who has been renamed recently, see addRenamedUser().
+    *
+    * @param user the old name of the user.
+    *
+    * @return the new name, or null if no user of this name was renamed within
+    *         RENAMED_USER_TIMEOUT.
+    */
+   public IdentityID getRenamedUser(IdentityID user) {
+      RenamedUser renamed = user == null ? null : getRenamedUsers().get(getRenamedUserKey(user));
+      return renamed != null && System.currentTimeMillis() - renamed.time <= RENAMED_USER_TIMEOUT ?
+         renamed.newUser : null;
+   }
+
+   private static DistributedMap<String, RenamedUser> getRenamedUsers() {
       return Cluster.getInstance().getReplicatedMap(RENAMED_USERS_MAP);
    }
 
@@ -1271,6 +1285,17 @@ public class DashboardManager implements AutoCloseable {
    // or a logout can take to reach every node
    private static final long RENAMED_USER_TIMEOUT = TimeUnit.MINUTES.toMillis(30);
    private static final Logger LOG = LoggerFactory.getLogger(DashboardManager.class);
+
+   // a record of the replicated map of the recently renamed users, see addRenamedUser()
+   static final class RenamedUser implements Serializable {
+      RenamedUser(long time, IdentityID newUser) {
+         this.time = time;
+         this.newUser = newUser;
+      }
+
+      final long time;
+      final IdentityID newUser;
+   }
 
    public static final class DashboardData implements Serializable {
       public List<String> getDashboards() {

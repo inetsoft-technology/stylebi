@@ -319,7 +319,7 @@ class IdentityServiceRenameFailureTest {
       doAnswer(inv -> recordUnlocked(locked, unlocked, "dashboardRegistry.renameUser"))
          .when(dashboardRegistryManager).renameUser(any(), any());
       doAnswer(inv -> recordUnlocked(locked, unlocked, "addRenamedUser"))
-         .when(dashboardManager).addRenamedUser(any());
+         .when(dashboardManager).addRenamedUser(any(), any());
 
       assertNull(syncIdentity(renamedUser(newId), oldId, null));
 
@@ -328,7 +328,7 @@ class IdentityServiceRenameFailureTest {
       verify(dashboardManager).removeDashboards(oldIdentity);
       verify(repletRegistryManager).renameUser(oldId, newId);
       verify(dashboardRegistryManager).renameUser(oldId, newId);
-      verify(dashboardManager).addRenamedUser(oldId);
+      verify(dashboardManager).addRenamedUser(oldId, newId);
       assertEquals(List.of(), unlocked, "moved without holding the dashboard manager's lock");
    }
 
@@ -364,6 +364,26 @@ class IdentityServiceRenameFailureTest {
       assertInstanceOf(MessageException.class, thrown);
       assertTrue(organizationMembers().contains("bea2"));
       assertFalse(organizationMembers().contains("bea"));
+   }
+
+   // Bug #78101: the old name's sessions are logged out before the rename on every node, also
+   // without a session license manager (CPU or elastic license), from the logged in users that
+   // the security engine keeps for the whole cluster
+   @Test
+   void setUserInfoLogsOutTheOldNameWithoutASessionLicenseManager() throws Exception {
+      FSUser user = addUser("bea", null, null);
+      SRPrincipal oldSession = new SRPrincipal(user.getIdentityID(), new IdentityID[0],
+                                               new String[0], ORG, 1L);
+      SRPrincipal otherSession = new SRPrincipal(DAVE, new IdentityID[0], new String[0], ORG, 2L);
+      SecurityEngine engine = (SecurityEngine) ReflectionTestUtils.getField(service, "securityEngine");
+      when(engine.getActivePrincipalList()).thenReturn(List.of(oldSession, otherSession));
+      AuthenticationService authenticationService = mock(AuthenticationService.class);
+      ReflectionTestUtils.setField(service, "authenticationService", authenticationService);
+
+      assertNull(setUserInfo(user, "bea2", null));
+
+      verify(authenticationService).logout(oldSession, true);
+      verify(authenticationService, never()).logout(same(otherSession), anyBoolean());
    }
 
    @Test
