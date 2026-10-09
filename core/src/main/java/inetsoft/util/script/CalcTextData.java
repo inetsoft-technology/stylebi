@@ -21,7 +21,6 @@ import inetsoft.util.CoreTool;
 import inetsoft.util.Tool;
 
 import java.text.DecimalFormat;
-import java.text.DecimalFormatSymbols;
 import java.util.*;
 import java.util.regex.*;
 
@@ -569,17 +568,38 @@ public class CalcTextData {
          //Other, handled as number
          else {
             StringBuilder data = new StringBuilder();
-            DecimalFormatSymbols symbols = DecimalFormatSymbols.getInstance();
+            boolean digitFound = false;
+            boolean minus = false;
+            // true while everything before the first digit is a sign prefix
+            // (whitespace, '+', '(', currency symbol, '.', at most one '-')
+            boolean signPrefix = true;
 
             for(char c : text.toCharArray()) {
-               // @by jasonshobe, also include decimal separator - this is
-               // consistent with the Excel function
-               if(Character.isDigit(c) || c == symbols.getDecimalSeparator()) {
+               // the decimal point is always '.', independent of the JVM
+               // default locale, other characters (e.g. ',') are ignored
+               if(Character.isDigit(c) || c == '.') {
+                  digitFound = digitFound || c != '.';
                   data.append(c);
+               }
+               else if(!digitFound && signPrefix) {
+                  if(c == '-' && !minus) {
+                     minus = true;
+                  }
+                  else if(!Character.isWhitespace(c) && c != '+' && c != '(' &&
+                     Character.getType(c) != Character.CURRENCY_SYMBOL)
+                  {
+                     signPrefix = false;
+                  }
                }
             }
 
-            return Double.valueOf(data.toString());
+            String trimmed = text.trim();
+            boolean negative = minus && signPrefix ||
+               trimmed.startsWith("(") && trimmed.endsWith(")");
+            double result = Double.parseDouble(data.toString());
+
+            // avoid returning -0.0
+            return negative && result != 0 ? -result : result;
          }
       }
       catch(Exception ex) {
