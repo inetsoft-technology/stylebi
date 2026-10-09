@@ -163,6 +163,11 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       if(failureDetectionTimeout != null && failureDetectionTimeout > 0) {
          config.setFailureDetectionTimeout(failureDetectionTimeout);
       }
+      else if(failureDetectionTimeout != null) {
+         LOG.warn("Ignoring non-positive cluster.failureDetectionTimeout: {}, using the Ignite " +
+                  "default of {} ms", failureDetectionTimeout,
+                  IgniteConfiguration.DFLT_FAILURE_DETECTION_TIMEOUT);
+      }
 
       // atomic data structures like distributed long
       AtomicConfiguration atomicConfiguration = new AtomicConfiguration();

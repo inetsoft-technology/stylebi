@@ -17,6 +17,10 @@
  */
 package inetsoft.sree.internal.cluster.ignite;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import inetsoft.test.*;
 import inetsoft.util.config.ClusterConfig;
 import inetsoft.util.config.InetsoftConfig;
@@ -24,11 +28,15 @@ import org.apache.ignite.configuration.IgniteConfiguration;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.slf4j.LoggerFactory;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -48,10 +56,18 @@ class IgniteClusterFailureDetectionTimeoutTest {
    @BeforeEach
    void saveTimeout() {
       originalTimeout = InetsoftConfig.getInstance().getCluster().getFailureDetectionTimeout();
+      logger = (Logger) LoggerFactory.getLogger(IgniteCluster.class);
+      oldLevel = logger.getLevel();
+      logger.setLevel(Level.INFO);
+      appender = new ListAppender<>();
+      appender.start();
+      logger.addAppender(appender);
    }
 
    @AfterEach
    void restoreTimeout() {
+      logger.detachAppender(appender);
+      logger.setLevel(oldLevel);
       InetsoftConfig.getInstance().getCluster().setFailureDetectionTimeout(originalTimeout);
       System.clearProperty(SYSTEM_PROPERTY);
    }
@@ -68,6 +84,7 @@ class IgniteClusterFailureDetectionTimeoutTest {
       assertEquals(IgniteConfiguration.DFLT_FAILURE_DETECTION_TIMEOUT,
                    config.getFailureDetectionTimeout());
       assertEquals(10_000L, config.getFailureDetectionTimeout());
+      assertTrue(timeoutWarnings().isEmpty(), "unset value must not warn");
    }
 
    @Test
@@ -75,14 +92,22 @@ class IgniteClusterFailureDetectionTimeoutTest {
       InetsoftConfig.getInstance().getCluster().setFailureDetectionTimeout(30_000L);
       IgniteConfiguration config = IgniteCluster.getDefaultConfig(tempDir);
       assertEquals(30_000L, config.getFailureDetectionTimeout());
+      assertTrue(timeoutWarnings().isEmpty(), "positive value must not warn");
    }
 
-   @Test
-   void defaultConfigIgnoresNonPositiveTimeout() {
-      InetsoftConfig.getInstance().getCluster().setFailureDetectionTimeout(0L);
+   @ParameterizedTest
+   @ValueSource(longs = { 0L, -1L })
+   void defaultConfigIgnoresNonPositiveTimeoutWithWarning(long timeout) {
+      InetsoftConfig.getInstance().getCluster().setFailureDetectionTimeout(timeout);
       IgniteConfiguration config = IgniteCluster.getDefaultConfig(tempDir);
       assertEquals(IgniteConfiguration.DFLT_FAILURE_DETECTION_TIMEOUT,
                    config.getFailureDetectionTimeout());
+
+      List<ILoggingEvent> warnings = timeoutWarnings();
+      assertEquals(1, warnings.size(), warnings.toString());
+      assertEquals(Level.WARN, warnings.get(0).getLevel());
+      assertTrue(warnings.get(0).getFormattedMessage().contains(String.valueOf(timeout)),
+                 warnings.get(0).getFormattedMessage());
    }
 
    @Test
@@ -114,6 +139,15 @@ class IgniteClusterFailureDetectionTimeoutTest {
                    InetsoftConfig.load(file).getCluster().getFailureDetectionTimeout());
    }
 
+   private List<ILoggingEvent> timeoutWarnings() {
+      return appender.list.stream()
+         .filter(e -> e.getFormattedMessage().contains("failureDetectionTimeout"))
+         .toList();
+   }
+
    private static final String SYSTEM_PROPERTY = "inetsoftConfig.cluster.failureDetectionTimeout";
    private Long originalTimeout;
+   private Logger logger;
+   private Level oldLevel;
+   private ListAppender<ILoggingEvent> appender;
 }

@@ -262,6 +262,9 @@ public class ClusterConfig implements Serializable {
     * not change how long servers wait before failing a client node such as a cloud runner job,
     * which stays at the Ignite default of 30 seconds, and the connection recovery timeout stays at
     * 10 seconds.
+    * <p>
+    * Every node in the cluster must be set to the same value. Ignite does not check that the
+    * value matches when a node joins, so a mismatch is not reported.
     *
     * @return the failure detection timeout in milliseconds or {@code null} if not set.
     */
