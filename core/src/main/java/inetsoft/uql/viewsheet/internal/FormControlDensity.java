@@ -53,4 +53,66 @@ final class FormControlDensity {
    static Dimension controlSize(VSAssemblyInfo info, VizContext ctx) {
       return new Dimension(info.getPixelSize().width, VSDensityDefaults.controlHeight(ctx));
    }
+
+   /**
+    * The lane a checkbox or radio button takes under ctx: the stored height when its author set
+    * it or moved it off the legacy height, the tier lane otherwise.
+    */
+   static <T extends ListInputVSAssemblyInfo & TitledVSAssemblyInfo> int lane(T info,
+                                                                             VizContext ctx)
+   {
+      int stored = info.getTitleHeightValue();
+      return info.isUserTitleHeight() || stored != info.getLegacyTitleHeight() ?
+         stored : VSDensityDefaults.titleHeight(ctx);
+   }
+
+   /**
+    * The option row under ctx, by the same tests as the lane.
+    */
+   static <T extends ListInputVSAssemblyInfo & TitledVSAssemblyInfo> int row(T info,
+                                                                            VizContext ctx)
+   {
+      int stored = info.getCellHeightValue();
+      return info.isUserCellHeight() || stored != AssetUtil.defh ?
+         stored : VSDensityDefaults.cellHeight(ctx);
+   }
+
+   /**
+    * An option list's density size: its own width over its lane and one row.
+    */
+   static <T extends ListInputVSAssemblyInfo & TitledVSAssemblyInfo> Dimension optionBoxSize(
+      T info, VizContext ctx)
+   {
+      return new Dimension(info.getPixelSize().width, lane(info, ctx) + row(info, ctx));
+   }
+
+   /**
+    * The checkbox and radio rule: clear a row the earlier seed stored, then size the box. The
+    * legacy branches run only on a Revert or mode switch.
+    */
+   static <T extends ListInputVSAssemblyInfo & TitledVSAssemblyInfo> void seedOptionBox(
+      T info, VizContext ctx)
+   {
+      int box = info.getPixelSize().height;
+      int storedRow = info.getCellHeightValue();
+
+      if(!info.isUserCellHeight() && VSDensityDefaults.isFormerOptionRow(storedRow) &&
+         (ctx.modern || ctx.transition && VSDensityDefaults.isFormerOptionBoxHeight(box) &&
+            storedRow == box - info.getTitleHeightValue()))
+      {
+         info.setCellHeight(AssetUtil.defh);
+      }
+
+      if(info.isUserSize() || !VSDensityDefaults.isSeededOptionBoxHeight(box)) {
+         return;
+      }
+
+      if(ctx.modern) {
+         info.setPixelSize(optionBoxSize(info, ctx));
+      }
+      else if(ctx.transition) {
+         info.setPixelSize(new Dimension(info.getPixelSize().width,
+                                         VSDensityDefaults.optionBoxHeight(ctx)));
+      }
+   }
 }
