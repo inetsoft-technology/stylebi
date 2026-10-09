@@ -237,6 +237,20 @@ public class ClusterConfig implements Serializable {
    }
 
    /**
+    * A flag that indicates if a server node that finds itself in a minority cluster island
+    * (another, larger cluster of the same deployment answers on the discovery addresses) raises
+    * a segmentation failure, so that Ignite halts it and the container orchestrator restarts it
+    * into the larger cluster. When off (the default), such a node only reports not-ready.
+    */
+   public boolean isMinorityIslandHalt() {
+      return minorityIslandHalt;
+   }
+
+   public void setMinorityIslandHalt(boolean minorityIslandHalt) {
+      this.minorityIslandHalt = minorityIslandHalt;
+   }
+
+   /**
     * The minimum number of seconds that the last instance should be kept up before scaling to zero.
     *
     * @return the minimum uptime in seconds.
@@ -312,4 +326,5 @@ public class ClusterConfig implements Serializable {
    private int minNodes = -1;
    private long minSingleInstanceUptime = -1;
    private Long failureDetectionTimeout;
+   private boolean minorityIslandHalt = false;
 }

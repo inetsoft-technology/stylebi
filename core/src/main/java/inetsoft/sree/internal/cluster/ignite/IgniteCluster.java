@@ -78,6 +78,17 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    }
 
    IgniteCluster(IgniteConfiguration config) {
+      this(config, -1L, -1L);
+   }
+
+   /**
+    * @param islandCheckMillis   the interval of the minority island check, or a value
+    *                            {@code <= 0} for the default.
+    * @param islandConfirmMillis how long a larger cluster must keep answering before this node
+    *                            reports itself as a minority island, or a value {@code <= 0} for
+    *                            the default.
+    */
+   IgniteCluster(IgniteConfiguration config, long islandCheckMillis, long islandConfirmMillis) {
       System.out.format("Joining cluster on %s/24%n", Tool.getIP());
       ignite = createIgniteInstance(config);
       ignite.message().localListen(MESSAGE_TOPIC, new MessageDispatcher());
@@ -133,6 +144,12 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
          initLockTimer();
          ignite.getOrCreateCache(getCacheConfiguration(RW_MAP_NAME));
+         islandDetector =
+            new MinorityIslandDetector(ignite, islandCheckMillis, islandConfirmMillis);
+         islandDetector.start();
+      }
+      else {
+         islandDetector = null;
       }
 
       if("reportServer".equals(System.getProperty("inetsoft.cluster.node.type"))) {
@@ -603,6 +620,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       attrMap.put("inetsoft.host.port", System.getProperty("inetsoft.host.port"));
       attrMap.put("inetsoft.host.outbound.port", System.getProperty("inetsoft.host.outbound.port"));
       attrMap.put(CACHE_MODE_ATTR, getDefaultCacheMode().name());
+      attrMap.put(START_TIME_ATTR, System.currentTimeMillis());
       config.setUserAttributes(attrMap);
    }
 
@@ -702,6 +720,11 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          LOG.debug("Error checking cluster readiness: {}", e.getMessage());
          return false;
       }
+   }
+
+   @Override
+   public String getMinorityIslandMessage() {
+      return islandDetector == null ? null : islandDetector.getMinorityMessage();
    }
 
    @Override
@@ -1960,6 +1983,10 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          }
       }
 
+      if(islandDetector != null) {
+         islandDetector.close();
+      }
+
       clusterFileTransfer.close();
       ignite.close();
       closed = true;
@@ -2305,6 +2332,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    private final ExecutorService messageExecutor;
    private final ExecutorService affinityExecutor;
    private final ExecutorService listenerExecutor;
+   private final MinorityIslandDetector islandDetector;
 
    private static final int DEFAULT_BACKUP_COUNT = 2;
    private static final int DEFAULT_AFFINITY_POOL_MAX_SIZE = 64;
@@ -2316,6 +2344,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    private static final String AFFINITY_TOPIC = IgniteCluster.class.getName() + ".affinityTopic";
    private static final String RW_MAP_NAME = IgniteCluster.class.getName() + ".rwMap";
    private static final String CACHE_MODE_ATTR = "inetsoft.cluster.cacheMode";
+   static final String START_TIME_ATTR = "inetsoft.cluster.startTime";
    private static final IgnitePredicate<ClusterNode> SCHEDULE_SELECTOR = node -> {
       // select any node when config has cloud runner, because the separate scheduler server do not exist.
       if(InetsoftConfig.getInstance().getCloudRunner() != null) {

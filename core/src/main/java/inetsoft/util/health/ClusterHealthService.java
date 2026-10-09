@@ -176,6 +176,14 @@ public class ClusterHealthService {
             return new ClusterHealthStatus(false, "Cluster topology not ready");
          }
 
+         // a split can leave this node in a smaller cluster that is valid on its own but that
+         // the rest of the deployment never rejoins (Bug #78105)
+         String island = cluster.getMinorityIslandMessage();
+
+         if(island != null) {
+            return new ClusterHealthStatus(false, island);
+         }
+
          // Check if sreeProperties data is loaded
          if(!isSreePropertiesLoaded(cluster)) {
             return new ClusterHealthStatus(false, "Sree properties not loaded");

@@ -114,6 +114,18 @@ public interface Cluster extends AutoCloseable {
     */
    boolean isClusterReady();
 
+   /**
+    * Checks if this node is in a minority cluster island: after a network split, another,
+    * larger cluster of the same deployment is running apart from this one, and the two never
+    * merge on their own. The check runs in the background, so this method never blocks.
+    *
+    * @return a description of the larger cluster if this node is in a minority island, or
+    *         {@code null} if it is not or if this cluster implementation cannot tell.
+    */
+   default String getMinorityIslandMessage() {
+      return null;
+   }
+
    void debug();
 
    /**
