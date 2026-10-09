@@ -41,6 +41,7 @@ import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.script.LendableReentrantLock;
 import inetsoft.util.script.ScriptSpan;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.swap.SwapFileReadException;
 import inetsoft.util.swap.XIntList;
@@ -2289,6 +2290,11 @@ public class CrossTabFilter extends AbstractTableLens
          if(loadFailure != null) {
             throw loadFailure;
          }
+
+         // nor a stopped script, of the base or of a calc field: nothing is published, the
+         // reader gets the stop rather than no data, and the next one generates it again
+         // (bug #78134)
+         ScriptTimeoutGuard.rethrowStop(ex);
 
          LOG.error("Failed to process crosstab filter", ex);
       }

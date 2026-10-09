@@ -6050,10 +6050,12 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       Object obj = dmap.get(name, type);
 
       // a table whose formula a script timeout stopped is computed again, like a cancelled
-      // one (bug #77949)
+      // one (bug #77949), and so is the chart data set of such a table (bug #78134)
       if(AssetDataCache.isDebugData() || isDataExpired(name, type) ||
          obj instanceof TableLens lens &&
-         (AssetDataCache.isCancelled(lens) || AssetDataCache.isStopped(lens)))
+         (AssetDataCache.isCancelled(lens) || AssetDataCache.isStopped(lens)) ||
+         obj instanceof VSDataSet dataSet && dataSet.getTable() != null &&
+         AssetDataCache.isStopped(dataSet.getTable()))
       {
          obj = null;
       }

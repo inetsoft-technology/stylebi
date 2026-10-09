@@ -27,6 +27,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.util.TableLoadException;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.util.script.ScriptUtil;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.swap.DataUnavailable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -150,6 +151,8 @@ public class TableAssemblyScriptable extends TableArray {
          // nor has a table that failed to load for a reader that has to fail, e.g. a
          // scheduled run (#78083)
          TableLoadException.rethrow(ex);
+         // nor has a table whose script was stopped (#78134)
+         ScriptTimeoutGuard.rethrowStop(ex);
 
          // ignore if box has been disposed
          if(!box.isDisposed()) {
