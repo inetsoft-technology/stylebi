@@ -92,11 +92,24 @@ public class PrintDeviceLayoutPropertyService {
 
       // Validated BEFORE the mutation seam opens at all -- a refusal here must never reach
       // setViewsheetInfo and must never open an undo checkpoint for a write that never happened.
-      if(patch.containsKey("scaleFont") && toFloat(patch.get("scaleFont")) == 0f) {
+      if(patch.containsKey("scaleFont") && toFloat("scaleFont", patch.get("scaleFont")) == 0f) {
          throw new IllegalArgumentException(
             "set_print_layout: scaleFont cannot be 0 -- table and crosstab cell text renders " +
             "at font size 0 (i.e. blank) when a print layout's scale factor is zero. Omit " +
             "scaleFont to keep the default (1.0) or pass a positive value.");
+      }
+
+      // Same pre-seam rule for the untyped-Map numeric coercions: an out-of-range or fractional
+      // numberingStart, or a float field that overflows to Infinity, must be refused before the
+      // mutation seam opens rather than wrapped/saturated into a different stored value.
+      for(String key : List.of("headerFromEdge", "footerFromEdge")) {
+         if(patch.containsKey(key)) {
+            toFloat(key, patch.get(key));
+         }
+      }
+
+      if(patch.containsKey("numberingStart")) {
+         toInt("numberingStart", patch.get("numberingStart"));
       }
 
       Map<String, Object> resolvedPatch = new LinkedHashMap<>(patch);
@@ -473,19 +486,19 @@ public class PrintDeviceLayoutPropertyService {
                printLayout.setMarginRight(toDouble(value));
                break;
             case "footerFromEdge":
-               printLayout.setFooterFromEdge(toFloat(value));
+               printLayout.setFooterFromEdge(toFloat("footerFromEdge", value));
                break;
             case "headerFromEdge":
-               printLayout.setHeaderFromEdge(toFloat(value));
+               printLayout.setHeaderFromEdge(toFloat("headerFromEdge", value));
                break;
             case "landscape":
                printLayout.setLandscape(Boolean.TRUE.equals(value));
                break;
             case "scaleFont":
-               printLayout.setScaleFont(toFloat(value));
+               printLayout.setScaleFont(toFloat("scaleFont", value));
                break;
             case "numberingStart":
-               printLayout.setNumberingStart(toInt(value));
+               printLayout.setNumberingStart(toInt("numberingStart", value));
                break;
             case "customWidth":
                printLayout.setCustomWidth(toDouble(value));
@@ -593,12 +606,27 @@ public class PrintDeviceLayoutPropertyService {
          "manage_device_layout: selectedDevices must be a list of device ids.");
    }
 
-   private static float toFloat(Object value) {
-      if(value instanceof Number number) {
-         return number.floatValue();
+   private static float toFloat(String field, Object value) {
+      float result;
+
+      try {
+         result = value instanceof Number number ? number.floatValue() :
+            Float.parseFloat(String.valueOf(value).trim());
+      }
+      catch(NumberFormatException e) {
+         throw new IllegalArgumentException(
+            "set_print_layout: '" + field + "' must be a number -- got " + value + ".");
       }
 
-      return Float.parseFloat(String.valueOf(value));
+      // A finite double beyond float range (e.g. 1e39) narrows to Infinity, which would be
+      // stored silently.
+      if(Float.isNaN(result) || Float.isInfinite(result)) {
+         throw new IllegalArgumentException(
+            "set_print_layout: '" + field + "' must be a finite number within float range -- got " +
+            value + ".");
+      }
+
+      return result;
    }
 
    private static double toDouble(Object value) {
@@ -609,12 +637,21 @@ public class PrintDeviceLayoutPropertyService {
       return Double.parseDouble(String.valueOf(value));
    }
 
-   private static int toInt(Object value) {
-      if(value instanceof Number number) {
-         return number.intValue();
+   /**
+    * Strict int32 conversion for the untyped agent patch map. {@code Number.intValue()} wraps a
+    * Long/BigInteger to its low 32 bits, saturates a Double and truncates fractions, so the
+    * stored value would silently differ from the requested one; refuse instead. Integral values
+    * such as {@code 5.0} are accepted.
+    */
+   private static int toInt(String field, Object value) {
+      try {
+         return new java.math.BigDecimal(String.valueOf(value).trim()).intValueExact();
       }
-
-      return Integer.parseInt(String.valueOf(value));
+      catch(ArithmeticException | NumberFormatException e) {
+         throw new IllegalArgumentException(
+            "set_print_layout: '" + field + "' must be a whole number between " +
+            Integer.MIN_VALUE + " and " + Integer.MAX_VALUE + " -- got " + value + ".");
+      }
    }
 
    private static final Set<String> VALID_ACTIONS = Set.of("create", "update", "delete");

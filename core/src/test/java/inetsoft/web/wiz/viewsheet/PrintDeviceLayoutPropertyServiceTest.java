@@ -264,6 +264,69 @@ class PrintDeviceLayoutPropertyServiceTest {
       verify(h.sessions, never()).mutate(anyString(), any(Principal.class), any());
    }
 
+   private void assertRefusedBeforeAnyWrite(String field, Object value) throws Exception {
+      Harness h = new Harness(screensPaneWithNoPrintLayout());
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> h.service.setPrintLayout("tok", h.principal, Map.of(field, value), ""));
+
+      assertTrue(thrown.getMessage().contains(field), thrown.getMessage());
+      verify(h.dialog, never())
+         .setViewsheetInfo(anyString(), any(), any(), any(), anyString(), any());
+      verify(h.sessions, never()).mutate(anyString(), any(Principal.class), any());
+   }
+
+   @Test
+   void refusesNumberingStartOutsideInt32InsteadOfWrapping() throws Exception {
+      assertRefusedBeforeAnyWrite("numberingStart", 1_000_000_000_000L);
+      assertRefusedBeforeAnyWrite("numberingStart", 3_000_000_000L);
+      assertRefusedBeforeAnyWrite("numberingStart", 2147483648L);
+      assertRefusedBeforeAnyWrite("numberingStart", -2147483649L);
+      assertRefusedBeforeAnyWrite("numberingStart", 1e21);
+      assertRefusedBeforeAnyWrite("numberingStart",
+                                  new java.math.BigInteger("18446744073709551616"));
+      assertRefusedBeforeAnyWrite("numberingStart", 2.7);
+      assertRefusedBeforeAnyWrite("numberingStart", "abc");
+      assertRefusedBeforeAnyWrite("numberingStart", Double.NaN);
+   }
+
+   @Test
+   void storesInRangeNumberingStartExactly() throws Exception {
+      Object[][] cases = {
+         {5.0, 5}, {-3, -3}, {7, 7}, {"12", 12}, {Integer.MAX_VALUE, Integer.MAX_VALUE},
+         {Integer.MIN_VALUE, Integer.MIN_VALUE}
+      };
+
+      for(Object[] c : cases) {
+         Harness h = new Harness(screensPaneWithNoPrintLayout());
+         h.service.setPrintLayout("tok", h.principal, Map.of("numberingStart", c[0]), "");
+         assertEquals((int) c[1], writtenPrintLayout(h).getNumberingStart());
+      }
+   }
+
+   @Test
+   void refusesFloatFieldsThatOverflowToInfinity() throws Exception {
+      assertRefusedBeforeAnyWrite("headerFromEdge", 1e39);
+      assertRefusedBeforeAnyWrite("footerFromEdge", 1e39);
+      assertRefusedBeforeAnyWrite("scaleFont", 1e39);
+   }
+
+   @Test
+   void aRejectedNumberingStartLeavesTheStoredLayoutUnchanged() throws Exception {
+      VSPrintLayoutDialogModel existing = new VSPrintLayoutDialogModel();
+      existing.setNumberingStart(5);
+      existing.setUnits("inches");
+      existing.setScaleFont(1.0f);
+      ScreensPaneModel screensPane = new ScreensPaneModel();
+      screensPane.setPrintLayout(existing);
+      Harness h = new Harness(screensPane);
+
+      assertThrows(IllegalArgumentException.class, () -> h.service.setPrintLayout(
+         "tok", h.principal, Map.of("numberingStart", 3_000_000_000L), ""));
+
+      assertEquals(5, existing.getNumberingStart());
+   }
+
    @Test
    void aPatchTouchingOnlyScaleFontLeavesEveryOtherPrintLayoutFieldExactlyAsRead()
       throws Exception
