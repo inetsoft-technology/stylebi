@@ -1321,30 +1321,42 @@ public class CalcDateTimeTest {
       long[][] results = new long[2][];
       Throwable[] error = { null };
 
-      // CoreTool.calendar is a shared ThreadLocal, never reconstructed when the locale
-      // changes -- each locale must run on its own fresh thread, same trap as
-      // DateRangeRefWeekOfYearLocaleTest/SortOrderTest's locale-switching tests.
-      Thread enUs = new Thread(() -> {
-         try {
-            results[0] = weekGroupDates("en-US");
-         }
-         catch(Throwable ex) {
-            error[0] = ex;
-         }
-      });
-      Thread other = new Thread(() -> {
-         try {
-            results[1] = weekGroupDates(tag);
-         }
-         catch(Throwable ex) {
-            error[0] = ex;
-         }
-      });
+      // Locale.setDefault() is JVM-global, not thread-local, so even though
+      // weekGroupDates() below runs on separate worker threads, the locale it sets must be
+      // restored once on this thread after both have finished (matching the save/restore
+      // pattern used by this file's other locale-switching tests, e.g.
+      // gregorianResultsUnderNonGregorianDefaultLocale above).
+      Locale oldLocale = Locale.getDefault();
 
-      enUs.start();
-      enUs.join();
-      other.start();
-      other.join();
+      try {
+         // CoreTool.calendar is a shared ThreadLocal, never reconstructed when the locale
+         // changes -- each locale must run on its own fresh thread, same trap as
+         // DateRangeRefWeekOfYearLocaleTest/SortOrderTest's locale-switching tests.
+         Thread enUs = new Thread(() -> {
+            try {
+               results[0] = weekGroupDates("en-US");
+            }
+            catch(Throwable ex) {
+               error[0] = ex;
+            }
+         });
+         Thread other = new Thread(() -> {
+            try {
+               results[1] = weekGroupDates(tag);
+            }
+            catch(Throwable ex) {
+               error[0] = ex;
+            }
+         });
+
+         enUs.start();
+         enUs.join();
+         other.start();
+         other.join();
+      }
+      finally {
+         Locale.setDefault(oldLocale);
+      }
 
       if(error[0] != null) {
          throw new AssertionError(error[0]);
