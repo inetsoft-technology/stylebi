@@ -485,7 +485,9 @@ public class SelectionBindingService {
     * getOutputSelectionColumns}: the columns the table shares with every additional table), and
     * returns the canonical name. Raw, it was written straight onto the model, so a typo or a
     * column of some other table was accepted and left the bars/aggregate silently broken. A
-    * {@code "$…"}/{@code "=…"} value is passed through untouched, exactly as the dialog passes it.
+    * {@code "$(…)"}/{@code "=…"} value is passed through (trimmed), exactly as the dialog passes
+    * it; a bare {@code "$Foo"} is a literal column name, as in {@code VSUtil.isVariableValue}/
+    * {@code isScriptValue}.
     */
    private String resolveMeasure(String runtimeId, Principal user, String assemblyName,
                                  String table, List<String> additionalTables, String measure)
@@ -493,9 +495,9 @@ public class SelectionBindingService {
    {
       String trimmed = measure.trim();
 
-      // Deliberately not VSUtil.isVariableValue -- see refuseIfDynamic.
-      if(trimmed.startsWith("$") || trimmed.startsWith("=")) {
-         return measure;
+      // Same test as VSUtil.isVariableValue/isScriptValue, hand-rolled -- see refuseIfDynamic.
+      if((trimmed.startsWith("$(") && trimmed.endsWith(")")) || trimmed.startsWith("=")) {
+         return trimmed;
       }
 
       List<String> measureTables = new ArrayList<>();

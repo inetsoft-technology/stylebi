@@ -550,7 +550,32 @@ class SelectionBindingServiceTest {
 
       assertEquals("$(Measure1)", boundMeasure(dataOutput, null, "$(Measure1)"));
       assertEquals("=field['AMOUNT'] * 2", boundMeasure(dataOutput, null, "=field['AMOUNT'] * 2"));
+      assertEquals("$( Combo1 )", boundMeasure(dataOutput, null, "$( Combo1 )"));
+      assertEquals("=1+1", boundMeasure(dataOutput, null, "=1+1"));
       verifyNoInteractions(dataOutput);
+   }
+
+   /** A bare {@code $Foo} is a literal column name, not a dynamic value (#78158). */
+   @Test
+   void refusesABareDollarMeasureAsALiteral() throws Exception {
+      DataOutputService dataOutput = measures("STATE", "AMOUNT");
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> boundMeasure(dataOutput, null, "$Foo"));
+
+      assertTrue(thrown.getMessage().contains("$Foo"));
+   }
+
+   @Test
+   void refusesAMalformedVariableMeasure() throws Exception {
+      DataOutputService dataOutput = measures("AMOUNT");
+
+      assertThrows(IllegalArgumentException.class, () -> boundMeasure(dataOutput, null, "$(a)b"));
+   }
+
+   @Test
+   void storesAPaddedDynamicMeasureTrimmed() throws Exception {
+      assertEquals("$(x)", boundMeasure(measures("AMOUNT"), null, " $(x)"));
    }
 
    // ── Logical Model column resolution (regression for Bug #76700) ────────────
