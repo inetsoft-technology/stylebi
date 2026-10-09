@@ -271,9 +271,9 @@ class BottomTabsReseedTest {
       assertEquals(new Point(78, 300), list.getPixelOffset());
    }
 
-   // today's seed left a 60px box; the open rewrites it to 58 and keeps its bottom on the strip
+   // the former seed left a 60px box; the open rewrites it to 58 and keeps its bottom on the strip
    @Test
-   void aRestoreKeepsACheckboxWithTodaysBoxOnTheStrip() throws Exception {
+   void aRestoreKeepsACheckboxWithAFormerBoxOnTheStrip() throws Exception {
       gate(true);
       SreeEnv.setProperty("viewsheet.density", "comfortable");
       Viewsheet vs = new Viewsheet();

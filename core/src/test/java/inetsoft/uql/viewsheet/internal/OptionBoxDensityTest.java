@@ -106,7 +106,7 @@ class OptionBoxDensityTest {
 
    @ParameterizedTest
    @MethodSource("types")
-   void todaysSeededBoxIsRewrittenOnOpen(Supplier<ListInputVSAssemblyInfo> type) {
+   void aFormerSeededBoxIsRewrittenOnOpen(Supplier<ListInputVSAssemblyInfo> type) {
       ListInputVSAssemblyInfo info = marked(type, 60, 40);
 
       open(info);
@@ -118,7 +118,7 @@ class OptionBoxDensityTest {
 
    @ParameterizedTest
    @MethodSource("types")
-   void todaysDenseBoxReturnsToTheLegacySize(Supplier<ListInputVSAssemblyInfo> type) {
+   void aFormerDenseBoxReturnsToTheLegacySize(Supplier<ListInputVSAssemblyInfo> type) {
       SreeEnv.setProperty("viewsheet.density", "dense");
       ListInputVSAssemblyInfo info = marked(type, 48, 28);
 
@@ -130,7 +130,7 @@ class OptionBoxDensityTest {
 
    @ParameterizedTest
    @MethodSource("types")
-   void anAuthorBoxKeepsItsSizeButLosesTodaysRow(Supplier<ListInputVSAssemblyInfo> type) {
+   void anAuthorBoxKeepsItsSizeButLosesTheFormerRow(Supplier<ListInputVSAssemblyInfo> type) {
       ListInputVSAssemblyInfo info = marked(type, 140, 40);
 
       open(info);
@@ -153,7 +153,7 @@ class OptionBoxDensityTest {
       ListInputVSAssemblyInfo neverOpened = marked(type, 60, 40);
       revert(neverOpened);
 
-      assertEquals(40, neverOpened.getPixelSize().height, "today's pair reverts directly too");
+      assertEquals(40, neverOpened.getPixelSize().height, "a former pair reverts directly too");
       assertEquals(20, neverOpened.getCellHeightValue());
    }
 

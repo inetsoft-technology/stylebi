@@ -434,7 +434,7 @@ public class CheckBoxVSAssemblyInfo extends ListInputVSAssemblyInfo
    }
 
    /**
-    * Seed the modern-gated round corner, cell alignment, and control height, plus the shared input
+    * Seed the modern-gated round corner, cell alignment, and option box, plus the shared input
     * title lane and value ink (seedInputTitleLane/seedInputValueInk). This type bypasses the base
     * chrome hook (see VSAssemblyInfo.bypassesBaseChrome()) so it seeds its own — form-input
     * modernization, tracked as its own follow-on project from the card-corner work.

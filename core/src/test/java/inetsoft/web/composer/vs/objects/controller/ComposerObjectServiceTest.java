@@ -237,6 +237,20 @@ class ComposerObjectServiceTest {
    }
 
    @Test
+   void aTextInputResizedToItsOwnSizeIsNotFlagged() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.getVSAssemblyInfo().setName("vs1");
+      TextInputVSAssembly input = new TextInputVSAssembly(vs, "TextInput1");
+      input.getVSAssemblyInfo().setPixelOffset(new Point(0, 0));
+      input.getVSAssemblyInfo().setPixelSize(new Dimension(100, 30));
+      vs.addAssembly(input);
+
+      resize(vs, "TextInput1", 100, 30);
+
+      assertFalse(input.getVSAssemblyInfo().isUserSize(), "a position-only change is not the author's size");
+   }
+
+   @Test
    void aDraggedTreeIsFlagged() throws Exception {
       Viewsheet vs = new Viewsheet();
       vs.getVSAssemblyInfo().setName("vs1");

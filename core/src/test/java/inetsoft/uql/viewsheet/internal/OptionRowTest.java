@@ -101,4 +101,14 @@ class OptionRowTest {
          .parse(new ByteArrayInputStream(xml(info).getBytes(StandardCharsets.UTF_8)));
       return doc.getDocumentElement();
    }
+
+   @Test
+   void anUnmarkedCheckboxWritesNoNewAttribute() {
+      CheckBoxVSAssemblyInfo info = new CheckBoxVSAssemblyInfo();
+      info.setVizMark(null);
+      String xml = xml(info);
+
+      assertFalse(xml.contains("userCellHeight"));
+      assertFalse(xml.contains("userSize"));
+   }
 }
