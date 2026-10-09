@@ -3359,6 +3359,39 @@ class WorksheetEditServiceMutatorsTest {
                  "the expression itself is still updated");
    }
 
+   /**
+    * Bug #78143, cross-layer contract: every canonical name the plugin's
+    * {@code normalizeColumnType} can forward (its 12 names, plus {@code character} for the
+    * {@code char} alias and {@code double} for number/numeric/decimal/bigdecimal) must be
+    * accepted by the backend guard and stored as that explicit type, never coerced to
+    * {@code string}, on both the add and the edit op. Editing an inferred double with one of
+    * them (what the plugin sends for {@code edit_expression type:"number"}) stores it explicit.
+    */
+   @ParameterizedTest
+   @CsvSource({ "string", "integer", "double", "float", "character", "byte", "short", "long",
+                "date", "time", "timeInstant", "boolean" })
+   void expressionOpsAcceptEveryCanonicalTypeThePluginForwards(String type) throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = quantityTable(ws);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn(
+         "T", "ADDED", "field['QUANTITY'] * 2", type, false));
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn(
+         "T", "EDITED", "field['QUANTITY'] * 2", null, false));
+      svc.apply("TOK", agent, ed -> ed.editExpression(
+         "T", "EDITED", "field['QUANTITY'] * 3", type, false));
+
+      for(String name : new String[] { "ADDED", "EDITED" }) {
+         ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute(name);
+         assertNotNull(col, name);
+         assertEquals(type, col.getDataType(), name);
+         assertEquals(Boolean.FALSE, col.getDataTypeProvenance(),
+                      name + ": a valid type the caller passed is an explicit choice");
+      }
+   }
+
    // =========================================================================
    // Sort test
    // =========================================================================
