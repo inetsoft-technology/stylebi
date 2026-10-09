@@ -139,6 +139,8 @@ public final class WizStrictValueParser {
       Pattern.compile("[+-]?(\\d+\\.?\\d*|\\.\\d+)([eE][+-]?\\d+)?");
    private static final Pattern DATE_PART =
       Pattern.compile("^(\\d{4})-(\\d{1,2})-(\\d{1,2})(?:[ T].*)?$");
+   private static final Pattern TIME_ONLY =
+      Pattern.compile("(\\d{1,2}):(\\d{1,2})(?::(\\d{1,2})(?:\\.\\d+)?)?");
    private static final Pattern TIME_PART = Pattern.compile("(\\d{1,2}):(\\d{1,2}):(\\d{1,2})");
 
    /** Java's own double grammar also takes hex floats, "NaN", and "1d"/"1f" suffixes. */
@@ -184,42 +186,32 @@ public final class WizStrictValueParser {
       }
    }
 
+   /**
+    * Each temporal type accepts only its own shape, so {@code Tool}'s cross-type fallbacks cannot
+    * turn {@code 10:30:00} into a date or {@code 2026-01-31} into midnight.
+    */
    private static void requireDate(String text, String type) {
-      requireCalendar(text);
+      boolean hasDate = DATE_PART.matcher(text).matches();
 
-      try {
-         if(Tool.DATE.equals(type)) {
-            try {
-               Tool.parseDate(text);
-            }
-            catch(Exception ex) {
-               try {
-                  Tool.parseDateTime(text);
-               }
-               catch(Exception ex2) {
-                  Tool.parseTime(text);
-               }
-            }
+      if(Tool.TIME.equals(type)) {
+         Matcher m = TIME_ONLY.matcher(text);
+
+         if(!m.matches()) {
+            throw new IllegalArgumentException("not a time of day (hh:mm[:ss[.fff]])");
          }
-         else if(Tool.TIME_INSTANT.equals(type)) {
-            try {
-               Tool.parseDateTime(text);
-            }
-            catch(Exception ex) {
-               try {
-                  Tool.parseDate(text);
-               }
-               catch(Exception ex2) {
-                  Tool.parseTime(text);
-               }
-            }
+
+         if(Integer.parseInt(m.group(1)) > 23 || Integer.parseInt(m.group(2)) > 59 ||
+            m.group(3) != null && Integer.parseInt(m.group(3)) > 59)
+         {
+            throw new IllegalArgumentException("not a real clock time");
          }
-         else {
-            Tool.parseTime(text);
-         }
+
+         return;
       }
-      catch(Exception ex) {
-         throw new IllegalArgumentException("not a recognizable " + type, ex);
+      else if(!hasDate) {
+         throw new IllegalArgumentException("not a date (yyyy-MM-dd[ hh:mm:ss])");
       }
+
+      requireCalendar(text);
    }
 }

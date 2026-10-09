@@ -57,7 +57,12 @@ class WizStrictValueParserTest {
          { "300", "byte" }, { "99999", "short" }, { "3000000000", "integer" },
          { "abc", "boolean" }, { "yes", "boolean" }, { "1", "boolean" },
          { "abc", "double" }, { "NaN", "double" }, { "Infinity", "float" }, { "abc", "long" },
-         { "", "integer" }, { "xy", "character" }, { "not-a-date", "date" } })
+         { "", "integer" }, { "xy", "character" }, { "not-a-date", "date" },
+         { "12d", "double" }, { "1.5f", "float" }, { "0x10", "double" }, { "0x1p3", "float" },
+         { "2026-02-30", "date" }, { "2026-13-45", "date" }, { "10:30:00", "date" },
+         { "2026-01-31", "time" }, { "25:61:00", "time" }, { "10:30:00", "timeInstant" },
+         { "2026-02-30 10:00:00", "timeInstant" }, { "2026-01-31 25:61:00", "timeInstant" },
+         { "2026-01-31 10:61:00", "timeInstant" } })
       {
          IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
             () -> WizStrictValueParser.parse(bad[0], bad[1]), bad[0] + " as " + bad[1]);
@@ -71,5 +76,23 @@ class WizStrictValueParserTest {
       Exception e = assertThrows(IllegalArgumentException.class,
          () -> WizStrictValueParser.parse("1", "widget"));
       assertTrue(e.getMessage().contains("widget"), e.getMessage());
+   }
+
+   /** Pins the accepted boundary so strictness cannot creep into legitimate input. */
+   @Test
+   void acceptsLegitimateBoundaryInputs() {
+      assertEquals(1000d, WizStrictValueParser.parse("1e3", "double"));
+      assertEquals(1d, WizStrictValueParser.parse("+1", "double"));
+      assertEquals(0.5d, WizStrictValueParser.parse(".5", "double"));
+      assertEquals(-0d, WizStrictValueParser.parse("-0", "double"));
+      assertEquals(1, WizStrictValueParser.parse("+1", "integer"));
+      assertNotNull(WizStrictValueParser.parse("2026-01-31", "date"));
+      assertNotNull(WizStrictValueParser.parse("2026-1-5", "date"));
+      assertNotNull(WizStrictValueParser.parse("2026-01-31T10:30:00", "timeInstant"));
+      assertNotNull(WizStrictValueParser.parse("2026-01-31 10:30:00", "timeInstant"));
+      assertNotNull(WizStrictValueParser.parse("2026-01-31 10:30:00.123", "timeInstant"));
+      assertNotNull(WizStrictValueParser.parse("10:30:00", "time"));
+      assertNotNull(WizStrictValueParser.parse("10:30:00.250", "time"));
+      assertNull(WizStrictValueParser.parse("__null__", "date"));
    }
 }
