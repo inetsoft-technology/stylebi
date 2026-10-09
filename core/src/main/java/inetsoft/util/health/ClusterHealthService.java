@@ -29,6 +29,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
+import java.util.Objects;
 import java.util.concurrent.*;
 import java.util.function.LongSupplier;
 
@@ -42,6 +43,11 @@ import java.util.function.LongSupplier;
  * overruns reports not-ready and is left running: it is never interrupted, and no new probe
  * starts until it finishes, so a stuck cluster holds one probe thread rather than one request
  * thread per health request (Bug #77880).
+ * <p>
+ * A request that arrives while a probe is running waits on that same probe until the probe's
+ * own deadline (its start plus the timeout), so concurrent probes of a healthy cluster all get
+ * its result, and no request waits longer than the timeout. A request that arrives after the
+ * running probe has already overrun reports not-ready at once.
  */
 @Service
 @Lazy
@@ -64,10 +70,10 @@ public class ClusterHealthService {
    /**
     * @param timeoutSource the source of the probe timeout, in milliseconds. It is only called on
     *                      the probe thread, so it may read the property store without blocking a
-    *                      health request.
+    *                      health request. A value read by a probe applies from the next probe.
     * @param initialTimeoutMillis the timeout used until the first probe has read the source.
     */
-   private ClusterHealthService(Cluster cluster, KeyValueStorageManager keyValueStorageManager,
+   ClusterHealthService(Cluster cluster, KeyValueStorageManager keyValueStorageManager,
                                 LongSupplier timeoutSource, long initialTimeoutMillis)
    {
       this.cluster = cluster;
@@ -82,8 +88,9 @@ public class ClusterHealthService {
    }
 
    /**
-    * Gets the cluster health status. Returns within the probe timeout, and at once when a
-    * previous probe is still running.
+    * Gets the cluster health status. Returns within the probe timeout. A call that finds a probe
+    * already running waits for that probe until its deadline instead of starting another one,
+    * and returns at once if that probe has already overrun.
     *
     * @return the cluster health status.
     */
@@ -92,37 +99,53 @@ public class ClusterHealthService {
          return new ClusterHealthStatus(false, "Cluster not initialized");
       }
 
-      CompletableFuture<ClusterHealthStatus> probe;
+      Probe probe;
+      boolean started = false;
 
       synchronized(this) {
-         if(inFlight != null && !inFlight.isDone()) {
-            // a previous probe is still blocked on the cluster; don't start another one and
-            // never report a result from before it started
-            LOG.debug("Previous cluster health probe is still running");
-            return new ClusterHealthStatus(false, "Cluster health check still running");
-         }
+         if(inFlight != null && !inFlight.future.isDone()) {
+            probe = inFlight;
 
-         try {
-            probe = CompletableFuture.supplyAsync(this::probe, executor);
+            if(probe.deadlineNanos - System.nanoTime() <= 0) {
+               // the running probe is already blocked on the cluster past its bound; don't
+               // start another one and never report a result from before it started
+               LOG.debug("Previous cluster health probe is still running");
+               return new ClusterHealthStatus(false, "Cluster health check still running");
+            }
          }
-         catch(RejectedExecutionException e) {
-            return new ClusterHealthStatus(false, "Cluster health check is shut down");
-         }
+         else {
+            long timeout = timeoutMillis;
+            long start = System.nanoTime();
+            CompletableFuture<ClusterHealthStatus> future;
 
-         inFlight = probe;
+            try {
+               future = CompletableFuture.supplyAsync(this::probe, executor);
+            }
+            catch(RejectedExecutionException e) {
+               return new ClusterHealthStatus(false, "Cluster health check is shut down");
+            }
+
+            probe = new Probe(future, start + TimeUnit.MILLISECONDS.toNanos(timeout), timeout);
+            inFlight = probe;
+            started = true;
+         }
       }
 
-      long timeout = timeoutMillis;
-
       try {
-         return probe.get(timeout, TimeUnit.MILLISECONDS);
+         // wait only until the probe's own deadline, so a call that joins a running probe
+         // never waits longer than the timeout either
+         long remaining = Math.max(0L, probe.deadlineNanos - System.nanoTime());
+         return probe.future.get(remaining, TimeUnit.NANOSECONDS);
       }
       catch(TimeoutException e) {
          // leave the probe running: interrupting it would let the next request start another
          // cluster operation that blocks the same way
-         LOG.warn("Cluster health check did not complete within {} ms", timeout);
+         if(started) {
+            LOG.warn("Cluster health check did not complete within {} ms", probe.timeoutMillis);
+         }
+
          return new ClusterHealthStatus(
-            false, "Cluster health check timed out after " + timeout + " ms");
+            false, "Cluster health check timed out after " + probe.timeoutMillis + " ms");
       }
       catch(InterruptedException e) {
          Thread.currentThread().interrupt();
@@ -167,15 +190,28 @@ public class ClusterHealthService {
    }
 
    private void refreshTimeout() {
+      String problem;
+
       try {
          long timeout = timeoutSource.getAsLong();
 
          if(timeout > 0) {
             timeoutMillis = timeout;
+            invalidTimeoutWarning = null;
+            return;
          }
+
+         problem = Long.toString(timeout);
       }
       catch(Exception e) {
-         LOG.debug("Failed to read the cluster health check timeout: {}", e.getMessage());
+         problem = e.getMessage();
+      }
+
+      // warn once per bad value, not on every probe
+      if(!Objects.equals(problem, invalidTimeoutWarning)) {
+         invalidTimeoutWarning = problem;
+         LOG.warn("Invalid {} value ({}), must be a positive number of milliseconds; " +
+                     "using {} ms", TIMEOUT_PROPERTY, problem, timeoutMillis);
       }
    }
 
@@ -249,11 +285,20 @@ public class ClusterHealthService {
    private final KeyValueStorageManager keyValueStorageManager;
    private final LongSupplier timeoutSource;
    private final ExecutorService executor;
-   private CompletableFuture<ClusterHealthStatus> inFlight; // guarded by this
+   private Probe inFlight; // guarded by this
    private volatile long timeoutMillis;
+   private String invalidTimeoutWarning; // probe thread only
    private static final String TIMEOUT_PROPERTY = "health.cluster.timeout";
    private static final long DEFAULT_TIMEOUT_MILLIS = 5000L;
    private static final String SREE_PROPERTIES_MAP = "inetsoft.storage.kv.sreeProperties";
    private static final String SREE_PROPERTIES_STORE_ID = "sreeProperties";
    private static final Logger LOG = LoggerFactory.getLogger(ClusterHealthService.class);
+
+   /**
+    * A running probe and the time by which every caller waiting on it gives up.
+    */
+   private record Probe(CompletableFuture<ClusterHealthStatus> future, long deadlineNanos,
+                        long timeoutMillis)
+   {
+   }
 }

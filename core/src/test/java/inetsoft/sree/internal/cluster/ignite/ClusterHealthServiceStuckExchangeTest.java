@@ -160,11 +160,21 @@ class ClusterHealthServiceStuckExchangeTest {
 
          // each health request answers not-ready within the bound, on its own request thread
          List<String> messages = new ArrayList<>();
+         Future<ClusterHealthStatus> joiner = null;
+         long joinerStart = 0L;
 
          for(int i = 0; i < REQUEST_COUNT; i++) {
             Future<ClusterHealthStatus> request = requests.submit(service::getStatus);
             long start = System.nanoTime();
             ClusterHealthStatus status;
+
+            if(i == 0) {
+               // a concurrent request while the first probe is still within its bound joins
+               // that probe instead of starting another or answering at once
+               Thread.sleep(JOIN_DELAY_MILLIS);
+               joinerStart = System.nanoTime();
+               joiner = requests.submit(service::getStatus);
+            }
 
             try {
                status = request.get(BOUND_MILLIS + MARGIN_MILLIS, TimeUnit.MILLISECONDS);
@@ -182,8 +192,20 @@ class ClusterHealthServiceStuckExchangeTest {
             messages.add(status.getMessage());
          }
 
+         // the concurrent request waited on the first probe only until that probe's deadline
+         ClusterHealthStatus joined =
+            joiner.get(BOUND_MILLIS + MARGIN_MILLIS, TimeUnit.MILLISECONDS);
+         long joinedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - joinerStart);
+         assertFalse(joined.isReady(), "concurrent request: " + joined.getMessage());
+         assertTrue(joined.getMessage().contains("timed out"),
+                    "concurrent request: " + joined.getMessage());
+         assertTrue(joinedMillis < BOUND_MILLIS,
+                    "concurrent request gave up at the first probe's deadline, took " +
+                    joinedMillis + " ms");
+
          // the first request reached the parked cluster call and timed out; the later ones
-         // found that probe still running instead of starting another
+         // found that probe already past its bound and still running, instead of starting
+         // another
          assertTrue(messages.get(0).contains("timed out"), "first request: " + messages);
 
          for(String message : messages.subList(1, messages.size())) {
@@ -265,5 +287,6 @@ class ClusterHealthServiceStuckExchangeTest {
    private static final long BOUND_MILLIS = 5000L;
    private static final long MARGIN_MILLIS = 2000L;
    private static final int REQUEST_COUNT = 4;
+   private static final long JOIN_DELAY_MILLIS = 1000L;
    private static IgniteCluster cluster;
 }
