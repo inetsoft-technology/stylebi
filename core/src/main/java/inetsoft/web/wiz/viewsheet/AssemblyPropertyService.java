@@ -24,6 +24,7 @@ import inetsoft.uql.asset.EmbeddedTableAssembly;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.util.XEmbeddedTable;
+import inetsoft.uql.viewsheet.ColumnOption;
 import inetsoft.uql.viewsheet.TimeInfo;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.CalendarVSAssemblyInfo;
@@ -37,6 +38,7 @@ import inetsoft.web.composer.model.vs.ImagePreviewPaneModel;
 import inetsoft.web.composer.model.vs.ImagePropertyDialogModel;
 import inetsoft.web.composer.model.vs.RangePaneModel;
 import inetsoft.web.composer.model.vs.TableStylePaneModel;
+import inetsoft.web.composer.model.vs.TextInputColumnOptionPaneModel;
 import inetsoft.web.composer.model.vs.TipCustomizeDialogModel;
 import inetsoft.web.composer.vs.dialog.*;
 import inetsoft.web.viewsheet.service.VSInputService;
@@ -304,6 +306,12 @@ public class AssemblyPropertyService {
             requireRowColumnValueValid(type, model, rvs.getViewsheet());
          }
 
+         if("textinput".equals(type) && resolved.values().stream()
+            .anyMatch(path -> path.startsWith("textInputColumnOptionPaneModel.")))
+         {
+            requireValidTextInputColumnOption(model);
+         }
+
          model = impliedSibling(model, resolved.values(), "tipView", "tipOption", true);
          model = impliedSibling(model, resolved.values(), "tipPaneModel.alpha",
                                  "tipPaneModel.tipOption", true);
@@ -324,6 +332,44 @@ public class AssemblyPropertyService {
 
          writeModel(runtimeId, type, assemblyName, model, linkUri, user, dispatcher);
       });
+   }
+
+   /**
+    * A TextInput's Date/Integer/Float editor is built by {@code setTextInputPropertyDialogModel}
+    * straight from the patched pane with no value check, so an unparseable Date bound (which
+    * makes {@code DateColumnOption.validate()} reject every value forever) or inverted bounds
+    * were stored silently. Runs the same checks {@link ColumnOptionService} runs for a Table
+    * column, on whichever editor the pane's {@code type} selects, and only when the patch
+    * touched the pane (so an unrelated patch is never blocked by an existing value).
+    */
+   private static void requireValidTextInputColumnOption(Object model) {
+      Object pane = PropertyPath.get(model, "textInputColumnOptionPaneModel");
+
+      if(!(pane instanceof TextInputColumnOptionPaneModel columnOption) ||
+         columnOption.getType() == null)
+      {
+         return;
+      }
+
+      String base = "textInputColumnOptionPaneModel.";
+
+      switch(columnOption.getType()) {
+      case ColumnOption.DATE:
+         WizColumnOptionValidator.validate(columnOption.getDateEditorModel(),
+                                           "set_assembly_properties", base + "dateEditorModel.");
+         break;
+      case ColumnOption.INTEGER:
+         WizColumnOptionValidator.validate(columnOption.getIntegerEditorModel(),
+                                           "set_assembly_properties",
+                                           base + "integerEditorModel.");
+         break;
+      case ColumnOption.FLOAT:
+         WizColumnOptionValidator.validate(columnOption.getFloatEditorModel(),
+                                           "set_assembly_properties", base + "floatEditorModel.");
+         break;
+      default:
+         break;
+      }
    }
 
    /**
