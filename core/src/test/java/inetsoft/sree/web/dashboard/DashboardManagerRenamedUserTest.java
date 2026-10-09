@@ -28,6 +28,7 @@ import inetsoft.test.SreeHome;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.viewsheet.Viewsheet;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.MockedStatic;
@@ -134,6 +135,15 @@ class DashboardManagerRenamedUserTest {
       AssetRepository engine = mock(AssetRepository.class);
       List<String> removed = new ArrayList<>();
       when(engine.containsEntry(any())).thenReturn(true);
+      // the new name's d3 is a viewsheet the user saved, not a composed dashboard (for example
+      // a viewsheet of the new name, or of a new user who got the old name)
+      when(engine.getSheet(any(), any(), anyBoolean(), any())).thenAnswer(inv -> {
+         AssetEntry sheet = inv.getArgument(0);
+         Viewsheet vs = new Viewsheet();
+         vs.getViewsheetInfo().setComposedDashboard(
+            !("u0b".equals(sheet.getUser().getName()) && "d3".equals(sheet.getPath())));
+         return vs;
+      });
       doAnswer(inv -> {
          AssetEntry sheet = inv.getArgument(0);
          removed.add(sheet.getUser().getName() + "/" + sheet.getPath() + ":" +
@@ -156,10 +166,16 @@ class DashboardManagerRenamedUserTest {
          manager.removeRefusedViewsheet(entry, renamed, mock(Principal.class));
          manager.removeRefusedViewsheet(used, renamed, mock(Principal.class));
          manager.removeRefusedViewsheet(entry, null, mock(Principal.class));
+         manager.removeRefusedViewsheet(new AssetEntry(AssetRepository.USER_SCOPE,
+            AssetEntry.Type.VIEWSHEET, "d3", old), renamed, mock(Principal.class));
       }
 
-      assertEquals(List.of("u0/d1:true", "u0b/d1:true", "u0/d2:true", "u0/d1:true"), removed);
-      verify(engine, times(4)).removeSheet(any(), any(), eq(true));
+      assertEquals(List.of("u0/d1:true", "u0b/d1:true", "u0/d2:true", "u0/d1:true", "u0/d3:true"),
+                   removed);
+      verify(engine, times(5)).removeSheet(any(), any(), eq(true));
+      verify(engine, never()).removeSheet(
+         argThat(e -> "u0b".equals(e.getUser().getName()) && "d3".equals(e.getPath())), any(),
+         anyBoolean());
       assertNotEquals(Boolean.TRUE, AssetRepository.IGNORE_PERM.get(), "the flag is cleared");
    }
 

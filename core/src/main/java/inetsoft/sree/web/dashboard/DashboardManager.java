@@ -23,10 +23,12 @@ import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.DistributedMap;
 import inetsoft.sree.security.*;
 import inetsoft.storage.*;
+import inetsoft.uql.asset.AssetContent;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.util.DefaultIdentity;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.ConfigurationContext;
 import inetsoft.util.Tool;
@@ -197,7 +199,7 @@ public class DashboardManager implements AutoCloseable {
     * renamed or removed has created (Bug #78101). The user is logged out and no longer exists,
     * so the user's permissions are not checked: the entry is the one the create made. The same
     * entry of the new name is removed too, since the rename moves the user's assets to it,
-    * unless a dashboard of the new name uses it.
+    * unless a dashboard of the new name uses it. Only a composed dashboard viewsheet is removed.
     *
     * @param entry     the viewsheet entry the create made, owned by the old name.
     * @param newUser   the new name, or null if the user was not renamed.
@@ -217,7 +219,12 @@ public class DashboardManager implements AutoCloseable {
       try {
          for(AssetEntry sheet : entries) {
             try {
-               if(engine.containsEntry(sheet)) {
+               // only a composed dashboard viewsheet, never one the user saved under the same
+               // path, e.g. a viewsheet of the new name, or of a new user of the old name
+               if(engine.containsEntry(sheet) &&
+                  engine.getSheet(sheet, principal, false, AssetContent.ALL) instanceof Viewsheet vs &&
+                  vs.getViewsheetInfo().isComposedDashboard())
+               {
                   engine.removeSheet(sheet, principal, true);
                }
             }
