@@ -36,6 +36,7 @@ import org.apache.ignite.spi.communication.tcp.TcpCommunicationSpi;
 import org.apache.ignite.spi.discovery.tcp.TcpDiscoveryIoSession;
 import org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi;
 import org.apache.ignite.spi.discovery.tcp.internal.TcpDiscoveryNode;
+import org.apache.ignite.spi.discovery.tcp.ipfinder.multicast.TcpDiscoveryMulticastIpFinder;
 import org.apache.ignite.spi.discovery.tcp.ipfinder.vm.TcpDiscoveryVmIpFinder;
 import org.apache.ignite.spi.discovery.tcp.messages.TcpDiscoveryAbstractMessage;
 import org.junit.jupiter.api.*;
@@ -73,6 +74,9 @@ import static org.mockito.Mockito.*;
 class IgniteClusterMinorityIslandTest {
    @TempDir
    Path clusterDir;
+
+   // the multicast port of the nodes' IP finder, or 0 for a static IP finder
+   private int multicastPort;
 
    @BeforeEach
    void reset() {
@@ -289,6 +293,52 @@ class IgniteClusterMinorityIslandTest {
       }
    }
 
+   /**
+    * The default docker deployment discovers its nodes by multicast, so the island check must
+    * work there too: every node of the deployment publishes the same fingerprint, and the node
+    * left alone after a split reports not-ready.
+    */
+   @Test
+   void multicastDeploymentReportsTheIsland() throws Exception {
+      multicastPort = 40000 + new Random().nextInt(5000);
+      Nodes nodes = startNodes(3);
+
+      try {
+         Set<Object> fingerprints = new HashSet<>();
+
+         for(int i = 0; i < 3; i++) {
+            fingerprints.add(nodes.get(i).getIgniteInstance().cluster().localNode()
+                                .attribute(MinorityIslandDetector.DEPLOYMENT_ATTR));
+         }
+
+         assertEquals(1, fingerprints.size(), "one deployment, one fingerprint");
+         assertNotNull(fingerprints.iterator().next());
+
+         ClusterHealthService[] health = nodes.health();
+         int[] ports = nodes.discoveryPorts();
+         BLOCKED.put(ports[2], new HashSet<>(Set.of(ports[0], ports[1])));
+         BLOCKED.put(ports[0], new HashSet<>(Set.of(ports[2])));
+         BLOCKED.put(ports[1], new HashSet<>(Set.of(ports[2])));
+         await().atMost(Duration.ofSeconds(90)).until(() ->
+            servers(nodes.get(2)) == 1 && servers(nodes.get(0)) == 2);
+         BLOCKED.clear();
+
+         await().atMost(Duration.ofSeconds(60)).pollInterval(Duration.ofMillis(250)).until(() ->
+            !health[2].getStatus().isReady());
+         assertTrue(health[2].getStatus().getMessage().contains("minority cluster island"),
+                    health[2].getStatus().getMessage());
+
+         for(int round = 0; round < 6; round++) {
+            assertReady(health[0], "n1 in the larger cluster");
+            assertReady(health[1], "n2 in the larger cluster");
+            Thread.sleep(CHECK_MILLIS);
+         }
+      }
+      finally {
+         nodes.closeAll();
+      }
+   }
+
    private static void collectIslands(Nodes nodes, List<String> islands, int... indexes) {
       for(int index : indexes) {
          String message = nodes.get(index).getMinorityIslandMessage();
@@ -348,8 +398,20 @@ class IgniteClusterMinorityIslandTest {
    private IgniteCluster start(String name, int discoveryBase, int portRange, int clientBase,
                                int clientRange, List<String> addresses) throws Exception
    {
-      TcpDiscoveryVmIpFinder ipFinder = new TcpDiscoveryVmIpFinder();
-      ipFinder.setAddresses(addresses);
+      TcpDiscoveryVmIpFinder ipFinder;
+
+      if(multicastPort > 0) {
+         TcpDiscoveryMulticastIpFinder multicastFinder = new TcpDiscoveryMulticastIpFinder();
+         multicastFinder.setMulticastGroup(MULTICAST_GROUP);
+         multicastFinder.setMulticastPort(multicastPort);
+         multicastFinder.setLocalAddress("127.0.0.1");
+         ipFinder = multicastFinder;
+      }
+      else {
+         ipFinder = new TcpDiscoveryVmIpFinder();
+         ipFinder.setAddresses(addresses);
+      }
+
       PartitionableDiscoverySpi disco = new PartitionableDiscoverySpi();
       disco.setLocalAddress("127.0.0.1");
       disco.setLocalPort(discoveryBase);
@@ -559,6 +621,7 @@ class IgniteClusterMinorityIslandTest {
       }
    }
 
+   private static final String MULTICAST_GROUP = "228.10.78.105";
    private static final long CHECK_MILLIS = 500L;
    private static final long CONFIRM_MILLIS = 3000L;
    private static final Map<Integer, Set<Integer>> BLOCKED = new ConcurrentHashMap<>();
