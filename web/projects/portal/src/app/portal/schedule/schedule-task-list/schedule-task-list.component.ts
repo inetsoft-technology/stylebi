@@ -380,7 +380,9 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
                },
                (error) => this.showFolderError(error));
             }
-         });
+         },
+         // Bug #78136, the hint is refused without write permission on the parent folder
+         (error) => this.showFolderError(error));
       };
 
       const dialog = ComponentTool.showDialog(this.modal, EditTaskFolderDialog, commit);
@@ -427,7 +429,9 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
                const dialog = ComponentTool.showDialog(this.modal, EditTaskFolderDialog, commit);
                dialog.model = data;
             }
-         });
+         },
+         // Bug #78136, the edit model is refused without permission on the folder (#77906)
+         (error) => this.showFolderError(error));
    }
 
    /**

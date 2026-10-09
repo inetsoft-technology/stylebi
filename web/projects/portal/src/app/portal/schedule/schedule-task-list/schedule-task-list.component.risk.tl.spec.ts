@@ -19,7 +19,8 @@
 /**
  * Pass 2 — Risk tests for ScheduleTaskListComponent.
  * Covers: mergeChange (WebSocket-driven task list updates), newTask (HTTP flow),
- * editTask, navigateToTaskEditor (private), removeItems (confirm+HTTP), changeShowType.
+ * editTask, navigateToTaskEditor (private), removeItems (confirm+HTTP), changeShowType,
+ * refused folder hint / edit model calls (Bug #78136).
  */
 
 import { http, HttpResponse } from "msw";
@@ -31,6 +32,7 @@ import { server } from "@test-mocks/server";
 import { ScheduleTaskChange } from "../../../../../../shared/schedule/model/schedule-task-change";
 import { ScheduleTaskListComponent } from "./schedule-task-list.component";
 import { MessageDialog } from "../../../widget/dialog/message-dialog/message-dialog.component";
+import { ComponentTool } from "../../../common/util/component-tool";
 import {
    lastRenderedFixture,
    makeTask,
@@ -406,6 +408,76 @@ describe("ScheduleTaskListComponent — risk tests", () => {
          finally {
             spy.mockRestore();
          }
+      });
+   });
+
+   // -------------------------------------------------------------------------
+   // refused folder calls (Bug #78136)
+   // -------------------------------------------------------------------------
+
+   describe("refused folder calls", () => {
+      function denied() {
+         return HttpResponse.json({ error: "Forbidden", message: "denied" }, { status: 403 });
+      }
+
+      async function newFolder(hint: () => any) {
+         let addCalls = 0;
+         server.use(
+            http.post("*/api/portal/schedule/add/checkDuplicate", hint),
+            http.post("*/api/portal/schedule/folder/add", () => {
+               addCalls++;
+               return HttpResponse.json({});
+            }),
+         );
+         const { comp } = await renderScheduleTaskList();
+         vi.spyOn(comp, "loadTasks").mockImplementation(() => {});
+         vi.spyOn(comp as any, "loadTaskFolderTree").mockImplementation(() => {});
+         // the folder name dialog commits right away
+         vi.spyOn(ComponentTool, "showDialog").mockImplementation((_m, _t, commit) => {
+            commit({ folderName: "new" });
+            return {} as any;
+         });
+         const messageSpy = vi.spyOn(ComponentTool, "showMessageDialog")
+            .mockReturnValue(Promise.resolve("ok"));
+
+         comp.newFolder(makeTreeNode("f1", "f1").data);
+         return { messageSpy, addCalls: () => addCalls };
+      }
+
+      // a duplicate hint refused without write permission on the parent folder (#77523)
+      // shows the refusal instead of nothing, and the folder isn't added
+      it("shows the refusal of the duplicate hint and doesn't add the folder", async () => {
+         const { messageSpy, addCalls } = await newFolder(denied);
+
+         await waitFor(() =>
+            expect(messageSpy).toHaveBeenCalledWith(expect.anything(), "_#(js:Error)", "denied"));
+         await new Promise(resolve => setTimeout(resolve, 50));
+         expect(addCalls()).toBe(0);
+      });
+
+      // control: an allowed hint that isn't a duplicate still adds the folder
+      it("adds the folder when the hint allows it", async () => {
+         const { messageSpy, addCalls } = await newFolder(
+            () => HttpResponse.json({ duplicate: false }));
+
+         await waitFor(() => expect(addCalls()).toBe(1));
+         expect(messageSpy).not.toHaveBeenCalled();
+      });
+
+      // the edit model refused without permission on the folder (#77906) shows the refusal
+      // and doesn't open the edit dialog
+      it("shows the refusal of the edit model and doesn't open the edit dialog", async () => {
+         server.use(http.post("*/api/portal/schedule/folder/editModel", denied));
+         const { comp } = await renderScheduleTaskList();
+         const dialogSpy = vi.spyOn(ComponentTool, "showDialog").mockReturnValue({} as any);
+         const messageSpy = vi.spyOn(ComponentTool, "showMessageDialog")
+            .mockReturnValue(Promise.resolve("ok"));
+
+         (comp as any).editTaskFolder("f1");
+
+         await waitFor(() =>
+            expect(messageSpy).toHaveBeenCalledWith(expect.anything(), "_#(js:Error)", "denied"));
+         expect(dialogSpy).not.toHaveBeenCalled();
       });
    });
 });

@@ -192,12 +192,14 @@ public class ImportTaskController {
          if(selectedTasks.contains(taskId) && (!taskExists || overwriting)) {
             // Bug #77350, only a task imported here is moved from the root folder, where
             // setScheduleTask put it, to its folder in the xml
-            boolean move = isMovedToFolder(task, path);
+            boolean movable = isMovableToFolder(task, path);
 
             // Bug #77503, the move is refused without write permission on the folder, check it
             // before the task is saved so the task is reported as failed instead of the refusal
-            // aborting the rest of the import
-            if(move && !scheduleTaskFolderService.checkFolderPermission(
+            // aborting the rest of the import. Bug #78136, the write permission is checked on the
+            // folder path in the xml before the folder is looked up, so a folder that exists and
+            // one that doesn't are refused the same way and the result doesn't tell them apart
+            if(movable && !scheduleTaskFolderService.checkFolderPermission(
                path, principal, ResourceAction.WRITE))
             {
                LOG.warn("Task {} is not imported, the user doesn't have the write permission " +
@@ -205,6 +207,9 @@ public class ImportTaskController {
                failedList.add(taskId);
                continue;
             }
+
+            // a folder that doesn't exist on this server leaves the task in the root folder
+            boolean move = movable && scheduleTaskFolderService.checkFolderExists(path);
 
             // Bug #77549, #77972, every refusal of setScheduleTask (e.g. a batch action query in
             // another organization or a batch action target task the caller may not see) is
@@ -333,11 +338,12 @@ public class ImportTaskController {
    }
 
    /**
-    * Checks if an imported task is moved into its folder in the xml, the same tasks that
-    * ScheduleTaskFolderService.getMovableTask() lets the move change.
+    * Checks if an imported task is moved into its folder in the xml if the folder exists, the
+    * same tasks that ScheduleTaskFolderService.getMovableTask() lets the move change. Bug #78136,
+    * this doesn't look the folder up, so the folder write check can be done before the lookup.
     */
-   private boolean isMovedToFolder(ScheduleTask task, String path) {
-      return path != null && scheduleTaskFolderService.checkFolderExists(path) &&
+   private static boolean isMovableToFolder(ScheduleTask task, String path) {
+      return path != null && !path.isEmpty() && !"/".equals(path) &&
          task.isRemovable() && !isInternal(task) &&
          task.getType() != ScheduleTask.Type.CYCLE_TASK;
    }
