@@ -1166,7 +1166,6 @@ public class WorksheetEventUtil {
     */
    public static void invalidateDependents(Worksheet ws, TableAssembly table,
                                            AssetQuerySandbox box, AssetDataCache assetDataCache)
-      throws Exception
    {
       Set<String> visited = new HashSet<>();
       Deque<AssemblyEntry> queue = new ArrayDeque<>();
@@ -1186,12 +1185,18 @@ public class WorksheetEventUtil {
             queue.add(depEntry);
             box.resetTableLens(dep.getName());
 
-            for(int mode : new int[] { getMode(dep), AssetQuerySandbox.RUNTIME_MODE }) {
-               DataKey key = AssetDataCache.getCacheKey(dep, box, null, mode, true);
+            try {
+               for(int mode : new int[] { getMode(dep), AssetQuerySandbox.RUNTIME_MODE }) {
+                  DataKey key = AssetDataCache.getCacheKey(dep, box, null, mode, true);
 
-               if(key != null) {
-                  assetDataCache.remove(key);
+                  if(key != null) {
+                     assetDataCache.remove(key);
+                  }
                }
+            }
+            catch(Exception e) {
+               LOG.warn("Failed to invalidate cached data of dependent table: " +
+                  dep.getName(), e);
             }
          }
       }

@@ -2944,6 +2944,15 @@ class WorksheetAgentControllerTest {
       ws.addAssembly(dependent);
       MirrorTableAssembly nested = new MirrorTableAssembly(ws, "Dep2", dependent);
       ws.addAssembly(nested);
+      // Reachable through both Dep1 and Dep2, so the walk must visit it once.
+      TableAssemblyOperator union = new TableAssemblyOperator();
+      TableAssemblyOperator.Operator unionOp = new TableAssemblyOperator.Operator();
+      unionOp.setOperation(TableAssemblyOperator.UNION);
+      unionOp.setLeftTable("Dep1");
+      unionOp.setRightTable("Dep2");
+      union.addOperator(unionOp);
+      ws.addAssembly(new ConcatenatedTableAssembly(ws, "Dep3",
+         new TableAssembly[] { dependent, nested }, new TableAssemblyOperator[] { union }));
 
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
       when(rws.getWorksheet()).thenReturn(ws);
@@ -2967,12 +2976,28 @@ class WorksheetAgentControllerTest {
          mock(SheetJoinService.class), mock(SheetSessionService.class),
          mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class), assetDataCache);
 
-      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+      java.util.Map<String, inetsoft.report.composition.execution.DataKey> keys =
+         new java.util.HashMap<>();
+
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class);
+          MockedStatic<inetsoft.report.composition.execution.AssetDataCache> cache =
+             mockStatic(inetsoft.report.composition.execution.AssetDataCache.class))
+      {
+         cache.when(() -> inetsoft.report.composition.execution.AssetDataCache.getCacheKey(
+               any(TableAssembly.class), any(), any(), anyInt(), anyBoolean()))
+            .thenAnswer(inv -> keys.computeIfAbsent(
+               ((TableAssembly) inv.getArgument(0)).getName() + "/" + inv.getArgument(3),
+               k -> mock(inetsoft.report.composition.execution.DataKey.class)));
          ctrl.edit("TOK-RD76873", refreshDataRequest("Table1"), agent);
       }
 
-      verify(box).resetTableLens("Dep1");
-      verify(box).resetTableLens("Dep2");
+      for(String dep : new String[] { "Dep1", "Dep2", "Dep3" }) {
+         verify(box, times(1)).resetTableLens(dep);
+         verify(assetDataCache).remove(
+            keys.get(dep + "/" + WorksheetEventUtil.getMode((TableAssembly) ws.getAssembly(dep))));
+         verify(assetDataCache).remove(
+            keys.get(dep + "/" + AssetQuerySandbox.RUNTIME_MODE));
+      }
    }
 
    /**
