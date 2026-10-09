@@ -99,8 +99,8 @@ class ControlHeightFollowDensityTest {
       info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
       assertEquals(30, info.getPixelSize().height, "modernized before revert");
 
-      // VizModernizeUtil.revert() clears the mark and re-seeds with a non-modern context
-      info.seedChromeDefaults(VizContext.of((VizMark) null));
+      // a Revert runs with an unmarked transition context
+      info.seedChromeDefaults(VizContext.ofTransition(null, null));
 
       assertEquals(AssetUtil.defh, info.getPixelSize().height, "reverted back to legacy");
    }
@@ -110,7 +110,7 @@ class ControlHeightFollowDensityTest {
       SpinnerVSAssemblyInfo info = new SpinnerVSAssemblyInfo();
       info.setPixelSize(new Dimension(info.getPixelSize().width, 40));
 
-      info.seedChromeDefaults(VizContext.of((VizMark) null));
+      info.seedChromeDefaults(VizContext.ofTransition(null, null));
 
       assertEquals(40, info.getPixelSize().height, "a genuinely custom height is never reverted");
    }
@@ -311,7 +311,7 @@ class ControlHeightFollowDensityTest {
       info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
       assertEquals(30, info.getPixelSize().height, "modernized before revert");
 
-      info.seedChromeDefaults(VizContext.of((VizMark) null));
+      info.seedChromeDefaults(VizContext.ofTransition(null, null));
 
       assertEquals(AssetUtil.defh, info.getPixelSize().height, "reverted back to legacy");
    }
@@ -409,16 +409,26 @@ class ControlHeightFollowDensityTest {
    }
 
    @Test
-   void aControlHandSizedToATierValueIsAlsoMoved() {
+   void anUnflaggedControlAtATierValueIsMoved() {
       SreeEnv.setProperty("viewsheet.density", "comfortable");
       SpinnerVSAssemblyInfo info = new SpinnerVSAssemblyInfo();
       info.setPixelSize(new Dimension(info.getPixelSize().width, 28));
 
       info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
 
-      assertEquals(30, info.getPixelSize().height,
-                   "the accepted false positive: a hand-sized control matching a tier is moved, "
-                      + "the same rule isControlHeight already applies on Revert");
+      assertEquals(30, info.getPixelSize().height, "content saved before the flag reads as seeded");
+   }
+
+   @Test
+   void aFlaggedControlAtATierValueIsKept() {
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      SpinnerVSAssemblyInfo info = new SpinnerVSAssemblyInfo();
+      info.setPixelSize(new Dimension(info.getPixelSize().width, 28));
+      info.setUserSize(true);
+
+      info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
+
+      assertEquals(28, info.getPixelSize().height);
    }
 
    @Test

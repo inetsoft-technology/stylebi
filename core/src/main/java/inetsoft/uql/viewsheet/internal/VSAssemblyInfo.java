@@ -1471,6 +1471,21 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
    }
 
    /**
+    * Whether density owns only this type's height, so its width is always the author's.
+    */
+   public boolean densitySizeIsHeightOnly() {
+      return false;
+   }
+
+   /**
+    * Whether a size change is the author's: the height alone when density owns only the height,
+    * either dimension otherwise.
+    */
+   public final boolean isAuthorSizeChange(Dimension before, Dimension after) {
+      return densitySizeIsHeightOnly() ? before.height != after.height : !before.equals(after);
+   }
+
+   /**
     * Return the box to its density size and drop the author's claim on it.
     */
    public void resetSize(VizContext ctx) {
