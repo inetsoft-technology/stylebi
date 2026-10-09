@@ -202,6 +202,10 @@ client) → flag and store only if the field differs from the resolved value. Al
 the size checkbox with #6390's order: `shownSize`, `applyDensitySize`, `setAssemblySize`,
 `recordAuthorSize` (`SelectionListPropertyDialogService:248-252`).
 
+A follow checkbox reads ticked only for a value the density rule owns: unflagged at the legacy 20,
+or for the row one of the former seed's 28 / 36 / 40. An unflagged author value reads unticked, so
+an OK keeps it.
+
 ### D9 — The legacy branch runs only on Revert and the mode switch
 
 Every unmarked branch in §5 and §6.2 runs only when `ctx.transition` is true, the guard #6157 put on
@@ -327,10 +331,12 @@ which cite the non-existent `updateDataRowCol()`, are replaced.
   checkbox and radio pairs also take D8's title and row handling, replacing `:454-458` / `:569-573`
   and `:1200-1202` / `:1321-1325`.
 - `SubmitPropertyDialogService` (`:84`, `:136`) takes the size checkbox the same way.
-- The repeated logic is three `VSDialogService` helpers, so each call site stays one line and the
+- The repeated logic is four `VSDialogService` helpers, so each call site stays one line and the
   logic is tested once: `setAssemblySizeFollowingDensity(info, model, viewsheet)` runs #6390's
-  three-call order, and the static `readOptionHeights(info, model)` / `applyOptionHeights(info,
-  model)` carry D8's title and row handling for checkbox and radio button.
+  three-call order, the static `readOptionHeights(info, model)` / `applyOptionHeights(info, model)`
+  carry D8's title and row handling for checkbox and radio button, and `applyOptionListSize(info,
+  model, viewsheet)` applies the lane and row before the size so a following box is sized from
+  them. The checkbox and radio apply paths call `applyOptionListSize`.
 - `VSInputService.setDetailHeight` (`:252`) sets `userCellHeight`.
 - `ComposerObjectService:148` uses `isAuthorSizeChange`.
 - `VSDialogService.applyDensitySize`, `recordAuthorSize` and `readSizeFollowsDensity` change per D2.
@@ -454,6 +460,12 @@ produce their 48 / 56 / 60 boxes. Export PDF, PNG and HTML of each.
 6. **An unmarked control an author edits gains a flag attribute in its XML** (`userSize`, or
    `userCellHeight` on a checkbox or radio row). It is inert until the dashboard is Modernized, the
    same as #6390's `userSize` on unmarked boxes.
+7. **A composer open does not run the rewrite.** Design mode never restores state, so a checkbox or
+   radio button saved by the former seed shows a 30 lane over its 40 row at comfortable in the
+   composer until it is opened in the viewer, its dialog is applied (which lands on the tier box),
+   or the dashboard's density or mark changes. #6390 accepted the same gap for selection lists.
+8. **A composer row drag leaves the box until the next open.** The drag flags the row; the next open
+   sizes a following box to lane + row, so a row dragged to 33 in a 58 box opens at 63.
 
 ## 11. Out of scope
 
