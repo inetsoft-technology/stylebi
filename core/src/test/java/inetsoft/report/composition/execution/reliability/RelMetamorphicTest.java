@@ -55,10 +55,15 @@ import static org.junit.jupiter.api.Assertions.*;
  * pre-existing product issue if not).</li>
  * <li>MR5 fresh context: the pool on with cleanThreshold=-1 (a new context for every claim)
  * gives what the pool on with defaults gives.</li>
+ * <li>MR6 query build: the pool on with the whole run in one query build (#5932: all its
+ * scripts share one claim) gives the oracle, with no implicit-global drift.</li>
  * </ul>
- * A difference is allowed only when it is a documented drift (B1 object-valued var, implicit
- * global per claim, C6 host-copy display) of the differing cells, the rest of the run equal,
- * and the pool is on in the compared run; those are counted and listed. Each comparison is
+ * A difference is allowed only when it is a documented drift (B1 object-valued var whose value
+ * is not kept, implicit global per claim, C6 host-copy display) of the differing cells, the
+ * rest of the run equal, and the pool is on in the compared run; those are counted and listed.
+ * The implicit-global and C6 drifts are excused against the pool off only, and the implicit
+ * global not inside a query build nor in a calc field (one span). A pooled run must never
+ * return a GraalJS value (the C1 copy, #5809). Each comparison is
  * also counted by the kind of its oracle (error only, a condition without a value, a
  * row-independent constant, or computing). A random script is compared by the structure of
  * its cells, a clock script exactly with dates by day.
@@ -205,18 +210,36 @@ public class RelMetamorphicTest {
       assertFalse(selects("corpus#68", all.get(39 + 689)));
       assertEquals("field['name'] + field['value'] + field[-1]['day']", RelCorpus.rename(
          "field['State'] + field['Sum(Sales)'] + field[-1]['Order Date']"));
-      // B1 needs the run's loss warning of one of the script's vars, B3 is a condition's var
+      // B1 needs the run's loss warning of one of the script's vars, for a value that is not
+      // kept across contexts: plain data (an array, an object) is kept since #5897 + #5923
       String list = "var list = list || []; list.push(1)";
       List<String> cells = List.of("Double:1.0");
-      assertEquals(Drift.B1_OBJECT_VAR, drift(list, Shape.FTL, Map.of("list", "an array"), cells, cells));
+      assertEquals(Drift.B1_OBJECT_VAR, drift(list, Shape.FTL, Map.of("list", "a function"), cells, cells));
+      assertEquals(Drift.B1_OBJECT_VAR, drift(list, Shape.FTL, Map.of("list", "a Map"), cells, cells));
+      assertEquals(Drift.B1_OBJECT_VAR, drift(list, Shape.FTL,
+         Map.of("list", "a value that took longer than 5000 ms to save"), cells, cells));
+      assertEquals(Drift.NONE, drift(list, Shape.FTL, Map.of("list", "an array"), cells, cells));
+      assertEquals(Drift.NONE, drift(list, Shape.FTL, Map.of("list", "an object"), cells, cells));
+      assertEquals(Drift.NONE, drift(list, Shape.FTL, Map.of("list", "a script object"), cells, cells));
+      String two = "var fn = fn || function() { return 1; }; " + list;
+      assertEquals(Drift.B1_OBJECT_VAR, drift(two, Shape.FTL,
+         Map.of("fn", "a function", "list",
+                "an object that it shares with a variable whose value is not kept"), cells, cells));
+      assertEquals(Drift.NONE, drift(two, Shape.FTL, Map.of("fn", "a function", "list", "an array"),
+                                     cells, cells));
       assertEquals(Drift.NONE, drift(list, Shape.FTL, Map.of(), cells, cells));
-      assertEquals(Drift.NONE, drift(list, Shape.FTL, Map.of("other", "an array"), cells, cells));
-      assertEquals(Drift.NONE, drift(list, Shape.CALC_FIELD, Map.of("list", "an array"), cells, cells));
-      assertEquals(Drift.B3_CONDITION_VAR, drift(list, Shape.CONDITION, Map.of(), cells, cells));
-      assertEquals(Drift.IMPLICIT_GLOBAL, drift("n = (n || 0) + 1; n", Shape.FTL, Map.of(), cells, cells));
-      assertEquals(Drift.NONE, drift("var acc = (acc || 0) + 1; acc", Shape.FTL, Map.of(), cells, cells));
-      assertEquals(Drift.B3_CONDITION_VAR,
+      assertEquals(Drift.NONE, drift(list, Shape.FTL, Map.of("other", "a function"), cells, cells));
+      assertEquals(Drift.NONE, drift(list, Shape.CALC_FIELD, Map.of("list", "a function"), cells, cells));
+      // a condition's var: the same in both modes on main (status doc B3, no excuse left)
+      assertEquals(Drift.NONE, drift(list, Shape.CONDITION, Map.of(), cells, cells));
+      assertEquals(Drift.NONE,
                    drift("var acc = (acc || 0) + 1; acc", Shape.CONDITION, Map.of(), cells, cells));
+      // an implicit global lives for one claim: a formula lens's batch, a condition's build;
+      // a calc field runs all its groups under one span
+      assertEquals(Drift.IMPLICIT_GLOBAL, drift("n = (n || 0) + 1; n", Shape.FTL, Map.of(), cells, cells));
+      assertEquals(Drift.IMPLICIT_GLOBAL, drift("n = (n || 0) + 1; n", Shape.CONDITION, Map.of(), cells, cells));
+      assertEquals(Drift.NONE, drift("n = (n || 0) + 1; n", Shape.CALC_FIELD, Map.of(), cells, cells));
+      assertEquals(Drift.NONE, drift("var acc = (acc || 0) + 1; acc", Shape.FTL, Map.of(), cells, cells));
    }
 
    /**
@@ -250,7 +273,8 @@ public class RelMetamorphicTest {
       assertEquals(Drift.B1_OBJECT_VAR, drift(counter, Shape.FTL, lost, restart,
          List.of("Double:1.0", "Double:1.0", "Double:2.0", "Double:3.0")));
 
-      // a plain-data var lost to a home in use by another thread: one fresh restart only
+      // a plain-data var lost to a home in use by another thread: one fresh restart only, and
+      // only where lenses of other threads share the sandbox's homes (#6004)
       String data = PLAIN_OBJECT_VARS.iterator().next();
       Map<String, String> busy = Map.of(varNames(data).iterator().next(),
                                         OwnedVarWarnings.HOME_IN_USE);
@@ -258,12 +282,19 @@ public class RelMetamorphicTest {
       List<String> lostAt501 = new ArrayList<>(oracle.subList(0, 500));
       lostAt501.addAll(RelPipeline.restartedAt(data, 501));
       assertNotEquals(oracle, lostAt501);
-      assertEquals(Drift.B1_HOME_BUSY, drift(oracle, lostAt501, data, Shape.FTL, busy));
+      assertEquals(Drift.B1_HOME_BUSY, drift(oracle, lostAt501, data, Shape.FTL, busy, true));
+      assertEquals(Drift.NONE, drift(oracle, lostAt501, data, Shape.FTL, busy, false));
       List<String> staleAfter = new ArrayList<>(lostAt501);
       staleAfter.set(900, oracle.get(900));
       assertNotEquals(lostAt501.get(900), oracle.get(900));
-      assertEquals(Drift.NONE, drift(oracle, staleAfter, data, Shape.FTL, busy));
-      assertEquals(Drift.NONE, drift(oracle, lostAt501, data, Shape.FTL, Map.of()));
+      assertEquals(Drift.NONE, drift(oracle, staleAfter, data, Shape.FTL, busy, true));
+      assertEquals(Drift.NONE, drift(oracle, lostAt501, data, Shape.FTL, Map.of(), true));
+      // a lossy counter whose home another thread held: shared homes only
+      Map<String, String> counterBusy = Map.of(varNames(counter).iterator().next(),
+                                               OwnedVarWarnings.HOME_IN_USE);
+      assertEquals(Drift.B1_HOME_BUSY, drift(counter, Shape.FTL, counterBusy, restart, restart,
+                                             true));
+      assertEquals(Drift.NONE, drift(counter, Shape.FTL, counterBusy, restart, restart, false));
       assertNotNull(plainLoss(data, busy, false));
       assertNull(plainLoss(data, busy, true));
 
@@ -299,6 +330,10 @@ public class RelMetamorphicTest {
       String value = "Value:{a: 1}" + RelPipeline.CONTENT + "{a=N:1}";
       String copy = "M{a=Double:1.0}" + RelPipeline.CONTENT + "{a=N:1}";
       assertEquals(Drift.C6_HOST_COPY, ftlDrift(List.of(value), List.of(copy), "({ a: 1 })"));
+      // the pool's side is the copy: a GraalJS value from the pooled run is never C6
+      assertEquals(Drift.NONE, ftlDrift(List.of(copy), List.of(value), "({ a: 1 })"));
+      assertEquals("Value:{a: 1}", escapedValue(List.of("S:x", "7|" + value)));
+      assertNull(escapedValue(List.of(copy, "S:Value:")));
       assertEquals(Drift.NONE, ftlDrift(List.of(value),
          List.of("M{a=S:1}" + RelPipeline.CONTENT + "{a=S:1}"), "({ a: 1 })"));
       assertEquals(Drift.NONE, ftlDrift(List.of("M{a=Integer:1}" + RelPipeline.CONTENT + "{a=N:1}"),
@@ -542,6 +577,32 @@ public class RelMetamorphicTest {
    }
 
    /**
+    * MR6: the pool on with the whole run in one query build, as AssetQuery.getTableLens opens
+    * it (G10 piece Q, #5932): every claim of the build is held to its end, so the run's scripts
+    * share one context and an implicit global lives for the run as with the pool off; it is
+    * not excused here. Each read but the invalidate, after which the pool off goes on with
+    * the implicit globals of the rows it read ahead (D1, a read-ahead difference).
+    */
+   @ParameterizedTest(name = "{0}")
+   @MethodSource("cases")
+   public void mr6QueryBuild(Case c) throws Exception {
+      RelConfig build = RelConfig.on().inQueryBuild();
+      List<Cmp> list = new ArrayList<>();
+
+      for(Shape shape : Shape.values()) {
+         List<ReadPattern> reads = shape.rowScripted() ? ReadPattern.all(c.seed()).stream()
+            .filter(r -> r.kind() != ReadPattern.Kind.INVALIDATE_THEN_SEQUENTIAL).toList()
+            : List.of(ReadPattern.SEQUENTIAL);
+
+         for(ReadPattern read : reads) {
+            list.add(new Cmp(shape, ORACLE, ReadPattern.SEQUENTIAL, build, read));
+         }
+      }
+
+      check("MR6", c, list, true);
+   }
+
+   /**
     * The non-sequential read patterns that change how a shape runs its script: a formula
     * lens runs it in the read order; a condition runs it once when it is built, a calc field
     * in the aggregation's order, so they have none.
@@ -635,6 +696,17 @@ public class RelMetamorphicTest {
          count(relation + ".clock");
       }
 
+      // C1 (#5809): a pooled run gives Java a copy of a script object, never a GraalJS value of
+      // a pooled context, which the context's next clean or tenant would change under it
+      String escaped = cfg.pool() ? escapedValue(actual) : null;
+
+      if(escaped != null) {
+         count(relation + ".unknown");
+         return relation + " " + c.label() + " " + shape + " " + cfg + " " + read +
+            " returned a GraalJS value of a pooled context: " + escaped + "\nscript: " +
+            c.script();
+      }
+
       expected = comparable(expected, c.script());
       actual = comparable(actual, c.script());
 
@@ -644,12 +716,18 @@ public class RelMetamorphicTest {
 
       String diff = diff(expected, actual);
       Drift drift = drift(expected, actual, c.script(), shape, lost);
+      // the drifts of a pooled run against the pool off: C6 is a host copy against a GraalJS
+      // value, and an implicit global lives for one claim where the pool off keeps it for the
+      // env; with the pool on on both sides (MR5, the same batches) either is itself a pool
+      // inconsistency, e.g. a clean that left an implicit global (B6). Inside a query build
+      // (MR6) every script of the run shares one claim, so an implicit global lives as long
+      // as with the pool off (#5932)
+      boolean anyBase = drift != Drift.C6_HOST_COPY && drift != Drift.IMPLICIT_GLOBAL;
+      boolean excused = poolCompared && cfg.pool() && drift != Drift.NONE &&
+         (anyBase || !baseCfg.pool()) &&
+         !(drift == Drift.IMPLICIT_GLOBAL && cfg.queryBuild());
 
-      // C6 is a host copy against a GraalJS value: with the pool on on both sides (MR5) that
-      // is itself a pool inconsistency, not the documented drift
-      if(poolCompared && cfg.pool() && drift != Drift.NONE &&
-         !(drift == Drift.C6_HOST_COPY && baseCfg.pool()))
-      {
+      if(excused) {
          count(relation + ".drift." + drift);
          DRIFTS.add(relation + " " + drift + " " + c.label() + " " + shape + " " + cfg + " " +
                     read + ": " + diff);
@@ -842,18 +920,31 @@ public class RelMetamorphicTest {
    }
 
    /**
-    * The documented drift a difference may be, decided cell by cell. Both runs must have the
-    * same number of cells, the same failed cells and the same row ids. Then it is C6 if every
-    * differing cell is a GraalJS value on one side and a host container of equal typed
-    * content on the other (a host copy displayed differently); else the script's drift (B1 /
-    * B3 / implicit global, see {@link #drift(String, Shape, Map, List, List)}) if every differing
-    * cell is a value of the same type on both sides (only the variable's value differs); else
-    * none.
-    *
-    * @param lost the lens-owned vars the compared runs warned were lost, with what they held.
+    * The documented drift a difference may be, decided cell by cell, where no lenses of other
+    * threads share the run's homes (see {@link #drift(List, List, String, Shape, Map,
+    * boolean)}).
     */
    static Drift drift(List<String> expected, List<String> actual, String script, Shape shape,
                       Map<String, String> lost)
+   {
+      return drift(expected, actual, script, shape, lost, false);
+   }
+
+   /**
+    * The documented drift a difference may be, decided cell by cell. Both runs must have the
+    * same number of cells, the same failed cells and the same row ids. Then it is C6 if every
+    * differing cell is a GraalJS value in the base run and a host container of equal typed
+    * content in the compared, pooled run (the C1 copy displayed differently); else the
+    * script's drift (B1 / implicit global, see {@link #drift(String, Shape, Map, List, List,
+    * boolean)}) if every differing cell is a value of the same type on both sides (only the
+    * variable's value differs); else none.
+    *
+    * @param lost the lens-owned vars the compared runs warned were lost, with what they held.
+    * @param sharedHomes whether lenses of other threads read the run's sandbox at once, so
+    *                    they can hold a home the run's lens pulls from.
+    */
+   static Drift drift(List<String> expected, List<String> actual, String script, Shape shape,
+                      Map<String, String> lost, boolean sharedHomes)
    {
       if(expected.size() != actual.size()) {
          return Drift.NONE;
@@ -890,24 +981,41 @@ public class RelMetamorphicTest {
          return Drift.C6_HOST_COPY;
       }
 
-      return sameTypes ? drift(script, shape, lost, expected, actual) : Drift.NONE;
+      return sameTypes ? drift(script, shape, lost, expected, actual, sharedHomes) : Drift.NONE;
    }
 
    /**
-    * @return whether two cells hold the same typed content, one as a GraalJS value (what the
-    * pool off can return) and the other as a host container (the pool's copy).
+    * @return whether two cells hold the same typed content, the base cell as a GraalJS value
+    * (what the pool off can return) and the compared cell as a host container (the pool's
+    * copy); never the other way round.
     */
-   static boolean hostCopy(String a, String b) {
-      int ia = a.indexOf(RelPipeline.CONTENT);
-      int ib = b.indexOf(RelPipeline.CONTENT);
+   static boolean hostCopy(String base, String compared) {
+      int ia = base.indexOf(RelPipeline.CONTENT);
+      int ib = compared.indexOf(RelPipeline.CONTENT);
 
-      if(ia < 0 || ib < 0 || !a.substring(ia).equals(b.substring(ib))) {
+      if(ia < 0 || ib < 0 || !base.substring(ia).equals(compared.substring(ib))) {
          return false;
       }
 
-      boolean va = a.startsWith("Value:");
-      boolean vb = b.startsWith("Value:");
-      return va != vb && HOST.matcher(va ? b : a).lookingAt();
+      return base.startsWith("Value:") && HOST.matcher(compared).lookingAt();
+   }
+
+   /**
+    * @return the exact part of the first cell that is or holds a GraalJS value, else
+    * {@code null}.
+    */
+   static String escapedValue(List<String> cells) {
+      for(String cell : cells) {
+         String value = unprefixed(cell);
+         int end = value.indexOf(RelPipeline.CONTENT);
+         String exact = end < 0 ? value : value.substring(0, end);
+
+         if(GRAAL_VALUE.matcher(exact).find()) {
+            return exact;
+         }
+      }
+
+      return null;
    }
 
    /**
@@ -925,21 +1033,37 @@ public class RelMetamorphicTest {
    }
 
    /**
+    * The drift of a script's same-typed value difference where no lenses of other threads
+    * share the run's homes.
+    */
+   static Drift drift(String script, Shape shape, Map<String, String> lost,
+                      List<String> expected, List<String> actual)
+   {
+      return drift(script, shape, lost, expected, actual, false);
+   }
+
+   /**
     * The documented drift a script's same-typed value difference may be with the pool on:
     * <ul>
     * <li>B1_OBJECT_VAR (status doc B1 residual): only in a formula lens, and only if the run
-    * logged the loss warning of one of the script's vars (after #5897 + #5923 a lens-owned var
-    * keeps plain arrays, objects and Dates across contexts; a value that is not kept, a home
-    * in use by another thread or a hand-off over its budget reads as undefined with one
-    * warning). A lossy synthetic counter must also have restarted at each loss, never read an
-    * older value; a plain-data synthetic script is never excused.</li>
+    * logged the loss warning of one of the script's vars, each for a value that is not kept
+    * across contexts ({@link #notKept}: a function, a class instance, a Map, a Proxy..., an
+    * object shared with one of them, or a hand-off over its budget). After #5897 + #5923 a
+    * lens-owned var keeps plain arrays, objects and Dates across contexts, so their loss
+    * ("an array", "an object") is never excused. A lossy synthetic counter must also have
+    * restarted at each loss, never read an older value; a plain-data synthetic script is never
+    * excused.</li>
     * <li>B1_HOME_BUSY: as B1 when every warning of the script's vars is a home in use by
-    * another thread (a concurrent read), the only documented loss of plain data.</li>
-    * <li>B3_CONDITION_VAR (status doc B3): a condition's self-referencing var, which ends with
-    * its condition's build, not lens-owned.</li>
-    * <li>IMPLICIT_GLOBAL: an implicit global lives for one claim.</li>
+    * another thread, the only documented loss of plain data, and only where lenses of other
+    * threads share the sandbox's homes ({@code sharedHomes}, #6004): a lens with its sandbox
+    * to itself never meets its home busy since #5965, #6012 and #6128.</li>
+    * <li>IMPLICIT_GLOBAL (status doc B6): an implicit global lives for one claim: a formula
+    * lens's batch or a condition's build. A calc field runs all its groups under one span, so
+    * never there. Callers excuse it against the pool off only, and not inside a query build
+    * (#5932).</li>
     * </ul>
-    * A difference without that evidence is none (unknown).
+    * A difference without that evidence is none (unknown). A condition's {@code var} (status
+    * doc B3) is the same in both modes on main, so it has no excuse.
     *
     * <p>The restart shape is checked for the synthetic scripts only: a corpus script whose var
     * warned is excused by the warning alone. A CF2 row-id gap lets a restart value up to 1 +
@@ -948,12 +1072,11 @@ public class RelMetamorphicTest {
     * @param expected the cells of the base run (the pool off, or the pool on in MR5), which
     *                 must have the restart shape too: in MR5 either side may be the stale one.
     * @param actual the cells of the compared run.
+    * @param sharedHomes whether lenses of other threads read the run's sandbox at once.
     */
    static Drift drift(String script, Shape shape, Map<String, String> lost,
-                      List<String> expected, List<String> actual)
+                      List<String> expected, List<String> actual, boolean sharedHomes)
    {
-      String code = RelCorpus.stripStrings(script);
-
       if(shape.rowScripted()) {
          Map<String, String> own = new LinkedHashMap<>(lost);
          own.keySet().retainAll(varNames(script));
@@ -963,28 +1086,36 @@ public class RelMetamorphicTest {
             // a home another thread held loses even plain data: callers let a plain-data
             // warning through only in a concurrent run (plainLoss), and the data must then be
             // exactly one fresh restart of the table, never an older value (formula lens only)
-            if(own.values().stream().allMatch(OwnedVarWarnings.HOME_IN_USE::equals) &&
+            if(sharedHomes &&
+               own.values().stream().allMatch(OwnedVarWarnings.HOME_IN_USE::equals) &&
                (!PLAIN_OBJECT_VARS.contains(script) ||
                 shape == Shape.FTL && restartedOnce(script, expected, actual)))
             {
                return Drift.B1_HOME_BUSY;
             }
 
-            if(!PLAIN_OBJECT_VARS.contains(script)) {
+            if(!PLAIN_OBJECT_VARS.contains(script) && own.values().stream().allMatch(
+               kind -> notKept(kind) || sharedHomes && OwnedVarWarnings.HOME_IN_USE.equals(kind)))
+            {
                return Drift.B1_OBJECT_VAR;
             }
          }
       }
 
-      if(shape == Shape.CONDITION && SELF_VAR.matcher(code).find()) {
-         return Drift.B3_CONDITION_VAR;
-      }
-
-      if(!RelCorpus.implicitGlobals(script).isEmpty()) {
+      if(shape != Shape.CALC_FIELD && !RelCorpus.implicitGlobals(script).isEmpty()) {
          return Drift.IMPLICIT_GLOBAL;
       }
 
       return Drift.NONE;
+   }
+
+   /**
+    * @return whether a loss warning's kind is a value a lens-owned var does not keep across
+    * contexts (owned-cloner.js), not plain data, which is kept, nor a home in use by another
+    * thread, nor a loss the warning cannot explain ("a script object").
+    */
+   static boolean notKept(String kind) {
+      return !PLAIN_KINDS.contains(kind) && !OwnedVarWarnings.HOME_IN_USE.equals(kind);
    }
 
    /**
@@ -1096,7 +1227,7 @@ public class RelMetamorphicTest {
    }
 
    public enum Drift {
-      NONE, B1_OBJECT_VAR, B1_HOME_BUSY, B3_CONDITION_VAR, IMPLICIT_GLOBAL, C6_HOST_COPY
+      NONE, B1_OBJECT_VAR, B1_HOME_BUSY, IMPLICIT_GLOBAL, C6_HOST_COPY
    }
 
    /**
@@ -1134,9 +1265,14 @@ public class RelMetamorphicTest {
    private static final Pattern DATE_CELL = Pattern.compile("\\b(Timestamp|Date|Time):(-?\\d+)");
    /** a host container cell: an array, list or map */
    private static final Pattern HOST = Pattern.compile("A\\[|L\\[|M\\{");
-   // a self-referencing var: var x = x || ... / (x || 0) + ...
-   private static final Pattern SELF_VAR = Pattern.compile(
-      "\\bvar\\s+([A-Za-z_$][\\w$]*)\\s*=\\s*\\(?\\s*\\1\\s*\\|\\|");
+   /** a GraalJS value in the exact part of a cell, also as an element of a host container */
+   private static final Pattern GRAAL_VALUE = Pattern.compile("(?:^|v:|[\\[{,=])Value:");
+   /**
+    * the loss kinds of plain data, which a lens-owned var keeps across contexts, and of a loss
+    * TableRowScope cannot explain
+    */
+   private static final Set<String> PLAIN_KINDS = Set.of("an array", "an object",
+                                                         "a script object");
    private static final Set<String> NUMBER_TYPES = Set.of("Double", "Integer", "Long");
    private static final Pattern VAR = Pattern.compile("\\bvar\\s+([A-Za-z_$][\\w$]*)");
 

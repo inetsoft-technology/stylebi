@@ -406,8 +406,8 @@ public class RelSoakTest {
       }
 
       // a plain-data object var is kept: its loss is a finding, but for a home in use by
-      // another thread (long-lived sandboxes are shared)
-      String plainLoss = RelMetamorphicTest.plainLoss(script, lost, true);
+      // another thread (long-lived sandboxes are shared; a short one is its worker's own)
+      String plainLoss = RelMetamorphicTest.plainLoss(script, lost, where.equals("long"));
 
       if(plainLoss != null) {
          inc("mismatches");
@@ -438,8 +438,9 @@ public class RelSoakTest {
       }
 
       String diff = RelMetamorphicTest.diff(expected, actual);
-      RelMetamorphicTest.Drift drift =
-         RelMetamorphicTest.drift(expected, actual, script, w.shape(), lost);
+      // only the long-lived sandboxes are read by several workers at once
+      RelMetamorphicTest.Drift drift = RelMetamorphicTest.drift(
+         expected, actual, script, w.shape(), lost, where.equals("long"));
       String what = w.c().label() + " " + w.shape() + " " + w.read() + " " + where + " " + cfg +
          ": " + diff;
 
