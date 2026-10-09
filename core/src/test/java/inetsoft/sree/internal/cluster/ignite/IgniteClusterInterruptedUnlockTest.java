@@ -44,7 +44,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * the interrupt kept, for the locks of getLock() and for the key and read/write locks, which are
  * released by unlockLock().
  *
- * The node is a real Ignite node with the product configuration, the interrupt is the only
+ * The nodes are real Ignite nodes with the product configuration, the interrupt is the only
  * thing the test sets.
  */
 @ExtendWith(SpringExtension.class)
@@ -54,32 +54,29 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag("core")
 class IgniteClusterInterruptedUnlockTest {
    @BeforeAll
-   static void startNode() throws Exception {
+   static void startNodes() throws Exception {
       clusterDir = Files.createTempDirectory("cluster-78096");
-      TcpDiscoveryVmIpFinder ipFinder = new TcpDiscoveryVmIpFinder();
-      int discoPort = freePort();
-      ipFinder.setAddresses(List.of("127.0.0.1:" + discoPort));
-      TcpDiscoverySpi disco = new TcpDiscoverySpi();
-      disco.setLocalAddress("127.0.0.1");
-      disco.setLocalPort(discoPort);
-      disco.setLocalPortRange(0);
-      disco.setIpFinder(ipFinder);
-      TcpCommunicationSpi comm = new TcpCommunicationSpi();
-      comm.setLocalAddress("127.0.0.1");
-      comm.setLocalPort(freePort());
-      comm.setLocalPortRange(0);
+      int port1 = freePort();
+      int port2 = freePort();
+      node = startNode("u78096-" + UUID.randomUUID(), port1, port1, port2);
+      // a lock that is held on one node is held for every node
+      otherNode = startNode("u78096-other-" + UUID.randomUUID(), port2, port1, port2);
+      long end = System.currentTimeMillis() + 30000L;
 
-      String instance = "u78096-" + UUID.randomUUID();
-      IgniteConfiguration config = IgniteCluster.getDefaultConfig(clusterDir.resolve(instance));
-      config.setIgniteInstanceName(instance);
-      config.setLocalHost("127.0.0.1");
-      config.setDiscoverySpi(disco);
-      config.setCommunicationSpi(comm);
-      node = IgniteClusterTestUtils.getIgniteCluster(config);
+      while(node.getClusterNodeIds().size() != 2 && System.currentTimeMillis() < end) {
+         Thread.sleep(50L);
+      }
+
+      assertEquals(2, node.getClusterNodeIds().size());
    }
 
    @AfterAll
-   static void stopNode() throws Exception {
+   static void stopNodes() throws Exception {
+      if(otherNode != null) {
+         otherNode.close();
+         otherNode = null;
+      }
+
       if(node != null) {
          node.close();
          node = null;
@@ -107,6 +104,7 @@ class IgniteClusterInterruptedUnlockTest {
 
       assertTrue(Thread.interrupted(), "interrupt was lost");
       assertTrue(isFreeOnOtherThread(name), "lock is still held after it was unlocked");
+      assertTrue(isFreeOnOtherNode(name), "lock is still held on the other node");
    }
 
    @Test
@@ -118,6 +116,7 @@ class IgniteClusterInterruptedUnlockTest {
 
       assertTrue(Thread.interrupted(), "interrupt was lost");
       assertTrue(isFreeOnOtherThread(name), "key lock is still held after it was unlocked");
+      assertTrue(isFreeOnOtherNode(name), "key lock is still held on the other node");
    }
 
    @Test
@@ -130,11 +129,20 @@ class IgniteClusterInterruptedUnlockTest {
       assertTrue(Thread.interrupted(), "interrupt was lost");
       assertTrue(isFreeOnOtherThread("write." + name),
                  "write lock is still held after it was unlocked");
+      assertTrue(isFreeOnOtherNode("write." + name), "write lock is still held on the other node");
    }
 
    private static boolean isFreeOnOtherThread(String name) throws Exception {
+      return isFree(node, name);
+   }
+
+   private static boolean isFreeOnOtherNode(String name) throws Exception {
+      return isFree(otherNode, name);
+   }
+
+   private static boolean isFree(IgniteCluster cluster, String name) throws Exception {
       FutureTask<Boolean> task = new FutureTask<>(() -> {
-         Lock lock = node.getLock(name);
+         Lock lock = cluster.getLock(name);
 
          if(lock.tryLock(5, TimeUnit.SECONDS)) {
             lock.unlock();
@@ -149,6 +157,29 @@ class IgniteClusterInterruptedUnlockTest {
       return task.get(30, TimeUnit.SECONDS);
    }
 
+   private static IgniteCluster startNode(String instance, int discoPort, int... ports)
+      throws Exception
+   {
+      TcpDiscoveryVmIpFinder ipFinder = new TcpDiscoveryVmIpFinder();
+      ipFinder.setAddresses(Arrays.stream(ports).mapToObj(p -> "127.0.0.1:" + p).toList());
+      TcpDiscoverySpi disco = new TcpDiscoverySpi();
+      disco.setLocalAddress("127.0.0.1");
+      disco.setLocalPort(discoPort);
+      disco.setLocalPortRange(0);
+      disco.setIpFinder(ipFinder);
+      TcpCommunicationSpi comm = new TcpCommunicationSpi();
+      comm.setLocalAddress("127.0.0.1");
+      comm.setLocalPort(freePort());
+      comm.setLocalPortRange(0);
+
+      IgniteConfiguration config = IgniteCluster.getDefaultConfig(clusterDir.resolve(instance));
+      config.setIgniteInstanceName(instance);
+      config.setLocalHost("127.0.0.1");
+      config.setDiscoverySpi(disco);
+      config.setCommunicationSpi(comm);
+      return IgniteClusterTestUtils.getIgniteCluster(config);
+   }
+
    private static int freePort() throws Exception {
       try(ServerSocket socket = new ServerSocket(0)) {
          return socket.getLocalPort();
@@ -157,4 +188,5 @@ class IgniteClusterInterruptedUnlockTest {
 
    private static Path clusterDir;
    private static IgniteCluster node;
+   private static IgniteCluster otherNode;
 }
