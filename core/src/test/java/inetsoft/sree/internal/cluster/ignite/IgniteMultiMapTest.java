@@ -88,17 +88,6 @@ public class IgniteMultiMapTest {
    }
 
    @Test
-   void lockUnlock() {
-      // same thread needs to lock, unlock on the same lock instance
-      MultiMap<Object, Object> map = ignite1.getMultiMap("multiMapLockUnlock");
-      map.lock("key1");
-
-      assertDoesNotThrow(() -> {
-         map.unlock("key1");
-      });
-   }
-
-   @Test
    void contains() {
       MultiMap<String, String> map1 = ignite1.getMultiMap("multiMapContains");
       MultiMap<String, String> map2 = ignite2.getMultiMap("multiMapContains");

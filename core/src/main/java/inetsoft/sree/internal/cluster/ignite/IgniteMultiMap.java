@@ -19,12 +19,11 @@ package inetsoft.sree.internal.cluster.ignite;
 
 import inetsoft.sree.internal.cluster.MultiMap;
 import inetsoft.util.Tool;
+import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteCache;
 
 import javax.cache.CacheException;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.Lock;
 import java.util.function.Supplier;
 
 public class IgniteMultiMap<K, V> implements MultiMap<K, V> {
@@ -241,82 +240,6 @@ public class IgniteMultiMap<K, V> implements MultiMap<K, V> {
       });
    }
 
-   @Override
-   public void lock(K key) {
-      getLock(key).lock();
-   }
-
-   @Override
-   public void lock(K key, long leaseTime, TimeUnit timeUnit) {
-      long deadlineNs = System.nanoTime() + timeUnit.toNanos(leaseTime);
-      Lock lock = getLock(key);
-
-      // Use tryLock() (zero timeout) in a polling loop instead of tryLock(time, unit).
-      // tryLock(time > 0) creates a GridDhtLockFuture with a LockTimeoutObject whose
-      // onTimeout() has a NullPointerException bug in Ignite 2.17.0 when tx is null
-      // (i.e., no active transaction). The NPE prevents the timeout from being handled
-      // properly, leaving the waiting thread blocked indefinitely.
-      while(!lock.tryLock()) {
-         if(System.nanoTime() >= deadlineNs) {
-            throw new IllegalStateException(
-               "Lock acquisition timed out after " + leaseTime + " " + timeUnit +
-               " for key: " + key);
-         }
-
-         try {
-            Thread.sleep(LOCK_POLL_INTERVAL_MS);
-         }
-         catch(InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException("Lock acquisition interrupted for key: " + key, e);
-         }
-      }
-   }
-
-   @Override
-   public boolean tryLock(K key) {
-      return getLock(key).tryLock();
-   }
-
-   @Override
-   public boolean tryLock(K key, long time, TimeUnit timeunit) throws InterruptedException {
-      long deadlineNs = System.nanoTime() + timeunit.toNanos(time);
-      Lock lock = getLock(key);
-
-      while(!lock.tryLock()) {
-         if(System.nanoTime() >= deadlineNs) {
-            return false;
-         }
-
-         Thread.sleep(LOCK_POLL_INTERVAL_MS);
-      }
-
-      return true;
-   }
-
-   @Override
-   public void unlock(K key) {
-      executeWithRetry(() -> {
-         Lock lock = getLock(key);
-         lock.unlock();
-         lockMap.get().remove(key);
-         return null;
-      });
-   }
-
-   private Lock getLock(K key) {
-      return executeWithRetry(() -> {
-         Lock lock = lockMap.get().get(key);
-
-         if(lock == null) {
-            lock = cache.lock(key);
-            lockMap.get().put(key, lock);
-         }
-
-         return lock;
-      });
-   }
-
    private <T> T executeWithRetry(Supplier<T> operation) {
       int retries = 0;
       RuntimeException lastException = null;
@@ -326,6 +249,12 @@ public class IgniteMultiMap<K, V> implements MultiMap<K, V> {
             return operation.get();
          }
          catch(CacheException | IllegalStateException e) {
+            // Bug #77879, an operation that failed in a transaction fails again at once until the
+            // transaction ends, so it is not retried
+            if(isInTransaction()) {
+               throw e;
+            }
+
             lastException = (e instanceof RuntimeException) ?
                (RuntimeException) e : new RuntimeException(e);
             retries++;
@@ -344,8 +273,15 @@ public class IgniteMultiMap<K, V> implements MultiMap<K, V> {
       throw lastException;
    }
 
+   private boolean isInTransaction() {
+      try {
+         return cache.unwrap(Ignite.class).transactions().tx() != null;
+      }
+      catch(RuntimeException ex) {
+         return false;
+      }
+   }
+
    private final IgniteCache<K, Collection<V>> cache;
-   private final ThreadLocal<Map<K, Lock>> lockMap = ThreadLocal.withInitial(HashMap::new);
    private static final int MAX_RETRIES = 5;
-   private static final long LOCK_POLL_INTERVAL_MS = 200L;
 }

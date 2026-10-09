@@ -2077,6 +2077,102 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    }
 
    @Override
+   public <T, E extends Exception> T runInTransaction(long timeout, TimeUnit unit,
+                                                       TransactionalAction<T, E> action) throws E
+   {
+      return runInTransaction(ignite, timeout, unit, action);
+   }
+
+   /**
+    * Implements {@link Cluster#runInTransaction} on an Ignite instance.
+    */
+   public static <T, E extends Exception> T runInTransaction(Ignite ignite, long timeout,
+                                                              TimeUnit unit,
+                                                              TransactionalAction<T, E> action)
+      throws E
+   {
+      IgniteTransactions transactions = ignite.transactions();
+      Transaction current = transactions.tx();
+
+      if(current != null) {
+         if(current.concurrency() != TransactionConcurrency.PESSIMISTIC) {
+            throw new IllegalStateException(
+               "The thread is already running an " + current.concurrency() + " transaction");
+         }
+
+         // join the transaction of the outer action, which commits or rolls it back
+         try {
+            return action.run();
+         }
+         catch(Throwable ex) {
+            current.setRollbackOnly();
+
+            if(isTransactionFailure(ex)) {
+               throw new DistributedTransactionException("The transaction failed", ex);
+            }
+
+            throw ex;
+         }
+      }
+
+      Transaction tx = transactions.txStart(
+         TransactionConcurrency.PESSIMISTIC, TransactionIsolation.REPEATABLE_READ,
+         unit.toMillis(timeout), 0);
+
+      try {
+         T result = action.run();
+         tx.commit();
+         return result;
+      }
+      catch(Throwable ex) {
+         if(isTransactionFailure(ex)) {
+            throw new DistributedTransactionException(
+               "The transaction failed and was rolled back", ex);
+         }
+
+         throw ex;
+      }
+      finally {
+         try {
+            // rolls back the transaction unless it was committed
+            tx.close();
+         }
+         catch(RuntimeException ex) {
+            LOG.warn("Failed to roll back a transaction", ex);
+         }
+      }
+   }
+
+   /**
+    * Checks if an exception means that the transaction failed: it timed out (including waiting
+    * for a lock), deadlocked, was rolled back, had a heuristic outcome, or a node it locked keys
+    * on left the cluster.
+    */
+   private static boolean isTransactionFailure(Throwable ex) {
+      if(ex instanceof DistributedTransactionException) {
+         return false;
+      }
+
+      for(Throwable cause = ex; cause != null; cause = cause.getCause()) {
+         if(cause instanceof TransactionException ||
+            cause instanceof org.apache.ignite.internal.transactions.TransactionCheckedException ||
+            // Bug #77879, a pessimistic lock whose primary node leaves fails the transaction
+            // with a topology exception, which callers handle like any other failure
+            cause instanceof org.apache.ignite.cluster.ClusterTopologyException ||
+            cause instanceof org.apache.ignite.internal.cluster.ClusterTopologyCheckedException)
+         {
+            return true;
+         }
+
+         if(cause.getCause() == cause) {
+            break;
+         }
+      }
+
+      return false;
+   }
+
+   @Override
    public <T extends Service> T getSingletonService(String serviceName,
                                                     Class<T> type, Supplier<T> init)
    {

@@ -18,7 +18,6 @@
 package inetsoft.sree.internal.cluster;
 
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 
 /**
  * A specialized map whose keys can be associated with multiple values.
@@ -141,46 +140,4 @@ public interface MultiMap<K, V> {
     * @return the number of values that match the given key in the multimap
     */
    int valueCount(K key);
-
-   /**
-    * Acquires a lock for the specified key.
-    *
-    * @param key the key to lock
-    */
-   void lock(K key);
-
-   /**
-    * Acquires the lock for the specified key, waiting up to the specified timeout.
-    * Throws {@link IllegalStateException} if the lock cannot be acquired within the timeout.
-    *
-    * @param key       the key to lock
-    * @param leaseTime maximum time to wait to acquire the lock
-    * @param timeUnit  unit of time for the timeout
-    */
-   void lock(K key, long leaseTime, TimeUnit timeUnit);
-
-   /**
-    * Tries to acquire the lock for the specified key.
-    *
-    * @param key the key to lock.
-    * @return {@code true} if lock is acquired, {@code false} otherwise
-    */
-   boolean tryLock(K key);
-
-   /**
-    * Tries to acquire the lock for the specified key.
-    *
-    * @param time     the maximum time to wait for the lock
-    * @param timeunit the time unit of the {@code time} argument
-    * @return {@code true} if the lock was acquired, {@code false} if the
-    * waiting time elapsed before the lock was acquired
-    */
-   boolean tryLock(K key, long time, TimeUnit timeunit) throws InterruptedException;
-
-   /**
-    * Releases the lock for the specified key.
-    *
-    * @param key the key to lock
-    */
-   void unlock(K key);
 }

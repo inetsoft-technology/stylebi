@@ -77,7 +77,6 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.io.*;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -872,18 +871,8 @@ public class PermissionMatrixOrgLifecycleTest {
       }
 
       @Override
-      public void lock(K key) {
-         delegate.lock(key);
-      }
-
-      @Override
-      public void lock(K key, long leaseTime, TimeUnit timeUnit) {
-         delegate.lock(key, leaseTime, timeUnit);
-      }
-
-      @Override
-      public void unlock(K key) {
-         delegate.unlock(key);
+      public V getForUpdate(K key) {
+         return deepCopy(delegate.getForUpdate(key));
       }
 
       @Override
