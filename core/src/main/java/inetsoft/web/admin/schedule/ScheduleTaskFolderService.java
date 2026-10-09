@@ -76,10 +76,7 @@ public class ScheduleTaskFolderService {
       // Bug #77454, the new folder must be a direct child of the parent the permission was
       // checked on, and it must not replace an existing folder. The duplicate endpoint the UI
       // calls first is only a hint, a request that skips it must not overwrite a folder
-      String prefix = "".equals(parentPath) || "/".equals(parentPath) ? "" : parentPath + "/";
-      String folderName = folderPath != null && folderPath.startsWith(prefix) ?
-         folderPath.substring(prefix.length()) : null;
-      checkFolderName(folderName);
+      checkFolderName(getNewFolderName(folderPath, parentPath));
 
       AssetFolder parentfolder =
          (AssetFolder) indexedStorage.getXMLSerializable(parentEntry.toIdentifier(), null);
@@ -178,6 +175,12 @@ public class ScheduleTaskFolderService {
          return new CheckDuplicateResponse(true);
       }
 
+      // Bug #78137, a name renameFolder refuses is never a duplicate. A name with a separator
+      // would look up a folder outside the parent the permission was checked on
+      if(!isValidFolderName(editModel.folderName())) {
+         return new CheckDuplicateResponse(false);
+      }
+
       AssetEntry oldEntry = getFolderEntry(editModel.oldPath());
       AssetEntry parentEntry = oldEntry.getParent();
       // Bug #77454, the same path renameFolder writes to
@@ -203,6 +206,13 @@ public class ScheduleTaskFolderService {
                                                    Principal principal)
       throws Exception
    {
+      // Bug #78137, a name addFolder refuses is never a duplicate. The name is taken from the
+      // path the way addFolder takes it, a name with a separator would look up a folder below
+      // another folder than the parent the permission was checked on
+      if(!isValidFolderName(getNewFolderName(folderPath, parentEntry.getPath()))) {
+         return new CheckDuplicateResponse(false);
+      }
+
       AssetEntry folderEntry = new AssetEntry(scope, AssetEntry.Type.SCHEDULE_TASK_FOLDER,
          folderPath, null);
       AssetFolder parentFolder = getTaskFolder(parentEntry.toIdentifier());
@@ -404,11 +414,33 @@ public class ScheduleTaskFolderService {
    }
 
    /**
+    * Bug #78137, the rule checkFolderName refuses names by, shared with the duplicate hints so a
+    * hint never looks up a path the real operation refuses to write.
+    */
+   private static boolean isValidFolderName(String name) {
+      return !Tool.isEmptyString(name) && !name.contains("/") && !name.trim().isEmpty();
+   }
+
+   /**
+    * Gets the name of a new folder from its path, the part after the parent path. Returns null
+    * when the path is not in the parent.
+    */
+   private static String getNewFolderName(String folderPath, String parentPath) {
+      String prefix = "".equals(parentPath) || "/".equals(parentPath) ? "" : parentPath + "/";
+      return folderPath != null && folderPath.startsWith(prefix) ?
+         folderPath.substring(prefix.length()) : null;
+   }
+
+   /**
     * Bug #77454, refuses a new folder name that is empty or contains the path separator. Such a
     * name would put the folder into another folder than the one the permission was checked on.
     * Bug #77856, also refuses a name made only of whitespace.
     */
    private static void checkFolderName(String name) throws MessageException {
+      if(isValidFolderName(name)) {
+         return;
+      }
+
       if(name != null && !name.isEmpty() && name.trim().isEmpty()) {
          throw new MessageException(Catalog.getCatalog().getString("folder.required"));
       }
