@@ -90,6 +90,20 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
     */
    IgniteCluster(IgniteConfiguration config, long islandCheckMillis, long islandConfirmMillis) {
       System.out.format("Joining cluster on %s/24%n", Tool.getIP());
+
+      if(!config.isClientMode()) {
+         // lets the minority island check tell this deployment's clusters from others'
+         String fingerprint = MinorityIslandDetector.getDeploymentFingerprint(
+            config.getDiscoverySpi(), InetsoftConfig.getInstance().getCluster());
+
+         if(fingerprint != null) {
+            Map<String, Object> attributes = config.getUserAttributes() == null ?
+               new HashMap<>() : new HashMap<>(config.getUserAttributes());
+            attributes.put(MinorityIslandDetector.DEPLOYMENT_ATTR, fingerprint);
+            config.setUserAttributes(attributes);
+         }
+      }
+
       ignite = createIgniteInstance(config);
       ignite.message().localListen(MESSAGE_TOPIC, new MessageDispatcher());
       ignite.message().localListen(AFFINITY_TOPIC, new AffinityCallProcessor());

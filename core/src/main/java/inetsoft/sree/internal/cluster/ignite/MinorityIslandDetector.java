@@ -17,7 +17,7 @@
  */
 package inetsoft.sree.internal.cluster.ignite;
 
-import inetsoft.util.config.InetsoftConfig;
+import inetsoft.util.config.*;
 import org.apache.ignite.*;
 import org.apache.ignite.client.ClientRetryNonePolicy;
 import org.apache.ignite.client.IgniteClient;
@@ -31,10 +31,16 @@ import org.apache.ignite.spi.discovery.DiscoverySpi;
 import org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi;
 import org.apache.ignite.spi.discovery.tcp.internal.TcpDiscoveryNode;
 import org.apache.ignite.spi.discovery.tcp.ipfinder.TcpDiscoveryIpFinder;
+import org.apache.ignite.spi.discovery.tcp.ipfinder.multicast.TcpDiscoveryMulticastIpFinder;
+import org.apache.ignite.spi.discovery.tcp.ipfinder.vm.TcpDiscoveryVmIpFinder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.lang.reflect.Field;
 import java.net.*;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
@@ -49,7 +55,13 @@ import java.util.stream.Collectors;
  * addresses in the discovery IP finder that no node of the local topology owns, and asks a node
  * at each of them for its server topology through Ignite's thin client protocol (the discovery
  * handshake only carries the responder's node id and order, not the size of its cluster). A
- * topology that shares no node with the local one is a foreign cluster.
+ * topology that shares no node with the local one is a foreign cluster, but only if it is a
+ * cluster of this deployment: every one of its nodes must publish the same deployment
+ * fingerprint as this node (the configured discovery base port and IP finder, see
+ * {@link #getDeploymentFingerprint}), and one of them must own the probed host. The thin client
+ * base port is shared by every StyleBI deployment on a host, so without this check another
+ * deployment on a shared host could answer at a probed port. Nodes of an older version publish
+ * no fingerprint and never count.
  * <p>
  * The cluster that keeps serving is decided by a rule that every island computes the same way
  * from the same data: more server nodes wins; on a tie, the cluster whose earliest-started member
@@ -95,13 +107,23 @@ final class MinorityIslandDetector implements AutoCloseable {
    @Override
    public void close() {
       executor.shutdownNow();
+
+      try {
+         // a round in progress is bounded by the connect and thin client timeouts
+         executor.awaitTermination(2L * CONNECT_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+      }
+      catch(InterruptedException e) {
+         Thread.currentThread().interrupt();
+      }
    }
 
    private void checkQuietly() {
       try {
          check();
       }
-      catch(Exception e) {
+      catch(Throwable e) {
+         // never let an error end the periodic task: scheduleWithFixedDelay stops for good
+         // after the first exception it sees
          LOG.debug("Cluster island check failed", e);
       }
    }
@@ -111,12 +133,14 @@ final class MinorityIslandDetector implements AutoCloseable {
     */
    void check() {
       Island local = Island.of(ignite.cluster().forServers().nodes());
-      UUID localId = ignite.cluster().localNode().id();
+      ClusterNode localNode = ignite.cluster().localNode();
+      UUID localId = localNode.id();
+      Object fingerprint = localNode.attribute(DEPLOYMENT_ATTR);
       Island better = null;
       boolean conclusive = true;
 
-      for(String endpoint : getThinClientEndpoints()) {
-         Collection<ClusterNode> nodes = fetchServerTopology(endpoint);
+      for(Map.Entry<String, InetAddress> endpoint : getThinClientEndpoints().entrySet()) {
+         Collection<ClusterNode> nodes = fetchServerTopology(endpoint.getKey());
 
          if(nodes == null) {
             continue;
@@ -135,12 +159,16 @@ final class MinorityIslandDetector implements AutoCloseable {
             continue;
          }
 
-         // only joined nodes of a StyleBI cluster count
+         // only joined nodes of a cluster of this deployment count, and one of them must be
+         // on the probed host
          List<ClusterNode> joined = nodes.stream()
             .filter(n -> n.order() > 0 && n.attribute(LOCAL_IP_ATTR) != null)
+            .filter(n -> fingerprint != null && fingerprint.equals(n.attribute(DEPLOYMENT_ATTR)))
             .toList();
 
-         if(joined.isEmpty() || joined.size() != nodes.size()) {
+         if(joined.isEmpty() || joined.size() != nodes.size() ||
+            joined.stream().noneMatch(n -> ownsHost(n, endpoint.getValue())))
+         {
             continue;
          }
 
@@ -170,40 +198,51 @@ final class MinorityIslandDetector implements AutoCloseable {
                minorityMessage = getMessage(local, better);
                LOG.warn("{} Restart this node so that it rejoins the larger cluster.",
                         minorityMessage);
-               haltIfEnabled();
+               haltPending = InetsoftConfig.getInstance().getCluster().isMinorityIslandHalt();
             }
          }
          else {
             minorityMessage = getMessage(local, better);
+         }
+
+         if(haltPending) {
+            // retried on the next rounds if raising the failure itself fails
+            haltPending = !halt();
          }
       }
       else {
          betterSince = -1L;
          betterRounds = 0;
 
+         // leaves after MIN_CLEAR_ROUNDS conclusive rounds without a better cluster; an
+         // inconclusive round in between neither counts nor resets them
          if(minorityMessage != null && conclusive && ++clearRounds >= MIN_CLEAR_ROUNDS) {
             minorityMessage = null;
             clearRounds = 0;
+            haltPending = false;
             LOG.warn("This node is no longer in a minority cluster island: no larger cluster " +
                         "of this deployment answers any more");
          }
       }
    }
 
-   private void haltIfEnabled() {
-      if(!InetsoftConfig.getInstance().getCluster().isMinorityIslandHalt()) {
-         return;
-      }
-
+   /**
+    * Raises a segmentation failure, so that Ignite's failure handler halts this node.
+    *
+    * @return {@code true} if the failure was raised, {@code false} if it should be retried.
+    */
+   private boolean halt() {
       LOG.error("cluster.minorityIslandHalt is enabled: raising a segmentation failure so " +
                    "that this node stops and is restarted into the larger cluster");
 
       try {
          ((IgniteEx) ignite).context().failure().process(new FailureContext(
             FailureType.SEGMENTATION, new IgniteException(minorityMessage)));
+         return true;
       }
-      catch(Exception e) {
-         LOG.error("Failed to raise the segmentation failure", e);
+      catch(Throwable e) {
+         LOG.error("Failed to raise the segmentation failure, retrying on the next check", e);
+         return false;
       }
    }
 
@@ -217,16 +256,18 @@ final class MinorityIslandDetector implements AutoCloseable {
     * Gets the thin client endpoints of the discovery addresses that no node of the local
     * topology owns.
     */
-   private Set<String> getThinClientEndpoints() {
+   private Map<String, InetAddress> getThinClientEndpoints() {
       DiscoverySpi spi = ignite.configuration().getDiscoverySpi();
       ClientConnectorConfiguration connector =
          ignite.configuration().getClientConnectorConfiguration();
 
       if(!(spi instanceof TcpDiscoverySpi discoverySpi) || connector == null) {
-         return Collections.emptySet();
+         return Collections.emptyMap();
       }
 
       Set<InetSocketAddress> owned = new HashSet<>();
+      // the addresses an AddressResolver maps a node to (NAT), as TcpDiscoverySpi publishes them
+      String extAddressesAttr = discoverySpi.getName() + "." + TcpDiscoverySpi.ATTR_EXT_ADDRS;
 
       for(ClusterNode node : ignite.cluster().nodes()) {
          if(node instanceof TcpDiscoveryNode tcpNode && tcpNode.discoveryPort() > 0) {
@@ -235,12 +276,20 @@ final class MinorityIslandDetector implements AutoCloseable {
             for(String address : tcpNode.addresses()) {
                owned.add(resolve(new InetSocketAddress(address, tcpNode.discoveryPort())));
             }
+
+            if(tcpNode.attribute(extAddressesAttr) instanceof Collection<?> extAddresses) {
+               for(Object address : extAddresses) {
+                  if(address instanceof InetSocketAddress socketAddress) {
+                     owned.add(resolve(socketAddress));
+                  }
+               }
+            }
          }
       }
 
-      int basePort = discoverySpi.getLocalPort();
+      int basePort = getConfiguredPort(discoverySpi);
       int portRange = Math.max(0, discoverySpi.getLocalPortRange());
-      Set<String> endpoints = new LinkedHashSet<>();
+      Map<String, InetAddress> endpoints = new LinkedHashMap<>();
 
       for(InetSocketAddress address : getRegisteredAddresses(discoverySpi.getIpFinder())) {
          int port = address.getPort() == 0 ? basePort : address.getPort();
@@ -263,7 +312,7 @@ final class MinorityIslandDetector implements AutoCloseable {
          InetAddress host = resolved.getAddress();
          String hostName = host instanceof Inet6Address ?
             "[" + host.getHostAddress() + "]" : host.getHostAddress();
-         endpoints.add(hostName + ":" + (connector.getPort() + offset));
+         endpoints.put(hostName + ":" + (connector.getPort() + offset), host);
       }
 
       return endpoints;
@@ -323,6 +372,123 @@ final class MinorityIslandDetector implements AutoCloseable {
       }
       catch(Exception e) {
          LOG.debug("Failed to get the cluster topology from {}", endpoint, e);
+         return null;
+      }
+   }
+
+   /**
+    * Checks if a node has the probed host among its addresses, so that a node that answers at
+    * a thin client port is one that the probed IP finder address can belong to.
+    */
+   private static boolean ownsHost(ClusterNode node, InetAddress host) {
+      for(String address : node.addresses()) {
+         try {
+            if(InetAddress.getByName(address).equals(host)) {
+               return true;
+            }
+         }
+         catch(UnknownHostException ignore) {
+            // not this one
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Gets the fingerprint of the deployment a server node belongs to: a hash of its configured
+    * discovery base port and of what its IP finder looks up. Nodes of one deployment are
+    * configured the same, and two deployments that agreed on both would have joined one cluster
+    * at start, so a different fingerprint means a different deployment. It is a hash so that
+    * the node attribute doesn't show the finder settings.
+    *
+    * @return the fingerprint, or {@code null} if discovery isn't TCP discovery.
+    */
+   static String getDeploymentFingerprint(DiscoverySpi spi, ClusterConfig clusterConfig) {
+      if(!(spi instanceof TcpDiscoverySpi discoverySpi)) {
+         return null;
+      }
+
+      StringBuilder text = new StringBuilder("port=").append(getConfiguredPort(discoverySpi));
+      TcpDiscoveryIpFinder ipFinder = discoverySpi.getIpFinder();
+
+      if(ipFinder instanceof TcpDiscoveryVmIpFinder vmFinder) {
+         // the static members, with port ranges expanded, in any order
+         text.append("\nvm=").append(vmFinder.getRegisteredAddresses().stream()
+            .map(a -> a.getHostString() + ":" + a.getPort())
+            .sorted()
+            .distinct()
+            .collect(Collectors.joining(",")));
+      }
+      else if(ipFinder instanceof TcpDiscoveryMulticastIpFinder multicastFinder) {
+         text.append("\nmulticast=").append(multicastFinder.getMulticastGroup())
+            .append(':').append(multicastFinder.getMulticastPort());
+      }
+      else if(ipFinder != null) {
+         text.append("\nfinder=").append(ipFinder.getClass().getName());
+         KubernetesConfig k8s = clusterConfig == null ? null : clusterConfig.getK8s();
+         IpFinderConfig finderConfig = clusterConfig == null ? null : clusterConfig.getIpFinder();
+
+         if(k8s != null) {
+            text.append("\nk8s=").append(k8s.getNamespace()).append('|')
+               .append(k8s.getLabelName()).append('=').append(k8s.getLabelValue());
+         }
+
+         if(finderConfig != null) {
+            text.append("\ntype=").append(finderConfig.getType());
+
+            if(finderConfig.getAwsElb() != null) {
+               text.append("\nelb=").append(finderConfig.getAwsElb().getRegion()).append('|')
+                  .append(finderConfig.getAwsElb().getLoadBalancerName());
+            }
+
+            if(finderConfig.getGoogleGcs() != null) {
+               text.append("\ngcs=").append(finderConfig.getGoogleGcs().getBucket());
+            }
+
+            if(finderConfig.getAzureBlob() != null) {
+               text.append("\nazure=").append(finderConfig.getAzureBlob().getEndpoint())
+                  .append('|').append(finderConfig.getAzureBlob().getContainer());
+            }
+         }
+      }
+
+      try {
+         byte[] hash = MessageDigest.getInstance("SHA-256")
+            .digest(text.toString().getBytes(StandardCharsets.UTF_8));
+         return HexFormat.of().formatHex(hash);
+      }
+      catch(NoSuchAlgorithmException e) {
+         throw new IllegalStateException(e);
+      }
+   }
+
+   /**
+    * Gets the configured discovery base port. {@link TcpDiscoverySpi#getLocalPort()} returns the
+    * port the node actually bound (0 before it starts), which differs from the base on a host
+    * with more than one node, and the SPI has no getter for the configured one.
+    */
+   static int getConfiguredPort(TcpDiscoverySpi spi) {
+      try {
+         if(LOCAL_PORT_FIELD != null) {
+            return LOCAL_PORT_FIELD.getInt(spi);
+         }
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to read the configured discovery port", e);
+      }
+
+      return spi.getLocalPort();
+   }
+
+   private static Field getLocalPortField() {
+      try {
+         Field field = TcpDiscoverySpi.class.getDeclaredField("locPort");
+         field.setAccessible(true);
+         return field;
+      }
+      catch(Exception e) {
+         LOG.debug("TcpDiscoverySpi.locPort is not accessible", e);
          return null;
       }
    }
@@ -405,6 +571,7 @@ final class MinorityIslandDetector implements AutoCloseable {
    private long betterSince = -1L; // guarded by this
    private int betterRounds; // guarded by this
    private int clearRounds; // guarded by this
+   private boolean haltPending; // guarded by this
    private List<InetSocketAddress> registeredAddresses; // detector thread only
    private long registeredAddressesTime; // detector thread only
 
@@ -414,5 +581,8 @@ final class MinorityIslandDetector implements AutoCloseable {
    private static final int MIN_ROUNDS = 3;
    private static final int MIN_CLEAR_ROUNDS = 2;
    private static final String LOCAL_IP_ATTR = "local.ip.addr";
+   static final String DEPLOYMENT_ATTR = "inetsoft.cluster.deployment";
    private static final Logger LOG = LoggerFactory.getLogger(MinorityIslandDetector.class);
+   // after LOG, which getLocalPortField uses
+   private static final Field LOCAL_PORT_FIELD = getLocalPortField();
 }

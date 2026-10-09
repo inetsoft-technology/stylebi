@@ -19,6 +19,8 @@ package inetsoft.sree.internal.cluster.ignite;
 
 import inetsoft.sree.internal.cluster.ignite.MinorityIslandDetector.Island;
 import org.apache.ignite.cluster.ClusterNode;
+import org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi;
+import org.apache.ignite.spi.discovery.tcp.ipfinder.vm.TcpDiscoveryVmIpFinder;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -63,6 +65,29 @@ class MinorityIslandDetectorTest {
       assertTrue(a.beats(b));
       assertFalse(b.beats(a));
       assertFalse(a.beats(a), "an island never beats itself");
+   }
+
+   @Test
+   void deploymentFingerprintDependsOnBasePortAndMembersOnly() {
+      String a = fingerprint(47500, "10.0.0.1:47500", "10.0.0.2:47500..47501");
+      String sameReordered = fingerprint(47500, "10.0.0.2:47500..47501", "10.0.0.1:47500");
+
+      assertNotNull(a);
+      assertEquals(a, sameReordered, "member order doesn't matter");
+      assertNotEquals(a, fingerprint(48500, "10.0.0.1:47500", "10.0.0.2:47500..47501"),
+                      "another discovery base port is another deployment");
+      assertNotEquals(a, fingerprint(47500, "10.0.0.1:47500", "10.0.0.3:47500"),
+                      "other members are another deployment");
+      assertNull(MinorityIslandDetector.getDeploymentFingerprint(null, null));
+   }
+
+   private static String fingerprint(int port, String... members) {
+      TcpDiscoveryVmIpFinder ipFinder = new TcpDiscoveryVmIpFinder();
+      ipFinder.setAddresses(List.of(members));
+      TcpDiscoverySpi spi = new TcpDiscoverySpi();
+      spi.setLocalPort(port);
+      spi.setIpFinder(ipFinder);
+      return MinorityIslandDetector.getDeploymentFingerprint(spi, null);
    }
 
    private static UUID id(int n) {

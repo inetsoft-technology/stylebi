@@ -254,6 +254,41 @@ class IgniteClusterMinorityIslandTest {
       }
    }
 
+   /**
+    * Another, larger StyleBI deployment on the same host answers at a thin client port that
+    * this deployment's spare IP finder address maps to (offset 2 -> client base + 2). It is not
+    * a cluster of this deployment, so it must not make this one a minority island.
+    */
+   @Test
+   void otherDeploymentOnSharedHostIsNotAnIsland() throws Exception {
+      int clientBase = freePortRun(6);
+      Nodes ours = startNodes("y", 2, clientBase, 5);
+      Nodes other = null;
+
+      try {
+         // binds client ports base + 2 .. base + 4, after ours took base and base + 1
+         other = startNodes("x", 3, clientBase, 5);
+         ClusterHealthService[] health = ours.health();
+         Thread.sleep(CONFIRM_MILLIS + 6 * CHECK_MILLIS);
+
+         for(int i = 0; i < 2; i++) {
+            assertReady(health[i], "y" + (i + 1) + " next to another deployment");
+            assertNull(ours.get(i).getMinorityIslandMessage());
+         }
+
+         for(int i = 0; i < 3; i++) {
+            assertNull(other.get(i).getMinorityIslandMessage(), "x" + (i + 1));
+         }
+      }
+      finally {
+         if(other != null) {
+            other.closeAll();
+         }
+
+         ours.closeAll();
+      }
+   }
+
    private static void collectIslands(Nodes nodes, List<String> islands, int... indexes) {
       for(int index : indexes) {
          String message = nodes.get(index).getMinorityIslandMessage();
@@ -270,9 +305,21 @@ class IgniteClusterMinorityIslandTest {
    }
 
    private Nodes startNodes(int count) throws Exception {
+      return startNodes("n", count, freePortRun(count + 1), count);
+   }
+
+   /**
+    * Starts a cluster of {@code count} nodes whose IP finder lists its own discovery port run
+    * plus one spare address.
+    *
+    * @param clientBase  the client connector base port.
+    * @param clientRange the client connector port range.
+    */
+   private Nodes startNodes(String prefix, int count, int clientBase, int clientRange)
+      throws Exception
+   {
       // like production, every node has the same base ports and binds the first free one
       int discoveryBase = freePortRun(count + 1);
-      int clientBase = freePortRun(count + 1);
       List<String> addresses = new ArrayList<>();
 
       // one more address than nodes, with nothing behind it
@@ -281,10 +328,12 @@ class IgniteClusterMinorityIslandTest {
       }
 
       Nodes nodes = new Nodes();
-      nodes.starter = name -> start(name, discoveryBase, clientBase, count, addresses);
+      nodes.prefix = prefix;
+      nodes.starter = name ->
+         start(name, discoveryBase, count, clientBase, clientRange, addresses);
 
       for(int i = 0; i < count; i++) {
-         nodes.add(nodes.starter.start("n" + (i + 1)));
+         nodes.add(nodes.starter.start(prefix + (i + 1)));
       }
 
       await().atMost(Duration.ofSeconds(60)).until(() ->
@@ -296,8 +345,8 @@ class IgniteClusterMinorityIslandTest {
       return nodes;
    }
 
-   private IgniteCluster start(String name, int discoveryBase, int clientBase, int portRange,
-                               List<String> addresses) throws Exception
+   private IgniteCluster start(String name, int discoveryBase, int portRange, int clientBase,
+                               int clientRange, List<String> addresses) throws Exception
    {
       TcpDiscoveryVmIpFinder ipFinder = new TcpDiscoveryVmIpFinder();
       ipFinder.setAddresses(addresses);
@@ -313,7 +362,7 @@ class IgniteClusterMinorityIslandTest {
       ClientConnectorConfiguration connector = new ClientConnectorConfiguration();
       connector.setHost("127.0.0.1");
       connector.setPort(clientBase);
-      connector.setPortRange(portRange);
+      connector.setPortRange(clientRange);
 
       IgniteConfiguration config = IgniteCluster.getDefaultConfig(clusterDir.resolve(name));
       config.setIgniteInstanceName("bug78105-" + name + "-" + UUID.randomUUID());
@@ -360,7 +409,8 @@ class IgniteClusterMinorityIslandTest {
       Random random = new Random();
 
       for(int attempt = 0; attempt < 50; attempt++) {
-         int base = 20000 + random.nextInt(20000);
+         // Linux starts its ephemeral range at 32768, Windows at 49152
+         int base = 20000 + random.nextInt(12000);
          boolean free = true;
 
          for(int i = 0; i < count && free; i++) {
@@ -430,7 +480,7 @@ class IgniteClusterMinorityIslandTest {
        * Starts a new node in place of a stopped one, with the same ports and IP finder.
        */
       IgniteCluster restart(int index) throws Exception {
-         IgniteCluster node = starter.start("n" + (index + 1));
+         IgniteCluster node = starter.start(prefix + (index + 1));
          list.set(index, node);
          closed.remove(index);
          return node;
@@ -449,6 +499,7 @@ class IgniteClusterMinorityIslandTest {
       private final List<ClusterHealthService> services = new ArrayList<>();
       private final Set<Integer> closed = new HashSet<>();
       private NodeStarter starter;
+      private String prefix;
    }
 
    @FunctionalInterface
