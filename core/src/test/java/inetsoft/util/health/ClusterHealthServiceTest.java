@@ -116,6 +116,32 @@ public class ClusterHealthServiceTest {
       assertEquals("Sree properties not loaded", status.getMessage());
    }
 
+   /**
+    * Bug #78105: a node left in a smaller cluster after a split must report not-ready, even
+    * though its own cluster is active and its property store is loaded.
+    */
+   @Test
+   public void reportsNotReadyInMinorityIsland() {
+      Cluster cluster = mock(Cluster.class);
+      KeyValueStorageManager keyValueStorageManager = mock(KeyValueStorageManager.class);
+      DistributedMap<String, String> map = mock(DistributedMap.class);
+      KeyValueStorage<?> storage = mock(KeyValueStorage.class);
+      String island = "Node is in a minority cluster island: ...";
+
+      when(cluster.isClusterReady()).thenReturn(true);
+      when(cluster.getMinorityIslandMessage()).thenReturn(island);
+      when(cluster.mapExists(anyString())).thenReturn(true);
+      doReturn(map).when(cluster).getReplicatedMap(anyString());
+      when(storage.isLoaded()).thenReturn(true);
+      doReturn(storage).when(keyValueStorageManager).peekStorage(eq("sreeProperties"));
+
+      service = new ClusterHealthService(cluster, keyValueStorageManager, FAST_TIMEOUT_MILLIS);
+      ClusterHealthStatus status = service.getStatus();
+
+      assertFalse(status.isReady(), "a minority island must not be reported as ready");
+      assertEquals(island, status.getMessage());
+   }
+
    @Test
    public void reportsReadyWhenStoreLoadedNormally() {
       Cluster cluster = mock(Cluster.class);
