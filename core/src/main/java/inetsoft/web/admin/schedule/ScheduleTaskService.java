@@ -1350,8 +1350,13 @@ public class ScheduleTaskService {
       task.setLocale(getTaskLocale(model.locale()));
       task.setDescription(model.description());
       task.setTimeZone(model.timeZone());
-      IdentityID modelID = getIdentityId(model.idName(), principal);
-      modelID = modelID == null ? task.getOwner() : modelID;
+      // Bug #78122, reuse the identity actually stored above (newIdentity) instead of
+      // independently re-deriving it from model.idName() here. That second, stale
+      // computation didn't carry the #77168 fix (getNewIdentity's early-return for a null
+      // idName with security disabled), so an unrelated Options-pane save made modelID fall
+      // back to the task owner even though the execute-as identity itself never changed,
+      // wrongly filtering out the real identity's bookmarks below.
+      IdentityID modelID = newIdentity != null ? newIdentity.getIdentityID() : task.getOwner();
 
       //handle vs bookmark when executer has changed.
       if((modelID == null && oldIdentity != null && oldIdentityID != null
