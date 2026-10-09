@@ -147,30 +147,41 @@ public class DashboardRegistry {
    public boolean updateDashboard(String name, Predicate<Dashboard> change) throws Exception {
       return update(map -> {
          Dashboard dashboard = map.get(name);
-         return dashboard != null && change.test(dashboard);
+         return isUsable(dashboard) && change.test(dashboard);
       });
    }
 
    /**
-    * Get dashboard with the specified name.
+    * Get dashboard with the specified name. An entry whose {@code <dashboard>} node could not be
+    * parsed (see {@link #parseXML}) is kept in the map so that it round-trips unchanged, but is
+    * not a usable dashboard, so it is never returned here (Bug #78103).
+    *
     * @return a dashboard with the specified name.
     */
    public synchronized Dashboard getDashboard(String name) {
-      return dashboardsMap.get(name);
+      Dashboard dashboard = dashboardsMap.get(name);
+      return isUsable(dashboard) ? dashboard : null;
    }
 
    /**
-    * Get all dashboard names.
+    * Get all dashboard names. An entry whose {@code <dashboard>} node could not be parsed (see
+    * {@link #parseXML}) is kept in the map so that it round-trips unchanged, but is not a usable
+    * dashboard, so its name is never returned here (Bug #78103).
     */
    public synchronized String[] getDashboardNames() {
-      Object[] objs = dashboardsMap.keySet().toArray();
-      String[] arr = new String[objs.length];
+      return dashboardsMap.entrySet().stream()
+         .filter(e -> isUsable(e.getValue()))
+         .map(Map.Entry::getKey)
+         .toArray(String[]::new);
+   }
 
-      for(int i = 0; i < objs.length; i++) {
-         arr[i] = objs[i].toString();
-      }
-
-      return arr;
+   /**
+    * Checks if a dashboard from {@link #dashboardsMap} is a usable dashboard, as opposed to a
+    * placeholder kept only so that an unparseable entry round-trips through the file unchanged
+    * (Bug #78103).
+    */
+   private static boolean isUsable(Dashboard dashboard) {
+      return dashboard != null && !(dashboard instanceof UnparsableDashboardEntry);
    }
 
    /**
@@ -248,14 +259,19 @@ public class DashboardRegistry {
 
          Dashboard dashboard = (Dashboard) c.getConstructor().newInstance();
 
-         // a dashboard that fails to parse (e.g. a viewsheet entry without <path>, Bug #77603)
-         // is skipped, so that it does not drop the dashboards after it in this file
+         // a dashboard that fails to parse (e.g. a viewsheet entry without <path>, Bug #77603,
+         // or a non-numeric <created>/<modified>) is replaced with a placeholder that keeps its
+         // raw node, so that it round-trips unchanged through every rewrite of this file instead
+         // of being silently dropped (Bug #78103). It still goes through the naming/port logic
+         // below and is put into the map under its name, same as a successfully parsed dashboard,
+         // so it keeps its position in the file; it is excluded from getDashboard()/
+         // getDashboardNames() so it is never shown to an ordinary caller.
          try {
             dashboard.parseXML(dashboardNode);
          }
          catch(Exception ex) {
             LOG.warn("Dashboard {} in registry {} skipped: {}", name, getPath(), ex.getMessage());
-            continue;
+            dashboard = new UnparsableDashboardEntry(dashboardNode);
          }
 
          if(needsPort && !isGlobal()) {
