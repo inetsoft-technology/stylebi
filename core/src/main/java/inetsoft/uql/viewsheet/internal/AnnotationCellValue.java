@@ -90,8 +90,9 @@ public abstract class AnnotationCellValue implements XMLSerializable {
          writer.print("<values strictNull=\"true\">");
 
          for(int i = 0; i < values.length; i++) {
-            writer.print("<value>");
-            writer.print("<![CDATA[" + Tool.getPersistentDataString(values[i]) + "]]>");
+            String str = Tool.getPersistentDataString(values[i]);
+            writer.print("<value" + Tool.cdataDataAttr(str) + ">");
+            writer.print("<![CDATA[" + Tool.cdataData(str) + "]]>");
             writer.print("</value>");
          }
 
@@ -122,7 +123,7 @@ public abstract class AnnotationCellValue implements XMLSerializable {
             values = new String[vlist.getLength()];
 
             for(int i = 0; i < vlist.getLength(); i++) {
-               values[i] = Tool.getValue(vlist.item(i));
+               values[i] = Tool.getCDATAData(vlist.item(i));
 
                if(strictNull) {
                   values[i] = (String) Tool.getPersistentData(Tool.STRING, values[i]);

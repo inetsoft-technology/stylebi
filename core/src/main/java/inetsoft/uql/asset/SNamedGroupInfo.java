@@ -275,15 +275,17 @@ public class SNamedGroupInfo implements XNamedGroupInfo, XMLSerializable {
             getType() + "\" strictNull=\"true\">");
 
          for(int i = 0; i < names.length; i++) {
-            writer.print("<namedGroup><![CDATA[" + names[i] + "]]>");
+            writer.print("<namedGroup" + Tool.cdataDataAttr(names[i]) + "><![CDATA[" +
+                         Tool.cdataData(names[i]) + "]]>");
             List value = values.get(names[i]);
 
             if(value != null && value.size() > 0) {
                for(int j = 0; j < value.size(); j++) {
                   Object val = value.get(j);
-                  writer.print("<value>");
-                  writer.print("<![CDATA[" +
-                     (Tool.equals("", val) ? BLANKSTRING : Tool.getPersistentDataString(val)) + "]]>");
+                  String str =
+                     Tool.equals("", val) ? BLANKSTRING : Tool.getPersistentDataString(val);
+                  writer.print("<value" + Tool.cdataDataAttr(str) + ">");
+                  writer.print("<![CDATA[" + Tool.cdataData(str) + "]]>");
                   writer.print("</value>");
                }
             }
@@ -305,7 +307,7 @@ public class SNamedGroupInfo implements XNamedGroupInfo, XMLSerializable {
 
       for(int i = 0; i < list.getLength(); i++) {
          Element tag2 = (Element) list.item(i);
-         String name = Tool.getValue(tag2);
+         String name = Tool.getCDATAData(tag2);
 
          if(name == null) {
             continue;
@@ -316,7 +318,7 @@ public class SNamedGroupInfo implements XNamedGroupInfo, XMLSerializable {
 
          for(int j = 0; j < vnodes.getLength(); j++) {
             Element vnode = (Element) vnodes.item(j);
-            String val = getPersistentData(Tool.getValue(vnode));
+            String val = getPersistentData(Tool.getCDATAData(vnode));
 
             if(BLANKSTRING.equals(val)) {
                val = "";

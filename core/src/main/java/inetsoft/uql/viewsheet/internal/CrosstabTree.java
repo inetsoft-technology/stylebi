@@ -1182,7 +1182,9 @@ public class CrosstabTree implements XMLSerializable, Cloneable, Serializable {
          writer.println("<expanded field=\"" + field + "\">");
 
          for(Object path : expanded.get(field)) {
-            writer.println("<path><![CDATA[" + path + "]]></path>");
+            String str = String.valueOf(path);
+            writer.println("<path" + Tool.cdataDataAttr(str) + "><![CDATA[" +
+                           Tool.cdataData(str) + "]]></path>");
          }
 
          writer.println("</expanded>");
@@ -1213,7 +1215,7 @@ public class CrosstabTree implements XMLSerializable, Cloneable, Serializable {
          Set set = new HashSet();
 
          for(int j = 0; j < pnodes.getLength(); j++) {
-            set.add(Tool.getValue(pnodes.item(j)));
+            set.add(Tool.getCDATAData(pnodes.item(j)));
          }
 
          expanded.put(field, set);

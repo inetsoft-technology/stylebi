@@ -36,8 +36,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.w3c.dom.Element;
 
 import java.io.PrintWriter;
+import java.io.StringReader;
 import java.io.StringWriter;
 import java.util.*;
 
@@ -54,6 +56,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * Data values (selected values, list values, alias keys, bookmark state and names) come back
  * exactly. Free text (scripts, labels, titles, descriptions, tooltips, aliases) comes back
  * with each control character replaced by a space; TAB, LF and CR are kept.
+ * <p>
+ * Bug #78110: named group names and values, value range labels, annotation cell values and
+ * crosstab expanded paths are covered the same way.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class },
@@ -65,6 +70,7 @@ class InputValueCdataRoundTripTest {
    private static final String CTRL = "a\u0001b\tc\u001Fd";
    private static final String CTRL_LOSSY = "a b\tc d";
    private static final String[] PAYLOADS = { TEXT, CTRL };
+   private static final String[] GROUP_PAYLOADS = { "g]]>1", "a]]>b]]>c", "]]>", CTRL };
 
    @Autowired
    private BlobStorageManager blobStorageManager;
@@ -500,6 +506,140 @@ class InputValueCdataRoundTripTest {
       assertEquals("alias", ((ChartVSAssemblyInfo) back.getAssembly("Chart1").getVSAssemblyInfo())
          .getChartDescriptor().getLegendsDescriptor().getColorLegendDescriptor()
          .getLabelAlias(value));
+   }
+
+   /**
+    * Bug #78110: a named group (viewsheet chart/crosstab "Group" or worksheet grouping) whose
+    * name or value held {@code ]]>} or a control character was written raw into CDATA, so the
+    * saved viewsheet could not be opened again. The same group name reaches a crosstab expanded
+    * path. Group names, group values and expanded paths come back exactly.
+    */
+   @Test
+   void namedGroupAndExpandedPathInSavedViewsheet() throws Exception {
+      int n = 0;
+
+      for(String p : GROUP_PAYLOADS) {
+         Viewsheet vs = new Viewsheet();
+         ChartVSAssembly chart = new ChartVSAssembly(vs, "Chart1");
+         VSChartDimensionRef dim = new VSChartDimensionRef();
+         dim.setGroupColumnValue("State");
+         dim.setNamedGroupInfo(namedGroup(p));
+         ((ChartVSAssemblyInfo) chart.getVSAssemblyInfo()).getVSChartInfo().addXField(dim);
+         vs.addAssembly(chart);
+         CrosstabVSAssembly crosstab = new CrosstabVSAssembly(vs, "Crosstab1");
+         crosstab.getCrosstabTree().getExpandedPaths()
+            .put("State", new HashSet<>(Set.of("[" + p + "]", "[plain]")));
+         vs.addAssembly(crosstab);
+
+         Viewsheet back = (Viewsheet) roundTrip(viewsheetEntry("vs78110ng" + n++), vs);
+
+         VSDimensionRef dback = (VSDimensionRef) ((ChartVSAssemblyInfo) back
+            .getAssembly("Chart1").getVSAssemblyInfo()).getVSChartInfo().getXField(0);
+         assertNamedGroup(p, (SNamedGroupInfo) dback.getNamedGroupInfo());
+         assertEquals(Set.of("[" + p + "]", "[plain]"),
+                      ((CrosstabVSAssembly) back.getAssembly("Crosstab1")).getCrosstabTree()
+                         .getExpandedPaths().get("State"));
+      }
+   }
+
+   /**
+    * Bug #78110: each writer read back by its own parseXML after a plain
+    * {@link Tool#parseXML(java.io.Reader)}, as a saved asset is.
+    */
+   @Test
+   void namedGroupRangeLabelAnnotationAndPathWriteParse() throws Exception {
+      for(String p : GROUP_PAYLOADS) {
+         SNamedGroupInfo sback = new SNamedGroupInfo();
+         sback.parseXML(parse(namedGroup(p)::writeXML));
+         assertNamedGroup(p, sback);
+
+         NamedGroupInfo ws = new NamedGroupInfo();
+         ws.setGroupCondition(p, new ConditionList());
+         ws.setGroupCondition("plain", new ConditionList());
+         NamedGroupInfo wsback = new NamedGroupInfo();
+         wsback.parseXML(parse(ws::writeXML));
+         assertArrayEquals(new String[] { p, "plain" }, wsback.getGroups(false));
+         assertNotNull(wsback.getGroupCondition(p));
+
+         ValueRangeInfo range = new ValueRangeInfo();
+         range.setValues(new double[] { 10, 20 });
+         range.setLabels(new String[] { "lo" + p, null, "hi" });
+         ValueRangeInfo rback = new ValueRangeInfo();
+         rback.parseXML(parse(range::writeXML));
+         // a range label is display text, so a control character becomes a space
+         assertArrayEquals(new String[] { "lo" + lossy(p), null, "hi" }, rback.getLabels());
+
+         AnnotationCellValue cell = AnnotationCellValue.create(1); // NORMAL_TABLE
+         cell.setValues(new String[] { p, "plain" });
+         AnnotationCellValue cback = AnnotationCellValue.create(1);
+         cback.parseXML(parse(cell::writeXML));
+         assertArrayEquals(new String[] { p, "plain" }, cback.getValues());
+
+         CrosstabTree tree = new CrosstabTree();
+         tree.getExpandedPaths().put("State", new HashSet<>(Set.of("[" + p + "]")));
+         CrosstabTree tback = new CrosstabTree();
+         tback.parseXML(parse(tree::writeXML));
+         assertEquals(Set.of("[" + p + "]"), tback.getExpandedPaths().get("State"));
+      }
+   }
+
+   /**
+    * Bug #78110: names, values, labels and paths without ]]> or a control character are written
+    * exactly as before (no marker, no split), so files written before this change read the same.
+    */
+   @Test
+   void ordinaryNamedGroupTextIsWrittenAsBefore() {
+      SNamedGroupInfo sinfo = new SNamedGroupInfo();
+      sinfo.setGroupValue("East", new ArrayList<>(List.of("NJ", "")));
+      String sxml = xml(sinfo::writeXML);
+      assertTrue(sxml.contains(
+         "<namedGroup><![CDATA[East]]><value><![CDATA[NJ]]></value><value><![CDATA[" +
+         "__blank__]]></value></namedGroup>"), sxml);
+
+      NamedGroupInfo ws = new NamedGroupInfo();
+      ws.setGroupCondition("East", new ConditionList());
+      String wxml = xml(ws::writeXML);
+      assertTrue(wxml.contains("<group><![CDATA[East]]></group>"), wxml);
+
+      ValueRangeInfo range = new ValueRangeInfo();
+      range.setLabels(new String[] { "low" });
+      String rxml = xml(range::writeXML);
+      assertTrue(rxml.contains("<label><![CDATA[low]]></label>"), rxml);
+
+      AnnotationCellValue cell = AnnotationCellValue.create(1);
+      cell.setValues(new String[] { "NJ" });
+      String cxml = xml(cell::writeXML);
+      assertTrue(cxml.contains("<value><![CDATA[NJ]]></value>"), cxml);
+
+      CrosstabTree tree = new CrosstabTree();
+      tree.getExpandedPaths().put("State", new HashSet<>(Set.of("[East]")));
+      String txml = xml(tree::writeXML);
+      assertTrue(txml.contains("<path><![CDATA[[East]]]></path>"), txml);
+
+      for(String out : new String[] { sxml, wxml, rxml, cxml, txml }) {
+         assertFalse(out.contains("ctrlEncoded"), out);
+         assertFalse(out.contains("]]]]><![CDATA[>"), out);
+      }
+   }
+
+   private static SNamedGroupInfo namedGroup(String name) {
+      SNamedGroupInfo info = new SNamedGroupInfo();
+      info.setGroupValue(name, new ArrayList<>(List.of("v" + name, "plain", "")));
+      info.setGroupValue("plain", new ArrayList<>(List.of("x")));
+      return info;
+   }
+
+   private static void assertNamedGroup(String name, SNamedGroupInfo info) {
+      assertNotNull(info);
+      assertArrayEquals(new String[] { name, "plain" }, info.getGroups(false));
+      assertEquals(List.of("v" + name, "plain", ""), info.getGroupValue(name));
+      assertEquals(List.of("x"), info.getGroupValue("plain"));
+   }
+
+   private static Element parse(java.util.function.Consumer<PrintWriter> writer)
+      throws Exception
+   {
+      return Tool.parseXML(new StringReader(xml(writer))).getDocumentElement();
    }
 
    private XMLSerializable roundTrip(AssetEntry entry, XMLSerializable obj) throws Exception {
