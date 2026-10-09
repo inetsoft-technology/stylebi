@@ -168,6 +168,7 @@ public class VSDialogService {
       model.setSizeFollowsDensity(
          governed && info.takesDensitySize() && info.getVizMark() != null ?
             info.followsDensitySize() : null);
+      model.setDensityHeightOnly(info.densitySizeIsHeightOnly());
    }
 
    /**
@@ -181,7 +182,12 @@ public class VSDialogService {
 
       info.resetSize(VizContext.of(info));
       Dimension size = info.getPixelSize();
-      model.setWidth(size.width);
+
+      // a height-only type keeps the width typed in the same apply
+      if(!info.densitySizeIsHeightOnly()) {
+         model.setWidth(size.width);
+      }
+
       model.setHeight(size.height);
    }
 
@@ -211,6 +217,19 @@ public class VSDialogService {
       }
 
       return changed;
+   }
+
+   /**
+    * Write a dialog's size the way every density-sized box does: the follow checkbox first, then
+    * the typed size, then the author's claim.
+    */
+   public void setAssemblySizeFollowingDensity(VSAssemblyInfo info, SizePositionPaneModel model,
+                                               Viewsheet viewsheet)
+   {
+      Dimension shown = new Dimension(getAssemblySize(info, viewsheet));
+      applyDensitySize(info, model);
+      setAssemblySize(info, model);
+      recordAuthorSize(info, model, shown);
    }
 
    /**
