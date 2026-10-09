@@ -1324,17 +1324,34 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
                }
 
                String[] paths = new String[dataPaths.length];
+               File[] files = new File[dataPaths.length];
+               // the copies of the stored data, which must be readable
+               boolean[] copied = new boolean[dataPaths.length];
                Map<String, String> absolutePathsLoadVersion = new HashMap<>();
-               List<File> tempFiles = new ArrayList<>();
                FileSystemService fileSystemService = FileSystemService.getInstance();
                boolean complete = true;
+
+               for(int i = 0; i < paths.length; i++) {
+                  files[i] = fileSystemService.getCacheFile(dataPaths[i] + "_s.tdat");
+                  paths[i] = files[i].getAbsolutePath();
+                  paths[i] = paths[i].substring(0, paths[i].lastIndexOf("_s.tdat"));
+               }
+
+               XSwappableTable stable = new XSwappableTable();
+
+               // Bug #78095, count the copies before they are kept or copied. The close of
+               // another table, of this JVM or of another one on the same cache directory,
+               // and the cache sweeps delete a copy that has no count, also while it is
+               // loaded here. The reference adds itself to the cleaner (bug #78096), which
+               // removes the counts if the table is not loaded
+               if(files.length > 0) {
+                  new EmbeddedTableReference(stable, files);
+               }
 
                // copy pdata to cache folder
                for(int i = 0; i < paths.length; i++) {
                   String path = dataPaths[i] + "_s.tdat";
-                  File file = fileSystemService.getCacheFile(path);
-                  paths[i] = file.getAbsolutePath();
-                  paths[i] = paths[i].substring(0, paths[i].lastIndexOf("_s.tdat"));
+                  File file = files[i];
 
                   String orgId = OrganizationManager.getInstance().getCurrentOrgID();
 
@@ -1382,7 +1399,7 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
                            }
                         }
 
-                        tempFiles.add(file);
+                        copied[i] = true;
                         absolutePathsLoadVersion.put(paths[i], dataPathsLoadVersion.get(dataPaths[i]));
                      }
                      else {
@@ -1395,13 +1412,6 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
                   }
                }
 
-               XSwappableTable stable = new XSwappableTable();
-
-               if(!tempFiles.isEmpty()) {
-                  // the reference adds itself to the cleaner (bug #78096)
-                  new EmbeddedTableReference(stable, tempFiles.toArray(new File[0]));
-               }
-
                XTableColumnCreator[] xcreators = new XTableColumnCreator[creators.length];
                XTableFragment[] tables = new XTableFragment[paths.length];
 
@@ -1412,7 +1422,8 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
                }
 
                for(int i = 0; i < paths.length; i++) {
-                  tables[i] = createFragment(xcreators, paths[i], absolutePathsLoadVersion);
+                  tables[i] = createFragment(xcreators, paths[i], absolutePathsLoadVersion,
+                                             copied[i]);
                }
 
                stable.init(xcreators);
@@ -1450,7 +1461,8 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
     * Create table fragment.
     */
    private XTableFragment createFragment(XTableColumnCreator[] creators, String path,
-                                         Map<String, String> versionMap)
+                                         Map<String, String> versionMap, boolean copied)
+      throws IOException
    {
       XTableColumn[] columns = new XTableColumn[creators.length];
 
@@ -1466,7 +1478,13 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
 
       XTableFragment table = new XTableFragment(columns, false);
 
-      table.setSnapshotPath(path);
+      // Bug #78095, the copy was deleted (e.g. by an older JVM on the same cache directory) or
+      // its footer could not be read (e.g. on an interrupted thread) after it was copied. The
+      // rows of the fragment would be null, don't load or cache the table, the next load
+      // copies the file again
+      if(!table.setSnapshotPath(path) && copied) {
+         throw new IOException("Failed to read snapshot cache file: " + path + "_s.tdat");
+      }
 
       return table;
    }

@@ -466,14 +466,27 @@ public final class XSwapper {
 
             try {
                RegisteredSwapFiles registered = new RegisteredSwapFiles(cluster);
+               // Bug #78082, e.g. of the JVM this one replaced in a rolling restart, so that
+               // the copies this JVM makes of the same snapshots are deleted when closed
+               // Bug #78095, before the snapshot counts are read below, so that the copies of
+               // a node that is gone are deleted
+               SnapshotEmbeddedTableAssembly.removeStaleFileReferences(cluster);
+               Map<String, Integer> snapshotMap =
+                  cluster.getMap(SnapshotEmbeddedTableAssembly.FILE_REFERENCES_MAP);
                File[] files = file.listFiles();
 
                for(int i = 0; files != null && i < files.length; i++) {
                   // Bug #77600, this JVM may already have written live swap files
                   // Bug #77627, another JVM's file may still be inside its own
                   // registration window (see SWAP_FILE_GRACE_PERIOD)
+                  // Bug #78095, a snapshot copy is never in the swap file map, a live table of
+                  // another JVM on the same cache directory (e.g. the server and the local
+                  // scheduler) or of this one may read it, whatever its age
                   if(!files[i].isDirectory() && files[i].getName().endsWith(".tdat") &&
                      !registered.contains(files[i]) &&
+                     !snapshotMap.containsKey(files[i].getAbsolutePath()) &&
+                     !SnapshotEmbeddedTableAssembly.isFileInUseLocally(
+                        files[i].getAbsolutePath()) &&
                      !isOwnSwapFile(files[i].getName()) &&
                      System.currentTimeMillis() - files[i].lastModified() >= SWAP_FILE_GRACE_PERIOD)
                   {
@@ -482,9 +495,6 @@ public final class XSwapper {
                }
 
                registered.removeStaleEntries();
-               // Bug #78082, e.g. of the JVM this one replaced in a rolling restart, so that
-               // the copies this JVM makes of the same snapshots are deleted when closed
-               SnapshotEmbeddedTableAssembly.removeStaleFileReferences(cluster);
             }
             finally {
                try {
