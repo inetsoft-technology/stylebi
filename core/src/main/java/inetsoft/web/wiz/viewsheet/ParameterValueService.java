@@ -110,7 +110,14 @@ public class ParameterValueService {
     *         stays legal: it is the explicit "clear this parameter" request.
     */
    public static void validate(UserVariable var, String name, List<Object> list) {
-      if(list == null || list.size() <= 1) {
+      if(list == null) {
+         return;
+      }
+
+      String type = var.getTypeNode() != null ? var.getTypeNode().getType() : null;
+
+      if(list.size() == 1) {
+         validateTyped(name, type, 0, list.get(0));
          return;
       }
 
@@ -130,6 +137,29 @@ public class ParameterValueService {
          throw new IllegalArgumentException(
             "Parameter '" + name + "' is single-select but " + list.size() + " values were " +
             "given. Send exactly one value (collect_parameters reports multipleSelection).");
+      }
+
+      for(int i = 0; i < list.size(); i++) {
+         validateTyped(name, type, i, list.get(i));
+      }
+   }
+
+   /**
+    * Strict typed parse of one element. CoreTool.getData (used later by fillVariableTable) wraps
+    * or clamps out-of-range integers, rolls impossible dates over, and stores null for text it
+    * cannot parse, so a value that does not strictly parse is refused instead.
+    */
+   private static void validateTyped(String name, String type, int index, Object element) {
+      if(element == null) {
+         return;
+      }
+
+      try {
+         WizStrictValueParser.parse(String.valueOf(element), type);
+      }
+      catch(IllegalArgumentException ex) {
+         throw new IllegalArgumentException(
+            "Parameter '" + name + "' value[" + index + "]: " + ex.getMessage(), ex);
       }
    }
 
