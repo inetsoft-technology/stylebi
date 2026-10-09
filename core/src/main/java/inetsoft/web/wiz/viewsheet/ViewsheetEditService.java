@@ -445,6 +445,14 @@ public class ViewsheetEditService {
                "Unknown assembly '" + request.assembly() + "'.");
          }
 
+         if(!request.assembly().equals(request.newName()) &&
+            vs.containsAssembly(request.newName()))
+         {
+            throw new IllegalArgumentException(
+               "Cannot rename '" + request.assembly() + "' to '" + request.newName() +
+               "' — an assembly named '" + request.newName() + "' already exists.");
+         }
+
          propertyService.editObjectProperty(rvs, assembly.getVSAssemblyInfo(),
                                             request.assembly(), request.newName(),
                                             linkUri, user, dispatcher);

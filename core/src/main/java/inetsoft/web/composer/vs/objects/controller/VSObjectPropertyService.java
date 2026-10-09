@@ -152,7 +152,8 @@ public class VSObjectPropertyService {
          // are not undone when the rename itself is refused. ERROR, not OK, so wiz callers that
          // only fail on ERROR do not report the refused rename as a success.
          this.coreLifecycleService.sendMessage(
-            Catalog.getCatalog().getString("common.renameViewsheetFailed"),
+            Catalog.getCatalog().getString("common.renameViewsheetFailed", oldName) +
+            " An assembly named '" + newName + "' already exists.",
             MessageCommand.Type.ERROR, commandDispatcher);
          return false;
       }

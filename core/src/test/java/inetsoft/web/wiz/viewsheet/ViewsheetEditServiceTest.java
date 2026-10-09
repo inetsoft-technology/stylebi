@@ -513,6 +513,31 @@ class ViewsheetEditServiceTest {
                                             anyString());
    }
 
+   /** Bug #77044 (1): {@code rename} onto an existing name fails loud, naming both assemblies. */
+   @Test
+   void renameOntoAnExistingAssemblyNameFailsLoudWithoutEditing() throws Exception {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      VSAssembly assembly = mock(VSAssembly.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(vs.getAssembly("Collide1")).thenReturn(assembly);
+      when(vs.containsAssembly("Collide2")).thenReturn(true);
+
+      VSObjectPropertyService propertyService = mock(VSObjectPropertyService.class);
+      ViewsheetEditService service = serviceWithRuntime(rvs,
+         readerReturning(new AssemblyNode("Collide1", "Text", 0, 0, 10, 10, 0, null, true)),
+         mock(ComposerObjectService.class), propertyService);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.apply("tok", principal(), new EditRequest("rename", "Collide1", null, null, null, null, null, null, null, null,
+                          null, "Collide2", null, null, null, null), ""));
+
+      assertTrue(thrown.getMessage().contains("Collide1")
+                 && thrown.getMessage().contains("'Collide2' already exists"),
+                 thrown.getMessage());
+      verifyNoInteractions(propertyService);
+   }
+
    @Test
    void renameRequiresANewNameAndFailsLoudWithoutOne() {
       ViewsheetEditService service = serviceWith(mock(ComposerObjectService.class));
