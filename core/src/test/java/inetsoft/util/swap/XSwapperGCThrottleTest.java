@@ -18,6 +18,7 @@
 package inetsoft.util.swap;
 
 import inetsoft.test.*;
+import inetsoft.util.GroupedThread;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,6 +27,10 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -192,6 +197,106 @@ class XSwapperGCThrottleTest {
    }
 
    /**
+    * Bug #78106: the post-sweep trigger in XSwapperThread.doRun() forces a collection only when
+    * memory is genuinely CRITICAL_MEM, not merely BAD_MEM as before, even though the sweep still
+    * swaps objects out at BAD_MEM. This drives a real XSwapperThread (via the same reflection
+    * approach as XSwapperThreadWaitTest, Bug #77682) because the trigger condition lives inline
+    * in the thread's private doRun() loop, with no extracted method a test can call directly.
+    */
+   @Test
+   void postSweepTriggerFiresOnlyAtCriticalMem() throws Exception {
+      final AtomicInteger gcs = new AtomicInteger();
+      final XSwapper swapper = spy(new XSwapper());
+      doAnswer(inv -> {
+         gcs.incrementAndGet();
+         return null;
+      }).when(swapper).runGC();
+      swapper.setGCMinInterval(10000L);
+
+      // more than 3 swappables, so doRun() doesn't skip swapping outright: it continues without
+      // swapping when swaplist.size() <= 3 and state is not CRITICAL_MEM.
+      AlwaysSwappable[] candidates = {
+         new AlwaysSwappable(), new AlwaysSwappable(), new AlwaysSwappable(), new AlwaysSwappable()
+      };
+      GroupedThread thread = createSweepThread(swapper, candidates);
+      setCachedState(swapper, XSwapper.BAD_MEM);
+      thread.start();
+
+      try {
+         long end = System.currentTimeMillis() + 5000;
+
+         while(totalSwaps(candidates) == 0 && System.currentTimeMillis() < end) {
+            Thread.sleep(50);
+         }
+
+         assertTrue(totalSwaps(candidates) > 0, "swapper thread never swapped at BAD_MEM");
+         // give the thread a few more sweep passes a chance to (wrongly) force a collection
+         Thread.sleep(1500L);
+         assertEquals(0, gcs.get(), "a forced collection ran for a BAD_MEM sweep (the #78106 " +
+            "fix narrows the post-sweep trigger to CRITICAL_MEM only)");
+
+         // the same post-sweep path must still force a collection once memory is genuinely
+         // critical
+         setCachedState(swapper, XSwapper.CRITICAL_MEM);
+         end = System.currentTimeMillis() + 5000;
+
+         while(gcs.get() == 0 && System.currentTimeMillis() < end) {
+            Thread.sleep(50);
+         }
+
+         assertEquals(1, gcs.get(), "no forced collection ran for a CRITICAL_MEM sweep");
+      }
+      finally {
+         thread.cancel();
+         thread.join(15000L);
+         swapper.stop();
+      }
+   }
+
+   /**
+    * Bug #78106: a forced collection whose pause exceeds swapper.gc.safe.pause escalates the
+    * non-waiting back-off even when memory recovers to a non-critical state afterward, but never
+    * delays a waiting caller -- a blocked request thread must still collect as soon as the base
+    * spacing throttle allows, exactly as before (Bug #77579). The test lowers the safe-pause
+    * threshold (the same test-override pattern as getGCMinInterval()/setGCMinInterval()) so a
+    * short, cheap-to-run pause can be flagged "dangerous" without inflating the 20x-pause spacing
+    * component enough to mask the back-off's own contribution.
+    */
+   @Test
+   void dangerousPauseEscalatesBackOffForNonWaitingOnly() {
+      final AtomicInteger gcs = new AtomicInteger();
+      // every collection takes 200ms: short in absolute terms (20x spacing = 4000ms, under the
+      // 10s base), but "dangerous" against the lowered 50ms test threshold below
+      final XSwapper swapper = createSwapper(gcs, 200L);
+      swapper.setGCSafePause(50L);
+
+      try {
+         // memory recovers after the collection, so only the pause -- not a critical memory
+         // reading -- can explain any extra back-off below
+         doReturn(XSwapper.GOOD_MEM).when(swapper).getMemoryState();
+
+         assertTrue(swapper.doGC(false), "first collection was throttled");
+         assertEquals(1, gcs.get());
+
+         // spacing alone (base 10s; 20x the 200ms pause is only 4s) would allow the next
+         // non-waiting call at +10000ms; the dangerous-pause back-off (20s) must hold it off
+         // longer
+         advance(10001L);
+         assertFalse(swapper.doGC(false),
+            "non-waiting call ran before the dangerous-pause back-off elapsed");
+
+         // a waiting caller bypasses gcBackoff entirely and only honors spacing, which already
+         // elapsed -- it must not be held off by the same escalation
+         assertTrue(swapper.doGC(true),
+            "waiting caller was delayed by the dangerous-pause back-off (would regress #77579)");
+         assertEquals(2, gcs.get());
+      }
+      finally {
+         swapper.setGCSafePause(-1L);
+      }
+   }
+
+   /**
     * The real runGC() goes through the DiagnosticCommand MBean, which -XX:+DisableExplicitGC
     * does not block, and actually collects.
     */
@@ -232,6 +337,91 @@ class XSwapperGCThrottleTest {
       }
 
       return count;
+   }
+
+   /**
+    * Build a real (not spied for this part) XSwapperThread with the given swappables already
+    * registered, the same way XSwapperThreadWaitTest (Bug #77682) drives the private inner class.
+    */
+   private static GroupedThread createSweepThread(XSwapper swapper, XSwappable... swappables)
+      throws Exception
+   {
+      Class<?> threadClass = Class.forName(XSwapper.class.getName() + "$XSwapperThread");
+      Constructor<?> constructor = Arrays.stream(threadClass.getDeclaredConstructors())
+         .filter(c -> c.getParameterCount() > 0 && c.getParameterTypes()[0] == XSwapper.class)
+         .findFirst()
+         .orElseThrow();
+      constructor.setAccessible(true);
+      GroupedThread thread = (GroupedThread) constructor.newInstance(swapper);
+      Method register = threadClass.getDeclaredMethod("register", XSwappable.class);
+      register.setAccessible(true);
+
+      for(XSwappable swappable : swappables) {
+         register.invoke(thread, swappable);
+      }
+
+      return thread;
+   }
+
+   /**
+    * Force getMemoryState() to return a fixed state without recomputing it, the same way
+    * XSwapperThreadWaitTest's setState() does.
+    */
+   private static void setCachedState(XSwapper swapper, int memState) throws Exception {
+      Field state = XSwapper.class.getDeclaredField("cachedState");
+      state.setAccessible(true);
+      state.setInt(swapper, memState);
+      Field ts = XSwapper.class.getDeclaredField("stateTS");
+      ts.setAccessible(true);
+      ts.setLong(swapper, Long.MAX_VALUE);
+   }
+
+   private static int totalSwaps(AlwaysSwappable[] candidates) {
+      int total = 0;
+
+      for(AlwaysSwappable candidate : candidates) {
+         total += candidate.swaps.get();
+      }
+
+      return total;
+   }
+
+   /**
+    * A swappable with a real (non-zero) swap priority that always reports itself as swappable and
+    * counts every swap() call.
+    */
+   private static final class AlwaysSwappable extends XSwappable {
+      @Override
+      public double getSwapPriority() {
+         return 10;
+      }
+
+      @Override
+      public boolean isCompleted() {
+         return true;
+      }
+
+      @Override
+      public boolean isSwappable() {
+         return true;
+      }
+
+      @Override
+      public boolean isValid() {
+         return true;
+      }
+
+      @Override
+      public boolean swap() {
+         swaps.incrementAndGet();
+         return true;
+      }
+
+      @Override
+      public void dispose() {
+      }
+
+      private final AtomicInteger swaps = new AtomicInteger();
    }
 
    private static final AtomicLong time =
