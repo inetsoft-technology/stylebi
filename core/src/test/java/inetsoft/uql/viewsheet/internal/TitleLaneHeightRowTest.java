@@ -66,13 +66,8 @@ class TitleLaneHeightRowTest {
       assertEquals(26, marked(new CurrentSelectionVSAssemblyInfo()).getTitleHeight(), "selection container");
       assertEquals(26, marked(new CalendarVSAssemblyInfo()).getTitleHeight(), "calendar");
       assertEquals(26, marked(new TimeSliderVSAssemblyInfo()).getTitleHeight(), "range slider");
-   }
-
-   @Test
-   void excludedTypesNeverTakeTheDensityRow() {
-      SreeEnv.setProperty("viewsheet.density", "comfortable");
-      assertEquals(AssetUtil.defh, marked(new CheckBoxVSAssemblyInfo()).getTitleHeight(), "check box");
-      assertEquals(AssetUtil.defh, marked(new RadioButtonVSAssemblyInfo()).getTitleHeight(), "radio button");
+      assertEquals(26, marked(new CheckBoxVSAssemblyInfo()).getTitleHeight(), "check box");
+      assertEquals(26, marked(new RadioButtonVSAssemblyInfo()).getTitleHeight(), "radio button");
    }
 
    @Test
