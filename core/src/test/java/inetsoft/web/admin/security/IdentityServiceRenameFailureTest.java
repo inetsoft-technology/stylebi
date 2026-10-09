@@ -293,11 +293,18 @@ class IdentityServiceRenameFailureTest {
       IdentityID oldId = user.getIdentityID();
       IdentityID newId = new IdentityID("ava2", ORG);
       Identity oldIdentity = new DefaultIdentity(oldId, Identity.USER);
-      when(dashboardManager.getDashboards(oldIdentity)).thenReturn(new String[] { "d1" });
+      // the orgs that the snapshot and the move are scoped to, which must be the user's org,
+      // not the current org of the admin who renames the user
+      List<String> orgs = new ArrayList<>();
+      when(dashboardManager.getDashboards(oldIdentity)).thenAnswer(inv -> {
+         orgs.add(OrganizationContextHolder.getCurrentOrgId());
+         return new String[] { "d1" };
+      });
       boolean[] locked = new boolean[1];
       List<String> unlocked = new ArrayList<>();
       doAnswer(inv -> {
          locked[0] = true;
+         orgs.add(OrganizationContextHolder.getCurrentOrgId());
 
          try {
             ((Runnable) inv.getArgument(0)).run();
@@ -336,6 +343,7 @@ class IdentityServiceRenameFailureTest {
       verify(dashboardRegistryManager).renameUser(oldId, newId);
       verify(dashboardManager).addRenamedUser(oldId, newId);
       assertEquals(List.of(), unlocked, "moved without holding the dashboard manager's lock");
+      assertEquals(List.of(ORG, ORG), orgs, "snapshot and move in the user's org");
    }
 
    private static Object recordUnlocked(boolean[] locked, List<String> unlocked, String call) {

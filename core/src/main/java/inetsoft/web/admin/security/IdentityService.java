@@ -632,7 +632,13 @@ public class IdentityService {
             smanager.identityRemoved(identity, eprovider);
          }
       }
-      else if((type == Identity.USER || type == Identity.GROUP) && !identityId.equals(oID)) {
+      else if(type == Identity.USER && !identityId.equals(oID)) {
+         // read in the user's org, where renameUserDashboards() moves them, not in the org of
+         // the admin who renames the user
+         renamedDashboards = OrganizationManager.runInOrgScope(
+            getUserDashboardsOrgID(oID), () -> dmanager.getDashboards(oid));
+      }
+      else if(type == Identity.GROUP && !identityId.equals(oID)) {
          renamedDashboards = dmanager.getDashboards(oid);
       }
 
@@ -938,10 +944,7 @@ public class IdentityService {
    {
       IdentityID oID = oid.getIdentityID();
       IdentityID nID = nid.getIdentityID();
-      String orgID = oID.orgID != null ?
-         oID.orgID : OrganizationManager.getInstance().getCurrentOrgID();
-
-      OrganizationManager.runInOrgScope(orgID, () -> {
+      OrganizationManager.runInOrgScope(getUserDashboardsOrgID(oID), () -> {
          dashboardManager.runLocked(() -> {
             // a create of the old name that gets the lock after this fails on every node
             dashboardManager.addRenamedUser(oID, nID);
@@ -967,6 +970,13 @@ public class IdentityService {
 
          return null;
       });
+   }
+
+   /**
+    * Gets the org of a user's dashboard selections and dashboard lock.
+    */
+   private static String getUserDashboardsOrgID(IdentityID user) {
+      return user.orgID != null ? user.orgID : OrganizationManager.getInstance().getCurrentOrgID();
    }
 
    private static void addMissing(List<String> list, String[] names) {
