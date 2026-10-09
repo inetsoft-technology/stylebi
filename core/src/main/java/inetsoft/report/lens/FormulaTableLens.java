@@ -57,6 +57,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -320,11 +321,7 @@ public class FormulaTableLens extends AbstractTableLens
          ncols = table.getColCount(); // optimization
 
          if(rows != null) {
-            XSwappableTable nrows = new XSwappableTable(formulas.length, false);
-            // add header before the table is published, a batch reading a header-only table
-            // would compute the base header as the first data row (bug #77243)
-            nrows.addRow(new Object[table.getColCount() + formulas.length]);
-            rows = nrows;
+            rows = createRowTable();
          }
 
          // the stopped rows of the old row table are not cleared here, without the lens lock:
@@ -339,6 +336,44 @@ public class FormulaTableLens extends AbstractTableLens
       }
 
       fireChangeEvent();
+   }
+
+   /**
+    * Create an empty row table, with its header row added before the table is published:
+    * a batch reading a header-only table would compute the base header as the first data row
+    * (bug #77243).
+    */
+   private XSwappableTable createRowTable() {
+      XSwappableTable nrows = new XSwappableTable(formulas.length, false);
+      nrows.addRow(new Object[table.getColCount() + formulas.length]);
+      return nrows;
+   }
+
+   /**
+    * Replace the row table a batch computes once a row of it stalled, or read a lost swap
+    * file, inside its formulas, if the formulas own vars. The row is computed again by a
+    * later read, but the formulas that ran before the failure may have changed their vars,
+    * so computing it again on them would apply that change twice and shift every later row.
+    * A new row table is computed from the first row with fresh vars instead, so a later read
+    * of this lens still gets every value, as after a stall of formulas that own no vars
+    * (bug #78133). The rows the old table holds are values the new one computes again, so no
+    * change event is fired; it is not disposed, as a reader may hold it (bug #77243).
+    *
+    * <p>Called under the lens lock. A row table invalidate() published meanwhile is kept.
+    *
+    * @param target the row table of the batch.
+    *
+    * @return {@code true} if the row table was replaced.
+    */
+   private boolean discardRows(XSwappableTable target) {
+      // without a scope the row scope is not in the chain, and the vars are not owned
+      if(scope == null || target == null ||
+         GraalJavaScriptEngine.collectOwnedVarNames(Arrays.asList(formulas)).isEmpty())
+      {
+         return false;
+      }
+
+      return ROWS.compareAndSet(this, target, createRowTable());
    }
 
    /**
@@ -390,6 +425,9 @@ public class FormulaTableLens extends AbstractTableLens
       // set when this batch ends in any other exception, such as a script error of one row:
       // the rows past it are not computed yet, so the row table is not complete (bug #77123)
       boolean failed = false;
+      // set when a row stalled after formulas that own vars may have changed them, and the
+      // row table was replaced to compute again from fresh vars (bug #78133)
+      boolean discarded = false;
       // the row table this batch computes, the one lockForRow() read under the lock and chose
       // the engine lock for: invalidate() may publish a new one at any time without the lock,
       // and the rows computed here belong to this one only (bug #77243)
@@ -563,6 +601,7 @@ public class FormulaTableLens extends AbstractTableLens
             }
             catch(LockStallException ex) {
                stalled = true;
+               discarded = discardRows(target);
                throw ex;
             }
             // a lost swap file is not a script error either: like a stall, the row is not
@@ -570,6 +609,7 @@ public class FormulaTableLens extends AbstractTableLens
             // again instead of reading a null cell (bug #77912)
             catch(SwapFileReadException ex) {
                stalled = true;
+               discarded = discardRows(target);
                throw ex;
             }
             catch(ScriptException ex) {
@@ -577,6 +617,7 @@ public class FormulaTableLens extends AbstractTableLens
 
                if(stall != null) {
                   stalled = true;
+                  discarded = discardRows(target);
                   throw stall;
                }
 
@@ -584,6 +625,7 @@ public class FormulaTableLens extends AbstractTableLens
 
                if(swap != null) {
                   stalled = true;
+                  discarded = discardRows(target);
                   throw swap;
                }
 
@@ -665,7 +707,8 @@ public class FormulaTableLens extends AbstractTableLens
 
             // span.close() in its own finally: nothing here may skip it or the unlock
             try {
-               if(!more && !stalled && !failed && completedRow != null &&
+               // a discarded row table runs no formula again either (bug #78133)
+               if((discarded || !more && !stalled && !failed) && completedRow != null &&
                   completedRow.batchRows == target)
                {
                   completedRow.thisScope.releaseOwnedObjects();
@@ -2210,5 +2253,8 @@ public class FormulaTableLens extends AbstractTableLens
    private transient String reportName;
 
    private static final ScriptCache scriptCache = new ScriptCache(100, 60000);
+   // publishes a row table only over the one a batch computed (bug #78133)
+   private static final AtomicReferenceFieldUpdater<FormulaTableLens, XSwappableTable> ROWS =
+      AtomicReferenceFieldUpdater.newUpdater(FormulaTableLens.class, XSwappableTable.class, "rows");
    private static final Logger LOG = LoggerFactory.getLogger(FormulaTableLens.class);
 }
