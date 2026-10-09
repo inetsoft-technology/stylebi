@@ -146,6 +146,11 @@ class IdentityServiceRenameFailureTest {
       dashboardManager = mock(DashboardManager.class);
       repletRegistryManager = mock(RepletRegistryManager.class);
       dashboardRegistryManager = mock(DashboardRegistryManager.class);
+      // the real manager runs the user's dashboard moves holding its lock
+      doAnswer(inv -> {
+         ((Runnable) inv.getArgument(0)).run();
+         return null;
+      }).when(dashboardManager).runLocked(any());
       service = mock(IdentityService.class, withSettings().defaultAnswer(CALLS_REAL_METHODS));
       ReflectionTestUtils.setField(service, "securityEngine", engine);
       ReflectionTestUtils.setField(service, "securityProvider", securityProvider);
@@ -277,6 +282,59 @@ class IdentityServiceRenameFailureTest {
                                              new String[] { "d1" });
       verify(repletRegistryManager).renameUser(oldId, newId);
       verify(dashboardRegistryManager).renameUser(oldId, newId);
+   }
+
+   // Bug #78101: a dashboard that a request still running under the old name creates after the
+   // dashboards were read is moved too, and the selection and the registries are moved holding the
+   // dashboard manager's lock, which the create holds while it adds the dashboard
+   @Test
+   void renameUserMovesDashboardsCreatedAfterTheReadHoldingTheLock() throws Exception {
+      FSUser user = addUser("ava", null, null);
+      IdentityID oldId = user.getIdentityID();
+      IdentityID newId = new IdentityID("ava2", ORG);
+      Identity oldIdentity = new DefaultIdentity(oldId, Identity.USER);
+      when(dashboardManager.getDashboards(oldIdentity)).thenReturn(new String[] { "d1" });
+      when(dashboardManager.getDashboards(oldIdentity, false))
+         .thenReturn(new String[] { "d1", "d2" });
+      boolean[] locked = new boolean[1];
+      List<String> unlocked = new ArrayList<>();
+      doAnswer(inv -> {
+         locked[0] = true;
+
+         try {
+            ((Runnable) inv.getArgument(0)).run();
+         }
+         finally {
+            locked[0] = false;
+         }
+
+         return null;
+      }).when(dashboardManager).runLocked(any());
+      doAnswer(inv -> recordUnlocked(locked, unlocked, "setDashboards"))
+         .when(dashboardManager).setDashboards(any(), any());
+      doAnswer(inv -> recordUnlocked(locked, unlocked, "removeDashboards"))
+         .when(dashboardManager).removeDashboards(any());
+      doAnswer(inv -> recordUnlocked(locked, unlocked, "replet.renameUser"))
+         .when(repletRegistryManager).renameUser(any(), any());
+      doAnswer(inv -> recordUnlocked(locked, unlocked, "dashboardRegistry.renameUser"))
+         .when(dashboardRegistryManager).renameUser(any(), any());
+
+      assertNull(syncIdentity(renamedUser(newId), oldId, null));
+
+      verify(dashboardManager).setDashboards(new DefaultIdentity(newId, Identity.USER),
+                                             new String[] { "d1", "d2" });
+      verify(dashboardManager).removeDashboards(oldIdentity);
+      verify(repletRegistryManager).renameUser(oldId, newId);
+      verify(dashboardRegistryManager).renameUser(oldId, newId);
+      assertEquals(List.of(), unlocked, "moved without holding the dashboard manager's lock");
+   }
+
+   private static Object recordUnlocked(boolean[] locked, List<String> unlocked, String call) {
+      if(!locked[0]) {
+         unlocked.add(call);
+      }
+
+      return null;
    }
 
    @Test

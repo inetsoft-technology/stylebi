@@ -86,11 +86,13 @@ public class DashboardManager implements AutoCloseable {
     * the change to the stored selections and the change to the registry file are atomic with
     * respect to getDashboards(), which leaves out the selected names that are not in the
     * registries, and which re-reads both under the store lock before it removes such a name
-    * (Bug #77299). The lock order is this manager, then the store lock, then
-    * DashboardRegistryManager, then the user registry, then the global registry (see
-    * DashboardRegistry for the registry file locks).
+    * (Bug #77299). A dashboard create adds the dashboard to the user registry and to the
+    * selection through this, and a user rename moves both, so that a create either completes
+    * before the move or runs after it (Bug #78101). The lock order is this manager, then the
+    * store lock, then DashboardRegistryManager, then the user registry, then the global registry
+    * (see DashboardRegistry for the registry file locks).
     */
-   synchronized void runLocked(Runnable action) {
+   public synchronized void runLocked(Runnable action) {
       Lock storeLock = getStoreLock();
       storeLock.lock();
 

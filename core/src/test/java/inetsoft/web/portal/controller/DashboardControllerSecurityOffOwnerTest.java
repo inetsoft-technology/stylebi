@@ -75,6 +75,11 @@ class DashboardControllerSecurityOffOwnerTest {
       when(registryManager.getRegistry(any(IdentityID.class)))
          .thenReturn(mock(DashboardRegistry.class));
       dashboardManager = mock(DashboardManager.class);
+      // the real manager runs the create's registry and selection changes holding its lock
+      doAnswer(inv -> {
+         ((Runnable) inv.getArgument(0)).run();
+         return null;
+      }).when(dashboardManager).runLocked(any());
 
       controller = new DashboardController(
          mock(AnalyticRepository.class), viewsheetService, mock(DashboardServiceProxy.class),

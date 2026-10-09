@@ -259,6 +259,10 @@ public class DashboardController {
       IdentityID user = principal != null
          ? getIdentity((XPrincipal) principal).getIdentityID()
          : new IdentityID(XPrincipal.ANONYMOUS, Organization.getDefaultOrganizationID());
+      // checked again before the dashboard is added, see below (Bug #78101)
+      SecurityProvider provider = getSecurityProvider();
+      boolean registeredUser = principal != null && securityEngine.isSecurityEnabled() &&
+         provider != null && hasUser(provider, user);
       DashboardRegistry registry = dashboardRegistryManager.getRegistry(user);
       // log create dashboard action
       String actionName = ActionRecord.ACTION_NAME_CREATE;
@@ -318,13 +322,42 @@ public class DashboardController {
          IdentityID identityID = IdentityID.getIdentityIDFromKey(principal.getName());
          dashboard.setCreatedBy(identityID.getName());
          dashboard.setLastModifiedBy(identityID.getName());
-         registry.putDashboard(dashboardModel.name(), dashboard);
-
          // if this dashboard is created by a user on the viewer, then the
          // dashboard should be automatically selected.
-         if(user != null) {
-            Identity id = getIdentity((XPrincipal) principal);
-            dashboardManager.addDashboard(id, dashboardModel.name());
+         Identity id = user != null ? getIdentity((XPrincipal) principal) : null;
+         Exception[] error = new Exception[1];
+         boolean[] userGone = new boolean[1];
+
+         // added to the registry and selected holding the dashboard manager's lock, which a user
+         // rename holds while it moves both to the new name. A user who was in the provider and
+         // is gone now has been renamed or removed, and the dashboard would be stored under a
+         // name nobody has, so the create fails (Bug #78101).
+         dashboardManager.runLocked(() -> {
+            try {
+               if(registeredUser && provider.getUser(user) == null) {
+                  userGone[0] = true;
+                  throw new MessageException(
+                     Catalog.getCatalog().getString("common.invalidUserReload"));
+               }
+
+               registry.putDashboard(dashboardModel.name(), dashboard);
+
+               if(id != null) {
+                  dashboardManager.addDashboard(id, dashboardModel.name());
+               }
+            }
+            catch(Exception ex) {
+               error[0] = ex;
+            }
+         });
+
+         if(error[0] != null) {
+            // the viewsheet just created for the dashboard would be left under the old name
+            if(userGone[0] && composedDashboard) {
+               removeDashboardViewsheet(dashboard, principal);
+            }
+
+            throw error[0];
          }
 
          dependencyHandler.updateDashboardDependencies(user, dashboardModel.name(),

@@ -627,7 +627,8 @@ public class IdentityService {
       }
 
       final String[] dashboards = renamedDashboards;
-      // moves a renamed user's or group's schedule tasks and dashboards to the new name
+      // moves a renamed group's schedule tasks and dashboards to the new name. A renamed user's
+      // are moved by renameUserDashboards()
       RenameStep renameTasksAndDashboards = () -> {
          smanager.identityRenamed(oID, identity);
          dmanager.setDashboards(nid, dashboards);
@@ -666,12 +667,9 @@ public class IdentityService {
 
             renameIdentity(eprovider, identityId, type, () -> eprovider.setUser(oID, (User) identity),
                () -> {
-                  renameTasksAndDashboards.run();
+                  smanager.identityRenamed(oID, identity);
                   //rep.renameUser(oID, identityId);
-                  repletRegistryManager.renameUser(oID, identityId);
-                  dashboardRegistryManager.clear(identityId);
-                  dashboardRegistryManager.renameUser(oID, identityId);
-                  dashboardRegistryManager.clear(oID);
+                  renameUserDashboards(oid, nid, dashboards);
                   updateUserAutoSaveFiles(oID, identityId);
                   // update user identityId inside of permissions. The provider's change listener
                   // renames the grantees too, but not the permissions keyed by the user's resources
@@ -911,6 +909,53 @@ public class IdentityService {
       }
 
       migrate.run();
+   }
+
+   /**
+    * Moves a renamed user's dashboard selection and dashboard registry to the new name. It runs
+    * after the renamed user is saved, holding the dashboard manager's lock (runLocked()) in the
+    * user's organization. A dashboard create holds the same lock while it adds the dashboard to
+    * the user's registry and selection, and fails once the user is gone, so a create that is
+    * still running under the old name either completes before the move and is moved with it, or
+    * fails (Bug #78101). The registry file locks are not taken here: they come after the
+    * DashboardRegistryManager lock, which the registry rename takes (see DashboardRegistry).
+    *
+    * @param dashboards the selected dashboards of the old user, read before the user was saved.
+    *                   The ones that have been selected since are added to them.
+    */
+   private void renameUserDashboards(Identity oid, Identity nid, String[] dashboards)
+      throws Exception
+   {
+      IdentityID oID = oid.getIdentityID();
+      IdentityID nID = nid.getIdentityID();
+      String orgID = oID.orgID != null ?
+         oID.orgID : OrganizationManager.getInstance().getCurrentOrgID();
+
+      OrganizationManager.runInOrgScope(orgID, () -> {
+         dashboardManager.runLocked(() -> {
+            // not synchronized with the user's groups and roles, which the old user no longer has
+            List<String> moved = dashboards == null ?
+               new ArrayList<>() : new ArrayList<>(Arrays.asList(dashboards));
+            String[] selected = dashboardManager.getDashboards(oid, false);
+
+            for(String dashboard : selected == null ? new String[0] : selected) {
+               if(!moved.contains(dashboard)) {
+                  moved.add(dashboard);
+               }
+            }
+
+            dashboardManager.setDashboards(nid, moved.toArray(new String[0]));
+            dashboardManager.setDashboards(oid, null);
+            dashboardManager.removeDashboards(oid);
+            dashboardRegistryManager.clear(oID);
+            repletRegistryManager.renameUser(oID, nID);
+            dashboardRegistryManager.clear(nID);
+            dashboardRegistryManager.renameUser(oID, nID);
+            dashboardRegistryManager.clear(oID);
+         });
+
+         return null;
+      });
    }
 
    /**
