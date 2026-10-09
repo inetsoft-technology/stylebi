@@ -440,16 +440,18 @@ final class MinorityIslandDetector implements AutoCloseable {
       StringBuilder text = new StringBuilder("port=").append(getConfiguredPort(discoverySpi));
       TcpDiscoveryIpFinder ipFinder = discoverySpi.getIpFinder();
 
-      if(ipFinder instanceof TcpDiscoveryVmIpFinder) {
+      // TcpDiscoveryMulticastIpFinder extends TcpDiscoveryVmIpFinder, so test it first, and
+      // match the static finder by its exact class (another subclass falls to its class name)
+      if(ipFinder instanceof TcpDiscoveryMulticastIpFinder multicastFinder) {
+         text.append("\nmulticast=").append(multicastFinder.getMulticastGroup())
+            .append(':').append(multicastFinder.getMulticastPort());
+      }
+      else if(ipFinder != null && ipFinder.getClass() == TcpDiscoveryVmIpFinder.class) {
          // Not the member list: nodes of one deployment may list their members differently.
          // Two deployments with static members, the same base port and a shared host can't
          // stay apart (each one's host:port entry reaches the other's node, which it joins),
          // and the probed host must belong to the cluster that answers.
          text.append("\nvm");
-      }
-      else if(ipFinder instanceof TcpDiscoveryMulticastIpFinder multicastFinder) {
-         text.append("\nmulticast=").append(multicastFinder.getMulticastGroup())
-            .append(':').append(multicastFinder.getMulticastPort());
       }
       else if(ipFinder != null) {
          text.append("\nfinder=").append(ipFinder.getClass().getName());

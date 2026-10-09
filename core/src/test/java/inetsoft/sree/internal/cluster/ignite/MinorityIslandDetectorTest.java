@@ -20,6 +20,7 @@ package inetsoft.sree.internal.cluster.ignite;
 import inetsoft.sree.internal.cluster.ignite.MinorityIslandDetector.Island;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi;
+import org.apache.ignite.spi.discovery.tcp.ipfinder.multicast.TcpDiscoveryMulticastIpFinder;
 import org.apache.ignite.spi.discovery.tcp.ipfinder.vm.TcpDiscoveryVmIpFinder;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -79,6 +80,23 @@ class MinorityIslandDetectorTest {
       assertNull(MinorityIslandDetector.getDeploymentFingerprint(null, null));
    }
 
+   /**
+    * The multicast finder extends the static finder; its group and port must still count.
+    */
+   @Test
+   void deploymentFingerprintOfMulticastDependsOnGroupAndPort() {
+      String a = multicastFingerprint(47500, "228.1.2.3", 47400);
+
+      assertNotNull(a);
+      assertEquals(a, multicastFingerprint(47500, "228.1.2.3", 47400));
+      assertNotEquals(a, multicastFingerprint(47500, "228.1.2.4", 47400),
+                      "another multicast group is another deployment");
+      assertNotEquals(a, multicastFingerprint(47500, "228.1.2.3", 47401),
+                      "another multicast port is another deployment");
+      assertNotEquals(a, fingerprint(47500, "10.0.0.1:47500"),
+                      "multicast and static members are different deployments");
+   }
+
    @Test
    void azureAccountNameComesFromTheConnectionString() {
       assertEquals("acct1", MinorityIslandDetector.getAzureAccountName(
@@ -91,6 +109,16 @@ class MinorityIslandDetectorTest {
    private static String fingerprint(int port, String... members) {
       TcpDiscoveryVmIpFinder ipFinder = new TcpDiscoveryVmIpFinder();
       ipFinder.setAddresses(List.of(members));
+      TcpDiscoverySpi spi = new TcpDiscoverySpi();
+      spi.setLocalPort(port);
+      spi.setIpFinder(ipFinder);
+      return MinorityIslandDetector.getDeploymentFingerprint(spi, null);
+   }
+
+   private static String multicastFingerprint(int port, String group, int multicastPort) {
+      TcpDiscoveryMulticastIpFinder ipFinder = new TcpDiscoveryMulticastIpFinder();
+      ipFinder.setMulticastGroup(group);
+      ipFinder.setMulticastPort(multicastPort);
       TcpDiscoverySpi spi = new TcpDiscoverySpi();
       spi.setLocalPort(port);
       spi.setIpFinder(ipFinder);
