@@ -559,9 +559,21 @@ public class RelSoakTest {
       assertEquals(0, last[PARANOIA], "paranoia violations");
       assertEquals(0, last[MULTI], "multi-threaded access errors");
       assertEquals(0, appender.stalls.get(), "stall warnings: " + appender.messages);
-      assertTrue(slope(samples, from, HEAP) < 1.0, "heap after GC grows");
-      assertTrue(slope(samples, from, SLOTS) < 1.0, "node slots grow");
-      assertTrue(slope(samples, from, THREADS_COL) < 1.0, "threads grow");
+      assertFalse(grows(samples, from, HEAP, 1.0), "heap after GC grows");
+      assertFalse(grows(samples, from, SLOTS, 1.0), "node slots grow");
+      assertFalse(grows(samples, from, THREADS_COL, 1.0), "threads grow");
+   }
+
+   /**
+    * Whether a column grows by at least {@code limit} per 10 minutes over samples from..end.
+    * The slope must exceed the limit by 2 standard errors: on a short tail a column that only
+    * swings (node slots 8 -> 4 -> 8 while other builds saturate the CPU) can fit a slope above
+    * the limit with no trend, while a real leak grows steadily, so its error is small. A slope
+    * of 4 times the limit fails whatever its error.
+    */
+   static boolean grows(List<double[]> samples, int from, int col, double limit) {
+      double slope = slope(samples, from, col);
+      return slope >= 4 * limit || slope - 2 * se(samples, from, col) >= limit;
    }
 
    /** the first sample of the last 2/3 of the run */
