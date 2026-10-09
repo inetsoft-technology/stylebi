@@ -222,7 +222,8 @@ static int optionBoxHeightForMode(String mode)        // titleHeightForMode + ro
 public static int optionBoxHeight(VizContext ctx)     // 2 * defh when !ctx.modern
 public static boolean isSeededControlHeight(int h)    // 20, 24, 28, 30
 public static boolean isSeededOptionBoxHeight(int h)  // 40, 50, 58, and today's 48, 56, 60
-public static boolean isFormerOptionRow(int h)        // today's 28, 36, 40
+public static boolean isFormerOptionBoxHeight(int h)  // today's 48, 56, 60: twice a control height
+public static boolean isFormerOptionRow(int h)        // today's 28, 36, 40: a former box less 20
 ```
 
 `optionBoxHeightForMode` adds the two matrices rather than holding three literals, so the box cannot
