@@ -409,7 +409,8 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
 
       // the vars this hand-off keeps as copies of arrays or objects: a copy of an object that
       // a lost var reached through a closure, a getter or a WeakMap no longer shares it
-      // (Testing #77123, B1 residual); a Date or a bigint is a value no closure can share
+      // (Testing #77123, B1 residual). A bigint is immutable; a Date var already loses its
+      // identity at the batch-end Date snapshot, so neither is named
       List<String> kept = new ArrayList<>();
 
       for(int i = 0; i < nodes.length; i++) {

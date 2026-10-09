@@ -255,8 +255,9 @@
    // of a class or of a builtin that holds hidden references (a WeakMap, a WeakSet, a
    // Promise) in its graph. The host then names the kept roots reported by copied(), which
    // may be stale copies of what it reached (Testing #77123, B1 residual): a root that holds
-   // an array or object. A bigint, or a Date whose properties hold no object, is a value that
-   // no closure can share, and is not reported (review L1).
+   // an array or object. A bigint (immutable) or a Date whose properties hold no object is not
+   // reported (review L1): a Date var already loses its identity at the host's batch-end Date
+   // snapshot.
    function snap(roots, maxEntries, maxMillis, maxMarks) {
       const put = putter(protoClean());
       const deadline = now() + maxMillis;
