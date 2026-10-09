@@ -2930,6 +2930,51 @@ class WorksheetAgentControllerTest {
       verify(assetDataCache, atLeastOnce()).remove(any());
    }
 
+   /** Bug 76873: refreshing a table must also drop the cached results of its dependents. */
+   @Test
+   void refreshDataInvalidatesTransitiveDependentsOfTheRefreshedTable() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly table = TestWorksheets.nonEmbeddedTableWithColumns(
+         ws, "Table1", "cust", "amount");
+      table.setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+      ws.addAssembly(table);
+      MirrorTableAssembly dependent = new MirrorTableAssembly(ws, "Dep1", table);
+      ws.addAssembly(dependent);
+      MirrorTableAssembly nested = new MirrorTableAssembly(ws, "Dep2", dependent);
+      ws.addAssembly(nested);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      when(box.getWorksheet()).thenReturn(ws);
+      when(box.getVariableTable()).thenReturn(new VariableTable());
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-RD76873"), any())).thenReturn(session("TOK-RD76873"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      inetsoft.report.composition.execution.AssetDataCache assetDataCache =
+         mock(inetsoft.report.composition.execution.AssetDataCache.class);
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class), assetDataCache);
+
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         ctrl.edit("TOK-RD76873", refreshDataRequest("Table1"), agent);
+      }
+
+      verify(box).resetTableLens("Dep1");
+      verify(box).resetTableLens("Dep2");
+   }
+
    /**
     * Bug #76711 round 4: for an ordinary table (not runtime, not live-data -- the state an
     * {@code add_table}'d table is left in, per {@code WorksheetEventUtil.getMode}), refreshData's
