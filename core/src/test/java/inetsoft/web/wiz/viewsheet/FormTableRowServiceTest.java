@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.FormTableLens;
+import inetsoft.uql.ColumnSelection;
 import inetsoft.report.composition.FormTableRow;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
@@ -132,7 +133,7 @@ class FormTableRowServiceTest {
     */
    @Test
    void insertRowOffsetsIndexByTheLensOwnHeaderRowCount() throws Exception {
-      Harness h = harnessWithLens(tableWith(true, true, true, true), lensWith(1, true));
+      Harness h = harnessWithLens(tableWith(true, true, true, true), lensWith(1, true, rowWith(FormTableRow.OLD)));
 
       h.service.insertRow("tok", principal(), "Table1", 0, false, "");
 
@@ -144,7 +145,7 @@ class FormTableRowServiceTest {
    /** Not hardcoded to 1 -- a lens reporting more header rows offsets by that many instead. */
    @Test
    void insertRowOffsetUsesTheLensOwnHeaderRowCountNotAConstant() throws Exception {
-      Harness h = harnessWithLens(tableWith(true, true, true, true), lensWith(3, true));
+      Harness h = harnessWithLens(tableWith(true, true, true, true), lensWith(3, true, rowWith(0), rowWith(0), rowWith(0), rowWith(0), rowWith(0)));
 
       h.service.insertRow("tok", principal(), "Table1", 2, false, "");
 
@@ -196,7 +197,8 @@ class FormTableRowServiceTest {
     */
    @Test
    void deleteRowsOffsetsEveryIndexByTheLensOwnHeaderRowCount() throws Exception {
-      Harness h = harnessWithLens(tableWith(true, true, true, true), lensWith(1, true));
+      Harness h = harnessWithLens(tableWith(true, true, true, true),
+         lensWith(1, true, rowWith(0), rowWith(0), rowWith(0), rowWith(0)));
 
       h.service.deleteRows("tok", principal(), "Table1", List.of(2, 0), "");
 
@@ -476,6 +478,136 @@ class FormTableRowServiceTest {
       assertFalse(result.containsKey("warnings"), result.toString());
    }
 
+   // ── range validation (Bug #78152) ─────────────────────────────────────────
+
+   /** header + 3 data rows, 2 visible columns. */
+   private static Harness threeRowHarness() {
+      return harnessWithLens(tableWith(true, true, true, true),
+         lensWith(1, true, rowWith(FormTableRow.OLD), rowWith(FormTableRow.OLD),
+                  rowWith(FormTableRow.OLD), rowWith(FormTableRow.OLD)));
+   }
+
+   private void assertRefused(Harness h, org.junit.jupiter.api.function.Executable call,
+                              String... fragments)
+   {
+      Exception e = assertThrows(IllegalArgumentException.class, call);
+
+      for(String f : fragments) {
+         assertTrue(e.getMessage().contains(f), e.getMessage());
+      }
+
+      verifyNoInteractions(h.forms);
+   }
+
+   @Test
+   void insertRefusesIndexPastTheEnd() {
+      Harness h = threeRowHarness();
+      assertRefused(h, () -> h.service.insertRow("tok", principal(), "Table1", 99, false, ""),
+                    "'index' 99", "0..3");
+      assertRefused(h, () -> h.service.insertRow("tok", principal(), "Table1", 4, false, ""),
+                    "0..3");
+      assertRefused(h, () -> h.service.insertRow("tok", principal(), "Table1", -1, false, ""),
+                    "0..3");
+   }
+
+   @Test
+   void insertAtDataRowCountIsAllowed() throws Exception {
+      Harness h = threeRowHarness();
+      h.service.insertRow("tok", principal(), "Table1", 3, false, "");
+      verify(h.forms).addRow(eq("rt1"), any(), eq(""), any(), any());
+   }
+
+   @Test
+   void appendRefusesIndexAtOrPastDataRowCount() {
+      Harness h = threeRowHarness();
+      assertRefused(h, () -> h.service.insertRow("tok", principal(), "Table1", 3, true, ""),
+                    "append", "0..2");
+      assertRefused(h, () -> h.service.insertRow("tok", principal(), "Table1", 99, true, ""),
+                    "0..2");
+   }
+
+   @Test
+   void appendAfterLastRowIsAllowed() throws Exception {
+      Harness h = threeRowHarness();
+      h.service.insertRow("tok", principal(), "Table1", 2, true, "");
+      verify(h.forms).addRow(eq("rt1"), any(), eq(""), any(), any());
+   }
+
+   @Test
+   void appendOnEmptyTablePointsAtInsert() {
+      Harness h = harnessWithLens(tableWith(true, true, true, true),
+         lensWith(1, true, rowWith(FormTableRow.OLD)));
+      assertRefused(h, () -> h.service.insertRow("tok", principal(), "Table1", 0, true, ""),
+                    "no data rows", "insert");
+   }
+
+   @Test
+   void insertAtZeroOnEmptyTableIsAllowed() throws Exception {
+      Harness h = harnessWithLens(tableWith(true, true, true, true),
+         lensWith(1, true, rowWith(FormTableRow.OLD)));
+      h.service.insertRow("tok", principal(), "Table1", 0, false, "");
+      verify(h.forms).addRow(eq("rt1"), any(), eq(""), any(), any());
+   }
+
+   @Test
+   void insertAtZeroRefusedWhenTableHasNoHeaderRow() {
+      Harness h = harnessWithLens(tableWith(true, true, true, true),
+         lensWith(0, true, rowWith(FormTableRow.OLD), rowWith(FormTableRow.OLD)));
+      assertRefused(h, () -> h.service.insertRow("tok", principal(), "Table1", 0, false, ""),
+                    "no header row");
+   }
+
+   @Test
+   void deleteRefusesOutOfRangeRows() {
+      Harness h = threeRowHarness();
+      assertRefused(h, () -> h.service.deleteRows("tok", principal(), "Table1", List.of(99), ""),
+                    "99", "0..2");
+      assertRefused(h, () -> h.service.deleteRows("tok", principal(), "Table1", List.of(3), ""),
+                    "0..2");
+      assertRefused(h, () -> h.service.deleteRows("tok", principal(), "Table1", List.of(0, -1), ""),
+                    "-1");
+   }
+
+   @Test
+   void deleteRefusesDuplicateRows() {
+      Harness h = threeRowHarness();
+      assertRefused(h, () -> h.service.deleteRows("tok", principal(), "Table1", List.of(1, 1), ""),
+                    "row 1", "more than once");
+   }
+
+   @Test
+   void deleteLastRowIsAllowed() throws Exception {
+      Harness h = threeRowHarness();
+      h.service.deleteRows("tok", principal(), "Table1", List.of(2), "");
+      verify(h.forms).deleteRows(eq("rt1"), any(), eq(""), any(), any());
+   }
+
+   @Test
+   void setCellRefusesOutOfRangeRowOrColumn() {
+      Harness h = threeRowHarness();
+      assertRefused(h, () -> h.service.setCell("tok", principal(), "Table1", 99, 0, "x", ""),
+                    "'row' 99", "0..2");
+      assertRefused(h, () -> h.service.setCell("tok", principal(), "Table1", 3, 0, "x", ""),
+                    "0..2");
+      assertRefused(h, () -> h.service.setCell("tok", principal(), "Table1", 0, 9, "x", ""),
+                    "'col' 9", "0..1");
+      assertRefused(h, () -> h.service.setCell("tok", principal(), "Table1", 0, 2, "x", ""),
+                    "0..1");
+      assertRefused(h, () -> h.service.setCell("tok", principal(), "Table1", 0, -1, "x", ""),
+                    "'col' -1");
+   }
+
+   @Test
+   void setCellLastRowAndLastColumnAreAllowed() throws Exception {
+      FormTableLens lens = lensWith(1, true, rowWith(FormTableRow.OLD), rowWith(FormTableRow.OLD),
+         rowWith(FormTableRow.OLD), rowWith(FormTableRow.OLD));
+      ColumnOption option = optionWith(true);
+      when(lens.getVisibleColumnOption(1)).thenReturn(option);
+      Harness h = harnessWithLens(tableWith(true, true, true, true), lens);
+      h.service.setCell("tok", principal(), "Table1", 2, 1, "x", "");
+      verify(h.forms).changeFormInput(eq("rt1"), any(), eq(""), any(), any());
+   }
+
    // ── fixtures ──────────────────────────────────────────────────────────────
 
    private record Harness(FormTableRowService service, VSFormTableService forms,
@@ -596,6 +728,10 @@ class FormTableRowServiceTest {
       when(lens.getHeaderRowCount()).thenReturn(headerRowCount);
       when(lens.isEdit()).thenReturn(edit);
       when(lens.rows()).thenReturn(rows);
+      when(lens.getRowCount()).thenReturn(rows.length);
+      ColumnSelection visible = mock(ColumnSelection.class);
+      when(visible.getAttributeCount()).thenReturn(2);
+      when(lens.getVisibleColumns()).thenReturn(visible);
       return lens;
    }
 

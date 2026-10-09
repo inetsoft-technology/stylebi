@@ -21,6 +21,7 @@ import inetsoft.report.composition.FormTableLens;
 import inetsoft.report.composition.FormTableRow;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.viewsheet.ColumnOption;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
@@ -89,6 +90,7 @@ public class FormTableRowService {
 
       List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          requireInsertable(rvs, assemblyName);
+         requireInsertIndexInRange(rvs, assemblyName, index, append);
 
          InsertTableRowEvent event = InsertTableRowEvent.builder()
             .assemblyName(assemblyName)
@@ -119,6 +121,7 @@ public class FormTableRowService {
 
       List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          requireDeletable(rvs, assemblyName);
+         requireDeleteRowsInRange(rvs, assemblyName, rows);
 
          int offset = headerRowOffset(rvs, assemblyName);
          List<Integer> nativeRows = new ArrayList<>(rows.size());
@@ -153,6 +156,7 @@ public class FormTableRowService {
 
       List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          requireForm(rvs, assemblyName);
+         requireCellInRange(rvs, assemblyName, row, col);
 
          int nativeRow = row + headerRowOffset(rvs, assemblyName);
          requireEditableCell(rvs, assemblyName, nativeRow, row, col);
@@ -284,14 +288,127 @@ public class FormTableRowService {
     * do anything.
     */
    private static int headerRowOffset(RuntimeViewsheet rvs, String assemblyName) throws Exception {
-      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+      FormTableLens lens = resolveLens(rvs, assemblyName);
+      return lens == null ? 0 : lens.getHeaderRowCount();
+   }
 
-      if(box.isEmpty()) {
-         return 0;
+   private static FormTableLens resolveLens(RuntimeViewsheet rvs, String assemblyName)
+      throws Exception
+   {
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+      return box.isEmpty() ? null : box.get().getFormTableLens(assemblyName);
+   }
+
+   private static int dataRowCount(FormTableLens lens) {
+      return lens.getRowCount() - lens.getHeaderRowCount();
+   }
+
+   /**
+    * Insert accepts 0..dataRows (insert AT dataRows adds at the end); append accepts
+    * 0..dataRows-1 (adds AFTER that row). Native {@code FormTableLens.insertRow} throws an
+    * unmapped ArrayIndexOutOfBounds (a generic 500) outside those ranges, and RuntimeException
+    * ("Insert header cell is not allowed!") when the target is the header row of a table with no
+    * header rows.
+    */
+   private static void requireInsertIndexInRange(RuntimeViewsheet rvs, String assemblyName,
+                                                 int index, boolean append) throws Exception
+   {
+      FormTableLens lens = resolveLens(rvs, assemblyName);
+
+      if(lens == null) {
+         return;
       }
 
-      FormTableLens lens = box.get().getFormTableLens(assemblyName);
-      return lens == null ? 0 : lens.getHeaderRowCount();
+      int dataRows = dataRowCount(lens);
+
+      if(append) {
+         if(dataRows < 1) {
+            throw new IllegalArgumentException(
+               "'" + assemblyName + "' has no data rows to append after (index " + index +
+               "); use form_table_insert_row with mode 'insert' at index 0 instead.");
+         }
+
+         if(index < 0 || index > dataRows - 1) {
+            throw new IllegalArgumentException(
+               "'index' " + index + " is out of range for append on '" + assemblyName +
+               "': valid range is 0.." + (dataRows - 1) + " (" + dataRows + " data row(s)).");
+         }
+      }
+      else {
+         if(index < 0 || index > dataRows) {
+            throw new IllegalArgumentException(
+               "'index' " + index + " is out of range for insert on '" + assemblyName +
+               "': valid range is 0.." + dataRows + " (" + dataRows + " data row(s)).");
+         }
+
+         if(index + lens.getHeaderRowCount() == 0) {
+            throw new IllegalArgumentException(
+               "'index' 0 cannot be inserted at on '" + assemblyName + "': it has no header " +
+               "row, so row 0 is its first row and the native insert refuses it. Use append " +
+               "after a data row, or insert at index " + Math.min(1, dataRows) + " or later.");
+         }
+      }
+   }
+
+   /**
+    * {@code FormTableLens.deleteRow} silently ignores an out-of-range row, and {@code
+    * VSFormTableService.deleteRows} applies a repeated row index twice (deleting two distinct
+    * rows), so both are refused here instead.
+    */
+   private static void requireDeleteRowsInRange(RuntimeViewsheet rvs, String assemblyName,
+                                                List<Integer> rows) throws Exception
+   {
+      FormTableLens lens = resolveLens(rvs, assemblyName);
+
+      if(lens == null) {
+         return;
+      }
+
+      int dataRows = dataRowCount(lens);
+      Set<Integer> seen = new HashSet<>();
+
+      for(int r : rows) {
+         if(r < 0 || r > dataRows - 1) {
+            throw new IllegalArgumentException(
+               "'rows' entry " + r + " is out of range for '" + assemblyName + "': valid range " +
+               (dataRows > 0 ? "is 0.." + (dataRows - 1) : "is empty") + " (" + dataRows +
+               " data row(s)).");
+         }
+
+         if(!seen.add(r)) {
+            throw new IllegalArgumentException(
+               "'rows' lists row " + r + " more than once; each row may be named only once.");
+         }
+      }
+   }
+
+   private static void requireCellInRange(RuntimeViewsheet rvs, String assemblyName, int row,
+                                          int col) throws Exception
+   {
+      FormTableLens lens = resolveLens(rvs, assemblyName);
+
+      if(lens == null) {
+         return;
+      }
+
+      int dataRows = dataRowCount(lens);
+
+      if(row < 0 || row > dataRows - 1) {
+         throw new IllegalArgumentException(
+            "'row' " + row + " is out of range for '" + assemblyName + "': valid range " +
+            (dataRows > 0 ? "is 0.." + (dataRows - 1) : "is empty") + " (" + dataRows +
+            " data row(s)).");
+      }
+
+      ColumnSelection visible = lens.getVisibleColumns();
+      int cols = visible == null ? -1 : visible.getAttributeCount();
+
+      if(cols >= 0 && (col < 0 || col > cols - 1)) {
+         throw new IllegalArgumentException(
+            "'col' " + col + " is out of range for '" + assemblyName + "': valid range " +
+            (cols > 0 ? "is 0.." + (cols - 1) : "is empty") + " (" + cols +
+            " visible column(s)).");
+      }
    }
 
    /**
@@ -303,9 +420,8 @@ public class FormTableRowService {
     * none of this: it would otherwise let a STOMP-bypassing caller change a cell the Preview
     * toolbar's own grid would render as non-editable and refuse to let a human click into.
     *
-    * <p>A no-op (same "fail downstream instead" reasoning as {@link #headerRowOffset}) when the
-    * lens can't be resolved, or {@code nativeRow} is out of the lens's own row range -- in both
-    * cases the native call is about to fail on its own terms regardless of this check.
+    * <p>A no-op when the lens can't be resolved. Row/column bounds are enforced earlier by
+    * {@link #requireCellInRange}, so the range guard below is only defensive.
     */
    private static void requireEditableCell(RuntimeViewsheet rvs, String assemblyName,
                                            int nativeRow, int dataRow, int col) throws Exception
