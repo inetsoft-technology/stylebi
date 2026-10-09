@@ -171,6 +171,57 @@ class ClusterJobStoreTransactionTest {
    }
 
    /**
+    * A repeating trigger whose fire transaction fails after the trigger was fired (e.g. while
+    * committing) is released with the fire time it was stored with, so the run is not skipped.
+    */
+   @Test
+   void failedFireCommitOfARepeatingTriggerKeepsItsFireTime() throws Exception {
+      assertFailedFireCommitKeepsTheFireTime(SimpleTrigger.REPEAT_INDEFINITELY);
+   }
+
+   /**
+    * A one-shot trigger whose fire transaction fails after the trigger was fired is released with
+    * its fire time, instead of being left waiting with none, which would never run or complete.
+    */
+   @Test
+   void failedFireCommitOfAOneShotTriggerKeepsItsFireTime() throws Exception {
+      assertFailedFireCommitKeepsTheFireTime(0);
+   }
+
+   private void assertFailedFireCommitKeepsTheFireTime(int repeatCount) throws Exception {
+      JobDetail job = createJob();
+      SimpleTriggerImpl trigger = (SimpleTriggerImpl) createTrigger(new SimpleTriggerImpl(), job);
+      trigger.setRepeatCount(repeatCount);
+      store.storeJobAndTrigger(job, trigger);
+      OperableTrigger acquired = acquire();
+      Date fireTime = acquired.getNextFireTime();
+      assertNotNull(fireTime);
+      cluster.commitFailures.set(1);
+
+      List<TriggerFiredResult> results = store.triggersFired(List.of(acquired));
+
+      assertEquals(1, results.size());
+      assertInstanceOf(DistributedTransactionException.class, results.get(0).getException());
+      assertNull(results.get(0).getTriggerFiredBundle());
+      assertNull(runningJobs.get(job.getKey()), "the failed fire left its run record");
+
+      handleAsQuartz(List.of(acquired), results);
+
+      TriggerWrapper stored = triggersByKey.get(trigger.getKey());
+      assertEquals(TriggerState.WAITING, stored.getState(), "the failed trigger was not released");
+      assertEquals(fireTime, stored.trigger.getNextFireTime(),
+                   "the failed fire changed the trigger's next fire time");
+      assertNull(stored.trigger.getPreviousFireTime(),
+                 "the failed fire was recorded as the trigger's previous fire");
+
+      // the run is not lost: the next pass acquires the trigger at the same time and fires it
+      OperableTrigger again = acquire();
+      assertEquals(fireTime, again.getNextFireTime());
+      assertNotNull(store.triggersFired(List.of(again)).get(0).getTriggerFiredBundle(),
+                    "the released trigger did not fire");
+   }
+
+   /**
     * A trigger whose transaction fails in the middle of an acquire pass is skipped, left as it
     * was, and the triggers acquired before and after it are still returned, so none of them stays
     * acquired by this node without the scheduler knowing.
@@ -487,6 +538,17 @@ class ClusterJobStoreTransactionTest {
             throw new DistributedTransactionException("The transaction timed out");
          }
 
+         if(ignite.transactions().tx() == null &&
+            commitFailures.getAndUpdate(n -> Math.max(0, n - 1)) > 0)
+         {
+            // the action runs, then the transaction fails as one that fails to commit would, and
+            // is rolled back
+            return IgniteCluster.runInTransaction(ignite, timeout, unit, () -> {
+               action.run();
+               throw new DistributedTransactionException("The transaction failed to commit");
+            });
+         }
+
          return IgniteCluster.runInTransaction(ignite, timeout, unit, action);
       }
 
@@ -494,6 +556,8 @@ class ClusterJobStoreTransactionTest {
       final AtomicInteger failures = new AtomicInteger();
       // the number of next transactions that pass before one fails, or -1
       final AtomicInteger failAfter = new AtomicInteger(-1);
+      // the number of next transactions that fail after their action ran
+      final AtomicInteger commitFailures = new AtomicInteger();
    }
 
    @DisallowConcurrentExecution

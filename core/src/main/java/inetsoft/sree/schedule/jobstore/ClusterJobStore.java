@@ -36,6 +36,7 @@ import java.io.Serializable;
 import java.security.Principal;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
@@ -780,8 +781,16 @@ public class ClusterJobStore implements JobStore, Serializable {
          catch(RuntimeException | JobPersistenceException ex) {
             // Bug #77879, the trigger's transaction was rolled back, so the trigger is left as it
             // was and is skipped. The triggers acquired before it must still reach the
-            // scheduler, or they would stay acquired by this live node and never fire
-            LOG.warn("Failed to acquire trigger {}, it is skipped in this pass", tw.key, ex);
+            // scheduler, or they would stay acquired by this live node and never fire. A trigger
+            // that fails in every pass is logged as a warning once, until it is acquired again
+            if(failingTriggers.add(tw.key)) {
+               LOG.warn("Failed to acquire trigger {}, it is skipped in this pass", tw.key, ex);
+            }
+            else {
+               LOG.debug("Failed to acquire trigger {} again, it is skipped in this pass",
+                         tw.key, ex);
+            }
+
             failure = ex;
 
             if(!jobTaken) {
@@ -790,6 +799,8 @@ public class ClusterJobStore implements JobStore, Serializable {
 
             continue;
          }
+
+         failingTriggers.remove(tw.key);
 
          if(trig != null) {
             result.add(trig);
@@ -971,7 +982,10 @@ public class ClusterJobStore implements JobStore, Serializable {
             // only release the acquisition made by the caller, another node may have acquired
             // the trigger since
             if(tw != null && isAcquiredBy(tw, trigger)) {
-               storeTriggerWrapper(newTriggerWrapper(trigger, WAITING));
+               // Bug #77879, the stored copy is released, not the caller's: after a fire whose
+               // transaction failed, the caller's copy already has its fire time advanced, and
+               // storing it would skip the run (or leave a one-shot trigger with no fire time)
+               storeTriggerWrapper(newTriggerWrapper(tw, WAITING));
             }
 
             return null;
@@ -1000,9 +1014,12 @@ public class ClusterJobStore implements JobStore, Serializable {
             result = inTransaction(TX_TIMEOUT, () -> fireTrigger(trigger));
          }
          catch(RuntimeException | JobPersistenceException ex) {
-            // Bug #77879, the trigger's transaction was rolled back, so it is still acquired by
-            // this node. For a result with an exception (or without a bundle), Quartz releases
-            // the trigger and still runs the other triggers of the batch
+            // Bug #77879, the trigger's transaction failed, which normally rolled it back, so the
+            // trigger is still acquired by this node with its old fire time (a failure while
+            // committing may leave the outcome unknown). For a result with an exception (or
+            // without a bundle), Quartz releases the trigger, which stores the trigger as it was
+            // stored, not Quartz's copy whose fire time was advanced, and still runs the other
+            // triggers of the batch
             LOG.warn("Failed to fire trigger {}", trigger.getKey(), ex);
             result = new TriggerFiredResult(ex);
          }
@@ -1669,6 +1686,9 @@ public class ClusterJobStore implements JobStore, Serializable {
    private Set<String> pausedTriggerGroups;
    private Set<String> pausedJobGroups;
    private volatile boolean schedulerRunning = false;
+   // Bug #77879, the triggers whose last acquire transaction failed, so a trigger that fails in
+   // every pass is logged as a warning once
+   private final Set<TriggerKey> failingTriggers = ConcurrentHashMap.newKeySet();
    private long misfireThreshold = 5000;
    private long triggerReleaseThreshold = 60000;
 
