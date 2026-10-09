@@ -680,6 +680,12 @@ public class IdentityService {
          }
          else if(!identityId.equals(oID)) {
             String orgId = identityId.orgID;
+            // recorded before the user is saved, so that every dashboard create refused once the
+            // old name is gone finds the record (Bug #78101)
+            OrganizationManager.runInOrgScope(getUserDashboardsOrgID(oID), () -> {
+               dmanager.runLocked(() -> dmanager.addRenamedUser(oID, identityId));
+               return null;
+            });
 
             renameIdentity(eprovider, identityId, type, () -> eprovider.setUser(oID, (User) identity),
                () -> {
@@ -946,8 +952,6 @@ public class IdentityService {
       IdentityID nID = nid.getIdentityID();
       OrganizationManager.runInOrgScope(getUserDashboardsOrgID(oID), () -> {
          dashboardManager.runLocked(() -> {
-            // a create of the old name that gets the lock after this fails on every node
-            dashboardManager.addRenamedUser(oID, nID);
             // the names stored for the old and the new name now are kept, read from the
             // cluster's record, so that the move never drops a name that another node has
             // selected since the snapshot, or that the snapshot left out. They are not

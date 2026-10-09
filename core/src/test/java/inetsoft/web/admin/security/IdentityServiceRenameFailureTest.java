@@ -330,8 +330,13 @@ class IdentityServiceRenameFailureTest {
          return inv.getArgument(0).equals(oldIdentity) ?
             new String[] { "d0", "d1", "d2" } : new String[] { "n1" };
       }).when(dashboardManager).getStoredDashboards(any());
-      doAnswer(inv -> recordUnlocked(locked, unlocked, "addRenamedUser"))
-         .when(dashboardManager).addRenamedUser(any(), any());
+      // recorded before the user is saved, so that a create refused once the old name is gone
+      // finds the record and leaves its viewsheet to the rename
+      List<Boolean> oldUserExistsOnRecord = new ArrayList<>();
+      doAnswer(inv -> {
+         oldUserExistsOnRecord.add(provider().getUser(oldId) != null);
+         return recordUnlocked(locked, unlocked, "addRenamedUser");
+      }).when(dashboardManager).addRenamedUser(any(), any());
 
       assertNull(syncIdentity(renamedUser(newId), oldId, null));
 
@@ -342,8 +347,10 @@ class IdentityServiceRenameFailureTest {
       verify(repletRegistryManager).renameUser(oldId, newId);
       verify(dashboardRegistryManager).renameUser(oldId, newId);
       verify(dashboardManager).addRenamedUser(oldId, newId);
+      assertEquals(List.of(true), oldUserExistsOnRecord);
       assertEquals(List.of(), unlocked, "moved without holding the dashboard manager's lock");
-      assertEquals(List.of(ORG, ORG), orgs, "snapshot and move in the user's org");
+      // the snapshot, the rename record (written before the user is saved) and the move
+      assertEquals(List.of(ORG, ORG, ORG), orgs, "snapshot, record and move in the user's org");
    }
 
    private static Object recordUnlocked(boolean[] locked, List<String> unlocked, String call) {

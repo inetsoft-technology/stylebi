@@ -35,7 +35,10 @@ import inetsoft.mv.MVManager;
 import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
+import inetsoft.sree.web.dashboard.DashboardManager;
 import inetsoft.uql.XRepository;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.sync.DependencyStorageService;
 import inetsoft.uql.erm.HiddenColumns;
 import inetsoft.uql.erm.XDataModel;
@@ -50,6 +53,7 @@ import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 import org.mockito.quality.Strictness;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 
 import java.security.Principal;
 import java.util.*;
@@ -286,6 +290,38 @@ class UserTreeServiceIdentityRenameOrgTest {
       verify(dependencyStorageService).migrateStorageData(oldUser, newUser);
       verify(recycleBin).renameUser(oldUser, newUser);
       assertEquals(ORG_A, orgManager.getCurrentOrgID(), "the org scope must be restored");
+   }
+
+   // Bug #78101: the viewsheets of the dashboard creates refused while the user was renamed are
+   // removed once the user's assets are moved, in the user's org, not while they are moved
+   @Test
+   @SuppressWarnings("unchecked")
+   void migrateUserRename_removesRefusedDashboardViewsheetsAfterTheMove() throws Exception {
+      IdentityID oldUser = new IdentityID("bob", ORG_B);
+      IdentityID newUser = new IdentityID("bob2", ORG_B);
+      String refused = new AssetEntry(AssetRepository.USER_SCOPE, AssetEntry.Type.VIEWSHEET,
+                                      "d1", oldUser).toIdentifier();
+      DashboardManager dashboardManager = mock(DashboardManager.class);
+      doAnswer(inv -> {
+         record("lock");
+         ((Runnable) inv.getArgument(0)).run();
+         return null;
+      }).when(dashboardManager).runLocked(any());
+      when(dashboardManager.takeRefusedViewsheets(oldUser)).thenReturn(List.of(refused));
+      doAnswer(inv -> record("removeRefused"))
+         .when(dashboardManager).removeRefusedViewsheet(any(), any(), any());
+      ObjectProvider<DashboardManager> managerProvider = mock(ObjectProvider.class);
+      when(managerProvider.getIfAvailable()).thenReturn(dashboardManager);
+      service.setDashboardManager(managerProvider);
+
+      service.migrateUserRename(oldUser, newUser);
+
+      assertEquals(List.of("storage@" + ORG_B, "mvAssets@" + ORG_B, "mvUsers@" + ORG_B,
+                           "cycle@" + ORG_B, "lock@" + ORG_B, "removeRefused@" + ORG_B),
+                   migrations);
+      verify(dashboardManager).removeRefusedViewsheet(
+         argThat(e -> oldUser.equals(e.getUser()) && "d1".equals(e.getPath())), eq(newUser),
+         any());
    }
 
    @Test

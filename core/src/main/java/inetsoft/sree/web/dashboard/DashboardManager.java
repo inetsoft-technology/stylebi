@@ -18,10 +18,14 @@
 package inetsoft.sree.web.dashboard;
 
 import inetsoft.sree.ClientInfo;
+import inetsoft.sree.ViewsheetEntry;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.DistributedMap;
 import inetsoft.sree.security.*;
 import inetsoft.storage.*;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.util.DefaultIdentity;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.ConfigurationContext;
@@ -132,7 +136,120 @@ public class DashboardManager implements AutoCloseable {
          renamed.removeAll(expired);
       }
 
-      renamed.put(getRenamedUserKey(user), new RenamedUser(now, newUser));
+      renamed.put(getRenamedUserKey(user), new RenamedUser(now, newUser, false, List.of()));
+   }
+
+   /**
+    * Records the composed viewsheet of a dashboard create that was refused because its user has
+    * been renamed, so that the rename removes it once it has moved the user's assets, see
+    * takeRefusedViewsheets(). The viewsheet is created before the create is refused, and the
+    * rename's asset move (UserTreeService.migrateUserRename()) runs on its own node, after the
+    * dashboards are moved. A viewsheet removed while the move runs may still be moved to the new
+    * name, or leave an entry there, which the create's own removal then doesn't see (Bug #78101).
+    * It is called in runLocked(), like takeRefusedViewsheets().
+    *
+    * @param user       the old name of the user.
+    * @param identifier the identifier of the viewsheet.
+    *
+    * @return true if it is recorded, false if the user's assets have already been moved, or the
+    *         user was not renamed, so that the create removes the viewsheet itself.
+    */
+   public boolean addRefusedViewsheet(IdentityID user, String identifier) {
+      String key = getRenamedUserKey(user);
+      DistributedMap<String, RenamedUser> renamed = getRenamedUsers();
+      RenamedUser record = renamed.get(key);
+
+      if(record == null || record.migrated ||
+         System.currentTimeMillis() - record.time > RENAMED_USER_TIMEOUT)
+      {
+         return false;
+      }
+
+      List<String> refused = new ArrayList<>(record.refused);
+      refused.add(identifier);
+      renamed.put(key, new RenamedUser(record.time, record.newUser, false, refused));
+      return true;
+   }
+
+   /**
+    * Marks a renamed user's assets as moved and takes the refused viewsheets recorded until now,
+    * see addRefusedViewsheet(). It is called in runLocked() once the user's assets are moved.
+    *
+    * @param user the old name of the user.
+    *
+    * @return the identifiers of the recorded viewsheets, owned by the old name.
+    */
+   public List<String> takeRefusedViewsheets(IdentityID user) {
+      String key = getRenamedUserKey(user);
+      DistributedMap<String, RenamedUser> renamed = getRenamedUsers();
+      RenamedUser record = renamed.get(key);
+
+      if(record == null) {
+         return List.of();
+      }
+
+      renamed.put(key, new RenamedUser(record.time, record.newUser, true, List.of()));
+      return record.refused;
+   }
+
+   /**
+    * Removes the composed viewsheet that a dashboard create refused because its user has been
+    * renamed or removed has created (Bug #78101). The user is logged out and no longer exists,
+    * so the user's permissions are not checked: the entry is the one the create made. The same
+    * entry of the new name is removed too, since the rename moves the user's assets to it,
+    * unless a dashboard of the new name uses it.
+    *
+    * @param entry     the viewsheet entry the create made, owned by the old name.
+    * @param newUser   the new name, or null if the user was not renamed.
+    * @param principal the principal to remove the viewsheet as.
+    */
+   public void removeRefusedViewsheet(AssetEntry entry, IdentityID newUser, Principal principal) {
+      AssetRepository engine = AssetUtil.getAssetRepository(false);
+      List<AssetEntry> entries = new ArrayList<>();
+      entries.add(entry);
+
+      if(newUser != null && !isUsedByDashboard(newUser, entry.getPath())) {
+         entries.add(new AssetEntry(entry.getScope(), entry.getType(), entry.getPath(), newUser));
+      }
+
+      AssetRepository.IGNORE_PERM.set(true);
+
+      try {
+         for(AssetEntry sheet : entries) {
+            try {
+               if(engine.containsEntry(sheet)) {
+                  engine.removeSheet(sheet, principal, true);
+               }
+            }
+            catch(Exception ex) {
+               LOG.warn("Failed to remove the viewsheet of a refused dashboard: {}", sheet, ex);
+            }
+         }
+      }
+      finally {
+         AssetRepository.IGNORE_PERM.remove();
+      }
+   }
+
+   /**
+    * Checks if a dashboard of a user uses the user's viewsheet of a path.
+    */
+   private boolean isUsedByDashboard(IdentityID user, String path) {
+      DashboardRegistry registry = dashboardRegistryManager.getRegistry(user);
+
+      for(String name : registry.getDashboardNames()) {
+         Dashboard dashboard = registry.getDashboard(name);
+         ViewsheetEntry viewsheet = dashboard instanceof VSDashboard ?
+            ((VSDashboard) dashboard).getViewsheet() : null;
+
+         if(viewsheet != null && Tool.equals(viewsheet.getPath(), path) &&
+            Tool.equals(viewsheet.getOwner(), user))
+         {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    /**
@@ -1317,13 +1434,19 @@ public class DashboardManager implements AutoCloseable {
 
    // a record of the replicated map of the recently renamed users, see addRenamedUser()
    static final class RenamedUser implements Serializable {
-      RenamedUser(long time, IdentityID newUser) {
+      RenamedUser(long time, IdentityID newUser, boolean migrated, List<String> refused) {
          this.time = time;
          this.newUser = newUser;
+         this.migrated = migrated;
+         this.refused = new ArrayList<>(refused);
       }
 
       final long time;
       final IdentityID newUser;
+      // true once the user's assets are moved, see takeRefusedViewsheets()
+      final boolean migrated;
+      // the refused creates' viewsheets to remove once the assets are moved
+      final List<String> refused;
    }
 
    public static final class DashboardData implements Serializable {
