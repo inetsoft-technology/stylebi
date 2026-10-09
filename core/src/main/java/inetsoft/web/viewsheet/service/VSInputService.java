@@ -748,6 +748,7 @@ public class VSInputService {
       Dimension size = dialogService.getAssemblySize(textInputAssemblyInfo, vs);
 
       sizePositionPaneModel.setPositions(pos, size);
+      VSDialogService.readSizeFollowsDensity(textInputAssemblyInfo, sizePositionPaneModel, true);
       sizePositionPaneModel.setContainer(textInputAssembly.getContainer() != null);
 
       basicGeneralPaneModel.setName(textInputAssemblyInfo.getAbsoluteName());
@@ -869,7 +870,8 @@ public class VSInputService {
       textInputAssemblyInfo.setVisibleValue(basicGeneralPaneModel.getVisible());
       textInputAssemblyInfo.setRefreshValue(basicGeneralPaneModel.isRefresh() + "");
 
-      dialogService.setAssemblySize(textInputAssemblyInfo, sizePositionPaneModel);
+      dialogService.setAssemblySizeFollowingDensity(
+         textInputAssemblyInfo, sizePositionPaneModel, viewsheet.getViewsheet());
       dialogService.setAssemblyPosition(textInputAssemblyInfo, sizePositionPaneModel);
 
       textInputAssemblyInfo.setToolTipValue(textInputGeneralPaneModel.getToolTip());
@@ -1830,6 +1832,7 @@ public class VSInputService {
       Dimension size = dialogService.getAssemblySize(comboBoxAssemblyInfo, vs);
 
       sizePositionPaneModel.setPositions(pos, size);
+      VSDialogService.readSizeFollowsDensity(comboBoxAssemblyInfo, sizePositionPaneModel, true);
       sizePositionPaneModel.setContainer(comboBoxAssembly.getContainer() != null);
 
       String minDate = comboBoxAssemblyInfo.getMinDateValue();
@@ -2010,7 +2013,8 @@ public class VSInputService {
       int width = getWidth(comboBoxEditorModel.getDataType(), sizePositionPaneModel.getWidth(),
                            comboBoxAssemblyInfo.getDataType());
       sizePositionPaneModel.setWidth(width);
-      dialogService.setAssemblySize(comboBoxAssemblyInfo, sizePositionPaneModel);
+      dialogService.setAssemblySizeFollowingDensity(
+         comboBoxAssemblyInfo, sizePositionPaneModel, viewsheet.getViewsheet());
       dialogService.setAssemblyPosition(comboBoxAssemblyInfo, sizePositionPaneModel);
 
       setListValues(comboBoxAssemblyInfo, value, viewsheet, principal);
@@ -2226,6 +2230,7 @@ public class VSInputService {
       Dimension size = dialogService.getAssemblySize(spinnerAssemblyInfo, vs);
 
       sizePositionPaneModel.setPositions(pos, size);
+      VSDialogService.readSizeFollowsDensity(spinnerAssemblyInfo, sizePositionPaneModel, true);
       sizePositionPaneModel.setContainer(spinnerAssembly.getContainer() != null);
 
       basicGeneralPaneModel.setName(spinnerAssemblyInfo.getAbsoluteName());
@@ -2288,7 +2293,8 @@ public class VSInputService {
       spinnerAssemblyInfo.setSubmitOnChangeValue(generalPropPaneModel.isSubmitOnChange() + "");
       spinnerAssemblyInfo.setRefreshValue(basicGeneralPaneModel.isRefresh() + "");
 
-      dialogService.setAssemblySize(spinnerAssemblyInfo, sizePositionPaneModel);
+      dialogService.setAssemblySizeFollowingDensity(
+         spinnerAssemblyInfo, sizePositionPaneModel, viewsheet.getViewsheet());
       dialogService.setAssemblyPosition(spinnerAssemblyInfo, sizePositionPaneModel);
 
       spinnerAssemblyInfo.setMinValue(numericRangePaneModel.getMinimum());

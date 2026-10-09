@@ -181,6 +181,34 @@ class ComposerObjectServiceTest {
    }
 
    @Test
+   void aTallerTextInputIsFlagged() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.getVSAssemblyInfo().setName("vs1");
+      TextInputVSAssembly input = new TextInputVSAssembly(vs, "TextInput1");
+      input.getVSAssemblyInfo().setPixelOffset(new Point(0, 0));
+      input.getVSAssemblyInfo().setPixelSize(new Dimension(100, 30));
+      vs.addAssembly(input);
+
+      resize(vs, "TextInput1", 100, 44);
+
+      assertTrue(input.getVSAssemblyInfo().isUserSize());
+   }
+
+   @Test
+   void aWiderTextInputIsNotFlagged() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.getVSAssemblyInfo().setName("vs1");
+      TextInputVSAssembly input = new TextInputVSAssembly(vs, "TextInput1");
+      input.getVSAssemblyInfo().setPixelOffset(new Point(0, 0));
+      input.getVSAssemblyInfo().setPixelSize(new Dimension(100, 30));
+      vs.addAssembly(input);
+
+      resize(vs, "TextInput1", 300, 30);
+
+      assertFalse(input.getVSAssemblyInfo().isUserSize(), "density owns only the height");
+   }
+
+   @Test
    void aDraggedListIsFlagged() throws Exception {
       Viewsheet vs = new Viewsheet();
       vs.getVSAssemblyInfo().setName("vs1");
