@@ -27,9 +27,11 @@ import inetsoft.uql.viewsheet.SelectionList;
 import inetsoft.uql.viewsheet.SelectionTreeVSAssembly;
 import inetsoft.uql.viewsheet.SelectionValue;
 import inetsoft.uql.viewsheet.internal.CalendarVSAssemblyInfo;
+import inetsoft.web.viewsheet.event.ApplySelectionListEvent;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -183,6 +185,46 @@ class SelectionRuntimeServiceSubtreeDomainTest {
 
       verify(h.selections()).selectSubtree(anyString(), anyString(), any(), any(Principal.class),
                                            any(), anyString());
+   }
+
+   // ── set_selection replace on an ID-mode tree (bug-76926) ───────────────────
+
+   /** A{A1 selected} unselected, B selected: the shape an ID-mode select leaves behind. */
+   private static SelectionList idModeDomainWithSelectedChildUnderUnselectedRoot() {
+      SelectionList domain = new SelectionList();
+      CompositeSelectionValue a = new CompositeSelectionValue("A", "A");
+      SelectionList children = new SelectionList();
+      SelectionValue a1 = new SelectionValue("A1", "A1");
+      a1.setSelected(true);
+      children.addSelectionValue(a1);
+      a.setSelectionList(children);
+      domain.addSelectionValue(a);
+      SelectionValue b = new SelectionValue("B", "B");
+      b.setSelected(true);
+      domain.addSelectionValue(b);
+      return domain;
+   }
+
+   @Test
+   void idModeSetSelectionDeselectsAChildUnderAnUnselectedRootInTheSameApply() throws Exception {
+      SelectionTreeVSAssembly assembly = SelectionRuntimeServiceTest.tree(0, false);
+      when(assembly.isIDMode()).thenReturn(true);
+      when(assembly.getSelectionList())
+         .thenReturn(idModeDomainWithSelectedChildUnderUnselectedRoot());
+      SelectionRuntimeServiceTest.Harness h = SelectionRuntimeServiceTest.harness(assembly);
+
+      h.service().setSelection("tok", SelectionRuntimeServiceTest.principal(), "Tree1",
+                               List.of(List.of("B")), null, null, null, null, "");
+
+      ArgumentCaptor<ApplySelectionListEvent> sent =
+         ArgumentCaptor.forClass(ApplySelectionListEvent.class);
+      verify(h.selections()).applySelection(anyString(), anyString(), sent.capture(),
+                                            any(Principal.class), any(), anyString());
+      ApplySelectionListEvent event = sent.getValue();
+      assertEquals(List.of("A1"), SelectionRuntimeServiceTest.deselectedIds(event));
+      assertEquals(2, event.getValues().size(), "requested B plus the one leftover");
+      assertTrue(event.getValues().get(0).isSelected());
+      assertEquals("B", event.getValues().get(0).getValue()[0]);
    }
 
    // ── clear_selection on a calendar ──────────────────────────────────────────
