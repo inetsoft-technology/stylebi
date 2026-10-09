@@ -168,18 +168,59 @@ public final class VSDensityDefaults {
    }
 
    /**
-    * Whether height matches one of the three density-derived control heights (24/28/30) at any
-    * tier, regardless of the org's current density. Used to revert a modernized control's height
-    * back to AssetUtil.defh when its mark is cleared - unlike round corner, a control's Dimension
-    * has no separate user-override tier to fall back on, so this is a best-effort substitute: a
-    * control an author manually resized to exactly one of these three pixel values is also reset.
-    * Accepted because leaving every modernized control's height permanently changed on Revert is
-    * worse than that narrow false positive.
+    * Whether height is one of the three tier control heights (24/28/30), at any tier.
     */
    public static boolean isControlHeight(int height) {
       return height == controlHeightForMode(DENSE) || height == controlHeightForMode(COMPACT) ||
          height == controlHeightForMode(COMFORTABLE);
    }
+
+   /**
+    * Whether a single control's height is one the control-height rule writes or replaces: the
+    * legacy default or a tier height.
+    */
+   public static boolean isSeededControlHeight(int height) {
+      return height == AssetUtil.defh || isControlHeight(height);
+   }
+
+   /**
+    * The default box of a checkbox or radio button: its title lane over one option row.
+    */
+   public static int optionBoxHeight(VizContext ctx) {
+      return ctx.modern ? optionBoxHeightForMode(ctx.density) : LEGACY_OPTION_BOX_HEIGHT;
+   }
+
+   /**
+    * Whether a checkbox or radio box height is one a seed wrote: the legacy box, a tier box, or
+    * a box the earlier doubled-control-height seed wrote.
+    */
+   public static boolean isSeededOptionBoxHeight(int height) {
+      return height == LEGACY_OPTION_BOX_HEIGHT
+         || height == optionBoxHeightForMode(COMFORTABLE)
+         || height == optionBoxHeightForMode(COMPACT)
+         || height == optionBoxHeightForMode(DENSE)
+         || isFormerOptionBoxHeight(height);
+   }
+
+   /**
+    * Whether a box height is one the earlier seed wrote: twice a control height.
+    */
+   public static boolean isFormerOptionBoxHeight(int height) {
+      return height % 2 == 0 && isControlHeight(height / 2);
+   }
+
+   /**
+    * Whether an option row is one the earlier seed wrote: a former box less the legacy lane.
+    */
+   public static boolean isFormerOptionRow(int height) {
+      return isFormerOptionBoxHeight(height + AssetUtil.defh);
+   }
+
+   static int optionBoxHeightForMode(String mode) {
+      return titleHeightForMode(mode) + rowHeightForMode(mode);
+   }
+
+   private static final int LEGACY_OPTION_BOX_HEIGHT = 2 * AssetUtil.defh;
 
    /**
     * The default size of a selection list or tree: the card inset around a title lane and five
