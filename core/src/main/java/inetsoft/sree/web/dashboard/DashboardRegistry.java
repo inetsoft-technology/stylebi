@@ -21,6 +21,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
+import inetsoft.uql.asset.AbstractAssetEngine;
 import inetsoft.uql.util.DefaultIdentity;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
@@ -713,8 +714,20 @@ public class DashboardRegistry {
                   Permission permission = provider.getPermission(ResourceType.DASHBOARD, oname);
 
                   if(permission != null) {
-                     provider.removePermission(ResourceType.DASHBOARD, oname);
-                     provider.setPermission(ResourceType.DASHBOARD, name, permission);
+                     removePermissionBestEffort(oname);
+
+                     try {
+                        provider.setPermission(ResourceType.DASHBOARD, name, permission);
+                     }
+                     catch(Exception ex) {
+                        LOG.error("Failed to move the permission of dashboard {} to {}",
+                                  oname, name, ex);
+                     }
+                  }
+                  else {
+                     // Bug #78138, a permission stored at the new name was left by a deleted
+                     // dashboard, the renamed dashboard must not receive its grants
+                     removePermissionBestEffort(name);
                   }
                }
             }
@@ -737,12 +750,49 @@ public class DashboardRegistry {
          try {
             manager.removeDashboard(name);
             removeEntry(name);
+
+            // Bug #78138, a dashboard created later with the same name, e.g. by an import,
+            // would otherwise receive the grants of the deleted one
+            if(isGlobal()) {
+               removePermissionBestEffort(name);
+            }
+
             fireChangeEvent(this, DashboardChangeEvent.Type.REMOVED, name, null);
          }
          catch (Exception ex) {
             LOG.error(ex.getMessage(), ex);
          }
       });
+   }
+
+   /**
+    * Removes the permission stored at the name of a global dashboard that doesn't exist anymore
+    * or that is being created, so that it doesn't receive the grants of a deleted dashboard with
+    * the same name (Bug #78138). The permission of a user dashboard is not removed, because it's
+    * stored at the bare name, which is shared by the dashboards of that name of all users. It's
+    * best-effort: a failure is logged and reported to the user and never thrown.
+    *
+    * @param name the dashboard name.
+    */
+   public void removePermissionBestEffort(String name) {
+      if(!isGlobal()) {
+         return;
+      }
+
+      try {
+         SecurityProvider provider = securityEngine.getSecurityProvider();
+
+         if(provider == null || provider.isVirtual()) {
+            return;
+         }
+
+         provider.removePermission(ResourceType.DASHBOARD, name);
+      }
+      catch(Exception ex) {
+         LOG.error("Failed to remove the permission of dashboard {}, it may still be stored",
+                   name, ex);
+         AbstractAssetEngine.reportPermissionMayRemain(securityEngine, ResourceType.DASHBOARD, name);
+      }
    }
 
    protected SecurityEngine getSecurityEngine() {
