@@ -37,7 +37,6 @@ import { ApplicationRef } from "@angular/core";
 import { TestBed } from "@angular/core/testing";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 
-import { FixedDropdownService } from "../../../../../widget/fixed-dropdown/fixed-dropdown.service";
 import { Rectangle } from "../../../../../common/data/rectangle";
 import { Cardinality } from "../../../model/datasources/database/physical-model/cardinality.enum";
 import { GraphColumnInfo } from "../../../model/datasources/database/physical-model/graph/graph-column-info";
@@ -111,8 +110,7 @@ describe("JoinThumbnailService edit join dialog (Bug #77996)", () => {
          providers: [
             JoinThumbnailService,
             provideHttpClient(),
-            provideHttpClientTesting(),
-            { provide: FixedDropdownService, useValue: {} }
+            provideHttpClientTesting()
          ]
       });
 
@@ -219,9 +217,10 @@ describe("JoinThumbnailService edit join dialog (Bug #77996)", () => {
 
    it("PUTs a changed join type to the query join endpoint", async () => {
       await openDialog(serverJoin(), DataType.QUERY);
-      const select = document.querySelector<HTMLSelectElement>("edit-join-dialog select");
-      select.selectedIndex = 1; // Left Outer
-      select.dispatchEvent(new Event("change"));
+      document.querySelector<HTMLButtonElement>("edit-join-dialog .custom-select-trigger").click();
+      await settle();
+      document.querySelectorAll<HTMLButtonElement>(".custom-select-option")[1] // Left Outer
+         .dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
       await settle();
       await clickButton("_#(OK)");
 
