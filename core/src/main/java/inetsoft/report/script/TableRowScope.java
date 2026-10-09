@@ -407,15 +407,16 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
          return false;
       }
 
-      // the vars this hand-off keeps: a copy of an object that a lost var reached through a
-      // closure, a getter or a WeakMap no longer shares it (Testing #77123, B1 residual)
+      // the vars this hand-off keeps as copies of arrays or objects: a copy of an object that
+      // a lost var reached through a closure, a getter or a WeakMap no longer shares it
+      // (Testing #77123, B1 residual); a Date or a bigint is a value no closure can share
       List<String> kept = new ArrayList<>();
 
       for(int i = 0; i < nodes.length; i++) {
          valmap.put(names.get(i), nodes[i]);
          snapshots.remove(names.get(i));
 
-         if(nodes[i] instanceof OwnedValueCodec.TreeRef) {
+         if(nodes[i] instanceof OwnedValueCodec.TreeRef ref && ref.holdsCopies()) {
             kept.add(names.get(i));
          }
       }
@@ -606,7 +607,7 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
       Object held = valmap.remove(id);
       String copies = copiesOf(id, held);
 
-      if(warned.add(id) || copies != null) {
+      if(warned.add(id)) {
          if(held == OwnedValueCodec.HOME_BUSY) {
             LOG.warn("The formula variable \"{}\" holds an array or object that stays on a " +
                      "script context of the worksheet context pool that another thread is " +
@@ -623,6 +624,12 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
                      "whole table.{}", id, kind, copies == null ? "" : copies);
          }
       }
+      else if(copies != null) {
+         // a later hand-off kept new copies: named on a line of their own, the var's own
+         // warning is logged once
+         LOG.warn("The formula variable \"{}\" was lost again at a hand-off of the worksheet " +
+                  "context pool.{}", id, copies);
+      }
 
       return UNDEFINED;
    }
@@ -632,7 +639,8 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
     * copies, if {@code held} hid references (a function's closure, a getter, a WeakMap, a
     * class instance): such a copy no longer shares an object that {@code id} reached, so it
     * may be stale once {@code id} is created again (Testing #77123, B1 residual). Each var is
-    * named once; {@code null} if there is none left to name.
+    * named once, so these warnings are at most one per var; {@code null} if there is none
+    * left to name.
     */
    private String copiesOf(String id, Object held) {
       List<String> kept = hiddenFrom.remove(id);

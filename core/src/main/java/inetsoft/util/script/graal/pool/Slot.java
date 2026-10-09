@@ -194,8 +194,13 @@ final class Slot {
     * <p>
     * A caller's cancel is kept (Testing #77123): a cancel that landed during the batch after
     * its last guest safepoint would otherwise stop the clean's JS, which clears the flag. The
-    * flag is cleared while the clean runs and set again after; a cancel that lands during the
-    * clean fails it and is re-asserted, unless the clean's own timeout interrupted it.
+    * flag is cleared while the clean runs and set again after. A cancel that lands during the
+    * clean is re-asserted only if it surfaces outside a JS {@code try}: the clean then fails
+    * with it, and {@link ScriptTimeoutGuard#keepCancel} sets the flag again (unless the
+    * clean's own timeout interrupted it). One that surfaces inside a per-key {@code catch} of
+    * the clean script is swallowed there, after Graal cleared the flag: the clean reports
+    * {@code failed}, so {@link SlotPool#release} discards the slot, and the thread's flag
+    * stays clear. The query still stops at its own cancel flag.
     */
    CleanHelper.Result clean() {
       boolean cancelled = Thread.interrupted();

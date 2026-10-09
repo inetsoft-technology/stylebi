@@ -244,6 +244,10 @@ class PooledLensObjectVarTest {
          : "\"fmt\" holds an Intl.NumberFormat object";
       assertTrue(warns.get(0).contains(var), warns.get(0));
       assertFalse(warns.get(0).contains("\"t\" holds"), warns.get(0));
+      // a function hides references (its closure): the kept t, an object, is named as a copy;
+      // an Intl formatter hides none, so nothing is named
+      assertEquals(what.equals("function") ? List.of("t") : List.of(),
+                   PooledLensHiddenAliasTest.copiesIn(warns.get(0)), warns.get(0));
    }
 
    /**

@@ -273,12 +273,19 @@ class PooledLensObjectHandOffTest {
 
       assertEquals(lostBits, (int) v[0][ROWS], () -> "the lost vars restarted: " + formula);
       List<String> warns = warningTexts();
+      // a lost var that hides references names each kept var, all objects here, as a copy
+      // once; no other var is named
+      boolean hiding = shapes.stream().anyMatch(s -> HIDING.contains(s.lostKind));
+      List<String> named = warns.stream()
+         .flatMap(w -> PooledLensHiddenAliasTest.copiesIn(w).stream()).toList();
 
       for(int i = 0; i < vars; i++) {
          String var = "\"v" + i + "\"";
-         // a kept var may be named in a lost var's warning as a copy (hidden references)
          List<String> mine = warns.stream().filter(w -> w.contains(var + " holds")).toList();
          String kind = kinds[i];
+         long copies = named.stream().filter(("v" + i)::equals).count();
+         assertEquals(kind == null && hiding ? 1 : 0, copies,
+                      () -> var + " named as a copy: " + warns + " " + formula);
 
          if(kind == null) {
             assertTrue(mine.isEmpty(), () -> var + " is kept: " + mine + " " + formula);
@@ -403,6 +410,10 @@ class PooledLensObjectHandOffTest {
       assertTrue(warns.stream().anyMatch(w -> w.contains("\"" + alias + "\" holds an object " +
          "that it shares with a variable whose value is not kept")), () -> "" + warns);
       assertTrue(warns.stream().noneMatch(w -> w.contains("\"t\" holds")), () -> "" + warns);
+      // t, the only kept var, holds an object the lost function may reach: named once
+      assertEquals(List.of("t"), warns.stream()
+         .flatMap(w -> PooledLensHiddenAliasTest.copiesIn(w).stream()).toList(),
+                   () -> "" + warns);
    }
 
    /**
@@ -451,6 +462,10 @@ class PooledLensObjectHandOffTest {
       }
 
       assertTrue(warns.stream().noneMatch(w -> w.contains("\"t\" holds")), () -> "" + warns);
+      // t, the only kept var, holds an object the lost function may reach: named once
+      assertEquals(List.of("t"), warns.stream()
+         .flatMap(w -> PooledLensHiddenAliasTest.copiesIn(w).stream()).toList(),
+                   () -> "" + warns);
    }
 
    /**
@@ -817,6 +832,9 @@ class PooledLensObjectHandOffTest {
       { "function() { return 1; }", "a function" },
       { "new Map([[1, 2]])", "a Map" },
       { "{get g() { probe.hit(); return 1; }}", "an object with a getter or setter" } };
+   // the refusals whose lost var hides references: it names the kept vars as copies
+   private static final Set<String> HIDING =
+      Set.of("a Proxy object", "a function", "an object with a getter or setter");
 
    // a container with nested containers, fillers, the counter, the Date and at most one
    // value that is not kept, each at a random position

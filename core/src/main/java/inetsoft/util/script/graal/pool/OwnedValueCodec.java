@@ -508,6 +508,7 @@ public final class OwnedValueCodec {
       Map<Integer, String> failed = new HashMap<>();
       Map<Integer, String> drops = new HashMap<>();
       Set<Integer> hides = new HashSet<>();
+      Set<Integer> copies = new HashSet<>();
       long start = System.nanoTime();
       ScriptTimeoutGuard.Guard budget = null;
       boolean cancelled = Thread.interrupted();
@@ -535,6 +536,7 @@ public final class OwnedValueCodec {
          FAILS.set(failed);
          DROPS.set(drops);
          HIDES.set(hides);
+         COPIES.set(copies);
 
          // a backstop past the cloner's own time checks
          try(ScriptTimeoutGuard.Guard guard =
@@ -551,7 +553,7 @@ public final class OwnedValueCodec {
          for(int i = 0; i < nodes.length; i++) {
             String kind = failed.get(i);
             nodes[i] = kind != null ? new Lost(kind, isBudgetKind(kind), hides.contains(i))
-               : new TreeRef(tree, i, drops.get(i));
+               : new TreeRef(tree, i, drops.get(i), copies.contains(i));
          }
       }
       catch(PolyglotException ex) {
@@ -570,6 +572,7 @@ public final class OwnedValueCodec {
          FAILS.remove();
          DROPS.remove();
          HIDES.remove();
+         COPIES.remove();
          slot.metrics().handedOff(System.nanoTime() - start);
 
          if(cancelled) {
@@ -625,10 +628,11 @@ public final class OwnedValueCodec {
 
    /** One root of a tree snapshot. */
    public static final class TreeRef {
-      TreeRef(Tree tree, int index, String dropped) {
+      TreeRef(Tree tree, int index, String dropped, boolean copies) {
          this.tree = tree;
          this.index = index;
          this.dropped = dropped;
+         this.copies = copies;
       }
 
       /**
@@ -640,7 +644,19 @@ public final class OwnedValueCodec {
          return dropped;
       }
 
+      /**
+       * @return {@code true} if this root holds an array or object (a copy now) that a root
+       *         lost by the same hand-off, whose value hid references (see
+       *         {@link Lost#hidesReferences()}), may have reached unseen; {@code false} for a
+       *         bigint or a Date whose properties hold no object, and whenever no root of the
+       *         hand-off hid references (review L1 of Testing #77123).
+       */
+      public boolean holdsCopies() {
+         return copies;
+      }
+
       private final String dropped;
+      private final boolean copies;
 
       private final Tree tree;
       private final int index;
@@ -652,6 +668,7 @@ public final class OwnedValueCodec {
    static final ThreadLocal<Map<Integer, String>> FAILS = new ThreadLocal<>();
    static final ThreadLocal<Map<Integer, String>> DROPS = new ThreadLocal<>();
    static final ThreadLocal<Set<Integer>> HIDES = new ThreadLocal<>();
+   static final ThreadLocal<Set<Integer>> COPIES = new ThreadLocal<>();
 
    /**
     * The marking budget of a hand-off (the objects walked to check the lost roots for

@@ -186,6 +186,11 @@ final class OwnedVarWarnings {
             return;
          }
 
+         // the line naming new kept copies of a var that already warned: no loss of its own
+         if(event.getMessage().contains("was lost again")) {
+            return;
+         }
+
          Object[] args = event.getArgumentArray();
          Recording recording = RECORDINGS.get(Thread.currentThread());
          Recording every = all;
