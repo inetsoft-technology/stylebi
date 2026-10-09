@@ -1170,6 +1170,88 @@ class SelectionRuntimeServiceTest {
       assertEquals(0, SelectionRuntimeService.countSelected(null));
    }
 
+   private static SelectionValue selected(String value, boolean isSelected) {
+      SelectionValue v = mock(SelectionValue.class);
+      when(v.isSelected()).thenReturn(isSelected);
+      when(v.getValue()).thenReturn(value);
+      return v;
+   }
+
+   static List<String> deselectedIds(ApplySelectionListEvent event) {
+      return event.getValues().stream().filter(v -> !v.isSelected())
+         .map(v -> String.join("/", v.getValue())).toList();
+   }
+
+   /** bug-76926: a previously selected node no requested path names is deselected. */
+   @Test
+   void idModeReplaceDeselectsPreviouslySelectedNode() {
+      ApplySelectionListEvent event = SelectionRuntimeService.idModeReplaceEvent(
+         new SelectionValue[]{ selected("A", true), selected("B", false) },
+         List.of(List.of("B")));
+
+      assertEquals(List.of("A"), deselectedIds(event));
+      assertEquals(2, event.getValues().size());
+      assertArrayEquals(new String[]{ "B" }, event.getValues().get(0).getValue());
+      assertTrue(event.getValues().get(0).isSelected());
+   }
+
+   @Test
+   void idModeReplaceSendsNothingExtraWhenSelectionIsUnchanged() {
+      ApplySelectionListEvent event = SelectionRuntimeService.idModeReplaceEvent(
+         new SelectionValue[]{ selected("A", true) }, List.of(List.of("A")));
+
+      assertEquals(List.of(), deselectedIds(event));
+      assertEquals(1, event.getValues().size());
+   }
+
+   @Test
+   void idModeReplaceKeepsEveryElementOfARequestedPath() {
+      ApplySelectionListEvent event = SelectionRuntimeService.idModeReplaceEvent(
+         new SelectionValue[]{ selected("A", true), selected("B", true), selected("C", true) },
+         List.of(List.of("A", "B")));
+
+      assertEquals(List.of("C"), deselectedIds(event));
+   }
+
+   @Test
+   void idModeReplaceToleratesNothingSelected() {
+      assertEquals(List.of(), SelectionRuntimeService.selectedNodeIds(null));
+      assertEquals(List.of(), deselectedIds(SelectionRuntimeService.idModeReplaceEvent(
+         null, List.of(List.of("A")))));
+   }
+
+   @Test
+   void idModeAdditiveSendsOnlySelectedValues() throws Exception {
+      SelectionTreeVSAssembly idTree = tree(XConstants.SORT_ASC, false);
+      when(idTree.isIDMode()).thenReturn(true);
+      Harness h = harness(idTree);
+
+      h.service.setSelection("tok", principal(), "Tree1", List.of(List.of("B")), null, null, null,
+                             true, "");
+
+      ArgumentCaptor<ApplySelectionListEvent> sent =
+         ArgumentCaptor.forClass(ApplySelectionListEvent.class);
+      verify(h.selections).applySelection(anyString(), anyString(), sent.capture(),
+                                          any(Principal.class), any(), anyString());
+      assertEquals(List.of(), deselectedIds(sent.getValue()));
+   }
+
+   @Test
+   void idModeSingleSelectSendsOnlySelectedValues() throws Exception {
+      SelectionTreeVSAssembly idTree = tree(XConstants.SORT_ASC, true);
+      when(idTree.isIDMode()).thenReturn(true);
+      Harness h = harness(idTree);
+
+      h.service.setSelection("tok", principal(), "Tree1", List.of(List.of("B")), null, null, null,
+                             null, "");
+
+      ArgumentCaptor<ApplySelectionListEvent> sent =
+         ArgumentCaptor.forClass(ApplySelectionListEvent.class);
+      verify(h.selections).applySelection(anyString(), anyString(), sent.capture(),
+                                          any(Principal.class), any(), anyString());
+      assertEquals(List.of(), deselectedIds(sent.getValue()));
+   }
+
    /** Nothing selected means nothing to send, rather than an empty apply. */
    @Test
    void doesNotCallTheEndpointWhenThereIsNothingSelected() throws Exception {

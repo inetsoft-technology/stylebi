@@ -340,6 +340,17 @@ public class SelectionRuntimeService {
                   result.put("clampedBounds", clamped);
                }
             }
+            else if(idMode && !single && !Boolean.TRUE.equals(additive)) {
+               // An ID-mode tree has no path diff (see isPathDiffable), so replace by node id: the
+               // leftovers ride in the same apply as selected=false, which doApplySelection honors
+               // per value -- no transient empty state and a single refresh.
+               SelectionList current = selectionListOf(assembly);
+               selections.applySelection(
+                  runtimeId, assemblyName,
+                  idModeReplaceEvent(current == null ? null : current.getSelectionValues(),
+                                     effectiveValues),
+                  user, dispatcher, linkUri);
+            }
             else {
                selections.applySelection(runtimeId, assemblyName, applyEvent(effectiveValues), user,
                                          dispatcher, linkUri);
@@ -813,6 +824,63 @@ public class SelectionRuntimeService {
       return event;
    }
 
+   /**
+    * The apply event that makes an ID-mode tree hold exactly {@code requested}: the requested paths
+    * selected, plus one single-element path per currently selected node id that no requested path
+    * names, deselected. A requested path selects every node (any depth) whose value is in the
+    * path, so the requested ids are the union of all path elements.
+    */
+   static ApplySelectionListEvent idModeReplaceEvent(SelectionValue[] current,
+                                                     List<List<String>> requested)
+   {
+      Set<String> requestedIds = new HashSet<>();
+      requested.forEach(requestedIds::addAll);
+
+      ApplySelectionListEvent event = applyEvent(requested);
+      List<ApplySelectionListEvent.Value> values = new ArrayList<>(event.getValues());
+
+      for(String id : selectedNodeIds(current)) {
+         if(!requestedIds.contains(id)) {
+            values.add(value(List.of(id), false));
+         }
+      }
+
+      event.setValues(values);
+      return event;
+   }
+
+   /**
+    * The distinct values of every selected node, in walk order. Recurses into every composite
+    * without an {@code isSelected()} gate, like {@link #countSelected(SelectionValue[])}, since an
+    * ID-mode select never marks ancestors.
+    */
+   static List<String> selectedNodeIds(SelectionValue[] values) {
+      Set<String> ids = new LinkedHashSet<>();
+      collectSelectedNodeIds(values, ids);
+      return new ArrayList<>(ids);
+   }
+
+   private static void collectSelectedNodeIds(SelectionValue[] values, Set<String> ids) {
+      if(values == null) {
+         return;
+      }
+
+      for(SelectionValue value : values) {
+         if(value == null) {
+            continue;
+         }
+
+         if(value.isSelected() && value.getValue() != null) {
+            ids.add(value.getValue());
+         }
+
+         if(value instanceof CompositeSelectionValue composite) {
+            SelectionList childList = composite.getSelectionList();
+            collectSelectedNodeIds(childList == null ? null : childList.getSelectionValues(), ids);
+         }
+      }
+   }
+
    private static ApplySelectionListEvent.Value value(List<String> path, boolean selected) {
       ApplySelectionListEvent.Value value = new ApplySelectionListEvent.Value();
       value.setValue(path.toArray(new String[0]));
@@ -1096,7 +1164,9 @@ public class SelectionRuntimeService {
     * extra deselect call. ID-mode {@code SelectionTreeVSAssembly} is deliberately excluded: it
     * matches values by {@code Tool.contains} against the whole path array rather than the
     * depth-indexed walk {@link #selectedPaths(SelectionValue[])} produces paths for, so reusing the
-    * same diff here would not be guaranteed correct.
+    * same diff here would not be guaranteed correct. An ID-mode tree is instead replaced by a
+    * node-id diff in {@code setSelection} ({@link #idModeReplaceEvent}). Known limitation, shared
+    * with the path diff: a selected node hidden by an active tree search cannot be deselected.
     */
    static boolean isPathDiffable(SelectionVSAssembly assembly) {
       if(assembly instanceof SelectionListVSAssembly) {
