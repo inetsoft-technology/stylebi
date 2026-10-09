@@ -197,13 +197,17 @@ public class RelHostObjectConcurrencyTest {
       assertEquals(List.of(), perSlot.mismatches, "per-slot windows read wrong rows");
 
       int found = 0;
+      boolean overlapped = false;
 
       for(int round = 0; round < 10 && found == 0; round++) {
          Result sharedWin = runReaders(env, "sharedWin", () -> null, probe);
          report("sharedWindowIsDetected shared round " + round, sharedWin, probe);
          found = sharedWin.mismatchCount.get();
+         overlapped |= probe.maxInFlight.get() >= 2;
       }
 
+      // a runner too busy to overlap the readers can't show the race, which is no defect
+      Assumptions.assumeTrue(found > 0 || overlapped, "the readers never overlapped");
       assertTrue(found > 0, "a shared row window raced by pooled contexts was not detected; " +
          "the probe cannot see the race the per-slot window prevents");
    }
