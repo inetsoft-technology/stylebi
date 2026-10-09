@@ -383,6 +383,23 @@ public interface Cluster extends AutoCloseable {
 
    boolean mapExists(String name);
 
+   /**
+    * Gets the names of the existing maps whose names start with a prefix.
+    *
+    * @param prefix the name prefix.
+    *
+    * @return the map names.
+    */
+   Set<String> getMapNames(String prefix);
+
+   /**
+    * Destroys several replicated maps at once. For Ignite, this is one partition map exchange
+    * for the whole batch instead of one per map.
+    *
+    * @param names the names of the maps to destroy.
+    */
+   void destroyReplicatedMaps(Collection<String> names);
+
    <E> BlockingQueue<E> getQueue(String name);
 
    void destroyQueue(String name);

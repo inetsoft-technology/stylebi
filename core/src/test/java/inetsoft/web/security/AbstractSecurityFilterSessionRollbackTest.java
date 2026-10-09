@@ -44,6 +44,7 @@ import inetsoft.sree.security.*;
 import inetsoft.sree.web.*;
 import inetsoft.uql.util.XSessionService;
 import inetsoft.web.session.IgniteSessionRepository;
+import inetsoft.web.session.SessionAttributeKey;
 import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
@@ -109,9 +110,12 @@ class AbstractSecurityFilterSessionRollbackTest {
       cluster = new MockCluster();
       clusterMock = mockStatic(Cluster.class);
       clusterMock.when(Cluster::getInstance).thenReturn(cluster);
-      // IgniteSession's constructor creates the per-session attribute map for a new session
-      attributes = cluster.getReplicatedMap(
-         IgniteSessionRepository.class.getName() + ".sessionAttributeMap." + SID);
+      // IgniteSessionRepository.createSession() writes the marker that the session's attributes
+      // exist
+      cluster.<SessionAttributeKey, Object>getReplicatedMap(
+         IgniteSessionRepository.class.getName() + ".sessionAttributes")
+         .put(new SessionAttributeKey(SID, IgniteSessionRepository.class.getName() + ".created"), 0L);
+      attributes = IgniteSessionRepository.getSessionAttributeMap(SID);
 
       sUtilMock = mockStatic(SUtil.class, Mockito.CALLS_REAL_METHODS);
       sUtilMock.when(SUtil::getUserSessionTimeout).thenReturn(0);

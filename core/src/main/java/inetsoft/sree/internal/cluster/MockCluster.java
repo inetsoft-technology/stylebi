@@ -310,6 +310,19 @@ public class MockCluster implements Cluster {
       return maps.containsKey(name) || multiMaps.containsKey(name);
    }
 
+   @Override
+   public Set<String> getMapNames(String prefix) {
+      Set<String> names = new HashSet<>();
+      maps.keySet().stream().filter(n -> n.startsWith(prefix)).forEach(names::add);
+      multiMaps.keySet().stream().filter(n -> n.startsWith(prefix)).forEach(names::add);
+      return names;
+   }
+
+   @Override
+   public void destroyReplicatedMaps(Collection<String> names) {
+      names.forEach(this::destroyReplicatedMap);
+   }
+
    @SuppressWarnings("unchecked")
    @Override
    public <E> BlockingQueue<E> getQueue(String name) {
