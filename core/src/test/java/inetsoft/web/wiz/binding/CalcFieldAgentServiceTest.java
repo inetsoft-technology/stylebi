@@ -694,4 +694,69 @@ class CalcFieldAgentServiceTest {
 
       assertDoesNotThrow(() -> service.modify("tok", principal(), req, ""));
    }
+
+   /** Bug #77044 (7): a name matching a real column, case-insensitively, is refused. */
+   @Test
+   void createNamedLikeAPhysicalColumnIsRefusedCaseInsensitively() throws Exception {
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      CalcFieldAgentService service = serviceOver(vsWith(), proxy);
+
+      CalcFieldRequest req = new CalcFieldRequest(
+         "ORDERS", null, "discount", null, "1", "integer", false, true, false, true);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.modify("tok", principal(), req, ""));
+      assertTrue(thrown.getMessage().contains("DISCOUNT"), thrown.getMessage());
+      verifyNoInteractions(proxy);
+   }
+
+   @Test
+   void createNamedLikeAnEntityQualifiedColumnsAttributeIsRefused() throws Exception {
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      BindableFieldsService fields = mock(BindableFieldsService.class);
+      when(fields.list(eq("rt1"), any(), any(Principal.class))).thenReturn(List.of(
+         new BindableTable("ORDERS", null,
+            List.of(new BindableField("Customer:Region", "string", null)))));
+      CalcFieldAgentService service = new CalcFieldAgentService(
+         sessionsOver(vsWith()), fields, proxy, allowingSecurityEngine());
+
+      for(String name : List.of("region", "Customer:Region")) {
+         CalcFieldRequest req = new CalcFieldRequest(
+            "ORDERS", null, name, null, "1", "integer", false, true, false, true);
+         assertThrows(IllegalArgumentException.class,
+            () -> service.modify("tok", principal(), req, ""));
+      }
+
+      verifyNoInteractions(proxy);
+   }
+
+   @Test
+   void createWithAnUnrelatedNameIsNotMistakenForAColumnCollision() throws Exception {
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      CalcFieldAgentService service = serviceOver(vsWith(), proxy);
+
+      CalcFieldRequest req = new CalcFieldRequest(
+         "ORDERS", null, "DiscountRate", null, "1", "integer", false, true, false, true);
+
+      assertDoesNotThrow(() -> service.modify("tok", principal(), req, ""));
+   }
+
+   /** The listing also carries calc fields; a case-only self rename must not trip on its own entry. */
+   @Test
+   void caseOnlyRenameIsNotRefusedWhenTheListingAlsoCarriesTheCalcField() throws Exception {
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      BindableFieldsService fields = mock(BindableFieldsService.class);
+      when(fields.list(eq("rt1"), any(), any(Principal.class))).thenReturn(List.of(
+         new BindableTable("ORDERS", null, List.of(
+            new BindableField("DISCOUNT", "double", null),
+            new BindableField("DupCalc", "integer", null)))));
+      CalcFieldAgentService service = new CalcFieldAgentService(
+         sessionsOver(vsWith(calc("DupCalc", "1", true))), fields, proxy,
+         allowingSecurityEngine());
+
+      CalcFieldRequest req = new CalcFieldRequest(
+         "ORDERS", null, "DupCalc", "DUPCALC", "1", null, null, true, false, false);
+
+      assertDoesNotThrow(() -> service.modify("tok", principal(), req, ""));
+   }
 }
