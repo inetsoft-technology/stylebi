@@ -21,6 +21,7 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.sree.security.support.SecurityTestDataBuilder;
 import inetsoft.test.*;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.util.Identity;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -87,7 +88,10 @@ class ScheduleActionOrgBoundaryTest {
          .grantPermission(ResourceType.SCHEDULER, "*", ResourceAction.ACCESS,
                           SCHEDULE_ROLE, Identity.ROLE, ORG_A)
          .grantPermission(ResourceType.SCHEDULER, "*", ResourceAction.ACCESS,
-                          SITE_ADMIN_ROLE, Identity.ROLE, ORG_A);
+                          SITE_ADMIN_ROLE, Identity.ROLE, ORG_A)
+         // Bug #78129, a saved sheet must be readable by the saver and the run principal
+         .grantPermission(ResourceType.REPORT, "Reports/Dashboard", ResourceAction.READ,
+                          SCHEDULE_ROLE, Identity.ROLE, ORG_A);
       builder.setup();
 
       // pin the security state to the builder's providers (Bug #77346), see
@@ -221,9 +225,14 @@ class ScheduleActionOrgBoundaryTest {
                       "test setup: acting in ORG_B via a context switch, not the principal's " +
                       "home org (ORG_A)");
 
+         // Bug #78129, the task's new owner is the caller's name in ORG_B, which isn't a user
+         // there, so the sheet READ check refuses it as the run would. That check isn't what this
+         // test is about, it's skipped the same way as the scheduler permission check above
+         AssetRepository.IGNORE_PERM.set(true);
          scheduleManager.setScheduleTask(task.getName(), task, caller);
       }
       finally {
+         AssetRepository.IGNORE_PERM.remove();
          OrganizationContextHolder.clear();
       }
 

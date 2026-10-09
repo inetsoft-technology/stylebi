@@ -105,6 +105,9 @@ class ImportedViewsheetActionOrgCaseTest {
          .addUser("ivaocUser", MIXED_ORG, "password")
          .addUserToRole("ivaocUser", SCHEDULE_ROLE, MIXED_ORG)
          .grantPermission(ResourceType.SCHEDULER, "*", ResourceAction.ACCESS,
+                          SCHEDULE_ROLE, inetsoft.uql.util.Identity.ROLE, MIXED_ORG)
+         // Bug #78129, a saved sheet must be readable by the saver and the run principal
+         .grantPermission(ResourceType.REPORT, "Reports/Dashboard", ResourceAction.READ,
                           SCHEDULE_ROLE, inetsoft.uql.util.Identity.ROLE, MIXED_ORG);
       builder.setup();
 

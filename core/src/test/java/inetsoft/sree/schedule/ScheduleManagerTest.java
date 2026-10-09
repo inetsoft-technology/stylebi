@@ -24,6 +24,7 @@ import inetsoft.sree.security.*;
 import inetsoft.test.*;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetObject;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.util.DefaultIdentity;
 import inetsoft.uql.util.Identity;
 import inetsoft.uql.viewsheet.VSBookmark;
@@ -479,7 +480,9 @@ public class ScheduleManagerTest {
       user_tk1.setCondition(0, condition);
       user_tk1.setIdentity(new User(identityID_tuser0));
 
-      scheduleManager.setScheduleTask("tuser0~;~host-org:user_tk1", user_tk1, admin);
+      // Bug #78129, a task stored before the sheet READ check, its run principal can't read
+      // the sheet, the rename is what's tested
+      setScheduleTaskUnchecked("tuser0~;~host-org:user_tk1", user_tk1);
       // check rename user.
       User tuser0_1 = new User(new IdentityID("tuser0_1", "host-org"));
       scheduleManager.identityRenamed(identityID_tuser0, tuser0_1);
@@ -515,7 +518,9 @@ public class ScheduleManagerTest {
       task.addAction(vsAction);
       task.addCondition(condition);
       task.setIdentity(new Group(new IdentityID("sales", "host-org")));
-      scheduleManager.setScheduleTask("sales~;~host-org:group_tk1", task, admin);
+      // Bug #78129, a task stored before the sheet READ check, a group can't read the owner's
+      // private sheet, the rename is what's tested
+      setScheduleTaskUnchecked("sales~;~host-org:group_tk1", task);
 
       Group sales2 = new Group(new IdentityID("sales2", "host-org"));
       scheduleManager.identityRenamed(new IdentityID("sales", "host-org"), sales2);
@@ -1205,6 +1210,21 @@ public class ScheduleManagerTest {
 
       scheduleManager.save(List.of(task), orgID);
       return task;
+   }
+
+   /**
+    * Saves a task as admin without the asset permission checks, as a task stored before the
+    * sheet READ check of Bug #78129.
+    */
+   private void setScheduleTaskUnchecked(String taskId, ScheduleTask task) throws Exception {
+      AssetRepository.IGNORE_PERM.set(true);
+
+      try {
+         scheduleManager.setScheduleTask(taskId, task, admin);
+      }
+      finally {
+         AssetRepository.IGNORE_PERM.remove();
+      }
    }
 
    private static String getNotifications(ScheduleTask task) {
