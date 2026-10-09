@@ -45,6 +45,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.IntConsumer;
 
 import static inetsoft.report.composition.execution.lockcycle.LockCycleHarness.*;
 import static org.junit.jupiter.api.Assertions.*;
@@ -173,6 +174,12 @@ public class RelSlowSummaryCreditTest {
     * the same shape starts no worker since #77223 and completes, see
     * {@link #f2FormulaBaseComputesInlinePoolOff}. A W2 fix should turn this into a completion
     * test.
+    *
+    * <p>The base pays the rows of one read with one sleep, not one sleep a row (bug #78146):
+    * between two per-row sleeps the worker is RUNNABLE for some microseconds, and the
+    * holder's sample every 2 s credits a RUNNABLE blocker as progress. 3 samples take as long
+    * as 4 rows, so on precise timers a sample that lands on a row boundary at about 6 s lands
+    * on one again at about 12 s, and those two credits carried the holder past the read.
     */
    @Test
    public void knownPoolOnW2FormulaBaseReadStalls() throws Exception {
@@ -180,7 +187,7 @@ public class RelSlowSummaryCreditTest {
       harness = new LockCycleHarness(true);
       policy(8000, true);
       Sandbox s = harness.sandbox();
-      PerRowTable base = new PerRowTable(ROWS, () -> sleep(F2_ROW_MILLIS));
+      PerRowTable base = PerRowTable.sleepingPerCall(ROWS, F2_ROW_MILLIS);
       SummaryFilter summary = f2Summary(s, base);
       TableLens outer = harness.track(cf2(summary, s.box));
       harness.await(harness.submit(() -> summary.getRowCount()), ACTIVE_CAP, "getRowCount");
@@ -252,7 +259,7 @@ public class RelSlowSummaryCreditTest {
     * {@link #knownPoolOnW2FormulaBaseReadStalls} under the shipped fail rule (Feature #77123,
     * no {@code failOnTimeout}): the pooled worker's one long base read is reported with a
     * thread dump, but it is no wait-for cycle, so nothing fails and the holder completes with
-    * every row.
+    * every row. Its base pays each read with one sleep for the same reason.
     */
    @Test
    public void poolOnW2FormulaBaseReadOnlyAlertsUnderTheDefaultRule() throws Exception {
@@ -264,7 +271,7 @@ public class RelSlowSummaryCreditTest {
          () -> drain(cf2(f2Summary(control, new DefaultTableLens(StallTestSupport.data(ROWS))),
                          null))), ACTIVE_CAP, "control pipeline");
       Sandbox s = harness.sandbox();
-      PerRowTable base = new PerRowTable(ROWS, () -> sleep(F2_ROW_MILLIS));
+      PerRowTable base = PerRowTable.sleepingPerCall(ROWS, F2_ROW_MILLIS);
       SummaryFilter summary = f2Summary(s, base);
       TableLens outer = harness.track(cf2(summary, s.box));
       harness.await(harness.submit(() -> summary.getRowCount()), ACTIVE_CAP, "getRowCount");
@@ -428,9 +435,28 @@ public class RelSlowSummaryCreditTest {
     */
    private static final class PerRowTable extends DefaultTableLens {
       PerRowTable(int rows, Runnable cost) {
+         this(rows, n -> cost.run(), false);
+      }
+
+      /**
+       * @param cost    the cost of the rows one payment covers, given their count.
+       * @param perCall pay every row one moreRows call is the first to reach with one
+       *                payment, instead of one payment a row.
+       */
+      private PerRowTable(int rows, IntConsumer cost, boolean perCall) {
          super(StallTestSupport.data(rows));
          this.rows = rows;
          this.cost = cost;
+         this.perCall = perCall;
+      }
+
+      /**
+       * A table that sleeps {@code rowMillis} for every row one moreRows call is the first to
+       * reach, in one sleep for the call, so the reader is never RUNNABLE inside a read of many
+       * rows.
+       */
+      static PerRowTable sleepingPerCall(int rows, long rowMillis) {
+         return new PerRowTable(rows, n -> sleep(n * rowMillis), true);
       }
 
       @Override
@@ -440,24 +466,25 @@ public class RelSlowSummaryCreditTest {
 
          while(true) {
             int next;
+            int count;
 
             synchronized(this) {
                if(reached >= last) {
                   break;
                }
 
-               next = ++reached;
+               next = reached + 1;
+               count = perCall ? last - reached : 1;
+               reached += count;
             }
 
-            if(next >= 1) {
-               if(next == 1) {
-                  firstByWorker = !isHarnessThread();
-                  paying.countDown();
-               }
-
-               cost.run();
-               paid++;
+            if(next == 1) {
+               firstByWorker = !isHarnessThread();
+               paying.countDown();
             }
+
+            cost.accept(count);
+            paid += count;
          }
 
          if(paid > 0) {
@@ -468,7 +495,8 @@ public class RelSlowSummaryCreditTest {
       }
 
       private final int rows;
-      private final Runnable cost;
+      private final IntConsumer cost;
+      private final boolean perCall;
       private int reached;
       /** Counted down when the first row's cost starts. */
       final CountDownLatch paying = new CountDownLatch(1);
@@ -489,7 +517,7 @@ public class RelSlowSummaryCreditTest {
    private static final int ROWS = 10;
    // the W2 case's one read, far over the 8 s limit
    private static final long W2_READ_MILLIS = 18000;
-   // the F2 shape's per-row cost
+   // the F2 shape's per-row cost (paid per read in the pooled cases)
    private static final long F2_ROW_MILLIS = 1500;
    @TempDir
    File dumpDir;
