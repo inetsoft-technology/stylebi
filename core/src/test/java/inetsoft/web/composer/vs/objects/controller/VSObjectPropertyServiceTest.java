@@ -126,7 +126,9 @@ class VSObjectPropertyServiceTest {
 
       assertFalse(applied);
       verify(coreLifecycleService).sendMessage(
-         anyString(), eq(MessageCommand.Type.ERROR), eq(commandDispatcher));
+         argThat(m -> m.contains("Text1") && m.contains("'Text2' already exists") &&
+                      !m.contains("{0}")),
+         eq(MessageCommand.Type.ERROR), eq(commandDispatcher));
       verify(viewsheet, never()).getViewsheetInfo();
       verify(viewsheet, never()).getAssemblies();
    }

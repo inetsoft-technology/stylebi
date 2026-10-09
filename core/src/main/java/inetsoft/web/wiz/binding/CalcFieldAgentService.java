@@ -321,7 +321,8 @@ public class CalcFieldAgentService {
       }
 
       return Objects.equals(((ExpressionRef) calc.getDataRef()).getExpression(), req.expression()) &&
-         Objects.equals(calc.getDataType(), req.dataType()) &&
+         Objects.equals(calc.getDataType() == null ? null : calc.getDataType().toLowerCase(),
+                        req.dataType() == null ? null : req.dataType().toLowerCase()) &&
          calc.isSQL() == (req.sql() != null && req.sql()) &&
          calc.isBaseOnDetail() == (req.baseOnDetail() == null || req.baseOnDetail());
    }
