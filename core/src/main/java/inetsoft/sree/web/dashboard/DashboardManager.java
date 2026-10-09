@@ -18,10 +18,17 @@
 package inetsoft.sree.web.dashboard;
 
 import inetsoft.sree.ClientInfo;
+import inetsoft.sree.ViewsheetEntry;
 import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.internal.cluster.DistributedMap;
 import inetsoft.sree.security.*;
 import inetsoft.storage.*;
+import inetsoft.uql.asset.AssetContent;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.util.DefaultIdentity;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.ConfigurationContext;
 import inetsoft.util.Tool;
@@ -86,11 +93,13 @@ public class DashboardManager implements AutoCloseable {
     * the change to the stored selections and the change to the registry file are atomic with
     * respect to getDashboards(), which leaves out the selected names that are not in the
     * registries, and which re-reads both under the store lock before it removes such a name
-    * (Bug #77299). The lock order is this manager, then the store lock, then
-    * DashboardRegistryManager, then the user registry, then the global registry (see
-    * DashboardRegistry for the registry file locks).
+    * (Bug #77299). A dashboard create adds the dashboard to the user registry and to the
+    * selection through this, and a user rename moves both, so that a create either completes
+    * before the move or runs after it (Bug #78101). The lock order is this manager, then the
+    * store lock, then DashboardRegistryManager, then the user registry, then the global registry
+    * (see DashboardRegistry for the registry file locks).
     */
-   synchronized void runLocked(Runnable action) {
+   public synchronized void runLocked(Runnable action) {
       Lock storeLock = getStoreLock();
       storeLock.lock();
 
@@ -100,6 +109,188 @@ public class DashboardManager implements AutoCloseable {
       finally {
          storeLock.unlock();
       }
+   }
+
+   /**
+    * Records that a user has been renamed. A user rename calls this in runLocked(), and a
+    * dashboard create checks it in runLocked() with isRenamedUser(). A request of the old name
+    * may still be running, or may even start, on another cluster node until the logout of the old
+    * name reaches that node. Once the user is renamed the old name is not in the security
+    * provider any more, so such a create can't be told apart from an SSO user who isn't in the
+    * provider by the provider alone (Bug #78101). The record is kept in a replicated map, which a
+    * put updates on every node before it returns, for RENAMED_USER_TIMEOUT.
+    *
+    * @param user    the old name of the user.
+    * @param newUser the new name of the user.
+    */
+   public void addRenamedUser(IdentityID user, IdentityID newUser) {
+      DistributedMap<String, RenamedUser> renamed = getRenamedUsers();
+      long now = System.currentTimeMillis();
+      Set<String> expired = new HashSet<>();
+
+      for(Map.Entry<String, RenamedUser> entry : new ArrayList<>(renamed.entrySet())) {
+         if(entry.getValue() == null || now - entry.getValue().time > RENAMED_USER_TIMEOUT) {
+            expired.add(entry.getKey());
+         }
+      }
+
+      if(!expired.isEmpty()) {
+         renamed.removeAll(expired);
+      }
+
+      renamed.put(getRenamedUserKey(user), new RenamedUser(now, newUser, false, List.of()));
+   }
+
+   /**
+    * Records the composed viewsheet of a dashboard create that was refused because its user has
+    * been renamed, so that the rename removes it once it has moved the user's assets, see
+    * takeRefusedViewsheets(). The viewsheet is created before the create is refused, and the
+    * rename's asset move (UserTreeService.migrateUserRename()) runs on its own node, after the
+    * dashboards are moved. A viewsheet removed while the move runs may still be moved to the new
+    * name, or leave an entry there, which the create's own removal then doesn't see (Bug #78101).
+    * It is called in runLocked(), like takeRefusedViewsheets().
+    *
+    * @param user       the old name of the user.
+    * @param identifier the identifier of the viewsheet.
+    *
+    * @return true if it is recorded, false if the user's assets have already been moved, or the
+    *         user was not renamed, so that the create removes the viewsheet itself.
+    */
+   public boolean addRefusedViewsheet(IdentityID user, String identifier) {
+      String key = getRenamedUserKey(user);
+      DistributedMap<String, RenamedUser> renamed = getRenamedUsers();
+      RenamedUser record = renamed.get(key);
+
+      if(record == null || record.migrated ||
+         System.currentTimeMillis() - record.time > RENAMED_USER_TIMEOUT)
+      {
+         return false;
+      }
+
+      List<String> refused = new ArrayList<>(record.refused);
+      refused.add(identifier);
+      renamed.put(key, new RenamedUser(record.time, record.newUser, false, refused));
+      return true;
+   }
+
+   /**
+    * Marks a renamed user's assets as moved and takes the refused viewsheets recorded until now,
+    * see addRefusedViewsheet(). It is called in runLocked() once the user's assets are moved.
+    *
+    * @param user the old name of the user.
+    *
+    * @return the identifiers of the recorded viewsheets, owned by the old name.
+    */
+   public List<String> takeRefusedViewsheets(IdentityID user) {
+      String key = getRenamedUserKey(user);
+      DistributedMap<String, RenamedUser> renamed = getRenamedUsers();
+      RenamedUser record = renamed.get(key);
+
+      if(record == null) {
+         return List.of();
+      }
+
+      renamed.put(key, new RenamedUser(record.time, record.newUser, true, List.of()));
+      return record.refused;
+   }
+
+   /**
+    * Removes the composed viewsheet that a dashboard create refused because its user has been
+    * renamed or removed has created (Bug #78101). The user is logged out and no longer exists,
+    * so the user's permissions are not checked: the entry is the one the create made. The same
+    * entry of the new name is removed too, since the rename moves the user's assets to it,
+    * unless a dashboard of the new name uses it. Only a composed dashboard viewsheet is removed.
+    *
+    * @param entry     the viewsheet entry the create made, owned by the old name.
+    * @param newUser   the new name, or null if the user was not renamed.
+    * @param principal the principal to remove the viewsheet as.
+    */
+   public void removeRefusedViewsheet(AssetEntry entry, IdentityID newUser, Principal principal) {
+      AssetRepository engine = AssetUtil.getAssetRepository(false);
+      List<AssetEntry> entries = new ArrayList<>();
+      entries.add(entry);
+
+      if(newUser != null && !isUsedByDashboard(newUser, entry.getPath())) {
+         entries.add(new AssetEntry(entry.getScope(), entry.getType(), entry.getPath(), newUser));
+      }
+
+      AssetRepository.IGNORE_PERM.set(true);
+
+      try {
+         for(AssetEntry sheet : entries) {
+            try {
+               // only a composed dashboard viewsheet, never one the user saved under the same
+               // path, e.g. a viewsheet of the new name, or of a new user of the old name
+               if(engine.containsEntry(sheet) &&
+                  engine.getSheet(sheet, principal, false, AssetContent.ALL) instanceof Viewsheet vs &&
+                  vs.getViewsheetInfo().isComposedDashboard())
+               {
+                  engine.removeSheet(sheet, principal, true);
+               }
+            }
+            catch(Exception ex) {
+               LOG.warn("Failed to remove the viewsheet of a refused dashboard: {}", sheet, ex);
+            }
+         }
+      }
+      finally {
+         AssetRepository.IGNORE_PERM.remove();
+      }
+   }
+
+   /**
+    * Checks if a dashboard of a user uses the user's viewsheet of a path.
+    */
+   private boolean isUsedByDashboard(IdentityID user, String path) {
+      DashboardRegistry registry = dashboardRegistryManager.getRegistry(user);
+
+      for(String name : registry.getDashboardNames()) {
+         Dashboard dashboard = registry.getDashboard(name);
+         ViewsheetEntry viewsheet = dashboard instanceof VSDashboard ?
+            ((VSDashboard) dashboard).getViewsheet() : null;
+
+         if(viewsheet != null && Tool.equals(viewsheet.getPath(), path) &&
+            Tool.equals(viewsheet.getOwner(), user))
+         {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Checks if a user name has been renamed recently, see addRenamedUser().
+    *
+    * @param user the user name.
+    *
+    * @return true if a user of this name was renamed within RENAMED_USER_TIMEOUT.
+    */
+   public boolean isRenamedUser(IdentityID user) {
+      return getRenamedUser(user) != null;
+   }
+
+   /**
+    * Gets the new name of a user who has been renamed recently, see addRenamedUser().
+    *
+    * @param user the old name of the user.
+    *
+    * @return the new name, or null if no user of this name was renamed within
+    *         RENAMED_USER_TIMEOUT.
+    */
+   public IdentityID getRenamedUser(IdentityID user) {
+      RenamedUser renamed = user == null ? null : getRenamedUsers().get(getRenamedUserKey(user));
+      return renamed != null && System.currentTimeMillis() - renamed.time <= RENAMED_USER_TIMEOUT ?
+         renamed.newUser : null;
+   }
+
+   private static DistributedMap<String, RenamedUser> getRenamedUsers() {
+      return Cluster.getInstance().getReplicatedMap(RENAMED_USERS_MAP);
+   }
+
+   private static String getRenamedUserKey(IdentityID user) {
+      String org = user.orgID == null ? "" : user.orgID.toLowerCase();
+      return new IdentityID(user.name, org).convertToKey();
    }
 
    /**
@@ -899,6 +1090,35 @@ public class DashboardManager implements AutoCloseable {
    }
 
    /**
+    * Gets the stored selected dashboards of an identity, as they are stored, read from the
+    * cluster's replicated record under the store lock. Unlike getDashboards(Identity), the
+    * stored names are neither synchronized with the identity's groups and roles nor checked
+    * against the registries. A user rename moves these names, so it keeps every stored name
+    * (Bug #78101).
+    *
+    * @param identity the identity.
+    *
+    * @return the stored names, empty if there is no record.
+    */
+   public synchronized String[] getStoredDashboards(Identity identity) {
+      if(identity == null) {
+         return new String[0];
+      }
+
+      init();
+      Lock storeLock = getStoreLock();
+      storeLock.lock();
+
+      try {
+         DashboardData data = getDashboardStorage().get(getIdentityKey(identity));
+         return data == null ? new String[0] : data.getDashboards().toArray(new String[0]);
+      }
+      finally {
+         storeLock.unlock();
+      }
+   }
+
+   /**
     * Changes the stored selected dashboards of an identity, holding the store lock for the whole
     * read-modify-write. The stored names are changed, including the names that are not in this
     * node's cached registries, which getDashboards(Identity) leaves out, so that a dashboard
@@ -1212,7 +1432,29 @@ public class DashboardManager implements AutoCloseable {
    private String orgID = null;
    // the prefix of the cluster lock name of a dashboards store, see getStoreLock()
    private static final String STORE_LOCK_PREFIX = DashboardManager.class.getName() + ".lock:";
+   // the replicated map of the recently renamed users, see addRenamedUser()
+   private static final String RENAMED_USERS_MAP = DashboardManager.class.getName() + ".renamedUsers";
+   // how long a renamed user's old name is kept, longer than a request of the old name can run
+   // or a logout can take to reach every node
+   private static final long RENAMED_USER_TIMEOUT = TimeUnit.MINUTES.toMillis(30);
    private static final Logger LOG = LoggerFactory.getLogger(DashboardManager.class);
+
+   // a record of the replicated map of the recently renamed users, see addRenamedUser()
+   static final class RenamedUser implements Serializable {
+      RenamedUser(long time, IdentityID newUser, boolean migrated, List<String> refused) {
+         this.time = time;
+         this.newUser = newUser;
+         this.migrated = migrated;
+         this.refused = new ArrayList<>(refused);
+      }
+
+      final long time;
+      final IdentityID newUser;
+      // true once the user's assets are moved, see takeRefusedViewsheets()
+      final boolean migrated;
+      // the refused creates' viewsheets to remove once the assets are moved
+      final List<String> refused;
+   }
 
    public static final class DashboardData implements Serializable {
       public List<String> getDashboards() {

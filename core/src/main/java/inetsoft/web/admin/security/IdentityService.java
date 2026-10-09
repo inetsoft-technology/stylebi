@@ -411,12 +411,22 @@ public class IdentityService {
    private void logoutSession(IdentityID user) {
       SessionLicenseManager sessionLicenseManager =
          sessionLicenseServiceProvider.getSessionLicenseManager();
+      Set<SRPrincipal> principals = new LinkedHashSet<>();
 
-      if(sessionLicenseManager == null) {
-         return;
+      if(sessionLicenseManager != null) {
+         principals.addAll(sessionLicenseManager.getActiveSessions());
       }
 
-      Set<SRPrincipal> principals = sessionLicenseManager.getActiveSessions();
+      // the logged in users of every cluster node, also when there is no session license manager
+      // (CPU or elastic license) or it only knows this node's sessions (hosted license), so that a
+      // renamed or removed user's sessions can't send any more requests anywhere (Bug #78101)
+      List<SRPrincipal> active =
+         securityEngine == null ? null : securityEngine.getActivePrincipalList();
+
+      if(active != null) {
+         principals.addAll(active);
+      }
+
       Iterator<SRPrincipal> iterator  = principals.iterator();
 
       while(iterator.hasNext()) {
@@ -622,12 +632,19 @@ public class IdentityService {
             smanager.identityRemoved(identity, eprovider);
          }
       }
-      else if((type == Identity.USER || type == Identity.GROUP) && !identityId.equals(oID)) {
+      else if(type == Identity.USER && !identityId.equals(oID)) {
+         // read in the user's org, where renameUserDashboards() moves them, not in the org of
+         // the admin who renames the user
+         renamedDashboards = OrganizationManager.runInOrgScope(
+            getUserDashboardsOrgID(oID), () -> dmanager.getDashboards(oid));
+      }
+      else if(type == Identity.GROUP && !identityId.equals(oID)) {
          renamedDashboards = dmanager.getDashboards(oid);
       }
 
       final String[] dashboards = renamedDashboards;
-      // moves a renamed user's or group's schedule tasks and dashboards to the new name
+      // moves a renamed group's schedule tasks and dashboards to the new name. A renamed user's
+      // are moved by renameUserDashboards()
       RenameStep renameTasksAndDashboards = () -> {
          smanager.identityRenamed(oID, identity);
          dmanager.setDashboards(nid, dashboards);
@@ -663,15 +680,18 @@ public class IdentityService {
          }
          else if(!identityId.equals(oID)) {
             String orgId = identityId.orgID;
+            // recorded before the user is saved, so that every dashboard create refused once the
+            // old name is gone finds the record (Bug #78101)
+            OrganizationManager.runInOrgScope(getUserDashboardsOrgID(oID), () -> {
+               dmanager.runLocked(() -> dmanager.addRenamedUser(oID, identityId));
+               return null;
+            });
 
             renameIdentity(eprovider, identityId, type, () -> eprovider.setUser(oID, (User) identity),
                () -> {
-                  renameTasksAndDashboards.run();
+                  smanager.identityRenamed(oID, identity);
                   //rep.renameUser(oID, identityId);
-                  repletRegistryManager.renameUser(oID, identityId);
-                  dashboardRegistryManager.clear(identityId);
-                  dashboardRegistryManager.renameUser(oID, identityId);
-                  dashboardRegistryManager.clear(oID);
+                  renameUserDashboards(oid, nid, dashboards);
                   updateUserAutoSaveFiles(oID, identityId);
                   // update user identityId inside of permissions. The provider's change listener
                   // renames the grantees too, but not the permissions keyed by the user's resources
@@ -911,6 +931,64 @@ public class IdentityService {
       }
 
       migrate.run();
+   }
+
+   /**
+    * Moves a renamed user's dashboard selection and dashboard registry to the new name. It runs
+    * after the renamed user is saved, holding the dashboard manager's lock (runLocked()) in the
+    * user's organization. A dashboard create holds the same lock while it adds the dashboard to
+    * the user's registry and selection, and fails once the user is gone, so a create that is
+    * still running under the old name either completes before the move and is moved with it, or
+    * fails (Bug #78101). The registry file locks are not taken here: they come after the
+    * DashboardRegistryManager lock, which the registry rename takes (see DashboardRegistry).
+    *
+    * @param dashboards the selected dashboards of the old user, read before the user was saved.
+    *                   The ones that have been selected since are added to them.
+    */
+   private void renameUserDashboards(Identity oid, Identity nid, String[] dashboards)
+      throws Exception
+   {
+      IdentityID oID = oid.getIdentityID();
+      IdentityID nID = nid.getIdentityID();
+      OrganizationManager.runInOrgScope(getUserDashboardsOrgID(oID), () -> {
+         dashboardManager.runLocked(() -> {
+            // the names stored for the old and the new name now are kept, read from the
+            // cluster's record, so that the move never drops a name that another node has
+            // selected since the snapshot, or that the snapshot left out. They are not
+            // synchronized with the user's groups and roles, which the old user no longer has,
+            // or checked against the registries, which the reads of the new name do.
+            List<String> moved = dashboards == null ?
+               new ArrayList<>() : new ArrayList<>(Arrays.asList(dashboards));
+            addMissing(moved, dashboardManager.getStoredDashboards(oid));
+            addMissing(moved, dashboardManager.getStoredDashboards(nid));
+
+            dashboardManager.setDashboards(nid, moved.toArray(new String[0]));
+            dashboardManager.setDashboards(oid, null);
+            dashboardManager.removeDashboards(oid);
+            dashboardRegistryManager.clear(oID);
+            repletRegistryManager.renameUser(oID, nID);
+            dashboardRegistryManager.clear(nID);
+            dashboardRegistryManager.renameUser(oID, nID);
+            dashboardRegistryManager.clear(oID);
+         });
+
+         return null;
+      });
+   }
+
+   /**
+    * Gets the org of a user's dashboard selections and dashboard lock.
+    */
+   private static String getUserDashboardsOrgID(IdentityID user) {
+      return user.orgID != null ? user.orgID : OrganizationManager.getInstance().getCurrentOrgID();
+   }
+
+   private static void addMissing(List<String> list, String[] names) {
+      for(String name : names == null ? new String[0] : names) {
+         if(!list.contains(name)) {
+            list.add(name);
+         }
+      }
    }
 
    /**
@@ -2999,6 +3077,7 @@ public class IdentityService {
       groupV.toArray(groups);
       user.setGroups(Arrays.stream(groups).map(id -> id.name).toArray(String[]::new));
       User oldUser = eprovider.getUser(oIdentity);
+      boolean loggedOut = false;
 
       if(oldUser == null || Tool.isEmptyString(oldUser.getGoogleSSOId())) {
          if(model.password() != null) {
@@ -3012,6 +3091,7 @@ public class IdentityService {
                   user.setPasswordSalt(null);
                   user.setAppendPasswordSalt(false);
                   logoutSession(oIdentity);
+                  loggedOut = true;
                }
             }
          }
@@ -3020,11 +3100,13 @@ public class IdentityService {
             user.setPasswordAlgorithm(oldUser.getPasswordAlgorithm());
             user.setPasswordSalt(oldUser.getPasswordSalt());
             user.setAppendPasswordSalt(oldUser.isAppendPasswordSalt());
-
-            if(!Tool.equals(oldUser.getName(), user.getName())) {
-               logoutSession(oIdentity);
-            }
          }
+      }
+
+      // a renamed user's sessions are logged out before the rename, whatever the password and
+      // sign-in type, so that they can't store anything under the old name (Bug #78101)
+      if(!loggedOut && oldUser != null && !Tool.equals(oldUser.getName(), user.getName())) {
+         logoutSession(oIdentity);
       }
 
       if(Tool.equals(ouser.getName(), model.name())) {

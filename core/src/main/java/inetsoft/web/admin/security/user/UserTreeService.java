@@ -26,8 +26,10 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.CustomTheme;
 import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.security.*;
+import inetsoft.sree.web.dashboard.DashboardManager;
 import inetsoft.sree.web.dashboard.DashboardRegistryManager;
 import inetsoft.uql.XRepository;
+import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.sync.DependencyStorageService;
 import inetsoft.uql.asset.sync.DependencyTool;
 import inetsoft.uql.erm.HiddenColumns;
@@ -44,6 +46,7 @@ import inetsoft.web.admin.general.model.LocalizationModel;
 import inetsoft.web.admin.security.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.annotation.SubscribeMapping;
@@ -95,6 +98,15 @@ public class UserTreeService {
       this.xRepository = xRepository;
       this.dependencyStorageService = dependencyStorageService;
       this.recycleBin = recycleBin;
+   }
+
+   /**
+    * Sets the dashboard manager, which removes the viewsheets of the dashboard creates refused
+    * while a user is renamed (Bug #78101). It is resolved when it is used.
+    */
+   @Autowired
+   public void setDashboardManager(ObjectProvider<DashboardManager> dashboardManager) {
+      this.dashboardManager = dashboardManager;
    }
 
    public List<String> getOrganizationTree(String providerName, Principal principal) {
@@ -2126,20 +2138,64 @@ public class UserTreeService {
 
       // the storage, MV and data cycle migrations resolve the current org, which is not the
       // user's org when a site admin edits a user of another org
-      OrganizationManager.runInOrgScope(oldID.getOrgID(), () -> {
-         if(oldID != null && newID != null) {
-            // Move em favorites to the renamed user
-            favoritesService.moveFavorites(oldID.convertToKey(), newID.convertToKey());
+      try {
+         OrganizationManager.runInOrgScope(oldID.getOrgID(), () -> {
+            if(oldID != null && newID != null) {
+               // Move em favorites to the renamed user
+               favoritesService.moveFavorites(oldID.convertToKey(), newID.convertToKey());
+            }
+
+            storage.migrateStorageData(oldID, newID, Identity.USER);
+            mvManager.migrateUserAssetsMV(oldID, newID);
+            mvManager.updateMVUser(oldID, newID);
+            cycleManager.updateCycleInfoNotify(oldID.getName(), newID.getName(), true);
+            this.dependencyStorageService.migrateStorageData(oldID, newID);
+            recycleBin.renameUser(oldID, newID);
+            return null;
+         });
+      }
+      finally {
+         removeRefusedDashboardViewsheets(oldID, newID);
+      }
+   }
+
+   /**
+    * Removes the viewsheets of the dashboard creates of the old name that were refused while
+    * the user was renamed, once the user's assets are moved, so that the removal doesn't race the
+    * move (Bug #78101, see DashboardManager.addRefusedViewsheet()). A create refused after this
+    * removes its viewsheet itself.
+    */
+   private void removeRefusedDashboardViewsheets(IdentityID oldID, IdentityID newID) {
+      try {
+         // the injected manager, or the Spring bean if the setter wasn't applied: a stale Spring
+         // AOT bean definition of this class (another jar's copy comes first on the classpath)
+         // skips it, and the refused creates' viewsheets were then left under the new name
+         DashboardManager manager = dashboardManager != null ?
+            dashboardManager.getIfAvailable() : DashboardManager.getManager();
+
+         if(manager == null) {
+            LOG.warn("No dashboard manager, the viewsheets of the dashboards refused while " +
+                        "renaming user {} are not removed", oldID);
+            return;
          }
 
-         storage.migrateStorageData(oldID, newID, Identity.USER);
-         mvManager.migrateUserAssetsMV(oldID, newID);
-         mvManager.updateMVUser(oldID, newID);
-         cycleManager.updateCycleInfoNotify(oldID.getName(), newID.getName(), true);
-         this.dependencyStorageService.migrateStorageData(oldID, newID);
-         recycleBin.renameUser(oldID, newID);
-         return null;
-      });
+         // the dashboard lock and the record of the user's org, as the rename and the create use
+         OrganizationManager.runInOrgScope(oldID.getOrgID(), () -> {
+            List<String> refused = new ArrayList<>();
+            manager.runLocked(() -> refused.addAll(manager.takeRefusedViewsheets(oldID)));
+
+            for(String identifier : refused) {
+               manager.removeRefusedViewsheet(AssetEntry.createAssetEntry(identifier), newID,
+                                              ThreadContext.getContextPrincipal());
+            }
+
+            return null;
+         });
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to remove the viewsheets of the dashboards refused while renaming " +
+                     "user {}", oldID, ex);
+      }
    }
 
    private SecurityProvider getSecurityProvider() {
@@ -2254,5 +2310,6 @@ public class UserTreeService {
    private final DependencyStorageService dependencyStorageService;
    private final RecycleBin recycleBin;
    private final Set<String> propertyNames = Set.of("max.row.count", "max.col.count", "max.cell.size", "max.user.count");
+   private ObjectProvider<DashboardManager> dashboardManager;
    private static final Logger LOG = LoggerFactory.getLogger(UserTreeService.class);
 }

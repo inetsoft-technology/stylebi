@@ -259,6 +259,11 @@ public class DashboardController {
       IdentityID user = principal != null
          ? getIdentity((XPrincipal) principal).getIdentityID()
          : new IdentityID(XPrincipal.ANONYMOUS, Organization.getDefaultOrganizationID());
+      // checked again before the dashboard is added, see below (Bug #78101)
+      SecurityProvider provider = getSecurityProvider();
+      boolean checkUser = principal != null && securityEngine.isSecurityEnabled() &&
+         provider != null;
+      boolean registeredUser = checkUser && hasUser(provider, user);
       DashboardRegistry registry = dashboardRegistryManager.getRegistry(user);
       // log create dashboard action
       String actionName = ActionRecord.ACTION_NAME_CREATE;
@@ -318,13 +323,56 @@ public class DashboardController {
          IdentityID identityID = IdentityID.getIdentityIDFromKey(principal.getName());
          dashboard.setCreatedBy(identityID.getName());
          dashboard.setLastModifiedBy(identityID.getName());
-         registry.putDashboard(dashboardModel.name(), dashboard);
-
          // if this dashboard is created by a user on the viewer, then the
          // dashboard should be automatically selected.
-         if(user != null) {
-            Identity id = getIdentity((XPrincipal) principal);
-            dashboardManager.addDashboard(id, dashboardModel.name());
+         Identity id = user != null ? getIdentity((XPrincipal) principal) : null;
+         Exception[] error = new Exception[1];
+         boolean[] userGone = new boolean[1];
+         // the viewsheet just created for the dashboard, removed if the create is refused
+         AssetEntry sheet = composedDashboard ? entry : null;
+         // true if the rename removes the viewsheet once it has moved the user's assets
+         boolean[] removedByRename = new boolean[1];
+
+         // added to the registry and selected holding the dashboard manager's lock, which a user
+         // rename holds while it moves both to the new name. A user who is not in the provider
+         // and either was in it when the create started or has just been renamed (a request of
+         // the old name on another node may start after the rename) has been renamed or removed,
+         // and the dashboard would be stored under a name nobody has, so the create fails
+         // (Bug #78101). An SSO user who is not in the provider is not checked.
+         dashboardManager.runLocked(() -> {
+            try {
+               if(checkUser && provider.getUser(user) == null &&
+                  (registeredUser || dashboardManager.isRenamedUser(user)))
+               {
+                  userGone[0] = true;
+                  removedByRename[0] = sheet != null &&
+                     dashboardManager.addRefusedViewsheet(user, sheet.toIdentifier());
+                  throw new MessageException(
+                     Catalog.getCatalog().getString("common.invalidUserReload"));
+               }
+
+               registry.putDashboard(dashboardModel.name(), dashboard);
+
+               if(id != null) {
+                  dashboardManager.addDashboard(id, dashboardModel.name());
+               }
+            }
+            catch(Exception ex) {
+               error[0] = ex;
+            }
+         });
+
+         if(error[0] != null) {
+            // the viewsheet just created for the dashboard would be left under the old name, or
+            // moved to the new one. It is removed here if the rename has already moved the
+            // user's assets, else by the rename once it has, so that the removal doesn't race
+            // the move (Bug #78101).
+            if(userGone[0] && sheet != null && !removedByRename[0]) {
+               dashboardManager.removeRefusedViewsheet(
+                  sheet, dashboardManager.getRenamedUser(user), principal);
+            }
+
+            throw error[0];
          }
 
          dependencyHandler.updateDashboardDependencies(user, dashboardModel.name(),
