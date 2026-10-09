@@ -481,8 +481,10 @@ public class AsyncLensScriptLockLendingTest {
     * had finished, found nothing to wait for and correctly lent nothing, or lent only for
     * a few milliseconds that the sampling watcher missed. The gate holds the worker,
     * outside the lock, until the holder has lent it the lock, and records the loan it
-    * sees. It is bounded below TIMEOUT, so a holder that never lends still fails the loan
-    * assertion. The worker must hold no monitor the holder needs while it waits, so it
+    * sees. It is bounded below TIMEOUT, so a holder that never lends still fails: on the
+    * loan assertion where the worker does not need the lock, and with a timeout in the
+    * exec pipeline, where the worker blocks on the unlent lock before it gets here. The
+    * worker must hold no monitor the holder needs while it waits, so it
     * runs only on reads made without the lock, in ExecTable or in a GateTable above the
     * inner condition filter (never inside it: a SELF_JOIN holder reads the inner filter
     * under its monitor). None for UNION, whose worker never makes the holder wait.
