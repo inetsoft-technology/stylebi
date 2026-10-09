@@ -18,7 +18,7 @@
 package inetsoft.web.viewsheet.service;
 
 import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.sree.internal.cluster.MockCluster;
+import inetsoft.sree.internal.cluster.*;
 import inetsoft.uql.XPrincipal;
 import org.junit.jupiter.api.*;
 
@@ -99,6 +99,30 @@ class RuntimeViewsheetManagerTest {
       }
 
       assertEquals(count, openSheets().get("session-1").size());
+   }
+
+   /**
+    * A transaction that fails, e.g. after waiting a minute for the session's lock, is logged:
+    * the sheet is already open or closed, so the caller's request must not fail.
+    */
+   @Test
+   void failedTransactionsAreLogged() {
+      MockCluster failing = new MockCluster() {
+         @Override
+         public <T, E extends Exception> T runInTransaction(long timeout, TimeUnit unit,
+                                                             TransactionalAction<T, E> action)
+         {
+            throw new DistributedTransactionException("The transaction timed out");
+         }
+      };
+      RuntimeViewsheetManager failingManager =
+         new RuntimeViewsheetManager(viewsheetService, failing);
+      failingManager.init();
+
+      assertDoesNotThrow(() -> failingManager.sheetOpened(user, "vs-1"));
+      assertDoesNotThrow(() -> failingManager.sheetClosed(user, "vs-1"));
+      assertDoesNotThrow(() -> failingManager.sessionEnded(user));
+      verifyNoInteractions(viewsheetService);
    }
 
    private Map<String, Set<String>> openSheets() {

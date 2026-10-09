@@ -53,19 +53,20 @@ class IgniteClusterRunInTransactionTest {
       config.setMetricsLogFrequency(0);
       IgniteUtils.configBinaryTypes(config);
 
+      int[] ports = freePorts(2);
       TcpDiscoverySpi discovery = new TcpDiscoverySpi();
       discovery.setLocalAddress("127.0.0.1");
-      discovery.setLocalPort(48750);
-      discovery.setLocalPortRange(5);
+      discovery.setLocalPort(ports[0]);
+      discovery.setLocalPortRange(0);
       TcpDiscoveryVmIpFinder ipFinder = new TcpDiscoveryVmIpFinder();
-      ipFinder.setAddresses(List.of("127.0.0.1:48750..48754"));
+      ipFinder.setAddresses(List.of("127.0.0.1:" + ports[0]));
       discovery.setIpFinder(ipFinder);
       config.setDiscoverySpi(discovery);
 
       TcpCommunicationSpi communication = new TcpCommunicationSpi();
       communication.setLocalAddress("127.0.0.1");
-      communication.setLocalPort(48850);
-      communication.setLocalPortRange(10);
+      communication.setLocalPort(ports[1]);
+      communication.setLocalPortRange(0);
       config.setCommunicationSpi(communication);
 
       DataStorageConfiguration storage = new DataStorageConfiguration();
@@ -232,4 +233,36 @@ class IgniteClusterRunInTransactionTest {
 
    private static Ignite ignite;
    private static IgniteDistributedMap<String, String> map;
+
+   /**
+    * Picks distinct free ports, as the other embedded Ignite tests do, so the topology can't
+    * pick up a node of another test or fork.
+    */
+   private static int[] freePorts(int count) {
+      java.net.ServerSocket[] sockets = new java.net.ServerSocket[count];
+      int[] ports = new int[count];
+
+      try {
+         for(int i = 0; i < count; i++) {
+            sockets[i] = new java.net.ServerSocket(0);
+            ports[i] = sockets[i].getLocalPort();
+         }
+
+         return ports;
+      }
+      catch(java.io.IOException ex) {
+         throw new java.io.UncheckedIOException(ex);
+      }
+      finally {
+         for(java.net.ServerSocket socket : sockets) {
+            if(socket != null) {
+               try {
+                  socket.close();
+               }
+               catch(java.io.IOException ignore) {
+               }
+            }
+         }
+      }
+   }
 }

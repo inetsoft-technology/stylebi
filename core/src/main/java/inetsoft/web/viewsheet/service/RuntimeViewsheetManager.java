@@ -63,38 +63,52 @@ public class RuntimeViewsheetManager {
       String sessionId = getSessionId(user);
 
       // Bug #77879, a transaction lock instead of an explicit lock of the entry
-      cluster.runInTransaction(TX_TIMEOUT, TimeUnit.MILLISECONDS, () -> {
-         Set<String> sheets = getOpenSheets().getForUpdate(sessionId);
+      try {
+         cluster.runInTransaction(TX_TIMEOUT, TimeUnit.MILLISECONDS, () -> {
+            Set<String> sheets = getOpenSheets().getForUpdate(sessionId);
 
-         if(sheets == null) {
-            sheets = new HashSet<>();
-         }
+            if(sheets == null) {
+               sheets = new HashSet<>();
+            }
 
-         sheets.add(runtimeId);
-         getOpenSheets().put(sessionId, sheets);
-         return null;
-      });
+            sheets.add(runtimeId);
+            getOpenSheets().put(sessionId, sheets);
+            return null;
+         });
+      }
+      catch(DistributedTransactionException ex) {
+         // the sheet is already open, so the request must not fail; the sheet is not closed when
+         // the session ends, but when it times out
+         LOG.warn("Failed to track sheet {} of session {}, it is closed when it times out",
+                  runtimeId, sessionId, ex);
+      }
    }
 
    public void sheetClosed(Principal user, String runtimeId) {
       String sessionId = getSessionId(user);
 
-      cluster.runInTransaction(TX_TIMEOUT, TimeUnit.MILLISECONDS, () -> {
-         Set<String> sheets = getOpenSheets().getForUpdate(sessionId);
+      try {
+         cluster.runInTransaction(TX_TIMEOUT, TimeUnit.MILLISECONDS, () -> {
+            Set<String> sheets = getOpenSheets().getForUpdate(sessionId);
 
-         if(sheets != null) {
-            sheets.remove(runtimeId);
+            if(sheets != null) {
+               sheets.remove(runtimeId);
 
-            if(sheets.isEmpty()) {
-               getOpenSheets().remove(sessionId);
+               if(sheets.isEmpty()) {
+                  getOpenSheets().remove(sessionId);
+               }
+               else {
+                  getOpenSheets().put(sessionId, sheets);
+               }
             }
-            else {
-               getOpenSheets().put(sessionId, sheets);
-            }
-         }
 
-         return null;
-      });
+            return null;
+         });
+      }
+      catch(DistributedTransactionException ex) {
+         // the sheet is already closed; closing it again when the session ends does nothing
+         LOG.warn("Failed to untrack sheet {} of session {}", runtimeId, sessionId, ex);
+      }
    }
 
    public void sessionEnded(Principal user) {
@@ -103,11 +117,19 @@ public class RuntimeViewsheetManager {
 
    private void closeViewsheets(Principal user) {
       String sessionId = getSessionId(user);
-      Set<String> sheetsToClose =
-         cluster.runInTransaction(TX_TIMEOUT, TimeUnit.MILLISECONDS, () -> {
+      Set<String> sheetsToClose;
+
+      try {
+         sheetsToClose = cluster.runInTransaction(TX_TIMEOUT, TimeUnit.MILLISECONDS, () -> {
             getOpenSheets().getForUpdate(sessionId);
             return getOpenSheets().remove(sessionId);
          });
+      }
+      catch(DistributedTransactionException ex) {
+         LOG.warn("Failed to close the sheets of session {}, they are closed when they time out",
+                  sessionId, ex);
+         return;
+      }
 
       if(sheetsToClose != null) {
          for(String runtimeId : sheetsToClose) {

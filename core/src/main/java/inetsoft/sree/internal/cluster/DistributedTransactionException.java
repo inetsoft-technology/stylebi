@@ -18,9 +18,11 @@
 package inetsoft.sree.internal.cluster;
 
 /**
- * Thrown by {@link Cluster#runInTransaction} when the transaction failed and was rolled back:
- * it timed out (including waiting for a lock), was found in a deadlock, or was rolled back by
- * the cluster, e.g. because a node left. None of the transaction's writes were committed.
+ * Thrown by {@link Cluster#runInTransaction} when the transaction failed: it timed out (including
+ * waiting for a lock), was found in a deadlock, was rolled back by the cluster, or a node it
+ * locked keys on left the cluster. A transaction that failed before it was committed was rolled
+ * back, and none of its writes were committed. Only a failure while committing, such as a
+ * heuristic outcome, can leave some or all of its writes committed.
  */
 public class DistributedTransactionException extends RuntimeException {
    public DistributedTransactionException(String message) {

@@ -50,7 +50,9 @@ import static org.mockito.Mockito.*;
  * Bug #77879: the store's sections run in pessimistic Ignite transactions instead of holding
  * explicit cache-entry locks. A trigger that fires joins the job's running record to its own
  * transaction, so a failure rolls both back, and a transaction that fails when a run completes
- * is logged without stopping the release of the job's triggers. Runs on one embedded Ignite node
+ * is logged without stopping the release of the job's triggers. A trigger whose transaction fails
+ * in an acquire pass or a fired batch does not keep the other triggers of the batch from being
+ * acquired or fired. Runs on one embedded Ignite node
  * with the product's replicated cache configuration.
  */
 @Tag("core")
@@ -63,19 +65,20 @@ class ClusterJobStoreTransactionTest {
       config.setMetricsLogFrequency(0);
       IgniteUtils.configBinaryTypes(config);
 
+      int[] ports = freePorts(2);
       TcpDiscoverySpi discovery = new TcpDiscoverySpi();
       discovery.setLocalAddress("127.0.0.1");
-      discovery.setLocalPort(48740);
-      discovery.setLocalPortRange(5);
+      discovery.setLocalPort(ports[0]);
+      discovery.setLocalPortRange(0);
       TcpDiscoveryVmIpFinder ipFinder = new TcpDiscoveryVmIpFinder();
-      ipFinder.setAddresses(List.of("127.0.0.1:48740..48744"));
+      ipFinder.setAddresses(List.of("127.0.0.1:" + ports[0]));
       discovery.setIpFinder(ipFinder);
       config.setDiscoverySpi(discovery);
 
       TcpCommunicationSpi communication = new TcpCommunicationSpi();
       communication.setLocalAddress("127.0.0.1");
-      communication.setLocalPort(48840);
-      communication.setLocalPortRange(10);
+      communication.setLocalPort(ports[1]);
+      communication.setLocalPortRange(0);
       config.setCommunicationSpi(communication);
 
       DataStorageConfiguration storage = new DataStorageConfiguration();
@@ -140,7 +143,8 @@ class ClusterJobStoreTransactionTest {
 
    /**
     * A fire that fails after the run was recorded rolls back the record with the trigger, so the
-    * record does not hold back the job's other triggers and the trigger stays acquired.
+    * record does not hold back the job's other triggers. The failure is returned as the trigger's
+    * result, for which Quartz releases the trigger.
     */
    @Test
    void failedFireRollsBackTheRunRecord() throws Exception {
@@ -150,12 +154,167 @@ class ClusterJobStoreTransactionTest {
       OperableTrigger acquired = acquire();
       FailingTrigger.FAIL = true;
 
-      assertThrows(IllegalStateException.class, () -> store.triggersFired(List.of(acquired)));
+      List<TriggerFiredResult> results = store.triggersFired(List.of(acquired));
 
+      assertEquals(1, results.size());
+      assertInstanceOf(IllegalStateException.class, results.get(0).getException());
+      assertNull(results.get(0).getTriggerFiredBundle());
       assertNull(runningJobs.get(job.getKey()), "the failed fire left its run record");
       TriggerWrapper stored = triggersByKey.get(trigger.getKey());
       assertEquals(TriggerState.ACQUIRED, stored.getState());
       assertEquals(acquired.getFireInstanceId(), stored.trigger.getFireInstanceId());
+
+      handleAsQuartz(List.of(acquired), results);
+
+      assertEquals(TriggerState.WAITING, triggersByKey.get(trigger.getKey()).getState(),
+                   "the failed trigger was not released");
+   }
+
+   /**
+    * A trigger whose transaction fails in the middle of an acquire pass is skipped, left as it
+    * was, and the triggers acquired before and after it are still returned, so none of them stays
+    * acquired by this node without the scheduler knowing.
+    */
+   @Test
+   void failedAcquireOfOneTriggerKeepsTheOthers() throws Exception {
+      List<OperableTrigger> triggers = storeThreeTriggers(new SimpleTriggerImpl());
+      TriggerState before = triggersByKey.get(triggers.get(1).getKey()).getState();
+      cluster.failAfter.set(1);
+
+      List<OperableTrigger> acquired =
+         store.acquireNextTriggers(System.currentTimeMillis() + 60_000, 3, 0L);
+
+      assertEquals(List.of(triggers.get(0).getKey(), triggers.get(2).getKey()),
+                   acquired.stream().map(Trigger::getKey).toList());
+      assertEquals(TriggerState.ACQUIRED,
+                   triggersByKey.get(triggers.get(0).getKey()).getState());
+      assertEquals(before, triggersByKey.get(triggers.get(1).getKey()).getState(),
+                   "the failed acquisition changed the trigger");
+      assertEquals(TriggerState.ACQUIRED,
+                   triggersByKey.get(triggers.get(2).getKey()).getState());
+
+      List<OperableTrigger> next =
+         store.acquireNextTriggers(System.currentTimeMillis() + 60_000, 3, 0L);
+      assertEquals(List.of(triggers.get(1).getKey()),
+                   next.stream().map(Trigger::getKey).toList(),
+                   "the skipped trigger was not acquired by the next pass");
+   }
+
+   /**
+    * When every trigger's transaction fails, nothing was acquired and the failure is reported to
+    * the scheduler.
+    */
+   @Test
+   void failedAcquireOfEveryTriggerIsReported() throws Exception {
+      List<OperableTrigger> triggers = storeThreeTriggers(new SimpleTriggerImpl());
+      cluster.failures.set(3);
+
+      assertThrows(DistributedTransactionException.class, () ->
+         store.acquireNextTriggers(System.currentTimeMillis() + 60_000, 3, 0L));
+
+      for(OperableTrigger trigger : triggers) {
+         assertNotEquals(TriggerState.ACQUIRED, triggersByKey.get(trigger.getKey()).getState());
+      }
+   }
+
+   /**
+    * A trigger whose fire transaction fails in the middle of a batch gets a result with the
+    * failure, for which Quartz releases it; the triggers before and after it fire.
+    */
+   @Test
+   void failedFireTransactionInABatchKeepsTheOthers() throws Exception {
+      List<OperableTrigger> acquired = acquireThree(new SimpleTriggerImpl());
+      cluster.failAfter.set(1);
+
+      List<TriggerFiredResult> results = store.triggersFired(acquired);
+
+      assertFiredExceptTheMiddle(acquired, results, DistributedTransactionException.class);
+   }
+
+   /**
+    * A trigger whose firing throws in the middle of a batch gets a result with the failure, and
+    * the triggers before and after it fire.
+    */
+   @Test
+   void failedFireInABatchKeepsTheOthers() throws Exception {
+      List<OperableTrigger> acquired = acquireThree(new FailingTrigger());
+      FailingTrigger.FAIL = true;
+
+      List<TriggerFiredResult> results = store.triggersFired(acquired);
+
+      assertFiredExceptTheMiddle(acquired, results, IllegalStateException.class);
+   }
+
+   private void assertFiredExceptTheMiddle(List<OperableTrigger> acquired,
+                                           List<TriggerFiredResult> results,
+                                           Class<? extends Exception> failure)
+   {
+      assertEquals(3, results.size(), "each trigger must get its result");
+
+      for(int i : new int[] { 0, 2 }) {
+         OperableTrigger trigger = acquired.get(i);
+         assertNotNull(results.get(i).getTriggerFiredBundle(), trigger + " did not fire");
+         assertEquals(trigger.getKey(),
+                      results.get(i).getTriggerFiredBundle().getTrigger().getKey());
+         assertEquals(TriggerState.BLOCKED, triggersByKey.get(trigger.getKey()).getState());
+         assertNotNull(runningJobs.get(trigger.getJobKey()), "the run was not recorded");
+      }
+
+      OperableTrigger middle = acquired.get(1);
+      assertInstanceOf(failure, results.get(1).getException());
+      assertNull(results.get(1).getTriggerFiredBundle());
+      assertNull(runningJobs.get(middle.getJobKey()), "the failed fire left its run record");
+      assertEquals(TriggerState.ACQUIRED, triggersByKey.get(middle.getKey()).getState());
+
+      handleAsQuartz(acquired, results);
+
+      assertEquals(TriggerState.WAITING, triggersByKey.get(middle.getKey()).getState(),
+                   "the failed trigger was not released");
+      assertEquals(TriggerState.BLOCKED, triggersByKey.get(acquired.get(0).getKey()).getState());
+      assertEquals(TriggerState.BLOCKED, triggersByKey.get(acquired.get(2).getKey()).getState());
+   }
+
+   /**
+    * Stores three triggers, each of its own job, due one after the other; the middle one is
+    * created from the given instance.
+    */
+   private List<OperableTrigger> storeThreeTriggers(SimpleTriggerImpl middle) throws Exception {
+      List<OperableTrigger> triggers = new ArrayList<>();
+
+      for(int i = 0; i < 3; i++) {
+         JobDetail job = createJob("job" + i);
+         OperableTrigger trigger = createTrigger(
+            i == 1 ? middle : new SimpleTriggerImpl(), job, "trigger" + i, 1000L * (i + 1));
+         store.storeJobAndTrigger(job, trigger);
+         triggers.add(trigger);
+      }
+
+      return triggers;
+   }
+
+   private List<OperableTrigger> acquireThree(SimpleTriggerImpl middle) throws Exception {
+      List<OperableTrigger> triggers = storeThreeTriggers(middle);
+      List<OperableTrigger> acquired =
+         store.acquireNextTriggers(System.currentTimeMillis() + 60_000, 3, 0L);
+      assertEquals(triggers.stream().map(Trigger::getKey).toList(),
+                   acquired.stream().map(Trigger::getKey).toList());
+      return acquired;
+   }
+
+   /**
+    * Handles fired results as Quartz 2.3.2's {@code QuartzSchedulerThread} does: the trigger of a
+    * result with a runtime exception or without a bundle is released.
+    */
+   private void handleAsQuartz(List<OperableTrigger> triggers, List<TriggerFiredResult> results) {
+      for(int i = 0; i < results.size(); i++) {
+         TriggerFiredResult result = results.get(i);
+
+         if(result.getException() instanceof RuntimeException ||
+            result.getTriggerFiredBundle() == null)
+         {
+            store.releaseAcquiredTrigger(triggers.get(i));
+         }
+      }
    }
 
    /**
@@ -244,16 +403,26 @@ class ClusterJobStoreTransactionTest {
    }
 
    private static JobDetail createJob() {
+      return createJob("job");
+   }
+
+   private static JobDetail createJob(String name) {
       return JobBuilder.newJob(NonConcurrentJob.class)
-         .withIdentity("job", "ClusterJobStoreTransactionTest")
+         .withIdentity(name, "ClusterJobStoreTransactionTest")
          .storeDurably()
          .build();
    }
 
    private static OperableTrigger createTrigger(SimpleTriggerImpl trigger, JobDetail job) {
-      trigger.setKey(TriggerKey.triggerKey("trigger", "ClusterJobStoreTransactionTest"));
+      return createTrigger(trigger, job, "trigger", 1000L);
+   }
+
+   private static OperableTrigger createTrigger(SimpleTriggerImpl trigger, JobDetail job,
+                                                String name, long delay)
+   {
+      trigger.setKey(TriggerKey.triggerKey(name, "ClusterJobStoreTransactionTest"));
       trigger.setJobKey(job.getKey());
-      trigger.setStartTime(new Date(System.currentTimeMillis() + 1000));
+      trigger.setStartTime(new Date(System.currentTimeMillis() + delay));
       trigger.setRepeatCount(SimpleTrigger.REPEAT_INDEFINITELY);
       trigger.setRepeatInterval(TimeUnit.HOURS.toMillis(1));
       trigger.computeFirstFireTime(null);
@@ -310,14 +479,21 @@ class ClusterJobStoreTransactionTest {
                                                           TransactionalAction<T, E> action)
          throws E
       {
-         if(failures.getAndUpdate(n -> Math.max(0, n - 1)) > 0) {
+         // only an outermost transaction is counted, a joined one fails with it
+         if(ignite.transactions().tx() == null &&
+            (failures.getAndUpdate(n -> Math.max(0, n - 1)) > 0 ||
+             failAfter.getAndUpdate(n -> n >= 0 ? n - 1 : n) == 0))
+         {
             throw new DistributedTransactionException("The transaction timed out");
          }
 
          return IgniteCluster.runInTransaction(ignite, timeout, unit, action);
       }
 
+      // the number of next transactions that fail
       final AtomicInteger failures = new AtomicInteger();
+      // the number of next transactions that pass before one fails, or -1
+      final AtomicInteger failAfter = new AtomicInteger(-1);
    }
 
    @DisallowConcurrentExecution
@@ -349,4 +525,36 @@ class ClusterJobStoreTransactionTest {
    private ClusterJobStore store;
    private DistributedMap<TriggerKey, TriggerWrapper> triggersByKey;
    private DistributedMap<JobKey, RunningJob> runningJobs;
+
+   /**
+    * Picks distinct free ports, as the other embedded Ignite tests do, so the topology can't
+    * pick up a node of another test or fork.
+    */
+   private static int[] freePorts(int count) {
+      java.net.ServerSocket[] sockets = new java.net.ServerSocket[count];
+      int[] ports = new int[count];
+
+      try {
+         for(int i = 0; i < count; i++) {
+            sockets[i] = new java.net.ServerSocket(0);
+            ports[i] = sockets[i].getLocalPort();
+         }
+
+         return ports;
+      }
+      catch(java.io.IOException ex) {
+         throw new java.io.UncheckedIOException(ex);
+      }
+      finally {
+         for(java.net.ServerSocket socket : sockets) {
+            if(socket != null) {
+               try {
+                  socket.close();
+               }
+               catch(java.io.IOException ignore) {
+               }
+            }
+         }
+      }
+   }
 }

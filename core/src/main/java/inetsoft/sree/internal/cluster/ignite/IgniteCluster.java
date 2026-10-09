@@ -2144,8 +2144,9 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    }
 
    /**
-    * Checks if an exception means that the transaction timed out (including waiting for a lock),
-    * deadlocked or was rolled back.
+    * Checks if an exception means that the transaction failed: it timed out (including waiting
+    * for a lock), deadlocked, was rolled back, had a heuristic outcome, or a node it locked keys
+    * on left the cluster.
     */
    private static boolean isTransactionFailure(Throwable ex) {
       if(ex instanceof DistributedTransactionException) {
@@ -2154,7 +2155,11 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
       for(Throwable cause = ex; cause != null; cause = cause.getCause()) {
          if(cause instanceof TransactionException ||
-            cause instanceof org.apache.ignite.internal.transactions.TransactionCheckedException)
+            cause instanceof org.apache.ignite.internal.transactions.TransactionCheckedException ||
+            // Bug #77879, a pessimistic lock whose primary node leaves fails the transaction
+            // with a topology exception, which callers handle like any other failure
+            cause instanceof org.apache.ignite.cluster.ClusterTopologyException ||
+            cause instanceof org.apache.ignite.internal.cluster.ClusterTopologyCheckedException)
          {
             return true;
          }

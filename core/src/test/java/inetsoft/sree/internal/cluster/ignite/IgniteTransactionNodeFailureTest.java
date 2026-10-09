@@ -57,6 +57,11 @@ import static org.junit.jupiter.api.Assertions.*;
  * the backup C is held while A fails, as a halted JVM would, then released. A cache must then be
  * created within 30 s, and B and C must hold the same value. No Spring context is needed: only the
  * map, the transaction helper and the cache configuration are product code. Takes about 6 s.
+ *
+ * <p>The pre-fix explicit lock hangs the exchange here only with assertions disabled, as in
+ * production; with {@code -ea} Ignite instead trips its own "Transaction does not own lock for
+ * update" assertion on a survivor. The explicit lock API was removed, so this test is mainly a
+ * positive check of the transaction path.
  */
 @Tag("slow")
 class IgniteTransactionNodeFailureTest {
@@ -179,18 +184,18 @@ class IgniteTransactionNodeFailureTest {
 
       TcpDiscoverySpi discovery = new TcpDiscoverySpi();
       discovery.setLocalAddress("127.0.0.1");
-      discovery.setLocalPort(DISCOVERY_PORT);
-      discovery.setLocalPortRange(10);
+      discovery.setLocalPort(PORTS[index]);
+      discovery.setLocalPortRange(0);
       TcpDiscoveryVmIpFinder ipFinder = new TcpDiscoveryVmIpFinder();
-      ipFinder.setAddresses(List.of(
-         "127.0.0.1:" + DISCOVERY_PORT + ".." + (DISCOVERY_PORT + 9)));
+      ipFinder.setAddresses(Arrays.stream(PORTS, 0, NODE_COUNT)
+                               .mapToObj(port -> "127.0.0.1:" + port).toList());
       discovery.setIpFinder(ipFinder);
       config.setDiscoverySpi(discovery);
 
       TcpCommunicationSpi communication = new HoldingCommunicationSpi();
       communication.setLocalAddress("127.0.0.1");
-      communication.setLocalPort(COMMUNICATION_PORT + index * 10);
-      communication.setLocalPortRange(10);
+      communication.setLocalPort(PORTS[NODE_COUNT + index]);
+      communication.setLocalPortRange(0);
       config.setCommunicationSpi(communication);
 
       DataStorageConfiguration storage = new DataStorageConfiguration();
@@ -253,6 +258,39 @@ class IgniteTransactionNodeFailureTest {
    private static volatile UUID backupId;
    private static final AtomicBoolean HOLD = new AtomicBoolean();
    private static final List<Runnable> HELD = new CopyOnWriteArrayList<>();
-   private static final int DISCOVERY_PORT = 48720;
-   private static final int COMMUNICATION_PORT = 48900;
+   private static final int NODE_COUNT = 3;
+   // the discovery ports of the nodes, then their communication ports
+   private static final int[] PORTS = freePorts(NODE_COUNT * 2);
+
+   /**
+    * Picks distinct free ports, as the other embedded Ignite tests do, so the topology can't
+    * pick up a node of another test or fork.
+    */
+   private static int[] freePorts(int count) {
+      java.net.ServerSocket[] sockets = new java.net.ServerSocket[count];
+      int[] ports = new int[count];
+
+      try {
+         for(int i = 0; i < count; i++) {
+            sockets[i] = new java.net.ServerSocket(0);
+            ports[i] = sockets[i].getLocalPort();
+         }
+
+         return ports;
+      }
+      catch(java.io.IOException ex) {
+         throw new java.io.UncheckedIOException(ex);
+      }
+      finally {
+         for(java.net.ServerSocket socket : sockets) {
+            if(socket != null) {
+               try {
+                  socket.close();
+               }
+               catch(java.io.IOException ignore) {
+               }
+            }
+         }
+      }
+   }
 }

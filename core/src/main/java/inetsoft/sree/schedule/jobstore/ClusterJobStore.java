@@ -766,10 +766,30 @@ public class ClusterJobStore implements JobStore, Serializable {
          .sorted(Comparator.comparing(TriggerWrapper::getNextFireTime))
          .collect(Collectors.toList());
 
+      Exception failure = null;
+
       for(TriggerWrapper tw : orderedTriggers) {
-         // proceed after the other jobstore already not blocked, one transaction per trigger
-         OperableTrigger trig = inTransaction(TX_TIMEOUT, () -> acquireTrigger(
-            tw.key, limit, now, acquiredJobKeysForNoConcurrentExec, topology));
+         boolean jobTaken = acquiredJobKeysForNoConcurrentExec.contains(tw.jobKey);
+         OperableTrigger trig;
+
+         try {
+            // proceed after the other jobstore already not blocked, one transaction per trigger
+            trig = inTransaction(TX_TIMEOUT, () -> acquireTrigger(
+               tw.key, limit, now, acquiredJobKeysForNoConcurrentExec, topology));
+         }
+         catch(RuntimeException | JobPersistenceException ex) {
+            // Bug #77879, the trigger's transaction was rolled back, so the trigger is left as it
+            // was and is skipped. The triggers acquired before it must still reach the
+            // scheduler, or they would stay acquired by this live node and never fire
+            LOG.warn("Failed to acquire trigger {}, it is skipped in this pass", tw.key, ex);
+            failure = ex;
+
+            if(!jobTaken) {
+               acquiredJobKeysForNoConcurrentExec.remove(tw.jobKey);
+            }
+
+            continue;
+         }
 
          if(trig != null) {
             result.add(trig);
@@ -778,6 +798,15 @@ public class ClusterJobStore implements JobStore, Serializable {
                break;
             }
          }
+      }
+
+      // nothing was acquired, so the failure can be reported to the scheduler, which backs off
+      if(result.isEmpty() && failure != null) {
+         if(failure instanceof JobPersistenceException jpe) {
+            throw jpe;
+         }
+
+         throw (RuntimeException) failure;
       }
 
       return result;
@@ -935,17 +964,25 @@ public class ClusterJobStore implements JobStore, Serializable {
    public void releaseAcquiredTrigger(OperableTrigger trigger) {
       TriggerKey triggerKey = trigger.getKey();
 
-      inTransaction(TX_TIMEOUT, () -> {
-         TriggerWrapper tw = triggersByKey.getForUpdate(triggerKey);
+      try {
+         inTransaction(TX_TIMEOUT, () -> {
+            TriggerWrapper tw = triggersByKey.getForUpdate(triggerKey);
 
-         // only release the acquisition made by the caller, another node may have acquired
-         // the trigger since
-         if(tw != null && isAcquiredBy(tw, trigger)) {
-            storeTriggerWrapper(newTriggerWrapper(trigger, WAITING));
-         }
+            // only release the acquisition made by the caller, another node may have acquired
+            // the trigger since
+            if(tw != null && isAcquiredBy(tw, trigger)) {
+               storeTriggerWrapper(newTriggerWrapper(trigger, WAITING));
+            }
 
-         return null;
-      });
+            return null;
+         });
+      }
+      catch(DistributedTransactionException ex) {
+         // Bug #77879, Quartz releases triggers inside its loop over a fired batch, so a failure
+         // here must not keep the other triggers of the batch from running
+         LOG.warn("Failed to release trigger {}, it stays acquired until this node stops",
+                  triggerKey, ex);
+      }
    }
 
    @Override
@@ -955,12 +992,24 @@ public class ClusterJobStore implements JobStore, Serializable {
    {
       List<TriggerFiredResult> results = new ArrayList<>();
 
+      // Quartz pairs each result with the trigger at the same index, so every trigger gets one
       for(OperableTrigger trigger : firedTriggers) {
-         TriggerFiredResult result = inTransaction(TX_TIMEOUT, () -> fireTrigger(trigger));
+         TriggerFiredResult result;
 
-         if(result != null) {
-            results.add(result);
+         try {
+            result = inTransaction(TX_TIMEOUT, () -> fireTrigger(trigger));
          }
+         catch(RuntimeException | JobPersistenceException ex) {
+            // Bug #77879, the trigger's transaction was rolled back, so it is still acquired by
+            // this node. For a result with an exception (or without a bundle), Quartz releases
+            // the trigger and still runs the other triggers of the batch
+            LOG.warn("Failed to fire trigger {}", trigger.getKey(), ex);
+            result = new TriggerFiredResult(ex);
+         }
+
+         // a trigger that is not fired gets a result without a bundle, which Quartz releases;
+         // the release changes nothing unless the trigger is still acquired by the caller
+         results.add(result != null ? result : new TriggerFiredResult((TriggerFiredBundle) null));
       }
 
       return results;
@@ -970,7 +1019,7 @@ public class ClusterJobStore implements JobStore, Serializable {
     * Fires a trigger for {@link #triggersFired}. Runs in the trigger's transaction, which the
     * job's running record joins (see {@link #startRun}), so a failure rolls back both.
     *
-    * @return the result, or null if the trigger is not fired and gets no result.
+    * @return the result, or null if the trigger is not fired.
     */
    private TriggerFiredResult fireTrigger(OperableTrigger trigger) throws JobPersistenceException {
       TriggerWrapper tw = triggersByKey.getForUpdate(trigger.getKey());

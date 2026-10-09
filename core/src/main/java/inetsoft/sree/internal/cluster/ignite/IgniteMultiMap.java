@@ -19,6 +19,7 @@ package inetsoft.sree.internal.cluster.ignite;
 
 import inetsoft.sree.internal.cluster.MultiMap;
 import inetsoft.util.Tool;
+import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteCache;
 
 import javax.cache.CacheException;
@@ -248,6 +249,12 @@ public class IgniteMultiMap<K, V> implements MultiMap<K, V> {
             return operation.get();
          }
          catch(CacheException | IllegalStateException e) {
+            // Bug #77879, an operation that failed in a transaction fails again at once until the
+            // transaction ends, so it is not retried
+            if(isInTransaction()) {
+               throw e;
+            }
+
             lastException = (e instanceof RuntimeException) ?
                (RuntimeException) e : new RuntimeException(e);
             retries++;
@@ -264,6 +271,15 @@ public class IgniteMultiMap<K, V> implements MultiMap<K, V> {
       }
 
       throw lastException;
+   }
+
+   private boolean isInTransaction() {
+      try {
+         return cache.unwrap(Ignite.class).transactions().tx() != null;
+      }
+      catch(RuntimeException ex) {
+         return false;
+      }
    }
 
    private final IgniteCache<K, Collection<V>> cache;

@@ -699,8 +699,10 @@ public interface Cluster extends AutoCloseable {
     * @return the result of the action.
     *
     * @throws E                               if the action throws it, after rolling back.
-    * @throws DistributedTransactionException if the transaction timed out, deadlocked or was
-    *                                         rolled back by the cluster. Nothing was committed.
+    * @throws DistributedTransactionException if the transaction timed out, deadlocked, was
+    *                                         rolled back by the cluster or lost a node it locked
+    *                                         keys on. Nothing was committed, unless it failed
+    *                                         while committing (see the exception).
     */
    <T, E extends Exception> T runInTransaction(long timeout, TimeUnit unit,
                                                 TransactionalAction<T, E> action) throws E;
