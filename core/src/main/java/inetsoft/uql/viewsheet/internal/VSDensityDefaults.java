@@ -182,7 +182,7 @@ public final class VSDensityDefaults {
    }
 
    /**
-    * Default height for a modern form-input control (checkbox, combo box, spinner, text input),
+    * Default height for a modern form-input control (combo box, spinner, text input, submit),
     * or the legacy default when not modern. Unlike row/header height, dense does not equal
     * AssetUtil.defh here: a standalone control needs a bit more room than a data row even at the
     * tightest density, matching the browser's --inet-viz-control-height token. Applied at

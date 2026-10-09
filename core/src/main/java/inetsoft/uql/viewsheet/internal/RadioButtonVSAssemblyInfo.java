@@ -401,8 +401,8 @@ public class RadioButtonVSAssemblyInfo extends ListInputVSAssemblyInfo
    }
 
    /**
-    * Seed the modern-gated round corner and control height. This type bypasses the base chrome
-    * hook (see VSAssemblyInfo.bypassesBaseChrome()) so it seeds its own — form-input
+    * Seed the modern-gated round corner, title lane chrome and option box. This type bypasses
+    * the base chrome hook (see VSAssemblyInfo.bypassesBaseChrome()) so it seeds its own - form-input
     * modernization, tracked as its own follow-on project from the card-corner work.
     */
    @Override

@@ -41,10 +41,6 @@ import static org.junit.jupiter.api.Assertions.*;
  * later mark stamp) call it again after construction - see VSAssemblyInfo.seedChromeDefaults()'s
  * own Javadoc.
  *
- * CheckBox and RadioButton additionally verify cellHeight/titleHeight step up together with the
- * doubled container height, so a marked-modern instance's row count stays 1 instead of the
- * container's new headroom being recomputed into a second row.
- *
  * Also verifies the reverse direction: VizModernizeUtil.revert() clears the mark and calls
  * seedChromeDefaults() again with ctx.modern == false, so height must go back to the legacy
  * default too, the same way round corner already does - see VSDensityDefaults.isControlHeight().
@@ -137,7 +133,7 @@ class ControlHeightFollowDensityTest {
 
    // SubmitVSAssemblyInfo has no title lane or data rows - its legacy default is a single
    // AssetUtil.defh (never calls setPixelSize itself, so it inherits AssemblyInfo's constructor
-   // default), matching Spinner's shape rather than CheckBox's doubled one.
+   // default), matching Spinner's shape.
 
    @Test
    void submitHeightFollowsDensityWhenMarkedModern() {

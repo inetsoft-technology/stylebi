@@ -61,7 +61,7 @@ class VSDensityDefaultsTest {
 
    @Test
    void denseModeMatchesLegacyDataRowHeight() {
-      // dense == today's default, so enabling modern at the default mode reflows nothing
+      // dense == the legacy default, so enabling modern at the default mode reflows nothing
       assertEquals(AssetUtil.defh, VSDensityDefaults.rowHeightForMode("dense"));
       assertEquals(20, VSDensityDefaults.rowHeightForMode("dense"));
       assertEquals(22, VSDensityDefaults.headerRowHeightForMode("dense"));

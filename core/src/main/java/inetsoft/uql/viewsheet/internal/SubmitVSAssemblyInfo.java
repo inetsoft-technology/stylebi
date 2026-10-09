@@ -76,7 +76,7 @@ public class SubmitVSAssemblyInfo extends ClickableOutputVSAssemblyInfo {
     * card-corner work. Unlike CheckBox/RadioButton, Submit has no title lane or data rows - its
     * inherited default height (AssetUtil.defh, set by AssemblyInfo's constructor since this type
     * never calls setPixelSize itself) is a single value, so this follows Spinner's simpler
-    * one-value substitution instead of CheckBox's doubled one.
+    * one-value substitution.
     */
    @Override
    protected void seedChromeDefaults(VizContext ctx) {
