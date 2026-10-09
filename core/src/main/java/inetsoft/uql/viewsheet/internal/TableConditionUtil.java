@@ -615,6 +615,13 @@ public class TableConditionUtil {
             }
             else if(dgroup == XConstants.WEEK_OF_YEAR_DATE_GROUP) {
                drr.setDateOption(DateRangeRef.WEEK_INTERVAL);
+               // Bug #78123, force a locale-independent week numbering convention
+               // (same convention as Bug #78112) instead of inheriting the server
+               // JVM default locale's minimalDaysInFirstWeek/firstDayOfWeek, which
+               // can put the same date in a different week than the one shown in
+               // the UI.
+               cal.setFirstDayOfWeek(Tool.getFirstDayOfWeek());
+               cal.setMinimalDaysInFirstWeek(1);
                cond.addValue(cal.get(Calendar.WEEK_OF_YEAR));
             }
             else if(dgroup == XConstants.DAY_OF_WEEK_DATE_GROUP) {
