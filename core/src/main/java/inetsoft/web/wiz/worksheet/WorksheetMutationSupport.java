@@ -697,30 +697,100 @@ public final class WorksheetMutationSupport {
       // too - otherwise a DateRangeRef-wrapped column materialized by an earlier
       // dateLevel grouping (e.g. "Quarter(orderDate)") would be left behind forever,
       // since the loops below produce the same empty-AggregateInfo end state either way.
-      AggregateInfo ainfo = new AggregateInfo();
       ColumnSelection cs = t.getColumnSelection(false);
 
-      // Bug #76891 / WBS-085 (Redmine #77001): every column's alias exactly as it stood
-      // before this call touched anything -- before clearAggregateAliases below, and
-      // before the aggregates loop further down sets any new one. Two things below need
-      // this snapshot, not the live (about-to-be-mutated) alias:
-      //  - the downstream-loss guards' own lookup key, so they ask "does anything
-      //    depend on the identity this column HAD," not the identity this very call is
-      //    in the middle of creating or clearing (see getOuterAttributeSnapshotAware);
-      //  - restoreAliases, which puts every alias back exactly where it was if either
-      //    guard below refuses the call, so a refused call is zero-mutation regardless
-      //    of which alias this call would otherwise have changed.
-      Map<ColumnRef, String> originalAliases = new IdentityHashMap<>();
+      // Bug #78144 (WBS-096/097): everything prepareAggregateInfo can change on the LIVE
+      // table before its last validation/guard throw -- column aliases (on the selection
+      // and on the old AggregateInfo's own refs), selection membership (a date-level
+      // group's inserted range column, the stale-range-column sweep), the condition lists
+      // AssetUtil.validateConditions edits in place, and SortInfo (a timeSeries group).
+      // WorksheetEditService#apply has no rollback, and its next successful op's refresh
+      // publishes whatever a refused call left behind, so any throw before the commit
+      // point below restores all of it. Its alias map is also the downstream-loss guards'
+      // pre-call identity snapshot (Bug #76891 / WBS-084(a)/085).
+      AggregateCallSnapshot snapshot = AggregateCallSnapshot.capture(t, cs);
+      PreparedAggregateInfo prepared;
 
-      if(cs != null) {
-         for(int i = 0; i < cs.getAttributeCount(); i++) {
-            DataRef ref0 = cs.getAttribute(i);
-
-            if(ref0 instanceof ColumnRef cr0) {
-               originalAliases.put(cr0, cr0.getAlias());
-            }
-         }
+      try {
+         prepared = prepareAggregateInfo(
+            t, groups, aggregates, crosstab, confirmed, cs, snapshot.aliases());
       }
+      catch(Throwable ex) {
+         snapshot.restore(t);
+         throw ex;
+      }
+
+      // Commit point: both guards passed (or confirmed:true). Nothing below is restored
+      // on a throw, deliberately -- t.setColumnSelection on a join table can throw a
+      // MessageException(CrossJoinException) AFTER applying the selection, which
+      // WorksheetEditService#apply treats as an auto-confirmed success; restoring there
+      // would turn a call reported as ok into a silent no-op.
+      AggregateInfo ainfo = prepared.ainfo();
+      ColumnSelection pendingSecondaryColumnSelection = prepared.pendingSecondaryColumnSelection();
+      List<String> appliedAliases = prepared.appliedAliases();
+
+      // Bug #76891 / WBS-085: commit the secondary-aggregate conversion's column
+      // selection only now, after both downstream-loss guards above have cleared (or
+      // confirmed:true was given) -- see pendingSecondaryColumnSelection's own comment.
+      if(pendingSecondaryColumnSelection != null) {
+         t.setColumnSelection(pendingSecondaryColumnSelection);
+      }
+
+      // Always set the property (empty string when no output aliases were applied):
+      // its PRESENCE tells the next clearAggregateAliases() call that this
+      // AggregateInfo came through here, so only the recorded aliases are cleared and
+      // a rename_column alias on an aggregated column survives re-aggregation.
+      t.setProperty(AGGREGATE_OUTPUT_ALIASES,
+                    appliedAliases.isEmpty() ? "" : String.join("\n", appliedAliases));
+      t.setAggregateInfo(ainfo);
+      t.setAggregate(!ainfo.isEmpty());
+
+      // Push the (possibly just-set) aggregate alias from the private column selection into
+      // the public one now. Redmine #76902 (WBS-076): for a plain single-aggregate call (no
+      // secondary aggregates), nothing above re-derives the public selection from the mutated
+      // private one -- that was previously left to WorksheetEditService's post-mutation
+      // refreshAssemblies sweep, which is best-effort and budget-limited, so whether a reader
+      // (most consequentially add_mirror, which bakes the public selection's column name into
+      // the mirror permanently with no way to recover the other name) saw the alias or the
+      // stale pre-aggregate name depended on unrelated worksheet-wide timing.
+      //
+      // Gated on `!aggregates.isEmpty()`: a bare group-by/named-group call has no aggregate
+      // alias to propagate, and AbstractTableAssembly#setColumnSelection's regeneration drops
+      // any column that is neither a group key, an aggregate, nor already referenced elsewhere
+      // (isColumnUsed) -- including a join key a later add_join hasn't attached to this table
+      // yet. Running this resync unconditionally for that shape silently deleted such a column
+      // from the public selection before the join that needed it existed, surfacing as a
+      // ClassCastException in TableAssemblyOperator$Operator.renameDepended once a subsequent
+      // add_join's placeholder AttributeRef could no longer be resolved against it.
+      if(!aggregates.isEmpty()) {
+         t.setColumnSelection(t.getColumnSelection(false), false);
+      }
+   }
+
+   /**
+    * What {@link #prepareAggregateInfo} hands back to the commit section of
+    * {@link #applyAggregateInfo(TableAssembly, List, List, boolean, boolean)}.
+    */
+   private record PreparedAggregateInfo(AggregateInfo ainfo,
+                                        ColumnSelection pendingSecondaryColumnSelection,
+                                        List<String> appliedAliases)
+   {
+   }
+
+   /**
+    * Builds the new {@link AggregateInfo} and runs every validation and downstream-loss guard,
+    * up to (not including) the commit point. May mutate the live table on the way (see
+    * {@link AggregateCallSnapshot}); the caller restores it if this throws.
+    *
+    * @param originalAliases every private-selection column's alias before this call touched
+    *                        anything (Bug #76891 / WBS-084(a)/085)
+    */
+   private static PreparedAggregateInfo prepareAggregateInfo(
+      TableAssembly t, List<GroupSpec> groups, List<AggregateSpec> aggregates, boolean crosstab,
+      boolean confirmed, ColumnSelection cs, Map<ColumnRef, String> originalAliases)
+      throws inetsoft.web.wiz.pairing.PairingException
+   {
+      AggregateInfo ainfo = new AggregateInfo();
 
       // Clear aliases left on the column selection by a PRIOR call's aggregate
       // outputs before resolving anything new. Those aliases exist purely to label
@@ -1136,25 +1206,32 @@ public final class WorksheetMutationSupport {
          pendingSecondaryColumnSelection = cs2;
       }
 
+      // Bug #78144 (WBS-100): the crosstab state must reach the guards. A crosstab's output
+      // is not its group/aggregate list -- AssetQuery#getSummaryTableLens pivots the FIRST
+      // group into column headers and drops every aggregate's own column -- and the
+      // guards below read that shape off AggregateInfo#isCrosstab().
+      ainfo.setCrosstab(crosstab);
+
       // Guard against the same "aggregate-only retention silently breaks a downstream
       // join key" gap the Composer's Group and Aggregate dialog already blocks (Bug
       // #76787): a column that keeps its NAME but is reduced to a per-group aggregate
       // output no longer holds row-level identity, so if some other table still joins
       // on it, that join would silently start matching against aggregated values.
+      // Bug #78144 (WBS-098/100): the wiz overload decides "at risk" by the column's
+      // PRE-CALL output identity, not by its live (possibly just-cleared) name, and models
+      // the crosstab output. The 3-arg overload stays as the Composer dialog uses it.
       Worksheet mutationWs = t.getWorksheet();
 
       if(mutationWs != null) {
-         ColumnRef conflict =
-            WorksheetControllerService.findAggregateIdentityLossConflict(mutationWs, t, ainfo);
+         ColumnRef conflict = WorksheetControllerService.findAggregateIdentityLossConflict(
+            mutationWs, t, ainfo, originalAliases);
 
          if(conflict != null) {
-            // Bug #76891 / WBS-085: a refusal must leave the table's columns exactly as
-            // they were before this call -- restore every alias clearAggregateAliases
-            // and/or the aggregates loop above may already have changed.
-            restoreAliases(cs, originalAliases);
             String dependentName = findDependentJoinName(mutationWs, t, conflict);
+            String conflictName = originalAliases.get(conflict) != null ?
+               originalAliases.get(conflict) : conflict.getName();
             throw new inetsoft.web.wiz.pairing.PairingException(
-               "Column '" + conflict.getName() + "' cannot be reduced to an aggregate " +
+               "Column '" + conflictName + "' cannot be reduced to an aggregate " +
                "output -- it is still used as a join key" +
                (dependentName != null ? " by '" + dependentName + "'" : " by a downstream table") +
                ". Remove it from aggregates, or update the join first.");
@@ -1168,69 +1245,62 @@ public final class WorksheetMutationSupport {
          // column's alias before this call touched anything, Bug #76891 / WBS-084(a)),
          // not from the live column, which this call's own aggregates loop may have
          // already re-aliased or cleared by this point.
-         List<WorksheetControllerService.AggregateInputLossConflict> inputConflicts =
-            WorksheetControllerService.findAggregateInputLossConflicts(
-               mutationWs, t, ainfo, originalAliases);
+         // Bug #78144 (WBS-101): the same opt-in refusal also covers a downstream
+         // condition, ranking condition or expression column that references a column
+         // whose output identity this call removes -- the refresh would silently delete
+         // the condition, or leave the expression evaluating to null.
+         if(!confirmed) {
+            List<WorksheetControllerService.AggregateInputLossConflict> inputConflicts =
+               WorksheetControllerService.findAggregateInputLossConflicts(
+                  mutationWs, t, ainfo, originalAliases);
+            List<WorksheetControllerService.ColumnReferenceLossConflict> referenceConflicts =
+               WorksheetControllerService.findColumnReferenceLossConflicts(
+                  mutationWs, t, ainfo, originalAliases);
 
-         if(!inputConflicts.isEmpty() && !confirmed) {
-            // Bug #76891 / WBS-085: same zero-mutation guarantee as the hard block above.
-            restoreAliases(cs, originalAliases);
-            StringBuilder sb = new StringBuilder();
-
-            for(WorksheetControllerService.AggregateInputLossConflict inputConflict : inputConflicts) {
-               if(sb.length() > 0) {
-                  sb.append("; ");
-               }
-
-               sb.append("'").append(inputConflict.dependentAssemblyName()).append("' (")
-                  .append(String.join(", ", inputConflict.lostColumns())).append(")");
+            if(!inputConflicts.isEmpty() || !referenceConflicts.isEmpty()) {
+               throw new inetsoft.web.wiz.pairing.PairingException(
+                  describeDownstreamLossConflicts(inputConflicts, referenceConflicts));
             }
-
-            throw new inetsoft.web.wiz.pairing.PairingException(
-               "This change would empty the aggregate or group-by on the following downstream " +
-               "table(s), which rely on the affected column(s) as their own aggregate input or " +
-               "group-by key: " + sb + ". Confirm with the user before retrying with " +
-               "confirmed:true -- this changes what those OTHER tables show, not just this one.");
          }
       }
 
-      // Bug #76891 / WBS-085: commit the secondary-aggregate conversion's column
-      // selection only now, after both downstream-loss guards above have cleared (or
-      // confirmed:true was given) -- see pendingSecondaryColumnSelection's own comment.
-      if(pendingSecondaryColumnSelection != null) {
-         t.setColumnSelection(pendingSecondaryColumnSelection);
+      return new PreparedAggregateInfo(ainfo, pendingSecondaryColumnSelection, appliedAliases);
+   }
+
+   /**
+    * Field-named refusal text for a call that would silently break another table's own
+    * aggregate/group-by (Bug #76891 / #77001) or its condition/ranking/expression reference
+    * (Bug #78144 / WBS-101) on the next refresh. Shared by {@code set_group_aggregate} and
+    * {@code set_column_visibility}.
+    */
+   static String describeDownstreamLossConflicts(
+      List<WorksheetControllerService.AggregateInputLossConflict> aggregateConflicts,
+      List<WorksheetControllerService.ColumnReferenceLossConflict> referenceConflicts)
+   {
+      StringBuilder sb = new StringBuilder();
+
+      for(WorksheetControllerService.AggregateInputLossConflict conflict : aggregateConflicts) {
+         if(sb.length() > 0) {
+            sb.append("; ");
+         }
+
+         sb.append("'").append(conflict.dependentAssemblyName()).append("' (aggregate/group-by on ")
+            .append(String.join(", ", conflict.lostColumns())).append(")");
       }
 
-      // Always set the property (empty string when no output aliases were applied):
-      // its PRESENCE tells the next clearAggregateAliases() call that this
-      // AggregateInfo came through here, so only the recorded aliases are cleared and
-      // a rename_column alias on an aggregated column survives re-aggregation.
-      t.setProperty(AGGREGATE_OUTPUT_ALIASES,
-                    appliedAliases.isEmpty() ? "" : String.join("\n", appliedAliases));
-      ainfo.setCrosstab(crosstab);
-      t.setAggregateInfo(ainfo);
-      t.setAggregate(!ainfo.isEmpty());
+      for(WorksheetControllerService.ColumnReferenceLossConflict conflict : referenceConflicts) {
+         if(sb.length() > 0) {
+            sb.append("; ");
+         }
 
-      // Push the (possibly just-set) aggregate alias from the private column selection into
-      // the public one now. Redmine #76902 (WBS-076): for a plain single-aggregate call (no
-      // secondary aggregates), nothing above re-derives the public selection from the mutated
-      // private one -- that was previously left to WorksheetEditService's post-mutation
-      // refreshAssemblies sweep, which is best-effort and budget-limited, so whether a reader
-      // (most consequentially add_mirror, which bakes the public selection's column name into
-      // the mirror permanently with no way to recover the other name) saw the alias or the
-      // stale pre-aggregate name depended on unrelated worksheet-wide timing.
-      //
-      // Gated on `!aggregates.isEmpty()`: a bare group-by/named-group call has no aggregate
-      // alias to propagate, and AbstractTableAssembly#setColumnSelection's regeneration drops
-      // any column that is neither a group key, an aggregate, nor already referenced elsewhere
-      // (isColumnUsed) -- including a join key a later add_join hasn't attached to this table
-      // yet. Running this resync unconditionally for that shape silently deleted such a column
-      // from the public selection before the join that needed it existed, surfacing as a
-      // ClassCastException in TableAssemblyOperator$Operator.renameDepended once a subsequent
-      // add_join's placeholder AttributeRef could no longer be resolved against it.
-      if(!aggregates.isEmpty()) {
-         t.setColumnSelection(t.getColumnSelection(false), false);
+         sb.append("'").append(conflict.dependentAssemblyName()).append("' (")
+            .append(String.join(", ", conflict.references())).append(")");
       }
+
+      return "This change would break the following downstream table(s), which rely on the " +
+         "affected column(s) as their own aggregate input, group-by key, condition, or " +
+         "expression reference: " + sb + ". Confirm with the user before retrying with " +
+         "confirmed:true -- this changes what those OTHER tables show, not just this one.";
    }
 
    /**
@@ -1476,26 +1546,140 @@ public final class WorksheetMutationSupport {
    }
 
    /**
-    * Restores every column's alias in {@code cs} to what {@code originalAliases}
-    * recorded for it before the current {@code applyAggregateInfo} call began, undoing
-    * both {@link #clearAggregateAliases}'s clearing and the aggregates loop's own
-    * alias-set. Called just before either downstream-loss guard throws (Bug #76891 /
-    * WBS-085), so a refused call leaves the table's column aliases exactly as they were
-    * -- regardless of which guard is the one that refuses it, and regardless of whether
-    * the alias this call would otherwise have changed was newly set, re-set, or cleared.
+    * Everything {@link #prepareAggregateInfo} can change on the live table before its last
+    * throw, captured at the start of {@code applyAggregateInfo} so a refused call is
+    * zero-mutation (Bug #76891 / WBS-085, extended by Bug #78144 / WBS-096/097 from aliases
+    * only to every kind of state the method touches):
+    * <ul>
+    *   <li>every private-selection {@link ColumnRef}'s alias ({@link #clearAggregateAliases},
+    *       the aggregates loop's own alias-set);</li>
+    *   <li>the old {@link AggregateInfo}'s own aggregate-ref aliases, which diverge from the
+    *       selection's refs once something has cloned the AggregateInfo;</li>
+    *   <li>the private selection's membership and order (a date-level group's inserted range
+    *       column, the stale-range-column sweep);</li>
+    *   <li>the five condition lists {@code AssetUtil.validateConditions} edits in place;</li>
+    *   <li>the {@link SortInfo} entries (a timeSeries group removes its column's sort);</li>
+    *   <li>{@link #AGGREGATE_OUTPUT_ALIASES}.</li>
+    * </ul>
+    *
+    * <p>Restore works in place on the SAME objects: membership is re-filled with the very
+    * {@link ColumnRef}s captured here (never clones -- the AggregateInfo/ColumnSelection
+    * identity invariant #76796/#76900 rely on), and the selection is never re-installed with
+    * {@code setColumnSelection}, which would regenerate and publish the public selection and,
+    * on a join table, could throw from {@code checkValidity} in the middle of a restore. The
+    * runtime and ranking lists may be {@code null}; that is captured and put back as-is.</p>
     */
-   private static void restoreAliases(ColumnSelection cs, Map<ColumnRef, String> originalAliases) {
-      if(cs == null) {
-         return;
-      }
+   private static final class AggregateCallSnapshot {
+      static AggregateCallSnapshot capture(TableAssembly t, ColumnSelection cs) {
+         AggregateCallSnapshot snapshot = new AggregateCallSnapshot();
+         snapshot.cs = cs;
 
-      for(int i = 0; i < cs.getAttributeCount(); i++) {
-         DataRef ref0 = cs.getAttribute(i);
+         if(cs != null) {
+            for(int i = 0; i < cs.getAttributeCount(); i++) {
+               DataRef ref0 = cs.getAttribute(i);
+               snapshot.members.add(ref0);
 
-         if(ref0 instanceof ColumnRef cr0 && originalAliases.containsKey(cr0)) {
-            cr0.setAlias(originalAliases.get(cr0));
+               if(ref0 instanceof ColumnRef cr0) {
+                  snapshot.aliases.put(cr0, cr0.getAlias());
+               }
+            }
          }
+
+         AggregateInfo old = t.getAggregateInfo();
+
+         if(old != null) {
+            for(int i = 0; i < old.getAggregateCount(); i++) {
+               if(old.getAggregate(i).getDataRef() instanceof ColumnRef cr) {
+                  snapshot.oldAggregateAliases.put(cr, cr.getAlias());
+               }
+            }
+         }
+
+         snapshot.preRuntime = cloneConditions(t.getPreRuntimeConditionList());
+         snapshot.postRuntime = cloneConditions(t.getPostRuntimeConditionList());
+         snapshot.pre = cloneConditions(t.getPreConditionList());
+         snapshot.post = cloneConditions(t.getPostConditionList());
+         snapshot.ranking = cloneConditions(t.getRankingConditionList());
+         snapshot.sortInfo = t.getSortInfo();
+         snapshot.sorts = snapshot.sortInfo == null ? null : snapshot.sortInfo.getSorts();
+         snapshot.tempSort = snapshot.sortInfo != null && snapshot.sortInfo.isTempSort();
+         snapshot.outputAliases = t.getProperty(AGGREGATE_OUTPUT_ALIASES);
+         return snapshot;
       }
+
+      /** The pre-call alias of every private-selection column, keyed by identity. */
+      Map<ColumnRef, String> aliases() {
+         return aliases;
+      }
+
+      void restore(TableAssembly t) {
+         if(cs != null) {
+            cs.removeAllAttributes();
+
+            for(DataRef member : members) {
+               cs.addAttribute(member, false);
+            }
+         }
+
+         for(Map.Entry<ColumnRef, String> entry : aliases.entrySet()) {
+            entry.getKey().setAlias(entry.getValue());
+         }
+
+         for(Map.Entry<ColumnRef, String> entry : oldAggregateAliases.entrySet()) {
+            entry.getKey().setAlias(entry.getValue());
+         }
+
+         t.setPreRuntimeConditionList(preRuntime);
+         t.setPostRuntimeConditionList(postRuntime);
+         t.setPreConditionList(pre);
+         t.setPostConditionList(post);
+         t.setRankingConditionList(ranking);
+
+         if(sortInfo != null && sorts != null && !sameRefs(sorts, sortInfo.getSorts())) {
+            // SortInfo#clear also flips tempSort; put the captured flag back after re-filling.
+            sortInfo.clear();
+
+            for(SortRef sort : sorts) {
+               sortInfo.addSort(sort);
+            }
+
+            sortInfo.setTempSort(tempSort);
+         }
+
+         t.setProperty(AGGREGATE_OUTPUT_ALIASES, outputAliases);
+      }
+
+      private static boolean sameRefs(SortRef[] a, SortRef[] b) {
+         if(a.length != b.length) {
+            return false;
+         }
+
+         for(int i = 0; i < a.length; i++) {
+            if(a[i] != b[i]) {
+               return false;
+            }
+         }
+
+         return true;
+      }
+
+      private static ConditionListWrapper cloneConditions(ConditionListWrapper conds) {
+         return conds == null ? null : (ConditionListWrapper) conds.clone();
+      }
+
+      private ColumnSelection cs;
+      private final List<DataRef> members = new ArrayList<>();
+      private final Map<ColumnRef, String> aliases = new IdentityHashMap<>();
+      private final Map<ColumnRef, String> oldAggregateAliases = new IdentityHashMap<>();
+      private ConditionListWrapper preRuntime;
+      private ConditionListWrapper postRuntime;
+      private ConditionListWrapper pre;
+      private ConditionListWrapper post;
+      private ConditionListWrapper ranking;
+      private SortInfo sortInfo;
+      private SortRef[] sorts;
+      private boolean tempSort;
+      private String outputAliases;
    }
 
    /**
