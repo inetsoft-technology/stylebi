@@ -32,6 +32,7 @@ import org.springframework.stereotype.Component;
 import java.security.Principal;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Component that ensures that open viewsheets are closed when the client that opened them
@@ -61,25 +62,25 @@ public class RuntimeViewsheetManager {
    public void sheetOpened(Principal user, String runtimeId) {
       String sessionId = getSessionId(user);
 
-      getOpenSheets().lock(sessionId);
+      // Bug #77879, a transaction lock instead of an explicit lock of the entry
+      cluster.runInTransaction(TX_TIMEOUT, TimeUnit.MILLISECONDS, () -> {
+         Set<String> sheets = getOpenSheets().getForUpdate(sessionId);
 
-      try {
-         Set<String> sheets = getOpenSheets().computeIfAbsent(sessionId, k -> new HashSet<>());
+         if(sheets == null) {
+            sheets = new HashSet<>();
+         }
+
          sheets.add(runtimeId);
          getOpenSheets().put(sessionId, sheets);
-      }
-      finally {
-         getOpenSheets().unlock(sessionId);
-      }
+         return null;
+      });
    }
 
    public void sheetClosed(Principal user, String runtimeId) {
       String sessionId = getSessionId(user);
 
-      getOpenSheets().lock(sessionId);
-
-      try {
-         Set<String> sheets = getOpenSheets().get(sessionId);
+      cluster.runInTransaction(TX_TIMEOUT, TimeUnit.MILLISECONDS, () -> {
+         Set<String> sheets = getOpenSheets().getForUpdate(sessionId);
 
          if(sheets != null) {
             sheets.remove(runtimeId);
@@ -91,10 +92,9 @@ public class RuntimeViewsheetManager {
                getOpenSheets().put(sessionId, sheets);
             }
          }
-      }
-      finally {
-         getOpenSheets().unlock(sessionId);
-      }
+
+         return null;
+      });
    }
 
    public void sessionEnded(Principal user) {
@@ -103,16 +103,11 @@ public class RuntimeViewsheetManager {
 
    private void closeViewsheets(Principal user) {
       String sessionId = getSessionId(user);
-      Set<String> sheetsToClose;
-
-      getOpenSheets().lock(sessionId);
-
-      try {
-         sheetsToClose = getOpenSheets().remove(sessionId);
-      }
-      finally {
-         getOpenSheets().unlock(sessionId);
-      }
+      Set<String> sheetsToClose =
+         cluster.runInTransaction(TX_TIMEOUT, TimeUnit.MILLISECONDS, () -> {
+            getOpenSheets().getForUpdate(sessionId);
+            return getOpenSheets().remove(sessionId);
+         });
 
       if(sheetsToClose != null) {
          for(String runtimeId : sheetsToClose) {
@@ -129,6 +124,9 @@ public class RuntimeViewsheetManager {
    private final ViewsheetService viewsheetService;
    private final Cluster cluster;
    private static final String OPEN_SHEETS_MAP = RuntimeViewsheetManager.class.getName() + ".openSheetsMap";
+   // the timeout of a transaction that updates a session's sheets, which bounds waiting for its
+   // lock
+   private static final long TX_TIMEOUT = TimeUnit.MINUTES.toMillis(1);
    private static final Logger LOG = LoggerFactory.getLogger(RuntimeViewsheetManager.class);
 
    public static final class CloseViewsheetTask implements AffinityCallable<Void> {

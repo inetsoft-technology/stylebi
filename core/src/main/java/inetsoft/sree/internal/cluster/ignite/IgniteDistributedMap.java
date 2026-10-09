@@ -24,8 +24,6 @@ import org.apache.ignite.lang.IgniteFuture;
 
 import javax.cache.CacheException;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.Lock;
 import java.util.function.Supplier;
 
 public class IgniteDistributedMap<K, V> implements DistributedMap<K, V> {
@@ -159,65 +157,15 @@ public class IgniteDistributedMap<K, V> implements DistributedMap<K, V> {
       });
    }
 
+   /**
+    * Gets the value of a key. Inside a pessimistic repeatable-read transaction ({@link
+    * IgniteCluster#runInTransaction}) the read locks the key until the transaction ends. That is a
+    * transaction lock, which Ignite recovers when the locking node fails, unlike an explicit cache
+    * lock (Bug #77879).
+    */
    @Override
-   public void lock(K key) {
-      getLock(key).lock();
-   }
-
-   @Override
-   public void lock(K key, long leaseTime, TimeUnit timeUnit) {
-      long deadlineNs = System.nanoTime() + timeUnit.toNanos(leaseTime);
-      Lock lock = getLock(key);
-
-      // Use tryLock() (zero timeout) in a polling loop instead of tryLock(time, unit).
-      // tryLock(time > 0) creates a GridDhtLockFuture with a LockTimeoutObject whose
-      // onTimeout() has a NullPointerException bug in Ignite 2.17.0 when tx is null
-      // (i.e., no active transaction). The NPE prevents the timeout from being handled
-      // properly, leaving the waiting thread blocked indefinitely.
-      while(!lock.tryLock()) {
-         if(System.nanoTime() >= deadlineNs) {
-            throw new IllegalStateException(
-               "Lock acquisition timed out after " + leaseTime + " " + timeUnit +
-               " for key: " + key);
-         }
-
-         try {
-            Thread.sleep(LOCK_POLL_INTERVAL_MS);
-         }
-         catch(InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException("Lock acquisition interrupted for key: " + key, e);
-         }
-      }
-   }
-
-   public boolean tryLock(K key) {
-      return getLock(key).tryLock();
-   }
-
-   public boolean tryLock(K key, long time, TimeUnit timeunit) throws InterruptedException {
-      long deadlineNs = System.nanoTime() + timeunit.toNanos(time);
-      Lock lock = getLock(key);
-
-      while(!lock.tryLock()) {
-         if(System.nanoTime() >= deadlineNs) {
-            return false;
-         }
-
-         Thread.sleep(LOCK_POLL_INTERVAL_MS);
-      }
-
-      return true;
-   }
-
-   @Override
-   public void unlock(K key) {
-      executeWithRetry(() -> {
-         Lock lock = getLock(key);
-         lock.unlock();
-         lockMap.get().remove(key);
-         return null;
-      });
+   public V getForUpdate(K key) {
+      return executeWithRetry(() -> cache.get(key));
    }
 
    @Override
@@ -301,19 +249,6 @@ public class IgniteDistributedMap<K, V> implements DistributedMap<K, V> {
       return executeWithRetry(() -> cache.size() == 0);
    }
 
-   private Lock getLock(K key) {
-      return executeWithRetry(() -> {
-         Lock lock = lockMap.get().get(key);
-
-         if(lock == null) {
-            lock = cache.lock(key);
-            lockMap.get().put(key, lock);
-         }
-
-         return lock;
-      });
-   }
-
    private <T> T executeWithRetry(Supplier<T> operation) {
       int retries = 0;
       RuntimeException lastException = null;
@@ -342,7 +277,5 @@ public class IgniteDistributedMap<K, V> implements DistributedMap<K, V> {
    }
 
    private final IgniteCache<K, V> cache;
-   private final ThreadLocal<Map<K, Lock>> lockMap = ThreadLocal.withInitial(HashMap::new);
    private static final int MAX_RETRIES = 5;
-   private static final long LOCK_POLL_INTERVAL_MS = 200L;
 }

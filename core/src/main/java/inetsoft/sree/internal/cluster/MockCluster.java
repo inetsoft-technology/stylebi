@@ -671,6 +671,34 @@ public class MockCluster implements Cluster {
       return new TestTransaction();
    }
 
+   /**
+    * Runs an action like a pessimistic transaction, but only {@link DistributedMap#getForUpdate}
+    * locks: it locks a key of this cluster's maps until the outermost action ends, and waiting for
+    * the lock is bounded by the timeout. Other reads and writes do not lock. Writes are applied
+    * immediately and are not rolled back if the action throws.
+    */
+   @Override
+   public <T, E extends Exception> T runInTransaction(long timeout, TimeUnit unit,
+                                                       TransactionalAction<T, E> action) throws E
+   {
+      MockTransaction current = currentTx.get();
+
+      if(current != null) {
+         return action.run();
+      }
+
+      MockTransaction tx = new MockTransaction(System.nanoTime() + unit.toNanos(timeout));
+      currentTx.set(tx);
+
+      try {
+         return action.run();
+      }
+      finally {
+         currentTx.remove();
+         tx.unlockAll();
+      }
+   }
+
    @Override
    public <T extends Service> T getSingletonService(String serviceName, Class<T> type, Supplier<T> init) {
       return type.cast(singletonServices.computeIfAbsent(serviceName, k -> {
@@ -706,6 +734,7 @@ public class MockCluster implements Cluster {
    private final ConcurrentMap<String, Map<String, Object>> clusterNodeProperties =
       new ConcurrentHashMap<>();
    private final ConcurrentMap<String, Lock> locks = new ConcurrentHashMap<>();
+   private final ThreadLocal<MockTransaction> currentTx = new ThreadLocal<>();
    private final ConcurrentMap<String, Integer> rwLocks = new ConcurrentHashMap<>();
    private final ConcurrentMap<String, LocalDistributedMap<?, ?>> maps = new ConcurrentHashMap<>();
    private final ConcurrentMap<String, LocalMultiMap<?, ?>> multiMaps = new ConcurrentHashMap<>();
@@ -1008,27 +1037,14 @@ public class MockCluster implements Cluster {
       }
 
       @Override
-      public void lock(K key) {
-         getLock(key).lock();
-      }
+      public V getForUpdate(K key) {
+         MockTransaction tx = currentTx.get();
 
-      @SuppressWarnings("ResultOfMethodCallIgnored")
-      @Override
-      public void lock(K key, long leaseTime, TimeUnit timeUnit) {
-         try {
-            getLock(key).tryLock(leaseTime, timeUnit);
+         if(tx != null) {
+            tx.lock(getLock(key), name, key);
          }
-         catch(InterruptedException ignore) {
-         }
-      }
 
-      private boolean tryLock(K key, long leaseTime, TimeUnit timeUnit) throws InterruptedException {
-         return getLock(key).tryLock(leaseTime, timeUnit);
-      }
-
-      @Override
-      public void unlock(K key) {
-         getLock(key).unlock();
+         return get(key);
       }
 
       @Override
@@ -1189,31 +1205,6 @@ public class MockCluster implements Cluster {
       public int valueCount(K key) {
          List<V> list = delegate.get(key);
          return list == null ? 0 : list.size();
-      }
-
-      @Override
-      public void lock(K key) {
-         delegate.lock(key);
-      }
-
-      @Override
-      public void lock(K key, long leaseTime, TimeUnit timeUnit) {
-         delegate.lock(key, leaseTime, timeUnit);
-      }
-
-      @Override
-      public boolean tryLock(K key) {
-         return false;
-      }
-
-      @Override
-      public boolean tryLock(K key, long time, TimeUnit timeUnit) throws InterruptedException {
-         return delegate.tryLock(key, time, timeUnit);
-      }
-
-      @Override
-      public void unlock(K key) {
-         delegate.unlock(key);
       }
 
       private final LocalDistributedMap<K, List<V>> delegate;
@@ -2080,6 +2071,50 @@ public class MockCluster implements Cluster {
 
          return null;
       }
+   }
+
+   /**
+    * The locks taken by the action that {@link #runInTransaction} is running on a thread.
+    */
+   private static final class MockTransaction {
+      MockTransaction(long deadline) {
+         this.deadline = deadline;
+      }
+
+      void lock(Lock lock, String map, Object key) {
+         if(locks.contains(lock)) {
+            return;
+         }
+
+         boolean locked;
+
+         try {
+            locked = lock.tryLock(Math.max(0, deadline - System.nanoTime()), TimeUnit.NANOSECONDS);
+         }
+         catch(InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new DistributedTransactionException(
+               "Interrupted while locking " + key + " of " + map, ex);
+         }
+
+         if(!locked) {
+            throw new DistributedTransactionException(
+               "The transaction timed out while locking " + key + " of " + map);
+         }
+
+         locks.add(lock);
+      }
+
+      void unlockAll() {
+         for(int i = locks.size() - 1; i >= 0; i--) {
+            locks.get(i).unlock();
+         }
+
+         locks.clear();
+      }
+
+      private final long deadline;
+      private final List<Lock> locks = new ArrayList<>();
    }
 
    private static final class TestTransaction implements DistributedTransaction {

@@ -75,14 +75,18 @@ public class IgniteDistributedMapTest {
    }
 
    @Test
-   void lockUnlock() {
-      // same thread needs to lock, unlock on the same lock instance
-      DistributedMap<Object, Object> map = ignite1.getMap("lockUnlock");
-      map.lock("key1");
+   void getForUpdateInTransaction() {
+      DistributedMap<Object, Object> map = ignite1.getMap("getForUpdate");
+      map.put("key1", "value1");
 
-      assertDoesNotThrow(() -> {
-         map.unlock("key1");
+      Object value = ignite1.runInTransaction(10, TimeUnit.SECONDS, () -> {
+         Object current = map.getForUpdate("key1");
+         map.set("key1", "value2");
+         return current;
       });
+
+      assertEquals("value1", value);
+      assertEquals("value2", map.get("key1"));
    }
 
 

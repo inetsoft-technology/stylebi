@@ -19,35 +19,22 @@ package inetsoft.sree.internal.cluster;
 
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Interface for distributed maps of cluster implementations.
  */
 public interface DistributedMap<K, V> extends Map<K, V> {
    /**
-    * Acquires the lock for the specified key.
+    * Gets the value of a key and locks the key until the current transaction ends, so that no
+    * other transaction can lock or write it in the meantime. Call it inside
+    * {@link Cluster#runInTransaction}, before any other read or write of the key. Outside a
+    * transaction it is the same as {@link #get}.
     *
-    * @param key key to lock
-    */
-   void lock(K key);
-
-   /**
-    * Acquires the lock for the specified key, waiting up to the specified timeout.
-    * Throws {@link IllegalStateException} if the lock cannot be acquired within the timeout.
+    * @param key the key to lock.
     *
-    * @param key       the key to lock
-    * @param leaseTime maximum time to wait to acquire the lock
-    * @param timeUnit  unit of time for the timeout
+    * @return the value of the key, or {@code null} if there is none.
     */
-   void lock(K key, long leaseTime, TimeUnit timeUnit);
-
-   /**
-    * Releases the lock for the specified key.
-    *
-    * @param key the key to unlock
-    */
-   void unlock(K key);
+   V getForUpdate(K key);
 
    /**
     * Puts an entry into this map without returning the old value.
