@@ -814,7 +814,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       IgniteLock lock = ignite.reentrantLock(name, true, false, false);
 
       if(lock != null) {
-         lock.unlock();
+         DistributedLockProxy.unlock(lock);
       }
    }
 

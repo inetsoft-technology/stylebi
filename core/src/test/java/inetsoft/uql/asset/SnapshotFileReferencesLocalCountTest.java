@@ -31,6 +31,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.File;
+import java.lang.ref.Reference;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
@@ -75,8 +76,10 @@ class SnapshotFileReferencesLocalCountTest {
    @Test
    void localCountIsZeroAfterConcurrentOpenAndClose() throws Exception {
       File file = createCopy("t78082l_1_s.tdat");
-      // a table that stays open the whole time, the copy must not be deleted before it closes
-      Object holder = newReference(new XSwappableTable(), file);
+      // a table that stays open the whole time, the copy must not be deleted before it closes.
+      // it is kept reachable, so the cleaner does not close it
+      XSwappableTable holderTable = new XSwappableTable();
+      Object holder = newReference(holderTable, file);
       int threads = 16;
       int rounds = 300;
       ExecutorService pool = Executors.newFixedThreadPool(threads);
@@ -112,6 +115,7 @@ class SnapshotFileReferencesLocalCountTest {
       assertTrue(isInUseLocally(file), "copy of the open table is not in use");
       assertEquals(1, count(file));
       close(holder);
+      Reference.reachabilityFence(holderTable);
 
       assertFalse(isInUseLocally(file), "local count was left after the last table closed");
       assertNull(count(file), "count was left after the last table closed");
@@ -140,12 +144,22 @@ class SnapshotFileReferencesLocalCountTest {
    @Test
    void localCountIsZeroAfterCloseWhileClusterIsDown() throws Exception {
       File file = createCopy("t78082l_3_s.tdat");
-      Object reference = newReference(new XSwappableTable(), file);
+      XSwappableTable table = new XSwappableTable();
+      Object reference = newReference(table, file);
       failLock = true;
 
       assertThrows(IllegalStateException.class, () -> close(reference));
       assertFalse(isInUseLocally(file),
                   "local count was left after a close that could not reach the cluster");
+
+      // Bug #78096, the count in the cluster is removed by the next close, and nothing is left
+      // for the cleaner to close after this test
+      failLock = false;
+      close(reference);
+      Reference.reachabilityFence(table);
+
+      assertNull(count(file), "count was left after the cluster could be reached again");
+      assertFalse(file.exists(), "copy was not deleted when its last table was closed");
    }
 
    private File createCopy(String name) throws Exception {

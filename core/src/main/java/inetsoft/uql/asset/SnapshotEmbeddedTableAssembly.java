@@ -1398,7 +1398,8 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
                XSwappableTable stable = new XSwappableTable();
 
                if(!tempFiles.isEmpty()) {
-                  Cleaner.add(new EmbeddedTableReference(stable, tempFiles.toArray(new File[0])));
+                  // the reference adds itself to the cleaner (bug #78096)
+                  new EmbeddedTableReference(stable, tempFiles.toArray(new File[0]));
                }
 
                XTableColumnCreator[] xcreators = new XTableColumnCreator[creators.length];
@@ -1672,9 +1673,37 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
    private static final class EmbeddedTableReference extends Cleaner.Reference<XSwappableTable> {
       EmbeddedTableReference(XSwappableTable referent, File[] files) {
          super(referent);
-         this.files = Arrays.stream(files).map(File::getAbsolutePath).toArray(String[]::new);
-         Cluster cluster = Cluster.getInstance();
-         this.nodeId = cluster.getLocalNodeId();
+
+         // Bug #78096, the cleaner may close the reference while the counts are added, if the
+         // table is not reachable anymore. close() then sees all or none of them
+         synchronized(this) {
+            this.files = Arrays.stream(files).map(File::getAbsolutePath).toArray(String[]::new);
+            this.added = new int[this.files.length];
+            Cluster cluster = Cluster.getInstance();
+            this.nodeId = cluster.getLocalNodeId();
+
+            // closed before the counts were added, no table reads the files
+            if(closed) {
+               return;
+            }
+
+            // Bug #78096, registered before any count is added, so that the counts that were
+            // added are removed when the table is collected, even if adding the others fails
+            Cleaner.add(this);
+
+            try {
+               addCounts(cluster);
+            }
+            catch(RuntimeException | Error e) {
+               // the local counts can be removed now. the counts in the cluster are removed by
+               // close(), removing them here would likely fail the same way
+               removeLocalCounts();
+               throw e;
+            }
+         }
+      }
+
+      private void addCounts(Cluster cluster) {
          Lock lock = cluster.getLock(FILE_REFERENCES_MAP_LOCK);
          lock.lock();
 
@@ -1682,14 +1711,20 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
             Map<String, Integer> map = cluster.getMap(FILE_REFERENCES_MAP);
             Map<String, HashMap<String, Integer>> owners = cluster.getMap(FILE_OWNERS_MAP);
 
-            for(String file : this.files) {
+            for(int i = 0; i < files.length; i++) {
+               String file = files[i];
                int count = map.getOrDefault(file, 0) + 1;
                map.put(file, count);
+               added[i] |= TOTAL;
+               // the owner after the total, the removal of stale counts subtracts the count of
+               // an owner from the total
                HashMap<String, Integer> fileOwners = owners.get(file);
                fileOwners = fileOwners == null ? new HashMap<>() : fileOwners;
                fileOwners.merge(nodeId, 1, Integer::sum);
                owners.put(file, fileOwners);
+               added[i] |= OWNER;
                LOCAL_FILE_REFERENCES.merge(file, 1, Integer::sum);
+               added[i] |= LOCAL;
             }
          }
          finally {
@@ -1697,11 +1732,34 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
          }
       }
 
+      private void removeLocalCounts() {
+         for(int i = 0; i < files.length; i++) {
+            if((added[i] & LOCAL) != 0) {
+               LOCAL_FILE_REFERENCES.computeIfPresent(files[i], (k, v) -> v <= 1 ? null : v - 1);
+               added[i] &= ~LOCAL;
+            }
+         }
+      }
+
+      /**
+       * Removes the counts that this reference added. Each count is removed once, and a count
+       * that could not be removed is removed by the next close, e.g. by the cleaner after a close
+       * by a caller failed (bug #78096).
+       */
       @Override
-      public void close() throws Exception {
+      public synchronized void close() throws Exception {
+         closed = true;
+
+         // not set yet if the cleaner closes the reference before the constructor set it
+         if(added == null) {
+            return;
+         }
+
          // first, so that the local counts are right even if the cluster can't be reached
-         for(String file : files) {
-            LOCAL_FILE_REFERENCES.computeIfPresent(file, (k, v) -> v <= 1 ? null : v - 1);
+         removeLocalCounts();
+
+         if(Arrays.stream(added).allMatch(a -> a == 0)) {
+            return;
          }
 
          Cluster cluster = Cluster.getInstance();
@@ -1712,15 +1770,44 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
             Map<String, Integer> map = cluster.getMap(FILE_REFERENCES_MAP);
             Map<String, HashMap<String, Integer>> owners = cluster.getMap(FILE_OWNERS_MAP);
 
-            for(String file : files) {
+            for(int i = 0; i < files.length; i++) {
+               if(added[i] == 0) {
+                  continue;
+               }
+
+               String file = files[i];
                // Bug #78082, another table of this JVM still reads the file
                boolean inUse = isFileInUseLocally(file);
+
+               // Bug #78096, the total was added without its owner. the removal of stale counts
+               // only subtracts the counts of owners, so nothing else removes it
+               if((added[i] & OWNER) == 0) {
+                  int count = map.getOrDefault(file, 1) - 1;
+
+                  if(count <= 0) {
+                     map.remove(file);
+                  }
+                  else {
+                     map.put(file, count);
+                  }
+
+                  added[i] = 0;
+
+                  if(count <= 0 && !inUse) {
+                     new File(file).delete();
+                  }
+
+                  continue;
+               }
+
                HashMap<String, Integer> fileOwners = owners.get(file);
                Integer owned = fileOwners == null ? null : fileOwners.get(nodeId);
 
                // Bug #78082, the count of this node was removed as stale (e.g. its node id
                // changed when it reconnected), so it is not in the total anymore
                if(owned == null) {
+                  added[i] = 0;
+
                   if(!inUse && !map.containsKey(file)) {
                      new File(file).delete();
                   }
@@ -1742,10 +1829,13 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
                   owners.put(file, fileOwners);
                }
 
+               // if the total can't be changed now, the next close removes it without an owner
+               added[i] &= ~OWNER;
                int count = map.getOrDefault(file, 1) - 1;
 
                if(count <= 0) {
                   map.remove(file);
+                  added[i] = 0;
 
                   if(!inUse) {
                      new File(file).delete();
@@ -1755,6 +1845,7 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
                }
 
                map.put(file, count);
+               added[i] = 0;
 
                if(inUse || fileOwners.isEmpty()) {
                   continue;
@@ -1786,7 +1877,14 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
       }
 
       private final String[] files;
+      // Bug #78096, the counts of each file that this reference added and has not removed yet
+      private final int[] added;
       // the node that added the counts, the local node id changes when a client reconnects
       private final String nodeId;
+      private boolean closed;
+
+      private static final int TOTAL = 1;
+      private static final int OWNER = 2;
+      private static final int LOCAL = 4;
    }
 }
