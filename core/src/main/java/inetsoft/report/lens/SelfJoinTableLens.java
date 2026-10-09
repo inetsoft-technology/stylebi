@@ -30,6 +30,7 @@ import inetsoft.util.stall.LockStallException;
 import inetsoft.util.stall.WaitRecord;
 import inetsoft.util.stall.WaitRegistry;
 import inetsoft.util.swap.SwapFileReadException;
+import inetsoft.util.swap.SwapReadInterruptedException;
 import inetsoft.util.swap.XSwappableIntList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -180,6 +181,15 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
    @Override
    public boolean isCancelled() {
       return cancelled;
+   }
+
+   /**
+    * Check if a script timeout or cancel interrupted a swap read of the base table as this
+    * table was joined, so every read fails until it is invalidated. A cache treats such a
+    * table as not cached, and the next reader computes it again (bug #78100).
+    */
+   public boolean isStopped() {
+      return swapFailure instanceof SwapReadInterruptedException;
    }
 
    /**

@@ -30,6 +30,7 @@ import inetsoft.util.UserMessage;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.swap.DataUnavailable;
 import inetsoft.util.swap.SwapFileReadException;
+import inetsoft.util.swap.SwapReadInterruptedException;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -190,6 +191,14 @@ abstract class JoinTable extends PagedTableLens {
     */
    public boolean isCancelled() {
       return cancelled;
+   }
+
+   /**
+    * Check if a script timeout or cancel interrupted a swap read of a base table as the
+    * tables were joined, so every read fails (bug #78100).
+    */
+   boolean isStopped() {
+      return baseFailure instanceof SwapReadInterruptedException;
    }
 
    protected abstract boolean cancelJoin();
