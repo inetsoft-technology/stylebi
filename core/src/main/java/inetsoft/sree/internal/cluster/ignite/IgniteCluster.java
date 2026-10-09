@@ -1226,7 +1226,24 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       try {
          AffinityCallResponse response = new AffinityCallResponse<>(
             request.getId(), request.getSender(), null, error);
-         ignite.message().sendOrdered(AFFINITY_TOPIC, response, 0);
+         String sender = request.getSender();
+         ClusterNode target = ignite.cluster().nodes().stream()
+            .filter(n -> getNodeName(n).equals(sender))
+            .findFirst().orElse(null);
+
+         if(target != null) {
+            ignite.message(ignite.cluster().forNode(target))
+               .sendOrdered(AFFINITY_TOPIC, response, 0);
+         }
+         else {
+            // The original sender has already left the cluster, so nobody is waiting on this
+            // response: either the sender process is gone, or its own affinityFutures entries
+            // were already failed via failAffinityCallsTo()/MembershipDispatcher. Log it rather
+            // than dropping it with no trace at all, unlike sendMessage(String, Serializable)'s
+            // silent no-op for the same not-found case.
+            LOG.debug("Dropping affinity failure response, sender is no longer in the cluster: {}",
+                      request);
+         }
       }
       catch(Exception e) {
          LOG.error("Failed to send affinity failure response: {}", request, e);
@@ -1337,7 +1354,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
       try {
          LOG.debug("AFFINITY CALL SENDING: cache={}, key={}, node={}, id={}, request={}", cache, key, node, id, request);
-         ignite.message().sendOrdered(AFFINITY_TOPIC, request, 0);
+         ignite.message(ignite.cluster().forNode(node)).sendOrdered(AFFINITY_TOPIC, request, 0);
       }
       catch(Exception e) {
          // The request never left this node, so no response can ever arrive. Fail now instead of
@@ -1427,7 +1444,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
       try {
          LOG.debug("AFFINITY CALL ASYNC SENDING: cache={}, key={}, node={}, id={}, request={}", cache, key, node, id, request);
-         ignite.message().sendOrdered(AFFINITY_TOPIC, request, 0);
+         ignite.message(ignite.cluster().forNode(node)).sendOrdered(AFFINITY_TOPIC, request, 0);
       }
       catch(Exception e) {
          // The request never left this node, so no response can ever arrive. Fail the returned
@@ -2498,7 +2515,24 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
             new AffinityCallResponse<>(request.getId(), request.getSender(), result, error);
          IgniteCluster cluster = (IgniteCluster) Cluster.getInstance();
          LOG.debug("SENDING AFFINITY RESPONSE: {}", response);
-         cluster.ignite.message().sendOrdered(AFFINITY_TOPIC, response, 0);
+         String sender = request.getSender();
+         ClusterNode target = cluster.ignite.cluster().nodes().stream()
+            .filter(n -> cluster.getNodeName(n).equals(sender))
+            .findFirst().orElse(null);
+
+         if(target != null) {
+            cluster.ignite.message(cluster.ignite.cluster().forNode(target))
+               .sendOrdered(AFFINITY_TOPIC, response, 0);
+         }
+         else {
+            // The original sender has already left the cluster, so nobody is waiting on this
+            // response: either the sender process is gone, or its own affinityFutures entries
+            // were already failed via failAffinityCallsTo()/MembershipDispatcher. Log it rather
+            // than dropping it with no trace at all, unlike sendMessage(String, Serializable)'s
+            // silent no-op for the same not-found case.
+            LOG.debug("Dropping affinity response, sender is no longer in the cluster: {}",
+                      response);
+         }
       }
 
       private final AffinityCallRequest<T> request;
