@@ -757,6 +757,31 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
          committedDataPaths != null && !Arrays.equals(committedDataPaths, dataPaths);
    }
 
+   /**
+    * Get the snapshot data paths named by every {@link SnapshotEmbeddedTableAssembly} currently
+    * in a worksheet. Used by the orphaned permanent snapshot file cleanup (bug #78035) to collect
+    * referenced paths from stored worksheet content, auto-save drafts and open runtime worksheet
+    * sessions alike, the same way {@link #getFrozenCopyDataPaths} already collects them from a
+    * stored frozen outer copy's worksheet.
+    *
+    * @param ws the worksheet to scan.
+    *
+    * @return the data paths named by the worksheet's snapshot tables, never {@code null}.
+    */
+   public static Set<String> getDataPaths(Worksheet ws) {
+      Set<String> paths = new HashSet<>();
+
+      for(SnapshotEmbeddedTableAssembly table : getSnapshotTables(ws)) {
+         String[] dataPaths = table.getDataPaths();
+
+         if(dataPaths != null) {
+            paths.addAll(Arrays.asList(dataPaths));
+         }
+      }
+
+      return paths;
+   }
+
    private static List<SnapshotEmbeddedTableAssembly> getSnapshotTables(Worksheet ws) {
       List<SnapshotEmbeddedTableAssembly> tables = new ArrayList<>();
 

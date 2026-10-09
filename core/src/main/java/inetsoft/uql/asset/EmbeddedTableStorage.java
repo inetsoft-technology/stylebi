@@ -31,6 +31,8 @@ import org.slf4j.LoggerFactory;
 import java.io.*;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
+import java.util.stream.Collectors;
 
 public class EmbeddedTableStorage implements AutoCloseable {
    public EmbeddedTableStorage(BlobStorageManager blobStorageManager) {
@@ -177,6 +179,24 @@ public class EmbeddedTableStorage implements AutoCloseable {
       return true;
    }
 
+   /**
+    * List the paths of every permanent (non-temp) table in an organization's store. Used by the
+    * orphaned permanent snapshot file cleanup (bug #78035) to enumerate deletion candidates; the
+    * temporary ones are already covered by {@link #removeExpiredTempTables()}.
+    *
+    * @param orgId the organization id.
+    *
+    * @return the data paths of the organization's permanent tables, without the {@code _s.tdat}
+    * suffix.
+    */
+   public List<String> listPermanentTablePaths(String orgId) {
+      return getStorage(orgId).paths()
+         .filter(path -> !isTempTable(path, orgId))
+         .map(path -> path.endsWith(DATA_SUFFIX) ?
+            path.substring(0, path.length() - DATA_SUFFIX.length()) : path)
+         .collect(Collectors.toList());
+   }
+
    public void removeExpiredTempTables() {
       Instant twoWeeksAgo = Instant.now().minus(14, ChronoUnit.DAYS);
       SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
@@ -231,5 +251,6 @@ public class EmbeddedTableStorage implements AutoCloseable {
    }
 
    private final BlobStorageManager blobStorageManager;
+   private static final String DATA_SUFFIX = "_s.tdat";
    private static final Logger LOG = LoggerFactory.getLogger(EmbeddedTableStorage.class);
 }
