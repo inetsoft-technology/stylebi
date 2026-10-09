@@ -257,6 +257,11 @@ public class ClusterConfig implements Serializable {
     * threshold for reporting blocked system workers and lengthens the time that a node that has
     * really died blocks cache operations that wait for all nodes (FULL_SYNC). That time can
     * exceed the cluster health check timeout ({@code health.cluster.timeout}).
+    * <p>
+    * The value is in milliseconds (for example {@code 20000} for 20 seconds), not seconds. It does
+    * not change how long servers wait before failing a client node such as a cloud runner job,
+    * which stays at the Ignite default of 30 seconds, and the connection recovery timeout stays at
+    * 10 seconds.
     *
     * @return the failure detection timeout in milliseconds or {@code null} if not set.
     */
