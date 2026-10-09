@@ -1489,11 +1489,13 @@ public final class XSwapper {
    private static final long DEFAULT_GC_MIN_INTERVAL = 10000L;
    // cap on the garbage collection interval while memory stays critical after a collection
    private static final long MAX_GC_BACKOFF = 60000L;
-   // default pause, in ms, above which a forced collection escalates the non-waiting
-   // back-off regardless of the resulting memory state (Bug #78106). Kept well under a
-   // cluster's 10s failure-detection timeout default so repeated forced collections don't
-   // compound into (or recur soon after) a pause long enough to risk a false node-failure
-   // declaration and a cluster split.
+   // default pause, in ms, above which a forced collection is logged as a WARN for operator
+   // visibility only (Bug #78106); see the doc on doGC(boolean). It has no effect on
+   // gcBackoff or scheduling -- the pre-existing spacing formula (20x the last pause) already
+   // pushes the next collection out further than any additional back-off could for a pause
+   // this long. Kept well under a cluster's 10s failure-detection timeout default so repeated
+   // forced collections don't compound into (or recur soon after) a pause long enough to risk
+   // a false node-failure declaration and a cluster split.
    private static final long DEFAULT_GC_SAFE_PAUSE = 5000L;
    // lowest accepted swapper.gc.min.interval
    private static final long MIN_GC_INTERVAL = 1000L;
