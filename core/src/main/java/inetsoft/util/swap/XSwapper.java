@@ -735,6 +735,11 @@ public final class XSwapper {
     *                needs to see memory that has since become garbage. With the default
     *                interval and pauses up to 500ms the waiter gets one within 10s.
     *
+    *                A collection whose pause exceeds the swapper.gc.safe.pause threshold also
+    *                escalates the back-off, regardless of waiting, so a dangerously long pause
+    *                doesn't repeat soon after (Bug #78106). This never affects a waiting call
+    *                itself, since the back-off is only consulted for non-waiting callers below.
+    *
     * @return <tt>true</tt> if a garbage collection was run.
     */
    boolean doGC(boolean waiting) {
@@ -753,12 +758,29 @@ public final class XSwapper {
          final long count = getGCCount();
          final long free = getFreeSpace();
          runGC();
-         lastGCPause.set(Math.max(clock.getAsLong() - now, 0L));
+         final long pause = Math.max(clock.getAsLong() - now, 0L);
+         lastGCPause.set(pause);
          final long freed = getFreeSpace() - free;
          final boolean collected = getGCCount() != count;
          stateTS = 0;
          final boolean critical = getMemoryState() == CRITICAL_MEM;
-         gcBackoff.set(critical ? Math.min(Math.max(base, gcBackoff.get()) * 2, MAX_GC_BACKOFF) : 0);
+         final long safePause = getGCSafePause();
+         final boolean dangerousPause = pause > safePause;
+
+         if(dangerousPause) {
+            LOG.warn("A garbage collection requested by the swapper paused the JVM for {}ms, " +
+                        "which is above the {}ms safety threshold (swapper.gc.safe.pause) for " +
+                        "a cluster's failure detection timeout. Backing off future forced " +
+                        "collections to reduce the chance of another dangerously long pause " +
+                        "while the node is already under memory pressure.", pause, safePause);
+         }
+
+         // a dangerously long pause is treated like a still-critical memory state for the
+         // non-waiting back-off, regardless of what memory looks like now, so the next
+         // non-waiting forced collection is pushed out further (Bug #78106). This never
+         // affects a waiting caller, since waiting callers never consult gcBackoff above.
+         gcBackoff.set(critical || dangerousPause ?
+            Math.min(Math.max(base, gcBackoff.get()) * 2, MAX_GC_BACKOFF) : 0);
 
          if(!collected) {
             if(gcNotRunWarned.compareAndSet(false, true)) {
@@ -865,6 +887,41 @@ public final class XSwapper {
     */
    void setGCMinInterval(long gcMinInterval) {
       this.gcMinInterval = gcMinInterval;
+   }
+
+   /**
+    * Get the pause duration, in milliseconds, above which a forced collection is a danger
+    * signal for cluster stability rather than just a cost to amortize (Bug #78106). A
+    * cluster's failure detection timeout defaults to 10s, and a forced GC that runs a true
+    * stop-the-world collection freezes every thread in the JVM, including the threads that
+    * answer failure-detection heartbeats, for the pause's entire duration. The default is
+    * kept meaningfully below that 10s so there is margin before a pause even approaches it.
+    */
+   long getGCSafePause() {
+      // test override
+      if(gcSafePause >= 0) {
+         return gcSafePause;
+      }
+
+      // read every time so a property change takes effect without a restart
+      try {
+         return Long.parseLong(
+            SreeEnv.getProperty("swapper.gc.safe.pause", Long.toString(DEFAULT_GC_SAFE_PAUSE)));
+      }
+      catch(NumberFormatException ex) {
+         if(gcSafePauseWarned.compareAndSet(false, true)) {
+            LOG.warn("Invalid swapper.gc.safe.pause value, using {}ms", DEFAULT_GC_SAFE_PAUSE, ex);
+         }
+
+         return DEFAULT_GC_SAFE_PAUSE;
+      }
+   }
+
+   /**
+    * Set the GC safety pause threshold. For tests.
+    */
+   void setGCSafePause(long gcSafePause) {
+      this.gcSafePause = gcSafePause;
    }
 
    /**
@@ -1310,8 +1367,10 @@ public final class XSwapper {
                      criticalNoSwap.incrementAndGet();
                   }
 
-                  // get an acurate memory state after swapping
-                  if(swapCnt > 0 && state <= BAD_MEM) {
+                  // get an acurate memory state after swapping. only force a collection when
+                  // memory is genuinely critical, not merely BAD_MEM, so idle/lightly-loaded
+                  // nodes don't pay for a forced full GC they don't need (Bug #78106).
+                  if(swapCnt > 0 && state == CRITICAL_MEM) {
                      doGC();
                   }
                }
@@ -1425,6 +1484,12 @@ public final class XSwapper {
    private static final long DEFAULT_GC_MIN_INTERVAL = 10000L;
    // cap on the garbage collection interval while memory stays critical after a collection
    private static final long MAX_GC_BACKOFF = 60000L;
+   // default pause, in ms, above which a forced collection escalates the non-waiting
+   // back-off regardless of the resulting memory state (Bug #78106). Kept well under a
+   // cluster's 10s failure-detection timeout default so repeated forced collections don't
+   // compound into (or recur soon after) a pause long enough to risk a false node-failure
+   // declaration and a cluster split.
+   private static final long DEFAULT_GC_SAFE_PAUSE = 5000L;
    // lowest accepted swapper.gc.min.interval
    private static final long MIN_GC_INTERVAL = 1000L;
    // minimum spacing between two garbage collections, as a multiple of the last pause
@@ -1501,6 +1566,8 @@ public final class XSwapper {
    private final AtomicInteger criticalNoSwap = new AtomicInteger(0);
    private volatile long maxCriticalWait = -1L;
    private volatile long gcMinInterval = -1L;
+   private volatile long gcSafePause = -1L;
+   private final AtomicBoolean gcSafePauseWarned = new AtomicBoolean(false);
    private volatile boolean dcmdUnavailable = false;
    private volatile boolean lastGCDiagnostic = false;
    private final AtomicLong lastGC = new AtomicLong(0L);
