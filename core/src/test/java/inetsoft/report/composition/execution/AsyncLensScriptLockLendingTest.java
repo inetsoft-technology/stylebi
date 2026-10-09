@@ -57,8 +57,14 @@ import static org.mockito.Mockito.when;
  * async lenses ({@link SummaryFilter}, {@link DistinctTableLens}, {@link SelfJoinTableLens},
  * {@link UnionTableLens}) and the real {@link GraalJavaScriptEngine} execution lock, in the
  * shape {@code outer CF2 -> async lens -> inner CF2 -> base}. The sandbox is a mock that
- * only hands out that lock. The base table is slow on the worker thread only, so the worker
- * is still running when the lock holder arrives.
+ * only hands out that lock. The base table is slow on the worker thread only, and the tests
+ * that assert a loan hold the worker at the last base row until the lock is lent (see
+ * {@link #loanGate}), so the worker is still running when the lock holder arrives.
+ *
+ * <p>The inner condition filter over a plain base table no longer takes the lock itself
+ * (only filters that can reach script do, see {@code ConditionFilter2}), so in those
+ * pipelines the worker does not need the loan and the tests only check that the holder
+ * lends. The {@code execWorker...} tests cover a worker that needs the lent lock.
  *
  * <p>Every step runs on daemon threads with bounded waits and the lenses are cancelled
  * afterwards, so a regression fails with a timeout instead of hanging the build.
@@ -164,7 +170,7 @@ public class AsyncLensScriptLockLendingTest {
    @ParameterizedTest
    @EnumSource(Kind.class)
    public void workerStartedByGetRowCountThenAwaitedUnderLock(Kind kind) throws Exception {
-      Pipeline pipeline = build(kind, box);
+      Pipeline pipeline = build(kind, box, loanGate(kind));
       pool.submit(() -> pipeline.lens.getRowCount()).get(TIMEOUT, TimeUnit.SECONDS);
 
       Future<List<List<Object>>> holder = pool.submit(() -> drain(pipeline.outer));
@@ -240,7 +246,7 @@ public class AsyncLensScriptLockLendingTest {
     */
    @Test
    public void summaryGetObjectAwaitedUnderLock() throws Exception {
-      Pipeline pipeline = build(Kind.SUMMARY, box);
+      Pipeline pipeline = build(Kind.SUMMARY, box, loanGate(Kind.SUMMARY));
       pool.submit(() -> pipeline.lens.getRowCount()).get(TIMEOUT, TimeUnit.SECONDS);
 
       Future<Object> holder = pool.submit(() -> {
@@ -270,7 +276,7 @@ public class AsyncLensScriptLockLendingTest {
    @ParameterizedTest
    @EnumSource(Kind.class)
    public void scriptThreadQueuedBeforeLoan(Kind kind) throws Exception {
-      Pipeline pipeline = build(kind, box);
+      Pipeline pipeline = build(kind, box, loanGate(kind));
       CountDownLatch holderLocked = new CountDownLatch(1);
       AtomicReference<Thread> scriptThread = new AtomicReference<>();
       AtomicBoolean scriptLocking = new AtomicBoolean();
@@ -328,7 +334,7 @@ public class AsyncLensScriptLockLendingTest {
    @ParameterizedTest
    @EnumSource(StackedKind.class)
    public void stackedWorkersStartedAtBuildTime(StackedKind kind) throws Exception {
-      Pipeline pipeline = buildStacked(kind, box);
+      Pipeline pipeline = buildStacked(kind, box, loanGate(Kind.SUMMARY));
       pool.submit(() -> pipeline.lens.getRowCount()).get(TIMEOUT, TimeUnit.SECONDS);
 
       Future<List<List<Object>>> holder = pool.submit(() -> drain(pipeline.outer));
@@ -340,14 +346,14 @@ public class AsyncLensScriptLockLendingTest {
 
    private List<List<Object>> stackedControl(StackedKind kind) {
       return STACKED_CONTROLS.computeIfAbsent(kind, k -> {
-         List<List<Object>> rows = drain(buildStacked(k, null).outer);
+         List<List<Object>> rows = drain(buildStacked(k, null, null).outer);
          assertTrue(rows.size() > 2, "control pipeline is empty");
          return rows;
       });
    }
 
-   private Pipeline buildStacked(StackedKind kind, AssetQuerySandbox box) {
-      TableLens inner = PostProcessor.filter(new SlowTable(), allRows(), box);
+   private Pipeline buildStacked(StackedKind kind, AssetQuerySandbox box, Runnable gate) {
+      TableLens inner = gated(PostProcessor.filter(new SlowTable(), allRows(), box), gate);
       TableLens lower = new SummaryFilter(inner, new int[] {0, 1}, new int[] {2}, new SumFormula(), null);
       TableLens upper;
 
@@ -409,7 +415,7 @@ public class AsyncLensScriptLockLendingTest {
    public void execWorkerStartedByGetRowCountThenAwaitedUnderLock(Kind kind) throws Exception {
       List<List<Object>> expected = execControl(kind);
       Object script = initEngine(engine);
-      Pipeline pipeline = buildExec(kind, box, engine, script, loanGate());
+      Pipeline pipeline = buildExec(kind, box, engine, script, loanGate(kind));
       pool.submit(() -> pipeline.lens.getRowCount()).get(TIMEOUT, TimeUnit.SECONDS);
 
       Future<List<List<Object>>> holder = pool.submit(() -> drain(pipeline.outer));
@@ -469,17 +475,23 @@ public class AsyncLensScriptLockLendingTest {
    }
 
    /**
-    * A gate for the worker's read of the last base row (bug #78147). Without it the holder
-    * and the worker race: a holder slowed down by CPU starvation (cold first test, busy
-    * CI runner) reached the lens after the worker had finished, found nothing to wait for
-    * and correctly lent nothing, or lent only for a few milliseconds that the sampling
-    * watcher missed. The gate holds the worker, outside the lock, until the holder has
-    * lent it the lock, and records the loan it sees. It is bounded below TIMEOUT, so a
-    * holder that never lends still fails the loan assertion. The worker must hold no
-    * monitor the holder needs while it waits, which is why it is only used on ExecTable
-    * (no inner condition filter) and only on reads made without the lock.
+    * A gate for the worker's read of the last base row (bug #78147), for the tests that
+    * assert a loan. Without it the holder and the worker race: a holder slowed down by
+    * CPU starvation (cold first test, busy CI runner) reached the lens after the worker
+    * had finished, found nothing to wait for and correctly lent nothing, or lent only for
+    * a few milliseconds that the sampling watcher missed. The gate holds the worker,
+    * outside the lock, until the holder has lent it the lock, and records the loan it
+    * sees. It is bounded below TIMEOUT, so a holder that never lends still fails the loan
+    * assertion. The worker must hold no monitor the holder needs while it waits, so it
+    * runs only on reads made without the lock, in ExecTable or in a GateTable above the
+    * inner condition filter (never inside it: a SELF_JOIN holder reads the inner filter
+    * under its monitor). None for UNION, whose worker never makes the holder wait.
     */
-   private Runnable loanGate() {
+   private Runnable loanGate(Kind kind) {
+      if(kind == Kind.UNION) {
+         return null;
+      }
+
       AtomicBoolean armed = new AtomicBoolean(true);
 
       return () -> {
@@ -506,7 +518,15 @@ public class AsyncLensScriptLockLendingTest {
    }
 
    private Pipeline build(Kind kind, AssetQuerySandbox box) {
-      return build(kind, box, PostProcessor.filter(new SlowTable(), allRows(), box));
+      return build(kind, box, (Runnable) null);
+   }
+
+   private Pipeline build(Kind kind, AssetQuerySandbox box, Runnable gate) {
+      return build(kind, box, gated(PostProcessor.filter(new SlowTable(), allRows(), box), gate));
+   }
+
+   private static TableLens gated(TableLens inner, Runnable gate) {
+      return gate == null ? inner : new GateTable(inner, gate);
    }
 
    private Pipeline build(Kind kind, AssetQuerySandbox box, TableLens inner) {
@@ -631,6 +651,43 @@ public class AsyncLensScriptLockLendingTest {
 
          return data;
       }
+   }
+
+   /**
+    * Runs the loan gate when a lens worker reads the last row of the inner condition
+    * filter, before the read enters the filter and its monitor.
+    */
+   private static final class GateTable extends DefaultTableFilter {
+      GateTable(TableLens table, Runnable gate) {
+         super(table);
+         this.gate = gate;
+      }
+
+      @Override
+      public boolean moreRows(int row) {
+         gate(row);
+         return super.moreRows(row);
+      }
+
+      @Override
+      public Object getObject(int r, int c) {
+         gate(r);
+         return super.getObject(r, c);
+      }
+
+      @Override
+      public Object getData(int r, int c) {
+         gate(r);
+         return super.getData(r, c);
+      }
+
+      private void gate(int r) {
+         if(r >= ROWS && !FAST.get()) {
+            gate.run();
+         }
+      }
+
+      private final Runnable gate;
    }
 
    /**
