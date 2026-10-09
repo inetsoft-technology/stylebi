@@ -232,6 +232,7 @@ public class ScheduleTaskCloudJob implements InterruptableJob {
       clusterConfig.setTcpMembers(cluster.getClusterAddresses().toArray(new String[0]));
       clusterConfig.setClientMode(true);
       clusterConfig.setMinNodes(config.getCluster().getMinNodes());
+      clusterConfig.setFailureDetectionTimeout(config.getCluster().getFailureDetectionTimeout());
       copyRootCA(config.getCluster(), clusterConfig);
    }
 
