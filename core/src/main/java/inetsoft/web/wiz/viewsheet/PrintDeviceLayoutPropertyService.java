@@ -129,8 +129,12 @@ public class PrintDeviceLayoutPropertyService {
             printLayout.setHeaderFromEdge(0.5f);
             printLayout.setFooterFromEdge(0.75f);
             printLayout.setScaleFont(1.0f);
+            // The values above are inch values; label them so, so the unit conversion below
+            // has a "from" unit for a freshly seeded layout too.
+            printLayout.setUnits("inches");
          }
-         else if(resolvedPatch.containsKey("units")) {
+
+         if(resolvedPatch.containsKey("units")) {
             // Bug 77045 #4: a units-only (or units-plus-something-else) patch must PRESERVE the
             // physical size of every dimension field already on this print layout, not silently
             // relabel the same raw number under a new unit -- matching
@@ -393,13 +397,18 @@ public class PrintDeviceLayoutPropertyService {
       String oldUnits = printLayout.getUnits();
       String newUnits = asString(patch.get("units"));
 
-      if(oldUnits == null || oldUnits.isBlank() || newUnits == null ||
-         oldUnits.equalsIgnoreCase(newUnits))
-      {
+      // A layout persisted before units were recorded carries inch values with no unit label;
+      // treat blank as "inches", matching requireUsableUnits and the dialog's own default.
+      if(oldUnits == null || oldUnits.isBlank()) {
+         oldUnits = "inches";
+      }
+
+      if(newUnits == null || newUnits.isBlank() || oldUnits.trim().equalsIgnoreCase(newUnits.trim())) {
          return;
       }
 
-      double ratio = PrintInfo.getUnitRatio(oldUnits) / PrintInfo.getUnitRatio(newUnits);
+      double ratio = PrintInfo.getUnitRatio(oldUnits.trim().toLowerCase()) /
+         PrintInfo.getUnitRatio(newUnits.trim().toLowerCase());
 
       if(!patch.containsKey("marginTop")) {
          printLayout.setMarginTop(printLayout.getMarginTop() * ratio);
