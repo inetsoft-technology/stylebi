@@ -57,6 +57,9 @@ import static org.mockito.Mockito.*;
  *
  * [new][user exists]          registry and selection are changed inside runLocked()
  * [new][user renamed]         nothing is stored, the new viewsheet is removed, the create fails
+ * [new][renamed before start]  old name not in the provider when the create starts (another
+ *                              node), but recorded as renamed: the create fails
+ * [new][name recreated]        a renamed name that a new user has now: the dashboard is created
  * [new][user not in provider] an SSO user is not checked, the dashboard is created
  */
 @ExtendWith(SpringExtension.class)
@@ -153,6 +156,35 @@ class DashboardControllerCreateDuringRenameTest {
       verify(dashboardManager, never()).addDashboard(any(), any());
       verify(engine).removeSheet(argThat(e -> USER.equals(e.getUser())), same(principal),
                                  eq(false));
+   }
+
+   @Test
+   void newDashboardFailsWhenTheUserWasRenamedBeforeItStarted() throws Exception {
+      // a session of the old name on another node starts the create after the rename, so the
+      // old name is not in the provider from the start, like an SSO user, but is recorded as
+      // renamed
+      when(provider.getUsers()).thenReturn(new IdentityID[0]);
+      when(provider.getUser(USER)).thenReturn(null);
+      when(dashboardManager.isRenamedUser(USER)).thenReturn(true);
+
+      assertThrows(MessageException.class,
+                   () -> controller.newDashboard(newModel("d1"), principal));
+
+      verify(registry, never()).putDashboard(any(), any());
+      verify(dashboardManager, never()).addDashboard(any(), any());
+      verify(engine).removeSheet(argThat(e -> USER.equals(e.getUser())), same(principal),
+                                 eq(false));
+   }
+
+   @Test
+   void newDashboardIsCreatedForRecreatedUserOfARenamedName() throws Exception {
+      // the old name was given to a new user after the rename
+      when(dashboardManager.isRenamedUser(USER)).thenReturn(true);
+
+      controller.newDashboard(newModel("d1"), principal);
+
+      verify(registry).putDashboard(eq("d1"), any());
+      verify(dashboardManager).addDashboard(any(), eq("d1"));
    }
 
    @Test

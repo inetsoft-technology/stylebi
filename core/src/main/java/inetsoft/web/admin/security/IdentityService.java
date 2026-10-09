@@ -933,6 +933,8 @@ public class IdentityService {
 
       OrganizationManager.runInOrgScope(orgID, () -> {
          dashboardManager.runLocked(() -> {
+            // a create of the old name that gets the lock after this fails on every node
+            dashboardManager.addRenamedUser(oID);
             // not synchronized with the user's groups and roles, which the old user no longer has
             List<String> moved = dashboards == null ?
                new ArrayList<>() : new ArrayList<>(Arrays.asList(dashboards));

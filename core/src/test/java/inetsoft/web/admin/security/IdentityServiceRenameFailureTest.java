@@ -318,6 +318,8 @@ class IdentityServiceRenameFailureTest {
          .when(repletRegistryManager).renameUser(any(), any());
       doAnswer(inv -> recordUnlocked(locked, unlocked, "dashboardRegistry.renameUser"))
          .when(dashboardRegistryManager).renameUser(any(), any());
+      doAnswer(inv -> recordUnlocked(locked, unlocked, "addRenamedUser"))
+         .when(dashboardManager).addRenamedUser(any());
 
       assertNull(syncIdentity(renamedUser(newId), oldId, null));
 
@@ -326,6 +328,7 @@ class IdentityServiceRenameFailureTest {
       verify(dashboardManager).removeDashboards(oldIdentity);
       verify(repletRegistryManager).renameUser(oldId, newId);
       verify(dashboardRegistryManager).renameUser(oldId, newId);
+      verify(dashboardManager).addRenamedUser(oldId);
       assertEquals(List.of(), unlocked, "moved without holding the dashboard manager's lock");
    }
 

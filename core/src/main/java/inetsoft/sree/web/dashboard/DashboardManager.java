@@ -19,6 +19,7 @@ package inetsoft.sree.web.dashboard;
 
 import inetsoft.sree.ClientInfo;
 import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.internal.cluster.DistributedMap;
 import inetsoft.sree.security.*;
 import inetsoft.storage.*;
 import inetsoft.uql.util.DefaultIdentity;
@@ -102,6 +103,56 @@ public class DashboardManager implements AutoCloseable {
       finally {
          storeLock.unlock();
       }
+   }
+
+   /**
+    * Records that a user has been renamed. A user rename calls this in runLocked(), and a
+    * dashboard create checks it in runLocked() with isRenamedUser(). A request of the old name
+    * may still be running, or may even start, on another cluster node until the logout of the old
+    * name reaches that node. Once the user is renamed the old name is not in the security
+    * provider any more, so such a create can't be told apart from an SSO user who isn't in the
+    * provider by the provider alone (Bug #78101). The record is kept in a replicated map, which a
+    * put updates on every node before it returns, for RENAMED_USER_TIMEOUT.
+    *
+    * @param user the old name of the user.
+    */
+   public void addRenamedUser(IdentityID user) {
+      DistributedMap<String, Long> renamed = getRenamedUsers();
+      long now = System.currentTimeMillis();
+      Set<String> expired = new HashSet<>();
+
+      for(Map.Entry<String, Long> entry : new ArrayList<>(renamed.entrySet())) {
+         if(entry.getValue() == null || now - entry.getValue() > RENAMED_USER_TIMEOUT) {
+            expired.add(entry.getKey());
+         }
+      }
+
+      if(!expired.isEmpty()) {
+         renamed.removeAll(expired);
+      }
+
+      renamed.put(getRenamedUserKey(user), now);
+   }
+
+   /**
+    * Checks if a user name has been renamed recently, see addRenamedUser().
+    *
+    * @param user the user name.
+    *
+    * @return true if a user of this name was renamed within RENAMED_USER_TIMEOUT.
+    */
+   public boolean isRenamedUser(IdentityID user) {
+      Long time = user == null ? null : getRenamedUsers().get(getRenamedUserKey(user));
+      return time != null && System.currentTimeMillis() - time <= RENAMED_USER_TIMEOUT;
+   }
+
+   private static DistributedMap<String, Long> getRenamedUsers() {
+      return Cluster.getInstance().getReplicatedMap(RENAMED_USERS_MAP);
+   }
+
+   private static String getRenamedUserKey(IdentityID user) {
+      String org = user.orgID == null ? "" : user.orgID.toLowerCase();
+      return new IdentityID(user.name, org).convertToKey();
    }
 
    /**
@@ -1214,6 +1265,11 @@ public class DashboardManager implements AutoCloseable {
    private String orgID = null;
    // the prefix of the cluster lock name of a dashboards store, see getStoreLock()
    private static final String STORE_LOCK_PREFIX = DashboardManager.class.getName() + ".lock:";
+   // the replicated map of the recently renamed users, see addRenamedUser()
+   private static final String RENAMED_USERS_MAP = DashboardManager.class.getName() + ".renamedUsers";
+   // how long a renamed user's old name is kept, longer than a request of the old name can run
+   // or a logout can take to reach every node
+   private static final long RENAMED_USER_TIMEOUT = TimeUnit.MINUTES.toMillis(30);
    private static final Logger LOG = LoggerFactory.getLogger(DashboardManager.class);
 
    public static final class DashboardData implements Serializable {

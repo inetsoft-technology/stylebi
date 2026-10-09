@@ -261,8 +261,9 @@ public class DashboardController {
          : new IdentityID(XPrincipal.ANONYMOUS, Organization.getDefaultOrganizationID());
       // checked again before the dashboard is added, see below (Bug #78101)
       SecurityProvider provider = getSecurityProvider();
-      boolean registeredUser = principal != null && securityEngine.isSecurityEnabled() &&
-         provider != null && hasUser(provider, user);
+      boolean checkUser = principal != null && securityEngine.isSecurityEnabled() &&
+         provider != null;
+      boolean registeredUser = checkUser && hasUser(provider, user);
       DashboardRegistry registry = dashboardRegistryManager.getRegistry(user);
       // log create dashboard action
       String actionName = ActionRecord.ACTION_NAME_CREATE;
@@ -329,12 +330,16 @@ public class DashboardController {
          boolean[] userGone = new boolean[1];
 
          // added to the registry and selected holding the dashboard manager's lock, which a user
-         // rename holds while it moves both to the new name. A user who was in the provider and
-         // is gone now has been renamed or removed, and the dashboard would be stored under a
-         // name nobody has, so the create fails (Bug #78101).
+         // rename holds while it moves both to the new name. A user who is not in the provider
+         // and either was in it when the create started or has just been renamed (a request of
+         // the old name on another node may start after the rename) has been renamed or removed,
+         // and the dashboard would be stored under a name nobody has, so the create fails
+         // (Bug #78101). An SSO user who is not in the provider is not checked.
          dashboardManager.runLocked(() -> {
             try {
-               if(registeredUser && provider.getUser(user) == null) {
+               if(checkUser && provider.getUser(user) == null &&
+                  (registeredUser || dashboardManager.isRenamedUser(user)))
+               {
                   userGone[0] = true;
                   throw new MessageException(
                      Catalog.getCatalog().getString("common.invalidUserReload"));
