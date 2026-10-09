@@ -49,6 +49,7 @@ import inetsoft.util.*;
 import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.log.LogManager;
 import inetsoft.util.profile.ProfileUtils;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 
 import java.io.*;
 import java.text.Format;
@@ -76,8 +77,8 @@ public class VSDataSet extends AbstractDataSet implements AttributeDataSet {
 
       this.data = this.odata = data;
       this.refs = refs == null ? new VSDataRef[0] : refs;
-      data.addChangeListener(event -> VSDataSet.this.process());
-      process();
+      data.addChangeListener(event -> VSDataSet.this.process(false));
+      process(true);
    }
 
    /**
@@ -115,8 +116,12 @@ public class VSDataSet extends AbstractDataSet implements AttributeDataSet {
 
    /**
     * Initialization.
+    * @param rethrowStop {@code true} to fail with a stopped script of the table (a script
+    *                    timeout or cancel) rather than be an empty or partial data set
+    *                    (bug #78134). A change event of the table does not, its listeners
+    *                    must all be called; a cache drops a data set whose table is stopped.
     */
-   private void process() {
+   private void process(boolean rethrowStop) {
       try {
          // for Feature #26586, add post processing time record for current report/vs.
          ProfileUtils.addExecutionBreakDownRecord(data.getReportName(),
@@ -130,6 +135,16 @@ public class VSDataSet extends AbstractDataSet implements AttributeDataSet {
             LOG, colNotFoundException.getLogLevel(), colNotFoundException.getMessage(), thrown);
       }
       catch(Exception ex) {
+         if(rethrowStop) {
+            ScriptTimeoutGuard.rethrowStop(ex);
+         }
+         // a change event of a table whose script was stopped: no error, the cache drops
+         // the data set and the next reader gets the stop (bug #78134)
+         else if(ScriptTimeoutGuard.isStop(ex)) {
+            LOG.debug("Script of the vsdataset table stopped", ex);
+            return;
+         }
+
          LOG.error("Failed to process vsdataset", ex);
       }
    }

@@ -39,6 +39,7 @@ import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.script.JavaScriptEngine;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.swap.SwapFileReadException;
 import org.slf4j.Logger;
@@ -381,6 +382,11 @@ public class CalcTableVSAQuery extends DataVSAQuery {
             if(loadFailure != null) {
                throw loadFailure;
             }
+
+            // nor a stopped script (a script timeout or cancel) of a cell formula, which is
+            // not a table without data: the sandbox does not cache it and the next reader
+            // computes the table again (bug #78134)
+            ScriptTimeoutGuard.rethrowStop(e);
 
             LOG.error("Failed to create calc table: " + e, e);
          }

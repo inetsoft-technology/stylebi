@@ -46,6 +46,7 @@ import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.log.LogLevel;
 import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.*;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.script.graal.pool.SlotClaim;
 import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.Logger;
@@ -744,6 +745,14 @@ public abstract class AssetQuery extends PreAssetQuery {
             // fails. Need to extract column name information and include in
             // error message
             catch(ExpressionFailedException ex) {
+               // a stopped script (a script timeout or cancel) is no expression error to
+               // correct: its column must not be shown as the design table, which this
+               // sandbox and the tables built on it would keep. the reader fails with the
+               // stop and the next one runs the query again (bug #78134)
+               if(ScriptTimeoutGuard.isStop(ex)) {
+                  throw ex;
+               }
+
                Throwable expressionException = ex;
 
                if(AssetQuerySandbox.isLiveMode(mode) || AssetQuerySandbox.isRuntimeMode(mode)) {
@@ -829,7 +838,7 @@ public abstract class AssetQuery extends PreAssetQuery {
 
                // if in composer, return meta data so the error can be corrected
                if((throwEx == null || !throwEx) && AssetQuerySandbox.isLiveMode(mode) &&
-                  !(ex instanceof ScriptException))
+                  !(ex instanceof ScriptException) && !ScriptTimeoutGuard.isStop(ex))
                {
                   List<Exception> exs = WorksheetService.ASSET_EXCEPTIONS.get();
 

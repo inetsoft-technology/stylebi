@@ -26,6 +26,8 @@ import inetsoft.uql.XConstants;
 import inetsoft.util.*;
 import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.script.LendableReentrantLock;
+import inetsoft.util.script.ScriptException;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.stall.WaitRecord;
 import inetsoft.util.stall.WaitRegistry;
@@ -185,11 +187,12 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
 
    /**
     * Check if a script timeout or cancel interrupted a swap read of the base table as this
-    * table was joined, so every read fails until it is invalidated. A cache treats such a
-    * table as not cached, and the next reader computes it again (bug #78100).
+    * table was joined (bug #78100), or stopped a script of the base table (bug #78134), so
+    * every read fails until it is invalidated. A cache treats such a table as not cached, and
+    * the next reader computes it again.
     */
    public boolean isStopped() {
-      return swapFailure instanceof SwapReadInterruptedException;
+      return swapFailure instanceof SwapReadInterruptedException || stopFailure != null;
    }
 
    /**
@@ -205,6 +208,7 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
          completed = false;
          stallFailure = null;
          swapFailure = null;
+         stopFailure = null;
          baseFailure = null;
          scannedRows = 0;
       }
@@ -273,6 +277,7 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
       oplist.toArray(ops);
       LockStallException stall = null;
       SwapFileReadException swapFailure = null;
+      ScriptException stopFailure = null;
       MessageException baseFailure = null;
 
       try {
@@ -321,11 +326,20 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
          }
 
          if(stall == null && swapFailure == null) {
+            // nor a stopped script of the base: every read fails with the stop, as a
+            // stopped cell of a formula table does (bug #78134)
+            stopFailure = ScriptTimeoutGuard.copyStop(ex);
+         }
+
+         if(stall == null && swapFailure == null && stopFailure == null) {
             // nor must a failure to read the base, e.g. of a set table (bug #77875)
             baseFailure = MessageException.find(ex);
          }
 
-         if(swapFailure == null && baseFailure == null) {
+         if(stopFailure != null) {
+            LOG.debug("Self join stopped by a script of the base table", ex);
+         }
+         else if(swapFailure == null && baseFailure == null) {
             LOG.error("Failed to validate table rows", ex);
          }
          else if(baseFailure != null) {
@@ -345,6 +359,10 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
 
             if(swapFailure != null) {
                SelfJoinTableLens.this.swapFailure = swapFailure.copy();
+            }
+
+            if(stopFailure != null) {
+               SelfJoinTableLens.this.stopFailure = stopFailure;
             }
 
             if(baseFailure != null) {
@@ -467,8 +485,8 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
    /**
     * Rethrow the stall or swap file read failure the worker failed with, called when the
     * table is complete. A stall must never look like the end of the table (bug #76967), and
-    * neither must a swap file read failure (bug #77651) or a failure to read the base
-    * (bug #77875).
+    * neither must a swap file read failure (bug #77651), a script stop of the base
+    * (bug #78134) or a failure to read the base (bug #77875).
     */
    private void throwStallFailure() {
       LockStallException failure = stallFailure;
@@ -482,6 +500,13 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
       if(swapFailure != null) {
          // a new instance for each reader (bug #78084)
          throw swapFailure.copy();
+      }
+
+      ScriptException stopFailure = this.stopFailure;
+
+      if(stopFailure != null) {
+         // a new instance for each reader (bug #78084)
+         throw ScriptTimeoutGuard.copyStop(stopFailure);
       }
 
       MessageException baseFailure = this.baseFailure;
@@ -1051,6 +1076,8 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
    private transient volatile LockStallException stallFailure;
    // the swap file read failure the worker failed with, if any (bug #77651)
    private transient volatile SwapFileReadException swapFailure;
+   // the script stop of the base the worker failed with, if any (bug #78134)
+   private transient volatile ScriptException stopFailure;
    // the failure to read the base the worker failed with, if any (bug #77875)
    private transient volatile MessageException baseFailure;
 

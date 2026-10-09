@@ -39,6 +39,7 @@ import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
 import inetsoft.util.script.ArrayObject;
 import inetsoft.util.script.JavaScriptEngine;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.swap.DataUnavailable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -338,8 +339,17 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
 
             // set highlighted to empty array to prevent infinite recursion
             highlighted = new TableHighlightedArray((XTable) null);
-            // get the highted table (this could trigger another script)
-            highlighted = new TableHighlightedArray(getTable0(true));
+
+            try {
+               // get the highted table (this could trigger another script)
+               highlighted = new TableHighlightedArray(getTable0(true));
+            }
+            catch(RuntimeException ex) {
+               // a table that getTable0() could not get now, e.g. one whose script was
+               // stopped, is not one without highlights: the next read gets it (#78134)
+               highlighted = null;
+               throw ex;
+            }
          }
 
          return highlighted;
@@ -379,19 +389,23 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
             // a lock stall or a lost swap file is not a missing table: rethrow it, and keep a
             // cleared table dirty so the next read fetches it again instead of reading the old
             // one (#77123, #77910). Nor is a table that failed to load for a reader that has to
-            // fail, e.g. a scheduled run (#78083)
+            // fail, e.g. a scheduled run (#78083), nor a stopped script (#78134)
             RuntimeException unavailable = DataUnavailable.find(ex);
 
             if(unavailable == null) {
                unavailable = TableLoadException.find(ex);
             }
 
-            if(unavailable != null) {
+            if(unavailable != null || ScriptTimeoutGuard.isStop(ex)) {
                if(dirty && table != null) {
                   table.setIsDirty(true);
                }
 
-               throw unavailable;
+               if(unavailable != null) {
+                  throw unavailable;
+               }
+
+               ScriptTimeoutGuard.rethrowStop(ex);
             }
 
             String msg = "Failed to get table for: " + getVSAssemblyInfo().getAbsoluteName();
@@ -731,6 +745,8 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
          // nor is a table that failed to load for a reader that has to fail, e.g. a scheduled
          // run (#78083)
          TableLoadException.rethrow(ex);
+         // nor a table whose script was stopped, the next read gets it again (#78134)
+         ScriptTimeoutGuard.rethrowStop(ex);
 
          if(!box.isCancelled(ts)) {
             if(LOG.isDebugEnabled()) {

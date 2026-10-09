@@ -34,6 +34,7 @@ import inetsoft.util.script.ExpressionFailedException;
 import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.script.LendableReentrantLock;
 import inetsoft.util.script.ScriptException;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.swap.SwapFileReadException;
 import inetsoft.util.swap.XSwappableIntList;
@@ -223,6 +224,13 @@ public class SortFilter extends AbstractTableLens
             throw stall;
          }
 
+         // nor is a stopped script (a script timeout or cancel) an unsorted table: the rows
+         // stay unset, the reader fails with the stop and a later read sorts again
+         // (bug #78134)
+         if(ScriptTimeoutGuard.isStop(scriptException)) {
+            throw scriptException;
+         }
+
          LOG.warn("Failed to process sort filter: {}", scriptException.getMessage());
          CoreTool.addUserMessage(scriptException.getMessage());
       }
@@ -251,6 +259,9 @@ public class SortFilter extends AbstractTableLens
          if(loadFailure != null) {
             throw loadFailure;
          }
+
+         // nor a stopped script, e.g. wrapped by the base (bug #78134)
+         ScriptTimeoutGuard.rethrowStop(ex);
 
          // nor a failure to read the base, e.g. of a set table (bug #77524), the rows stay
          // unsorted and a later read sorts again. a script failure keeps the log (bug #77875)
