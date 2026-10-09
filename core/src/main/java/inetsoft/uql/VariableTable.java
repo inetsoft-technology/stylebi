@@ -329,7 +329,13 @@ public class VariableTable implements ContentObject, Serializable, Cloneable {
     * Check if the variable is inside this table.
     */
    public boolean contains(String name) {
-      return vartable.containsKey(name) || basetable != null && basetable.contains(name);
+      boolean found;
+
+      synchronized(vartable) {
+         found = vartable.containsKey(name);
+      }
+
+      return found || basetable != null && basetable.contains(name);
    }
 
    /**
@@ -449,7 +455,12 @@ public class VariableTable implements ContentObject, Serializable, Cloneable {
     */
    public VariableTable getSubset(String prefix) {
       VariableTable vars = new VariableTable();
-      Iterator<String> keys = vartable.keySet().iterator();
+      Iterator<String> keys;
+
+      synchronized(vartable) {
+         keys = new ArrayList<>(vartable.keySet()).iterator();
+      }
+
       vars.session = session;
 
       // @by larryl, use get() in the loop instead of table.get() in case
@@ -512,15 +523,18 @@ public class VariableTable implements ContentObject, Serializable, Cloneable {
     * (e.g. splitting into array).
     */
    public void setAsIs(String name, boolean flag) {
-      if(asIs == null && flag) {
-         asIs = new HashSet<>();
-      }
+      // pooled worksheet contexts of one sandbox set flags from several threads
+      synchronized(vartable) {
+         if(asIs == null && flag) {
+            asIs = new HashSet<>();
+         }
 
-      if(flag) {
-         asIs.add(name);
-      }
-      else if(asIs != null) {
-         asIs.remove(name);
+         if(flag) {
+            asIs.add(name);
+         }
+         else if(asIs != null) {
+            asIs.remove(name);
+         }
       }
    }
 
@@ -528,7 +542,9 @@ public class VariableTable implements ContentObject, Serializable, Cloneable {
     * Check if the value should be used as=is.
     */
    public boolean isAsIs(String name) {
-      return asIs != null && asIs.contains(name);
+      synchronized(vartable) {
+         return asIs != null && asIs.contains(name);
+      }
    }
 
    /**
@@ -630,15 +646,13 @@ public class VariableTable implements ContentObject, Serializable, Cloneable {
 
          synchronized(vartable) {
             vars.vartable = new HashMap<>(vartable);
+            vars.asIs = asIs != null ? new HashSet<>(asIs) : null;
          }
 
          if(basetable != null) {
             vars.basetable = basetable.clone();
          }
 
-         if(asIs != null) {
-            vars.asIs = new HashSet<>(asIs);
-         }
 
          vars.formats = new ConcurrentHashMap<>(formats);
 
@@ -795,7 +809,13 @@ public class VariableTable implements ContentObject, Serializable, Cloneable {
    public int hashCode() {
       int hash = 0;
 
-      for(String key : vartable.keySet()) {
+      List<String> keys;
+
+      synchronized(vartable) {
+         keys = new ArrayList<>(vartable.keySet());
+      }
+
+      for(String key : keys) {
          if(isIgnored(key)) {
             continue;
          }
@@ -812,10 +832,18 @@ public class VariableTable implements ContentObject, Serializable, Cloneable {
     * @return variable value. Returns null if the variable is not defined.
     */
    private Object get0(String name) throws Exception {
-      Object val = vartable.get(name);
+      Object val;
+      boolean found;
+
+      // put() holds this lock; pooled worksheet contexts of one sandbox read and write the
+      // table from several threads, and an unlocked read can miss an existing entry
+      synchronized(vartable) {
+         val = vartable.get(name);
+         found = val != null || vartable.containsKey(name);
+      }
 
       // if null, check base table
-      if(val == null && !vartable.containsKey(name) && basetable != null) {
+      if(!found && basetable != null) {
          val = basetable.get0(name);
       }
 

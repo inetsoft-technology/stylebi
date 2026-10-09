@@ -77,8 +77,8 @@ import static org.mockito.Mockito.when;
  * with an expression column that reads another table by name, are read at the same time.</li>
  * <li>{@link #parameterWritesPoolOff}, {@link #tableArrayMemberWritesPoolOff}: writes to the
  * {@code parameter} scriptable (the sandbox's {@link VariableTable}) and to a table array's own
- * members. Both lose writes with the pool on: {@link #parameterWritesPoolOn} and
- * {@link #tableArrayMemberWritesPoolOn} are disabled A3b findings.</li>
+ * members. Both lost writes with the pool on until they were locked (A3b findings):
+ * {@link #parameterWritesPoolOn} and {@link #tableArrayMemberWritesPoolOn}.</li>
  * </ul>
  * About 30-45 s with the Spring context, so tagged slow: run it with
  * {@code -Dsurefire.groups=slow -Dtest=RelHostObjectConcurrencyTest}.
@@ -287,7 +287,7 @@ public class RelHostObjectConcurrencyTest {
     * while writers add new ones from pooled contexts at the same time; every read must see
     * the fixed value, and every write must land with its as-is flag
     * ({@code VariableScriptable.putMember} sets both). Checked pool off here, where the engine
-    * lock serializes the scripts; pool on it fails, see {@link #parameterWritesPoolOn}.
+    * lock serializes the scripts; pool on, see {@link #parameterWritesPoolOn}.
     */
    @Test
    public void parameterWritesPoolOff() throws Exception {
@@ -300,8 +300,10 @@ public class RelHostObjectConcurrencyTest {
    }
 
    /**
-    * A3b finding (Testing #77123): the sandbox's {@link VariableTable} is not safe for
-    * scripts of pooled contexts that write parameters at the same time. Every condition-style
+    * A3b finding (Testing #77123), fixed by locking {@code get0}, {@code contains},
+    * {@code setAsIs} and {@code isAsIs} on the vartable monitor: the sandbox's
+    * {@link VariableTable} was not safe for scripts of pooled contexts that write parameters
+    * at the same time. Every condition-style
     * per-evaluation scope ({@code AssetQuerySandbox.createAssetQueryScope}, e.g. a JS condition
     * value in {@code ConditionGroup}) holds it as {@code parameter}, as do the shared scope and
     * the views {@code AssetDataCache}, {@code VSAQuery}, {@code MVAssetQuery} and the crosstab
@@ -317,9 +319,6 @@ public class RelHostObjectConcurrencyTest {
     * </ul>
     */
    @Test
-   @Disabled("A3b finding: VariableTable.setAsIs and get0 are unsynchronized; concurrent pooled " +
-             "parameter writes lose as-is flags and make reads of other parameters miss " +
-             "(Testing #77123)")
    public void parameterWritesPoolOn() throws Exception {
       for(int round = 0; round < 10; round++) {
          ParameterOutcome outcome = parameterWrites0(true);
@@ -411,7 +410,8 @@ public class RelHostObjectConcurrencyTest {
    }
 
    /**
-    * A3b finding (Testing #77123): {@code TableArray.members} is a plain LinkedHashMap.
+    * A3b finding (Testing #77123), fixed by a synchronized {@code TableArray.members}: it was
+    * a plain LinkedHashMap.
     * {@code worksheet['T1']} from a script on a non-view scope (a JS condition value's
     * per-evaluation scope) is the shared scope's {@code TableAssemblyScriptable}, one object
     * for every pooled context of the sandbox, so concurrent {@code worksheet['T1'].x = v}
@@ -420,8 +420,6 @@ public class RelHostObjectConcurrencyTest {
     * (0 with the pool off). Writing own members on a table array is rare in real content.
     */
    @Test
-   @Disabled("A3b finding: TableArray.members is an unsynchronized LinkedHashMap shared by " +
-             "pooled contexts; concurrent putMember loses entries (Testing #77123)")
    public void tableArrayMemberWritesPoolOn() throws Exception {
       for(int round = 0; round < 10; round++) {
          List<String> lost = tableArrayMemberWrites(true);
