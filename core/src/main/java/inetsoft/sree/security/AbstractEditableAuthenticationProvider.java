@@ -364,6 +364,17 @@ public abstract class AbstractEditableAuthenticationProvider
       }
 
       if(replace) {
+         // Bug #78118, move a session whose current organization is the renamed one to the new
+         // ID before the old organization is removed. Otherwise, until the caller sets the new ID
+         // after the rename, a concurrent request of the session resolves an organization that
+         // no longer exists. copyStorages() has initialized the new organization's storage by
+         // now, so setting it as the current organization does not initialize it from scratch.
+         OrganizationManager orgManager = OrganizationManager.getInstance();
+
+         if(Tool.equals(fromOrgId, orgManager.getCurrentOrgID(ThreadContext.getContextPrincipal()))) {
+            orgManager.setCurrentOrgID(newOrgID);
+         }
+
          removeOldIdentity("organization " + fromOrgId, () -> removeOrganization(fromOrgId),
                            fromOrgId, newOrgID);
 
