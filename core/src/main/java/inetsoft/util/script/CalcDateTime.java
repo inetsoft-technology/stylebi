@@ -768,13 +768,28 @@ public class CalcDateTime {
 
       year = cal.get(Calendar.YEAR);
       month = cal.get(Calendar.MONTH);
+      // Bug #78112: force minimalDaysInFirstWeek to 1 (the week containing January 1 is
+      // week 1, matching the Week of Year crosstab date level and SortOrder's
+      // WEEK_DATE_GROUP grouping) while reading WEEK_OF_YEAR, instead of leaving it at
+      // whatever the JVM default locale happens to be. cal is the shared CoreTool.calendar
+      // ThreadLocal, read elsewhere (e.g. for WEEK_OF_MONTH) -- restore immediately so this
+      // doesn't leak into those other, unrelated reads on the same thread.
+      int origMinDaysInFirstWeek = cal.getMinimalDaysInFirstWeek();
+      cal.setMinimalDaysInFirstWeek(1);
       weeks = cal.get(Calendar.WEEK_OF_YEAR);
+      cal.setMinimalDaysInFirstWeek(origMinDaysInFirstWeek);
       day = cal.get(Calendar.DAY_OF_MONTH);
       hour = cal.get(Calendar.HOUR_OF_DAY);
       minute = cal.get(Calendar.MINUTE);
       second = cal.get(Calendar.SECOND);
       millisecond = cal.get(Calendar.MILLISECOND);
       int h2;
+      // Bug #78112: set only by the WEEK_DATE_GROUP case below, and restored only after
+      // cal.getTime() is called further down -- Calendar.set() is lazy (it marks fields as
+      // "set" but doesn't resolve them into a time until computeTime() runs, which getTime()
+      // triggers), so restoring minimalDaysInFirstWeek any earlier would make computeTime()
+      // reinterpret the WEEK_OF_YEAR field set below under the wrong value.
+      int weekGroupMinDaysInFirstWeek = -1;
 
       switch(option) {
       case YEAR_DATE_GROUP:
@@ -803,6 +818,14 @@ public class CalcDateTime {
          h2 = (int) (h2 * interval);
          cal.clear();
          cal.setFirstDayOfWeek(Tool.getFirstDayOfWeek());
+         // Bug #78112: minimalDaysInFirstWeek must agree with the value used to compute h2
+         // from weeks above (forced to 1), or this round-trip through WEEK_OF_YEAR is
+         // inconsistent. NOT restored here -- see the comment above the switch: cal.set()
+         // is lazy, and the actual time (which resolves WEEK_OF_YEAR) isn't computed until
+         // cal.getTime() runs after this switch, so restoring here would corrupt it. The
+         // original value is saved and restored there instead.
+         weekGroupMinDaysInFirstWeek = cal.getMinimalDaysInFirstWeek();
+         cal.setMinimalDaysInFirstWeek(1);
          cal.set(year, Calendar.JANUARY, 1, 0, 0, 0);
          cal.set(Calendar.WEEK_OF_YEAR, h2);
          cal.set(Calendar.DAY_OF_WEEK, Tool.getFirstDayOfWeek());
@@ -836,6 +859,14 @@ public class CalcDateTime {
       }
 
       Date date = cal.getTime();
+
+      // Bug #78112: restore only now, after cal.getTime() has resolved the WEEK_OF_YEAR
+      // field set above under minimalDaysInFirstWeek=1 -- cal is the shared
+      // CoreTool.calendar ThreadLocal, read elsewhere (e.g. for WEEK_OF_MONTH) on the same
+      // thread, so it must not leak the forced value past this call.
+      if(weekGroupMinDaysInFirstWeek != -1) {
+         cal.setMinimalDaysInFirstWeek(weekGroupMinDaysInFirstWeek);
+      }
 
       // maintain same date type to avoid subtle problems downstream
       if(dobj instanceof java.sql.Date) {
