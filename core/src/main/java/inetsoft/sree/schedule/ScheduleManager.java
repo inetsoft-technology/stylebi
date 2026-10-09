@@ -24,6 +24,7 @@ import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
 import inetsoft.web.RecycleUtils;
@@ -1256,6 +1257,172 @@ public class ScheduleManager {
       // the saving principal's organization here, the one place every save reaches, the same as
       // the scheduler-permission and owner-organization checks right above.
       checkActionOrgBoundary(task, orgID, principal);
+
+      // Bug #78120, #78129, the organization checks above don't check if a sheet is readable,
+      // e.g. another user's private sheet of the same organization. Every viewsheet action sheet
+      // and batch action query is checked here against the asset READ check that the run uses.
+      checkActionSheetRead(task, checkedTask, stored, principal);
+   }
+
+   /**
+    * Bug #78120, #78129, refuses a viewsheet action sheet or a batch action query that the
+    * saving principal or the task's run principal can't READ, by the asset READ check
+    * ({@link AssetRepository#checkAssetPermission}) that refuses it when the task runs, e.g.
+    * another user's private sheet. Has the same shape as {@link #checkBatchActionTargets}:
+    * <ul>
+    *    <li>a sheet that isn't held by the stored task (added or changed) is checked against
+    *    the saving principal, unless it's a site admin, with the check that lets the owner of a
+    *    private sheet and its administrators read it, and against the run principal with the
+    *    check the run makes, which lets only the owner read a private sheet;</li>
+    *    <li>every sheet is checked against the run principal when the owner or the execute-as
+    *    identity changes, so a task never runs as a principal that can't read its sheets. The
+    *    saving principal is still checked on the sheets it adds;</li>
+    *    <li>a sheet held by the stored task is otherwise not checked, so a stored task with a
+    *    sheet that's no longer readable can still be changed, renamed or moved, the run still
+    *    refuses it.</li>
+    * </ul>
+    * Nothing is checked without security.
+    *
+    * @param task        the task as it's saved.
+    * @param checkedTask the task with the owner it's saved with.
+    * @param stored      the task as it's stored before the save, or {@code null} if none.
+    * @param principal   the saving principal.
+    */
+   private void checkActionSheetRead(ScheduleTask task, ScheduleTask checkedTask,
+                                     ScheduleTask stored, Principal principal)
+      throws inetsoft.sree.security.SecurityException
+   {
+      if(!getSecurityEngine().isSecurityEnabled()) {
+         return;
+      }
+
+      Map<String, AssetEntry> sheets = getActionReadEntries(task);
+
+      if(sheets.isEmpty()) {
+         return;
+      }
+
+      Set<String> storedSheets = getActionReadEntries(stored).keySet();
+      boolean ownerChanged = stored == null ||
+         !Objects.equals(checkedTask.getOwner(), stored.getOwner()) ||
+         !isSameIdentity(checkedTask.getIdentity(), stored.getIdentity());
+      boolean siteAdmin = OrganizationManager.getInstance().isSiteAdmin(principal);
+      Principal runPrincipal = null;
+
+      for(Map.Entry<String, AssetEntry> sheet : sheets.entrySet()) {
+         boolean added = !storedSheets.contains(sheet.getKey());
+
+         if(!added && !ownerChanged) {
+            continue;
+         }
+
+         if(runPrincipal == null) {
+            runPrincipal = getRunPrincipal(checkedTask);
+         }
+
+         AssetEntry entry = sheet.getValue();
+
+         if(!isSheetReadable(runPrincipal, entry, true) ||
+            added && !siteAdmin && !isSheetReadable(principal, entry, false))
+         {
+            throw new inetsoft.sree.security.SecurityException(String.format(
+               "Unauthorized access to %s \"%s\" by %s, it isn't readable by the user or the " +
+               "task's run principal %s", entry.isViewsheet() ? "viewsheet" : "query",
+               entry.toIdentifier(), principal,
+               runPrincipal == null ? null : runPrincipal.getName()));
+         }
+      }
+   }
+
+   /**
+    * Gets the entries that the viewsheet actions and the batch action queries of a task read
+    * when it runs ({@link ViewsheetAction#buildAssetEntry}, {@link BatchAction#getReadEntry}),
+    * by a key that ignores the case of the organization ids, so the identifier of a legacy or
+    * imported task isn't taken for a changed sheet.
+    */
+   private static Map<String, AssetEntry> getActionReadEntries(ScheduleTask task) {
+      Map<String, AssetEntry> entries = new LinkedHashMap<>();
+
+      for(int i = 0; task != null && i < task.getActionCount(); i++) {
+         ScheduleAction action = task.getAction(i);
+         AssetEntry entry = null;
+
+         if(action instanceof ViewsheetAction viewsheetAction) {
+            entry = viewsheetAction.buildAssetEntry(null);
+         }
+         else if(action instanceof BatchAction batchAction) {
+            entry = batchAction.getReadEntry();
+         }
+
+         if(entry != null) {
+            entries.putIfAbsent(getReadEntryKey(entry), entry);
+         }
+      }
+
+      return entries;
+   }
+
+   private static String getReadEntryKey(AssetEntry entry) {
+      IdentityID user = entry.getUser();
+      String userKey = user == null ? "" :
+         user.getName() + IdentityID.KEY_DELIMITER + lowerCase(user.getOrgID());
+      return entry.getScope() + "^" + entry.getType().id() + "^" + entry.getPath() + "^" +
+         userKey + "^" + lowerCase(entry.getOrgID());
+   }
+
+   private static String lowerCase(String value) {
+      return value == null ? "" : value.toLowerCase();
+   }
+
+   /**
+    * Compares two execute-as identities by type and id, the organization included, as
+    * {@code ScheduleTaskIdentityChecker} does.
+    */
+   private static boolean isSameIdentity(Identity identity1, Identity identity2) {
+      if(identity1 == null || identity2 == null) {
+         return identity1 == identity2;
+      }
+
+      return identity1.getType() == identity2.getType() &&
+         Objects.equals(identity1.getIdentityID(), identity2.getIdentityID());
+   }
+
+   /**
+    * Gets the principal a task runs as, see {@link SUtil#getScheduleTaskRunPrincipal}.
+    */
+   private static Principal getRunPrincipal(ScheduleTask task) {
+      try {
+         return SUtil.getScheduleTaskRunPrincipal(task, null, false);
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to get the run principal of schedule task {}", task.getTaskId(), ex);
+         return null;
+      }
+   }
+
+   /**
+    * Checks if a principal may READ a sheet, by the real asset engine. Fails closed: a missing
+    * principal or any error is a refusal.
+    *
+    * @param checkUserAsset {@code true} to let only the owner of a private sheet read it, as the
+    *                       run does, {@code false} to let its administrators read it too.
+    */
+   private static boolean isSheetReadable(Principal principal, AssetEntry entry,
+                                          boolean checkUserAsset)
+   {
+      if(principal == null) {
+         return false;
+      }
+
+      try {
+         AssetUtil.getAssetRepository(false)
+            .checkAssetPermission(principal, entry, ResourceAction.READ, checkUserAsset);
+         return true;
+      }
+      catch(Exception ex) {
+         LOG.debug("The sheet {} isn't readable by {}", entry.toIdentifier(), principal, ex);
+         return false;
+      }
    }
 
    /**
@@ -1407,11 +1574,10 @@ public class ScheduleManager {
     * <p>The exemption is intentionally narrow -- it only fires when the stored entry's org
     * actually is the default org (via the same case-insensitive comparison as the main check),
     * never for any other, genuinely foreign org, so it can't be used to smuggle in a sheet from
-    * an unrelated organization. It mirrors {@code checkAssetPermission0}'s own bypass exactly
-    * (scope-agnostic, since that bypass itself runs before the {@code USER_SCOPE}/private-asset
-    * check and so already covers a default-org private dashboard too, per the diagnosis's own
-    * severity note) -- this save-time check is not meant to be stricter than the runtime check it
-    * fronts for.
+    * an unrelated organization. It is about the organization only. Whether the sheet is readable,
+    * including that a default-org user's private (My Dashboards) sheet is never shared with
+    * another organization (Bug #78120, the runtime bypass excludes it), is checked by
+    * {@link #checkActionSheetRead} through the real asset READ check, not here.
     */
    private static void checkViewsheetOrgBoundary(ViewsheetAction action, String orgID,
                                                   Principal principal)
