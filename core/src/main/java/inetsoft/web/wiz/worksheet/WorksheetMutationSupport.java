@@ -1227,14 +1227,26 @@ public final class WorksheetMutationSupport {
             mutationWs, t, ainfo, originalAliases);
 
          if(conflict != null) {
-            String dependentName = findDependentJoinName(mutationWs, t, conflict);
-            String conflictName = originalAliases.get(conflict) != null ?
-               originalAliases.get(conflict) : conflict.getName();
+            // Look the join up under the column's PRE-CALL alias (review r1 n-1): this call
+            // may already have cleared or re-set the live one.
+            String originalAlias = originalAliases.get(conflict);
+            ColumnRef preCall = conflict;
+
+            if(originalAliases.containsKey(conflict) &&
+               !Objects.equals(originalAlias, conflict.getAlias()))
+            {
+               preCall = (ColumnRef) conflict.clone();
+               preCall.setAlias(originalAlias);
+            }
+
+            String dependentName = findDependentJoinName(mutationWs, t, preCall);
             throw new inetsoft.web.wiz.pairing.PairingException(
-               "Column '" + conflictName + "' cannot be reduced to an aggregate " +
-               "output -- it is still used as a join key" +
+               "Column '" + preCall.getName() + "' is still used as a join key" +
                (dependentName != null ? " by '" + dependentName + "'" : " by a downstream table") +
-               ". Remove it from aggregates, or update the join first.");
+               ", and this change would no longer output it as a plain row-level column under " +
+               "that name (it would be aggregated, pivoted into crosstab headers, renamed, or " +
+               "removed). Keep it as a group-by column under the same name, or update the join " +
+               "first.");
          }
 
          // Bug #76891 / WBS-078: unlike the join-key case above, a column relied on

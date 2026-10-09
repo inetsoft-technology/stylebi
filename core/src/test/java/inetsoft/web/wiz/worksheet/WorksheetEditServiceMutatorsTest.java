@@ -5210,6 +5210,107 @@ class WorksheetEditServiceMutatorsTest {
          "a cross-join throw after the commit point must leave the call applied");
    }
 
+   /**
+    * Review r1 B-1: U = mirror of B grouped by Quarter(od) + Sum(qty). Returns the name of U's
+    * live Quarter range column.
+    */
+   private static String quarterGroupedMirror(Worksheet ws, WorksheetEditService svc,
+                                              Principal agent) throws Exception
+   {
+      EmbeddedTableAssembly b = TestWorksheets.tableWithColumns(ws, "B", "pid", "qty", "od");
+      ws.addAssembly(b);
+      ((ColumnRef) b.getColumnSelection(false).getAttribute("od")).setDataType(XSchema.DATE);
+      svc.apply("TOK", agent, ed -> ed.addMirror("U", "B"));
+      ((ColumnRef) ((TableAssembly) ws.getAssembly("U")).getColumnSelection(false)
+         .getAttribute("od")).setDataType(XSchema.DATE);
+      svc.apply("TOK", agent, ed -> ed.setGroupAggregate("U",
+         List.of(new WorksheetMutationSupport.GroupSpec("od", "QUARTER")),
+         List.of(sum("qty", null))));
+      TableAssembly u = (TableAssembly) ws.getAssembly("U");
+
+      for(int i = 0; i < u.getColumnSelection(false).getAttributeCount(); i++) {
+         if(u.getColumnSelection(false).getAttribute(i) instanceof ColumnRef cr &&
+            cr.getDataRef() instanceof DateRangeRef)
+         {
+            return cr.getName();
+         }
+      }
+
+      throw new AssertionError("U has no Quarter range column");
+   }
+
+   @Test
+   void setGroupAggregateAllowsReSendingAnUnchangedDateLevelGroupUsedDownstream()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      String quarter = quarterGroupedMirror(ws, svc, agent);
+      TableAssembly u = (TableAssembly) ws.getAssembly("U");
+
+      svc.apply("TOK", agent, ed -> ed.addMirror("DEP", "U"));
+      svc.apply("TOK", agent, ed -> ed.setGroupAggregate("DEP", groups(quarter), List.of()));
+      svc.apply("TOK", agent, ed -> ed.addMirror("DEP2", "U"));
+      svc.apply("TOK", agent, ed -> ed.addFilter("DEP2", quarter, "null"));
+
+      // Review r1 B-1: set_group_aggregate replaces the whole AggregateInfo, so editing a
+      // measure re-sends the same Quarter group. The date-level branch builds a NEW (equal)
+      // range ref the live selection does not take; the unchanged output must still survive.
+      svc.apply("TOK", agent, ed -> ed.setGroupAggregate("U",
+         List.of(new WorksheetMutationSupport.GroupSpec("od", "QUARTER")),
+         List.of(sum("qty", null),
+                 new WorksheetMutationSupport.AggregateSpec("pid", "COUNT", null))));
+      assertEquals(2, u.getAggregateInfo().getAggregateCount(),
+         "re-sending the same date-level group with an extra measure must be applied");
+
+      svc.apply("TOK", agent, ed -> ed.setGroupAggregate("U",
+         List.of(new WorksheetMutationSupport.GroupSpec("od", "QUARTER")),
+         List.of(sum("qty", null))));
+      assertEquals(1, u.getAggregateInfo().getAggregateCount(),
+         "an identical re-send must be applied");
+
+      // A REAL regroup (Quarter -> Month) still drops Quarter(od), which DEP groups by.
+      PairingException ex = assertThrows(PairingException.class, () -> svc.apply("TOK", agent,
+         ed -> ed.setGroupAggregate("U",
+            List.of(new WorksheetMutationSupport.GroupSpec("od", "MONTH")),
+            List.of(sum("qty", null)))));
+      assertTrue(ex.getMessage().contains("DEP"), ex.getMessage());
+   }
+
+   @Test
+   void setGroupAggregateAllowsReSendingAnUnchangedDateLevelGroupUsedAsAJoinKey()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      String quarter = quarterGroupedMirror(ws, svc, agent);
+      EmbeddedTableAssembly z = TestWorksheets.tableWithColumns(ws, "Z", "zq", "note");
+      ((ColumnRef) z.getColumnSelection(false).getAttribute("zq"))
+         .setDataType(XSchema.TIME_INSTANT);
+      ws.addAssembly(z);
+      svc.apply("TOK", agent, ed -> ed.addJoin("J", "U", quarter, "Z", "zq", "INNER", null, null));
+      TableAssembly u = (TableAssembly) ws.getAssembly("U");
+
+      // Review r1 B-1: this was a HARD refusal (no confirmed escape) for an unchanged group.
+      svc.apply("TOK", agent, ed -> ed.setGroupAggregate("U",
+         List.of(new WorksheetMutationSupport.GroupSpec("od", "QUARTER")),
+         List.of(sum("qty", null),
+                 new WorksheetMutationSupport.AggregateSpec("pid", "COUNT", null))));
+      assertEquals(2, u.getAggregateInfo().getAggregateCount(),
+         "re-sending the join-key date group must be applied");
+
+      // Regrouping away from the join key is still hard-refused, with text that fits the shape.
+      PairingException ex = assertThrows(PairingException.class, () -> svc.apply("TOK", agent,
+         ed -> ed.setGroupAggregate("U",
+            List.of(new WorksheetMutationSupport.GroupSpec("od", "MONTH")),
+            List.of(sum("qty", null)), false, true)));
+      assertTrue(ex.getMessage().contains("join key"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("J"), ex.getMessage());
+      assertFalse(ex.getMessage().contains("Remove it from aggregates"), ex.getMessage());
+   }
+
    // =========================================================================
    // set_column_visibility vs. downstream aggregate/group-by INPUT (Bug #77001 / WBS-088)
    //

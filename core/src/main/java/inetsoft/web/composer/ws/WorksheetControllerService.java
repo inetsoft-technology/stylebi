@@ -300,7 +300,7 @@ public class WorksheetControllerService {
     *   <li>{@link AggregateInfo#isCrosstab()}: groups[1..] only -- the first group is pivoted
     *       into column headers and every aggregate's own column is gone.</li>
     * </ul>
-    * A column survives only if it is ITSELF (same object) such an output under an unchanged
+    * A column survives only if it (or an equal ref) is such an output under an unchanged
     * identity, so a re-alias ({@code TOTAL -> T2}), a cleared alias ({@code TOTAL -> qty})
     * and a column dropped by the stale-range-column sweep (in {@code originalAliases} but no
     * longer in the selection) are all at risk, while a full clear of an unaliased aggregate
@@ -376,20 +376,33 @@ public class WorksheetControllerService {
       boolean crosstab = newInfo.isCrosstab();
 
       for(int i = crosstab ? 1 : 0; i < newInfo.getGroupCount(); i++) {
-         if(newInfo.getGroup(i).getDataRef() == col) {
+         if(isSameOutputColumn(newInfo.getGroup(i).getDataRef(), col)) {
             return true;
          }
       }
 
       if(aggregatesKeepIdentity && !crosstab) {
          for(int i = 0; i < newInfo.getAggregateCount(); i++) {
-            if(newInfo.getAggregate(i).getDataRef() == col) {
+            if(isSameOutputColumn(newInfo.getAggregate(i).getDataRef(), col)) {
                return true;
             }
          }
       }
 
       return false;
+   }
+
+   /**
+    * True if {@code output} is {@code col} itself, or an equal ref ({@code ColumnRef} equality is
+    * name based). Bug #78144 review r1 (B-1): a re-sent date-level group builds a NEW
+    * {@code ColumnRef(DateRangeRef)}, which the exclusive {@code ColumnSelection#addAttribute}
+    * does not add because the live selection already holds an equal one -- so the group and the
+    * live column are different objects for the same, unchanged output. A changed output NAME
+    * (re-alias, a cleared alias such as WBS-098's {@code TOTAL -> qty}) is still caught by the
+    * caller's pre-call == final identity check, which runs first.
+    */
+   private static boolean isSameOutputColumn(DataRef output, ColumnRef col) {
+      return output == col || (output instanceof ColumnRef && output.equals(col));
    }
 
    private static String preCallAlias(ColumnRef col, Map<ColumnRef, String> originalAliases) {
