@@ -49,8 +49,7 @@ import java.net.*;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.*;
 
 import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.*;
@@ -63,7 +62,9 @@ import static org.mockito.Mockito.*;
  * load balancer kept sending users to both clusters. Real nodes in one JVM, split at the
  * discovery layer and then healed: the node in the smaller cluster must report not-ready, the
  * larger cluster must stay ready, and nodes with nothing foreign answering must stay ready. In
- * the three one-node islands case exactly one node must survive.
+ * the three one-node islands case exactly one node must survive. A node that restarts and
+ * rejoins must never make the cluster look like an island, and an island must report ready
+ * again once the larger cluster is gone.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -179,6 +180,90 @@ class IgniteClusterMinorityIslandTest {
       }
    }
 
+   @Test
+   void restartedNodeRejoiningNeverMakesTheClusterAnIsland() throws Exception {
+      Nodes nodes = startNodes(3);
+
+      try {
+         // n3 restarts: while it starts and joins, n1 and n2 must never see a better cluster
+         nodes.close(2);
+         ExecutorService executor = Executors.newSingleThreadExecutor();
+         List<String> islands = new ArrayList<>();
+
+         try {
+            Future<IgniteCluster> restarted = executor.submit(() -> nodes.restart(2));
+
+            while(!restarted.isDone()) {
+               collectIslands(nodes, islands, 0, 1);
+               Thread.sleep(50L);
+            }
+
+            restarted.get();
+         }
+         finally {
+            executor.shutdown();
+            assertTrue(executor.awaitTermination(30, TimeUnit.SECONDS));
+         }
+
+         await().atMost(Duration.ofSeconds(60)).until(() ->
+            nodes.list.stream().allMatch(n -> servers(n) == 3));
+         long end = System.currentTimeMillis() + CONFIRM_MILLIS + 6 * CHECK_MILLIS;
+
+         while(System.currentTimeMillis() < end) {
+            collectIslands(nodes, islands, 0, 1, 2);
+            Thread.sleep(50L);
+         }
+
+         assertTrue(islands.isEmpty(), islands.toString());
+         ClusterHealthService[] health = nodes.health();
+
+         for(int i = 0; i < 3; i++) {
+            assertReady(health[i], "n" + (i + 1) + " after n3 rejoined");
+         }
+      }
+      finally {
+         nodes.closeAll();
+      }
+   }
+
+   @Test
+   void islandIsReadyAgainOnceTheLargerClusterIsGone() throws Exception {
+      Nodes nodes = startNodes(3);
+
+      try {
+         ClusterHealthService[] health = nodes.health();
+         int[] ports = nodes.discoveryPorts();
+         BLOCKED.put(ports[2], new HashSet<>(Set.of(ports[0], ports[1])));
+         BLOCKED.put(ports[0], new HashSet<>(Set.of(ports[2])));
+         BLOCKED.put(ports[1], new HashSet<>(Set.of(ports[2])));
+         await().atMost(Duration.ofSeconds(90)).until(() ->
+            servers(nodes.get(2)) == 1 && servers(nodes.get(0)) == 2);
+         BLOCKED.clear();
+         await().atMost(Duration.ofSeconds(60)).pollInterval(Duration.ofMillis(250)).until(() ->
+            !health[2].getStatus().isReady());
+
+         // the larger cluster stops: nothing better answers, so n3 is the deployment again
+         nodes.close(0);
+         nodes.close(1);
+         await().atMost(Duration.ofSeconds(30)).pollInterval(Duration.ofMillis(250)).until(() ->
+            health[2].getStatus().isReady());
+         assertNull(nodes.get(2).getMinorityIslandMessage());
+      }
+      finally {
+         nodes.closeAll();
+      }
+   }
+
+   private static void collectIslands(Nodes nodes, List<String> islands, int... indexes) {
+      for(int index : indexes) {
+         String message = nodes.get(index).getMinorityIslandMessage();
+
+         if(message != null) {
+            islands.add("n" + (index + 1) + ": " + message);
+         }
+      }
+   }
+
    private static void assertReady(ClusterHealthService health, String what) {
       ClusterHealthStatus status = health.getStatus();
       assertTrue(status.isReady(), what + ": " + status.getMessage());
@@ -196,9 +281,10 @@ class IgniteClusterMinorityIslandTest {
       }
 
       Nodes nodes = new Nodes();
+      nodes.starter = name -> start(name, discoveryBase, clientBase, count, addresses);
 
       for(int i = 0; i < count; i++) {
-         nodes.add(start("n" + (i + 1), discoveryBase, clientBase, count, addresses));
+         nodes.add(nodes.starter.start("n" + (i + 1)));
       }
 
       await().atMost(Duration.ofSeconds(60)).until(() ->
@@ -340,6 +426,16 @@ class IgniteClusterMinorityIslandTest {
          }
       }
 
+      /**
+       * Starts a new node in place of a stopped one, with the same ports and IP finder.
+       */
+      IgniteCluster restart(int index) throws Exception {
+         IgniteCluster node = starter.start("n" + (index + 1));
+         list.set(index, node);
+         closed.remove(index);
+         return node;
+      }
+
       void closeAll() {
          services.forEach(ClusterHealthService::close);
 
@@ -352,6 +448,12 @@ class IgniteClusterMinorityIslandTest {
       private final List<IgniteCluster> list = new ArrayList<>();
       private final List<ClusterHealthService> services = new ArrayList<>();
       private final Set<Integer> closed = new HashSet<>();
+      private NodeStarter starter;
+   }
+
+   @FunctionalInterface
+   private interface NodeStarter {
+      IgniteCluster start(String name) throws Exception;
    }
 
    /**
