@@ -254,6 +254,24 @@ class SnapshotFileReferencesLoadTest {
       assertEquals("d4", table.getObject(5, 1));
    }
 
+   // the stored data of a table is gone (bug #78029): the table still loads with null rows and
+   // is not cached. The copy is counted before the copy loop finds its data missing, cleanUp
+   // checks that no count is left once the table is collected
+   @Test
+   void tableWithoutStoredDataLoadsIncomplete() throws Exception {
+      String xml = save("f");
+      File copy = copyOf(xml);
+      SnapshotEmbeddedTableAssembly assembly = parse(xml);
+      EmbeddedTableStorage.getInstance().removeTable(assembly.getDataPaths()[0] + "_s.tdat");
+
+      XSwappableTable table = assembly.getTable();
+
+      assertNotNull(table, "a table without stored data was not loaded");
+      assertFalse(copy.exists());
+      assertNull(SnapshotEmbeddedTableDataCache.getInstance().get(cacheKey(assembly)),
+                 "a table without stored data was cached");
+   }
+
    /**
     * Runs the startup sweep of the swapper of another JVM, which has a seed of its own.
     */
