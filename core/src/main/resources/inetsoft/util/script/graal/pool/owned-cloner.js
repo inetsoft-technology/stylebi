@@ -34,7 +34,9 @@
 // meta object is Date (an Invalid Date, or an object that inherits Date.prototype). keep(o) stores a host
 // object and returns its index; kept(i) returns it. fail(i, kind, hides) reports a root that is
 // lost, hides true if its graph holds a value whose references the cloner cannot list (see
-// snap); dropped(i, what) a Date in root i that is kept as a plain Date from its time value only.
+// snap); dropped(i, what) a Date in root i that is kept as a plain Date from its time value only;
+// copied(i), only if a lost root hides, a kept root that holds an array or object other than a
+// Date without objects (one a lost root may have reached unseen: see snap).
 //
 // The snapshot format: {"n": [node...], "r": [value per root]}. A node is
 // [0, ext, key, value...] a plain object; [4, ext, key, value...] one with a null prototype;
@@ -44,7 +46,7 @@
 // string, boolean or null, [n] node n, [-1] undefined, [-2] NaN, [-3] Infinity, [-4] -Infinity,
 // [-5] -0, [-7, "digits"] a bigint, or [-8, attrs, value] a property whose attributes are not
 // all set (1 writable, 2 enumerable, 4 configurable).
-(function(host, keep, kept, fail, dropped) {
+(function(host, keep, kept, fail, dropped, copied) {
    'use strict';
    const R = Reflect, gOPD = R.getOwnPropertyDescriptor, ownKeys = R.ownKeys,
       getProto = R.getPrototypeOf, setProto = R.setPrototypeOf, isExt = R.isExtensible,
@@ -251,8 +253,11 @@
    // subclass or a typed array's named property is not seen. Such a lost root is reported
    // with hides: a function (its closure, a bound target), a Proxy, an accessor, or an object
    // of a class or of a builtin that holds hidden references (a WeakMap, a WeakSet, a
-   // Promise) in its graph. The host then names the kept roots, which may be stale copies of
-   // what it reached (Testing #77123, B1 residual).
+   // Promise) in its graph. The host then names the kept roots reported by copied(), which
+   // may be stale copies of what it reached (Testing #77123, B1 residual): a root that holds
+   // an array or object. A bigint (immutable) or a Date whose properties hold no object is not
+   // reported (review L1): a Date var already loses its identity at the host's batch-end Date
+   // snapshot.
    function snap(roots, maxEntries, maxMillis, maxMarks) {
       const put = putter(protoClean());
       const deadline = now() + maxMillis;
@@ -280,6 +285,10 @@
 
       // the state of one pass
       let ids, parts, pending, enc, own;
+      // the Dates of this pass -> whether their kept properties refer to an object
+      let dates;
+      // the object references encoded so far (all passes)
+      let nrefs = 0;
       let pl = 0, pn = 0, done = 0, entries = 0, steps = 0, why = '', hard = false, root = 0;
 
       function lose(i, k) {
@@ -328,6 +337,7 @@
       }
 
       function ref(o) {
+         nrefs++;
          const id = mget(ids, o);
 
          if(id !== undefined) {
@@ -430,8 +440,9 @@
       function dateNode(o, p, ext, t) {
          const head = '[' + (p === null ? 6 : 3) + ',' + ext + ',' + (t !== t ? '"NaN"' : t);
          const keys = keysOf(o);
-         const pl0 = pl, pn0 = pn, entries0 = entries;
+         const pl0 = pl, pn0 = pn, entries0 = entries, r0 = nrefs;
          out(head);
+         mset(dates, o, false);
 
          if(p !== DP && p !== null) {
             dropped(root, keys.length ? 'of a subclass and with the properties ' + names(keys)
@@ -440,6 +451,7 @@
          else {
             try {
                props(o, keys, false);
+               mset(dates, o, nrefs > r0);
             }
             catch(e) {
                // an object shared with a lost root loses the whole root, not the property
@@ -775,6 +787,7 @@
 
       function pass() {
          ids = new M();
+         dates = new M();
          parts = [];
          pending = [];
          enc = [];
@@ -821,9 +834,19 @@
          }
       }
 
+      let hidden = false;
+
       for(let i = 0; i < rl; i++) {
          if(lost[i] !== undefined) {
             fail(i, lost[i], hides[i]);
+            hidden = hidden || hides[i];
+         }
+      }
+
+      // the kept roots that hold a copied array or object, for a lost root that hides
+      for(let i = 0; i < rl && hidden; i++) {
+         if(lost[i] === undefined && isObj(roots[i]) && mget(dates, roots[i]) !== false) {
+            copied(i);
          }
       }
 

@@ -181,7 +181,16 @@ final class WsEngine extends GraalJavaScriptEngine {
 
          return null;
       };
-      Value api = context.eval(CLONER).execute(host, keep, kept, fail, dropped);
+      ProxyExecutable copied = args -> {
+         Set<Integer> copies = OwnedValueCodec.COPIES.get();
+
+         if(copies != null) {
+            copies.add(args[0].asInt());
+         }
+
+         return null;
+      };
+      Value api = context.eval(CLONER).execute(host, keep, kept, fail, dropped, copied);
       proxyMeta = api.getMember("proxy").getMetaObject();
       clonerSnap = api.getMember("snap");
       clonerBuild = api.getMember("build");

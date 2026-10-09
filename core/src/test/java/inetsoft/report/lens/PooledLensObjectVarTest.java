@@ -244,6 +244,10 @@ class PooledLensObjectVarTest {
          : "\"fmt\" holds an Intl.NumberFormat object";
       assertTrue(warns.get(0).contains(var), warns.get(0));
       assertFalse(warns.get(0).contains("\"t\" holds"), warns.get(0));
+      // a function hides references (its closure): the kept t, an object, is named as a copy;
+      // an Intl formatter hides none, so nothing is named
+      assertEquals(what.equals("function") ? List.of("t") : List.of(),
+                   PooledLensHiddenAliasTest.copiesIn(warns.get(0)), warns.get(0));
    }
 
    /**
@@ -589,9 +593,24 @@ class PooledLensObjectVarTest {
          }
          else {
             assertEquals(1, count, "one home");
+            // the reader may have computed rows 21..40 on the home, the array still kept,
+            // before the hand-off took it idle: read on past the rows computed ahead
+            last = 200;
+            read(t, v, 41, last);
          }
 
-         assertEquals(2.0, v[last], "the lost array was started again");
+         // kept (1) up to the loss, then started again (2), never kept after it
+         int lostAt = 21;
+
+         while(lostAt <= last && v[lostAt] == 1.0) {
+            lostAt++;
+         }
+
+         for(int r = lostAt; r <= last; r++) {
+            assertEquals(2.0, v[r], "the lost array was started again: row " + r);
+         }
+
+         assertTrue(lostAt <= last, "the lost array was started again by row " + last);
          List<String> warns = warningTexts();
          assertEquals(1, warns.size(), () -> "one warning: " + warns);
          assertTrue(warns.get(0).contains("\"a\" holds a value with more than"), warns.get(0));

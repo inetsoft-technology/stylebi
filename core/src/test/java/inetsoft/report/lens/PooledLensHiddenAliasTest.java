@@ -38,6 +38,9 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import static inetsoft.report.lens.FormulaTableLensVarTest.*;
@@ -170,6 +173,89 @@ class PooledLensHiddenAliasTest {
       assertFalse(warns.get(0).contains("as a copy"), warns.get(0));
    }
 
+   /**
+    * Only a kept var that holds a copied array or object is named (review L1): a Date or a
+    * bigint is a value no closure can share with the lost var, and a number is not handed off
+    * at all. A Date with an object in a property holds a copy, so it is named. Before, every
+    * kept var of the hand-off was named.
+    */
+   @Test
+   void onlyKeptVarsThatHoldCopiedObjectsAreNamed() throws Exception {
+      double[] on = rows(true, "var f = f || (function() { var s = []; " +
+         "return function(x) { s.push(x); return s; }; })(); f(1); " +
+         "var t = t || {n: 0}; t.n++; var d = d || new Date(0); " +
+         "var big = big || (2n ** 80n + 1n); " +
+         "var dd = dd || (function() { var x = new Date(0); x.o = {n: 0}; return x; })(); " +
+         "var k = (k || 0) + 1; t.n");
+
+      for(int r = 1; r <= ROWS; r++) {
+         assertEquals(r, on[r], "t is kept: row " + r);
+      }
+
+      List<String> warns = warnings();
+      assertEquals(1, warns.size(), () -> "one warning: " + warns);
+      assertTrue(warns.get(0).contains("\"f\" holds a function"), warns.get(0));
+      assertEquals(Set.of("t", "dd"), Set.copyOf(copiesIn(warns.get(0))), warns.get(0));
+   }
+
+   /**
+    * A var that already warned does not warn again when a later hand-off keeps a new copy
+    * (review L3): the new copy is named on a line of its own, once, and the lost var's
+    * warning stays one per var. Before, the lost var's whole warning was logged again.
+    */
+   @Test
+   void aLaterHandOffNamesANewCopyWithoutWarningTheLostVarAgain() throws Exception {
+      AssetQuerySandbox box = PoolTestSupport.poolBox(true);
+      WorksheetScriptEnv w = (WorksheetScriptEnv) box.getScriptEnv();
+      envs.add(w);
+      // u holds an object only once the gate opens, after the first hand-off: that one keeps
+      // t, the second keeps t and u (rows are computed in batches ahead of the reads)
+      AtomicBoolean gate = new AtomicBoolean();
+      w.put("gate", gate);
+      int rows = 1200;
+      TableLens t = make(box, base(rows), "var f = f || (function() { var s = []; " +
+         "return function(x) { s.push(x); return s; }; })(); f(1); " +
+         "var t = t || {n: 0}; t.n++; var u = u || (gate.get() ? {n: 0} : null); t.n", "T");
+      double[] v = new double[rows + 1];
+      read(t, v, 1, 200);
+      PoolTestSupport.handOffIdleHomes(w);
+      gate.set(true);
+      read(t, v, 201, 600);
+      PoolTestSupport.handOffIdleHomes(w);
+      read(t, v, 601, rows);
+      assertTrue(PoolTestSupport.metric(w, "HandOffs") >= 2, "two hand-offs ran");
+
+      for(int r = 1; r <= rows; r++) {
+         assertEquals(r, v[r], "t is kept: row " + r);
+      }
+
+      List<String> warns = warnings();
+      assertEquals(2, warns.size(), () -> "f's warning and one line for u: " + warns);
+      assertTrue(warns.get(0).contains("\"f\" holds a function"), () -> "" + warns);
+      assertEquals(List.of("t"), copiesIn(warns.get(0)), () -> "" + warns);
+      assertFalse(warns.get(1).contains("\"f\" holds"), () -> "f warns once: " + warns);
+      assertEquals(List.of("u"), copiesIn(warns.get(1)), () -> "" + warns);
+   }
+
+   // the vars a warning names as kept copies
+   static List<String> copiesIn(String warning) {
+      int from = warning.indexOf("kept the variable");
+      int to = warning.indexOf(" of this table as a copy");
+
+      if(from < 0 || to < from) {
+         return List.of();
+      }
+
+      List<String> names = new ArrayList<>();
+      Matcher m = NAME.matcher(warning.substring(from, to));
+
+      while(m.find()) {
+         names.add(m.group(1));
+      }
+
+      return names;
+   }
+
    // rows 1..200, a hand-off of the idle homes (pool on), the rest
    private double[] rows(boolean pool, String formula) throws Exception {
       AssetQuerySandbox box = PoolTestSupport.poolBox(pool);
@@ -201,6 +287,7 @@ class PooledLensHiddenAliasTest {
    }
 
    private static final int ROWS = 600;
+   private static final Pattern NAME = Pattern.compile("\"([^\"]+)\"");
    private final List<WorksheetScriptEnv> envs = new ArrayList<>();
    private Logger logger;
    private ListAppender<ILoggingEvent> appender;
