@@ -2166,13 +2166,19 @@ public class UserTreeService {
     * removes its viewsheet itself.
     */
    private void removeRefusedDashboardViewsheets(IdentityID oldID, IdentityID newID) {
-      DashboardManager manager = dashboardManager == null ? null : dashboardManager.getIfAvailable();
-
-      if(manager == null) {
-         return;
-      }
-
       try {
+         // the injected manager, or the Spring bean if the setter wasn't applied: a stale Spring
+         // AOT bean definition of this class (another jar's copy comes first on the classpath)
+         // skips it, and the refused creates' viewsheets were then left under the new name
+         DashboardManager manager = dashboardManager != null ?
+            dashboardManager.getIfAvailable() : DashboardManager.getManager();
+
+         if(manager == null) {
+            LOG.warn("No dashboard manager, the viewsheets of the dashboards refused while " +
+                        "renaming user {} are not removed", oldID);
+            return;
+         }
+
          // the dashboard lock and the record of the user's org, as the rename and the create use
          OrganizationManager.runInOrgScope(oldID.getOrgID(), () -> {
             List<String> refused = new ArrayList<>();
