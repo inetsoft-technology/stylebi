@@ -89,15 +89,27 @@ public class SubmitVSAssemblyInfo extends ClickableOutputVSAssemblyInfo {
             ctx.modern ? VSObjectChromeDefaults.cardCornerRadius() : 3);
       }
 
-      // also re-fires on a density change, or a seeded control is stranded at the old tier
-      if(ctx.modern && (getPixelSize().height == AssetUtil.defh ||
-         VSDensityDefaults.isControlHeight(getPixelSize().height)))
-      {
-         setPixelSize(new Dimension(getPixelSize().width, VSDensityDefaults.controlHeight(ctx)));
-      }
-      else if(!ctx.modern && VSDensityDefaults.isControlHeight(getPixelSize().height)) {
-         setPixelSize(new Dimension(getPixelSize().width, AssetUtil.defh));
-      }
+      FormControlDensity.seedControlHeight(this, ctx);
+   }
+
+   @Override
+   public boolean takesDensitySize() {
+      return true;
+   }
+
+   @Override
+   public boolean densitySizeIsHeightOnly() {
+      return true;
+   }
+
+   @Override
+   public boolean followsDensitySize() {
+      return !isUserSize() && VSDensityDefaults.isSeededControlHeight(getPixelSize().height);
+   }
+
+   @Override
+   protected Dimension defaultSize(VizContext ctx) {
+      return FormControlDensity.controlSize(this, ctx);
    }
 
    /**
