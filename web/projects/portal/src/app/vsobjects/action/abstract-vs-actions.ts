@@ -249,7 +249,7 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
       // Under the gate the kebab is resident, not an overflow control: it is the permanent "this
       // object has actions" signal, the only touch route, and the only resting keyboard target.
       // The two entry points do not show the same list. The kebab opens getMoreActions() — the
-      // overflowed toolbar actions, which include the trailing "menu actions" wrapper once that
+      // overflowed toolbar actions, with the menu inlined once the trailing "menu actions" wrapper
       // itself overflows — while right-click opens menuActions directly. What makes the lower rungs
       // safe is that the wrapper is the last toolbar group and its childAction() is menuActions, so
       // the full menu is always one click away: either the wrapper is still on the strip, or it has
@@ -307,34 +307,27 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
          this.allowedActionsNum());
       ToolbarActionsHandler.copyActions(actions, this.more);
 
-      // Where an action button can still render, the kebab keeps the trailing "menu actions"
-      // wrapper and the full menu sits one level below it, as on a pointer strip — but only where
-      // overflowed toolbar actions sit beside it. Holding the wrapper alone, the kebab opens onto
-      // a single row whose only job is to open another menu, so the menu is inlined instead. The
-      // anchored budget is min(3, realActions) + 1, so on any type with three or fewer real
-      // actions the wrapper is the only thing that overflows. Read off the overflow list itself
-      // rather than re-deriving the overflow arithmetic here.
-      return this.resident && (this.allowedActionsNum() === 0 || this.wrapperIsSoleOverflow())
+      // The resident kebab already is "More", so it never nests the menu behind a second "More"
+      // row: wherever the "menu actions" wrapper overflows into it, its menu is inlined. Keyed on
+      // the wrapper being in the overflow rather than on the host, so a host that does not offer
+      // the wrapper (the wizard preview, or a script hiding Menu Actions) gains no menu here.
+      return this.resident && (this.allowedActionsNum() === 0 || this.wrapperOverflowed())
          ? this.flattenedMoreActions() : this.more;
    }
 
    /**
-    * Whether the overflow holds the trailing "menu actions" wrapper and nothing else. Asked of the
-    * list getMoreActions() has just built, so it cannot disagree with it.
+    * Whether the trailing "menu actions" wrapper is in the overflow. Asked of the list
+    * getMoreActions() has just built, so it cannot disagree with it.
     */
-   private wrapperIsSoleOverflow(): boolean {
-      const overflowed = this.more.reduce(
-         (all, group) => all.concat(group.actions.filter(action => action.visible())),
-         [] as AssemblyAction[]);
-
-      return overflowed.length > 0 &&
-         overflowed.every(action => action.id() === "menu actions");
+   private wrapperOverflowed(): boolean {
+      return this.more.some(group => group.actions.some(
+         action => action.id() === "menu actions" && action.visible()));
    }
 
    /**
-    * The kebab's contents where no action button renders at all — touch, and the kebab-only height
-    * band. There the kebab is the entire strip, and leaving the menu nested behind a "More" row
-    * costs three taps to reach something the strip exists to put one tap away.
+    * The resident kebab's contents: the overflowed toolbar actions and the menu in one panel.
+    * Leaving the menu nested behind a "More" row costs an extra hop to reach something the strip
+    * exists to put one click away, and inside a kebab it is a "More" within "More".
     *
     * It also showed the same entries twice. The menu-reachability fix put the max-mode pair,
     * show-details and export into createMenuActions with the ids their toolbar twins already use,

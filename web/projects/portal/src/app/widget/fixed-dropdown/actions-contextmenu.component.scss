@@ -44,6 +44,12 @@ span.bare-arrow-right-icon {
    }
 }
 
+// Bootstrap scopes the divider vars to .dropdown-menu, so on this pane group dividers drew nothing.
+.contextmenu-container.contextmenu-grouped {
+   --bs-dropdown-divider-bg: var(--inet-default-border-color);
+   --bs-dropdown-divider-margin-y: var(--inet-space-2);
+}
+
 .dropdown-item * {
   pointer-events: none;
 }

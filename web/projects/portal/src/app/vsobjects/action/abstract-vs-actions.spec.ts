@@ -361,9 +361,13 @@ describe("AbstractVSActions", () => {
          // Edit is the third stable action here and Properties is what the cap pushes over.
          expect(ids(actions.showingActions)).toEqual(
             ["chart show-data", "chart open-max-mode", "chart edit", "more actions"]);
-         // Nothing is dropped — the rest, including the "menu actions" wrapper that carries the
-         // full right-click menu, moves into the kebab.
-         expect(ids(actions.getMoreActions())).toEqual(["chart properties-toolbar", "menu actions"]);
+         // Nothing is dropped — the rest moves into the kebab, with the full right-click menu
+         // inlined after it rather than behind a "More" row.
+         const more = ids(actions.getMoreActions());
+
+         expect(more[0]).toBe("chart properties");
+         expect(more).not.toContain("menu actions");
+         expect(new Set(more).size).toBe(more.length);
       });
 
       it("keeps all three when exactly three action buttons are available", () => {
@@ -379,7 +383,7 @@ describe("AbstractVSActions", () => {
             false, null, null, miniToolbarService);
 
          expect(ids(actions.showingActions)).toEqual(
-            ["chart show-data", "chart open-max-mode", "chart properties-toolbar", "more actions"]);
+            ["chart show-data", "chart open-max-mode", "chart properties", "more actions"]);
          // The wrapper is the only thing that overflows, so the kebab carries the menu itself
          // rather than a lone row opening onto it.
          expect(ids(actions.getMoreActions())).not.toContain("menu actions");
@@ -417,7 +421,8 @@ describe("AbstractVSActions", () => {
          // 120px fits three buttons, one of which is the kebab.
          expect(showing.length).toBe(3);
          expect(showing[showing.length - 1]).toBe("more actions");
-         expect(ids(actions.getMoreActions())).toContain("menu actions");
+         expect(ids(actions.getMoreActions())).not.toContain("menu actions");
+         expect(ids(actions.getMoreActions())).toContain("vs-assembly hide-mini-toolbar");
       });
 
       it("still leaves only the kebab between the floor and 56px", () => {
@@ -552,7 +557,7 @@ describe("AbstractVSActions", () => {
          expect(actions.allowedActionsNum()).toBe(4);
          expect(ids(actions.showingActions)).toEqual(
             ["chart show-data", "chart open-max-mode", "chart edit", "more actions"]);
-         expect(ids(actions.getMoreActions())).toEqual(["chart properties-toolbar", "menu actions"]);
+         expect(ids(actions.getMoreActions())[0]).toBe("chart properties");
       });
 
       it("does not zero a type outside the anchored set on touch, even under the gate", () => {
@@ -646,11 +651,12 @@ describe("AbstractVSActions", () => {
             .toEqual(["chart open-max-mode", "chart edit", "menu actions"]);
       });
 
-      it("does not change the chart pointer case under the gate", () => {
+      it("inlines the menu for a marked chart on a pointer device too", () => {
          document.body.classList.add("viz-density-compact");
+         const more = ids(actionsFor(2000, 400, true).getMoreActions());
 
-         expect(ids(actionsFor(2000, 400, true).getMoreActions()))
-            .toEqual(["chart properties-toolbar", "menu actions"]);
+         expect(more[0]).toBe("chart properties");
+         expect(more).not.toContain("menu actions");
       });
    });
 
@@ -706,8 +712,7 @@ describe("AbstractVSActions", () => {
 
       // The anchored budget is min(3, realActions) + 1, so on a table the wrapper is the only
       // thing that ever overflows and the kebab would otherwise open onto a single "More" row.
-      // The nesting decision still holds where real actions overflow beside the wrapper, which is
-      // pinned on the chart in "a kebab holding nothing but the menu wrapper" below.
+      // Where real actions overflow beside it, see "the marked kebab is one level" below.
       it("flattens the kebab where the wrapper is the only thing that overflows", () => {
          document.body.classList.add("viz-density-compact");
          const more = ids(tableActionsFor(2000, 400, true).getMoreActions());
@@ -779,12 +784,13 @@ describe("AbstractVSActions", () => {
          expect(ids(actions.getMoreActions())).toContain("table properties");
       });
 
-      it("still overflows the chart's wrapper unchanged (3 real actions, budget 4)", () => {
+      it("still overflows the chart's wrapper beside a real action (3 real actions, budget 4)", () => {
          const actions = actionsFor(2000, 400, true);
 
          expect(ids(actions.showingActions)).toEqual(
             ["chart show-data", "chart open-max-mode", "chart edit", "more actions"]);
-         expect(ids(actions.getMoreActions())).toEqual(["chart properties-toolbar", "menu actions"]);
+         expect(ids(actions.getMoreActions())[0]).toBe("chart properties");
+         expect(ids(actions.getMoreActions())).not.toContain("menu actions");
       });
 
       it("does not push a real action into the kebab when the wrapper itself is hidden", () => {
@@ -981,17 +987,17 @@ describe("AbstractVSActions", () => {
 
       it("keeps Properties off the strip, opened from the composer", () => {
          expect(visibleIds(bindingChartActions(true, true).toolbarActions))
-            .not.toContain("chart properties-toolbar");
+            .not.toContain("chart properties");
       });
 
       it("keeps Properties off the strip, opened from the viewer", () => {
          expect(visibleIds(bindingChartActions(true, false).toolbarActions))
-            .not.toContain("chart properties-toolbar");
+            .not.toContain("chart properties");
       });
 
       it("still shows Properties outside the binding pane", () => {
          expect(visibleIds(actionsFor(400, 200, true).toolbarActions))
-            .toContain("chart properties-toolbar");
+            .toContain("chart properties");
       });
 
       it("leaves the dismissal on the toolbar instead of moving it to the menu", () => {
@@ -1047,7 +1053,7 @@ describe("AbstractVSActions", () => {
 
       it("keeps Properties off the strip", () => {
          expect(visibleIds(wizardChartActions(true).toolbarActions))
-            .not.toContain("chart properties-toolbar");
+            .not.toContain("chart properties");
       });
 
       // Without this the dismissal is unreachable here, not merely relocated: it moves into the
@@ -1180,13 +1186,73 @@ describe("AbstractVSActions", () => {
       });
    });
 
-   // Nesting the menu one level below the kebab is the recorded choice wherever the kebab also
-   // holds overflowed toolbar actions. It degenerates where the wrapper is the only thing in the
-   // kebab: a menu whose single row opens another menu. The calendar reaches exactly that state —
-   // four slots, three real actions, so only the wrapper overflows.
-   describe("a kebab holding nothing but the menu wrapper", () => {
+   // A marked assembly's kebab already is "More", so a "More" row inside it is a menu within a menu.
+   // It used to be inlined only where the wrapper overflowed alone (the calendar: four slots, three
+   // real actions) and stayed nested wherever a real action overflowed beside it — the viewer chart
+   // with Edit. It is now inlined wherever the wrapper overflows, and only on a marked assembly.
+   describe("the marked kebab is one level", () => {
       const ids = (groups: any[]) =>
          groups.reduce((acc, g) => acc.concat(g.actions.map(a => a.id())), [] as string[]);
+      const visibleIds = (groups: any[]) =>
+         groups.reduce((acc, g) =>
+            acc.concat(g.actions.filter(a => a.visible()).map(a => a.id())), [] as string[]);
+
+      // Viewer context; enableAdhoc puts Edit on the toolbar, which the cap pushes into the kebab.
+      function viewerAdhocChartActions(width: number, vizModern: boolean,
+                                       actionNames?: string[]): ChartActions
+      {
+         const model: VSChartModel = TestUtils.withTitleLane(
+            TestUtils.createMockVSChartModel("Chart1"));
+         model.objectFormat.width = width;
+         model.objectFormat.height = 400;
+         model.vizModern = vizModern;
+         model.enableAdhoc = true;
+
+         if(actionNames) {
+            model.actionNames = actionNames;
+         }
+
+         return new ChartActions(model, popService, ViewerContextProviderFactory(false), false,
+            null, null, miniToolbarService);
+      }
+
+      it("inlines the menu beside an overflowed Edit in the viewer", () => {
+         document.body.classList.add("viz-density-compact");
+         const actions = viewerAdhocChartActions(2000, true);
+
+         expect(ids(actions.showingActions)).toEqual(
+            ["chart show-data", "chart open-max-mode", "chart properties", "more actions"]);
+
+         const more = visibleIds(actions.getMoreActions());
+
+         expect(more[0]).toBe("chart edit");
+         expect(more).not.toContain("menu actions");
+         expect(more).toContain("chart save-image-as");
+         expect(more).toContain("vs-assembly hide-mini-toolbar");
+         // The strip's three buttons, the gear among them, are not listed again.
+         expect(more).not.toContain("chart properties");
+         expect(more).not.toContain("chart show-data");
+         expect(more).not.toContain("chart open-max-mode");
+         expect(new Set(more).size).toBe(more.length);
+      });
+
+      // The same chart unmarked keeps its legacy overflow: More stays a nested row.
+      it("leaves an unmarked chart's overflow nested", () => {
+         const more = ids(viewerAdhocChartActions(120, false).getMoreActions());
+
+         expect(more).toContain("menu actions");
+         expect(more).not.toContain("chart save-image-as");
+      });
+
+      // Inlining is keyed on the wrapper being in the overflow, so a script that hides Menu Actions
+      // keeps the menu out of the kebab as it keeps the wrapper off the strip.
+      it("does not inline the menu where a script hides Menu Actions", () => {
+         document.body.classList.add("viz-density-compact");
+         const more = visibleIds(
+            viewerAdhocChartActions(2000, true, ["Menu Actions"]).getMoreActions());
+
+         expect(more).toEqual(["chart edit"]);
+      });
 
       it("flattens the menu into the kebab", () => {
          document.body.classList.add("viz-density-compact");
@@ -1203,11 +1269,14 @@ describe("AbstractVSActions", () => {
          expect(more).toContain("calendar apply");
       });
 
-      it("keeps the nested wrapper where real actions overflow beside it", () => {
+      it("inlines the menu where a real action overflows beside the wrapper", () => {
          document.body.classList.add("viz-density-compact");
+         const more = ids(actionsFor(2000, 400, true).getMoreActions());
 
-         expect(ids(actionsFor(2000, 400, true).getMoreActions()))
-            .toEqual(["chart properties-toolbar", "menu actions"]);
+         expect(more[0]).toBe("chart properties");
+         expect(more).not.toContain("menu actions");
+         // The overflowed gear and the menu's Properties share an id, so it is listed once.
+         expect(more.filter(id => id === "chart properties").length).toBe(1);
       });
 
       // The menu carries copies of the toolbar actions so they survive a lane too short to draw the

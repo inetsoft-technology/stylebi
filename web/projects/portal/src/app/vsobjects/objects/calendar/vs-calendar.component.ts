@@ -306,7 +306,8 @@ export class VSCalendar extends NavigationComponent<VSCalendarModel>
                this.onOpenFormatPane.emit(this.model);
             }
             else if("more actions" == event.id) {
-               VSUtil.showDropdownMenus(event.event, this.getMoreActions(), this.dropdownService);
+               VSUtil.showDropdownMenus(event.event, this.getMoreActions(), this.dropdownService,
+                  undefined, this.model.vizModern);
             }
          });
       }

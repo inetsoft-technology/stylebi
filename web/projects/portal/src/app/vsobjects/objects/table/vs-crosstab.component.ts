@@ -274,7 +274,7 @@ export class VSCrosstab extends BaseTable<VSCrosstabModel> implements OnInit, On
                break;
             case "more actions":
                VSUtil.showDropdownMenus(event.event, this.actions.getMoreActions(),
-                  this.dropdownService, []);
+                  this.dropdownService, [], this.model.vizModern);
                break;
             }
          });

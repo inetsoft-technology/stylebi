@@ -386,6 +386,8 @@ describe("VSSelectionContainer - actions setter", () => {
             "more-event",
             [{ id: "more-action" }],
             dropdownService,
+            undefined,
+            comp.model.vizModern,
          );
       } finally {
          dropdownSpy.mockRestore();

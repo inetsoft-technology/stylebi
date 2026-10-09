@@ -56,6 +56,8 @@ export class ActionsContextmenuComponent implements OnDestroy {
       this.focusedAction = value.action;
    }
    @Input() actionVisible: (action: AssemblyAction) => boolean;
+   // Draws the dividers between groups; off by default so other menus render unchanged.
+   @Input() groupDividers: boolean = false;
    @Output() onClose = new EventEmitter<void>();
    visibleActions: AssemblyActionGroup[] = [];
    instance: ActionsContextmenuComponent;

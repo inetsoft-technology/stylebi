@@ -379,7 +379,7 @@ describe("MiniToolbar rendered - coarse-pointer touch target (compiled CSS only;
 
 // Final-review round, Critical 1: the cap was passed to ToolbarActionsHandler as-is, but that helper
 // spends one of the slots it is given on the overflow control, so "3" produced a two-button strip
-// and chart properties-toolbar never reached it at any width. Every existing test asserted the slot
+// and the strip's Properties button never reached it at any width. Every existing test asserted the slot
 // number, not the button count, which is how it survived five reviews — so this counts the buttons
 // the browser actually renders, driven by a real ChartActions rather than hand-built groups.
 describe("MiniToolbar rendered - three action buttons plus the kebab under the gate", () => {

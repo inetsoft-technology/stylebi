@@ -555,7 +555,8 @@ export namespace VSUtil {
 
    export function showDropdownMenus(event: MouseEvent, actions: AssemblyActionGroup[],
                                      dropdownService: FixedDropdownService,
-                                     inVisibleActions?: string[])
+                                     inVisibleActions?: string[],
+                                     groupDividers: boolean = false)
    {
       let options: DropdownOptions = {
          // add 1 to avoid mini-toolbar getting a mouse out on openning ... menu
@@ -566,6 +567,7 @@ export namespace VSUtil {
       let contextmenu: ActionsContextmenuComponent =
          dropdownService.open(ActionsContextmenuComponent, options).componentInstance;
       contextmenu.sourceEvent = event;
+      contextmenu.groupDividers = groupDividers;
 
       if(inVisibleActions) {
          contextmenu.actionVisible = (action: AssemblyAction) => {

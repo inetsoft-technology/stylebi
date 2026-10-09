@@ -191,7 +191,7 @@ export class VSCalcTable extends BaseTable<VSCalcTableModel> implements OnDestro
                break;
             case "more actions":
                VSUtil.showDropdownMenus(event.event, this.actions.getMoreActions(),
-                  this.dropdownService, []);
+                  this.dropdownService, [], this.model.vizModern);
                break;
             }
          });
