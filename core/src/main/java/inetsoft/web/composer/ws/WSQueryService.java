@@ -67,6 +67,8 @@ public class WSQueryService extends WorksheetControllerService {
          DataKey key = AssetDataCache.getCacheKey(
             table, box, null, WorksheetEventUtil.getMode(table), true);
          assetDataCache.remove(key);
+         WorksheetEventUtil.invalidateDependents(
+            rws.getWorksheet(), table, box, assetDataCache);
          AssetQueryCacheNormalizer.clearCache(table, box);
          TableAssembly clone = (TableAssembly) table.clone();
          AssetQuery query = AssetQuery.createAssetQuery(

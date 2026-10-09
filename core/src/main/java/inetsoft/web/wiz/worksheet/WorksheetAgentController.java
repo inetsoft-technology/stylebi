@@ -4113,6 +4113,9 @@ public class WorksheetAgentController {
                   assetDataCache.remove(runtimeKey);
                }
 
+               // Dependents' cached results otherwise survive the refresh (bug 76873).
+               WorksheetEventUtil.invalidateDependents(ws, table, box, assetDataCache);
+
                // WSQueryService.runQuery discovers a not-yet-run tabular query's columns before
                // reloading; without it, refresh_data on a query that has never executed in this
                // runtime loads against an empty column selection.
@@ -4255,6 +4258,8 @@ public class WorksheetAgentController {
                         table, box, null, AssetQuerySandbox.RUNTIME_MODE, true);
                      assetDataCache.remove(runtimeKey);
                   }
+
+                  WorksheetEventUtil.invalidateDependents(ws, table, box, assetDataCache);
 
                   try {
                      clearBoundQueryCache(box, table, mode);

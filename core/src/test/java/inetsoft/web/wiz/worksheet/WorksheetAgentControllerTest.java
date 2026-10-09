@@ -2930,6 +2930,76 @@ class WorksheetAgentControllerTest {
       verify(assetDataCache, atLeastOnce()).remove(any());
    }
 
+   /** Bug 76873: refreshing a table must also drop the cached results of its dependents. */
+   @Test
+   void refreshDataInvalidatesTransitiveDependentsOfTheRefreshedTable() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly table = TestWorksheets.nonEmbeddedTableWithColumns(
+         ws, "Table1", "cust", "amount");
+      table.setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+      ws.addAssembly(table);
+      MirrorTableAssembly dependent = new MirrorTableAssembly(ws, "Dep1", table);
+      ws.addAssembly(dependent);
+      MirrorTableAssembly nested = new MirrorTableAssembly(ws, "Dep2", dependent);
+      ws.addAssembly(nested);
+      // Reachable through both Dep1 and Dep2, so the walk must visit it once.
+      TableAssemblyOperator union = new TableAssemblyOperator();
+      TableAssemblyOperator.Operator unionOp = new TableAssemblyOperator.Operator();
+      unionOp.setOperation(TableAssemblyOperator.UNION);
+      unionOp.setLeftTable("Dep1");
+      unionOp.setRightTable("Dep2");
+      union.addOperator(unionOp);
+      ws.addAssembly(new ConcatenatedTableAssembly(ws, "Dep3",
+         new TableAssembly[] { dependent, nested }, new TableAssemblyOperator[] { union }));
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      when(box.getWorksheet()).thenReturn(ws);
+      when(box.getVariableTable()).thenReturn(new VariableTable());
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-RD76873"), any())).thenReturn(session("TOK-RD76873"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      inetsoft.report.composition.execution.AssetDataCache assetDataCache =
+         mock(inetsoft.report.composition.execution.AssetDataCache.class);
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class), assetDataCache);
+
+      java.util.Map<String, inetsoft.report.composition.execution.DataKey> keys =
+         new java.util.HashMap<>();
+
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class);
+          MockedStatic<inetsoft.report.composition.execution.AssetDataCache> cache =
+             mockStatic(inetsoft.report.composition.execution.AssetDataCache.class))
+      {
+         cache.when(() -> inetsoft.report.composition.execution.AssetDataCache.getCacheKey(
+               any(TableAssembly.class), any(), any(), anyInt(), anyBoolean()))
+            .thenAnswer(inv -> keys.computeIfAbsent(
+               ((TableAssembly) inv.getArgument(0)).getName() + "/" + inv.getArgument(3),
+               k -> mock(inetsoft.report.composition.execution.DataKey.class)));
+         ctrl.edit("TOK-RD76873", refreshDataRequest("Table1"), agent);
+      }
+
+      for(String dep : new String[] { "Dep1", "Dep2", "Dep3" }) {
+         verify(box, times(1)).resetTableLens(dep);
+         verify(assetDataCache).remove(
+            keys.get(dep + "/" + WorksheetEventUtil.getMode((TableAssembly) ws.getAssembly(dep))));
+         verify(assetDataCache).remove(
+            keys.get(dep + "/" + AssetQuerySandbox.RUNTIME_MODE));
+      }
+   }
+
    /**
     * Bug #76711 round 4: for an ordinary table (not runtime, not live-data -- the state an
     * {@code add_table}'d table is left in, per {@code WorksheetEventUtil.getMode}), refreshData's

@@ -1160,6 +1160,48 @@ public class WorksheetEventUtil {
       }
    }
 
+   /**
+    * Drops the cached results of every table downstream of a refreshed table, otherwise a
+    * dependent (e.g. a join) keeps serving its pre-refresh result (bug 76873).
+    */
+   public static void invalidateDependents(Worksheet ws, TableAssembly table,
+                                           AssetQuerySandbox box, AssetDataCache assetDataCache)
+   {
+      Set<String> visited = new HashSet<>();
+      Deque<AssemblyEntry> queue = new ArrayDeque<>();
+      queue.add(table.getAssemblyEntry());
+      visited.add(table.getName());
+
+      while(!queue.isEmpty()) {
+         for(AssemblyRef ref : ws.getDependings(queue.poll())) {
+            AssemblyEntry depEntry = ref.getEntry();
+
+            if(!visited.add(depEntry.getName()) ||
+               !(ws.getAssembly(depEntry.getName()) instanceof TableAssembly dep))
+            {
+               continue;
+            }
+
+            queue.add(depEntry);
+            box.resetTableLens(dep.getName());
+
+            try {
+               for(int mode : new int[] { getMode(dep), AssetQuerySandbox.RUNTIME_MODE }) {
+                  DataKey key = AssetDataCache.getCacheKey(dep, box, null, mode, true);
+
+                  if(key != null) {
+                     assetDataCache.remove(key);
+                  }
+               }
+            }
+            catch(Exception e) {
+               LOG.warn("Failed to invalidate cached data of dependent table: " +
+                  dep.getName(), e);
+            }
+         }
+      }
+   }
+
    public static void clearDataCache(TableAssembly table, AssetQuerySandbox box) throws Exception {
       DataKey key1 = AssetDataCache.getCacheKey(table, box, null,
          AssetQuerySandbox.LIVE_MODE, true);
