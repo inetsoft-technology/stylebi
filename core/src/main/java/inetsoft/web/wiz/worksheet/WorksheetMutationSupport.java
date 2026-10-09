@@ -456,6 +456,83 @@ public final class WorksheetMutationSupport {
    public static void addFilter(TableAssembly t, String field,
                                 String operation, String... values)
    {
+      FilterItem built = buildFilterItem(t, field, operation, values);
+      appendFilterItem(t, built);
+   }
+
+   /**
+    * Bug #78145 (WSC-010, AC-1): replaces the single existing condition on {@code field} in
+    * place -- same slot, same {@link ConditionItem} level, and the junctions on either side left
+    * untouched -- instead of the remove-then-append {@code edit_condition} used to do, which
+    * moved the condition to the end, re-joined it with {@code AND} at level 0 and so could turn
+    * an {@code OR} or a nested group into a different filter.
+    *
+    * <p>The replacement is built in full first (operator, {@code DATE_IN} range, field
+    * resolution and the leftover-literal guard), and the list is only touched once that build
+    * has succeeded, so a refused call leaves the table's conditions exactly as they were.</p>
+    *
+    * <ul>
+    *   <li>No condition on {@code field} yet: appended, exactly as {@link #addFilter}.</li>
+    *   <li>One condition: replaced in place.</li>
+    *   <li>Several conditions: refused. Which one the caller meant cannot be told apart, and
+    *       replacing all of them would silently collapse the group they form.</li>
+    * </ul>
+    *
+    * <p>{@code field} is routed to the pre- or post-aggregate list exactly as {@link #addFilter}
+    * and {@link #removeFilter} route it, and is matched against existing conditions the same way
+    * {@link #removeFilter} matches them.</p>
+    *
+    * @throws IllegalArgumentException if the replacement cannot be built, or if {@code field}
+    *                                  has more than one condition in that list
+    */
+   public static void replaceFilter(TableAssembly t, String field,
+                                    String operation, String... values)
+   {
+      FilterItem built = buildFilterItem(t, field, operation, values);
+      ConditionListWrapper existing =
+         built.post() ? t.getPostConditionList() : t.getPreConditionList();
+      List<Integer> matches = existing == null || existing.isEmpty()
+         ? List.of() : filterMatches(existing.getConditionList(), field);
+
+      if(matches.isEmpty()) {
+         appendFilterItem(t, built);
+         return;
+      }
+
+      if(matches.size() > 1) {
+         throw new IllegalArgumentException(
+            "\"" + field + "\" has " + matches.size() + " conditions in this table's " +
+            (built.post() ? "post-aggregate (HAVING)" : "pre-aggregate") + " filter, so " +
+            "edit_condition cannot tell which one to replace, and replacing all of them would " +
+            "collapse the group they form. Nothing was changed. Read the conditions with " +
+            "get_condition/read_worksheet_model and rewrite the whole list with " +
+            (built.post() ? "set_post_conditions" : "set_conditions") + " instead.");
+      }
+
+      ConditionList cl = existing.getConditionList();
+      int index = matches.get(0);
+      built.item().setLevel(cl.getItem(index).getLevel());
+      cl.setItem(index, built.item());
+
+      if(built.post()) {
+         t.setPostConditionList(cl);
+      }
+      else {
+         t.setPreConditionList(cl);
+      }
+   }
+
+   /** A built (not yet applied) add_filter/edit_condition item and the list it belongs to. */
+   private record FilterItem(ConditionItem item, boolean post) {}
+
+   /**
+    * Builds the {@link ConditionItem} {@link #addFilter} and {@link #replaceFilter} write, without
+    * touching the table. Every refusal (unknown operator, unknown {@code DATE_IN} range,
+    * unresolvable field, leftover field-reference literal) happens here, before any write.
+    */
+   private static FilterItem buildFilterItem(TableAssembly t, String field,
+                                             String operation, String... values)
+   {
       boolean negate = isNegatedOperation(operation);
       int op = parseOperation(operation);
 
@@ -494,38 +571,69 @@ public final class WorksheetMutationSupport {
             c.setNegated(true);
          }
 
-         for(String v : values) {
-            c.addValue(conditionValue(dtype, v));
+         for(int i = 0; i < values.length; i++) {
+            Object value = conditionValue(dtype, values[i]);
+
+            // Bug #78145 (WSC-008): the same leftover-literal guard buildConditionList runs.
+            // add_filter/edit_condition take no valueSpecs, so only the column-name heuristic
+            // applies here (numeric and date/time types); a string literal naming a column stays
+            // accepted, as it does on set_conditions.
+            if(value instanceof String s && looksLikeUnresolvedFieldReference(t, post, dtype, s)) {
+               throw unresolvedFieldReferenceLiteral(s, i, dtype, false);
+            }
+
+            c.addValue(value);
          }
 
          item = new ConditionItem(ref, c, 0);
       }
 
+      return new FilterItem(item, post);
+   }
+
+   /** Appends a built item to its list, joined with {@code AND} at level 0. */
+   private static void appendFilterItem(TableAssembly t, FilterItem built) {
+      boolean post = built.post();
       ConditionListWrapper existing = post ? t.getPostConditionList() : t.getPreConditionList();
+      ConditionList cl;
 
       if(existing != null && !existing.isEmpty()) {
-         ConditionList cl = existing.getConditionList();
+         cl = existing.getConditionList();
          cl.append(new JunctionOperator(JunctionOperator.AND, 0));
-         cl.append(item);
-
-         if(post) {
-            t.setPostConditionList(cl);
-         }
-         else {
-            t.setPreConditionList(cl);
-         }
       }
       else {
-         ConditionList cl = new ConditionList();
-         cl.append(item);
+         cl = new ConditionList();
+      }
 
-         if(post) {
-            t.setPostConditionList(cl);
-         }
-         else {
-            t.setPreConditionList(cl);
+      cl.append(built.item());
+
+      if(post) {
+         t.setPostConditionList(cl);
+      }
+      else {
+         t.setPreConditionList(cl);
+      }
+   }
+
+   /**
+    * Indexes of the condition items in {@code list} on {@code field} -- matched by the
+    * attribute's name or its attribute, the rule {@link #removeFilter} and
+    * {@link #replaceFilter} share.
+    */
+   private static List<Integer> filterMatches(ConditionList list, String field) {
+      List<Integer> matches = new ArrayList<>();
+
+      for(int i = 0; i < list.getSize(); i++) {
+         if(list.getItem(i) instanceof ConditionItem ci) {
+            DataRef attr = ci.getAttribute();
+
+            if(field.equals(attr.getName()) || field.equals(attr.getAttribute())) {
+               matches.add(i);
+            }
          }
       }
+
+      return matches;
    }
 
    /**
@@ -534,8 +642,9 @@ public final class WorksheetMutationSupport {
     * unambiguously to an {@link AggregateRef} (including any orphaned junction operators
     * left behind).
     *
-    * <p>This is a best-effort purge: it rebuilds the list by collecting the
-    * remaining conditions and re-joining them with AND.</p>
+    * <p>It rebuilds the list from the remaining conditions, keeping their levels. Two survivors
+    * that had removed conditions between them are re-joined by the weakest junction of the
+    * removed span (lowest level; OR over AND at one level), so the surviving grouping is kept.</p>
     *
     * <p>Bug #76752: {@code field} is checked via {@link #resolveUnambiguousAggregateAlias}, the
     * same narrow (alias/view only, not base-attribute) match {@link #addFilter} routes on, so a
@@ -559,57 +668,41 @@ public final class WorksheetMutationSupport {
       }
 
       ConditionList src = existing.getConditionList();
-
-      // Collect indices of conditions to remove.
-      java.util.Set<Integer> removeIdx = new java.util.HashSet<>();
-
-      for(int i = 0; i < src.getSize(); i++) {
-         HierarchyItem hi = src.getItem(i);
-
-         if(hi instanceof ConditionItem ci) {
-            DataRef attr = ci.getAttribute();
-
-            if(field.equals(attr.getName()) || field.equals(attr.getAttribute())) {
-               removeIdx.add(i);
-            }
-         }
-      }
+      java.util.Set<Integer> removeIdx = new java.util.HashSet<>(filterMatches(src, field));
 
       if(removeIdx.isEmpty()) {
          return;
       }
 
-      // Rebuild the list keeping surviving conditions with their original junctions.
+      // Rebuild the list from the surviving conditions. Bug #78145 (WSC-010): two survivors that
+      // had removed conditions between them are joined by the WEAKEST junction of that whole
+      // span -- the lowest level, and OR over AND at the same level (XConditionGroup binds AND
+      // tighter than OR at one level). That junction is where the two survivors actually met in
+      // the original grouping. Keeping the left-hand junction instead turned
+      // (A AND B) OR C minus B into A AND C.
       ConditionList result = new ConditionList();
+      JunctionOperator pending = null;
 
       for(int i = 0; i < src.getSize(); i++) {
-         if(removeIdx.contains(i)) {
-            continue;
-         }
-
          HierarchyItem hi = src.getItem(i);
 
-         if(hi instanceof JunctionOperator) {
-            // Only keep a junction if it sits between two surviving conditions.
-            boolean prevSurvived = result.getSize() > 0
-               && result.getItem(result.getSize() - 1) instanceof ConditionItem;
-            boolean nextSurvives = false;
-
-            for(int j = i + 1; j < src.getSize(); j++) {
-               if(src.getItem(j) instanceof ConditionItem && !removeIdx.contains(j)) {
-                  nextSurvives = true;
-                  break;
-               }
-            }
-
-            if(prevSurvived && nextSurvives) {
-               result.append(hi);
+         if(hi instanceof JunctionOperator junction) {
+            // A junction before the first survivor has nothing on its left; drop it.
+            if(!result.isEmpty()) {
+               pending = weakerJunction(pending, junction);
             }
          }
-         else {
+         else if(!removeIdx.contains(i)) {
+            if(pending != null) {
+               result.append(pending);
+            }
+
             result.append(hi);
+            pending = null;
          }
       }
+
+      // Any junction still pending trails the last survivor; drop it.
 
       if(post) {
          t.setPostConditionList(result.isEmpty() ? null : result);
@@ -617,6 +710,26 @@ public final class WorksheetMutationSupport {
       else {
          t.setPreConditionList(result.isEmpty() ? null : result);
       }
+   }
+
+   /**
+    * The junction that binds more loosely: the lower level, or OR over AND at the same level.
+    * {@code current} may be {@code null}; on a full tie the earlier one is kept.
+    */
+   private static JunctionOperator weakerJunction(JunctionOperator current,
+                                                  JunctionOperator next)
+   {
+      if(current == null || next.getLevel() < current.getLevel()) {
+         return next;
+      }
+
+      if(next.getLevel() == current.getLevel() &&
+         next.getJunction() == JunctionOperator.OR && current.getJunction() != JunctionOperator.OR)
+      {
+         return next;
+      }
+
+      return current;
    }
 
    // =========================================================================
@@ -2654,25 +2767,41 @@ public final class WorksheetMutationSupport {
                                       List<ConditionNode> deletePost,
                                       Boolean forceAppendUpdates)
    {
-      if(updatePre != null) {
-         t.setMVUpdatePreConditionList(buildConditionList(t, updatePre, false));
+      // Bug #78145 (AC-2): build every list before setting any, so a refusal in a later list
+      // (bad operator, unknown range, leftover literal, bad index) leaves the earlier ones
+      // untouched. An empty list builds to null, which is stored as an empty list (WSC-012).
+      ConditionList updatePreList = updatePre != null ? mvConditionList(t, updatePre, false) : null;
+      ConditionList updatePostList = updatePost != null ? mvConditionList(t, updatePost, true) : null;
+      ConditionList deletePreList = deletePre != null ? mvConditionList(t, deletePre, false) : null;
+      ConditionList deletePostList = deletePost != null ? mvConditionList(t, deletePost, true) : null;
+
+      if(updatePreList != null) {
+         t.setMVUpdatePreConditionList(updatePreList);
       }
 
-      if(updatePost != null) {
-         t.setMVUpdatePostConditionList(buildConditionList(t, updatePost, true));
+      if(updatePostList != null) {
+         t.setMVUpdatePostConditionList(updatePostList);
       }
 
-      if(deletePre != null) {
-         t.setMVDeletePreConditionList(buildConditionList(t, deletePre, false));
+      if(deletePreList != null) {
+         t.setMVDeletePreConditionList(deletePreList);
       }
 
-      if(deletePost != null) {
-         t.setMVDeletePostConditionList(buildConditionList(t, deletePost, true));
+      if(deletePostList != null) {
+         t.setMVDeletePostConditionList(deletePostList);
       }
 
       if(forceAppendUpdates != null) {
          t.setMVForceAppendUpdates(forceAppendUpdates);
       }
+   }
+
+   /** {@link #buildConditionList}, with an empty result as an empty list rather than null. */
+   private static ConditionList mvConditionList(TableAssembly t, List<ConditionNode> nodes,
+                                                boolean post)
+   {
+      ConditionList cl = buildConditionList(t, nodes, post);
+      return cl != null ? cl : new ConditionList();
    }
 
    /**
@@ -2746,28 +2875,75 @@ public final class WorksheetMutationSupport {
                // produced A IN ("<T>.B" coerced to 0, B) instead of A=B). A null index (a pre-#77003
                // caller, or a hand-built valueSpecs with no readback behind it) keeps the original
                // append-only behavior for backward compatibility.
+               //
+               // Bug #78145 (WSC-011): an index is resolved against the ORIGINAL values() positions,
+               // never against a list an earlier spec already grew. 0..originalSize-1 replaces that
+               // position, and each position can be claimed once -- a second spec on the same
+               // position used to overwrite the first silently. originalSize..originalSize+appends
+               // (appends = specs appended so far, with or without an index) appends in spec order,
+               // which keeps consecutive appends such as {index:1},{index:2} on one value working,
+               // and no longer lets an index-less append be replaced by a later index.
+               final int originalSize = resolvedValues.size();
+               java.util.Set<Integer> claimed = new java.util.HashSet<>();
+               List<String> appendedDisplayTexts = new ArrayList<>();
+
                if(spec.valueSpecs() != null) {
                   for(ConditionValueSpec vs : spec.valueSpecs()) {
                      Object value = conditionValue(t, post, vs);
                      Integer index = vs.index();
+                     int appends = resolvedValues.size() - originalSize;
 
-                     if(index == null) {
-                        resolvedValues.add(value);
-                     }
-                     else if(index < 0 || index > resolvedValues.size()) {
-                        throw new IllegalArgumentException(
-                           "valueSpecs[...] index " + index + " is out of range for a condition " +
-                           "with " + resolvedValues.size() + " values() entries -- index must be " +
-                           "0.." + resolvedValues.size() + " (0-based; a value at 0.." +
-                           (resolvedValues.size() - 1) + " REPLACES that position, and " +
-                           resolvedValues.size() + " appends a new one).");
-                     }
-                     else if(index == resolvedValues.size()) {
-                        resolvedValues.add(value);
-                     }
-                     else {
+                     if(index != null && index >= 0 && index < originalSize) {
+                        if(!claimed.add(index)) {
+                           throw new IllegalArgumentException(
+                              "valueSpecs index " + index + " is used more than once in the " +
+                              "condition on \"" + spec.field() + "\" -- each values() position " +
+                              "can be replaced by only one valueSpec. Give each valueSpec its own " +
+                              "index, or leave index out (or use " + originalSize + " or above) " +
+                              "to append it as an additional value.");
+                        }
+
                         resolvedValues.set(index, value);
                      }
+                     else if(index == null ||
+                        (index >= originalSize && index <= originalSize + appends))
+                     {
+                        resolvedValues.add(value);
+                        appendedDisplayTexts.add(String.valueOf(value));
+
+                        if(vs.field() != null) {
+                           appendedDisplayTexts.add(vs.field());
+                        }
+                     }
+                     else {
+                        throw new IllegalArgumentException(
+                           "valueSpecs[...] index " + index + " is out of range for a condition " +
+                           "with " + originalSize + " values() entries -- index must be " +
+                           "0.." + (originalSize + appends) + " (0-based; a value at 0.." +
+                           (originalSize - 1) + " REPLACES that position, and " + originalSize +
+                           " or above appends a new one, in order).");
+                     }
+                  }
+               }
+
+               // Bug #78145 (WSC-007): a values() literal no indexed spec replaced, that equals
+               // the readback display text of a value appended by a spec in this same condition,
+               // is the readback-resubmit leftover (values[i] kept, the spec's index dropped). It
+               // would be stored next to the real value: verbatim on a string column, today's date
+               // on a date column, 0 on a numeric one -- also for an Expression[...] leftover,
+               // which the column-name heuristic below never matches. Type-independent; a
+               // legitimate ONE_OF ["x"] + {field} append does not match.
+               for(int i = 0; i < originalSize; i++) {
+                  if(!claimed.contains(i) && resolvedValues.get(i) instanceof String s &&
+                     appendedDisplayTexts.contains(s))
+                  {
+                     throw new IllegalArgumentException(
+                        "Condition value \"" + s + "\" at values[" + i + "] on \"" +
+                        spec.field() + "\" is the display text of a field/expression valueSpec " +
+                        "in the same condition that has no index, so it would be kept as a " +
+                        "second, literal value next to the real one. To compare against that " +
+                        "field/expression, give the valueSpec index " + i + " (it then replaces " +
+                        "values[" + i + "]), or remove \"" + s + "\" from values.");
                   }
                }
 
@@ -2791,14 +2967,7 @@ public final class WorksheetMutationSupport {
 
                   if(value instanceof String s && looksLikeUnresolvedFieldReference(t, post, dtype, s))
                   {
-                     throw new IllegalArgumentException(
-                        "Condition value \"" + s + "\" at values[" + i + "] looks like the " +
-                        "display text of a field reference (it matches a real column's name on " +
-                        "this worksheet), not a literal " + dtype + " value -- if this is meant " +
-                        "to compare against that column, provide it via valueSpecs (e.g. {index: " +
-                        i + ", valueType: \"field\", field: \"" + s + "\"}) instead of leaving it " +
-                        "in values[], which would otherwise be silently coerced to a default value " +
-                        "(e.g. 0) rather than compared against the column.");
+                     throw unresolvedFieldReferenceLiteral(s, i, dtype, true);
                   }
                }
 
@@ -3372,14 +3541,14 @@ public final class WorksheetMutationSupport {
     * WorksheetReadService#extractValues} leaves behind for a field-reference valueSpec that a
     * caller forgot to (re-)supply via {@code valueSpecs}?
     *
-    * <p>Only ever considered for a numeric {@code dtype} -- the same set of types whose {@link
+    * <p>Considered for a numeric {@code dtype} -- the same set of types whose {@link
     * inetsoft.uql.AbstractCondition#getObject} falls back to a zero value on a parse failure
     * (Bug #77003's actual observed symptom). A value that already parses as a number under
     * {@code dtype} is never flagged, so an ordinary numeric literal never false-positives here.
-    * DATE/TIME/TIME_INSTANT are deliberately out of scope for this check: {@code getObject}'s
-    * parse-failure behavior for those types was not independently verified for this fix, and
-    * mis-detecting a date literal as a field reference would be a worse regression than leaving
-    * that narrower case unguarded (see 03-fix.md for this scoping decision).
+    * Bug #78145 (WSC-007/008): DATE/TIME/TIME_INSTANT are covered too -- {@code getObject} turns
+    * an unparseable date/time string into the current date/time, so a leftover column name there
+    * is a silent substitution of "now". A value that already parses as a date/time is never
+    * flagged. STRING (and BOOLEAN) stay out: a string literal can genuinely equal a column name.
     *
     * <p>Tries {@code t}'s own column selection first -- this alone already covers a Mirror table,
     * since {@link AssetUtil#getOuterAttribute} re-qualifies a mirrored column's name with its
@@ -3394,9 +3563,21 @@ public final class WorksheetMutationSupport {
    private static boolean looksLikeUnresolvedFieldReference(TableAssembly t, boolean post,
                                                              String dtype, String value)
    {
-      if(value == null || value.isBlank() || !isNumericConditionType(dtype) ||
-         parsesAsNumericLiteral(value))
-      {
+      if(value == null || value.isBlank()) {
+         return false;
+      }
+
+      if(isNumericConditionType(dtype)) {
+         if(parsesAsNumericLiteral(value)) {
+            return false;
+         }
+      }
+      else if(isDateConditionType(dtype)) {
+         if(parsesAsDateLiteral(dtype, value)) {
+            return false;
+         }
+      }
+      else {
          return false;
       }
 
@@ -3424,6 +3605,47 @@ public final class WorksheetMutationSupport {
       return XSchema.INTEGER.equals(dtype) || XSchema.LONG.equals(dtype) ||
          XSchema.SHORT.equals(dtype) || XSchema.BYTE.equals(dtype) ||
          XSchema.FLOAT.equals(dtype) || XSchema.DOUBLE.equals(dtype);
+   }
+
+   private static boolean isDateConditionType(String dtype) {
+      return XSchema.DATE.equals(dtype) || XSchema.TIME.equals(dtype) ||
+         XSchema.TIME_INSTANT.equals(dtype);
+   }
+
+   /**
+    * Whether {@code value} is a date/time literal {@code AbstractCondition.getObject} can parse
+    * rather than fall back to "now" on: the {@code {d ...}}/{@code {t ...}}/{@code {ts ...}}
+    * forms, anything {@link inetsoft.util.CoreTool#isDate} accepts, and for TIME a value with a
+    * {@code ':'}.
+    */
+   private static boolean parsesAsDateLiteral(String dtype, String value) {
+      String v = value.trim();
+      return v.startsWith("{") || inetsoft.util.CoreTool.isDate(v) ||
+         (XSchema.TIME.equals(dtype) && v.contains(":"));
+   }
+
+   /**
+    * The refusal for a literal that looks like a field reference's display text (Bug #77003
+    * WSC-003, shared with add_filter/edit_condition by Bug #78145 WSC-008).
+    *
+    * @param specsAvailable whether the calling tool takes valueSpecs (the condition-tree tools)
+    *                       or not (add_filter/edit_condition)
+    */
+   private static IllegalArgumentException unresolvedFieldReferenceLiteral(
+      String value, int i, String dtype, boolean specsAvailable)
+   {
+      String remedy = specsAvailable
+         ? "provide it via valueSpecs (e.g. {index: " + i + ", valueType: \"field\", field: \"" +
+           value + "\"}) instead of leaving it in values[]"
+         : "use set_conditions (or set_post_conditions) with a valueSpecs entry {valueType: " +
+           "\"field\", field: \"" + value + "\"} -- add_filter/edit_condition values are literals only";
+
+      return new IllegalArgumentException(
+         "Condition value \"" + value + "\" at values[" + i + "] looks like the display text of " +
+         "a field reference (it matches a real column's name on this worksheet), not a literal " +
+         dtype + " value -- if this is meant to compare against that column, " + remedy + ". " +
+         "Left as a literal it would be silently coerced to a default value (e.g. 0, or the " +
+         "current date) rather than compared against the column.");
    }
 
    private static boolean parsesAsNumericLiteral(String value) {

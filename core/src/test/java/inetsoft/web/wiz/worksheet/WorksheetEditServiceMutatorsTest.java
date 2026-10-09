@@ -4844,6 +4844,322 @@ class WorksheetEditServiceMutatorsTest {
       assertTrue(t.getPreConditionList() == null || t.getPreConditionList().isEmpty());
    }
 
+   // -------------------------------------------------------------------------
+   // Bug #78145 (WSC-008, WSC-010, AC-1): add_filter / edit_condition / remove_filter
+   // -------------------------------------------------------------------------
+
+   /** Table with typed columns, given as "name:type" (public and private selections both). */
+   private static TableAssembly typedColumnsTable78145(Worksheet ws, String name,
+                                                       String... colTypes)
+   {
+      String[] cols = java.util.Arrays.stream(colTypes).map(c -> c.split(":")[0])
+         .toArray(String[]::new);
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, name, cols);
+
+      for(String colType : colTypes) {
+         String[] parts = colType.split(":");
+         ((ColumnRef) t.getColumnSelection(false).getAttribute(parts[0])).setDataType(parts[1]);
+
+         if(t.getColumnSelection(true).getAttribute(parts[0]) instanceof ColumnRef pub) {
+            pub.setDataType(parts[1]);
+         }
+      }
+
+      return t;
+   }
+
+   private static WorksheetMutationSupport.ConditionNode cond78145(
+      String field, String operation, String value, int level)
+   {
+      return new WorksheetMutationSupport.ConditionNode(
+         new WorksheetMutationSupport.ConditionSpec(field, operation, List.of(value), false, null),
+         null, level);
+   }
+
+   private static WorksheetMutationSupport.ConditionNode junction78145(String junction, int level) {
+      return new WorksheetMutationSupport.ConditionNode(
+         null, new WorksheetMutationSupport.JunctionSpec(junction, level), level);
+   }
+
+   /**
+    * Structure of a condition list as "[L0 a>1] {OR L0} [L1 b=2]": attribute, level, operator
+    * and first value of every item, and junction + level of every junction.
+    */
+   private static String structure78145(ConditionListWrapper wrapper) {
+      if(wrapper == null || wrapper.isEmpty()) {
+         return "";
+      }
+
+      ConditionList cl = wrapper.getConditionList();
+      StringBuilder sb = new StringBuilder();
+
+      for(int i = 0; i < cl.getSize(); i++) {
+         if(i > 0) {
+            sb.append(' ');
+         }
+
+         if(cl.getItem(i) instanceof ConditionItem ci) {
+            sb.append("[L").append(ci.getLevel()).append(' ')
+               .append(ci.getAttribute().getAttribute());
+
+            if(ci.getXCondition() instanceof Condition c) {
+               String op = c.getOperation() == XCondition.GREATER_THAN ? ">"
+                  : c.getOperation() == XCondition.LESS_THAN ? "<" : "=";
+               sb.append(op).append(c.getValueCount() > 0 ? c.getValue(0) : "");
+            }
+
+            sb.append(']');
+         }
+         else {
+            inetsoft.uql.JunctionOperator j = (inetsoft.uql.JunctionOperator) cl.getItem(i);
+            sb.append('{').append(j.getJunction() == inetsoft.uql.JunctionOperator.OR ? "OR" : "AND")
+               .append(" L").append(j.getLevel()).append('}');
+         }
+      }
+
+      return sb.toString();
+   }
+
+   /** WSC-010a: editing the second operand of an OR keeps the OR and the slot. */
+   @Test
+   void editConditionReplacesInPlaceKeepingTheOrJunction() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = typedColumnsTable78145(ws, "T", "a:integer", "b:integer");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.setConditions("T", List.of(
+         cond78145("a", "=", "1", 0), junction78145("OR", 0), cond78145("b", "=", "2", 0))));
+      svc.apply("TOK", agent, ed -> ed.editCondition("T", "b", ">", "3"));
+
+      assertEquals("[L0 a=1] {OR L0} [L0 b>3]", structure78145(t.getPreConditionList()));
+
+      // Editing the FIRST operand keeps it first (it used to move to the end, AND-joined).
+      svc.apply("TOK", agent, ed -> ed.editCondition("T", "a", "=", "5"));
+
+      assertEquals("[L0 a=5] {OR L0} [L0 b>3]", structure78145(t.getPreConditionList()));
+   }
+
+   /** WSC-010b: an edited condition inside a nested group keeps its level and junctions. */
+   @Test
+   void editConditionKeepsTheNestedLevelAndBothJunctions() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = typedColumnsTable78145(ws, "T", "a:integer", "b:integer", "c:integer");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.setConditions("T", List.of(
+         cond78145("a", "=", "1", 1), junction78145("AND", 1), cond78145("b", "=", "1", 1),
+         junction78145("OR", 0), cond78145("c", "=", "7", 0))));
+      svc.apply("TOK", agent, ed -> ed.editCondition("T", "b", ">", "1"));
+
+      assertEquals("[L1 a=1] {AND L1} [L1 b>1] {OR L0} [L0 c=7]",
+         structure78145(t.getPreConditionList()));
+   }
+
+   /**
+    * WSC-010d (refuter amendment 4, option a): a field with several conditions cannot be
+    * replaced unambiguously, so edit_condition refuses and points to set_conditions, leaving the
+    * list exactly as it was. (It used to remove both and append one, flipping the junction.)
+    */
+   @Test
+   void editConditionRefusesAFieldWithSeveralConditionsAndChangesNothing() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = typedColumnsTable78145(ws, "T", "a:integer", "b:integer");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.setConditions("T", List.of(
+         cond78145("a", ">", "1", 1), junction78145("AND", 1), cond78145("a", "<", "6", 1),
+         junction78145("OR", 0), cond78145("b", "=", "1", 0))));
+      String before = structure78145(t.getPreConditionList());
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.editCondition("T", "a", "=", "7")));
+
+      assertTrue(ex.getMessage().contains("set_conditions"), ex.getMessage());
+      assertEquals(before, structure78145(t.getPreConditionList()));
+   }
+
+   /** The no-match case still appends, AND-joined at level 0, as before. */
+   @Test
+   void editConditionOnAFieldWithNoConditionAppendsIt() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = typedColumnsTable78145(ws, "T", "a:integer", "b:integer");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addFilter("T", "a", "=", "1"));
+      svc.apply("TOK", agent, ed -> ed.editCondition("T", "b", "=", "2"));
+
+      assertEquals("[L0 a=1] {AND L0} [L0 b=2]", structure78145(t.getPreConditionList()));
+   }
+
+   /**
+    * AC-1: every refusal edit_condition can raise -- unknown operator, unknown DATE_IN range,
+    * and the new WSC-008 leftover-literal guard -- happens before the list is touched. It used to
+    * remove the field's condition first and then refuse, so the next successful call published
+    * the loss.
+    */
+   @ParameterizedTest
+   @CsvSource({"bogus,1", "date_in,NoSuchRange", "=,b"})
+   void editConditionRefusedForAnyReasonLeavesTheListUnchanged(String op, String value)
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = typedColumnsTable78145(ws, "T", "a:integer", "b:integer");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.setConditions("T", List.of(
+         cond78145("a", "=", "1", 0), junction78145("AND", 0), cond78145("b", "=", "2", 0))));
+
+      assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.editCondition("T", "a", op, value)));
+
+      assertEquals("[L0 a=1] {AND L0} [L0 b=2]", structure78145(t.getPreConditionList()));
+   }
+
+   /**
+    * WSC-008: add_filter now runs the leftover-literal guard on a numeric and a date column --
+    * on a mirror, against the source-qualified display text "T.B" a readback shows.
+    */
+   @ParameterizedTest
+   @CsvSource({"A,T.B", "D1,T.D2"})
+   void addFilterRefusesAFieldReferenceLiteralOnANumericOrDateColumn(String field, String value)
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = typedColumnsTable78145(ws, "T", "A:integer", "B:integer", "D1:date",
+                                               "D2:date");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      svc.apply("TOK", agent, ed -> ed.addMirror("M", "T"));
+      TableAssembly m = (TableAssembly) ws.getAssembly("M");
+
+      IllegalArgumentException add = assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.addFilter("M", field, "=", value)));
+      IllegalArgumentException edit = assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.editCondition("M", field, "=", value)));
+
+      assertTrue(add.getMessage().contains(value) && add.getMessage().contains("set_conditions"),
+         add.getMessage());
+      assertTrue(edit.getMessage().contains(value), edit.getMessage());
+      assertTrue(m.getPreConditionList() == null || m.getPreConditionList().isEmpty());
+   }
+
+   /** WSC-008 limits: ordinary literals, and any literal on a string column, stay accepted. */
+   @Test
+   void addFilterAcceptsOrdinaryLiteralsAndAStringLiteralNamingAColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = typedColumnsTable78145(ws, "T", "A:integer", "D1:date", "S1:string",
+                                               "S2:string");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> {
+         ed.addFilter("T", "A", "=", "42");
+         ed.addFilter("T", "D1", ">", "2024-01-31");
+         ed.addFilter("T", "S1", "=", "S2");
+      });
+
+      assertEquals(5, t.getPreConditionList().getConditionList().getSize());
+   }
+
+   /**
+    * WSC-010b, remove_filter alone: removing the last item of a group keeps the outer OR, not
+    * the group's inner AND -- (a=1 AND b=1) OR c=7 minus b is a=1 OR c=7. (The list's own
+    * validation moves the now single-item group a=1 to level 0, which evaluates the same.)
+    */
+   @Test
+   void removeFilterKeepsTheOuterJunctionWhenTheLastItemOfAGroupGoes() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = typedColumnsTable78145(ws, "T", "a:integer", "b:integer", "c:integer");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.setConditions("T", List.of(
+         cond78145("a", "=", "1", 1), junction78145("AND", 1), cond78145("b", "=", "1", 1),
+         junction78145("OR", 0), cond78145("c", "=", "7", 0))));
+      svc.apply("TOK", agent, ed -> ed.removeFilter("T", "b"));
+
+      assertEquals("[L0 a=1] {OR L0} [L0 c=7]", structure78145(t.getPreConditionList()));
+   }
+
+   /** The shapes the old left-junction rule already got right stay the same. */
+   @Test
+   void removeFilterKeepsTheOuterJunctionWhenTheFirstItemOfAGroupGoes() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = typedColumnsTable78145(ws, "T", "a:integer", "b:integer", "c:integer");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.setConditions("T", List.of(
+         cond78145("a", "=", "7", 0), junction78145("OR", 0), cond78145("b", ">", "0", 1),
+         junction78145("AND", 1), cond78145("c", "=", "1", 1))));
+      svc.apply("TOK", agent, ed -> ed.removeFilter("T", "b"));
+
+      assertEquals("[L0 a=7] {OR L0} [L0 c=1]", structure78145(t.getPreConditionList()));
+   }
+
+   /**
+    * C-2: a field that appears several times can take out a span of conditions; the survivors
+    * are joined by the lowest-level junction across the whole span --
+    * (a AND x) OR (x AND d) minus x is a OR d.
+    */
+   @Test
+   void removeFilterAcrossARemovedSpanKeepsTheLowestLevelJunction() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = typedColumnsTable78145(ws, "T", "a:integer", "x:integer", "d:integer");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.setConditions("T", List.of(
+         cond78145("a", "=", "1", 1), junction78145("AND", 1), cond78145("x", "=", "2", 1),
+         junction78145("OR", 0),
+         cond78145("x", "=", "3", 1), junction78145("AND", 1), cond78145("d", "=", "4", 1))));
+      svc.apply("TOK", agent, ed -> ed.removeFilter("T", "x"));
+
+      assertEquals("[L0 a=1] {OR L0} [L0 d=4]", structure78145(t.getPreConditionList()));
+   }
+
+   /**
+    * At one level AND binds tighter than OR (XConditionGroup), so a=1 AND b=2 OR c=3 is
+    * (a AND b) OR c; minus b it is a OR c. Plain AND lists are unchanged.
+    */
+   @Test
+   void removeFilterAtOneLevelKeepsTheOrOverTheAnd() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = typedColumnsTable78145(ws, "T", "a:integer", "b:integer", "c:integer");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.setConditions("T", List.of(
+         cond78145("a", "=", "1", 0), junction78145("AND", 0), cond78145("b", "=", "2", 0),
+         junction78145("OR", 0), cond78145("c", "=", "3", 0))));
+      svc.apply("TOK", agent, ed -> ed.removeFilter("T", "b"));
+
+      assertEquals("[L0 a=1] {OR L0} [L0 c=3]", structure78145(t.getPreConditionList()));
+
+      svc.apply("TOK", agent, ed -> ed.setConditions("T", List.of(
+         cond78145("a", "=", "1", 0), junction78145("AND", 0), cond78145("b", "=", "2", 0),
+         junction78145("AND", 0), cond78145("c", "=", "3", 0))));
+      svc.apply("TOK", agent, ed -> ed.removeFilter("T", "a"));
+
+      assertEquals("[L0 b=2] {AND L0} [L0 c=3]", structure78145(t.getPreConditionList()));
+   }
+
    @Test
    void setConditionsRejectsSnapshotEmbeddedTable() throws Exception {
       Worksheet ws = new Worksheet();
@@ -4960,6 +5276,251 @@ class WorksheetEditServiceMutatorsTest {
          "null mvDeletePostConditions must leave the previously-set list untouched");
       assertTrue(t.isMVForceAppendUpdates(),
          "null mvForceAppendUpdates must leave the previously-set flag untouched");
+   }
+
+   // -------------------------------------------------------------------------
+   // Bug #78145 (WSC-007, WSC-011, WSC-012, AC-2): the condition-tree writer
+   // -------------------------------------------------------------------------
+
+   private static WorksheetMutationSupport.ConditionNode specNode78145(
+      String field, String operation, List<String> values,
+      WorksheetMutationSupport.ConditionValueSpec... specs)
+   {
+      return new WorksheetMutationSupport.ConditionNode(
+         new WorksheetMutationSupport.ConditionSpec(field, operation, values, false, null,
+                                                    List.of(specs)),
+         null, 0);
+   }
+
+   private static WorksheetMutationSupport.ConditionValueSpec fieldSpec78145(String field,
+                                                                             Integer index)
+   {
+      return new WorksheetMutationSupport.ConditionValueSpec("field", field, null, null, index);
+   }
+
+   private static WorksheetMutationSupport.ConditionValueSpec jsSpec78145(String expression,
+                                                                          Integer index)
+   {
+      return new WorksheetMutationSupport.ConditionValueSpec(
+         "expression", null, expression, "js", index);
+   }
+
+   /** Mirror M of T (A, B integer; S1, S2 string; D1, D2 date), the reporter's fixture. */
+   private TableAssembly mirror78145(Worksheet ws, WorksheetEditService svc, Principal agent)
+      throws Exception
+   {
+      TableAssembly t = typedColumnsTable78145(ws, "T", "A:integer", "B:integer", "S1:string",
+                                               "S2:string", "D1:date", "D2:date");
+      ws.addAssembly(t);
+      svc.apply("TOK", agent, ed -> ed.addMirror("M", "T"));
+      return (TableAssembly) ws.getAssembly("M");
+   }
+
+   /**
+    * WSC-007: the readback resubmit with the valueSpec's index dropped leaves the display text in
+    * values[0] next to the appended real value. It was refused on numeric columns only; string
+    * (stored verbatim) and date (stored as today) columns returned ok. Now refused on every type,
+    * on all three tree writers. With the index kept the same input is accepted.
+    */
+   @ParameterizedTest
+   @CsvSource({"S1,T.S2", "D1,T.D2", "A,T.B"})
+   void conditionTreeWritersRefuseAnIndexlessFieldLeftoverOnEveryColumnType(String field,
+                                                                           String other)
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      TableAssembly m = mirror78145(ws, svc, agent);
+      List<WorksheetMutationSupport.ConditionNode> leftover =
+         List.of(specNode78145(field, "=", List.of(other), fieldSpec78145(other, null)));
+
+      IllegalArgumentException pre = assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.setConditions("M", leftover)));
+      assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.setMVConditions("M", leftover, null, null, null, null)));
+
+      assertTrue(pre.getMessage().contains(other), pre.getMessage());
+      assertTrue(m.getPreConditionList() == null || m.getPreConditionList().isEmpty());
+      assertTrue(m.getMVUpdatePreConditionList() == null ||
+                 m.getMVUpdatePreConditionList().isEmpty());
+
+      svc.apply("TOK", agent, ed -> ed.setConditions("M", List.of(
+         specNode78145(field, "=", List.of(other), fieldSpec78145(other, 0)))));
+
+      Condition c = firstCondition(m);
+      assertEquals(1, c.getValueCount());
+      assertInstanceOf(DataRef.class, c.getValue(0));
+   }
+
+   /**
+    * WSC-007 (refuter amendment 1): an expression valueSpec reads back as
+    * "Expression[Javascript:...]"; resubmitted without its index that text was silently 0 even on
+    * a numeric column, and verbatim on a string one.
+    */
+   @ParameterizedTest
+   @CsvSource({"A,field['T.B']", "S1,field['T.S2']"})
+   void setConditionsRefusesAnIndexlessExpressionLeftover(String field, String expression)
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      TableAssembly m = mirror78145(ws, svc, agent);
+      String display = "Expression[Javascript:" + expression + "]";
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.setPostConditions("M", List.of(
+            specNode78145(field, "=", List.of(display), jsSpec78145(expression, null))))));
+
+      assertTrue(ex.getMessage().contains(display), ex.getMessage());
+      assertTrue(m.getPostConditionList() == null || m.getPostConditionList().isEmpty());
+   }
+
+   /** The legitimate pre-#77003 append (a literal plus an extra field value) still passes. */
+   @Test
+   void setConditionsStillAcceptsALiteralPlusAnAppendedFieldValue() throws Exception {
+      Worksheet ws = new Worksheet();
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      TableAssembly m = mirror78145(ws, svc, agent);
+
+      svc.apply("TOK", agent, ed -> ed.setConditions("M", List.of(
+         specNode78145("S1", "one_of", List.of("x"), fieldSpec78145("T.S2", null)))));
+
+      Condition c = firstCondition(m);
+      assertEquals(2, c.getValueCount());
+      assertEquals("x", c.getValue(0));
+      assertInstanceOf(DataRef.class, c.getValue(1));
+   }
+
+   /** WSC-011: two valueSpecs replacing the same position are refused, not last-one-wins. */
+   @Test
+   void setConditionsRefusesADuplicateReplaceIndex() throws Exception {
+      Worksheet ws = new Worksheet();
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      TableAssembly m = mirror78145(ws, svc, agent);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.setConditions("M", List.of(
+            specNode78145("A", "one_of", List.of("5", "9"), fieldSpec78145("T.B", 0),
+                          jsSpec78145("field['T.B']*2", 0))))));
+
+      assertTrue(ex.getMessage().contains("index 0"), ex.getMessage());
+      assertTrue(m.getPreConditionList() == null || m.getPreConditionList().isEmpty());
+   }
+
+   /**
+    * WSC-011 related + C-1: indexes resolve against the original values() positions, so an
+    * index-less append can no longer be replaced by a later index; consecutive append indexes
+    * (index 1 then 2 on one value), accepted before, still append in order.
+    */
+   @Test
+   void setConditionsResolvesIndexesAgainstTheOriginalValuesAndKeepsAppendsInOrder()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      TableAssembly m = mirror78145(ws, svc, agent);
+
+      svc.apply("TOK", agent, ed -> ed.setConditions("M", List.of(
+         specNode78145("A", "one_of", List.of("5"), fieldSpec78145("T.B", null),
+                       jsSpec78145("field['T.B']*2", 1)))));
+
+      Condition c = firstCondition(m);
+      assertEquals(3, c.getValueCount(), "both specs must be kept (the field used to be lost)");
+      assertEquals(5, c.getValue(0));
+      assertInstanceOf(DataRef.class, c.getValue(1));
+      assertInstanceOf(ExpressionValue.class, c.getValue(2));
+
+      svc.apply("TOK", agent, ed -> ed.setConditions("M", List.of(
+         specNode78145("A", "one_of", List.of("5"), fieldSpec78145("T.B", 1),
+                       jsSpec78145("field['T.B']*2", 2)))));
+
+      c = firstCondition(m);
+      assertEquals(3, c.getValueCount());
+      assertInstanceOf(DataRef.class, c.getValue(1));
+      assertInstanceOf(ExpressionValue.class, c.getValue(2));
+
+      assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.setConditions("M", List.of(
+            specNode78145("A", "one_of", List.of("5"), fieldSpec78145("T.B", 3))))),
+         "an index past the appends so far is still out of range");
+   }
+
+   /**
+    * AC-2: set_mv_conditions builds all four lists before writing any. A valid updatePre with a
+    * refused updatePost used to replace updatePre anyway.
+    */
+   @Test
+   void setMVConditionsRefusedInALaterListLeavesEveryListUnchanged() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.setMVConditions("T",
+         List.of(conditionNode("a", "=", "1")), null, null, null, false));
+
+      assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.setMVConditions("T",
+            List.of(conditionNode("a", "=", "9")),
+            List.of(conditionNode("a", "bogus", "2")),
+            null, null, true)));
+
+      assertEquals("1", firstConditionValue(t.getMVUpdatePreConditionList()));
+      assertTrue(t.getMVUpdatePostConditionList() == null ||
+                 t.getMVUpdatePostConditionList().isEmpty());
+      assertFalse(t.isMVForceAppendUpdates());
+   }
+
+   /**
+    * WSC-012: an empty list clears to an empty (never null) list, so the table still clones and
+    * serializes -- a null list made clone() fail and writeXML() throw an NPE.
+    */
+   @Test
+   void setMVConditionsWithEmptyListsLeavesTheTableCloneableAndSerializable() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.setMVConditions("T",
+         List.of(conditionNode("a", "=", "1")), List.of(conditionNode("a", "=", "2")),
+         List.of(conditionNode("a", "=", "3")), List.of(conditionNode("a", "=", "4")), null));
+      svc.apply("TOK", agent, ed -> ed.setMVConditions("T",
+         List.of(), List.of(), List.of(), List.of(), null));
+
+      assertNotNull(t.getMVUpdatePreConditionList());
+      assertTrue(t.getMVUpdatePreConditionList().isEmpty());
+      assertNotNull(t.getMVUpdatePostConditionList());
+      assertNotNull(t.getMVDeletePreConditionList());
+      assertNotNull(t.getMVDeletePostConditionList());
+      assertNotNull(t.clone(), "clone() must not fail on a cleared MV list");
+      java.io.StringWriter out = new java.io.StringWriter();
+      assertDoesNotThrow(() -> t.writeXML(new java.io.PrintWriter(out)));
+   }
+
+   /** WSC-012 core: the MV setters store null as an empty list, like setPreConditionList. */
+   @Test
+   void abstractTableAssemblyMVSettersAreNullSafe() {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+
+      t.setMVUpdatePreConditionList(null);
+      t.setMVUpdatePostConditionList(null);
+      t.setMVDeletePreConditionList(null);
+      t.setMVDeletePostConditionList(null);
+
+      assertNotNull(t.getMVUpdatePreConditionList());
+      assertNotNull(t.getMVUpdatePostConditionList());
+      assertNotNull(t.getMVDeletePreConditionList());
+      assertNotNull(t.getMVDeletePostConditionList());
+      assertNotNull(t.clone());
    }
 
    private static WorksheetMutationSupport.ConditionNode conditionNode(
