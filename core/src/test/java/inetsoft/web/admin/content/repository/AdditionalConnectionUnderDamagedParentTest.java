@@ -398,6 +398,133 @@ class AdditionalConnectionUnderDamagedParentTest {
       assertTrue(storage.contains(entry(parent).toIdentifier()));
    }
 
+   // ---- Bug #78102: delete of a parent that can't be loaded removes its connections' grants ----
+
+   // how the parent of the additional connection is made
+   private enum ParentKind { JDBC_LOADABLE, JDBC_DAMAGED, TABULAR_LOADABLE, TABULAR_UNINSTALLED }
+
+   // how the parent is deleted: the registry (EM Content > Repository), XEngine (the portal, which
+   // removes the data model first) and a delete of the folder that contains it
+   private enum DeletePath { REGISTRY, XENGINE, FOLDER }
+
+   // Bug #78102: deleting a data source whose definition is damaged, or whose connector isn't
+   // installed, removes the "F/P::add" grant of its additional connection as with one that loads,
+   // so that an additional connection created later with that name doesn't get it. The grant of
+   // an additional connection of another data source is kept.
+   @Test
+   void deleteOfAParentThatCannotBeLoadedRemovesTheGrantsOfItsAdditionalConnections()
+      throws Exception
+   {
+      List<String> failures = new ArrayList<>();
+
+      for(ParentKind kind : ParentKind.values()) {
+         for(DeletePath path : DeletePath.values()) {
+            String label = kind + " " + path;
+            String p = prefix();
+            String other = parentWithAdditional(p + "Dest/K", "add");
+            grant(other + "::add");
+            String parent = parentForDelete(kind, p + "F/P");
+            boolean loads = registry.getDataSource(parent) != null;
+
+            try {
+               delete(path, parent, p + "F", kind);
+            }
+            finally {
+               install();
+            }
+
+            registry.clearCache();
+            assertEquals(kind.name().endsWith("LOADABLE"), loads, label + ": setup, loads");
+            assertFalse(storage.contains(entry(parent).toIdentifier()), label + ": parent stored");
+            assertFalse(storage.contains(entry(parent + "/add").toIdentifier()),
+                        label + ": additional connection stored");
+            assertNull(perm(parent), label + ": the parent keeps its grant");
+            assertNotNull(perm(other + "::add"),
+                          label + ": another data source's additional connection lost its grant");
+
+            if(perm(parent + "::add") != null) {
+               failures.add(label);
+            }
+         }
+      }
+
+      assertEquals(List.of(), failures,
+                   "the removed additional connection keeps its \"F/P::add\" grant");
+   }
+
+   // Bug #78102: an additional connection created again under a data source created again at the
+   // path of a deleted damaged one doesn't get the grant of the deleted one's
+   @Test
+   void additionalConnectionCreatedAgainAfterADamagedParentIsDeletedHasNoGrant()
+      throws Exception
+   {
+      String p = prefix();
+      String parent = parentForDelete(ParentKind.JDBC_DAMAGED, p + "F/P");
+
+      registry.removeDataSource(parent);
+
+      registry.clearCache();
+      jdbc(parent);
+      ((JDBCDataSource) registry.getDataSource(parent)).addDatasource(source("add"));
+      registry.clearCache();
+      assertTrue(registry.isAdditionalConnectionPath(parent + "/add"), "setup: created again");
+      assertNull(perm(parent + "::add"), "the new additional connection has the old grant");
+   }
+
+   // a data source at "path" with an additional connection "add" and grants on both, made into
+   // the given kind
+   private String parentForDelete(ParentKind kind, String path) throws Exception {
+      switch(kind) {
+      case JDBC_LOADABLE:
+      case JDBC_DAMAGED:
+         parentWithAdditional(path, "add");
+         break;
+      default:
+         tabular(path);
+         grant(path);
+         TestTabularDataSource ds = (TestTabularDataSource) registry.getDataSource(path);
+         TestTabularDataSource add = new TestTabularDataSource();
+         add.setName("add");
+         ds.addDatasource(add);
+         registry.clearCache();
+         assertTrue(registry.isAdditionalConnectionPath(path + "/add"),
+                    "setup: recognised while the parent loads");
+      }
+
+      grant(path + "::add");
+
+      if(kind == ParentKind.JDBC_DAMAGED) {
+         damage(path);
+      }
+      else if(kind == ParentKind.TABULAR_UNINSTALLED) {
+         uninstall();
+         assertNull(registry.getDataSource(path), "setup: " + path + " can't be loaded");
+         assertTrue(registry.containObject(entry(path)), "setup: " + path + " is stored");
+      }
+
+      return path;
+   }
+
+   private void delete(DeletePath path, String parent, String folder, ParentKind kind)
+      throws Exception
+   {
+      // the connector stays uninstalled while the delete runs
+      if(kind == ParentKind.TABULAR_UNINSTALLED) {
+         uninstall();
+      }
+
+      switch(path) {
+      case REGISTRY:
+         registry.removeDataSource(parent);
+         break;
+      case XENGINE:
+         assertTrue(repository.removeDataSource(parent, true), "XEngine delete of " + parent);
+         break;
+      default:
+         registry.removeDataSourceFolder(folder);
+      }
+   }
+
    // a data source "path" with additional connections stored at "path/<name>" with bare names
    private String parentWithAdditional(String path, String... names) {
       jdbc(path);

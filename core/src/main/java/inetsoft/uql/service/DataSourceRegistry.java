@@ -1928,7 +1928,10 @@ public class DataSourceRegistry implements MessageListener {
             resources.add(dxname.substring(0, index) + XUtil.ADDITIONAL_DS_CONNECTOR +
                              dxname.substring(index + 1));
          }
-         else if(getDataSource(dxname) instanceof AdditionalConnectionDataSource) {
+         else {
+            // Bug #78102, from the stored entries, not by loading the data source, which fails
+            // for a damaged definition or a connector that isn't installed. The callers remove
+            // every entry under the path, so these are the grants of removed connections only
             for(String name : getAdditionalConnectionNames(dxname)) {
                resources.add(dxname + XUtil.ADDITIONAL_DS_CONNECTOR + name);
             }
