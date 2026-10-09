@@ -243,7 +243,7 @@ class PooledLensObjectVarTest {
       String var = what.equals("function") ? "\"f\" holds a function"
          : "\"fmt\" holds an Intl.NumberFormat object";
       assertTrue(warns.get(0).contains(var), warns.get(0));
-      assertFalse(warns.get(0).contains("\"t\""), warns.get(0));
+      assertFalse(warns.get(0).contains("\"t\" holds"), warns.get(0));
    }
 
    /**

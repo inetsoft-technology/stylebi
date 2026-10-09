@@ -327,7 +327,10 @@ public class BindingRootProxy implements ProxyObject {
    }
 
    private boolean resolves(String name) {
-      return findInChain(name) != NOT_FOUND;
+      // an owned var always resolves (its owner reports it), so it is not read: a read of
+      // one whose object is on another pooled context rebuilds it, or loses it with a
+      // warning, though the script only assigns it (Testing #77123, B1 residual)
+      return ownsVar(name) || findInChain(name) != NOT_FOUND;
    }
 
    private Set<String> enumerate() {

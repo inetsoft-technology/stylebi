@@ -507,6 +507,7 @@ public final class OwnedValueCodec {
       List<Object> kept = new ArrayList<>();
       Map<Integer, String> failed = new HashMap<>();
       Map<Integer, String> drops = new HashMap<>();
+      Set<Integer> hides = new HashSet<>();
       long start = System.nanoTime();
       ScriptTimeoutGuard.Guard budget = null;
       boolean cancelled = Thread.interrupted();
@@ -533,6 +534,7 @@ public final class OwnedValueCodec {
          KEEP_OUT.set(kept);
          FAILS.set(failed);
          DROPS.set(drops);
+         HIDES.set(hides);
 
          // a backstop past the cloner's own time checks
          try(ScriptTimeoutGuard.Guard guard =
@@ -548,7 +550,7 @@ public final class OwnedValueCodec {
 
          for(int i = 0; i < nodes.length; i++) {
             String kind = failed.get(i);
-            nodes[i] = kind != null ? new Lost(kind, isBudgetKind(kind))
+            nodes[i] = kind != null ? new Lost(kind, isBudgetKind(kind), hides.contains(i))
                : new TreeRef(tree, i, drops.get(i));
          }
       }
@@ -567,6 +569,7 @@ public final class OwnedValueCodec {
          KEEP_OUT.remove();
          FAILS.remove();
          DROPS.remove();
+         HIDES.remove();
          slot.metrics().handedOff(System.nanoTime() - start);
 
          if(cancelled) {
@@ -648,6 +651,7 @@ public final class OwnedValueCodec {
    static final ThreadLocal<List<Object>> KEEP_IN = new ThreadLocal<>();
    static final ThreadLocal<Map<Integer, String>> FAILS = new ThreadLocal<>();
    static final ThreadLocal<Map<Integer, String>> DROPS = new ThreadLocal<>();
+   static final ThreadLocal<Set<Integer>> HIDES = new ThreadLocal<>();
 
    /**
     * The marking budget of a hand-off (the objects walked to check the lost roots for
@@ -681,8 +685,13 @@ public final class OwnedValueCodec {
       }
 
       Lost(String kind, boolean budget) {
+         this(kind, budget, false);
+      }
+
+      Lost(String kind, boolean budget, boolean hides) {
          this.kind = kind;
          this.budget = budget;
+         this.hides = hides;
       }
 
       /** @return what the value was, with its article ("an array", "a function"). */
@@ -699,8 +708,20 @@ public final class OwnedValueCodec {
          return budget;
       }
 
+      /**
+       * @return {@code true} if the value held, at its hand-off, something whose references
+       *         the cloner cannot list (a function's closure, a getter, a WeakMap, a class
+       *         instance, a Proxy): a var kept by the same hand-off may be a copy of an object
+       *         it reached there, which no longer shares anything with it (Testing #77123, B1
+       *         residual).
+       */
+      public boolean hidesReferences() {
+         return hides;
+      }
+
       private final String kind;
       private final boolean budget;
+      private final boolean hides;
    }
 
    /**

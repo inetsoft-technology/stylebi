@@ -31,6 +31,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * The engine of one pooled worksheet context (bug #76960): built from its env's init snapshot,
@@ -161,6 +162,12 @@ final class WsEngine extends GraalJavaScriptEngine {
 
          if(failed != null) {
             failed.put(args[0].asInt(), args[1].asString());
+         }
+
+         Set<Integer> hides = OwnedValueCodec.HIDES.get();
+
+         if(hides != null && args.length > 2 && args[2].isBoolean() && args[2].asBoolean()) {
+            hides.add(args[0].asInt());
          }
 
          return null;
