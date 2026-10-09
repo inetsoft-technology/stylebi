@@ -48,6 +48,15 @@ The block runs wherever `seedChromeDefaults` runs: creation, every restore
 (`VizModernizeUtil.reseedAfterRestore`, `:214`), a density change (`reseed`, `:122`), Modernize,
 Revert and the mode switch (`moveMark`, `:107`).
 
+**The unmarked branch fires on every restore, which is a live defect.** `AbstractVSAssembly.parseState`
+(`:656`) and `Viewsheet`'s state restore (`:2433`, `:2474`) re-seed every assembly, unmarked ones
+included, through `VizContext.of(info)`. So a legacy text input, combo box, spinner or submit an
+author sized to 24, 28 or 30px is drawn at 20 in every viewer open and export, and a legacy checkbox
+or radio button at 48, 56 or 60 at 40. Revert is the only route that needs the unmarked branch, and
+it is the only one that runs with `ctx.transition` (`VizContext.ofTransition`, `:112`). #6157 fixed
+the same defect for selections with exactly that guard (`SelectionBaseVSAssemblyInfo:1011`,
+`CurrentSelectionVSAssemblyInfo:114`).
+
 ### 2.2 Checkbox and radio button
 
 Both default to `2 × defw` by `2 × defh`, 200 × 40 (`CheckBoxVSAssemblyInfo:53`,
@@ -188,38 +197,61 @@ A flagged box keeps its size.
 The checkbox and radio dialogs read and apply the title and row exactly as
 `SelectionListPropertyDialogService` does (`:121-132` read, `:255-287` apply): the resolved value in
 the field, a non-null `titleHeightFollowsDensity` / `cellHeightFollowsDensity` when marked, tick →
-clear the flag and store the legacy 20, untick → flag and store the field, null (stale client) →
-flag only if the field differs from the resolved value. All six dialogs gain the size checkbox with
-#6390's order: `shownSize`, `applyDensitySize`, `setAssemblySize`, `recordAuthorSize`
-(`SelectionListPropertyDialogService:248-252`).
+clear the flag and store the legacy 20, untick → flag and store the field, null (unmarked or a stale
+client) → flag and store only if the field differs from the resolved value. All six dialogs gain
+the size checkbox with #6390's order: `shownSize`, `applyDensitySize`, `setAssemblySize`,
+`recordAuthorSize` (`SelectionListPropertyDialogService:248-252`).
 
-## 4. `VSDensityDefaults` additions
+### D9 — The legacy branch runs only on Revert and the mode switch
+
+Every unmarked branch in §5 and §6.2 runs only when `ctx.transition` is true, the guard #6157 put on
+the selection size rule. A plain restore, creation or density change never resizes an unmarked
+control. This fixes the defect in §2.1 for the six types. Revert still reaches the branch, because
+`revert` stamps through `moveMark` with `VizContext.ofTransition(vs, null)`.
+
+The existing Revert tests in `ControlHeightFollowDensityTest` simulate Revert with
+`VizContext.of((VizMark) null)`, which is a restore, not a Revert. They move to
+`VizContext.ofTransition(null, null)`.
+
+## 4. Values and rules
+
+Values stay in `VSDensityDefaults`, beside the matrices they derive from:
 
 ```java
-static int optionBoxHeightForMode(String mode)        // 40 / 50 / 58
-public static int optionBoxHeight(VizContext ctx)     // legacy 2 * defh when !ctx.modern
+static int optionBoxHeightForMode(String mode)        // titleHeightForMode + rowHeightForMode: 40 / 50 / 58
+public static int optionBoxHeight(VizContext ctx)     // 2 * defh when !ctx.modern
 public static boolean isSeededControlHeight(int h)    // 20, 24, 28, 30
 public static boolean isSeededOptionBoxHeight(int h)  // 40, 50, 58, and today's 48, 56, 60
-public static void seedControlHeight(VSAssemblyInfo info, VizContext ctx)
+public static boolean isFormerOptionRow(int h)        // today's 28, 36, 40
 ```
 
-`optionBoxHeightForMode` is defined as `titleHeightForMode + rowHeightForMode` rather than as three
-literals, so the box cannot drift from its parts.
+`optionBoxHeightForMode` adds the two matrices rather than holding three literals, so the box cannot
+drift from its parts. `isControlHeight` keeps its one remaining reader, the unmarked row pairing in
+§6.2, and its javadoc drops the false-positive paragraph.
 
-`seedControlHeight` is the shared single-height rule (§5). `isControlHeight` stays for its other
-reader, the checkbox and radio rule's recognition of today's boxes, and its javadoc drops the false
-positive paragraph.
+The rules go in one new package-private class, `FormControlDensity`, so each type's
+`seedChromeDefaults` makes one call and the rule is tested once:
+
+```java
+static void seedControlHeight(VSAssemblyInfo info, VizContext ctx)
+static <T extends ListInputVSAssemblyInfo & TitledVSAssemblyInfo> int lane(T info, VizContext ctx)
+static <T extends ListInputVSAssemblyInfo & TitledVSAssemblyInfo> int row(T info, VizContext ctx)
+static <T extends ListInputVSAssemblyInfo & TitledVSAssemblyInfo> void seedOptionBox(T info, VizContext ctx)
+```
+
+The generic bound gives the option-list rule both the row and the title without a cast, and keeps
+combo box, a `ListInputVSAssemblyInfo` without a title, out of it at compile time.
 
 ## 5. The single-height controls
 
-`seedControlHeight(info, ctx)`, called from each of the four `seedChromeDefaults` in place of the
-copied block:
+`FormControlDensity.seedControlHeight(info, ctx)`, called from each of the four `seedChromeDefaults`
+in place of the copied block:
 
 | state | stored height | result |
 |---|---|---|
 | `userSize` | any | unchanged |
 | marked | 20, 24, 28, 30 | `controlHeight(ctx)` |
-| unmarked | 24, 28, 30 | 20 |
+| unmarked, `ctx.transition` | 24, 28, 30 | 20 |
 | otherwise | — | unchanged |
 
 Per-type overrides, on each of the four:
@@ -245,8 +277,8 @@ writes `userCellHeight="true"` only when set; `parseAttributes` reads it; `copyV
 
 ### 6.2 The seed
 
-One `protected final void seedOptionBox(VizContext ctx)` on `ListInputVSAssemblyInfo`, called from
-both `seedChromeDefaults` in place of the paired blocks. It runs two steps in order.
+`FormControlDensity.seedOptionBox(info, ctx)`, called from both `seedChromeDefaults` in place of the
+paired blocks. It runs two steps in order.
 
 **Step 1, the row.** Today's seed wrote 28, 36 or 40 into the stored row; this design never stores a
 tier row.
@@ -255,7 +287,7 @@ tier row.
 |---|---|---|
 | `userCellHeight` | any | unchanged |
 | marked | 28, 36, 40 | 20 |
-| unmarked | 28, 36, 40, and equal to box − stored title, box twice a tier height | 20 |
+| unmarked, `ctx.transition` | 28, 36, 40, equal to box − stored title, box twice a tier height | 20 |
 | otherwise | — | unchanged |
 
 The marked case ignores the box, so a box an author resized after today's seed ran is covered too.
@@ -266,19 +298,20 @@ The unmarked case keeps today's pairing, so an unmarked author row is never touc
 | state | stored box | result |
 |---|---|---|
 | `userSize` | any | unchanged |
-| marked | 40, 50, 58, 48, 56, 60 | lane(ctx) + row(ctx) |
-| unmarked | 48, 56, 60, 50, 58 | 40 |
+| marked | 40, 50, 58, 48, 56, 60 | `lane(ctx) + row(ctx)` |
+| unmarked, `ctx.transition` | 48, 56, 60, 50, 58 | 40 |
 | otherwise | — | unchanged |
 
 `lane(ctx)` and `row(ctx)` apply the accessors' tests against the context the seed is handed rather
-than `VizContext.of(this)`: the stored value when author-set or not at its legacy 20, the tier value
+than `VizContext.of(info)`: the stored value when author-set or not at its legacy 20, the tier value
 otherwise. So an author title or row is kept and the box grows or shrinks around it. The seed
 always runs after the mark is stamped (`VizModernizeUtil.seedAll`, `:173-178`), but it is handed its
 context and must not assume the two agree.
 
-Per-type overrides, on both: `takesDensitySize()` and `densitySizeIsHeightOnly()` → true,
+Per-type overrides, on both: `takesDensitySize()`, `densitySizeIsHeightOnly()` and
 `takesDensityRow()` → true, `followsDensitySize()` → `!isUserSize() &&
-isSeededOptionBoxHeight(height)`, `defaultSize(ctx)` → current width × `lane(ctx) + row(ctx)`.
+isSeededOptionBoxHeight(height)`, `defaultSize(ctx)` → current width ×
+`FormControlDensity.lane(this, ctx) + FormControlDensity.row(this, ctx)`.
 
 The comment blocks at `CheckBoxVSAssemblyInfo:473-480` and `RadioButtonVSAssemblyInfo:408-415`,
 which cite the non-existent `updateDataRowCol()`, are replaced.
@@ -293,6 +326,10 @@ which cite the non-existent `updateDataRowCol()`, are replaced.
   checkbox and radio pairs also take D8's title and row handling, replacing `:454-458` / `:569-573`
   and `:1200-1202` / `:1321-1325`.
 - `SubmitPropertyDialogService` (`:84`, `:136`) takes the size checkbox the same way.
+- The repeated logic is three `VSDialogService` helpers, so each call site stays one line and the
+  logic is tested once: `setAssemblySizeFollowingDensity(info, model, viewsheet)` runs #6390's
+  three-call order, and the static `readOptionHeights(info, model)` / `applyOptionHeights(info,
+  model)` carry D8's title and row handling for checkbox and radio button.
 - `VSInputService.setDetailHeight` (`:252`) sets `userCellHeight`.
 - `ComposerObjectService:148` uses `isAuthorSizeChange`.
 - `VSDialogService.applyDensitySize`, `recordAuthorSize` and `readSizeFollowsDensity` change per D2.
@@ -319,7 +356,7 @@ draw at their stored box.
 **Export.** PDF, SVG/PNG, PowerPoint and Excel paint checkbox and radio buttons as pictures through
 `VSCompound` (`PDFVSExporter.writeInputWithLabel`, `PoiExcelVSExporter` and `PPTVSExporter`
 `writePictureWithLabel`), which reads both accessors (`:100-109`, `:265-276`, `:288`). HTML reads
-them in `HTMLCoordinateHelper.getCellSize` / `getRowCount` / `getColCount` (`:727-765`). Print layout
+them in `HTMLCoordinateHelper.getCellSize` / `getRowCount` / `getColCount` (`:727-768`). Print layout
 draws the title and the selected labels as text boxes, and its lane comes from
 `tinfo.getTitleHeight()` (`VsToReportConverter:1482`); it draws no option rows. Excel anchors
 pictures from pixel bounds, so a changed box moves its anchor, as in every earlier slice. CSV writes
@@ -347,10 +384,13 @@ rows in an author-sized box mean fewer rows and more, narrower columns (§10.2).
   `controlHeight` is unchanged.
 - **The four single-height controls**, one parameterised test over the types:
   - creation at each tier; a later density change moves an unflagged box and leaves a flagged one;
-  - Revert leaves a flagged 28 and puts an unflagged 28 back to 20;
+  - Revert (`VizContext.ofTransition(null, null)`) leaves a flagged 28 and puts an unflagged 28
+    back to 20;
+  - D9: an unmarked 28 is untouched by a plain restore (`VizContext.of((VizMark) null)`);
   - `followsDensitySize`'s truth table; `resetSize` writes the tier height and keeps the width.
-  - `ControlHeightFollowDensityTest.aControlHandSizedToATierValueIsAlsoMoved` (`:412`) keeps its
-    name's meaning only for an unflagged box; a flagged sibling is added.
+  - `ControlHeightFollowDensityTest`'s Revert tests move to the transition context, and
+    `aControlHandSizedToATierValueIsAlsoMoved` (`:412`) keeps its meaning only for an unflagged
+    box; a flagged sibling is added.
 - **`isAuthorSizeChange`**: a width-only change is not the author's on the six types and is on a
   selection list.
 - **Checkbox and radio button:**
@@ -362,13 +402,15 @@ rows in an author-sized box mean fewer rows and more, narrower columns (§10.2).
     this change.
   - the seed: 60 / 40 → 58 with a resolving row at comfortable; 140 / 40 (author box) → 140 with a
     resolving row; 48 / 28 at dense → 40; Revert of a 58 box → 40.
-  - a default box draws exactly one row at every tier (`VSCheckBoxModel.dataRowCount`).
-  - the checkbox tests at `ControlHeightFollowDensityTest:139-292` that pin today's doubled box and
-    fixed title are rewritten to D4's values.
+  - a default box draws exactly one row at every tier, by the `VSCheckBoxModel:62-63` formula.
+  - the checkbox and radio tests at `ControlHeightFollowDensityTest:139-295` and `:425`, which pin
+    today's doubled box and fixed title, are replaced by tests of D4's values.
 - **Composer:** in `ComposerObjectServiceTest`, a height change flags a text input, a width-only
   change does not, and an unchanged resend does not. `setDetailHeight` flags the row.
-- **Dialogs:** for each of the six, the follow fields are null when unmarked, ticking resets and
-  clears, unticking flags, an untouched apply flags nothing, and a ticked apply keeps a typed width.
+- **Dialogs**, at the `VSDialogService` helper level (§7), because `VSInputService` has no test
+  harness and its apply paths dereference a dozen sub-models: the follow fields are null when
+  unmarked, ticking resets and clears, unticking flags, an untouched apply at comfortable flags
+  nothing, and a ticked apply keeps a typed width on a height-only type.
 - **Bottom tabs:** a checkbox on the strip saved with today's 60px box keeps its bottom edge on open.
 
 Front end: `size-position-pane.spec.ts` gains Width staying enabled when ticked with
@@ -408,6 +450,9 @@ produce their 48 / 56 / 60 boxes. Export PDF, PNG and HTML of each.
 4. **Combo box carries an inert `userCellHeight`.** It inherits the field and never resolves a row.
 5. **A box whose author title or row takes it off the recognised set stops following**, without a
    flag: the checkbox shows unticked because the rule would not move it. Ticking it resets the box.
+6. **An unmarked control an author edits gains a flag attribute in its XML** (`userSize`, or
+   `userCellHeight` on a checkbox or radio row). It is inert until the dashboard is Modernized, the
+   same as #6390's `userSize` on unmarked boxes.
 
 ## 11. Out of scope
 
