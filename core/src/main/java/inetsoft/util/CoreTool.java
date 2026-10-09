@@ -69,6 +69,8 @@ import static inetsoft.util.Tool.buildString;
 public class CoreTool {
    private static final Logger LOG =
       LoggerFactory.getLogger(CoreTool.class);
+   // the Gregorian year before Reiwa 1 (2019), added to an era-less legacy Japanese year
+   private static final int LEGACY_JAPANESE_YEAR_OFFSET = 2018;
    /**
     * Date format.
     */
@@ -777,9 +779,14 @@ public class CoreTool {
     * default) and either the default calendar is Buddhist or locale.available has a Thai
     * locale. Other values, including Gregorian years after 2400 written since the fix, are
     * then also read as Buddhist, so set the property to false if there is no legacy data.</li>
-    * <li>A year 1 to 64 is read in the current Japanese era, as the Japanese calendar of a
-    * ja_JP_JP default locale did, if the default calendar is Japanese. The era was never
-    * written, so a date of an earlier era is read in the current one as before.</li>
+    * <li>A year 1 to 64 is read in the Reiwa era, as the Japanese calendar of a ja_JP_JP
+    * default locale did, if the date.legacy.japanese.compat property is true, or if it is auto
+    * (the default) and the default calendar is Japanese. The era was never written, so a date
+    * of an earlier era is read in Reiwa as before. Only a valid Reiwa date is shifted, so a
+    * Gregorian date that Reiwa does not have, such as 0001-01-01 to 0001-04-30 or a Feb 29 in
+    * a year that is not a Reiwa leap year, is kept. Other Gregorian dates in the window, saved
+    * since the fix, are also read as Reiwa, so set the property to false if there is no
+    * legacy data.</li>
     * </ul>
     * Do not use it for live data, such as database values or in-memory format and parse round
     * trips, since a Thai database can hold Gregorian dates with Buddhist year digits.
@@ -828,12 +835,10 @@ public class CoreTool {
             gyear = year - 543;
          }
       }
-      else if(year >= 1 && year <= 64 &&
-         "japanese".equals(Calendar.getInstance().getCalendarType()))
+      else if(year >= 1 && year <= 64 && isJapaneseDateCompat() &&
+         isLegacyJapaneseDate(val, start, year))
       {
-         // the Gregorian year before the first year of the current era, e.g. 2018 for Reiwa
-         gyear = year + LocalDate.now().getYear() -
-            java.time.chrono.JapaneseDate.now().get(java.time.temporal.ChronoField.YEAR_OF_ERA);
+         gyear = year + LEGACY_JAPANESE_YEAR_OFFSET;
       }
 
       if(gyear == year) {
@@ -881,6 +886,79 @@ public class CoreTool {
       }
 
       return false;
+   }
+
+   /**
+    * Check if a persisted year 1 to 64 is read as a Reiwa year, see toGregorianPersistentDate().
+    */
+   private static boolean isJapaneseDateCompat() {
+      String compat = null;
+
+      try {
+         compat = SreeEnv.getProperty("date.legacy.japanese.compat");
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to read the legacy Japanese date property", ex);
+      }
+
+      if("true".equalsIgnoreCase(compat)) {
+         return true;
+      }
+      else if("false".equalsIgnoreCase(compat)) {
+         return false;
+      }
+
+      return "japanese".equals(Calendar.getInstance().getCalendarType());
+   }
+
+   /**
+    * Check if a persisted date with a year 1 to 64 can be an era-less Reiwa date. The legacy
+    * era is pinned to Reiwa, not the current era, so a new era does not move legacy values.
+    * @param val the persisted value.
+    * @param start the index of the year digits.
+    * @param year the year digits.
+    * @return false if the value has a month and day that are not a valid Reiwa date, such as
+    * 0001-01-01 (Reiwa started on 2019-05-01) or 0004-02-29, true otherwise. A value without a
+    * month and day, e.g. a bare year, is read by its year only.
+    */
+   private static boolean isLegacyJapaneseDate(String val, int start, int year) {
+      // yyyy-MM-dd
+      if(val.length() < start + 10 || val.charAt(start + 4) != '-' ||
+         val.charAt(start + 7) != '-' ||
+         val.length() > start + 10 && Character.isDigit(val.charAt(start + 10)))
+      {
+         return true;
+      }
+
+      int month = 0;
+      int day = 0;
+
+      for(int i = start + 5; i < start + 10; i++) {
+         char c = val.charAt(i);
+
+         if(i == start + 7) {
+            continue;
+         }
+
+         if(c < '0' || c > '9') {
+            return true;
+         }
+
+         if(i < start + 7) {
+            month = month * 10 + c - '0';
+         }
+         else {
+            day = day * 10 + c - '0';
+         }
+      }
+
+      try {
+         java.time.chrono.JapaneseDate.of(java.time.chrono.JapaneseEra.REIWA, year, month, day);
+         return true;
+      }
+      catch(DateTimeException ex) {
+         return false;
+      }
    }
 
    /**

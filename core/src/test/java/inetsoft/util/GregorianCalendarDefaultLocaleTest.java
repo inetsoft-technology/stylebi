@@ -62,6 +62,7 @@ class GregorianCalendarDefaultLocaleTest {
       Locale.setDefault(Locale.Category.FORMAT, formatLocale);
       ThreadContext.setLocale(null);
       SreeEnv.remove(COMPAT_PROPERTY);
+      SreeEnv.remove(JAPANESE_COMPAT_PROPERTY);
       SreeEnv.remove("locale.available");
    }
 
@@ -251,9 +252,8 @@ class GregorianCalendarDefaultLocaleTest {
    @ValueSource(strings = { "ja-JP-u-ca-japanese", "ja-JP-x-lvariant-JP" })
    void japaneseCompatReadsTheCurrentEra(String tag) {
       Locale.setDefault(Locale.forLanguageTag(tag));
-      // the year before the first year of the current era, as the Japanese calendar read it
-      int offset = LocalDate.now().getYear() -
-         java.time.chrono.JapaneseDate.now().get(java.time.temporal.ChronoField.YEAR_OF_ERA);
+      // the year before Reiwa 1, the era the Japanese calendar read era-less years in
+      int offset = 2018;
 
       assertEquals(String.format("%04d-06-15", 6 + offset),
                    CoreTool.toGregorianPersistentDate("0006-06-15"));
@@ -264,14 +264,79 @@ class GregorianCalendarDefaultLocaleTest {
       assertEquals("-0043-03-15", CoreTool.toGregorianPersistentDate("-0043-03-15"));
       assertEquals("1994-06-15", CoreTool.toGregorianPersistentDate("1994-06-15"));
 
-      if(offset == 2018) {
-         // Reiwa 6 is the leap year 2024
-         java.sql.Date date = (java.sql.Date) CoreTool.getPersistentData(XSchema.DATE, "0006-02-29");
-         assertEquals(date(2024, 2, 29).getTime(), date.getTime());
-      }
+      // Reiwa 6 is the leap year 2024
+      java.sql.Date date = (java.sql.Date) CoreTool.getPersistentData(XSchema.DATE, "0006-02-29");
+      assertEquals(date(2024, 2, 29).getTime(), date.getTime());
 
       Locale.setDefault(Locale.US);
       assertEquals("0006-06-15", CoreTool.toGregorianPersistentDate("0006-06-15"));
+   }
+
+   // a Gregorian date saved since the fix that is not a valid Reiwa date is kept (Bug #78114)
+   @ParameterizedTest
+   @ValueSource(strings = { "ja-JP-u-ca-japanese", "ja-JP-x-lvariant-JP" })
+   void japaneseCompatKeepsDatesThatAreNotReiwa(String tag) {
+      Locale.setDefault(Locale.forLanguageTag(tag));
+      assertEquals("japanese", Calendar.getInstance().getCalendarType(), tag);
+
+      // Reiwa started on 2019-05-01
+      assertEquals("0001-01-01", CoreTool.toGregorianPersistentDate("0001-01-01"));
+      assertEquals("{d '0001-01-01'}", CoreTool.toGregorianPersistentDate("{d '0001-01-01'}"));
+      assertEquals("{ts '0001-01-01 00:00:00'}",
+                   CoreTool.toGregorianPersistentDate("{ts '0001-01-01 00:00:00'}"));
+      assertEquals("0001-01-01 00:00:00",
+                   CoreTool.toGregorianPersistentDate("0001-01-01 00:00:00"));
+      assertEquals("0001-04-30", CoreTool.toGregorianPersistentDate("0001-04-30"));
+      assertEquals("2019-05-01", CoreTool.toGregorianPersistentDate("0001-05-01"));
+      assertEquals("{ts '2019-05-01 00:00:00'}",
+                   CoreTool.toGregorianPersistentDate("{ts '0001-05-01 00:00:00'}"));
+      // Reiwa 4 is not a leap year
+      assertEquals("0004-02-29", CoreTool.toGregorianPersistentDate("0004-02-29"));
+      // a legacy value without a month and day is read by its year
+      assertEquals("2026", CoreTool.toGregorianPersistentDate("0008"));
+
+      // a save after the read writes the same date back
+      Object date = CoreTool.getPersistentData(XSchema.DATE, "0001-01-01");
+      assertEquals("0001-01-01", CoreTool.getPersistentDataString(date));
+      Object ts = CoreTool.getPersistentData(XSchema.TIME_INSTANT, "0001-01-01 00:00:00");
+      assertEquals("0001-01-01 00:00:00", CoreTool.getPersistentDataString(ts));
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "ja-JP-u-ca-japanese", "ja-JP-x-lvariant-JP" })
+   void japaneseCompatFalseKeepsTheYear(String tag) {
+      Locale.setDefault(Locale.forLanguageTag(tag));
+      SreeEnv.setProperty(JAPANESE_COMPAT_PROPERTY, "false");
+
+      assertEquals("0050-01-01", CoreTool.toGregorianPersistentDate("0050-01-01"));
+      assertEquals("0008-01-15", CoreTool.toGregorianPersistentDate("0008-01-15"));
+      assertEquals("{d '0008-01-15'}", CoreTool.toGregorianPersistentDate("{d '0008-01-15'}"));
+
+      SreeEnv.setProperty(JAPANESE_COMPAT_PROPERTY, "auto");
+      assertEquals("2026-01-15", CoreTool.toGregorianPersistentDate("0008-01-15"));
+   }
+
+   @Test
+   void japaneseCompatTrueReadsReiwaOnAGregorianJvm() {
+      Locale.setDefault(Locale.US);
+      assertEquals("0008-01-15", CoreTool.toGregorianPersistentDate("0008-01-15"));
+
+      SreeEnv.setProperty(JAPANESE_COMPAT_PROPERTY, "true");
+      assertEquals("2026-01-15", CoreTool.toGregorianPersistentDate("0008-01-15"));
+      assertEquals("{ts '2026-01-15 13:00:00'}",
+                   CoreTool.toGregorianPersistentDate("{ts '0008-01-15 13:00:00'}"));
+      // the era check still applies
+      assertEquals("0001-01-01", CoreTool.toGregorianPersistentDate("0001-01-01"));
+   }
+
+   @Test
+   void plainJapaneseLocaleIsGregorian() {
+      Locale.setDefault(Locale.forLanguageTag("ja-JP"));
+      assertEquals("gregory", Calendar.getInstance().getCalendarType());
+
+      assertEquals("0008-01-15", CoreTool.toGregorianPersistentDate("0008-01-15"));
+      assertEquals("0001-05-01", CoreTool.toGregorianPersistentDate("0001-05-01"));
+      assertEquals("0001-01-01", CoreTool.toGregorianPersistentDate("0001-01-01"));
    }
 
    @Test
@@ -415,6 +480,7 @@ class GregorianCalendarDefaultLocaleTest {
    }
 
    private static final String COMPAT_PROPERTY = "date.legacy.buddhist.compat";
+   private static final String JAPANESE_COMPAT_PROPERTY = "date.legacy.japanese.compat";
    private Locale defaultLocale;
    private Locale formatLocale;
 }
