@@ -1746,37 +1746,39 @@ public class IdentityService {
    }
 
    public void copyRepletRegistry(String oOID, String nOID) {
-      String tempCurrID = OrganizationManager.getInstance().getCurrentOrgID();
-      OrganizationManager.getInstance().setCurrentOrgID(nOID);
-
+      // Bug #78118, scope the copy to the new organization on this thread only. Setting the
+      // current organization would change it for the whole session, so concurrent requests of
+      // the session would see the new organization and then an organization that is removed
+      // when the organization is renamed.
       try {
-         RepletRegistry oldRegistry = repletRegistryManager.getRegistry(oOID);
-         RepletRegistry newRegistry = repletRegistryManager.getRegistry(nOID);
-         String[] oldFolders = oldRegistry.getAllFolders();
+         OrganizationManager.runInOrgScope(nOID, () -> {
+            RepletRegistry oldRegistry = repletRegistryManager.getRegistry(oOID);
+            RepletRegistry newRegistry = repletRegistryManager.getRegistry(nOID);
+            String[] oldFolders = oldRegistry.getAllFolders();
 
-         for(String oldFolder : oldFolders) {
-            if(!Tool.MY_DASHBOARD.equals(oldFolder)) {
-               newRegistry.addFolder(oldFolder, false);
+            for(String oldFolder : oldFolders) {
+               if(!Tool.MY_DASHBOARD.equals(oldFolder)) {
+                  newRegistry.addFolder(oldFolder, false);
+               }
             }
-         }
 
-         repletRegistryManager.copyFolderContextMap(oOID, nOID);
-         IdentityID[] orgUsers = securityEngine.getOrgUsers(oOID);
+            repletRegistryManager.copyFolderContextMap(oOID, nOID);
+            IdentityID[] orgUsers = securityEngine.getOrgUsers(oOID);
 
-         if(orgUsers != null) {
-            for(IdentityID orgUser : orgUsers) {
-               IdentityID newUser = new IdentityID(orgUser.name, nOID);
-               repletRegistryManager.copyUser(orgUser, newUser);
+            if(orgUsers != null) {
+               for(IdentityID orgUser : orgUsers) {
+                  IdentityID newUser = new IdentityID(orgUser.name, nOID);
+                  repletRegistryManager.copyUser(orgUser, newUser);
+               }
             }
-         }
 
-         newRegistry.save();
+            newRegistry.save();
+            return null;
+         });
       }
       catch(Exception e) {
          LOG.warn("Could not copy registry from {} to {}", oOID, nOID, e);
       }
-
-      OrganizationManager.getInstance().setCurrentOrgID(tempCurrID);
    }
 
    public void copyDashboardRegistry(Organization oorg, Organization norg) {
