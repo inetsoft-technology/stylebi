@@ -367,4 +367,58 @@ class VSDensityDefaultsTest {
       assertEquals(new Insets(16, 16, 16, 16), VSDensityDefaults.tablePadding(modern));
       assertEquals(new Insets(6, 8, 6, 8), VSDensityDefaults.cellPadding(modern));
    }
+
+   @Test
+   void theOptionBoxIsTheLaneOverOneRow() {
+      assertEquals(40, VSDensityDefaults.optionBoxHeightForMode("dense"));
+      assertEquals(50, VSDensityDefaults.optionBoxHeightForMode("compact"));
+      assertEquals(58, VSDensityDefaults.optionBoxHeightForMode("comfortable"));
+
+      for(String mode : new String[] { "dense", "compact", "comfortable" }) {
+         assertEquals(VSDensityDefaults.titleHeightForMode(mode) +
+                         VSDensityDefaults.rowHeightForMode(mode),
+                      VSDensityDefaults.optionBoxHeightForMode(mode), mode);
+      }
+   }
+
+   @Test
+   void aLegacyContextYieldsTheLegacyOptionBox() {
+      assertEquals(2 * AssetUtil.defh,
+                   VSDensityDefaults.optionBoxHeight(VizContext.of((VizMark) null)));
+   }
+
+   @Test
+   void theSeededHeightSets() {
+      for(int h : new int[] { 20, 24, 28, 30 }) {
+         assertTrue(VSDensityDefaults.isSeededControlHeight(h), "control " + h);
+      }
+
+      for(int h : new int[] { 19, 22, 26, 32, 40 }) {
+         assertFalse(VSDensityDefaults.isSeededControlHeight(h), "control " + h);
+      }
+
+      for(int h : new int[] { 40, 50, 58, 48, 56, 60 }) {
+         assertTrue(VSDensityDefaults.isSeededOptionBoxHeight(h), "box " + h);
+      }
+
+      for(int h : new int[] { 44, 54, 64, 100 }) {
+         assertFalse(VSDensityDefaults.isSeededOptionBoxHeight(h), "box " + h);
+      }
+
+      for(int h : new int[] { 48, 56, 60 }) {
+         assertTrue(VSDensityDefaults.isFormerOptionBoxHeight(h), "former box " + h);
+      }
+
+      for(int h : new int[] { 40, 50, 58 }) {
+         assertFalse(VSDensityDefaults.isFormerOptionBoxHeight(h), "former box " + h);
+      }
+
+      for(int h : new int[] { 28, 36, 40 }) {
+         assertTrue(VSDensityDefaults.isFormerOptionRow(h), "former row " + h);
+      }
+
+      for(int h : new int[] { 20, 24, 30, 35 }) {
+         assertFalse(VSDensityDefaults.isFormerOptionRow(h), "former row " + h);
+      }
+   }
 }
