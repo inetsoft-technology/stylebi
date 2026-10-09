@@ -137,4 +137,53 @@ class ParameterDiscoveryServiceTest {
       assertTrue(e.getMessage().contains("notAVariable"), e.getMessage());
       assertTrue(e.getMessage().contains("collect_parameters"), e.getMessage());
    }
+
+   @Test
+   void toModelToleratesANullElementInAStoredValueArray() {
+      // Bug 78156 S4: List.of(...) threw NPE on a stored [x, null], bricking every
+      // collect_parameters/set_parameters call in the session.
+      UserVariable var = new UserVariable("multiVar");
+      var.setTypeNode(new StringType());
+
+      ParameterModel model = ParameterDiscoveryService.toModel(var, false, new Object[]{"2", null});
+
+      assertEquals(java.util.Arrays.asList("2", null), model.currentValue());
+   }
+
+   @Test
+   void toModelToleratesNullChoicesAndValues() {
+      UserVariable var = new UserVariable("v");
+      var.setTypeNode(new StringType());
+      var.setSortValue(false);
+      var.setChoices(new Object[]{"a", null});
+      var.setValues(new Object[]{"1", null});
+
+      ParameterModel model = ParameterDiscoveryService.toModel(var, false, null);
+
+      assertEquals(java.util.Arrays.asList("a", null), model.choices());
+      assertEquals(java.util.Arrays.asList("1", null), model.values());
+   }
+
+   @Test
+   void checkboxesAndListVariablesReportMultipleSelection() {
+      for(int style : new int[]{UserVariable.LIST, UserVariable.CHECKBOXES}) {
+         inetsoft.uql.asset.AssetVariable var = new inetsoft.uql.asset.AssetVariable("v");
+         var.setTypeNode(new StringType());
+         var.setDisplayStyle(style);
+         // native Composer stores multipleSelection=false for CHECKBOXES
+         var.setMultipleSelection(style == UserVariable.LIST);
+
+         assertTrue(ParameterDiscoveryService.toModel(var, false, null).multipleSelection(),
+                    "style " + style);
+      }
+   }
+
+   @Test
+   void comboboxVariableIsSingleSelect() {
+      inetsoft.uql.asset.AssetVariable var = new inetsoft.uql.asset.AssetVariable("v");
+      var.setTypeNode(new StringType());
+      var.setDisplayStyle(UserVariable.COMBOBOX);
+
+      assertFalse(ParameterDiscoveryService.toModel(var, false, null).multipleSelection());
+   }
 }

@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.uql.schema.UserVariable;
+import inetsoft.util.CoreTool;
 import inetsoft.web.composer.ws.assembly.VariableAssemblyModelInfo;
 import inetsoft.web.viewsheet.controller.VSCollectParametersServiceProxy;
 import inetsoft.web.viewsheet.event.CollectParametersOverEvent;
@@ -67,6 +68,10 @@ public class ParameterValueService {
 
          for(Map.Entry<String, List<Object>> entry : values.entrySet()) {
             UserVariable var = ParameterDiscoveryService.find(discovered, entry.getKey());
+            // Must run here, before collectParameters: fillVariableTable's exceptions are
+            // swallowed (the call still returns ok), so a bad value would otherwise be stored
+            // lossily and silently.
+            validate(var, entry.getKey(), entry.getValue());
             // Always build a real Object[], even for a single-element list -- collapsing a
             // size-1 list to its bare element (as this used to) is indistinguishable, once the
             // sole element is null, from "no value at all" to VariableAssemblyModelInfo's
@@ -94,6 +99,38 @@ public class ParameterValueService {
       result.put("ok", true);
       result.put("applied", applied);
       return result;
+   }
+
+   /**
+    * Refuses values that {@code fillVariableTable} would store wrongly instead of rejecting.
+    *
+    * @throws IllegalArgumentException naming the parameter (and element index) on a null element
+    *         in a multi-value array, an {@code __null__} sentinel inside one, or more than one
+    *         value for a single-select parameter. A lone {@code [null]} / {@code ["__null__"]}
+    *         stays legal: it is the explicit "clear this parameter" request.
+    */
+   public static void validate(UserVariable var, String name, List<Object> list) {
+      if(list == null || list.size() <= 1) {
+         return;
+      }
+
+      for(int i = 0; i < list.size(); i++) {
+         Object element = list.get(i);
+
+         if(element == null || CoreTool.FAKE_NULL.equals(element)) {
+            throw new IllegalArgumentException(
+               "Parameter '" + name + "' value[" + i + "] is " +
+               (element == null ? "null" : "the null sentinel '" + CoreTool.FAKE_NULL + "'") +
+               ". A null cannot be mixed into a multi-value array; send [null] alone to clear " +
+               "the parameter.");
+         }
+      }
+
+      if(!ParameterDiscoveryService.isMultiSelect(var)) {
+         throw new IllegalArgumentException(
+            "Parameter '" + name + "' is single-select but " + list.size() + " values were " +
+            "given. Send exactly one value (collect_parameters reports multipleSelection).");
+      }
    }
 
    private final ViewsheetSessionService sessions;
