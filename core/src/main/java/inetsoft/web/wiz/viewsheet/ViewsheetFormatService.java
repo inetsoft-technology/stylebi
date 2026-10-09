@@ -20,6 +20,7 @@ package inetsoft.web.wiz.viewsheet;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -38,6 +39,7 @@ import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.CalcTableVSAssembly;
+import inetsoft.uql.viewsheet.BorderColors;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.CrosstabVSAssembly;
 import inetsoft.uql.viewsheet.FormatInfo;
@@ -55,10 +57,14 @@ import inetsoft.uql.viewsheet.graph.ChartRef;
 import inetsoft.uql.viewsheet.graph.RadarChartInfo;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.GaugeVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.TabVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.util.Catalog;
+import inetsoft.util.Tool;
 import inetsoft.util.CoreTool;
 import inetsoft.util.UserMessage;
+import inetsoft.web.adhoc.model.AlignmentInfo;
 import inetsoft.web.adhoc.model.FormatInfoModel;
 import inetsoft.web.adhoc.model.chart.ChartFormatConstants;
 import inetsoft.web.composer.model.vs.VSObjectFormatInfoModel;
@@ -72,10 +78,13 @@ import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.awt.Color;
+import java.awt.Insets;
 import java.security.Principal;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -190,7 +199,7 @@ public class ViewsheetFormatService {
       }
 
       /** The keys of a JSON {@code format} object whose value is not JSON null. */
-      private static Set<String> formatKeys(JsonNode format) {
+      static Set<String> formatKeys(JsonNode format) {
          Set<String> keys = new LinkedHashSet<>();
 
          if(format != null && format.isObject()) {
@@ -212,10 +221,19 @@ public class ViewsheetFormatService {
     * @param format   the format to apply; may be null only when {@code reset} is true
     * @param reset    clear this cell's own format back to inherited, rather than applying
     *                 {@code format}
+    * @param formatKeys see {@link FormatRequest}; null for a request built in Java
     */
    public record CellFormatRequest(String assembly, Integer row, Integer col,
-                                   VSObjectFormatInfoModel format, boolean reset)
+                                   VSObjectFormatInfoModel format, boolean reset,
+                                   Set<String> formatKeys)
    {
+      /** Kept for existing callers that predate {@code formatKeys} — no raw keys. */
+      public CellFormatRequest(String assembly, Integer row, Integer col,
+                               VSObjectFormatInfoModel format, boolean reset)
+      {
+         this(assembly, row, col, format, reset, null);
+      }
+
       /** @see FormatRequest#fromJson -- same reason: bypasses Jackson's polymorphic resolver. */
       @JsonCreator
       public static CellFormatRequest fromJson(@JsonProperty("assembly") String assembly,
@@ -225,7 +243,8 @@ public class ViewsheetFormatService {
                                                @JsonProperty("reset") boolean reset)
       {
          return new CellFormatRequest(assembly, row, col,
-                                      parseFormat(format, "set_calc_cell_format"), reset);
+                                      parseFormat(format, "set_calc_cell_format"), reset,
+                                      FormatRequest.formatKeys(format));
       }
    }
 
@@ -719,23 +738,35 @@ public class ViewsheetFormatService {
          // Stale messages from an earlier request on this pooled thread are not this call's.
          CoreTool.clearUserMessage();
 
-         Set<String> engineMessages = new LinkedHashSet<>();
+         List<FormatVSObjectEvent> events = "text".equals(target) ? List.of(event) :
+            seededEvents(rvs, request.format(), request.reset(), request.formatKeys(),
+                         request.assemblies(), event.getData(), event);
 
-         try {
-            painter.setFormat(runtimeId, event, user, dispatcher, linkUri);
-         }
-         finally {
-            drainUserMessages(engineMessages);
-         }
+         for(FormatVSObjectEvent part : events) {
+            List<String> names = Arrays.asList(part.getObjects());
+            Set<String> engineMessages = new LinkedHashSet<>();
 
-         if("object".equals(target)) {
-            dropUntrueStringColumnWarning(engineMessages, rvs, request.assemblies(), user);
-         }
+            try {
+               painter.setFormat(runtimeId, part, user, dispatcher, linkUri);
+            }
+            finally {
+               drainUserMessages(engineMessages);
+            }
 
-         warnings.addAll(engineMessages);
+            if("object".equals(target)) {
+               dropUntrueStringColumnWarning(engineMessages, rvs, names, user);
+            }
 
-         if(requested != null && !"text".equals(target)) {
-            readBack(rvs, request.assemblies(), target, event, requested, warnings);
+            warnings.addAll(engineMessages);
+
+            if(requested != null && !"text".equals(target)) {
+               readBack(rvs, names, target, part, requested, warnings);
+            }
+
+            if(!"text".equals(target)) {
+               warnBorderColorWithoutStyle(rvs, request.reset(), request.formatKeys(), names,
+                                           part.getData(), warnings);
+            }
          }
       });
 
@@ -744,6 +775,364 @@ public class ViewsheetFormatService {
       }
 
       return new FormatResult(new ArrayList<>(warnings));
+   }
+
+   private static final List<String> BORDER_SIDES = List.of("Top", "Left", "Bottom", "Right");
+   private static final ObjectMapper COPY_MAPPER = new ObjectMapper()
+      .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
+   private record Unit(String assembly, TableDataPath[] paths) {
+   }
+
+   /**
+    * What the painter would otherwise overwrite with the request's blank defaults: the assembly's
+    * gauge fill / tab corner flags, the path's CSS class/id, and the border sides and colours the
+    * caller did not send (null when no border key was sent).
+    */
+   private record SeedKey(String valueFill, Boolean roundTop, Boolean roundBottom,
+                          String cssClass, String cssId, List<String> border)
+   {
+   }
+
+   private static boolean styleSent(Set<String> keys, String side) {
+      return keys.contains("border" + side + "Style") || keys.contains("border" + side + "Width");
+   }
+
+   private static boolean colorSent(Set<String> keys, String side) {
+      return keys.contains("border" + side + "Color");
+   }
+
+   private static boolean anyBorderKeySent(Set<String> keys) {
+      return BORDER_SIDES.stream().anyMatch(s -> styleSent(keys, s) || colorSent(keys, s));
+   }
+
+   /**
+    * Bug #77044 items 3-5: {@code FormatPainterService} writes a property only when the request's
+    * model differs from {@code event.getOrigFormat()}, and rewrites the whole border group, the
+    * gauge fill, the tab corner flags and the CSS class/id from the model whenever it runs. A
+    * request model that is blank except for the keys sent therefore (a) skipped any sent value
+    * equal to the blank default (wrapText false, roundCorner 0, alpha 100, black), and (b) erased
+    * every stored value the request did not carry. Each sent key group is therefore made to
+    * differ in the original format, and the values the painter writes unconditionally are seeded
+    * from what is stored. A request without {@code formatKeys} (built in Java), a reset, and a
+    * text-region write keep the single legacy event.
+    */
+   private List<FormatVSObjectEvent> seededEvents(RuntimeViewsheet rvs,
+                                                  VSObjectFormatInfoModel format, boolean reset,
+                                                  Set<String> keys, List<String> assemblies,
+                                                  List<TableDataPath[]> data,
+                                                  FormatVSObjectEvent base)
+   {
+      if(format == null || reset || keys == null) {
+         return List.of(base);
+      }
+
+      Viewsheet viewsheet = rvs == null ? null : rvs.getViewsheet();
+      boolean border = anyBorderKeySent(keys);
+      Map<SeedKey, List<Unit>> groups = new LinkedHashMap<>();
+
+      for(int i = 0; i < assemblies.size(); i++) {
+         String name = assemblies.get(i);
+         VSAssembly assembly = viewsheet == null ? null : viewsheet.getAssembly(name);
+         VSAssemblyInfo info = assembly == null ? null : assembly.getVSAssemblyInfo();
+         TableDataPath[] paths = data != null && data.size() > i ? data.get(i) : null;
+
+         if(paths == null || paths.length == 0) {
+            groups.computeIfAbsent(seedKey(info, VSAssemblyInfo.OBJECTPATH, keys, border),
+                                   k -> new ArrayList<>()).add(new Unit(name, null));
+            continue;
+         }
+
+         Map<SeedKey, List<TableDataPath>> byKey = new LinkedHashMap<>();
+
+         for(TableDataPath path : paths) {
+            byKey.computeIfAbsent(seedKey(info, path, keys, border), k -> new ArrayList<>())
+               .add(path);
+         }
+
+         byKey.forEach((key, list) -> groups.computeIfAbsent(key, k -> new ArrayList<>())
+            .add(new Unit(name, list.toArray(new TableDataPath[0]))));
+      }
+
+      boolean copy = groups.size() > 1;
+      List<FormatVSObjectEvent> events = new ArrayList<>();
+
+      for(Map.Entry<SeedKey, List<Unit>> group : groups.entrySet()) {
+         VSObjectFormatInfoModel model = copy ? copyModel(format) : format;
+         applySeed(model, group.getKey(), keys);
+
+         FormatVSObjectEvent event = new FormatVSObjectEvent();
+         event.setFormat(model);
+         event.setOrigFormat(perturbedOrig(model, keys, border));
+         event.setReset(false);
+         event.setObjects(group.getValue().stream().map(Unit::assembly).toArray(String[]::new));
+         event.setCharts(new String[0]);
+
+         if(data != null) {
+            ArrayList<TableDataPath[]> paths = new ArrayList<>();
+            group.getValue().forEach(unit -> paths.add(unit.paths()));
+            event.setData(paths);
+         }
+
+         events.add(event);
+      }
+
+      return events;
+   }
+
+   private static SeedKey seedKey(VSAssemblyInfo info, TableDataPath path, Set<String> keys,
+                                  boolean border)
+   {
+      String valueFill = null;
+      Boolean roundTop = null;
+      Boolean roundBottom = null;
+      String cssClass = null;
+      String cssId = null;
+      List<String> borderSeed = null;
+
+      if(info instanceof GaugeVSAssemblyInfo gauge) {
+         valueFill = gauge.getValueFillColorValue();
+      }
+
+      if(info instanceof TabVSAssemblyInfo tab) {
+         roundTop = tab.isRoundTopCornersOnly();
+         roundBottom = tab.isRoundBottomCornersOnly();
+      }
+
+      FormatInfo formatInfo = info == null ? null : info.getFormatInfo();
+
+      if(formatInfo != null) {
+         // The same lookup the painter makes, so the seed is what its CSS comparison will see.
+         VSCompositeFormat composite = formatInfo.getFormat(path, false);
+
+         if(composite != null) {
+            cssClass = composite.getCSSFormat().getCSSClass();
+            cssId = composite.getCSSFormat().getCSSID();
+         }
+
+         if(border) {
+            // The user-defined layer only: seeding the effective (CSS/inherited) borders would pin
+            // them as explicit. A path whose borders come from CSS has no user layer, so its
+            // unsent sides are written as no border, as the Composer does for a hand-set side.
+            VSCompositeFormat stored = formatInfo.getFormat(path);
+            VSFormat user = stored == null ? null : stored.getUserDefinedFormat();
+            Insets insets = user == null ? null : user.getBordersValue();
+            BorderColors colors = user == null ? null : user.getBorderColorsValue();
+            String[] seed = new String[8];
+
+            for(int i = 0; i < 4; i++) {
+               String side = BORDER_SIDES.get(i);
+
+               if(insets != null && !styleSent(keys, side)) {
+                  seed[i] = String.valueOf(switch(i) {
+                     case 0 -> insets.top;
+                     case 1 -> insets.left;
+                     case 2 -> insets.bottom;
+                     default -> insets.right;
+                  });
+               }
+
+               Color color = colors == null || colorSent(keys, side) ? null : switch(i) {
+                  case 0 -> colors.topColor;
+                  case 1 -> colors.leftColor;
+                  case 2 -> colors.bottomColor;
+                  default -> colors.rightColor;
+               };
+
+               seed[4 + i] = color == null ? null : "#" + Tool.colorToHTMLString(color);
+            }
+
+            borderSeed = Arrays.asList(seed);
+         }
+      }
+
+      return new SeedKey(valueFill, roundTop, roundBottom, cssClass, cssId, borderSeed);
+   }
+
+   private static void applySeed(VSObjectFormatInfoModel model, SeedKey seed, Set<String> keys) {
+      if(!keys.contains("valueFillColor")) {
+         model.setValueFillColor(seed.valueFill());
+      }
+
+      if(seed.roundTop() != null && !keys.contains("roundTopCornersOnly")) {
+         model.setRoundTopCornersOnly(seed.roundTop());
+      }
+
+      if(seed.roundBottom() != null && !keys.contains("roundBottomCornersOnly")) {
+         model.setRoundBottomCornersOnly(seed.roundBottom());
+      }
+
+      if(!keys.contains("cssClass")) {
+         model.setCssClass(seed.cssClass());
+      }
+
+      if(!keys.contains("cssID")) {
+         model.setCssID(seed.cssId());
+      }
+
+      List<String> border = seed.border();
+
+      if(border == null) {
+         return;
+      }
+
+      if(border.get(0) != null) {
+         model.setBorderTopStyle(border.get(0));
+      }
+
+      if(border.get(1) != null) {
+         model.setBorderLeftStyle(border.get(1));
+      }
+
+      if(border.get(2) != null) {
+         model.setBorderBottomStyle(border.get(2));
+      }
+
+      if(border.get(3) != null) {
+         model.setBorderRightStyle(border.get(3));
+      }
+
+      if(border.get(4) != null) {
+         model.setBorderTopColor(border.get(4));
+      }
+
+      if(border.get(5) != null) {
+         model.setBorderLeftColor(border.get(5));
+      }
+
+      if(border.get(6) != null) {
+         model.setBorderBottomColor(border.get(6));
+      }
+
+      if(border.get(7) != null) {
+         model.setBorderRightColor(border.get(7));
+      }
+   }
+
+   private static VSObjectFormatInfoModel copyModel(VSObjectFormatInfoModel model) {
+      return COPY_MAPPER.convertValue(model, VSObjectFormatInfoModel.class);
+   }
+
+   /**
+    * A blank original format with each sent key group made to differ from {@code model}, so the
+    * painter writes it. Only the diff reads these values, except {@code format}, which
+    * {@code FormatPainterService.isFormattedStringColumn} tests for null and is therefore left
+    * null. Border colours are parsed by the painter, so only the four border styles are
+    * perturbed.
+    */
+   private static VSObjectFormatInfoModel perturbedOrig(VSObjectFormatInfoModel model,
+                                                        Set<String> keys, boolean border)
+   {
+      VSObjectFormatInfoModel orig = new VSObjectFormatInfoModel();
+
+      if(keys.contains("color")) {
+         orig.setColorType("\u0000");
+      }
+
+      if(keys.contains("backgroundColor")) {
+         orig.setBackgroundColorType("\u0000");
+      }
+
+      if(keys.contains("backgroundAlpha")) {
+         orig.setBackgroundAlpha(-1);
+      }
+
+      if(keys.contains("roundCorner")) {
+         orig.setRoundCorner(-1);
+      }
+
+      if(keys.contains("wrapText")) {
+         orig.setWrapText(!model.isWrapText());
+      }
+
+      if(keys.contains("align")) {
+         int align = model.getAlign() == null ? 0 : model.getAlign().toAlign();
+
+         for(int candidate : new int[]{ StyleConstants.H_LEFT, StyleConstants.H_CENTER,
+                                        StyleConstants.H_RIGHT })
+         {
+            AlignmentInfo sentinel = new AlignmentInfo(candidate);
+
+            if(sentinel.toAlign() != align) {
+               orig.setAlign(sentinel);
+               break;
+            }
+         }
+      }
+
+      // font stays null: a sent font is non-null. FontInfo.equals ignores the caps/shadow/
+      // sub/superscript flags and FontInfo.toFont does not write them, so the two must change
+      // together if those flags are ever supported.
+
+      if(keys.contains("format") || keys.contains("formatSpec") || keys.contains("dateSpec") ||
+         keys.contains("durationPadZeros"))
+      {
+         orig.setFormatSpec("\u0000");
+         orig.setDateSpec("\u0000");
+      }
+
+      if(border) {
+         orig.setBorderTopStyle("-1");
+         orig.setBorderLeftStyle("-1");
+         orig.setBorderBottomStyle("-1");
+         orig.setBorderRightStyle("-1");
+      }
+
+      return orig;
+   }
+
+   /**
+    * Bug #77044 item 7: a border colour sent with no style, on an assembly that has no border on
+    * any side, is stored but draws nothing; say so rather than report a silent success.
+    */
+   private static void warnBorderColorWithoutStyle(RuntimeViewsheet rvs, boolean reset,
+                                                   Set<String> keys, List<String> names,
+                                                   List<TableDataPath[]> data,
+                                                   Set<String> warnings)
+   {
+      if(reset || keys == null || rvs == null || rvs.getViewsheet() == null) {
+         return;
+      }
+
+      boolean color = BORDER_SIDES.stream().anyMatch(s -> colorSent(keys, s));
+      boolean style = BORDER_SIDES.stream().anyMatch(s -> styleSent(keys, s));
+
+      if(!color || style) {
+         return;
+      }
+
+      for(int i = 0; i < names.size(); i++) {
+         VSAssembly assembly = rvs.getViewsheet().getAssembly(names.get(i));
+         VSAssemblyInfo info = assembly == null ? null : assembly.getVSAssemblyInfo();
+         FormatInfo formatInfo = info == null ? null : info.getFormatInfo();
+
+         if(formatInfo == null) {
+            continue;
+         }
+
+         TableDataPath[] paths = data != null && data.size() > i && data.get(i) != null ?
+            data.get(i) : new TableDataPath[]{ VSAssemblyInfo.OBJECTPATH };
+         boolean drawn = false;
+
+         for(TableDataPath path : paths) {
+            VSCompositeFormat stored = formatInfo.getFormat(path);
+            VSFormat user = stored == null ? null : stored.getUserDefinedFormat();
+            Insets insets = user == null ? null : user.getBordersValue();
+
+            if(insets != null &&
+               (insets.top != 0 || insets.left != 0 || insets.bottom != 0 || insets.right != 0))
+            {
+               drawn = true;
+            }
+         }
+
+         if(!drawn) {
+            warnings.add(
+               "set_format: border colour set on '" + names.get(i) + "' but no side has a " +
+               "border style, so nothing is drawn yet; also set borderTopStyle/" +
+               "borderLeftStyle/borderBottomStyle/borderRightStyle to show it.");
+         }
+      }
    }
 
    /**
@@ -1881,7 +2270,12 @@ public class ViewsheetFormatService {
          data.add(new TableDataPath[]{ cellPath });
          event.setData(data);
 
-         painter.setFormat(runtimeId, event, user, dispatcher, linkUri);
+         for(FormatVSObjectEvent part :
+            seededEvents(rvs, request.format(), request.reset(), request.formatKeys(),
+                         List.of(request.assembly()), data, event))
+         {
+            painter.setFormat(runtimeId, part, user, dispatcher, linkUri);
+         }
       });
    }
 
