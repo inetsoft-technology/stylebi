@@ -81,6 +81,14 @@ public class SizePositionPaneModel implements Serializable {
       this.titleHeightFollowsDensity = titleHeightFollowsDensity;
    }
 
+   public Boolean getSizeFollowsDensity() {
+      return sizeFollowsDensity;
+   }
+
+   public void setSizeFollowsDensity(Boolean sizeFollowsDensity) {
+      this.sizeFollowsDensity = sizeFollowsDensity;
+   }
+
    public Boolean getCellHeightFollowsDensity() {
       return cellHeightFollowsDensity;
    }
@@ -132,6 +140,7 @@ public class SizePositionPaneModel implements Serializable {
    // null: the assembly type does not follow the density row, so no control is offered
    private Boolean titleHeightFollowsDensity;
    private Boolean cellHeightFollowsDensity;
+   private Boolean sizeFollowsDensity;
    private boolean container;
    private boolean locked = false;
    private boolean scaleVertical = false;

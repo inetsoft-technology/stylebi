@@ -120,7 +120,7 @@ public class RangeSliderPropertyDialogService {
       Dimension size = dialogService.getAssemblySize(timeSliderAssemblyInfo, vs);
 
       if(timeSliderAssembly.getContainer() != null) {
-         sizePositionPaneModel.setTitleHeight(timeSliderAssemblyInfo.getTitleHeightValue());
+         readTitleHeight(timeSliderAssemblyInfo, sizePositionPaneModel, inSelectionContainer);
          sizePositionPaneModel.setContainer(true);
       }
 
@@ -260,11 +260,9 @@ public class RangeSliderPropertyDialogService {
       dialogService.setAssemblySize(info, sizePositionPaneModel);
       dialogService.setAssemblyPosition(info, sizePositionPaneModel);
 
+      // only a contained slider's dialog carries a title height
       if(sizePositionPaneModel.getTitleHeight() > 0) {
-         if(sizePositionPaneModel.getTitleHeight() != info.getTitleHeightValue()) {
-            info.setUserTitleHeight(true);
-            info.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
-         }
+         applyTitleHeight(info, sizePositionPaneModel);
       }
 
       info.setEnabledValue(generalPropPaneModel.getEnabled());
@@ -418,6 +416,48 @@ public class RangeSliderPropertyDialogService {
 
       if(!Tool.equals(oldTimeInfo, assemblyInfo.getTimeInfo())) {
          assemblyInfo.setTimeSliderSelection(new TimeSliderSelection());
+      }
+   }
+
+   /**
+    * Fill a contained slider's title height. Marked, it shows the lane it resolves and offers the
+    * follow-the-density checkbox; unmarked, or outside a selection container where the title is
+    * never drawn, its stored height and no checkbox.
+    */
+   static void readTitleHeight(TimeSliderVSAssemblyInfo info, SizePositionPaneModel model,
+                               boolean inSelectionContainer)
+   {
+      if(!inSelectionContainer) {
+         model.setTitleHeight(info.getTitleHeightValue());
+         model.setTitleHeightFollowsDensity(null);
+         return;
+      }
+
+      model.setTitleHeight(VSDensityDefaults.titleHeight(info, info.getTitleHeightValue()));
+      model.setTitleHeightFollowsDensity(
+         info.getVizMark() == null ? null : !info.isUserTitleHeight());
+   }
+
+   /**
+    * Store a contained slider's submitted title height. A missing flag keeps the old rule, which
+    * pins only an edited height.
+    */
+   static void applyTitleHeight(TimeSliderVSAssemblyInfo info, SizePositionPaneModel model) {
+      Boolean followsDensity = model.getTitleHeightFollowsDensity();
+
+      if(followsDensity == null) {
+         if(model.getTitleHeight() != info.getTitleHeightValue()) {
+            info.setUserTitleHeight(true);
+            info.setTitleHeightValue(model.getTitleHeight());
+         }
+      }
+      else if(followsDensity) {
+         info.setUserTitleHeight(false);
+         info.setTitleHeightValue(info.getLegacyTitleHeight());
+      }
+      else {
+         info.setUserTitleHeight(true);
+         info.setTitleHeightValue(model.getTitleHeight());
       }
    }
 

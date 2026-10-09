@@ -116,7 +116,7 @@ class SelectionDensitySizeTest {
    }
 
    @Test
-   void aModernizedContainerIsUnchanged() {
+   void aModernizedContainerTakesNoInset() {
       SreeEnv.setProperty("viewsheet.density", "comfortable");
       CurrentSelectionVSAssemblyInfo unmarked = new CurrentSelectionVSAssemblyInfo();
       CurrentSelectionVSAssemblyInfo marked = new CurrentSelectionVSAssemblyInfo();
@@ -124,9 +124,7 @@ class SelectionDensitySizeTest {
 
       marked.seedChromeDefaults(VizContext.of(marked));
 
-      // the container is a frame around children that inset themselves; it takes no inset of its
-      // own, so neither its box nor its padding moves when it is modernized
-      assertEquals(unmarked.getPixelSize(), marked.getPixelSize());
+      // a frame around children that inset themselves; its size follows the density instead
       assertEquals(unmarked.getPadding(), marked.getPadding());
    }
 

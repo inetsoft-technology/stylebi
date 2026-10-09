@@ -1004,6 +1004,9 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
          type: TYPE_PHYSICAL_GRAPH_CONNECTION
       };
 
+      const sourceNode = this.nodes[sourceId];
+      const targetNode = this.nodes[targetId];
+
       // Highlight Join Connection
       if(this.isHighlight(this.highlightConnections, sourceNode, targetNode)) {
          JSPlumbUtil.makeHighlightJoinConnection(connection);

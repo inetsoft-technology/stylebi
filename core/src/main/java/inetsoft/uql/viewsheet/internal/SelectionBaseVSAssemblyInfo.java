@@ -144,6 +144,25 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
    }
 
    /**
+    * The height of this list's rows inside its card inset. The caller adds the title, which a
+    * dropdown or a hidden title changes.
+    */
+   public int getListBodyHeight() {
+      Insets inset = getPadding();
+      return getListHeight() * getEffectiveCellHeight() +
+         (inset == null ? 0 : inset.top + inset.bottom);
+   }
+
+   /**
+    * The height a selection container gives this list when it is open. Marked, it fits its rows
+    * at its own density; unmarked keeps the legacy defh rows exactly.
+    */
+   public int getContainedListHeight() {
+      return getVizMark() != null ? getTitleHeight() + getListBodyHeight() :
+         getListHeight() * AssetUtil.defh + getTitleHeight();
+   }
+
+   /**
     * Whether the user has explicitly set the cell height.
     */
    public boolean isUserCellHeight() {
@@ -987,12 +1006,26 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
       // against the inset seeded above.
       //
       // Unmarked, only Revert's transition may reset the box: an open or a density re-seed runs
-      // this too, and must not shrink an unmarked list that merely happens to sit at a tier size
-      if((ctx.modern || ctx.transition) &&
-         VSDensityDefaults.isSeededSelectionSize(getPixelSize()))
-      {
+      // this too, and must not shrink an unmarked list that merely happens to sit at a tier size.
+      // An author's size carries userSize and this rule leaves it alone
+      if((ctx.modern || ctx.transition) && followsDensitySize()) {
          setPixelSize(VSDensityDefaults.selectionSize(ctx));
       }
+   }
+
+   @Override
+   public boolean takesDensitySize() {
+      return true;
+   }
+
+   @Override
+   public boolean followsDensitySize() {
+      return !isUserSize() && VSDensityDefaults.isSeededSelectionSize(getPixelSize());
+   }
+
+   @Override
+   protected Dimension defaultSize(VizContext ctx) {
+      return VSDensityDefaults.selectionSize(ctx);
    }
 
    @Override

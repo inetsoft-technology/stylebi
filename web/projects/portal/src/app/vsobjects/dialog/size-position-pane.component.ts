@@ -39,6 +39,7 @@ export class SizePositionPane implements OnInit {
    showTitleHeight: boolean;
    showTitleHeightFollow: boolean;
    showCellHeightFollow: boolean;
+   showSizeFollow: boolean;
    _titleHeightEnable: boolean = true;
 
    @Input() set titleHeightEnable(enable: boolean) {
@@ -70,13 +71,15 @@ export class SizePositionPane implements OnInit {
          FormValidators.positiveIntegerInRange
       ]));
       this.form.addControl("width", new UntypedFormControl({value: this.model.width,
-         disabled: (!this.layoutEnabled || this.model.locked)},
+         disabled: (!this.layoutEnabled || this.model.locked ||
+                    this.model.sizeFollowsDensity === true)},
          [Validators.required,
          FormValidators.isInteger(),
          FormValidators.positiveNonZeroIntegerInRange
       ]));
       this.form.addControl("height", new UntypedFormControl({value: this.model.height,
-         disabled: (!this.layoutEnabled || this.model.locked)},
+         disabled: (!this.layoutEnabled || this.model.locked ||
+                    this.model.sizeFollowsDensity === true)},
          [Validators.required,
          FormValidators.isInteger(),
          FormValidators.positiveNonZeroIntegerInRange
@@ -118,6 +121,13 @@ export class SizePositionPane implements OnInit {
       this.setEnabled("cellHeight", !follows);
    }
 
+   sizeFollowChanged(follows: boolean): void {
+      this.model.sizeFollowsDensity = follows;
+      const enabled = !follows && this.layoutEnabled && !this.model.locked;
+      this.setEnabled("width", enabled);
+      this.setEnabled("height", enabled);
+   }
+
    private setEnabled(name: string, enabled: boolean): void {
       const control = this.form.controls[name];
 
@@ -138,6 +148,7 @@ export class SizePositionPane implements OnInit {
       this.showTitleHeight = !!this.model.titleHeight;
       this.showTitleHeightFollow = this.model.titleHeightFollowsDensity != null;
       this.showCellHeightFollow = this.model.cellHeightFollowsDensity != null;
+      this.showSizeFollow = this.model.sizeFollowsDensity != null;
       this.initForm();
    }
 

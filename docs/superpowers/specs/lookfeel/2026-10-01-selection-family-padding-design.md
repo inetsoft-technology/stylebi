@@ -162,6 +162,12 @@ stranded at the old tier.
 re-derived.** A comfortable list whose author zeroes the inset keeps its 202px and gains room for a
 sixth row. The size rule exists to make the default sensible, not to track every later edit.
 
+**Amended 2026-10-06.** Recognizing a size by its value alone cannot tell an author who chose
+exactly 100×120 (or a tier size) from the rule, and since the rule re-runs on every open, that author
+loses the size every time. [The container density design](./2026-10-05-selection-container-density-design.md)
+D7 adds a `userSize` flag, set by the author's resize paths, which this rule now also requires to be
+clear, and a Follow default density checkbox for size in Size & Position.
+
 ### D6 — Existing assets are not migrated
 
 ~~Nothing rewrites a stored size, inset or cell padding on load. The parse funnel uses the no-arg
@@ -441,4 +447,6 @@ on the tier value; unmarked ones keep their own numbers, so D6 holds with no exc
 browser-versus-export disagreement on legacy rows is knowingly left in place. It predates this
 branch, and unifying it would move every existing container, which is the one thing D6 rules out.
 Whether the container's default size should grow to keep its row count at the larger tiers remains
-a separate slice.
+a separate slice. **Taken up 2026-10-05** in
+[the container density design](./2026-10-05-selection-container-density-design.md): twelve lanes at
+the tier's lane height, 300×360 / 312 / 240.

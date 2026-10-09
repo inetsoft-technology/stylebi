@@ -21,6 +21,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.TabVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VizMark;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
@@ -200,4 +201,35 @@ class GroupingServiceTest {
       assertEquals(250, after.height, "height must match child extent after layout");
    }
 
+   @Test
+   void aMarkedListDroppedIntoAContainerFitsItsRows() throws Exception {
+      assertEquals(230, droppedHeight(VizMark.MODERN_LIGHT));
+   }
+
+   @Test
+   void anUnmarkedListDroppedIntoAContainerKeepsTheLegacyHeight() throws Exception {
+      assertEquals(140, droppedHeight(null));
+   }
+
+   private int droppedHeight(VizMark mark) throws Exception {
+      when(rvs.getViewsheet()).thenReturn(parentVS);
+      parentVS.getViewsheetInfo().setVizDensity("comfortable");
+
+      CurrentSelectionVSAssembly container = new CurrentSelectionVSAssembly(parentVS, "CurrentSelection1");
+      container.getVSAssemblyInfo().setVizMark(mark);
+      container.getVSAssemblyInfo().setPixelOffset(new Point(0, 0));
+      container.getVSAssemblyInfo().setPixelSize(new Dimension(300, 360));
+      container.setAssemblies(new String[0]);
+      parentVS.addAssembly(container);
+
+      SelectionListVSAssembly list = new SelectionListVSAssembly(parentVS, "SelectionList1");
+      parentVS.addAssembly(list);
+      list.getSelectionListInfo().setVizMark(mark);
+      list.getSelectionListInfo().initDefaultFormat();
+      list.getSelectionListInfo().setListHeight(6);
+
+      service.groupComponents(rvs, container, list, true, "", dispatcher);
+
+      return list.getPixelSize().height;
+   }
 }

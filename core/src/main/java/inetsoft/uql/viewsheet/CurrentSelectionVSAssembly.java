@@ -151,6 +151,62 @@ public class CurrentSelectionVSAssembly extends AbstractContainerVSAssembly
    }
 
    /**
+    * The height this container draws a child at: a dropdown list is its title lane, a range slider
+    * whose title shows is its lane when hidden and its stored height plus its lane otherwise, and
+    * anything else is its stored height.
+    */
+   public static int getDrawnHeight(VSAssembly child) {
+      Dimension psize = child.getPixelSize();
+
+      if(child instanceof TimeSliderVSAssembly) {
+         TimeSliderVSAssemblyInfo info = (TimeSliderVSAssemblyInfo) child.getVSAssemblyInfo();
+
+         if(info.isTitleVisible()) {
+            return info.isHidden() ? info.getTitleHeight() : psize.height + info.getTitleHeight();
+         }
+      }
+
+      if(child instanceof SelectionListVSAssembly &&
+         ((SelectionListVSAssembly) child).getShowType() ==
+            SelectionListVSAssemblyInfo.DROPDOWN_SHOW_TYPE)
+      {
+         return ((SelectionListVSAssemblyInfo) child.getInfo()).getTitleHeight();
+      }
+
+      return psize.height;
+   }
+
+   /**
+    * The y this container draws a child at: under its title and any collapsed out-selection rows,
+    * after the children above it.
+    * @param containerTop the container's top, in the caller's pixel space.
+    */
+   public float getChildTop(VSAssembly child, double containerTop) {
+      Viewsheet vs = child.getViewsheet();
+      CurrentSelectionVSAssemblyInfo cinfo = (CurrentSelectionVSAssemblyInfo) getVSAssemblyInfo();
+      float titleH = cinfo.getTitleHeight();
+      int outN = !isShowCurrentSelection() ? 0 : getOutSelectionTitles().length;
+      float currentY = (float) (containerTop + titleH +
+         outN * cinfo.getOutSelectionRowHeight(AssetUtil.defh));
+
+      for(String name : getAssemblies()) {
+         if(child.getName().equals(name)) {
+            break;
+         }
+
+         VSAssembly ass = (VSAssembly) vs.getAssembly(name);
+
+         if(ass == null) {
+            continue;
+         }
+
+         currentY += getDrawnHeight(ass);
+      }
+
+      return currentY;
+   }
+
+   /**
     * Layout the Container Assembly.
     * @return the names of the assemblies relocated.
     */
@@ -160,6 +216,8 @@ public class CurrentSelectionVSAssembly extends AbstractContainerVSAssembly
       Point pos = getPixelOffset();
       Dimension size = getPixelSize();
       ArrayList arr = new ArrayList();
+      // marked, store the stack as drawn; unmarked keeps the legacy stacking its exports read
+      boolean drawn = getVSAssemblyInfo().getVizMark() != null;
       int rowsHeight = AssetUtil.defh;// title covered
 
       if(isShowCurrentSelection()) {
@@ -176,10 +234,13 @@ public class CurrentSelectionVSAssembly extends AbstractContainerVSAssembly
          Point childPos = assembly.getPixelOffset();
          Dimension asize = assembly.getPixelSize();
 
-         if(childPos.y != pos.y + rowsHeight || childPos.x != pos.x ||
+         int childY = drawn ? (int) getChildTop((VSAssembly) assembly, pos.y) :
+            pos.y + rowsHeight;
+
+         if(childPos.y != childY || childPos.x != pos.x ||
             asize.width != size.width)
          {
-            childPos.y = pos.y + rowsHeight;
+            childPos.y = childY;
             childPos.x = pos.x;
             asize.width = size.width;
             arr.add(assembly);

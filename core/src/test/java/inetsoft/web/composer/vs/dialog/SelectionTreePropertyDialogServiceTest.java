@@ -69,6 +69,8 @@ class SelectionTreePropertyDialogServiceTest {
          dataRefService,
          dataSourceRegistry,
          mock(QueryManagerService.class));
+      lenient().when(dialogService.getAssemblySize(any(), any()))
+         .thenAnswer(inv -> ((VSAssemblyInfo) inv.getArgument(0)).getPixelSize());
    }
 
    @Test

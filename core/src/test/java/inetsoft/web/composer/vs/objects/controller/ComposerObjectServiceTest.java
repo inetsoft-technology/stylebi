@@ -159,6 +159,110 @@ class ComposerObjectServiceTest {
       return buffer.toString();
    }
 
+   @Test
+   void aDraggedContainerIsFlaggedButNotItsChildren() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.getVSAssemblyInfo().setName("vs1");
+
+      SelectionListVSAssembly list = new SelectionListVSAssembly(vs, "SelectionList1");
+      list.getVSAssemblyInfo().setPixelSize(new Dimension(300, 30));
+      vs.addAssembly(list);
+
+      CurrentSelectionVSAssembly container = new CurrentSelectionVSAssembly(vs, "CurrentSelection1");
+      container.getVSAssemblyInfo().setPixelOffset(new Point(0, 0));
+      container.getVSAssemblyInfo().setPixelSize(new Dimension(300, 360));
+      vs.addAssembly(container);
+      container.setAssemblies(new String[] { "SelectionList1" });
+
+      resize(vs, "CurrentSelection1", 300, 240);
+
+      assertTrue(container.getVSAssemblyInfo().isUserSize());
+      assertFalse(list.getVSAssemblyInfo().isUserSize(), "its re-widened children are not the author's");
+   }
+
+   @Test
+   void aDraggedListIsFlagged() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.getVSAssemblyInfo().setName("vs1");
+      SelectionListVSAssembly list = new SelectionListVSAssembly(vs, "SelectionList1");
+      list.getVSAssemblyInfo().setPixelOffset(new Point(0, 0));
+      list.getVSAssemblyInfo().setPixelSize(new Dimension(132, 202));
+      vs.addAssembly(list);
+
+      resize(vs, "SelectionList1", 100, 120);
+
+      assertTrue(list.getVSAssemblyInfo().isUserSize());
+   }
+
+   @Test
+   void aListResizedToItsOwnSizeIsNotFlagged() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.getVSAssemblyInfo().setName("vs1");
+      SelectionListVSAssembly list = new SelectionListVSAssembly(vs, "SelectionList1");
+      list.getVSAssemblyInfo().setPixelOffset(new Point(0, 0));
+      list.getVSAssemblyInfo().setPixelSize(new Dimension(132, 202));
+      vs.addAssembly(list);
+
+      resize(vs, "SelectionList1", 132, 202);
+
+      assertFalse(list.getVSAssemblyInfo().isUserSize(), "a position-only change is not the author's size");
+   }
+
+   @Test
+   void aDraggedTreeIsFlagged() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.getVSAssemblyInfo().setName("vs1");
+      SelectionTreeVSAssembly tree = new SelectionTreeVSAssembly(vs, "SelectionTree1");
+      tree.getVSAssemblyInfo().setPixelOffset(new Point(0, 0));
+      tree.getVSAssemblyInfo().setPixelSize(new Dimension(132, 202));
+      vs.addAssembly(tree);
+
+      resize(vs, "SelectionTree1", 100, 120);
+
+      assertTrue(tree.getVSAssemblyInfo().isUserSize());
+   }
+
+   @Test
+   void aDraggedTableIsNotFlagged() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.getVSAssemblyInfo().setName("vs1");
+      TableVSAssembly table = new TableVSAssembly(vs, "Table1");
+      table.getVSAssemblyInfo().setPixelOffset(new Point(0, 0));
+      table.getVSAssemblyInfo().setPixelSize(new Dimension(400, 200));
+      vs.addAssembly(table);
+
+      resize(vs, "Table1", 300, 150);
+
+      assertFalse(table.getVSAssemblyInfo().isUserSize(), "a type without a density size stays clean");
+   }
+
+   @Test
+   void aDraggedTextIsNotFlagged() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.getVSAssemblyInfo().setName("vs1");
+      TextVSAssembly text = new TextVSAssembly();
+      text.getVSAssemblyInfo().setName("Text1");
+      text.getVSAssemblyInfo().setPixelOffset(new Point(0, 0));
+      text.getVSAssemblyInfo().setPixelSize(new Dimension(100, 20));
+      vs.addAssembly(text);
+
+      resize(vs, "Text1", 200, 40);
+
+      assertFalse(text.getVSAssemblyInfo().isUserSize(), "a type without a density size stays clean");
+   }
+
+   private void resize(Viewsheet vs, String name, int width, int height) throws Exception {
+      when(engine.getViewsheet(any(), any())).thenReturn(rvs);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      ResizeVSObjectEvent event = new ResizeVSObjectEvent();
+      event.setName(name);
+      event.setxOffset(0);
+      event.setyOffset(0);
+      event.setWidth(width);
+      event.setHeight(height);
+      service.resizeObject(runtimeViewsheetRef.getRuntimeId(), event, principal, dispatcher, "/test");
+   }
+
    @Mock RuntimeViewsheetRef runtimeViewsheetRef;
    @Mock VSObjectTreeService vsObjectTreeService;
    @Mock
