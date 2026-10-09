@@ -673,6 +673,7 @@ public class DistinctTableLens extends AbstractTableLens
 
    private boolean moreRows0(int row) {
       WaitRecord record = null;
+      boolean interrupted = false;
 
       try {
          while(true) {
@@ -709,7 +710,8 @@ public class DistinctTableLens extends AbstractTableLens
                      wait(record.waitMillis(JavaScriptEngine.getScriptLockWaitMillis(500)));
                   }
                   catch(InterruptedException ex) {
-                     // ignore it
+                     // keep waiting for the rows, the interrupt is restored on exit (bug #78135)
+                     interrupted = true;
                   }
 
                   continue;
@@ -735,7 +737,7 @@ public class DistinctTableLens extends AbstractTableLens
                         wait(record.waitMillis(JavaScriptEngine.getScriptLockWaitMillis(500)));
                      }
                      catch(InterruptedException ex) {
-                        // ignore it
+                        interrupted = true;
                      }
                   }
                }
@@ -781,6 +783,11 @@ public class DistinctTableLens extends AbstractTableLens
       finally {
          if(record != null) {
             record.close();
+         }
+
+         // restored once on exit: restoring it in the loop would make each wait throw at once
+         if(interrupted) {
+            Thread.currentThread().interrupt();
          }
       }
    }

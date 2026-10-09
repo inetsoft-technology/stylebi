@@ -34,6 +34,9 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static inetsoft.util.swap.SwapLostTestSupport.assertSwapOf;
 
@@ -102,12 +105,82 @@ public class DistinctTableLensTest {
          SwapFileReadException.class, () -> lens.moreRows(XTable.EOT)));
    }
 
+   /**
+    * A reader waiting for the worker's rows keeps waiting for the whole table when it is
+    * interrupted, but must not lose the interrupt (bug #78135).
+    */
+   @Test
+   public void readerInterruptIsKept() throws Exception {
+      SlowBase base = new SlowBase(100);
+      DistinctTableLens lens = new DistinctTableLens(base, DISTINCT_COLS_SINGLE, false);
+      AtomicInteger rows = new AtomicInteger();
+      AtomicBoolean interrupted = new AtomicBoolean();
+      Thread reader = new Thread(() -> {
+         lens.moreRows(XTable.EOT);
+         interrupted.set(Thread.currentThread().isInterrupted());
+         rows.set(lens.getRowCount());
+      }, "distinct-78135-reader");
+      base.reader = reader;
+      reader.setDaemon(true);
+      reader.start();
+
+      Thread.sleep(300);
+      reader.interrupt();
+      reader.join(TimeUnit.SECONDS.toMillis(60));
+
+      Assertions.assertFalse(reader.isAlive(), "the reader never returned");
+      Assertions.assertEquals(101, rows.get(), "the distinct table must be complete");
+
+      for(int i = 1; i <= 100; i++) {
+         Assertions.assertEquals(i, lens.getObject(i, 0));
+      }
+
+      Assertions.assertTrue(interrupted.get(), "the reader's interrupt was lost");
+   }
+
    private static final int[] DISTINCT_COLS = { 0, 1 };
    private static final int[] DISTINCT_COLS_SINGLE = { 0 };
 
    private static final Object[][] DATA = {
       { "key", "value" }, { "b", 1 }, { "a", 2 }, { "c", 3 }, { "a", 4 }, { "b", 5 }, { "d", 6 }
    };
+
+   /**
+    * A base with distinct values 1..rows in column 0 that the distinct worker reads slowly:
+    * 20 ms a row on any thread but the reader and the test thread.
+    */
+   private static final class SlowBase extends DefaultTableLens {
+      SlowBase(int rows) {
+         super(rows + 1, 1);
+         setHeaderRowCount(1);
+         setObject(0, 0, "id");
+
+         for(int i = 1; i <= rows; i++) {
+            setObject(i, 0, i);
+         }
+
+         owner = Thread.currentThread();
+      }
+
+      @Override
+      public Object getObject(int r, int c) {
+         Thread thread = Thread.currentThread();
+
+         if(r > 0 && thread != owner && thread != reader) {
+            try {
+               Thread.sleep(20);
+            }
+            catch(InterruptedException ex) {
+               thread.interrupt();
+            }
+         }
+
+         return super.getObject(r, c);
+      }
+
+      private final Thread owner;
+      volatile Thread reader;
+   }
 
    /**
     * A base whose data rows from {@code failAtRow} on fail with {@code failure}.
