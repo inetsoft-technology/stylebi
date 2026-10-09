@@ -521,6 +521,83 @@ class SortOrderTest {
    }
 
    // -------------------------------------------------------------------------
+   // compare(Date, Date) — WEEK_OF_MONTH (part) grouping
+   // Bug #78112 review round 1: the minimalDaysInFirstWeek(1) fix above must NOT reach
+   // WEEK_OF_MONTH_DATE_GROUP -- Week of Month grouping is out of scope for #78112 and must
+   // stay exactly as locale-dependent as it was before this fix, since it reads
+   // Calendar.WEEK_OF_MONTH from the same c1/c2 that WEEK_OF_YEAR/WEEK_DATE_GROUP now force to
+   // minimalDaysInFirstWeek(1).
+   // -------------------------------------------------------------------------
+
+   /**
+    * 2023-01-28 and 2023-04-28 land in the same {@code Calendar.WEEK_OF_MONTH} bucket (4) under
+    * {@code minimalDaysInFirstWeek == 4} -- en-GB's locale default, and exactly what a
+    * never-re-synced {@code GregorianCalendar} constructed under {@code Locale.UK} carries,
+    * which is how this case behaved before this PR. Computed directly from plain
+    * {@code GregorianCalendar}/{@code Locale.UK} semantics (firstDayOfWeek = SUNDAY, the
+    * unconfigured {@code Tool.getFirstDayOfWeek()} default -- not locale-derived):
+    * <pre>
+    * GregorianCalendar cal = new GregorianCalendar(); // under Locale.UK: minimalDaysInFirstWeek == 4
+    * cal.setFirstDayOfWeek(Calendar.SUNDAY);
+    * cal.setTime(2023-01-28); cal.get(Calendar.WEEK_OF_MONTH); // == 4
+    * cal.setTime(2023-04-28); cal.get(Calendar.WEEK_OF_MONTH); // == 4
+    * </pre>
+    * If this PR's minimalDaysInFirstWeek(1) fix accidentally reached this case (as round 1 of
+    * the fix did), minimalDaysInFirstWeek would be forced to 1 and the two dates would come out
+    * as WEEK_OF_MONTH 4 and 5 instead -- different buckets -- so {@code compare} would wrongly
+    * return non-zero.
+    */
+   @Test
+   void compareDates_weekOfMonthGroup_underEnGBLocale_matchesPreFixLocaleDependentBucketing()
+      throws InterruptedException
+   {
+      Locale old = Locale.getDefault();
+
+      try {
+         Date jan28 = makeDate(2023, Calendar.JANUARY, 28);
+         Date apr28 = makeDate(2023, Calendar.APRIL, 28);
+         assertEquals(0,
+                      compareOnFreshThread(Locale.UK, XConstants.WEEK_OF_MONTH_DATE_GROUP,
+                                           jan28, apr28),
+                      "2023-01-28 and 2023-04-28 both fall in WEEK_OF_MONTH 4 under en-GB's " +
+                         "locale-default minimalDaysInFirstWeek (4) -- this must be unaffected " +
+                         "by the WEEK_OF_YEAR minimalDaysInFirstWeek(1) fix, which must stay " +
+                         "scoped to WEEK_DATE_GROUP/WEEK_OF_YEAR_DATE_GROUP only");
+      }
+      finally {
+         Locale.setDefault(old);
+      }
+   }
+
+   /**
+    * Same pair of dates, but under en-US's own locale-default minimalDaysInFirstWeek == 1 --
+    * the same numeric value this PR forces for WEEK_OF_YEAR/WEEK_DATE_GROUP. Jan 28 lands in
+    * WEEK_OF_MONTH 4 and Apr 28 in WEEK_OF_MONTH 5 under minimalDaysInFirstWeek == 1 (unlike
+    * under en-GB's 4, where both land in bucket 4 -- see the sibling en-GB test above), so this
+    * confirms WEEK_OF_MONTH_DATE_GROUP's bucketing genuinely depends on minimalDaysInFirstWeek,
+    * making the en-GB test above a meaningful discriminator rather than a coincidence.
+    */
+   @Test
+   void compareDates_weekOfMonthGroup_underEnUSLocale_differsFromEnGBBucketing()
+      throws InterruptedException
+   {
+      Locale old = Locale.getDefault();
+
+      try {
+         Date jan28 = makeDate(2023, Calendar.JANUARY, 28);
+         Date apr28 = makeDate(2023, Calendar.APRIL, 28);
+         assertNotEquals(0,
+                      compareOnFreshThread(Locale.US, XConstants.WEEK_OF_MONTH_DATE_GROUP,
+                                           jan28, apr28),
+                      "2023-01-28 falls in WEEK_OF_MONTH 4 and 2023-04-28 in WEEK_OF_MONTH 5 " +
+                         "under en-US's locale-default minimalDaysInFirstWeek (1)");
+      }
+      finally {
+         Locale.setDefault(old);
+      }
+   }
+
+   // -------------------------------------------------------------------------
    // compare(Date, Date) — DAY_OF_MONTH (part) grouping
    // -------------------------------------------------------------------------
 

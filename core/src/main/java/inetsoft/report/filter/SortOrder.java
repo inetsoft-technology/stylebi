@@ -698,15 +698,6 @@ public class SortOrder implements Comparer, Cloneable, Comparator, XConstants {
       calendar.setFirstDayOfWeek(firstDayOfWeek);
       c1.setFirstDayOfWeek(firstDayOfWeek);
       c2.setFirstDayOfWeek(firstDayOfWeek);
-      // Bug #78112: same defect as above but for minimalDaysInFirstWeek -- it also inherits
-      // the JVM default locale (1 for en_US/zh_CN/root, 4 for en_GB/de_DE/fr_FR) and was never
-      // re-synced, so WEEK_OF_YEAR below (and the week grouping it feeds) silently disagreed
-      // with CALC.weeknum/the crosstab Week of Year level depending on the server's JVM
-      // locale. Match CALC.weeknum's default convention: the week containing January 1 is
-      // week 1.
-      calendar.setMinimalDaysInFirstWeek(1);
-      c1.setMinimalDaysInFirstWeek(1);
-      c2.setMinimalDaysInFirstWeek(1);
       int result = 999;
       int year1, month1, day1, hour1, minute1, second1, millisecond1;
       int weekday1, weeks1;
@@ -723,7 +714,20 @@ public class SortOrder implements Comparer, Cloneable, Comparator, XConstants {
       second1 = d1 == null ? -1 : c1.get(Calendar.SECOND);
       millisecond1 = d1 == null ? -1 : c1.get(Calendar.MILLISECOND);
       weekday1 = d1 == null ? -1 : c1.get(Calendar.DAY_OF_WEEK);
+      // Bug #78112: same defect as the first-day-of-week one above but for
+      // minimalDaysInFirstWeek -- it also inherits the JVM default locale (1 for
+      // en_US/zh_CN/root, 4 for en_GB/de_DE/fr_FR) and was never re-synced, so WEEK_OF_YEAR
+      // silently disagreed with CALC.weeknum/the crosstab Week of Year level depending on the
+      // server's JVM locale. Match CALC.weeknum's default convention: the week containing
+      // January 1 is week 1. Force it only around this one read, then restore immediately --
+      // c1 is also read a few lines (and a switch case) below by WEEK_OF_MONTH_DATE_GROUP via
+      // Calendar.WEEK_OF_MONTH, which depends on minimalDaysInFirstWeek exactly like
+      // WEEK_OF_YEAR does and must keep seeing whatever locale-dependent value it saw before
+      // this fix -- Week of Month grouping is out of scope for #78112.
+      int origC1MinDays = c1.getMinimalDaysInFirstWeek();
+      c1.setMinimalDaysInFirstWeek(1);
       weeks1 = d1 == null ? -1 : c1.get(Calendar.WEEK_OF_YEAR);
+      c1.setMinimalDaysInFirstWeek(origC1MinDays);
 
       int year2, month2, day2, hour2, minute2, second2, millisecond2;
       int weekday2, weeks2;
@@ -740,7 +744,13 @@ public class SortOrder implements Comparer, Cloneable, Comparator, XConstants {
       second2 = d2 == null ? -1 : c2.get(Calendar.SECOND);
       millisecond2 = d2 == null ? -1 : c2.get(Calendar.MILLISECOND);
       weekday2 = d2 == null ? -1 : c2.get(Calendar.DAY_OF_WEEK);
+      // Bug #78112: same scoping as weeks1 above -- force minimalDaysInFirstWeek(1) only for
+      // this WEEK_OF_YEAR read, then restore, so WEEK_OF_MONTH_DATE_GROUP's c2.get(WEEK_OF_MONTH)
+      // further down keeps its pre-fix, locale-dependent value.
+      int origC2MinDays = c2.getMinimalDaysInFirstWeek();
+      c2.setMinimalDaysInFirstWeek(1);
       weeks2 = d2 == null ? -1 : c2.get(Calendar.WEEK_OF_YEAR);
+      c2.setMinimalDaysInFirstWeek(origC2MinDays);
       int h1 = 0;
       int h2 = 0;
 
@@ -829,11 +839,23 @@ public class SortOrder implements Comparer, Cloneable, Comparator, XConstants {
             if(d2 != null && refreshGroupDate) {
                h2 = (int) (h2 * interval);
 
-               calendar.clear();
-               calendar.set(year2, 1, 1, 0, 0, 0);
-               calendar.set(Calendar.WEEK_OF_YEAR, h2);
-               calendar.set(Calendar.DAY_OF_WEEK, Tool.getFirstDayOfWeek());
-               groupDate = calendar.getTime();
+               // Bug #78112: same scoped force/restore as weeks1/weeks2 above -- calendar is
+               // the same shared thread-local also read (unforced) by WEEK_OF_MONTH_DATE_GROUP
+               // below, so only force minimalDaysInFirstWeek(1) for this WEEK_OF_YEAR
+               // write/read and restore it immediately after.
+               int origCalMinDays = calendar.getMinimalDaysInFirstWeek();
+               calendar.setMinimalDaysInFirstWeek(1);
+
+               try {
+                  calendar.clear();
+                  calendar.set(year2, 1, 1, 0, 0, 0);
+                  calendar.set(Calendar.WEEK_OF_YEAR, h2);
+                  calendar.set(Calendar.DAY_OF_WEEK, Tool.getFirstDayOfWeek());
+                  groupDate = calendar.getTime();
+               }
+               finally {
+                  calendar.setMinimalDaysInFirstWeek(origCalMinDays);
+               }
             }
 
             break;
