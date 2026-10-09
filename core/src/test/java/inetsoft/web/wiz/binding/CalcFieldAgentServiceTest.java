@@ -235,7 +235,7 @@ class CalcFieldAgentServiceTest {
       Principal agent = principal();
 
       CalcFieldRequest req = new CalcFieldRequest(
-         "orders", null, "NetTotal", null, "field['Total']", "double", false, true, false, true);
+         "orders", null, "Fresh", null, "field['Total']", "double", false, true, false, true);
 
       service.modify("tok", agent, req, "");
 
@@ -269,7 +269,7 @@ class CalcFieldAgentServiceTest {
          sessionsRunningAgainstRt1(), fields, proxy, allowingSecurityEngine());
       Principal agent = principal();
 
-      CalcFieldRequest req = new CalcFieldRequest("ORDERS", "Chart1", "NetTotal", null,
+      CalcFieldRequest req = new CalcFieldRequest("ORDERS", "Chart1", "Fresh", null,
          "field['Total']", "double", false, true, false, true);
 
       service.modify("tok", agent, req, "");
@@ -284,7 +284,7 @@ class CalcFieldAgentServiceTest {
          sessionsRunningAgainstRt1(), fieldsServiceWithOrdersTable(), proxy, allowingSecurityEngine());
       Principal agent = principal();
 
-      CalcFieldRequest req = new CalcFieldRequest("ORDERS", "Chart1", "NetTotal", null,
+      CalcFieldRequest req = new CalcFieldRequest("ORDERS", "Chart1", "Fresh", null,
          "field['Total']*(1-field['Discount'])", "double", false, null, false, true);
 
       service.modify("tok", agent, req, "link");
@@ -298,7 +298,7 @@ class CalcFieldAgentServiceTest {
       assertFalse(event.remove());
       assertEquals("ORDERS", event.tableName());
       assertEquals("Chart1", event.name());
-      assertEquals("NetTotal", event.refName());
+      assertEquals("Fresh", event.refName());
 
       CalculateRefModel calc = event.calculateRef();
       assertNotNull(calc);
@@ -306,7 +306,7 @@ class CalcFieldAgentServiceTest {
       assertFalse(calc.isSql());
       assertEquals("double", calc.getDataType());
       ExpressionRefModel expr = (ExpressionRefModel) calc.getDataRefModel();
-      assertEquals("NetTotal", expr.getName());
+      assertEquals("Fresh", expr.getName());
       assertEquals("field['Total']*(1-field['Discount'])", expr.getExp());
    }
 
@@ -605,5 +605,93 @@ class CalcFieldAgentServiceTest {
          "field['Total'] * 0.9", null, null, null, false, false);
 
       assertTrue(service.modify("tok", principal(), req, "").rewrittenDependents().isEmpty());
+   }
+
+   private CalcFieldAgentService serviceOver(Viewsheet vs, ModifyCalculateFieldServiceProxy proxy)
+      throws Exception
+   {
+      return new CalcFieldAgentService(
+         sessionsOver(vs), fieldsServiceWithOrdersTable(), proxy, allowingSecurityEngine());
+   }
+
+   private Viewsheet vsWith(CalculateRef... calcs) {
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getCalcFields("ORDERS")).thenReturn(calcs);
+
+      for(CalculateRef c : calcs) {
+         when(vs.getCalcField("ORDERS", c.getName())).thenReturn(c);
+      }
+
+      return vs;
+   }
+
+   /** Bug #77044 (7): a create with a different definition must not replace an existing field. */
+   @Test
+   void createWithAnExistingNameAndADifferentDefinitionIsRefused() throws Exception {
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      CalcFieldAgentService service =
+         serviceOver(vsWith(calc("DupCalc", "1", true)), proxy);
+
+      CalcFieldRequest req = new CalcFieldRequest(
+         "ORDERS", null, "DupCalc", null, "2", "integer", false, true, false, true);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.modify("tok", principal(), req, ""));
+      assertTrue(thrown.getMessage().contains("DupCalc"), thrown.getMessage());
+      verifyNoInteractions(proxy);
+   }
+
+   @Test
+   void createWithAnExistingNameDifferingOnlyInCaseIsRefused() throws Exception {
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      CalcFieldAgentService service =
+         serviceOver(vsWith(calc("DupCalc", "1", true)), proxy);
+
+      CalcFieldRequest req = new CalcFieldRequest(
+         "ORDERS", null, "dupcalc", null, "1", "string", false, true, false, true);
+
+      assertThrows(IllegalArgumentException.class,
+         () -> service.modify("tok", principal(), req, ""));
+      verifyNoInteractions(proxy);
+   }
+
+   @Test
+   void createWithTheIdenticalDefinitionStaysAnIdempotentNoOp() throws Exception {
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      CalculateRef existing = calc("DupCalc", "1", true);
+      existing.setDataType("integer");
+      existing.setSQL(false);
+      CalcFieldAgentService service = serviceOver(vsWith(existing), proxy);
+
+      CalcFieldRequest req = new CalcFieldRequest(
+         "ORDERS", null, "DupCalc", null, "1", "integer", false, true, false, true);
+
+      assertDoesNotThrow(() -> service.modify("tok", principal(), req, ""));
+   }
+
+   @Test
+   void renameOntoAnotherCalcFieldIsRefused() throws Exception {
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      CalcFieldAgentService service = serviceOver(
+         vsWith(calc("DupCalc", "1", true), calc("DupCalc2", "3", true)), proxy);
+
+      CalcFieldRequest req = new CalcFieldRequest(
+         "ORDERS", null, "DupCalc2", "DupCalc", "3", null, null, true, false, false);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.modify("tok", principal(), req, ""));
+      assertTrue(thrown.getMessage().contains("DupCalc"), thrown.getMessage());
+      verifyNoInteractions(proxy);
+   }
+
+   @Test
+   void caseOnlyRenameOfTheFieldItselfIsAllowed() throws Exception {
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      CalcFieldAgentService service = serviceOver(vsWith(calc("DupCalc", "1", true)), proxy);
+
+      CalcFieldRequest req = new CalcFieldRequest(
+         "ORDERS", null, "DupCalc", "DUPCALC", "1", null, null, true, false, false);
+
+      assertDoesNotThrow(() -> service.modify("tok", principal(), req, ""));
    }
 }

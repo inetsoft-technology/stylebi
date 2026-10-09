@@ -178,6 +178,13 @@ public class CalcFieldAgentService {
                describeCalcFields(rvs.getViewsheet().getCalcFields(tableName)) + ".");
          }
 
+         // Viewsheet.addCalcField replaces an equal-named field, so a create or a rename onto a
+         // name another calc field on the table already holds would silently overwrite it. The
+         // native dialog refuses this ("Duplicate Name"); do the same, before anything mutates.
+         if(!req.remove() && (req.create() || !newName.equals(req.name()))) {
+            checkCalcNameFree(rvs.getViewsheet(), tableName, req, newName);
+         }
+
          CalculateRefModel model = null;
 
          if(!req.remove()) {
@@ -226,6 +233,53 @@ public class CalcFieldAgentService {
       });
 
       return new CalcFieldResult(warnings, rewrittenDependents);
+   }
+
+   /**
+    * Refuses a create/rename whose target name (case-insensitively) is held by another calc field
+    * on {@code table}. A case-only rename of the field itself is allowed, and re-creating a field
+    * with the identical definition stays an idempotent no-op.
+    */
+   private static void checkCalcNameFree(Viewsheet vs, String table, CalcFieldRequest req,
+                                         String newName)
+   {
+      CalculateRef[] calcs = vs.getCalcFields(table);
+
+      if(calcs == null) {
+         return;
+      }
+
+      for(CalculateRef calc : calcs) {
+         String other = calc.getName();
+
+         if(other == null || !other.equalsIgnoreCase(newName)) {
+            continue;
+         }
+
+         if(!req.create() && other.equals(req.name())) {
+            continue;
+         }
+
+         if(req.create() && other.equals(newName) && sameDefinition(calc, req)) {
+            continue;
+         }
+
+         throw new IllegalArgumentException(
+            "A calc field named '" + other + "' already exists on '" + table + "', so '" +
+            newName + "' is a duplicate name (names are compared case-insensitively). Pick a " +
+            "different name, or use edit_calc_field with name '" + other + "' to change it.");
+      }
+   }
+
+   private static boolean sameDefinition(CalculateRef calc, CalcFieldRequest req) {
+      if(!(calc.getDataRef() instanceof ExpressionRef)) {
+         return false;
+      }
+
+      return Objects.equals(((ExpressionRef) calc.getDataRef()).getExpression(), req.expression()) &&
+         Objects.equals(calc.getDataType(), req.dataType()) &&
+         calc.isSQL() == (req.sql() != null && req.sql()) &&
+         calc.isBaseOnDetail() == (req.baseOnDetail() == null || req.baseOnDetail());
    }
 
    /**

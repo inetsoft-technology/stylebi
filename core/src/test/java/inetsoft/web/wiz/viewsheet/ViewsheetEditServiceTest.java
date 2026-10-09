@@ -292,6 +292,35 @@ class ViewsheetEditServiceTest {
    }
 
    /**
+    * Bug #77044 (1): {@code add} naming the new assembly after an existing one must fail loud
+    * before {@code addNewObject} -- no orphan auto-named assembly, no resize of the other one.
+    */
+   @Test
+   void addWithACollidingAssemblyNameFailsBeforeCreatingAnything() throws Exception {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(vs.containsAssembly("Collide2")).thenReturn(true);
+
+      VSObjectPropertyService propertyService = mock(VSObjectPropertyService.class);
+      ViewsheetEditService service = serviceWithRuntime(rvs, mock(ViewsheetReadService.class),
+         objects, propertyService);
+
+      EditRequest request = new EditRequest("add", "Collide2", 40, 60, 222, 77, null, null,
+                                            null, null, null, null, 111, null);
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.apply("tok", principal(), request, ""));
+
+      assertTrue(thrown.getMessage().contains("Collide2"), thrown.getMessage());
+      verify(objects, never()).addNewObject(anyString(), any(), any(Principal.class), any(),
+                                            anyString());
+      verify(objects, never()).resizeObject(anyString(), any(), any(Principal.class), any(),
+                                            anyString());
+      verifyNoInteractions(propertyService);
+   }
+
+   /**
     * Regression for Bug PVA-004: with {@code width}/{@code height} supplied, {@code add} must
     * chain a resize on the newly-created assembly -- seeded from the position {@code add()}
     * itself already placed the assembly at ({@code request.x()}/{@code request.y()}), not left

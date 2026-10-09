@@ -111,6 +111,26 @@ class VSObjectPropertyServiceTest {
          contains("Gauge1"), eq(MessageCommand.Type.ERROR), eq(commandDispatcher));
    }
 
+   /**
+    * Bug #77044 (1): a rename onto an existing assembly name must be refused with an ERROR
+    * message before any state (filterIDs, dependents' sources) is touched.
+    */
+   @Test
+   void renameOntoAnExistingAssemblyIsRefusedBeforeAnyMutation() throws Exception {
+      when(rvs.isDisposed()).thenReturn(false);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(viewsheet.containsAssembly("Text2")).thenReturn(true);
+
+      boolean applied = controller.editObjectProperty(rvs, new GaugeVSAssemblyInfo(), "Text1",
+                                                      "Text2", "", null, commandDispatcher, true, null);
+
+      assertFalse(applied);
+      verify(coreLifecycleService).sendMessage(
+         anyString(), eq(MessageCommand.Type.ERROR), eq(commandDispatcher));
+      verify(viewsheet, never()).getViewsheetInfo();
+      verify(viewsheet, never()).getAssemblies();
+   }
+
    @Test
    void proceedsWhenTheRevisionMatches() {
       when(rvs.isDisposed()).thenReturn(false);

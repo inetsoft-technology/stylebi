@@ -147,6 +147,16 @@ public class VSObjectPropertyService {
       Viewsheet vs = rvs.getViewsheet();
       Worksheet ws = vs.getBaseWorksheet();
 
+      if(!Tool.equals(oldName, newName) && vs.containsAssembly(newName)) {
+         // Checked before any mutation: the filterID swap and renameAllBindSourceAssemblies below
+         // are not undone when the rename itself is refused. ERROR, not OK, so wiz callers that
+         // only fail on ERROR do not report the refused rename as a success.
+         this.coreLifecycleService.sendMessage(
+            Catalog.getCatalog().getString("common.renameViewsheetFailed"),
+            MessageCommand.Type.ERROR, commandDispatcher);
+         return false;
+      }
+
       if(!Tool.equals(oldName, newName)) {
          String id = vs.getViewsheetInfo().getFilterID(oldName);
          vs.getViewsheetInfo().setFilterID(oldName, null);
