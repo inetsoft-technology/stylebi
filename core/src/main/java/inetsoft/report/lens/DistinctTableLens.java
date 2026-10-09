@@ -34,6 +34,7 @@ import inetsoft.util.stall.WaitRecord;
 import inetsoft.util.stall.WaitRegistry;
 import inetsoft.util.swap.DataUnavailable;
 import inetsoft.util.swap.SwapFileReadException;
+import inetsoft.util.swap.SwapReadInterruptedException;
 import inetsoft.util.swap.XSwappableIntList;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import org.slf4j.Logger;
@@ -214,6 +215,15 @@ public class DistinctTableLens extends AbstractTableLens
    @Override
    public boolean isCancelled() {
       return cancelled;
+   }
+
+   /**
+    * Check if a script timeout or cancel interrupted a swap read of the base table as this
+    * table was computed, so every read fails until it is invalidated. A cache treats such a
+    * table as not cached, and the next reader computes it again (bug #78100).
+    */
+   public boolean isStopped() {
+      return baseFailure instanceof SwapReadInterruptedException;
    }
 
    /**

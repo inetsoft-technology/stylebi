@@ -190,6 +190,15 @@ public class JoinTableLens extends AbstractTableLens
       return delegate.isCancelled();
    }
 
+   /**
+    * Check if a script timeout or cancel interrupted a swap read of a base table as the
+    * current join was computed, so every read fails until this table is invalidated. A cache
+    * treats such a table as not cached, and the next reader computes it again (bug #78100).
+    */
+   public boolean isStopped() {
+      return delegate.isStopped();
+   }
+
    @Override
    public Class<?> getColType(int col) {
       return delegate.getColType(col);

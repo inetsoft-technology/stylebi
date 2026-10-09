@@ -27,7 +27,10 @@ import inetsoft.report.internal.Util;
 import inetsoft.report.internal.XNodeMetaTable;
 import inetsoft.report.internal.table.CancellableTableLens;
 import inetsoft.report.lens.CalcTableLens;
+import inetsoft.report.lens.DistinctTableLens;
 import inetsoft.report.lens.FormulaTableLens;
+import inetsoft.report.lens.JoinTableLens;
+import inetsoft.report.lens.SelfJoinTableLens;
 import inetsoft.report.lens.SetTableLens;
 import inetsoft.report.lens.xnode.XNodeTableLens;
 import inetsoft.report.script.formula.AssetQueryScope;
@@ -209,11 +212,17 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
    /**
     * Check if a formula of the table or a sub-table was stopped by a script timeout or cancel,
     * so its cell fails every read. A cache treats such a table as not cached, and the next
-    * reader computes it again with fresh formula vars (bug #77949).
+    * reader computes it again with fresh formula vars (bug #77949). The same applies to a
+    * distinct or join table whose base read a script timeout or cancel interrupted
+    * (bug #78100).
     */
    public static boolean isStopped(TableLens lens) {
+      // check the table itself before its base tables: a join table hides its delegate
       if(lens instanceof FormulaTableLens formula && formula.isStopped() ||
-         lens instanceof CalcTableLens calc && calc.isStopped())
+         lens instanceof CalcTableLens calc && calc.isStopped() ||
+         lens instanceof DistinctTableLens distinct && distinct.isStopped() ||
+         lens instanceof SelfJoinTableLens selfJoin && selfJoin.isStopped() ||
+         lens instanceof JoinTableLens join && join.isStopped())
       {
          return true;
       }
