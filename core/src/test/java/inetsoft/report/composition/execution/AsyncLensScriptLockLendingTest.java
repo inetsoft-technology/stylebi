@@ -409,7 +409,7 @@ public class AsyncLensScriptLockLendingTest {
    public void execWorkerStartedByGetRowCountThenAwaitedUnderLock(Kind kind) throws Exception {
       List<List<Object>> expected = execControl(kind);
       Object script = initEngine(engine);
-      Pipeline pipeline = buildExec(kind, box, engine, script);
+      Pipeline pipeline = buildExec(kind, box, engine, script, loanGate());
       pool.submit(() -> pipeline.lens.getRowCount()).get(TIMEOUT, TimeUnit.SECONDS);
 
       Future<List<List<Object>>> holder = pool.submit(() -> drain(pipeline.outer));
@@ -427,7 +427,7 @@ public class AsyncLensScriptLockLendingTest {
    public void execWorkerFirstTouchUnderLock(Kind kind) throws Exception {
       List<List<Object>> expected = execControl(kind);
       Object script = initEngine(engine);
-      Pipeline pipeline = buildExec(kind, box, engine, script);
+      Pipeline pipeline = buildExec(kind, box, engine, script, null);
       Future<List<List<Object>>> holder = pool.submit(() -> {
          assertTrue(pipeline.outer.moreRows(1));
          return drain(pipeline.outer);
@@ -451,7 +451,7 @@ public class AsyncLensScriptLockLendingTest {
 
       try {
          Object script = initEngine(controlEngine);
-         List<List<Object>> rows = drain(buildExec(kind, null, controlEngine, script).outer);
+         List<List<Object>> rows = drain(buildExec(kind, null, controlEngine, script, null).outer);
          assertTrue(rows.size() > 2, "control pipeline is empty");
          // exec() leaves the values unchanged, so the rows equal the plain pipeline's
          assertEquals(control(kind).outerRows, rows);
@@ -463,9 +463,46 @@ public class AsyncLensScriptLockLendingTest {
    }
 
    private Pipeline buildExec(Kind kind, AssetQuerySandbox box, GraalJavaScriptEngine engine,
-                              Object script)
+                              Object script, Runnable gate)
    {
-      return build(kind, box, new ExecTable(engine, script));
+      return build(kind, box, new ExecTable(engine, script, gate));
+   }
+
+   /**
+    * A gate for the worker's read of the last base row (bug #78147). Without it the holder
+    * and the worker race: a holder slowed down by CPU starvation (cold first test, busy
+    * CI runner) reached the lens after the worker had finished, found nothing to wait for
+    * and correctly lent nothing, or lent only for a few milliseconds that the sampling
+    * watcher missed. The gate holds the worker, outside the lock, until the holder has
+    * lent it the lock, and records the loan it sees. It is bounded below TIMEOUT, so a
+    * holder that never lends still fails the loan assertion. The worker must hold no
+    * monitor the holder needs while it waits, which is why it is only used on ExecTable
+    * (no inner condition filter) and only on reads made without the lock.
+    */
+   private Runnable loanGate() {
+      AtomicBoolean armed = new AtomicBoolean(true);
+
+      return () -> {
+         if(lock.isHeldByCurrentThread() || !armed.compareAndSet(true, false)) {
+            return;
+         }
+
+         long deadline = System.currentTimeMillis() + GATE_TIMEOUT * 1000L;
+
+         while(!lock.isLent() && System.currentTimeMillis() < deadline) {
+            try {
+               Thread.sleep(1);
+            }
+            catch(InterruptedException ex) {
+               Thread.currentThread().interrupt();
+               return;
+            }
+         }
+
+         if(lock.isLent()) {
+            lentSeen.set(true);
+         }
+      };
    }
 
    private Pipeline build(Kind kind, AssetQuerySandbox box) {
@@ -601,13 +638,18 @@ public class AsyncLensScriptLockLendingTest {
     * like a calc field. The script returns 2 and leaves the value unchanged.
     */
    private static final class ExecTable extends SlowTable {
-      ExecTable(GraalJavaScriptEngine engine, Object script) {
+      ExecTable(GraalJavaScriptEngine engine, Object script, Runnable gate) {
          this.engine = engine;
          this.script = script;
+         this.gate = gate;
       }
 
       @Override
       public Object getObject(int r, int c) {
+         if(gate != null && r == ROWS && c == 1 && !FAST.get()) {
+            gate.run();
+         }
+
          Object value = super.getObject(r, c);
 
          if(r > 0 && c == 1) {
@@ -625,10 +667,12 @@ public class AsyncLensScriptLockLendingTest {
 
       private final GraalJavaScriptEngine engine;
       private final Object script;
+      private final Runnable gate;
    }
 
    private static final int ROWS = 120;
    private static final long TIMEOUT = 30;
+   private static final long GATE_TIMEOUT = 10;
    private static final ThreadLocal<Boolean> FAST = ThreadLocal.withInitial(() -> false);
    private static final Map<Kind, Pipeline> CONTROLS = new ConcurrentHashMap<>();
    private static final Map<StackedKind, List<List<Object>>> STACKED_CONTROLS = new ConcurrentHashMap<>();
