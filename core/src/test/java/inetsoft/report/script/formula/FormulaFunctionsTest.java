@@ -387,15 +387,21 @@ public class FormulaFunctionsTest {
       Assertions.assertInstanceOf(XTable.class, deserializedTable);
    }
 
-   // Bug #77526, the date=week option keeps the locale's Sunday-based week of year, which the
-   // crosstab Week of Year group uses, rather than the Excel numbering of CALC.weeknum()
+   // Bug #77526, the date=week option keeps the Sunday-based week of year (the week containing
+   // January 1 is week 1), which the crosstab Week of Year group uses, rather than the Excel
+   // numbering of CALC.weeknum().
+   // Bug #78112: this must hold under any JVM default locale, not just locales whose
+   // GregorianCalendar default minimalDaysInFirstWeek happens to be 1 (e.g. en-US/zh-CN).
+   // de-DE defaults to minimalDaysInFirstWeek=4, which used to make 2020-12-27/2021-01-01
+   // read as week 53 and 2021-01-03 as week 1 -- now forced to 1 like every other locale, so
+   // de-DE matches en-US exactly for every row below.
    @ParameterizedTest
    @CsvSource({
       "en-US, 2020-12-26, 52", "en-US, 2020-12-27, 1", "en-US, 2021-01-01, 1",
       "en-US, 2021-01-03, 2", "en-US, 2024-12-28, 52", "en-US, 2024-12-30, 1",
       "en-US, 2024-12-31, 1", "en-US, 2025-01-05, 2",
-      "de-DE, 2020-12-26, 52", "de-DE, 2020-12-27, 53", "de-DE, 2021-01-01, 53",
-      "de-DE, 2021-01-03, 1", "de-DE, 2024-12-28, 52", "de-DE, 2024-12-30, 1",
+      "de-DE, 2020-12-26, 52", "de-DE, 2020-12-27, 1", "de-DE, 2021-01-01, 1",
+      "de-DE, 2021-01-03, 2", "de-DE, 2024-12-28, 52", "de-DE, 2024-12-30, 1",
       "de-DE, 2024-12-31, 1", "de-DE, 2025-01-05, 2"
    })
    void dateWeekOptionKeepsLocaleWeekOfYear(String tag, String day, int week) {

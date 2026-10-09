@@ -25,6 +25,7 @@ import org.junit.jupiter.params.provider.*;
 
 import java.util.Calendar;
 import java.util.Date;
+import java.util.Locale;
 import java.util.stream.Stream;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
@@ -432,6 +433,168 @@ class SortOrderTest {
       Calendar c2 = Calendar.getInstance();
       c2.set(2023, Calendar.MARCH, 13); // week 11
       assertTrue(order.compare(c1.getTime(), c2.getTime(), false) < 0);
+   }
+
+   // -------------------------------------------------------------------------
+   // compare(Date, Date) — WEEK_DATE_GROUP (named/freehand week-bucket grouping)
+   // Bug #78112: cal0/cal1/cal2 only ever re-synced firstDayOfWeek, never
+   // minimalDaysInFirstWeek, so WEEK_OF_YEAR (and the week buckets it feeds) silently
+   // disagreed with CALC.weeknum/the Week of Year crosstab level depending on the server's
+   // JVM default locale; and the December-only year-boundary fixup had no symmetric case
+   // for a January date rolling back into the previous year's week 52/53.
+   // -------------------------------------------------------------------------
+
+   @Test
+   void compareDates_weekDateGroup_decAndJanSameWeek_underEnGBLocale_groupedTogether()
+      throws InterruptedException
+   {
+      Locale old = Locale.getDefault();
+
+      try {
+         // 2025-12-28 (Sun) through 2026-01-03 (Sat) is one Sunday-start week. Under an
+         // uncorrected en-GB/de-DE JVM default locale (minimalDaysInFirstWeek == 4), Dec 28's
+         // WEEK_OF_YEAR came out as 53 (not 1), so the December-only fixup's "weeks1 == 1"
+         // guard never fired and these two dates were wrongly split into different groups.
+         Date dec28 = makeDate(2025, Calendar.DECEMBER, 28);
+         Date jan1 = makeDate(2026, Calendar.JANUARY, 1);
+         assertEquals(0, compareOnFreshThread(Locale.UK, XConstants.WEEK_DATE_GROUP, dec28, jan1),
+                      "2025-12-28 and 2026-01-01 are the same calendar week and must be " +
+                         "grouped together regardless of the JVM default locale");
+      }
+      finally {
+         Locale.setDefault(old);
+      }
+   }
+
+   @Test
+   void compareDates_weekDateGroup_decAndJanSameWeek_underEnUSLocale_groupedTogether()
+      throws InterruptedException
+   {
+      Locale old = Locale.getDefault();
+
+      try {
+         Date dec28 = makeDate(2025, Calendar.DECEMBER, 28);
+         Date jan1 = makeDate(2026, Calendar.JANUARY, 1);
+         assertEquals(0, compareOnFreshThread(Locale.US, XConstants.WEEK_DATE_GROUP, dec28, jan1),
+                      "2025-12-28 and 2026-01-01 are the same calendar week");
+      }
+      finally {
+         Locale.setDefault(old);
+      }
+   }
+
+   /**
+    * {@code SortOrder}'s {@code cal0}/{@code cal1}/{@code cal2} are static {@code ThreadLocal}s,
+    * constructed lazily on first use and kept for that thread's lifetime. Calling
+    * {@code compare} directly on the test thread would reuse whatever {@code Calendar}
+    * instance an earlier test in this class already constructed there (under whatever locale
+    * was active at that time), masking this bug: the fix sets {@code minimalDaysInFirstWeek}
+    * explicitly on every {@code compare} call, but the fresh thread also guards against
+    * accidentally relying on that -- it makes each locale's result depend only on the
+    * {@code Locale.setDefault} made just before it runs, the same discipline
+    * {@code DateRangeRefWeekOfYearLocaleTest} uses for {@code DateRangeRef}'s equivalent
+    * per-thread cache.
+    */
+   private static int compareOnFreshThread(Locale locale, int option, Date d1, Date d2)
+      throws InterruptedException
+   {
+      Locale.setDefault(locale);
+      int[] result = new int[1];
+      Thread thread = new Thread(() -> {
+         SortOrder order = new SortOrder(SortOrder.SORT_ASC);
+         order.setInterval(1, option);
+         result[0] = order.compare(d1, d2, false);
+      });
+      thread.start();
+      thread.join();
+      return result[0];
+   }
+
+   @Test
+   void compareDates_weekDateGroup_differentWeeks_stillOrdered() {
+      SortOrder order = new SortOrder(SortOrder.SORT_ASC);
+      order.setInterval(1, XConstants.WEEK_DATE_GROUP);
+      Date d1 = makeDate(2026, Calendar.JANUARY, 5);   // week 2
+      Date d2 = makeDate(2026, Calendar.JANUARY, 19);  // week 4
+      assertNotEquals(0, order.compare(d1, d2, false),
+                      "dates three weeks apart must not be grouped together");
+   }
+
+   // -------------------------------------------------------------------------
+   // compare(Date, Date) — WEEK_OF_MONTH (part) grouping
+   // Bug #78112 review round 1: the minimalDaysInFirstWeek(1) fix above must NOT reach
+   // WEEK_OF_MONTH_DATE_GROUP -- Week of Month grouping is out of scope for #78112 and must
+   // stay exactly as locale-dependent as it was before this fix, since it reads
+   // Calendar.WEEK_OF_MONTH from the same c1/c2 that WEEK_OF_YEAR/WEEK_DATE_GROUP now force to
+   // minimalDaysInFirstWeek(1).
+   // -------------------------------------------------------------------------
+
+   /**
+    * 2023-01-28 and 2023-04-28 land in the same {@code Calendar.WEEK_OF_MONTH} bucket (4) under
+    * {@code minimalDaysInFirstWeek == 4} -- en-GB's locale default, and exactly what a
+    * never-re-synced {@code GregorianCalendar} constructed under {@code Locale.UK} carries,
+    * which is how this case behaved before this PR. Computed directly from plain
+    * {@code GregorianCalendar}/{@code Locale.UK} semantics (firstDayOfWeek = SUNDAY, the
+    * unconfigured {@code Tool.getFirstDayOfWeek()} default -- not locale-derived):
+    * <pre>
+    * GregorianCalendar cal = new GregorianCalendar(); // under Locale.UK: minimalDaysInFirstWeek == 4
+    * cal.setFirstDayOfWeek(Calendar.SUNDAY);
+    * cal.setTime(2023-01-28); cal.get(Calendar.WEEK_OF_MONTH); // == 4
+    * cal.setTime(2023-04-28); cal.get(Calendar.WEEK_OF_MONTH); // == 4
+    * </pre>
+    * If this PR's minimalDaysInFirstWeek(1) fix accidentally reached this case (as round 1 of
+    * the fix did), minimalDaysInFirstWeek would be forced to 1 and the two dates would come out
+    * as WEEK_OF_MONTH 4 and 5 instead -- different buckets -- so {@code compare} would wrongly
+    * return non-zero.
+    */
+   @Test
+   void compareDates_weekOfMonthGroup_underEnGBLocale_matchesPreFixLocaleDependentBucketing()
+      throws InterruptedException
+   {
+      Locale old = Locale.getDefault();
+
+      try {
+         Date jan28 = makeDate(2023, Calendar.JANUARY, 28);
+         Date apr28 = makeDate(2023, Calendar.APRIL, 28);
+         assertEquals(0,
+                      compareOnFreshThread(Locale.UK, XConstants.WEEK_OF_MONTH_DATE_GROUP,
+                                           jan28, apr28),
+                      "2023-01-28 and 2023-04-28 both fall in WEEK_OF_MONTH 4 under en-GB's " +
+                         "locale-default minimalDaysInFirstWeek (4) -- this must be unaffected " +
+                         "by the WEEK_OF_YEAR minimalDaysInFirstWeek(1) fix, which must stay " +
+                         "scoped to WEEK_DATE_GROUP/WEEK_OF_YEAR_DATE_GROUP only");
+      }
+      finally {
+         Locale.setDefault(old);
+      }
+   }
+
+   /**
+    * Same pair of dates, but under en-US's own locale-default minimalDaysInFirstWeek == 1 --
+    * the same numeric value this PR forces for WEEK_OF_YEAR/WEEK_DATE_GROUP. Jan 28 lands in
+    * WEEK_OF_MONTH 4 and Apr 28 in WEEK_OF_MONTH 5 under minimalDaysInFirstWeek == 1 (unlike
+    * under en-GB's 4, where both land in bucket 4 -- see the sibling en-GB test above), so this
+    * confirms WEEK_OF_MONTH_DATE_GROUP's bucketing genuinely depends on minimalDaysInFirstWeek,
+    * making the en-GB test above a meaningful discriminator rather than a coincidence.
+    */
+   @Test
+   void compareDates_weekOfMonthGroup_underEnUSLocale_differsFromEnGBBucketing()
+      throws InterruptedException
+   {
+      Locale old = Locale.getDefault();
+
+      try {
+         Date jan28 = makeDate(2023, Calendar.JANUARY, 28);
+         Date apr28 = makeDate(2023, Calendar.APRIL, 28);
+         assertNotEquals(0,
+                      compareOnFreshThread(Locale.US, XConstants.WEEK_OF_MONTH_DATE_GROUP,
+                                           jan28, apr28),
+                      "2023-01-28 falls in WEEK_OF_MONTH 4 and 2023-04-28 in WEEK_OF_MONTH 5 " +
+                         "under en-US's locale-default minimalDaysInFirstWeek (1)");
+      }
+      finally {
+         Locale.setDefault(old);
+      }
    }
 
    // -------------------------------------------------------------------------
