@@ -31,6 +31,8 @@ import inetsoft.uql.viewsheet.graph.PlotDescriptor;
 import inetsoft.test.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.util.swap.SwapFileReadException;
+import inetsoft.util.swap.SwapLostTestSupport;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -176,6 +178,40 @@ public class ChartVSAScriptableTest {
       //(Integer) cast that throws ClassCastException. (Bug #75679)
       chartVSAScriptable.putMember("chartStyle", (double) StyleConstants.CHART_BAR);
       assertEquals(StyleConstants.CHART_BAR, chartVSAssemblyInfo.getChartStyle());
+   }
+
+   /**
+    * Bug #78099: a lock stall or a lost swap file read while computing the chart's dataset
+    * must propagate out of getDataSet(), not be swallowed into a null dataset.
+    */
+   @Test
+   void testGetDataSetRethrowsLostSwapFile() throws Exception {
+      SwapFileReadException lost = SwapLostTestSupport.swapLost();
+      when(viewsheetSandbox.getData("chart1")).thenThrow(lost);
+
+      RuntimeException thrown = assertThrows(RuntimeException.class,
+         () -> chartVSAScriptable.getDataSet(),
+         "getDataSet() should rethrow a lost swap file instead of returning null");
+      SwapLostTestSupport.assertSwapOf(lost, thrown);
+   }
+
+   /**
+    * Bug #78099: the same lost swap file, reached through the real script-visible "data"
+    * member (TableArray2.getTable()), must also propagate instead of handing back a
+    * non-null, 0-row table.
+    */
+   @Test
+   void testGetTableRethrowsLostSwapFile() throws Exception {
+      SwapFileReadException lost = SwapLostTestSupport.swapLost();
+      when(viewsheetSandbox.getData("chart1")).thenThrow(lost);
+
+      Object dataMember = chartVSAScriptable.getMember("data");
+      assertTrue(dataMember instanceof TableArray);
+      TableArray tableArray = (TableArray) dataMember;
+
+      RuntimeException thrown = assertThrows(RuntimeException.class, tableArray::getTable,
+         "TableArray2.getTable() should rethrow a lost swap file instead of returning a 0-row table");
+      SwapLostTestSupport.assertSwapOf(lost, thrown);
    }
 
    @Test
