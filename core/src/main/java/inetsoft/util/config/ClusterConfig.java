@@ -250,6 +250,25 @@ public class ClusterConfig implements Serializable {
    }
 
    /**
+    * The failure detection timeout, in milliseconds, used by the cluster to decide that an
+    * unresponsive node has failed. If not set, the Ignite default (10 seconds) is used.
+    * <p>
+    * Raising this value lets the cluster ride out longer node pauses, but it also raises the
+    * threshold for reporting blocked system workers and lengthens the time that a node that has
+    * really died blocks cache operations that wait for all nodes (FULL_SYNC). That time can
+    * exceed the cluster health check timeout ({@code health.cluster.timeout}).
+    *
+    * @return the failure detection timeout in milliseconds or {@code null} if not set.
+    */
+   public Long getFailureDetectionTimeout() {
+      return failureDetectionTimeout;
+   }
+
+   public void setFailureDetectionTimeout(Long failureDetectionTimeout) {
+      this.failureDetectionTimeout = failureDetectionTimeout;
+   }
+
+   /**
     * Creates the default cluster configuration.
     *
     * @return the default cluster configuration.
@@ -284,4 +303,5 @@ public class ClusterConfig implements Serializable {
    private KubernetesConfig k8s;
    private int minNodes = -1;
    private long minSingleInstanceUptime = -1;
+   private Long failureDetectionTimeout;
 }

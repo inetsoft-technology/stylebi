@@ -158,6 +158,12 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          config.setFailureHandler(new StopNodeFailureHandler());
       }
 
+      Long failureDetectionTimeout = clusterConfig.getFailureDetectionTimeout();
+
+      if(failureDetectionTimeout != null && failureDetectionTimeout > 0) {
+         config.setFailureDetectionTimeout(failureDetectionTimeout);
+      }
+
       // atomic data structures like distributed long
       AtomicConfiguration atomicConfiguration = new AtomicConfiguration();
       atomicConfiguration.setBackups(getDefaultBackupCount());
