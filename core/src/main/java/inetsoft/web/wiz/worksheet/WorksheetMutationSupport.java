@@ -2556,9 +2556,15 @@ public final class WorksheetMutationSupport {
 
             ExpressionValue expr = new ExpressionValue();
             expr.setExpression(spec.expression());
-            expr.setType("js".equalsIgnoreCase(spec.expressionType()) ||
-                          "javascript".equalsIgnoreCase(spec.expressionType())
-                          ? ExpressionValue.JAVASCRIPT : ExpressionValue.SQL);
+            String exprType = spec.expressionType() == null ? "sql"
+               : spec.expressionType().trim().toLowerCase();
+            expr.setType(switch(exprType) {
+               case "", "sql" -> ExpressionValue.SQL;
+               case "js", "javascript" -> ExpressionValue.JAVASCRIPT;
+               default -> throw new IllegalArgumentException(
+                  "'" + spec.expressionType() + "' is not a valueSpec expressionType. " +
+                  "Accepted: sql, js (javascript). Omit it to mean sql.");
+            });
             yield expr;
          }
          default -> throw new IllegalArgumentException(
@@ -3605,6 +3611,20 @@ public final class WorksheetMutationSupport {
    private static Object conditionValue(String dtype, String value) {
       if(value != null && value.startsWith("$(") && value.endsWith(")") && value.length() > 3) {
          return AbstractCondition.getObject(dtype, value.substring(2, value.length() - 1), true);
+      }
+
+      // AbstractCondition.getObject(BOOLEAN, v) is Boolean.valueOf, which never throws: "yes" or
+      // a padded " true " silently becomes false. Accept only true/false and return the
+      // normalized form so the stored literal is exactly what Boolean.valueOf reads.
+      if(value != null && XSchema.BOOLEAN.equals(dtype)) {
+         String normalized = value.trim().toLowerCase();
+
+         if(!"true".equals(normalized) && !"false".equals(normalized)) {
+            throw new IllegalArgumentException(
+               "'" + value + "' is not a boolean value for a boolean column. Use true or false.");
+         }
+
+         return normalized;
       }
 
       return value;
