@@ -388,6 +388,88 @@ class PrintDeviceLayoutPropertyServiceTest {
       assertEquals(2, writtenPrintLayout(h).getMarginTop(), 0.0001);
    }
 
+   // ── Bug 78148: units change on a freshly seeded / legacy null-units layout ──
+
+   @Test
+   void unitsOnlyFirstCallOnANewLayoutConvertsTheSeededInchValues() throws Exception {
+      Harness h = new Harness(screensPaneWithNoPrintLayout());
+
+      h.service.setPrintLayout("tok", h.principal, Map.of("units", "mm"), "");
+
+      VSPrintLayoutDialogModel w = writtenPrintLayout(h);
+      assertEquals("mm", w.getUnits());
+      assertEquals(25.4, w.getMarginTop(), 0.001);
+      assertEquals(25.4, w.getMarginBottom(), 0.001);
+      assertEquals(25.4, w.getMarginLeft(), 0.001);
+      assertEquals(25.4, w.getMarginRight(), 0.001);
+      assertEquals(12.7f, w.getHeaderFromEdge(), 0.01f);
+      assertEquals(19.05f, w.getFooterFromEdge(), 0.01f);
+   }
+
+   @Test
+   void bootstrapCallWithUnitsAndMarginsKeepsExplicitMarginsAndConvertsHeaderFooter()
+      throws Exception
+   {
+      Harness h = new Harness(screensPaneWithNoPrintLayout());
+      Map<String, Object> patch = new HashMap<>();
+      patch.put("units", "mm");
+      patch.put("marginTop", 10.0);
+      patch.put("marginBottom", 10.0);
+      patch.put("marginLeft", 10.0);
+      patch.put("marginRight", 10.0);
+
+      h.service.setPrintLayout("tok", h.principal, patch, "");
+
+      VSPrintLayoutDialogModel w = writtenPrintLayout(h);
+      assertEquals(10.0, w.getMarginTop(), 0.0001);
+      assertEquals(10.0, w.getMarginRight(), 0.0001);
+      assertEquals(12.7f, w.getHeaderFromEdge(), 0.01f);
+      assertEquals(19.05f, w.getFooterFromEdge(), 0.01f);
+   }
+
+   @Test
+   void unitsOnlyFirstCallToPointsConvertsTheSeededInchValues() throws Exception {
+      Harness h = new Harness(screensPaneWithNoPrintLayout());
+
+      h.service.setPrintLayout("tok", h.principal, Map.of("units", "points"), "");
+
+      VSPrintLayoutDialogModel w = writtenPrintLayout(h);
+      assertEquals("points", w.getUnits());
+      assertEquals(72.0, w.getMarginTop(), 0.001);
+      assertEquals(36.0f, w.getHeaderFromEdge(), 0.01f);
+      assertEquals(54.0f, w.getFooterFromEdge(), 0.01f);
+   }
+
+   @Test
+   void aLegacyLayoutPersistedWithNullUnitsIsTreatedAsInchesWhenUnitsChange() throws Exception {
+      VSPrintLayoutDialogModel existing = new VSPrintLayoutDialogModel();
+      existing.setPaperSize("Letter");
+      existing.setMarginTop(2);
+      existing.setHeaderFromEdge(0.5f);
+      existing.setScaleFont(1.0f);
+      ScreensPaneModel screensPane = new ScreensPaneModel();
+      screensPane.setPrintLayout(existing);
+      Harness h = new Harness(screensPane);
+
+      h.service.setPrintLayout("tok", h.principal, Map.of("units", "mm"), "");
+
+      VSPrintLayoutDialogModel w = writtenPrintLayout(h);
+      assertEquals("mm", w.getUnits());
+      assertEquals(50.8, w.getMarginTop(), 0.001);
+      assertEquals(12.7f, w.getHeaderFromEdge(), 0.01f);
+   }
+
+   @Test
+   void aPatchWithoutUnitsOnANewLayoutStaysInInches() throws Exception {
+      Harness h = new Harness(screensPaneWithNoPrintLayout());
+
+      h.service.setPrintLayout("tok", h.principal, Map.of("scaleFont", 0.9f), "");
+
+      VSPrintLayoutDialogModel w = writtenPrintLayout(h);
+      assertEquals("inches", w.getUnits());
+      assertEquals(1.0, w.getMarginTop(), 0.0001);
+   }
+
    @Test
    void refusesAnEmptyPatchRatherThanOpeningACheckpointForNothing() {
       Harness h = new Harness(screensPaneWithNoPrintLayout());
