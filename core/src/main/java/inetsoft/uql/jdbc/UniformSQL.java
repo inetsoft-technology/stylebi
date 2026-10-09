@@ -3758,8 +3758,11 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                return table_alias;
             }
 
-            if(ignoreCase ? table.equalsIgnoreCase(table_name + "") :
-               table.equals(table_name + ""))
+            // a derived table is named by its alias. Its sql isn't generated to compare it,
+            // which generated it again for every column during sql generation (Bug #78119)
+            if(!(table_name instanceof UniformSQL) &&
+               (ignoreCase ? table.equalsIgnoreCase(table_name + "") :
+                table.equals(table_name + "")))
             {
                return table_alias != null && table_alias.length() > 0 ?
                   table_alias : (String) table_name;
