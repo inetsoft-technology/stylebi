@@ -170,6 +170,26 @@ class ScriptStopCatchSitesTest {
       }
    }
 
+   /**
+    * F1: a group summary over the sorted stopped table (what a worksheet group + aggregate
+    * builds) fails every reader with the stop, rather than complete with no groups.
+    */
+   @Test
+   void summaryFilterFailsEveryReaderWithTheStop() {
+      for(boolean drained : new boolean[] { false, true }) {
+         SummaryFilter summary = new SummaryFilter(
+            new SortFilter(formulaLens(40, 25, drained), new int[] { 0 }), 2, new SumFormula(),
+            null);
+         String tag = "drained=" + drained;
+
+         assertStop(() -> col(summary, 1), tag + " first read");
+         assertStop(() -> col(summary, 1), tag + " second read");
+         // a reported failure restarts the pass (as for a set table that may recover), the
+         // restarted pass fails again on the stopped base
+         assertStop(() -> summary.moreRows(TableLens.EOT), tag + " read to the end");
+      }
+   }
+
    // ---- site 3: SelfJoinTableLens / SelfJoinOperator ----
 
    @Test
@@ -247,8 +267,9 @@ class ScriptStopCatchSitesTest {
 
    /**
     * A cached chart data set whose table a later change made compute again, and stop (the
-    * change listener of the data set reads it again and cannot fail), is computed again by
-    * the next reader of the sandbox instead of being handed out empty.
+    * change listener of the data set, if it is still registered, reads it again and cannot
+    * fail), is computed again by the next reader of the sandbox instead of being handed out
+    * empty or stopped.
     */
    @Test
    void cachedChartDataSetOfAStoppedTableIsComputedAgain() throws Exception {
@@ -265,9 +286,11 @@ class ScriptStopCatchSitesTest {
          VSDataSet first = (VSDataSet) box.getData("Chart1");
          assertEquals(5, first.getRowCount());
 
-         // the table changes and its formula is stopped as the data set reads it again
+         // the table changes and its formula is stopped as it is read again. the table keeps
+         // its data set's change listener weakly, so the listener may be gone: read it here
          stops.reset(marker, n -> n == 3, true);
          lenses.get(0).invalidate();
+         assertStop(() -> col(lenses.get(0), 2), "reading the changed table");
          assertTrue(AssetDataCache.isStopped(first.getTable()));
          stops.reset(marker, n -> false, true);
 

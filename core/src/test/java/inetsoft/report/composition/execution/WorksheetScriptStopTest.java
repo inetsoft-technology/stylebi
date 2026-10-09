@@ -19,6 +19,7 @@ package inetsoft.report.composition.execution;
 
 import inetsoft.mv.MVManager;
 import inetsoft.report.TableLens;
+import inetsoft.report.composition.WorksheetService;
 import inetsoft.report.script.formula.TableAssemblyScriptable;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
@@ -128,18 +129,32 @@ class WorksheetScriptStopTest {
     * An expression error that is no stop keeps the design table and the warning, so that the
     * column can be corrected.
     */
-   @Test
-   void expressionErrorStillGetsTheDesignTable() throws Exception {
+   @ParameterizedTest
+   @ValueSource(ints = { AssetQuerySandbox.RUNTIME_MODE, AssetQuerySandbox.LIVE_MODE })
+   void expressionErrorStillGetsTheDesignTable(int mode) throws Exception {
       Worksheet ws = ws(20, 12, false, false, false);
       EmbeddedTableAssembly s = (EmbeddedTableAssembly) ws.getAssembly("S");
       ColumnRef out = (ColumnRef) s.getColumnSelection(false).getAttribute("out");
       ((ExpressionRef) out.getDataRef()).setExpression(
          "if(field['id'] == 12) { throw new Error('bad row'); } field['id']");
 
-      TableLens table = box(ws).getTableLens("S", AssetQuerySandbox.RUNTIME_MODE);
+      List<Exception> warnings = new ArrayList<>();
+      WorksheetService.ASSET_EXCEPTIONS.set(warnings);
 
-      assertNotNull(table);
-      assertFalse(table.moreRows(2), "the design table, not the data");
+      try {
+         TableLens table = box(ws).getTableLens("S", mode);
+
+         assertNotNull(table);
+         assertFalse(table.moreRows(2), "the design table, not the data");
+         // the error names the failed column, so that it can be corrected
+         assertEquals(1, warnings.size(), "the expression error is reported: " + warnings);
+         assertTrue(warnings.get(0).getMessage().contains("out"), warnings.get(0).getMessage());
+         assertTrue(warnings.get(0).getMessage().contains("bad row"),
+                    warnings.get(0).getMessage());
+      }
+      finally {
+         WorksheetService.ASSET_EXCEPTIONS.remove();
+      }
    }
 
    /**
@@ -197,6 +212,32 @@ class WorksheetScriptStopTest {
       cross.moreRows(TableLens.EOT);
       // the header rows, then a = 0, a = 1 and the grand total
       assertEquals(3, cross.getRowCount() - cross.getHeaderRowCount());
+   }
+
+   /**
+    * F1: a group + aggregate on the stopped column, stopped past the first rows, used to give
+    * no groups and no error (SortFilter -> SummaryFilter).
+    */
+   @Test
+   void groupAggregateOfAStoppedTableFailsTheReader() throws Exception {
+      Worksheet ws = ws(1500, 1200, false, false, false);
+      EmbeddedTableAssembly s = (EmbeddedTableAssembly) ws.getAssembly("S");
+      ColumnSelection columns = s.getColumnSelection(false);
+      AggregateInfo info = new AggregateInfo();
+      info.addGroup(new GroupRef(columns.getAttribute("b")));
+      info.addAggregate(new AggregateRef(columns.getAttribute("out"), AggregateFormula.SUM));
+      s.setAggregateInfo(info);
+      AssetQuerySandbox box = box(ws);
+
+      assertStop(() -> col(box.getTableLens("S", AssetQuerySandbox.RUNTIME_MODE), "b"),
+                 "the first read");
+
+      ScriptStopTestSupport.setTimeout("10");
+      List<Object> groups = List.of(0, 1, 2);
+      assertEquals(groups, col(box.getTableLens("S", AssetQuerySandbox.RUNTIME_MODE), "b"),
+                   "the same sandbox");
+      assertEquals(groups, col(box(ws).getTableLens("S", AssetQuerySandbox.RUNTIME_MODE), "b"),
+                   "a new sandbox");
    }
 
    private static void assertStop(Executable read, String what) {

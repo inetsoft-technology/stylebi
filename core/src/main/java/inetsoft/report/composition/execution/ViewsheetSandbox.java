@@ -6054,8 +6054,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       if(AssetDataCache.isDebugData() || isDataExpired(name, type) ||
          obj instanceof TableLens lens &&
          (AssetDataCache.isCancelled(lens) || AssetDataCache.isStopped(lens)) ||
-         obj instanceof VSDataSet dataSet && dataSet.getTable() != null &&
-         AssetDataCache.isStopped(dataSet.getTable()))
+         obj instanceof VSDataSet dataSet && AssetDataCache.isStopped(dataSet.getTable()))
       {
          obj = null;
       }

@@ -36,6 +36,7 @@ import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.script.LendableReentrantLock;
 import inetsoft.util.script.ScriptException;
 import inetsoft.util.script.ScriptSpan;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.stall.WaitRecord;
 import inetsoft.util.stall.WaitRegistry;
@@ -706,10 +707,13 @@ public class SummaryFilter extends AbstractGroupedTable
       }
       catch(ScriptException scriptException) {
          // a script may wrap a lost swap file of a base cell, the readers rethrow it
-         // (bug #77651)
+         // (bug #77651), as they rethrow a stopped script (bug #78134)
          recordBaseFailure(pass, scriptException);
+
          // Script Exceptions are already logged
-         Tool.addUserMessage(scriptException.getMessage());
+         if(!ScriptTimeoutGuard.isStop(scriptException)) {
+            Tool.addUserMessage(scriptException.getMessage());
+         }
       }
       catch(LockStallException ex) {
          // logged by the wait site, process0() kept it for the readers (bug #76967)
@@ -986,15 +990,22 @@ public class SummaryFilter extends AbstractGroupedTable
    }
 
    /**
-    * Keep the lost swap file (bug #77651) or the load failure of the base (bug #77901) a pass
-    * failed with for the readers as its base failure, unless it failed with a stall.
-    * @return {@code true} if the failure is a lost swap file or a load failure.
+    * Keep the lost swap file (bug #77651), the load failure of the base (bug #77901) or the
+    * stopped script (bug #78134) a pass failed with for the readers as its base failure, unless
+    * it failed with a stall. A stop is not the end of the rows: the reader fails with it, and
+    * the next read processes the rows again and fails again on the stopped base.
+    * @return {@code true} if the failure is a lost swap file, a load failure or a stop.
     */
    private static boolean recordBaseFailure(Pass pass, Throwable ex) {
       RuntimeException baseFailure = SwapFileReadException.find(ex);
 
       if(baseFailure == null) {
          baseFailure = TableLoadException.find(ex);
+      }
+
+      if(baseFailure == null) {
+         // a copy, which is never thrown (bug #78084)
+         baseFailure = ScriptTimeoutGuard.copyStop(ex);
       }
 
       if(baseFailure != null && pass.stallFailure == null) {
@@ -2226,8 +2237,8 @@ public class SummaryFilter extends AbstractGroupedTable
          synchronized(this) {
             // the failure is reported, the next read processes the rows again: the base may
             // recover, e.g. a set table after its retry delay (bug #77524). a base that failed
-            // to load keeps its load exception and fails the next read too (bug #77901). the
-            // data did not change, so no change event (bug #77875)
+            // to load keeps its load exception and fails the next read too (bug #77901), as a
+            // stopped base keeps its stopped cells (bug #78134). the data did not change, so no change event (bug #77875)
             if(this.pass == pass) {
                invalidate0();
             }
@@ -2247,8 +2258,11 @@ public class SummaryFilter extends AbstractGroupedTable
       RuntimeException failure = pass.baseFailure;
 
       if(pass.completed && failure != null) {
-         // a new instance of a lost swap file or a load failure for each reader (bug #78084)
-         throw DataUnavailable.copy(failure);
+         // a new instance of a lost swap file, a load failure or a stop for each reader
+         // (bug #78084)
+         RuntimeException copy = DataUnavailable.copy(failure);
+         RuntimeException stop = copy == failure ? ScriptTimeoutGuard.copyStop(failure) : null;
+         throw stop != null ? stop : copy;
       }
    }
 

@@ -138,6 +138,12 @@ public class VSDataSet extends AbstractDataSet implements AttributeDataSet {
          if(rethrowStop) {
             ScriptTimeoutGuard.rethrowStop(ex);
          }
+         // a change event of a table whose script was stopped: no error, the cache drops
+         // the data set and the next reader gets the stop (bug #78134)
+         else if(ScriptTimeoutGuard.isStop(ex)) {
+            LOG.debug("Script of the vsdataset table stopped", ex);
+            return;
+         }
 
          LOG.error("Failed to process vsdataset", ex);
       }
