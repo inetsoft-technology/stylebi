@@ -48,12 +48,14 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * <p>The first context of the JVM initializes {@code MapData}, which reads the
  * {@code DataSpace} bean, so the class runs in its own Spring context.
+ *
+ * <p>Each case is tagged {@code core} or {@code slow} (randomized many-round cases), so the
+ * fast, deterministic guards run in the PR build and the class stays under 10 s there.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = BaseTestConfiguration.class,
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
-@Tag("slow")
 class RelFaultInjectionTest {
    @BeforeEach
    void setUp() {
@@ -64,7 +66,7 @@ class RelFaultInjectionTest {
    void tearDown() throws Exception {
       executor.shutdownNow();
       // no task may outlive the class's Spring context
-      assertTrue(executor.awaitTermination(30, TimeUnit.SECONDS), "a task outlived its test");
+      boolean ended = executor.awaitTermination(30, TimeUnit.SECONDS);
 
       for(WorksheetScriptEnv env : envs) {
          env.retire();
@@ -76,11 +78,13 @@ class RelFaultInjectionTest {
 
       assertEquals(0, SlotClaim.openClaims());
       assertEquals(leakedBefore, PoolMetrics.nodeLeakedClaims(), "a claim leaked");
+      assertTrue(ended, "a task outlived its test");
    }
 
    // ---- SlotSource.create throws ----
 
    @Test
+   @Tag("core")
    void createThrowingOnTheFirstContextIsLoudAndLeavesNothing() throws Exception {
       FaultySource source = new FaultySource(Set.of(1));
       SlotPool pool = pool(source, PoolConfig.defaults());
@@ -101,6 +105,7 @@ class RelFaultInjectionTest {
    }
 
    @Test
+   @Tag("core")
    void createThrowingOnTheNthContextIsLoudAndOtherClaimsGoOn() throws Exception {
       FaultySource source = new FaultySource(Set.of(3));
       SlotPool pool = pool(source, PoolConfig.defaults());
@@ -144,6 +149,7 @@ class RelFaultInjectionTest {
    // ---- the clean throws ----
 
    @Test
+   @Tag("core")
    void cleanThrowingClosesTheContextInsteadOfReusingIt() throws Exception {
       FaultySource source = new FaultySource(Set.of());
       SlotPool pool = pool(source, PoolConfig.defaults());
@@ -174,6 +180,7 @@ class RelFaultInjectionTest {
     * way the context is closed and the claim is gone.
     */
    @Test
+   @Tag("core")
    void errorThrownInsideTheCleanClosesTheContext() throws Exception {
       FaultySource source = new FaultySource(Set.of());
       SlotPool pool = pool(source, PoolConfig.defaults());
@@ -211,6 +218,7 @@ class RelFaultInjectionTest {
     * finished leaves a reusable, clean context. Either way the next claim sees no value.
     */
    @Test
+   @Tag("slow")
    void cleanTimingOutNeverLeavesAContextUnclean() throws Exception {
       int heavyClosed = cleanWithA1msBound(5000);
       assertTrue(heavyClosed > 0, "no clean ever timed out; the case did not exercise the seam");
@@ -274,6 +282,7 @@ class RelFaultInjectionTest {
     * gets a clean context.
     */
    @Test
+   @Tag("slow")
    void interruptingTheExecThreadAtRandomPointsNeverLeavesAnUncleanContext() throws Exception {
       WorksheetScriptEnv env = env(PoolConfig.defaults());
       Random rnd = new Random(Long.getLong("rel.seed", 77123L));
@@ -345,6 +354,7 @@ class RelFaultInjectionTest {
     * ever runs on a closed or unclean context.
     */
    @Test
+   @Tag("slow")
    void evictingInALoopDuringExecsNeverBreaksOne() throws Exception {
       WorksheetScriptEnv env = env(new PoolConfig(1L, 256, 16, 2000, 256, 8192));
       AtomicBoolean stop = new AtomicBoolean();
@@ -403,6 +413,7 @@ class RelFaultInjectionTest {
    // ---- retire ----
 
    @Test
+   @Tag("core")
    void retireFromAnotherThreadInsideANestedClaimClosesOnlyAtTheOuterRelease() throws Exception {
       WorksheetScriptEnv env = env(PoolConfig.defaults());
       CountDownLatch inside = new CountDownLatch(1);
@@ -452,6 +463,7 @@ class RelFaultInjectionTest {
     * so the case always exercises the race whatever the machine's load or timer resolution.
     */
    @Test
+   @Tag("slow")
    void retireAtRandomPointsOfANestedClaim() throws Exception {
       WorksheetScriptEnv env = env(PoolConfig.defaults());
       Random rnd = new Random(Long.getLong("rel.seed", 77123L) + 1);
@@ -520,6 +532,7 @@ class RelFaultInjectionTest {
    // ---- reset from a script callback ----
 
    @Test
+   @Tag("slow")
    void resetInsideAScriptCallbackFinishesTheScriptAndClosesTheContextAfter() throws Exception {
       WorksheetScriptEnv env = env(PoolConfig.defaults());
       env.put("cb", new Callback(env));
@@ -559,16 +572,19 @@ class RelFaultInjectionTest {
    // ---- an Error from a host callback ----
 
    @Test
+   @Tag("core")
    void errorFromAHostCallbackIsLoudAndLeavesNoUncleanContext() throws Exception {
       assertHostErrorIsContained("error");
    }
 
    @Test
+   @Tag("core")
    void outOfMemoryErrorFromAHostCallbackIsLoudAndLeavesNoUncleanContext() throws Exception {
       assertHostErrorIsContained("oom");
    }
 
    @Test
+   @Tag("core")
    void stackOverflowErrorFromAHostCallbackIsLoudAndLeavesNoUncleanContext() throws Exception {
       assertHostErrorIsContained("soe");
    }

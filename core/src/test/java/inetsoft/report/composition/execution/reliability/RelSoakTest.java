@@ -66,8 +66,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * node-slot slope < 1 / 10 min, thread slope < 1 / 10 min, no open claim at any pause, no
  * leaked claim, no unclassified difference, no stall warning, no multi-threaded access, no
  * paranoia violation (run with {@code -Dscript.ws.contextPool.paranoid=true} for the paranoid
- * soak). Skipped unless {@code -Drel.long=true}; the sandbox-kind classification
- * ({@link #homeBusyLossIsExcusedOnlyOnSharedSandboxes}) runs always.
+ * soak). Skipped unless {@code -Drel.long=true}; the check of the sandbox-kind
+ * classification ({@link #homeBusyLossIsExcusedOnlyOnSharedSandboxes}) runs always.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class, LibManagerTestConfiguration.class, PluginsTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -372,11 +372,12 @@ public class RelSoakTest {
    }
 
    /**
-    * The soak's classification by sandbox kind, without {@code -Drel.long} and without a run:
-    * a short sandbox is its worker's own, so a var lost to a home in use by another thread is
-    * a finding there (a plain-data var at once, any other var as an unexcused difference); on
-    * a long-lived sandbox, read by all workers, the same loss is the documented
-    * B1_HOME_BUSY (#6004).
+    * {@link #sharedHomes} and the classifiers it feeds ({@code plainLoss}, {@code drift}),
+    * without {@code -Drel.long} and without a run: on a short sandbox kind a var lost to a
+    * home in use by another thread is not excused (a plain-data var is a plainLoss finding,
+    * another var's difference is no drift); on the long-lived kind the same loss is excused
+    * (no plainLoss, B1_HOME_BUSY, #6004). That runOne passes {@code sharedHomes(where)} to
+    * both is not checked here.
     */
    @Test
    public void homeBusyLossIsExcusedOnlyOnSharedSandboxes() {
