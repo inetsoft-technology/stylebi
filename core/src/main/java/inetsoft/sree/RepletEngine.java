@@ -647,6 +647,28 @@ public class RepletEngine extends AbstractAssetEngine
    }
 
    /**
+    * {@inheritDoc}
+    */
+   @Override
+   public boolean checkPermission(Principal principal, ResourceType type,
+                                  IdentityID resource, EnumSet<ResourceAction> actions)
+   {
+      if(actions == null) {
+         return true;
+      }
+
+      // route each action through the single-action overload, which catches a
+      // not-logged-in principal's SecurityException and answers false
+      for(ResourceAction action : actions) {
+         if(!checkPermission(principal, type, resource, action)) {
+            return false;
+         }
+      }
+
+      return true;
+   }
+
+   /**
     * Check if the access matches license.
     */
    public void checkAccess(Principal principal) throws RepletException {
