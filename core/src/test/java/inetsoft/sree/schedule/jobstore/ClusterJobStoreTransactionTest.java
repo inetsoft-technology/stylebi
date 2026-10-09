@@ -244,6 +244,9 @@ class ClusterJobStoreTransactionTest {
       assertEquals(TriggerState.ACQUIRED,
                    triggersByKey.get(triggers.get(2).getKey()).getState());
 
+      // the scheduler fires the acquired triggers before its next pass, which would otherwise
+      // release them as lost (Bug #78116)
+      store.triggersFired(acquired);
       List<OperableTrigger> next =
          store.acquireNextTriggers(System.currentTimeMillis() + 60_000, 3, 0L);
       assertEquals(List.of(triggers.get(1).getKey()),
