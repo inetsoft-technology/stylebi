@@ -18,6 +18,7 @@
 package inetsoft.web;
 
 import inetsoft.util.Catalog;
+import inetsoft.util.CoreTool;
 import inetsoft.util.ThreadContext;
 import org.springframework.context.support.AbstractMessageSource;
 
@@ -39,7 +40,7 @@ public class CatalogMessageSource extends AbstractMessageSource {
       String value = resolve(code, locale);
 
       if(value != null) {
-         format = new MessageFormat(value);
+         format = CoreTool.setGregorianCalendar(new MessageFormat(value));
       }
 
       return format;
