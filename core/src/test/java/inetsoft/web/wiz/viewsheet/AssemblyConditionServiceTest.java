@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.composer.model.condition.ConditionModel;
@@ -31,6 +32,7 @@ import org.mockito.ArgumentCaptor;
 import java.security.Principal;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -200,6 +202,88 @@ class AssemblyConditionServiceTest {
                    harness(model()).service.vocabulary().get("operators"));
    }
 
+   // ── expression operands (bug #78260) ──────────────────────────────────────
+
+   private static ConditionVocabulary.Clause expression(String text, String language) {
+      return clause("Revenue", ">",
+                    List.of(Map.of("type", "expression", "expression", text,
+                                   "language", language)), null);
+   }
+
+   @Test
+   void refusesAnExpressionThatDoesNotCompileAndCommitsNothing() throws Exception {
+      Harness h = harness(model(), (exp, box) -> { throw new Exception("SyntaxError: " + exp); });
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> h.service.set("tok", principal(), "Table1", List.of(expression("1 +* 2", "js")), ""));
+
+      assertTrue(thrown.getMessage().contains("does not compile"));
+      assertTrue(thrown.getMessage().contains("Nothing was changed"));
+      verify(h.conditions, never()).setModel(anyString(), anyString(), any(), anyString(),
+                                             any(Principal.class), any());
+   }
+
+   /** Not rejected: the same expression is valid once, say, a selection list has a selection. */
+   @Test
+   void acceptsAnExpressionThatThrowsAtRuntimeButWarns() throws Exception {
+      Harness h = harness(model(), (exp, box) -> "ReferenceError: undefinedFn is not defined");
+
+      AssemblyConditionService.SetResult result = h.service.setWithWarnings(
+         "tok", principal(), "Table1", List.of(expression("undefinedFn(1)", "js")), "");
+
+      assertEquals(1, result.applied());
+      assertEquals(1, result.warnings().size());
+      assertTrue(result.warnings().get(0).contains("undefinedFn is not defined"));
+      assertTrue(result.warnings().get(0).contains("no rows"));
+      assertEquals(1, capture(h.conditions).getConditionList().length);
+   }
+
+   @Test
+   void acceptsAnSqlExpressionThatEvaluates() throws Exception {
+      Harness h = harness(model(), (exp, box) -> null);
+
+      AssemblyConditionService.SetResult result = h.service.setWithWarnings(
+         "tok", principal(), "Table1", List.of(expression("10 + 1", "sql")), "");
+
+      assertEquals(1, result.applied());
+      assertTrue(result.warnings().isEmpty());
+   }
+
+   @Test
+   void refusesAnSqlExpressionThatFailsWithTheJavaScriptNote() throws Exception {
+      Harness h = harness(model(), (exp, box) -> "ReferenceError: NOSUCHFN is not defined");
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> h.service.set("tok", principal(), "Table1",
+                             List.of(expression("NOSUCHFN(REVENUE)", "sql")), ""));
+
+      assertTrue(thrown.getMessage().contains(
+         "sql-language expressions are evaluated as JavaScript on viewsheet assemblies"));
+      verify(h.conditions, never()).setModel(anyString(), anyString(), any(), anyString(),
+                                             any(Principal.class), any());
+   }
+
+   @Test
+   void restoresThePreviousConditionsWhenTheRefreshFailsAfterTheCommit() throws Exception {
+      VSConditionDialogModel existing = model();
+      Object[] before = ConditionVocabulary.toConditionList(
+         List.of(clause("Region", "equals", List.of("East"), null)), existing.getFields());
+      existing.setConditionList(before);
+      Harness h = harness(existing, (exp, box) -> null);
+      doThrow(new RuntimeException("refresh failed")).doNothing().when(h.conditions)
+         .setModel(anyString(), anyString(), any(), anyString(), any(Principal.class), any());
+
+      assertThrows(RuntimeException.class,
+                   () -> h.service.set("tok", principal(), "Table1",
+                                       List.of(expression("1", "js")), ""));
+
+      assertSame(before, existing.getConditionList());
+      verify(h.conditions, times(2)).setModel(anyString(), anyString(), any(), anyString(),
+                                              any(Principal.class), any());
+   }
+
    // ── harness ───────────────────────────────────────────────────────────────
 
    private record Harness(AssemblyConditionService service, ViewsheetSessionService sessions,
@@ -216,7 +300,14 @@ class AssemblyConditionServiceTest {
    }
 
    private static Harness harness(VSConditionDialogModel model) {
+      return harness(model, null);
+   }
+
+   private static Harness harness(VSConditionDialogModel model,
+                                  AssemblyConditionService.ExpressionChecker checker)
+   {
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(mock(ViewsheetSandbox.class)));
       when(rvs.getViewsheet()).thenReturn(mock(Viewsheet.class));
       when(rvs.getID()).thenReturn("rt1");
 
@@ -237,7 +328,10 @@ class AssemblyConditionServiceTest {
          throw new IllegalStateException(e);
       }
 
-      return new Harness(new AssemblyConditionService(sessions, conditions), sessions, conditions);
+      AssemblyConditionService service = checker == null
+         ? new AssemblyConditionService(sessions, conditions, (exp, box) -> null)
+         : new AssemblyConditionService(sessions, conditions, checker);
+      return new Harness(service, sessions, conditions);
    }
 
    private static Principal principal() {

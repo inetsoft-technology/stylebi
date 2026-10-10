@@ -213,6 +213,14 @@ public class CSVVSExporter extends AbstractVSExporter implements EncryptedCompre
 
       File csvFile = fileSystemService.getFile(tmpDir.getPath(), fileName + "." + "csv");
 
+      // a table whose data failed to load has no lens; export it as an empty file rather
+      // than failing the whole export (bug #78260)
+      if(table == null) {
+         try(OutputStream out = new FileOutputStream(csvFile)) {
+            return csvFile;
+         }
+      }
+
       // Used to determine which columns are hidden
       if(((VSTableLens) table).getColumnWidths().length == 0) {
          ((VSTableLens) table).initTableGrid(assembly.getVSAssemblyInfo());
