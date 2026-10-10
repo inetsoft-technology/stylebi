@@ -156,7 +156,7 @@ public final class CalcCellVocabulary {
     * weightedaverage.
     */
    private static String normalizeFormulaName(String name) {
-      String n = name.toLowerCase().replaceAll("[\s_-]", "");
+      String n = name.toLowerCase(java.util.Locale.ROOT).replaceAll("[\\s_-]", "");
 
       if(n.endsWith("formula") && n.length() > "formula".length()) {
          n = n.substring(0, n.length() - "formula".length());

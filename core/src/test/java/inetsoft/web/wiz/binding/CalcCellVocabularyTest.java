@@ -445,7 +445,7 @@ class CalcCellVocabularyTest {
       "first", "First<-1>", "First()<-1>", "First(3)<-1>",
       "Weighted_Average()", "first-()", "first-", "FirstFormula", "CorrelationFormula()",
       "WeightedAvg()", "Weighted Avg", "WEIGHTED AVG(3)", "First(", "First(Order:Date",
-      "Last_Formula()", "co-variance()"})
+      "Last_Formula()", "co-variance()", "First\t()", "Weighted\tAvg()", "First\n()"})
    void refusesATwoColumnFormulaWithoutASecondColumn(String formula) {
       IllegalArgumentException e = assertThrows(
          IllegalArgumentException.class, () -> CalcCellVocabulary.validate(summary(formula)));
@@ -470,7 +470,7 @@ class CalcCellVocabularyTest {
       "SumWT", "SumWTFormula", "SumWTFormula(Order:Discount)", "Sum2", "Sum2Formula",
       "Sum2Formula(Order:Discount)", "Aggregate", "AggregateFormula", "aggregate",
       "sum_wt(Order:Discount)", "Sum-WT", "SUM WT Formula", "sum_2", "Aggregate()",
-      "AggregateFormula(Order:Total)"})
+      "AggregateFormula(Order:Total)", "Sum\tWT(Order:Discount)", "Sum\nWT"})
    void refusesFormulasACalcCellCannotRun(String formula) {
       IllegalArgumentException e = assertThrows(
          IllegalArgumentException.class, () -> CalcCellVocabulary.validate(summary(formula)));
