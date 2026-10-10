@@ -214,6 +214,39 @@ class XSwapperStaleSwapFileMapTest {
                    "the recurring sweep did not give the file a second, later chance to be swept");
    }
 
+   /**
+    * Bug #78245, the two tests above exercise {@link XSwapper#sweepDeadSeedSwapFiles} directly;
+    * this one exercises the actual new production class, {@link SwapFileSweepRunnable}, that
+    * {@code ServerLifecycleService} schedules with {@code TimedQueue} -- i.e. its {@code run()}
+    * resolving the swap cache directory via {@link FileSystemService} and delegating to
+    * {@link XSwapper#getSwapper()}, not just the extracted sweep method in isolation.
+    */
+   @Test
+   void swapFileSweepRunnableSweepsADeadSeedFileThroughItsOwnRunMethod() throws Exception {
+      Cluster cluster = Cluster.getInstance();
+      Map<Long, String> seeds = cluster.getMap(XSwapper.SWAP_SEED_MAP);
+      seeds.put(601L, DEAD_NODE);
+      // a JVM that was killed right after writing a swap file
+      File recent = createRegistered("s601_1_s.tdat");
+      assertTrue(recent.setLastModified(System.currentTimeMillis()));
+
+      SwapFileSweepRunnable runnable = new SwapFileSweepRunnable();
+      assertTrue(runnable.isRecurring(), "the sweep must be scheduled to repeat");
+
+      // first tick: still inside the grace period, so the file must survive
+      runnable.run();
+      assertTrue(recent.exists(), "a file within its grace period was deleted");
+
+      // simulate the clock moving past the grace period without waiting for it in real time
+      assertTrue(recent.setLastModified(
+         System.currentTimeMillis() - XSwapper.SWAP_FILE_GRACE_PERIOD - 1000L));
+
+      // second tick: the same confirmed-dead seed, now past the grace period
+      runnable.run();
+      assertFalse(recent.exists(),
+         "SwapFileSweepRunnable.run() did not resolve the cache directory and sweep it");
+   }
+
    private static void waitUntilDeleted(File file) throws InterruptedException {
       // the sweeps run in a background thread
       long end = System.currentTimeMillis() + 30000L;
