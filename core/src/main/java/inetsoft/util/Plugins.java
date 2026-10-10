@@ -53,10 +53,30 @@ import java.util.zip.ZipInputStream;
  */
 public class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, AutoCloseable {
    /**
-    * Creates a new instance of <tt>Plugins</tt>.
+    * Creates a new instance of <tt>Plugins</tt> that fetches its storage from the given manager,
+    * and fetches it again when the held instance is evicted from the manager and closed.
+    */
+   public Plugins(BlobStorageManager blobStorageManager, Cluster cluster,
+                  ApplicationEventPublisher eventPublisher)
+   {
+      this(blobStorageManager.getStorage(STORAGE_ID, true), blobStorageManager, cluster,
+           eventPublisher);
+   }
+
+   /**
+    * Creates a new instance of <tt>Plugins</tt>. A replacement for an evicted storage is fetched
+    * from {@link BlobStorageManager#getInstance()}.
     */
    public Plugins(BlobStorage<Plugin.Descriptor> blobStorage, Cluster cluster, ApplicationEventPublisher eventPublisher) {
+      this(blobStorage, null, cluster, eventPublisher);
+   }
+
+   private Plugins(BlobStorage<Plugin.Descriptor> blobStorage,
+                   BlobStorageManager blobStorageManager, Cluster cluster,
+                   ApplicationEventPublisher eventPublisher)
+   {
       this.blobStorage = blobStorage;
+      this.blobStorageManager = blobStorageManager;
       this.eventPublisher = eventPublisher;
       FileSystemService fileSystemService = FileSystemService.getInstance();
 
@@ -93,14 +113,15 @@ public class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, AutoClo
 
    // must be called outside of constructor to avoid infinite recursion
    private void init() {
+      BlobStorage<Plugin.Descriptor> storage = getStorage();
       blobChangeLock.lock();
 
       try {
-         blobStorage.stream()
+         storage.stream()
             .sorted(this::comparePlugins)
             .filter(p -> {
                try {
-                  unzipPlugin(p.getMetadata(), p.getLastModified().toEpochMilli());
+                  unzipPlugin(storage, p.getMetadata(), p.getLastModified().toEpochMilli());
                   return true;
                }
                catch(Exception e) {
@@ -115,7 +136,128 @@ public class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, AutoClo
          blobChangeLock.unlock();
       }
 
-      blobStorage.addListener(this);
+      storage.addListener(this);
+   }
+
+   /**
+    * Gets the live plugin storage. The storage manager closes the instance held here when it
+    * evicts it, which removes the map listener this class gets its change events from. A closed
+    * instance is therefore replaced, the listener is added to the replacement, and the loaded
+    * plugins are synchronized with the store, because the installs and uninstalls made on other
+    * nodes while detached raised no event here (Bug #78253).
+    */
+   private BlobStorage<Plugin.Descriptor> getStorage() {
+      BlobStorage<Plugin.Descriptor> storage = blobStorage;
+
+      if(!storage.isClosed() || closed || Boolean.TRUE.equals(RESYNCING.get())) {
+         return storage;
+      }
+
+      return reattachStorage();
+   }
+
+   private BlobStorage<Plugin.Descriptor> reattachStorage() {
+      BlobStorage<Plugin.Descriptor> old;
+      BlobStorage<Plugin.Descriptor> fresh;
+
+      synchronized(storageMonitor) {
+         old = blobStorage;
+
+         if(!old.isClosed() || closed) {
+            return old;
+         }
+
+         try {
+            BlobStorageManager manager = blobStorageManager != null ?
+               blobStorageManager : BlobStorageManager.getInstance();
+            fresh = manager.getStorage(STORAGE_ID, true);
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to fetch a replacement for the closed plugin storage, continuing " +
+                        "with the closed instance until a later access succeeds", e);
+            return old;
+         }
+
+         // add the listener before the store is read below, so that a change made after the
+         // read still raises an event here
+         fresh.addListener(this);
+         blobStorage = fresh;
+      }
+
+      // the manager drops a closed instance without closing it, so its event thread is stopped
+      // here, as DataSpace does
+      try {
+         old.removeListener(this);
+         old.close();
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to close the stale plugin storage", e);
+      }
+
+      // before init() runs, it loads the plugins from the replacement itself
+      if(initialized) {
+         resync(fresh);
+      }
+
+      return fresh;
+   }
+
+   /**
+    * Loads the plugins added to the store and unloads the plugins removed from it while the held
+    * storage instance was detached, and reloads a plugin whose stored version changed.
+    */
+   private void resync(BlobStorage<Plugin.Descriptor> storage) {
+      RESYNCING.set(Boolean.TRUE);
+      blobChangeLock.lock();
+
+      try {
+         List<Blob<Plugin.Descriptor>> stored = storage.stream()
+            .sorted(this::comparePlugins)
+            .toList();
+
+         // a closed instance enumerates nothing, which must not unload every plugin
+         if(storage.isClosed()) {
+            LOG.warn("The plugin storage was closed while it was read, the loaded plugins " +
+                        "are synchronized on its next access");
+            return;
+         }
+
+         Set<String> storedIds = new HashSet<>();
+         stored.forEach(b -> storedIds.add(b.getMetadata().getId()));
+
+         for(String id : new ArrayList<>(plugins.keySet())) {
+            if(!storedIds.contains(id)) {
+               removeLoadedPlugin(id);
+            }
+         }
+
+         for(Blob<Plugin.Descriptor> blob : stored) {
+            Plugin.Descriptor descriptor = blob.getMetadata();
+            Plugin existing = plugins.get(descriptor.getId());
+
+            if(existing != null && Objects.equals(existing.getVersion(), descriptor.getVersion())) {
+               continue;
+            }
+
+            try {
+               if(existing != null) {
+                  removeLoadedPlugin(descriptor.getId());
+               }
+
+               addLoadedPlugin(storage, descriptor, blob.getLastModified().toEpochMilli());
+            }
+            catch(Exception e) {
+               LOG.warn("Failed to load plugin {}", descriptor.getId(), e);
+            }
+         }
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to synchronize the plugins with the plugin storage", e);
+      }
+      finally {
+         blobChangeLock.unlock();
+         RESYNCING.remove();
+      }
    }
 
    private int comparePlugins(Blob<Plugin.Descriptor> a, Blob<Plugin.Descriptor> b) {
@@ -187,6 +329,7 @@ public class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, AutoClo
     */
    @SuppressWarnings("SameParameterValue")
    public <T> List<T> getServices(Class<T> serviceInterface, String id) {
+      getStorage();
       List<T> result;
 
       if(id == null) {
@@ -222,6 +365,7 @@ public class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, AutoClo
     * @return the matching service instance.
     */
    public <T> T getService(Class<T> serviceInterface, String id) {
+      getStorage();
       T result = null;
 
       if(id == null) {
@@ -318,6 +462,10 @@ public class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, AutoClo
             fileName);
       }
 
+      // re-attach a closed storage first, so that the checks below see the plugins installed
+      // and uninstalled on other nodes meanwhile and the commit below raises an event here
+      getStorage();
+
       if(isPluginCompatible(descriptor, fileName)) {
          Plugin existing = plugins.get(pluginId);
 
@@ -345,7 +493,7 @@ public class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, AutoClo
          }
 
          try(InputStream input = new FileInputStream(file);
-             BlobTransaction<Plugin.Descriptor> tx = blobStorage.beginTransaction();
+             BlobTransaction<Plugin.Descriptor> tx = getStorage().beginTransaction();
              OutputStream output = tx.newStream(pluginId, descriptor))
          {
             IOUtils.copy(input, output);
@@ -374,7 +522,9 @@ public class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, AutoClo
     * @param descriptor   the plugin descriptor.
     * @param lastModified the last modified timestamp.
     */
-   private void unzipPlugin(Plugin.Descriptor descriptor, long lastModified) {
+   private void unzipPlugin(BlobStorage<Plugin.Descriptor> storage, Plugin.Descriptor descriptor,
+                            long lastModified)
+   {
       FileSystemService fileSystemService = FileSystemService.getInstance();
       File folder = getDirectoryPlugin(fileSystemService, descriptor.getId());
 
@@ -388,7 +538,7 @@ public class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, AutoClo
             if(!folder.isDirectory()) {
                Files.createDirectories(folder.toPath());
 
-               try(ZipInputStream input = new ZipInputStream(blobStorage.getInputStream(descriptor.getId()))) {
+               try(ZipInputStream input = new ZipInputStream(storage.getInputStream(descriptor.getId()))) {
                   ZipEntry entry;
 
                   while((entry = input.getNextEntry()) != null) {
@@ -568,6 +718,7 @@ public class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, AutoClo
     * @throws IOException if an I/O error occurs.
     */
    public void uninstallPlugin(String pluginId) throws IOException {
+      BlobStorage<Plugin.Descriptor> storage = getStorage();
       Plugin plugin = plugins.get(pluginId);
 
       if(plugin == null || plugin.isReadOnly()) {
@@ -575,7 +726,7 @@ public class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, AutoClo
       }
 
       plugins.remove(pluginId);
-      blobStorage.delete(pluginId);
+      storage.delete(pluginId);
       eventPublisher.publishEvent(new PluginRemovedEvent(this, pluginId));
       plugin.getClassLoader().close();
       resetDBProviderConnection();
@@ -641,6 +792,7 @@ public class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, AutoClo
     * @return the matching plugin or <tt>null</tt> if not found.
     */
    public Plugin getPlugin(String id) {
+      getStorage();
       return plugins.get(id);
    }
 
@@ -650,6 +802,7 @@ public class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, AutoClo
     * @return the plugins.
     */
    public List<Plugin> getPlugins() {
+      getStorage();
       return new ArrayList<>(plugins.values());
    }
 
@@ -659,11 +812,15 @@ public class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, AutoClo
 
       try {
          Plugin.Descriptor descriptor = event.getNewValue().getMetadata();
-         unzipPlugin(descriptor, event.getNewValue().getLastModified().toEpochMilli());
-         loadPlugin(descriptor);
-         eventPublisher.publishEvent(new PluginAddedEvent(this, descriptor.getId()));
-         eventPublisher.publishEvent(new PluginsChangedEvent(this));
-         fireActionEvent(descriptor.getId());
+         Plugin existing = plugins.get(descriptor.getId());
+
+         // already loaded by a resync that read the store after this event's write
+         if(existing != null && Objects.equals(existing.getVersion(), descriptor.getVersion())) {
+            return;
+         }
+
+         addLoadedPlugin(
+            getStorage(), descriptor, event.getNewValue().getLastModified().toEpochMilli());
       }
       catch(Exception e) {
          LOG.warn("Failed to load plugin", e);
@@ -671,6 +828,17 @@ public class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, AutoClo
       finally {
          blobChangeLock.unlock();
       }
+   }
+
+   // must be called while holding blobChangeLock
+   private void addLoadedPlugin(BlobStorage<Plugin.Descriptor> storage,
+                                Plugin.Descriptor descriptor, long lastModified)
+   {
+      unzipPlugin(storage, descriptor, lastModified);
+      loadPlugin(descriptor);
+      eventPublisher.publishEvent(new PluginAddedEvent(this, descriptor.getId()));
+      eventPublisher.publishEvent(new PluginsChangedEvent(this));
+      fireActionEvent(descriptor.getId());
    }
 
    @Override
@@ -682,37 +850,44 @@ public class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, AutoClo
       blobChangeLock.lock();
 
       try {
-         String pluginId = event.getOldValue().getMetadata().getId();
-         Plugin plugin = plugins.remove(pluginId);
-
-         if(plugin != null) {
-            eventPublisher.publishEvent(new PluginRemovedEvent(this, pluginId));
-
-            try {
-               plugin.getClassLoader().close();
-            }
-            catch(IOException e) {
-               LOG.warn("Failed to close plugin class loader", e);
-            }
-
-            try {
-               delete(plugin.getFolder());
-            }
-            catch(IOException e) {
-               LOG.warn("Failed to delete plugin directory", e);
-            }
-
-            eventPublisher.publishEvent(new PluginsChangedEvent(this));
-            fireActionEvent(pluginId);
-         }
+         removeLoadedPlugin(event.getOldValue().getMetadata().getId());
       }
       finally {
          blobChangeLock.unlock();
       }
    }
 
+   // must be called while holding blobChangeLock
+   private void removeLoadedPlugin(String pluginId) {
+      Plugin plugin = plugins.remove(pluginId);
+
+      if(plugin != null) {
+         eventPublisher.publishEvent(new PluginRemovedEvent(this, pluginId));
+
+         try {
+            plugin.getClassLoader().close();
+         }
+         catch(IOException e) {
+            LOG.warn("Failed to close plugin class loader", e);
+         }
+
+         try {
+            delete(plugin.getFolder());
+         }
+         catch(IOException e) {
+            LOG.warn("Failed to delete plugin directory", e);
+         }
+
+         eventPublisher.publishEvent(new PluginsChangedEvent(this));
+         fireActionEvent(pluginId);
+      }
+   }
+
    @Override
    public void close() throws Exception {
+      // a closed manager must not fetch a replacement storage
+      closed = true;
+
       for(Plugin plugin : plugins.values()) {
          try {
             plugin.getClassLoader().close();
@@ -771,7 +946,10 @@ public class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, AutoClo
       }
    }
 
-   private final BlobStorage<Plugin.Descriptor> blobStorage;
+   private volatile BlobStorage<Plugin.Descriptor> blobStorage;
+   private final BlobStorageManager blobStorageManager;
+   private final Object storageMonitor = new Object();
+   private volatile boolean closed = false;
    private final ApplicationEventPublisher eventPublisher;
    private final File pluginDirectory;
    private final Map<String, Plugin> plugins;
@@ -781,4 +959,7 @@ public class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, AutoClo
 
    private static final Logger LOG = LoggerFactory.getLogger(Plugins.class);
    private static final String BLOB_CHANGE_LOCK = Plugins.class.getName() + ".blobChangeLock";
+   private static final String STORAGE_ID = "plugins";
+   // set while a resync loads plugins, whose loading reads the plugins through getPlugin()
+   private static final ThreadLocal<Boolean> RESYNCING = new ThreadLocal<>();
 }
