@@ -1475,6 +1475,7 @@ public final class XUtil {
     * after the script returned (a comparator, for example) is still the script's call.
     * Only meaningful when called from {@code inetsoft.uql} code, which the walk skips: called
     * from any other package it always returns false, because the walk stops at that caller.
+    * Spring AOP proxy plumbing is skipped: the frames of the proxy's target, inside it, decide.
     * {@code ScriptDataSourceAccess.isScriptAccess} applies the same rule; keep the two in step.
     * A static that {@code inetsoft.uql} code also calls internally needs
     * {@link #isDirectScriptCall(Class)} instead.
@@ -1490,6 +1491,14 @@ public final class XUtil {
 
          if(name.startsWith("com.oracle.truffle.") || name.startsWith("org.graalvm.")) {
             return true;
+         }
+
+         // Bug #78237: the plumbing of a Spring proxy, such as the @Lazy registry XEngine
+         // holds. The proxy's target runs inside these frames, so its own frame decides
+         if(name.startsWith("org.springframework.aop.") ||
+            name.startsWith("org.springframework.cglib."))
+         {
+            continue;
          }
 
          if(!name.startsWith("inetsoft.uql.") && !name.startsWith("java.") &&
