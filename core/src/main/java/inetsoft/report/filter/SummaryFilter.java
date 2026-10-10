@@ -2672,13 +2672,19 @@ public class SummaryFilter extends AbstractGroupedTable
 
       try {
          TableLens table = this.table;
-         this.cancelled = true;
+         Pass pass = this.pass;
+         // a cancel after the rows completed is no cancel, as for the other cancellable lenses:
+         // a shared cached copy reports a cancelled table as cut short to its other readers
+         // (bug #78200). not in the monitor, which the synchronous process() holds
+         this.cancelled = this.cancelled || pass == null || !pass.completed;
 
          if(table instanceof CancellableTableLens) {
             ((CancellableTableLens) table).cancel();
          }
 
-         pass.rows.complete();
+         if(pass != null) {
+            pass.rows.complete();
+         }
       }
       finally {
          cancelLock.unlock();

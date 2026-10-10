@@ -70,7 +70,7 @@ import static org.junit.jupiter.api.Assertions.*;
                                   RowFetchFailureTest.JdbcConfig.class },
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
-@Tag("core")
+@Tag("slow")
 class SharedCacheCancelTest {
    // the Derby database of RowFetchFailureTest.JdbcConfig
    private static final String DB = "memory:rowfetchfailure";
@@ -282,6 +282,79 @@ class SharedCacheCancelTest {
       assertEquals(PFULL, rows(lens3));
       assertNull(CoreTool.getUserMessage(), "the later reader was told of no cancel");
       assertFalse(shared.x1.isCancelled());
+   }
+
+   /**
+    * A cancel that arrives after the shared table completed is no cancel: the other reader
+    * reads the whole table to the end with no message (review I-1).
+    */
+   @Test
+   void cancelAfterTheSharedPlainTableCompletedTellsNobody() throws Exception {
+      Shared shared = plain();
+      assertEquals(PFULL, rows(shared.lens1));
+      assertEquals(PFULL, rows(shared.lens2));
+      CoreTool.clearUserMessage();
+
+      shared.box1.getQueryManager().cancel();
+
+      assertEquals(PFULL, rows(shared.lens2));
+      assertNull(CoreTool.getUserMessage(), "the reader of a complete table was told of a cancel");
+      assertFalse(AssetDataCache.isCancelled(shared.lens2), "the complete table is cancelled");
+   }
+
+   /**
+    * The same for an in-memory worksheet aggregate (AssetQuery.SummaryFilter2 in the chain),
+    * whose SummaryFilter.cancel() marked a complete table cancelled (review I-1): neither the
+    * query manager cancel nor the Stop of the first reader tells the second one.
+    */
+   @Test
+   void cancelAfterTheSharedAggregateCompletedTellsNobody() throws Exception {
+      Worksheet ws = new Worksheet();
+      int run = RUN.incrementAndGet();
+      SQLBoundTableAssembly table = sqlTable(
+         ws, "A1", "select sc78200.id, sc78200.g from sc78200 where sc78200.id > -" + run,
+         "id", "g");
+      AggregateInfo info = new AggregateInfo();
+      info.addGroup(new GroupRef(table.getColumnSelection(false).getAttribute("g")));
+      info.addAggregate(new AggregateRef(table.getColumnSelection(false).getAttribute("id"),
+                                         AggregateFormula.SUM));
+      table.setAggregateInfo(info);
+      table.setAggregate(true);
+      // grouped in memory, not in the database
+      table.setSQLMergeable(false);
+      new AssetQuerySandbox(ws).refreshColumnSelection("A1", true);
+      CoreTool.clearUserMessage();
+
+      AssetQuerySandbox box1 = new AssetQuerySandbox(ws);
+      box1.setQueryManager(new QueryManager());
+      TableLens lens1 = box1.getTableLens("A1", AssetQuerySandbox.RUNTIME_MODE,
+                                          new VariableTable());
+      assertNotNull(lens1, "the query failed, see the log");
+      AssetQuery.SummaryFilter2 sum1 = (AssetQuery.SummaryFilter2)
+         Util.getNestedTable(lens1, AssetQuery.SummaryFilter2.class);
+      assertNotNull(sum1, "not aggregated in memory: " + chain(lens1));
+      assertEquals(2, rows(lens1));
+
+      AssetQuerySandbox box2 = new AssetQuerySandbox(ws);
+      box2.setQueryManager(new QueryManager());
+      TableLens lens2 = box2.getTableLens("A1", AssetQuerySandbox.RUNTIME_MODE,
+                                          new VariableTable());
+      // otherwise the test proves nothing
+      assertSame(sum1, Util.getNestedTable(lens2, AssetQuery.SummaryFilter2.class),
+                 "the second reader did not share the first one's aggregate: " + chain(lens2));
+      assertEquals(2, rows(lens2));
+      CoreTool.clearUserMessage();
+
+      box1.getQueryManager().cancel();
+      assertEquals(2, rows(lens2));
+      assertNull(CoreTool.getUserMessage(),
+                 "QueryManager.cancel(): the reader of a complete aggregate was told");
+
+      stop(lens1);
+      assertEquals(2, rows(lens2));
+      assertNull(CoreTool.getUserMessage(),
+                 "Stop: the reader of a complete aggregate was told");
+      assertFalse(sum1.isCancelled(), "the complete aggregate is cancelled");
    }
 
    private static VariableTable scheduled() {

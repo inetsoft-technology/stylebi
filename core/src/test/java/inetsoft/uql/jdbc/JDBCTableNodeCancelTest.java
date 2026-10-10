@@ -59,6 +59,8 @@ class JDBCTableNodeCancelTest {
       // JDBCDataSource reads its credential from it
       @Bean
       public CredentialService credentialService() throws Exception {
+         // the constructor is private: production creates the bean in its own Spring config,
+         // which BaseTestConfiguration doesn't include
          Constructor<CredentialService> ctor = CredentialService.class.getDeclaredConstructor();
          ctor.setAccessible(true);
          return ctor.newInstance();
