@@ -3712,7 +3712,7 @@ public final class WorksheetMutationSupport {
     * not-found placeholder. Column mutators (remove/rename/visibility) need a real miss to stay
     * distinguishable from a match, which the placeholder does not allow.
     */
-   static DataRef resolveFieldOrNull(TableAssembly t, String field, boolean post) {
+   public static DataRef resolveFieldOrNull(TableAssembly t, String field, boolean post) {
       ColumnSelection cs = t.getColumnSelection(post);
 
       if(cs != null && field != null) {
@@ -3732,6 +3732,76 @@ public final class WorksheetMutationSupport {
             {
                return cr;
             }
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * Bug #78258 (WBS-109): resolves a join key to the column the table actually OUTPUTS. On an
+    * aggregated table that is the public (post-aggregation) selection -- an aggregate alias there
+    * carries the aggregate's own type, while the private selection still holds the source column
+    * (so {@code Count(COMPANY_NAME) AS N_CUST} would read as the string source column). A key
+    * that is not an output column falls back to the private selection, so nothing newly fails to
+    * resolve.
+    *
+    * @return the resolved column, or {@code null} when the key resolves nowhere
+    */
+   public static DataRef resolveJoinKey(TableAssembly t, String key) {
+      if(t == null || key == null) {
+         return null;
+      }
+
+      DataRef ref = resolveFieldOrNull(t, key, t.isAggregate());
+
+      // The selection lookup is fuzzy (it also matches a column's source attribute), so on an
+      // aggregated table require the key to be the output column's own name or alias; anything
+      // else keeps resolving against the source column exactly as it did before.
+      if(t.isAggregate() && !(ref instanceof ColumnRef cr &&
+                              (key.equals(cr.getName()) || key.equals(cr.getAlias()))))
+      {
+         ref = resolveFieldOrNull(t, key, false);
+      }
+
+      return ref;
+   }
+
+   /** The type an expression column has before and after an edit, see {@link #prospectiveType}. */
+   public record TypeChange(String oldType, String newType, boolean reInferred) {
+   }
+
+   /**
+    * Bug #78258 (WBS-110): computes, WITHOUT mutating {@code t}, the data type
+    * {@link #editExpression} would leave the named expression column with, so a caller can refuse
+    * the edit before any state changes.
+    *
+    * @return the before/after types, or {@code null} when the column does not exist (the edit
+    *         would add a new column) or its type is left unchanged
+    */
+   public static TypeChange prospectiveType(TableAssembly t, String name, String expression,
+                                            String type, boolean sql)
+   {
+      String normalized = normalizeDateArithmetic(t, expression, sql);
+      ColumnSelection cs = t.getColumnSelection(false);
+
+      for(int i = 0; i < cs.getAttributeCount(); i++) {
+         DataRef ref = cs.getAttribute(i);
+
+         if(ref instanceof ColumnRef cr && cr.getDataRef() instanceof ExpressionRef er &&
+            (name.equals(er.getName()) || name.equals(er.getAttribute())))
+         {
+            if(type != null) {
+               return new TypeChange(cr.getDataType(), type, false);
+            }
+
+            if(isReInferEligible(t, cr, er.getExpression(), cr.isSQL())) {
+               String inferred = inferNumericExpressionType(t, normalized, sql);
+               return new TypeChange(cr.getDataType(),
+                                     inferred != null ? inferred : XSchema.STRING, true);
+            }
+
+            return null;
          }
       }
 

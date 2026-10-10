@@ -2260,6 +2260,8 @@ public class WorksheetEditService {
          // the values will not parse and the caller did not ask to force it.
          String oldType = cr2 != null ? cr2.getDataType() : cr.getDataType();
 
+         requireNoJoinKeyTypeBreak(table, t, col, oldType, type, false);
+
          if(cr2 != null) {
             cr2.setDataType(type);
          }
@@ -2353,7 +2355,66 @@ public class WorksheetEditService {
          requirePermission(ResourceType.WORKSHEET_EXPRESSION_COLUMN);
          String dtype = normalizeExpressionType(type);
          validateExpressionSyntax(table, name, expression, sql);
-         WorksheetMutationSupport.editExpression(requireTable(table), name, expression, dtype, sql);
+         TableAssembly t = requireTable(table);
+
+         // Bug #78258: decided from the prospective type, before anything is mutated, so a
+         // refused edit leaves the column exactly as it was.
+         WorksheetMutationSupport.TypeChange change =
+            WorksheetMutationSupport.prospectiveType(t, name, expression, dtype, sql);
+
+         if(change != null) {
+            requireNoJoinKeyTypeBreak(
+               table, t, name, change.oldType(), change.newType(), change.reInferred());
+         }
+
+         WorksheetMutationSupport.editExpression(t, name, expression, dtype, sql);
+      }
+
+      /**
+       * Bug #78258 (WBS-110): refuses a retype of {@code col} that would turn a join between
+       * mergeable key types into one that silently returns no rows. Only a mergeable-to-unmergeable
+       * transition is refused, so a join that is already mismatched never blocks its own repair.
+       *
+       * @param reInferred whether {@code newType} came from re-inference rather than a caller
+       *                   choice, in which case the message advises passing an explicit type
+       */
+      private void requireNoJoinKeyTypeBreak(String table, TableAssembly t, String col,
+                                             String oldType, String newType, boolean reInferred)
+         throws PairingException
+      {
+         List<WorksheetControllerService.JoinKeyTypeConflict> conflicts =
+            WorksheetControllerService.findJoinKeyTypeConflicts(ws, t, col, oldType, newType);
+
+         if(conflicts.isEmpty()) {
+            return;
+         }
+
+         StringBuilder msg = new StringBuilder("Cannot change the type of \"").append(col)
+            .append("\" on \"").append(table).append("\" from ").append(oldType).append(" to ")
+            .append(newType).append(": it would break ")
+            .append(conflicts.size() == 1 ? "a join" : "joins").append(" -- ");
+
+         for(int i = 0; i < conflicts.size(); i++) {
+            WorksheetControllerService.JoinKeyTypeConflict c = conflicts.get(i);
+
+            if(i > 0) {
+               msg.append("; ");
+            }
+
+            msg.append("join \"").append(c.join()).append("\" keys it against \"")
+               .append(c.otherTable()).append("\".\"").append(c.otherKey()).append("\" (")
+               .append(c.otherType()).append(")");
+         }
+
+         msg.append(", and a join between ").append(newType)
+            .append(" and those key types returns no rows. Remove or edit the join first.");
+
+         if(reInferred) {
+            msg.append(" The expression's type was re-inferred as ").append(newType)
+               .append("; pass an explicit `type` (e.g. \"double\") to keep the column numeric.");
+         }
+
+         throw new PairingException(msg.toString());
       }
 
       /**
@@ -4287,10 +4348,10 @@ public class WorksheetEditService {
             return;
          }
 
-         DataRef leftRef =
-            WorksheetMutationSupport.resolveFieldOrNull(left, leftAttr.getName(), false);
-         DataRef rightRef =
-            WorksheetMutationSupport.resolveFieldOrNull(right, rightAttr.getName(), false);
+         // Bug #78258: read the OUTPUT type, so an aggregate alias is its aggregate's type, not
+         // its source column's.
+         DataRef leftRef = WorksheetMutationSupport.resolveJoinKey(left, leftAttr.getName());
+         DataRef rightRef = WorksheetMutationSupport.resolveJoinKey(right, rightAttr.getName());
 
          if(leftRef == null || rightRef == null) {
             return;
