@@ -6012,6 +6012,23 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     * @return the data of the assembly.
     */
    public Object getData(String name, boolean initial, int type) throws Exception {
+      return getData(name, initial, type, null);
+   }
+
+   /**
+    * Get the data of an assembly, and optionally report whether the fetch that produced it may
+    * have been cut short by a cancel of the assembly's own QueryManager (#78033).
+    * @param name the name of the specified assembly.
+    * @param initial <tt>true</tt> if initialize data when data not available,
+    * <tt>false</tt> otherwise.
+    * @param cutFlag when non-null, {@code cutFlag[0]} is set to {@code true} if this call's own
+    * fetch (not a cache hit -- a cut result is never cached, so a cache hit always leaves this
+    * {@code false}) was flagged as possibly cut short by such a cancel, {@code false} otherwise.
+    * Callers that care must pass a fresh single-element array and read it only after this method
+    * returns normally.
+    * @return the data of the assembly.
+    */
+   public Object getData(String name, boolean initial, int type, boolean[] cutFlag) throws Exception {
       int index = name.lastIndexOf('.');
 
       if(index >= 0) {
@@ -6028,7 +6045,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          // is safe to release outer locks here. This mirrors the pattern in doExecuteData(). (74129)
          try {
             unlockAll();
-            return box.getData(name, initial, type);
+            return box.getData(name, initial, type, cutFlag);
          }
          finally {
             restoreLocks();
@@ -6090,6 +6107,14 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
             if(cancelled[0]) {
                cache = false;
+            }
+
+            // report this call's own final cut status to a caller that asked for it (#78033),
+            // e.g. VGraphPair.initGraph0() deciding whether to trust the VGraphPair it is about
+            // to bake this result into -- even after the one retry above, the result may still
+            // be cut, and cache=false alone doesn't reach a caller that isn't the dmap cache.
+            if(cutFlag != null) {
+               cutFlag[0] = cancelled[0];
             }
 
             // do not cache executing result if query should be discarded
@@ -7491,6 +7516,11 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          // a pair whose init failed holds no graph, build a new one instead of returning it
          // (its init thread may not have removed it yet). (78220)
          if(pair == null || !pair.isCompleted() && pair.isCancelled() || pair.isFailed() ||
+            // a pair that finished building from data a sibling query's cancel may have cut
+            // short (#78033, Mechanism A/B) is never a trustworthy reusable result -- rebuild
+            // it on this call instead of reusing a possibly-empty graph until the chart's next,
+            // unrelated data change clears it.
+            pair.isCompleted() && pair.isDataCut() ||
             // init to throw CheckMissingMVEvent to make sure client display progress bar to
             // wait for mv insteadof always loading becauseof an empty graph.
             init && MVManager.getManager().isPending(getAssetEntry(), xprincipal))
@@ -7572,7 +7602,15 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          }
       }
 
-      if(!pair.isCompleted() && pair.isCancelled()) {
+      // a pair this very call just finished building (or found already built) from data that
+      // was itself flagged as possibly cut short by a sibling query's cancel (#78033, Mechanism
+      // A/B) must not be handed back as-is -- that is the exact "no data" pair the reused-
+      // completed-pair sink would otherwise leave permanently stuck if no later, unrelated change
+      // ever reaches this chart again. Rebuild once more now, mirroring the existing
+      // cancelled-before-completing retry just below.
+      if(!pair.isCompleted() && pair.isCancelled() ||
+         pair.isCompleted() && pair.isDataCut())
+      {
          return getVGraphPair(name, init, maxsize, export, scaleFont);
       }
 

@@ -1127,7 +1127,21 @@ public abstract class AssetQuery extends PreAssetQuery {
       // merge the query
       merge(vars);
 
-      QueryManager qmgr = box.getQueryManager();
+      // Bug #78033: prefer this AssetQuery's own, correctly-set per-instance query manager
+      // (set via setQueryManager() by callers like AssetDataCache.Processor.run0(), which thread
+      // the right per-assembly manager down from VSAQuery) over the shared AssetQuerySandbox-level
+      // one. box.getQueryManager()/setQueryManager() is a single field shared by every assembly's
+      // AssetQuery on one ViewsheetSandbox, and VSAQuery.getTableLens() overwrites it on every
+      // chart/table fetch -- concurrent fetches can otherwise read back a sibling assembly's
+      // manager here and register this query's table for cancellation on the wrong QueryManager.
+      // Still read the shared field unconditionally (it's a plain, side-effect-free field getter)
+      // and fall back to it only when this instance was never given its own manager (e.g.
+      // AssetQuerySandbox.getTableLens(String, int, VariableTable) and most other non-VSAQuery
+      // callers of AssetQuery.createAssetQuery(), which rely on the shared field as their only
+      // registration mechanism) -- this keeps the shared field's value available for that
+      // fallback without ever acting on it when this.qmgr is already set.
+      QueryManager sharedQmgr = box.getQueryManager();
+      QueryManager qmgr = this.qmgr != null ? this.qmgr : sharedQmgr;
 
       // get base table
       TableLens base = getBaseTableLens(vars);
