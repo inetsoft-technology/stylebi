@@ -2159,29 +2159,22 @@ public class WorksheetEditService {
             // invisible to it. Reuse the same corrected downstream-loss walker
             // set_group_aggregate's guard uses (Bug #76891 / WBS-084..087), scoped to
             // this one column instead of a whole proposed AggregateInfo.
-            List<WorksheetControllerService.AggregateInputLossConflict> inputConflicts =
-               WorksheetControllerService.findAggregateInputLossConflicts(ws, t, cr);
+            // Bug #78144 (WBS-101): a downstream condition, ranking condition or expression
+            // column referencing the hidden column breaks the same way (the refresh deletes
+            // the condition; the expression evaluates to null), so it is refused on the same
+            // opt-in terms -- the walker remove_column already runs. Only on hide: nothing
+            // here re-aliases the column, so the live ref is the right lookup key.
+            if(!confirmed) {
+               List<WorksheetControllerService.AggregateInputLossConflict> inputConflicts =
+                  WorksheetControllerService.findAggregateInputLossConflicts(ws, t, cr);
+               List<WorksheetControllerService.ColumnReferenceLossConflict> referenceConflicts =
+                  WorksheetControllerService.findColumnReferenceLossConflicts(ws, t, cr);
 
-            if(!inputConflicts.isEmpty() && !confirmed) {
-               StringBuilder sb = new StringBuilder();
-
-               for(WorksheetControllerService.AggregateInputLossConflict inputConflict :
-                  inputConflicts)
-               {
-                  if(sb.length() > 0) {
-                     sb.append("; ");
-                  }
-
-                  sb.append("'").append(inputConflict.dependentAssemblyName()).append("' (")
-                     .append(String.join(", ", inputConflict.lostColumns())).append(")");
+               if(!inputConflicts.isEmpty() || !referenceConflicts.isEmpty()) {
+                  throw new PairingException(
+                     WorksheetMutationSupport.describeDownstreamLossConflicts(
+                        inputConflicts, referenceConflicts));
                }
-
-               throw new PairingException(
-                  "This change would empty the aggregate or group-by on the following " +
-                  "downstream table(s), which rely on the affected column(s) as their own " +
-                  "aggregate input or group-by key: " + sb + ". Confirm with the user " +
-                  "before retrying with confirmed:true -- this changes what those OTHER " +
-                  "tables show, not just this one.");
             }
          }
 

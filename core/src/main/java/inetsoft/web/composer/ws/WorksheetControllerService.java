@@ -42,7 +42,10 @@ import org.springframework.stereotype.Service;
 import java.security.Principal;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -155,6 +158,39 @@ public class WorksheetControllerService {
    }
 
    /**
+    * Wiz-only variant of {@link #findAggregateIdentityLossConflict(Worksheet, TableAssembly,
+    * AggregateInfo)} for {@code WorksheetMutationSupport#applyAggregateInfo}, which has already
+    * cleared or re-set {@code table}'s aliases by the time it checks (Bug #78144 / WBS-098/100).
+    * A column is at risk when its PRE-CALL output identity ({@code originalAliases}, else the
+    * live alias, else the attribute) is not still a row-level column of the post-call output:
+    * a visible column of an empty {@code newInfo}, a group of a flat one, or a group other
+    * than the first of a crosstab ({@link AggregateInfo#isCrosstab()}). The downstream join is
+    * looked up under that pre-call identity. The 3-arg overload keeps its name-only rule for
+    * the Composer's Group and Aggregate dialog, which never clears aliases before checking.
+    *
+    * @return the live column of {@code table} whose loss breaks a downstream join, or
+    *         {@code null}
+    */
+   public static ColumnRef findAggregateIdentityLossConflict(
+      Worksheet ws, TableAssembly table, AggregateInfo newInfo,
+      Map<ColumnRef, String> originalAliases)
+   {
+      if(newInfo == null) {
+         return null;
+      }
+
+      for(ColumnRef colRef :
+         findAggregateOutputLossCandidates(table, newInfo, originalAliases, false))
+      {
+         if(!allowsDeletion(ws, table, withPreCallAlias(colRef, originalAliases))) {
+            return colRef;
+         }
+      }
+
+      return null;
+   }
+
+   /**
     * One entry per downstream assembly whose OWN {@link AggregateInfo} would lose an
     * aggregate, or a group-by, because its input column is removed/re-grouped away from
     * {@code table} by the new {@code AggregateInfo}.
@@ -201,42 +237,13 @@ public class WorksheetControllerService {
          return new ArrayList<>();
       }
 
-      ColumnSelection cols = table.getColumnSelection();
-
-      for(int i = 0; i < cols.getAttributeCount(); i++) {
-         DataRef ref = cols.getAttribute(i);
-         String col = ref.getName();
-
-         if(newInfo.getGroup(col) != null) {
-            continue;
-         }
-
-         if(!(ref instanceof ColumnRef)) {
-            continue;
-         }
-
-         ColumnRef colRef = (ColumnRef) ref;
-
-         if(colRef.getDataRef() instanceof DateRangeRef) {
-            DateRangeRef dateRangeRef = (DateRangeRef) colRef.getDataRef();
-            String innerRef = dateRangeRef.getDataRef().getName();
-
-            if(newInfo.getGroup(innerRef) != null) {
-               continue;
-            }
-         }
-
-         // Bug #76891 / WBS-087: becoming a non-group column is not, on its own, "at
-         // risk" -- a column that survives newInfo as an unaliased/unchanged-name
-         // aggregate is still addressable by downstream under the exact same identity
-         // it always had, so it must not be flagged just because it stopped being a
-         // plain row-level column. A column that resolves to neither a group NOR such a
-         // preserved-identity aggregate (WBS-086's group-by-only case, or a genuine
-         // re-alias/removal) remains "at risk" and is still scanned below.
-         if(survivesAsPreservedAggregate(newInfo, colRef, originalAliases)) {
-            continue;
-         }
-
+      // Bug #78144 (WBS-098/099/100): a column is at risk only when its pre-call output
+      // identity is not in the post-call output -- see findAggregateOutputLossCandidates.
+      // Bug #76891 / WBS-087 still holds: a column that survives as an aggregate under its
+      // unchanged identity stays addressable downstream and is not flagged.
+      for(ColumnRef colRef :
+         findAggregateOutputLossCandidates(table, newInfo, originalAliases, true))
+      {
          findAggregateInputLossConflicts(
             ws, table, colRef, new HashSet<>(), lostByDependent, originalAliases);
       }
@@ -278,48 +285,156 @@ public class WorksheetControllerService {
    }
 
    /**
-    * Bug #76891 / WBS-087: true when {@code newInfo} still has an aggregate on {@code col}
-    * that keeps it addressable under the identity it already had -- i.e. an aggregate
-    * whose own {@link DataRef} matches {@code col} (by attribute/entity, alias-insensitive,
-    * via {@link AggregateInfo#getAggregates(DataRef)}) AND carries no NEW display identity
-    * different from {@code col}'s own PRE-CALL identity. A column that only survives as
-    * such an aggregate is NOT actually put at risk by losing row-level identity -- a
-    * downstream consumer that already addresses it by that identity keeps resolving fine.
-    * A literal "col's name string is unchanged" check would get this wrong in the other
-    * direction too (see WBS-086, {@code ORDER_ID}): a column can be entirely untouched by
-    * the call and still be genuinely at risk, because it falls out of {@code newInfo}
-    * coverage (neither grouped nor aggregated) entirely -- membership in {@code newInfo},
-    * not name stability, is what this must test.
+    * Bug #78144 (WBS-098/099/100): the columns of {@code table} whose PRE-CALL output identity
+    * does not survive {@code newInfo}, i.e. the columns a downstream consumer can lose.
     *
-    * <p><b>Round-1-review finding</b>: the PRE-CALL identity is {@code
-    * originalAliases}'s snapshot value for {@code col} when one exists -- NOT
-    * unconditionally {@code col.getAttribute()}. A column whose stable identity is
-    * itself an alias from an EARLIER, unrelated {@code rename_column} (never cleared by
-    * {@code clearAggregateAliases}, since that alias was never applied by THIS
-    * mechanism) keeps that alias live and untouched by an unaliased re-aggregation of
-    * it -- comparing against the raw attribute name in that case would wrongly treat
-    * the untouched alias as a NEW, differing identity and refuse a genuine no-op call.
-    * Falls back to {@code col.getAttribute()} only when {@code originalAliases} has no
-    * alias recorded for {@code col} (the ordinary, never-renamed case), matching the
-    * pre-round-1-review behavior exactly for that case.</p>
+    * <p>The pre-call identity is the column's alias before the current {@code
+    * applyAggregateInfo} call ({@code originalAliases}, else its live alias), else its
+    * attribute -- the same name {@link AssetUtil#getOuterAttribute} hands a dependent. The
+    * post-call output, from {@code AbstractTableAssembly#setColumnSelection} and
+    * {@code AssetQuery#getSummaryTableLens}, is:</p>
+    * <ul>
+    *   <li>empty {@code newInfo}: every visible column, under its final identity;</li>
+    *   <li>flat: the groups, plus (when {@code aggregatesKeepIdentity}) the aggregates, under
+    *       their final identities;</li>
+    *   <li>{@link AggregateInfo#isCrosstab()}: groups[1..] only -- the first group is pivoted
+    *       into column headers and every aggregate's own column is gone.</li>
+    * </ul>
+    * A column survives only if it (or an equal ref) is such an output under an unchanged
+    * identity, so a re-alias ({@code TOTAL -> T2}), a cleared alias ({@code TOTAL -> qty})
+    * and a column dropped by the stale-range-column sweep (in {@code originalAliases} but no
+    * longer in the selection) are all at risk, while a full clear of an unaliased aggregate
+    * or of a never-aggregated table is not. Hidden columns are never output, before or
+    * after, so they are never candidates.
+    *
+    * @param aggregatesKeepIdentity {@code true} for consumers that only need the NAME to keep
+    *                               resolving (a downstream aggregate, condition, expression);
+    *                               {@code false} for a join key, which also needs row-level
+    *                               identity, so an aggregate output does not keep it
     */
-   private static boolean survivesAsPreservedAggregate(
-      AggregateInfo newInfo, ColumnRef col, Map<ColumnRef, String> originalAliases)
+   private static List<ColumnRef> findAggregateOutputLossCandidates(
+      TableAssembly table, AggregateInfo newInfo, Map<ColumnRef, String> originalAliases,
+      boolean aggregatesKeepIdentity)
    {
-      String originalAlias = originalAliases == null ? null : originalAliases.get(col);
-      String preCallIdentity = originalAlias != null ? originalAlias : col.getAttribute();
+      ColumnSelection cols = table.getColumnSelection(false);
+      Set<ColumnRef> live = Collections.newSetFromMap(new IdentityHashMap<>());
+      List<ColumnRef> columns = new ArrayList<>();
 
-      for(AggregateRef agg : newInfo.getAggregates(col)) {
-         DataRef aggRef = agg.getDataRef();
-         String aggAlias = aggRef instanceof ColumnRef ? ((ColumnRef) aggRef).getAlias() : null;
-         String finalIdentity = aggAlias != null ? aggAlias : col.getAttribute();
+      for(int i = 0; i < cols.getAttributeCount(); i++) {
+         if(cols.getAttribute(i) instanceof ColumnRef colRef) {
+            live.add(colRef);
+            columns.add(colRef);
+         }
+      }
 
-         if(finalIdentity.equals(preCallIdentity)) {
+      if(originalAliases != null) {
+         List<ColumnRef> removed = new ArrayList<>();
+
+         for(ColumnRef colRef : originalAliases.keySet()) {
+            if(!live.contains(colRef)) {
+               removed.add(colRef);
+            }
+         }
+
+         removed.sort(Comparator.comparing(ColumnRef::getName,
+            Comparator.nullsFirst(Comparator.naturalOrder())));
+         columns.addAll(removed);
+      }
+
+      List<ColumnRef> atRisk = new ArrayList<>();
+
+      for(ColumnRef colRef : columns) {
+         if(!colRef.isVisible()) {
+            continue;
+         }
+
+         if(!live.contains(colRef) ||
+            !survivesAggregateOutput(newInfo, colRef, originalAliases, aggregatesKeepIdentity))
+         {
+            atRisk.add(colRef);
+         }
+      }
+
+      return atRisk;
+   }
+
+   private static boolean survivesAggregateOutput(
+      AggregateInfo newInfo, ColumnRef col, Map<ColumnRef, String> originalAliases,
+      boolean aggregatesKeepIdentity)
+   {
+      String preCallIdentity = outputIdentity(col, preCallAlias(col, originalAliases));
+      String finalIdentity = outputIdentity(col, col.getAlias());
+
+      if(!Objects.equals(preCallIdentity, finalIdentity)) {
+         return false;
+      }
+
+      if(newInfo.isEmpty()) {
+         return true;
+      }
+
+      boolean crosstab = newInfo.isCrosstab();
+
+      for(int i = crosstab ? 1 : 0; i < newInfo.getGroupCount(); i++) {
+         if(isSameOutputColumn(newInfo.getGroup(i).getDataRef(), col)) {
             return true;
          }
       }
 
+      if(aggregatesKeepIdentity && !crosstab) {
+         for(int i = 0; i < newInfo.getAggregateCount(); i++) {
+            if(isSameOutputColumn(newInfo.getAggregate(i).getDataRef(), col)) {
+               return true;
+            }
+         }
+      }
+
       return false;
+   }
+
+   /**
+    * True if {@code output} is {@code col} itself, or an equal ref ({@code ColumnRef} equality is
+    * name based). Bug #78144 review r1 (B-1): a re-sent date-level group builds a NEW
+    * {@code ColumnRef(DateRangeRef)}, which the exclusive {@code ColumnSelection#addAttribute}
+    * does not add because the live selection already holds an equal one -- so the group and the
+    * live column are different objects for the same, unchanged output. A changed output NAME
+    * (re-alias, a cleared alias such as WBS-098's {@code TOTAL -> qty}) is still caught by the
+    * caller's pre-call == final identity check, which runs first.
+    */
+   private static boolean isSameOutputColumn(DataRef output, ColumnRef col) {
+      return output == col || (output instanceof ColumnRef && output.equals(col));
+   }
+
+   private static String preCallAlias(ColumnRef col, Map<ColumnRef, String> originalAliases) {
+      return originalAliases != null && originalAliases.containsKey(col) ?
+         originalAliases.get(col) : col.getAlias();
+   }
+
+   private static String outputIdentity(ColumnRef col, String alias) {
+      return alias != null ? alias : col.getAttribute();
+   }
+
+   /**
+    * {@code column} itself when its alias is unchanged since {@code originalAliases} was
+    * captured, else a shadow clone carrying the pre-call alias, so a downstream lookup asks
+    * about the identity the column HAD (see {@link #getOuterAttributeSnapshotAware}).
+    */
+   private static ColumnRef withPreCallAlias(ColumnRef column,
+                                             Map<ColumnRef, String> originalAliases)
+   {
+      if(originalAliases == null || !originalAliases.containsKey(column)) {
+         return column;
+      }
+
+      String originalAlias = originalAliases.get(column);
+
+      if(Objects.equals(originalAlias, column.getAlias())) {
+         return column;
+      }
+
+      ColumnRef shadow = (ColumnRef) column.clone();
+      shadow.setAlias(originalAlias);
+      return shadow;
    }
 
    /**
@@ -454,6 +569,38 @@ public class WorksheetControllerService {
    {
       LinkedHashMap<String, List<String>> refsByDependent = new LinkedHashMap<>();
       findColumnReferenceLossConflicts(ws, table, ref, new HashSet<>(), refsByDependent);
+
+      List<ColumnReferenceLossConflict> conflicts = new ArrayList<>();
+
+      for(Map.Entry<String, List<String>> entry : refsByDependent.entrySet()) {
+         conflicts.add(new ColumnReferenceLossConflict(entry.getKey(), entry.getValue()));
+      }
+
+      return conflicts;
+   }
+
+   /**
+    * Wiz-only, {@code AggregateInfo}-scoped variant for {@code
+    * WorksheetMutationSupport#applyAggregateInfo} (Bug #78144 / WBS-101): runs the reference
+    * walker on every column whose pre-call output identity {@code newInfo} removes (see
+    * {@link #findAggregateOutputLossCandidates}), looking each one up downstream under its
+    * PRE-CALL alias -- by guard time the call has already cleared or re-set the live alias,
+    * and a live-alias lookup would find nothing for exactly the aliased cases.
+    */
+   public static List<ColumnReferenceLossConflict> findColumnReferenceLossConflicts(
+      Worksheet ws, TableAssembly table, AggregateInfo newInfo,
+      Map<ColumnRef, String> originalAliases)
+   {
+      LinkedHashMap<String, List<String>> refsByDependent = new LinkedHashMap<>();
+
+      if(newInfo != null) {
+         for(ColumnRef colRef :
+            findAggregateOutputLossCandidates(table, newInfo, originalAliases, true))
+         {
+            findColumnReferenceLossConflicts(ws, table, withPreCallAlias(colRef, originalAliases),
+               new HashSet<>(), refsByDependent);
+         }
+      }
 
       List<ColumnReferenceLossConflict> conflicts = new ArrayList<>();
 

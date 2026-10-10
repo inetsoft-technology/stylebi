@@ -1046,8 +1046,11 @@ class WorksheetEditServiceMutatorsTest {
             ed.setGroupAggregate("T", groups("store"),
                List.of(new WorksheetMutationSupport.AggregateSpec("total", "AVG", "avg_total")))));
       assertTrue(ex.getMessage().contains("total"));
-      assertNull(columnByAttribute(t, "amount").getAlias(),
-         "the prior output alias must be gone even though the AggregateInfo was cloned");
+      // Bug #78144 (WBS-096): the refusal itself proves the stranded alias was cleared before
+      // resolution. A refused call is zero-mutation, so the table keeps its pre-call state:
+      // the old Sum(amount) AS total is still the active AggregateInfo, and its label stays.
+      assertEquals("total", columnByAttribute(t, "amount").getAlias(),
+         "a refused call must leave the prior output alias exactly as it was");
    }
 
    /** The negative control: the clear must not reach a deliberate rename_column alias. */
@@ -4700,6 +4703,612 @@ class WorksheetEditServiceMutatorsTest {
          "M's own aggregate must survive a no-op re-issue of the same aggregate upstream");
       assertEquals(1, left.getAggregateInfo().getAggregateCount(),
          "the allowed no-op edit must actually be applied to L");
+   }
+
+   // =========================================================================
+   // Bug #78144 -- set_group_aggregate / set_column_visibility write guards.
+   //  - WBS-096/097: a refused call (validation OR guard throw) must be zero-mutation across
+   //    every kind of state applyAggregateInfo touches before its last throw: aliases,
+   //    private-selection membership, the condition lists, SortInfo, and the old
+   //    AggregateInfo's own aggregate-ref aliases.
+   //  - WBS-098/099/100: "at risk" is "the column's PRE-CALL output identity is not in the
+   //    post-call output" (empty -> visible columns; flat -> groups + aggregates; crosstab ->
+   //    groups[1..] only).
+   //  - WBS-101: a downstream condition/expression reference is part of the opt-in guard on
+   //    both set_group_aggregate (looked up under the pre-call alias) and
+   //    set_column_visibility (hide only).
+   // =========================================================================
+
+   /** Everything a refused set_group_aggregate must leave exactly as it found it. */
+   private record AggregateTableState(List<DataRef> members, List<String> aliases,
+                                      String preConditions, String postConditions,
+                                      String rankingConditions, List<SortRef> sorts,
+                                      String outputAliases, AggregateInfo info,
+                                      String infoText, List<String> infoAggregateAliases)
+   {
+   }
+
+   private static AggregateTableState aggregateState(TableAssembly t) {
+      ColumnSelection cs = t.getColumnSelection(false);
+      List<DataRef> members = new java.util.ArrayList<>();
+      List<String> aliases = new java.util.ArrayList<>();
+
+      for(int i = 0; i < cs.getAttributeCount(); i++) {
+         DataRef ref = cs.getAttribute(i);
+         members.add(ref);
+         aliases.add(ref instanceof ColumnRef cr ? cr.getAlias() : null);
+      }
+
+      AggregateInfo info = t.getAggregateInfo();
+      List<String> infoAggregateAliases = new java.util.ArrayList<>();
+
+      for(int i = 0; info != null && i < info.getAggregateCount(); i++) {
+         DataRef ref = info.getAggregate(i).getDataRef();
+         infoAggregateAliases.add(ref instanceof ColumnRef cr ? cr.getAlias() : null);
+      }
+
+      return new AggregateTableState(
+         members, aliases, String.valueOf(t.getPreConditionList()),
+         String.valueOf(t.getPostConditionList()), String.valueOf(t.getRankingConditionList()),
+         t.getSortInfo() == null ? List.of() : List.of(t.getSortInfo().getSorts()),
+         t.getProperty("wiz.aggregate.output.aliases"), info, String.valueOf(info),
+         infoAggregateAliases);
+   }
+
+   private static void assertSameAggregateState(AggregateTableState before, TableAssembly t,
+                                                String label)
+   {
+      AggregateTableState after = aggregateState(t);
+      assertEquals(before.members().size(), after.members().size(),
+         label + ": private-selection membership changed: " + after.members());
+
+      for(int i = 0; i < before.members().size(); i++) {
+         assertSame(before.members().get(i), after.members().get(i),
+            label + ": private-selection member " + i + " changed");
+      }
+
+      assertEquals(before.aliases(), after.aliases(), label + ": column aliases changed");
+      assertEquals(before.preConditions(), after.preConditions(), label + ": pre-conditions");
+      assertEquals(before.postConditions(), after.postConditions(), label + ": post-conditions");
+      assertEquals(before.rankingConditions(), after.rankingConditions(), label + ": ranking");
+      assertEquals(before.sorts(), after.sorts(), label + ": sorts");
+      assertEquals(before.outputAliases(), after.outputAliases(), label + ": output aliases");
+      assertSame(before.info(), after.info(), label + ": AggregateInfo replaced");
+      assertEquals(before.infoText(), after.infoText(), label + ": AggregateInfo changed");
+      assertEquals(before.infoAggregateAliases(), after.infoAggregateAliases(),
+         label + ": AggregateInfo's own aggregate-ref aliases changed");
+   }
+
+   /** A mocked runtime whose post-mutation refresh is REAL (it executes queries). */
+   private static RuntimeWorksheet sandboxRws(Worksheet ws) {
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = new AssetQuerySandbox(ws, null, new VariableTable());
+      box.setActive(true);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      return rws;
+   }
+
+   /** Embedded {@code U(pid, oid, qty)} with four real rows, for real-sandbox refreshes. */
+   private static EmbeddedTableAssembly orderRows(Worksheet ws, String name) {
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, name, "pid", "oid", "qty");
+      t.setEmbeddedData(new XEmbeddedTable(new String[]{ "integer", "integer", "integer" },
+         new Object[][]{
+            { "pid", "oid", "qty" },
+            { 1, 10501, 5 },
+            { 1, 10502, 7 },
+            { 2, 10501, 3 },
+            { 2, 10503, 9 },
+         }));
+
+      for(String col : List.of("pid", "oid", "qty")) {
+         ((ColumnRef) t.getColumnSelection(false).getAttribute(col)).setDataType(XSchema.INTEGER);
+      }
+
+      return t;
+   }
+
+   private static WorksheetMutationSupport.AggregateSpec sum(String field, String alias) {
+      return new WorksheetMutationSupport.AggregateSpec(field, "SUM", alias);
+   }
+
+   @Test
+   void setGroupAggregateValidationRefusalsAreZeroMutation() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly u =
+         TestWorksheets.tableWithColumns(ws, "U", "pid", "oid", "qty", "od");
+      ws.addAssembly(u);
+      ((ColumnRef) u.getColumnSelection(false).getAttribute("od")).setDataType(XSchema.DATE);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("U", groups("pid"), List.of(sum("qty", "TOTAL"))));
+      AggregateTableState before = aggregateState(u);
+
+      // WBS-096a: clearAggregateAliases turned TOTAL back into qty before this throws.
+      assertThrows(PairingException.class, () -> svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("U", groups("TOTAL"), List.of())));
+      assertSameAggregateState(before, u, "096a");
+
+      // WBS-096b: unknown aggregate column.
+      assertThrows(PairingException.class, () -> svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("U", groups("pid"), List.of(sum("NO_SUCH_COL", null)))));
+      assertSameAggregateState(before, u, "096b");
+
+      // WBS-096c: applyPercentageOption's IllegalArgumentException, not a PairingException.
+      assertThrows(IllegalArgumentException.class, () -> svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("U", groups("pid"), List.of(
+            new WorksheetMutationSupport.AggregateSpec("qty", "SUM", "TOTAL", null, null,
+                                                       "bogus")))));
+      assertSameAggregateState(before, u, "096c");
+
+      // WBS-096d: a column both grouped and aggregated.
+      assertThrows(PairingException.class, () -> svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("U", groups("pid"), List.of(sum("pid", null)))));
+      assertSameAggregateState(before, u, "096d");
+
+      // WBS-096e: a NEW alias set by the aggregates loop, then a later spec throws.
+      assertThrows(PairingException.class, () -> svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("U", groups("pid"),
+            List.of(sum("oid", "NEWT"), sum("NO_SUCH", null)))));
+      assertSameAggregateState(before, u, "096e");
+
+      // WBS-096f: a Month(od) range column inserted, then a namedGroup validation throws.
+      assertThrows(PairingException.class, () -> svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("U", List.of(
+            new WorksheetMutationSupport.GroupSpec("od", "MONTH"),
+            new WorksheetMutationSupport.GroupSpec("pid", null, null, "NoSuchNG")),
+            List.of())));
+      assertSameAggregateState(before, u, "096f");
+   }
+
+   @Test
+   void setGroupAggregateValidationRefusalDoesNotEmptyADownstreamAggregateOnTheNextRefresh()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(orderRows(ws, "U"));
+      ws.addAssembly(orderRows(ws, "Z"));
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(sandboxRws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("U", groups("pid"), List.of(sum("qty", "TOTAL"))));
+      svc.apply("TOK", agent, ed -> ed.addMirror("M2", "U"));
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("M2", List.of(), List.of(sum("TOTAL", null))));
+      MirrorTableAssembly m2 = (MirrorTableAssembly) ws.getAssembly("M2");
+      assertEquals(1, m2.getAggregateInfo().getAggregateCount(), "sanity: M2 sums TOTAL");
+
+      assertThrows(PairingException.class, () -> svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("U", groups("TOTAL"), List.of())));
+
+      // WBS-096 trigger: any later successful op refreshes every table. Before the fix the
+      // refused call had left qty un-aliased, U published [pid, qty], and M2's Sum(TOTAL) was
+      // dropped by AggregateInfo#validate.
+      svc.apply("TOK", agent, ed -> ed.addMirror("ZM", "Z"));
+
+      assertEquals(1, m2.getAggregateInfo().getAggregateCount(),
+         "a refused upstream call must not empty M2's aggregate on the next refresh");
+   }
+
+   @Test
+   void setGroupAggregateGuardRefusalsAreZeroMutation() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly l =
+         TestWorksheets.tableWithColumns(ws, "L", "pid", "oid", "qty", "od");
+      ws.addAssembly(l);
+      ((ColumnRef) l.getColumnSelection(false).getAttribute("od")).setDataType(XSchema.DATE);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addMirror("DEP", "L"));
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("DEP", groups("pid"), List.of(sum("qty", null))));
+      svc.apply("TOK", agent, ed -> ed.setSort("L", "pid", "asc"));
+      AggregateTableState before = aggregateState(l);
+      assertEquals(1, before.sorts().size(), "sanity: L sorts on pid");
+
+      // WBS-097a: the date-level branch inserts Month(od) into L's private selection before
+      // the guard refuses (DEP relies on pid and qty, neither of which survives).
+      PairingException ex = assertThrows(PairingException.class, () -> svc.apply("TOK", agent,
+         ed -> ed.setGroupAggregate("L",
+            List.of(new WorksheetMutationSupport.GroupSpec("od", "MONTH")), List.of())));
+      assertTrue(ex.getMessage().contains("DEP"), ex.getMessage());
+      assertSameAggregateState(before, l, "097a");
+
+      // A timeSeries group removes the table's own sort on that column before the guard.
+      ex = assertThrows(PairingException.class, () -> svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("L",
+            List.of(new WorksheetMutationSupport.GroupSpec("pid", null, true, null)),
+            List.of())));
+      assertTrue(ex.getMessage().contains("DEP"), ex.getMessage());
+      assertSameAggregateState(before, l, "timeSeries sort");
+   }
+
+   @Test
+   void setGroupAggregateGuardRefusalRestoresARemovedRangeColumnAndItsCondition()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly b = TestWorksheets.tableWithColumns(ws, "B", "pid", "qty", "od");
+      ws.addAssembly(b);
+      ((ColumnRef) b.getColumnSelection(false).getAttribute("od")).setDataType(XSchema.DATE);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addMirror("U", "B"));
+      ((ColumnRef) ((TableAssembly) ws.getAssembly("U")).getColumnSelection(false)
+         .getAttribute("od")).setDataType(XSchema.DATE);
+      svc.apply("TOK", agent, ed -> ed.setGroupAggregate("U",
+         List.of(new WorksheetMutationSupport.GroupSpec("od", "QUARTER")),
+         List.of(sum("qty", null))));
+      TableAssembly u = (TableAssembly) ws.getAssembly("U");
+      String quarter = null;
+
+      for(int i = 0; i < u.getColumnSelection(false).getAttributeCount(); i++) {
+         if(u.getColumnSelection(false).getAttribute(i) instanceof ColumnRef cr &&
+            cr.getDataRef() instanceof DateRangeRef)
+         {
+            quarter = cr.getName();
+         }
+      }
+
+      assertNotNull(quarter, "sanity: U has its Quarter range column");
+      String quarterName = quarter;
+      svc.apply("TOK", agent, ed -> ed.addFilter("U", quarterName, "null"));
+      assertEquals(1, ((ConditionList) u.getPreConditionList()).getConditionSize(),
+         "sanity: U filters on its Quarter column");
+
+      svc.apply("TOK", agent, ed -> ed.addMirror("DEP", "U"));
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("DEP", List.of(), List.of(sum("qty", null))));
+      AggregateTableState before = aggregateState(u);
+
+      // WBS-097c: regrouping by pid sweeps Quarter(od) out of U's selection and
+      // validateConditions deletes U's own condition on it -- both before the guard refuses
+      // (DEP sums qty, which the new output no longer has).
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.setGroupAggregate("U", groups("pid"), List.of())));
+      assertTrue(ex.getMessage().contains("DEP"), ex.getMessage());
+      assertSameAggregateState(before, u, "097c");
+      assertEquals(1, ((ConditionList) u.getPreConditionList()).getConditionSize(),
+         "the refused call must not delete U's own pre-condition");
+   }
+
+   @Test
+   void setGroupAggregateRefusesTurningADownstreamAggregatedAliasIntoAGroup() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly u = TestWorksheets.tableWithColumns(ws, "U", "pid", "qty");
+      ws.addAssembly(u);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("U", groups("pid"), List.of(sum("qty", "TOTAL"))));
+      svc.apply("TOK", agent, ed -> ed.addMirror("M2", "U"));
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("M2", List.of(), List.of(sum("TOTAL", null))));
+      AggregateTableState before = aggregateState(u);
+
+      // WBS-098: qty becomes a group, so a name-only check thought it "covered" -- but its
+      // output identity changes from TOTAL to qty, and M2's Sum(TOTAL) would be emptied.
+      PairingException ex = assertThrows(PairingException.class, () -> svc.apply("TOK", agent,
+         ed -> ed.setGroupAggregate("U", groups("pid", "qty"), List.of())));
+      assertTrue(ex.getMessage().contains("M2"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("TOTAL"), ex.getMessage());
+      assertSameAggregateState(before, u, "098");
+   }
+
+   @Test
+   void setGroupAggregateAllowsAFullClearThatKeepsEveryOutputIdentity() throws Exception {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(orderRows(ws, "L"));
+      ws.addAssembly(orderRows(ws, "U"));
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(sandboxRws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // WBS-099a: L was never aggregated, so clearing it is a no-op for DEP.
+      svc.apply("TOK", agent, ed -> ed.addMirror("DEP", "L"));
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("DEP", groups("pid"), List.of(sum("qty", null))));
+      svc.apply("TOK", agent, ed -> ed.setGroupAggregate("L", List.of(), List.of()));
+      MirrorTableAssembly dep = (MirrorTableAssembly) ws.getAssembly("DEP");
+      assertEquals(1, dep.getAggregateInfo().getGroupCount(), "099a: DEP's group survives");
+      assertEquals(1, dep.getAggregateInfo().getAggregateCount(), "099a: DEP's sum survives");
+
+      // WBS-099b: an unaliased Sum(qty) keeps the name qty when cleared.
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("U", groups("pid"), List.of(sum("qty", null))));
+      svc.apply("TOK", agent, ed -> ed.addMirror("DEP2", "U"));
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("DEP2", List.of(), List.of(sum("qty", null))));
+      svc.apply("TOK", agent, ed -> ed.setGroupAggregate("U", List.of(), List.of()));
+      MirrorTableAssembly dep2 = (MirrorTableAssembly) ws.getAssembly("DEP2");
+      assertTrue(((TableAssembly) ws.getAssembly("U")).getAggregateInfo().isEmpty(),
+         "099b: the clear is applied");
+      assertEquals(1, dep2.getAggregateInfo().getAggregateCount(),
+         "099b: DEP2's Sum(qty) still resolves after the real refresh");
+   }
+
+   @Test
+   void setGroupAggregateCrosstabRefusesADependentOnTheFirstGroupOnly() throws Exception {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(orderRows(ws, "U"));
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(sandboxRws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addMirror("DEP", "U"));
+      svc.apply("TOK", agent, ed -> ed.setGroupAggregate("DEP", groups("pid"), List.of()));
+      MirrorTableAssembly dep = (MirrorTableAssembly) ws.getAssembly("DEP");
+
+      // WBS-100: crosstab pivots the FIRST group (pid) into column headers. DEP uses pid
+      // only -- not qty -- so only the crosstab model can produce this refusal.
+      PairingException ex = assertThrows(PairingException.class, () -> svc.apply("TOK", agent,
+         ed -> ed.setGroupAggregate("U", groups("pid", "oid"), List.of(sum("qty", null)),
+                                    true, false)));
+      assertTrue(ex.getMessage().contains("DEP"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("pid"), ex.getMessage());
+      assertTrue(((TableAssembly) ws.getAssembly("U")).getAggregateInfo().isEmpty(),
+         "the refused crosstab must not be applied");
+      assertEquals(1, dep.getAggregateInfo().getGroupCount(), "DEP's group is intact");
+   }
+
+   @Test
+   void setGroupAggregateCrosstabAllowsADependentOnALaterGroupOnly() throws Exception {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(orderRows(ws, "U"));
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(sandboxRws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addMirror("DEP", "U"));
+      svc.apply("TOK", agent, ed -> ed.setGroupAggregate("DEP", groups("oid"), List.of()));
+
+      // WBS-100: oid is a row header of the crosstab and keeps its identity.
+      svc.apply("TOK", agent, ed -> ed.setGroupAggregate("U", groups("pid", "oid"),
+         List.of(sum("qty", null)), true, false));
+
+      assertTrue(((TableAssembly) ws.getAssembly("U")).getAggregateInfo().isCrosstab(),
+         "the crosstab is applied");
+      MirrorTableAssembly dep = (MirrorTableAssembly) ws.getAssembly("DEP");
+      assertEquals(1, dep.getAggregateInfo().getGroupCount(),
+         "DEP's group on the surviving row header stays intact after the real refresh");
+   }
+
+   @Test
+   void setGroupAggregateRefusesDroppingAColumnADownstreamFilterOrExpressionReferences()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly u = TestWorksheets.tableWithColumns(ws, "U", "pid", "oid", "qty");
+      ws.addAssembly(u);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addMirror("DEP", "U"));
+      svc.apply("TOK", agent, ed -> ed.addFilter("DEP", "oid", ">", "10500"));
+      svc.apply("TOK", agent, ed -> ed.addMirror("DEPX", "U"));
+      svc.apply("TOK", agent, ed ->
+         ed.addExpressionColumn("DEPX", "OID_PLUS", "field['oid'] + 1", "integer", false));
+
+      // WBS-101a/b: grouping by pid with Sum(qty) drops oid from U's output.
+      PairingException ex = assertThrows(PairingException.class, () -> svc.apply("TOK", agent,
+         ed -> ed.setGroupAggregate("U", groups("pid"), List.of(sum("qty", null)))));
+      assertTrue(ex.getMessage().contains("DEP"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("pre-condition"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("OID_PLUS"), ex.getMessage());
+      assertTrue(ex.getMessage().toLowerCase().contains("confirmed"), ex.getMessage());
+      assertTrue(u.getAggregateInfo().isEmpty(), "the refused edit must not be applied");
+
+      svc.apply("TOK", agent, ed -> ed.setGroupAggregate("U", groups("pid"),
+         List.of(sum("qty", null)), false, true));
+      assertFalse(u.getAggregateInfo().isEmpty(), "confirmed:true lets it through");
+   }
+
+   @Test
+   void setGroupAggregateRefusesReAliasingAColumnADownstreamFilterReferences() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly u = TestWorksheets.tableWithColumns(ws, "U", "pid", "qty");
+      ws.addAssembly(u);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("U", groups("pid"), List.of(sum("qty", "TOTAL"))));
+      svc.apply("TOK", agent, ed -> ed.addMirror("DEP", "U"));
+      svc.apply("TOK", agent, ed -> ed.addFilter("DEP", "TOTAL", ">", "5"));
+      AggregateTableState before = aggregateState(u);
+
+      // WBS-101e: by guard time the live alias is already T2; only the PRE-CALL alias
+      // (TOTAL) finds DEP's filter.
+      PairingException ex = assertThrows(PairingException.class, () -> svc.apply("TOK", agent,
+         ed -> ed.setGroupAggregate("U", groups("pid"), List.of(sum("qty", "T2")))));
+      assertTrue(ex.getMessage().contains("DEP"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("pre-condition"), ex.getMessage());
+      assertSameAggregateState(before, u, "101e");
+   }
+
+   @Test
+   void setGroupAggregateDoesNotRefuseWhenDownstreamFiltersOnlyUseSurvivingColumns()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly u = TestWorksheets.tableWithColumns(ws, "U", "pid", "oid", "qty");
+      ws.addAssembly(u);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addMirror("DEP", "U"));
+      svc.apply("TOK", agent, ed -> {
+         ed.addFilter("DEP", "pid", ">", "0");
+         ed.addFilter("DEP", "qty", ">", "0");
+      });
+
+      // WBS-101d: pid stays a group and qty an unaliased aggregate -- nothing is at risk.
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("U", groups("pid"), List.of(sum("qty", null))));
+      assertFalse(u.getAggregateInfo().isEmpty(), "the ordinary call is applied");
+   }
+
+   @Test
+   void setColumnVisibilityRefusesHidingAColumnADownstreamFilterReferences() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly u = TestWorksheets.tableWithColumns(ws, "U", "pid", "oid", "qty");
+      ws.addAssembly(u);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addMirror("DEP", "U"));
+      svc.apply("TOK", agent, ed -> ed.addFilter("DEP", "oid", ">", "10500"));
+      ColumnRef oid = (ColumnRef) u.getColumnSelection(false).getAttribute("oid");
+
+      // WBS-101c.
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.setColumnVisibility("U", "oid", false)));
+      assertTrue(ex.getMessage().contains("DEP"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("pre-condition"), ex.getMessage());
+      assertTrue(oid.isVisible(), "the refused hide must not be applied");
+
+      svc.apply("TOK", agent, ed -> ed.setColumnVisibility("U", "oid", false, true));
+      assertFalse(oid.isVisible(), "confirmed:true lets the hide through");
+
+      // Showing a column never runs the walker.
+      svc.apply("TOK", agent, ed -> ed.setColumnVisibility("U", "oid", true));
+      assertTrue(oid.isVisible(), "showing is never refused");
+   }
+
+   @Test
+   void setGroupAggregateCrossJoinAfterTheCommitPointStillCommits() throws Exception {
+      Worksheet ws = new Worksheet();
+      for(String[] spec : new String[][]{ { "L", "id", "amount" }, { "R", "id", "price" } }) {
+         EmbeddedTableAssembly side = TestWorksheets.tableWithColumns(ws, spec[0], spec[1], spec[2]);
+         side.setEmbeddedData(new XEmbeddedTable(new String[]{ "integer", "integer" },
+            new Object[][]{ { spec[1], spec[2] }, { 1, 10 }, { 2, 20 } }));
+         ((ColumnRef) side.getColumnSelection(false).getAttribute(spec[1])).setDataType(XSchema.INTEGER);
+         ((ColumnRef) side.getColumnSelection(false).getAttribute(spec[2])).setDataType(XSchema.INTEGER);
+         ws.addAssembly(side);
+      }
+
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(sandboxRws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addJoin("J", "L", "id", "R", "id", "INNER", null, null));
+      TableAssembly j = (TableAssembly) ws.getAssembly("J");
+      TableAssembly l = (TableAssembly) ws.getAssembly("L");
+
+      // A broken pre-state: L's public selection no longer has the join key, so the join's
+      // checkValidity throws MessageException(CrossJoinException) from the commit tail's
+      // setColumnSelection -- AFTER applying. WorksheetEditService#apply treats that as an
+      // auto-confirmed success, so the restore must not undo it (AA-2).
+      ColumnSelection lpub = l.getColumnSelection(true);
+      lpub.removeAttribute(lpub.getAttribute("id"));
+
+      assertThrows(inetsoft.util.MessageException.class, () ->
+         WorksheetMutationSupport.applyAggregateInfo(j, List.of(), List.of(sum("amount", "TOTAL"))));
+      assertEquals(1, j.getAggregateInfo().getAggregateCount(),
+         "a cross-join throw after the commit point must leave the call applied");
+   }
+
+   /**
+    * Review r1 B-1: U = mirror of B grouped by Quarter(od) + Sum(qty). Returns the name of U's
+    * live Quarter range column.
+    */
+   private static String quarterGroupedMirror(Worksheet ws, WorksheetEditService svc,
+                                              Principal agent) throws Exception
+   {
+      EmbeddedTableAssembly b = TestWorksheets.tableWithColumns(ws, "B", "pid", "qty", "od");
+      ws.addAssembly(b);
+      ((ColumnRef) b.getColumnSelection(false).getAttribute("od")).setDataType(XSchema.DATE);
+      svc.apply("TOK", agent, ed -> ed.addMirror("U", "B"));
+      ((ColumnRef) ((TableAssembly) ws.getAssembly("U")).getColumnSelection(false)
+         .getAttribute("od")).setDataType(XSchema.DATE);
+      svc.apply("TOK", agent, ed -> ed.setGroupAggregate("U",
+         List.of(new WorksheetMutationSupport.GroupSpec("od", "QUARTER")),
+         List.of(sum("qty", null))));
+      TableAssembly u = (TableAssembly) ws.getAssembly("U");
+
+      for(int i = 0; i < u.getColumnSelection(false).getAttributeCount(); i++) {
+         if(u.getColumnSelection(false).getAttribute(i) instanceof ColumnRef cr &&
+            cr.getDataRef() instanceof DateRangeRef)
+         {
+            return cr.getName();
+         }
+      }
+
+      throw new AssertionError("U has no Quarter range column");
+   }
+
+   @Test
+   void setGroupAggregateAllowsReSendingAnUnchangedDateLevelGroupUsedDownstream()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      String quarter = quarterGroupedMirror(ws, svc, agent);
+      TableAssembly u = (TableAssembly) ws.getAssembly("U");
+
+      svc.apply("TOK", agent, ed -> ed.addMirror("DEP", "U"));
+      svc.apply("TOK", agent, ed -> ed.setGroupAggregate("DEP", groups(quarter), List.of()));
+      svc.apply("TOK", agent, ed -> ed.addMirror("DEP2", "U"));
+      svc.apply("TOK", agent, ed -> ed.addFilter("DEP2", quarter, "null"));
+
+      // Review r1 B-1: set_group_aggregate replaces the whole AggregateInfo, so editing a
+      // measure re-sends the same Quarter group. The date-level branch builds a NEW (equal)
+      // range ref the live selection does not take; the unchanged output must still survive.
+      svc.apply("TOK", agent, ed -> ed.setGroupAggregate("U",
+         List.of(new WorksheetMutationSupport.GroupSpec("od", "QUARTER")),
+         List.of(sum("qty", null),
+                 new WorksheetMutationSupport.AggregateSpec("pid", "COUNT", null))));
+      assertEquals(2, u.getAggregateInfo().getAggregateCount(),
+         "re-sending the same date-level group with an extra measure must be applied");
+
+      svc.apply("TOK", agent, ed -> ed.setGroupAggregate("U",
+         List.of(new WorksheetMutationSupport.GroupSpec("od", "QUARTER")),
+         List.of(sum("qty", null))));
+      assertEquals(1, u.getAggregateInfo().getAggregateCount(),
+         "an identical re-send must be applied");
+
+      // A REAL regroup (Quarter -> Month) still drops Quarter(od), which DEP groups by.
+      PairingException ex = assertThrows(PairingException.class, () -> svc.apply("TOK", agent,
+         ed -> ed.setGroupAggregate("U",
+            List.of(new WorksheetMutationSupport.GroupSpec("od", "MONTH")),
+            List.of(sum("qty", null)))));
+      assertTrue(ex.getMessage().contains("DEP"), ex.getMessage());
+   }
+
+   @Test
+   void setGroupAggregateAllowsReSendingAnUnchangedDateLevelGroupUsedAsAJoinKey()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      String quarter = quarterGroupedMirror(ws, svc, agent);
+      EmbeddedTableAssembly z = TestWorksheets.tableWithColumns(ws, "Z", "zq", "note");
+      ((ColumnRef) z.getColumnSelection(false).getAttribute("zq"))
+         .setDataType(XSchema.TIME_INSTANT);
+      ws.addAssembly(z);
+      svc.apply("TOK", agent, ed -> ed.addJoin("J", "U", quarter, "Z", "zq", "INNER", null, null));
+      TableAssembly u = (TableAssembly) ws.getAssembly("U");
+
+      // Review r1 B-1: this was a HARD refusal (no confirmed escape) for an unchanged group.
+      svc.apply("TOK", agent, ed -> ed.setGroupAggregate("U",
+         List.of(new WorksheetMutationSupport.GroupSpec("od", "QUARTER")),
+         List.of(sum("qty", null),
+                 new WorksheetMutationSupport.AggregateSpec("pid", "COUNT", null))));
+      assertEquals(2, u.getAggregateInfo().getAggregateCount(),
+         "re-sending the join-key date group must be applied");
+
+      // Regrouping away from the join key is still hard-refused, with text that fits the shape.
+      PairingException ex = assertThrows(PairingException.class, () -> svc.apply("TOK", agent,
+         ed -> ed.setGroupAggregate("U",
+            List.of(new WorksheetMutationSupport.GroupSpec("od", "MONTH")),
+            List.of(sum("qty", null)), false, true)));
+      assertTrue(ex.getMessage().contains("join key"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("J"), ex.getMessage());
+      assertFalse(ex.getMessage().contains("Remove it from aggregates"), ex.getMessage());
    }
 
    // =========================================================================
