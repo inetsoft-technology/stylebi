@@ -717,6 +717,19 @@ public class ViewsheetAssemblyAgentController {
          boolean readOnly = request.readOnly() != null ? request.readOnly()
             : existing != null ? existing.isReadOnly() : true;
 
+         // A same-name rename whose type/readOnly already equal the stored values is a no-op that
+         // would still rewrite the bookmark and write an edit audit record, so refuse it. Checked
+         // before the Share Bookmark permission so it is not masked by a permission error.
+         if(existing != null && newName.equals(name) && type == existingType &&
+            readOnly == existing.isReadOnly())
+         {
+            throw new IllegalArgumentException(
+               "rename_bookmark: 'newName' is the same as 'name' ('" + name + "') and the " +
+               "requested 'type'/'readOnly' equal the bookmark's current values -- nothing " +
+               "would change. Pass a different 'newName', or a 'type'/'readOnly' that differs " +
+               "from the current values.");
+         }
+
          requireSharePermission(rvs, type, existingType,
             existing != null && readOnly != existing.isReadOnly(), user, "rename_bookmark");
 
