@@ -348,7 +348,7 @@ class SelectionRuntimeServiceTest {
       h.service.setSelection("tok", principal(), "Filter1", List.of(List.of("West")), null, null,
                              null, null, "");
 
-      verify(assembly, times(2)).getSelectionList(); // +1: selectedTotal (bug-78216) re-reads the list after the apply
+      verify(assembly, times(2)).getSelectionList();
       verify(h.selections, times(1)).applySelection(anyString(), anyString(), any(),
                                                     any(Principal.class), any(), anyString());
    }
@@ -965,7 +965,7 @@ class SelectionRuntimeServiceTest {
       h.service.setSelection("tok", principal(), "Filter1", List.of(List.of("West")), null, null,
                              null, true, "");
 
-      verify(assembly, times(2)).getSelectionList(); // +1: selectedTotal (bug-78216) re-reads the list after the apply
+      verify(assembly, times(2)).getSelectionList();
       verify(h.selections, times(1)).applySelection(anyString(), anyString(), any(),
                                                     any(Principal.class), any(), anyString());
    }
@@ -989,7 +989,7 @@ class SelectionRuntimeServiceTest {
       h.service.setSelection("tok", principal(), "Filter1", List.of(List.of("West")), null, null,
                              null, null, "");
 
-      verify(assembly, times(3)).getSelectionList(); // +1: selectedTotal (bug-78216) re-reads the list after the apply
+      verify(assembly, times(3)).getSelectionList();
       verify(h.selections, times(1)).applySelection(anyString(), anyString(), any(),
                                                     any(Principal.class), any(), anyString());
    }
@@ -1979,6 +1979,15 @@ class SelectionRuntimeServiceTest {
                    SelectionRuntimeService.retainedSelection(
                       new SelectionValue[]{ selected("East", true), selected("West", true) },
                       List.of(List.of("West")), false));
+   }
+
+   @Test
+   void retainedSelectionUsesEveryElementOfAnIdModeRequestPath() {
+      assertEquals(List.of(List.of("C")),
+                   SelectionRuntimeService.retainedSelection(
+                      new SelectionValue[]{ selected("A", true), selected("B", true),
+                                            selected("C", true) },
+                      List.of(List.of("A", "B")), true));
    }
 
    @Test

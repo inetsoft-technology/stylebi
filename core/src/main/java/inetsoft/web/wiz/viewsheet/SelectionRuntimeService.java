@@ -428,7 +428,11 @@ public class SelectionRuntimeService {
          }
 
          if((values != null || hasDeselect) && isValueMatchable(assembly)) {
-            result.put("selectedTotal", countSelected(assembly));
+            SelectionList live = selectionListOf(assembly);
+            result.put("selectedTotal",
+                       selectedTotal(live == null ? null : live.getSelectionValues(),
+                                     assembly instanceof SelectionTreeVSAssembly tree &&
+                                        !tree.isIDMode()));
 
             if(!retained.isEmpty()) {
                result.putIfAbsent("scopedBySearch", searchString(info));
@@ -869,6 +873,16 @@ public class SelectionRuntimeService {
       event.setType(ApplySelectionListEvent.Type.APPLY);
       event.setValues(values.stream().map(path -> value(path, false)).toList());
       return event;
+   }
+
+   /**
+    * The number of selected values, as the caller would count them. A fixed-hierarchy (non-ID)
+    * tree marks every ancestor of a selected value, so counting nodes would count one chosen
+    * value as its whole chain; count leaf paths there, the way clear_selection's non-ID
+    * {@code clearedCount} does. An ID-mode tree and a flat list count nodes directly.
+    */
+   static int selectedTotal(SelectionValue[] values, boolean nonIdTree) {
+      return nonIdTree ? selectedPaths(values).size() : countSelected(values);
    }
 
    /**
