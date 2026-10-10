@@ -2802,9 +2802,32 @@ public class CoreLifecycleService {
             event, dispatcher, user);
       }
       else {
-         return viewsheetService.affinityCall(id, new HandleOpenSheetTask(
+         ProcessSheetResult result = viewsheetService.affinityCall(id, new HandleOpenSheetTask(
             id, eid, execSessionId, vsID, bookmarkIndex, drillFrom, entry, viewer, uri, variables,
             event, user));
+
+         // Bug #77188: re-publish on this (caller's) thread any UserMessage that was raised on
+         // the remote node that actually ran HandleOpenSheetTask.call(), so that
+         // EventAspect.sendUserMessage() -- which reads Tool.getUserMessages(type) on this same
+         // thread after the whole @MessageMapping handler returns -- finds it instead of nothing.
+         republishUserMessages(result == null ? null : result.getUserMessages());
+
+         return result;
+      }
+   }
+
+   /**
+    * Bug #77188: re-publish, on the calling thread, a list of {@link UserMessage}s that were
+    * harvested on a different thread (typically a remote Ignite-affinity node, via
+    * {@link HandleOpenSheetTask#harvestUserMessages()}). Must run before the enclosing
+    * {@code @MessageMapping} handler returns, since {@code EventAspect.sendUserMessage()} reads
+    * {@code Tool.getUserMessages(type)} on this same thread immediately afterward.
+    */
+   static void republishUserMessages(List<UserMessage> messages) {
+      if(messages != null) {
+         for(UserMessage message : messages) {
+            Tool.addUserMessage(message);
+         }
       }
    }
 
@@ -3590,6 +3613,12 @@ public class CoreLifecycleService {
    public static final class ProcessSheetResult implements Serializable {
       private String id;
       private boolean auditFinish;
+      // Bug #77188: user messages (e.g. a script/expression failure) raised while this result
+      // was built on a remote Ignite-affinity node. Tool's UserMessage thread-local never
+      // crosses the affinityCall() RPC boundary on its own, so HandleOpenSheetTask.call()
+      // harvests it here and handleOpenedSheet() re-publishes it on the caller's own thread
+      // after the RPC returns, before EventAspect.sendUserMessage() reads it.
+      private List<UserMessage> userMessages;
 
       public ProcessSheetResult(String id, boolean auditFinish) {
          this.id = id;
@@ -3610,6 +3639,14 @@ public class CoreLifecycleService {
 
       public void setAuditFinish(boolean auditFinish) {
          this.auditFinish = auditFinish;
+      }
+
+      public List<UserMessage> getUserMessages() {
+         return userMessages;
+      }
+
+      public void setUserMessages(List<UserMessage> userMessages) {
+         this.userMessages = userMessages;
       }
    }
 
@@ -3639,13 +3676,39 @@ public class CoreLifecycleService {
          proxyContext.preprocess();
 
          try {
-            return configContext.getSpringBean(CoreLifecycleService.class).doHandleOpenedSheet(
-               id, eid, execSessionId, vsID, bookmarkIndex, drillFrom, entry, viewer, uri,
-               variables, event, proxyContext.createCommandDispatcher(), user);
+            ProcessSheetResult result =
+               configContext.getSpringBean(CoreLifecycleService.class).doHandleOpenedSheet(
+                  id, eid, execSessionId, vsID, bookmarkIndex, drillFrom, entry, viewer, uri,
+                  variables, event, proxyContext.createCommandDispatcher(), user);
+
+            // Bug #77188: doHandleOpenedSheet() may have raised a UserMessage (e.g. a
+            // script/expression failure during the initial table load) on this thread via
+            // Tool.addUserMessage()/addUserWarning(). When this call() runs on a remote
+            // Ignite-affinity node (the caller dispatched via cluster.affinityCall()), that
+            // thread-local never crosses the RPC boundary on its own, so harvest it here and
+            // carry it back on the result -- handleOpenedSheet() re-publishes it on the
+            // caller's own thread once affinityCall() returns.
+            if(result != null) {
+               result.setUserMessages(harvestUserMessages());
+            }
+
+            return result;
          }
          finally {
             proxyContext.postprocess();
          }
+      }
+
+      // Package-private (not private) so CoreLifecycleServiceUserMessageForwardingTest, in the
+      // same package, can exercise the real harvest logic directly.
+      static List<UserMessage> harvestUserMessages() {
+         List<UserMessage> messages = new ArrayList<>();
+
+         for(MessageCommand.Type type : MessageCommand.Type.values()) {
+            messages.addAll(Tool.getUserMessages(type));
+         }
+
+         return messages;
       }
 
       private final String id;
