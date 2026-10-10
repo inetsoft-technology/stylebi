@@ -1457,6 +1457,59 @@ public abstract class VSAQuery {
    }
 
    /**
+    * Check a viewsheet condition expression before it is committed (bug #78260). A script that
+    * fails during the real refresh is swallowed by the viewsheet sandbox, leaving the table with
+    * no data and the write reported as a success, so the only chance to tell the caller is here.
+    *
+    * @return {@code null} when the expression evaluates, otherwise the script's error message
+    *         (a runtime failure that may be transient, e.g. a selection that has no value yet).
+    * @throws ScriptException if the expression has a syntax error, which is never transient.
+    */
+   public static String checkConditionExpression(String exp, ViewsheetSandbox vbox)
+      throws ScriptException
+   {
+      AssetQuerySandbox box = vbox.getAssetQuerySandbox();
+      ScriptEnv senv = box.getScriptEnv();
+      checkSyntax(senv, exp);
+      Object compiled;
+
+      try {
+         compiled = senv.compile(exp);
+      }
+      catch(Exception ex) {
+         throw new ScriptException("Script error: " + ex.getMessage());
+      }
+
+      try {
+         ScriptScope scope = box.isScriptPoolMode() ?
+            box.getScope().queryView(box.getVariableTable(), 0) : box.getScope();
+         senv.exec(compiled, scope, null, vbox.getViewsheet());
+         return null;
+      }
+      catch(Exception ex) {
+         return ex.getMessage() == null ? ex.toString() : ex.getMessage();
+      }
+   }
+
+   /**
+    * Parse the script without running it. Compilation is lazy, so a syntax error otherwise only
+    * shows when the script runs, where it cannot be told from a runtime error that merely
+    * happens to be a SyntaxError (JSON.parse of a not-yet-set parameter, a bad RegExp).
+    */
+   private static void checkSyntax(ScriptEnv senv, String exp) throws ScriptException {
+      try {
+         senv.checkFunction("viewsheet condition", exp);
+         return;
+      }
+      catch(IllegalStateException ex) {
+         return; // engine not initialized: nothing to parse with, leave it to the run
+      }
+      catch(Exception ex) {
+         throw new ScriptException("Script error: " + ex.getMessage());
+      }
+   }
+
+   /**
     * Append detail calc field to table assembly.
     */
    protected void appendDetailCalcField(TableAssembly table, String tname) {

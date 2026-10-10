@@ -17,7 +17,13 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
+import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.execution.VSAQuery;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.web.binding.drm.DataRefModel;
+import inetsoft.web.composer.model.condition.ConditionModel;
+import inetsoft.web.composer.model.condition.ConditionValueModel;
+import inetsoft.web.composer.model.condition.ExpressionValueModel;
 import inetsoft.web.composer.model.vs.VSConditionDialogModel;
 import inetsoft.web.composer.vs.dialog.VSConditionDialogService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,13 +51,31 @@ import java.util.*;
  */
 @Service
 public class AssemblyConditionService {
+   /** Evaluates a condition expression the way the viewsheet refresh will. */
+   @FunctionalInterface
+   interface ExpressionChecker {
+      /** @return null when it evaluates, else the script error; throws if it does not compile. */
+      String check(String expression, ViewsheetSandbox box) throws Exception;
+   }
+
    @Autowired
    public AssemblyConditionService(ViewsheetSessionService sessions,
                                    VSConditionDialogService conditionService)
    {
+      this(sessions, conditionService, VSAQuery::checkConditionExpression);
+   }
+
+   AssemblyConditionService(ViewsheetSessionService sessions,
+                            VSConditionDialogService conditionService,
+                            ExpressionChecker checker)
+   {
       this.sessions = sessions;
       this.conditionService = conditionService;
+      this.checker = checker;
    }
+
+   /** The outcome of a condition write: how many conditions applied, and anything to disclose. */
+   public record SetResult(int applied, List<String> warnings) {}
 
    /** The current conditions, in the flat vocabulary, plus what fields are filterable. */
    public Map<String, Object> read(String sessionToken, Principal user, String assemblyName)
@@ -88,9 +112,31 @@ public class AssemblyConditionService {
    public int set(String sessionToken, Principal user, String assemblyName,
                   List<ConditionVocabulary.Clause> clauses, String linkUri) throws Exception
    {
-      int[] applied = new int[1];
+      return setWithWarnings(sessionToken, user, assemblyName, clauses, linkUri).applied();
+   }
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+   /**
+    * {@link #set}, plus the warnings a caller should relay (bug #78260).
+    *
+    * <p>An expression operand that throws leaves the viewsheet table with no data, but the
+    * refresh swallows a JavaScript failure, so the write would otherwise read as a plain
+    * success. Each expression is therefore evaluated first, before anything is committed:
+    * a syntax error is refused (it can never become valid), and a runtime failure is committed
+    * with a warning -- it can be transient, e.g. an expression reading a selection list that has
+    * no selection yet works once one is made. The expression is evaluated as JavaScript on a
+    * viewsheet assembly whatever its declared language, so a {@code sql} expression that does
+    * not evaluate is always refused: its failure is not swallowed and would otherwise leave the
+    * write half applied.
+    */
+   public SetResult setWithWarnings(String sessionToken, Principal user, String assemblyName,
+                                    List<ConditionVocabulary.Clause> clauses, String linkUri)
+      throws Exception
+   {
+      int[] applied = new int[1];
+      List<String> warnings = new ArrayList<>();
+
+      List<String> sessionWarnings = sessions.mutate(sessionToken, user,
+                                                     (rvs, runtimeId, dispatcher) -> {
          VSConditionDialogModel model = conditionService.getModel(runtimeId, assemblyName, user);
 
          if(model == null) {
@@ -100,13 +146,84 @@ public class AssemblyConditionService {
          }
 
          Object[] conditionList = ConditionVocabulary.toConditionList(clauses, model.getFields());
+         checkExpressions(rvs, conditionList, warnings);
+         Object[] previous = model.getConditionList();
          model.setConditionList(conditionList);
          applied[0] = clauses == null ? 0 : clauses.size();
-         conditionService.setModel(runtimeId, assemblyName, model, linkUri, user, dispatcher);
+
+         try {
+            conditionService.setModel(runtimeId, assemblyName, model, linkUri, user, dispatcher);
+         }
+         catch(Exception e) {
+            // the refresh failed after the new list was committed; put the old one back rather
+            // than leave a condition the caller was told failed
+            try {
+               model.setConditionList(previous);
+               conditionService.setModel(runtimeId, assemblyName, model, linkUri, user,
+                                         dispatcher);
+            }
+            catch(Exception restoreFailure) {
+               e.addSuppressed(restoreFailure);
+            }
+
+            throw e;
+         }
       });
 
-      return applied[0];
+      warnings.addAll(sessionWarnings == null ? List.of() : sessionWarnings);
+      return new SetResult(applied[0], warnings);
    }
+
+   private void checkExpressions(RuntimeViewsheet rvs, Object[] conditionList,
+                                 List<String> warnings) throws Exception
+   {
+      ViewsheetSandbox box = rvs.getViewsheetSandbox().orElse(null);
+
+      if(box == null) {
+         return;
+      }
+
+      for(Object item : conditionList) {
+         if(!(item instanceof ConditionModel condition) || condition.getValues() == null) {
+            continue;
+         }
+
+         for(ConditionValueModel value : condition.getValues()) {
+            if(value == null || !(value.getValue() instanceof ExpressionValueModel expression)) {
+               continue;
+            }
+
+            boolean sql = expression.getType() == ExpressionValueModel.SQL;
+            String text = expression.getExpression();
+            String error;
+
+            try {
+               error = checker.check(text, box);
+            }
+            catch(Exception e) {
+               throw new IllegalArgumentException(
+                  "The " + (sql ? "sql" : "js") + " expression '" + text + "' does not compile: " +
+                  e.getMessage() + (sql ? SQL_NOTE : "") + " Nothing was changed.");
+            }
+
+            if(error == null) {
+               continue;
+            }
+
+            if(sql) {
+               throw new IllegalArgumentException(
+                  "The sql expression '" + text + "' failed: " + error + SQL_NOTE +
+                  " Nothing was changed.");
+            }
+
+            warnings.add("The expression '" + text + "' threw: " + error +
+                         "; the table shows no rows until it evaluates.");
+         }
+      }
+   }
+
+   private static final String SQL_NOTE =
+      " sql-language expressions are evaluated as JavaScript on viewsheet assemblies.";
 
    /** Clears every condition. Distinct from setting an empty list only in what it reads like. */
    public void clear(String sessionToken, Principal user, String assemblyName, String linkUri)
@@ -186,4 +303,5 @@ public class AssemblyConditionService {
 
    private final ViewsheetSessionService sessions;
    private final VSConditionDialogService conditionService;
+   private final ExpressionChecker checker;
 }

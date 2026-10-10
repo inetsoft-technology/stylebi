@@ -2852,6 +2852,12 @@ public abstract class AbstractVSExporter implements VSExporter {
       VSTableLens olens = box.getVSTableLens(name, false, 1);
       VSTableLens lens = getRegionTableLens(olens, assembly, box);
 
+      // a table whose data failed to load (e.g. a condition expression that throws) has no lens;
+      // leave it at its original size instead of failing the whole export (bug #78260)
+      if(lens == null) {
+         return;
+      }
+
       //lens may not be initialized for expand table
       lens.initTableGrid(assembly.getVSAssemblyInfo());
 
