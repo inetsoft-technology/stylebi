@@ -691,6 +691,23 @@ class ScriptExecuteServiceTest {
       assertFalse(a.contains("exists"), a);
    }
 
+   @Test
+   void runLiveGenericNoteDoesNotClaimTheWorksheetDoesNotExist() throws Exception {
+      for(XUtil.RunQueryOutcome o : XUtil.RunQueryOutcome.values()) {
+         if(o == XUtil.RunQueryOutcome.FOUND) {
+            continue;
+         }
+
+         String summary = runObserved("runQuery('ws:global:ws')", repoWithNothing(),
+                                      "ws:global:ws", o).summary();
+
+         assertFalse(summary.contains("was found"), summary);
+         assertFalse(summary.contains("does not exist"), summary);
+         assertTrue(summary.contains("could not be found, accessed or run"), summary);
+         assertTrue(summary.contains("check the worksheet itself"), summary);
+      }
+   }
+
    /** Another user's scope never probes the repository, so the note can't reveal existence. */
    @Test
    void runLiveOtherUsersScopeNeverUsesTheSiblingMismatchText() throws Exception {

@@ -428,10 +428,10 @@ public class ScriptExecuteService {
       String literal = "ws:" + token + ":" + path;
       IdentityID callerId = user.getIdentityID();
       boolean ownUserScope = !global && callerId != null && callerId.equals(requested.getUser());
-      String generic = "runQuery('" + literal + "') returned no data: no worksheet \"" + path +
-         "\" was found at " + (global ? "global" : "user") + " scope that this session can " +
-         "access. Check the name and scope token (\"global\", or your own username for user " +
-         "scope).";
+      String generic = "runQuery('" + literal + "') returned no data: worksheet \"" + path +
+         "\" at " + (global ? "global" : "user") + " scope could not be found, accessed or run " +
+         "by this session. Check the name and scope token (\"global\", or your own username " +
+         "for user scope); if the address is right, check the worksheet itself.";
 
       // The sibling probe only ever looks at global and the caller's own user scope, so it can't
       // reveal anything about another user's worksheets.

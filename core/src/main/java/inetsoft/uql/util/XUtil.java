@@ -3888,7 +3888,7 @@ public final class XUtil {
    public enum RunQueryOutcome {
       /** The worksheet was resolved and executed. */
       FOUND,
-      /** Nothing exists at the addressed entry. */
+      /** The worksheet run returned no table (absent entry, or an existing worksheet with no data). */
       NOT_FOUND,
       /** The caller failed the READ permission check. */
       DENIED,
