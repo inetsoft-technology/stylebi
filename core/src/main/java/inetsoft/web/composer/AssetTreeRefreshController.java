@@ -86,6 +86,14 @@ public class AssetTreeRefreshController {
       this.cluster = cluster;
    }
 
+   /**
+    * Sets how long, in milliseconds, changes to the same folder are collected before the
+    * subscribers are notified. Only for tests, the default is 2 seconds.
+    */
+   void setDeliveryDelay(long deliveryDelay) {
+      this.deliveryDelay = deliveryDelay;
+   }
+
    @PostConstruct
    public void addListeners() {
       assetRepository.addAssetChangeListener(listener);
@@ -225,6 +233,8 @@ public class AssetTreeRefreshController {
    private static final Logger LOG = LoggerFactory.getLogger(AssetTreeRefreshController.class);
 
    private static final long BROADCAST_DELAY = 200L;
+   // how long changes to the same folder are collected before the subscribers are notified
+   private long deliveryDelay = 2000L;
    private final Debouncer<String> debouncer = new DefaultDebouncer<>(false);
    private final Set<String> libManagerListenerOrgs = new HashSet<>();
 
@@ -294,7 +304,8 @@ public class AssetTreeRefreshController {
             .build();
 
          debouncer.debounce("change" + (event.getAssetEntry().getParent() != null ?
-            event.getAssetEntry().getParent().toIdentifier() : ""), 2, TimeUnit.SECONDS,
+            event.getAssetEntry().getParent().toIdentifier() : ""), deliveryDelay,
+                            TimeUnit.MILLISECONDS,
                             () -> sendMessages(eventModel, u -> isSameOrg(event, u))
          );
       }

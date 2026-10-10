@@ -103,7 +103,7 @@ class AssetTreeRefreshControllerClusterTest {
       AssetChangeEventModel model = nodeA.awaitDelivery(userA);
       assertEquals(viewsheet.getParent().toIdentifier(), model.parentEntry().toIdentifier());
       assertEquals(viewsheet.toIdentifier(), model.newIdentifier());
-      Thread.sleep(300L);
+      Thread.sleep(DELIVERY_DELAY * 2);
       verify(nodeB.template, times(1))
          .convertAndSendToUser(anyString(), eq("/asset-changed"), any());
       verify(nodeA.template, times(1))
@@ -236,6 +236,9 @@ class AssetTreeRefreshControllerClusterTest {
          controller.setDataSourceRegistry(mock(DataSourceRegistry.class));
          controller.setLibManagerProvider(libs);
          controller.setCluster(cluster);
+         // shorter than the 2 second default to keep the test fast. The waits below are
+         // relative to it
+         controller.setDeliveryDelay(DELIVERY_DELAY);
          // the runtime repository the controller also listens to
          AssetUtil.setAssetRepository(false, runtime);
          controller.addListeners();
@@ -361,7 +364,9 @@ class AssetTreeRefreshControllerClusterTest {
       final StorageRefreshListener storageRefreshListener;
    }
 
-   // the delivery is debounced for 2 seconds
+   // the delivery is debounced for this long
+   private static final long DELIVERY_DELAY = 300L;
+   // the longest wait for a debounced delivery
    private static final long DEBOUNCE_WAIT = 3500L;
 
    private String orgId;
