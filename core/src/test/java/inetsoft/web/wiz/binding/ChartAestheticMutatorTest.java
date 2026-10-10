@@ -2267,32 +2267,54 @@ class ChartAestheticMutatorTest {
 
    // ── same-field aesthetic resend carries state forward (bug #78188) ───────────────────────
 
-   private static FieldRef dimensionTs(String column, String level, Boolean ts) {
-      return new FieldRef(column, "dimension", null, level, null, null, null, null, null, null,
-                          null, null, ts);
+   /** Stored-true dataInfo as native drag-and-drop or a legacy asset leaves it. */
+   private static void seedNativeTimeSeries(ChartBindingModel model, String column, String level) {
+      ChartDimensionRefModel ref = new ChartDimensionRefModel();
+      ref.setColumnValue(column);
+      ref.setName(column);
+      ref.setDateLevel(DateLevels.normalize(level));
+      ref.setTimeSeries(true);
+      AestheticInfo info = new AestheticInfo();
+      info.setFullName(column);
+      info.setDataInfo(ref);
+      model.setColorField(info);
+   }
+
+   private static boolean colorTimeSeries(ChartBindingModel model) {
+      return ((ChartDimensionRefModel) model.getColorField().getDataInfo()).isTimeSeries();
    }
 
    @Test
    void aestheticSameFieldResendWithoutTimeSeriesKeyPreservesIt() {
       ChartBindingModel model = new ChartBindingModel();
-      ChartAestheticMutator.setField(model, "color", dimensionTs("Order Date", "day", true));
+      seedNativeTimeSeries(model, "Order Date", "day");
 
       ChartAestheticMutator.setField(model, "color",
          new FieldRef("Order Date", "dimension", null, "day", null));
 
-      assertTrue(((ChartDimensionRefModel) model.getColorField().getDataInfo()).isTimeSeries());
+      assertTrue(colorTimeSeries(model));
    }
 
    @Test
-   void aestheticExplicitFalseOrDifferentFieldDoesNotCarryTimeSeries() {
+   void aestheticExplicitFalseClearsTimeSeries() {
       ChartBindingModel model = new ChartBindingModel();
-      ChartAestheticMutator.setField(model, "color", dimensionTs("Order Date", "day", true));
-      ChartAestheticMutator.setField(model, "color", dimensionTs("Order Date", "day", false));
-      assertFalse(((ChartDimensionRefModel) model.getColorField().getDataInfo()).isTimeSeries());
+      seedNativeTimeSeries(model, "Order Date", "day");
 
-      ChartAestheticMutator.setField(model, "color", dimensionTs("Order Date", "day", true));
+      ChartAestheticMutator.setField(model, "color",
+         new FieldRef("Order Date", "dimension", null, "day", null, null, null, null, null, null,
+                      null, null, false));
+
+      assertFalse(colorTimeSeries(model));
+   }
+
+   @Test
+   void aestheticDifferentFieldDoesNotCarryTimeSeries() {
+      ChartBindingModel model = new ChartBindingModel();
+      seedNativeTimeSeries(model, "Order Date", "day");
+
       ChartAestheticMutator.setField(model, "color",
          new FieldRef("Ship Date", "dimension", null, "day", null));
-      assertFalse(((ChartDimensionRefModel) model.getColorField().getDataInfo()).isTimeSeries());
+
+      assertFalse(colorTimeSeries(model));
    }
 }

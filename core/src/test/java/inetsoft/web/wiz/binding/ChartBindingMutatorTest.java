@@ -1370,47 +1370,70 @@ class ChartBindingMutatorTest {
       return (ChartDimensionRefModel) ChartBindingMutator.readSingleShelf(model, shelf);
    }
 
+   /** A dimension ref already stored with timeSeries=true, as native drag-and-drop or a legacy
+    *  asset leaves it; the plugin's own write path may refuse to create this state (#78214). */
+   private static ChartDimensionRefModel nativeTimeSeriesDim(String column, String level) {
+      ChartDimensionRefModel ref = new ChartDimensionRefModel();
+      ref.setColumnValue(column);
+      ref.setName(column);
+      ref.setDateLevel(DateLevels.normalize(level));
+      ref.setTimeSeries(true);
+      return ref;
+   }
+
    @Test
-   void singleShelfResendWithoutTimeSeriesKeyPreservesIt() {
-      for(String shelf : List.of("path", "start")) {
-         ChartBindingModel model = new ChartBindingModel();
-         ChartBindingMutator.setSingleShelf(model, shelf,
-            dimensionWithTimeSeries("Order Date", "day", true));
+   void singleShelfSourceResendWithoutTimeSeriesKeyPreservesIt() {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setSourceField(nativeTimeSeriesDim("Order Date", "day"));
 
-         ChartBindingMutator.setSingleShelf(model, shelf,
-            new FieldRef("Order Date", "dimension", null, "day", null));
+      ChartBindingMutator.setSingleShelf(model, "source",
+         new FieldRef("Order Date", "dimension", null, "day", null));
 
-         assertTrue(singleDim(model, shelf).isTimeSeries(), shelf);
-      }
+      assertTrue(singleDim(model, "source").isTimeSeries());
+   }
+
+   @Test
+   void singleShelfPathResendWithoutTimeSeriesKeyPreservesIt() {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setPathField(nativeTimeSeriesDim("Order Date", "day"));
+
+      ChartBindingMutator.setSingleShelf(model, "path",
+         new FieldRef("Order Date", "dimension", null, "day", null));
+
+      assertTrue(singleDim(model, "path").isTimeSeries());
    }
 
    @Test
    void singleShelfResendWithExplicitFalseClearsTimeSeries() {
       ChartBindingModel model = new ChartBindingModel();
-      ChartBindingMutator.setSingleShelf(model, "start",
-         dimensionWithTimeSeries("Order Date", "day", true));
+      model.setSourceField(nativeTimeSeriesDim("Order Date", "day"));
 
-      ChartBindingMutator.setSingleShelf(model, "start",
+      ChartBindingMutator.setSingleShelf(model, "source",
          dimensionWithTimeSeries("Order Date", "day", false));
 
-      assertFalse(singleDim(model, "start").isTimeSeries());
+      assertFalse(singleDim(model, "source").isTimeSeries());
    }
 
    @Test
-   void singleShelfRebindToDifferentColumnOrDateLevelDoesNotCarryTimeSeries() {
+   void singleShelfRebindToDifferentColumnDoesNotCarryTimeSeries() {
       ChartBindingModel model = new ChartBindingModel();
-      ChartBindingMutator.setSingleShelf(model, "start",
-         dimensionWithTimeSeries("Order Date", "day", true));
+      model.setSourceField(nativeTimeSeriesDim("Order Date", "day"));
 
-      ChartBindingMutator.setSingleShelf(model, "start",
+      ChartBindingMutator.setSingleShelf(model, "source",
          new FieldRef("Ship Date", "dimension", null, "day", null));
-      assertFalse(singleDim(model, "start").isTimeSeries());
 
-      ChartBindingMutator.setSingleShelf(model, "start",
-         dimensionWithTimeSeries("Ship Date", "day", true));
-      ChartBindingMutator.setSingleShelf(model, "start",
+      assertFalse(singleDim(model, "source").isTimeSeries());
+   }
+
+   @Test
+   void singleShelfRebindToDifferentDateLevelDoesNotCarryTimeSeries() {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setSourceField(nativeTimeSeriesDim("Ship Date", "day"));
+
+      ChartBindingMutator.setSingleShelf(model, "source",
          new FieldRef("Ship Date", "dimension", null, "month", null));
-      assertFalse(singleDim(model, "start").isTimeSeries());
+
+      assertFalse(singleDim(model, "source").isTimeSeries());
    }
 
    @Test
