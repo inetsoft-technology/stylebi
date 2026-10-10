@@ -1774,6 +1774,33 @@ class ChartBindingMutatorTest {
    }
 
    @Test
+   void aDescSortOnAYDimensionAfterAMeasureIsEffectiveTimeSeriesAndRefused() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(new FieldRef("Region", "dimension", null, null, null)));
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Sales", "measure", "Sum", null, null), date("month", true)));
+
+      IllegalArgumentException e = refused(
+         () -> ChartBindingMutator.setSort(model, "y", "Order Date", null, sortOf("desc")));
+      assertTrue(e.getMessage().contains("time-series"), e.getMessage());
+      assertTrue(dimAt(model.getYFields(), 1).isTimeSeries(), "the flag is kept");
+   }
+
+   @Test
+   void aDescSortOnAYDateWithAnXMeasureIsEffectiveTimeSeriesAndRefused() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(new FieldRef("Sales", "measure", "Sum", null, null)));
+      ChartBindingMutator.setShelf(model, "y", List.of(date("month", true)));
+
+      IllegalArgumentException e = refused(
+         () -> ChartBindingMutator.setSort(model, "y", "Order Date", null, sortOf("desc")));
+      assertTrue(e.getMessage().contains("time-series"), e.getMessage());
+      assertTrue(dimAt(model.getYFields(), 0).isTimeSeries(), "the flag is kept");
+   }
+
+   @Test
    void aDescSortOnAStockYDimensionWithAStoredFlagClearsTheFlagAndApplies() {
       ChartBindingModel model = new ChartBindingModel();
       model.setChartType(GraphTypes.CHART_STOCK);

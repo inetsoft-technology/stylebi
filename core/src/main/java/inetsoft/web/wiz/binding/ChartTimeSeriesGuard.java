@@ -250,17 +250,13 @@ final class ChartTimeSeriesGuard {
     * {@code isOuterDimRef()}: scans the shelf's leading run of dimensions; the dimension at
     * {@code index} is outer iff it is in that run and is not the shelf's last field. On y, stock
     * and candle always count it outer. The Composer also counts a y dimension outer when x has
-    * X
+    * dimensions but no measure. That term is {@code strict}-only: {@code require} runs lenient
+    * because the x write may follow this one (A4), while {@code isEffective} runs strict as the
+    * current state is final. A y dimension after a measure hits the break and is never outer.
     */
    private static boolean isOuter(List<ChartRefModel> refs, int index, boolean y,
                                   ChartBindingModel model, boolean strict)
    {
-      if(strict && y && !model.getXFields().isEmpty() &&
-         model.getXFields().stream().noneMatch(r -> r instanceof ChartAggregateRefModel))
-      {
-         return true;
-      }
-
       for(int i = 0; i < refs.size(); i++) {
          if(!(refs.get(i) instanceof ChartDimensionRefModel)) {
             return false;
@@ -272,8 +268,11 @@ final class ChartTimeSeriesGuard {
 
          int top = model.getChartType();
 
-         return i != refs.size() - 1 ||
-            y && (top == GraphTypes.CHART_STOCK || top == GraphTypes.CHART_CANDLE);
+         boolean stockOrCandle = top == GraphTypes.CHART_STOCK || top == GraphTypes.CHART_CANDLE;
+         boolean strictX = strict && !model.getXFields().isEmpty() &&
+            model.getXFields().stream().noneMatch(r -> r instanceof ChartAggregateRefModel);
+
+         return i != refs.size() - 1 || y && (stockOrCandle || strictX);
       }
 
       return false;
