@@ -147,7 +147,7 @@ class WorksheetNumericLiteral78284Test {
       return new ConditionNode(null, new JunctionSpec(j, level), level);
    }
 
-   private static final String[] BAD = { "abc", "", "  ", "4x" };
+   private static final String[] BAD = { "abc", "", "  ", "4x", "3.5", "3000000000", "-3000000000", "1e10" };
 
    @Test
    void addFilterAndEditConditionRefuseNonNumeric() throws Exception {
@@ -185,11 +185,26 @@ class WorksheetNumericLiteral78284Test {
    void validNumericLiteralsAndVariablesStayAccepted() throws Exception {
       fixture();
 
-      for(String ok : new String[] { "2", "3.5", " 2 ", "1e3", "$(Floor)" }) {
+      for(String ok : new String[] { "2", "2.0", "-0", " 2 ", "1e3", "$(Floor)" }) {
          svc.apply("TOK", agent, ed -> ed.setConditions("M", List.of(cond("B", "=", 0, ok))));
       }
 
       svc.apply("TOK", agent, ed -> ed.setConditions("M", List.of(cond("B", "is_null", 0))));
+   }
+
+   /** B-F1: a padded literal is stored trimmed, so it matches like the unpadded one. */
+   @Test
+   void paddedAndCanonicalLiteralsFilterLikeTheirPlainForm() throws Exception {
+      fixture();
+
+      for(String v : new String[] { " 2 ", "2", "2.0", "2e0" }) {
+         svc.apply("TOK", agent, ed -> ed.setConditions("M", List.of(cond("B", "=", 0, v))));
+         assertEquals(List.of(7), rows(m.getPreConditionList()), "value [" + v + "]");
+      }
+
+      svc.apply("TOK", agent, ed -> ed.setConditions("M", List.of()));
+      svc.apply("TOK", agent, ed -> ed.addFilter("M", "B", ">", " 2 "));
+      assertEquals(List.of(2, 5), rows(m.getPreConditionList()));
    }
 
    @Test
