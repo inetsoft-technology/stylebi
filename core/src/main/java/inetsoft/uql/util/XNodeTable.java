@@ -524,21 +524,14 @@ public class XNodeTable implements XTable {
        */
       @Override
       public boolean moreRows(int row) {
+         // a load failure is not thrown here, the readers get it from getLoadException() once
+         // they reach the end of the rows (XNodeTableLens), so every reader gets the same
+         // warning or TableLoadException (Bug #78250)
          if(cancelled) {
             return row < Math.abs(this.getRowCount());
          }
-         else {
-            if(loadDataException != null) {
-               try {
-                  throw new RuntimeException(loadDataException.getMessage(), loadDataException);
-               }
-               finally {
-                  loadDataException = null;
-               }
-            }
 
-            return super.moreRows(row);
-         }
+         return super.moreRows(row);
       }
 
       /**
@@ -632,12 +625,8 @@ public class XNodeTable implements XTable {
                   try {
                      loadTable0();
                   }
-                  catch(ClassCastException ex) {
-                     loadDataException = ex;
-                  }
                   catch(Exception ex) {
                      cancelled = true;
-                     loadDataException = ex;
                      setLoadException(ex);
                      LOG.debug("Failed to load XTableNode", ex);
                   }
@@ -996,7 +985,6 @@ public class XNodeTable implements XTable {
 
    private transient XTable delegate;
    private volatile boolean cancelled = false;
-   private Exception loadDataException = null;
    // not serialized, a load failure only matters to the caller that ran the query
    private transient volatile Exception loadException;
    private transient boolean loadInBackground;
