@@ -1791,6 +1791,22 @@ class ChartBindingMutatorTest {
    }
 
    @Test
+   void aDescSortOnAYDateAfterAStoredDiscreteAggregateStillRefusesBecauseTheFlagIsInForce() {
+      // The server keeps a discrete aggregate in front of dimensions (it is not a measure), so the
+      // date stays behind it: not outer, the flag is in force, and desc must be refused.
+      ChartBindingModel model = new ChartBindingModel();
+      model.setChartType(GraphTypes.CHART_LINE);
+      ChartAggregateRefModel discrete = new ChartAggregateRefModel();
+      discrete.setDiscrete(true);
+      model.setYFields(new ArrayList<>(List.of(
+         discrete, storedDate("month", true), new ChartAggregateRefModel())));
+
+      refused(() -> ChartBindingMutator.setSort(model, "y", "Order Date", null, sortOf("desc")));
+
+      assertTrue(dimAt(model.getYFields(), 1).isTimeSeries());
+   }
+
+   @Test
    void newTimeSeriesTrueSentAfterAMeasureIsRefusedBecauseTheServerStoresItOuter() {
       for(String shelf : List.of("x", "y")) {
          ChartBindingModel model = new ChartBindingModel();
