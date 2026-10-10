@@ -4864,6 +4864,120 @@ class ViewsheetAssemblyAgentControllerTest {
          any(), anyString(), anyString(), anyInt(), anyBoolean(), anyBoolean(), any());
    }
 
+   private IllegalArgumentException renameRefused(String newName, String type, Boolean readOnly,
+                                                  boolean denyShare) throws Exception
+   {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = ownerOfSharedBookmark(sessions);
+      IdentityID admin = IdentityID.getIdentityIDFromKey("admin");
+      when(rvs.getBookmarkInfo(eq("Q1 Report"), eq(admin))).thenReturn(
+         new VSBookmarkInfo("Q1 Report", VSBookmarkInfo.GROUPSHARE, admin, true,
+                            System.currentTimeMillis()));
+      VSBookmarkService svc = visibleAdminBookmark(VSBookmarkInfo.GROUPSHARE, true);
+      ViewsheetAssemblyAgentController controller = denyShare
+         ? controllerForBookmarks(sessions, svc, permissionDenied("ShareBookmark"))
+         : controllerForBookmarks(sessions, svc);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> controller.renameBookmark("tok",
+            new ViewsheetAssemblyAgentController.RenameBookmarkRequest(
+               "Q1 Report", newName, type, readOnly, null),
+            principal()));
+      verify(svc, never()).renameBookmarkInViewSheet(
+         any(), anyString(), anyString(), anyInt(), anyBoolean(), anyBoolean(), any());
+      return thrown;
+   }
+
+   @Test
+   void renameBookmark_sameNameWithTypeEqualToCurrent_refusedAsNoOp() throws Exception {
+      assertTrue(renameRefused("Q1 Report", "group", null, false).getMessage()
+                    .contains("nothing would change"));
+   }
+
+   @Test
+   void renameBookmark_sameNameWithReadOnlyEqualToCurrent_refusedAsNoOp() throws Exception {
+      assertTrue(renameRefused("Q1 Report", null, true, false).getMessage()
+                    .contains("nothing would change"));
+   }
+
+   @Test
+   void renameBookmark_sameNameWithTypeAndReadOnlyEqualToCurrent_refusedAsNoOp() throws Exception {
+      assertTrue(renameRefused("Q1 Report", "group", true, false).getMessage()
+                    .contains("nothing would change"));
+   }
+
+   /** The no-op check runs before the Share Bookmark permission check. */
+   @Test
+   void renameBookmark_identicalSharedPropsWithoutShareBookmark_reportsNoOpNotPermission()
+      throws Exception
+   {
+      String msg = renameRefused("Q1 Report", "group", true, true).getMessage();
+      assertTrue(msg.contains("nothing would change"));
+      assertFalse(msg.contains("Share Bookmark permission"));
+   }
+
+   @Test
+   void renameBookmark_sameNameWithDifferentReadOnly_proceeds() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = ownerOfSharedBookmark(sessions);
+      IdentityID admin = IdentityID.getIdentityIDFromKey("admin");
+      when(rvs.getBookmarkInfo(eq("Q1 Report"), eq(admin))).thenReturn(
+         new VSBookmarkInfo("Q1 Report", VSBookmarkInfo.PRIVATE, admin, true,
+                            System.currentTimeMillis()));
+      VSBookmarkService svc = visibleAdminBookmark(VSBookmarkInfo.PRIVATE, true);
+      MessageCommand ok = new MessageCommand();
+      ok.setType(MessageCommand.Type.OK);
+      when(svc.renameBookmarkInViewSheet(any(), anyString(), anyString(), anyInt(), anyBoolean(),
+                                         anyBoolean(), any())).thenReturn(ok);
+
+      controllerForBookmarks(sessions, svc).renameBookmark("tok",
+         new ViewsheetAssemblyAgentController.RenameBookmarkRequest(
+            "Q1 Report", "Q1 Report", null, false, null), principal());
+
+      verify(svc).renameBookmarkInViewSheet(eq(rvs), eq("Q1 Report"), eq("Q1 Report"),
+         eq(VSBookmarkInfo.PRIVATE), eq(false), eq(false), any(Principal.class));
+   }
+
+   @Test
+   void renameBookmark_differentNameWithIdenticalProps_proceeds() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = ownerOfSharedBookmark(sessions);
+      IdentityID admin = IdentityID.getIdentityIDFromKey("admin");
+      when(rvs.getBookmarkInfo(eq("Q1 Report"), eq(admin))).thenReturn(
+         new VSBookmarkInfo("Q1 Report", VSBookmarkInfo.PRIVATE, admin, true,
+                            System.currentTimeMillis()));
+      VSBookmarkService svc = visibleAdminBookmark(VSBookmarkInfo.PRIVATE, true);
+      MessageCommand ok = new MessageCommand();
+      ok.setType(MessageCommand.Type.OK);
+      when(svc.renameBookmarkInViewSheet(any(), anyString(), anyString(), anyInt(), anyBoolean(),
+                                         anyBoolean(), any())).thenReturn(ok);
+
+      controllerForBookmarks(sessions, svc).renameBookmark("tok",
+         new ViewsheetAssemblyAgentController.RenameBookmarkRequest(
+            "Q1 Report", "Q1 Report v2", "private", true, null), principal());
+
+      verify(svc).renameBookmarkInViewSheet(eq(rvs), eq("Q1 Report v2"), eq("Q1 Report"),
+         eq(VSBookmarkInfo.PRIVATE), eq(true), eq(false), any(Principal.class));
+   }
+
+   @Test
+   void renameBookmark_sameNameWithNoStoredInfo_proceeds() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = ownerOfSharedBookmark(sessions);
+      VSBookmarkService svc = visibleAdminBookmark(VSBookmarkInfo.PRIVATE, true);
+      MessageCommand ok = new MessageCommand();
+      ok.setType(MessageCommand.Type.OK);
+      when(svc.renameBookmarkInViewSheet(any(), anyString(), anyString(), anyInt(), anyBoolean(),
+                                         anyBoolean(), any())).thenReturn(ok);
+
+      controllerForBookmarks(sessions, svc).renameBookmark("tok",
+         new ViewsheetAssemblyAgentController.RenameBookmarkRequest(
+            "Q1 Report", "Q1 Report", "private", true, null), principal());
+
+      verify(svc).renameBookmarkInViewSheet(eq(rvs), eq("Q1 Report"), eq("Q1 Report"),
+         anyInt(), anyBoolean(), eq(false), any(Principal.class));
+   }
+
    /** A runtime where the caller ("admin") owns "Q1 Report" and it is in sync. */
    private static RuntimeViewsheet ownerOfSharedBookmark(ViewsheetSessionService sessions)
       throws Exception
