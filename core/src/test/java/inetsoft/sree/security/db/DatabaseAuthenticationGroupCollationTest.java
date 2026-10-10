@@ -186,41 +186,8 @@ class DatabaseAuthenticationGroupCollationTest {
       String oldMultiTenant = SreeEnv.getProperty("security.users.multiTenant");
 
       try {
-         SreeEnv.setProperty("security.cache", Boolean.toString(cache));
-         SreeEnv.setProperty("security.user.caseSensitive", "true");
-         SreeEnv.setProperty("security.users.multiTenant", "false");
-
          String name = "GroupCollation78251_" + cache;
-         DatabaseAuthenticationProvider cfg = new DatabaseAuthenticationProvider();
-         cfg.setDriver(DRIVER);
-         cfg.setUrl(url);
-         configureQueries(cfg);
-         cfg.setProviderName(name);
-         AuthenticationChain authc = new AuthenticationChain();
-         authc.setProviders(List.of(cfg));
-         authc.saveConfiguration();
-         FileAuthorizationProvider authz = new FileAuthorizationProvider();
-         authz.setProviderName("Primary");
-         AuthorizationChain authzChain = new AuthorizationChain();
-         authzChain.setProviders(List.of(authz));
-         authzChain.saveConfiguration();
-         SreeEnv.setProperty("security.enabled", "true");
-         SreeEnv.save();
-         SecurityEngine.getSecurity().init();
-
-         SecurityProvider root = SecurityEngine.getSecurity().getSecurityProvider();
-         DatabaseAuthenticationProvider p = find(root, name);
-         p.setMultiTenantSupplier(() -> false);
-         p.setDriverAvailable(d -> true);
-         p.setDriverSupplier(d -> (Driver) Class.forName(DRIVER).getConstructor().newInstance());
-         provider = p;
-         assertEquals(cache, p.isCacheEnabled());
-
-         if(cache) {
-            p.getCache(true).load();
-            Awaitility.await().atMost(Duration.ofMinutes(1)).pollInterval(Duration.ofMillis(100))
-               .until(p::isCacheInitialized);
-         }
+         SecurityProvider root = initSecurityEngine(name, cache);
 
          // email to a group, as a schedule task or the viewsheet email dialog addresses it
          assertEquals(List.of(), groupEmails("sales"), "emails of sales");
@@ -254,6 +221,110 @@ class DatabaseAuthenticationGroupCollationTest {
          restoreProperty("security.user.caseSensitive", oldCaseSensitive);
          restoreProperty("security.users.multiTenant", oldMultiTenant);
       }
+   }
+
+   @ParameterizedTest(name = "cache={0}")
+   @ValueSource(booleans = { false, true })
+   void caseVariantGroups_caseSensitiveDatabase_emailsAndPermissionsUnchanged(boolean cache)
+      throws Exception
+   {
+      createGroupDb(false, "sales", "SALES");
+      // an unambiguous group with many members
+      StringBuilder users = new StringBuilder("INSERT INTO U VALUES ");
+      StringBuilder emails = new StringBuilder("INSERT INTO UE VALUES ");
+      StringBuilder members = new StringBuilder("INSERT INTO GU VALUES ('eng', 'alice')");
+
+      for(int i = 0; i < 60; i++) {
+         String sep = i == 0 ? "" : ", ";
+         users.append(sep).append("('m").append(i).append("', 'pw-m").append(i).append("')");
+         emails.append(sep).append("('m").append(i).append("', 'm").append(i).append("@e')");
+         members.append(", ('eng', 'm").append(i).append("')");
+      }
+
+      exec(users.toString(), emails.toString(), members.toString(),
+           "INSERT INTO G VALUES ('eng')");
+      String oldCaseSensitive = SreeEnv.getProperty("security.user.caseSensitive");
+      String oldCache = SreeEnv.getProperty("security.cache");
+      String oldMultiTenant = SreeEnv.getProperty("security.users.multiTenant");
+
+      try {
+         String name = "GroupCollationCS78251_" + cache;
+         SecurityProvider root = initSecurityEngine(name, cache);
+
+         assertEquals(63, root.getUsers().length);
+         assertEquals(List.of("bob@x"), groupEmails("sales"), "emails of sales");
+         assertEquals(List.of("eve@y"), groupEmails("SALES"), "emails of SALES");
+         assertEquals(61, groupEmails("eng").size(), "emails of eng");
+         assertEquals(List.of("sales"), sorted(root.getUserGroups(id("bob"))), "bob groups");
+         assertEquals(List.of("SALES"), sorted(root.getUserGroups(id("eve"))), "eve groups");
+         assertEquals(List.of("eng", "support"), sorted(root.getUserGroups(id("alice"))));
+
+         for(String user : new String[] { "bob", "eve", "alice", "m7" }) {
+            IdentityID userID = id(user);
+            assertTrue(root.authenticate(userID, new DefaultTicket(userID, "pw-" + user)),
+                       "login of " + user);
+         }
+
+         Permission salesOnly = new Permission();
+         salesOnly.setGroupGrantsForOrg(ResourceAction.READ, Set.of("sales"), org);
+         root.setPermission(ResourceType.REPORT, name + "/salesOnly", salesOnly, org);
+         Permission engOnly = new Permission();
+         engOnly.setGroupGrantsForOrg(ResourceAction.READ, Set.of("eng"), org);
+         root.setPermission(ResourceType.REPORT, name + "/engOnly", engOnly, org);
+
+         // eve is not checked against the sales grant: Permission.check falls back to a
+         // case-insensitive identity match, independent of the database provider
+         assertTrue(root.checkPermission(principal("bob"), ResourceType.REPORT,
+                                         name + "/salesOnly", ResourceAction.READ));
+         assertTrue(root.checkPermission(principal("m7"), ResourceType.REPORT,
+                                         name + "/engOnly", ResourceAction.READ));
+         assertFalse(root.checkPermission(principal("bob"), ResourceType.REPORT,
+                                          name + "/engOnly", ResourceAction.READ));
+      }
+      finally {
+         restoreProperty("security.cache", oldCache);
+         restoreProperty("security.user.caseSensitive", oldCaseSensitive);
+         restoreProperty("security.users.multiTenant", oldMultiTenant);
+      }
+   }
+
+   private SecurityProvider initSecurityEngine(String name, boolean cache) throws Exception {
+      SreeEnv.setProperty("security.cache", Boolean.toString(cache));
+      SreeEnv.setProperty("security.user.caseSensitive", "true");
+      SreeEnv.setProperty("security.users.multiTenant", "false");
+
+      DatabaseAuthenticationProvider cfg = new DatabaseAuthenticationProvider();
+      cfg.setDriver(DRIVER);
+      cfg.setUrl(url);
+      configureQueries(cfg);
+      cfg.setProviderName(name);
+      AuthenticationChain authc = new AuthenticationChain();
+      authc.setProviders(List.of(cfg));
+      authc.saveConfiguration();
+      FileAuthorizationProvider authz = new FileAuthorizationProvider();
+      authz.setProviderName("Primary");
+      AuthorizationChain authzChain = new AuthorizationChain();
+      authzChain.setProviders(List.of(authz));
+      authzChain.saveConfiguration();
+      SreeEnv.setProperty("security.enabled", "true");
+      SreeEnv.save();
+      SecurityEngine.getSecurity().init();
+
+      SecurityProvider root = SecurityEngine.getSecurity().getSecurityProvider();
+      DatabaseAuthenticationProvider p = find(root, name);
+      p.setMultiTenantSupplier(() -> false);
+      p.setDriverAvailable(d -> true);
+      p.setDriverSupplier(d -> (Driver) Class.forName(DRIVER).getConstructor().newInstance());
+      provider = p;
+      assertEquals(cache, p.isCacheEnabled());
+
+      if(cache) {
+         p.getCache(true).load();
+         Awaitility.await().atMost(Duration.ofMinutes(1)).pollInterval(Duration.ofMillis(100))
+            .until(p::isCacheInitialized);
+      }
+
+      return root;
    }
 
    private void assertMembersNotLoaded(DatabaseAuthenticationProvider p, String group1,
