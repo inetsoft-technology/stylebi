@@ -357,6 +357,125 @@ class SharedCacheCancelTest {
       assertFalse(sum1.isCancelled(), "the complete aggregate is cancelled");
    }
 
+   /**
+    * A cancel while the in-memory aggregate is still loading stays a cancel (#78135): the
+    * aggregate is cancelled, the canceller is not told, and a later reader computes the whole
+    * aggregate again instead of getting the cut-short one from the cache.
+    */
+   @Test
+   void cancelOfAnUnfinishedAggregateIsACancelAndIsNotCached() throws Exception {
+      Worksheet ws = aggregateWorksheet(
+         "select a.id, a.g from sc78200 a, sc78200 b where b.id <= 300 and a.id > -" +
+         RUN.incrementAndGet());
+      AssetQuerySandbox box1 = new AssetQuerySandbox(ws);
+      box1.setQueryManager(new QueryManager());
+      TableLens lens1 = box1.getTableLens("A1", AssetQuerySandbox.RUNTIME_MODE,
+                                          new VariableTable());
+      assertNotNull(lens1, "the query failed, see the log");
+      AssetQuery.SummaryFilter2 sum1 = (AssetQuery.SummaryFilter2)
+         Util.getNestedTable(lens1, AssetQuery.SummaryFilter2.class);
+      assertNotNull(sum1, "not aggregated in memory: " + chain(lens1));
+      XNodeTableLens x1 = (XNodeTableLens) Util.getNestedTable(lens1, XNodeTableLens.class);
+      assertNotNull(x1, chain(lens1));
+
+      AtomicReference<Object> result = new AtomicReference<>();
+      Thread reader = new Thread(() -> {
+         try {
+            CoreTool.clearUserMessage();
+            int rows = rows(lens1);
+            result.set(new Object[] { rows, CoreTool.getUserMessage() });
+         }
+         catch(Throwable ex) {
+            result.set(ex);
+         }
+      }, "SharedCacheCancelTest-aggregate");
+      reader.start();
+
+      try {
+         // let the aggregate start on the rows still loading
+         Thread.sleep(300);
+         // otherwise the test proves nothing
+         assertTrue(x1.getRowCount() < 0, "the base loaded before the cancel");
+         box1.getQueryManager().cancel();
+      }
+      finally {
+         reader.join(TimeUnit.MINUTES.toMillis(5));
+      }
+
+      assertFalse(reader.isAlive(), "the reader never finished");
+      assertFalse(result.get() instanceof Throwable, () -> "the reader failed: " + result.get());
+      assertNull(((Object[]) result.get())[1], "the reader that cancelled is not told");
+      assertTrue(sum1.isCancelled(), "the unfinished aggregate is not cancelled");
+      assertTrue(AssetDataCache.isCancelled(lens1), "the unfinished chain is not cancelled");
+
+      AssetQuerySandbox box3 = new AssetQuerySandbox(ws);
+      box3.setQueryManager(new QueryManager());
+      TableLens lens3 = box3.getTableLens("A1", AssetQuerySandbox.RUNTIME_MODE,
+                                          new VariableTable());
+      assertNotSame(sum1, Util.getNestedTable(lens3, AssetQuery.SummaryFilter2.class),
+                    "the cancelled aggregate was served from the cache");
+      assertEquals(2, rows(lens3));
+      assertNull(CoreTool.getUserMessage(), "the later reader was told of a cancel");
+      Map<Integer, Double> sums = new HashMap<>();
+
+      for(int r = lens3.getHeaderRowCount(); r < lens3.getRowCount(); r++) {
+         // the aggregate column first, then the group column
+         sums.put(((Number) lens3.getObject(r, 1)).intValue(),
+                  ((Number) lens3.getObject(r, 0)).doubleValue());
+      }
+
+      // ids 1..PROWS, each read 300 times: g = 0 the even ids, g = 1 the odd ones
+      double even = 2.0 * (PROWS / 2) * (PROWS / 2 + 1) / 2 * 300;
+      double odd = (double) (PROWS / 2) * (PROWS / 2) * 300;
+      assertEquals(Map.of(0, even, 1, odd), sums, "the later reader got a partial aggregate");
+   }
+
+   /** A scheduled reader of a complete shared aggregate does not fail on a late cancel. */
+   @Test
+   void lateCancelOfACompleteAggregateDoesNotFailAScheduledReader() throws Exception {
+      Worksheet ws = aggregateWorksheet(
+         "select sc78200.id, sc78200.g from sc78200 where sc78200.id > -" +
+         RUN.incrementAndGet());
+      AssetQuerySandbox box1 = new AssetQuerySandbox(ws);
+      box1.setQueryManager(new QueryManager());
+      TableLens lens1 = box1.getTableLens("A1", AssetQuerySandbox.RUNTIME_MODE, scheduled());
+      assertNotNull(lens1, "the query failed, see the log");
+      assertEquals(2, rows(lens1));
+      AssetQuery.SummaryFilter2 sum1 = (AssetQuery.SummaryFilter2)
+         Util.getNestedTable(lens1, AssetQuery.SummaryFilter2.class);
+      assertNotNull(sum1, "not aggregated in memory: " + chain(lens1));
+
+      AssetQuerySandbox box2 = new AssetQuerySandbox(ws);
+      box2.setQueryManager(new QueryManager());
+      TableLens lens2 = box2.getTableLens("A1", AssetQuerySandbox.RUNTIME_MODE, scheduled());
+      assertSame(sum1, Util.getNestedTable(lens2, AssetQuery.SummaryFilter2.class),
+                 "the second reader did not share the first one's aggregate: " + chain(lens2));
+      assertEquals(2, rows(lens2));
+      CoreTool.clearUserMessage();
+
+      box1.getQueryManager().cancel();
+      assertEquals(2, assertDoesNotThrow(() -> rows(lens2),
+                                         "the scheduled reader of a complete aggregate failed"));
+      assertNull(CoreTool.getUserMessage());
+      assertFalse(AssetDataCache.isCancelled(lens2), "the complete aggregate is cancelled");
+   }
+
+   /** A worksheet whose table A1, SUM(id) by g, is grouped in memory over the query. */
+   private static Worksheet aggregateWorksheet(String sql) throws Exception {
+      Worksheet ws = new Worksheet();
+      SQLBoundTableAssembly table = sqlTable(ws, "A1", sql, "id", "g");
+      AggregateInfo info = new AggregateInfo();
+      info.addGroup(new GroupRef(table.getColumnSelection(false).getAttribute("g")));
+      info.addAggregate(new AggregateRef(table.getColumnSelection(false).getAttribute("id"),
+                                         AggregateFormula.SUM));
+      table.setAggregateInfo(info);
+      table.setAggregate(true);
+      table.setSQLMergeable(false);
+      new AssetQuerySandbox(ws).refreshColumnSelection("A1", true);
+      CoreTool.clearUserMessage();
+      return ws;
+   }
+
    private static VariableTable scheduled() {
       VariableTable vars = new VariableTable();
       vars.put("__is_scheduler__", "true");
