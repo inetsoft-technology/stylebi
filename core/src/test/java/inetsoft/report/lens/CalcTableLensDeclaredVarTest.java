@@ -86,6 +86,37 @@ class CalcTableLensDeclaredVarTest {
          Arrays.asList(null, null, 7.0)), values);
    }
 
+   // the reported shapes, assigning the named cell ($total) of a vertically expanded row
+   // on the runtime table, and the summary function after them
+   @Test
+   void aVarAssignedANamedCellIsFreshPerRowAndCell() {
+      CalcTableLens calc = calcTable(1, "[100, 300, 120]",
+                                     "var max; if($total > 150) max = $total; max",
+                                     "var count; if($total > 150) count = $total; count",
+                                     "var max; if(this == null) max = 1; max",
+                                     "var max; if(false) max = 1; max", "max([3,7])");
+      calc.setExpansion(0, 0, CalcTableLens.EXPAND_VERTICAL);
+      calc.setCellName(0, 0, "total");
+
+      RuntimeCalcTableLens runtime = calc.process();
+      List<List<Object>> values = new ArrayList<>();
+
+      for(int r = 0; r < runtime.getRowCount(); r++) {
+         List<Object> row = new ArrayList<>();
+
+         for(int c = 0; c < runtime.getColCount(); c++) {
+            row.add(num(runtime.getObject(r, c)));
+         }
+
+         values.add(row);
+      }
+
+      assertEquals(Arrays.asList(
+         Arrays.asList(100.0, null, null, null, null, 7.0),
+         Arrays.asList(300.0, 300.0, 300.0, null, null, 7.0),
+         Arrays.asList(120.0, null, null, null, null, 7.0)), values);
+   }
+
    // a single-piece body, the plain with path
    @Test
    void aPlainVarNamedLikeASummaryFunctionIsTheCellsOwn() {
