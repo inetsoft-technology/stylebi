@@ -2259,6 +2259,7 @@ public class ViewsheetFormatService {
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          TableDataPath cellPath =
             calcService.cellFormatPath(rvs, request.assembly(), request.row(), request.col());
+         calcService.requireNotMerged(rvs, request.assembly(), request.row(), request.col());
 
          FormatVSObjectEvent event = new FormatVSObjectEvent();
          event.setFormat(request.format());

@@ -1384,6 +1384,27 @@ class ViewsheetFormatServiceTest {
       assertEquals("PercentFormat", captor.getValue().getFormat().getFormat());
    }
 
+   /** Redmine #78286: a format write to a merge-swallowed cell is refused before it applies. */
+   @Test
+   void setCellFormatRefusesAMergeSwallowedCell() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      CalcTableService calcService = mock(CalcTableService.class);
+      doThrow(new IllegalArgumentException("Cell [0,1] is merged into [0,0]"))
+         .when(calcService).requireNotMerged(any(), eq("FreehandTable1"), eq(0), eq(1));
+      VSObjectFormatInfoModel format = new VSObjectFormatInfoModel();
+      format.setFormat("PercentFormat");
+
+      IllegalArgumentException thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> serviceWith(painter, calcService).setCellFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.CellFormatRequest("FreehandTable1", 0, 1, format, false),
+            ""));
+
+      assertTrue(thrown.getMessage().contains("merged into [0,0]"));
+      verify(painter, never()).setFormat(any(), any(), any(Principal.class), any(), anyString());
+   }
+
    @Test
    void setCellFormatRequiresAssembly() {
       Exception thrown = assertThrows(
