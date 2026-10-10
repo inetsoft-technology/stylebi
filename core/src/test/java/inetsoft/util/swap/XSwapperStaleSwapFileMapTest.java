@@ -177,6 +177,43 @@ class XSwapperStaleSwapFileMapTest {
       assertTrue(recent.exists(), "startup sweep deleted a file within its grace period");
    }
 
+   /**
+    * Bug #78245, the recurring sweep ({@link SwapFileSweepRunnable}, exercised here by calling
+    * {@link XSwapper#sweepDeadSeedSwapFiles} directly as it does) must give a dead-seed file a
+    * second chance once its grace period has elapsed, instead of only ever being evaluated once
+    * by the one-shot startup sweep like {@link #sweepsKeepRecentRegisteredFileOfDeadJvmWithinGracePeriod}
+    * demonstrates. This reproduces the gap the bug report describes: a file born in a dying JVM's
+    * last seconds survives the first sweep (still within the grace period) but must not survive
+    * forever -- a later sweep, once the file is old enough, must delete it without waiting for a
+    * manual EM Clean Up or another restart.
+    */
+   @Test
+   void recurringSweepDeletesADeadSeedFileOnceItsGracePeriodElapses() throws Exception {
+      Cluster cluster = Cluster.getInstance();
+      Map<Long, String> seeds = cluster.getMap(XSwapper.SWAP_SEED_MAP);
+      seeds.put(501L, DEAD_NODE);
+      // a JVM that was killed right after writing a swap file
+      File recent = createRegistered("s501_1_s.tdat");
+      assertTrue(recent.setLastModified(System.currentTimeMillis()));
+
+      File dir = FileSystemService.getInstance().getFile(
+         FileSystemService.getInstance().getCacheDirectory());
+
+      // first look (e.g. the one-shot startup sweep, or the recurring sweep's first tick):
+      // still inside the grace period, so the file must survive
+      XSwapper.getSwapper().sweepDeadSeedSwapFiles(dir);
+      assertTrue(recent.exists(), "a file within its grace period was deleted");
+
+      // simulate the clock moving past the grace period without waiting for it in real time
+      assertTrue(recent.setLastModified(
+         System.currentTimeMillis() - XSwapper.SWAP_FILE_GRACE_PERIOD - 1000L));
+
+      // the recurring sweep's next tick re-evaluates the same, already dead seed
+      XSwapper.getSwapper().sweepDeadSeedSwapFiles(dir);
+      assertFalse(recent.exists(),
+                   "the recurring sweep did not give the file a second, later chance to be swept");
+   }
+
    private static void waitUntilDeleted(File file) throws InterruptedException {
       // the sweeps run in a background thread
       long end = System.currentTimeMillis() + 30000L;

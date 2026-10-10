@@ -21,6 +21,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.uql.asset.EmbeddedTableStorage;
 import inetsoft.util.*;
+import inetsoft.util.swap.SwapFileSweepRunnable;
 import inetsoft.web.service.LicenseService;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.BeansException;
@@ -61,6 +62,9 @@ public class ServerLifecycleService implements ApplicationContextAware {
 
       SUtil.startServerNode();
       TimedQueue.add(new ClearOldCacheFilesRunnable());
+      // Bug #78245, give the dead-seed swap file sweep more chances to run than just once at
+      // startup and on a manual EM Clean Up
+      TimedQueue.add(new SwapFileSweepRunnable());
    }
 
    @PostConstruct
