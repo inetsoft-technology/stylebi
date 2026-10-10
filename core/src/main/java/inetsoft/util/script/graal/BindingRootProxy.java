@@ -370,6 +370,56 @@ public class BindingRootProxy implements ProxyObject {
    private final ProxyExecutable ownedVarProbe =
       args -> args.length > 0 && args[0].isString() && ownsVar(args[0].asString());
 
+   /**
+    * The member the compiled form of a script that declares top-level vars opens its
+    * scope {@code with} on instead of {@code __scope__} itself (Bug #78247),
+    * {@code with(__scope__.__inetsoft_declared_vars__("a,b")){ body }}: on a
+    * {@link DeclaredVarScope} root it returns a view of this proxy that does not have the
+    * declared names, so they resolve to the script's own var (its var store, or a local of
+    * the eval wrapper) instead of a same-named member of the scope chain; on any other root
+    * it returns this proxy, unchanged. Being in the script's own source, the view never
+    * hides a name from a function declared elsewhere that the script calls.
+    */
+   public static final String DECLARED_VARS_MEMBER = "__inetsoft_declared_vars__";
+   // one view per declared-name list, i.e. per compiled script; single-threaded per engine
+   private final Map<String, DeclaredVarView> declaredViews = new HashMap<>();
+   private final ProxyExecutable declaredVars = args -> {
+      if(!(global instanceof DeclaredVarScope) || args.length == 0 || !args[0].isString()) {
+         return this;
+      }
+
+      return declaredViews.computeIfAbsent(args[0].asString(), DeclaredVarView::new);
+   };
+
+   /** This proxy without the names a script declares (Bug #78247). */
+   private final class DeclaredVarView implements ProxyObject {
+      DeclaredVarView(String names) {
+         this.names = Set.of(names.split(","));
+      }
+
+      @Override
+      public Object getMember(String key) {
+         return BindingRootProxy.this.getMember(key);
+      }
+
+      @Override
+      public Object getMemberKeys() {
+         return BindingRootProxy.this.getMemberKeys();
+      }
+
+      @Override
+      public boolean hasMember(String key) {
+         return !names.contains(key) && BindingRootProxy.this.hasMember(key);
+      }
+
+      @Override
+      public void putMember(String key, Value value) {
+         BindingRootProxy.this.putMember(key, value);
+      }
+
+      private final Set<String> names;
+   }
+
    private boolean ownsVar(String name) {
       for(ScriptScope s = global; s != null; s = s.getParentScope()) {
          if(s instanceof OwnedVarScope o && o.ownsVar(name)) {
@@ -383,6 +433,10 @@ public class BindingRootProxy implements ProxyObject {
    @Override public Object getMember(String key) {
       if(OWNED_VAR_PROBE.equals(key)) {
          return ownedVarProbe;
+      }
+
+      if(DECLARED_VARS_MEMBER.equals(key)) {
+         return declaredVars;
       }
 
       if(locals != null) {
@@ -400,7 +454,7 @@ public class BindingRootProxy implements ProxyObject {
       return ScriptValueConverter.toGuest(result == NOT_FOUND ? null : result);
    }
    @Override public boolean hasMember(String key) {
-      return OWNED_VAR_PROBE.equals(key) ||
+      return OWNED_VAR_PROBE.equals(key) || DECLARED_VARS_MEMBER.equals(key) ||
          locals != null && (LOCALS_MEMBER.equals(key) || OWN_LOCALS_MEMBER.equals(key)) ||
          resolves(key);
    }

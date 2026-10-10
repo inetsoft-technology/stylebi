@@ -604,7 +604,8 @@ class GraalJavaScriptEngineLexicalDeclarationTest {
          engine.compile("const value; let x = 1; let y = 2, total; value");
       // only the var is declared in the var store of the scope (Bug #77595)
       assertEquals("with(__inetsoft_declare__(__scope__.__inetsoft_own_locals__,[\"x\"])){" +
-                   "with(__scope__){let   value; var x = 1; let y = 2, total; value\n}}",
+                   "with(__scope__.__inetsoft_declared_vars__(\"x\")){" +
+                   "let   value; var x = 1; let y = 2, total; value\n}}",
                    compiled.colliding().getCharacters().toString());
    }
 

@@ -27,6 +27,7 @@ import inetsoft.report.script.graal.ReportGraalJavaScriptEngine;
 import inetsoft.uql.util.TableLoadException;
 import inetsoft.util.script.DynamicScope;
 import inetsoft.util.script.JavaScriptEngine;
+import inetsoft.util.script.graal.DeclaredVarScope;
 import inetsoft.util.script.graal.ScopeLocals;
 import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.swap.DataUnavailable;
@@ -46,7 +47,7 @@ import java.util.Iterator;
  * handled centrally by BindingRootProxy/FormulaContext, so {@code null} is passed
  * here as a cutover bridge; rewire when ReportJavaScriptEngine is migrated.
  */
-public class CalcTableScope extends PropertyScriptable implements DynamicScope {
+public class CalcTableScope extends PropertyScriptable implements DynamicScope, DeclaredVarScope {
    /**
     * Create a scope for a freehand table.
     */
