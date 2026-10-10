@@ -27,6 +27,7 @@ import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.web.wiz.pairing.PairingException;
 import inetsoft.web.wiz.script.model.ScriptError;
@@ -41,6 +42,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -77,9 +79,11 @@ public class ScriptExecuteService {
    // path, lets the agent (and, transitively, the human reading its tool call) find out why
    // instead of silently treating an empty result as "no data". Deliberately NOT fixed in the
    // shared runtime: that would also change behavior for real Viewer/Composer/Schedule sessions
-   // this service never touches.
-   private static final Pattern WS_RUNQUERY_LITERAL =
-      Pattern.compile("runQuery\\s*\\(\\s*[\"'](ws:[^\"']+)[\"']");
+   // this service never touches. Bug #78285: the calls are observed as they execute (an opt-in
+   // thread-local hook in XUtil.runQuery, unset everywhere else) rather than scanned for in the
+   // script text, so commented-out, string-mentioned or dead-branch literals never produce a
+   // note and a worksheet missing at every scope is reported too.
+   private static final int MAX_WS_NOTES = 3;
 
    // Bug #76853 (VSD-010): a script-local var/let/const whose name collides (case-insensitively --
    // see BindingRootProxy's Calc builtin scope, which resolves last-resort via a
@@ -187,8 +191,25 @@ public class ScriptExecuteService {
          scriptable.resetRejectedWrites();
       }
 
+      Map<AssetEntry, XUtil.RunQueryOutcome> wsOutcomes = new LinkedHashMap<>();
+      BiConsumer<AssetEntry, XUtil.RunQueryOutcome> previousObserver =
+         XUtil.setRunQueryObserver((entry, outcome) -> {
+            if(wsOutcomes.size() < 64) {
+               wsOutcomes.merge(entry, outcome,
+                                (old, cur) -> old == XUtil.RunQueryOutcome.FOUND ? cur : old);
+            }
+         });
+
       try {
-         Object value = scope.execute(text, assemblyName);
+         Object value;
+
+         try {
+            value = scope.execute(text, assemblyName);
+         }
+         finally {
+            XUtil.restoreRunQueryObserver(previousObserver);
+         }
+
          List<String> unrecognized = new ArrayList<>();
          List<String> rejected = new ArrayList<>();
 
@@ -264,7 +285,7 @@ public class ScriptExecuteService {
                "you meant a different, non-scripted property.";
          }
 
-         String wsScopeMismatch = firstWsScopeMismatch(text, rvs.getUser());
+         String wsScopeMismatch = wsRunQueryNotes(wsOutcomes, rvs.getUser());
 
          if(wsScopeMismatch != null) {
             summary = summary + " " + wsScopeMismatch;
@@ -346,99 +367,111 @@ public class ScriptExecuteService {
    }
 
    /**
-    * See the {@link #WS_RUNQUERY_LITERAL} javadoc above. Returns a human-readable explanation of
-    * the first literal {@code ws:} addressing mismatch found in {@code scriptText}, or
-    * {@code null} if none of the literal {@code runQuery('ws:...')} calls in it are wrong, none
-    * could be parsed (a malformed literal is runQuery's own problem to report at execution time,
-    * not this diagnostic's), or the asset repository/user identity needed to check aren't
-    * available. Never throws -- this is a best-effort diagnostic layered on top of execution, not
-    * a gate, so a failure here must never prevent {@link #execute} from running the script.
-    *
-    * <p>Reports only the first mismatch found even if a script contains several distinct
-    * {@code ws:} calls -- deliberate, since this is a one-shot pointer at "something about this
-    * script's ws: addressing is wrong," not an exhaustive lint pass.</p>
+    * Builds the explanation for the {@code runQuery('ws:...')} calls that actually executed and
+    * did not resolve a worksheet, or {@code null} if there are none. Where the same path exists
+    * at the sibling scope (global, or the caller's OWN user scope -- never another user's) the
+    * note names the right address; otherwise one generic wording is used for not-found, denied
+    * and failed alike, so the note can't be used to probe for another user's private worksheets.
+    * Deduplicated per entry and capped at {@link #MAX_WS_NOTES}. Never throws -- this is a
+    * best-effort diagnostic layered on top of execution, not a gate.
     */
-   private static String firstWsScopeMismatch(String scriptText, Principal user) {
-      if(scriptText == null || scriptText.isEmpty() || !(user instanceof XPrincipal)) {
+   private static String wsRunQueryNotes(Map<AssetEntry, XUtil.RunQueryOutcome> outcomes,
+                                         Principal user)
+   {
+      if(outcomes.isEmpty() || !(user instanceof XPrincipal)) {
          return null;
       }
 
-      // Defense in depth: every fallible sub-step below already has its own try/catch, but this
-      // outer one is the actual guarantor of "never throws" -- a gap in any one of those must
-      // still resolve to "no diagnostic" here, not an exception that reaches execute()'s own
-      // outer try/catch and flips an already-successful script run to a reported failure.
       try {
-         Matcher m = WS_RUNQUERY_LITERAL.matcher(scriptText);
+         List<String> notes = new ArrayList<>();
 
-         while(m.find()) {
-            String literal = m.group(1);
-            AssetEntry requested;
-
-            try {
-               requested = AssetEntry.createAssetEntry(literal, ((XPrincipal) user).getOrgId());
-            }
-            catch(Exception ex) {
+         for(Map.Entry<AssetEntry, XUtil.RunQueryOutcome> e : outcomes.entrySet()) {
+            if(e.getValue() == XUtil.RunQueryOutcome.FOUND) {
                continue;
             }
 
-            if(requested == null ||
-               (requested.getScope() != AssetRepository.GLOBAL_SCOPE &&
-                requested.getScope() != AssetRepository.USER_SCOPE))
-            {
-               continue;
-            }
+            String note = wsRunQueryNote(e.getKey(), (XPrincipal) user);
 
-            // Only needed (and only resolved) for a GLOBAL_SCOPE-requested literal's USER_SCOPE
-            // sibling -- null here (an identity that doesn't resolve to a name/org key) means no
-            // sibling can be built, not that the check should crash.
-            IdentityID callerId = requested.getScope() == AssetRepository.GLOBAL_SCOPE
-               ? ((XPrincipal) user).getIdentityID() : null;
+            if(note != null) {
+               notes.add(note);
 
-            if(requested.getScope() == AssetRepository.GLOBAL_SCOPE && callerId == null) {
-               continue;
-            }
-
-            AssetEntry sibling = requested.getScope() == AssetRepository.USER_SCOPE
-               ? new AssetEntry(AssetRepository.GLOBAL_SCOPE, requested.getType(),
-                                requested.getPath(), null, requested.getOrgID())
-               : new AssetEntry(AssetRepository.USER_SCOPE, requested.getType(),
-                                requested.getPath(), callerId, requested.getOrgID());
-
-            try {
-               AssetRepository repo = AssetUtil.getAssetRepository(false);
-
-               if(repo == null || repo.containsEntry(requested) || !repo.containsEntry(sibling)) {
-                  continue;
+               if(notes.size() >= MAX_WS_NOTES) {
+                  break;
                }
             }
-            catch(Exception ex) {
-               continue;
-            }
-
-            String requestedScope = requested.getScope() == AssetRepository.GLOBAL_SCOPE ? "global" : "user";
-            String siblingScope = requested.getScope() == AssetRepository.GLOBAL_SCOPE ? "user" : "global";
-            // getPath() excludes the optional 4th ":table" segment (stored as a property, not
-            // part of the path) -- a corrected literal built from it drops that segment if the
-            // original had one. Rare enough in practice not to special-case; noted, not guarded.
-            String path = requested.getPath();
-            // Both branches phrase this the same way -- the sibling asset already EXISTS (just
-            // confirmed above via containsEntry), so this is "use the right address," never
-            // "go save/create it there."
-            String fix = "global".equals(siblingScope)
-               ? "Use \"ws:global:" + path + "\" to reach it."
-               : "Use \"ws:" + callerId.getName() + ":" + path + "\" to reach it.";
-
-            return "runQuery('" + literal + "') addresses worksheet \"" + path + "\" at " +
-               requestedScope + " scope, but nothing exists there -- a worksheet with the same " +
-               "name exists at " + siblingScope + " scope instead, so this call returns an empty " +
-               "result with no error. " + fix;
          }
 
-         return null;
+         return notes.isEmpty() ? null : String.join(" ", notes);
       }
       catch(Exception ex) {
          return null;
       }
+   }
+
+   private static String wsRunQueryNote(AssetEntry requested, XPrincipal user) {
+      if(requested == null ||
+         (requested.getScope() != AssetRepository.GLOBAL_SCOPE &&
+          requested.getScope() != AssetRepository.USER_SCOPE))
+      {
+         return null;
+      }
+
+      boolean global = requested.getScope() == AssetRepository.GLOBAL_SCOPE;
+      String path = requested.getPath();
+      String token = global ? "global"
+         : requested.getUser() == null ? null : requested.getUser().getName();
+
+      if(token == null) {
+         return null;
+      }
+
+      String literal = "ws:" + token + ":" + path;
+      IdentityID callerId = user.getIdentityID();
+      boolean ownUserScope = !global && callerId != null && callerId.equals(requested.getUser());
+      String generic = "runQuery('" + literal + "') returned no data: no worksheet \"" + path +
+         "\" was found at " + (global ? "global" : "user") + " scope that this session can " +
+         "access. Check the name and scope token (\"global\", or your own username for user " +
+         "scope).";
+
+      // The sibling probe only ever looks at global and the caller's own user scope, so it can't
+      // reveal anything about another user's worksheets.
+      if((!global && !ownUserScope) || (global && callerId == null)) {
+         return generic;
+      }
+
+      AssetEntry sibling = global
+         ? new AssetEntry(AssetRepository.USER_SCOPE, requested.getType(), path, callerId,
+                          requested.getOrgID())
+         : new AssetEntry(AssetRepository.GLOBAL_SCOPE, requested.getType(), path, null,
+                          requested.getOrgID());
+
+      try {
+         AssetRepository repo = AssetUtil.getAssetRepository(false);
+
+         if(repo == null || repo.containsEntry(requested) || !repo.containsEntry(sibling)) {
+            return generic;
+         }
+      }
+      catch(Exception ex) {
+         return generic;
+      }
+
+      String requestedScope = global ? "global" : "user";
+      String siblingScope = global ? "user" : "global";
+      // getPath() excludes the optional 4th ":table" segment (stored as a property, not
+      // part of the path) -- a corrected literal built from it drops that segment if the
+      // original had one. Rare enough in practice not to special-case; noted, not guarded.
+      // Both branches phrase this the same way -- the sibling asset already EXISTS (just
+      // confirmed above via containsEntry), so this is "use the right address," never
+      // "go save/create it there."
+      String fix = global
+         ? "Use \"ws:" + callerId.getName() + ":" + path + "\" to reach it."
+         : "Use \"ws:global:" + path + "\" to reach it.";
+
+      return "runQuery('" + literal + "') addresses worksheet \"" + path + "\" at " +
+         requestedScope + " scope, but nothing exists there -- a worksheet with the same " +
+         "name exists at " + siblingScope + " scope instead, so this call returns an empty " +
+         "result with no error. " + fix;
    }
 
    /**
