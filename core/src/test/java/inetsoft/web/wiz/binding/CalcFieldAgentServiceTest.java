@@ -607,6 +607,92 @@ class CalcFieldAgentServiceTest {
       assertTrue(service.modify("tok", principal(), req, "").rewrittenDependents().isEmpty());
    }
 
+   /**
+    * Bug #78193 (VCF-005): removing a calc field another calc field's formula references used to
+    * commit and silently break the dependent. It must be refused before anything mutates, naming
+    * every dependent and saying to remove or edit them first.
+    */
+   @Test
+   void removeRefusesWhenAnAggregateCalcFieldReferencesIt() throws Exception {
+      Viewsheet vs = mock(Viewsheet.class);
+      CalculateRef netSales = calc("Net Sales", "field['Total'] * (1 - field['Discount'])", true);
+      CalculateRef share = calc("Discount Share",
+         "(field['Sum(Total)'] - field['Sum(Net Sales)']) / field['Sum(Total)']", false);
+      CalculateRef margin = calc("Margin", "field['Net Sales'] * 0.1", true);
+      CalculateRef tax = calc("Tax", "field['Total'] * 0.08", true);
+      when(vs.getCalcField("ORDERS", "Net Sales")).thenReturn(netSales);
+      when(vs.getCalcFields("ORDERS")).thenReturn(new CalculateRef[] { netSales, share, margin, tax });
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+
+      CalcFieldRequest req = new CalcFieldRequest(
+         "ORDERS", null, "Net Sales", null, null, null, null, null, true, false);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> serviceOver(vs, proxy).modify("tok", principal(), req, ""));
+      String msg = thrown.getMessage();
+      assertTrue(msg.contains("'Net Sales'"), msg);
+      assertTrue(msg.contains("'Discount Share'"), msg);
+      assertTrue(msg.contains("'Margin'"), msg);
+      assertFalse(msg.contains("'Tax'"), msg);
+      assertTrue(msg.contains("remove or edit"), msg);
+      verify(proxy, never()).modifyCalculateField(any(), any(), any(), any(), any());
+      verifyNoInteractions(proxy);
+   }
+
+   @Test
+   void removeRefusesWhenADetailCalcFieldReferencesItByFieldAccessor() throws Exception {
+      Viewsheet vs = mock(Viewsheet.class);
+      CalculateRef netSales = calc("Net Sales", "field['Total']", true);
+      CalculateRef margin = calc("Margin", "field['Net Sales'] * 0.1", true);
+      when(vs.getCalcField("ORDERS", "Net Sales")).thenReturn(netSales);
+      when(vs.getCalcFields("ORDERS")).thenReturn(new CalculateRef[] { netSales, margin });
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+
+      CalcFieldRequest req = new CalcFieldRequest(
+         "ORDERS", null, "Net Sales", null, null, null, null, null, true, false);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> serviceOver(vs, proxy).modify("tok", principal(), req, ""));
+      assertTrue(thrown.getMessage().contains("'Margin'"), thrown.getMessage());
+      verifyNoInteractions(proxy);
+   }
+
+   @Test
+   void removeOfAnUnreferencedCalcFieldStillSucceeds() throws Exception {
+      Viewsheet vs = mock(Viewsheet.class);
+      CalculateRef netSales = calc("Net Sales", "field['Total']", true);
+      CalculateRef share = calc("Discount Share", "field['Sum(Net Sales)']", false);
+      CalculateRef tax = calc("Tax", "field['Total'] * 0.08", true);
+      when(vs.getCalcField("ORDERS", "Tax")).thenReturn(tax);
+      when(vs.getCalcFields("ORDERS")).thenReturn(new CalculateRef[] { netSales, share, tax });
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+
+      CalcFieldRequest req = new CalcFieldRequest(
+         "ORDERS", null, "Tax", null, null, null, null, null, true, false);
+
+      serviceOver(vs, proxy).modify("tok", principal(), req, "");
+
+      verify(proxy).modifyCalculateField(eq("rt1"), any(), any(), any(), eq(""));
+   }
+
+   @Test
+   void removeIsNotBlockedBySimilarlyNamedCalcField() throws Exception {
+      Viewsheet vs = mock(Viewsheet.class);
+      CalculateRef netSales = calc("Net Sales", "field['Total']", true);
+      CalculateRef netSales2 = calc("Net Sales 2", "field['Total'] * 2", true);
+      CalculateRef other = calc("Other", "field['Sum(Net Sales 2)']", false);
+      when(vs.getCalcField("ORDERS", "Net Sales")).thenReturn(netSales);
+      when(vs.getCalcFields("ORDERS")).thenReturn(new CalculateRef[] { netSales, netSales2, other });
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+
+      CalcFieldRequest req = new CalcFieldRequest(
+         "ORDERS", null, "Net Sales", null, null, null, null, null, true, false);
+
+      serviceOver(vs, proxy).modify("tok", principal(), req, "");
+
+      verify(proxy).modifyCalculateField(eq("rt1"), any(), any(), any(), eq(""));
+   }
+
    private CalcFieldAgentService serviceOver(Viewsheet vs, ModifyCalculateFieldServiceProxy proxy)
       throws Exception
    {
