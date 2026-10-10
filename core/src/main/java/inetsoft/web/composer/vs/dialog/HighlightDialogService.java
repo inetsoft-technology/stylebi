@@ -675,7 +675,17 @@ public class HighlightDialogService {
          !GraphTypes.isGantt(chartInfo.getChartType())) &&
          (((ChartRef) highlightRef).isMeasure() || geo);
 
-      if(model.isRejectDerivedMeasure() && !infoHL && persistedRef == null) {
+      // A name that matches no design-time field while a date comparison is active is a measure
+      // derived by the comparison (e.g. "Change from previous year of ...: Sum(X)"). It either
+      // resolves to a runtime-only ref or to nothing (then the highlight lands on the chart-level
+      // group); either way it does not survive the comparison changing.
+      boolean derived = model.getMeasure() != null && persistedRef == null &&
+         getMeasure(chartInfo, model.getMeasure(), false, model.isAxis(), model.isText(),
+                    false) == null &&
+         chartInfo.getRuntimeDateComparisonRefs() != null &&
+         chartInfo.getRuntimeDateComparisonRefs().length > 0;
+
+      if(model.isRejectDerivedMeasure() && derived) {
          throw new IllegalArgumentException(
             "'" + model.getMeasure() + "' is a measure derived by the active date comparison " +
             "and has no design-time field behind it, so a highlight set on it would be " +

@@ -375,4 +375,33 @@ class HighlightDialogServiceTest {
       assertDoesNotThrow(() -> HighlightDialogService.applyChartHighlights(
          info, dialogModel(derived.getFullName(), false, "Hot"), CONVERT));
    }
+
+   /**
+    * The live failure: the derived name resolves to no ref at all (not even a runtime one), so
+    * the highlight used to fall through to the chart-level group with no refusal and was lost.
+    * DefaultVSChartInfo is what a real chart uses (MergedVSChartInfo is never instantiated).
+    */
+   @Test
+   void unresolvableDerivedNameWhileComparingIsRefusedOnTheWizPathOnly() throws Exception {
+      VSChartAggregateRef design = chartAggregate("TOTAL");
+      VSChartInfo info = chartWith(design, true);
+      String derived = "Change from previous year of Year(ORDER_DATE): " + design.getFullName();
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> HighlightDialogService.applyChartHighlights(
+            info, dialogModel(derived, true, "Hot"), CONVERT));
+      assertTrue(e.getMessage().contains(derived));
+
+      assertDoesNotThrow(() -> HighlightDialogService.applyChartHighlights(
+         info, dialogModel(derived, false, "Hot"), CONVERT));
+   }
+
+   @Test
+   void unresolvableNameWithNoComparisonActiveIsNotRefused() {
+      VSChartAggregateRef design = chartAggregate("TOTAL");
+      VSChartInfo info = chartWith(design, false);
+
+      assertDoesNotThrow(() -> HighlightDialogService.applyChartHighlights(
+         info, dialogModel("NOT_A_FIELD", true, "Hot"), CONVERT));
+   }
 }
