@@ -413,6 +413,17 @@ public final class ScriptHostAccess {
                   .deny(inetsoft.uql.asset.sync.RenameTransformTask.Remove.class)
                   .deny(inetsoft.uql.asset.sync.LoadDependencyStorageTask.class)
                   .deny(inetsoft.uql.asset.sync.RenameTransformQueue.class)
+                  // Bug #78228: the cluster task families, so a task added under an
+                  // allowed package (e.g. LoadRenameQueueTask, which reloads and replays
+                  // the rename queue) can't be constructed and the members the family
+                  // declares can't be called, not just the leaves named above. This
+                  // doesn't hide an interface method such as Runnable.run on an instance
+                  // a script already holds. KeyValueTask covers every key-value task,
+                  // SingletonTask every singleton-service task. CleanupTableCacheTask is a
+                  // plain Runnable submitted by DistributedTableCacheStore, so it is named
+                  .deny(inetsoft.storage.KeyValueTask.class)
+                  .deny(inetsoft.sree.internal.cluster.SingletonTask.class)
+                  .deny(inetsoft.report.composition.execution.CleanupTableCacheTask.class)
                   // the delete dependency checkers load a stored sheet through
                   // DependencyTool for the entry they are passed. DependencyChecker covers
                   // AssetDependencyChecker and ViewsheetDependencyChecker
