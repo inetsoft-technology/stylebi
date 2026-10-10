@@ -462,7 +462,7 @@ public class TableFilter2 extends AbstractTableLens
     *
     * @param reader the reader, or {@code null} for the copy the cache keeps.
     */
-   public void setReader(Reader reader) {
+   void setReader(Reader reader) {
       this.reader = reader;
 
       if(reader != null && readers != null) {
@@ -876,7 +876,7 @@ public class TableFilter2 extends AbstractTableLens
    /**
     * The reader of a copy of a cached table: its query managers, whose cancels are its own.
     */
-   public static final class Reader {
+   static final class Reader {
       /**
        * Create a reader. Take it before the reader runs or waits for the query, so a cancel of
        * the reader while it does counts as its own.
@@ -885,7 +885,7 @@ public class TableFilter2 extends AbstractTableLens
        *                     before another reader cancelled them (a scheduled run).
        * @param qmgrs        the query managers that cancel the reader, may contain nulls.
        */
-      public Reader(boolean failOnCancel, QueryManager... qmgrs) {
+      Reader(boolean failOnCancel, QueryManager... qmgrs) {
          this.failOnCancel = failOnCancel;
          this.qmgrs = qmgrs;
          this.cancelCounts = new long[qmgrs.length];

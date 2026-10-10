@@ -2675,8 +2675,11 @@ public class SummaryFilter extends AbstractGroupedTable
          Pass pass = this.pass;
          // a cancel after the rows completed is no cancel, as for the other cancellable lenses:
          // a shared cached copy reports a cancelled table as cut short to its other readers
-         // (bug #78200). not in the monitor, which the synchronous process() holds
-         this.cancelled = this.cancelled || pass == null || !pass.completed;
+         // (bug #78200). not in the monitor, which the synchronous process() holds. a pass
+         // that completed because a cancel already ended the rows of its base (the same query
+         // manager cancels the lenses below first) is cut short, so it stays a cancel
+         this.cancelled = this.cancelled || pass == null || !pass.completed ||
+            isBaseCancelled(table);
 
          if(table instanceof CancellableTableLens) {
             ((CancellableTableLens) table).cancel();
@@ -2694,6 +2697,21 @@ public class SummaryFilter extends AbstractGroupedTable
    @Override
    public boolean isCancelled() {
       return cancelled;
+   }
+
+   /**
+    * Check if a lens below this one was cancelled, which ended its rows early.
+    */
+   private static boolean isBaseCancelled(TableLens table) {
+      for(; table != null; table = table instanceof TableFilter ?
+         ((TableFilter) table).getTable() : null)
+      {
+         if(table instanceof CancellableTableLens && ((CancellableTableLens) table).isCancelled()) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    /**

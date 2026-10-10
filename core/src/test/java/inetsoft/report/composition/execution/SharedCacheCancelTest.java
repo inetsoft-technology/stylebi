@@ -47,6 +47,7 @@ import java.lang.ref.WeakReference;
 import java.sql.Connection;
 import java.sql.Statement;
 import java.util.*;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -154,9 +155,11 @@ class SharedCacheCancelTest {
    void cancelWhileTheSecondReaderWaitsTellsIt() throws Exception {
       Shared shared = plain();
       AtomicReference<Object> result = new AtomicReference<>();
+      CountDownLatch started = new CountDownLatch(1);
       Thread reader = new Thread(() -> {
          try {
             CoreTool.clearUserMessage();
+            started.countDown();
             int rows = rows(shared.lens2);
             result.set(new Object[] { rows, CoreTool.getUserMessage() });
          }
@@ -167,8 +170,10 @@ class SharedCacheCancelTest {
       reader.start();
 
       try {
-         // let the reader wait for the rows still loading
-         Thread.sleep(200);
+         // let the reader wait for the rows still loading: it runs, and the first rows of
+         // the PFULL the table loads arrived
+         assertTrue(started.await(1, TimeUnit.MINUTES), "the reader never started");
+         shared.x1.moreRows(PROWS);
          shared.box1.getQueryManager().cancel();
       }
       finally {
@@ -379,9 +384,11 @@ class SharedCacheCancelTest {
       assertNotNull(x1, chain(lens1));
 
       AtomicReference<Object> result = new AtomicReference<>();
+      CountDownLatch started = new CountDownLatch(1);
       Thread reader = new Thread(() -> {
          try {
             CoreTool.clearUserMessage();
+            started.countDown();
             int rows = rows(lens1);
             result.set(new Object[] { rows, CoreTool.getUserMessage() });
          }
@@ -392,8 +399,10 @@ class SharedCacheCancelTest {
       reader.start();
 
       try {
-         // let the aggregate start on the rows still loading
-         Thread.sleep(300);
+         // cancel while the base is loading, with no assumption on how long it takes: the
+         // reader runs and the first rows arrived, of the PFULL the base loads
+         assertTrue(started.await(1, TimeUnit.MINUTES), "the reader never started");
+         x1.moreRows(PROWS);
          // otherwise the test proves nothing
          assertTrue(x1.getRowCount() < 0, "the base loaded before the cancel");
          box1.getQueryManager().cancel();
