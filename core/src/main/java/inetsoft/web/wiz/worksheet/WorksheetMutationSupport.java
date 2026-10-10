@@ -3930,6 +3930,53 @@ public final class WorksheetMutationSupport {
    }
 
    /**
+    * Bug #78276: whether {@code field} is an aggregate OUTPUT alias that {@code set_group_aggregate}
+    * recorded on {@code t} (see {@link #AGGREGATE_OUTPUT_ALIASES}). Such a name does not exist
+    * before aggregation, yet the private-selection alias scan in {@link #resolveFieldOrNull} would
+    * resolve it to the aggregated input column, silently turning a pre-aggregate condition on
+    * {@code CNT} into a WHERE on the raw column. Tables without the property (aggregated by other
+    * means) are never reported, so their behavior is unchanged.
+    */
+   static boolean isAggregateOutputAlias(TableAssembly t, String field) {
+      String recorded = t.getProperty(AGGREGATE_OUTPUT_ALIASES);
+      AggregateInfo info = t.getAggregateInfo();
+
+      if(field == null || recorded == null || recorded.isEmpty() || info == null ||
+         info.isEmpty())
+      {
+         return false;
+      }
+
+      return Arrays.asList(recorded.split("\n", -1)).contains(field);
+   }
+
+   /**
+    * Bug #78276: replaces {@code oldName} with {@code newName} in the recorded aggregate output
+    * aliases, so a {@code rename_column} on an aliased aggregate column keeps the guard accurate.
+    */
+   static void renameAggregateOutputAlias(TableAssembly t, String oldName, String newName) {
+      String recorded = t.getProperty(AGGREGATE_OUTPUT_ALIASES);
+
+      if(recorded == null || recorded.isEmpty()) {
+         return;
+      }
+
+      String[] parts = recorded.split("\n", -1);
+      boolean changed = false;
+
+      for(int i = 0; i < parts.length; i++) {
+         if(parts[i].equals(oldName)) {
+            parts[i] = newName;
+            changed = true;
+         }
+      }
+
+      if(changed) {
+         t.setProperty(AGGREGATE_OUTPUT_ALIASES, String.join("\n", parts));
+      }
+   }
+
+   /**
     * Returns {@code true} if {@code field} resolves to a real column, alias, aggregate ref, or
     * group ref on {@code t} -- i.e. {@link #resolveField} would return something other than its
     * unresolvable {@code new AttributeRef(null, field)} fallback.
