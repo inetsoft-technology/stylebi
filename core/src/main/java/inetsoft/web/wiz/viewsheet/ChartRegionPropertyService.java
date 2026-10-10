@@ -89,6 +89,11 @@ public class ChartRegionPropertyService {
       String name = requireRegion(region);
       String key = requireTarget(target, name);
       requireExistingTarget(sessionToken, user, assembly, name, key);
+
+      if("axis".equals(name)) {
+         requireUnambiguousAxis(sessionToken, user, assembly, key, field);
+      }
+
       Object model = readModel(sessionToken, user, assembly, name, key, field);
       Map<String, String> aliases = aliasesFor(name);
       List<Map<String, Object>> properties = new ArrayList<>();
@@ -143,7 +148,12 @@ public class ChartRegionPropertyService {
       properties = normalizeToAliasKeys(name, properties);
 
       if("axis".equals(name)) {
+         // First, so a mixed or multi-dimension shelf gets the "pass field" message rather than a
+         // misleading linear/non-linear one (bug #78187).
+         requireUnambiguousAxis(sessionToken, user, assembly, key, field);
          requireLinearAxisForLinearOnlyKeys(sessionToken, user, assembly, key, field, properties);
+         requireNonLinearAxisForNonLinearOnlyKeys(
+            sessionToken, user, assembly, key, field, properties);
          requireLinearOrTimeSeriesAxisForIncrement(
             sessionToken, user, assembly, key, field, properties);
       }
@@ -279,6 +289,84 @@ public class ChartRegionPropertyService {
             + " on this chart is bound to a dimension, not a measure, so these would be " +
             "silently ignored — or, on some chart types, corrupt the render instead of being " +
             "ignored. Omit them for a dimension axis.");
+      }
+   }
+
+   /** Axis properties that only mean something on a non-linear (dimension) axis. */
+   private static final Set<String> NON_LINEAR_ONLY_AXIS_KEYS = Set.of("ignoreNull", "truncate");
+
+   /**
+    * Refuses {@code ignoreNull}/{@code truncate} on a linear (measure) axis (bug #78187).
+    * {@code AxisPropertyDialogModel} only reads and writes them when the axis is not linear, and
+    * the Composer UI does not offer them there, so on a measure axis they were accepted and
+    * silently dropped -- the mirror image of {@link #requireLinearAxisForLinearOnlyKeys}.
+    *
+    * <p>A discrete measure ({@code ChartAggregateRef.isDiscrete()}) is deliberately not refused:
+    * it is mapped to a dimension-like column, so its axis is expected to be categorical and the
+    * UI shows these controls for it. That was not traced through scale creation, so the refusal
+    * is simply not widened to it.
+    */
+   private void requireNonLinearAxisForNonLinearOnlyKeys(
+      String sessionToken, Principal user, String assembly, String axisTarget, String field,
+      Map<String, Object> properties)
+      throws Exception
+   {
+      Set<String> requested = new TreeSet<>(properties.keySet());
+      requested.retainAll(NON_LINEAR_ONLY_AXIS_KEYS);
+
+      if(requested.isEmpty()) {
+         return;
+      }
+
+      AxisKind kind = computeTrueAxisKind(sessionToken, user, assembly, axisTarget, field);
+
+      if(kind.linear() &&
+         !(kind.matchedRef() instanceof ChartAggregateRef aggregate && aggregate.isDiscrete()))
+      {
+         throw new IllegalArgumentException(
+            "'" + String.join("', '", requested) + "' only apply to a dimension axis. " +
+            "'" + axisTarget + "'" + (field != null && !field.isBlank() ? " ('" + field + "')" : "")
+            + " on this chart is bound to a measure, so these would be silently ignored. " +
+            "Omit them for a measure axis.");
+      }
+   }
+
+   /**
+    * Refuses an axis read or write with a blank {@code field} when the shelf carries more than
+    * one field and at least one is not a measure (bug #78187). Read and write both resolve a
+    * blank-field axis by on-screen area index 0, so which dimension's descriptor is meant is
+    * undecidable here; worse, the write sends the whole pane back, so the gated defaults that were
+    * never loaded for the wrong axis kind reset the real descriptor (e.g. {@code truncate}
+    * true to false). All-measure shelves (y with y2, or several measures) share one descriptor and
+    * stay allowed. With {@code field} given the backfill and write use the same descriptor, so
+    * nothing is refused.
+    */
+   private void requireUnambiguousAxis(String sessionToken, Principal user, String assembly,
+                                       String axisTarget, String field)
+      throws Exception
+   {
+      if(field != null && !field.isBlank()) {
+         return;
+      }
+
+      List<String> names = sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         VSChartInfo info = ChartRegionResolver.requireChart(rvs, assembly).getVSChartInfo();
+         String canonical = ChartRegionResolver.canonical(axisTarget);
+         boolean onYShelf = "y".equals(canonical) || "y2".equals(canonical);
+         ChartRef[] refs = onYShelf ? info.getYFields() : info.getXFields();
+
+         if(refs.length < 2 || Arrays.stream(refs).allMatch(r -> r instanceof ChartAggregateRef)) {
+            return List.<String>of();
+         }
+
+         return Arrays.stream(refs).map(ChartRef::getFullName).toList();
+      });
+
+      if(!names.isEmpty()) {
+         throw new IllegalArgumentException(
+            "Axis '" + axisTarget + "' is ambiguous: its shelf has several fields (" +
+            String.join(", ", names) + ") and no 'field' was given, so it is undefined which " +
+            "one's axis is meant. Pass 'field' with the full name of one of them.");
       }
    }
 

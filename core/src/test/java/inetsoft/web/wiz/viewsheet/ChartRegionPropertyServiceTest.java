@@ -254,17 +254,69 @@ class ChartRegionPropertyServiceTest {
    }
 
    /**
-    * The companion negative case: when the shelf has more than one field of this axis type and no
-    * {@code field} was given to disambiguate, there is no reliable column name to backfill from --
-    * the model still gets its `linear` flag corrected (so a subsequent write is not silently
-    * dropped), but the pane's stale default is left alone rather than guessed at.
+    * Bug #78187: a blank {@code field} on a shelf with more than one field of the axis type used
+    * to skip the backfill and write the model's never-loaded defaults back (resetting
+    * {@code truncate}). The corrected {@code linear} flag does NOT protect the write: it routes
+    * the unloaded default of the other gated key into the same write branch. Both read and write
+    * are now refused, naming the candidates.
     */
    @Test
-   void skipsTheBackfillWhenTheShelfIsAmbiguousWithNoFieldGiven() throws Exception {
+   void refusesAnAxisReadOrWriteWhenTheShelfIsAmbiguousWithNoFieldGiven() {
       VSChartDimensionRef dimensionOne = mock(VSChartDimensionRef.class);
       when(dimensionOne.getFullName()).thenReturn("STATE");
       VSChartDimensionRef dimensionTwo = mock(VSChartDimensionRef.class);
       when(dimensionTwo.getFullName()).thenReturn("REGION");
+
+      Harness h = harness(mixedShelfViewsheet(new ChartRef[] { dimensionOne, dimensionTwo }));
+
+      Exception listed = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.list("tok", principal(), "Chart1", "axis", "x", null));
+      Exception written = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", "x", null,
+                             Map.of("ignoreNull", true), ""));
+
+      for(Exception e : new Exception[] { listed, written }) {
+         assertTrue(e.getMessage().contains("STATE"));
+         assertTrue(e.getMessage().contains("REGION"));
+         assertTrue(e.getMessage().contains("field"));
+      }
+
+      verifyNoInteractions(h.regions);
+   }
+
+   /** Gap A: a mixed dimension + measure shelf is ambiguous too, for any key. */
+   @Test
+   void refusesABlankFieldWriteOnAMixedDimensionAndMeasureShelf() {
+      VSChartDimensionRef dimension = mock(VSChartDimensionRef.class);
+      when(dimension.getFullName()).thenReturn("Category");
+      VSChartAggregateRef measure = mock(VSChartAggregateRef.class);
+      when(measure.isSecondaryY()).thenReturn(false);
+      when(measure.getFullName()).thenReturn("Sum(Total)");
+
+      Harness h = harness(mixedShelfViewsheet(new ChartRef[] { dimension, measure }));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", "x", null,
+                             Map.of("showAxisLine", false), ""));
+
+      assertTrue(thrown.getMessage().contains("Category"));
+      assertTrue(thrown.getMessage().contains("Sum(Total)"));
+      verifyNoInteractions(h.regions);
+   }
+
+   /** Two dimensions are fine once 'field' says which axis is meant. */
+   @Test
+   void acceptsATwoDimensionShelfWriteWhenFieldIsGiven() throws Exception {
+      VSChartDimensionRef dimensionOne = mock(VSChartDimensionRef.class);
+      when(dimensionOne.getFullName()).thenReturn("STATE");
+      when(dimensionOne.getName()).thenReturn("STATE");
+      VSChartDimensionRef dimensionTwo = mock(VSChartDimensionRef.class);
+      when(dimensionTwo.getFullName()).thenReturn("REGION");
+      when(dimensionTwo.getName()).thenReturn("REGION");
+      when(dimensionTwo.getAxisDescriptor()).thenReturn(mock(AxisDescriptor.class));
 
       Harness h = harness(mixedShelfViewsheet(new ChartRef[] { dimensionOne, dimensionTwo }));
       AxisPropertyDialogModel model = axisModel();
@@ -273,21 +325,108 @@ class ChartRegionPropertyServiceTest {
                                                 any(), anyString(), any(Principal.class)))
          .thenReturn(model);
 
-      Map<String, Object> listed = h.service.list("tok", principal(), "Chart1", "axis", "x", null);
+      h.service.set("tok", principal(), "Chart1", "axis", "x", "REGION",
+                    Map.of("ignoreNull", true), "");
 
-      @SuppressWarnings("unchecked")
-      List<Map<String, Object>> props = (List<Map<String, Object>>) listed.get("properties");
-      Object ignoreNull = props.stream()
-         .filter(p -> "ignoreNull".equals(p.get("name")))
-         .findFirst()
-         .map(p -> p.get("value"))
-         .orElse(null);
+      verify(h.regions).setAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyInt(),
+                                                   any(), any(), anyString(), any(Principal.class),
+                                                   any());
+   }
 
-      // Not backfilled (ambiguous, no field) -- but this must not throw, and the (still
-      // corrected) linear flag still protects a subsequent write from being silently dropped.
-      assertEquals(false, ignoreNull);
-      verifyNoInteractions(dimensionOne);
-      verifyNoInteractions(dimensionTwo);
+   /** All-measure shelves share one descriptor, so a blank field stays allowed. */
+   @Test
+   void acceptsABlankFieldWriteOnAnAllMeasureShelf() throws Exception {
+      Harness h = harness();
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(axisModel());
+
+      h.service.set("tok", principal(), "Chart1", "axis", "y", null,
+                    Map.of("showAxisLine", false), "");
+
+      verify(h.regions).setAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyInt(),
+                                                   any(), any(), anyString(), any(Principal.class),
+                                                   any());
+   }
+
+   /** Bug #78187 S2: ignoreNull/truncate do nothing on a measure axis, so refuse them there. */
+   @Test
+   void refusesIgnoreNullAndTruncateOnAMeasureAxis() {
+      Harness h = harness();
+
+      for(String key : new String[] { "ignoreNull", "truncate" }) {
+         Exception thrown = assertThrows(
+            IllegalArgumentException.class,
+            () -> h.service.set("tok", principal(), "Chart1", "axis", "y", null,
+                                Map.of(key, true), ""));
+
+         assertTrue(thrown.getMessage().contains(key));
+         assertTrue(thrown.getMessage().contains("dimension axis"));
+      }
+
+      verifyNoInteractions(h.regions);
+   }
+
+   /** The control: a single dimension axis with no field still accepts both keys. */
+   @Test
+   void acceptsIgnoreNullAndTruncateOnASingleDimensionAxis() throws Exception {
+      Harness h = harness();
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(axisModel());
+
+      h.service.set("tok", principal(), "Chart1", "axis", "x", null,
+                    Map.of("ignoreNull", true, "truncate", true), "");
+
+      verify(h.regions).setAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyInt(),
+                                                   any(), any(), anyString(), any(Principal.class),
+                                                   any());
+   }
+
+   /** A time-series date dimension axis is non-linear, so the new guard must not refuse it. */
+   @Test
+   void acceptsTruncateOnATimeSeriesDateDimensionAxis() throws Exception {
+      VSChartDimensionRef dateDimension = mock(VSChartDimensionRef.class);
+      when(dateDimension.getFullName()).thenReturn("Year(ORDER_DATE)");
+      when(dateDimension.getName()).thenReturn("ORDER_DATE");
+      when(dateDimension.isTimeSeries()).thenReturn(true);
+
+      Harness h = harness(mixedShelfViewsheet(new ChartRef[] { dateDimension }));
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(axisModel());
+
+      h.service.set("tok", principal(), "Chart1", "axis", "x", null,
+                    Map.of("truncate", true), "");
+
+      verify(h.regions).setAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyInt(),
+                                                   any(), any(), anyString(), any(Principal.class),
+                                                   any());
+   }
+
+   /**
+    * A discrete measure is mapped to a dimension-like column, so its axis is expected to be
+    * categorical; the refusal must not widen to it (not traced through scale creation).
+    */
+   @Test
+   void doesNotRefuseTruncateOnADiscreteMeasureAxis() throws Exception {
+      VSChartAggregateRef discrete = mock(VSChartAggregateRef.class);
+      when(discrete.isSecondaryY()).thenReturn(false);
+      when(discrete.isDiscrete()).thenReturn(true);
+      when(discrete.getFullName()).thenReturn("Sum(Qty)");
+      when(discrete.getAxisDescriptor()).thenReturn(mock(AxisDescriptor.class));
+
+      Harness h = harness(mixedShelfViewsheet(new ChartRef[] { discrete }));
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(axisModel());
+
+      h.service.set("tok", principal(), "Chart1", "axis", "x", null,
+                    Map.of("truncate", true), "");
+
+      verify(h.regions).setAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyInt(),
+                                                   any(), any(), anyString(), any(Principal.class),
+                                                   any());
    }
 
    /**
