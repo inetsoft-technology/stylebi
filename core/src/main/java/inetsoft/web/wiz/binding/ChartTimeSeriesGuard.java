@@ -246,6 +246,11 @@ final class ChartTimeSeriesGuard {
 
    // ── placement ────────────────────────────────────────────────────────────────────────────
 
+   // ChartRef.isMeasure() on the server: a discrete aggregate is not a measure and keeps its place
+   private static boolean isMeasure(ChartRefModel ref) {
+      return ref instanceof ChartAggregateRefModel a && !a.isDiscrete();
+   }
+
    /**
     * {@code isOuterDimRef()}: scans the shelf's leading run of dimensions; the dimension at
     * {@code index} is outer iff it is in that run and is not the shelf's last field. On y, stock
@@ -254,11 +259,6 @@ final class ChartTimeSeriesGuard {
     * because the x write may follow this one (A4), while {@code isEffective} runs strict as the
     * current state is final. Shelves are normalized to the stored (dimensions-first) order before this scan.
     */
-   // ChartRef.isMeasure() on the server: a discrete aggregate is not a measure and keeps its place
-   private static boolean isMeasure(ChartRefModel ref) {
-      return ref instanceof ChartAggregateRefModel a && !a.isDiscrete();
-   }
-
    private static boolean isOuter(List<ChartRefModel> sent, int sentIndex,
                                   ChartDimensionRefModel dim, boolean y,
                                   ChartBindingModel model, boolean strict)
