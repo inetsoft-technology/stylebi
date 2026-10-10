@@ -50,6 +50,7 @@ import java.lang.ref.WeakReference;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
 
@@ -1685,7 +1686,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
    public void addFolder(AssetEntry entry, Principal user)
       throws Exception
    {
-      writeLock.lock();
+      lockWrite();
 
       try {
          String identifier = entry.toIdentifier();
@@ -1741,8 +1742,12 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
             // @by jasonshobe, try to create the new folder before adding it to
             // the parent so that if an exception occurs while creating the new
             // folder, the parent is not modified.
-            AssetFolder folder = new AssetFolder();
-            storage.putXMLSerializable(identifier, folder);
+            // Bug #78230, a caller checks that the folder doesn't exist before it calls this
+            // without a lock (e.g. the Recycle Bin of concurrent deletes), so a folder that is
+            // already stored is kept rather than replaced by an empty one
+            if(!(getStoredFolder(entry, storage) instanceof AssetFolder)) {
+               storage.putXMLSerializable(identifier, new AssetFolder());
+            }
 
             long time = System.currentTimeMillis();
 
@@ -1759,7 +1764,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          }
       }
       finally {
-         writeLock.unlock();
+         unlockWrite();
       }
    }
 
@@ -1832,7 +1837,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
                             Principal user, boolean force, boolean callFireEvent)
    throws Exception
    {
-      writeLock.lock();
+      lockWrite();
 
       try {
          if(!oentry.isFolder() || !supportsScope(oentry.getScope()) ||
@@ -1905,7 +1910,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          }
       }
       finally {
-         writeLock.unlock();
+         unlockWrite();
       }
    }
 
@@ -2373,7 +2378,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
    public void removeFolder(AssetEntry entry, Principal user, boolean force)
       throws Exception
    {
-      writeLock.lock();
+      lockWrite();
 
       try {
          if(!entry.isFolder() || !supportsScope(entry.getScope()) ||
@@ -2405,7 +2410,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          }
       }
       finally {
-         writeLock.unlock();
+         unlockWrite();
       }
    }
 
@@ -2790,7 +2795,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
                         boolean checkDependency, boolean updateDependency, boolean checkCrossJoins)
       throws Exception
    {
-      writeLock.lock();
+      lockWrite();
 
       try {
          String identifier = entry.toIdentifier();
@@ -3126,7 +3131,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          }
       }
       finally {
-         writeLock.unlock();
+         unlockWrite();
       }
    }
 
@@ -3209,7 +3214,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
                            boolean ignorePermissions)
       throws Exception
    {
-      writeLock.lock();
+      lockWrite();
 
       try {
          if(!oentry.isSheet() || !supportsScope(oentry.getScope()) ||
@@ -3278,7 +3283,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          }
       }
       finally {
-         writeLock.unlock();
+         unlockWrite();
       }
    }
 
@@ -3500,7 +3505,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
     */
    @Override
    public void removeSheet(AssetEntry entry, Principal user, boolean force) throws Exception {
-      writeLock.lock();
+      lockWrite();
 
       try {
          if(!entry.isSheet() || !supportsScope(entry.getScope()) ||
@@ -3539,7 +3544,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          }
       }
       finally {
-         writeLock.unlock();
+         unlockWrite();
       }
    }
 
@@ -3650,6 +3655,25 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
       }
 
       return folder;
+   }
+
+   /**
+    * Gets the stored content of a folder, or null if it isn't stored or can't be parsed.
+    */
+   private Object getStoredFolder(AssetEntry entry, IndexedStorage storage) {
+      String identifier = entry.toIdentifier();
+
+      if(isMetadataAware(storage)) {
+         return ((MetadataAwareStorage) storage).getAssetFolder(identifier);
+      }
+
+      try {
+         return storage.getXMLSerializable(identifier, null, entry.getOrgID());
+      }
+      catch(Throwable ex) {
+         LOG.debug("Unable to parse folder " + entry, ex);
+         return null;
+      }
    }
 
    /**
@@ -4467,18 +4491,25 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          return;
       }
 
-      AssetEntry oentry = new AssetEntry(AssetRepository.USER_SCOPE,
-         AssetEntry.Type.FOLDER, "/", oname);
-      AssetEntry nentry = new AssetEntry(AssetRepository.USER_SCOPE,
-         AssetEntry.Type.FOLDER, "/", nname);
-      IndexedStorage ostorage = getStorage(oentry);
-      IndexedStorage nstorage = getStorage(nentry);
-      changeFolder0(oentry, ostorage, nentry, nstorage, true);
+      lockWrite();
 
-      AssetEntry entry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
-         AssetEntry.Type.REPOSITORY_FOLDER, "/", oname);
-      IndexedStorage storage = getStorage(entry);
-      renameUserBookmarks(entry, storage, oname, nname);
+      try {
+         AssetEntry oentry = new AssetEntry(AssetRepository.USER_SCOPE,
+            AssetEntry.Type.FOLDER, "/", oname);
+         AssetEntry nentry = new AssetEntry(AssetRepository.USER_SCOPE,
+            AssetEntry.Type.FOLDER, "/", nname);
+         IndexedStorage ostorage = getStorage(oentry);
+         IndexedStorage nstorage = getStorage(nentry);
+         changeFolder0(oentry, ostorage, nentry, nstorage, true);
+
+         AssetEntry entry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+            AssetEntry.Type.REPOSITORY_FOLDER, "/", oname);
+         IndexedStorage storage = getStorage(entry);
+         renameUserBookmarks(entry, storage, oname, nname);
+      }
+      finally {
+         unlockWrite();
+      }
    }
 
    /**
@@ -4520,11 +4551,18 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
     */
    @Override
    public void removeUser(IdentityID identityID) throws Exception {
-      AssetEntry entry = new AssetEntry(AssetRepository.USER_SCOPE,
-         AssetEntry.Type.FOLDER, "/", identityID);
-      IndexedStorage storage = getStorage(entry);
+      lockWrite();
 
-      removeFolder0(entry, storage, true);
+      try {
+         AssetEntry entry = new AssetEntry(AssetRepository.USER_SCOPE,
+            AssetEntry.Type.FOLDER, "/", identityID);
+         IndexedStorage storage = getStorage(entry);
+
+         removeFolder0(entry, storage, true);
+      }
+      finally {
+         unlockWrite();
+      }
    }
 
    /**
@@ -5027,6 +5065,50 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
       }
    }
 
+   /**
+    * Locks the asset folders for a change. Bug #78230, a folder is read, changed and written back
+    * as a whole, and each cluster node has its own engine and write lock, so the changes are also
+    * serialized across the cluster or a node writing a folder drops another node's change to it.
+    * The cluster lock is taken only here, right after the write lock, so the lock order is always
+    * write lock -> cluster lock. Both locks are reentrant.
+    */
+   protected final void lockWrite() {
+      writeLock.lock();
+
+      try {
+         Lock lock = getFolderLock();
+
+         if(lock != null) {
+            lock.lock();
+         }
+      }
+      catch(RuntimeException | Error e) {
+         writeLock.unlock();
+         throw e;
+      }
+   }
+
+   /**
+    * Unlocks the asset folders locked by {@link #lockWrite()}.
+    */
+   protected final void unlockWrite() {
+      try {
+         Lock lock = getFolderLock();
+
+         if(lock != null) {
+            lock.unlock();
+         }
+      }
+      finally {
+         writeLock.unlock();
+      }
+   }
+
+   // an engine created without a cluster (tests) is only locked in its own JVM
+   private Lock getFolderLock() {
+      return cluster == null ? null : cluster.getLock(FOLDER_LOCK);
+   }
+
    public static final ThreadLocal<String> LOCAL = new ThreadLocal<>();
    private static final ThreadLocal<Boolean> PORTAL_DATA_LISTING =
       ThreadLocal.withInitial(() -> Boolean.FALSE);
@@ -5047,6 +5129,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
    private long lastMod = 0;
    private static final String TABLE_STYLE = "Table Styles";
    private static final String SCRIPT = "Scripts";
+   private static final String FOLDER_LOCK = AbstractAssetEngine.class.getName() + ".folders";
 
    private final ReentrantLock writeLock = new ReentrantLock();
    private final AtomicBoolean disposed = new AtomicBoolean(false);
