@@ -20,7 +20,10 @@ package inetsoft.web.wiz.viewsheet;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
-import inetsoft.uql.viewsheet.internal.RangeOutputVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.OutputVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
 import inetsoft.web.adhoc.model.FontInfo;
 import inetsoft.web.wiz.binding.VisualFrameAliases;
 import inetsoft.web.composer.model.vs.HighlightDialogModel;
@@ -130,6 +133,7 @@ public class AssemblyHighlightService {
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          requireHighlightRenderable(rvs, assemblyName);
+         requireAxisColName(rvs, assemblyName, region);
          HighlightDialogModel model = read(runtimeId, assemblyName, region, user);
 
          if(model == null) {
@@ -436,20 +440,24 @@ public class AssemblyHighlightService {
    }
 
    /**
-    * Refuses a highlight on a range output (Gauge, Cylinder, Thermometer, SlidingScale).
+    * Refuses a highlight on an output assembly that is not a Text or Image (Submit, Gauge,
+    * Cylinder, Thermometer, SlidingScale).
     *
     * <p>{@code HighlightDialogService} accepts every {@code OutputVSAssemblyInfo}, but an output's
     * highlight colour/font is only ever applied for Text and Image ({@code VSFormatModel},
-    * {@code VSImage}); a range output is painted without it. The Composer offers no Highlight
+    * {@code VSImage}); every other output is painted without it. The Composer offers no Highlight
     * action for these types either. Without this the write reported success, read back correctly
-    * via list_highlights, and never rendered.
+    * via list_highlights, and never rendered. An allow-list, so a future output type is refused
+    * until it renders highlights. Only {@code set} calls it, so a stray highlight already stored
+    * on such an assembly can still be listed and deleted.
     */
    private static void requireHighlightRenderable(RuntimeViewsheet rvs, String assemblyName) {
       Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
       VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
 
       if(assembly == null ||
-         !(assembly.getVSAssemblyInfo() instanceof RangeOutputVSAssemblyInfo info))
+         !(assembly.getVSAssemblyInfo() instanceof OutputVSAssemblyInfo info) ||
+         info instanceof TextVSAssemblyInfo || info instanceof ImageVSAssemblyInfo)
       {
          return;
       }
@@ -459,9 +467,38 @@ public class AssemblyHighlightService {
       throw new IllegalArgumentException(
          "'" + assemblyName + "' is a " + type + ", which does not render highlights -- only " +
          "Text and Image outputs apply a highlight's colour or font, and the Composer offers no " +
-         "Highlight for this type. Use its range colour properties (rangeValues/" +
-         "rangeColorValues) for a similar effect, or highlight a Text, Table, Crosstab or Chart " +
-         "instead.");
+         "Highlight for this type. Highlight a Text, Image, Table, Crosstab or Chart instead " +
+         "(a Gauge-family assembly also has rangeValues/rangeColorValues for a similar effect).");
+   }
+
+   /**
+    * Refuses {@code axis:true} on a chart with no {@code colName}.
+    *
+    * <p>{@code axis} only chooses which field's axis {@code HighlightDialogService.getMeasure}
+    * looks up, and that lookup returns null before reading it when there is no name. The flag was
+    * silently dropped and the highlight stored on the whole-chart group, which is not an axis
+    * highlight. The Composer always sends the axis field's name for an axis highlight. Only
+    * {@code set} calls it, so one already stored that way can still be listed and deleted.
+    */
+   private static void requireAxisColName(RuntimeViewsheet rvs, String assemblyName,
+                                          Region region)
+   {
+      if(region == null || !region.axis() ||
+         (region.colName() != null && !region.colName().isBlank()))
+      {
+         return;
+      }
+
+      Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+      VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
+
+      if(assembly != null && assembly.getVSAssemblyInfo() instanceof ChartVSAssemblyInfo) {
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "': axis:true needs a 'colName'. 'axis' only chooses which " +
+            "field's axis the highlight attaches to; without a colName it is ignored and the " +
+            "highlight lands on the whole chart instead. Pass 'colName' naming the axis field, " +
+            "as get_binding reports it.");
+      }
    }
 
    /**
