@@ -66,6 +66,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Applies structural edits by delegating to the Composer's own services.
@@ -104,16 +105,23 @@ public class ViewsheetEditService {
       "group_as_selection_container", "ungroup", "move_from_container", "align", "distribute",
       "refresh", "refresh_viewsheet");
 
-   public void apply(String sessionToken, Principal user, EditRequest request, String linkUri)
+   /**
+    * @return the final name of the assembly created by op {@code add} (the generated name when no
+    *         {@code assembly} was requested), {@code null} for every other op.
+    */
+   public String apply(String sessionToken, Principal user, EditRequest request, String linkUri)
       throws Exception
    {
       String op = request.op() == null ? "" : request.op().trim().toLowerCase();
+
+      if("add".equals(op)) {
+         return add(sessionToken, user, request, linkUri);
+      }
 
       switch(op) {
       case "move" -> move(sessionToken, user, request, linkUri);
       case "resize" -> resize(sessionToken, user, request, linkUri);
       case "resize_title" -> resizeTitle(sessionToken, user, request, linkUri);
-      case "add" -> add(sessionToken, user, request, linkUri);
       case "remove" -> remove(sessionToken, user, request, linkUri);
       case "rename" -> rename(sessionToken, user, request, linkUri);
       case "copy", "cut" -> copyOrCut(sessionToken, user, request, linkUri, "cut".equals(op));
@@ -133,6 +141,8 @@ public class ViewsheetEditService {
       default -> throw new IllegalArgumentException(
          "Unknown edit op '" + request.op() + "'. Supported ops: " + String.join(", ", OPS) + ".");
       }
+
+      return null;
    }
 
    private void move(String sessionToken, Principal user, EditRequest request, String linkUri)
@@ -260,7 +270,7 @@ public class ViewsheetEditService {
       });
    }
 
-   private void add(String sessionToken, Principal user, EditRequest request, String linkUri)
+   private String add(String sessionToken, Principal user, EditRequest request, String linkUri)
       throws Exception
    {
       if(request.type() == null) {
@@ -277,6 +287,8 @@ public class ViewsheetEditService {
          requireValues(request.op(), "width", request.width(), "height", request.height());
          requirePositive(request.op(), "width", request.width(), "height", request.height());
       }
+
+      AtomicReference<String> created = new AtomicReference<>();
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          // Checked before addNewObject: a colliding name would otherwise leave an orphan
@@ -341,6 +353,8 @@ public class ViewsheetEditService {
             }
          }
 
+         created.set(name);
+
          if(resizeRequested) {
             ResizeVSObjectEvent resize = new ResizeVSObjectEvent();
             resize.setName(name);
@@ -354,6 +368,8 @@ public class ViewsheetEditService {
             objects.resizeObject(runtimeId, resize, user, dispatcher, linkUri);
          }
       });
+
+      return created.get();
    }
 
    /**

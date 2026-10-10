@@ -336,14 +336,18 @@ public class ViewsheetAssemblyAgentController {
    }
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/edit")
-   public void edit(@PathVariable String sessionToken,
-                    @RequestBody EditRequest request,
-                    @RequestParam(required = false, defaultValue = "") String linkUri,
-                    Principal user)
+   public Map<String, String> edit(@PathVariable String sessionToken,
+                                   @RequestBody EditRequest request,
+                                   @RequestParam(required = false, defaultValue = "")
+                                      String linkUri,
+                                   Principal user)
       throws Exception
    {
       requireEnabled();
-      editService.apply(sessionToken, user, request, linkUri);
+      String assembly = editService.apply(sessionToken, user, request, linkUri);
+
+      // Only op:add yields a name; null body (empty 200) for every other op, as before.
+      return assembly == null ? null : Map.of("assembly", assembly);
    }
 
    /**

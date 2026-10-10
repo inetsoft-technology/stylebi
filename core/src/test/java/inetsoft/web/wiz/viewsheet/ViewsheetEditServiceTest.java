@@ -506,7 +506,7 @@ class ViewsheetEditServiceTest {
       EditRequest request = new EditRequest("add", "MyEmbed", 40, 60, 400, 300, null, null,
                                             null, null, null, null, 200, null,
                                             "Sample Dashboards/Sales Summary", null);
-      service.apply("tok", principal(), request, "");
+      assertEquals("MyEmbed", service.apply("tok", principal(), request, ""));
 
       verify(propertyService).editObjectProperty(eq(rvs), eq(info), eq("Viewsheet1"),
                                                  eq("MyEmbed"), anyString(), any(Principal.class),
@@ -518,6 +518,37 @@ class ViewsheetEditServiceTest {
       assertEquals("MyEmbed", resize.getValue().getName());
       assertEquals(400, resize.getValue().getWidth());
       assertEquals(300, resize.getValue().getHeight());
+   }
+
+   /** Bug #78192 r1: with no 'assembly' requested, add reports the generated embed name. */
+   @Test
+   void addViewsheetTypeReportsTheGeneratedNameWhenNoneIsRequested() throws Exception {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      VSAssembly embedded = mock(VSAssembly.class);
+      java.util.concurrent.atomic.AtomicBoolean added =
+         new java.util.concurrent.atomic.AtomicBoolean();
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(vs.getAssembly("Viewsheet1")).thenAnswer(i -> added.get() ? embedded : null);
+      when(objects.addNewObject(eq("rt1"), any(), any(Principal.class), any(), anyString()))
+         .thenAnswer(i -> {
+            added.set(true);
+            return null;
+         });
+      AssetRepository rep = mock(AssetRepository.class);
+      when(rvs.getAssetRepository()).thenReturn(rep);
+      when(rep.getSheet(any(AssetEntry.class), any(Principal.class), eq(true),
+                        eq(AssetContent.ALL), eq(false)))
+         .thenReturn(mock(Viewsheet.class));
+      ViewsheetEditService service = serviceWithRuntime(rvs, mock(ViewsheetReadService.class),
+         objects, mock(VSObjectPropertyService.class));
+
+      EditRequest request = new EditRequest("add", null, 40, 60, null, null, null, null,
+                                            null, null, null, null, 200, null,
+                                            "Sample Dashboards/Sales Summary", null);
+
+      assertEquals("Viewsheet1", service.apply("tok", principal(), request, ""));
    }
 
    @Test
