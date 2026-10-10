@@ -171,6 +171,25 @@ class ScriptDataSourceAccessProxyTest {
       assertEquals(1, refusals(() -> run(script, outsider)), "a user without read");
    }
 
+   // the entity and attribute listings read the data model through the same proxy: a refused
+   // lookup leaves them empty, and the script gets no error
+   @Test void aScriptsOwnEntityAndAttributeListingsThroughTheProxyNeedRead() throws Exception {
+      String xutil = "Java.type('inetsoft.uql.util.XUtil')";
+      String[] scripts = {
+         xutil + ".getEntities('" + DS + "', 'LM', null, false).length",
+         xutil + ".getAttributes('" + DS + "', 'LM', 'E', null, false, false).length"
+      };
+
+      for(String script : scripts) {
+         Object[] result = { "unset" };
+
+         assertEquals(0, refusals(() -> run(script, reader)), "a reader: " + script);
+         assertEquals(1, refusals(() -> result[0] = run(script, outsider)),
+                      "a user without read: " + script);
+         assertEquals(0, ((Number) result[0]).intValue(), script);
+      }
+   }
+
    // a table the script builds itself, naming any data source
    @Test void aTableTheScriptBuildsItselfNeedsRead() throws Exception {
       String script =
