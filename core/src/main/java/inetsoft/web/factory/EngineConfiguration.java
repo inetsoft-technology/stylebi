@@ -206,7 +206,7 @@ public class EngineConfiguration {
    @Bean
    @Lazy
    public Plugins plugins(@Lazy BlobStorageManager blobStorageManager, @Lazy Cluster cluster, ApplicationEventPublisher eventPublisher) {
-      return new Plugins(blobStorageManager.getStorage("plugins", true), cluster, eventPublisher);
+      return new Plugins(blobStorageManager, cluster, eventPublisher);
    }
 
    /**
