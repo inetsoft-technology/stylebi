@@ -709,6 +709,20 @@ public class CoreTool {
    }
 
    /**
+    * Make every date and time subformat of a message format use the Gregorian calendar.
+    * @return the format passed in.
+    */
+   public static java.text.MessageFormat setGregorianCalendar(java.text.MessageFormat fmt) {
+      for(Format sub : fmt.getFormats()) {
+         if(sub instanceof DateFormat dfmt) {
+            setGregorianCalendar(dfmt);
+         }
+      }
+
+      return fmt;
+   }
+
+   /**
     * Make a date format use the Gregorian calendar if its calendar is another one, e.g. the
     * Buddhist calendar of th_TH or the Japanese calendar of ja_JP_JP. A Gregorian calendar
     * (including the ISO 8601 week rules of a -u-ca-iso8601 locale) is kept. The time zone,
