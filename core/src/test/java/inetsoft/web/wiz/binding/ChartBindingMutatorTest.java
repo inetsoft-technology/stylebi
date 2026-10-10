@@ -1774,17 +1774,48 @@ class ChartBindingMutatorTest {
    }
 
    @Test
-   void aDescSortOnAYDimensionAfterAMeasureIsEffectiveTimeSeriesAndRefused() {
+   void aDescSortOnAYDimensionSeededAfterAMeasureIsTreatedAsTheNormalizedOuterOne() {
+      // [measure, date ts] is a never-stored order (the server puts dimensions first), so it is
+      // read as [date ts, measure]: the date is outer, the flag is not effective, desc applies.
       ChartBindingModel model = new ChartBindingModel();
       ChartBindingMutator.setShelf(model, "x",
          List.of(new FieldRef("Region", "dimension", null, null, null)));
-      ChartBindingMutator.setShelf(model, "y",
-         List.of(new FieldRef("Sales", "measure", "Sum", null, null), date("month", true)));
+      model.setYFields(new ArrayList<>(List.of(
+         new ChartAggregateRefModel(), storedDate("month", true))));
 
-      IllegalArgumentException e = refused(
-         () -> ChartBindingMutator.setSort(model, "y", "Order Date", null, sortOf("desc")));
-      assertTrue(e.getMessage().contains("time-series"), e.getMessage());
-      assertTrue(dimAt(model.getYFields(), 1).isTimeSeries(), "the flag is kept");
+      ChartBindingMutator.setSort(model, "y", "Order Date", null, sortOf("desc"));
+
+      ChartDimensionRefModel month = dimAt(model.getYFields(), 1);
+      assertFalse(month.isTimeSeries());
+      assertEquals(XConstants.SORT_DESC, month.getOrder());
+   }
+
+   @Test
+   void newTimeSeriesTrueSentAfterAMeasureIsRefusedBecauseTheServerStoresItOuter() {
+      for(String shelf : List.of("x", "y")) {
+         ChartBindingModel model = new ChartBindingModel();
+         model.setChartType(GraphTypes.CHART_LINE);
+
+         refused(() -> ChartBindingMutator.setShelf(model, shelf,
+            List.of(new FieldRef("Qty", "measure", "Sum", null, null), date("month", true))));
+         assertTrue(("x".equals(shelf) ? model.getXFields() : model.getYFields()).isEmpty());
+
+         // stored order is refused the same way
+         refused(() -> ChartBindingMutator.setShelf(model, shelf,
+            List.of(date("month", true), new FieldRef("Qty", "measure", "Sum", null, null))));
+      }
+   }
+
+   @Test
+   void timeSeriesTrueAloneOrWithItsMeasureOnTheOtherShelfIsStillAccepted() {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setChartType(GraphTypes.CHART_LINE);
+
+      ChartBindingMutator.setShelf(model, "x", List.of(date("month", true)));
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Total", "measure", "Sum", null, null)));
+
+      assertTrue(dimAt(model.getXFields(), 0).isTimeSeries());
    }
 
    @Test

@@ -137,10 +137,10 @@ final class ChartTimeSeriesGuard {
          case AESTHETIC -> isChangeCalcDim(model, column) ? null :
             "an aesthetic channel dimension only supports time series when it is the " +
                "'columnName' of a CHANGE calculator measure on x/y";
-         case X -> isOuter(model.getXFields(), index, false, model, strict) ?
+         case X -> isOuter(model.getXFields(), index, dim, false, model, strict) ?
             "it is an outer dimension on the x shelf (only the last dimension, with nothing " +
                "after it, can be time series)" : null;
-         case Y -> isOuter(model.getYFields(), index, true, model, strict) ?
+         case Y -> isOuter(model.getYFields(), index, dim, true, model, strict) ?
             "it is an outer dimension on the y shelf" : null;
       };
    }
@@ -252,11 +252,42 @@ final class ChartTimeSeriesGuard {
     * and candle always count it outer. The Composer also counts a y dimension outer when x has
     * dimensions but no measure. That term is {@code strict}-only: {@code require} runs lenient
     * because the x write may follow this one (A4), while {@code isEffective} runs strict as the
-    * current state is final. A y dimension after a measure hits the break and is never outer.
+    * current state is final. Shelves are normalized to the stored (dimensions-first) order before this scan.
     */
-   private static boolean isOuter(List<ChartRefModel> refs, int index, boolean y,
+   private static boolean isOuter(List<ChartRefModel> sent, int sentIndex,
+                                  ChartDimensionRefModel dim, boolean y,
                                   ChartBindingModel model, boolean strict)
    {
+      // The server stores each x/y shelf with dimensions ahead of measures (stable partition,
+      // ChangeChartDataProcessor.sortRefs / ChangeChartProcessor.VComparator), so outer-ness is
+      // decided on that order, not the order the caller sent.
+      List<ChartRefModel> refs = new ArrayList<>();
+
+      for(ChartRefModel ref : sent) {
+         if(ref instanceof ChartDimensionRefModel) {
+            refs.add(ref);
+         }
+      }
+
+      for(ChartRefModel ref : sent) {
+         if(!(ref instanceof ChartDimensionRefModel)) {
+            refs.add(ref);
+         }
+      }
+
+      int index = -1;
+
+      for(int i = 0; i < refs.size(); i++) {
+         if(refs.get(i) == dim) {
+            index = i;
+            break;
+         }
+      }
+
+      if(index < 0) {
+         index = sentIndex;
+      }
+
       for(int i = 0; i < refs.size(); i++) {
          if(!(refs.get(i) instanceof ChartDimensionRefModel)) {
             return false;
