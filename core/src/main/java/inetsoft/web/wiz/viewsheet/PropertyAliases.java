@@ -1224,12 +1224,10 @@ public final class PropertyAliases {
       aliases.put("daySelection", "calendarAdvancedPaneModel.daySelection");
       aliases.put("singleSelection", "calendarAdvancedPaneModel.singleSelection");
       aliases.put("submitOnChange", "calendarAdvancedPaneModel.submitOnChange");
-      // min/max are deliberately NOT aliased: CalendarAdvancedPaneModel.min/max are
-      // DynamicValueModel objects (value/type/dataType), not plain scalars -- the short-name
-      // alias contract here is "a leaf value", and PropertyPath's JSON coercion has no way to
-      // build the right nested shape from a bare value. Reachable via the raw dotted path with
-      // the full object shape; see CalendarPropertyDialogService's min/max ordering check for
-      // the validation this still gets on write.
+      // min/max are DynamicValueModel beans; PropertyPath coerces a bare string (or a
+      // {value,type,dataType} object) into one, so a plain "2022-05-12" works as a value.
+      aliases.put("min", "calendarAdvancedPaneModel.min");
+      aliases.put("max", "calendarAdvancedPaneModel.max");
       //
       // calendarDataPaneModel.selectedTable/selectedColumn are also deliberately absent: the
       // parity audit flagged a possible overlap with the set_calendar_display/

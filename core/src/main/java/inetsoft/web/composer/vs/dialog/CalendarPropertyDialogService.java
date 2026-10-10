@@ -36,9 +36,12 @@ import org.springframework.stereotype.Service;
 
 import java.awt.*;
 import java.security.Principal;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
+import java.time.DateTimeException;
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Objects;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
@@ -323,9 +326,11 @@ public class CalendarPropertyDialogService {
       info.setDaySelectionValue(calendarAdvancedPaneModel.isDaySelection());
       info.setSingleSelectionValue(calendarAdvancedPaneModel.isSingleSelection());
       info.setSubmitOnChangeValue(calendarAdvancedPaneModel.isSubmitOnChange());
-      requireMinBeforeMax(calendarAdvancedPaneModel.getMin(), calendarAdvancedPaneModel.getMax());
-      info.setMinValue(calendarAdvancedPaneModel.getMin().convertToValue());
-      info.setMaxValue(calendarAdvancedPaneModel.getMax().convertToValue());
+      String minValue = boundValue(calendarAdvancedPaneModel.getMin());
+      String maxValue = boundValue(calendarAdvancedPaneModel.getMax());
+      requireValidBounds(minValue, maxValue, info.getMinValue(), info.getMaxValue());
+      info.setMinValue(minValue);
+      info.setMaxValue(maxValue);
 
       //If switched from double to single calendar, reset dates
       if(oMode != mode) {
@@ -343,42 +348,81 @@ public class CalendarPropertyDialogService {
    }
 
 
+   private static String boundValue(DynamicValueModel bound) {
+      String value = bound == null ? null : bound.convertToValue();
+      return value == null || value.isBlank() ? null : value;
+   }
+
+   private static boolean isStaticBound(String value) {
+      return value != null && !VSUtil.isVariableValue(value) && !VSUtil.isScriptValue(value);
+   }
+
+   private static LocalDate parseBound(String name, String value) {
+      Matcher matcher = DATE_PATTERN.matcher(value);
+
+      if(matcher.matches()) {
+         try {
+            return LocalDate.of(Integer.parseInt(matcher.group(1)),
+                                Integer.parseInt(matcher.group(2)),
+                                Integer.parseInt(matcher.group(3)));
+         }
+         catch(DateTimeException e) {
+            // not a real calendar day, refused below
+         }
+      }
+
+      throw new IllegalArgumentException(
+         "Calendar '" + name + "' (" + value + ") is not a valid date; use yyyy-MM-dd, " +
+         "e.g. 2022-05-12");
+   }
+
    /**
-    * Mirrors {@code calendar-advanced-pane.component.ts}'s {@code minGreaterThanMaxValidator}:
-    * refuses a static min that is not strictly before a static max. Skipped -- same as the
-    * Angular validator -- when either side is a variable/expression (no static value to
-    * compare) or empty, and when a static value does not parse as a plain date: this check adds
-    * only the min/max ordering rule, not date well-formedness, which is out of scope here.
+    * Refuses a static min/max that is not a real yyyy-MM-dd date (the runtime silently drops
+    * such a bound), and a static min that is not strictly before a static max (mirrors
+    * {@code calendar-advanced-pane.component.ts}'s {@code minGreaterThanMaxValidator}).
+    * Variables, expressions and empty values are not checked. A bound equal to the value
+    * already stored is not re-validated, so an unrelated read-modify-write edit of a calendar
+    * that already holds a legacy bad bound is not blocked.
     */
-   private void requireMinBeforeMax(DynamicValueModel min, DynamicValueModel max) {
-      if(min == null || max == null || !DynamicValueModel.VALUE.equals(min.getType()) ||
-         !DynamicValueModel.VALUE.equals(max.getType()))
-      {
-         return;
+   private void requireValidBounds(String min, String max, String oldMin, String oldMax) {
+      boolean minChanged = !Objects.equals(min, boundValue(oldMin));
+      boolean maxChanged = !Objects.equals(max, boundValue(oldMax));
+      LocalDate minDate = null;
+      LocalDate maxDate = null;
+
+      if(isStaticBound(min) && minChanged) {
+         minDate = parseBound("min", min);
       }
 
-      String minValue = min.convertToValue();
-      String maxValue = max.convertToValue();
-
-      if(minValue == null || minValue.isEmpty() || maxValue == null || maxValue.isEmpty()) {
-         return;
+      if(isStaticBound(max) && maxChanged) {
+         maxDate = parseBound("max", max);
       }
 
-      SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd");
+      if((minChanged || maxChanged) && isStaticBound(min) && isStaticBound(max)) {
+         try {
+            minDate = minDate != null ? minDate : parseBound("min", min);
+            maxDate = maxDate != null ? maxDate : parseBound("max", max);
+         }
+         catch(IllegalArgumentException e) {
+            // the unchanged side is a legacy bad value; nothing to order against
+            return;
+         }
 
-      try {
-         if(!format.parse(minValue).before(format.parse(maxValue))) {
+         if(!minDate.isBefore(maxDate)) {
             throw new IllegalArgumentException(
-               "Calendar 'min' (" + minValue + ") must be before 'max' (" + maxValue + "). " +
+               "Calendar 'min' (" + min + ") must be before 'max' (" + max + "). " +
                "The Composer UI refuses this the same way: a calendar cannot show a range that " +
                "starts on or after its own end.");
          }
       }
-      catch(ParseException e) {
-         // Not a plain yyyy-MM-dd date -- leave it to the write itself, which is where date
-         // well-formedness is already handled.
-      }
    }
+
+   private static String boundValue(String value) {
+      return value == null || value.isBlank() ? null : value;
+   }
+
+   private static final Pattern DATE_PATTERN =
+      Pattern.compile("^(\\d{4})-(0?[1-9]|1[0-2])-(0?[1-9]|[12]\\d|3[01])$");
 
    private final VSObjectPropertyService vsObjectPropertyService;
    private final VSOutputService vsOutputService;

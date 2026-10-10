@@ -50,6 +50,8 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doCallRealMethod;
@@ -506,6 +508,112 @@ class CalendarPropertyDialogServiceTest {
 
       service.setCalendarPropertyModel(
          "Viewsheet1", "Calendar1", model, "", null, commandDispatcher);
+
+      verify(vsObjectPropertyService).editObjectProperty(
+         any(RuntimeViewsheet.class), any(CalendarVSAssemblyInfo.class), any(String.class),
+         any(String.class), any(String.class), nullable(Principal.class),
+         any(CommandDispatcher.class), eq(true), nullable(Integer.class));
+   }
+
+   // -- bug #78195: type-independent guard, date well-formedness, null clear ----------
+
+   private CalendarVSAssemblyInfo stubInfo(CalendarVSAssemblyInfo info) throws Exception {
+      when(engine.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(viewsheet.getAssembly(anyString())).thenReturn(calendarAssembly);
+      when(calendarAssembly.getVSAssemblyInfo()).thenReturn(info);
+      return info;
+   }
+
+   private Exception refused(CalendarPropertyDialogModel model) {
+      Exception thrown = org.junit.jupiter.api.Assertions.assertThrows(
+         IllegalArgumentException.class,
+         () -> service.setCalendarPropertyModel(
+            "Viewsheet1", "Calendar1", model, "", null, commandDispatcher));
+      org.mockito.Mockito.verifyNoInteractions(vsObjectPropertyService);
+      return thrown;
+   }
+
+   @Test
+   void refusesAnInvertedPairWhateverTheCaseOfTheType() throws Exception {
+      stubInfo(new CalendarVSAssemblyInfo());
+
+      for(String type : new String[] { "value", "variable", "Variable", "VARIABLE" }) {
+         CalendarPropertyDialogModel model = minMaxModel("2025-10-31", "2022-05-12");
+         model.getCalendarAdvancedPaneModel().setMin(new DynamicValueModel("2025-10-31", type));
+         model.getCalendarAdvancedPaneModel().setMax(new DynamicValueModel("2022-05-12", type));
+
+         assertTrue(refused(model).getMessage().contains("must be before"), type);
+      }
+   }
+
+   @Test
+   void refusesMalformedDatesNamingTheFormat() throws Exception {
+      stubInfo(new CalendarVSAssemblyInfo());
+
+      for(String bad : new String[] { "not-a-date", "05/12/2022", "2022-13-45", "2022-02-30",
+                                      "20220512", "2022-05" })
+      {
+         String message = refused(minMaxModel(bad, "")).getMessage();
+         assertTrue(message.contains("yyyy-MM-dd"), bad);
+         assertFalse(message.contains("Exception") || message.contains("Cannot invoke"), bad);
+         message = refused(minMaxModel("", bad)).getMessage();
+         assertTrue(message.contains("'max'"), bad);
+      }
+   }
+
+   @Test
+   void refusesANonStringValueThatIsNotADate() throws Exception {
+      stubInfo(new CalendarVSAssemblyInfo());
+      CalendarPropertyDialogModel model = minMaxModel("", "");
+      model.getCalendarAdvancedPaneModel().setMin(new DynamicValueModel(20220512, "VALUE"));
+
+      assertTrue(refused(model).getMessage().contains("yyyy-MM-dd"));
+   }
+
+   @Test
+   void acceptsOneAndTwoDigitMonthAndDayAndDynamicValues() throws Exception {
+      stubInfo(new CalendarVSAssemblyInfo());
+
+      for(String[] pair : new String[][] { { "2022-5-12", "2022-05-13" },
+                                           { "$(Var)", "2022-05-13" },
+                                           { "=field['a']", "2022-05-13" } })
+      {
+         service.setCalendarPropertyModel("Viewsheet1", "Calendar1",
+            minMaxModel(pair[0], pair[1]), "", null, commandDispatcher);
+      }
+   }
+
+   @Test
+   void clearsABoundWithNullOrBlankStoringNull() throws Exception {
+      CalendarVSAssemblyInfo info = stubInfo(new CalendarVSAssemblyInfo());
+      info.setMinValue("2022-05-12");
+      info.setMaxValue("2022-06-12");
+      CalendarPropertyDialogModel model = minMaxModel("", "");
+      model.getCalendarAdvancedPaneModel().setMin(null);
+      model.getCalendarAdvancedPaneModel().setMax(new DynamicValueModel(""));
+
+      service.setCalendarPropertyModel("Viewsheet1", "Calendar1", model, "", null,
+                                       commandDispatcher);
+
+      ArgumentCaptor<CalendarVSAssemblyInfo> saved =
+         ArgumentCaptor.forClass(CalendarVSAssemblyInfo.class);
+      verify(vsObjectPropertyService).editObjectProperty(
+         any(RuntimeViewsheet.class), saved.capture(), any(String.class), any(String.class),
+         any(String.class), nullable(Principal.class), any(CommandDispatcher.class), eq(true),
+         nullable(Integer.class));
+      org.junit.jupiter.api.Assertions.assertNull(saved.getValue().getMinValue());
+      org.junit.jupiter.api.Assertions.assertNull(saved.getValue().getMaxValue());
+   }
+
+   @Test
+   void doesNotRevalidateAnUnchangedLegacyBadBound() throws Exception {
+      CalendarVSAssemblyInfo info = stubInfo(new CalendarVSAssemblyInfo());
+      info.setMinValue("05/12/2022");
+      info.setMaxValue("2022-01-01");
+
+      service.setCalendarPropertyModel("Viewsheet1", "Calendar1",
+         minMaxModel("05/12/2022", "2022-01-01"), "", null, commandDispatcher);
 
       verify(vsObjectPropertyService).editObjectProperty(
          any(RuntimeViewsheet.class), any(CalendarVSAssemblyInfo.class), any(String.class),
