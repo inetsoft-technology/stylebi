@@ -485,7 +485,13 @@ public class DataSpaceContentSettingsService {
    }
 
    public String getNewPath(String oldPath, String oldName, String newName) {
-      String oldPrefix = oldPath.substring(0, oldPath.lastIndexOf(oldName));
+      if(!oldName.equals(getFileName(oldPath))) {
+         throw new IllegalArgumentException(
+            "Name \"" + oldName + "\" does not match the last path segment of \"" + oldPath + "\"");
+      }
+
+      int index = oldPath.lastIndexOf('/');
+      String oldPrefix = index < 0 ? "" : oldPath.substring(0, index + 1);
 
       if(LicenseManager.isEnterprise() || newName == null) {
          return oldPrefix + newName;
