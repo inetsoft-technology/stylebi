@@ -53,6 +53,11 @@ export interface OAuthParameters {
    additionalParameters?: {[name: string]: string};
    method?: string;
    error?: string;
+   // the data source that a password grant is requested for
+   dataSourceName?: string;
+   dataSourceOldName?: string;
+   dataSourceParentPath?: string;
+   parentDataSource?: string;
 }
 
 interface LoginResponse {

@@ -294,7 +294,16 @@ public class AuthorizationClient {
                                             String clientSecret, List<String> scope,
                                             String tokenUri)
    {
-      final HttpPost post = new HttpPost(tokenUri);
+      final URI uri = URI.create(tokenUri);
+      final String scheme = uri.getScheme();
+
+      // Bug #78243, the token URI is sent by the client, so only an HTTP(S) endpoint is accepted
+      if(!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme)) {
+         throw new IllegalArgumentException(
+            "Failed to do password grant authorization, the token URI must be an HTTP(S) URL.");
+      }
+
+      final HttpPost post = new HttpPost(uri);
 
       final List<BasicNameValuePair> formData = new ArrayList<>();
       formData.add(new BasicNameValuePair("grant_type", "password"));
@@ -316,7 +325,9 @@ public class AuthorizationClient {
       post.setEntity(new UrlEncodedFormEntity(formData));
       post.setHeader("Accept", MediaType.APPLICATION_JSON_VALUE);
 
-      try(CloseableHttpClient client = HttpClients.createDefault();
+      // Bug #78243, a redirect is not followed, so the credentials are only posted to the token
+      // URI itself
+      try(CloseableHttpClient client = HttpClients.custom().disableRedirectHandling().build();
           final CloseableHttpResponse response = client.execute(post))
       {
          if(response.getCode() != 200) {

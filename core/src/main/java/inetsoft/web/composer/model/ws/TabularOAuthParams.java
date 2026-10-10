@@ -40,6 +40,27 @@ public interface TabularOAuthParams {
    @Nullable Set<String> flags();
    @Nullable String error();
 
+   /**
+    * The name of the data source that a password grant is requested for.
+    */
+   @Nullable String dataSourceName();
+
+   /**
+    * The name that the data source of a password grant is saved under, if it is renamed.
+    */
+   @Nullable String dataSourceOldName();
+
+   /**
+    * The folder of the data source that a password grant is requested for.
+    */
+   @Nullable String dataSourceParentPath();
+
+   /**
+    * The name of the parent data source, if a password grant is requested for an additional
+    * connection.
+    */
+   @Nullable String parentDataSource();
+
    static Builder builder() {
       return new Builder();
    }
