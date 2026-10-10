@@ -779,11 +779,29 @@ public class DatabaseDatasourcesService {
    {
       int index = path.lastIndexOf('/');
 
-      // a data source in a folder is saved with its path as its name, an additional connection
-      // with its name alone
-      if(index < 0 || !(dataSource instanceof AdditionalConnectionDataSource<?> additional) ||
-         additional.getBaseDatasource() != null || path.equals(dataSource.getFullName()))
-      {
+      if(index < 0 || !(dataSource instanceof AdditionalConnectionDataSource<?> additional)) {
+         return dataSource;
+      }
+
+      String name = path.substring(index + 1);
+
+      if(additional.getBaseDatasource() != null) {
+         // an additional connection saved before Bug #77610 has its path as its name. It is saved
+         // with its name alone, so that a plain save isn't taken for a rename (Bug #78207)
+         if(name.equals(dataSource.getFullName())) {
+            return dataSource;
+         }
+
+         // the registry returns its cached instance, which this save changes
+         XDataSource result = (XDataSource) dataSource.clone();
+         result.setName(name);
+         return result;
+      }
+
+      // a data source in a folder, or of a data source folder at the path of a data source (older
+      // data), is saved with its path as its name, as an additional connection saved before
+      // Bug #77610 is, so the stored entries tell them apart, not the name (Bug #78207)
+      if(!dataSourceRegistry.isAdditionalConnectionPath(path)) {
          return dataSource;
       }
 
@@ -792,11 +810,15 @@ public class DatabaseDatasourcesService {
       if(parent instanceof AdditionalConnectionDataSource<?> base &&
          base.getBaseDatasource() == null)
       {
-         XDataSource result = base.getDataSource(path.substring(index + 1));
+         XDataSource result = base.getDataSource(name);
 
          if(result != null) {
-            // the registry returns its cached instance, which this save changes
-            return (XDataSource) result.clone();
+            // the registry returns its cached instance, which this save changes. An additional
+            // connection saved before Bug #77610 has its path as its name, it is saved with its
+            // name alone, as a save of its parent does (Bug #78207)
+            result = (XDataSource) result.clone();
+            result.setName(name);
+            return result;
          }
       }
 
