@@ -683,6 +683,7 @@ public class WorksheetEditService {
             // skips dispatching a MessageCommand on conflict; findRenameConflict() re-derives
             // the SAME conflict (read-only, no mutation happens either way) so this can still
             // report a field-named PairingException instead of silently failing.
+            String oldAlias = cr.getAlias();
             boolean failed = RenameColumnController.renameColumn(ws, null, t, cr, newName);
 
             if(failed) {
@@ -691,6 +692,12 @@ public class WorksheetEditService {
                   ? RenameColumnController.createColumnConflictErrorMessage(newName, conflict)
                   : Catalog.getCatalog().getString("common.duplicateName");
                throw new PairingException(message);
+            }
+
+            WorksheetMutationSupport.renameAggregateOutputAlias(t, col, newName);
+
+            if(oldAlias != null && !oldAlias.equals(col)) {
+               WorksheetMutationSupport.renameAggregateOutputAlias(t, oldAlias, newName);
             }
 
             refreshColumnSelectionFastLookup(ws);
@@ -4383,6 +4390,18 @@ public class WorksheetEditService {
          for(WorksheetMutationSupport.ConditionNode node : nodes) {
             if(node.condition() != null) {
                requireColumn(t, node.condition().field(), post);
+
+               if(!post && WorksheetMutationSupport.isAggregateOutputAlias(
+                  t, node.condition().field()))
+               {
+                  throw new PairingException(
+                     "'" + node.condition().field() + "' is the output alias of an aggregate " +
+                     "on " + t.getName() + ", so it does not exist before aggregation and " +
+                     "cannot be used in a pre-aggregate condition. Use set_post_conditions to " +
+                     "filter on the aggregate's value. To filter the underlying rows before " +
+                     "aggregating, use the source column's qualified name when one is " +
+                     "available.");
+               }
 
                if(node.condition().valueSpecs() != null) {
                   for(WorksheetMutationSupport.ConditionValueSpec vs : node.condition().valueSpecs()) {
