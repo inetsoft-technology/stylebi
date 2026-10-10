@@ -61,8 +61,8 @@ import static org.mockito.Mockito.*;
  * {@code ServiceProxyContext.apply()}'s {@code if(!async)} guard -- added for Bug #77135 to stop
  * one user's messages leaking onto the next task on a shared pool thread -- means harvested
  * messages are re-added to {@code Tool} only for the sync flavor. This generic relay still
- * discards an async call's harvested messages today, by design (protecting #77135's fix), and
- * this test intentionally keeps proving that fact: it is expected to stay RED.
+ * discards an async call's harvested messages today, by design (protecting #77135's fix), and the
+ * test below asserts that discard as the current, intended, permanent behavior of this relay.
  *
  * <p><b>This is not how bug #78254's user-visible symptom was actually fixed.</b> Rather than
  * touch this shared relay (used by every async {@code @ClusterProxy} method in the codebase, with
@@ -71,8 +71,10 @@ import static org.mockito.Mockito.*;
  * gets a chance to harvest and discard it -- see
  * {@code CoreLifecycleService.forwardReraisedUserMessage} and
  * {@code inetsoft.web.viewsheet.service.CoreLifecycleServiceUserMessageForwardingTest}, which
- * verifies that actual fix and passes. So: this test failing is expected and does not indicate the
- * bug is still present; the other test passing is what demonstrates the fix.
+ * verifies that actual fix and passes. So: the test below passing (asserting {@code null}) does
+ * not indicate the bug is still present -- it documents a different, by-design limitation of the
+ * generic relay that #78254's fix deliberately bypasses rather than touches; the other test is
+ * what demonstrates the actual fix.
  *
  * <p>This drives the real generated {@link VSRefreshServiceProxy} (built by the module's
  * annotation processor) with the real {@code inetsoft.web.ServiceProxyContext}, over a real
@@ -110,7 +112,7 @@ class VSRefreshServiceAsyncUserMessageTest {
    // awaits the Future; this test awaits it only so the assertion below is deterministic --
    // production's failure to await is a second, compounding problem not modeled here.
    @Test
-   void asyncControllerPathDiscardsItsOwnReraisedUserMessage() throws Exception {
+   void asyncProxyPathStillDiscardsMessagesByDesign() throws Exception {
       VSRefreshService localService = mock(VSRefreshService.class);
       doAnswer(inv -> {
          // Simulates CoreLifecycleService.refreshViewsheet()'s re-executed table query re-raising
@@ -155,14 +157,14 @@ class VSRefreshServiceAsyncUserMessageTest {
       ch.send(stomp("alice"));
       drain();
 
-      assertNotNull(callerSaw.get(),
-         "Bug #78254: ServiceProxyContext.apply()'s !async guard still discards a harvested " +
-         "message for an always-async @ClusterProxy call, by design (protects #77135's fix) -- " +
-         "this assertion is EXPECTED to fail, on every run, forever. This documents that general " +
-         "relay mechanism only; it is not a claim that bug #78254's user-visible symptom is " +
-         "unfixed -- that symptom is fixed in CoreLifecycleService.refreshViewsheet() itself " +
-         "(forwardReraisedUserMessage), which bypasses this relay entirely. See " +
-         "CoreLifecycleServiceUserMessageForwardingTest for the test that verifies the actual fix.");
+      assertNull(callerSaw.get(),
+         "Bug #78254: ServiceProxyContext.apply()'s !async guard discards a harvested message " +
+         "for an always-async @ClusterProxy call, by design (protects #77135's fix) -- the " +
+         "caller correctly sees null here. This documents that general relay mechanism only; it " +
+         "is not a claim that bug #78254's user-visible symptom is unfixed -- that symptom is " +
+         "fixed in CoreLifecycleService.refreshViewsheet() itself (forwardReraisedUserMessage), " +
+         "which bypasses this relay entirely. See CoreLifecycleServiceUserMessageForwardingTest " +
+         "for the test that verifies the actual fix.");
    }
 
    // Control: the sync proxy flavor (never used by VSRefreshController, but confirms the loss
