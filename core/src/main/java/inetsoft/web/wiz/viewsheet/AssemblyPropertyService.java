@@ -621,6 +621,8 @@ public class AssemblyPropertyService {
       // needs a matching rangeColorValues entry below; only the numeric comparisons skip it.
       boolean[] dynamic = new boolean[lastPopulated + 1];
 
+      int lastStatic = -1;
+
       for(int i = 0; i <= lastPopulated; i++) {
          if(VSUtil.isDynamicValue(rangeValues[i])) {
             dynamic[i] = true;
@@ -635,11 +637,14 @@ public class AssemblyPropertyService {
                "rangeValues[" + i + "] ('" + rangeValues[i] + "') is not a number.");
          }
 
-         if(i > 0 && !dynamic[i - 1] && parsed[i] < parsed[i - 1]) {
+         if(lastStatic >= 0 && parsed[i] < parsed[lastStatic]) {
             throw new IllegalArgumentException(
                "rangeValues[" + i + "] (" + rangeValues[i] + ") must be >= rangeValues[" +
-               (i - 1) + "] (" + rangeValues[i - 1] + ") -- boundaries must be non-decreasing.");
+               lastStatic + "] (" + rangeValues[lastStatic] +
+               ") -- boundaries must be non-decreasing.");
          }
+
+         lastStatic = i;
       }
 
       Double min = gaugeMin(model);

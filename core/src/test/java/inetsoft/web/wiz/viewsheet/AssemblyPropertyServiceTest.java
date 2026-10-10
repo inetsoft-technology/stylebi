@@ -673,6 +673,55 @@ class AssemblyPropertyServiceTest {
          ""));
    }
 
+   // Bug #78198: the order check compares each static entry against the last STATIC one, so a
+   // dynamic slot between two statics does not hide an out-of-order pair.
+   private void assertGaugeRangeValuesRefused(String expectedIndex, String expectedValue,
+                                              String... values)
+   {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Gauge1",
+            Map.of("gaugeAdvancedPaneModel.rangePaneModel.rangeValues",
+                   java.util.List.of(values)),
+            ""));
+
+      assertTrue(thrown.getMessage().contains("must be >= rangeValues[" + expectedIndex + "] (" +
+                 expectedValue + ")"), thrown.getMessage());
+   }
+
+   private void assertGaugeRangeValuesAccepted(String... values) {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+
+      assertDoesNotThrow(() -> service.set("tok", principal(), "Gauge1",
+         Map.of("gaugeAdvancedPaneModel.rangePaneModel.rangeValues", java.util.List.of(values)),
+         ""));
+   }
+
+   @Test
+   void refusesOutOfOrderStaticsAcrossADynamicGaugeRangeValue() {
+      assertGaugeRangeValuesRefused("0", "90000000",
+                                    "90000000", "$(Spinner1)", "60000000", "", "");
+   }
+
+   @Test
+   void refusesOutOfOrderStaticsAcrossSeveralDynamicGaugeRangeValues() {
+      assertGaugeRangeValuesRefused("0", "90000000", "90000000", "$(A)", "$(B)", "60000000");
+   }
+
+   @Test
+   void allowsInOrderAndEqualStaticsAcrossADynamicGaugeRangeValue() {
+      assertGaugeRangeValuesAccepted("60000000", "$(Spinner1)", "90000000");
+      assertGaugeRangeValuesAccepted("60000000", "$(Spinner1)", "60000000");
+   }
+
+   @Test
+   void keepsTheAdjacentStaticGaugeRangeValueOrderMessage() {
+      assertGaugeRangeValuesRefused("0", "90000000", "90000000", "70000000", "60000000");
+   }
+
    /**
     * The dynamic-value exemption must not weaken the structural interior-gap check, which it
     * does not own: a dynamic populated entry followed by a blank, followed by a populated one,
