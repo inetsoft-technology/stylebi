@@ -1608,23 +1608,32 @@ public class RepletEngine extends AbstractAssetEngine
          return;
       }
 
-      super.renameUser(oname, nname);
+      // Bug #78230, the folders are changed under the engine's folder lock, as in changeFolder()
+      lockWrite();
 
-      AssetEntry oentry = new AssetEntry(AssetRepository.USER_SCOPE,
-         AssetEntry.Type.REPOSITORY_FOLDER, "/", oname);
-      AssetEntry nentry = new AssetEntry(AssetRepository.USER_SCOPE,
-         AssetEntry.Type.REPOSITORY_FOLDER, "/", nname);
-      IndexedStorage ostorage = getStorage(oentry);
-      IndexedStorage nstorage = getStorage(nentry);
+      try {
+         super.renameUser(oname, nname);
 
-      Map<AssetEntry, AssetEntry> changed = changeFolder0(oentry, ostorage, nentry, nstorage, true);
+         AssetEntry oentry = new AssetEntry(AssetRepository.USER_SCOPE,
+            AssetEntry.Type.REPOSITORY_FOLDER, "/", oname);
+         AssetEntry nentry = new AssetEntry(AssetRepository.USER_SCOPE,
+            AssetEntry.Type.REPOSITORY_FOLDER, "/", nname);
+         IndexedStorage ostorage = getStorage(oentry);
+         IndexedStorage nstorage = getStorage(nentry);
 
-      for(Map.Entry<AssetEntry, AssetEntry> e : changed.entrySet()) {
-         if(e.getKey().isViewsheet()) {
-            AssetEntry bentry = getVSBookmarkEntry(e.getKey(), oname, true);
-            AssetEntry nbentry = getVSBookmarkEntry(e.getValue(), nname, true);
-            renameVSBookmark0(bentry, nbentry);
+         Map<AssetEntry, AssetEntry> changed =
+            changeFolder0(oentry, ostorage, nentry, nstorage, true);
+
+         for(Map.Entry<AssetEntry, AssetEntry> e : changed.entrySet()) {
+            if(e.getKey().isViewsheet()) {
+               AssetEntry bentry = getVSBookmarkEntry(e.getKey(), oname, true);
+               AssetEntry nbentry = getVSBookmarkEntry(e.getValue(), nname, true);
+               renameVSBookmark0(bentry, nbentry);
+            }
          }
+      }
+      finally {
+         unlockWrite();
       }
    }
 
@@ -1633,12 +1642,20 @@ public class RepletEngine extends AbstractAssetEngine
     */
    @Override
    public void removeUser(IdentityID identityID) throws Exception {
-      super.removeUser(identityID);
-      AssetEntry entry = new AssetEntry(AssetRepository.USER_SCOPE,
-         AssetEntry.Type.REPOSITORY_FOLDER, "/", identityID);
-      IndexedStorage storage = getStorage(entry);
+      // Bug #78230, the folders are changed under the engine's folder lock, as in removeFolder()
+      lockWrite();
 
-      removeFolder0(entry, storage, true);
+      try {
+         super.removeUser(identityID);
+         AssetEntry entry = new AssetEntry(AssetRepository.USER_SCOPE,
+            AssetEntry.Type.REPOSITORY_FOLDER, "/", identityID);
+         IndexedStorage storage = getStorage(entry);
+
+         removeFolder0(entry, storage, true);
+      }
+      finally {
+         unlockWrite();
+      }
    }
 
    /**

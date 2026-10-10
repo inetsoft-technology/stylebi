@@ -238,6 +238,14 @@ public final class RecycleUtils {
       newEntry.addFavoritesUser(oldEntry.getFavoritesUser());
 
       repository.changeSheet(oldEntry, newEntry, principal, true);
+
+      // Bug #78230, the entry of a sheet that is no longer stored is only removed from its
+      // folder (see AbstractAssetEngine.changeSheet0), so nothing was moved to the recycle bin
+      if(!repository.containsEntry(newEntry)) {
+         LOG.debug("Sheet {} is not stored, it is not added to the recycle bin", opath);
+         return;
+      }
+
       recycleBin.addEntry(newEntry.getPath(), oldEntry.getPath(),
          oldEntry.getName(), originalPermission,
          oldEntry.isViewsheet() ? RepositoryEntry.VIEWSHEET :
