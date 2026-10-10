@@ -189,6 +189,21 @@ public class CalcFieldAgentService {
             checkCalcNameFree(rvs.getViewsheet(), bindable, req, newName);
          }
 
+         // Bug #78193: the native remove branch only cascades BINDINGS; it never looks at other
+         // calc fields' formulas, so removing a field they reference commits and silently breaks
+         // them. A remove has no correct rewrite (unlike rename), so refuse before anything mutates.
+         if(req.remove()) {
+            List<String> dependents = findDependents(
+               rvs.getViewsheet(), tableName, req.name(), req.name() + "\u0000");
+
+            if(!dependents.isEmpty()) {
+               throw new IllegalArgumentException(
+                  "Calc field '" + req.name() + "' is referenced by calc field(s) " +
+                  quoteAll(dependents) + " on '" + tableName + "'; remove or edit them first, " +
+                  "then remove '" + req.name() + "'.");
+            }
+         }
+
          CalculateRefModel model = null;
 
          if(!req.remove()) {
@@ -325,6 +340,10 @@ public class CalcFieldAgentService {
                         req.dataType() == null ? null : req.dataType().toLowerCase()) &&
          calc.isSQL() == (req.sql() != null && req.sql()) &&
          calc.isBaseOnDetail() == (req.baseOnDetail() == null || req.baseOnDetail());
+   }
+
+   private static String quoteAll(List<String> names) {
+      return names.stream().map(n -> "'" + n + "'").collect(java.util.stream.Collectors.joining(", "));
    }
 
    /**
