@@ -427,7 +427,14 @@ public class ThreadPool {
        * Creates a new instance of <tt>AbstractContextRunnable</tt>.
        */
       public AbstractContextRunnable() {
-         StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
+         // @by bug78236, capture the real frames of this call site via a Throwable, not
+         // Thread.currentThread().getStackTrace() -- when the current thread is a
+         // GroupedThread (true for every ThreadPool worker), that call dispatches to
+         // GroupedThread's override of getStackTrace(), which returns an array already
+         // concatenated from the real trace plus the current thread's own created/parent
+         // traces. Storing that already-concatenated array here as "this runnable's own
+         // frames" duplicates ancestor history on every level of nested task creation.
+         StackTraceElement[] stackTrace = new Throwable().getStackTrace();
 
          if(stackTrace.length > STACK_TRACE_LENGTH_LIMIT) {
             LOG.warn("Excessively large stack trace.", new Exception("stack trace"));
