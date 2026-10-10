@@ -454,6 +454,38 @@ class DataSpaceTests {
    }
 
    /**
+    * Bug #78202, revision: the same check must also fire for a root-level path (no parent),
+    * since {@code getParentPath} returns {@code null} for a top-level name.
+    */
+   @Test
+   void shouldNotWriteOverRootLevelDirectoryWithoutOrphaningContent() throws Exception {
+      DataSpace space = DataSpace.getDataSpace();
+      String dir = "test78202-root-dir";
+      String file = dir + "/k.txt";
+      byte[] content = "test78202-root-dir-unique-content".getBytes(StandardCharsets.UTF_8);
+      Map<String, Set<String>> refs =
+         Cluster.getInstance().getReplicatedMap("inetsoft.storage.kv.dataSpaceRefs");
+
+      try {
+         space.withOutputStream(dir, "k.txt", out -> out.write(content));
+         String digest = space.getDigest(dir, "k.txt");
+         assertEquals(Set.of(file), refs.get(digest));
+
+         FileAlreadyExistsException e = assertThrows(FileAlreadyExistsException.class,
+            () -> space.withOutputStream(null, dir, out -> out.write(2)));
+
+         assertEquals(dir, e.getFile());
+         assertTrue(space.isDirectory(dir), "the existing directory must be kept");
+         assertEquals(digest, space.getDigest(dir, "k.txt"), "the child file must be intact");
+         assertEquals(Set.of(file), refs.get(digest));
+      }
+      finally {
+         deleteQuietly(space, file);
+         deleteQuietly(space, dir);
+      }
+   }
+
+   /**
     * Bug #77387: a folder that has children but no marker of its own, as left by older
     * versions, must be repaired so that it is listed and deleting it removes its children.
     */
