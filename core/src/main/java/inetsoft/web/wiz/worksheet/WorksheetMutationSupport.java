@@ -582,6 +582,10 @@ public final class WorksheetMutationSupport {
                throw unresolvedFieldReferenceLiteral(s, i, dtype, false);
             }
 
+            if(op != XCondition.NULL && value instanceof String s) {
+               value = requireParsableNumericLiteral(field, dtype, s);
+            }
+
             c.addValue(value);
          }
 
@@ -3171,6 +3175,10 @@ public final class WorksheetMutationSupport {
                   {
                      throw unresolvedFieldReferenceLiteral(s, i, dtype, true);
                   }
+
+                  if(op != XCondition.NULL && value instanceof String s) {
+                     resolvedValues.set(i, requireParsableNumericLiteral(spec.field(), dtype, s));
+                  }
                }
 
                for(Object value : resolvedValues) {
@@ -3848,6 +3856,70 @@ public final class WorksheetMutationSupport {
          dtype + " value -- if this is meant to compare against that column, " + remedy + ". " +
          "Left as a literal it would be silently coerced to a default value (e.g. 0, or the " +
          "current date) rather than compared against the column.");
+   }
+
+   /**
+    * Validates and canonicalizes a literal on a numeric column. {@code AbstractCondition.getObject}
+    * would coerce an unparseable value to 0 and truncate a fractional one on an integral type, and
+    * {@code Condition} keeps the raw String so a padded value such as {@code " 42 "} reads back
+    * as 42 (via getObject) yet never matches (evaluate compares the raw text). So: refuse what is
+    * not a valid number, refuse a fractional or out-of-range value for an integral type, and return
+    * the trimmed (integral: canonical) text to store.
+    *
+    * @return the text to store; the value itself for a non-numeric column
+    * @throws IllegalArgumentException naming the column, value and type
+    */
+   static String requireParsableNumericLiteral(String field, String dtype, String value) {
+      if(!isNumericConditionType(dtype)) {
+         return value;
+      }
+
+      String trimmed = value == null ? "" : value.trim();
+      boolean ok = false;
+      String result = trimmed;
+
+      if(!trimmed.isEmpty()) {
+         try {
+            if(XSchema.FLOAT.equals(dtype)) {
+               Float.valueOf(trimmed);
+               ok = true;
+            }
+            else if(XSchema.DOUBLE.equals(dtype)) {
+               Double.valueOf(trimmed);
+               ok = true;
+            }
+            else {
+               java.math.BigDecimal bd = new java.math.BigDecimal(trimmed);
+
+               // bound before expanding: toBigIntegerExact on "1e999999999" takes minutes
+               if(bd.signum() != 0 && bd.precision() - bd.scale() > 19) {
+                  throw new ArithmeticException("out of range");
+               }
+
+               java.math.BigInteger n = bd.toBigIntegerExact();
+               java.math.BigInteger max = java.math.BigInteger.valueOf(
+                  XSchema.BYTE.equals(dtype) ? Byte.MAX_VALUE :
+                  XSchema.SHORT.equals(dtype) ? Short.MAX_VALUE :
+                  XSchema.LONG.equals(dtype) ? Long.MAX_VALUE : Integer.MAX_VALUE);
+               java.math.BigInteger min = max.negate().subtract(java.math.BigInteger.ONE);
+               ok = n.compareTo(min) >= 0 && n.compareTo(max) <= 0;
+               result = n.toString();
+            }
+         }
+         catch(NumberFormatException | ArithmeticException ex) {
+            ok = false;
+         }
+      }
+
+      if(!ok) {
+         throw new IllegalArgumentException(
+            "Condition value \"" + value + "\" is not a valid " + dtype + " for column " +
+            field + ". An unparseable, fractional or out-of-range value would be stored as a " +
+            "different number and silently change what the filter means. Use a number that fits " +
+            "the column type, or a $(variable) reference.");
+      }
+
+      return result;
    }
 
    private static boolean parsesAsNumericLiteral(String value) {
