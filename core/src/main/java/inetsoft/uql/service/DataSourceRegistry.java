@@ -1700,14 +1700,21 @@ public class DataSourceRegistry implements MessageListener {
          }
 
          if(!moved) {
-            // the cached instances were given the new name
-            for(AssetEntry.Type type : new AssetEntry.Type[] {
-               AssetEntry.Type.DATA_SOURCE, AssetEntry.Type.DATA_MODEL, AssetEntry.Type.DOMAIN })
-            {
-               cachemap.remove(new AssetEntry(AssetRepository.QUERY_SCOPE, type, oname, null));
-            }
+            // the cached instances were given the new name, a failure to drop them doesn't
+            // replace the failure of the rename
+            try {
+               for(AssetEntry.Type type : new AssetEntry.Type[] {
+                  AssetEntry.Type.DATA_SOURCE, AssetEntry.Type.DATA_MODEL,
+                  AssetEntry.Type.DOMAIN })
+               {
+                  cachemap.remove(new AssetEntry(AssetRepository.QUERY_SCOPE, type, oname, null));
+               }
 
-            clearCache2();
+               clearCache2();
+            }
+            catch(RuntimeException ex) {
+               e.addSuppressed(ex);
+            }
          }
 
          throw new DataSourceRenameException(

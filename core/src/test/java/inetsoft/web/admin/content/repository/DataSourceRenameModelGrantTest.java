@@ -294,6 +294,33 @@ class DataSourceRenameModelGrantTest {
       assertUntouched("PtA2");
    }
 
+   // the portal editor, an additional connection renamed and another one removed in one save:
+   // the removed one loses its folder grants, the renamed one keeps them under its new name
+   @Test
+   void portalEditorRenameWithARemovedAdditionalConnection() throws Exception {
+      seedTabular("PgA");
+      DataSourceFolderMoveAdditionalConnectionTest.TestTabularDataSource parent =
+         (DataSourceFolderMoveAdditionalConnectionTest.TestTabularDataSource)
+            registry.getDataSource("PgA");
+      DataSourceFolderMoveAdditionalConnectionTest.TestTabularDataSource gone =
+         new DataSourceFolderMoveAdditionalConnectionTest.TestTabularDataSource();
+      gone.setName("PgAGone");
+      parent.addDatasource(gone);
+      registry.setDataSource(parent, false);
+      registry.clearCache();
+      grantTo(ResourceType.DATA_MODEL_FOLDER, "PgA::PgAGone/F", "alice");
+      grantTo(ResourceType.DATA_SOURCE, "PgA::PgAGone", "alice");
+
+      saveTabular("PgA", tabular(null, "PgA"), "PgA", tabular("PgAAd", "PgAAd2"));
+
+      assertGrant(ResourceType.DATA_MODEL_FOLDER, "PgA::PgAGone/F", false);
+      assertGrant(ResourceType.DATA_SOURCE, "PgA::PgAGone", false);
+      assertGrant(ResourceType.DATA_MODEL_FOLDER, "PgA::PgAAd/F", false);
+      assertGrant(ResourceType.DATA_MODEL_FOLDER, "PgA::PgAAd2/F", true);
+      assertGrant(ResourceType.DATA_SOURCE, "PgA::PgAAd2", true);
+      assertGrant(ResourceType.DATA_MODEL_FOLDER, "PgA/F", true);
+   }
+
    // the parent and its additional connection are renamed in one save
    @Test
    void portalEditorRenameOfTheParentAndTheAdditionalConnection() throws Exception {

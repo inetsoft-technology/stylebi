@@ -116,7 +116,7 @@ class DataSourceRegistryConnectionTestQueryTest {
       }).when(registry).renameObjects(anyString(), anyString(), anyBoolean(), anyBoolean());
       doNothing().when(registry).renameObjects(anyString(), anyString());
       // Bug #77704, a rename moves the objects of a data source in one batch
-      doAnswer(inv -> {
+      org.mockito.stubbing.Answer<Object> moveEntries = inv -> {
          for(DataSourceRegistry.EntryMove move :
              inv.<List<DataSourceRegistry.EntryMove>>getArgument(0))
          {
@@ -126,7 +126,10 @@ class DataSourceRegistryConnectionTestQueryTest {
          }
 
          return null;
-      }).when(registry).moveEntries(anyList());
+      };
+      doAnswer(moveEntries).when(registry).moveEntries(anyList());
+      // Bug #78223, a rename and a folder move pass the permission moves of the data model
+      doAnswer(moveEntries).when(registry).moveEntries(anyList(), any());
       doReturn(false).when(registry).createMoveTargetFolder(any(DataSourceFolder.class),
                                                              anyString());
 
