@@ -194,7 +194,7 @@ public class CalcFieldAgentService {
          // them. A remove has no correct rewrite (unlike rename), so refuse before anything mutates.
          if(req.remove()) {
             List<String> dependents = findDependents(
-               rvs.getViewsheet(), tableName, req.name(), req.name() + " ");
+               rvs.getViewsheet(), tableName, req.name(), req.name() + "\u0000");
 
             if(!dependents.isEmpty()) {
                throw new IllegalArgumentException(
