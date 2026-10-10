@@ -128,6 +128,12 @@ public class SelectionRuntimeService {
     * @param additive    when true, {@code values} only adds — the automatic replace-diff (deselect
     *                    anything current but unmentioned) is skipped. Ignored where that diff
     *                    never ran anyway (single-select, a range slider, calendar).
+    *
+    * <p>The result also carries {@code selectedTotal}, the true post-apply selected count of a
+    * list or tree (unlike {@code valuesSelected}, which is the request size). With an active
+    * search, a selected value the search hides cannot be changed by a replace or deselect --
+    * {@code VSSelectionService.applySelection} adds it back, as the interactive search box does --
+    * so it stays selected and is reported as {@code scopedBySearchRetained} (bug-78216).
     */
    public Map<String, Object> setSelection(String sessionToken, Principal user, String assemblyName,
                                            List<List<String>> values, List<List<String>> deselect,
@@ -250,6 +256,10 @@ public class SelectionRuntimeService {
             result.put("sortCycles", cycles);
          }
 
+         // What the search-merge in VSSelectionService.applySelection put back after a replace or
+         // deselect (bug-78216), collected from whichever branches below run.
+         final List<List<String>> retained = new ArrayList<>();
+
          if(values != null) {
             boolean single = singleSelect != null ? singleSelect : info.isSingleSelection();
 
@@ -357,6 +367,18 @@ public class SelectionRuntimeService {
             }
 
             result.put("valuesSelected", effectiveValues.size());
+
+            // A replace under an active search cannot clear a selected value the search hides:
+            // VSSelectionService.applySelection adds every selected-but-filtered-out value back
+            // (the filtered UI only sends the visible state). Measure what is left selected
+            // after the apply rather than trusting the request (bug-78216).
+            if(isValueMatchable(assembly) && !Boolean.TRUE.equals(additive) &&
+               activeSearch != null && !activeSearch.isBlank())
+            {
+               SelectionList after = selectionListOf(assembly);
+               retained.addAll(retainedSelection(after == null ? null : after.getSelectionValues(),
+                                                 effectiveValues, idMode));
+            }
          }
 
          if(hasDeselect) {
@@ -383,9 +405,38 @@ public class SelectionRuntimeService {
                // Not deselect.size() -- that would count every requested value regardless of
                // whether it was ever actually selected (bug-76701). Report how many of them
                // deselectTargets actually found a match for in currentPaths.
+               // Measured after the apply: a value the active search hides is added back by
+               // VSSelectionService.applySelection, so it is not deselected (bug-78216).
+               List<List<String>> afterPaths = selectedPaths(assembly);
+               List<List<String>> stuck = deselect.stream()
+                  .filter(path -> everSelected(currentPaths, path) && everSelected(afterPaths, path))
+                  .toList();
                result.put("deselected",
                           (int) deselect.stream().filter(path -> everSelected(currentPaths, path))
-                             .count());
+                             .count() - stuck.size());
+
+               String activeSearch = searchString(info);
+
+               if(activeSearch != null && !activeSearch.isBlank()) {
+                  stuck.forEach(path -> {
+                     if(!retained.contains(path)) {
+                        retained.add(path);
+                     }
+                  });
+               }
+            }
+         }
+
+         if((values != null || hasDeselect) && isValueMatchable(assembly)) {
+            SelectionList live = selectionListOf(assembly);
+            result.put("selectedTotal",
+                       selectedTotal(live == null ? null : live.getSelectionValues(),
+                                     assembly instanceof SelectionTreeVSAssembly tree &&
+                                        !tree.isIDMode()));
+
+            if(!retained.isEmpty()) {
+               result.putIfAbsent("scopedBySearch", searchString(info));
+               result.put("scopedBySearchRetained", retained);
             }
          }
       });
@@ -822,6 +873,50 @@ public class SelectionRuntimeService {
       event.setType(ApplySelectionListEvent.Type.APPLY);
       event.setValues(values.stream().map(path -> value(path, false)).toList());
       return event;
+   }
+
+   /**
+    * The number of selected values, as the caller would count them. A fixed-hierarchy (non-ID)
+    * tree marks every ancestor of a selected value, so counting nodes would count one chosen
+    * value as its whole chain; count leaf paths there, the way clear_selection's non-ID
+    * {@code clearedCount} does. An ID-mode tree and a flat list count nodes directly.
+    */
+   static int selectedTotal(SelectionValue[] values, boolean nonIdTree) {
+      return nonIdTree ? selectedPaths(values).size() : countSelected(values);
+   }
+
+   /**
+    * What is still selected after a replace that the request did not name -- the values an active
+    * search hid and {@code VSSelectionService.applySelection} therefore added back (bug-78216).
+    * Measured over the post-apply {@code after} array, so a deselect that did stick is not
+    * reported. ID mode compares node ids against the union of the requested path elements (the
+    * same rule {@link #idModeReplaceEvent} uses); otherwise a selected path is retained unless a
+    * requested path is a prefix of it or it of the request.
+    */
+   static List<List<String>> retainedSelection(SelectionValue[] after, List<List<String>> requested,
+                                               boolean idMode)
+   {
+      List<List<String>> retained = new ArrayList<>();
+
+      if(idMode) {
+         Set<String> requestedIds = new HashSet<>();
+         requested.forEach(requestedIds::addAll);
+
+         for(String id : selectedNodeIds(after)) {
+            if(!requestedIds.contains(id)) {
+               retained.add(List.of(id));
+            }
+         }
+      }
+      else {
+         for(List<String> path : selectedPaths(after)) {
+            if(!everSelected(requested, path)) {
+               retained.add(path);
+            }
+         }
+      }
+
+      return retained;
    }
 
    /**

@@ -27,6 +27,7 @@ import inetsoft.uql.viewsheet.SelectionList;
 import inetsoft.uql.viewsheet.SelectionTreeVSAssembly;
 import inetsoft.uql.viewsheet.SelectionValue;
 import inetsoft.uql.viewsheet.internal.CalendarVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.SelectionTreeVSAssemblyInfo;
 import inetsoft.web.viewsheet.event.ApplySelectionListEvent;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -42,11 +43,13 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -225,6 +228,145 @@ class SelectionRuntimeServiceSubtreeDomainTest {
       assertEquals(2, event.getValues().size(), "requested B plus the one leftover");
       assertTrue(event.getValues().get(0).isSelected());
       assertEquals("B", event.getValues().get(0).getValue()[0]);
+   }
+
+   // ── search-hidden selections (bug-78216) ───────────────────────────────────
+
+   /** {@code East{NY}} (both selected, like a fixed-hierarchy select) and a selected top-level Beta. */
+   private static SelectionList eastNyAndBeta() {
+      SelectionList domain = new SelectionList();
+      CompositeSelectionValue east = new CompositeSelectionValue("East", "East");
+      east.setSelected(true);
+      SelectionList children = new SelectionList();
+      SelectionValue ny = new SelectionValue("NY", "NY");
+      ny.setSelected(true);
+      ny.setLevel(1);
+      children.addSelectionValue(ny);
+      east.setSelectionList(children);
+      domain.addSelectionValue(east);
+      CompositeSelectionValue beta = new CompositeSelectionValue("Beta", "Beta");
+      beta.setSelected(true);
+      domain.addSelectionValue(beta);
+      return domain;
+   }
+
+   private static SelectionTreeVSAssembly searchedTree(boolean idMode, SelectionList domain,
+                                                       String search)
+   {
+      SelectionTreeVSAssembly assembly = SelectionRuntimeServiceTest.tree(0, false);
+      when(assembly.isIDMode()).thenReturn(idMode);
+      when(assembly.getSelectionList()).thenReturn(domain);
+      when(((SelectionTreeVSAssemblyInfo) assembly.getInfo()).getSearchString()).thenReturn(search);
+      return assembly;
+   }
+
+   @Test
+   void selectedTotalCountsLeafPathsOnANonIdTree() {
+      SelectionValue[] tree = eastNyAndBeta().getSelectionValues();
+
+      assertEquals(2, SelectionRuntimeService.selectedTotal(tree, true), "NY and Beta");
+      assertEquals(3, SelectionRuntimeService.selectedTotal(tree, false), "nodes, ancestor too");
+   }
+
+   @Test
+   void retainedSelectionTreatsAPrefixOfARequestedPathAsRequested() {
+      SelectionValue[] tree = eastNyAndBeta().getSelectionValues();
+
+      assertEquals(List.of(List.of("Beta")),
+                   SelectionRuntimeService.retainedSelection(
+                      tree, List.of(List.of("East", "NY")), false));
+   }
+
+   /** The merge-back leaves East/NY selected (the mock apply changes nothing): disclose it. */
+   @Test
+   void setSelectionUnderASearchReportsTheTrueTotalAndTheRetainedValue() throws Exception {
+      SelectionTreeVSAssembly assembly = searchedTree(false, eastNyAndBeta(), "Beta");
+      SelectionRuntimeServiceTest.Harness h = SelectionRuntimeServiceTest.harness(assembly);
+
+      Map<String, Object> result = h.service().setSelection(
+         "tok", SelectionRuntimeServiceTest.principal(), "Tree1", List.of(List.of("Beta")), null,
+         null, null, null, "");
+
+      assertEquals(1, result.get("valuesSelected"));
+      assertEquals(2, result.get("selectedTotal"));
+      assertEquals(List.of(List.of("East", "NY")), result.get("scopedBySearchRetained"));
+      assertEquals("Beta", result.get("scopedBySearch"));
+   }
+
+   @Test
+   void setSelectionUnderASearchOnAnIdTreeReportsTheRetainedNodeId() throws Exception {
+      SelectionList domain = new SelectionList();
+      SelectionValue alpha = new SelectionValue("Alpha", "Alpha");
+      alpha.setSelected(true);
+      SelectionValue beta = new SelectionValue("Beta", "Beta");
+      beta.setSelected(true);
+      domain.addSelectionValue(alpha);
+      domain.addSelectionValue(beta);
+      SelectionRuntimeServiceTest.Harness h =
+         SelectionRuntimeServiceTest.harness(searchedTree(true, domain, "Beta"));
+
+      Map<String, Object> result = h.service().setSelection(
+         "tok", SelectionRuntimeServiceTest.principal(), "Tree1", List.of(List.of("Beta")), null,
+         null, null, null, "");
+
+      assertEquals(2, result.get("selectedTotal"));
+      assertEquals(List.of(List.of("Alpha")), result.get("scopedBySearchRetained"));
+      assertEquals("Beta", result.get("scopedBySearch"));
+   }
+
+   @Test
+   void setSelectionReportsNoRetainedKeysWhenNothingStaysHidden() throws Exception {
+      SelectionList domain = new SelectionList();
+      SelectionValue beta = new SelectionValue("Beta", "Beta");
+      beta.setSelected(true);
+      domain.addSelectionValue(beta);
+      SelectionRuntimeServiceTest.Harness h =
+         SelectionRuntimeServiceTest.harness(searchedTree(true, domain, "Beta"));
+
+      Map<String, Object> result = h.service().setSelection(
+         "tok", SelectionRuntimeServiceTest.principal(), "Tree1", List.of(List.of("Beta")), null,
+         null, null, null, "");
+
+      assertEquals(1, result.get("selectedTotal"));
+      assertFalse(result.containsKey("scopedBySearchRetained"));
+      assertFalse(result.containsKey("scopedBySearch"));
+   }
+
+   /** A deselect the search merge-back undoes is retained, not counted as deselected. */
+   @Test
+   void deselectUnderASearchDoesNotCountAValueThatStaysSelected() throws Exception {
+      SelectionRuntimeServiceTest.Harness h = SelectionRuntimeServiceTest.harness(
+         searchedTree(false, eastNyAndBeta(), "Beta"));
+
+      Map<String, Object> result = h.service().setSelection(
+         "tok", SelectionRuntimeServiceTest.principal(), "Tree1", null,
+         List.of(List.of("East", "NY")), null, null, null, "");
+
+      assertEquals(0, result.get("deselected"));
+      assertEquals(List.of(List.of("East", "NY")), result.get("scopedBySearchRetained"));
+      assertEquals("Beta", result.get("scopedBySearch"));
+   }
+
+   /** Control: the apply really clears it (no merge-back), so it is deselected and not retained. */
+   @Test
+   void deselectThatSticksIsCountedAndNotRetained() throws Exception {
+      SelectionList domain = eastNyAndBeta();
+      SelectionRuntimeServiceTest.Harness h =
+         SelectionRuntimeServiceTest.harness(searchedTree(false, domain, "Beta"));
+      doAnswer(inv -> {
+         CompositeSelectionValue east = (CompositeSelectionValue) domain.getSelectionValue(0);
+         east.setSelected(false);
+         east.getSelectionList().getSelectionValue(0).setSelected(false);
+         return null;
+      }).when(h.selections()).applySelection(anyString(), anyString(), any(),
+                                             any(Principal.class), any(), anyString());
+
+      Map<String, Object> result = h.service().setSelection(
+         "tok", SelectionRuntimeServiceTest.principal(), "Tree1", null,
+         List.of(List.of("East", "NY")), null, null, null, "");
+
+      assertEquals(1, result.get("deselected"));
+      assertFalse(result.containsKey("scopedBySearchRetained"));
    }
 
    // ── clear_selection on a calendar ──────────────────────────────────────────
