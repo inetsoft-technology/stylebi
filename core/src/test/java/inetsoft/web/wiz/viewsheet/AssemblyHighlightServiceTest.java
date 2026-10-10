@@ -18,10 +18,16 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.CylinderVSAssembly;
+import inetsoft.uql.viewsheet.ImageVSAssembly;
+import inetsoft.uql.viewsheet.SubmitVSAssembly;
 import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.CylinderVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.SubmitVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.composer.model.vs.HighlightDialogModel;
@@ -180,6 +186,100 @@ class AssemblyHighlightServiceTest {
       verify(h.highlights, never()).setHighlightDialogModel(anyString(), anyString(), any(),
                                                              anyString(), any(Principal.class),
                                                              any());
+   }
+
+   /** Submit is an output the Composer offers no Highlight for, and nothing renders one. */
+   @Test
+   void refusesAHighlightOnASubmitButton() throws Exception {
+      Harness h = harness(model());
+      SubmitVSAssembly submit = mock(SubmitVSAssembly.class);
+      when(submit.getVSAssemblyInfo()).thenReturn(mock(SubmitVSAssemblyInfo.class));
+      when(h.rvs.getViewsheet().getAssembly("Submit1")).thenReturn(submit);
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> h.service.set("tok", principal(), "Submit1", null, highlight("X"), false, ""));
+
+      assertTrue(thrown.getMessage().contains("'Submit1' is a Submit"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("does not render highlights"), thrown.getMessage());
+      verify(h.highlights, never()).setHighlightDialogModel(anyString(), anyString(), any(),
+                                                             anyString(), any(Principal.class),
+                                                             any());
+   }
+
+   @Test
+   void stillAcceptsAHighlightOnAnImage() throws Exception {
+      Harness h = harness(model());
+      ImageVSAssembly image = mock(ImageVSAssembly.class);
+      when(image.getVSAssemblyInfo()).thenReturn(mock(ImageVSAssemblyInfo.class));
+      when(h.rvs.getViewsheet().getAssembly("Image1")).thenReturn(image);
+
+      h.service.set("tok", principal(), "Image1", null, highlight("X"), false, "");
+
+      assertEquals(1, capture(h.highlights).getHighlights().length);
+   }
+
+   /** Only set is guarded: a stray highlight already stored on a Submit must stay listable and deletable. */
+   @Test
+   void listAndDeleteOnASubmitAreNotRefused() throws Exception {
+      Harness h = harness(model(existing("Stray")));
+      SubmitVSAssembly submit = mock(SubmitVSAssembly.class);
+      when(submit.getVSAssemblyInfo()).thenReturn(mock(SubmitVSAssemblyInfo.class));
+      when(h.rvs.getViewsheet().getAssembly("Submit1")).thenReturn(submit);
+
+      assertEquals(1, ((List<?>) h.service.list("tok", principal(), "Submit1", null)
+                          .get("highlights")).size());
+      h.service.delete("tok", principal(), "Submit1", null, "Stray", "");
+      assertEquals(0, capture(h.highlights).getHighlights().length);
+   }
+
+   private static Harness chartHarness(HighlightModel... existing) {
+      Harness h = harness(model(existing));
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getVSAssemblyInfo()).thenReturn(mock(ChartVSAssemblyInfo.class));
+      when(h.rvs.getViewsheet().getAssembly("Chart1")).thenReturn(chart);
+      return h;
+   }
+
+   /** axis is only a field selector; without a name it is silently dropped and the write lands on the whole chart. */
+   @Test
+   void refusesAnAxisHighlightWithNoColName() throws Exception {
+      for(String blank : new String[]{ null, "", "  " }) {
+         Harness h = chartHarness();
+
+         Exception thrown = assertThrows(
+            Exception.class,
+            () -> h.service.set("tok", principal(), "Chart1",
+                                new AssemblyHighlightService.Region(0, 0, blank, true, false),
+                                highlight("X"), false, ""));
+
+         assertTrue(thrown.getMessage().contains("colName"), thrown.getMessage());
+         verify(h.highlights, never()).setHighlightDialogModel(anyString(), anyString(), any(),
+                                                                anyString(), any(Principal.class),
+                                                                any());
+      }
+   }
+
+   @Test
+   void stillAcceptsAnAxisHighlightWithAColName() throws Exception {
+      Harness h = chartHarness();
+
+      h.service.set("tok", principal(), "Chart1",
+                    new AssemblyHighlightService.Region(0, 0, "Sum(Revenue)", true, false),
+                    highlight("X"), false, "");
+
+      assertEquals(1, capture(h.highlights).getHighlights().length);
+   }
+
+   @Test
+   void axisWithNoColNameIsNotRefusedOnListOrDelete() throws Exception {
+      Harness h = chartHarness(existing("Stray"));
+      AssemblyHighlightService.Region region =
+         new AssemblyHighlightService.Region(0, 0, null, true, false);
+
+      h.service.list("tok", principal(), "Chart1", region);
+      h.service.delete("tok", principal(), "Chart1", region, "Stray", "");
+      assertEquals(0, capture(h.highlights).getHighlights().length);
    }
 
    /** Control: a Text output does render highlights, so it must still be accepted. */
