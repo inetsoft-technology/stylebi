@@ -159,6 +159,21 @@ public class VGraphPair {
    }
 
    /**
+    * Check if the initialization failed with an exception. A failed pair is also completed
+    * (see {@link #isCompleted()}), but it holds no graph and must not be reused. (78220)
+    */
+   public boolean isFailed() {
+      return failure != null;
+   }
+
+   /**
+    * Get the exception the initialization failed with, or <tt>null</tt> if it did not fail.
+    */
+   public Throwable getFailure() {
+      return failure;
+   }
+
+   /**
     * Check if graph was plotted. The graph may not be plotted if data is null (for whatever
     * reason), or if the graph definition is empty.
     */
@@ -191,9 +206,11 @@ public class VGraphPair {
                initGraph0(box, cname, maxsize, export, scaleFont, forceExpand);
             }
             catch(MessageException messageException) {
+               failure = messageException;
                throw messageException;
             }
             catch(DynamicColumnNotFoundException de) {
+               failure = de;
                throw de;
             }
             catch(Exception e) {
@@ -204,6 +221,11 @@ public class VGraphPair {
                   LOG.warn("init graph error: cancel={}, {}", this.cancelled, e.getMessage());
                }
 
+               failure = e;
+               throw e;
+            }
+            catch(Error e) {
+               failure = e;
                throw e;
             }
             finally {
@@ -2793,6 +2815,8 @@ public class VGraphPair {
    private DataSet data; // data set
    private boolean cancelled = false;
    private final AtomicBoolean completed = new AtomicBoolean(false);
+   // set before completed, so a thread that sees completed also sees the failure
+   private volatile Throwable failure;
    private boolean cscript = false;
    private boolean isStructureChanged = false;
    private ViewsheetSandbox vbox;

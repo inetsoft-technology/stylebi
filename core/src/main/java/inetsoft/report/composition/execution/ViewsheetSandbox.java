@@ -7488,7 +7488,9 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          Principal principal = ThreadContext.getContextPrincipal();
          XPrincipal xprincipal = principal == null ? null : (XPrincipal) principal;
 
-         if(pair == null || !pair.isCompleted() && pair.isCancelled() ||
+         // a pair whose init failed holds no graph, build a new one instead of returning it
+         // (its init thread may not have removed it yet). (78220)
+         if(pair == null || !pair.isCompleted() && pair.isCancelled() || pair.isFailed() ||
             // init to throw CheckMissingMVEvent to make sure client display progress bar to
             // wait for mv insteadof always loading becauseof an empty graph.
             init && MVManager.getManager().isPending(getAssetEntry(), xprincipal))
@@ -7527,6 +7529,18 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                   // ignore exception if cancelled so we can check for cancelled status
                   // instead of causing an error in VSChartAreasController. (51339)
                   if(!pair.isCancelled()) {
+                     // don't keep the failed pair, or every later request would get its
+                     // empty graph ("No data") after the cause is gone. Only remove this
+                     // pair, not a newer one another request has put. (78220)
+                     graphLock.lock();
+
+                     try {
+                        pairs.remove(name, pair);
+                     }
+                     finally {
+                        graphLock.unlock();
+                     }
+
                      throw ex;
                   }
                }
@@ -7543,6 +7557,13 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                finally {
                   thisLock.restoreLocks();
                }
+
+               // the init this request waited for failed: report its failure instead of
+               // returning the empty pair. A request that doesn't need the graph (init is
+               // false, e.g. an image tile) gets the pair and treats it as not plotted. (78220)
+               if(init && pair.isFailed() && !pair.isCancelled()) {
+                  rethrowGraphFailure(pair.getFailure());
+               }
             }
          }
 
@@ -7556,6 +7577,21 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       }
 
       return pair;
+   }
+
+   /**
+    * Rethrow the failure of a graph pair init that another request ran.
+    */
+   private static void rethrowGraphFailure(Throwable failure) throws Exception {
+      if(failure instanceof Exception ex) {
+         throw ex;
+      }
+
+      if(failure instanceof Error err) {
+         throw err;
+      }
+
+      throw new Exception(failure);
    }
 
    /**
