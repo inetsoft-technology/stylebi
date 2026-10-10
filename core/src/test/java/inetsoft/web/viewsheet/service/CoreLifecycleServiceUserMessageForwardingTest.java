@@ -20,18 +20,27 @@ package inetsoft.web.viewsheet.service;
 import inetsoft.util.Tool;
 import inetsoft.util.UserMessage;
 import inetsoft.web.viewsheet.command.MessageCommand;
+import inetsoft.web.viewsheet.command.ViewsheetCommand;
 import org.junit.jupiter.api.*;
 
 import java.util.List;
 import java.util.concurrent.*;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 /**
- * Bug #77188: a viewer's own script/expression-failure {@link UserMessage} (e.g.
- * {@code CoreTool.addUserWarning} from {@code AssetQuery}'s {@code ExpressionFailedException}
- * handling) must still reach the browser when the viewsheet open is dispatched via
- * {@code CoreLifecycleService.HandleOpenSheetTask} to a <em>different</em> node than the one that
+ * Covers two independent {@code CoreLifecycleService} user-message-forwarding fixes that each
+ * added a test class under this same name; combined here rather than carried as two separate
+ * files so a future reader finds all of this class's thread-boundary/message-forwarding coverage
+ * in one place.
+ *
+ * <h2>Bug #77188</h2>
+ * A viewer's own script/expression-failure {@link UserMessage} (e.g. {@code
+ * CoreTool.addUserWarning} from {@code AssetQuery}'s {@code ExpressionFailedException} handling)
+ * must still reach the browser when the viewsheet open is dispatched via {@code
+ * CoreLifecycleService.HandleOpenSheetTask} to a <em>different</em> node than the one that
  * received the STOMP {@code /events/open} request ({@code viewsheetService.isLocal(id)} is
  * {@code false}).
  *
@@ -56,27 +65,66 @@ import static org.junit.jupiter.api.Assertions.*;
  * {@code handleOpenedSheet()}'s {@code !isLocal} branch -- before the enclosing
  * {@code @MessageMapping} handler method returns and {@code EventAspect}'s advice runs.
  *
- * <p>This test exercises the real harvest ({@link CoreLifecycleService.HandleOpenSheetTask#harvestUserMessages()})
- * and republish ({@link CoreLifecycleService#republishUserMessages(List)}) methods directly,
- * simulating the cross-node hop with two distinct threads (an {@link ExecutorService}-backed
- * "remote node" thread for the harvest, and this test's own thread -- standing in for the
- * STOMP-receiving node -- for the republish and the final {@code EventAspect}-style read), rather
- * than driving the full {@code doHandleOpenedSheet()}/viewsheet-sandbox machinery, which needs a
- * live viewsheet and is out of scope for a thread-boundary unit test. See
- * {@code UserMessageThreadBoundaryTest} (bug #77135) for the sibling tests covering the
- * complementary "must NOT leak across threads" contracts this fix must not regress.
+ * <p>{@link #userMessageDoesNotCrossThreadsWithoutACarrier()},
+ * {@link #remoteHandleOpenSheetTaskMessageIsForwardedToCallingThread()} and
+ * {@link #republishUserMessagesIsNoOpForNullOrEmpty()} exercise the real harvest
+ * ({@code CoreLifecycleService.HandleOpenSheetTask.harvestUserMessages()}) and republish
+ * ({@code CoreLifecycleService.republishUserMessages(List)}) methods directly, simulating the
+ * cross-node hop with two distinct threads (an {@link ExecutorService}-backed "remote node"
+ * thread for the harvest, and this test's own thread -- standing in for the STOMP-receiving node
+ * -- for the republish and the final {@code EventAspect}-style read), rather than driving the
+ * full {@code doHandleOpenedSheet()}/viewsheet-sandbox machinery, which needs a live viewsheet and
+ * is out of scope for a thread-boundary unit test. See {@code UserMessageThreadBoundaryTest} (bug
+ * #77135) for the sibling tests covering the complementary "must NOT leak across threads"
+ * contracts this fix must not regress.
+ *
+ * <h2>Bug #78254</h2>
+ * {@code CoreLifecycleService.refreshViewsheet()} is reached via {@code VSRefreshController}'s
+ * always-async {@code @ClusterProxy} call ({@code VSRefreshServiceProxy.refreshViewsheetAsync}).
+ * A script/calc-field error re-raised during that method's table-query re-execution (via
+ * {@code CoreTool.addUserWarning}, matching {@code AssetQuery.java:1082}) used to be lost: the
+ * only harvest point was the generic {@code ServiceProxyContext.apply()}, whose
+ * {@code if(!async)} guard (Bug #77135) discards it for this always-async entry point before any
+ * caller thread could observe it.
+ *
+ * <p>The fix (see {@code CoreLifecycleService.forwardReraisedUserMessage}, called at the end of
+ * {@code refreshViewsheet()} right after the table-query re-execution) reads
+ * {@link Tool#getUserMessage()} and forwards it directly via the session-keyed,
+ * thread-independent {@link CommandDispatcher#sendCommand}, bypassing the
+ * {@code ServiceProxyContext}/{@code Tool} thread-local relay entirely -- mirroring the
+ * pre-existing, working pattern in {@code CoreLifecycleService.execute()}.
+ *
+ * <p>{@link #forwardsAPendingReraisedUserMessageToTheDispatcher()} and
+ * {@link #sendsNothingWhenNoMessageIsPending()} drive {@code forwardReraisedUserMessage} directly
+ * (not the full ~500-line {@code refreshViewsheet()}, which has no prior unit-test coverage and
+ * would need a large, fragile mock graph -- a real {@code Viewsheet}/{@code ViewsheetSandbox}/
+ * {@code RuntimeViewsheet} -- disproportionate to this minimal, self-contained fix) using the real
+ * {@code Tool} thread-local and a mocked {@link CommandDispatcher}, which is sufficient to verify
+ * the fix's actual, user-visible effect: a pending user message reaches the dispatcher.
+ *
+ * <p>Neither bug's tests reach {@code ConfigurationContext}/any Spring bean (only {@code Tool}'s
+ * thread-local and a mocked {@code CommandDispatcher}/{@code ExecutorService}), so no Spring test
+ * context is required for this class.
  */
 @Tag("core")
 class CoreLifecycleServiceUserMessageForwardingTest {
+   private CoreLifecycleService service;
+
    @BeforeEach
    void setUp() {
       Tool.clearUserMessage();
+      // None of the 12 constructor dependencies are touched by forwardReraisedUserMessage --
+      // it only reads Tool's thread-local and calls the dispatcher passed in explicitly.
+      service = new CoreLifecycleService(
+         null, null, null, null, null, null, null, null, null, null, null, null);
    }
 
    @AfterEach
    void tearDown() {
       Tool.clearUserMessage();
    }
+
+   // --- Bug #77188: HandleOpenSheetTask.harvestUserMessages() / republishUserMessages() ---
 
    // Demonstrates the bug (pre-fix behavior) in isolation: a UserMessage recorded on one thread
    // is simply not visible to another thread via Tool's thread-local, with no carrier at all.
@@ -162,5 +210,30 @@ class CoreLifecycleServiceUserMessageForwardingTest {
 
       CoreLifecycleService.republishUserMessages(List.of());
       assertTrue(Tool.getUserMessages(MessageCommand.Type.WARNING).isEmpty());
+   }
+
+   // --- Bug #78254: forwardReraisedUserMessage() ---
+
+   @Test
+   void forwardsAPendingReraisedUserMessageToTheDispatcher() {
+      Tool.addUserWarning("calc field error re-raised on refresh");
+      CommandDispatcher dispatcher = mock(CommandDispatcher.class);
+
+      service.forwardReraisedUserMessage(dispatcher);
+
+      verify(dispatcher, times(1)).sendCommand(argThat((ViewsheetCommand cmd) ->
+         cmd instanceof MessageCommand &&
+         "calc field error re-raised on refresh".equals(((MessageCommand) cmd).getMessage())));
+      // The message was consumed (not left for some later, unrelated harvest to re-discover).
+      assertNull(Tool.getUserMessage());
+   }
+
+   @Test
+   void sendsNothingWhenNoMessageIsPending() {
+      CommandDispatcher dispatcher = mock(CommandDispatcher.class);
+
+      service.forwardReraisedUserMessage(dispatcher);
+
+      verify(dispatcher, never()).sendCommand(any());
    }
 }
