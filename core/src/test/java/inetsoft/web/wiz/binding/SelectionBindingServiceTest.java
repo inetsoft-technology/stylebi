@@ -578,6 +578,121 @@ class SelectionBindingServiceTest {
       assertEquals("$(x)", boundMeasure(measures("AMOUNT"), null, " $(x)"));
    }
 
+   // ── measure on a selection tree / refused elsewhere (Bug #78208) ───────────
+
+   private static SelectionTreePropertyDialogModel boundTreeMeasure(
+      DataOutputService dataOutput, SelectionTreePropertyDialogService treeService,
+      boolean idMode, String measure)
+      throws Exception
+   {
+      SelectionTreeVSAssembly assembly = mock(SelectionTreeVSAssembly.class);
+      SelectionTreePropertyDialogModel model = new SelectionTreePropertyDialogModel();
+      when(treeService.getSelectionTreePropertyModel(eq("rt1"), eq("Tree1"), any()))
+         .thenReturn(model);
+      SelectionBindingService service =
+         harness(assembly, null, treeService, null, null, dataOutput);
+
+      if(idMode) {
+         service.setSource("tok", principal(), "Tree1", "ORDERS", null, null, measure, "CITY",
+                           "STATE", "ORDER_DATE", false, "");
+      }
+      else {
+         service.setSource("tok", principal(), "Tree1", "ORDERS", List.of("STATE", "CITY"), null,
+                           measure, null, null, null, false, "");
+      }
+
+      return model;
+   }
+
+   private static String treeMeasure(SelectionTreePropertyDialogModel model) {
+      return model.getSelectionTreePaneModel().getSelectionMeasurePaneModel().getMeasure();
+   }
+
+   @Test
+   void storesATreeMeasureUnderItsCanonicalName() throws Exception {
+      SelectionTreePropertyDialogService treeService = mock(SelectionTreePropertyDialogService.class);
+
+      SelectionTreePropertyDialogModel model = boundTreeMeasure(
+         measures("STATE", "AMOUNT"), treeService, false, "amount");
+
+      assertEquals("AMOUNT", treeMeasure(model));
+      verify(treeService).setSelectionTreePropertyModel(
+         eq("rt1"), eq("Tree1"), any(), eq(""), any(), any());
+   }
+
+   @Test
+   void storesAnIdModeTreeMeasureUnderItsCanonicalName() throws Exception {
+      SelectionTreePropertyDialogService treeService = mock(SelectionTreePropertyDialogService.class);
+
+      SelectionTreePropertyDialogModel model = boundTreeMeasure(
+         measures("STATE", "AMOUNT"), treeService, true, "amount");
+
+      assertEquals("AMOUNT", treeMeasure(model));
+   }
+
+   @Test
+   void refusesAnUnknownTreeMeasureBeforeAnythingIsApplied() throws Exception {
+      for(boolean idMode : new boolean[] { false, true }) {
+         SelectionTreePropertyDialogService treeService =
+            mock(SelectionTreePropertyDialogService.class);
+         DataOutputService dataOutput = measures("STATE", "AMOUNT");
+
+         Exception thrown = assertThrows(IllegalArgumentException.class,
+            () -> boundTreeMeasure(dataOutput, treeService, idMode, "NOPE"));
+
+         assertTrue(thrown.getMessage().contains("NOPE"));
+         assertTrue(thrown.getMessage().contains("AMOUNT"));
+         verify(treeService, never()).setSelectionTreePropertyModel(
+            any(), any(), any(), any(), any(), any());
+      }
+   }
+
+   @Test
+   void passesADynamicTreeMeasureThroughUnchecked() throws Exception {
+      DataOutputService dataOutput = measures("AMOUNT");
+
+      SelectionTreePropertyDialogModel model = boundTreeMeasure(
+         dataOutput, mock(SelectionTreePropertyDialogService.class), false, "$(Measure1)");
+
+      assertEquals("$(Measure1)", treeMeasure(model));
+      verifyNoInteractions(dataOutput);
+   }
+
+   @Test
+   void refusesAMeasureOnARangeSlider() throws Exception {
+      TimeSliderVSAssembly assembly = mock(TimeSliderVSAssembly.class);
+      RangeSliderPropertyDialogService sliderService = mock(RangeSliderPropertyDialogService.class);
+      when(sliderService.getRangeSliderPropertyModel(eq("rt1"), eq("Slider1"), any()))
+         .thenReturn(new RangeSliderPropertyDialogModel());
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () ->
+         harness(assembly, null, null, sliderService, null)
+            .setSource("tok", principal(), "Slider1", "ORDERS", List.of("AMOUNT"), null,
+                      "AMOUNT", null, null, null, false, ""));
+
+      assertTrue(thrown.getMessage().contains("measure"));
+      assertTrue(thrown.getMessage().contains("selection list or tree"));
+      verify(sliderService, never()).setRangeSliderPropertyModel(
+         any(), any(), any(), any(), any(), any());
+   }
+
+   @Test
+   void refusesAMeasureOnACalendar() throws Exception {
+      CalendarVSAssembly assembly = mock(CalendarVSAssembly.class);
+      CalendarPropertyDialogService calendarService = mock(CalendarPropertyDialogService.class);
+      when(calendarService.getCalendarPropertyModel(eq("rt1"), eq("Cal1"), any()))
+         .thenReturn(new CalendarPropertyDialogModel());
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () ->
+         harness(assembly, null, null, null, calendarService)
+            .setSource("tok", principal(), "Cal1", "ORDERS", List.of("ORDER_DATE"), null,
+                      "AMOUNT", null, null, null, false, ""));
+
+      assertTrue(thrown.getMessage().contains("measure"));
+      verify(calendarService, never()).setCalendarPropertyModel(
+         any(), any(), any(), any(), any(), any());
+   }
+
    // ── Logical Model column resolution (regression for Bug #76700) ────────────
 
    /**

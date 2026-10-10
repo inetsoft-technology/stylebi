@@ -85,8 +85,9 @@ public class SelectionBindingService {
     * @param additionalTables  extra tables the selection also filters. Null (omitted) keeps the
     *                 assembly's existing additional tables; an empty list clears them. A rebind
     *                 that did not resend them used to silently drop them.
-    * @param measure  selection list only — an optional aggregate/bar-chart measure column. Ignored
-    *                 for every other type. A literal column name is checked against the same list
+    * @param measure  selection list or tree — an optional aggregate/bar-chart measure column. A
+    *                 non-blank value is refused for a range slider or calendar, which have no
+    *                 measure. A literal column name is checked against the same list
     *                 the property dialog's measure dropdown offers (columns shared by the table and
     *                 every additional table) and stored under its canonical name; an unknown one is
     *                 refused. A {@code "$…"} or {@code "=…"} value (a StyleBI {@code DynamicValue}
@@ -203,6 +204,14 @@ public class SelectionBindingService {
 
             result.put("additionalTables", additionalOrEmpty(pane.getAdditionalTables()));
 
+            // Resolved here, once for both modes and before anything is applied, so an unknown
+            // measure throws without a partial write.
+            if(measure != null && !measure.isBlank()) {
+               pane.getSelectionMeasurePaneModel().setMeasure(resolveMeasure(
+                  runtimeId, user, assemblyName, resolvedTable, pane.getAdditionalTables(),
+                  measure));
+            }
+
             if(idMode) {
                // #76768: an arbitrary-depth tree from one flat, self-referencing table, distinct
                // from the fixed-hierarchy-levels COLUMN mode below. Literal columns only --
@@ -249,6 +258,7 @@ public class SelectionBindingService {
             }
          }
          else if(assembly instanceof TimeSliderVSAssembly) {
+            refuseMeasure(assemblyName, "a range slider", measure);
             requireArity(assemblyName, "a range slider", resolvedColumns, 1, null);
             RangeSliderPropertyDialogModel model =
                rangeSliderService.getRangeSliderPropertyModel(runtimeId, assemblyName, user);
@@ -280,6 +290,7 @@ public class SelectionBindingService {
             result.put("composite", composite);
          }
          else if(assembly instanceof CalendarVSAssembly) {
+            refuseMeasure(assemblyName, "a calendar", measure);
             requireArity(assemblyName, "a calendar", resolvedColumns, 1, 1);
             CalendarPropertyDialogModel model =
                calendarService.getCalendarPropertyModel(runtimeId, assemblyName, user);
@@ -477,6 +488,14 @@ public class SelectionBindingService {
 
    private static List<String> additionalOrEmpty(List<String> additionalTables) {
       return additionalTables == null ? List.of() : additionalTables;
+   }
+
+   private static void refuseMeasure(String assemblyName, String kind, String measure) {
+      if(measure != null && !measure.isBlank()) {
+         throw new IllegalArgumentException(
+            "'measure' is not supported for " + kind + " ('" + assemblyName +
+            "') — selection list or tree only. Omit it.");
+      }
    }
 
    /**
