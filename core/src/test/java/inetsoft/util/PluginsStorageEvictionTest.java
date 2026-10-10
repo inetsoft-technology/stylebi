@@ -170,6 +170,65 @@ class PluginsStorageEvictionTest {
       assertFalse(getHeldStorage().isClosed());
    }
 
+   /**
+    * After a re-attach, the held storage enumerates the store again, and an install and an
+    * uninstall made later by another node reach this node through change events alone, without
+    * any further read or write on this node.
+    */
+   @Test
+   void remoteChangesAfterReattachArriveByEvent() throws Exception {
+      BlobStorage<Plugin.Descriptor> held = getHeldStorage();
+      KeyValueStorageManager kvManager = KeyValueStorageManager.getInstance();
+      evict(held, i -> kvManager.<Serializable>getStorage("test78253.kv.event." + i));
+
+      BlobStorage<Plugin.Descriptor> writer =
+         BlobStorageManager.getInstance().getStorage("plugins", true);
+      String addedId = "test78253-event";
+      File addedZip = createPlugin(addedId, "1.0.0");
+
+      // a read on this node re-attaches; the held storage now enumerates what the store holds
+      plugins.getPlugins();
+      BlobStorage<Plugin.Descriptor> reattached = getHeldStorage();
+      assertNotSame(held, reattached);
+      assertEquals(storedIds(writer), storedIds(reattached));
+
+      try(InputStream input = new FileInputStream(addedZip);
+          BlobTransaction<Plugin.Descriptor> tx = writer.beginTransaction();
+          OutputStream output = tx.newStream(addedId, new Plugin.Descriptor(addedZip)))
+      {
+         input.transferTo(output);
+         tx.commit();
+      }
+
+      installed.add(addedId);
+      // read the loaded map directly, so no access on this node can trigger a resync
+      waitForUnchecked(() -> getLoadedPlugins().containsKey(addedId));
+      assertTrue(storedIds(reattached).contains(addedId));
+
+      writer.delete(addedId);
+      waitForUnchecked(() -> !getLoadedPlugins().containsKey(addedId));
+      assertSame(reattached, getHeldStorage());
+   }
+
+   private static Set<String> storedIds(BlobStorage<Plugin.Descriptor> storage) {
+      Set<String> ids = new TreeSet<>();
+      storage.stream().forEach(b -> ids.add(b.getMetadata().getId()));
+      return ids;
+   }
+
+   private static void waitForUnchecked(java.util.concurrent.Callable<Boolean> condition)
+      throws InterruptedException
+   {
+      waitFor(() -> {
+         try {
+            return condition.call();
+         }
+         catch(Exception e) {
+            throw new RuntimeException(e);
+         }
+      });
+   }
+
    private void evict(BlobStorage<Plugin.Descriptor> held, java.util.function.IntConsumer open)
       throws InterruptedException
    {
