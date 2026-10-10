@@ -45,6 +45,7 @@ import inetsoft.util.script.ScriptException;
 import inetsoft.util.script.ScriptStateLint;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import inetsoft.util.script.graal.ScriptScope;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -4149,7 +4150,10 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
             LOG.warn(msg);
          }
 
-         throw new ScriptException(msg);
+         ScriptException se = new ScriptException(msg);
+         // keep a timeout's or cancel's stop, or a reader caches the failure (bug #78212)
+         se.setStopped(ScriptTimeoutGuard.isStop(ex));
+         throw se;
       }
       finally {
          FormulaContext.setRestricted(restricted);
@@ -4517,6 +4521,10 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
             return condnode;
          }
          catch(Exception ex) {
+            // a stopped condition script fails the query, ignoring the node would run it
+            // unfiltered and cache the wrong rows (bug #78212)
+            ScriptTimeoutGuard.rethrowStop(ex);
+
             if(!ex.getMessage().equals("no parameter set.")) {
                LOG.warn("Failed to create condition", ex);
             }

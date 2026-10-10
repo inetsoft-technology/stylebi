@@ -34,6 +34,7 @@ import inetsoft.util.Catalog;
 import inetsoft.util.OrderedMap;
 import inetsoft.util.script.*;
 import inetsoft.util.script.graal.ScriptScope;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.script.graal.pool.WorksheetScriptEnv;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -675,7 +676,10 @@ public class ConditionGroup extends XConditionGroup implements Cloneable, Serial
                "common.conditionMerge") + ex.getMessage();
          }
 
-         throw new ScriptException(scriptMsg);
+         ScriptException se = new ScriptException(scriptMsg);
+         // keep a timeout's or cancel's stop, or a reader caches the failure (bug #78212)
+         se.setStopped(ScriptTimeoutGuard.isStop(ex));
+         throw se;
       }
       finally {
          FormulaContext.setRestricted(restricted);

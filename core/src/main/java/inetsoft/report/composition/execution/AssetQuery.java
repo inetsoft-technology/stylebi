@@ -4119,7 +4119,11 @@ public abstract class AssetQuery extends PreAssetQuery {
                                  "common.conditionMerge") + scriptMsg;
                            }
 
-                           throw new ScriptException(scriptMsg);
+                           ScriptException se = new ScriptException(scriptMsg);
+                           // keep a timeout's or cancel's stop, or a reader caches the
+                           // failure (bug #78212)
+                           se.setStopped(ScriptTimeoutGuard.isStop(ex));
+                           throw se;
                         }
                         finally {
                            FormulaContext.setRestricted(restricted);
