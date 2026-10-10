@@ -41,6 +41,7 @@ import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.binding.model.BAggregateRefModel;
 import inetsoft.web.binding.model.BDimensionRefModel;
 import inetsoft.web.binding.model.BindingModel;
+import inetsoft.web.binding.model.ChartBindingModel;
 import inetsoft.web.binding.model.graph.calc.RunningTotalCalcInfo;
 import inetsoft.web.binding.model.table.CrosstabBindingModel;
 import inetsoft.web.binding.model.table.TableBindingModel;
@@ -2060,8 +2061,7 @@ class TableBindingMutatorTest {
    @Test
    void settingADetailCalcFieldWithNoAggregateDefaultsToTheDataTypeFormula() throws Exception {
       CrosstabBindingModel model = new CrosstabBindingModel();
-      model.setTables(List.of(sourceTable("Orders", "Net Sales", "double")));
-      RuntimeViewsheet rvs = rvsWithCalcField("Orders", "Net Sales", true);
+      RuntimeViewsheet rvs = rvsWithCalcField("Orders", "Net Sales", true, "double");
 
       TableBindingMutator.setShelf(model, "aggregates", List.of(measure("Net Sales", null)),
                                    rvs, ORDERS_SOURCE, refModelService());
@@ -2070,6 +2070,39 @@ class TableBindingMutatorTest {
       assertEquals("Sum", ref.getFormula());
       assertEquals(0, ref.getRefType() & DataRef.AGG_CALC,
                    "a detail calc field is an ordinary column, not an aggregate");
+   }
+
+   @Test
+   void settingAStringDetailCalcFieldWithNoAggregateDefaultsToCount() throws Exception {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      RuntimeViewsheet rvs = rvsWithCalcField("Orders", "Label", true, "string");
+
+      TableBindingMutator.setShelf(model, "aggregates", List.of(measure("Label", null)),
+                                   rvs, ORDERS_SOURCE, refModelService());
+
+      assertEquals("Count", model.getAggregates().get(0).getFormula());
+   }
+
+   @Test
+   void settingAnUntypedDetailCalcFieldWithNoAggregateDefaultsToCount() throws Exception {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      RuntimeViewsheet rvs = rvsWithCalcField("Orders", "Net Sales", true, null);
+
+      TableBindingMutator.setShelf(model, "aggregates", List.of(measure("Net Sales", null)),
+                                   rvs, ORDERS_SOURCE, refModelService());
+
+      assertEquals("Count", model.getAggregates().get(0).getFormula());
+   }
+
+   @Test
+   void chartMeasureOnADetailCalcFieldWithNoAggregateDefaultsToSum() throws Exception {
+      RuntimeViewsheet rvs = rvsWithCalcField("Orders", "Net Sales", true, "double");
+      BAggregateRefModel ref = new BAggregateRefModel();
+
+      FieldRefFactory.applyAggregateDefaults(ref, new ChartBindingModel(), rvs, ORDERS_SOURCE,
+                                             "Net Sales");
+
+      assertEquals("Sum", ref.getFormula());
    }
 
    /**
@@ -2096,8 +2129,19 @@ class TableBindingMutatorTest {
    private static RuntimeViewsheet rvsWithCalcField(String table, String column,
                                                     boolean baseOnDetail)
    {
+      return rvsWithCalcField(table, column, baseOnDetail, null);
+   }
+
+   private static RuntimeViewsheet rvsWithCalcField(String table, String column,
+                                                    boolean baseOnDetail, String dataType)
+   {
       CalculateRef calc = new CalculateRef(baseOnDetail);
       calc.setDataRef(new AttributeRef(column));
+
+      if(dataType != null) {
+         calc.setDataType(dataType);
+      }
+
       Viewsheet vs = mock(Viewsheet.class);
       when(vs.getCalcField(table, column)).thenReturn(calc);
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
