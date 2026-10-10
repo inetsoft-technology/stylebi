@@ -284,7 +284,7 @@ public class ChartRegionPropertyService {
 
       if(!linear) {
          throw new IllegalArgumentException(
-            "'" + String.join("', '", requested) + "' only apply to a linear (measure) axis. " +
+            "'" + String.join("', '", requested) + "' " + (requested.size() == 1 ? "only applies" : "only apply") + " to a linear (measure) axis. " +
             "'" + axisTarget + "'" + (field != null && !field.isBlank() ? " ('" + field + "')" : "")
             + " on this chart is bound to a dimension, not a measure, so these would be " +
             "silently ignored — or, on some chart types, corrupt the render instead of being " +
@@ -324,7 +324,7 @@ public class ChartRegionPropertyService {
          !(kind.matchedRef() instanceof ChartAggregateRef aggregate && aggregate.isDiscrete()))
       {
          throw new IllegalArgumentException(
-            "'" + String.join("', '", requested) + "' only apply to a dimension axis. " +
+            "'" + String.join("', '", requested) + "' " + (requested.size() == 1 ? "only applies" : "only apply") + " to a dimension axis. " +
             "'" + axisTarget + "'" + (field != null && !field.isBlank() ? " ('" + field + "')" : "")
             + " on this chart is bound to a measure, so these would be silently ignored. " +
             "Omit them for a measure axis.");
@@ -353,9 +353,21 @@ public class ChartRegionPropertyService {
          VSChartInfo info = ChartRegionResolver.requireChart(rvs, assembly).getVSChartInfo();
          String canonical = ChartRegionResolver.canonical(axisTarget);
          boolean onYShelf = "y".equals(canonical) || "y2".equals(canonical);
-         ChartRef[] refs = onYShelf ? info.getYFields() : info.getXFields();
+         boolean secondary = "y2".equals(canonical) || "x2".equals(canonical);
+         ChartRef[] shelf = onYShelf ? info.getYFields() : info.getXFields();
+         // Only refs that can render on the targeted axis are candidates, the same predicate
+         // computeTrueAxisKind uses: a measure on the other axis of this type is not on it, and
+         // dimensions never render on a secondary axis.
+         ChartRef[] refs = Arrays.stream(shelf)
+            .filter(r -> r instanceof ChartAggregateRef a ? a.isSecondaryY() == secondary
+               : !secondary)
+            .toArray(ChartRef[]::new);
 
-         if(refs.length < 2 || Arrays.stream(refs).allMatch(r -> r instanceof ChartAggregateRef)) {
+         // A discrete measure has its own per-ref descriptor, so it does not share one with the
+         // other measures and cannot take part in the all-measure exemption.
+         if(refs.length < 2 || Arrays.stream(refs).allMatch(
+               r -> r instanceof ChartAggregateRef a && !a.isDiscrete()))
+         {
             return List.<String>of();
          }
 
@@ -895,9 +907,9 @@ public class ChartRegionPropertyService {
     * <p>Needs a resolved column name: {@code field}, if given, or {@code kind}'s own {@code
     * matchedRef} when the shelf had exactly one unambiguous candidate (see {@link
     * #computeTrueAxisKind}). When neither is available -- a blank {@code field} on a shelf with
-    * more than one field of this axis type -- there is no reliable way to say which descriptor
-    * this axis-target/field pair means, so the backfill is skipped and the pane keeps its
-    * construction-time state; a narrower, still-documented residual, not a silent guess.
+    * more than one field of this axis type -- the backfill is skipped. Axis reads and writes
+    * refuse that case first (see {@link #requireUnambiguousAxis}), so only an all-measure shelf
+    * sharing one descriptor can reach it here.
     */
    private void backfillAxisLinearOnlyFields(String sessionToken, Principal user, String assembly,
                                              String axisTarget, String field, AxisKind kind,

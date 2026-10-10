@@ -349,6 +349,38 @@ class ChartRegionPropertyServiceTest {
                                                    any());
    }
 
+   /** Review F1: y2 carries only the secondary measure, so a blank field is unambiguous there. */
+   @Test
+   void acceptsABlankFieldWriteOnY2WhenOnlyOneMeasureIsSecondary() throws Exception {
+      Harness h = harness(yShelfViewsheet(dimAndTwoMeasures(true)));
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(axisModel());
+
+      h.service.set("tok", principal(), "Chart1", "axis", "y2", null,
+                    Map.of("showAxisLine", false), "");
+
+      verify(h.regions).setAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyInt(),
+                                                   any(), any(), anyString(), any(Principal.class),
+                                                   any());
+   }
+
+   /** Review F1: the primary axis candidates exclude the secondary measure. */
+   @Test
+   void refusesABlankFieldWriteOnYNamingOnlyPrimaryCandidates() {
+      Harness h = harness(yShelfViewsheet(dimAndTwoMeasures(true)));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", "y", null,
+                             Map.of("showAxisLine", false), ""));
+
+      assertTrue(thrown.getMessage().contains("Region"));
+      assertTrue(thrown.getMessage().contains("Sum(A)"));
+      assertFalse(thrown.getMessage().contains("Sum(B)"));
+      verifyNoInteractions(h.regions);
+   }
+
    /** Bug #78187 S2: ignoreNull/truncate do nothing on a measure axis, so refuse them there. */
    @Test
    void refusesIgnoreNullAndTruncateOnAMeasureAxis() {
@@ -1153,6 +1185,33 @@ class ChartRegionPropertyServiceTest {
 
       assertTrue(thrown.getMessage().contains("array"));
       verifyNoInteractions(h.regions);
+   }
+
+   private static Viewsheet yShelfViewsheet(ChartRef[] yFields) {
+      VSChartInfo info = mock(VSChartInfo.class);
+      when(info.getXFields()).thenReturn(new ChartRef[0]);
+      when(info.getYFields()).thenReturn(yFields);
+      when(info.isInvertedGraph()).thenReturn(false);
+      when(info.getRuntimeDateComparisonRefs()).thenReturn(new ChartRef[0]);
+      when(info.getAxisDescriptor()).thenReturn(mock(AxisDescriptor.class));
+      when(info.getAxisDescriptor2()).thenReturn(mock(AxisDescriptor.class));
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getVSChartInfo()).thenReturn(info);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssembly(anyString())).thenReturn(chart);
+      return vs;
+   }
+
+   private static ChartRef[] dimAndTwoMeasures(boolean secondaryB) {
+      VSChartDimensionRef dimension = mock(VSChartDimensionRef.class);
+      when(dimension.getFullName()).thenReturn("Region");
+      VSChartAggregateRef a = mock(VSChartAggregateRef.class);
+      when(a.isSecondaryY()).thenReturn(false);
+      when(a.getFullName()).thenReturn("Sum(A)");
+      VSChartAggregateRef b = mock(VSChartAggregateRef.class);
+      when(b.isSecondaryY()).thenReturn(secondaryB);
+      when(b.getFullName()).thenReturn("Sum(B)");
+      return new ChartRef[] { dimension, a, b };
    }
 
    private static Viewsheet mixedShelfViewsheet(ChartRef[] xFields) {
