@@ -83,6 +83,9 @@ class AssetTreeRefreshControllerClusterTest {
       Node nodeB = node("B", mockRepository());
       Principal userA = nodeA.subscribe("s1", "admin");
       Principal userB = nodeB.subscribe("s2", "admin");
+      // a user of another organization on node A must not get the change
+      Principal otherOrgUserA =
+         nodeA.subscribe("s3", new XPrincipal(new IdentityID("admin", "otherOrg78229")));
       AssetEntry viewsheet = newViewsheetInRoot();
 
       // the save runs on node B, the user's web socket is on node A
@@ -105,6 +108,8 @@ class AssetTreeRefreshControllerClusterTest {
          .convertAndSendToUser(anyString(), eq("/asset-changed"), any());
       verify(nodeA.template, times(1))
          .convertAndSendToUser(anyString(), eq("/asset-changed"), any());
+      verify(nodeA.template, never()).convertAndSendToUser(
+         eq(SUtil.getUserDestination(otherOrgUserA)), eq("/asset-changed"), any());
    }
 
    @Test
@@ -144,6 +149,25 @@ class AssetTreeRefreshControllerClusterTest {
       awaitSent(1);
       Thread.sleep(500L);
       assertEquals(1, bus.sent.size());
+   }
+
+   @Test
+   void changesTheTreeIgnoresAreNotForwarded() throws Exception {
+      Node nodeB = node("B", mockRepository());
+      AssetEntry viewsheet = newViewsheetInRoot();
+
+      // an auto-save, a change below the root event and a root folder update are not
+      // tree changes, so they are not sent to the other nodes
+      nodeB.fire(new AssetChangeEvent(this, viewsheet.getType().id(),
+                                      AssetChangeEvent.AUTO_SAVE_ADD, viewsheet, null, true,
+                                      null, "autoSave"));
+      nodeB.fire(new AssetChangeEvent(this, viewsheet.getType().id(),
+                                      AssetChangeEvent.ASSET_MODIFIED, viewsheet, null, false,
+                                      null, "nested"));
+      nodeB.fire(event(viewsheet.getParent()));
+
+      Thread.sleep(500L);
+      assertTrue(bus.sent.isEmpty(), "ignored changes must not be broadcast: " + bus.sent);
    }
 
    private AssetEntry newViewsheetInRoot() {
@@ -227,7 +251,10 @@ class AssetTreeRefreshControllerClusterTest {
       }
 
       Principal subscribe(String sessionId, String userName) {
-         Principal principal = new XPrincipal(new IdentityID(userName, orgId));
+         return subscribe(sessionId, new XPrincipal(new IdentityID(userName, orgId)));
+      }
+
+      Principal subscribe(String sessionId, Principal principal) {
          StompHeaderAccessor header = StompHeaderAccessor.create(StompCommand.SUBSCRIBE);
          header.setSessionId(sessionId);
          controller.subscribeToTopic(header, principal);
