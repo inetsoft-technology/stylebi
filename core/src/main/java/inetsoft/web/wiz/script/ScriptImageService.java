@@ -22,7 +22,9 @@ import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.FileFormatInfo;
 import inetsoft.uql.viewsheet.SelectionListVSAssembly;
+import inetsoft.uql.viewsheet.SelectionTreeVSAssembly;
 import inetsoft.uql.viewsheet.SubmitVSAssembly;
+import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.RelationChartInfo;
@@ -30,6 +32,7 @@ import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.internal.SelectionListVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.SelectionVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TitledVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Tool;
 import inetsoft.web.service.BinaryTransferService;
 import inetsoft.web.viewsheet.controller.AssemblyImageService;
@@ -42,6 +45,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import javax.imageio.ImageIO;
+import java.awt.Dimension;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
@@ -305,31 +309,78 @@ public class ScriptImageService {
       }
 
       StringBuilder names = new StringBuilder();
+      boolean lists = false;
+      boolean trees = false;
+      int count = 0;
 
       for(Assembly assembly : vs.getAssemblies()) {
-         if(assembly instanceof SelectionListVSAssembly selectionList &&
+         boolean list = assembly instanceof SelectionListVSAssembly selectionList &&
             selectionList.getVSAssemblyInfo() instanceof SelectionListVSAssemblyInfo info &&
-            info.getShowType() == SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE)
-         {
+            info.getShowType() == SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE;
+         boolean tree = assembly instanceof SelectionTreeVSAssembly selectionTree &&
+            selectionTree.getShowType() == SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE;
+
+         if((list || tree) && isExported(vs, (VSAssembly) assembly)) {
             if(names.length() > 0) {
                names.append(", ");
             }
 
-            names.append('"').append(selectionList.getAbsoluteName()).append('"');
+            names.append('"').append(assembly.getAbsoluteName()).append('"');
+            lists |= list;
+            trees |= tree;
+            count++;
          }
       }
 
-      if(names.length() == 0) {
+      if(count == 0) {
          return null;
       }
 
-      boolean plural = names.indexOf(",") >= 0;
+      boolean plural = count > 1;
+      String noun = lists && trees ? "selection lists/trees" :
+         trees ? (plural ? "selection trees" : "selection tree") :
+         (plural ? "selection lists" : "selection list");
+      String article = plural ? "are" : "is a";
+      String effect;
 
-      return names + (plural ? " are dropdown-mode selection lists" : " is a dropdown-mode " +
-         "selection list") + " that will render as an empty box in this export — StyleBI's " +
-         "export pipeline (SVG/PNG/HTML/PDF) doesn't draw dropdown chrome for any format. The " +
-         "interactive Composer/Viewer renders " + (plural ? "them" : "it") + " correctly, " +
-         "including the arrow, border, and selected value; only this static image is affected.";
+      if(!trees) {
+         effect = "that will render as an empty box in this export";
+      }
+      else if(!lists) {
+         effect = "whose values are not drawn in this export (at most a \"More...\" row)";
+      }
+      else {
+         effect = "that will not show their values in this export (a list renders as an empty " +
+            "box, a tree at most a \"More...\" row)";
+      }
+
+      return names + " " + article + " dropdown-mode " + noun + " " + effect + " — " +
+         "StyleBI's export pipeline (SVG/PNG/HTML/PDF) doesn't draw dropdown chrome for any " +
+         "format. The interactive Composer/Viewer renders " + (plural ? "them" : "it") +
+         " correctly, including the arrow, border, and selected value; only this static image " +
+         "is affected.";
+   }
+
+   /**
+    * Mirrors {@code AbstractVSExporter.needExport}: an assembly the exporter skips (hidden by its
+    * own flag, script, a hidden container or non-selected tab, a tip view or pop component, or
+    * zero size) is not in the image, so it must not be named in a note about the image.
+    */
+   private static boolean isExported(Viewsheet vs, VSAssembly assembly) {
+      if(VSUtil.isTipView(assembly.getAbsoluteName(), vs) ||
+         VSUtil.isPopComponent(assembly.getAbsoluteName(), vs))
+      {
+         return false;
+      }
+
+      if(assembly.getVSAssemblyInfo() == null ||
+         !vs.isVisible(assembly, Viewsheet.SHEET_RUNTIME_MODE))
+      {
+         return false;
+      }
+
+      Dimension size = vs.getPixelSize(assembly.getVSAssemblyInfo());
+      return size.width > 0 && size.height > 0;
    }
 
    /**
