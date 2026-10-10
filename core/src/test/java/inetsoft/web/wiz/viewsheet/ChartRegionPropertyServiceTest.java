@@ -381,6 +381,52 @@ class ChartRegionPropertyServiceTest {
       verifyNoInteractions(h.regions);
    }
 
+   /** Review r2 F2: the backfill must resolve the single on-axis dimension the guard accepted. */
+   @Test
+   void listsBackfilledValuesForTheSoleDimensionOnYWhenTheOtherMeasureIsSecondary()
+      throws Exception
+   {
+      Harness h = harness(yShelfViewsheet(persistedDimAndSecondaryMeasure()));
+      AxisPropertyDialogModel model = axisModel();
+      model.setLinear(true);
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(model);
+
+      Map<String, Object> listed = h.service.list("tok", principal(), "Chart1", "axis", "y", null);
+
+      @SuppressWarnings("unchecked")
+      List<Map<String, Object>> props = (List<Map<String, Object>>) listed.get("properties");
+      for(String name : new String[] { "ignoreNull", "truncate" }) {
+         assertEquals(true, props.stream().filter(p -> name.equals(p.get("name")))
+                         .findFirst().map(p -> p.get("value")).orElse(null), name);
+      }
+   }
+
+   /** Review r2 F2: writing ignoreNull must not reset the persisted truncate. */
+   @Test
+   void writeKeepsPersistedTruncateForTheSoleDimensionOnYWhenTheOtherMeasureIsSecondary()
+      throws Exception
+   {
+      Harness h = harness(yShelfViewsheet(persistedDimAndSecondaryMeasure()));
+      AxisPropertyDialogModel model = axisModel();
+      model.setLinear(true);
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(model);
+
+      h.service.set("tok", principal(), "Chart1", "axis", "y", null,
+                    Map.of("ignoreNull", false), "");
+
+      ArgumentCaptor<AxisPropertyDialogModel> captor =
+         ArgumentCaptor.forClass(AxisPropertyDialogModel.class);
+      verify(h.regions).setAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyInt(),
+                                                   any(), captor.capture(), anyString(),
+                                                   any(Principal.class), any());
+      assertTrue(captor.getValue().getAxisLinePaneModel().isTruncate(),
+                 "truncate must keep the persisted descriptor value");
+   }
+
    /** Bug #78187 S2: ignoreNull/truncate do nothing on a measure axis, so refuse them there. */
    @Test
    void refusesIgnoreNullAndTruncateOnAMeasureAxis() {
@@ -1200,6 +1246,20 @@ class ChartRegionPropertyServiceTest {
       Viewsheet vs = mock(Viewsheet.class);
       when(vs.getAssembly(anyString())).thenReturn(chart);
       return vs;
+   }
+
+   private static ChartRef[] persistedDimAndSecondaryMeasure() {
+      VSChartDimensionRef dimension = mock(VSChartDimensionRef.class);
+      when(dimension.getFullName()).thenReturn("STATE");
+      when(dimension.getName()).thenReturn("STATE");
+      AxisDescriptor persisted = mock(AxisDescriptor.class);
+      when(persisted.isNoNull()).thenReturn(true);
+      when(persisted.isTruncate()).thenReturn(true);
+      when(dimension.getAxisDescriptor()).thenReturn(persisted);
+      VSChartAggregateRef b = mock(VSChartAggregateRef.class);
+      when(b.isSecondaryY()).thenReturn(true);
+      when(b.getFullName()).thenReturn("Sum(B)");
+      return new ChartRef[] { dimension, b };
    }
 
    private static ChartRef[] dimAndTwoMeasures(boolean secondaryB) {
