@@ -632,13 +632,26 @@ public class HighlightDialogService {
          HighlightGroup highlightGroup = null;
          HighlightRef highlightRef =
             (HighlightRef) getMeasure(chartInfo, model.getMeasure(), false,
-                                      model.isAxis(), model.isText());
+                                      model.isAxis(), model.isText(), true);
+         // the design-time ref the runtime date-comparison clone was cloned from; a write that
+         // only reaches the clone is dropped when the runtime refs are replaced (clear/switch)
+         HighlightRef persistedRef = highlightRef == null ? null :
+            (HighlightRef) getMeasure(chartInfo, model.getMeasure(), false,
+                                      model.isAxis(), model.isText(), false);
          boolean geo = GraphTypes.isGeo(chartInfo.getChartType());
          // true to use highlight in chartInfo.
          boolean infoHL = highlightRef == null || (chartInfo instanceof MergedVSChartInfo &&
             !GraphTypes.isRadarOne(chartInfo) &&
             !GraphTypes.isGantt(chartInfo.getChartType())) &&
             (((ChartRef) highlightRef).isMeasure() || geo);
+
+         if(!infoHL && persistedRef == null) {
+            throw new IllegalArgumentException(
+               "'" + model.getMeasure() + "' is a measure derived by the active date comparison " +
+               "and has no design-time field behind it, so a highlight set on it would be " +
+               "lost as soon as the comparison changes or is cleared. Set the highlight on the " +
+               "base measure instead.");
+         }
 
          if(model.isText() && highlightRef != null) {
             highlightGroup = GraphUtil.getTextHighlightGroup(highlightRef, chartInfo);
@@ -674,6 +687,27 @@ public class HighlightDialogService {
             highlightRef.setHighlightGroup(highlightGroup);
          }
 
+         if(!infoHL && persistedRef != null && persistedRef != highlightRef) {
+            HighlightGroup persistedGroup = model.isText() ?
+               GraphUtil.getTextHighlightGroup(persistedRef, chartInfo) :
+               persistedRef.getHighlightGroup();
+            persistedGroup = persistedGroup == null ? new HighlightGroup() : persistedGroup;
+            persistedGroup.removeHighlights(HighlightGroup.DEFAULT_LEVEL);
+
+            for(HighlightModel highlightModel : highlights) {
+               persistedGroup.addHighlight(
+                  highlightModel.getName(),
+                  highlightService.convertModelToHighlight(highlightModel, principal));
+            }
+
+            if(model.isText()) {
+               GraphUtil.setTextHighlightGroup(persistedRef, chartInfo, persistedGroup);
+            }
+            else {
+               persistedRef.setHighlightGroup(persistedGroup);
+            }
+         }
+
          chartInfo.clearRuntime();
       }
       else if(assemblyInfo instanceof OutputVSAssemblyInfo) {
@@ -696,6 +730,12 @@ public class HighlightDialogService {
    private ChartRef getMeasure(ChartInfo chartInfo, String colName, boolean getPeriodRef,
                                boolean isAxis, boolean isText)
    {
+      return getMeasure(chartInfo, colName, getPeriodRef, isAxis, isText, true);
+   }
+
+   private ChartRef getMeasure(ChartInfo chartInfo, String colName, boolean getPeriodRef,
+                               boolean isAxis, boolean isText, boolean useRuntimeRefs)
+   {
       if(colName == null || GraphTypeUtil.isScatterMatrix(chartInfo)) {
          return null;
       }
@@ -707,7 +747,7 @@ public class HighlightDialogService {
       colName = BoxDataSet.getBaseName(colName);
       ChartRef ref = null;
 
-      if(chartInfo instanceof VSChartInfo) {
+      if(useRuntimeRefs && chartInfo instanceof VSChartInfo) {
          ChartRef[] refs = ((VSChartInfo) chartInfo).getRuntimeDateComparisonRefs();
          final String column = colName;
 

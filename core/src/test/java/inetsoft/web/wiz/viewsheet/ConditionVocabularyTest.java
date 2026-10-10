@@ -700,6 +700,47 @@ class ConditionVocabularyTest {
          + "ConditionUtil performs the actual coercion downstream, as before");
    }
 
+   // ── Redmine 78261: fractional / out-of-range numeric strings on integral fields ──
+
+   private static Exception refuseValue(String type, String raw) {
+      DataRefModel[] fields = { field("Region"), field("N", type), field("OrderDate") };
+      return assertThrows(IllegalArgumentException.class,
+         () -> ConditionVocabulary.toConditionList(
+            List.of(clause("N", "less_than", List.of(raw), null)), fields));
+   }
+
+   @Test
+   void refusesFractionalOrOutOfRangeStringOnIntegralFields() {
+      Exception e = refuseValue("integer", "1.5");
+      assertTrue(e.getMessage().contains("1.5") && e.getMessage().contains("not a valid integer"));
+      refuseValue("integer", "-1.5");
+      refuseValue("integer", "3000000000");
+      refuseValue("long", "1.5");
+      refuseValue("short", "40000");
+      refuseValue("byte", "200");
+   }
+
+   @Test
+   void acceptsWholeNumberStringFormsOnIntegralFields() {
+      DataRefModel[] fields = { field("Region"), field("N", "integer"), field("OrderDate") };
+
+      for(String ok : new String[] { "1.0", "-0", "1e3", " 2 ", "42" }) {
+         assertDoesNotThrow(() -> ConditionVocabulary.toConditionList(
+            List.of(clause("N", "less_than", List.of(ok), null)), fields), ok);
+      }
+   }
+
+   @Test
+   void jsonNumberAndDoubleFieldAreUnchanged() {
+      DataRefModel[] fields = { field("Region"), field("N", "integer"), field("D", "double"),
+                                field("OrderDate") };
+
+      assertDoesNotThrow(() -> ConditionVocabulary.toConditionList(
+         List.of(clause("N", "less_than", List.of(1.5), null)), fields));
+      assertDoesNotThrow(() -> ConditionVocabulary.toConditionList(
+         List.of(clause("D", "less_than", List.of("1.5"), null)), fields));
+   }
+
    @Test
    void acceptsAStringLiteralAgainstAStringTypedField() {
       DataRefModel[] fields = { field("Region", "string"), field("Revenue"), field("OrderDate") };
