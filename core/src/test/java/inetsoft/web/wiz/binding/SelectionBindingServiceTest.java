@@ -482,6 +482,158 @@ class SelectionBindingServiceTest {
       assertEquals(List.of("CUSTOMERS"), existing.getCalendarDataPaneModel().getAdditionalTables());
    }
 
+   // ── additionalTables must not contain the source table (Bug #78213 S2) ─────
+
+   private static SelectionListPropertyDialogModel listBoundTo(String table,
+                                                                List<String> additional)
+   {
+      SelectionListPropertyDialogModel model = new SelectionListPropertyDialogModel();
+      model.getSelectionListPaneModel().setSelectedTable(table);
+      model.getSelectionListPaneModel().setAdditionalTables(additional);
+      return model;
+   }
+
+   @Test
+   void dropsAnInheritedAdditionalTableThatBecomesTheSourceAndDisclosesIt() throws Exception {
+      SelectionListVSAssembly assembly = mock(SelectionListVSAssembly.class);
+      SelectionListPropertyDialogService listService = mock(SelectionListPropertyDialogService.class);
+      SelectionListPropertyDialogModel existing = listBoundTo("CUSTOMERS", List.of("ORDERS"));
+      when(listService.getSelectionListPropertyModel(eq("rt1"), eq("List1"), any()))
+         .thenReturn(existing);
+
+      Map<String, Object> result = harness(assembly, listService, null, null, null)
+         .setSource("tok", principal(), "List1", "ORDERS", List.of("STATE"), null, null, null,
+                   null, null, true, "");
+
+      assertEquals(List.of(), existing.getSelectionListPaneModel().getAdditionalTables());
+      assertEquals(List.of(), result.get("additionalTables"));
+      assertEquals(List.of("ORDERS"), result.get("droppedAdditionalTables"));
+   }
+
+   @Test
+   void dropsAnInheritedOverlapCaseInsensitively() throws Exception {
+      SelectionListVSAssembly assembly = mock(SelectionListVSAssembly.class);
+      SelectionListPropertyDialogService listService = mock(SelectionListPropertyDialogService.class);
+      SelectionListPropertyDialogModel existing =
+         listBoundTo("CUSTOMERS", List.of("orders", "CUSTOMERS"));
+      when(listService.getSelectionListPropertyModel(eq("rt1"), eq("List1"), any()))
+         .thenReturn(existing);
+
+      Map<String, Object> result = harness(assembly, listService, null, null, null)
+         .setSource("tok", principal(), "List1", "orders", List.of("STATE"), null, null, null,
+                   null, null, true, "");
+
+      assertEquals(List.of("CUSTOMERS"), existing.getSelectionListPaneModel().getAdditionalTables());
+      assertEquals(List.of("orders"), result.get("droppedAdditionalTables"));
+   }
+
+   @Test
+   void refusesAnExplicitAdditionalTableThatIsTheSourceLeavingTheModelUntouched() throws Exception {
+      SelectionListVSAssembly assembly = mock(SelectionListVSAssembly.class);
+      SelectionListPropertyDialogService listService = mock(SelectionListPropertyDialogService.class);
+      SelectionListPropertyDialogModel existing = listBoundTo("CUSTOMERS", List.of("ORDERS"));
+      when(listService.getSelectionListPropertyModel(eq("rt1"), eq("List1"), any()))
+         .thenReturn(existing);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () ->
+         harness(assembly, listService, null, null, null)
+            .setSource("tok", principal(), "List1", "ORDERS", List.of("STATE"),
+                      List.of("orders"), null, null, null, null, true, ""));
+
+      assertTrue(thrown.getMessage().contains("additionalTables"));
+      assertTrue(thrown.getMessage().contains("ORDERS"));
+      assertEquals("CUSTOMERS", existing.getSelectionListPaneModel().getSelectedTable());
+      assertEquals(List.of("ORDERS"), existing.getSelectionListPaneModel().getAdditionalTables());
+      verify(listService, never()).setSelectionListPropertyModel(
+         any(), any(), any(), any(), any(), any());
+   }
+
+   @Test
+   void leavesNonOverlappingInheritedAdditionalTablesAlone() throws Exception {
+      SelectionListVSAssembly assembly = mock(SelectionListVSAssembly.class);
+      SelectionListPropertyDialogService listService = mock(SelectionListPropertyDialogService.class);
+      SelectionListPropertyDialogModel existing = listBoundTo("ORDERS", List.of("CUSTOMERS"));
+      when(listService.getSelectionListPropertyModel(eq("rt1"), eq("List1"), any()))
+         .thenReturn(existing);
+
+      Map<String, Object> result = harness(assembly, listService, null, null, null)
+         .setSource("tok", principal(), "List1", "ORDERS", List.of("CITY"), null, null, null,
+                   null, null, false, "");
+
+      assertEquals(List.of("CUSTOMERS"), existing.getSelectionListPaneModel().getAdditionalTables());
+      assertEquals(List.of("CUSTOMERS"), result.get("additionalTables"));
+      assertFalse(result.containsKey("droppedAdditionalTables"));
+   }
+
+   @Test
+   void dropsAnInheritedOverlapOnACalendar() throws Exception {
+      CalendarVSAssembly assembly = mock(CalendarVSAssembly.class);
+      CalendarPropertyDialogService calendarService = mock(CalendarPropertyDialogService.class);
+      CalendarPropertyDialogModel existing = new CalendarPropertyDialogModel();
+      existing.getCalendarDataPaneModel().setSelectedTable("CUSTOMERS");
+      existing.getCalendarDataPaneModel().setAdditionalTables(List.of("ORDERS"));
+      when(calendarService.getCalendarPropertyModel(eq("rt1"), eq("Cal1"), any()))
+         .thenReturn(existing);
+
+      Map<String, Object> result = harness(assembly, null, null, null, calendarService)
+         .setSource("tok", principal(), "Cal1", "ORDERS", List.of("ORDER_DATE"), null, null,
+                   null, null, null, true, "");
+
+      assertEquals(List.of(), existing.getCalendarDataPaneModel().getAdditionalTables());
+      assertEquals(List.of("ORDERS"), result.get("droppedAdditionalTables"));
+   }
+
+   @Test
+   void refusesAnExplicitOverlapOnATree() throws Exception {
+      SelectionTreeVSAssembly assembly = mock(SelectionTreeVSAssembly.class);
+      SelectionTreePropertyDialogService treeService = mock(SelectionTreePropertyDialogService.class);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () ->
+         harness(assembly, null, treeService, null, null)
+            .setSource("tok", principal(), "Tree1", "ORDERS", List.of("STATE"),
+                      List.of("ORDERS"), null, null, null, null, false, ""));
+
+      assertTrue(thrown.getMessage().contains("additionalTables"));
+      verify(treeService, never()).setSelectionTreePropertyModel(
+         any(), any(), any(), any(), any(), any());
+   }
+
+   @Test
+   void dropsAnInheritedOverlapOnATree() throws Exception {
+      SelectionTreeVSAssembly assembly = mock(SelectionTreeVSAssembly.class);
+      SelectionTreePropertyDialogService treeService = mock(SelectionTreePropertyDialogService.class);
+      SelectionTreePropertyDialogModel existing = new SelectionTreePropertyDialogModel();
+      existing.getSelectionTreePaneModel().setSelectedTable("CUSTOMERS");
+      existing.getSelectionTreePaneModel().setAdditionalTables(List.of("ORDERS"));
+      when(treeService.getSelectionTreePropertyModel(eq("rt1"), eq("Tree1"), any()))
+         .thenReturn(existing);
+
+      Map<String, Object> result = harness(assembly, null, treeService, null, null)
+         .setSource("tok", principal(), "Tree1", "ORDERS", List.of("STATE"), null, null, null,
+                   null, null, true, "");
+
+      assertEquals(List.of(), existing.getSelectionTreePaneModel().getAdditionalTables());
+      assertEquals(List.of("ORDERS"), result.get("droppedAdditionalTables"));
+   }
+
+   @Test
+   void dropsAnInheritedOverlapOnARangeSlider() throws Exception {
+      TimeSliderVSAssembly assembly = mock(TimeSliderVSAssembly.class);
+      RangeSliderPropertyDialogService sliderService = mock(RangeSliderPropertyDialogService.class);
+      RangeSliderPropertyDialogModel existing = new RangeSliderPropertyDialogModel();
+      existing.getRangeSliderDataPaneModel().setSelectedTable("CUSTOMERS");
+      existing.getRangeSliderDataPaneModel().setAdditionalTables(List.of("ORDERS"));
+      when(sliderService.getRangeSliderPropertyModel(eq("rt1"), eq("Slider1"), any()))
+         .thenReturn(existing);
+
+      Map<String, Object> result = harness(assembly, null, null, sliderService, null)
+         .setSource("tok", principal(), "Slider1", "ORDERS", List.of("AMOUNT"), null, null,
+                   null, null, null, true, "");
+
+      assertEquals(List.of(), existing.getRangeSliderDataPaneModel().getAdditionalTables());
+      assertEquals(List.of("ORDERS"), result.get("droppedAdditionalTables"));
+   }
+
    // ── measure resolution ──────────────────────────────────────────────────────
 
    /** Stubs the property dialog's measure dropdown source, with its leading null-named "None". */
