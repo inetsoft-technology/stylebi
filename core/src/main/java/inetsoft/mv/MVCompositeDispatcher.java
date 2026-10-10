@@ -104,9 +104,7 @@ class MVCompositeDispatcher extends MVDispatcher implements Runnable {
       boolean desktop = FSService.getConfig().isDesktop();
       long start = System.currentTimeMillis();
 
-      if(isCanceled()) {
-         throw new CancelledException("The MV creation was interrupted.");
-      }
+      checkCanceled();
 
       XTable data = getData(desktop, vars);
 
@@ -116,16 +114,12 @@ class MVCompositeDispatcher extends MVDispatcher implements Runnable {
       start = System.currentTimeMillis();
       MVBuilder builder = getMVBuilder();
 
-      if(isCanceled()) {
-         throw new CancelledException("The MV creation was interrupted.");
-      }
+      checkCanceled();
 
       // save to temp files
       List<BlockFile> list = saveTempFile(builder);
 
-      if(isCanceled()) {
-         throw new CancelledException("The MV creation was interrupted.");
-      }
+      checkCanceled();
 
       BlockFile[] arr = new BlockFile[list.size()];
       list.toArray(arr);

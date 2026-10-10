@@ -19,6 +19,7 @@ package inetsoft.report.composition.execution;
 
 import inetsoft.mv.MVDef;
 import inetsoft.mv.MVDispatcher;
+import inetsoft.mv.MVLoadFailedException;
 import inetsoft.mv.MVManager;
 import inetsoft.mv.data.MV;
 import inetsoft.mv.data.MVBuilder;
@@ -1535,7 +1536,11 @@ class RowFetchFailureTest {
          }
 
          if(fail) {
-            assertInstanceOf(CancelledException.class, thrown);
+            // a failed read is reported as a load failure, not a user cancel (Bug #78117),
+            // and still carries the real database error as its cause
+            MVLoadFailedException loadFailed = assertInstanceOf(MVLoadFailedException.class, thrown);
+            assertTrue(loadFailed.getMessage().contains("mv77901"), loadFailed.getMessage());
+            assertNotNull(loadFailed.getCause());
             saveTempFile.invoke(verify(dispatcher, never()), builder);
          }
          else {

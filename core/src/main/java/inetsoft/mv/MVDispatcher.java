@@ -64,11 +64,38 @@ public class MVDispatcher {
    }
 
    /**
+    * Check if the dispatch has been canceled, throwing the appropriate exception if so.
+    * A failed row fetch (e.g. a database error while reading the result set, see
+    * {@link #getLoadException()}) is thrown as a {@link MVLoadFailedException} carrying
+    * the original cause, so it is reported as a failure rather than collapsed into a
+    * real user cancel/interrupt (Bug #78117).
+    */
+   protected void checkCanceled() {
+      Exception loadException = getLoadException();
+
+      if(loadException != null) {
+         throw new MVLoadFailedException(name, loadException);
+      }
+
+      if(isCanceled()) {
+         throw new CancelledException("The MV creation was interrupted.");
+      }
+   }
+
+   /**
     * Check if the rows of the query result under the data failed to load, e.g. a database
     * error while reading the result set. The data then holds only the rows read before the
     * failure, and an MV must not be built from it (Bug #77901).
     */
    private boolean isLoadFailed() {
+      return getLoadException() != null;
+   }
+
+   /**
+    * Get the exception that caused the query's row fetch to fail, or null if it hasn't
+    * (logging it, once, the first time it's observed).
+    */
+   private Exception getLoadException() {
       Exception loadException = data instanceof TableLens ?
          AssetDataCache.getLoadException((TableLens) data) : null;
 
@@ -78,7 +105,7 @@ public class MVDispatcher {
                   "its rows: {}", name, loadException.getMessage(), loadException);
       }
 
-      return loadException != null;
+      return loadException;
    }
 
    public void cancel() {
