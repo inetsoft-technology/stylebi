@@ -3281,6 +3281,26 @@ public class WorksheetEditService {
             throw new PairingException("Concatenation not found: " + concatName);
          }
 
+         // Fewer than 2 remaining sources deletes the concatenation itself (removeTable returns
+         // true without touching it); ws.removeAssembly does not clean up assemblies built on it,
+         // so refuse the same way deleteTable does. With 2 or more remaining it survives in place.
+         long remaining = Arrays.stream(ctbl.getTableAssemblies())
+            .filter(t -> !t.getName().equals(tableName))
+            .count();
+
+         if(remaining < 2) {
+            List<String> dependents = dependentNames(ctbl);
+
+            if(!dependents.isEmpty()) {
+               throw new PairingException(
+                  "\"" + concatName + "\" cannot be deleted because other assemblies are built " +
+                  "on it: " + String.join(", ", dependents) + ". Removing \"" + tableName +
+                  "\" would leave fewer than 2 sources and delete the concatenation, leaving " +
+                  "them referencing a table that no longer exists. Delete or repoint those " +
+                  "assemblies first.");
+            }
+         }
+
          boolean invalid = ctbl.removeTable(tableName);
 
          if(invalid) {
@@ -3803,8 +3823,10 @@ public class WorksheetEditService {
          }
 
          DataRef ref = retargeting ? null : nga.getAttachedAttribute();
+         // a type-attached group has no attribute; its data type lives in getAttachedDataType()
          String conditionType = retargeting ? type
-            : (ref != null ? ref.getDataType() : XSchema.STRING);
+            : ref != null ? ref.getDataType()
+            : nga.getAttachedDataType() != null ? nga.getAttachedDataType() : XSchema.STRING;
          DataRef conditionRef = namedGroupConditionRef(ref, conditionType);
 
          NamedGroupInfo ngi = new NamedGroupInfo();
