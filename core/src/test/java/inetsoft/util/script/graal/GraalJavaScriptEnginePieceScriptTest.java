@@ -168,8 +168,7 @@ class GraalJavaScriptEnginePieceScriptTest {
          engine.compile("var y77249 = 1; if(y77249) { 2 }")).pieces();
       assertTrue(reset[0].getCharacters().toString().contains("y77249=void 0;"));
       assertTrue(reset[1].getCharacters().toString()
-                    .startsWith("with(__scope__.__inetsoft_own_locals__){" +
-                                "with(__scope__.__inetsoft_declared_vars__(\"y77249\")){"));
+                    .startsWith("with(__scope__.__inetsoft_own_locals__){with(__scope__){"));
    }
 
    // two compiles of one formula are equal, so a recompile keeps the error count

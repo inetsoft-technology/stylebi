@@ -115,6 +115,12 @@ public class GraalJavaScriptEnv implements ScriptEnv {
       return getEngine().compile(cmd, fieldOnly);
    }
 
+   @Override
+   public Object compileDeclaredVars(String cmd) throws Exception {
+      // not under this env's monitor, as compile (#76905)
+      return getEngine().compileDeclaredVars(cmd);
+   }
+
    /**
     * Execute a script.
     *

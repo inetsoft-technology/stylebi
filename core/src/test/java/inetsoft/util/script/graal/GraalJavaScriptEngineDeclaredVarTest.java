@@ -26,11 +26,12 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Bug #78247: on a {@link DeclaredVarScope} root a script's own top-level var wins over a
+ * Bug #78247: for a script compiled by {@code compileDeclaredVars} (a freehand table cell
+ * formula) on a {@link DeclaredVarScope} root, the script's own top-level var wins over a
  * same-named member of the scope chain (a parent scope's {@code value} here), in every
  * compile shape; only the names the running script declares are hidden, so a function
- * declared by another script still reads the member; on any other root the member still
- * wins, as in Rhino.
+ * declared by another script still reads the member. On any other root, and for a script
+ * compiled by {@code compile}, the member still wins, as in Rhino.
  */
 @Tag("core")
 class GraalJavaScriptEngineDeclaredVarTest {
@@ -58,7 +59,7 @@ class GraalJavaScriptEngineDeclaredVarTest {
       "var value = on ? 5 : undefined; this ? value : 0",
    })
    void aDeclaredVarWinsOverAParentMember(String script) throws Exception {
-      Object compiled = engine.compile(script);
+      Object compiled = engine.compileDeclaredVars(script);
       assertEquals(Arrays.asList(null, 5.0, null), runs(compiled, cell()), script);
       assertEquals("assembly", assembly.getMember("value"), "the member is not replaced");
       assertEquals("assembly", assembly.getMember("member78247"),
@@ -68,13 +69,13 @@ class GraalJavaScriptEngineDeclaredVarTest {
    // the member is still read on another root, as in Rhino
    @Test void theMemberWinsOnAnotherRoot() throws Exception {
       MapScope cell = new MapScope(assembly);
-      assertEquals("assembly", engine.exec(engine.compile("var value; value"), cell, null));
+      assertEquals("assembly", engine.exec(engine.compileDeclaredVars("var value; value"), cell, null));
    }
 
    // a function declared by another script reads the member, not the caller's var
    @Test void aFunctionDeclaredElsewhereReadsTheMember() throws Exception {
       engine.exec(engine.compile("function readValue78247() { return value; }"), sheet, sheet);
-      Object script = engine.compile("var value = 5; [value, readValue78247()]");
+      Object script = engine.compileDeclaredVars("var value = 5; [value, readValue78247()]");
       Object result = engine.exec(script, cell(), null);
 
       assertInstanceOf(Object[].class, result, String.valueOf(result));
@@ -85,7 +86,16 @@ class GraalJavaScriptEngineDeclaredVarTest {
 
    // a name the script does not declare still reads the member
    @Test void anUndeclaredNameReadsTheMember() throws Exception {
-      assertEquals("assembly", engine.exec(engine.compile("var x = 1; value"), cell(), null));
+      assertEquals("assembly",
+                   engine.exec(engine.compileDeclaredVars("var x = 1; value"), cell(), null));
+   }
+
+   // any other script keeps its source, and the member wins even on such a root
+   @Test void anOrdinaryCompileIsUnchanged() throws Exception {
+      Object script = engine.compile("var value; value");
+      assertFalse(String.valueOf(((org.graalvm.polyglot.Source) script).getCharacters())
+                     .contains(BindingRootProxy.DECLARED_VARS_MEMBER), String.valueOf(script));
+      assertEquals("assembly", engine.exec(script, cell(), null));
    }
 
    private List<Object> runs(Object script, CellScope cell) throws Exception {
