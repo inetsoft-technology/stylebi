@@ -2297,6 +2297,21 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
    }
 
    /**
+    * Check if this sandbox runs the queries of a runtime worksheet, e.g. in the worksheet
+    * composer. They don't use the worksheet mvs (33943).
+    */
+   public boolean isRuntimeWorksheet() {
+      return runtimeWorksheet;
+   }
+
+   /**
+    * Set if this sandbox runs the queries of a runtime worksheet.
+    */
+   public void setRuntimeWorksheet(boolean runtimeWorksheet) {
+      this.runtimeWorksheet = runtimeWorksheet;
+   }
+
+   /**
     * Set if this execution is for analyzing mv.
     */
    public void setAnalyzingMV(boolean analyzingMV) {
@@ -2425,6 +2440,7 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
    private MVProcessor mvprocessor;
    private boolean vpmEnabled = true;
    private boolean creatingMV = false; // called during MV creation
+   private boolean runtimeWorksheet; // runs the queries of a runtime worksheet
    private boolean analyzingMV = false; // called during MV analysis
 
    private static final Logger LOG = LoggerFactory.getLogger(AssetQuerySandbox.class);

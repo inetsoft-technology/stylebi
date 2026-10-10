@@ -19,10 +19,12 @@ package inetsoft.report.composition.execution;
 
 import inetsoft.mv.*;
 import inetsoft.mv.formula.CompositeVarianceFormula;
+import inetsoft.mv.trans.AbstractTransformer;
 import inetsoft.mv.trans.NamedGroupTransformer;
 import inetsoft.mv.trans.TransformationDescriptor;
 import inetsoft.report.*;
 import inetsoft.report.composition.WorksheetService;
+import inetsoft.report.composition.WorksheetWrapper;
 import inetsoft.report.filter.*;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.XNodeMetaTable;
@@ -90,14 +92,14 @@ public abstract class AssetQuery extends PreAssetQuery {
 
          TableAssembly ntable = null;
          TableAssembly rmvtable = MVTransformer.findMVTable(table);
+         // the table without the worksheet mvs attached below, queried live if they fail
+         TableAssembly otable = table;
 
-         // don't apply ws mv during ws design as per Bug #33943
-         /*
-         if(rmvtable == null && !box.isActive() && SreeEnv.getBooleanProperty("ws.mv.enabled")) {
-            applyWSRuntimeMV(table, box, user);
-            rmvtable = MVTransformer.findMVTable(table);
+         // the worksheet mvs are used by the queries of a viewsheet over the worksheet (78053),
+         // but not while the worksheet is designed (33943)
+         if(rmvtable == null && !metadata && isWSMVEnabled(box, mode)) {
+            table = applyWSRuntimeMV(table, box, user);
          }
-         */
 
          rrinfo = rmvtable == null ? null : rmvtable.getRuntimeMV();
 
@@ -132,6 +134,8 @@ public abstract class AssetQuery extends PreAssetQuery {
             }
 
             table.setRuntimeMV(null);
+            // drop every worksheet mv attached above, not only one on the root (78053)
+            table = otable;
          }
          catch(Exception ex) {
             boolean required = "true".equals(SreeEnv.getProperty("mv.required"));
@@ -144,6 +148,7 @@ public abstract class AssetQuery extends PreAssetQuery {
             else {
                LOG.warn("MV not supported for " + table, ex);
                table.setRuntimeMV(null);
+               table = otable;
             }
          }
 
@@ -359,6 +364,237 @@ public abstract class AssetQuery extends PreAssetQuery {
       query.validate();
 
       return query;
+   }
+
+   /**
+    * Check if the worksheet mvs may be used by the queries of a sandbox. They are used by a
+    * viewsheet over the worksheet, its preview and its export (78053), and not by the runtime
+    * worksheet of the worksheet composer (33943) or by the creation of an mv.
+    */
+   private static boolean isWSMVEnabled(AssetQuerySandbox box, int mode) {
+      AssetEntry wsEntry = box.getWSEntry();
+
+      // the base of a viewsheet may be a logical model or a query, which has no worksheet mv.
+      // the sandbox creating an mv has no worksheet entry
+      if(wsEntry == null || !wsEntry.isWorksheet() || box.isCreatingMV() ||
+         box.isRuntimeWorksheet() || AssetQuerySandbox.isDesignMode(mode))
+      {
+         return false;
+      }
+
+      ViewsheetSandbox vbox = box.getViewsheetSandbox();
+
+      if(vbox != null && !vbox.isMVEnabled()) {
+         return false;
+      }
+
+      return SreeEnv.getBooleanProperty("ws.mv.enabled");
+   }
+
+   /**
+    * Attach the worksheet mvs of the bound tables under a table. They are attached to copies,
+    * since the tables of the sandbox worksheet are shared by the other queries.
+    * @return the copy of the table holding the mvs, or the table if none is found.
+    */
+   private static TableAssembly applyWSRuntimeMV(TableAssembly table, AssetQuerySandbox box,
+                                                 XPrincipal user)
+   {
+      // not on the table itself. WSMVTransformer drops the runtime conditions of a bound root,
+      // and they hold the conditions and selections of a viewsheet
+      if(!(table instanceof ComposedTableAssembly) || table.getWorksheet() == null) {
+         return table;
+      }
+
+      Map<String, RuntimeMV> mvs = new HashMap<>();
+      findWSRuntimeMV((ComposedTableAssembly) table, box.getWSEntry(), user, mvs,
+                      new HashSet<>());
+
+      if(mvs.isEmpty()) {
+         return table;
+      }
+
+      // the wrapper copies a sub table from the worksheet when it is looked up
+      WorksheetWrapper wrapper = new WorksheetWrapper(table.getWorksheet(), true);
+      TableAssembly ntable = (TableAssembly) table.clone();
+      wrapper.addAssembly(ntable);
+
+      for(Map.Entry<String, RuntimeMV> entry : mvs.entrySet()) {
+         Assembly sub = wrapper.getAssembly(entry.getKey());
+
+         if(sub instanceof TableAssembly) {
+            ((TableAssembly) sub).setRuntimeMV(entry.getValue());
+         }
+      }
+
+      return ntable;
+   }
+
+   /**
+    * Find the worksheet mvs of the bound tables under a table, per the identity of the user.
+    */
+   private static void findWSRuntimeMV(ComposedTableAssembly table, AssetEntry wsEntry,
+                                       XPrincipal user, Map<String, RuntimeMV> mvs,
+                                       Set<String> visited)
+   {
+      TableAssembly[] subs = table.getTableAssemblies(false);
+
+      if(subs == null) {
+         return;
+      }
+
+      for(TableAssembly sub : subs) {
+         if(sub == null || !visited.add(sub.getName())) {
+            continue;
+         }
+
+         // a worksheet mv is created for a bound table only (WSMVAnalyzer)
+         if(sub instanceof BoundTableAssembly) {
+            // the mv holds the data for the default values of the variables
+            if(sub.getRuntimeMV() == null && !isVariableDependent(sub, new HashSet<>())) {
+               RuntimeMV rmv = MVManager.getManager().findRuntimeMV(
+                  wsEntry, null, null, getWSTableName(sub), user, null, true, true);
+
+               if(rmv != null) {
+                  mvs.put(sub.getName(), rmv);
+               }
+            }
+         }
+         else if(sub instanceof ComposedTableAssembly) {
+            findWSRuntimeMV((ComposedTableAssembly) sub, wsEntry, user, mvs, visited);
+         }
+      }
+   }
+
+   /**
+    * Get the name of a bound table in the worksheet, which is the name its worksheet mv is
+    * registered with (WSMVAnalyzer). In the worksheet of a viewsheet, a table T bound by a
+    * viewsheet assembly is renamed to T_O under a mirror T (Viewsheet.createMirrorTable).
+    */
+   private static String getWSTableName(TableAssembly table) {
+      String name = table.getName();
+      String wsName = VSUtil.stripOuter(name);
+      Worksheet ws = table.getWorksheet();
+
+      if(wsName.equals(name) || ws == null) {
+         return name;
+      }
+
+      // only a table renamed by the viewsheet, not one named T_O in the worksheet
+      return ws.getAssembly(wsName) instanceof MirrorTableAssembly mirror &&
+         "true".equals(mirror.getProperty(Viewsheet.VS_MIRROR_TABLE)) &&
+         name.equals(mirror.getAssemblyName()) ? wsName : name;
+   }
+
+   /**
+    * Check if the data of a table depends on variables (parameters or session variables). A
+    * worksheet mv is created with the default values of the variables (MVCreatorUtil), so it
+    * doesn't hold the data for other values. The rules are those of a viewsheet mv, whose
+    * analysis moves such conditions out of the mv or doesn't create the mv
+    * (AbstractTransformer.isDynamicFilter, TransformationDescriptor.processDynamicExpressions,
+    * VSMVAnalyzer.containsQueryVariable and containsNamedGroupVariable). The runtime
+    * conditions (the conditions and selections of a viewsheet) are applied on the mv, so they
+    * are not checked.
+    */
+   private static boolean isVariableDependent(TableAssembly table, Set<String> visited) {
+      if(table == null || !visited.add(table.getName())) {
+         return false;
+      }
+
+      List<ConditionListWrapper> conds = new ArrayList<>();
+      conds.add(table.getPreConditionList());
+      conds.add(table.getPostConditionList());
+      conds.add(table.getRankingConditionList());
+
+      // the condition assemblies are added to the pre conditions by BoundQuery
+      if(table instanceof BoundTableAssembly) {
+         for(ConditionAssembly cond : ((BoundTableAssembly) table).getConditionAssemblies()) {
+            conds.add(cond.getConditionList());
+         }
+      }
+
+      TransformationDescriptor desc = new TransformationDescriptor();
+
+      for(ConditionListWrapper wrapper : conds) {
+         if(AbstractTransformer.isDynamicFilter(desc, wrapper, null) ||
+            isSubQueryVariableDependent(wrapper, table.getWorksheet(), visited))
+         {
+            return true;
+         }
+      }
+
+      if(table instanceof SQLBoundTableAssembly) {
+         JDBCQuery query = ((SQLBoundTableAssemblyInfo) table.getInfo()).getQuery();
+
+         // includes the session variables
+         if(query != null && query.getAllDefinedVariables().hasMoreElements()) {
+            return true;
+         }
+      }
+
+      AggregateInfo ainfo = table.getAggregateInfo();
+
+      if(ainfo != null) {
+         for(GroupRef group : ainfo.getGroups()) {
+            XNamedGroupInfo info = group.getNamedGroupInfo();
+
+            if(info != null && info.getAllVariables().length > 0) {
+               return true;
+            }
+         }
+      }
+
+      ColumnSelection cols = table.getColumnSelection(false);
+
+      for(int i = 0; i < cols.getAttributeCount(); i++) {
+         DataRef ref = cols.getAttribute(i);
+         ref = ref instanceof ColumnRef ? ((ColumnRef) ref).getDataRef() : ref;
+
+         // e.g. parameter.x in an expression
+         if(ref instanceof ExpressionRef &&
+            !MVTool.isExpressionMVCompatible(((ExpressionRef) ref).getExpression()))
+         {
+            return true;
+         }
+      }
+
+      if(table instanceof ComposedTableAssembly) {
+         for(TableAssembly sub : ((ComposedTableAssembly) table).getTableAssemblies(false)) {
+            if(isVariableDependent(sub, visited)) {
+               return true;
+            }
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Check if a condition uses a sub query on a table depending on variables.
+    */
+   private static boolean isSubQueryVariableDependent(ConditionListWrapper wrapper, Worksheet ws,
+                                                      Set<String> visited)
+   {
+      ConditionList list = wrapper == null ? null : wrapper.getConditionList();
+
+      if(list == null || ws == null) {
+         return false;
+      }
+
+      for(int i = 0; i < list.getSize(); i += 2) {
+         XCondition cond = list.getConditionItem(i).getXCondition();
+         SubQueryValue val = cond instanceof AssetCondition ?
+            ((AssetCondition) cond).getSubQueryValue() : null;
+         Assembly stable = val == null || val.getQuery() == null ?
+            null : ws.getAssembly(val.getQuery());
+
+         if(stable instanceof TableAssembly &&
+            isVariableDependent((TableAssembly) stable, visited))
+         {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    private static TableAssembly getNoAggregateTable(MirrorTableAssembly mvtable,

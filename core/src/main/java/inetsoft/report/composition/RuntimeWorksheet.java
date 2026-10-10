@@ -59,6 +59,8 @@ public class RuntimeWorksheet extends RuntimeSheet
     */
    public RuntimeWorksheet(AssetEntry entry, Worksheet ws, Principal user) {
       this(entry, ws, user, new AssetQuerySandbox(ws), false);
+      // only on a box of its own, not on the box of a viewsheet passed in (78053)
+      box.setRuntimeWorksheet(true);
    }
 
    /**
@@ -67,6 +69,8 @@ public class RuntimeWorksheet extends RuntimeSheet
    public RuntimeWorksheet(AssetEntry entry, Worksheet ws, Principal user,
                            boolean syncData) {
       this(entry, ws, user, new AssetQuerySandbox(ws), syncData);
+      // only on a box of its own, not on the box of a viewsheet passed in (78053)
+      box.setRuntimeWorksheet(true);
    }
 
    /**
@@ -127,6 +131,7 @@ public class RuntimeWorksheet extends RuntimeSheet
          box.setWSEntry(entry);
          box.setBaseUser(user);
          box.setActive(true);
+         box.setRuntimeWorksheet(true);
          box.setQueryManager(new QueryManager());
       }
 
