@@ -54,19 +54,28 @@ class ExportGraphPairInitFailureTest {
 
    @Test
    void exportPairInitFailurePropagates() throws Exception {
-      doThrow(new IllegalStateException("query failed")).when(box).getData("Chart1");
+      // Bug #78033: VGraphPair.initGraph0() now fetches data through the 4-arg
+      // getData(name, initial, type, cutFlag) overload (added to report a possibly-cut
+      // fetch back to the caller) instead of calling the 1-arg getData(name) overload
+      // directly, so the stub must target the overload actually invoked -- a spy only
+      // intercepts the exact overload it is told to stub, and falls through to the real
+      // (4-arg) implementation for anything else. any() is used for the cutFlag array
+      // since initGraph0 passes a fresh boolean[1] each call.
+      doThrow(new IllegalStateException("query failed"))
+         .when(box).getData(eq("Chart1"), eq(true), eq(DataMap.NORMAL), any());
       IllegalStateException ex = assertThrows(IllegalStateException.class,
                                               () -> box.getVGraphPair("Chart1", true, null, true, 1));
       assertEquals("query failed", ex.getMessage());
 
-      doThrow(new LockRestoreException("lost")).when(box).getData("Chart1");
+      doThrow(new LockRestoreException("lost"))
+         .when(box).getData(eq("Chart1"), eq(true), eq(DataMap.NORMAL), any());
       assertThrows(LockRestoreException.class,
                    () -> box.getVGraphPair("Chart1", true, null, true, 1));
    }
 
    @Test
    void exportPairWithoutDataHasNoGraphAndNoError() throws Exception {
-      doReturn(null).when(box).getData("Chart1");
+      doReturn(null).when(box).getData(eq("Chart1"), eq(true), eq(DataMap.NORMAL), any());
       VGraphPair pair = assertDoesNotThrow(() -> box.getVGraphPair("Chart1", true, null, true, 1));
 
       assertNotNull(pair);

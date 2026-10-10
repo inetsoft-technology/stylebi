@@ -30,6 +30,7 @@ import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.jdbc.*;
 import inetsoft.uql.path.XSelection;
+import inetsoft.uql.util.QueryManager;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.GroupedThread;
 import inetsoft.util.log.LogContext;
@@ -230,7 +231,15 @@ public class BoundQuery extends AssetQuery {
    protected TableLens getPostBaseTableLens(VariableTable vars)
       throws Exception
    {
-      xquery.setProperty("queryManager", box.getQueryManager());
+      // Bug #78033: prefer this BoundQuery's own, correctly-set per-instance query manager over
+      // the shared AssetQuerySandbox-level one, the same shadowing shape
+      // AssetQuery.getRuntimeTableLens() was fixed for (see its comment) -- one layer deeper,
+      // here registering the live JDBC Statement itself (JDBCHandler.java) rather than a
+      // CancellableTableLens. Unlike AssetQuery.getPreBaseTableLens(), this site has no
+      // "queryManager2" fallback at all, so an unconditional shared-field read here left the
+      // live statement with no per-instance protection whatsoever.
+      QueryManager sharedQmgr = box.getQueryManager();
+      xquery.setProperty("queryManager", getQueryManager() != null ? getQueryManager() : sharedQmgr);
 
       if(AssetQuerySandbox.isLiveMode(mode) && isDriversDataCached()) {
          int max = box.getWorksheet().getWorksheetInfo().getDesignMaxRows();
