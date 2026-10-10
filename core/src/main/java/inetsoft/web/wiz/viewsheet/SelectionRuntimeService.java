@@ -113,7 +113,7 @@ public class SelectionRuntimeService {
     *
     * @param values      the values to select. For a tree, each entry is a path from the root, so
     *                    {@code ["East","NY"]} selects NY under East. Null leaves the selection alone.
-    *                    On a list or non-ID-mode tree, {@code values} <b>replaces</b> the current
+    *                    On a list or a multi-select tree (ID-mode included), {@code values} <b>replaces</b> the current
     *                    selection by default (bug-76548) — pass {@code additive:true} to make it
     *                    add to the current selection instead, without touching anything else.
     * @param deselect    values/paths to explicitly remove from the current selection, independent
@@ -121,13 +121,13 @@ public class SelectionRuntimeService {
     *                    knows exactly what to un-check without needing to first read (or
     *                    re-specify) everything that should stay selected. Same shape as
     *                    {@code values}; null or empty leaves the selection alone. Only valid on a
-    *                    list or non-ID-mode tree (the only assemblies {@code values}'s own replace
-    *                    diff already applies to).
+    *                    list or non-ID-mode tree; an ID-mode tree, range slider or calendar is
+    *                    refused.
     * @param sortOrder   {@code asc} | {@code desc} | {@code specific}, or null to leave it.
     * @param singleSelect whether the assembly should accept one value only, or null to leave it.
     * @param additive    when true, {@code values} only adds — the automatic replace-diff (deselect
     *                    anything current but unmentioned) is skipped. Ignored where that diff
-    *                    never ran anyway (single-select, a range slider, ID-mode tree, calendar).
+    *                    never ran anyway (single-select, a range slider, calendar).
     */
    public Map<String, Object> setSelection(String sessionToken, Principal user, String assemblyName,
                                            List<List<String>> values, List<List<String>> deselect,
