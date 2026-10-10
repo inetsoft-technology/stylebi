@@ -17,6 +17,7 @@
  */
 package inetsoft.web.service;
 
+import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.graph.data.BoxDataSet;
 import inetsoft.report.*;
@@ -211,11 +212,7 @@ public class HighlightService {
    }
 
    public static String getColorHexString(String color) {
-      if(color != null && !color.isEmpty()) {
-         color = String.format("#%06x", Integer.decode(color));
-      }
-
-      return color;
+      return VSObjectPropertyService.getColorHexString(color);
    }
 
    public void getRowHighlight(
