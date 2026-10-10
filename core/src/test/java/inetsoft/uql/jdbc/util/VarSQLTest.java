@@ -181,9 +181,14 @@ public class VarSQLTest {
    }
 
    // ---------------------------------------------------------------------
-   // Bug #76864 — SQLType.STRING (tabular / Mongo JSON query text) path.
-   // Values are spliced as literals, so they must be escaped JSON-style:
-   // \ -> \\, ' -> \', " -> \" (SQL quote doubling is not an escape in bson).
+   // Bug #76864 / #77105 — SQLType.STRING (tabular / Mongo JSON query text)
+   // path. String values are encoded fail-closed: every ASCII char outside
+   // [A-Za-z0-9 _], and the first char, is written as a backslash-u-XXXX
+   // escape, which bson decodes inside a string and rejects in structural
+   // context. Non-String values get no first-char encoding. These cases used
+   // to pin the #76864 backslash-prefix form (\' \" \\); they now pin the
+   // #77105 form. The semantic round-trip (value parses back exactly) is
+   // asserted with the real bson parser in MongoQueryVariableEscapeTest.
    // ---------------------------------------------------------------------
 
    private static VarSQL jsonStringVarSql() {
@@ -200,54 +205,94 @@ public class VarSQLTest {
    }
 
    @Test
-   void jsonUnquoted_apostropheValue_isBackslashEscaped() {
-      assertEquals("{name:  'O\\'Brien' }", replaceJson("{name: $(p)}", "p", "O'Brien"));
+   void jsonUnquoted_apostropheValue_isUnicodeEscaped() {
+      assertEquals("{name:  '\\u004f\\u0027Brien' }",
+                   replaceJson("{name: $(p)}", "p", "O'Brien"));
    }
 
    @Test
    void jsonUnquoted_injectionPayload_staysInsideLiteral() {
-      assertEquals("{name:  'x\\', admin: \\'1' }",
+      assertEquals("{name:  '\\u0078\\u0027\\u002c admin\\u003a \\u00271' }",
                    replaceJson("{name: $(p)}", "p", "x', admin: '1"));
    }
 
    @Test
-   void jsonUnquoted_trailingBackslash_isDoubled() {
-      assertEquals("{name:  'x\\\\' , b: 1}", replaceJson("{name: $(p), b: 1}", "p", "x\\"));
+   void jsonUnquoted_trailingBackslash_isUnicodeEscaped() {
+      assertEquals("{name:  '\\u0078\\u005c' , b: 1}",
+                   replaceJson("{name: $(p), b: 1}", "p", "x\\"));
    }
 
    @Test
-   void jsonUnquoted_doubleQuote_isEscaped() {
-      assertEquals("{name:  'a\\\"b' }", replaceJson("{name: $(p)}", "p", "a\"b"));
+   void jsonUnquoted_doubleQuote_isUnicodeEscaped() {
+      assertEquals("{name:  '\\u0061\\u0022b' }", replaceJson("{name: $(p)}", "p", "a\"b"));
    }
 
    @Test
    void jsonUnquoted_arrayInList_escapesEveryElement() {
-      assertEquals("name in ( 'O\\'Brien' , 'x\\\\' )",
+      assertEquals("name in ( '\\u004f\\u0027Brien' , '\\u0078\\u005c' )",
                    replaceJson("name in $(p)", "p", new String[] { "O'Brien", "x\\" }));
    }
 
    @Test
    void jsonUnquoted_arrayScalarContext_escapesFirstElement() {
-      assertEquals("{name:  'O\\'Brien' }",
+      assertEquals("{name:  '\\u004f\\u0027Brien' }",
                    replaceJson("{name: $(p)}", "p", new String[] { "O'Brien", "y" }));
    }
 
    @Test
-   void jsonSingleQuoted_apostropheAndBackslash_areBackslashEscaped() {
-      assertEquals("{name: 'O\\'Brien', b: 'x\\\\'}", jsonStringVarSql().replaceVariables(
-         "{name: '$(p)', b: '$(q)'}", vars("p", "O'Brien", "q", "x\\")));
+   void jsonSingleQuoted_apostropheAndBackslash_areUnicodeEscaped() {
+      assertEquals("{name: '\\u004f\\u0027Brien', b: '\\u0078\\u005c'}",
+                   jsonStringVarSql().replaceVariables(
+                      "{name: '$(p)', b: '$(q)'}", vars("p", "O'Brien", "q", "x\\")));
    }
 
    @Test
-   void jsonDoubleQuoted_doubleQuoteAndBackslash_areBackslashEscaped() {
-      assertEquals("{name: \"a\\\"b\", b: \"x\\\\\"}", jsonStringVarSql().replaceVariables(
-         "{name: \"$(p)\", b: \"$(q)\"}", vars("p", "a\"b", "q", "x\\")));
+   void jsonDoubleQuoted_doubleQuoteAndBackslash_areUnicodeEscaped() {
+      assertEquals("{name: \"\\u0061\\u0022b\", b: \"\\u0078\\u005c\"}",
+                   jsonStringVarSql().replaceVariables(
+                      "{name: \"$(p)\", b: \"$(q)\"}", vars("p", "a\"b", "q", "x\\")));
    }
 
    @Test
-   void jsonUnquoted_numberAndPlainString_unchanged() {
+   void jsonUnquoted_numberUnchanged_plainStringFirstCharEncoded() {
       assertEquals("{n:  42 }", replaceJson("{n: $(p)}", "p", 42));
-      assertEquals("{s:  'plain' }", replaceJson("{s: $(p)}", "p", "plain"));
+      assertEquals("{s:  '\\u0070lain' }", replaceJson("{s: $(p)}", "p", "plain"));
+   }
+
+   /**
+    * Bug #77105: in a quoted position a Number keeps its text (no first-char
+    * rule), a String always starts with an escape, and non-ASCII passes
+    * through unchanged.
+    */
+   @Test
+   void jsonQuoted_firstCharRuleOnlyForStrings_nonAsciiPassesThrough() {
+      assertEquals("{n: '18', s: '\\u00318', u: '\\u0074rue 日本'}",
+                   jsonStringVarSql().replaceVariables(
+                      "{n: '$(p)', s: '$(q)', u: '$(r)'}",
+                      vars("p", 18, "q", "18", "r", "true 日本")));
+   }
+
+   /**
+    * Bug #77105 round 1: in JSON style a quoted-position Number, Boolean or
+    * Date is emitted unescaped (as {@link VarSQL#toSQLConstant} does for
+    * non-String values); its text cannot close a string or regex literal.
+    * Any other non-String value is encoded like a String (first-char rule).
+    */
+   @Test
+   void jsonQuoted_numberBooleanDateUnescaped_otherObjectsEncodedLikeString() {
+      assertEquals("{a: '-3', b: '1.5', c: '1E+5', d: '-0.25', e: 'true'}",
+                   jsonStringVarSql().replaceVariables(
+                      "{a: '$(a)', b: '$(b)', c: '$(c)', d: '$(d)', e: '$(e)'}",
+                      vars("a", -3, "b", 1.5, "c", new java.math.BigDecimal("1E+5"),
+                           "d", new java.math.BigDecimal("-0.25"), "e", Boolean.TRUE)));
+
+      java.sql.Timestamp ts = java.sql.Timestamp.valueOf("2024-01-02 03:04:05.0");
+      assertEquals("{t: '2024-01-02 03:04:05.0'}",
+                   jsonStringVarSql().replaceVariables("{t: '$(t)'}", vars("t", ts)));
+
+      assertEquals("{o: '\\u004dinKey'}",
+                   jsonStringVarSql().replaceVariables(
+                      "{o: '$(o)'}", vars("o", new StringBuilder("MinKey"))));
    }
 
    @Test

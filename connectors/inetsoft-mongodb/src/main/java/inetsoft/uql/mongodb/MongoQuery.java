@@ -26,7 +26,7 @@ import java.io.PrintWriter;
 @View(vertical=true, value={
       @View1(type=ViewType.LABEL, value="queryString", font="Default-BOLD-11"),
       @View1(type=ViewType.EDITOR, value="queryString"),
-      @View1(type=ViewType.LABEL, text="<html>Use Mongo Json Command format and an aggregation command (the find command is not supported).<p>See https://docs.mongodb.com/manual/reference/command/nav-aggregation/ for details.<p><br>{<br>&nbsp;&nbsp;aggregate: 'table1',<br>&nbsp;&nbsp;pipeline: [ { $match : { state : 'NJ' } } ]<br>}</html>")
+      @View1(type=ViewType.LABEL, text="<html>Use Mongo Json Command format and an aggregation command (the find command is not supported).<p>See https://docs.mongodb.com/manual/reference/command/nav-aggregation/ for details.<p><br>{<br>&nbsp;&nbsp;aggregate: 'table1',<br>&nbsp;&nbsp;pipeline: [ { $match : { state : 'NJ' } } ]<br>}<p>Use variables as whole values: put string variables in quotes, e.g. { state : '$(state)' }, and leave number, date and boolean variables unquoted so they keep their type, e.g. { age : { $gt : $(age) } }. Use { $regex : '...$(name)...' } instead of a /regex/ literal. Do not use variables inside $where, $function, $accumulator or mapReduce JavaScript code; pass them through $function args instead. Setting security.javascriptEnabled: false on the MongoDB server disables server-side JavaScript.</html>")
    })
 public class MongoQuery extends TabularQuery {
    public MongoQuery() {

@@ -26,24 +26,27 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 /**
  * Bug #76864: {@link TabularUtil#replaceVariables(Object, VariableTable)} splices
  * variable values into {@code @Property(sql=true)} properties (the MongoDB JSON
- * query text). String values must be JSON backslash-escaped so they cannot close
- * the generated literal and add query structure.
+ * query text). String values must be JSON-escaped so they cannot close the
+ * generated literal and add query structure. Bug #77105 changed the encoding to
+ * the fail-closed backslash-u-XXXX form (punctuation and the first char), so
+ * these expectations pin that form instead of the old \' / \\ backslash form.
  */
 @Tag("core")
 class TabularUtilSqlPropertyEscapeTest {
    @Test
-   void unquotedPlaceholder_quoteInjectionValue_isBackslashEscaped() {
-      assertEquals("{name:  'x\\', admin: \\'1' }", replace("{name: $(p)}", "x', admin: '1"));
+   void unquotedPlaceholder_quoteInjectionValue_isUnicodeEscaped() {
+      assertEquals("{name:  '\\u0078\\u0027\\u002c admin\\u003a \\u00271' }",
+                   replace("{name: $(p)}", "x', admin: '1"));
    }
 
    @Test
-   void unquotedPlaceholder_trailingBackslash_isDoubled() {
-      assertEquals("{name:  'x\\\\' , b: 1}", replace("{name: $(p), b: 1}", "x\\"));
+   void unquotedPlaceholder_trailingBackslash_isUnicodeEscaped() {
+      assertEquals("{name:  '\\u0078\\u005c' , b: 1}", replace("{name: $(p), b: 1}", "x\\"));
    }
 
    @Test
-   void quotedPlaceholder_apostrophe_isBackslashEscapedNotDoubled() {
-      assertEquals("{name: 'O\\'Brien'}", replace("{name: '$(p)'}", "O'Brien"));
+   void quotedPlaceholder_apostrophe_isUnicodeEscapedNotDoubled() {
+      assertEquals("{name: '\\u004f\\u0027Brien'}", replace("{name: '$(p)'}", "O'Brien"));
    }
 
    private static String replace(String template, Object value) {
