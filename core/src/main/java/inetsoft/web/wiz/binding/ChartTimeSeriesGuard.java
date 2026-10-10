@@ -87,7 +87,7 @@ final class ChartTimeSeriesGuard {
          }
       }
 
-      String reason = unsupportedReason(model, place, shelf, index, dim);
+      String reason = unsupportedReason(model, place, shelf, index, dim, false);
 
       if(reason != null) {
          String column = field.column();
@@ -103,17 +103,19 @@ final class ChartTimeSeriesGuard {
 
    /**
     * Whether {@code dim}'s stored timeSeries flag is one the Composer would honour: the flag is
-    * set AND every part of the support rule holds.
+    * set AND every part of the support rule holds. The binding is final here (the sort path), so
+    * the strict placement rule applies, including a y dimension that is outer only because x has
+    * dimensions but no measure; {@link #require} stays lenient on that clause.
     */
    static boolean isEffective(ChartBindingModel model, Place place, String shelf, int index,
                               ChartDimensionRefModel dim)
    {
-      return dim.isTimeSeries() && unsupportedReason(model, place, shelf, index, dim) == null;
+      return dim.isTimeSeries() && unsupportedReason(model, place, shelf, index, dim, true) == null;
    }
 
    /** The first reason time series is unsupported for {@code dim}, or {@code null} if supported. */
    static String unsupportedReason(ChartBindingModel model, Place place, String shelf, int index,
-                                   ChartDimensionRefModel dim)
+                                   ChartDimensionRefModel dim, boolean strict)
    {
       String chart = chartTypeReason(model);
 
@@ -135,10 +137,10 @@ final class ChartTimeSeriesGuard {
          case AESTHETIC -> isChangeCalcDim(model, column) ? null :
             "an aesthetic channel dimension only supports time series when it is the " +
                "'columnName' of a CHANGE calculator measure on x/y";
-         case X -> isOuter(model.getXFields(), index, false, model) ?
+         case X -> isOuter(model.getXFields(), index, false, model, strict) ?
             "it is an outer dimension on the x shelf (only the last dimension, with nothing " +
                "after it, can be time series)" : null;
-         case Y -> isOuter(model.getYFields(), index, true, model) ?
+         case Y -> isOuter(model.getYFields(), index, true, model, strict) ?
             "it is an outer dimension on the y shelf" : null;
       };
    }
@@ -248,12 +250,17 @@ final class ChartTimeSeriesGuard {
     * {@code isOuterDimRef()}: scans the shelf's leading run of dimensions; the dimension at
     * {@code index} is outer iff it is in that run and is not the shelf's last field. On y, stock
     * and candle always count it outer. The Composer also counts a y dimension outer when x has
-    * dimensions but no measure; that depends on an x write that may follow, so it is not refused
-    * here.
+    * X
     */
    private static boolean isOuter(List<ChartRefModel> refs, int index, boolean y,
-                                  ChartBindingModel model)
+                                  ChartBindingModel model, boolean strict)
    {
+      if(strict && y && !model.getXFields().isEmpty() &&
+         model.getXFields().stream().noneMatch(r -> r instanceof ChartAggregateRefModel))
+      {
+         return true;
+      }
+
       for(int i = 0; i < refs.size(); i++) {
          if(!(refs.get(i) instanceof ChartDimensionRefModel)) {
             return false;

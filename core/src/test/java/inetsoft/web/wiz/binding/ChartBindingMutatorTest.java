@@ -1758,6 +1758,35 @@ class ChartBindingMutatorTest {
    }
 
    @Test
+   void aDescSortOnAYDimensionOuterOnlyBecauseXHasNoMeasureClearsTheFlagAndApplies() {
+      // The binding is final on the sort path, so the UI's "x has dimensions but no measure" y-outer
+      // clause applies: the Composer does not treat this dimension as time series.
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(new FieldRef("Region", "dimension", null, null, null)));
+      model.setYFields(new ArrayList<>(List.of(storedDate("month", true))));
+
+      ChartBindingMutator.setSort(model, "y", "Order Date", null, sortOf("desc"));
+
+      ChartDimensionRefModel month = dimAt(model.getYFields(), 0);
+      assertFalse(month.isTimeSeries());
+      assertEquals(XConstants.SORT_DESC, month.getOrder());
+   }
+
+   @Test
+   void aDescSortOnAStockYDimensionWithAStoredFlagClearsTheFlagAndApplies() {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setChartType(GraphTypes.CHART_STOCK);
+      model.setYFields(new ArrayList<>(List.of(storedDate("month", true))));
+
+      ChartBindingMutator.setSort(model, "y", "Order Date", null, sortOf("desc"));
+
+      ChartDimensionRefModel month = dimAt(model.getYFields(), 0);
+      assertFalse(month.isTimeSeries());
+      assertEquals(XConstants.SORT_DESC, month.getOrder());
+   }
+
+   @Test
    void aDescSortOnAPartOfDateLevelIsNeverRefused() {
       ChartBindingModel model = new ChartBindingModel();
       model.setXFields(new ArrayList<>(List.of(storedDate("month_of_year", true))));
