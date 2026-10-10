@@ -834,6 +834,9 @@ public class DatabaseDatasourcesService {
             parent + XUtil.ADDITIONAL_DS_CONNECTOR + oldName);
       }
 
+      // Bug #78203, and the folder grants of the removed connections' extended models
+      dataSourceRegistry.removeAdditionalConnectionFolderPermissions(parent, removedNames);
+
       for(Map.Entry<String, String> rename : renames.entrySet()) {
          Permission permission = permissions.get(rename.getKey());
 
