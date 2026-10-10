@@ -303,8 +303,7 @@ public class WorksheetAgentController {
       }
 
       IdentityID uname = IdentityID.getIdentityIDFromKey(user.getName());
-      int assetScope = "user".equalsIgnoreCase(scope)
-         ? AssetRepository.USER_SCOPE : AssetRepository.GLOBAL_SCOPE;
+      int assetScope = WizUtil.resolveAssetScope(scope);
       IdentityID owner = assetScope == AssetRepository.USER_SCOPE ? uname : null;
       AssetEntry entry = new AssetEntry(assetScope, assetType, trimmedPath, owner, uname.orgID);
 
@@ -2147,9 +2146,7 @@ public class WorksheetAgentController {
 
       if(name != null && !name.isEmpty()) {
          IdentityID uname = IdentityID.getIdentityIDFromKey(user.getName());
-         int assetScope = "user".equalsIgnoreCase(body.scope())
-            ? AssetRepository.USER_SCOPE
-            : AssetRepository.GLOBAL_SCOPE;
+         int assetScope = WizUtil.resolveAssetScope(body.scope());
          IdentityID owner = assetScope == AssetRepository.USER_SCOPE ? uname : null;
          entry = new AssetEntry(assetScope, AssetEntry.Type.WORKSHEET, name,
                                 owner, uname.orgID);
@@ -3911,8 +3908,7 @@ public class WorksheetAgentController {
       WorksheetEditService.Editor.requireStorableName(name, "An assembly name");
 
       IdentityID uname = IdentityID.getIdentityIDFromKey(user.getName());
-      int assetScope = "user".equalsIgnoreCase(req.scope())
-         ? AssetRepository.USER_SCOPE : AssetRepository.GLOBAL_SCOPE;
+      int assetScope = WizUtil.resolveAssetScope(req.scope());
       IdentityID owner = assetScope == AssetRepository.USER_SCOPE ? uname : null;
       AssetEntry entry = new AssetEntry(assetScope, AssetEntry.Type.WORKSHEET, path, owner,
                                         uname.orgID);

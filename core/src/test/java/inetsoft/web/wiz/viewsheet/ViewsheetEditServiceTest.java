@@ -281,12 +281,16 @@ class ViewsheetEditServiceTest {
       ViewsheetEditService service = serviceWithRuntime(rvs, mock(ViewsheetReadService.class),
          objects, propertyService);
 
+      when(propertyService.editObjectProperty(any(), any(), anyString(), anyString(), anyString(),
+                                              any(Principal.class), any(), eq(true), any()))
+         .thenReturn(true);
       EditRequest request = new EditRequest("add", "MyChart", 40, 60, null, null, null, null,
                                             null, null, null, null, 1000, null);
       service.apply("tok", principal(), request, "linkUri1");
 
       verify(propertyService).editObjectProperty(eq(rvs), eq(info), eq("Chart1"), eq("MyChart"),
-                                                 eq("linkUri1"), any(Principal.class), any());
+                                                 eq("linkUri1"), any(Principal.class), any(),
+                                                 eq(true), isNull());
       verify(objects, never()).resizeObject(anyString(), any(), any(Principal.class), any(),
                                             anyString());
    }
@@ -463,6 +467,190 @@ class ViewsheetEditServiceTest {
       verify(objects).addNewObject(eq("rt1"), captor.capture(), any(Principal.class), any(),
                                    anyString());
       assertEquals(AssetRepository.USER_SCOPE, captor.getValue().getEntry().getScope());
+   }
+
+   /**
+    * Bug #78192 (S5): addNewObject returns null for an embedded viewsheet, which used to skip the
+    * rename/resize blocks entirely.
+    */
+   @Test
+   void addViewsheetTypeHonorsAssemblyNameAndSize() throws Exception {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      VSAssembly embedded = mock(VSAssembly.class);
+      VSAssemblyInfo info = mock(VSAssemblyInfo.class);
+      java.util.concurrent.atomic.AtomicBoolean added =
+         new java.util.concurrent.atomic.AtomicBoolean();
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(embedded.getVSAssemblyInfo()).thenReturn(info);
+      when(vs.getAssembly("Viewsheet1")).thenAnswer(i -> added.get() ? embedded : null);
+      when(objects.addNewObject(eq("rt1"), any(), any(Principal.class), any(), anyString()))
+         .thenAnswer(i -> {
+            added.set(true);
+            return null;
+         });
+      AssetRepository rep = mock(AssetRepository.class);
+      when(rvs.getAssetRepository()).thenReturn(rep);
+      when(rep.getSheet(any(AssetEntry.class), any(Principal.class), eq(true),
+                        eq(AssetContent.ALL), eq(false)))
+         .thenReturn(mock(Viewsheet.class));
+
+      VSObjectPropertyService propertyService = mock(VSObjectPropertyService.class);
+      when(propertyService.editObjectProperty(any(), any(), anyString(), anyString(), anyString(),
+                                              any(Principal.class), any(), eq(true), any()))
+         .thenReturn(true);
+      ViewsheetEditService service = serviceWithRuntime(rvs, mock(ViewsheetReadService.class),
+         objects, propertyService);
+
+      EditRequest request = new EditRequest("add", "MyEmbed", 40, 60, 400, 300, null, null,
+                                            null, null, null, null, 200, null,
+                                            "Sample Dashboards/Sales Summary", null);
+      assertEquals("MyEmbed", service.apply("tok", principal(), request, ""));
+
+      verify(propertyService).editObjectProperty(eq(rvs), eq(info), eq("Viewsheet1"),
+                                                 eq("MyEmbed"), anyString(), any(Principal.class),
+                                                 any(), eq(true), isNull());
+      ArgumentCaptor<ResizeVSObjectEvent> resize =
+         ArgumentCaptor.forClass(ResizeVSObjectEvent.class);
+      verify(objects).resizeObject(eq("rt1"), resize.capture(), any(Principal.class), any(),
+                                   anyString());
+      assertEquals("MyEmbed", resize.getValue().getName());
+      assertEquals(400, resize.getValue().getWidth());
+      assertEquals(300, resize.getValue().getHeight());
+   }
+
+   /** Bug #78192 r1: with no 'assembly' requested, add reports the generated embed name. */
+   @Test
+   void addViewsheetTypeReportsTheGeneratedNameWhenNoneIsRequested() throws Exception {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      VSAssembly embedded = mock(VSAssembly.class);
+      java.util.concurrent.atomic.AtomicBoolean added =
+         new java.util.concurrent.atomic.AtomicBoolean();
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(vs.getAssembly("Viewsheet1")).thenAnswer(i -> added.get() ? embedded : null);
+      when(objects.addNewObject(eq("rt1"), any(), any(Principal.class), any(), anyString()))
+         .thenAnswer(i -> {
+            added.set(true);
+            return null;
+         });
+      AssetRepository rep = mock(AssetRepository.class);
+      when(rvs.getAssetRepository()).thenReturn(rep);
+      when(rep.getSheet(any(AssetEntry.class), any(Principal.class), eq(true),
+                        eq(AssetContent.ALL), eq(false)))
+         .thenReturn(mock(Viewsheet.class));
+      ViewsheetEditService service = serviceWithRuntime(rvs, mock(ViewsheetReadService.class),
+         objects, mock(VSObjectPropertyService.class));
+
+      EditRequest request = new EditRequest("add", null, 40, 60, null, null, null, null,
+                                            null, null, null, null, 200, null,
+                                            "Sample Dashboards/Sales Summary", null);
+
+      assertEquals("Viewsheet1", service.apply("tok", principal(), request, ""));
+   }
+
+   @Test
+   void addFailsLoudWhenTheRenameIsRefused() throws Exception {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      when(objects.addNewObject(eq("rt1"), any(), any(Principal.class), any(), anyString()))
+         .thenReturn("Chart1");
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      VSAssembly assembly = mock(VSAssembly.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(vs.getAssembly("Chart1")).thenReturn(assembly);
+      when(assembly.getVSAssemblyInfo()).thenReturn(mock(VSAssemblyInfo.class));
+
+      VSObjectPropertyService propertyService = mock(VSObjectPropertyService.class);
+      when(propertyService.editObjectProperty(any(), any(), anyString(), anyString(), anyString(),
+                                              any(Principal.class), any(), eq(true), any()))
+         .thenReturn(false);
+      ViewsheetEditService service = serviceWithRuntime(rvs, mock(ViewsheetReadService.class),
+         objects, propertyService);
+
+      EditRequest request = new EditRequest("add", "Bad*Name", 40, 60, 222, 77, null, null,
+                                            null, null, null, null, 111, null);
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.apply("tok", principal(), request, ""));
+
+      assertTrue(thrown.getMessage().contains("Bad*Name"), thrown.getMessage());
+      verify(objects, never()).resizeObject(anyString(), any(), any(Principal.class), any(),
+                                            anyString());
+   }
+
+   /** Bug #78192 (S6): "private"/""/garbage must be refused, never resolved to global. */
+   @ParameterizedTest
+   @ValueSource(strings = {"private", "bogus", ""})
+   void addViewsheetTypeRefusesAnUnknownScope(String scope) throws Exception {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      ViewsheetEditService service = serviceWithRuntime(rvs, mock(ViewsheetReadService.class),
+         objects, mock(VSObjectPropertyService.class));
+
+      EditRequest request = new EditRequest("add", null, 40, 60, null, null, null, null,
+                                            null, null, null, null, 200, null,
+                                            "Sample Dashboards/Sales Summary", scope);
+      Exception thrown = assertThrows(Exception.class,
+         () -> service.apply("tok", principal(), request, ""));
+
+      assertTrue(thrown.getMessage().contains("scope"), thrown.getMessage());
+      verify(objects, never()).addNewObject(anyString(), any(), any(Principal.class), any(),
+                                            anyString());
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = {"User ", "USER", " user"})
+   void addViewsheetTypeNormalizesTheScopeToUser(String scope) throws Exception {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      AssetRepository rep = mock(AssetRepository.class);
+      when(rvs.getAssetRepository()).thenReturn(rep);
+      when(rep.getSheet(any(AssetEntry.class), any(Principal.class), eq(true),
+                        eq(AssetContent.ALL), eq(false)))
+         .thenReturn(mock(Viewsheet.class));
+      ViewsheetEditService service = serviceWithRuntime(rvs, mock(ViewsheetReadService.class),
+         objects, mock(VSObjectPropertyService.class));
+
+      EditRequest request = new EditRequest("add", null, 40, 60, null, null, null, null,
+                                            null, null, null, null, 200, null,
+                                            "My Reports/Draft", scope);
+      service.apply("tok", principal(), request, "");
+
+      ArgumentCaptor<AddNewVSObjectEvent> captor =
+         ArgumentCaptor.forClass(AddNewVSObjectEvent.class);
+      verify(objects).addNewObject(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                   anyString());
+      assertEquals(AssetRepository.USER_SCOPE, captor.getValue().getEntry().getScope());
+   }
+
+   /** Bug #78192 (S7): mirrors ClipboardControllerService's paste-time "Cannot use self". */
+   @Test
+   void addViewsheetTypeRefusesEmbeddingTheHostItself() throws Exception {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      AssetRepository rep = mock(AssetRepository.class);
+      when(rvs.getAssetRepository()).thenReturn(rep);
+      when(rep.getSheet(any(AssetEntry.class), any(Principal.class), eq(true),
+                        eq(AssetContent.ALL), eq(false)))
+         .thenReturn(mock(Viewsheet.class));
+      inetsoft.sree.security.IdentityID uname =
+         inetsoft.sree.security.IdentityID.getIdentityIDFromKey(principal().getName());
+      when(rvs.getEntry()).thenReturn(new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.VIEWSHEET, "Folder/Host", null, uname.orgID));
+      ViewsheetEditService service = serviceWithRuntime(rvs, mock(ViewsheetReadService.class),
+         objects, mock(VSObjectPropertyService.class));
+
+      EditRequest request = new EditRequest("add", null, 40, 60, null, null, null, null,
+                                            null, null, null, null, 200, null,
+                                            "Folder/Host", null);
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.apply("tok", principal(), request, ""));
+
+      assertTrue(thrown.getMessage().toLowerCase().contains("self"), thrown.getMessage());
+      verify(objects, never()).addNewObject(anyString(), any(), any(Principal.class), any(),
+                                            anyString());
    }
 
    @Test
