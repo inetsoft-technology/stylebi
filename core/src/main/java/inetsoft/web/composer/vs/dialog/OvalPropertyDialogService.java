@@ -197,7 +197,8 @@ public class OvalPropertyDialogService {
       String colorString = linePropPaneModel.getColor();
 
       if("Static".equals(colorString)) {
-         format.setForegroundValue(Integer.decode(linePropPaneModel.getColorValue()) + "");
+         format.setForegroundValue(VSObjectPropertyService.decodeStaticColor(
+               linePropPaneModel.getColorValue(), "linePropPaneModel.colorValue"));
       }
       else {
          format.setForegroundValue(colorString);
@@ -209,12 +210,8 @@ public class OvalPropertyDialogService {
       if("Static".equals(colorString)) {
          String str = fillPropPaneModel.getColorValue();
 
-         if(str == null || str.isEmpty()) {
-            format.setBackgroundValue("");
-         }
-         else {
-            format.setBackgroundValue(Integer.decode(str) + "");
-         }
+         format.setBackgroundValue(
+            VSObjectPropertyService.decodeStaticColor(str, "fillPropPaneModel.colorValue"));
       }
       else {
          format.setBackgroundValue(colorString);

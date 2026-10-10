@@ -190,7 +190,8 @@ public class LinePropertyDialogService {
 
       if("Static".equals(colorString)) {
          lineAssemblyInfo.getFormat().getUserDefinedFormat()
-            .setForegroundValue(Integer.decode(linePropPaneModel.getColorValue()) + "");
+            .setForegroundValue(VSObjectPropertyService.decodeStaticColor(
+               linePropPaneModel.getColorValue(), "linePropPaneModel.colorValue"));
       }
       else {
          lineAssemblyInfo.getFormat().getUserDefinedFormat().setForegroundValue(colorString);

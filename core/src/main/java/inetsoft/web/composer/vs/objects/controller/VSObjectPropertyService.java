@@ -1662,12 +1662,44 @@ public class VSObjectPropertyService {
       return true;
    }
 
+   /**
+    * Converts a stored static color to a "#rrggbb" string for a property dialog. A stored value
+    * that is not an int (e.g. a color name such as "red") is resolved through
+    * {@link CoreTool#getColorData(Object)}; a value that cannot be resolved yields an empty
+    * string (no color) rather than an exception, so the property dialog stays readable.
+    */
    public static String getColorHexString(String color) {
-      if(color != null && !color.isEmpty()) {
-         color = String.format("#%06x", Integer.decode(color));
+      if(color == null || color.isEmpty()) {
+         return color;
       }
 
-      return color;
+      try {
+         return String.format("#%06x", Integer.decode(color));
+      }
+      catch(NumberFormatException ex) {
+         java.awt.Color resolved = CoreTool.getColorData(color);
+         return resolved == null ? "" : String.format("#%06x", resolved.getRGB() & 0xFFFFFF);
+      }
+   }
+
+   /**
+    * Converts the static color value of a property dialog model to the string stored in the
+    * format. An empty value means no color.
+    * @param field the dialog model field name, used in the error message.
+    * @throws IllegalArgumentException if the value is not empty and is not a valid color.
+    */
+   public static String decodeStaticColor(String value, String field) {
+      if(value == null || value.isEmpty()) {
+         return "";
+      }
+
+      try {
+         return Integer.decode(value) + "";
+      }
+      catch(NumberFormatException ex) {
+         throw new IllegalArgumentException(
+            "'" + field + "' must be a color such as #RRGGBB, but was '" + value + "'.", ex);
+      }
    }
 
    public boolean isEmbeddedEnabled(RuntimeViewsheet rvs, TableVSAssemblyInfo tinfo) {
