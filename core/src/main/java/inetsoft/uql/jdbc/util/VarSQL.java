@@ -38,10 +38,54 @@ public class VarSQL {
    public enum SQLType { STATEMENT, PROC, STRING }
 
    /**
+    * How a value spliced into a quoted string literal is escaped.
+    * <ul>
+    *   <li>{@link #SQL} (default): SQL quote-doubling of the enclosing quote
+    *   character, plus backslash doubling only when
+    *   {@link #setBackslashIsEscapeChar} is set (Bug #76822).</li>
+    *   <li>{@link #JSON}: backslash escaping for JSON / Mongo Extended JSON
+    *   query text (as parsed by bson's {@code JsonReader}) — a backslash,
+    *   single quote and double quote in the value are each prefixed with a
+    *   backslash. SQL-style quote doubling is not an escape there, and no
+    *   other character is escaped because bson rejects unknown escape
+    *   sequences (Bug #76864).</li>
+    * </ul>
+    */
+   public enum LiteralEscapeStyle { SQL, JSON }
+
+   /**
     * Set the SQL string type.
     */
    public void setSQLType(SQLType type) {
       this.sqlType = type;
+   }
+
+   /**
+    * Set whether the target database's SQL dialect treats a backslash as an
+    * escape character inside a {@code '...'} string literal (e.g. MySQL/MariaDB
+    * in their default {@code sql_mode}). Most dialects (PostgreSQL with the
+    * default {@code standard_conforming_strings=on}, Oracle, SQL Server, DB2,
+    * and others) do not, and a backslash is just a literal character there —
+    * the default is {@code false}. This only affects how a value spliced into
+    * a quoted {@code $(name)} placeholder (see {@link #replaceVariables}) is
+    * escaped; callers that know the target dialect should set it accordingly.
+    */
+   public void setBackslashIsEscapeChar(boolean backslashIsEscapeChar) {
+      this.backslashIsEscapeChar = backslashIsEscapeChar;
+   }
+
+   /**
+    * Set how string values spliced into the text as literals are escaped —
+    * both a value filling a quoted {@code '$(name)'} / {@code "$(name)"}
+    * placeholder and the {@code '...'} literal produced for an unquoted
+    * placeholder in {@link SQLType#STRING} mode. Defaults to
+    * {@link LiteralEscapeStyle#SQL}. Callers that splice into JSON query text
+    * (e.g. tabular connector properties with {@code @Property(sql=true)})
+    * must use {@link LiteralEscapeStyle#JSON}.
+    */
+   public void setLiteralEscapeStyle(LiteralEscapeStyle literalEscapeStyle) {
+      this.literalEscapeStyle = literalEscapeStyle == null ?
+         LiteralEscapeStyle.SQL : literalEscapeStyle;
    }
 
    /**
@@ -145,14 +189,30 @@ public class VarSQL {
                   if(var.startsWith("?")) {
                      sql.append(val);
                   }
-                  else if(inQuote != 0 || embed) {
-                     // if variabled used in quote, replace the var with string
+                  else if(embed) {
+                     // $(@var) intentionally embeds a raw, unescaped SQL
+                     // fragment (e.g. an admin-authored condition/expression
+                     // snippet) rather than a data value, so it is spliced
+                     // in verbatim regardless of quote state
                      if(val != null) {
                         sql.append(val.toString());
                      }
                      // $(@var) should add null to avoid the value missing
-                     else if(embed && sqlType == SQLType.STRING) {
+                     else if(sqlType == SQLType.STRING) {
                         sql.append("null");
+                     }
+                  }
+                  else if(inQuote != 0) {
+                     // variable used inside a quoted string literal - escape
+                     // it so the value can't terminate the literal early or
+                     // splice additional SQL (Bug #76822 / Redmine WSQ-008).
+                     // this covers both a placeholder that fills the whole
+                     // literal ('$(name)') and one that shares it with other
+                     // literal text (e.g. '$(name)%' for STARTING_WITH),
+                     // since only the value itself is escaped, not the
+                     // surrounding literal text
+                     if(val != null) {
+                        sql.append(escapeQuotedLiteralValue(val.toString(), (char) inQuote));
                      }
                   }
                   // if value is an array, replace with ?,?,?,...
@@ -271,6 +331,61 @@ public class VarSQL {
    }
 
    /**
+    * Escape a value that is being spliced into a SQL string literal so it
+    * cannot terminate the literal early or inject additional SQL. Always
+    * doubles the literal's own quote character (the standard,
+    * dialect-independent SQL escape for an embedded quote, safe on every
+    * supported dialect). Additionally doubles backslashes, but only when
+    * {@link #backslashIsEscapeChar} says the target dialect treats backslash
+    * as a string-literal escape character (e.g. default MySQL/MariaDB) — on
+    * dialects where backslash has no special meaning inside a literal
+    * (Postgres with standard_conforming_strings, Oracle, SQL Server, DB2,
+    * etc.), doubling it unconditionally would corrupt any value containing a
+    * genuine literal backslash.
+    */
+   private String escapeQuotedLiteralValue(String value, char quoteChar) {
+      if(literalEscapeStyle == LiteralEscapeStyle.JSON) {
+         return escapeJsonStringValue(value);
+      }
+
+      StringBuilder escaped = new StringBuilder(value.length());
+
+      for(int i = 0; i < value.length(); i++) {
+         char c = value.charAt(i);
+
+         if(c == quoteChar || (backslashIsEscapeChar && c == '\\')) {
+            escaped.append(c);
+         }
+
+         escaped.append(c);
+      }
+
+      return escaped.toString();
+   }
+
+   /**
+    * Escape a value spliced into a JSON (Mongo Extended JSON) string literal
+    * delimited by either {@code '} or {@code "}: backslash-escapes the
+    * backslash and both quote characters, and nothing else, so the result is
+    * valid for either delimiter and only uses escape sequences bson accepts.
+    */
+   private static String escapeJsonStringValue(String value) {
+      StringBuilder escaped = new StringBuilder(value.length());
+
+      for(int i = 0; i < value.length(); i++) {
+         char c = value.charAt(i);
+
+         if(c == '\\' || c == '\'' || c == '"') {
+            escaped.append('\\');
+         }
+
+         escaped.append(c);
+      }
+
+      return escaped.toString();
+   }
+
+   /**
     * Convert to SQL constant values (e.g. quoted string, date/time).
     */
    protected String toSQLConstant(Object val) {
@@ -280,13 +395,17 @@ public class VarSQL {
          return AbstractCondition.getValueSQLString(val);
       }
       else if(val instanceof String) {
-         return "'" + val.toString() + "'";
+         // the value supplies the whole literal here, so it must be escaped
+         // or it could close the literal early (Bug #76864)
+         return "'" + escapeQuotedLiteralValue(val.toString(), '\'') + "'";
       }
 
       return val + "";
    }
 
    private SQLType sqlType = SQLType.STATEMENT;
+   private boolean backslashIsEscapeChar = false;
+   private LiteralEscapeStyle literalEscapeStyle = LiteralEscapeStyle.SQL;
    private List<Object> params = new ArrayList();
    private List<String> names = new ArrayList();
    private static final Logger LOG = LoggerFactory.getLogger(VarSQL.class);

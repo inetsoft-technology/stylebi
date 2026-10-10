@@ -619,6 +619,10 @@ public class JDBCHandler extends XHandler {
          sql = applyQueryFilter(conn, sql, params, user);
          VarSQL varsql = new VarSQL();
          varsql.setSQLType(isproc ? VarSQL.SQLType.PROC : VarSQL.SQLType.STATEMENT);
+         // the flag depends only on the dialect, so look the helper up by product name
+         // instead of getSQLHelper(xds), which may query DB metadata through XRepository
+         varsql.setBackslashIsEscapeChar(
+            SQLHelper.getSQLHelper(SQLHelper.getProductName(xds)).isBackslashEscapeChar());
          sql = varsql.replaceVariables(sql, params);
          List<Object> vars = varsql.getParameterValues();
          List<String> names = varsql.getParameterNames();
