@@ -906,11 +906,11 @@ public class MVDispatcher {
 
    private static Number getMin(Number min1, Number min2) {
       if(min1 == null) {
-         return min1;
+         return min2;
       }
 
       if(min2 == null) {
-         return min2;
+         return min1;
       }
 
       return min1.doubleValue() < min2.doubleValue() ? min1 : min2;
