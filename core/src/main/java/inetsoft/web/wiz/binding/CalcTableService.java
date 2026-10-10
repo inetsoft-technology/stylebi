@@ -359,6 +359,7 @@ public class CalcTableService {
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          CalcTableVSAssembly assembly = requireCalcTable(rvs, assemblyName);
          requireInGrid(layoutOf(assembly), row, col);
+         requireNotMerged(layoutOf(assembly), row, col);
 
          CellBindingInfo cellBindingInfo = toCellBindingInfo(binding, rvs, assembly);
 
@@ -1278,6 +1279,26 @@ public class CalcTableService {
       requireInGrid(layoutOf(assembly), row, col);
       CalcTableVSAssemblyInfo info = (CalcTableVSAssemblyInfo) assembly.getVSAssemblyInfo();
       return info.getCellDataPath(row, col);
+   }
+
+   /**
+    * Refuses a write addressed to a cell a merge has swallowed. The write path stores onto the
+    * hidden cell, which {@code get_calc_layout}/{@code get_cell_binding} mask, never reaches the
+    * anchor, and is overwritten from the anchor when the merge is split.
+    */
+   public void requireNotMerged(RuntimeViewsheet rvs, String assemblyName, int row, int col) {
+      requireNotMerged(layoutOf(requireCalcTable(rvs, assemblyName)), row, col);
+   }
+
+   static void requireNotMerged(TableLayout layout, int row, int col) {
+      MergeAnchor anchor = mergedIntoMap(layout).get(row + "," + col);
+
+      if(anchor != null) {
+         throw new IllegalArgumentException(
+            "Cell [" + row + "," + col + "] is merged into [" + anchor.row() + "," +
+            anchor.col() + "]; bind [" + anchor.row() + "," + anchor.col() +
+            "] instead, or splitCells first.");
+      }
    }
 
    static void requireInGrid(TableLayout layout, int row, int col) {

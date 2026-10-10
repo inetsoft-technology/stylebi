@@ -179,6 +179,37 @@ class CalcTableServiceTest {
    }
 
    /**
+    * Redmine #78286: a write addressed to a cell a merge swallowed is stored on the hidden cell,
+    * never reaches the anchor, and is overwritten at split, yet reported success. It must be
+    * refused before anything is applied, naming the anchor.
+    */
+   @Test
+   void refusesBindingAMergeSwallowedCellNamingTheAnchor() throws Exception {
+      Harness h = harness(1, 2);
+      when(h.assemblyInfo.getTableLayout().getSpan(0, 0)).thenReturn(new Dimension(2, 1));
+
+      IllegalArgumentException thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.setCellBinding("tok", principal(), "Calc1", 0, 1,
+                                        columnCell("Region")));
+
+      assertTrue(thrown.getMessage().contains("[0,1] is merged into [0,0]"));
+      assertTrue(thrown.getMessage().contains("bind [0,0] instead"));
+      verify(h.layoutService, never()).setCellBinding(anyString(), any(), any(Principal.class),
+                                                      any());
+   }
+
+   @Test
+   void bindingTheAnchorOfAMergeStillSucceeds() throws Exception {
+      Harness h = harness(1, 2);
+      when(h.assemblyInfo.getTableLayout().getSpan(0, 0)).thenReturn(new Dimension(2, 1));
+
+      h.service.setCellBinding("tok", principal(), "Calc1", 0, 0, columnCell("Region"));
+
+      verify(h.layoutService).setCellBinding(eq("rt1"), any(), any(Principal.class), any());
+   }
+
+   /**
     * Regression test for the cross-cell-formula gap: {@code CellBindingInfo} already round-trips
     * a cell's explicit {@code name} ({@code setName}/{@code getName}) into
     * {@code TableCellBinding.cellName}, which {@code CalcTableScope.initRuntimeReferences}
