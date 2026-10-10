@@ -25,6 +25,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.uql.jdbc.JDBCHandler;
+import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import jakarta.validation.constraints.NotNull;
 import org.apache.commons.codec.binary.Hex;
@@ -208,13 +209,15 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
       boolean hasVariant = storedUsers.stream()
          .anyMatch(u -> !storedID.equals(u) && storedID.equalsIgnoreCase(u));
       List<String> result = new ArrayList<>();
+      IdentityID[] groups = getGroups();
+      AuthenticationDAO.GroupIndex groupIndex = indexGroups(groups);
 
-      for(IdentityID group : getGroups()) {
+      for(IdentityID group : groups) {
          if(!Objects.equals(group.orgID, storedID.orgID)) {
             continue;
          }
 
-         for(IdentityID member : getUsers(group)) {
+         for(IdentityID member : getUsers(group, groupIndex)) {
             if(storedID.equals(member) || !hasVariant && !storedUsers.contains(member) &&
                Objects.equals(storedID.orgID, member.orgID) &&
                storedID.name != null && storedID.name.equalsIgnoreCase(member.name))
@@ -392,6 +395,68 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
       }
 
       return dao.getUsers(groupIdentity).result();
+   }
+
+   /**
+    * Gets the members of a group, for a caller that looks up the members of every listed
+    * group. Without the cache, the check that the database does not merge the group name with
+    * another listed group (Bug #78251) then uses the list that the caller iterates, instead of
+    * reading the group list once per group.
+    *
+    * @param groupIndex the result of {@link #indexGroups} for the iterated list, or
+    *                   {@code null} when the cache is used.
+    */
+   private IdentityID[] getUsers(IdentityID groupIdentity,
+                                 AuthenticationDAO.GroupIndex groupIndex)
+   {
+      if(cacheEnabled && !isIgnoreCache()) {
+         return getCache().getUsers(groupIdentity);
+      }
+
+      return dao.getUsers(groupIdentity, groupIndex).result();
+   }
+
+   /**
+    * Indexes the given group list for {@link #getUsers(IdentityID, AuthenticationDAO.GroupIndex)}.
+    * Returns {@code null} when the cache is used, since the cached members are checked against
+    * the cached group list.
+    */
+   private AuthenticationDAO.GroupIndex indexGroups(IdentityID[] groups) {
+      return cacheEnabled && !isIgnoreCache() ? null : dao.indexGroups(Arrays.asList(groups));
+   }
+
+   /**
+    * Same as the default method, but reads the group list once instead of once per group.
+    */
+   @Override
+   public String[] getUserGroups(IdentityID userID, boolean caseSensitive) {
+      if(userID == null) {
+         return new String[0];
+      }
+
+      IdentityID[] groups = getGroups();
+      AuthenticationDAO.GroupIndex groupIndex = indexGroups(groups);
+      List<String> userGroupsInOrg = new ArrayList<>();
+
+      for(IdentityID group : groups) {
+         boolean member = Arrays.stream(getUsers(group, groupIndex))
+            .anyMatch(u -> caseSensitive ? userID.equals(u) :
+               userID.name.equalsIgnoreCase(u.name) && userID.orgID.equals(u.orgID));
+
+         if(!member) {
+            continue;
+         }
+
+         // getGroup(group) of a listed group has the organization ID of the group
+         if(!Objects.equals(group.orgID, userID.orgID)) {
+            LOG.warn(Catalog.getCatalog().getString("em.security.GroupNotAdded", userID, group));
+         }
+         else {
+            userGroupsInOrg.add(group.name);
+         }
+      }
+
+      return userGroupsInOrg.toArray(new String[0]);
    }
 
    @Override

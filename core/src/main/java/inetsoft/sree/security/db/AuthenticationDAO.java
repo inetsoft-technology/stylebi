@@ -347,13 +347,27 @@ class AuthenticationDAO {
    }
 
    public QueryResult<IdentityID[]> getUsers(IdentityID group) {
+      return getUsers(group, null);
+   }
+
+   /**
+    * Gets the members of a group.
+    *
+    * @param group  the group.
+    * @param groups the listed groups, indexed by {@link #indexGroups}, used to check that the
+    *               database does not merge the group name with another listed group name.
+    *               Callers that look up the members of every group pass the list they iterate,
+    *               so it is read once per operation and not once per group. If {@code null},
+    *               the list is read when it is needed.
+    */
+   public QueryResult<IdentityID[]> getUsers(IdentityID group, GroupIndex groups) {
       try(Connection connection = provider.getConnectionProvider().getConnection()) {
          Jdbi jdbi = Jdbi.create(connection);
 
          try(Handle handle = jdbi.open()) {
             List<String> members = queryGroupUsers(handle, group);
 
-            if(isAmbiguousGroup(handle, group, members)) {
+            if(isAmbiguousGroup(handle, group, members, groups)) {
                return new QueryResult<>(new IdentityID[0], false);
             }
 
@@ -373,6 +387,14 @@ class AuthenticationDAO {
       }
 
       return new QueryResult<>(new IdentityID[0], true);
+   }
+
+   /**
+    * Indexes the listed groups by the loose key of {@link #isAmbiguousGroup}, for
+    * {@link #getUsers(IdentityID, GroupIndex)}.
+    */
+   GroupIndex indexGroups(Collection<IdentityID> groups) {
+      return new GroupIndex(groups, provider.isMultiTenant());
    }
 
    private List<String> queryGroupUsers(Handle handle, IdentityID group) {
@@ -396,38 +418,39 @@ class AuthenticationDAO {
     * listed group. The group users query only returns member names, so when the database
     * collation matches several groups for the bound name (for example "sales" and "SALES" under
     * a case-insensitive collation, "sales" and "sal&eacute;s" under an accent-insensitive one,
-    * "sales" and "sales " under PAD SPACE comparison, or organization IDs "acme" and "ACME"),
-    * it returns the members of all of them and the rows cannot be attributed to one group.
+    * "sales" and "sales " under PAD SPACE comparison, full-width and half-width forms or
+    * hiragana and katakana under width- or kana-insensitive collations, or organization IDs
+    * "acme" and "ACME"), it returns the members of all of them and the rows cannot be
+    * attributed to one group.
     * <p>
-    * Only the database knows its collation, so a loose comparison of the listed groups (case,
-    * accents and trailing spaces of the group name and organization ID) only finds candidates.
-    * The group users query is then run for each candidate: if it returns the same members as
-    * for the requested group, the database merged the two names. If the members differ, the
-    * database tells the names apart (for example on a case-sensitive database) and the members
-    * are used. Groups without a candidate, which is the normal case, run no extra member query.
+    * Only the database knows its collation, so a loose comparison of the listed groups (see
+    * {@link #looseName}) only finds candidates. The group users query is then run for each
+    * candidate: if it returns the same members as for the requested group, the database merged
+    * the two names. If the members differ, the database tells the names apart (for example on
+    * a case-sensitive database) and the members are used. Groups without a candidate, which is
+    * the normal case, run no extra member query.
     *
     * @param members the result of the group users query for the requested group.
+    * @param groups  the indexed group list, or {@code null} to read it.
     *
     * @return {@code true} if the members of the group must not be loaded.
     */
-   private boolean isAmbiguousGroup(Handle handle, IdentityID group, List<String> members) {
+   private boolean isAmbiguousGroup(Handle handle, IdentityID group, List<String> members,
+                                    GroupIndex groups)
+   {
       if(members.isEmpty() || group == null || group.name == null ||
          StringUtils.isBlank(provider.getGroupListQuery()))
       {
          return false;
       }
 
-      String name = looseName(group.name);
-      String orgID = looseName(group.orgID);
+      if(groups == null || groups.isEmpty()) {
+         groups = indexGroups(getGroupList(handle));
+      }
+
       List<String> sortedMembers = null;
 
-      for(IdentityID other : getGroupList(handle)) {
-         if(group.equals(other) || other.name == null || !name.equals(looseName(other.name)) ||
-            !orgID.equals(looseName(other.orgID)))
-         {
-            continue;
-         }
-
+      for(IdentityID other : groups.candidates(group)) {
          if(sortedMembers == null) {
             sortedMembers = members.stream().sorted().toList();
          }
@@ -438,8 +461,8 @@ class AuthenticationDAO {
                "The group users query returned the same members for group \"{}\" and group " +
                "\"{}\", the database treats their names as the same name. The members of " +
                "group \"{}\" will not be loaded. Group names (and organization IDs) must be " +
-               "unique under the database collation, including case, accents and trailing " +
-               "spaces.";
+               "unique under the database collation, including case, accents, width, kana " +
+               "type and trailing spaces.";
 
             if(ambiguousGroups.add(group)) {
                LOG.warn(message, group.name, other.name, group.name);
@@ -476,16 +499,68 @@ class AuthenticationDAO {
    }
 
    /**
-    * Normalizes a name for finding the groups that a database collation may treat as the same
-    * name: trailing spaces, accents and case are ignored.
+    * Normalizes a name for finding the names that a database collation may treat as the same
+    * name. It ignores more than any one collation does, because the database confirms every
+    * candidate: compatibility forms (full-width and half-width forms, ligatures), accents and
+    * other combining marks, case (with full case folding, e.g. "&szlig;" and "ss"), the
+    * difference between hiragana and katakana, and trailing spaces.
     */
-   private static String looseName(String name) {
+   static String looseName(String name) {
       if(name == null) {
          return "";
       }
 
-      String normalized = Normalizer.normalize(name.stripTrailing(), Normalizer.Form.NFD);
-      return COMBINING_MARKS.matcher(normalized).replaceAll("").toLowerCase(Locale.ROOT);
+      String normalized = Normalizer.normalize(name, Normalizer.Form.NFKD);
+      normalized = COMBINING_MARKS.matcher(normalized).replaceAll("").stripTrailing()
+         .toUpperCase(Locale.ROOT).toLowerCase(Locale.ROOT);
+      StringBuilder result = new StringBuilder(normalized.length());
+
+      for(int i = 0; i < normalized.length(); i++) {
+         char c = normalized.charAt(i);
+         // hiragana U+3041-U+3096 to katakana U+30A1-U+30F6
+         result.append(c >= 'ぁ' && c <= 'ゖ' ? (char) (c + 0x60) : c);
+      }
+
+      return result.toString();
+   }
+
+   /**
+    * The listed groups, indexed by the loose key of their name, and of their organization ID
+    * in multi-tenant mode, where the group users query binds it.
+    */
+   static final class GroupIndex {
+      GroupIndex(Collection<IdentityID> groups, boolean multiTenant) {
+         this.multiTenant = multiTenant;
+
+         for(IdentityID group : groups) {
+            if(group != null && group.name != null) {
+               index.computeIfAbsent(key(group), k -> new ArrayList<>()).add(group);
+            }
+         }
+      }
+
+      boolean isEmpty() {
+         return index.isEmpty();
+      }
+
+      /**
+       * Gets the listed groups that the database may treat as the given group, other than the
+       * group itself. Without multi-tenancy only the name is bound, so the organization ID is
+       * ignored.
+       */
+      List<IdentityID> candidates(IdentityID group) {
+         return index.getOrDefault(key(group), List.of()).stream()
+            .filter(other -> multiTenant ? !group.equals(other) : !group.name.equals(other.name))
+            .toList();
+      }
+
+      private String key(IdentityID group) {
+         return multiTenant ?
+            looseName(group.orgID) + '\u0000' + looseName(group.name) : looseName(group.name);
+      }
+
+      private final boolean multiTenant;
+      private final Map<String, List<IdentityID>> index = new HashMap<>();
    }
 
    public QueryResult<IdentityID[]> getRoles() {

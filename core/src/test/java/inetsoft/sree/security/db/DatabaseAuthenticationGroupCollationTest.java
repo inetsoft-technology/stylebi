@@ -31,15 +31,17 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Proxy;
 import java.security.Principal;
 import java.sql.*;
 import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -57,7 +59,6 @@ import static org.mockito.Mockito.*;
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class },
    initializers = ConfigurationContextInitializer.class)
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
 @Tag("core")
 class DatabaseAuthenticationGroupCollationTest {
@@ -175,6 +176,90 @@ class DatabaseAuthenticationGroupCollationTest {
 
       assertEquals(List.of("bob"), names(p.getUsers(new IdentityID("sales", "acme"))));
       assertEquals(List.of("eve"), names(p.getUsers(new IdentityID("sales", "ACME"))));
+   }
+
+   @Test
+   void sharpSVariantGroups_caseInsensitiveDatabase_membersNotLoaded() throws Exception {
+      // TERRITORY_BASED:PRIMARY treats "ß" as "ss", a full case fold, not toLowerCase
+      createGroupDb(true, "straße", "STRASSE");
+      DatabaseAuthenticationProvider p = directProvider(true);
+
+      assertMembersNotLoaded(p, "straße", "STRASSE");
+      assertSupportUnchanged(p);
+   }
+
+   @Test
+   void sharpSVariantGroups_caseSensitiveDatabase_membersUnchanged() throws Exception {
+      createGroupDb(false, "straße", "STRASSE");
+      DatabaseAuthenticationProvider p = directProvider(true);
+
+      assertMembersUnchanged(p, "straße", "STRASSE");
+      assertSupportUnchanged(p);
+   }
+
+   @Test
+   void fullWidthGroups_databaseTellsThemApart_membersUnchanged() throws Exception {
+      // the loose key makes them candidates, but Derby's PRIMARY strength does not ignore
+      // width, so the database confirms that they are different groups
+      createGroupDb(true, "sales", FULL_WIDTH_SALES);
+      DatabaseAuthenticationProvider p = directProvider(true);
+
+      assertMembersUnchanged(p, "sales", FULL_WIDTH_SALES);
+      assertSupportUnchanged(p);
+   }
+
+   @Test
+   void looseName_ignoresWidthKanaCaseFoldingAccentsAndTrailingSpaces() {
+      // pairs that width-, kana-, case- and accent-insensitive collations (e.g. MySQL
+      // utf8mb4_0900_ai_ci, SQL Server *_CI_AI) treat as equal; Derby does not merge the
+      // width and kana pairs, so they are checked here and not against a database
+      String[][] same = {
+         { FULL_WIDTH_SALES, "sales" },
+         { "ｾｰﾙｽ", "セールス" }, // half-/full-width katakana
+         { "せーるす", "セールス" }, // hiragana/katakana
+         { "ﾀﾞ", "だ" }, // half-width katakana with dakuten/hiragana da
+         { "Straße", "STRASSE" },
+         { ACCENTED, "SALES" },
+         { "sales ", "sales" },
+         { "sales　", "sales" }, // ideographic space
+      };
+
+      for(String[] pair : same) {
+         assertEquals(AuthenticationDAO.looseName(pair[1]), AuthenticationDAO.looseName(pair[0]),
+                      pair[0] + " / " + pair[1]);
+      }
+
+      assertNotEquals(AuthenticationDAO.looseName("sales"), AuthenticationDAO.looseName("sale"));
+      assertNotEquals(AuthenticationDAO.looseName(" sales"), AuthenticationDAO.looseName("sales"));
+      assertEquals("", AuthenticationDAO.looseName(null));
+   }
+
+   @Test
+   void otherOrganization_notMultiTenant_organizationIgnored() throws Exception {
+      // without multi-tenancy only the name is bound, so a lookup with another organization
+      // ID gets the same rows and must find the same candidates
+      createGroupDb(true, "sales", "SALES");
+      DatabaseAuthenticationProvider p = directProvider(true);
+
+      assertEquals(List.of(), names(p.getUsers(new IdentityID("sales", "otherOrg"))));
+      assertEquals(List.of("alice"), names(p.getUsers(new IdentityID("support", "otherOrg"))));
+   }
+
+   @ParameterizedTest(name = "caseSensitive={0}")
+   @ValueSource(booleans = { true, false })
+   void groupsOfUser_noCache_readGroupListOnce(boolean caseSensitive) throws Exception {
+      createGroupDb(false, "sales", "SALES");
+      exec("INSERT INTO G VALUES ('eng'), ('ops'), ('qa')",
+           "INSERT INTO GU VALUES ('eng', 'bob'), ('ops', 'eve'), ('qa', 'alice')");
+      DatabaseAuthenticationProvider p = directProvider(caseSensitive);
+
+      groupListReads.set(0);
+      assertEquals(List.of("eng", "sales"), sorted(p.getUserGroups(id("bob"))));
+      assertEquals(1, groupListReads.get(), "group list reads of getUserGroups");
+
+      groupListReads.set(0);
+      assertEquals(List.of("eng", "sales"), sorted(p.getUser(id("bob")).getGroups()));
+      assertEquals(1, groupListReads.get(), "group list reads of getUser");
    }
 
    @ParameterizedTest(name = "cache={0}")
@@ -403,7 +488,7 @@ class DatabaseAuthenticationGroupCollationTest {
       p.setUserRolesQuery("SELECT ROLE_NAME FROM UR WHERE USER_NAME = ?");
       p.setRoleListQuery("SELECT DISTINCT ROLE_NAME FROM UR");
       p.setUserEmailsQuery("SELECT EMAIL FROM UE WHERE USER_NAME = ?");
-      p.setGroupListQuery("SELECT GROUP_NAME FROM G");
+      p.setGroupListQuery(GROUP_LIST_QUERY);
       p.setGroupUsersQuery("SELECT USER_NAME FROM GU WHERE GROUP_NAME = ?");
       p.setSystemAdministratorRoles(new String[] { "Site Admin" });
       p.setOrgAdministratorRoles(new String[] { "Org Admin" });
@@ -429,12 +514,35 @@ class DatabaseAuthenticationGroupCollationTest {
       p.setMultiTenantSupplier(() -> false);
       configureQueries(p);
       ConnectionProvider connectionProvider = mock(ConnectionProvider.class);
-      when(connectionProvider.getConnection()).thenAnswer(inv -> DriverManager.getConnection(url));
+      when(connectionProvider.getConnection())
+         .thenAnswer(inv -> countingConnection(DriverManager.getConnection(url)));
       Field field = DatabaseAuthenticationProvider.class.getDeclaredField("connectionProvider");
       field.setAccessible(true);
       field.set(p, connectionProvider);
       provider = p;
       return p;
+   }
+
+   /**
+    * Wraps a connection to count how often the group list query is prepared.
+    */
+   private Connection countingConnection(Connection connection) {
+      return (Connection) Proxy.newProxyInstance(
+         Connection.class.getClassLoader(), new Class<?>[] { Connection.class },
+         (proxy, method, args) -> {
+            if(method.getName().startsWith("prepare") && args != null && args.length > 0 &&
+               GROUP_LIST_QUERY.equals(args[0]))
+            {
+               groupListReads.incrementAndGet();
+            }
+
+            try {
+               return method.invoke(connection, args);
+            }
+            catch(InvocationTargetException e) {
+               throw e.getCause();
+            }
+         });
    }
 
    private static DatabaseAuthenticationProvider find(SecurityProvider root, String name) {
@@ -496,10 +604,13 @@ class DatabaseAuthenticationGroupCollationTest {
    }
 
    private static final String ACCENTED = "salés";
+   private static final String GROUP_LIST_QUERY = "SELECT GROUP_NAME FROM G";
+   private static final String FULL_WIDTH_SALES = "ｓａｌｅｓ";
    private static final String DRIVER = "org.apache.derby.jdbc.EmbeddedDriver";
    private static int dbCounter = 0;
    private String url;
    private DatabaseAuthenticationProvider provider;
    private Principal oldPrincipal;
+   private final AtomicInteger groupListReads = new AtomicInteger();
    private final String org = Organization.getDefaultOrganizationID();
 }
