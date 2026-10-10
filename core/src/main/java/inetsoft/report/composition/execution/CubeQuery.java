@@ -33,6 +33,7 @@ import inetsoft.uql.jdbc.UniformSQL;
 import inetsoft.uql.path.XSelection;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.service.DataSourceRegistry;
+import inetsoft.uql.util.QueryManager;
 import inetsoft.uql.xmla.*;
 import inetsoft.util.*;
 import org.slf4j.Logger;
@@ -413,7 +414,12 @@ public class CubeQuery extends AssetQuery {
          vars.remove(XQuery.HINT_MAX_ROWS);
       }
 
-      query.setProperty("queryManager", box.getQueryManager());
+      // Bug #78033: prefer this CubeQuery's own, correctly-set per-instance query manager over
+      // the shared AssetQuerySandbox-level one -- same shadowing shape as
+      // AssetQuery.getRuntimeTableLens() (see its comment), one layer deeper at the XMLA
+      // live-request registration (JDBCHandler.java).
+      QueryManager sharedQmgr = box.getQueryManager();
+      query.setProperty("queryManager", getQueryManager() != null ? getQueryManager() : sharedQmgr);
 
       List<DataRef> cols = new ArrayList<>();
       ColumnSelection columns = table.getColumnSelection(true);
@@ -1046,7 +1052,12 @@ public class CubeQuery extends AssetQuery {
       }
 
       query.setCube(cube);
-      query.setProperty("queryManager", box.getQueryManager());
+      // Bug #78033: prefer this CubeQuery's own, correctly-set per-instance query manager over
+      // the shared AssetQuerySandbox-level one -- same shadowing shape as
+      // AssetQuery.getRuntimeTableLens() (see its comment), one layer deeper at the XMLA
+      // live-request registration (JDBCHandler.java).
+      QueryManager sharedQmgr = box.getQueryManager();
+      query.setProperty("queryManager", getQueryManager() != null ? getQueryManager() : sharedQmgr);
       query.addMemberRef(ref);
 
       return query;

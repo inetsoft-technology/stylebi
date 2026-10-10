@@ -3921,8 +3921,16 @@ public abstract class AssetQuery extends PreAssetQuery {
       // all the queries; meanwhile, when a chart is reexecuted, we need
       // to cancel the previous execution if any, so there might be a
       // specific query manager
-      query.setProperty("queryManager", box.getQueryManager());
-      query.setProperty("queryManager2", getQueryManager());
+      //
+      // Bug #78033: prefer this AssetQuery's own, correctly-set per-instance manager for
+      // "queryManager" too (not just "queryManager2"), for the same reason
+      // getRuntimeTableLens() does -- see the comment there. JDBCHandler registers the live
+      // statement on both properties when both are present, so leaving "queryManager" on the
+      // racy shared field left the live statement cancellable by a sibling's manager even
+      // when "queryManager2" was already correct.
+      QueryManager ownQmgr = getQueryManager();
+      query.setProperty("queryManager", ownQmgr != null ? ownQmgr : box.getQueryManager());
+      query.setProperty("queryManager2", ownQmgr);
 
       if(query.getSQLDefinition() instanceof UniformSQL) {
          ((UniformSQL) query.getSQLDefinition()).setVpmUser(box.getVPMUser());
