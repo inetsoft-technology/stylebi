@@ -213,7 +213,7 @@ public class CalendarDisplayService {
          boolean dual = info.getViewMode() == CalendarVSAssemblyInfo.DOUBLE_CALENDAR_MODE;
          boolean period = dual && info.isPeriod();
 
-         validateDateCount(dual, period, dates.size(), assemblyName);
+         validateDateCount(info.isSingleSelection(), dual, period, dates.size(), assemblyName);
 
          String[] requested = dates.toArray(new String[0]);
          validateInRange(requested, info.checkDates(requested), info.getRange(),
@@ -246,8 +246,22 @@ public class CalendarDisplayService {
     * before the call ever reaches the server — turning an existing but unfriendly runtime
     * {@code RuntimeException} into an actionable one, not closing a silent-failure gap (the runtime
     * is already loud for these two cases).
+    *
+    * <p>It also refuses more than one date on a non-double calendar with {@code singleSelection}
+    * on: the flag is otherwise enforced only client-side (the Viewer resets to one date per
+    * click), so the server would silently hold and filter by several. A double calendar is exempt
+    * because range mode legitimately takes two endpoints.
     */
-   static void validateDateCount(boolean dual, boolean period, int count, String assemblyName) {
+   static void validateDateCount(boolean singleSelection, boolean dual, boolean period,
+                                 int count, String assemblyName)
+   {
+      if(singleSelection && !dual && count > 1) {
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "' is a single-selection calendar (singleSelection=true), so it " +
+            "holds one date, not " + count + ". Pass one date, or turn single selection off first " +
+            "with set_selection{assembly, singleSelect:false}.");
+      }
+
       if(dual && period && count % 2 != 0) {
          throw new IllegalArgumentException(
             "'" + assemblyName + "' is a double calendar in period-comparison mode, which needs " +
