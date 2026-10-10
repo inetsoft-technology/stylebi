@@ -446,7 +446,10 @@ public class RepositoryObjectService {
             case RepositoryEntry.SCRIPT:
                libManagerProvider.getManager(principal).removeScript(node.label());
                libManagerProvider.getManager(principal).save();
-               securityProvider.removePermission(ResourceType.SCRIPT, node.label());
+               // Bug #78217, the script is already deleted, a failed permission write must not
+               // stop the delete of the other selected nodes
+               AbstractAssetEngine.removePermissionBestEffort(
+                  securityProvider, ResourceType.SCRIPT, node.label());
                break;
             case RepositoryEntry.TABLE_STYLE:
                int index = node.path().lastIndexOf(LibManager.SEPARATOR);
@@ -656,8 +659,9 @@ public class RepositoryObjectService {
    }
 
    private void removeDataSource(String dxname) {
+      // Bug #78217, the registry removes the permission of the data source best-effort, and
+      // only when there is a data source at the path (Bug #77700)
       dataSourceRegistry.removeDataSource(dxname);
-      securityProvider.removePermission(ResourceType.DATA_SOURCE, dxname);
    }
 
    public ConnectionStatus removeDataSourceFolder(String dxname, boolean force,
@@ -774,8 +778,10 @@ public class RepositoryObjectService {
       dataModel.removeLogicalModel(name);
       removeDataModelDependencies(path, AssetEntry.Type.LOGIC_MODEL, true);
 
+      // Bug #78217, the model is already removed, a failed permission write must not stop the
+      // delete of the other selected nodes
       if(logicalModel != null) {
-         securityProvider.removePermission(ResourceType.QUERY,
+         AbstractAssetEngine.removePermissionBestEffort(securityProvider, ResourceType.QUERY,
             XUtil.getLogicalModelResourceName(dataModel.getDataSource(), folder, name));
       }
 
@@ -1506,8 +1512,10 @@ public class RepositoryObjectService {
 
       if(permission != null) {
          String resourcePathTo = ResourcePermissionService.getLogicalModelResourceName(pathTo + resourceID).getPath();
-         securityProvider.getAuthorizationProvider().setPermission(ResourceType.QUERY, resourcePathTo, permission);
-         securityProvider.getAuthorizationProvider().removePermission(ResourceType.QUERY, resourcePathFrom);
+         // Bug #78217, the model is already moved, a failed permission write must not stop the
+         // move of the other selected items
+         AbstractAssetEngine.movePermissionBestEffort(securityProvider.getAuthorizationProvider(),
+            ResourceType.QUERY, resourcePathFrom, resourcePathTo, permission);
       }
    }
 

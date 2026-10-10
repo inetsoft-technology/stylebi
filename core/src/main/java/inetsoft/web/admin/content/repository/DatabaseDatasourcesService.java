@@ -279,8 +279,11 @@ public class DatabaseDatasourcesService {
             repository.updateDataSourceFolder(folder, path);
             renameTransformHandler.addTransformTask(dinfo);
 
+            // Bug #78217, the folder is already renamed, a failed permission write is logged and
+            // does not fail the rename
             if(permission != null) {
-               securityEngine.setPermission(ResourceType.DATA_SOURCE_FOLDER, newPath, permission);
+               AbstractAssetEngine.setPermissionBestEffort(securityEngine,
+                  ResourceType.DATA_SOURCE_FOLDER, newPath, permission);
             }
          }
       }
@@ -848,25 +851,50 @@ public class DatabaseDatasourcesService {
             parent + XUtil.ADDITIONAL_DS_CONNECTOR + oldName));
       }
 
-      Set<String> oldNames = new HashSet<>(removedNames);
-      oldNames.addAll(renames.keySet());
-
-      for(String oldName : oldNames) {
-         securityEngine.removePermission(ResourceType.DATA_SOURCE,
-            parent + XUtil.ADDITIONAL_DS_CONNECTOR + oldName);
-      }
-
-      // Bug #78203, and the folder grants of the removed connections' extended models
-      dataSourceRegistry.removeAdditionalConnectionFolderPermissions(parent, removedNames);
+      // Bug #78217, the connections are already saved, so the writes are best-effort. The new
+      // names are written first and only then the old ones are removed, except the ones that are
+      // also a new name written here (swapped or chained names), so a failed write doesn't
+      // delete the only copy of a permission
+      Set<String> newNames = new HashSet<>();
+      Set<String> keptNames = new HashSet<>();
 
       for(Map.Entry<String, String> rename : renames.entrySet()) {
          Permission permission = permissions.get(rename.getKey());
 
          if(permission != null) {
-            securityEngine.setPermission(ResourceType.DATA_SOURCE,
-               parent + XUtil.ADDITIONAL_DS_CONNECTOR + rename.getValue(), permission);
+            newNames.add(rename.getValue());
+
+            if(!AbstractAssetEngine.setPermissionBestEffort(securityEngine,
+               ResourceType.DATA_SOURCE, parent + XUtil.ADDITIONAL_DS_CONNECTOR + rename.getValue(),
+               permission))
+            {
+               keptNames.add(rename.getKey());
+            }
          }
       }
+
+      Set<String> oldNames = new HashSet<>(removedNames);
+      oldNames.addAll(renames.keySet());
+
+      for(String oldName : oldNames) {
+         String resource = parent + XUtil.ADDITIONAL_DS_CONNECTOR + oldName;
+
+         if(newNames.contains(oldName)) {
+            continue;
+         }
+
+         if(keptNames.contains(oldName)) {
+            AbstractAssetEngine.reportPermissionMayRemain(
+               securityEngine, ResourceType.DATA_SOURCE, resource);
+            continue;
+         }
+
+         AbstractAssetEngine.removePermissionBestEffort(
+            securityEngine, ResourceType.DATA_SOURCE, resource);
+      }
+
+      // Bug #78203, and the folder grants of the removed connections' extended models
+      dataSourceRegistry.removeAdditionalConnectionFolderPermissions(parent, removedNames);
    }
 
    /**

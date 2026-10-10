@@ -93,8 +93,7 @@ public class ScheduleCycleController {
    )
    @GetMapping("/api/em/schedule/add-cycle/{timeZoneId}")
    public DataCycleInfo addDataCycle(@DecodePathVariable("timeZoneId") String timeZoneId, Principal principal) {
-      String newCycleName = this.scheduleCycleService.addDataCycle(principal, timeZoneId);
-      return new DataCycleInfo(newCycleName);
+      return this.scheduleCycleService.addDataCycle(principal, timeZoneId);
    }
 
    @Secured(

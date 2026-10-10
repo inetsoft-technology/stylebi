@@ -1518,7 +1518,14 @@ public class DashboardManager implements AutoCloseable {
                   permission.setGrants(ResourceAction.ACCESS, type, grants);
                }
 
-               security.setPermission(ResourceType.DASHBOARD, name, permission);
+               // Bug #78217, a failed permission write must not stop the load of the dashboards
+               try {
+                  security.setPermission(ResourceType.DASHBOARD, name, permission);
+               }
+               catch(RuntimeException ex) {
+                  LOG.error("Failed to update the permission of dashboard {} for {}",
+                            name, identity, ex);
+               }
             }
          }
       }

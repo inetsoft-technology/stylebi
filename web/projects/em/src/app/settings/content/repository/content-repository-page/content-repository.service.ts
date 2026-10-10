@@ -20,7 +20,7 @@ import { Injectable, OnDestroy } from "@angular/core";
 import { MatDialog, MatDialogConfig } from "@angular/material/dialog";
 import { MatSnackBar } from "@angular/material/snack-bar";
 import { BehaviorSubject, merge, Observable, ObservableInput, of, Subject } from "rxjs";
-import { catchError, map, share, switchMap } from "rxjs/operators";
+import { catchError, map, share, switchMap, tap } from "rxjs/operators";
 import { RepositoryEntryType } from "../../../../../../../shared/data/repository-entry-type.enum";
 import { DataSourceEditorModel } from "../../../../../../../shared/util/datasource/data-source-settings-page";
 import { DataSourceSettingsModel } from "../../../../../../../shared/util/model/data-source-settings-model";
@@ -100,8 +100,12 @@ import { NewRepositoryEntryRequest } from "./new-repository-entry-request";
    providedIn: "root"
 })
 export class ContentRepositoryService implements OnDestroy {
-   private readonly addDashboard$ = this.subFactory(
-      (parentInfo) => this.http.post("../api/em/settings/content/repository/dashboard/add", parentInfo)
+   private readonly addDashboard$ = <Subject<any>>this.subFactory(
+      (parentInfo) => this.http.post<RepositoryTreeNode>(
+         "../api/em/settings/content/repository/dashboard/add", parentInfo)
+         // Bug #78217, the dashboard is added but reports a warning, e.g. that the permission
+         // granted to its creator may not have been saved. It's only shown
+         .pipe(tap(node => this.showAddWarning(node)))
    );
    private readonly addFolder$ = <Subject<any>>this.subFactory(
       ([params, parentInfo]) =>
@@ -621,6 +625,18 @@ export class ContentRepositoryService implements OnDestroy {
          if(this.isFolder(item.type)) {
             this.getEditNodeMetaMap0(item, metaMap);
          }
+      }
+   }
+
+   private showAddWarning(node: RepositoryTreeNode): void {
+      if(node?.warning) {
+         this.dialog.open(MessageDialog, <MatDialogConfig>{
+            data: {
+               title: "_#(js:Warning)",
+               content: node.warning,
+               type: MessageDialogType.WARNING
+            }
+         });
       }
    }
 

@@ -33,6 +33,8 @@ export interface RepositoryTreeNode extends TreeDataNode<RepositoryTreeNode> {
    readonly properties?: any;
    visible: boolean;
    lastModifiedTime?: number;
+   // Bug #78217, a warning about the item that was added, e.g. a failed creator grant
+   readonly warning?: string;
 }
 
 export class RepositoryFlatNode extends FlatTreeNode<RepositoryTreeNode> {

@@ -311,16 +311,16 @@ class DataSourceLeftoverPermissionTest {
       verifyNoInteractions(notifications);
    }
 
-   // the portal data source delete revokes its own key again, which throws when that fails too,
-   // and the user is also notified
+   // Bug #78217, the portal data source delete no longer revokes its own key again after the
+   // registry did, so a failed removal doesn't fail the delete, and the user is notified
    @Test
-   void portalDataSourceDelete_removeFails_throwsAndNotifiesUser() throws Exception {
+   void portalDataSourceDelete_removeFails_succeedsAndNotifiesUser() throws Exception {
       registry.setDataSource(source(SOURCE), false);
       grant(ResourceType.DATA_SOURCE, SOURCE);
       failRemoves(key(ResourceType.DATA_SOURCE, SOURCE));
       NotificationService notifications = mock(NotificationService.class);
 
-      assertThrows(MessageException.class, () -> portalController(notifications)
+      assertDoesNotThrow(() -> portalController(notifications)
          .deleteDataSource(SOURCE, SOURCE, true, admin));
 
       assertNull(registry.getDataSource(SOURCE));

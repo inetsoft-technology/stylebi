@@ -1434,7 +1434,13 @@ public class RepletEngine extends AbstractAssetEngine
             perm.setUserGrantsForOrg(ResourceAction.WRITE, users, orgId);
             perm.setUserGrantsForOrg(ResourceAction.DELETE, users, orgId);
 
-            setPermission(user, ResourceType.REPORT, name, perm);
+            // Bug #78217, the folder is already added, a failed grant is reported as a warning
+            try {
+               setPermission(user, ResourceType.REPORT, name, perm);
+            }
+            catch(RuntimeException e) {
+               Tool.addUserWarning(getCreatorPermissionWarning(ResourceType.REPORT, name, e));
+            }
          }
       }
       finally {
@@ -2169,40 +2175,6 @@ public class RepletEngine extends AbstractAssetEngine
 
    public <T> T unwrap(Class<T> iface) {
       return iface.cast(this);
-   }
-
-   /**
-    * Writes the permission of an asset that is being moved or removed. The write is a side effect
-    * of the structural change, so a failure is logged and does not stop the rest of the change.
-    */
-   private static void setPermissionBestEffort(SecurityEngine security, ResourceType type,
-                                               String path, Permission perm)
-   {
-      try {
-         security.setPermission(type, path, perm);
-      }
-      catch(RuntimeException e) {
-         LOG.error("Failed to set the permission of {} {}, it may not have been saved",
-                   type, path, e);
-      }
-   }
-
-   /**
-    * Removes the permission of an asset that is being moved or removed. The write is a side
-    * effect of the structural change, so a failure is logged and does not stop the rest of the
-    * change. A permission that may still be stored is reported to the user (Bug #77939).
-    */
-   private static void removePermissionBestEffort(SecurityEngine security, ResourceType type,
-                                                  String path)
-   {
-      try {
-         security.removePermission(type, path);
-      }
-      catch(RuntimeException e) {
-         LOG.error("Failed to remove the permission of {} {}, it may still be stored",
-                   type, path, e);
-         reportPermissionMayRemain(security, type, path);
-      }
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(RepletEngine.class);

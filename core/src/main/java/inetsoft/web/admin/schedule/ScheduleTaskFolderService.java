@@ -137,7 +137,10 @@ public class ScheduleTaskFolderService {
 
       indexedStorage.putXMLSerializable(parentEntry.toIdentifier(), parentFolder);
       indexedStorage.remove(folderEntry.toIdentifier());
-      securityProvider.removePermission(ResourceType.SCHEDULE_TASK_FOLDER, folderEntry.getPath());
+      // Bug #78217, the folder is already removed, a failed permission write must not stop the
+      // removal of the other folders
+      AbstractAssetEngine.removePermissionBestEffort(
+         securityProvider, ResourceType.SCHEDULE_TASK_FOLDER, folderEntry.getPath());
    }
 
    /**
@@ -1092,9 +1095,12 @@ public class ScheduleTaskFolderService {
 
       Permission permission = engine.getPermission(type, oldFolder);
 
+      // Bug #78217, the folder is already moved, so a failed write must not stop the move of
+      // its subfolders and of the other folders. The permission is written at the new path
+      // before it is removed from the old one, so a failed write doesn't delete the only copy
       if(permission != null) {
-         engine.removePermission(type, oldFolder);
-         engine.setPermission(type, newFolder, permission);
+         AbstractAssetEngine.movePermissionBestEffort(engine, type, oldFolder, newFolder,
+                                                      permission);
       }
    }
 

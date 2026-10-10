@@ -157,8 +157,9 @@ public class RoleController {
                                                           identity.getType(),
                                                           IdentityInfoRecord.ACTION_TYPE_CREATE,
                                                           null, state);
-         identityService.createIdentityPermissions(identity.getIdentityID(), ResourceType.SECURITY_ROLE,
-                                                   principal);
+         // Bug #78217, the role is already created, a failed grant is shown as a warning
+         String warning = identityService.createIdentityPermissions(
+            identity.getIdentityID(), ResourceType.SECURITY_ROLE, principal);
 
          return EditRolePaneModel.builder()
             .name(identity.getName())
@@ -171,6 +172,7 @@ public class RoleController {
             .roles(new ArrayList<>())
             .permittedIdentities(new ArrayList<>())
             .theme(themeService.getTheme(identity.getIdentityID(), CustomTheme::getRoles))
+            .warning(warning)
             .build();
       }
       catch(Exception e) {

@@ -70,4 +70,11 @@ public interface EntityModel {
 
    @Nullable
    String theme();
+
+   /**
+    * Bug #78217, a warning for the user about an identity that was created, e.g. that the
+    * permission granted to its creator may not have been saved.
+    */
+   @Nullable
+   String warning();
 }

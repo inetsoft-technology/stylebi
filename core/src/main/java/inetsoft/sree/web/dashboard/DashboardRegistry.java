@@ -713,15 +713,20 @@ public class DashboardRegistry {
                if(!provider.isVirtual()) {
                   Permission permission = provider.getPermission(ResourceType.DASHBOARD, oname);
 
+                  // Bug #78217, the permission is written at the new name before it is removed
+                  // from the old one, so a failed write doesn't delete the only copy of it
                   if(permission != null) {
-                     removePermissionBestEffort(oname);
-
-                     try {
-                        provider.setPermission(ResourceType.DASHBOARD, name, permission);
-                     }
-                     catch(Exception ex) {
-                        LOG.error("Failed to move the permission of dashboard {} to {}",
-                                  oname, name, ex);
+                     if(!Tool.equals(oname, name)) {
+                        try {
+                           provider.setPermission(ResourceType.DASHBOARD, name, permission);
+                           removePermissionBestEffort(oname);
+                        }
+                        catch(Exception ex) {
+                           LOG.error("Failed to move the permission of dashboard {} to {}",
+                                     oname, name, ex);
+                           AbstractAssetEngine.reportPermissionMayRemain(
+                              securityEngine, ResourceType.DASHBOARD, oname);
+                        }
                      }
                   }
                   else {

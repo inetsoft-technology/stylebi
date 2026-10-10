@@ -22,6 +22,7 @@ import inetsoft.report.LibManagerProvider;
 import inetsoft.report.internal.Util;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
+import inetsoft.uql.asset.AbstractAssetEngine;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
@@ -138,8 +139,18 @@ public class RepositoryScriptController {
 
          if(npath != null && !npath.isEmpty()) {
             Permission temp = securityEngine.getPermission(resource.getType(), path);
-            securityEngine.removePermission(resource.getType(), path);
-            securityEngine.setPermission(resource.getType(), npath, temp);
+
+            // Bug #78217, the script is already renamed, a failed permission write is logged and
+            // does not fail the rename. The permission is written at the new name before it is
+            // removed from the old one, so a failed write doesn't delete the only copy of it
+            if(temp != null) {
+               AbstractAssetEngine.movePermissionBestEffort(
+                  securityEngine, resource.getType(), path, npath, temp);
+            }
+            else {
+               AbstractAssetEngine.removePermissionBestEffort(
+                  securityEngine, resource.getType(), npath);
+            }
          }
 
          if(model.permissions() != null && model.permissions().changed()) {
