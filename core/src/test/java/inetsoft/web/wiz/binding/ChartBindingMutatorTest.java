@@ -24,6 +24,7 @@ import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.VSChartGeoRef;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.graph.VSMapInfo;
+import inetsoft.web.binding.model.BindingModel;
 import inetsoft.web.binding.model.ChartBindingModel;
 import inetsoft.web.binding.model.graph.ChartAggregateRefModel;
 import inetsoft.web.binding.model.graph.ChartDimensionRefModel;
@@ -37,6 +38,7 @@ import inetsoft.web.wiz.binding.model.FieldRef;
 import inetsoft.web.wiz.pairing.WizAgentTestSupport;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -799,17 +801,6 @@ class ChartBindingMutatorTest {
    }
 
    @Test
-   void settingTimeSeriesTrueOnANewChartDimensionAppliesItOnTheGroupShelfToo() {
-      ChartBindingModel model = new ChartBindingModel();
-
-      ChartBindingMutator.setShelf(model, "group",
-         List.of(dimensionWithTimeSeries("Order Date", "quarter", true)));
-
-      assertTrue(((ChartDimensionRefModel) model.getGroupFields().get(0)).isTimeSeries(),
-         "timeSeries is shelf-agnostic -- must be applied on group too, not just x");
-   }
-
-   @Test
    void resubmittingAChartDimensionWithNoTimeSeriesKeyPreservesItsPriorState() {
       ChartBindingModel model = new ChartBindingModel();
       ChartBindingMutator.setShelf(model, "x",
@@ -1449,5 +1440,330 @@ class ChartBindingMutatorTest {
       ChartBindingMutator.setSingleShelf(model, "close",
          new FieldRef("Cost", "measure", "Sum", null, null));
       assertNull(((ChartAggregateRefModel) model.getCloseField()).getCalculateInfo());
+   }
+
+   // ── timeSeries refused where the native UI never offers it (bug #78214) ──────────────────
+   //
+   // The rule is a port of dimension-editor.component.ts timeSeriesSupported()/isTimeVisible()
+   // and chart-fieldmc.component.ts isOuterDimRef(), checked on the post-write model.
+
+   private static IllegalArgumentException refused(org.junit.jupiter.api.function.Executable write) {
+      return assertThrows(IllegalArgumentException.class, write);
+   }
+
+   private static FieldRef date(String level, Boolean timeSeries) {
+      return dimensionWithTimeSeries("Order Date", level, timeSeries);
+   }
+
+   private static ChartDimensionRefModel storedDate(String level, boolean timeSeries) {
+      ChartDimensionRefModel ref = new ChartDimensionRefModel();
+      ref.setColumnValue("Order Date");
+      ref.setName("Order Date");
+      ref.setDateLevel(DateLevels.normalize(level));
+      ref.setTimeSeries(timeSeries);
+      return ref;
+   }
+
+   private static ChartDimensionRefModel dimAt(List<?> refs, int index) {
+      return (ChartDimensionRefModel) refs.get(index);
+   }
+
+   @Test
+   void timeSeriesTrueOnANonDateDimensionIsRefused() {
+      ChartBindingModel model = new ChartBindingModel();
+
+      IllegalArgumentException e = refused(() -> ChartBindingMutator.setShelf(model, "x",
+         List.of(dimensionWithTimeSeries("Category", null, true))));
+
+      assertTrue(e.getMessage().contains("timeSeries") && e.getMessage().contains("Category") &&
+                 e.getMessage().contains("date level"), e.getMessage());
+      assertTrue(model.getXFields().isEmpty(), "a refused write must not stay applied");
+   }
+
+   @Test
+   void timeSeriesTrueOnAColumnTheSourceReportsAsStringIsRefusedEvenWithALevel() {
+      ChartBindingModel model = new ChartBindingModel();
+      BindingModel.SourceTable table = new BindingModel.SourceTable();
+      BindingModel.SourceTableColumn column = new BindingModel.SourceTableColumn();
+      column.setName("Category");
+      column.setDataType("string");
+      table.setColumns(List.of(column));
+      model.setTables(List.of(table));
+
+      IllegalArgumentException e = refused(() -> ChartBindingMutator.setShelf(model, "x",
+         List.of(dimensionWithTimeSeries("Category", "month", true))));
+
+      assertTrue(e.getMessage().contains("not a date column"), e.getMessage());
+   }
+
+   @Test
+   void timeSeriesTrueOnTheGroupShelfIsRefused() {
+      ChartBindingModel model = new ChartBindingModel();
+
+      IllegalArgumentException e = refused(() -> ChartBindingMutator.setShelf(model, "group",
+         List.of(date("month", true))));
+
+      assertTrue(e.getMessage().contains("group shelf"), e.getMessage());
+      assertTrue(model.getGroupFields().isEmpty());
+   }
+
+   @Test
+   void timeSeriesTrueOnAnOuterDateDimensionIsRefusedButTheInnerOneIsAccepted() {
+      ChartBindingModel model = new ChartBindingModel();
+
+      IllegalArgumentException e = refused(() -> ChartBindingMutator.setShelf(model, "x",
+         List.of(date("year", true), date("month", true))));
+      assertTrue(e.getMessage().contains("outer"), e.getMessage());
+
+      ChartBindingMutator.setShelf(model, "x", List.of(date("year", null), date("month", true)));
+
+      assertFalse(dimAt(model.getXFields(), 0).isTimeSeries());
+      assertTrue(dimAt(model.getXFields(), 1).isTimeSeries());
+   }
+
+   @Test
+   void aDateDimensionFollowedByAMeasureOnTheSameShelfIsOuter() {
+      ChartBindingModel model = new ChartBindingModel();
+
+      refused(() -> ChartBindingMutator.setShelf(model, "x",
+         List.of(date("month", true), new FieldRef("Sales", "measure", "Sum", null, null))));
+   }
+
+   @Test
+   void timeSeriesTrueOnAPieChartIsRefused() {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setChartType(GraphTypes.CHART_PIE);
+
+      IllegalArgumentException e = refused(() -> ChartBindingMutator.setShelf(model, "x",
+         List.of(date("month", true))));
+
+      assertTrue(e.getMessage().contains("pie"), e.getMessage());
+   }
+
+   @Test
+   void timeSeriesTrueOnAWaterfallChartIsRefused() {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setChartType(GraphTypes.CHART_WATERFALL);
+
+      IllegalArgumentException e = refused(() -> ChartBindingMutator.setShelf(model, "x",
+         List.of(date("month", true))));
+
+      assertTrue(e.getMessage().contains("waterfall"), e.getMessage());
+   }
+
+   @Test
+   void aChartTypeLeftAtAutoUsesItsRuntimeTypeForTheTimeVisibleRule() {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setRTChartType(GraphTypes.CHART_DONUT);
+
+      refused(() -> ChartBindingMutator.setShelf(model, "x", List.of(date("month", true))));
+   }
+
+   @Test
+   void timeSeriesTrueOnAnInnerMonthOnALineChartIsAccepted() {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setChartType(GraphTypes.CHART_LINE);
+
+      ChartBindingMutator.setShelf(model, "x", List.of(date("month", true)));
+      assertTrue(dimAt(model.getXFields(), 0).isTimeSeries());
+
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(dimensionWithTimeSeries("Region", null, null), date("month", true)));
+      assertTrue(dimAt(model.getXFields(), 1).isTimeSeries());
+
+      ChartBindingMutator.setShelf(model, "y", List.of(date("day", true)));
+      assertTrue(dimAt(model.getYFields(), 0).isTimeSeries());
+   }
+
+   @Test
+   void explicitFalseIsAlwaysAccepted() {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setChartType(GraphTypes.CHART_PIE);
+
+      ChartBindingMutator.setShelf(model, "x", List.of(date("year", false), date("month", false)));
+      ChartBindingMutator.setShelf(model, "group", List.of(date("month", false)));
+      ChartBindingMutator.setSingleShelf(model, "path", date("day", false));
+
+      assertFalse(dimAt(model.getXFields(), 1).isTimeSeries());
+   }
+
+   @Test
+   void aPartOfDateLevelIsRefused() {
+      ChartBindingModel model = new ChartBindingModel();
+
+      IllegalArgumentException e = refused(() -> ChartBindingMutator.setShelf(model, "x",
+         List.of(date("month_of_year", true))));
+
+      assertTrue(e.getMessage().contains("part-of-date"), e.getMessage());
+   }
+
+   @Test
+   void aDynamicDateLevelIsAcceptedForAnUntypedColumn() {
+      ChartBindingModel model = new ChartBindingModel();
+
+      ChartBindingMutator.setShelf(model, "x", List.of(date("$(level)", true)));
+
+      assertTrue(dimAt(model.getXFields(), 0).isTimeSeries());
+   }
+
+   @Test
+   void echoingAStoredTrueFlagIsAcceptedEvenWhereANewTrueWouldBeRefused() {
+      // Native drag-and-drop stores true on both year and month (the year dim is outer), and
+      // get_binding echoes both back with an explicit timeSeries:true.
+      ChartBindingModel model = new ChartBindingModel();
+      model.setXFields(new ArrayList<>(List.of(storedDate("year", true), storedDate("month", true))));
+
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(dimensionWithTimeSeries("Region", null, null), date("year", true),
+                 date("month", true)));
+
+      assertEquals(3, model.getXFields().size());
+      assertTrue(dimAt(model.getXFields(), 1).isTimeSeries());
+      assertTrue(dimAt(model.getXFields(), 2).isTimeSeries());
+
+      // ... but enabling it on a different level is a new enablement and is still refused.
+      refused(() -> ChartBindingMutator.setShelf(model, "x",
+         List.of(date("quarter", true), date("month", true))));
+   }
+
+   @Test
+   void echoingAStoredTrueFlagOnAPieChartIsAccepted() {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setChartType(GraphTypes.CHART_PIE);
+      model.setXFields(new ArrayList<>(List.of(storedDate("month", true))));
+
+      ChartBindingMutator.setShelf(model, "x", List.of(date("month", true)));
+
+      assertTrue(dimAt(model.getXFields(), 0).isTimeSeries());
+   }
+
+   @Test
+   void mergedChartTypesAreRefusedButStockCandleAndBoxplotAreAllowed() {
+      for(int type : new int[] {GraphTypes.CHART_SCATTER_CONTOUR, GraphTypes.CHART_MAP,
+                                GraphTypes.CHART_RADAR, GraphTypes.CHART_TREEMAP,
+                                GraphTypes.CHART_GANTT, GraphTypes.CHART_FUNNEL})
+      {
+         ChartBindingModel model = new ChartBindingModel();
+         model.setChartType(type);
+
+         refused(() -> ChartBindingMutator.setShelf(model, "x", List.of(date("month", true))));
+      }
+
+      for(int type : new int[] {GraphTypes.CHART_STOCK, GraphTypes.CHART_CANDLE,
+                                GraphTypes.CHART_BOXPLOT})
+      {
+         ChartBindingModel model = new ChartBindingModel();
+         model.setChartType(type);
+
+         ChartBindingMutator.setShelf(model, "x", List.of(date("month", true)));
+         assertTrue(dimAt(model.getXFields(), 0).isTimeSeries(), "type " + type);
+      }
+   }
+
+   @Test
+   void underMultiStylesAnyMeasureTypeThatIsPolarMakesItRefused() {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setMultiStyles(true);
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Sales", "measure", "Sum", null, null),
+                 new FieldRef("Orders", "measure", "Sum", null, null)));
+      ((ChartAggregateRefModel) model.getYFields().get(1)).setChartType(GraphTypes.CHART_PIE);
+
+      refused(() -> ChartBindingMutator.setShelf(model, "x", List.of(date("month", true))));
+
+      ((ChartAggregateRefModel) model.getYFields().get(1)).setChartType(GraphTypes.CHART_LINE);
+      ChartBindingMutator.setShelf(model, "x", List.of(date("month", true)));
+      assertTrue(dimAt(model.getXFields(), 0).isTimeSeries());
+   }
+
+   @Test
+   void aYDimensionIsNotRefusedForAnXShelfThatHasNoMeasureYetButIsForStockAndCandle() {
+      // x=[Region] then y=[Date ts]: whether y is outer depends on the x write that may follow.
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(dimensionWithTimeSeries("Region", null, null)));
+
+      ChartBindingMutator.setShelf(model, "y", List.of(date("month", true)));
+      assertTrue(dimAt(model.getYFields(), 0).isTimeSeries());
+
+      ChartBindingModel stock = new ChartBindingModel();
+      stock.setChartType(GraphTypes.CHART_STOCK);
+      refused(() -> ChartBindingMutator.setShelf(stock, "y", List.of(date("month", true))));
+   }
+
+   @Test
+   void timeSeriesTrueOnASingleShelfDimensionIsRefusedButAStoredOneCanBeEchoed() {
+      ChartBindingModel model = new ChartBindingModel();
+
+      IllegalArgumentException e = refused(
+         () -> ChartBindingMutator.setSingleShelf(model, "path", date("day", true)));
+      assertTrue(e.getMessage().contains("single-field shelf"), e.getMessage());
+      assertNull(ChartBindingMutator.readSingleShelf(model, "path"));
+
+      model.setPathField(storedDate("day", true));
+      ChartBindingMutator.setSingleShelf(model, "path", date("day", true));
+      assertTrue(singleDim(model, "path").isTimeSeries());
+   }
+
+   @Test
+   void aRefusedWriteLeavesThePreviousShelfInPlace() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x", List.of(date("month", null)));
+
+      refused(() -> ChartBindingMutator.setShelf(model, "x",
+         List.of(date("year", true), date("month", null))));
+
+      assertEquals(1, model.getXFields().size());
+   }
+
+   // sort: a time-series date dimension always renders ascending (ChartVSAQuery forces it).
+
+   private static DimensionSortRanking.Sort sortOf(String direction) {
+      return new DimensionSortRanking.Sort(direction, null, null);
+   }
+
+   @Test
+   void aNonAscendingSortOnAnEffectiveTimeSeriesDimensionIsRefusedButAscIsAllowed() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x", List.of(date("month", true)));
+
+      for(String direction : List.of("desc", "descending", "manual")) {
+         IllegalArgumentException e = refused(() -> ChartBindingMutator.setSort(
+            model, "x", "Order Date", null,
+            new DimensionSortRanking.Sort(direction, null, List.of("a"))));
+         assertTrue(e.getMessage().contains("time-series"), e.getMessage());
+      }
+
+      refused(() -> ChartBindingMutator.setSort(model, "x", "Order Date", null,
+         new DimensionSortRanking.Sort("value_desc", "Sum(Sales)", null)));
+
+      ChartBindingMutator.setSort(model, "x", "Order Date", null, sortOf("asc"));
+      ChartBindingMutator.setSort(model, "x", "Order Date", null, sortOf("none"));
+      assertTrue(dimAt(model.getXFields(), 0).isTimeSeries());
+   }
+
+   @Test
+   void aDescSortOnAnOuterDimensionWithAStoredFlagClearsTheFlagAndApplies() {
+      // Native drag-and-drop leaves true on the outer year dim; the server would force it
+      // ascending, so the sort only takes effect once the flag is cleared (as the editor does).
+      ChartBindingModel model = new ChartBindingModel();
+      model.setXFields(new ArrayList<>(List.of(storedDate("year", true), storedDate("month", true))));
+
+      ChartBindingMutator.setSort(model, "x", "Order Date", 0, sortOf("desc"));
+
+      ChartDimensionRefModel year = dimAt(model.getXFields(), 0);
+      assertFalse(year.isTimeSeries());
+      assertEquals(XConstants.SORT_DESC, year.getOrder());
+      assertTrue(dimAt(model.getXFields(), 1).isTimeSeries(), "the inner dimension is untouched");
+   }
+
+   @Test
+   void aDescSortOnAPartOfDateLevelIsNeverRefused() {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setXFields(new ArrayList<>(List.of(storedDate("month_of_year", true))));
+
+      ChartBindingMutator.setSort(model, "x", "Order Date", null, sortOf("desc"));
+
+      assertEquals(XConstants.SORT_DESC, dimAt(model.getXFields(), 0).getOrder());
    }
 }

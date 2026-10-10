@@ -135,6 +135,12 @@ class ChartAestheticMutatorTest {
    @Test
    void bindsADimensionToTheColourChannelWithTimeSeries() {
       ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+      ChartAggregateRefModel sales = (ChartAggregateRefModel) model.getYFields().get(0);
+      inetsoft.web.binding.model.graph.calc.ChangeCalcInfo change =
+         new inetsoft.web.binding.model.graph.calc.ChangeCalcInfo();
+      change.setColumnName("Quarter(Order Date)");
+      sales.setCalculateInfo(change);
       FieldRef field = new FieldRef("Order Date", "dimension", null, "quarter", null, null, null,
                                     null, null, null, null, null, true);
 
@@ -2316,5 +2322,85 @@ class ChartAestheticMutatorTest {
          new FieldRef("Ship Date", "dimension", null, "day", null));
 
       assertFalse(colorTimeSeries(model));
+   }
+
+   // ── timeSeries on an aesthetic channel (bug #78214) ──────────────────────────────────────
+   //
+   // The Composer offers it on an aesthetic dimension only when that dimension is the
+   // columnName of a CHANGE calculator measure on x/y.
+
+   private static ChartBindingModel modelWithChangeCalc(String columnName) {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+      inetsoft.web.binding.model.graph.calc.ChangeCalcInfo change =
+         new inetsoft.web.binding.model.graph.calc.ChangeCalcInfo();
+      change.setColumnName(columnName);
+      ((ChartAggregateRefModel) model.getYFields().get(0)).setCalculateInfo(change);
+      return model;
+   }
+
+   @Test
+   void timeSeriesTrueOnAnAestheticDimensionIsRefusedWithoutAChangeCalculator() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> ChartAestheticMutator.setField(model, "color", dimensionTs("Order Date", "quarter", true)));
+
+      assertTrue(e.getMessage().contains("timeSeries") && e.getMessage().contains("CHANGE"),
+                 e.getMessage());
+      assertNull(model.getColorField(), "a refused write must not stay applied");
+   }
+
+   @Test
+   void timeSeriesTrueIsRefusedWhenTheChangeCalculatorNamesADifferentColumn() {
+      ChartBindingModel model = modelWithChangeCalc("Ship Date");
+
+      assertThrows(IllegalArgumentException.class,
+         () -> ChartAestheticMutator.setField(model, "color", dimensionTs("Order Date", "quarter", true)));
+   }
+
+   @Test
+   void timeSeriesTrueIsAcceptedWhenTheChangeCalculatorNamesTheBareOrQualifiedColumn() {
+      for(String columnName : List.of("Order Date", "Quarter(Order Date)")) {
+         ChartBindingModel model = modelWithChangeCalc(columnName);
+
+         ChartAestheticMutator.setField(model, "color", dimensionTs("Order Date", "quarter", true));
+
+         assertTrue(((ChartDimensionRefModel) model.getColorField().getDataInfo()).isTimeSeries(),
+                    columnName);
+      }
+   }
+
+   @Test
+   void timeSeriesTrueOnAnAestheticChannelOfAPieIsRefusedEvenWithAChangeCalculator() {
+      ChartBindingModel model = modelWithChangeCalc("Order Date");
+      model.setChartType(GraphTypes.CHART_PIE);
+
+      assertThrows(IllegalArgumentException.class,
+         () -> ChartAestheticMutator.setField(model, "color", dimensionTs("Order Date", "quarter", true)));
+   }
+
+   @Test
+   void aestheticExplicitFalseIsAlwaysAcceptedAndAStoredTrueCanBeEchoed() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setField(model, "color", dimensionTs("Order Date", "quarter", false));
+      ((ChartDimensionRefModel) model.getColorField().getDataInfo()).setTimeSeries(true);
+
+      ChartAestheticMutator.setField(model, "color", dimensionTs("Order Date", "quarter", true));
+
+      assertTrue(((ChartDimensionRefModel) model.getColorField().getDataInfo()).isTimeSeries());
+   }
+
+   @Test
+   void aRefusedAestheticWriteRestoresThePreviousField() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setField(model, "color", dimension("Region"));
+
+      assertThrows(IllegalArgumentException.class,
+         () -> ChartAestheticMutator.setField(model, "color", dimensionTs("Order Date", "quarter", true)));
+
+      assertEquals("Region", model.getColorField().getFullName());
+      assertEquals("Region", ((ChartDimensionRefModel) model.getColorField().getDataInfo()).getName());
    }
 }
