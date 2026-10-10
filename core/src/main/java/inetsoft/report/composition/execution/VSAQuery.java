@@ -1463,8 +1463,7 @@ public abstract class VSAQuery {
     *
     * @return {@code null} when the expression evaluates, otherwise the script's error message
     *         (a runtime failure that may be transient, e.g. a selection that has no value yet).
-    * @throws ScriptException if the expression does not compile; a syntax error is never
-    *         transient.
+    * @throws ScriptException if the expression has a syntax error, which is never transient.
     */
    public static String checkConditionExpression(String exp, ViewsheetSandbox vbox)
       throws ScriptException
@@ -1487,7 +1486,14 @@ public abstract class VSAQuery {
          return null;
       }
       catch(Exception ex) {
-         return ex.getMessage() == null ? ex.toString() : ex.getMessage();
+         String message = ex.getMessage() == null ? ex.toString() : ex.getMessage();
+
+         // compilation is lazy, so a syntax error only surfaces when the script runs
+         if(message.contains("SyntaxError")) {
+            throw new ScriptException("Script error: " + message);
+         }
+
+         return message;
       }
    }
 
