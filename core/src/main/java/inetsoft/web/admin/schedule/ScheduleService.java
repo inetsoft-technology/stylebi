@@ -2356,6 +2356,17 @@ public class ScheduleService {
 
    public void removeScheduledTasks0(AssetEntry folderEntry, Principal principal) throws Exception {
       AssetFolder taskFolder = taskFolderService.getTaskFolder(folderEntry.toIdentifier());
+
+      // Bug #78218, the folder may already be gone - either an earlier path in the same
+      // request's loop already deleted it recursively (as part of deleting its own ancestor
+      // folder), or it was already removed before this request started. Either way, the
+      // caller's goal (folder absent) is already satisfied, so treat it as already handled
+      // instead of failing the whole delete request. Same reasoning as the
+      // checkScheduledTaskDependency0 guard added for bug #77906.
+      if(taskFolder == null) {
+         return;
+      }
+
       AssetEntry[] entries = taskFolder.getEntries();
 
       for(AssetEntry entry : entries) {
