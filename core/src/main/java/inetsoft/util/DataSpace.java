@@ -28,6 +28,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.NotDirectoryException;
 import java.util.*;
@@ -895,13 +896,18 @@ public class DataSpace implements AutoCloseable {
 
       /**
        * Creates the parent directories of a file before it is committed. The write fails, and is
-       * rolled back, if an ancestor is a file.
+       * rolled back, if an ancestor is a file, or if the path itself already names a directory.
        */
       private void makeParentDirectories(String path) throws IOException {
          String parentPath = getParentPath(path);
 
          if(parentPath == null) {
             return;
+         }
+
+         if(isDirectory(path)) {
+            LOG.warn("Cannot write {}, it is already a directory", path);
+            throw new FileAlreadyExistsException(path);
          }
 
          String ancestor = findFileAncestor(path);
