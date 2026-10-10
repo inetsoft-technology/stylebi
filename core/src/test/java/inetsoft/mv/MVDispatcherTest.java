@@ -17,15 +17,28 @@
  */
 package inetsoft.mv;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import inetsoft.report.TableLens;
+import inetsoft.report.composition.execution.AssetDataCache;
+import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.sree.SreeEnv;
+import inetsoft.uql.asset.TableAssembly;
+import inetsoft.uql.asset.Worksheet;
+import inetsoft.util.CancelledException;
 import inetsoft.util.ThreadContext;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedConstruction;
 import org.mockito.MockedStatic;
+import org.slf4j.LoggerFactory;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.security.Principal;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -127,5 +140,146 @@ class MVDispatcherTest {
 
       // a dispatcher outside a parallel build keeps resetting its builder's columns
       assertNull(new MVDispatcher(def).resetColumns);
+   }
+
+   /**
+    * Bug #78227: a failed data query of an association MV must keep its cause and be reported as
+    * a failure, not as a cause-less cancel.
+    */
+   @Test
+   void associationMVQueryFailureKeepsItsCauseAndIsNotACancel() throws Throwable {
+      SQLException sqlFailure = new SQLException("Connection refused: db.example:5432");
+      Logger logger = (Logger) LoggerFactory.getLogger(MVDispatcher.class);
+      ListAppender<ILoggingEvent> appender = new ListAppender<>();
+      appender.start();
+      logger.addAppender(appender);
+      Throwable thrown;
+
+      try {
+         thrown = getAssociationData(sqlFailure, false);
+      }
+      finally {
+         logger.detachAppender(appender);
+      }
+
+      assertFalse(thrown instanceof CancelledException, "not a cancel: " + thrown);
+      assertNull(CancelledException.find(thrown));
+      assertInstanceOf(MVLoadFailedException.class, thrown);
+      assertSame(sqlFailure, thrown.getCause());
+      assertTrue(thrown.getMessage().contains("Connection refused"), thrown.getMessage());
+      assertTrue(appender.list.stream().anyMatch(
+         e -> e.getLevel() == Level.WARN && e.getThrowableProxy() != null &&
+            e.getFormattedMessage().contains("mv1")), "a WARN with the cause is logged");
+   }
+
+   /**
+    * Bug #78227: a real cancel thrown by the data query of an association MV stays a cancel.
+    */
+   @Test
+   void associationMVQueryCancelStaysACancel() throws Throwable {
+      CancelledException cancel = new CancelledException("statement cancelled");
+      Throwable thrown = getAssociationData(new RuntimeException(cancel), false);
+
+      assertSame(cancel, thrown);
+   }
+
+   /**
+    * Bug #78227: a failure after the dispatcher was cancelled is reported as a cancel.
+    */
+   @Test
+   void associationMVFailureAfterCancelIsACancel() throws Throwable {
+      NullPointerException failure = new NullPointerException();
+      Throwable thrown = getAssociationData(failure, true);
+
+      assertInstanceOf(CancelledException.class, thrown);
+      assertSame(failure, thrown.getCause());
+   }
+
+   /**
+    * Bug #78227: when the query returned data whose row fetch failed and a later step then threw,
+    * the row fetch failure is reported (not a cancel, which isCanceled() would have said).
+    */
+   @Test
+   void associationMVRowFetchFailureIsReportedAsTheLoadFailure() throws Throwable {
+      SQLException sqlFailure = new SQLException("Connection reset");
+      RuntimeException laterFailure = new RuntimeException("result set closed");
+      TableLens lens = mock(TableLens.class);
+      MVDef def = mock(MVDef.class);
+      Worksheet ws = mock(Worksheet.class);
+      TableAssembly assembly = mock(TableAssembly.class);
+      AssetDataCache cache = mock(AssetDataCache.class);
+
+      when(def.getName()).thenReturn("mv1");
+      when(def.getWorksheet()).thenReturn(ws);
+      when(def.getMVTable()).thenReturn("T1");
+      when(def.isAssociationMV()).thenReturn(true);
+      when(ws.getAssembly("T1")).thenReturn(assembly);
+      when(assembly.clone()).thenReturn(assembly);
+      when(assembly.getName()).thenReturn("T1");
+      when(assembly.getRuntimeMV()).thenReturn(mock(RuntimeMV.class));
+      when(lens.getColCount()).thenThrow(laterFailure);
+      when(cache.getData(any(), any(), any(), any(), anyInt(), anyBoolean(), anyLong(), any()))
+         .thenReturn(lens);
+
+      MVDispatcher dispatcher = new MVDispatcher(def);
+      Throwable thrown;
+
+      try(MockedStatic<MVCreatorUtil> creatorUtil = mockStatic(MVCreatorUtil.class);
+          MockedStatic<AssetDataCache> cacheStatic = mockStatic(AssetDataCache.class))
+      {
+         creatorUtil.when(() -> MVCreatorUtil.createAssetQuerySandbox(any(), any(), any()))
+            .thenReturn(mock(AssetQuerySandbox.class));
+         cacheStatic.when(AssetDataCache::getCache).thenReturn(cache);
+         cacheStatic.when(() -> AssetDataCache.getLoadException(lens)).thenReturn(sqlFailure);
+
+         thrown = assertThrows(Throwable.class, () -> dispatcher.getData(false, null));
+      }
+
+      assertNull(CancelledException.find(thrown), "not a cancel: " + thrown);
+      assertInstanceOf(MVLoadFailedException.class, thrown);
+      assertSame(sqlFailure, thrown.getCause());
+      assertSame(laterFailure, thrown.getSuppressed()[0]);
+   }
+
+   /**
+    * Calls getData() of a dispatcher of an association MV built on a base runtime MV, whose
+    * data query throws the given exception, and returns what getData() threw.
+    */
+   private static Throwable getAssociationData(Throwable queryFailure, boolean canceled)
+      throws Throwable
+   {
+      MVDef def = mock(MVDef.class);
+      Worksheet ws = mock(Worksheet.class);
+      TableAssembly assembly = mock(TableAssembly.class);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      AssetDataCache cache = mock(AssetDataCache.class);
+
+      when(def.getName()).thenReturn("mv1");
+      when(def.getWorksheet()).thenReturn(ws);
+      when(def.getMVTable()).thenReturn("T1");
+      when(def.isAssociationMV()).thenReturn(true);
+      when(ws.getAssembly("T1")).thenReturn(assembly);
+      when(assembly.clone()).thenReturn(assembly);
+      when(assembly.getRuntimeMV()).thenReturn(mock(RuntimeMV.class));
+      when(cache.getData(any(), any(), any(), any(), anyInt(), anyBoolean(), anyLong(), any()))
+         .thenThrow(queryFailure);
+
+      MVDispatcher dispatcher = new MVDispatcher(def);
+
+      if(canceled) {
+         Field field = MVDispatcher.class.getDeclaredField("canceled");
+         field.setAccessible(true);
+         field.setBoolean(dispatcher, true);
+      }
+
+      try(MockedStatic<MVCreatorUtil> creatorUtil = mockStatic(MVCreatorUtil.class);
+          MockedStatic<AssetDataCache> cacheStatic = mockStatic(AssetDataCache.class))
+      {
+         creatorUtil.when(() -> MVCreatorUtil.createAssetQuerySandbox(any(), any(), any()))
+            .thenReturn(box);
+         cacheStatic.when(AssetDataCache::getCache).thenReturn(cache);
+
+         return assertThrows(Throwable.class, () -> dispatcher.getData(false, null));
+      }
    }
 }
