@@ -31,8 +31,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.*;
+import java.text.Collator;
+import java.text.Normalizer;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 
 class AuthenticationDAO {
    public AuthenticationDAO(DatabaseAuthenticationProvider provider) {
@@ -185,9 +189,13 @@ class AuthenticationDAO {
 
          if(names > 1 || credentials > 1) {
             LOG.warn(
-               "The users query returned the rows of several different users for user \"{}\", " +
-               "the roles and emails of this user will not be loaded. User names and organization " +
-               "IDs must be unique under the database collation.", user.name);
+               "The users query returned rows with different user names or credentials for " +
+               "user \"{}\", the roles and emails of this user will not be loaded. Either " +
+               "several users have this name under the database collation (user names and " +
+               "organization IDs must be unique under it), or the users query does not return " +
+               "exactly one row per user: it must not join a column that varies between the " +
+               "rows of one user, and in multi-tenant mode it must filter by the organization " +
+               "ID parameter.", user.name);
             return true;
          }
       }
@@ -340,22 +348,31 @@ class AuthenticationDAO {
    }
 
    public QueryResult<IdentityID[]> getUsers(IdentityID group) {
+      return getUsers(group, null);
+   }
+
+   /**
+    * Gets the members of a group.
+    *
+    * @param group  the group.
+    * @param groups the listed groups, indexed by {@link #indexGroups}, used to check that the
+    *               database does not merge the group name with another listed group name.
+    *               Callers that look up the members of every group pass the list they iterate,
+    *               so it is read once per operation and not once per group. If {@code null},
+    *               the list is read when it is needed.
+    */
+   public QueryResult<IdentityID[]> getUsers(IdentityID group, GroupIndex groups) {
       try(Connection connection = provider.getConnectionProvider().getConnection()) {
          Jdbi jdbi = Jdbi.create(connection);
 
          try(Handle handle = jdbi.open()) {
-            Query query = handle.createQuery(provider.getGroupUsersQuery());
+            List<String> members = queryGroupUsers(handle, group);
 
-            if(provider.isMultiTenant()) {
-               query.bind(0, group.orgID);
-               query.bind(1, group.name);
-            }
-            else {
-               query.bind(0, group.name);
+            if(isAmbiguousGroup(handle, group, members, groups)) {
+               return new QueryResult<>(new IdentityID[0], false);
             }
 
-            IdentityID[] result = query.map(this::mapToUserName).stream()
-               .filter(Objects::nonNull)
+            IdentityID[] result = members.stream()
                .map(n -> new IdentityID(n, group.orgID))
                .toArray(IdentityID[]::new);
             return new QueryResult<>(result, false);
@@ -371,6 +388,220 @@ class AuthenticationDAO {
       }
 
       return new QueryResult<>(new IdentityID[0], true);
+   }
+
+   /**
+    * Indexes the listed groups by the loose key of {@link #isAmbiguousGroup}, for
+    * {@link #getUsers(IdentityID, GroupIndex)}.
+    */
+   GroupIndex indexGroups(Collection<IdentityID> groups) {
+      return new GroupIndex(groups, provider.isMultiTenant());
+   }
+
+   private List<String> queryGroupUsers(Handle handle, IdentityID group) {
+      Query query = handle.createQuery(provider.getGroupUsersQuery());
+
+      if(provider.isMultiTenant()) {
+         query.bind(0, group.orgID);
+         query.bind(1, group.name);
+      }
+      else {
+         query.bind(0, group.name);
+      }
+
+      return query.map(this::mapToUserName).stream()
+         .filter(Objects::nonNull)
+         .toList();
+   }
+
+   /**
+    * Checks whether the database treats the name of the given group as the name of another
+    * listed group. The group users query only returns member names, so when the database
+    * collation matches several groups for the bound name (for example "sales" and "SALES" under
+    * a case-insensitive collation, "sales" and "sal&eacute;s" under an accent-insensitive one,
+    * "sales" and "sales " under PAD SPACE comparison, full-width and half-width forms or
+    * hiragana and katakana under width- or kana-insensitive collations, or organization IDs
+    * "acme" and "ACME"), it returns the members of all of them and the rows cannot be
+    * attributed to one group.
+    * <p>
+    * Only the database knows its collation, so a loose comparison of the listed groups (see
+    * {@link #looseName}) only finds candidates. The group users query is then run for each
+    * candidate: if it returns the same members as for the requested group, the database merged
+    * the two names. If the members differ, the database tells the names apart (for example on
+    * a case-sensitive database) and the members are used. Groups without a candidate, which is
+    * the normal case, run no extra member query.
+    *
+    * @param members the result of the group users query for the requested group.
+    * @param groups  the indexed group list, or {@code null} to read it.
+    *
+    * @return {@code true} if the members of the group must not be loaded.
+    */
+   private boolean isAmbiguousGroup(Handle handle, IdentityID group, List<String> members,
+                                    GroupIndex groups)
+   {
+      if(members.isEmpty() || group == null || group.name == null ||
+         StringUtils.isBlank(provider.getGroupListQuery()))
+      {
+         return false;
+      }
+
+      if(groups == null || groups.isEmpty()) {
+         groups = indexGroups(getGroupList(handle));
+      }
+
+      List<String> sortedMembers = null;
+
+      for(IdentityID other : groups.candidates(group)) {
+         if(sortedMembers == null) {
+            sortedMembers = members.stream().sorted().toList();
+         }
+
+         if(sortedMembers.equals(queryGroupUsers(handle, other).stream().sorted().toList())) {
+            // every group lookup of every user reaches this, so warn once per group
+            String message =
+               "The group users query returned the same members for group {} and group " +
+               "{}, the database treats their names as the same name. The members of " +
+               "group {} will not be loaded. Group names (and organization IDs) must be " +
+               "unique under the database collation, including case, accents, width, kana " +
+               "type and trailing spaces.";
+
+            // in multi-tenant mode the names can be equal and only the organization IDs differ
+            String groupLabel = groupLabel(group);
+            String otherLabel = groupLabel(other);
+
+            if(ambiguousGroups.add(group)) {
+               LOG.warn(message, groupLabel, otherLabel, groupLabel);
+            }
+            else {
+               LOG.debug(message, groupLabel, otherLabel, groupLabel);
+            }
+
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Gets the group name for a log message, with the organization ID in multi-tenant mode.
+    */
+   private String groupLabel(IdentityID group) {
+      return provider.isMultiTenant() ?
+         "\"" + group.name + "\" (organization \"" + group.orgID + "\")" :
+         "\"" + group.name + "\"";
+   }
+
+   /**
+    * Gets the group list for {@link #isAmbiguousGroup}. The cached list is used when the cache
+    * is enabled, since the cached group members are reset together with it, otherwise the
+    * group list query is run on the given handle.
+    */
+   private List<IdentityID> getGroupList(Handle handle) {
+      if(provider.isCacheEnabled() && !provider.isIgnoreCache()) {
+         IdentityID[] groups = provider.getGroups();
+
+         if(groups != null && groups.length > 0) {
+            return Arrays.asList(groups);
+         }
+      }
+
+      return handle.createQuery(provider.getGroupListQuery())
+         .map(this::mapToGroupIdentity).stream()
+         .filter(Objects::nonNull)
+         .toList();
+   }
+
+   /**
+    * Normalizes a name for finding the names that a database collation may treat as the same
+    * name. It ignores more than any one collation does, because the database confirms every
+    * candidate: compatibility forms (full-width and half-width forms, ligatures), accents and
+    * other combining marks, case (with full case folding, e.g. "&szlig;" and "ss"), the
+    * difference between hiragana and katakana, and trailing spaces.
+    */
+   static String looseName(String name) {
+      if(name == null) {
+         return "";
+      }
+
+      String normalized = Normalizer.normalize(name, Normalizer.Form.NFKD);
+      normalized = COMBINING_MARKS.matcher(normalized).replaceAll("").stripTrailing()
+         .toUpperCase(Locale.ROOT).toLowerCase(Locale.ROOT);
+      StringBuilder result = new StringBuilder(normalized.length());
+
+      for(int i = 0; i < normalized.length(); i++) {
+         char c = normalized.charAt(i);
+         // hiragana U+3041-U+3096 to katakana U+30A1-U+30F6
+         result.append(c >= 'ぁ' && c <= 'ゖ' ? (char) (c + 0x60) : c);
+      }
+
+      return result.toString();
+   }
+
+   /**
+    * Creates the collator for {@link #candidateKey}: the root locale at primary strength with
+    * full decomposition.
+    */
+   static Collator createCandidateCollator() {
+      Collator collator = Collator.getInstance(Locale.ROOT);
+      collator.setStrength(Collator.PRIMARY);
+      collator.setDecomposition(Collator.FULL_DECOMPOSITION);
+      return collator;
+   }
+
+   /**
+    * Gets the key that groups the names a database collation may treat as the same name: the
+    * collation key of {@link #looseName} under the given {@link #createCandidateCollator
+    * collator}. The collation key also merges expansions ("&aelig;" and "ae", "&oelig;" and
+    * "oe") and ignorable characters (e.g. a zero-width space), as accent- and case-insensitive
+    * collations do, and {@link #looseName} adds the width, kana and trailing space folding that
+    * the collator lacks. A {@link Collator} is not thread-safe, so the caller must not share it
+    * between threads.
+    */
+   static String candidateKey(Collator collator, String name) {
+      return HexFormat.of().formatHex(collator.getCollationKey(looseName(name)).toByteArray());
+   }
+
+   /**
+    * The listed groups, indexed by the candidate key of their name, and of their organization
+    * ID in multi-tenant mode, where the group users query binds it.
+    */
+   static final class GroupIndex {
+      GroupIndex(Collection<IdentityID> groups, boolean multiTenant) {
+         this.multiTenant = multiTenant;
+
+         for(IdentityID group : groups) {
+            if(group != null && group.name != null) {
+               index.computeIfAbsent(key(group), k -> new ArrayList<>()).add(group);
+            }
+         }
+      }
+
+      boolean isEmpty() {
+         return index.isEmpty();
+      }
+
+      /**
+       * Gets the listed groups that the database may treat as the given group, other than the
+       * group itself. Without multi-tenancy only the name is bound, so the organization ID is
+       * ignored.
+       */
+      List<IdentityID> candidates(IdentityID group) {
+         return index.getOrDefault(key(group), List.of()).stream()
+            .filter(other -> multiTenant ? !group.equals(other) : !group.name.equals(other.name))
+            .toList();
+      }
+
+      private String key(IdentityID group) {
+         return multiTenant ?
+            candidateKey(collator, group.orgID) + '/' + candidateKey(collator, group.name) :
+            candidateKey(collator, group.name);
+      }
+
+      private final boolean multiTenant;
+      // a Collator is not thread-safe, so each index has its own
+      private final Collator collator = createCandidateCollator();
+      private final Map<String, List<IdentityID>> index = new HashMap<>();
    }
 
    public QueryResult<IdentityID[]> getRoles() {
@@ -755,6 +986,8 @@ class AuthenticationDAO {
    }
 
    private final DatabaseAuthenticationProvider provider;
+   private final Set<IdentityID> ambiguousGroups = ConcurrentHashMap.newKeySet();
 
+   private static final Pattern COMBINING_MARKS = Pattern.compile("\\p{M}+");
    private static final Logger LOG = LoggerFactory.getLogger(AuthenticationDAO.class);
 }
