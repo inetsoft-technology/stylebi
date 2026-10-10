@@ -917,6 +917,14 @@ public class CoreLifecycleService {
          sendMessage(msg, MessageCommand.Type.WARNING, dispatcher);
       }
 
+      // Bug #78254: initTables() above may have re-executed a table query that raised a
+      // script/calc-field UserMessage (e.g. CoreTool.addUserWarning from AssetQuery). This
+      // method is reached via the always-async VSRefreshServiceProxy.refreshViewsheetAsync
+      // call, so ServiceProxyContext.apply()'s !async guard (Bug #77135) would otherwise
+      // discard the message before any caller thread could retrieve it. Forward it directly
+      // through the thread-independent CommandDispatcher here, the same way execute() does.
+      forwardReraisedUserMessage(dispatcher);
+
       // set info after script is executed
       setViewsheetInfo(rvs, uri, dispatcher);
 
@@ -925,6 +933,23 @@ public class CoreLifecycleService {
       pointCommand.setCurrent(rvs.getCurrent());
       pointCommand.setSavePoint(rvs.getSavePoint());
       dispatcher.sendCommand(pointCommand);
+   }
+
+   /**
+    * Bug #78254: forward a user message raised on the current thread (e.g. a script/calc-field
+    * error re-raised by {@code CoreTool.addUserWarning} during table execution) directly to the
+    * browser via the thread-independent {@link CommandDispatcher}, bypassing the generic
+    * {@code ServiceProxyContext}/{@code Tool} thread-local relay that {@code apply()}'s
+    * {@code !async} guard (Bug #77135) discards for an always-async {@code @ClusterProxy} entry
+    * point such as {@code VSRefreshController}. Mirrors the pattern already used by
+    * {@link #execute}.
+    */
+   void forwardReraisedUserMessage(CommandDispatcher dispatcher) {
+      final UserMessage reraisedMessage = Tool.getUserMessage();
+
+      if(reraisedMessage != null) {
+         dispatcher.sendCommand(MessageCommand.fromUserMessage(reraisedMessage));
+      }
    }
 
    /**
