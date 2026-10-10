@@ -386,7 +386,10 @@ public abstract class AbstractVSExporter implements VSExporter {
             if(assembly instanceof TableDataVSAssembly && this.needExport((VSAssembly) assembly)) {
                lens = box.getVSTableLens(name, false, 1);
                lens = getRegionTableLens(lens, (TableDataVSAssembly) assembly, box);
-               VSEventUtil.addWarningText(lens, box, name, true);
+
+               if(lens != null) {
+                  VSEventUtil.addWarningText(lens, box, name, true);
+               }
             }
             else if(this.needExport((VSAssembly) assembly)) {
                String limitMessage = box.getLimitMessage(name);

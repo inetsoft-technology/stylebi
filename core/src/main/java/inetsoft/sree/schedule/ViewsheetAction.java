@@ -2060,7 +2060,8 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
       private void checkHighlight(VSAssembly assembly, VSTableLens lens) {
          List<ScheduleAlert> alerts = alertAssemblies.get(assembly);
 
-         if(alerts != null && !alerts.isEmpty()) {
+         // a table whose data failed to load has no lens and nothing to highlight
+         if(lens != null && alerts != null && !alerts.isEmpty()) {
             if(assembly instanceof CrosstabVSAssembly) {
                AlertCrosstabHelper helper = new AlertCrosstabHelper();
                helper.setExporter(this);
