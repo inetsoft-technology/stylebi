@@ -1457,6 +1457,41 @@ public abstract class VSAQuery {
    }
 
    /**
+    * Check a viewsheet condition expression before it is committed (bug #78260). A script that
+    * fails during the real refresh is swallowed by the viewsheet sandbox, leaving the table with
+    * no data and the write reported as a success, so the only chance to tell the caller is here.
+    *
+    * @return {@code null} when the expression evaluates, otherwise the script's error message
+    *         (a runtime failure that may be transient, e.g. a selection that has no value yet).
+    * @throws ScriptException if the expression does not compile; a syntax error is never
+    *         transient.
+    */
+   public static String checkConditionExpression(String exp, ViewsheetSandbox vbox)
+      throws ScriptException
+   {
+      AssetQuerySandbox box = vbox.getAssetQuerySandbox();
+      ScriptEnv senv = box.getScriptEnv();
+      Object compiled;
+
+      try {
+         compiled = senv.compile(exp);
+      }
+      catch(Exception ex) {
+         throw new ScriptException("Script error: " + ex.getMessage());
+      }
+
+      try {
+         ScriptScope scope = box.isScriptPoolMode() ?
+            box.getScope().queryView(box.getVariableTable(), 0) : box.getScope();
+         senv.exec(compiled, scope, null, vbox.getViewsheet());
+         return null;
+      }
+      catch(Exception ex) {
+         return ex.getMessage() == null ? ex.toString() : ex.getMessage();
+      }
+   }
+
+   /**
     * Append detail calc field to table assembly.
     */
    protected void appendDetailCalcField(TableAssembly table, String tname) {

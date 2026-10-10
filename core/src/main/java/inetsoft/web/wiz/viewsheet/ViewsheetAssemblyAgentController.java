@@ -1976,10 +1976,16 @@ public class ViewsheetAssemblyAgentController {
          }
       }
 
-      int applied = conditionService.set(sessionToken, user, request.assembly(), clauses, linkUri);
+      AssemblyConditionService.SetResult result =
+         conditionService.setWithWarnings(sessionToken, user, request.assembly(), clauses, linkUri);
       Map<String, Object> out = new LinkedHashMap<>();
       out.put("ok", true);
-      out.put("conditionCount", applied);
+      out.put("conditionCount", result.applied());
+
+      if(!result.warnings().isEmpty()) {
+         out.put("warning", String.join(" ", result.warnings()));
+      }
+
       return out;
    }
 
