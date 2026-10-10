@@ -37,6 +37,7 @@ import inetsoft.util.Tool;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.WSInsertColumnsEvent;
 import inetsoft.web.composer.ws.event.WSInsertColumnsEventValidator;
+import inetsoft.web.wiz.worksheet.WorksheetMutationSupport;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
@@ -74,6 +75,148 @@ public class WorksheetControllerService {
 
    protected DataSourceRegistry getDataSourceRegistry() {
       return dataSourceRegistry;
+   }
+
+   /**
+    * A join whose key pair stops being type-compatible when {@code table}'s key column is retyped.
+    *
+    * @param join       the join (composite table) name
+    * @param key        the edited column's name on the table being edited
+    * @param otherTable the other member the key is joined against
+    * @param otherKey   the key name on {@code otherTable}
+    * @param otherType  {@code otherKey}'s output type
+    */
+   public record JoinKeyTypeConflict(String join, String key, String otherTable, String otherKey,
+                                     String otherType)
+   {
+   }
+
+   /**
+    * Bug #78258 (WBS-110): finds every join keyed on {@code column} of {@code table} whose key
+    * pair is type-compatible with {@code oldType} but not with {@code newType}. Only that
+    * transition is reported, so a join that is already mismatched never blocks its own repair.
+    *
+    * <p>Keys are matched by resolving each operator attribute through the same resolver the
+    * join-creation guard uses ({@link WorksheetMutationSupport#resolveJoinKey}), not by
+    * {@code CompositeTableAssembly#isColumnUsed}, which compares the underlying attribute name and
+    * misses alias-keyed and entity-qualified keys. The walk follows every table built on
+    * {@code table} (mirrors, joins of joins, ...) with a visited set.</p>
+    */
+   public static List<JoinKeyTypeConflict> findJoinKeyTypeConflicts(
+      Worksheet ws, TableAssembly table, String column, String oldType, String newType)
+   {
+      List<JoinKeyTypeConflict> conflicts = new ArrayList<>();
+
+      if(ws == null || table == null || column == null || oldType == null || newType == null ||
+         oldType.equals(newType))
+      {
+         return conflicts;
+      }
+
+      collectJoinKeyTypeConflicts(
+         ws, table, column, oldType, newType, new HashSet<>(), conflicts);
+      return conflicts;
+   }
+
+   private static void collectJoinKeyTypeConflicts(
+      Worksheet ws, TableAssembly table, String column, String oldType, String newType,
+      Set<String> visited, List<JoinKeyTypeConflict> conflicts)
+   {
+      if(!visited.add(table.getName())) {
+         return;
+      }
+
+      DataRef edited = WorksheetMutationSupport.resolveJoinKey(table, column);
+
+      if(edited == null) {
+         return;
+      }
+
+      for(AssemblyRef assemblyRef : ws.getDependings(table.getAssemblyEntry())) {
+         Assembly dependent = ws.getAssembly(assemblyRef.getEntry().getName());
+
+         if(!(dependent instanceof TableAssembly dtable)) {
+            continue;
+         }
+
+         if(dtable instanceof CompositeTableAssembly composite) {
+            for(String member : composite.getTableNames()) {
+               if(member.equals(table.getName()) ||
+                  !(ws.getAssembly(member) instanceof TableAssembly other))
+               {
+                  continue;
+               }
+
+               collectOperatorConflicts(composite, composite.getOperator(table.getName(), member),
+                                        true, table, edited, other, oldType, newType, conflicts);
+               collectOperatorConflicts(composite, composite.getOperator(member, table.getName()),
+                                        false, table, edited, other, oldType, newType, conflicts);
+            }
+         }
+
+         if(!dtable.isAggregate()) {
+            DataRef outer = AssetUtil.getOuterAttribute(table.getName(), edited);
+            ColumnRef mapped =
+               AssetUtil.getColumnRefFromAttribute(dtable.getColumnSelection(), outer);
+
+            if(mapped != null) {
+               collectJoinKeyTypeConflicts(
+                  ws, dtable, mapped.getName(), oldType, newType, visited, conflicts);
+            }
+         }
+      }
+   }
+
+   private static void collectOperatorConflicts(
+      CompositeTableAssembly composite, TableAssemblyOperator operator, boolean tableIsLeft,
+      TableAssembly table, DataRef edited, TableAssembly other, String oldType, String newType,
+      List<JoinKeyTypeConflict> conflicts)
+   {
+      if(operator == null) {
+         return;
+      }
+
+      for(int i = 0; i < operator.getOperatorCount(); i++) {
+         TableAssemblyOperator.Operator op = operator.getOperator(i);
+         DataRef mine = resolveOperatorKey(
+            table, tableIsLeft ? op.getLeftAttribute() : op.getRightAttribute());
+         DataRef theirs = resolveOperatorKey(
+            other, tableIsLeft ? op.getRightAttribute() : op.getLeftAttribute());
+
+         if(mine == null || theirs == null || !mine.getName().equals(edited.getName())) {
+            continue;
+         }
+
+         String otherType = theirs.getDataType();
+
+         if(AssetUtil.isMergeable(oldType, otherType) &&
+            !AssetUtil.isMergeable(newType, otherType))
+         {
+            JoinKeyTypeConflict conflict = new JoinKeyTypeConflict(
+               composite.getName(), edited.getName(), other.getName(), theirs.getName(),
+               otherType);
+
+            if(!conflicts.contains(conflict)) {
+               conflicts.add(conflict);
+            }
+         }
+      }
+   }
+
+   private static DataRef resolveOperatorKey(TableAssembly t, DataRef attr) {
+      if(attr == null) {
+         return null;
+      }
+
+      DataRef ref = WorksheetMutationSupport.resolveJoinKey(t, attr.getName());
+
+      if(ref == null && attr.getAttribute() != null &&
+         !attr.getAttribute().equals(attr.getName()))
+      {
+         ref = WorksheetMutationSupport.resolveJoinKey(t, attr.getAttribute());
+      }
+
+      return ref;
    }
 
    /**
