@@ -591,17 +591,23 @@ public class XSessionManager {
          if(table.isCancelled()) {
             Exception loadException = table.getLoadException();
 
+            if(loadException == null) {
+               throw new CancelledException(
+                  Catalog.getCatalog().getString("Query abandoned") + ".");
+            }
+
             // the rows failed to load (e.g. a database error while reading the result), report
             // the failure instead of a cancel (Bug #77901)
-            if(loadException != null) {
+            if(!table.isLoadInBackground()) {
                throw loadException;
             }
 
-            throw new CancelledException(
-               Catalog.getCatalog().getString("Query abandoned") + ".");
+            // rows loading in the background can fail before or after this check, so return
+            // the rows read before the failure either way and let the reader report it at the
+            // end of the rows (XNodeTableLens.checkLoadException), but don't cache the failed
+            // result (Bug #78126)
          }
-
-         if(useCache) {
+         else if(useCache) {
             CEntry cacheEntry =
                new CEntry(table, System.currentTimeMillis());
             addCacheData(item.getCacheKey(), cacheEntry,
