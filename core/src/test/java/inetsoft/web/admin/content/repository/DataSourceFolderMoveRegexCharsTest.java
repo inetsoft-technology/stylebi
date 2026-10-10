@@ -202,6 +202,62 @@ class DataSourceFolderMoveRegexCharsTest {
       assertTrue(containsDataSource("pCost $/pB/ds"));
    }
 
+   // a worksheet that depends on a moved data source gets the rename to the real new path
+   @Test
+   void dependentAssetGetsLiteralNewPath() throws Exception {
+      addFolder("plain");
+      registry.setDataSource(source("plain/ds"), false);
+      addFolder("dCost $");
+      addFolder("Dev (EU)");
+      registry.setDataSource(source("Dev (EU)/ds"), false);
+      addFolder("dDest");
+      AssetEntry ws1 = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, "ws78205a", null);
+      AssetEntry ws2 = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, "ws78205b", null);
+      List<String> ids = List.of(sourceId("plain/ds"), sourceId("Dev (EU)/ds"));
+
+      try {
+         dependOn("plain/ds", ws1);
+         dependOn("Dev (EU)/ds", ws2);
+
+         MoveCopyTreeNodesRequest request = MoveCopyTreeNodesRequest.builder()
+            .source(List.of(node("plain"))).destination(node("dCost $")).build();
+         objectService().moveFiles(request, true, principal);
+         browser().moveDataSource(
+            new MoveCommand[] { move("Dev (EU)", "dDest/Dev (EU)") }, principal);
+
+         assertEquals(Set.of("plain/ds->dCost $/plain/ds"), dependentRenames(ws1));
+         assertEquals(Set.of("Dev (EU)/ds->dDest/Dev (EU)/ds"), dependentRenames(ws2));
+      }
+      finally {
+         for(String id : ids) {
+            DependencyStorageService.getInstance().remove(id);
+         }
+      }
+   }
+
+   private void dependOn(String path, AssetEntry dependent) throws Exception {
+      DependenciesInfo info = new DependenciesInfo();
+      info.setDependencies(new ArrayList<>(List.of(dependent)));
+      DependencyStorageService.getInstance().put(sourceId(path), info);
+      assertFalse(DependencyTool.getDependencies(sourceId(path)).isEmpty(), "not seeded");
+   }
+
+   // the renames queued for a dependent asset
+   private Set<String> dependentRenames(AssetEntry dependent) {
+      return queuedTasks().stream()
+         .filter(i -> Arrays.asList(i.getAssetObjects()).contains(dependent))
+         .flatMap(i -> i.getRenameInfo(dependent).stream())
+         .map(r -> r.getOldName() + "->" + r.getNewName())
+         .collect(Collectors.toSet());
+   }
+
+   private static String sourceId(String path) {
+      return new AssetEntry(AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE, path, null)
+         .toIdentifier();
+   }
+
    private static MoveCommand move(String oldPath, String path) {
       MoveCommand move = new MoveCommand();
       move.setOldPath(oldPath);
