@@ -315,14 +315,17 @@ public abstract class DependencyTransformer {
    {
       Map<String, RenameDependencyInfo> infos = new LinkedHashMap<>();
       List<String> children = dataSourceRegistry.getSubDataSourceNames(oldPath, true);
+      // Bug #78205, folder names may contain regex characters ($, (, +, ...), so replace
+      // the leading folder path literally instead of with replaceFirst
+      String oldPrefix = oldPath.endsWith("/") ? oldPath : oldPath + "/";
+      String newPrefix = newPath.endsWith("/") ? newPath : newPath + "/";
 
       for(String name : children) {
          XDataSource dataSource = dataSourceRegistry.getDataSource(name);
-         int onameIdx = name.indexOf(oldPath);
          String newName = name;
 
-         if(onameIdx != -1) {
-            newName = name.replaceFirst(oldPath, newPath);
+         if(name.startsWith(oldPrefix)) {
+            newName = newPrefix + name.substring(oldPrefix.length());
          }
 
          if(dataSource == null) {
