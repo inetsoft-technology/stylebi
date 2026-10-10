@@ -163,9 +163,66 @@ class DataSpaceNameValidationTest {
       assertFalse(space.exists(null, dir + "/n"));
    }
 
+   // Bug #78206: a `name` that is not the path's own last segment must be refused instead of
+   // being spliced in verbatim, which silently moves the item to the wrong parent folder.
+   @Test
+   void fileRename_nameMismatchedWithPath_rejectedNotMoved() throws Exception {
+      assertThrows(IllegalArgumentException.class,
+         () -> fileController.apply(fileRename(dir + "/f/c.txt", "b.txt", "z.txt"), null));
+      assertEquals("C", read(dir + "/f/c.txt"));
+      assertFalse(space.exists(null, dir + "/z.txt"));
+      assertFalse(space.exists(null, dir + "/f/z.txt"));
+   }
+
+   // Bug #78206: when `name` does not occur in `path` at all, the old code's
+   // `path.substring(0, path.lastIndexOf(name))` threw StringIndexOutOfBoundsException
+   // (lastIndexOf returns -1). It must instead be a clean IllegalArgumentException.
+   @Test
+   void fileRename_nameNotInPath_rejectedNotCrashed() throws Exception {
+      assertThrows(IllegalArgumentException.class,
+         () -> fileController.apply(fileRename(dir + "/a.txt", "NOPE_NOT_IN_PATH", "z.txt"), null));
+      assertEquals("A", read(dir + "/a.txt"));
+   }
+
    // ---------------------------------------------------------------------------------------
    // folder apply
    // ---------------------------------------------------------------------------------------
+
+   // Bug #78206: folder rename's own inline splice has the identical bug, fixed independently.
+   @Test
+   void folderRename_nameMismatchedWithPath_rejectedNotMoved() throws Exception {
+      DataSpaceFolderSettingsModel model = DataSpaceFolderSettingsModel.builder()
+         .path(dir + "/f").name("g").newName("moved").build();
+
+      assertThrows(IllegalArgumentException.class, () -> folderController.apply(model, null));
+      assertEquals("C", read(dir + "/f/c.txt"));
+      assertFalse(space.exists(null, dir + "/moved"));
+      assertFalse(space.exists(null, dir + "/g/moved"));
+   }
+
+   @Test
+   void folderRename_nameNotInPath_rejectedNotCrashed() throws Exception {
+      DataSpaceFolderSettingsModel model = DataSpaceFolderSettingsModel.builder()
+         .path(dir + "/f").name("NOPE_NOT_IN_PATH").newName("moved").build();
+
+      assertThrows(IllegalArgumentException.class, () -> folderController.apply(model, null));
+      assertEquals("C", read(dir + "/f/c.txt"));
+   }
+
+   // Bug #78206 regression guard: the old buggy code happened to get this right by luck
+   // (lastIndexOf finds the rightmost "A"); the fixed getFileName()-based check must too.
+   @Test
+   void folderRename_duplicateSegmentName_stillRenamesCorrectly() throws Exception {
+      space.makeDirectory(dir + "/g/g");
+      write(dir + "/g/g", "d.txt", "D");
+      DataSpaceFolderSettingsModel model = DataSpaceFolderSettingsModel.builder()
+         .path(dir + "/g/g").name("g").newName("renamed").build();
+
+      folderController.apply(model, null);
+
+      assertFalse(space.exists(null, dir + "/g/g"));
+      assertEquals("D", read(dir + "/g/renamed/d.txt"));
+   }
 
    @ParameterizedTest
    @ValueSource(strings = { "n/m", "n\\m", "", " " })
