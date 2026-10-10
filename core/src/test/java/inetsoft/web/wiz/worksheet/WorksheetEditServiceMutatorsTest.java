@@ -9783,47 +9783,25 @@ class WorksheetEditServiceMutatorsTest {
       assertEquals(42, firstCondition(t).getValue(0));
    }
 
-   /**
-    * A numeric literal that fails to parse AND does not name any real column anywhere in the
-    * worksheet is NOT flagged (no exception) -- the heuristic only targets values that look like
-    * a specific un-replaced field reference, not "any bad numeric literal".
-    *
-    * <p>Confirmed independently while writing this fix: {@link Condition#getValue}
-    * (Condition.java:317-326) itself lazily re-parses a stored {@code String} value through
-    * {@code AbstractCondition.getObject(getType(), val)} on EVERY read -- for an INTEGER-typed
-    * condition this already silently returns {@code 0} for any unparseable string, immediately,
-    * with no XML round-trip or later mutation required (the original diagnosis's "some later
-    * round-trip triggers it" framing was closer than needed: this is not a round-trip effect
-    * at all, it is {@code getValue}'s own permanent per-read behavior). This is real,
-    * independently-verified, pre-existing StyleBI behavior for EVERY unparseable-numeric literal,
-    * not specific to a field-reference-shaped one -- flagging every such literal (not just ones
-    * that also happen to name a real column) is out of this bug's scope (see 03-fix.md's
-    * "root-cause correction" note) and would risk rejecting a caller's typo'd-but-harmless filter
-    * that previously "worked" (returned 0 rows, not an error). This test pins the STORED value
-    * (via the same private-field-reflection-free route {@code addValue} used) rather than the
-    * always-0 {@code getValue()} read, so a future change to that unrelated read-time behavior
-    * does not make this test spuriously fail.
-    */
+   /** Redmine 78284: an unparseable numeric literal is refused even if it names no column. */
    @Test
-   void setConditionsDoesNotFlagAnUnparseableLiteralThatMatchesNoColumn() throws Exception {
+   void setConditionsRefusesAnUnparseableNumericLiteralThatMatchesNoColumn() throws Exception {
       Worksheet ws = new Worksheet();
       TableAssembly t = intColumnsTable(ws, "T", "A");
       ws.addAssembly(t);
       Principal agent = TestPrincipals.user("alice", "host-org");
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
 
-      // Must not throw: "not_a_real_column" isn't parseable as INTEGER, but it also doesn't
-      // resolve to any real column on T or anywhere else in the worksheet.
-      svc.apply("TOK", agent, ed -> ed.setConditions("T", List.of(
-         new WorksheetMutationSupport.ConditionNode(
-            new WorksheetMutationSupport.ConditionSpec(
-               "A", "=", List.of("not_a_real_column"), false, null),
-            null, 0))));
-
-      assertEquals(1, firstCondition(t).getValueCount());
-      // getValue(0) itself would already read back as 0 here -- Condition#getValue's own
-      // pre-existing, always-on lazy re-parse for an unparseable numeric literal, unrelated to
-      // and unchanged by this fix. See this test's own javadoc.
+      // Redmine 78284: not a field reference, but still not an integer -- previously stored
+      // (and read back as 0); now refused with a field-named error.
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.setConditions("T", List.of(
+            new WorksheetMutationSupport.ConditionNode(
+               new WorksheetMutationSupport.ConditionSpec(
+                  "A", "=", List.of("not_a_real_column"), false, null),
+               null, 0)))));
+      assertTrue(ex.getMessage().contains("is not a valid integer for column A"),
+                 ex.getMessage());
    }
 
    @Test
