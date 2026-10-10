@@ -102,6 +102,9 @@ export class DatasourcesDatasourceComponent implements OnInit, OnDestroy{
                   DATASOURCES_URI + "/listing/" + listingName)
                   .subscribe(data => {
                      this.datasource = data;
+                     // Bug #78243, the folder of the new data source, which an OAuth password
+                     // grant is checked against before the data source is saved
+                     this.datasource.parentPath = this.parentPath || "";
                      this.defaultDataSource = Tool.clone(this.datasource);
                      this.originalDatasource = Tool.clone(this.datasource);
                   });
@@ -115,6 +118,9 @@ export class DatasourcesDatasourceComponent implements OnInit, OnDestroy{
                            // Run change detection to set the datasource
                            this.zone.run(() => {
                               this.datasource = data;
+                              // Bug #78243, the folder of the new data source, which an OAuth
+                              // password grant is checked against before the data source is saved
+                              this.datasource.parentPath = this.parentPath || "";
                               this.defaultDataSource = Tool.clone(this.datasource);
                               this.originalDatasource = Tool.clone(this.datasource);
                            });

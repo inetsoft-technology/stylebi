@@ -293,15 +293,24 @@ public abstract class DatasourcesBaseService {
    }
 
    private static String getSavedDataSourcePath(DataSourceDefinition definition) {
-      String name = definition.getParentDataSource() != null ?
-         definition.getParentDataSource() :
-         (definition.getOldName() != null ? definition.getOldName() : definition.getName());
+      return getSavedDataSourcePath(
+         definition.getParentDataSource(), definition.getOldName(), definition.getName(),
+         definition.getParentPath());
+   }
+
+   /**
+    * Gets the path that a data source is saved under, or that the parent data source of an
+    * additional connection is saved under.
+    */
+   private static String getSavedDataSourcePath(String parentDataSource, String oldName,
+                                                String name, String parentPath)
+   {
+      name = parentDataSource != null ? parentDataSource : (oldName != null ? oldName : name);
 
       if(StringUtils.isEmpty(name)) {
          return null;
       }
 
-      String parentPath = definition.getParentPath();
       return StringUtils.isEmpty(parentPath) || "/".equals(parentPath) ?
          name : parentPath + "/" + name;
    }
@@ -523,39 +532,8 @@ public abstract class DatasourcesBaseService {
                                    Principal principal)
       throws Exception
    {
-      String folder = definition.getParentPath();
-      boolean newSourcePermission = false;
-      boolean folderPermission;
-
-      if(!StringUtils.isEmpty(folder) && !"/".equals(folder) &&
-         dataSourceRegistry.getDataSourceFolder(folder) == null)
-      {
-         throw new MessageException(
-            Catalog.getCatalog().getString("data.datasources.invalidParentFolder"));
-      }
-
-      if(StringUtils.isEmpty(folder) || "/".equals(folder)) {
-         folderPermission = securityEngine.checkPermission(
-            principal, ResourceType.DATA_SOURCE_FOLDER, "/", ResourceAction.WRITE);
-
-         if(!folderPermission) {
-            newSourcePermission = securityEngine.checkPermission(
-               principal, ResourceType.CREATE_DATA_SOURCE, "*", ResourceAction.ACCESS);
-         }
-      }
-      else {
-         folderPermission = securityEngine.checkPermission(
-            principal, ResourceType.DATA_SOURCE_FOLDER, folder, ResourceAction.WRITE);
-      }
-
-      if(!folderPermission && !newSourcePermission) {
-         String parentFullPath =
-            Util.getObjectFullPath(RepositoryEntry.DATA_SOURCE_FOLDER, folder, principal);
-
-         throw new SecurityException(
-            "Unauthorized access to resource \"" + parentFullPath + "\" by user " +
-               principal);
-      }
+      boolean folderPermission =
+         checkCreateDataSourcePermission(definition.getParentPath(), principal);
 
       AuthorizedDataSource authorized =
          createAuthorizedDataSource(definition, null, null, principal);
@@ -575,8 +553,9 @@ public abstract class DatasourcesBaseService {
 
          boolean isSelfUser = Tool.equals(Organization.getSelfOrganizationID(),
                                           OrganizationManager.getInstance().getCurrentOrgID(principal));
-         // some kind private datasource of the current user
-         boolean grant = isSelfUser || (!folderPermission && newSourcePermission);
+         // some kind private datasource of the current user, created through the create data
+         // source permission when the caller can't write the folder
+         boolean grant = isSelfUser || !folderPermission;
          // the failure of a step after the data source is saved, which a failed permission write
          // doesn't replace
          Throwable saveFailure = null;
@@ -629,6 +608,90 @@ public abstract class DatasourcesBaseService {
                }
             }
          }
+      }
+   }
+
+   /**
+    * Checks that the caller may create a data source in a folder.
+    *
+    * @param folder    the folder of the new data source, empty or "/" for the root folder.
+    * @param principal the caller.
+    *
+    * @return {@code true} if the caller can write the folder, or {@code false} if the caller may
+    *         only create a data source in the root folder through the create data source
+    *         permission.
+    *
+    * @throws SecurityException if the caller may not create a data source in the folder.
+    */
+   protected boolean checkCreateDataSourcePermission(String folder, Principal principal)
+      throws Exception
+   {
+      boolean newSourcePermission = false;
+      boolean folderPermission;
+
+      if(!StringUtils.isEmpty(folder) && !"/".equals(folder) &&
+         dataSourceRegistry.getDataSourceFolder(folder) == null)
+      {
+         throw new MessageException(
+            Catalog.getCatalog().getString("data.datasources.invalidParentFolder"));
+      }
+
+      if(StringUtils.isEmpty(folder) || "/".equals(folder)) {
+         folderPermission = securityEngine.checkPermission(
+            principal, ResourceType.DATA_SOURCE_FOLDER, "/", ResourceAction.WRITE);
+
+         if(!folderPermission) {
+            newSourcePermission = securityEngine.checkPermission(
+               principal, ResourceType.CREATE_DATA_SOURCE, "*", ResourceAction.ACCESS);
+         }
+      }
+      else {
+         folderPermission = securityEngine.checkPermission(
+            principal, ResourceType.DATA_SOURCE_FOLDER, folder, ResourceAction.WRITE);
+      }
+
+      if(!folderPermission && !newSourcePermission) {
+         String parentFullPath =
+            Util.getObjectFullPath(RepositoryEntry.DATA_SOURCE_FOLDER, folder, principal);
+
+         throw new SecurityException(
+            "Unauthorized access to resource \"" + parentFullPath + "\" by user " +
+               principal);
+      }
+
+      return folderPermission;
+   }
+
+   /**
+    * Checks that the caller may save the data source that an OAuth password grant is requested
+    * for. The grant posts the credentials to a token URI that the client chooses, so only a caller
+    * who may save that data source, and so may already point it at any URL, may request it
+    * (Bug #78243). Whether the data source is new is decided by the stored data sources, never by
+    * the request. A new data source needs the permission to create it in its folder, and a saved
+    * one, or the parent of an additional connection, needs write permission on it.
+    *
+    * @param request   the password grant request, which names the data source.
+    * @param principal the caller.
+    *
+    * @throws SecurityException if the caller may not save the data source.
+    */
+   public void checkPasswordGrantPermission(TabularOAuthParams request, Principal principal)
+      throws Exception
+   {
+      String path = getSavedDataSourcePath(
+         request.parentDataSource(), request.dataSourceOldName(), request.dataSourceName(),
+         request.dataSourceParentPath());
+      XDataSource stored = path == null ? null : repository.getDataSource(path);
+
+      if(stored == null) {
+         checkCreateDataSourcePermission(request.dataSourceParentPath(), principal);
+      }
+      else if(!securityEngine.checkPermission(
+         principal, ResourceType.DATA_SOURCE, stored.getFullName(), ResourceAction.WRITE))
+      {
+         throw new SecurityException(
+            "Unauthorized access to resource \"" + stored.getFullName() + "\" by user " +
+               principal);
       }
    }
 

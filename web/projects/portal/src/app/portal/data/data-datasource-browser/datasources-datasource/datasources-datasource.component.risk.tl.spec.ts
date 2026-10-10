@@ -137,6 +137,31 @@ describe("DatasourcesDatasource — ngOnInit datasourceType branch", () => {
       await waitFor(() => expect(comp.datasource.type).toBe("TABULAR"));
       expect(comp.editing).toBe(false);
    });
+
+   // Bug #78243, an OAuth password grant for the unsaved data source is checked against its folder
+   it("sets the folder of the new datasource before it is saved", async () => {
+      const newDs = makeDataSource({ name: "", type: "TABULAR", parentPath: "" });
+
+      server.use(
+         http.post("*/api/portal/data/datasources/refreshView", () =>
+            HttpResponse.json(newDs)
+         )
+      );
+
+      const { comp } = await renderDatasource();
+
+      paramMap$.next(convertToParamMap({
+         datasourcePath: null,
+         parentPath: "folder1",
+         datasourceType: "TABULAR",
+         listingName: null,
+      }));
+
+      // the datasource returned by refreshView replaces the one that was sent
+      await waitFor(() => expect(comp.defaultDataSource.type).toBe("TABULAR"));
+      expect(comp.datasource.parentPath).toBe("folder1");
+      expect(comp.defaultDataSource.parentPath).toBe("folder1");
+   });
 });
 
 // ── Group 3: ngOnInit listingName branch — GET listing ────────────────────
@@ -163,6 +188,29 @@ describe("DatasourcesDatasource — ngOnInit listingName branch", () => {
 
       await waitFor(() => expect(comp.datasource.name).toBe("MySQL"));
       expect(comp.editing).toBe(false);
+   });
+
+   // Bug #78243, an OAuth password grant for the unsaved data source is checked against its folder
+   it("sets the folder of the new datasource created from a listing", async () => {
+      const listingDs = makeDataSource({ name: "MySQL", type: "LISTING", parentPath: "" });
+
+      server.use(
+         http.get("*/api/portal/data/datasources/listing/mysql-listing", () =>
+            HttpResponse.json(listingDs)
+         )
+      );
+
+      const { comp } = await renderDatasource();
+
+      paramMap$.next(convertToParamMap({
+         datasourcePath: null,
+         parentPath: "folder1",
+         datasourceType: null,
+         listingName: "mysql-listing",
+      }));
+
+      await waitFor(() => expect(comp.datasource.name).toBe("MySQL"));
+      expect(comp.datasource.parentPath).toBe("folder1");
    });
 });
 

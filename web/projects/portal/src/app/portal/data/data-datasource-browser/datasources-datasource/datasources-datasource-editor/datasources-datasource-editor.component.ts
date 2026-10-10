@@ -168,7 +168,14 @@ export class DatasourcesDatasourceEditorComponent implements OnInit, OnDestroy {
                if(params?.error) {
                   throw { source: "oauth_params", message: params.error }; // Stop further processing
                }}),
-            map(params => Object.assign(authParams, params)),
+            // Bug #78243, the data source that a password grant is for, which the server checks
+            // that the caller may save
+            map(params => Object.assign(authParams, params, {
+               dataSourceName: this.datasource.name,
+               dataSourceOldName: this.datasource.oldName,
+               dataSourceParentPath: this.datasource.parentPath,
+               parentDataSource: this.datasource.parentDataSource
+            })),
             flatMap(params => this.oauthService.authorize(params)),
             map(tokens => Object.assign(tokensRequest, tokens)),
             flatMap(request => this.httpClient.post<DataSourceDefinitionModel>(DATASOURCES_URI + "/oauth-tokens", request))
