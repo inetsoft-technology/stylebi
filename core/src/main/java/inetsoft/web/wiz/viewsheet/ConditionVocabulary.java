@@ -24,6 +24,7 @@ import inetsoft.util.Tool;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.composer.model.condition.*;
 
+import java.math.BigDecimal;
 import java.util.*;
 
 /**
@@ -299,12 +300,63 @@ public final class ConditionVocabulary {
                "against another column, use {type: \"field\", field: \"" + str + "\"} instead of " +
                "a plain string.");
          }
+
+         requireIntegralValue(str, dataType, index, targetField);
       }
 
       ConditionValueModel value = new ConditionValueModel();
       value.setValue(raw);
       value.setType(ConditionValueModel.VALUE);
       return value;
+   }
+
+   /**
+    * Tool.getData casts a numeric string to byte/short/int via parseDouble, so "1.5" silently
+    * becomes 1 and "3000000000" saturates to Integer.MAX_VALUE (long yields a Double). An integral
+    * field only holds whole in-range numbers, so a string that isn't one is refused rather than
+    * stored altered. "1.0", "1e3" and surrounding whitespace are still whole numbers and accepted.
+    */
+   private static void requireIntegralValue(String str, String dataType, int index,
+                                            DataRefModel targetField)
+   {
+      if(!XSchema.BYTE.equals(dataType) && !XSchema.SHORT.equals(dataType) &&
+         !XSchema.INTEGER.equals(dataType) && !XSchema.LONG.equals(dataType))
+      {
+         return;
+      }
+
+      long min = Long.MIN_VALUE;
+      long max = Long.MAX_VALUE;
+
+      if(XSchema.BYTE.equals(dataType)) {
+         min = Byte.MIN_VALUE;
+         max = Byte.MAX_VALUE;
+      }
+      else if(XSchema.SHORT.equals(dataType)) {
+         min = Short.MIN_VALUE;
+         max = Short.MAX_VALUE;
+      }
+      else if(XSchema.INTEGER.equals(dataType)) {
+         min = Integer.MIN_VALUE;
+         max = Integer.MAX_VALUE;
+      }
+
+      try {
+         long value = new BigDecimal(str.trim()).stripTrailingZeros().longValueExact();
+
+         if(value >= min && value <= max) {
+            return;
+         }
+      }
+      catch(ArithmeticException | NumberFormatException ex) {
+         // falls through to the refusal below
+      }
+
+      throw new IllegalArgumentException(
+         "Condition " + index + "'s value '" + str + "' is not a valid " + dataType +
+         " for field '" + targetField.getName() + "': an " + dataType + " field takes a " +
+         "whole number in range, and the value would be silently altered. Pass a JSON " +
+         "number (e.g. 1.5, not \"1.5\") if you intend a non-integer comparison.");
    }
 
    private static ConditionValueModel typedValue(String typeToken, Map<?, ?> map, int index,
