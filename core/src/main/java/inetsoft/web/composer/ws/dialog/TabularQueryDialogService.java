@@ -32,6 +32,7 @@ import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.tabular.*;
 import inetsoft.util.*;
 import inetsoft.util.log.LogContext;
+import inetsoft.web.admin.content.repository.ResourcePermissionService;
 import inetsoft.web.composer.model.ws.TabularQueryDialogModel;
 import inetsoft.web.composer.ws.WorksheetControllerService;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
@@ -285,8 +286,11 @@ public class TabularQueryDialogService extends WorksheetControllerService {
       boolean allowed;
 
       try {
+         // Bug #78249, an additional connection path P/add is checked as P::add
          allowed = securityEngine != null && securityEngine.checkPermission(
-            principal, ResourceType.DATA_SOURCE, dataSource, ResourceAction.READ);
+            principal, ResourceType.DATA_SOURCE,
+            ResourcePermissionService.getDataSourcePermissionName(dataSource),
+            ResourceAction.READ);
       }
       catch(Exception e) {
          LOG.debug("Failed to check data source permission: {}", dataSource, e);

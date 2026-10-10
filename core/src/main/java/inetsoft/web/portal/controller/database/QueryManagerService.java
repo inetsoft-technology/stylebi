@@ -36,6 +36,7 @@ import inetsoft.uql.util.*;
 import inetsoft.uql.util.sqlparser.SQLLexer;
 import inetsoft.util.*;
 import inetsoft.web.adhoc.model.FormatInfoModel;
+import inetsoft.web.admin.content.repository.ResourcePermissionService;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.model.ws.*;
 import inetsoft.web.composer.ws.assembly.VariableAssemblyModelInfo;
@@ -1525,9 +1526,10 @@ public class QueryManagerService {
 
    /**
     * Fails closed unless the principal has READ on the named data source. This is the same
-    * decision (raw full name, DATA_SOURCE, READ) as the data source list filter in
+    * decision (full name, DATA_SOURCE, READ) as the data source list filter in
     * {@link #getSqlQueryDialogModel} and {@link #clearQuery}, so a source that is not offered
-    * in the SQL query dialog cannot be used by name either (Bug #77163).
+    * in the SQL query dialog cannot be used by name either (Bug #77163). An additional
+    * connection path {@code P/add} is checked as {@code P::add} (Bug #78249).
     *
     * @param dataSource the full name of the data source.
     * @param principal  the current user.
@@ -1544,7 +1546,9 @@ public class QueryManagerService {
 
       try {
          allowed = securityEngine != null && securityEngine.checkPermission(
-            principal, ResourceType.DATA_SOURCE, dataSource, ResourceAction.READ);
+            principal, ResourceType.DATA_SOURCE,
+            ResourcePermissionService.getDataSourcePermissionName(dataSource),
+            ResourceAction.READ);
       }
       catch(Exception e) {
          LOG.debug("Failed to check data source permission: {}", dataSource, e);

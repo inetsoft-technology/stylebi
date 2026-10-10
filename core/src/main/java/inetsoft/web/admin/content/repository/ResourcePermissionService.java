@@ -918,12 +918,47 @@ public class ResourcePermissionService {
       return permissions;
    }
 
+   /**
+    * Gets the name to check a DATA_SOURCE permission on for a registry path from a client. The
+    * registry stores an additional connection {@code add} of {@code P} at {@code P/add}, which a
+    * raw check takes for a data source in a folder {@code P}, while its permission is keyed
+    * {@code P::add} (Bug #78249). A name that is already a permission name, with {@code ::} or
+    * {@code ^}, is returned unchanged.
+    *
+    * @param path the registry path, e.g. {@code P}, {@code F/P} or {@code P/add}.
+    *
+    * @return the permission resource name, e.g. {@code P::add} for {@code P/add}.
+    */
+   public static String getDataSourcePermissionName(String path) {
+      return isDataSourceRegistryPath(path) ?
+         getDataSourcePermissionName(path, DataSourceRegistry.getRegistry()) : path;
+   }
+
+   /**
+    * Gets the name to check a DATA_SOURCE permission on for a registry path from a client,
+    * using the given registry. See {@link #getDataSourcePermissionName(String)}.
+    */
+   public static String getDataSourcePermissionName(String path,
+                                                    DataSourceRegistry dataSourceRegistry)
+   {
+      return isDataSourceRegistryPath(path) && dataSourceRegistry != null ?
+         getDataSourceResourceName(path, dataSourceRegistry) : path;
+   }
+
+   // a path with a "/" that may be an additional connection and is not a permission name
+   private static boolean isDataSourceRegistryPath(String path) {
+      return path != null && path.contains("/") && !path.contains("::") && !path.contains("^");
+   }
+
    public static String getDataSourceResourceName(String resourcePath, DataSourceRegistry dataSourceRegistry) {
-      if(resourcePath.contains("/")) {
+      String[] dataSources = resourcePath.contains("/") ?
+         dataSourceRegistry.getDataSourceFullNames() : null;
+
+      if(dataSources != null) {
          // may be additional connection, of the data source with the longest path it lies under
          String parent = null;
 
-         for(String ds : dataSourceRegistry.getDataSourceFullNames()) {
+         for(String ds : dataSources) {
             if(resourcePath.startsWith(ds + "/") &&
                (parent == null || ds.length() > parent.length()))
             {
