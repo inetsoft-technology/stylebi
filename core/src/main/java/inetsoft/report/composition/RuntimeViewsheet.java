@@ -218,6 +218,20 @@ public class RuntimeViewsheet extends RuntimeSheet {
          box = new ViewsheetSandbox(vs, mode, getUser(), false, entry);
       }
 
+      // Restore the saved viewsheet variables (e.g. URL parameters applied by
+      // CoreLifecycleService during open) into the newly-built sandbox. The new
+      // ViewsheetSandbox/AssetQuerySandbox pair above starts with an empty variable
+      // table; there is no constructor overload that takes one, so copy the restored
+      // values onto it here, before the sandbox is used to build the view. (Bug #78233)
+      if(vars != null) {
+         try {
+            box.getVariableTable().addAll(vars);
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to restore viewsheet variables after failover", e);
+         }
+      }
+
       box.setOriginalID(state.getOriginalId());
       execSessionID = state.getExecSessionId();
       touchts = state.getTouchts();
@@ -2766,7 +2780,43 @@ public class RuntimeViewsheet extends RuntimeSheet {
          state.setVsDelta(null);
       }
 
-      state.setVars(saveJson(vars, mapper));
+      // Save the live sandbox variable table (e.g. URL parameters CoreLifecycleService
+      // applied via box.getAssetQuerySandbox().getVariableTable()), not the this.vars
+      // field -- normal viewer open/reconnect never populates this.vars, so saving it
+      // would silently drop every URL parameter on a cluster failover restore. Mirrors
+      // RuntimeWorksheet.saveState(), which already saves its live box.getVariableTable().
+      // (Bug #78233)
+      if(box != null && box.getVariableTable() != null) {
+         // Exclude context variables (__principal__, _USER_, _ROLES_, _GROUPS_): they are
+         // derived from the current session/principal rather than being actual parameter
+         // values, are lazily re-added the next time a script runs against the restored
+         // sandbox (see ViewsheetScope), and are not guaranteed to be JSON-serializable --
+         // __principal__ in particular holds a live SRPrincipal whose getCacheKey() getter
+         // recurses on a freshly-copied ClientInfo under Jackson's default bean
+         // serialization, which would otherwise make saveJson() below silently fail and
+         // save nothing.
+         VariableTable persistedVars = box.getVariableTable().clone();
+
+         if(persistedVars != null) {
+            List<String> contextKeys = new ArrayList<>();
+            Enumeration<String> keys = persistedVars.keys();
+
+            while(keys.hasMoreElements()) {
+               String key = keys.nextElement();
+
+               if(VariableTable.isContextVariable(key)) {
+                  contextKeys.add(key);
+               }
+            }
+
+            for(String key : contextKeys) {
+               persistedVars.remove(key);
+            }
+
+            state.setVars(saveJson(persistedVars, mapper));
+         }
+      }
+
       state.setViewer(viewer);
       state.setPreview(preview);
       state.setNeedsRefresh(needRefresh);
