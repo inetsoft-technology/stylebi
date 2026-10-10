@@ -30,6 +30,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -132,18 +133,32 @@ public class ParameterDiscoveryService {
       Object[] choicesArr = variable.getChoices();
       Object[] valuesArr = variable.getValues();
 
+      // Arrays.asList, not List.of: a stored value array may hold a null element (List.of throws
+      // NPE on one, which used to brick every collect_parameters/set_parameters call).
       // Only expose `values` when it is genuinely index-paired with `choices` -- a length
       // mismatch (or either side missing) means the two arrays cannot be correlated by
       // position, and reporting a misaligned `values` would be worse than reporting none.
       List<Object> valuesList = choicesArr != null && valuesArr != null &&
-         valuesArr.length == choicesArr.length ? List.of(valuesArr) : null;
+         valuesArr.length == choicesArr.length ? Arrays.asList(valuesArr) : null;
 
       return new ParameterModel(
-         variable.getName(), variable.getAlias(), type, variable.isMultipleSelection(),
+         variable.getName(), variable.getAlias(), type, isMultiSelect(variable),
          boundToInputAssembly,
-         choicesArr == null ? null : List.of(choicesArr),
+         choicesArr == null ? null : Arrays.asList(choicesArr),
          valuesList,
-         currentValue == null ? null : List.of(currentValue));
+         currentValue == null ? null : Arrays.asList(currentValue));
+   }
+
+   /**
+    * Whether the parameter accepts more than one value. A checkboxes variable is stored with
+    * {@code multipleSelection=false} (native Composer does the same), so the display style is
+    * consulted too -- the same predicate gates {@code set_parameters} and feeds the reported
+    * {@code multipleSelection}.
+    */
+   public static boolean isMultiSelect(UserVariable variable) {
+      int style = variable.getDisplayStyle();
+      return style == UserVariable.LIST || style == UserVariable.CHECKBOXES ||
+         variable.isMultipleSelection() || variable.isUsedInOneOf();
    }
 
    private final ParameterService parameterService;
