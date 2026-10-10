@@ -104,11 +104,21 @@ public final class CalcCellVocabulary {
       "role", "content' or 'grouping");
 
    /**
-    * Formulas that take a second column, written {@code Name(Column)}. Normalized names, see
-    * {@link #normalizeFormulaName}.
+    * Formulas that take a second column, written {@code Name(Column)}, keyed by canonical
+    * normalized name (see {@link #normalizeFormulaName}) to the display name used in messages.
     */
-   private static final Set<String> TWO_COLUMN_FORMULAS = Set.of(
-      "covariance", "correlation", "weightedaverage", "first", "last");
+   private static final Map<String, String> TWO_COLUMN_FORMULAS = Map.of(
+      "covariance", "Covariance", "correlation", "Correlation",
+      "weightedaverage", "WeightedAverage", "first", "First", "last", "Last");
+
+   /**
+    * The plugin's AGGREGATE_FORMULAS aliases (normalized key -> normalized canonical key) whose
+    * key differs from the canonical formula name: "AVG", "COUNT ALL", "COUNT DISTINCT", "SUMSQ"
+    * and "WEIGHTED AVG". Must stay in step with the plugin's normalizeFormulaKey rule.
+    */
+   private static final Map<String, String> FORMULA_ALIASES = Map.of(
+      "avg", "average", "countall", "count", "countdistinct", "distinctcount",
+      "sumsq", "sumsqformula", "weightedavg", "weightedaverage");
 
    /**
     * Formulas that cannot work on a calc-table summary cell: the weighted-sum and sum-of-squares
@@ -139,45 +149,50 @@ public final class CalcCellVocabulary {
       return out;
    }
 
-   /** Lower-cased, spaces removed, trailing {@code formula} dropped: SumWTFormula -> sumwt. */
+   /**
+    * The canonical formula-name key shared with the plugin: lower-cased, whitespace/'_'/'-'
+    * removed, one trailing {@code formula} dropped when something remains, then the alias map
+    * applied. SumWTFormula, sum_wt and SUMWT all become sumwt; WeightedAvg becomes
+    * weightedaverage.
+    */
    private static String normalizeFormulaName(String name) {
-      String n = name.trim().toLowerCase().replace(" ", "");
-      return n.endsWith("formula") && n.length() > "formula".length() ?
-         n.substring(0, n.length() - "formula".length()) : n;
+      String n = name.toLowerCase().replaceAll("[\s_-]", "");
+
+      if(n.endsWith("formula") && n.length() > "formula".length()) {
+         n = n.substring(0, n.length() - "formula".length());
+      }
+
+      return FORMULA_ALIASES.getOrDefault(n, n);
    }
 
    /**
-    * A summary cell's aggregate formula string, checked before anything is written. Mirrors the
-    * plugin's own check: only percent-shaped {@code <N>} segments are stripped, the name/argument
-    * split is on the first '(' and last ')', and an empty or digits-only argument counts as no
-    * second column.
+    * A summary cell's aggregate formula string, checked before anything is written. Same rule as
+    * the plugin: only percent-shaped {@code <N>} segments are stripped, the name is everything
+    * before the first '(' (an unclosed '(' still ends the name, with an empty argument), the
+    * argument is between that '(' and the last ')', and an empty or digits-only argument counts
+    * as no second column.
     */
    private static void validateSummaryFormula(String formula) {
       String text = PERCENT_SEGMENT.matcher(formula).replaceAll("").trim();
       int open = text.indexOf('(');
       int close = text.lastIndexOf(')');
-      String name = text;
-      String arg = "";
-
-      if(open > 0 && close > open) {
-         name = text.substring(0, open);
-         arg = text.substring(open + 1, close).trim();
-      }
-
+      String name = open >= 0 ? text.substring(0, open) : text;
+      String arg = open >= 0 && close > open ? text.substring(open + 1, close).trim() : "";
       String normalized = normalizeFormulaName(name);
 
       if(UNSUPPORTED_CALC_FORMULAS.contains(normalized)) {
          throw new IllegalArgumentException(
             "formula '" + formula + "' is not a recognized aggregate formula for a calc-table " +
-            "summary cell. list_cell_vocabulary's 'aggregateFormulas' lists the accepted names.");
+            "summary cell: '" + name.trim() + "' is not supported (it fails when the table " +
+            "renders). list_cell_vocabulary's 'aggregateFormulas' lists the accepted names.");
       }
 
-      if(TWO_COLUMN_FORMULAS.contains(normalized) &&
-         (arg.isEmpty() || arg.chars().allMatch(Character::isDigit)))
-      {
+      String display = TWO_COLUMN_FORMULAS.get(normalized);
+
+      if(display != null && (arg.isEmpty() || arg.chars().allMatch(Character::isDigit))) {
          throw new IllegalArgumentException(
-            "formula '" + name.trim() + "' needs a second column; use " + name.trim() +
-            "(<column>), e.g. " + name.trim() + "(Order:Date).");
+            "formula '" + formula + "' needs a second column; use " + display +
+            "(<column>), e.g. " + display + "(Order:Date). Nothing was changed.");
       }
    }
 

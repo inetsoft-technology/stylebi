@@ -25,6 +25,8 @@ import inetsoft.uql.erm.AttributeRef;
 import inetsoft.web.binding.model.table.CellBindingInfo;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -435,33 +437,40 @@ class CalcCellVocabularyTest {
                   "formula", formula);
    }
 
-   @org.junit.jupiter.params.ParameterizedTest
-   @org.junit.jupiter.params.provider.ValueSource(strings = {
+   @ParameterizedTest
+   @ValueSource(strings = {
       "First", "Last", "Correlation", "Covariance", "WeightedAverage",
       "First()", "Last( )", "Correlation(  )", "Covariance()", "WeightedAverage()",
       "First(3)", "Last(12)", "Correlation(3)", "Covariance( 7 )", "WeightedAverage(3)",
-      "first", "First<-1>", "First()<-1>", "First(3)<-1>"})
+      "first", "First<-1>", "First()<-1>", "First(3)<-1>",
+      "Weighted_Average()", "first-()", "first-", "FirstFormula", "CorrelationFormula()",
+      "WeightedAvg()", "Weighted Avg", "WEIGHTED AVG(3)", "First(", "First(Order:Date",
+      "Last_Formula()", "co-variance()"})
    void refusesATwoColumnFormulaWithoutASecondColumn(String formula) {
       IllegalArgumentException e = assertThrows(
          IllegalArgumentException.class, () -> CalcCellVocabulary.validate(summary(formula)));
       assertTrue(e.getMessage().contains("needs a second column"), e.getMessage());
    }
 
-   @org.junit.jupiter.params.ParameterizedTest
-   @org.junit.jupiter.params.provider.ValueSource(strings = {
+   @ParameterizedTest
+   @ValueSource(strings = {
       "First(Order:Date)", "First(Order:Date)<-1>", "First<-1>(Order:Date)",
       "Correlation(Order:Discount)", "Covariance(Order:Discount)",
       "WeightedAverage(Order:Quantity)", "First(Order:Total (USD))",
       "NthLargest(3)", "NthLargest", "PthPercentile(90)", "Sum", "Sum<-1>", "Average",
-      "SumSQFormula", "SumSQ"})
+      "SumSQFormula", "SumSQ", "AVG", "avg(Order:Total)", "WeightedAvg(Order:Quantity)",
+      "Weighted_Average(Order:Quantity)", "FirstFormula(Order:Date)",
+      "CorrelationFormula(Order:Discount)", "Formula"})
    void acceptsWellFormedSummaryFormulas(String formula) {
       assertDoesNotThrow(() -> CalcCellVocabulary.validate(summary(formula)));
    }
 
-   @org.junit.jupiter.params.ParameterizedTest
-   @org.junit.jupiter.params.provider.ValueSource(strings = {
+   @ParameterizedTest
+   @ValueSource(strings = {
       "SumWT", "SumWTFormula", "SumWTFormula(Order:Discount)", "Sum2", "Sum2Formula",
-      "Sum2Formula(Order:Discount)", "Aggregate", "AggregateFormula", "aggregate"})
+      "Sum2Formula(Order:Discount)", "Aggregate", "AggregateFormula", "aggregate",
+      "sum_wt(Order:Discount)", "Sum-WT", "SUM WT Formula", "sum_2", "Aggregate()",
+      "AggregateFormula(Order:Total)"})
    void refusesFormulasACalcCellCannotRun(String formula) {
       IllegalArgumentException e = assertThrows(
          IllegalArgumentException.class, () -> CalcCellVocabulary.validate(summary(formula)));
