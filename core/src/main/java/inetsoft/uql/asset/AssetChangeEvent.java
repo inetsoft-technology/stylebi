@@ -77,6 +77,21 @@ public class AssetChangeEvent extends EventObject {
    }
 
    /**
+    * Creates a new instance of <tt>AssetChangeEvent</tt>.
+    *
+    * @param storageRefresh <tt>true</tt> if the event was produced by a storage refresh, i.e.
+    *                       from a change to the shared storage that is reported on every
+    *                       cluster node, not only on the node that made the change.
+    */
+   public AssetChangeEvent(Object source, int entryType, int changeType,
+                           AssetEntry assetEntry, String oldName, boolean root,
+                           AbstractSheet sheet, String reason, boolean storageRefresh)
+   {
+      this(source, entryType, changeType, assetEntry, oldName, root, sheet, reason);
+      this.storageRefresh = storageRefresh;
+   }
+
+   /**
     * Gets the type of entry to which the change was made.
     *
     * @return one of the asset type constants defined in {@link AbstractSheet}.
@@ -123,6 +138,18 @@ public class AssetChangeEvent extends EventObject {
    }
 
    /**
+    * Determines if this event was produced by a storage refresh. A storage refresh event is
+    * fired on every cluster node for a change to the shared storage, so it must not be
+    * forwarded to the other nodes again.
+    *
+    * @return <tt>true</tt> if a storage refresh event; <tt>false</tt> if the change was made
+    *         on this node.
+    */
+   public boolean isStorageRefresh() {
+      return storageRefresh;
+   }
+
+   /**
     * Get the sheet if this asset is a worksheet or viewsheet.
     */
    public AbstractSheet getSheet() {
@@ -145,6 +172,7 @@ public class AssetChangeEvent extends EventObject {
          ", oldName='" + oldName + '\'' +
          ", root=" + root +
          ", reason=" + reason +
+         ", storageRefresh=" + storageRefresh +
          '}';
    }
 
@@ -155,4 +183,5 @@ public class AssetChangeEvent extends EventObject {
    private boolean root;
    private AbstractSheet sheet;
    private String reason;
+   private boolean storageRefresh;
 }

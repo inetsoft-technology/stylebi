@@ -20,6 +20,8 @@ package inetsoft.web.composer;
 import inetsoft.report.LibManager;
 import inetsoft.report.LibManagerProvider;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.internal.cluster.MessageListener;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.uql.XPrincipal;
@@ -79,9 +81,15 @@ public class AssetTreeRefreshController {
       this.libManagerProvider = libManagerProvider;
    }
 
+   @Autowired
+   public void setCluster(Cluster cluster) {
+      this.cluster = cluster;
+   }
+
    @PostConstruct
    public void addListeners() {
       assetRepository.addAssetChangeListener(listener);
+      cluster.addMessageListener(clusterMessageListener);
       dataSourceRegistry.addRefreshedListener(this::dataSourceRefreshed);
       AssetRepository runtimeAssetRepository = AssetUtil.getAssetRepository(false);
 
@@ -98,6 +106,7 @@ public class AssetTreeRefreshController {
    public void preDestroy() {
       try {
          assetRepository.removeAssetChangeListener(listener);
+         cluster.removeMessageListener(clusterMessageListener);
          dataSourceRegistry.removeRefreshedListener(this::dataSourceRefreshed);
          AssetRepository runtimeAssetRepository = AssetUtil.getAssetRepository(false);
 
@@ -211,46 +220,102 @@ public class AssetTreeRefreshController {
    private SecurityEngine securityEngine;
    private DataSourceRegistry dataSourceRegistry;
    private LibManagerProvider libManagerProvider;
+   private Cluster cluster;
    private final Map<String, Principal> subscriptions = new ConcurrentHashMap<>();
    private static final Logger LOG = LoggerFactory.getLogger(AssetTreeRefreshController.class);
 
+   private static final long BROADCAST_DELAY = 200L;
    private final Debouncer<String> debouncer = new DefaultDebouncer<>(false);
    private final Set<String> libManagerListenerOrgs = new HashSet<>();
 
    private final AssetChangeListener listener = new AssetChangeListener() {
       @Override
       public void assetChanged(AssetChangeEvent event) {
-         if(isConnectionInitialized() && canSendEvent(event)) {
-            AssetChangeEventModel eventModel = AssetChangeEventModel.builder()
-               .parentEntry(event.getAssetEntry().getParent())
-               .oldIdentifier(event.getOldName())
-               .newIdentifier(event.getAssetEntry().toIdentifier())
-               .build();
-
-            debouncer.debounce("change" + (event.getAssetEntry().getParent() != null ?
-               event.getAssetEntry().getParent().toIdentifier() : ""), 2, TimeUnit.SECONDS,
-                               () -> sendMessages(eventModel, u -> isSameOrg(event, u))
-            );
+         if(event.getAssetEntry() == null || !canSendEvent(event)) {
+            return;
          }
-      }
 
-      private boolean isSameOrg(AssetChangeEvent event, Principal user) {
-         String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID(user);
-         return event.getAssetEntry() == null ||
-            Tool.equals(currentOrgID, event.getAssetEntry().getOrgID());
-      }
+         // Bug #78229, the change may be made on a node other than the one the user's
+         // web socket is connected to, e.g. a save proxied to the node that holds the runtime
+         // sheet. Forward it to the other nodes. A storage refresh event is already fired on
+         // every node, so it is not forwarded
+         if(!event.isStorageRefresh()) {
+            broadcast(event);
+         }
 
-      private boolean canSendEvent(AssetChangeEvent event) {
-         return event.isRoot() && event.getChangeType() != AssetChangeEvent.AUTO_SAVE_ADD &&
-            (event.getChangeType() != AssetChangeEvent.ASSET_TO_BE_DELETED &&
-               event.getAssetEntry().getParent() != null ||
-               event.getChangeType() == AssetChangeEvent.ASSET_RENAMED);
-      }
-
-      private boolean isConnectionInitialized() {
-         return messagingTemplate != null && !subscriptions.isEmpty();
+         deliver(event);
       }
    };
+
+   /**
+    * Receives the asset changes forwarded by the other cluster nodes and delivers them to the
+    * subscribers on this node. It never forwards them again.
+    */
+   private final MessageListener clusterMessageListener = event -> {
+      if(event.isLocal() || !(event.getMessage() instanceof AssetTreeChangeMessage message)) {
+         // the node that sent the message has already delivered the change to its own
+         // subscribers
+         return;
+      }
+
+      AssetChangeEvent change = new AssetChangeEvent(
+         this, message.getEntryType(), message.getChangeType(), message.getAssetEntry(),
+         message.getOldName(), true, null, "Cluster: " + message.getAssetEntry(), false);
+
+      if(change.getAssetEntry() != null && canSendEvent(change)) {
+         deliver(change);
+      }
+   };
+
+   private void broadcast(AssetChangeEvent event) {
+      AssetTreeChangeMessage message = new AssetTreeChangeMessage(
+         event.getEntryType(), event.getChangeType(), event.getAssetEntry(), event.getOldName());
+      // the listener may be registered on two repositories (see addListeners()). Coalesce the
+      // same change fired by both into one message. This also keeps the send off the thread
+      // that made the change
+      String key = "cluster" + event.getChangeType() + "|" +
+         event.getAssetEntry().toIdentifier() + "|" + event.getOldName();
+      debouncer.debounce(key, BROADCAST_DELAY, TimeUnit.MILLISECONDS, () -> {
+         try {
+            cluster.sendMessage(message);
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to send the asset change to the cluster: {}", message, e);
+         }
+      });
+   }
+
+   private void deliver(AssetChangeEvent event) {
+      if(isConnectionInitialized()) {
+         AssetChangeEventModel eventModel = AssetChangeEventModel.builder()
+            .parentEntry(event.getAssetEntry().getParent())
+            .oldIdentifier(event.getOldName())
+            .newIdentifier(event.getAssetEntry().toIdentifier())
+            .build();
+
+         debouncer.debounce("change" + (event.getAssetEntry().getParent() != null ?
+            event.getAssetEntry().getParent().toIdentifier() : ""), 2, TimeUnit.SECONDS,
+                            () -> sendMessages(eventModel, u -> isSameOrg(event, u))
+         );
+      }
+   }
+
+   private boolean isSameOrg(AssetChangeEvent event, Principal user) {
+      String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID(user);
+      return event.getAssetEntry() == null ||
+         Tool.equals(currentOrgID, event.getAssetEntry().getOrgID());
+   }
+
+   private boolean canSendEvent(AssetChangeEvent event) {
+      return event.isRoot() && event.getChangeType() != AssetChangeEvent.AUTO_SAVE_ADD &&
+         (event.getChangeType() != AssetChangeEvent.ASSET_TO_BE_DELETED &&
+            event.getAssetEntry().getParent() != null ||
+            event.getChangeType() == AssetChangeEvent.ASSET_RENAMED);
+   }
+
+   private boolean isConnectionInitialized() {
+      return messagingTemplate != null && !subscriptions.isEmpty();
+   }
 
    private final ActionListener libraryListener = new ActionListener() {
       @Override
