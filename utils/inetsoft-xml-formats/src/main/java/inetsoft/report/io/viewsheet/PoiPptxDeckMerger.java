@@ -20,6 +20,7 @@ package inetsoft.report.io.viewsheet;
 import inetsoft.report.StyleFont;
 import inetsoft.web.wiz.service.MarkdownModel;
 import inetsoft.web.wiz.service.PptxDeckMerger;
+import org.apache.poi.common.usermodel.fonts.FontGroup;
 import org.apache.poi.xslf.usermodel.XMLSlideShow;
 import org.apache.poi.xslf.usermodel.XSLFSlide;
 import org.apache.poi.xslf.usermodel.XSLFTextBox;
@@ -294,6 +295,17 @@ public class PoiPptxDeckMerger implements PptxDeckMerger {
       return candidate + "…";
    }
 
+   /** POI's single-argument setFontFamily chooses one OOXML slot from the run's first character,
+    *  so an emoji/CJK-leading run got only a:ea and its Latin text fell back to the theme font
+    *  (bug #77139). Write the family on every slot instead. */
+   private static void setAllFontSlots(XSLFTextRun run) {
+      String family = StyleFont.getDefaultFontFamily();
+      run.setFontFamily(family, FontGroup.LATIN);
+      run.setFontFamily(family, FontGroup.EAST_ASIAN);
+      run.setFontFamily(family, FontGroup.COMPLEX_SCRIPT);
+      run.setFontFamily(family, FontGroup.SYMBOL);
+   }
+
    /** Apply a uniform bold/size/color to every run in every paragraph of a text box.
     *  Also sets an explicit font family: without one, a run has no Latin-typeface element at
     *  all and resolves purely by OOXML theme inheritance (the deck's theme font), which
@@ -307,7 +319,7 @@ public class PoiPptxDeckMerger implements PptxDeckMerger {
             run.setBold(bold);
             run.setFontSize(fontSize);
             run.setFontColor(color);
-            run.setFontFamily(StyleFont.getDefaultFontFamily());
+            setAllFontSlots(run);
          }
       }
    }
@@ -328,7 +340,7 @@ public class PoiPptxDeckMerger implements PptxDeckMerger {
       // its typeface to theme inheritance either (see styleBox).
       for(XSLFTextParagraph paragraph : box.getTextParagraphs()) {
          for(XSLFTextRun run : paragraph.getTextRuns()) {
-            run.setFontFamily(StyleFont.getDefaultFontFamily());
+            setAllFontSlots(run);
          }
       }
    }
@@ -471,7 +483,7 @@ public class PoiPptxDeckMerger implements PptxDeckMerger {
          bullet.setFontSize(bodySize);
          bullet.setFontColor(ACCENT);
          bullet.setBold(true);
-         bullet.setFontFamily(StyleFont.getDefaultFontFamily());
+         setAllFontSlots(bullet);
          appendSpans(p, block.spans(), bodySize, BODY_COLOR, false);
          break;
       default:
@@ -493,7 +505,7 @@ public class PoiPptxDeckMerger implements PptxDeckMerger {
          run.setFontColor(color);
          run.setBold(forceBold || span.bold());
          run.setItalic(span.italic());
-         run.setFontFamily(StyleFont.getDefaultFontFamily());
+         setAllFontSlots(run);
       }
    }
 

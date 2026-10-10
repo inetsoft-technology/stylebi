@@ -782,4 +782,59 @@ class PoiPptxDeckMergerTest {
          }
       }
    }
+
+   /**
+    * bug-77139: POI's single-argument setFontFamily picks the OOXML slot from the run's first
+    * character, so an emoji/CJK-leading run got only a:ea and kept the theme font for its Latin
+    * text. Asserts the raw rPr slots (getFontFamily() reads the same first-character slot and
+    * cannot see the gap) for every merger-created run.
+    */
+   @Test
+   void emojiAndCjkLeadingRunsCarryTheFamilyOnEveryFontSlot() throws Exception {
+      String family = StyleFont.getDefaultFontFamily();
+      byte[] chart1 = oneSlideDeckWithText("CHART_MARKER");
+      String emoji = "\uD83D\uDCC8";
+      String cjk = "\u9500\u552e";
+
+      byte[] merged = merger.mergeSlides(cjk + " Board", emoji + " Recap", List.of(
+         new PptxDeckMerger.ChartSlide(emoji + " Sales", cjk + " cap", chart1, false,
+            "- " + emoji + " Premium pricing\n\n" + cjk + " plain **bold**\n\nPlain control"),
+         new PptxDeckMerger.ChartSlide("Sales\n" + emoji + " Trend", "n/a", null, true)
+      ));
+
+      int checked = 0;
+
+      try(XMLSlideShow result = new XMLSlideShow(new ByteArrayInputStream(merged))) {
+         for(XSLFSlide slide : result.getSlides()) {
+            for(var shape : slide.getShapes()) {
+               if(!(shape instanceof XSLFTextBox tb)) {
+                  continue;
+               }
+
+               for(XSLFTextParagraph paragraph : tb.getTextParagraphs()) {
+                  for(XSLFTextRun run : paragraph.getTextRuns()) {
+                     if(run.getRawText().isEmpty() || run.getRawText().contains("CHART_MARKER")) {
+                        continue;
+                     }
+
+                     CTTextCharacterProperties rPr =
+                        ((CTRegularTextRun) run.getXmlObject()).getRPr();
+                     String what = "run [" + run.getRawText() + "]";
+                     assertTrue(rPr != null && rPr.isSetLatin(), what + " missing a:latin");
+                     assertTrue(rPr.isSetEa(), what + " missing a:ea");
+                     assertTrue(rPr.isSetCs(), what + " missing a:cs");
+                     assertTrue(rPr.isSetSym(), what + " missing a:sym");
+                     assertEquals(family, rPr.getLatin().getTypeface(), what);
+                     assertEquals(family, rPr.getEa().getTypeface(), what);
+                     assertEquals(family, rPr.getCs().getTypeface(), what);
+                     assertEquals(family, rPr.getSym().getTypeface(), what);
+                     checked++;
+                  }
+               }
+            }
+         }
+      }
+
+      assertTrue(checked >= 8, "expected to inspect the merger-created runs, saw " + checked);
+   }
 }
