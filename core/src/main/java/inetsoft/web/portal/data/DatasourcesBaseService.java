@@ -938,6 +938,10 @@ public abstract class DatasourcesBaseService {
             newParent + XUtil.ADDITIONAL_DS_CONNECTOR + name);
       }
 
+      // Bug #78203, and the folder grants of the removed connections' extended models
+      dataSourceRegistry.removeAdditionalConnectionFolderPermissions(oldParent, oldRemoved);
+      dataSourceRegistry.removeAdditionalConnectionFolderPermissions(newParent, removed);
+
       for(String oldName : renames.keySet()) {
          securityEngine.removePermission(ResourceType.DATA_SOURCE,
             oldParent + XUtil.ADDITIONAL_DS_CONNECTOR + oldName);

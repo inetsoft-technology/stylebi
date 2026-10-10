@@ -1277,6 +1277,8 @@ public class DataSourceRegistry implements MessageListener {
          String[] additionalNames = additionalName != null ?
             new String[] { additionalName } : getAdditionalConnectionNames(dxname);
          List<String> resources = getAdditionalConnectionResources(dxname);
+         // Bug #78203, also read before the model entries are removed below
+         Map<ResourceType, List<String>> modelResources = getDataModelResources(dxname);
          AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
                                            AssetEntry.Type.DATA_SOURCE, dxname, null);
 
@@ -1294,6 +1296,7 @@ public class DataSourceRegistry implements MessageListener {
             AssetEntry.Type.DATA_MODEL, dxname, null));
          removeConnectionTestQueries(dxname, additionalNames);
          removeDataSourcePermissions(resources);
+         removeDataModelPermissions(modelResources);
       }
       catch(Exception e) {
          LOG.error(
@@ -1942,6 +1945,138 @@ public class DataSourceRegistry implements MessageListener {
       }
 
       return resources;
+   }
+
+   /**
+    * Bug #78203, gets the permission resources of the data model objects that are removed with a
+    * data source, by type, so that a model or folder created later with the same name doesn't
+    * get their grants: {@link ResourceType#QUERY} "model::dxname" and "model::dxname^__^folder"
+    * of each logical model, and {@link ResourceType#DATA_MODEL_FOLDER} "dxname/folder" of each
+    * data model folder and "dxname::add/folder" of each additional connection and folder (the
+    * folder grant of the connection's extended models). For a removed additional connection
+    * "P/add" it is "P::add/folder" for each folder of P's data model only, P's models stay. Must
+    * be called before the entries are removed. Exact keys of the data source only, never a prefix
+    * match, so the grants of a data source "dxname2" stay. A key with no grant is harmless.
+    */
+   private Map<ResourceType, List<String>> getDataModelResources(String dxname) {
+      List<String> queries = new ArrayList<>();
+      List<String> folders = new ArrayList<>();
+      Map<ResourceType, List<String>> resources = new EnumMap<>(ResourceType.class);
+      resources.put(ResourceType.QUERY, queries);
+      resources.put(ResourceType.DATA_MODEL_FOLDER, folders);
+
+      // never keeps the data source from being removed
+      try {
+         if(isAdditionalConnectionPath(dxname)) {
+            int index = dxname.lastIndexOf('/');
+            folders.addAll(getAdditionalConnectionFolderResources(
+               dxname.substring(0, index), Collections.singleton(dxname.substring(index + 1))));
+            return resources;
+         }
+
+         String[] modelFolders = getDataModelFolders(dxname);
+         String prefix = dxname + "/";
+
+         // the name of a model is its path under the data source, which may have "/" in it. Its
+         // folder is in its definition, which isn't loaded: the key of every folder is taken,
+         // none of which another model has, as the whole data model is removed
+         for(AssetEntry entry : getDataSourceEntries(dxname, prefix, AssetEntry.Type.LOGIC_MODEL,
+                                                     false))
+         {
+            String model = entry.getPath().substring(prefix.length());
+            queries.add(XUtil.getLogicalModelResourceName(dxname, null, model));
+
+            for(String folder : modelFolders) {
+               queries.add(XUtil.getLogicalModelResourceName(dxname, folder, model));
+            }
+         }
+
+         for(String folder : modelFolders) {
+            folders.add(dxname + "/" + folder);
+         }
+
+         folders.addAll(getAdditionalConnectionFolderResources(
+            dxname, Arrays.asList(getAdditionalConnectionNames(dxname))));
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to get the data model permissions of data source {}", dxname, e);
+      }
+
+      return resources;
+   }
+
+   /**
+    * Gets the {@link ResourceType#DATA_MODEL_FOLDER} permission resources of additional
+    * connections of a data source: "parent::name/folder" for each folder of the parent's data
+    * model, the folder grant of the extended models of the connection.
+    */
+   private List<String> getAdditionalConnectionFolderResources(String parent,
+                                                               Collection<String> names)
+   {
+      List<String> resources = new ArrayList<>();
+
+      if(names.isEmpty()) {
+         return resources;
+      }
+
+      String[] modelFolders = getDataModelFolders(parent);
+
+      for(String name : names) {
+         for(String folder : modelFolders) {
+            resources.add(parent + XUtil.ADDITIONAL_DS_CONNECTOR + name + "/" + folder);
+         }
+      }
+
+      return resources;
+   }
+
+   /**
+    * Gets the folders of the stored data model of a data source, read without a permission check
+    * and without loading the data source, or none if it has no data model.
+    */
+   private String[] getDataModelFolders(String datasource) {
+      AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
+                                        AssetEntry.Type.DATA_MODEL, datasource, null);
+
+      if(containObject(entry) && getObject(entry, false) instanceof XDataModel model) {
+         return model.getFolders();
+      }
+
+      return new String[0];
+   }
+
+   /**
+    * Bug #78203, removes the folder grants of the extended models of removed additional
+    * connections of a data source, "parent::name/folder" for each folder of the parent's data
+    * model, so that a connection created later with the same name doesn't get them.
+    *
+    * @param parent the full name of the data source.
+    * @param names  the names of the removed additional connections.
+    */
+   public void removeAdditionalConnectionFolderPermissions(String parent,
+                                                           Collection<String> names)
+   {
+      if(parent == null || names == null || names.isEmpty()) {
+         return;
+      }
+
+      try {
+         removePermissions(ResourceType.DATA_MODEL_FOLDER,
+                           getAdditionalConnectionFolderResources(parent, names));
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to remove the data model folder permissions of the additional " +
+                     "connections {} of data source {}", names, parent, e);
+      }
+   }
+
+   /**
+    * Removes the permissions read by {@link #getDataModelResources(String)}.
+    */
+   private void removeDataModelPermissions(Map<ResourceType, List<String>> resources) {
+      for(Map.Entry<ResourceType, List<String>> resource : resources.entrySet()) {
+         removePermissions(resource.getKey(), resource.getValue());
+      }
    }
 
    /**
@@ -2609,6 +2744,9 @@ public class DataSourceRegistry implements MessageListener {
       try {
          // read before the additional connections of the data source are removed below
          List<String> additionalResources = getAdditionalConnectionResources(datasource);
+         // Bug #78203, the portal and the public API remove the data model before the data
+         // source, so the grants of its models and folders are read here, before they are gone
+         Map<ResourceType, List<String>> modelResources = getDataModelResources(datasource);
          //Remove all children. Because of the appended "/", the domain (if
          //present) won't be affected.
          removeObjects(children);
@@ -2616,6 +2754,7 @@ public class DataSourceRegistry implements MessageListener {
                                            AssetEntry.Type.DATA_MODEL, datasource, null);
          removeObject(entry);
          removeDataSourcePermissions(additionalResources);
+         removeDataModelPermissions(modelResources);
       }
       catch(Exception e) {
          LOG.error(
