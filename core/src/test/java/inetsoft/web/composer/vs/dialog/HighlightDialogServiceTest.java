@@ -19,6 +19,8 @@ package inetsoft.web.composer.vs.dialog;
 
 import inetsoft.report.TableDataPath;
 import inetsoft.report.filter.CrossTabFilter;
+import inetsoft.report.filter.HighlightGroup;
+import inetsoft.report.filter.TextHighlight;
 import inetsoft.report.filter.SumFormula;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
@@ -26,6 +28,9 @@ import inetsoft.uql.asset.AggregateFormula;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.VSAggregateRef;
+import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.web.composer.model.vs.HighlightDialogModel;
+import inetsoft.web.composer.model.vs.HighlightModel;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -241,5 +246,133 @@ class HighlightDialogServiceTest {
       DefaultTableLens table = new DefaultTableLens(data);
 
       assertNull(HighlightDialogService.resolveNamedColumnCell(table, null));
+   }
+
+   // ── Redmine 78261: highlights written during a date comparison hit the runtime clone ──
+
+   private static VSChartAggregateRef chartAggregate(String column) {
+      VSChartAggregateRef ref = new VSChartAggregateRef();
+      ref.setDataRef(new AttributeRef(column));
+      ref.setFormula(AggregateFormula.SUM);
+      return ref;
+   }
+
+   private static VSChartInfo chartWith(VSChartAggregateRef design, boolean withRuntimeClone) {
+      VSChartInfo info = new DefaultVSChartInfo();
+      info.addYField(design);
+
+      if(withRuntimeClone) {
+         info.setRuntimeDateComparisonRefs(new ChartRef[]{ (ChartRef) design.clone() });
+      }
+
+      return info;
+   }
+
+   private static HighlightDialogModel dialogModel(String measure, boolean rejectDerived,
+                                                   String... names)
+   {
+      HighlightDialogModel model = new HighlightDialogModel();
+      model.setMeasure(measure);
+      model.setRejectDerivedMeasure(rejectDerived);
+      HighlightModel[] highlights = new HighlightModel[names.length];
+
+      for(int i = 0; i < names.length; i++) {
+         highlights[i] = new HighlightModel();
+         highlights[i].setName(names[i]);
+      }
+
+      model.setHighlights(highlights);
+      return model;
+   }
+
+   private static final HighlightDialogService.HighlightConverter CONVERT = m -> {
+      TextHighlight highlight = new TextHighlight();
+      highlight.setName(m.getName());
+      return highlight;
+   };
+
+   private static void assertHas(HighlightGroup group, String... names) {
+      assertNotNull(group);
+      assertEquals(names.length, group.getHighlightCount(HighlightGroup.DEFAULT_LEVEL));
+
+      for(String name : names) {
+         assertNotNull(group.getHighlight(name), name);
+      }
+   }
+
+   @Test
+   void highlightIsWrittenThroughToTheDesignRefAndSurvivesDroppingTheRuntimeRefs() throws Exception {
+      VSChartAggregateRef design = chartAggregate("TOTAL");
+      VSChartInfo info = chartWith(design, true);
+      ChartRef runtime = info.getRuntimeDateComparisonRefs()[0];
+
+      HighlightDialogService.applyChartHighlights(
+         info, dialogModel(design.getFullName(), true, "Hot"), CONVERT);
+
+      assertHas(design.getHighlightGroup(), "Hot");
+
+      // the clone is what the dialog resolved first; it is dropped on clear / option switch
+      info.setRuntimeDateComparisonRefs(null);
+      assertHas(design.getHighlightGroup(), "Hot");
+      assertNotNull(runtime);
+   }
+
+   @Test
+   void replaceSemanticsAreMirroredToTheDesignRef() throws Exception {
+      VSChartAggregateRef design = chartAggregate("TOTAL");
+      VSChartInfo info = chartWith(design, true);
+      String measure = design.getFullName();
+
+      HighlightDialogService.applyChartHighlights(info, dialogModel(measure, true, "A"), CONVERT);
+      info.setRuntimeDateComparisonRefs(new ChartRef[]{ (ChartRef) design.clone() });
+      HighlightDialogService.applyChartHighlights(info, dialogModel(measure, true, "B"), CONVERT);
+
+      assertHas(design.getHighlightGroup(), "B");
+   }
+
+   @Test
+   void deletingDuringTheComparisonAlsoClearsTheDesignRef() throws Exception {
+      VSChartAggregateRef design = chartAggregate("TOTAL");
+      String measure = design.getFullName();
+      HighlightGroup existing = new HighlightGroup();
+      TextHighlight pre = new TextHighlight();
+      pre.setName("Pre");
+      existing.addHighlight("Pre", pre);
+      design.setHighlightGroup(existing);
+      VSChartInfo info = chartWith(design, true);
+
+      // the delete path sends the kept list, which is empty
+      HighlightDialogService.applyChartHighlights(info, dialogModel(measure, true), CONVERT);
+      info.setRuntimeDateComparisonRefs(null);
+
+      assertTrue(design.getHighlightGroup() == null || design.getHighlightGroup().isEmpty(),
+                 "the persisted highlight must not resurrect after the comparison is cleared");
+   }
+
+   @Test
+   void noRuntimeRefsMeansASingleWriteAndNoRefusal() throws Exception {
+      VSChartAggregateRef design = chartAggregate("TOTAL");
+      VSChartInfo info = chartWith(design, false);
+
+      HighlightDialogService.applyChartHighlights(
+         info, dialogModel(design.getFullName(), true, "Hot"), CONVERT);
+
+      assertHas(design.getHighlightGroup(), "Hot");
+   }
+
+   @Test
+   void derivedOnlyMeasureIsRefusedOnTheWizPathButAcceptedOnTheGuiPath() throws Exception {
+      VSChartAggregateRef design = chartAggregate("TOTAL");
+      VSChartInfo info = chartWith(design, false);
+      VSChartAggregateRef derived = chartAggregate("TOTAL_DERIVED");
+      info.setRuntimeDateComparisonRefs(new ChartRef[]{ derived });
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> HighlightDialogService.applyChartHighlights(
+            info, dialogModel(derived.getFullName(), true, "Hot"), CONVERT));
+      assertTrue(e.getMessage().contains(derived.getFullName()));
+
+      assertDoesNotThrow(() -> HighlightDialogService.applyChartHighlights(
+         info, dialogModel(derived.getFullName(), false, "Hot"), CONVERT));
    }
 }

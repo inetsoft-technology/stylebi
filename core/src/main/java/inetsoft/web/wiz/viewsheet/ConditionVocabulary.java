@@ -24,6 +24,7 @@ import inetsoft.util.Tool;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.composer.model.condition.*;
 
+import java.math.BigDecimal;
 import java.util.*;
 
 /**
@@ -300,7 +301,7 @@ public final class ConditionVocabulary {
                "a plain string.");
          }
 
-requireIntegralValue(str, dataType, index, targetField);
+         requireIntegralValue(str, dataType, index, targetField);
       }
 
       ConditionValueModel value = new ConditionValueModel();
@@ -324,38 +325,38 @@ requireIntegralValue(str, dataType, index, targetField);
          return;
       }
 
-      boolean valid;
+      long min = Long.MIN_VALUE;
+      long max = Long.MAX_VALUE;
+
+      if(XSchema.BYTE.equals(dataType)) {
+         min = Byte.MIN_VALUE;
+         max = Byte.MAX_VALUE;
+      }
+      else if(XSchema.SHORT.equals(dataType)) {
+         min = Short.MIN_VALUE;
+         max = Short.MAX_VALUE;
+      }
+      else if(XSchema.INTEGER.equals(dataType)) {
+         min = Integer.MIN_VALUE;
+         max = Integer.MAX_VALUE;
+      }
 
       try {
-         java.math.BigDecimal number = new java.math.BigDecimal(str.trim()).stripTrailingZeros();
+         long value = new BigDecimal(str.trim()).stripTrailingZeros().longValueExact();
 
-         if(XSchema.LONG.equals(dataType)) {
-            number.longValueExact();
+         if(value >= min && value <= max) {
+            return;
          }
-         else {
-            long v = number.longValueExact();
-            long min = XSchema.BYTE.equals(dataType) ? Byte.MIN_VALUE :
-               XSchema.SHORT.equals(dataType) ? Short.MIN_VALUE : Integer.MIN_VALUE;
-            long max = XSchema.BYTE.equals(dataType) ? Byte.MAX_VALUE :
-               XSchema.SHORT.equals(dataType) ? Short.MAX_VALUE : Integer.MAX_VALUE;
-            if(v < min || v > max) {
-               throw new ArithmeticException();
-            }
-         }
-
-         valid = true;
       }
       catch(ArithmeticException | NumberFormatException ex) {
-         valid = false;
+         // falls through to the refusal below
       }
 
-      if(!valid) {
-         throw new IllegalArgumentException(
-            "Condition " + index + "'s value '" + str + "' is not a valid " + dataType +
-            " for field '" + targetField.getName() + "': an " + dataType + " field takes a " +
-            "whole number in range, and the value would be silently altered. Pass a JSON " +
-            "number (e.g. 1.5, not \"1.5\") if you intend a non-integer comparison.");
-      }
+      throw new IllegalArgumentException(
+         "Condition " + index + "'s value '" + str + "' is not a valid " + dataType +
+         " for field '" + targetField.getName() + "': an " + dataType + " field takes a " +
+         "whole number in range, and the value would be silently altered. Pass a JSON " +
+         "number (e.g. 1.5, not \"1.5\") if you intend a non-integer comparison.");
    }
 
    private static ConditionValueModel typedValue(String typeToken, Map<?, ?> map, int index,
