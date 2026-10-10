@@ -21,6 +21,7 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import inetsoft.report.TableLens;
 import inetsoft.report.composition.execution.AssetDataCache;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.sree.SreeEnv;
@@ -192,6 +193,52 @@ class MVDispatcherTest {
 
       assertInstanceOf(CancelledException.class, thrown);
       assertSame(failure, thrown.getCause());
+   }
+
+   /**
+    * Bug #78227: when the query returned data whose row fetch failed and a later step then threw,
+    * the row fetch failure is reported (not a cancel, which isCanceled() would have said).
+    */
+   @Test
+   void associationMVRowFetchFailureIsReportedAsTheLoadFailure() throws Throwable {
+      SQLException sqlFailure = new SQLException("Connection reset");
+      RuntimeException laterFailure = new RuntimeException("result set closed");
+      TableLens lens = mock(TableLens.class);
+      MVDef def = mock(MVDef.class);
+      Worksheet ws = mock(Worksheet.class);
+      TableAssembly assembly = mock(TableAssembly.class);
+      AssetDataCache cache = mock(AssetDataCache.class);
+
+      when(def.getName()).thenReturn("mv1");
+      when(def.getWorksheet()).thenReturn(ws);
+      when(def.getMVTable()).thenReturn("T1");
+      when(def.isAssociationMV()).thenReturn(true);
+      when(ws.getAssembly("T1")).thenReturn(assembly);
+      when(assembly.clone()).thenReturn(assembly);
+      when(assembly.getName()).thenReturn("T1");
+      when(assembly.getRuntimeMV()).thenReturn(mock(RuntimeMV.class));
+      when(lens.getColCount()).thenThrow(laterFailure);
+      when(cache.getData(any(), any(), any(), any(), anyInt(), anyBoolean(), anyLong(), any()))
+         .thenReturn(lens);
+
+      MVDispatcher dispatcher = new MVDispatcher(def);
+      Throwable thrown;
+
+      try(MockedStatic<MVCreatorUtil> creatorUtil = mockStatic(MVCreatorUtil.class);
+          MockedStatic<AssetDataCache> cacheStatic = mockStatic(AssetDataCache.class))
+      {
+         creatorUtil.when(() -> MVCreatorUtil.createAssetQuerySandbox(any(), any(), any()))
+            .thenReturn(mock(AssetQuerySandbox.class));
+         cacheStatic.when(AssetDataCache::getCache).thenReturn(cache);
+         cacheStatic.when(() -> AssetDataCache.getLoadException(lens)).thenReturn(sqlFailure);
+
+         thrown = assertThrows(Throwable.class, () -> dispatcher.getData(false, null));
+      }
+
+      assertNull(CancelledException.find(thrown), "not a cancel: " + thrown);
+      assertInstanceOf(MVLoadFailedException.class, thrown);
+      assertSame(sqlFailure, thrown.getCause());
+      assertSame(laterFailure, thrown.getSuppressed()[0]);
    }
 
    /**
