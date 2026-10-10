@@ -131,6 +131,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
    private static final Set<String> NEVER_RESET = Set.of(
       "__scope__", HOST_GLOBALS_VAR, RESULT_VAR, VALUE_VAR, HOIST_ERR_VAR,
       BindingRootProxy.LOCALS_MEMBER, BindingRootProxy.OWN_LOCALS_MEMBER, NO_LOCALS_VAR,
+      BindingRootProxy.DECLARED_VARS_MEMBER,
       DECLARE_FN,
       "globalThis", "undefined", "NaN", "Infinity", "eval", "arguments");
 
@@ -929,6 +930,21 @@ public class GraalJavaScriptEngine implements AutoCloseable {
    }
 
    public Object compile(String cmd, boolean fieldOnly) throws Exception {
+      return compile0(cmd, false);
+   }
+
+   /**
+    * Bug #78247: compile a freehand table cell formula, which runs on a
+    * {@link DeclaredVarScope} root, so that a name it declares with a top-level
+    * {@code var} is its own var, not a same-named member of the scope chain (see
+    * {@link #scopeWith}). Every other script is compiled by {@link #compile}, whose
+    * source is unchanged.
+    */
+   public Object compileDeclaredVars(String cmd) throws Exception {
+      return compile0(cmd, true);
+   }
+
+   private Object compile0(String cmd, boolean declaredVars) throws Exception {
       // Rhino parity: Context.evaluateString(scope, ...) bound the top-level
       // `this` to the scope object, so dashboard scripts routinely reference
       // assembly properties as `this.position`, `this.scaledPosition`, etc. A
@@ -1006,9 +1022,10 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          // A function declared in a nested block keeps the eval wrapper too: as a
          // piece it would keep its function across runs (hasBlockFunctionDeclaration).
          Object pieces = THIS_REF.matcher(body).find() || hasBlockFunctionDeclaration(body) ?
-            null : buildPieceScript(body, lexicalBody, statements);
+            null : buildPieceScript(body, lexicalBody, statements, declaredVars);
 
-         return pieces != null ? pieces : buildCompletionPreservingSource(body, statements);
+         return pieces != null ? pieces :
+            buildCompletionPreservingSource(body, statements, declaredVars);
       }
 
       // Bug #75625: the direct-eval wrapper below re-parses the script body on
@@ -1055,12 +1072,13 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          Set<String> resetNames = collectInitializerlessLexicalNames(lexicalBody);
          // Bug #77595: the vars are declared in the store of the exec scope, so the
          // reset (inside its with) resets the store, or the global if there is none
-         Source plain = Source.newBuilder("js", localsOpen(localNames(body)) +
-            buildLexicalReset(resetNames) + "with(__scope__){" + body + "\n}}", "<cmd>")
+         Set<String> localNames = localNames(body);
+         Source plain = Source.newBuilder("js", localsOpen(localNames) +
+            buildLexicalReset(resetNames) + scopeWith(localNames, declaredVars) + body + "\n}}", "<cmd>")
             .buildLiteral();
 
          return resetNames.isEmpty() ? plain :
-            buildPlainScript(plain, body, lexicalBody, resetNames);
+            buildPlainScript(plain, body, lexicalBody, resetNames, declaredVars);
       }
 
       // Bug #75596: top-level `var`/`function` declarations must persist across
@@ -1084,7 +1102,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       // never be skipped by an early return here — the eval throws before the
       // hoist statement would matter either way, and that throw is pre-existing
       // behavior unrelated to this fix.
-      return buildEvalWrapper(body);
+      return buildEvalWrapper(body, declaredVars);
    }
 
    /**
@@ -1093,13 +1111,14 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * (#75550), keeping its completion value, and its top-level declarations are
     * copied to the global afterwards (#75596).
     */
-   private static Source buildEvalWrapper(String body) {
+   private static Source buildEvalWrapper(String body, boolean declaredVars) {
       String hoist = buildDeclarationHoist(body);
       // Bug #77595: inside the store's with, so the body reads the vars an earlier run
       // left in the store of its scope, as the hoist copies them there
       return Source.newBuilder("js", "with(" + LOCALS_VAR + "){" +
-         "(function(){with(__scope__){var " + RESULT_VAR + "=eval(" + toJsStringLiteral(body) +
-            ");" + hoist + "return " + RESULT_VAR + ";}}).call(__scope__)}", "<cmd>")
+         "(function(){" + scopeWith(localNames(body), declaredVars) + "var " + RESULT_VAR + "=eval(" +
+            toJsStringLiteral(body) + ");" + hoist + "return " + RESULT_VAR +
+            ";}}).call(__scope__)}", "<cmd>")
          .buildLiteral();
    }
 
@@ -1148,16 +1167,17 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * added before the {@code with}, so error line numbers do not move.
     */
    private Object buildPlainScript(Source plain, String body, String lexicalBody,
-                                   Set<String> resetNames)
+                                   Set<String> resetNames, boolean declaredVars)
    {
       // Bug #77595: only the declarations that stay a var are declared in the var store;
       // a kept let must not shadow the engine global for the other scripts of the scope
       String kept = keepInitializerlessLexicalDeclarations(lexicalBody);
-      Source colliding = Source.newBuilder("js", localsOpen(localNames(kept)) +
-         "with(__scope__){" + kept + "\n}}", "<cmd>").buildLiteral();
+      Set<String> localNames = localNames(kept);
+      Source colliding = Source.newBuilder("js", localsOpen(localNames) +
+         scopeWith(localNames, declaredVars) + kept + "\n}}", "<cmd>").buildLiteral();
 
       if(!sourcesAllParse(new Source[] { colliding })) {
-         colliding = buildEvalWrapper(body);
+         colliding = buildEvalWrapper(body, declaredVars);
       }
 
       return new PlainScript(plain, colliding, body, resetNames);
@@ -1282,11 +1302,14 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * to {@code var} by {@link #rewriteTopLevelLexicalDeclarations} (#76980); a
     * top-level {@code class} is still confined to its own piece.)
     */
-   private static Object buildCompletionPreservingSource(String body, List<String> statements) {
+   private static Object buildCompletionPreservingSource(String body, List<String> statements,
+                                                         boolean declaredVars)
+   {
       StringBuilder sb = new StringBuilder();
       // Bug #77595: inside the store's with, as buildEvalWrapper
       sb.append("with(").append(LOCALS_VAR).append("){");
-      sb.append("(function(){with(__scope__){var ").append(RESULT_VAR).append(",")
+      sb.append("(function(){").append(scopeWith(localNames(body), declaredVars)).append("var ")
+         .append(RESULT_VAR).append(",")
          .append(VALUE_VAR).append(";");
 
       int pos = 0;
@@ -1347,7 +1370,9 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     *         {@code body} (defensive) or a built piece does not parse as it runs;
     *         the caller then keeps the eval wrapper.
     */
-   private Object buildPieceScript(String body, String lexicalBody, List<String> statements) {
+   private Object buildPieceScript(String body, String lexicalBody, List<String> statements,
+                                   boolean declaredVars)
+   {
       Set<String> resetNames = collectInitializerlessLexicalNames(lexicalBody);
       resetNames.addAll(collectOwnedVarNames(List.of(lexicalBody)));
       resetNames.removeAll(NEVER_RESET);
@@ -1384,7 +1409,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             sb.append(localsReopen(localNames));
          }
 
-         sb.append("with(__scope__){");
+         sb.append(scopeWith(localNames, declaredVars));
          sb.append("\n".repeat(lines));
          sb.append(stmt).append("\n}}");
          pieces[i] = Source.newBuilder("js", sb.toString(), "<cmd>").buildLiteral();
@@ -1402,7 +1427,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       // script, and the Context reuses the parse for the first eval); if one fails,
       // keep the eval wrapper.
       return sourcesAllParse(pieces) ?
-         new PieceScript(pieces, body, resetNames, statements) : null;
+         new PieceScript(pieces, body, resetNames, statements, declaredVars) : null;
    }
 
    /**
@@ -1461,12 +1486,13 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     */
    static final class PieceScript {
       PieceScript(Source[] pieces, String text, Set<String> resetNames,
-                  List<String> statements)
+                  List<String> statements, boolean declaredVars)
       {
          this.pieces = pieces;
          this.text = text;
          this.resetNames = resetNames.toArray(new String[0]);
          this.statements = List.copyOf(statements);
+         this.declaredVars = declaredVars;
       }
 
       /**
@@ -1488,7 +1514,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
 
          if(source == null) {
             // a racing build yields an equal Source
-            wrapper = source = (Source) buildCompletionPreservingSource(text, statements);
+            wrapper = source =
+               (Source) buildCompletionPreservingSource(text, statements, declaredVars);
          }
 
          return source;
@@ -1532,6 +1559,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       private final String text;
       private final String[] resetNames;
       private final List<String> statements;
+      private final boolean declaredVars;
       private volatile Source wrapper;
    }
 
@@ -1987,7 +2015,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * {@code names}, the names {@code body} declares with {@code var} outside a function
     * (a top-level {@code let}/{@code const} is a {@code var} by then, #76980). The block
     * is outside {@code with(__scope__)}, so a scope member of the same name still wins,
-    * as on the exec scope in Rhino; a name the scope does not have resolves to the store,
+    * as on the exec scope in Rhino, except for a freehand cell formula on a
+    * {@link DeclaredVarScope} root (Bug #78247, see {@link #scopeWith}); a name the scope does not have resolves to the store,
     * so the {@code var} never writes a global of the same name, such as an onInit
     * variable. No line break, so error line numbers do not move. Closed by {@code "}"}.
     */
@@ -2024,6 +2053,28 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     */
    private static String localsReopen(Set<String> names) {
       return "with(" + (names.isEmpty() ? LOCALS_VAR : OWN_LOCALS_VAR) + "){";
+   }
+
+   /**
+    * Bug #78247: the start of the scope {@code with} block of a script body that declares
+    * {@code names} with {@code var} outside a function (see {@link #localNames}). Only for
+    * a script compiled by {@link #compileDeclaredVars} ({@code declaredVars}), any other one
+    * opens on {@code __scope__}, so its source (and what a message quotes of it) is
+    * unchanged. On a {@link DeclaredVarScope} root (a freehand table cell) it opens on a view of
+    * {@code __scope__} without those names, so they resolve to the script's own var (its
+    * var store, or a local of the eval wrapper) and a same-named member of the scope chain
+    * (the table's {@code max}, the assembly's {@code value}) is neither read nor replaced;
+    * on any other root on {@code __scope__} itself, so the member still wins, as on the
+    * exec scope in Rhino. Lexical, so a function declared elsewhere that the body calls
+    * still sees the member. No line break, so error line numbers do not move.
+    */
+   private static String scopeWith(Set<String> names, boolean declaredVars) {
+      if(!declaredVars || names.isEmpty()) {
+         return "with(__scope__){";
+      }
+
+      return "with(__scope__." + BindingRootProxy.DECLARED_VARS_MEMBER + "(" +
+         toJsStringLiteral(String.join(",", names)) + ")){";
    }
 
    private static String buildLexicalReset(Set<String> names) {

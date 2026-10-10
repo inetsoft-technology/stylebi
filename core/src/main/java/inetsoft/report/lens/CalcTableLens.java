@@ -3606,7 +3606,8 @@ public class CalcTableLens extends DefaultTableLens {
 
    private static final ThreadLocal<IntStack> row = new ThreadLocal<>();
    private static final ThreadLocal<IntStack> col = new ThreadLocal<>();
-   private static final ScriptCache scriptCache = new ScriptCache(100, 60000);
+   // a cell formula's own var wins over a same-named member of the table scope (Bug #78247)
+   private static final ScriptCache scriptCache = new ScriptCache(100, 60000, true);
    private static final Logger LOG = LoggerFactory.getLogger(CalcTableLens.class);
 
    /**

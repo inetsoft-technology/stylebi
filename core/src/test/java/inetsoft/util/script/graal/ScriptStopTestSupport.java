@@ -149,6 +149,11 @@ public final class ScriptStopTestSupport {
       }
 
       @Override
+      public Object compileDeclaredVars(String cmd) throws Exception {
+         return stops.compiled(cmd, super.compileDeclaredVars(cmd));
+      }
+
+      @Override
       public Object exec(Object script, Object scope, Object rscope, Object target)
          throws Exception
       {
