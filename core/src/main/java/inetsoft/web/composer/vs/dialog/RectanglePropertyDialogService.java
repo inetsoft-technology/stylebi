@@ -99,15 +99,9 @@ public class RectanglePropertyDialogService {
          linePropPaneModel.setColorValue(null);
       }
       else {
-         try {
-            colorString = VSObjectPropertyService.getColorHexString(colorString);
-            linePropPaneModel.setColorValue(colorString);
-            linePropPaneModel.setColor("Static");
-         }
-         catch(NumberFormatException ex) {
-            // invalid value, must be entered as expression
-            linePropPaneModel.setColor("=" + colorString);
-         }
+         colorString = VSObjectPropertyService.getColorHexString(colorString);
+         linePropPaneModel.setColorValue(colorString);
+         linePropPaneModel.setColor("Static");
       }
 
       fillPropPaneModel.setAlpha(format.getAlphaValue());

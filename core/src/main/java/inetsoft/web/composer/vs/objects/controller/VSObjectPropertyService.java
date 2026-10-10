@@ -1674,7 +1674,7 @@ public class VSObjectPropertyService {
       }
 
       try {
-         return String.format("#%06x", Integer.decode(color));
+         return String.format("#%06x", Integer.decode(color) & 0xFFFFFF);
       }
       catch(NumberFormatException ex) {
          java.awt.Color resolved = CoreTool.getColorData(color);

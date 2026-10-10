@@ -50,6 +50,14 @@ class ShapeColorHexTest {
    }
 
    @Test
+   void signedAndWideIntColorsMaskTo24Bits() {
+      assertEquals("#000000", VSObjectPropertyService.getColorHexString("-16777216"));
+      assertEquals("#ffffff", VSObjectPropertyService.getColorHexString("-1"));
+      assertEquals("16777215", VSObjectPropertyService.decodeStaticColor(
+         VSObjectPropertyService.getColorHexString("-1"), "f"));
+   }
+
+   @Test
    void highlightTwinMatches() {
       assertEquals("#ff0000", HighlightService.getColorHexString("red"));
       assertEquals("", HighlightService.getColorHexString("notacolor"));
