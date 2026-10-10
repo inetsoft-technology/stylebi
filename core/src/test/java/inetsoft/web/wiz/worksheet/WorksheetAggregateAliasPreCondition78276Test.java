@@ -133,6 +133,36 @@ class WorksheetAggregateAliasPreCondition78276Test {
    }
 
    @Test
+   void fieldOperandNamingAliasRefusedInPreListOnly() throws Exception {
+      aggregateCount("CNT");
+      ConditionNode node = new ConditionNode(new ConditionSpec(
+         "State", "=", List.of("CNT"), false, null,
+         List.of(new WorksheetMutationSupport.ConditionValueSpec(
+            "field", "CNT", null, null, 0))), null, 0);
+      assertRefused(() -> apply(ed -> ed.setConditions("M", List.of(node))));
+      assertRefused(() -> apply(ed -> ed.setMVConditions(
+         "M", List.of(node), null, null, null, null)));
+      apply(ed -> ed.setPostConditions("M", List.of(node)));
+   }
+
+   @Test
+   void renameBackToOriginalAliasStillRefused() throws Exception {
+      aggregateCount("CNT");
+      apply(ed -> ed.renameColumn("M", "CNT", "CNT9"));
+      apply(ed -> ed.renameColumn("M", "CNT9", "CNT"));
+      assertRefused(() -> pre("CNT"));
+   }
+
+   @Test
+   void renamingNonAliasedColumnLeavesRecordedSetIntact() throws Exception {
+      aggregateCount("CNT");
+      apply(ed -> ed.renameColumn("M", "State", "ST"));
+      assertEquals("CNT",
+         m().getProperty(WorksheetMutationSupport.AGGREGATE_OUTPUT_ALIASES));
+      assertRefused(() -> pre("CNT"));
+   }
+
+   @Test
    void renamedColumnAggregatedWithoutAliasStillAccepted() throws Exception {
       apply(ed -> ed.renameColumn("M", "Amount", "Total"));
       apply(ed -> ed.setGroupAggregate("M", List.of(new GroupSpec("State")),

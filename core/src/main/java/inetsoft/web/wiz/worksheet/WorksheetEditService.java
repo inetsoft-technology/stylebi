@@ -4365,6 +4365,23 @@ public class WorksheetEditService {
       }
 
       /**
+       * Bug #78276: a pre-aggregate condition cannot name an aggregate output alias, either as
+       * its field or as a column-vs-column operand.
+       */
+      private void requireNotAggregateOutputAlias(TableAssembly t, String field, boolean post)
+         throws PairingException
+      {
+         if(!post && WorksheetMutationSupport.isAggregateOutputAlias(t, field)) {
+            throw new PairingException(
+               "'" + field + "' is the output alias of an aggregate on " + t.getName() +
+               ", so it does not exist before aggregation and cannot be used in a " +
+               "pre-aggregate condition. Use set_post_conditions to filter on the aggregate's " +
+               "value. To filter the underlying rows before aggregating, use the source " +
+               "column's qualified name when one is available.");
+         }
+      }
+
+      /**
        * Validates every condition node's field against the table before any of them are
        * applied, matching the native condition dialog's closed field picker: a human cannot
        * submit an unresolvable column, so neither should this path silently fall back to
@@ -4391,17 +4408,7 @@ public class WorksheetEditService {
             if(node.condition() != null) {
                requireColumn(t, node.condition().field(), post);
 
-               if(!post && WorksheetMutationSupport.isAggregateOutputAlias(
-                  t, node.condition().field()))
-               {
-                  throw new PairingException(
-                     "'" + node.condition().field() + "' is the output alias of an aggregate " +
-                     "on " + t.getName() + ", so it does not exist before aggregation and " +
-                     "cannot be used in a pre-aggregate condition. Use set_post_conditions to " +
-                     "filter on the aggregate's value. To filter the underlying rows before " +
-                     "aggregating, use the source column's qualified name when one is " +
-                     "available.");
-               }
+               requireNotAggregateOutputAlias(t, node.condition().field(), post);
 
                if(node.condition().valueSpecs() != null) {
                   for(WorksheetMutationSupport.ConditionValueSpec vs : node.condition().valueSpecs()) {
@@ -4414,6 +4421,7 @@ public class WorksheetEditService {
                         vs.field() != null && !vs.field().isBlank())
                      {
                         requireColumn(t, vs.field(), post);
+                        requireNotAggregateOutputAlias(t, vs.field(), post);
                      }
                   }
                }
