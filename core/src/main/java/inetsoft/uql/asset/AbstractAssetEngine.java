@@ -4363,6 +4363,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
    {
       AssetChangeEvent event = null;
       List<AssetChangeListener> listeners;
+      boolean storageRefresh = Boolean.TRUE.equals(storageRefreshing.get());
 
       synchronized(this.listeners) {
          listeners = new ArrayList<>(this.listeners.keySet());
@@ -4377,7 +4378,8 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
 
          if(event == null) {
             event = new AssetChangeEvent(this, entryType, changeType,
-                                         assetEntry, oldName, root, sheet, reason);
+                                         assetEntry, oldName, root, sheet, reason,
+                                         storageRefresh);
          }
 
          try {
@@ -5049,6 +5051,9 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
    private final ReentrantLock writeLock = new ReentrantLock();
    private final AtomicBoolean disposed = new AtomicBoolean(false);
 
+   // set while a storage refresh event is being fired, see refreshListener
+   private final ThreadLocal<Boolean> storageRefreshing = new ThreadLocal<>();
+
    private final StorageRefreshListener refreshListener = event -> {
       final List<TimestampIndexChange> changes = event.getChanges();
 
@@ -5059,8 +5064,18 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
 
             if(entry != null) {
                final int changeType = convertTimestampIndexChangeType(change.getChange());
-               fireEvent(entry.getType().id(), changeType, entry, entry.toIdentifier(), true, null,
-                         "StorageRefresh: " + entry);
+               // mark the event as a storage refresh. It is fired on every cluster node, so
+               // listeners that forward local changes to the other nodes must skip it.
+               // fireEvent() is overridden (RepletEngine), so the flag is passed by the thread
+               storageRefreshing.set(Boolean.TRUE);
+
+               try {
+                  fireEvent(entry.getType().id(), changeType, entry, entry.toIdentifier(), true,
+                            null, "StorageRefresh: " + entry);
+               }
+               finally {
+                  storageRefreshing.remove();
+               }
             }
          }
       }
