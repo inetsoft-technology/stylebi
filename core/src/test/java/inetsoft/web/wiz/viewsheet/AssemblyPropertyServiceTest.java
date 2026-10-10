@@ -34,6 +34,7 @@ import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.model.vs.CalcTablePropertyDialogModel;
 import inetsoft.web.composer.model.vs.CalendarPropertyDialogModel;
 import inetsoft.web.composer.model.vs.CheckboxPropertyDialogModel;
+import inetsoft.web.composer.model.vs.ChartLinePaneModel;
 import inetsoft.web.composer.model.vs.ChartPropertyDialogModel;
 import inetsoft.web.composer.model.vs.ComboboxPropertyDialogModel;
 import inetsoft.web.composer.model.vs.DynamicValueModel;
@@ -2884,9 +2885,29 @@ class AssemblyPropertyServiceTest {
                        GraphConstants.THIN_THIN_LINE, GraphConstants.ULTRA_THIN_LINE,
                        GraphConstants.MEDIUM_DASH, GraphConstants.LARGE_DASH };
 
-      for(int style : styles) {
-         service.set("tok", principal(), "Chart1", Map.of("diagonalLineStyle", style), "");
-         assertEquals(style, model.getChartLinePaneModel().getDiagonalLineStyle());
+      for(String key : new String[] { "trendLineStyle", "diagonalLineStyle",
+                                      "quadrantGridLineStyle", "chartLinePaneModel.xGridLineStyle",
+                                      "chartLinePaneModel.yGridLineStyle" })
+      {
+         for(int style : styles) {
+            service.set("tok", principal(), "Chart1", Map.of(key, style), "");
+            assertEquals(style, lineStyle(model, key), key);
+         }
+      }
+
+      service.set("tok", principal(), "Chart1", Map.of("trendLineStyle", -1), "");
+      assertEquals(-1, model.getChartLinePaneModel().getTrendLineStyle());
+   }
+
+   private static int lineStyle(ChartPropertyDialogModel model, String key) {
+      ChartLinePaneModel pane = model.getChartLinePaneModel();
+
+      switch(key) {
+      case "trendLineStyle": return pane.getTrendLineStyle();
+      case "diagonalLineStyle": return pane.getDiagonalLineStyle();
+      case "quadrantGridLineStyle": return pane.getQuadrantGridLineStyle();
+      case "chartLinePaneModel.xGridLineStyle": return pane.getxGridLineStyle();
+      default: return pane.getyGridLineStyle();
       }
    }
 

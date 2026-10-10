@@ -885,6 +885,17 @@ public final class PropertyPath {
       "position", Set.of("Top", "Right", "Bottom", "Left", "In Place"));
 
    /**
+    * A shape's {@code lineStyle} is a String run through {@code Util.getStyleConstantsFromString},
+    * which turns an unknown token into 0 (no line) or stores a bare number. The set is the
+    * style-dropdown's list plus {@code NO_BORDER}, the name {@code Util.getLineStyleName} reads a
+    * no-line shape back as (canonicalized to NONE on write), and the two thin variants it can
+    * also emit.
+    */
+   private static final Set<String> SHAPE_LINE_STYLES = Set.of(
+      "NONE", "NO_BORDER", "THIN_LINE", "MEDIUM_LINE", "THICK_LINE", "DOUBLE_LINE", "DOT_LINE",
+      "DASH_LINE", "MEDIUM_DASH", "LARGE_DASH", "THIN_THIN_LINE", "ULTRA_THIN_LINE");
+
+   /**
     * The same closed-domain check as {@link #CONSTRAINED_STRINGS}, keyed by the full dotted path
     * instead of the leaf name, for properties whose leaf name is too generic to claim globally.
     *
@@ -900,17 +911,6 @@ public final class PropertyPath {
     * out: neither appears in that ladder either, so accepting them would just be a second silent
     * no-op wearing a valid-looking name.
     */
-   /**
-    * A shape's {@code lineStyle} is a String run through {@code Util.getStyleConstantsFromString},
-    * which turns an unknown token into 0 (no line) or stores a bare number. The set is the
-    * style-dropdown's list plus {@code NO_BORDER}, the name {@code Util.getLineStyleName} reads a
-    * no-line shape back as (canonicalized to NONE on write), and the two thin variants it can
-    * also emit.
-    */
-   private static final Set<String> SHAPE_LINE_STYLES = Set.of(
-      "NONE", "NO_BORDER", "THIN_LINE", "MEDIUM_LINE", "THICK_LINE", "DOUBLE_LINE", "DOT_LINE",
-      "DASH_LINE", "MEDIUM_DASH", "LARGE_DASH", "THIN_THIN_LINE", "ULTRA_THIN_LINE");
-
    private static final Map<String, Set<String>> CONSTRAINED_PATHS = Map.of(
       "textInputColumnOptionPaneModel.type",
       Set.of("Text", "Date", "Integer", "Float", "Password"),

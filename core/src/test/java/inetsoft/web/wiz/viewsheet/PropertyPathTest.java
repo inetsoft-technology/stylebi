@@ -17,6 +17,8 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
+import inetsoft.report.StyleConstants;
+import inetsoft.report.internal.Util;
 import inetsoft.test.*;
 import inetsoft.uql.viewsheet.GradientColor;
 import inetsoft.web.composer.model.vs.DynamicValueModel;
@@ -1281,6 +1283,7 @@ class PropertyPathTest {
       assertDoesNotThrow(() -> PropertyPath.set(target, "type", "anything at all"));
       assertEquals("anything at all", target.getType());
    }
+
    public static class ShapeLinePane {
       public String getStyle() { return style; }
       public void setStyle(String style) { this.style = style; }
@@ -1331,4 +1334,30 @@ class PropertyPathTest {
       }
    }
 
+   /** Every name the real readback emitter produces for a dropdown int must be accepted back. */
+   @Test
+   void shapeLineStyleAcceptsEveryNameTheReadbackEmits() {
+      int[] styles = { StyleConstants.NONE, StyleConstants.NO_BORDER, StyleConstants.THIN_LINE,
+                       StyleConstants.MEDIUM_LINE, StyleConstants.THICK_LINE,
+                       StyleConstants.DOUBLE_LINE, StyleConstants.DOT_LINE,
+                       StyleConstants.DASH_LINE, StyleConstants.MEDIUM_DASH,
+                       StyleConstants.LARGE_DASH, StyleConstants.THIN_THIN_LINE,
+                       StyleConstants.ULTRA_THIN_LINE };
+
+      for(String root : new String[] { "linePropertyPaneModel", "ovalPropertyPaneModel",
+                                       "rectanglePropertyPaneModel" })
+      {
+         String path = root + ".linePropPaneModel.style";
+
+         for(int style : styles) {
+            String name = Util.getLineStyleName(style);
+            ShapeRoot target = new ShapeRoot();
+            assertDoesNotThrow(() -> PropertyPath.set(target, path, name), path + " " + name);
+            String expected = "NO_BORDER".equals(name) ? "NONE" : name;
+            assertEquals(expected,
+                         target.getLinePropertyPaneModel().getLinePropPaneModel().getStyle(),
+                         path + " " + name);
+         }
+      }
+   }
 }
