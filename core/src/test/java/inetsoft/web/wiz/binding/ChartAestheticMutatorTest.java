@@ -2329,6 +2329,11 @@ class ChartAestheticMutatorTest {
    // The Composer offers it on an aesthetic dimension only when that dimension is the
    // columnName of a CHANGE calculator measure on x/y.
 
+   private static FieldRef dimensionTs(String column, String level, Boolean ts) {
+      return new FieldRef(column, "dimension", null, level, null, null, null, null, null, null,
+                          null, null, ts);
+   }
+
    private static ChartBindingModel modelWithChangeCalc(String columnName) {
       ChartBindingModel model = new ChartBindingModel();
       ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
