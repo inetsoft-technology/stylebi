@@ -131,6 +131,16 @@ class AliasedTableCancelTest {
       assertCancelStopsJoin(false, AliasedTableCancelTest::stopQuery);
    }
 
+   /**
+    * The composer's live preview (LIVE_MODE) adds a MaxRowsTableLens above the rename layer;
+    * Stop query must still reach the running join.
+    */
+   @Test
+   void stopQueryStopsAnAliasedJoinInLivePreview() throws Exception {
+      assertCancelStopsJoin(true, AliasedTableCancelTest::stopQuery,
+                            AssetQuerySandbox.LIVE_MODE);
+   }
+
    /** A cancel after the aliased join completed leaves it whole and cached. */
    @Test
    void cancelOfACompleteAliasedJoinKeepsItCached() throws Exception {
@@ -178,6 +188,14 @@ class AliasedTableCancelTest {
    private static void assertCancelStopsJoin(boolean alias, Canceller canceller)
       throws Exception
    {
+      assertCancelStopsJoin(alias, canceller, AssetQuerySandbox.RUNTIME_MODE);
+   }
+
+   private static void assertCancelStopsJoin(boolean alias, Canceller canceller, int mode)
+      throws Exception
+   {
+      boolean live = mode == AssetQuerySandbox.LIVE_MODE;
+
       // the join is cancelled once its bases are loaded; a try where the join had already
       // completed by then proves nothing and is run again with a new query
       for(int i = 0; i < 5; i++) {
@@ -185,12 +203,13 @@ class AliasedTableCancelTest {
          AssetQuerySandbox box1 = new AssetQuerySandbox(ws);
          // as RuntimeWorksheet does
          box1.setQueryManager(new QueryManager());
-         TableLens lens1 = box1.getTableLens("J1", AssetQuerySandbox.RUNTIME_MODE,
-                                             new VariableTable());
+         TableLens lens1 = box1.getTableLens("J1", mode, new VariableTable());
          assertNotNull(lens1, "the query failed, see the log");
          String chain = chain(lens1);
          // the renamed right columns add the AssetTableLens this test is about
          assertEquals(alias, chain.contains("AssetTableLens"), chain);
+         // the live preview caps its rows above the rename layer
+         assertEquals(live, chain.contains("MaxRowsTableLens"), chain);
          JoinTableLens join1 = (JoinTableLens) Util.getNestedTable(lens1, JoinTableLens.class);
          assertNotNull(join1, chain);
 
@@ -203,6 +222,8 @@ class AliasedTableCancelTest {
 
          canceller.cancel(box1, lens1);
          lens1.moreRows(XTable.EOT);
+         // a live preview stops reading at its row cap; wait for the join itself
+         join1.moreRows(XTable.EOT);
          int rows1 = join1.getRowCount() - join1.getHeaderRowCount();
          System.out.println("AliasedTableCancelTest: " + chain + ", cancelled at " + rows1 +
                             " of " + FULL + " rows");
@@ -213,14 +234,20 @@ class AliasedTableCancelTest {
          assertTrue(AssetDataCache.isCancelled(lens1), chain);
 
          AssetQuerySandbox box2 = new AssetQuerySandbox(ws);
-         TableLens lens2 = box2.getTableLens("J1", AssetQuerySandbox.RUNTIME_MODE,
-                                             new VariableTable());
+         TableLens lens2 = box2.getTableLens("J1", mode, new VariableTable());
          assertNotNull(lens2, "the query failed, see the log");
          JoinTableLens join2 = (JoinTableLens) Util.getNestedTable(lens2, JoinTableLens.class);
+         assertNotNull(join2, chain(lens2));
          lens2.moreRows(XTable.EOT);
+         join2.moreRows(XTable.EOT);
 
          assertNotSame(join1, join2, "the cancelled join was taken from the cache");
-         assertEquals(FULL, lens2.getRowCount() - lens2.getHeaderRowCount());
+         assertEquals(FULL, join2.getRowCount() - join2.getHeaderRowCount());
+
+         if(!live) {
+            assertEquals(FULL, lens2.getRowCount() - lens2.getHeaderRowCount());
+         }
+
          return;
       }
 
