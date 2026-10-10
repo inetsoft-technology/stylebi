@@ -51,11 +51,11 @@ import static org.mockito.Mockito.*;
 @WizAgentTestSupport
 class WorksheetNumericLiteral78284Test {
    private static final Object[][] DATA = {
-      { "A", "B", "S1", "S2", "D1", "D2" },
-      { 1, 1, "a", "a", date("2024-01-01"), date("2024-01-01") },
-      { 2, 3, "b", "c", date("2024-03-01"), date("2024-04-01") },
-      { 5, 5, "e", "e", date("2024-05-01"), date("2024-05-01") },
-      { 7, 2, "x", "y", date("2024-07-01"), date("2024-02-01") },
+      { "A", "B", "S1", "S2", "D1", "D2", "X" },
+      { 1, 1, "a", "a", date("2024-01-01"), date("2024-01-01"), 1.5 },
+      { 2, 3, "b", "c", date("2024-03-01"), date("2024-04-01"), 3.5 },
+      { 5, 5, "e", "e", date("2024-05-01"), date("2024-05-01"), 1000.0 },
+      { 7, 2, "x", "y", date("2024-07-01"), date("2024-02-01"), 0.5 },
    };
 
    private static java.sql.Date date(String s) {
@@ -70,7 +70,7 @@ class WorksheetNumericLiteral78284Test {
    private void fixture() throws Exception {
       ws = new Worksheet();
       String[] colTypes = { "A:integer", "B:integer", "S1:string", "S2:string", "D1:date",
-                            "D2:date" };
+                            "D2:date", "X:double" };
       String[] cols = java.util.Arrays.stream(colTypes).map(c -> c.split(":")[0])
          .toArray(String[]::new);
       TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", cols);
@@ -205,6 +205,27 @@ class WorksheetNumericLiteral78284Test {
       svc.apply("TOK", agent, ed -> ed.setConditions("M", List.of()));
       svc.apply("TOK", agent, ed -> ed.addFilter("M", "B", ">", " 2 "));
       assertEquals(List.of(2, 5), rows(m.getPreConditionList()));
+   }
+
+   @Test
+   void hugeExponentRefusedQuicklyOnIntegralColumn() throws Exception {
+      fixture();
+
+      for(String v : new String[] { "1e999999999", "-1e999999999", "1e99999999" }) {
+         assertTimeoutPreemptively(java.time.Duration.ofSeconds(2), () ->
+            assertThrows(IllegalArgumentException.class, () ->
+               svc.apply("TOK", agent, ed -> ed.addFilter("M", "B", "=", v))));
+      }
+   }
+
+   @Test
+   void paddedAndExponentLiteralsMatchOnDoubleColumn() throws Exception {
+      fixture();
+      svc.apply("TOK", agent, ed -> ed.addFilter("M", "X", "=", " 3.5 "));
+      assertEquals(List.of(2), rows(m.getPreConditionList()));
+      svc.apply("TOK", agent, ed -> ed.setConditions("M", List.of()));
+      svc.apply("TOK", agent, ed -> ed.addFilter("M", "X", "=", "1e3"));
+      assertEquals(List.of(5), rows(m.getPreConditionList()));
    }
 
    @Test

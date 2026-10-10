@@ -3889,7 +3889,14 @@ public final class WorksheetMutationSupport {
                ok = true;
             }
             else {
-               java.math.BigInteger n = new java.math.BigDecimal(trimmed).toBigIntegerExact();
+               java.math.BigDecimal bd = new java.math.BigDecimal(trimmed);
+
+               // bound before expanding: toBigIntegerExact on "1e999999999" takes minutes
+               if(bd.signum() != 0 && bd.precision() - bd.scale() > 19) {
+                  throw new ArithmeticException("out of range");
+               }
+
+               java.math.BigInteger n = bd.toBigIntegerExact();
                java.math.BigInteger max = java.math.BigInteger.valueOf(
                   XSchema.BYTE.equals(dtype) ? Byte.MAX_VALUE :
                   XSchema.SHORT.equals(dtype) ? Short.MAX_VALUE :
