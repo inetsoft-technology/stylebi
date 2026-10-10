@@ -476,7 +476,7 @@ public class RepositoryObjectService {
                }
                else {
                   RecycleUtils.moveRepositoryFolderToRecycleBin(node.path(),
-                     node.label(), node.owner(), principal, recycleBin);
+                     node.label(), node.owner(), principal, recycleBin, force);
                }
 
                break;

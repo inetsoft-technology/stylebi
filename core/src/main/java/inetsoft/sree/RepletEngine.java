@@ -1597,21 +1597,6 @@ public class RepletEngine extends AbstractAssetEngine
     * {@inheritDoc}
     */
    @Override
-   public void checkFolderRemoveable(AssetEntry entry, Principal user)
-      throws Exception
-   {
-      if(entry.isRepositoryFolder()) {
-         throw new MessageException(catalog.getString(
-            "common.invalidEntry", entry));
-      }
-
-      super.checkFolderRemoveable(entry, user);
-   }
-
-   /**
-    * {@inheritDoc}
-    */
-   @Override
    public void renameUser(IdentityID oname, IdentityID nname) throws Exception {
       if(oname == null || nname == null || Tool.equals(oname, nname)) {
          return;
