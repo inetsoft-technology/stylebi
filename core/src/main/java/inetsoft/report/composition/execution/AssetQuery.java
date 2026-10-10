@@ -935,8 +935,16 @@ public abstract class AssetQuery extends PreAssetQuery {
             LOG.debug("Failed to get cached table data", ex);
          }
 
+         // the reader of the cached data: taken before the query runs or is waited for, a
+         // cancel of this query since is its own (bug #78200)
+         TableFilter2.Reader reader = key == null ? null : new TableFilter2.Reader(
+            AssetDataCache.isScheduler(box, vars), box.getQueryManager(), getQueryManager());
          base = mexecuted || key == null ? null :
             AssetDataCache.getCache().getOrMarkExecutingOrWait(key, touchtime);
+
+         if(base instanceof TableFilter2) {
+            ((TableFilter2) base).setReader(reader);
+         }
 
          if(AssetDataCache.isDebugData() && !(getTable() instanceof SnapshotEmbeddedTableAssembly)) {
             base = null;
@@ -971,7 +979,15 @@ public abstract class AssetQuery extends PreAssetQuery {
                }
 
                if(key != null) {
-                  base = AssetDataCache.getCache().setCachedData(key, base, getTable());
+                  TableLens cached =
+                     AssetDataCache.getCache().setCachedData(key, base, getTable());
+
+                  // a table that is not cached is not a copy of the cache's
+                  if(cached != base && cached instanceof TableFilter2) {
+                     ((TableFilter2) cached).setReader(reader);
+                  }
+
+                  base = cached;
                }
             }
             catch(ConfirmException | CancelledException | MVExecutionException ex) {

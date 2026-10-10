@@ -472,6 +472,60 @@ public class SummaryFilterTest {
       assertSwapOf(lost, swapIn(failureOf(15, () -> drain(summary))));
    }
 
+   /**
+    * A pass that completed because a cancel already ended the rows of its base (a query
+    * manager cancels the lenses below the summary first) is cut short: the cancel of the
+    * summary that follows stays a cancel (bug #78200).
+    */
+   @Test
+   public void cancelAfterACancelledBaseEndedThePassIsACancel() {
+      CancelledBase base = new CancelledBase(values(10));
+      base.cancel();
+      SummaryFilter summary = new SummaryFilter(new SortFilter(base, new int[] { 0 }),
+                                                new int[] { 0 }, new int[] { 1 },
+                                                new SumFormula(), new SumFormula());
+      drain(summary);
+
+      summary.cancel();
+      Assertions.assertTrue(summary.isCancelled(), "the cut-short summary is not cancelled");
+   }
+
+   /**
+    * The control: a cancel after the pass completed over a whole base is no cancel.
+    */
+   @Test
+   public void cancelAfterThePassCompletedOverAWholeBaseIsNoCancel() {
+      CancelledBase base = new CancelledBase(values(10));
+      SummaryFilter summary = new SummaryFilter(new SortFilter(base, new int[] { 0 }),
+                                                new int[] { 0 }, new int[] { 1 },
+                                                new SumFormula(), new SumFormula());
+      drain(summary);
+
+      summary.cancel();
+      Assertions.assertFalse(summary.isCancelled(), "the complete summary is cancelled");
+   }
+
+   /** A base whose cancel is recorded, as a query result whose rows a cancel ended. */
+   private static final class CancelledBase extends DefaultTableLens
+      implements inetsoft.report.internal.table.CancellableTableLens
+   {
+      CancelledBase(Object[][] data) {
+         super(data);
+      }
+
+      @Override
+      public void cancel() {
+         cancelled = true;
+      }
+
+      @Override
+      public boolean isCancelled() {
+         return cancelled;
+      }
+
+      private volatile boolean cancelled;
+   }
+
    private static SummaryFilter summary(DefaultTableLens base) {
       return new SummaryFilter(base, new int[] { 0 }, new int[] { 1 }, new SumFormula(),
                                new SumFormula());

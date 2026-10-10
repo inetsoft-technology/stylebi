@@ -708,11 +708,13 @@ public class XNodeTable implements XTable {
             throw ex;
          }
          finally {
-            complete();
-
+            // set before complete() wakes a reader waiting for the rows, so the reader that finds
+            // no more rows sees the cancel, as it sees a load exception (bug #78200)
             if(baseTableCancelBreakLoad) {
                cancelled = true;
             }
+
+            complete();
 
             LOG.debug("Query data finished loading: {}", getRowCount());
          }

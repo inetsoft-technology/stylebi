@@ -252,16 +252,38 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
     * @param key the data key in the cache.
     * @param data to add to the cache.
     * @param table the specified table assembly.
+    * @return the copy of the cached data for the caller. The cache keeps its own copy, as it
+    * hands every other reader one, so a reader's own state is never the cache's (bug #78200).
     */
    public TableLens setCachedData(DataKey key, TableLens data, TableAssembly table) {
       if(key == null || table instanceof DataTableAssembly) {
          return data;
       }
 
-      data = new TableFilter2(data);
-      resetMV(table, (TableFilter2) data);
-      addCache(key, data, table);
-      return data;
+      TableFilter2 filter = new TableFilter2(data);
+      resetMV(table, filter);
+      addCache(key, filter, table);
+      return filter.clone();
+   }
+
+   /**
+    * Check if the reader of a sandbox is a scheduled run, which must fail rather than use
+    * partial data.
+    */
+   static boolean isScheduler(AssetQuerySandbox box, VariableTable vars) {
+      try {
+         if(box != null && box.getViewsheetSandbox() != null &&
+            box.getViewsheetSandbox().isScheduleAction())
+         {
+            return true;
+         }
+
+         Object scheduler = vars == null ? null : vars.get("__is_scheduler__");
+         return Boolean.TRUE.equals(scheduler) || "true".equals(scheduler);
+      }
+      catch(Exception ex) {
+         return false;
+      }
    }
 
    /**
@@ -676,6 +698,11 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
 
                   if(data != null) {
                      put(key, data);
+
+                     // the caller gets a copy, as from the cache (bug #78200)
+                     if(data instanceof TableFilter2) {
+                        data = ((TableFilter2) data).clone();
+                     }
                   }
                }
                catch(Exception e) {
@@ -878,6 +905,10 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
       throws Exception
    {
       DataKey key = null;
+      // taken before the query runs or is waited for, a cancel of the caller since is its own
+      TableFilter2.Reader reader = new TableFilter2.Reader(
+         isScheduler(box, box == null ? null : box.getVariableTable()),
+         box == null ? null : box.getQueryManager(), qmgr);
 
       try {
          if(table != null) {
@@ -994,6 +1025,8 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
             if(key != null && data != null) {
                if(data instanceof TableFilter2) {
                   data = (TableLens) ((TableFilter2) data).clone();
+                  // the copy the cache keeps belongs to no reader
+                  ((TableFilter2) data).setReader(null);
                }
                else {
                   data = new TableFilter2(data);
@@ -1016,8 +1049,9 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
       }
 
       if(key != null && (data instanceof TableFilter2)) {
-         TableFilter2 filter = (TableFilter2) data;
-         data = (TableFilter2) filter.clone();
+         TableFilter2 filter = ((TableFilter2) data).clone();
+         filter.setReader(reader);
+         data = filter;
       }
 
       return data;

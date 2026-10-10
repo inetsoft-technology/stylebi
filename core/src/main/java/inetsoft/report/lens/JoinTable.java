@@ -173,7 +173,15 @@ abstract class JoinTable extends PagedTableLens {
       // whatever its bases report: a complete base is not cancelled, and must not make the
       // partial join look whole to a cache (bug #78135). a complete join stays not cancelled
       boolean running = !delegate.isCompleted();
-      cancelled = running && cancelJoin() || cancelled;
+
+      if(running) {
+         // set before cancelJoin() stops the workers, which wakes the readers: a reader that
+         // finds no more rows sees the cancel (bug #78200). if no worker was running the
+         // flag goes back, a reader may see it set in between: a very short window
+         boolean wasCancelled = cancelled;
+         cancelled = true;
+         cancelled = cancelJoin() || wasCancelled;
+      }
 
       if(leftTable instanceof CancellableTableLens) {
          ((CancellableTableLens) leftTable).cancel();
@@ -708,7 +716,8 @@ abstract class JoinTable extends PagedTableLens {
    private int joinType;
    private boolean includeRightJoinCols;
    private int[] rightCols;
-   private boolean cancelled = false;
+   // volatile: set before cancelJoin() wakes the readers on other threads (bug #78200)
+   private volatile boolean cancelled = false;
    private int headerRowCount = 0;
    // map from right table col index (in join table) to base right table col
    private int[] rightColMap;
