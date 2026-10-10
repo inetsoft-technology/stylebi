@@ -1684,7 +1684,9 @@ public class DataSourceRegistry implements MessageListener {
 
          moves.addAll(createMoves(oname + "/", nname + "/", false,
                                   ds instanceof AdditionalConnectionDataSource, skipped));
-         moveEntries(moves);
+         // Bug #78223, read before the data model is moved, which the grants of its models and
+         // folders follow. Their enumeration, not the one of the entries, is used for them
+         moveEntries(moves, getDataModelResourceMoves(oname, nname));
          moved = true;
          updateQueryFolders(ds, oname);
       }
@@ -1898,20 +1900,25 @@ public class DataSourceRegistry implements MessageListener {
     * Gets the names of the additional connections of a data source.
     */
    private String[] getAdditionalConnectionNames(String dxname) {
-      String prefix = dxname + "/";
-
       try {
-         // Bug #77820, not the data sources of a folder at the same path
-         return Arrays.stream(getDataSourceEntries(dxname, prefix, AssetEntry.Type.DATA_SOURCE,
-                                                   false))
-            .map(entry -> entry.getPath().substring(prefix.length()))
-            .filter(name -> !name.contains("/"))
-            .toArray(String[]::new);
+         return readAdditionalConnectionNames(dxname);
       }
       catch(Exception e) {
          LOG.warn("Failed to get the additional connections of data source {}", dxname, e);
          return new String[0];
       }
+   }
+
+   // as getAdditionalConnectionNames, a failure is thrown
+   private String[] readAdditionalConnectionNames(String dxname) {
+      String prefix = dxname + "/";
+
+      // Bug #77820, not the data sources of a folder at the same path
+      return Arrays.stream(getDataSourceEntries(dxname, prefix, AssetEntry.Type.DATA_SOURCE,
+                                                false))
+         .map(entry -> entry.getPath().substring(prefix.length()))
+         .filter(name -> !name.contains("/"))
+         .toArray(String[]::new);
    }
 
    /**
@@ -1965,44 +1972,101 @@ public class DataSourceRegistry implements MessageListener {
       resources.put(ResourceType.QUERY, queries);
       resources.put(ResourceType.DATA_MODEL_FOLDER, folders);
 
-      // never keeps the data source from being removed
+      List<PermissionMove> moves = new ArrayList<>();
+
+      // never keeps the data source from being removed, what was read before a failure is kept
       try {
-         if(isAdditionalConnectionPath(dxname)) {
-            int index = dxname.lastIndexOf('/');
-            folders.addAll(getAdditionalConnectionFolderResources(
-               dxname.substring(0, index), Collections.singleton(dxname.substring(index + 1))));
-            return resources;
-         }
-
-         String[] modelFolders = getDataModelFolders(dxname);
-         String prefix = dxname + "/";
-
-         // the name of a model is its path under the data source, which may have "/" in it. Its
-         // folder is in its definition, which isn't loaded: the key of every folder is taken,
-         // none of which another model has, as the whole data model is removed
-         for(AssetEntry entry : getDataSourceEntries(dxname, prefix, AssetEntry.Type.LOGIC_MODEL,
-                                                     false))
-         {
-            String model = entry.getPath().substring(prefix.length());
-            queries.add(XUtil.getLogicalModelResourceName(dxname, null, model));
-
-            for(String folder : modelFolders) {
-               queries.add(XUtil.getLogicalModelResourceName(dxname, folder, model));
-            }
-         }
-
-         for(String folder : modelFolders) {
-            folders.add(dxname + "/" + folder);
-         }
-
-         folders.addAll(getAdditionalConnectionFolderResources(
-            dxname, Arrays.asList(getAdditionalConnectionNames(dxname))));
+         collectDataModelResources(dxname, dxname, moves);
       }
       catch(Exception e) {
          LOG.warn("Failed to get the data model permissions of data source {}", dxname, e);
       }
 
+      for(PermissionMove move : moves) {
+         (move.type() == ResourceType.QUERY ? queries : folders).add(move.oldKey());
+      }
+
       return resources;
+   }
+
+   /**
+    * Bug #78223, gets the permission moves of the data model objects of a data source that is
+    * renamed or moved: the resources of {@link #getDataModelResources(String)}, each with the
+    * resource of the same object under the new path. Must be called before the entries are
+    * moved, as the folders of the data model are read from the old path. Unlike the removal of a
+    * data source, a failure to read them is thrown, as a rename that went on would leave every
+    * grant at the old name.
+    *
+    * @param oname the old path of the data source.
+    * @param nname the new path of the data source.
+    */
+   private List<PermissionMove> getDataModelResourceMoves(String oname, String nname) {
+      List<PermissionMove> moves = new ArrayList<>();
+      collectDataModelResources(oname, nname, moves);
+      return moves;
+   }
+
+   /**
+    * Adds the permission moves of the data model objects of a data source from the path "dxname"
+    * to "nxname", the same objects as for its removal. The moves read before a failure, which
+    * is thrown, stay in the list.
+    */
+   private void collectDataModelResources(String dxname, String nxname,
+                                          List<PermissionMove> moves)
+   {
+      if(isAdditionalConnectionPath(dxname)) {
+         int index = dxname.lastIndexOf('/');
+         int nindex = nxname.lastIndexOf('/');
+
+         if(nindex > 0) {
+            addFolderMoves(moves, dxname.substring(0, index), dxname.substring(index + 1),
+                           nxname.substring(0, nindex), nxname.substring(nindex + 1));
+         }
+
+         return;
+      }
+
+      String[] modelFolders = getDataModelFolders(dxname);
+      String prefix = dxname + "/";
+
+      // the name of a model is its path under the data source, which may have "/" in it. Its
+      // folder is in its definition, which isn't loaded: the key of every folder is taken,
+      // none of which another model has, as the whole data model is removed
+      for(AssetEntry entry : getDataSourceEntries(dxname, prefix, AssetEntry.Type.LOGIC_MODEL,
+                                                  false))
+      {
+         String model = entry.getPath().substring(prefix.length());
+         moves.add(new PermissionMove(
+            ResourceType.QUERY, XUtil.getLogicalModelResourceName(dxname, null, model),
+            XUtil.getLogicalModelResourceName(nxname, null, model)));
+
+         for(String folder : modelFolders) {
+            moves.add(new PermissionMove(
+               ResourceType.QUERY, XUtil.getLogicalModelResourceName(dxname, folder, model),
+               XUtil.getLogicalModelResourceName(nxname, folder, model)));
+         }
+      }
+
+      for(String folder : modelFolders) {
+         moves.add(new PermissionMove(ResourceType.DATA_MODEL_FOLDER, dxname + "/" + folder,
+                                      nxname + "/" + folder));
+      }
+
+      for(String name : readAdditionalConnectionNames(dxname)) {
+         addFolderMoves(moves, dxname, name, nxname, name);
+      }
+   }
+
+   // "parent::name/folder" for each folder of the data model of the parent
+   private void addFolderMoves(List<PermissionMove> moves, String parent, String name,
+                               String nparent, String nname)
+   {
+      for(String folder : getDataModelFolders(parent)) {
+         moves.add(new PermissionMove(
+            ResourceType.DATA_MODEL_FOLDER,
+            parent + XUtil.ADDITIONAL_DS_CONNECTOR + name + "/" + folder,
+            nparent + XUtil.ADDITIONAL_DS_CONNECTOR + nname + "/" + folder));
+      }
    }
 
    /**
@@ -2067,6 +2131,96 @@ public class DataSourceRegistry implements MessageListener {
       catch(Exception e) {
          LOG.warn("Failed to remove the data model folder permissions of the additional " +
                      "connections {} of data source {}", names, parent, e);
+      }
+   }
+
+   /**
+    * Bug #78223, moves the folder grants of the extended models of renamed additional
+    * connections of a data source, "parent::name/folder" for each folder of the parent's data
+    * model, to the new name of the connection. All are read before any is removed, so that
+    * swapped or chained names keep their own grants. The connections are already saved, so a
+    * failed write only leaves the grant under its old name, which is logged.
+    *
+    * @param oldParent the full name of the data source that the grants are under.
+    * @param newParent the full name of the data source after the save.
+    * @param renames   the new names of the renamed additional connections, by old name.
+    */
+   public void moveAdditionalConnectionFolderPermissions(String oldParent, String newParent,
+                                                         Map<String, String> renames)
+   {
+      if(oldParent == null || newParent == null || renames == null || renames.isEmpty()) {
+         return;
+      }
+
+      SecurityEngine engine = SecurityEngine.getSecurity();
+      SecurityProvider provider = engine == null ? null : engine.getSecurityProvider();
+
+      if(engine == null || provider != null && provider.isVirtual()) {
+         return;
+      }
+
+      try {
+         // the data model is the one of the data source after its rename
+         String[] folders = getDataModelFolders(newParent);
+
+         if(folders.length == 0) {
+            folders = getDataModelFolders(oldParent);
+         }
+
+         List<PermissionMove> moves = new ArrayList<>();
+
+         for(Map.Entry<String, String> rename : renames.entrySet()) {
+            for(String folder : folders) {
+               moves.add(new PermissionMove(
+                  ResourceType.DATA_MODEL_FOLDER,
+                  oldParent + XUtil.ADDITIONAL_DS_CONNECTOR + rename.getKey() + "/" + folder,
+                  newParent + XUtil.ADDITIONAL_DS_CONNECTOR + rename.getValue() + "/" + folder));
+            }
+         }
+
+         Map<PermissionMove, Permission> permissions = new LinkedHashMap<>();
+
+         for(PermissionMove move : moves) {
+            permissions.put(move, engine.getPermission(move.type(), move.oldKey()));
+         }
+
+         // the new keys are written first, and the old ones are removed except the ones that are
+         // also a new key written here, so a failed write doesn't delete the only copy
+         Set<String> newKeys = new HashSet<>();
+         Set<String> keptKeys = new HashSet<>();
+
+         for(PermissionMove move : moves) {
+            Permission permission = permissions.get(move);
+
+            if(permission != null && !move.oldKey().equals(move.newKey())) {
+               newKeys.add(move.newKey());
+
+               if(!AbstractAssetEngine.setPermissionBestEffort(
+                  engine, move.type(), move.newKey(), permission))
+               {
+                  keptKeys.add(move.oldKey());
+               }
+            }
+         }
+
+         for(PermissionMove move : moves) {
+            if(permissions.get(move) == null || move.oldKey().equals(move.newKey()) ||
+               newKeys.contains(move.oldKey()))
+            {
+               continue;
+            }
+
+            if(keptKeys.contains(move.oldKey())) {
+               AbstractAssetEngine.reportPermissionMayRemain(engine, move.type(), move.oldKey());
+            }
+            else {
+               AbstractAssetEngine.removePermissionBestEffort(engine, move.type(), move.oldKey());
+            }
+         }
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to move the data model folder permissions of the additional " +
+                     "connections {} of data source {}", renames, newParent, e);
       }
    }
 
@@ -2290,9 +2444,19 @@ public class DataSourceRegistry implements MessageListener {
          Set<AssetEntry> skipped = new HashSet<>(aboveEntries);
          skipped.addAll(Arrays.asList(allFolderChildren));
          List<EntryMove> rest = createMoves(oname + "/", nname + "/", false, false, skipped);
+         // Bug #78223, a data source that can't be loaded is moved here, with the grants of its
+         // models and folders, read before they are moved
+         List<PermissionMove> restPermissions = new ArrayList<>();
+
+         for(EntryMove move : rest) {
+            if(move.oentry().isDataSource() && move.name()) {
+               collectDataModelResources(move.oentry().getPath(), move.nentry().getPath(),
+                                         restPermissions);
+            }
+         }
 
          try {
-            moveEntries(rest);
+            moveEntries(rest, restPermissions);
          }
          catch(MoveEntriesException e) {
             // moved, only a permission wasn't
@@ -3164,6 +3328,22 @@ public class DataSourceRegistry implements MessageListener {
     * so nothing has moved and nothing is lost.
     */
    void moveEntries(List<EntryMove> moves) throws Exception {
+      moveEntries(moves, null);
+   }
+
+   /**
+    * Moves stored objects to their new entries, see {@link #moveEntries(List)}.
+    *
+    * @param modelPermissions the exact permission moves of the data model objects of a data
+    *                         source that is renamed or moved, or {@code null}. If given, the
+    *                         permission of a logical model isn't derived from its entry, which
+    *                         has no data model folder and splits a name with a "/" in it, and
+    *                         these are moved instead. The rename of a logical model alone
+    *                         doesn't give them.
+    */
+   void moveEntries(List<EntryMove> moves, List<PermissionMove> modelPermissions)
+      throws Exception
+   {
       try {
          List<AssetEntry> oentries = new ArrayList<>();
          List<AssetEntry> nentries = new ArrayList<>();
@@ -3231,6 +3411,10 @@ public class DataSourceRegistry implements MessageListener {
             AssetEntry oentry = move.oentry();
             AssetEntry nentry = move.nentry();
 
+            if(modelPermissions != null && oentry.getType() == AssetEntry.Type.LOGIC_MODEL) {
+               continue;
+            }
+
             if(move.sourcePermission()) {
                oentry = (AssetEntry) oentry.clone();
                oentry.setProperty("source", oentry.getParentPath() + "::" + oentry.getName());
@@ -3250,6 +3434,22 @@ public class DataSourceRegistry implements MessageListener {
 
                if(permissionFailure == null) {
                   permissionFailure = new MoveEntriesException(oentry.getPath(), true, e);
+               }
+            }
+         }
+
+         if(modelPermissions != null) {
+            for(PermissionMove move : modelPermissions) {
+               try {
+                  updatePermission(move.type(), move.oldKey(), move.newKey());
+               }
+               catch(Exception e) {
+                  LOG.error("Failed to move the permission of {} {} to {}", move.type(),
+                            move.oldKey(), move.newKey(), e);
+
+                  if(permissionFailure == null) {
+                     permissionFailure = new MoveEntriesException(move.oldKey(), true, e);
+                  }
                }
             }
          }
@@ -3302,6 +3502,12 @@ public class DataSourceRegistry implements MessageListener {
    record EntryMove(AssetEntry oentry, AssetEntry nentry, XMLSerializable obj,
                             boolean name, boolean sourcePermission)
    {
+   }
+
+   /**
+    * Bug #78223, the move of the permission of a resource that isn't derived from an entry.
+    */
+   record PermissionMove(ResourceType type, String oldKey, String newKey) {
    }
 
    /**

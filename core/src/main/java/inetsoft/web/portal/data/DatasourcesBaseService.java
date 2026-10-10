@@ -987,6 +987,9 @@ public abstract class DatasourcesBaseService {
       // Bug #78203, and the folder grants of the removed connections' extended models
       dataSourceRegistry.removeAdditionalConnectionFolderPermissions(oldParent, oldRemoved);
       dataSourceRegistry.removeAdditionalConnectionFolderPermissions(newParent, removed);
+      // Bug #78223, the folder grants of the renamed connections' extended models, after the
+      // removal, as a connection renamed to the name of a removed one gets the grants it had
+      dataSourceRegistry.moveAdditionalConnectionFolderPermissions(oldParent, newParent, renames);
    }
 
    /**
