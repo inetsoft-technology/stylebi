@@ -31,8 +31,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.*;
+import java.text.Normalizer;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 
 class AuthenticationDAO {
    public AuthenticationDAO(DatabaseAuthenticationProvider provider) {
@@ -185,9 +188,13 @@ class AuthenticationDAO {
 
          if(names > 1 || credentials > 1) {
             LOG.warn(
-               "The users query returned the rows of several different users for user \"{}\", " +
-               "the roles and emails of this user will not be loaded. User names and organization " +
-               "IDs must be unique under the database collation.", user.name);
+               "The users query returned rows with different user names or credentials for " +
+               "user \"{}\", the roles and emails of this user will not be loaded. Either " +
+               "several users have this name under the database collation (user names and " +
+               "organization IDs must be unique under it), or the users query does not return " +
+               "exactly one row per user: it must not join a column that varies between the " +
+               "rows of one user, and in multi-tenant mode it must filter by the organization " +
+               "ID parameter.", user.name);
             return true;
          }
       }
@@ -344,18 +351,13 @@ class AuthenticationDAO {
          Jdbi jdbi = Jdbi.create(connection);
 
          try(Handle handle = jdbi.open()) {
-            Query query = handle.createQuery(provider.getGroupUsersQuery());
+            List<String> members = queryGroupUsers(handle, group);
 
-            if(provider.isMultiTenant()) {
-               query.bind(0, group.orgID);
-               query.bind(1, group.name);
-            }
-            else {
-               query.bind(0, group.name);
+            if(isAmbiguousGroup(handle, group, members)) {
+               return new QueryResult<>(new IdentityID[0], false);
             }
 
-            IdentityID[] result = query.map(this::mapToUserName).stream()
-               .filter(Objects::nonNull)
+            IdentityID[] result = members.stream()
                .map(n -> new IdentityID(n, group.orgID))
                .toArray(IdentityID[]::new);
             return new QueryResult<>(result, false);
@@ -371,6 +373,119 @@ class AuthenticationDAO {
       }
 
       return new QueryResult<>(new IdentityID[0], true);
+   }
+
+   private List<String> queryGroupUsers(Handle handle, IdentityID group) {
+      Query query = handle.createQuery(provider.getGroupUsersQuery());
+
+      if(provider.isMultiTenant()) {
+         query.bind(0, group.orgID);
+         query.bind(1, group.name);
+      }
+      else {
+         query.bind(0, group.name);
+      }
+
+      return query.map(this::mapToUserName).stream()
+         .filter(Objects::nonNull)
+         .toList();
+   }
+
+   /**
+    * Checks whether the database treats the name of the given group as the name of another
+    * listed group. The group users query only returns member names, so when the database
+    * collation matches several groups for the bound name (for example "sales" and "SALES" under
+    * a case-insensitive collation, "sales" and "sal&eacute;s" under an accent-insensitive one,
+    * "sales" and "sales " under PAD SPACE comparison, or organization IDs "acme" and "ACME"),
+    * it returns the members of all of them and the rows cannot be attributed to one group.
+    * <p>
+    * Only the database knows its collation, so a loose comparison of the listed groups (case,
+    * accents and trailing spaces of the group name and organization ID) only finds candidates.
+    * The group users query is then run for each candidate: if it returns the same members as
+    * for the requested group, the database merged the two names. If the members differ, the
+    * database tells the names apart (for example on a case-sensitive database) and the members
+    * are used. Groups without a candidate, which is the normal case, run no extra member query.
+    *
+    * @param members the result of the group users query for the requested group.
+    *
+    * @return {@code true} if the members of the group must not be loaded.
+    */
+   private boolean isAmbiguousGroup(Handle handle, IdentityID group, List<String> members) {
+      if(members.isEmpty() || group == null || group.name == null ||
+         StringUtils.isBlank(provider.getGroupListQuery()))
+      {
+         return false;
+      }
+
+      String name = looseName(group.name);
+      String orgID = looseName(group.orgID);
+      List<String> sortedMembers = null;
+
+      for(IdentityID other : getGroupList(handle)) {
+         if(group.equals(other) || other.name == null || !name.equals(looseName(other.name)) ||
+            !orgID.equals(looseName(other.orgID)))
+         {
+            continue;
+         }
+
+         if(sortedMembers == null) {
+            sortedMembers = members.stream().sorted().toList();
+         }
+
+         if(sortedMembers.equals(queryGroupUsers(handle, other).stream().sorted().toList())) {
+            // every group lookup of every user reaches this, so warn once per group
+            String message =
+               "The group users query returned the same members for group \"{}\" and group " +
+               "\"{}\", the database treats their names as the same name. The members of " +
+               "group \"{}\" will not be loaded. Group names (and organization IDs) must be " +
+               "unique under the database collation, including case, accents and trailing " +
+               "spaces.";
+
+            if(ambiguousGroups.add(group)) {
+               LOG.warn(message, group.name, other.name, group.name);
+            }
+            else {
+               LOG.debug(message, group.name, other.name, group.name);
+            }
+
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Gets the group list for {@link #isAmbiguousGroup}. The cached list is used when the cache
+    * is enabled, since the cached group members are reset together with it, otherwise the
+    * group list query is run on the given handle.
+    */
+   private List<IdentityID> getGroupList(Handle handle) {
+      if(provider.isCacheEnabled() && !provider.isIgnoreCache()) {
+         IdentityID[] groups = provider.getGroups();
+
+         if(groups != null && groups.length > 0) {
+            return Arrays.asList(groups);
+         }
+      }
+
+      return handle.createQuery(provider.getGroupListQuery())
+         .map(this::mapToGroupIdentity).stream()
+         .filter(Objects::nonNull)
+         .toList();
+   }
+
+   /**
+    * Normalizes a name for finding the groups that a database collation may treat as the same
+    * name: trailing spaces, accents and case are ignored.
+    */
+   private static String looseName(String name) {
+      if(name == null) {
+         return "";
+      }
+
+      String normalized = Normalizer.normalize(name.stripTrailing(), Normalizer.Form.NFD);
+      return COMBINING_MARKS.matcher(normalized).replaceAll("").toLowerCase(Locale.ROOT);
    }
 
    public QueryResult<IdentityID[]> getRoles() {
@@ -755,6 +870,8 @@ class AuthenticationDAO {
    }
 
    private final DatabaseAuthenticationProvider provider;
+   private final Set<IdentityID> ambiguousGroups = ConcurrentHashMap.newKeySet();
 
+   private static final Pattern COMBINING_MARKS = Pattern.compile("\\p{M}+");
    private static final Logger LOG = LoggerFactory.getLogger(AuthenticationDAO.class);
 }
