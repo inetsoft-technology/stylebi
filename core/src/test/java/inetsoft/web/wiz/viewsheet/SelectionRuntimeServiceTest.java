@@ -348,7 +348,7 @@ class SelectionRuntimeServiceTest {
       h.service.setSelection("tok", principal(), "Filter1", List.of(List.of("West")), null, null,
                              null, null, "");
 
-      verify(assembly, times(1)).getSelectionList();
+      verify(assembly, times(2)).getSelectionList(); // +1: selectedTotal (bug-78216) re-reads the list after the apply
       verify(h.selections, times(1)).applySelection(anyString(), anyString(), any(),
                                                     any(Principal.class), any(), anyString());
    }
@@ -965,7 +965,7 @@ class SelectionRuntimeServiceTest {
       h.service.setSelection("tok", principal(), "Filter1", List.of(List.of("West")), null, null,
                              null, true, "");
 
-      verify(assembly, times(1)).getSelectionList();
+      verify(assembly, times(2)).getSelectionList(); // +1: selectedTotal (bug-78216) re-reads the list after the apply
       verify(h.selections, times(1)).applySelection(anyString(), anyString(), any(),
                                                     any(Principal.class), any(), anyString());
    }
@@ -989,7 +989,7 @@ class SelectionRuntimeServiceTest {
       h.service.setSelection("tok", principal(), "Filter1", List.of(List.of("West")), null, null,
                              null, null, "");
 
-      verify(assembly, times(2)).getSelectionList();
+      verify(assembly, times(3)).getSelectionList(); // +1: selectedTotal (bug-78216) re-reads the list after the apply
       verify(h.selections, times(1)).applySelection(anyString(), anyString(), any(),
                                                     any(Principal.class), any(), anyString());
    }
@@ -1954,6 +1954,37 @@ class SelectionRuntimeServiceTest {
       VSCalendarService calendars = mock(VSCalendarService.class);
       return new Harness(new SelectionRuntimeService(sessions, selections, calendars), sessions,
                          selections, calendars);
+   }
+
+   /** bug-78216: a selected node hidden by the search that the replace could not clear is reported. */
+   @Test
+   void retainedSelectionReportsIdNodeNotNamedByRequest() {
+      assertEquals(List.of(List.of("A")),
+                   SelectionRuntimeService.retainedSelection(
+                      new SelectionValue[]{ selected("A", true), selected("B", true) },
+                      List.of(List.of("B")), true));
+   }
+
+   @Test
+   void retainedSelectionIsEmptyWhenOnlyRequestedValuesRemain() {
+      assertEquals(List.of(),
+                   SelectionRuntimeService.retainedSelection(
+                      new SelectionValue[]{ selected("A", false), selected("B", true) },
+                      List.of(List.of("B")), true));
+   }
+
+   @Test
+   void retainedSelectionUsesPathsForNonIdMode() {
+      assertEquals(List.of(List.of("East")),
+                   SelectionRuntimeService.retainedSelection(
+                      new SelectionValue[]{ selected("East", true), selected("West", true) },
+                      List.of(List.of("West")), false));
+   }
+
+   @Test
+   void retainedSelectionToleratesNothingSelected() {
+      assertEquals(List.of(),
+                   SelectionRuntimeService.retainedSelection(null, List.of(List.of("B")), true));
    }
 
    /** Package-visible -- see {@link #tree(int, boolean)}'s own note. */
