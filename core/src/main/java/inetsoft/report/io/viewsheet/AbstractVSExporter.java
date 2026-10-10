@@ -362,7 +362,14 @@ public abstract class AbstractVSExporter implements VSExporter {
          return;
       }
 
-      String message = Catalog.getCatalog().getString("vs.export.onLoadScriptFailed");
+      addWarningMessage(warningText, Catalog.getCatalog().getString("vs.export.onLoadScriptFailed"));
+   }
+
+   /**
+    * Append a message to an export's warning text on its own line, unless the text already
+    * contains it. Shared with the print layout PDF, which builds its own warning text. (#78219)
+    */
+   public static void addWarningMessage(TextVSAssembly warningText, String message) {
       String text = warningText.getTextValue();
 
       if(text == null || text.isEmpty()) {
