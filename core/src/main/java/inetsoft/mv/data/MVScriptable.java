@@ -126,11 +126,12 @@ public class MVScriptable implements ScriptScope {
                   MVBlockInfo binfo = mv.getBlockInfo(i);
                   Object max0 = binfo.getColumnInfo(c).getMax();
 
+                  // an all-null block has no max, it must not replace a known one
                   if(max == null) {
                      max = max0;
                   }
-                  else {
-                     max = Tool.compare(max0, max) < 0 ? max0 : max;
+                  else if(max0 != null) {
+                     max = Tool.compare(max0, max) > 0 ? max0 : max;
                   }
                }
             }
@@ -163,10 +164,11 @@ public class MVScriptable implements ScriptScope {
                   MVBlockInfo binfo = mv.getBlockInfo(i);
                   Object min0 = binfo.getColumnInfo(c).getMin();
 
+                  // an all-null block has no min, it must not replace a known one
                   if(min == null) {
                      min = min0;
                   }
-                  else {
+                  else if(min0 != null) {
                      min = Tool.compare(min0, min) < 0 ? min0 : min;
                   }
                }
