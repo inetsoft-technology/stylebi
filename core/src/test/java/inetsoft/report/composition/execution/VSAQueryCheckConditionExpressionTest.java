@@ -81,4 +81,14 @@ class VSAQueryCheckConditionExpressionTest {
    void unboundParameterIsNotAFalseWarning() throws Exception {
       assertNull(VSAQuery.checkConditionExpression("parameter.foo + 1", sandbox()));
    }
+
+   /** A SyntaxError thrown while running is a runtime error, possibly transient: warn only. */
+   @Test
+   void runtimeSyntaxErrorsAreWarnedNotRejected() throws Exception {
+      String json = VSAQuery.checkConditionExpression("JSON.parse(\"\")", sandbox());
+      String regexp = VSAQuery.checkConditionExpression("new RegExp(\"(\")", sandbox());
+
+      assertNotNull(json);
+      assertNotNull(regexp);
+   }
 }

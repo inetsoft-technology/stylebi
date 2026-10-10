@@ -1470,6 +1470,7 @@ public abstract class VSAQuery {
    {
       AssetQuerySandbox box = vbox.getAssetQuerySandbox();
       ScriptEnv senv = box.getScriptEnv();
+      checkSyntax(senv, exp);
       Object compiled;
 
       try {
@@ -1486,14 +1487,25 @@ public abstract class VSAQuery {
          return null;
       }
       catch(Exception ex) {
-         String message = ex.getMessage() == null ? ex.toString() : ex.getMessage();
+         return ex.getMessage() == null ? ex.toString() : ex.getMessage();
+      }
+   }
 
-         // compilation is lazy, so a syntax error only surfaces when the script runs
-         if(message.contains("SyntaxError")) {
-            throw new ScriptException("Script error: " + message);
-         }
-
-         return message;
+   /**
+    * Parse the script without running it. Compilation is lazy, so a syntax error otherwise only
+    * shows when the script runs, where it cannot be told from a runtime error that merely
+    * happens to be a SyntaxError (JSON.parse of a not-yet-set parameter, a bad RegExp).
+    */
+   private static void checkSyntax(ScriptEnv senv, String exp) throws ScriptException {
+      try {
+         senv.checkFunction("viewsheet condition", exp);
+         return;
+      }
+      catch(IllegalStateException ex) {
+         return; // engine not initialized: nothing to parse with, leave it to the run
+      }
+      catch(Exception ex) {
+         throw new ScriptException("Script error: " + ex.getMessage());
       }
    }
 
