@@ -38,7 +38,10 @@ import inetsoft.web.admin.content.database.DatabaseTypeService;
 import inetsoft.web.admin.content.database.types.AccessDatabaseType;
 import inetsoft.web.admin.content.database.types.CustomDatabaseType;
 import inetsoft.web.admin.general.DatabaseSettingsService;
+import inetsoft.web.portal.data.DataSourceDefinition;
+import inetsoft.web.portal.data.DatasourcesService;
 import inetsoft.web.portal.service.datasource.DataSourceStatusService;
+import inetsoft.uql.tabular.TabularView;
 import inetsoft.web.session.IgniteSessionRepository;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -85,6 +88,7 @@ class DataSourceRenameModelGrantTest {
    private SecurityEngine engine;
    private SecurityProvider provider;
    private DatabaseDatasourcesService databaseService;
+   private DatasourcesService tabularService;
    private Principal admin;
    private final List<String[]> written = new ArrayList<>();
 
@@ -113,6 +117,8 @@ class DataSourceRenameModelGrantTest {
          adminEngine, mock(DatabaseSettingsService.class), repository,
          mock(ResourcePermissionService.class), mock(DataSourceStatusService.class),
          mock(IgniteSessionRepository.class), registry, mock(RenameTransformHandler.class));
+      tabularService = new DatasourcesService(
+         repository, adminEngine, mock(DataSourceStatusService.class), registry, config);
       admin = new SRPrincipal(new IdentityID("admin", ORG), new IdentityID[0], new String[0], ORG,
                               Tool.getSecureRandom().nextLong());
    }
@@ -270,6 +276,42 @@ class DataSourceRenameModelGrantTest {
       assertFalse(canRead("alice", ResourceType.DATA_MODEL_FOLDER, "SwA::SwAAd/F"));
    }
 
+   // the portal editor of a tabular data source (the XMLA editor shares its save): an additional
+   // connection is renamed, the parent kept
+   @Test
+   void portalEditorRenameOfTheAdditionalConnection() throws Exception {
+      seedTabular("PtA");
+      seedTabular("PtA2");
+
+      saveTabular("PtA", tabular(null, "PtA"), "PtA", tabular("PtAAd", "PtAAd2"));
+
+      assertGrant(ResourceType.DATA_MODEL_FOLDER, "PtA::PtAAd/F", false);
+      assertGrant(ResourceType.DATA_MODEL_FOLDER, "PtA::PtAAd2/F", true);
+      assertGrant(ResourceType.DATA_SOURCE, "PtA::PtAAd", false);
+      assertGrant(ResourceType.DATA_SOURCE, "PtA::PtAAd2", true);
+      assertGrant(ResourceType.DATA_MODEL_FOLDER, "PtA/F", true);
+      assertGrant(ResourceType.QUERY, "LMF::PtA^__^F", true);
+      assertUntouched("PtA2");
+   }
+
+   // the parent and its additional connection are renamed in one save
+   @Test
+   void portalEditorRenameOfTheParentAndTheAdditionalConnection() throws Exception {
+      seedTabular("PcA");
+      seedTabular("PcA2");
+
+      saveTabular("PcA", tabular("PcA", "PcAx"), "PcAx", tabular("PcAAd", "PcAAd2"));
+
+      assertGrant(ResourceType.DATA_MODEL_FOLDER, "PcA::PcAAd/F", false);
+      assertGrant(ResourceType.DATA_MODEL_FOLDER, "PcAx::PcAAd/F", false);
+      assertGrant(ResourceType.DATA_MODEL_FOLDER, "PcAx::PcAAd2/F", true);
+      assertGrant(ResourceType.DATA_SOURCE, "PcAx::PcAAd2", true);
+      assertGrant(ResourceType.DATA_MODEL_FOLDER, "PcAx/F", true);
+      assertGrant(ResourceType.DATA_MODEL_FOLDER, "PcA/F", false);
+      assertGrant(ResourceType.QUERY, "LMF::PcAx^__^F", true);
+      assertUntouched("PcA2");
+   }
+
    // folder rename with loadable members
    @Test
    void folderRenameOfLoadableMembers() throws Exception {
@@ -328,6 +370,32 @@ class DataSourceRenameModelGrantTest {
       }
 
       for(String[] key : keys("RfAx", adName("RfA"))) {
+         assertGrant(ResourceType.valueOf(key[0]), key[1], false);
+      }
+   }
+
+   // the stored data model can't be read: a rename that went on would leave the grants of its
+   // folders and of the models in them at the old name
+   @Test
+   void unreadableDataModelMovesNothing() throws Exception {
+      seed("RdA");
+      DataSourceRegistry spy = spy(registry);
+      doReturn(null).when(spy).getObject(
+         argThat(entry -> entry != null && entry.getType() == AssetEntry.Type.DATA_MODEL &&
+                          "RdA".equals(entry.getPath())), eq(false));
+
+      assertThrows(DataSourceRenameException.class, () -> spy.renameDatasource("RdA", "RdAx"));
+
+      registry.clearCache();
+      assertNotNull(registry.getDataSource("RdA"));
+      assertNull(registry.getDataSource("RdAx"));
+      assertNotNull(registry.getDataModel("RdA"));
+
+      for(String[] key : keys("RdA", adName("RdA"))) {
+         assertGrant(ResourceType.valueOf(key[0]), key[1], true);
+      }
+
+      for(String[] key : keys("RdAx", adName("RdA"))) {
          assertGrant(ResourceType.valueOf(key[0]), key[1], false);
       }
    }
@@ -463,6 +531,26 @@ class DataSourceRenameModelGrantTest {
          edit(((JDBCDataSource) registry.getDataSource(parent)).getDataSource(oldName));
       definition.setOldName(oldName);
       definition.setName(newName);
+      return definition;
+   }
+
+   private void saveTabular(String path, DataSourceDefinition definition, String newPath,
+                            DataSourceDefinition... additionals) throws Exception
+   {
+      definition.setAdditionalConnections(new ArrayList<>(List.of(additionals)));
+      tabularService.updateDataSource(path, definition, admin);
+      registry.clearCache();
+      assertNotNull(registry.getDataSource(newPath), newPath);
+   }
+
+   // a tabular definition as the editor sends it, with its old name if it is renamed
+   private static DataSourceDefinition tabular(String oldName, String name) {
+      DataSourceDefinition definition = new DataSourceDefinition();
+      definition.setType(TABULAR);
+      definition.setParentPath("");
+      definition.setName(name);
+      definition.setOldName(oldName);
+      definition.setTabularView(new TabularView());
       return definition;
    }
 

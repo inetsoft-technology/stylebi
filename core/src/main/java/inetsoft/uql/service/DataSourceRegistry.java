@@ -1976,7 +1976,7 @@ public class DataSourceRegistry implements MessageListener {
 
       // never keeps the data source from being removed, what was read before a failure is kept
       try {
-         collectDataModelResources(dxname, dxname, moves);
+         collectDataModelResources(dxname, dxname, moves, false);
       }
       catch(Exception e) {
          LOG.warn("Failed to get the data model permissions of data source {}", dxname, e);
@@ -2002,7 +2002,7 @@ public class DataSourceRegistry implements MessageListener {
     */
    private List<PermissionMove> getDataModelResourceMoves(String oname, String nname) {
       List<PermissionMove> moves = new ArrayList<>();
-      collectDataModelResources(oname, nname, moves);
+      collectDataModelResources(oname, nname, moves, true);
       return moves;
    }
 
@@ -2010,9 +2010,12 @@ public class DataSourceRegistry implements MessageListener {
     * Adds the permission moves of the data model objects of a data source from the path "dxname"
     * to "nxname", the same objects as for its removal. The moves read before a failure, which
     * is thrown, stay in the list.
+    *
+    * @param strict {@code true} to throw if the stored data model is listed but can't be read,
+    *               {@code false} to take it as having no folders, as the removal does.
     */
    private void collectDataModelResources(String dxname, String nxname,
-                                          List<PermissionMove> moves)
+                                          List<PermissionMove> moves, boolean strict)
    {
       if(isAdditionalConnectionPath(dxname)) {
          int index = dxname.lastIndexOf('/');
@@ -2020,13 +2023,13 @@ public class DataSourceRegistry implements MessageListener {
 
          if(nindex > 0) {
             addFolderMoves(moves, dxname.substring(0, index), dxname.substring(index + 1),
-                           nxname.substring(0, nindex), nxname.substring(nindex + 1));
+                           nxname.substring(0, nindex), nxname.substring(nindex + 1), strict);
          }
 
          return;
       }
 
-      String[] modelFolders = getDataModelFolders(dxname);
+      String[] modelFolders = getDataModelFolders(dxname, strict);
       String prefix = dxname + "/";
 
       // the name of a model is its path under the data source, which may have "/" in it. Its
@@ -2053,15 +2056,15 @@ public class DataSourceRegistry implements MessageListener {
       }
 
       for(String name : readAdditionalConnectionNames(dxname)) {
-         addFolderMoves(moves, dxname, name, nxname, name);
+         addFolderMoves(moves, dxname, name, nxname, name, strict);
       }
    }
 
    // "parent::name/folder" for each folder of the data model of the parent
    private void addFolderMoves(List<PermissionMove> moves, String parent, String name,
-                               String nparent, String nname)
+                               String nparent, String nname, boolean strict)
    {
-      for(String folder : getDataModelFolders(parent)) {
+      for(String folder : getDataModelFolders(parent, strict)) {
          moves.add(new PermissionMove(
             ResourceType.DATA_MODEL_FOLDER,
             parent + XUtil.ADDITIONAL_DS_CONNECTOR + name + "/" + folder,
@@ -2099,11 +2102,27 @@ public class DataSourceRegistry implements MessageListener {
     * and without loading the data source, or none if it has no data model.
     */
    private String[] getDataModelFolders(String datasource) {
+      return getDataModelFolders(datasource, false);
+   }
+
+   /**
+    * Bug #78223, gets the folders of the stored data model of a data source.
+    *
+    * @param strict {@code true} to throw if the data model is listed but can't be read, which
+    *               {@link #getObject(AssetEntry, boolean)} reports as none.
+    */
+   private String[] getDataModelFolders(String datasource, boolean strict) {
       AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
                                         AssetEntry.Type.DATA_MODEL, datasource, null);
 
-      if(containObject(entry) && getObject(entry, false) instanceof XDataModel model) {
-         return model.getFolders();
+      if(containObject(entry)) {
+         if(getObject(entry, false) instanceof XDataModel model) {
+            return model.getFolders();
+         }
+
+         if(strict) {
+            throw new IllegalStateException("Failed to read the data model of " + datasource);
+         }
       }
 
       return new String[0];
@@ -2161,10 +2180,10 @@ public class DataSourceRegistry implements MessageListener {
 
       try {
          // the data model is the one of the data source after its rename
-         String[] folders = getDataModelFolders(newParent);
+         String[] folders = getDataModelFolders(newParent, true);
 
          if(folders.length == 0) {
-            folders = getDataModelFolders(oldParent);
+            folders = getDataModelFolders(oldParent, true);
          }
 
          List<PermissionMove> moves = new ArrayList<>();
@@ -2451,7 +2470,7 @@ public class DataSourceRegistry implements MessageListener {
          for(EntryMove move : rest) {
             if(move.oentry().isDataSource() && move.name()) {
                collectDataModelResources(move.oentry().getPath(), move.nentry().getPath(),
-                                         restPermissions);
+                                         restPermissions, true);
             }
          }
 
@@ -3448,7 +3467,7 @@ public class DataSourceRegistry implements MessageListener {
                             move.oldKey(), move.newKey(), e);
 
                   if(permissionFailure == null) {
-                     permissionFailure = new MoveEntriesException(move.oldKey(), true, e);
+                     permissionFailure = new MoveEntriesException(null, true, e);
                   }
                }
             }
