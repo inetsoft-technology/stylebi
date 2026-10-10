@@ -17,7 +17,9 @@
  */
 package inetsoft.report.composition.execution;
 
+import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.mv.MVManager;
+import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.graph.VGraphPair;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
@@ -37,22 +39,29 @@ import inetsoft.util.ThreadContext;
 import inetsoft.util.script.graal.pool.PoolConfig;
 import inetsoft.util.swap.SwapFileReadException;
 import inetsoft.util.swap.SwapLostTestSupport;
+import inetsoft.web.viewsheet.command.SetChartAreasCommand;
+import inetsoft.web.viewsheet.controller.chart.VSChartAreasService;
+import inetsoft.web.viewsheet.event.chart.VSChartEvent;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.security.Principal;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -74,7 +83,6 @@ import static org.mockito.Mockito.when;
                                   LibManagerTestConfiguration.class, PluginsTestConfiguration.class,
                                   ViewsheetSandboxGraphPairFailureTest.TestConfig.class },
                       initializers = ConfigurationContextInitializer.class)
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
 @Tag("core")
 class ViewsheetSandboxGraphPairFailureTest {
@@ -106,9 +114,17 @@ class ViewsheetSandboxGraphPairFailureTest {
    }
 
    @AfterEach
-   void tearDown() {
+   void tearDown() throws InterruptedException {
       if(executor != null) {
          executor.shutdownNow();
+
+         try {
+            assertTrue(executor.awaitTermination(30, TimeUnit.SECONDS),
+                       "the test's request threads ended");
+         }
+         finally {
+            executor = null;
+         }
       }
 
       ThreadContext.setPrincipal(oldPrincipal);
@@ -132,6 +148,66 @@ class ViewsheetSandboxGraphPairFailureTest {
          VGraphPair pair = box.getVGraphPair(CHART);
          assertPlotted(pair);
       }
+   }
+
+   /**
+    * Through the real chart areas service: the first areas request reports the failure, and
+    * the next one sends a plotted chart, not "No data is available".
+    */
+   @Test
+   void chartAreasAfterAFailedInitPlotTheChart() throws Exception {
+      ViewsheetSandbox box = sandbox();
+      Failing failing = new Failing(1);
+
+      try(MockedStatic<VSAQuery> ignored = failing.install()) {
+         SetChartAreasCommand first = refreshChartAreas(box, true);
+         assertTrue(first.invalid(), "the first request reports the failure");
+         assertFalse(first.noData());
+
+         SetChartAreasCommand second = refreshChartAreas(box, false);
+         assertFalse(second.noData(), "the second request does not show no data");
+         assertFalse(second.invalid());
+         assertTrue(second.completed(), "the second request sends the plotted chart areas");
+      }
+   }
+
+   /**
+    * Run {@code VSChartAreasService.refreshChartAreasModel0} for the chart and return the
+    * command it sent.
+    */
+   private static SetChartAreasCommand refreshChartAreas(ViewsheetSandbox box, boolean fails)
+      throws Exception
+   {
+      String id = "rvs-78220";
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(box.getViewsheet());
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
+      when(rvs.getID()).thenReturn(id);
+      ViewsheetService engine = mock(ViewsheetService.class);
+      when(engine.getViewsheet(id, principal)).thenReturn(rvs);
+      CommandDispatcher dispatcher = mock(CommandDispatcher.class);
+      VSChartEvent event = new VSChartEvent();
+      event.setChartName(CHART);
+
+      Method refresh = VSChartAreasService.class.getDeclaredMethod(
+         "refreshChartAreasModel0", String.class, VSChartEvent.class, CommandDispatcher.class,
+         Principal.class);
+      refresh.setAccessible(true);
+
+      try {
+         refresh.invoke(new VSChartAreasService(engine), id, event, dispatcher, principal);
+         assertFalse(fails, "the failing request throws");
+      }
+      catch(InvocationTargetException ex) {
+         if(!fails) {
+            throw ex;
+         }
+      }
+
+      ArgumentCaptor<SetChartAreasCommand> command =
+         ArgumentCaptor.forClass(SetChartAreasCommand.class);
+      Mockito.verify(dispatcher).sendCommand(Mockito.eq(CHART), command.capture());
+      return command.getValue();
    }
 
    /**
