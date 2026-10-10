@@ -131,6 +131,11 @@ export class TaskConditionPaneComponent implements OnChanges {
    }
 
    changeConditionType(): void {
+      // Bug #78224, a type change edits the same stored condition, so keep its originalIndex.
+      // Without it the save treats the condition as new and the server drops its stored start
+      // time and time range for a user who can't set them.
+      const originalIndex = this.condition?.originalIndex;
+
       if(this.selectedConditionType.type === "TimeCondition") {
          this.condition = this.getDefaultTimeConditionModel(this.selectedConditionType.subtype);
          (<TimeConditionModel>this.condition).timeZone = this.timeZoneOptions[0].timeZoneId;
@@ -141,6 +146,10 @@ export class TaskConditionPaneComponent implements OnChanges {
             label: "_#(js:New Condition)",
             conditionType: this.selectedConditionType.type
          };
+      }
+
+      if(originalIndex != null) {
+         this.condition.originalIndex = originalIndex;
       }
 
       const valid = this.selectedConditionType.type === "TimeCondition" &&
