@@ -448,63 +448,7 @@ public final class XSwapper {
       if(file.isDirectory()) {
          // the cache directory could be very large so do it in background
          // to avoid holding up the server startup
-         (new Thread(() -> {
-            Cluster cluster;
-            Lock lock;
-
-            try {
-               cluster = Cluster.getInstance();
-               lock = cluster.getLock(SWAP_FILE_MAP_LOCK);
-               lock.lock();
-            }
-            catch(Exception e) {
-               DEBUG_LOG.debug(
-                  "Unable to acquire swap file map lock for cache cleanup, " +
-                  "cluster may be stopped", e);
-               return;
-            }
-
-            try {
-               RegisteredSwapFiles registered = new RegisteredSwapFiles(cluster);
-               // Bug #78082, e.g. of the JVM this one replaced in a rolling restart, so that
-               // the copies this JVM makes of the same snapshots are deleted when closed
-               // Bug #78095, before the snapshot counts are read below, so that the copies of
-               // a node that is gone are deleted
-               SnapshotEmbeddedTableAssembly.removeStaleFileReferences(cluster);
-               Map<String, Integer> snapshotMap =
-                  cluster.getMap(SnapshotEmbeddedTableAssembly.FILE_REFERENCES_MAP);
-               File[] files = file.listFiles();
-
-               for(int i = 0; files != null && i < files.length; i++) {
-                  // Bug #77600, this JVM may already have written live swap files
-                  // Bug #77627, another JVM's file may still be inside its own
-                  // registration window (see SWAP_FILE_GRACE_PERIOD)
-                  // Bug #78095, a snapshot copy is never in the swap file map, a live table of
-                  // another JVM on the same cache directory (e.g. the server and the local
-                  // scheduler) or of this one may read it, whatever its age
-                  if(!files[i].isDirectory() && files[i].getName().endsWith(".tdat") &&
-                     !registered.contains(files[i]) &&
-                     !snapshotMap.containsKey(files[i].getAbsolutePath()) &&
-                     !SnapshotEmbeddedTableAssembly.isFileInUseLocally(
-                        files[i].getAbsolutePath()) &&
-                     !isOwnSwapFile(files[i].getName()) &&
-                     System.currentTimeMillis() - files[i].lastModified() >= SWAP_FILE_GRACE_PERIOD)
-                  {
-                     files[i].delete();
-                  }
-               }
-
-               registered.removeStaleEntries();
-            }
-            finally {
-               try {
-                  lock.unlock();
-               }
-               catch(Exception e) {
-                  DEBUG_LOG.debug("Unable to release swap file map lock", e);
-               }
-            }
-         }, CACHE_SWEEP_THREAD)).start();
+         (new Thread(() -> sweepDeadSeedSwapFiles(file), CACHE_SWEEP_THREAD)).start();
       }
 
       // Bug #77649, the swapper threads are JVM-wide and swap the data of every user and
@@ -527,6 +471,80 @@ public final class XSwapper {
          }
          catch(Exception | LinkageError ex) {
             LOG.debug("Failed to set {}", PERIODIC_GC_OPTION, ex);
+         }
+      }
+   }
+
+   /**
+    * Deletes the swap files of this cache directory whose seed is registered in
+    * {@link #SWAP_SEED_MAP} and confirmed dead (none of its owner nodes are in the current
+    * cluster topology), as long as the file is past {@link #SWAP_FILE_GRACE_PERIOD}. This is
+    * the same, unmodified check the constructor's one-shot startup sweep above runs; it is
+    * factored out here, unchanged, so it can also be re-run by a short recurring task
+    * (Bug #78245) instead of only once per JVM. A swap file written in the last seconds of a
+    * JVM that then left the cluster during a rolling restart can still be inside its grace
+    * period the only time the one-shot startup sweep evaluates it; without a second look, it
+    * was never swept again until a manual EM Clean Up or another restart. Re-running this exact
+    * check on a short interval closes that gap without weakening the grace period itself: a
+    * file still being written by a merely-misclassified, still-alive JVM (e.g. a cluster split,
+    * see {@code claude/cluster.md}) keeps exactly the same protection it has today.
+    *
+    * @param dir the swap cache directory.
+    */
+   void sweepDeadSeedSwapFiles(File dir) {
+      Cluster cluster;
+      Lock lock;
+
+      try {
+         cluster = Cluster.getInstance();
+         lock = cluster.getLock(SWAP_FILE_MAP_LOCK);
+         lock.lock();
+      }
+      catch(Exception e) {
+         DEBUG_LOG.debug(
+            "Unable to acquire swap file map lock for cache cleanup, " +
+            "cluster may be stopped", e);
+         return;
+      }
+
+      try {
+         RegisteredSwapFiles registered = new RegisteredSwapFiles(cluster);
+         // Bug #78082, e.g. of the JVM this one replaced in a rolling restart, so that
+         // the copies this JVM makes of the same snapshots are deleted when closed
+         // Bug #78095, before the snapshot counts are read below, so that the copies of
+         // a node that is gone are deleted
+         SnapshotEmbeddedTableAssembly.removeStaleFileReferences(cluster);
+         Map<String, Integer> snapshotMap =
+            cluster.getMap(SnapshotEmbeddedTableAssembly.FILE_REFERENCES_MAP);
+         File[] files = dir.listFiles();
+
+         for(int i = 0; files != null && i < files.length; i++) {
+            // Bug #77600, this JVM may already have written live swap files
+            // Bug #77627, another JVM's file may still be inside its own
+            // registration window (see SWAP_FILE_GRACE_PERIOD)
+            // Bug #78095, a snapshot copy is never in the swap file map, a live table of
+            // another JVM on the same cache directory (e.g. the server and the local
+            // scheduler) or of this one may read it, whatever its age
+            if(!files[i].isDirectory() && files[i].getName().endsWith(".tdat") &&
+               !registered.contains(files[i]) &&
+               !snapshotMap.containsKey(files[i].getAbsolutePath()) &&
+               !SnapshotEmbeddedTableAssembly.isFileInUseLocally(
+                  files[i].getAbsolutePath()) &&
+               !isOwnSwapFile(files[i].getName()) &&
+               System.currentTimeMillis() - files[i].lastModified() >= SWAP_FILE_GRACE_PERIOD)
+            {
+               files[i].delete();
+            }
+         }
+
+         registered.removeStaleEntries();
+      }
+      finally {
+         try {
+            lock.unlock();
+         }
+         catch(Exception e) {
+            DEBUG_LOG.debug("Unable to release swap file map lock", e);
          }
       }
    }
