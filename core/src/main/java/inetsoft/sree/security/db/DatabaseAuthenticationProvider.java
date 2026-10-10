@@ -210,7 +210,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
          .anyMatch(u -> !storedID.equals(u) && storedID.equalsIgnoreCase(u));
       List<String> result = new ArrayList<>();
       IdentityID[] groups = getGroups();
-      AuthenticationDAO.GroupIndex groupIndex = indexGroups(groups);
+      AuthenticationDAO.IdentityIndex groupIndex = indexGroups(groups);
 
       for(IdentityID group : groups) {
          if(!Objects.equals(group.orgID, storedID.orgID)) {
@@ -407,7 +407,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
     *                   {@code null} when the cache is used.
     */
    private IdentityID[] getUsers(IdentityID groupIdentity,
-                                 AuthenticationDAO.GroupIndex groupIndex)
+                                 AuthenticationDAO.IdentityIndex groupIndex)
    {
       if(cacheEnabled && !isIgnoreCache()) {
          return getCache().getUsers(groupIdentity);
@@ -417,12 +417,12 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
    }
 
    /**
-    * Indexes the given group list for {@link #getUsers(IdentityID, AuthenticationDAO.GroupIndex)}.
+    * Indexes the given group list for {@link #getUsers(IdentityID, AuthenticationDAO.IdentityIndex)}.
     * Returns {@code null} when the cache is used, since the cached members are checked against
     * the cached group list.
     */
-   private AuthenticationDAO.GroupIndex indexGroups(IdentityID[] groups) {
-      return cacheEnabled && !isIgnoreCache() ? null : dao.indexGroups(Arrays.asList(groups));
+   private AuthenticationDAO.IdentityIndex indexGroups(IdentityID[] groups) {
+      return cacheEnabled && !isIgnoreCache() ? null : dao.indexIdentities(Arrays.asList(groups));
    }
 
    /**
@@ -435,7 +435,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
       }
 
       IdentityID[] groups = getGroups();
-      AuthenticationDAO.GroupIndex groupIndex = indexGroups(groups);
+      AuthenticationDAO.IdentityIndex groupIndex = indexGroups(groups);
       List<String> userGroupsInOrg = new ArrayList<>();
 
       for(IdentityID group : groups) {
