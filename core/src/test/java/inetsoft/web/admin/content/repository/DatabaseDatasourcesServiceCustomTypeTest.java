@@ -110,6 +110,18 @@ class DatabaseDatasourcesServiceCustomTypeTest {
       assertEquals(MySQLDatabaseType.TYPE, defs[1].getType());
    }
 
+   /** Bug #76697 (AA-003): a blank new data source defaults to the full table-name format. */
+   @Test
+   void defaultDatabaseUsesDefaultTableNameOption() {
+      inetsoft.uql.XPrincipal principal = mock(inetsoft.uql.XPrincipal.class);
+      when(principal.getName()).thenReturn(
+         new inetsoft.sree.security.IdentityID("admin", "host-org").convertToKey());
+
+      DatabaseDefinition def = service.getDefaultDatabase(principal).dataSource();
+
+      assertEquals(JDBCDataSource.DEFAULT_OPTION, def.getTableNameOption());
+   }
+
    private static JDBCDataSource source(String driver, String url, boolean custom) {
       JDBCDataSource ds = mock(JDBCDataSource.class);
       when(ds.getName()).thenReturn("ds");

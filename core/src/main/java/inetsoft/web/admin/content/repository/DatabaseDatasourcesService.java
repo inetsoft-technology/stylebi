@@ -841,6 +841,7 @@ public class DatabaseDatasourcesService {
       DatabaseDefinition defaultDef = new DatabaseDefinition();
       defaultDef.setName("");
       defaultDef.setType(CustomDatabaseType.TYPE);
+      defaultDef.setTableNameOption(JDBCDataSource.DEFAULT_OPTION);
       info.setCustomEditMode(true);
       AuthenticationDetails authentication = new AuthenticationDetails();
       authentication.setRequired(false);
