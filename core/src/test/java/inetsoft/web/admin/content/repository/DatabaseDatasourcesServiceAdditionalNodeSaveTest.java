@@ -20,8 +20,17 @@ package inetsoft.web.admin.content.repository;
 import inetsoft.sree.security.*;
 import inetsoft.storage.KeyValueStorageManager;
 import inetsoft.test.*;
+import inetsoft.mv.MVManager;
+import inetsoft.report.LibManagerProvider;
+import inetsoft.sree.RepletRegistryManager;
+import inetsoft.sree.schedule.ScheduleManager;
+import inetsoft.sree.web.dashboard.DashboardManager;
+import inetsoft.sree.web.dashboard.DashboardRegistryManager;
 import inetsoft.uql.DataSourceFolder;
 import inetsoft.uql.XDataSource;
+import inetsoft.uql.XDataSourceWrapper;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.erm.XPartition;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.sync.DependencyStorageService;
@@ -30,6 +39,7 @@ import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.jdbc.util.JDBCUtil;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.Drivers;
+import inetsoft.util.IndexedStorage;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.credential.CredentialService;
@@ -37,7 +47,9 @@ import inetsoft.web.admin.content.database.DatabaseDefinition;
 import inetsoft.web.admin.content.database.DatabaseTypeService;
 import inetsoft.web.admin.content.database.types.AccessDatabaseType;
 import inetsoft.web.admin.content.database.types.CustomDatabaseType;
+import inetsoft.web.RecycleBin;
 import inetsoft.web.admin.general.DatabaseSettingsService;
+import inetsoft.web.admin.schedule.ScheduleTaskFolderService;
 import inetsoft.web.portal.service.datasource.DataSourceStatusService;
 import inetsoft.web.session.IgniteSessionRepository;
 import org.junit.jupiter.api.*;
@@ -46,6 +58,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.*;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.lang.reflect.Constructor;
 import java.security.Principal;
@@ -62,6 +75,11 @@ import static org.mockito.Mockito.*;
  * registry cache still holds the instance that the repository tree gave a base data source.
  * The registry and the repository are the real ones, so that the save runs through
  * XEngine.updateDataSource.
+ * <p>
+ * Bug #78207: an additional connection saved before Bug #77610 is stored at parent/name with its
+ * path as its name. Its own editor must save it as an additional connection too, moving its
+ * permission and repointing the extended views on a rename, and the repository tree must give it
+ * the path parent/name.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class,
@@ -277,6 +295,153 @@ class DatabaseDatasourcesServiceAdditionalNodeSaveTest {
       assertEquals("folderSave/folderSaveNew",
                    registry.getDataSource("folderSave/folderSaveNew").getFullName());
       assertNull(registry.getDataSource("folderSaveNew"));
+   }
+
+   // Bug #78207: a rename of an additional connection saved before Bug #77610 moves its
+   // permission, repoints the extended views and saves it with its name alone
+   @Test
+   void renameOfALegacyAdditionalConnection() throws Exception {
+      for(boolean baseSet : new boolean[] { true, false }) {
+         String parentName = baseSet ? "legacyRenameSet" : "legacyRenameNull";
+         String oldName = parentName + "Old";
+         String newName = parentName + "New";
+         addLegacyParent(parentName);
+         XPartition partition = new XPartition("view");
+         registry.getDataModel(parentName).addPartition(partition);
+         XPartition extended = new XPartition(oldName);
+         extended.setConnection(oldName);
+         registry.getDataModel(parentName).getPartition("view").addPartition(extended, false);
+         Permission permission = new Permission();
+         when(security.getPermission(ResourceType.DATA_SOURCE, parentName + "::" + oldName))
+            .thenReturn(permission);
+
+         if(baseSet) {
+            readThroughParent(parentName, oldName);
+         }
+         else {
+            registry.clearCache();
+         }
+
+         saveNode(parentName + "/" + oldName, newName);
+
+         assertUnderParent(parentName, newName, parentName + "Keep");
+         assertNull(registry.getDataSource(parentName + "/" + oldName), parentName);
+         XPartition view = registry.getDataModel(parentName).getPartition("view");
+         assertArrayEquals(new String[] { newName }, view.getPartitionNames(), parentName);
+         assertEquals(newName, view.getPartition(newName).getConnection(), parentName);
+         verify(security).removePermission(ResourceType.DATA_SOURCE, parentName + "::" + oldName);
+         verify(security)
+            .setPermission(ResourceType.DATA_SOURCE, parentName + "::" + newName, permission);
+         verify(security, never()).setPermission(
+            eq(ResourceType.DATA_SOURCE), eq(parentName + "/" + newName), any());
+      }
+   }
+
+   // Bug #78207: a plain save of an additional connection saved before Bug #77610 repairs its
+   // name, and isn't taken for a rename onto a top-level data source with its name, which would
+   // need the DELETE permission
+   @Test
+   void plainSaveOfALegacyAdditionalConnection() throws Exception {
+      when(security.checkPermission(any(), eq(ResourceType.DATA_SOURCE), anyString(),
+                                    eq(ResourceAction.DELETE))).thenReturn(false);
+
+      for(boolean baseSet : new boolean[] { true, false }) {
+         String parentName = baseSet ? "legacySaveSet" : "legacySaveNull";
+         String name = parentName + "Old";
+         JDBCDataSource topLevel = customSource(name);
+         topLevel.setDescription("top level");
+         registry.setDataSource(topLevel, false);
+         addLegacyParent(parentName);
+
+         if(baseSet) {
+            readThroughParent(parentName, name);
+         }
+         else {
+            registry.clearCache();
+         }
+
+         saveNode(parentName + "/" + name, name);
+
+         registry.clearCache();
+         String[] children = ((JDBCDataSource) registry.getDataSource(parentName))
+            .getDataSourceNames();
+         Arrays.sort(children);
+         assertArrayEquals(new String[] { parentName + "Keep", name }, children, parentName);
+         JDBCDataSource saved = stored(parentName, name);
+         assertEquals(name, saved.getFullName(), parentName);
+         assertEquals("edited", saved.getDescription(), parentName);
+         XDataSource top = registry.getDataSource(name);
+         assertEquals(name, top.getFullName(), parentName);
+         assertEquals("top level", top.getDescription(), parentName);
+         verify(security, never()).setPermission(
+            eq(ResourceType.DATA_SOURCE), eq(parentName + "/" + name), any());
+      }
+   }
+
+   // Bug #78207: a data source of a data source folder at the path of a data source (older data)
+   // is saved with its path as its name, as a legacy additional connection is, but it isn't an
+   // additional connection, so it is saved as a top-level data source
+   @Test
+   void saveOfADataSourceOfAFolderAtTheParentPath() throws Exception {
+      registry.setDataSource(customSource("clashSave"), false);
+      registry.setDataSourceFolder(new DataSourceFolder("clashSave", LocalDateTime.now(), null));
+      setLegacy("clashSave/clashSaveX");
+      registry.clearCache();
+      assertFalse(registry.isAdditionalConnectionPath("clashSave/clashSaveX"));
+
+      saveNode("clashSave/clashSaveX", "clashSaveX");
+
+      registry.clearCache();
+      XDataSource saved = registry.getDataSource("clashSave/clashSaveX");
+      assertEquals("clashSave/clashSaveX", saved.getFullName());
+      assertEquals("edited", saved.getDescription());
+      assertArrayEquals(new String[0],
+                        ((JDBCDataSource) registry.getDataSource("clashSave")).getDataSourceNames());
+      assertNull(registry.getDataSource("clashSaveX"));
+   }
+
+   // Bug #78207: the repository tree gives an additional connection saved before Bug #77610 the
+   // path parent/name, which its editor and its permission resource resolve
+   @Test
+   void treePathOfALegacyAdditionalConnection() throws Exception {
+      addLegacyParent("legacyTree");
+      registry.clearCache();
+      ContentRepositoryTreeService tree = new ContentRepositoryTreeService(
+         mock(SecurityProvider.class), repository, mock(ResourcePermissionService.class),
+         mock(RepletRegistryService.class), mock(ScheduleTaskFolderService.class),
+         mock(MVManager.class), security, mock(ScheduleManager.class), registry,
+         mock(DashboardManager.class), mock(IndexedStorage.class),
+         mock(DashboardRegistryManager.class), mock(LibManagerProvider.class),
+         mock(RecycleBin.class), mock(RepletRegistryManager.class));
+
+      List<ContentRepositoryTreeNode> nodes = ReflectionTestUtils.invokeMethod(
+         tree, "getAdditionalDataSources", registry.getDataSource("legacyTree"),
+         Collections.emptySet());
+
+      assertNotNull(nodes);
+      Map<String, String> paths = new HashMap<>();
+      nodes.forEach(node -> paths.put(node.label(), node.path()));
+      assertEquals(Map.of("legacyTreeOld", "legacyTree/legacyTreeOld",
+                          "legacyTreeKeep", "legacyTree/legacyTreeKeep"), paths);
+      assertNotNull(repository.getDataSource(paths.get("legacyTreeOld")));
+      assertEquals("legacyTree::legacyTreeOld", ResourcePermissionService
+         .getDataSourceResourceName(paths.get("legacyTreeOld"), registry));
+   }
+
+   // a parent with a bare named additional connection, name + "Keep", and one saved before
+   // Bug #77610, name + "Old", stored with its path as its name
+   private void addLegacyParent(String name) throws Exception {
+      registry.setDataSource(customSource(name), false);
+      JDBCDataSource parent = (JDBCDataSource) registry.getDataSource(name);
+      parent.addDatasource(customSource(name + "Keep"));
+      setLegacy(name + "/" + name + "Old");
+   }
+
+   // stores a data source at the path with the path as its name
+   private void setLegacy(String path) {
+      registry.setObject(
+         new AssetEntry(AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE, path, null),
+         new XDataSourceWrapper(customSource(path)));
    }
 
    // the names of the additional connections start with the parent name, since every test of

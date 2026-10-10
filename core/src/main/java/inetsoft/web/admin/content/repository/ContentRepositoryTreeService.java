@@ -1743,7 +1743,9 @@ public class ContentRepositoryTreeService {
             .filter(Objects::nonNull)
             .map(pair -> ContentRepositoryTreeNode.builder()
                .label(pair.getLeft())
-               .path(dataSource.getFullName() + "/" + pair.getRight().getFullName())
+               // an additional connection saved before Bug #77610 has its path as its name, so
+               // the path is built from the listed name (Bug #78207)
+               .path(dataSource.getFullName() + "/" + pair.getLeft())
                .type(RepositoryEntry.DATA_SOURCE)
                .icon(getDataSourceIconClass(pair.getRight().getType()))
                .description(pair.getRight().getDescription())
