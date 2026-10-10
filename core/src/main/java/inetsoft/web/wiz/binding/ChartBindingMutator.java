@@ -171,6 +171,31 @@ public final class ChartBindingMutator {
          preserveChartTypes(oldRefs, refs);
       }
 
+      assignShelf(model, name, refs);
+
+      // Checked on the post-write model (bug #78214); the shelf is put back on a refusal so the
+      // caller's in-memory model is not left holding a write that was rejected.
+      try {
+         ChartTimeSeriesGuard.Place place = switch(name) {
+            case "x" -> ChartTimeSeriesGuard.Place.X;
+            case "y" -> ChartTimeSeriesGuard.Place.Y;
+            default -> ChartTimeSeriesGuard.Place.GROUP;
+         };
+
+         for(int i = 0; i < refs.size(); i++) {
+            if(refs.get(i) instanceof ChartDimensionRefModel dimension) {
+               ChartTimeSeriesGuard.require(model, place, name, i, dimension, fieldList.get(i),
+                                            oldRefs);
+            }
+         }
+      }
+      catch(RuntimeException e) {
+         assignShelf(model, name, oldRefs);
+         throw e;
+      }
+   }
+
+   private static void assignShelf(ChartBindingModel model, String name, List<ChartRefModel> refs) {
       switch(name) {
       case "x" -> model.setXFields(refs);
       case "y" -> model.setYFields(refs);
@@ -368,7 +393,7 @@ public final class ChartBindingMutator {
 
    /** Whether {@code previous} is the same occurrence of the same column as {@code field} --
     *  same identity {@code TableBindingMutator.dimensions()}'s own {@code matches()} uses. */
-   private static boolean matches(BDimensionRefModel previous, FieldRef field) {
+   static boolean matches(BDimensionRefModel previous, FieldRef field) {
       if(previous == null || field.column() == null) {
          return false;
       }
@@ -456,6 +481,22 @@ public final class ChartBindingMutator {
       ChartRefModel previous = readSingleShelf(model, name);
       carryForwardSameField(previous, ref, field);
 
+      assignSingleShelf(model, name, ref);
+
+      if(ref instanceof ChartDimensionRefModel dimension) {
+         try {
+            ChartTimeSeriesGuard.require(
+               model, ChartTimeSeriesGuard.Place.SINGLE, name, 0, dimension, field,
+               previous == null ? List.of() : List.of(previous));
+         }
+         catch(RuntimeException e) {
+            assignSingleShelf(model, name, previous);
+            throw e;
+         }
+      }
+   }
+
+   private static void assignSingleShelf(ChartBindingModel model, String name, ChartRefModel ref) {
       switch(name) {
       case "open" -> model.setOpenField(ref);
       case "high" -> model.setHighField(ref);
@@ -634,7 +675,64 @@ public final class ChartBindingMutator {
          requireUnambiguousMeasure(model, sort.sortByField(), "sortByField");
       }
 
-      DimensionSortRanking.applySort(requireDimension(model, shelf, column, index), sort);
+      BDimensionRefModel dimension = requireDimension(model, shelf, column, index);
+      releaseTimeSeriesForSort(model, shelf, dimension, sort);
+      DimensionSortRanking.applySort(dimension, sort);
+   }
+
+   /**
+    * A time-series date dimension always renders ascending: {@code ChartVSAQuery} forces it from
+    * the stored flag and {@code VSChartDimensionRef} drops a sort-by-value, so a non-ascending
+    * sort on one would be accepted, read back, and never take effect -- and the Composer disables
+    * the sort control there. Bug #78214:
+    * <ul>
+    * <li>the flag is in force (the Composer would honour it): a non-ascending sort is refused;
+    * <li>the flag is stored but the Composer would not honour it (outer dimension, group shelf,
+    *     pie/waterfall, ...): the flag is cleared and the sort applied, as the native dimension
+    *     editor does on Apply. The sort response carries no field for this, so it is silent
+    *     except that {@code get_binding} then reads {@code timeSeries} back as false.
+    * </ul>
+    * {@code asc}/{@code none} are always allowed.
+    */
+   private static void releaseTimeSeriesForSort(ChartBindingModel model, String shelf,
+                                                BDimensionRefModel dimension,
+                                                DimensionSortRanking.Sort sort)
+   {
+      if(!(dimension instanceof ChartDimensionRefModel chartDimension) ||
+         !chartDimension.isTimeSeries() || !overridesAscending(sort))
+      {
+         return;
+      }
+
+      String shelfName = shelf.trim().toLowerCase();
+      ChartTimeSeriesGuard.Place place = switch(shelfName) {
+         case "x" -> ChartTimeSeriesGuard.Place.X;
+         case "y" -> ChartTimeSeriesGuard.Place.Y;
+         default -> ChartTimeSeriesGuard.Place.GROUP;
+      };
+      int position = readShelf(model, shelfName).indexOf(chartDimension);
+
+      if(ChartTimeSeriesGuard.isEffective(model, place, shelfName, position, chartDimension)) {
+         String name = chartDimension.getColumnValue() == null
+            ? chartDimension.getName() : chartDimension.getColumnValue();
+         throw new IllegalArgumentException(
+            "Cannot sort '" + name + "' '" + sort.direction() + "': it is a time-series date " +
+            "dimension, which always renders in ascending date order (the Composer disables " +
+            "sorting there). Send timeSeries:false for it with set_chart_shelf first, or use " +
+            "'asc'.");
+      }
+
+      chartDimension.setTimeSeries(false);
+   }
+
+   private static boolean overridesAscending(DimensionSortRanking.Sort sort) {
+      String direction = sort == null || sort.direction() == null
+         ? "" : sort.direction().trim().toLowerCase();
+
+      return switch(direction) {
+         case "desc", "descending", "value_asc", "value_desc", "manual" -> true;
+         default -> false;
+      };
    }
 
    public static void setRanking(ChartBindingModel model, String shelf, String column,

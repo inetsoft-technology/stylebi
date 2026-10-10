@@ -27,6 +27,7 @@ import inetsoft.web.binding.model.ChartBindingModel;
 import inetsoft.web.binding.model.ColorMapModel;
 import inetsoft.web.binding.model.graph.AestheticInfo;
 import inetsoft.web.binding.model.graph.ChartAggregateRefModel;
+import inetsoft.web.binding.model.graph.ChartDimensionRefModel;
 import inetsoft.web.binding.model.graph.ChartRefModel;
 import inetsoft.web.binding.model.graph.aesthetic.*;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
@@ -119,15 +120,41 @@ public final class ChartAestheticMutator {
       // time, silently shadowing whatever the caller had already set.
       AestheticInfo existing = read(model, name);
       AestheticInfo info = existing != null ? existing : new AestheticInfo();
+      // info is existing mutated in place, so the pre-write state is captured first -- for the
+      // bug #78214 echo check and to undo the write if the time-series guard refuses it.
+      ChartRefModel previousData = existing == null ? null : existing.getDataInfo();
+      String previousFullName = existing == null ? null : existing.getFullName();
+      VisualFrameModel previousFrame = existing == null ? null : existing.getFrame();
       VisualFrameModel carriedFrame = info.getFrame() != null
          ? info.getFrame() : frameOf(model, name, perMeasureFrameChannels, existing);
       info.setFullName(field.column());
       ChartRefModel dataInfo = FieldRefFactory.toChartRef(field, model, rvs, source, refModelService);
-      ChartBindingMutator.carryForwardSameField(existing == null ? null : existing.getDataInfo(),
-                                                dataInfo, field);
+      ChartBindingMutator.carryForwardSameField(previousData, dataInfo, field);
       info.setDataInfo(dataInfo);
       info.setFrame(carriedFrame);
       assign(model, name, info);
+
+      // Bug #78214: checked on the post-write model; an aesthetic dimension only supports time
+      // series as a CHANGE calculator's column. The channel is put back on a refusal.
+      if(dataInfo instanceof ChartDimensionRefModel dimension) {
+         try {
+            ChartTimeSeriesGuard.require(
+               model, ChartTimeSeriesGuard.Place.AESTHETIC, name, 0, dimension, field,
+               previousData == null ? List.of() : List.of(previousData));
+         }
+         catch(RuntimeException e) {
+            if(existing == null) {
+               assign(model, name, null);
+            }
+            else {
+               existing.setFullName(previousFullName);
+               existing.setDataInfo(previousData);
+               existing.setFrame(previousFrame);
+            }
+
+            throw e;
+         }
+      }
    }
 
    /** Unbinds a channel. */
