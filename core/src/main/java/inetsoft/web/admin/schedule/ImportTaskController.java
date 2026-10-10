@@ -238,6 +238,13 @@ public class ImportTaskController {
                   "em.import.task.passwordsCleared", task.getName()));
             }
 
+            // Bug #78140, the task is imported even if the owner's permission couldn't be saved,
+            // tell the user, the owner may be unable to delete or rename the task
+            if(scheduleManager.isOwnerPermissionMissing(task)) {
+               warnings.add(Catalog.getCatalog(principal).getString(
+                  "em.import.task.ownerPermissionNotSaved", task.getName()));
+            }
+
             if(move) {
                moveTask(task, path, principal);
             }

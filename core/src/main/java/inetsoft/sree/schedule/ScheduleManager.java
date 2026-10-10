@@ -1117,8 +1117,11 @@ public class ScheduleManager {
 
       IdentityID owner = task.getOwner();
 
+      // Bug #78140, the task is already stored and sent to the scheduler and the cluster, so a
+      // failed permission write must not fail the save, or a caller that saves several tasks
+      // (e.g. the import) stops partway and reports a saved task as not saved
       try {
-         if(!trusted && Tool.equals(owner.orgID, OrganizationManager.getInstance().getCurrentOrgID())) {
+         if(!trusted && isOwnerGranted(owner)) {
             Permission perm = new Permission();
             String orgId = getTaskOrgID(taskId);
             Set<Permission.PermissionIdentity> users = Collections.singleton(new Permission.PermissionIdentity(owner.name, orgId));
@@ -1128,9 +1131,58 @@ public class ScheduleManager {
             engine.setPermission(principal, ResourceType.SCHEDULE_TASK, task.getTaskId(), perm);
          }
       }
-      catch(SRSecurityException e) {
-         LOG.error("Failed to set permission on scheduled task " +
-               task.getTaskId() + " for user " + owner.getName(), e);
+      catch(Exception e) {
+         LOG.error("Task {} was saved, but the permission of its owner {} was not. The owner " +
+                   "can still see and edit the task, but may be unable to delete or rename it " +
+                   "until the task's permission is saved again.", task.getTaskId(),
+                   owner == null ? null : owner.getName(), e);
+      }
+   }
+
+   /**
+    * Checks if a save of a task as the owner's own (not trusted) grants the owner permissions on
+    * the task, i.e. the owner is in the current organization.
+    */
+   private static boolean isOwnerGranted(IdentityID owner) {
+      return Tool.equals(owner.orgID, OrganizationManager.getInstance().getCurrentOrgID());
+   }
+
+   /**
+    * Bug #78140, checks if the permission that a save grants the owner of a saved task is
+    * missing, i.e. the write failed. The save doesn't fail for it, so a caller that tells the
+    * user about it checks after the save. Without the delete permission the owner can't delete
+    * or rename the task.
+    *
+    * @param task the saved task, as it was passed to
+    *             {@link #setScheduleTask(String, ScheduleTask, Principal)}.
+    *
+    * @return {@code true} if the save grants the owner permissions and the owner doesn't have the
+    *         delete permission on the task.
+    */
+   public boolean isOwnerPermissionMissing(ScheduleTask task) {
+      if(task == null || task.getOwner() == null || task.getTaskId() == null ||
+         isInternalTask(task.getTaskId()) || task.getType() == ScheduleTask.Type.CYCLE_TASK ||
+         !isOwnerGranted(task.getOwner()))
+      {
+         return false;
+      }
+
+      SecurityEngine security = getSecurityEngine();
+
+      // the permission is only written when security is enabled
+      if(security == null || !security.isSecurityEnabled()) {
+         return false;
+      }
+
+      try {
+         Permission perm = security.getPermission(ResourceType.SCHEDULE_TASK, task.getTaskId());
+         Permission.PermissionIdentity owner = new Permission.PermissionIdentity(
+            task.getOwner().name, getTaskOrgID(task.getTaskId()));
+         return perm == null || !perm.getAllUserGrants(ResourceAction.DELETE).contains(owner);
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to read the permission of task {}", task.getTaskId(), e);
+         return true;
       }
    }
 
