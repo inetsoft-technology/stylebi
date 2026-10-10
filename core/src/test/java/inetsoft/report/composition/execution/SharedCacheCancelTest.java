@@ -33,6 +33,7 @@ import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.jdbc.*;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.QueryManager;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.util.*;
 import org.apache.derby.jdbc.EmbeddedDataSource;
 import org.junit.jupiter.api.*;
@@ -243,8 +244,59 @@ class SharedCacheCancelTest {
       fail("the join always finished before the second reader got it");
    }
 
+   /**
+    * A scheduled reader must not use partial data: it fails instead of getting a warning.
+    */
+   @Test
+   void cancelOfTheFirstReaderFailsAScheduledSecondReader() throws Exception {
+      Shared shared = plain(scheduled(), scheduled());
+      shared.box1.getQueryManager().cancel();
+
+      TableLoadException ex = assertThrows(TableLoadException.class,
+                                           () -> rows(shared.lens2),
+                                           "the scheduled reader took the rows read so far");
+      assertEquals(Catalog.getCatalog().getString("common.table.queryCancelled"),
+                   ex.getMessage());
+      shared.assertFirstReaderSilent();
+   }
+
+   /**
+    * Two readers of the same loading table with no cancel: both get the whole table with no
+    * message, and the complete table stays cached for a later reader.
+    */
+   @Test
+   void sharedReadersWithoutCancelGetTheWholeCachedTable() throws Exception {
+      Shared shared = plain();
+
+      assertEquals(PFULL, rows(shared.lens2));
+      assertNull(CoreTool.getUserMessage(), "the second reader was told of no cancel");
+      assertEquals(PFULL, rows(shared.lens1));
+      assertNull(CoreTool.getUserMessage(), "the first reader was told of no cancel");
+
+      AssetQuerySandbox box3 = new AssetQuerySandbox(shared.ws);
+      box3.setQueryManager(new QueryManager());
+      TableLens lens3 = box3.getTableLens("T1", AssetQuerySandbox.RUNTIME_MODE,
+                                          new VariableTable());
+      assertSame(shared.x1, Util.getNestedTable(lens3, XNodeTableLens.class),
+                 "the complete table was not served from the cache");
+      assertEquals(PFULL, rows(lens3));
+      assertNull(CoreTool.getUserMessage(), "the later reader was told of no cancel");
+      assertFalse(shared.x1.isCancelled());
+   }
+
+   private static VariableTable scheduled() {
+      VariableTable vars = new VariableTable();
+      vars.put("__is_scheduler__", "true");
+      return vars;
+   }
+
    /** The two readers of the plain table, the second one sharing the first one's lens. */
    private static Shared plain() throws Exception {
+      return plain(new VariableTable(), new VariableTable());
+   }
+
+   /** The two readers of the plain table, with their variables. */
+   private static Shared plain(VariableTable vars1, VariableTable vars2) throws Exception {
       Shared shared = new Shared();
       shared.ws = new Worksheet();
       int run = RUN.incrementAndGet();
@@ -255,14 +307,14 @@ class SharedCacheCancelTest {
       shared.box1 = new AssetQuerySandbox(shared.ws);
       shared.box1.setQueryManager(new QueryManager());
       shared.lens1 = shared.box1.getTableLens("T1", AssetQuerySandbox.RUNTIME_MODE,
-                                              new VariableTable());
+                                              vars1);
       assertNotNull(shared.lens1, "the query failed, see the log");
       shared.x1 = (XNodeTableLens) Util.getNestedTable(shared.lens1, XNodeTableLens.class);
 
       shared.box2 = new AssetQuerySandbox(shared.ws);
       shared.box2.setQueryManager(new QueryManager());
       shared.lens2 = shared.box2.getTableLens("T1", AssetQuerySandbox.RUNTIME_MODE,
-                                              new VariableTable());
+                                              vars2);
       assertNotNull(shared.lens2, "the query failed, see the log");
       XNodeTableLens x2 = (XNodeTableLens) Util.getNestedTable(shared.lens2,
                                                                XNodeTableLens.class);
