@@ -136,8 +136,14 @@ public class DatabaseDatasourcesController {
                                                                       isAdditionalSource);
    }
 
+   /**
+    * Refreshes the meta-data of a data source. Requires READ on it, as clearing its meta-data
+    * through {@code /api/data/datasources/refresh/**} does (Bug #78249).
+    */
    @GetMapping("/api/portal/data/datasource/refresh-metadata")
-   public boolean refreshMetadata(@RequestParam("dataSource") String dataSource) {
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.DATA_SOURCE, actions = ResourceAction.READ))
+   public boolean refreshMetadata(@RequestParam("dataSource") @PermissionPath String dataSource) {
       try {
          if(dataSource != null && xRepository instanceof XEngine) {
             xRepository.refreshMetaData(dataSource);

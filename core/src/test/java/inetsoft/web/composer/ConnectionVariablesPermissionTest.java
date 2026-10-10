@@ -28,6 +28,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.util.ColumnCache;
@@ -42,6 +43,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.function.Executable;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -64,12 +67,14 @@ import static org.mockito.Mockito.*;
  *    <li>C POST /api/vs/bindingtree/getConnectionParameters (throws on the source, skips the
  *        name)</li>
  * </ul>
- * A server-built cube entry has path {@code ds/cube}. DATA_SOURCE READ on {@code ds/cube} or
- * {@code cube} does not inherit from {@code ds}, so the legit cases grant READ on {@code ds}
- * only and must still work.
+ * A server-built cube entry has path {@code ds/cube}. DATA_SOURCE READ on {@code cube}, or on
+ * {@code ds/cube} as it is checked ({@code ds::cube}, Bug #78249), is not granted by these tests,
+ * so the legit cases grant READ on {@code ds} only and must still work.
  */
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class,
+                                  ConnectionVariablesPermissionTest.Beans.class },
+                      initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
 @Tag("core")
@@ -532,5 +537,18 @@ class ConnectionVariablesPermissionTest {
       assertDenied(() -> treeService.getConnectionParameters(
          RID, cubeData("Folder/" + ALLOWED + "/" + CUBE), null, principal));
       verifyNoSourceOperation();
+   }
+
+   // the READ checks look up the data sources of the registry to tell an additional connection
+   // path from a data source in a folder (Bug #78249)
+   @Configuration
+   static class Beans {
+      @Bean
+      public DataSourceRegistry dataSourceRegistry() {
+         DataSourceRegistry registry = mock(DataSourceRegistry.class);
+         when(registry.getDataSourceFullNames())
+            .thenReturn(new String[] { ALLOWED, DENIED, FOLDER_SOURCE });
+         return registry;
+      }
    }
 }

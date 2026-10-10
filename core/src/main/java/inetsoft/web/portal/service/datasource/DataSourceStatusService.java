@@ -23,8 +23,10 @@ import inetsoft.sree.security.*;
 import inetsoft.uql.AdditionalConnectionDataSource;
 import inetsoft.uql.XDataSource;
 import inetsoft.uql.XRepository;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.util.*;
 import inetsoft.util.log.LogContext;
+import inetsoft.web.admin.content.repository.ResourcePermissionService;
 import inetsoft.web.portal.data.DataSourceConnectionStatusRequest;
 import inetsoft.web.portal.data.DataSourceStatus;
 import org.slf4j.*;
@@ -40,9 +42,12 @@ import java.util.*;
 @Service
 public class DataSourceStatusService {
    @Autowired
-   public DataSourceStatusService(XRepository repository, SecurityEngine securityEngine) {
+   public DataSourceStatusService(XRepository repository, SecurityEngine securityEngine,
+                                  DataSourceRegistry dataSourceRegistry)
+   {
       this.repository = repository;
       this.securityEngine = securityEngine;
+      this.dataSourceRegistry = dataSourceRegistry;
    }
 
    public List<DataSourceStatus> getDataSourceConnectionStatuses(
@@ -57,9 +62,13 @@ public class DataSourceStatusService {
          final int idx = i;
 
          // Bug #77429, an unreadable data source gets no status (a null entry), the same as
-         // one that does not exist, so it is neither tested nor saved
+         // one that does not exist, so it is neither tested nor saved. Bug #78249, an
+         // additional connection path P/add is checked as P::add.
          if(!securityEngine.checkPermission(
-            principal, ResourceType.DATA_SOURCE, paths.get(idx), ResourceAction.READ))
+            principal, ResourceType.DATA_SOURCE,
+            ResourcePermissionService.getDataSourcePermissionName(
+               paths.get(idx), dataSourceRegistry),
+            ResourceAction.READ))
          {
             continue;
          }
@@ -232,5 +241,6 @@ public class DataSourceStatusService {
 
    private final XRepository repository;
    private final SecurityEngine securityEngine;
+   private final DataSourceRegistry dataSourceRegistry;
    private static final Logger LOG = LoggerFactory.getLogger(DataSourceStatusService.class);
 }

@@ -22,6 +22,7 @@ import inetsoft.test.*;
 import inetsoft.uql.XDataSource;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.jdbc.JDBCDataSource;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.web.portal.data.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -40,6 +41,10 @@ import static org.mockito.Mockito.*;
  * Bug #77429: POST /api/data/datasources/statuses tested, saved and reported the status of any
  * data source the client named. A data source the user cannot read must get a null entry, the
  * same as one that does not exist, and must be neither tested nor saved.
+ *
+ * Bug #78249: an additional connection named by its registry path (Secret/add) was checked as a
+ * data source in a folder "Secret", which falls back to the root folder's READ for everyone. It
+ * must be checked as Secret::add, which inherits the restriction on Secret.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -50,12 +55,14 @@ class DataSourceStatusServicePermissionTest {
    private static final String READABLE = "Readable";
    private static final String DENIED = "Secret";
    private static final String MISSING = "NoSuchSource";
+   private static final String DENIED_ADDITIONAL = DENIED + "/add";
 
    private XRepository repository;
    private SecurityEngine securityEngine;
    private Principal principal;
    private JDBCDataSource readable;
    private JDBCDataSource denied;
+   private JDBCDataSource deniedAdditional;
    private DataSourceStatusService service;
 
    @BeforeEach
@@ -65,9 +72,14 @@ class DataSourceStatusServicePermissionTest {
       principal = new SRPrincipal(new IdentityID("alice", "host-org"));
       readable = mock(JDBCDataSource.class);
       denied = mock(JDBCDataSource.class);
+      deniedAdditional = mock(JDBCDataSource.class);
+      DataSourceRegistry registry = mock(DataSourceRegistry.class);
+      when(registry.getDataSourceFullNames()).thenReturn(new String[] { READABLE, DENIED });
 
       when(repository.getDataSource(READABLE)).thenReturn(readable);
       when(repository.getDataSource(DENIED)).thenReturn(denied);
+      when(repository.getDataSource(DENIED_ADDITIONAL)).thenReturn(deniedAdditional);
+      when(deniedAdditional.getStatus()).thenReturn(new XDataSource.Status(null, true, 0L));
       when(readable.getStatus()).thenReturn(new XDataSource.Status(null, true, 0L));
       when(denied.getStatus()).thenReturn(new XDataSource.Status(null, true, 0L));
       when(securityEngine.checkPermission(
@@ -80,8 +92,12 @@ class DataSourceStatusServicePermissionTest {
       when(securityEngine.checkPermission(
          any(), eq(ResourceType.DATA_SOURCE), eq(MISSING), eq(ResourceAction.READ)))
          .thenReturn(true);
+      // the raw additional connection path inherits the root folder's READ for everyone
+      when(securityEngine.checkPermission(
+         any(), eq(ResourceType.DATA_SOURCE), eq(DENIED_ADDITIONAL), eq(ResourceAction.READ)))
+         .thenReturn(true);
 
-      service = new DataSourceStatusService(repository, securityEngine);
+      service = new DataSourceStatusService(repository, securityEngine, registry);
    }
 
    @Test
@@ -111,6 +127,25 @@ class DataSourceStatusServicePermissionTest {
       assertNotNull(result.get(0));
       assertNull(result.get(1));
       assertNull(result.get(2));
+      verify(repository, never()).testDataSource(any(), any(), any());
+      verify(repository, never()).updateDataSourceStatus(any());
+   }
+
+   @Test
+   void additionalConnectionOfUnreadableSourceGetsNoStatus() throws Exception {
+      for(boolean update : new boolean[] { true, false }) {
+         List<DataSourceStatus> result = service.getDataSourceConnectionStatuses(
+            request(update, DENIED_ADDITIONAL, DENIED, DENIED + "::add"), principal);
+
+         assertEquals(3, result.size());
+         assertNull(result.get(0), "P/add, update " + update);
+         assertNull(result.get(1), "P, update " + update);
+         assertNull(result.get(2), "P::add, update " + update);
+      }
+
+      verify(securityEngine, times(4)).checkPermission(
+         any(), eq(ResourceType.DATA_SOURCE), eq(DENIED + "::add"), eq(ResourceAction.READ));
+      verify(repository, never()).getDataSource(DENIED_ADDITIONAL);
       verify(repository, never()).testDataSource(any(), any(), any());
       verify(repository, never()).updateDataSourceStatus(any());
    }
