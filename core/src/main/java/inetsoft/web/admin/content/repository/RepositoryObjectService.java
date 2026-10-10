@@ -1298,7 +1298,14 @@ public class RepositoryObjectService {
             (typeFrom & RepositoryEntry.PARTITION) == RepositoryEntry.PARTITION))
          {
             moveDataModel(pathFrom, pathTo, info, typeFrom);
-            renameDataModelPermission(pathFrom, pathTo);
+
+            // Bug #78204, moveDataModel records a refusal (e.g. the target does not belong to the
+            // same data source) in info's "error" list and returns without mutating anything; only
+            // rename the permission when the move was actually accepted, otherwise this runs on
+            // paths/targets moveDataModel never validated and can throw.
+            if(info.get("error").isEmpty()) {
+               renameDataModelPermission(pathFrom, pathTo);
+            }
          }
          else {
             // do nothing when folder path is not changed.
@@ -1408,7 +1415,12 @@ public class RepositoryObjectService {
       int idx = pathFrom.indexOf("^");
       String dsName = idx == -1 ? null : pathFrom.substring(0, idx);
 
-      if(dsName != null && (pathTo == null || !pathTo.startsWith(dsName))) {
+      // Bug #78204, a bare startsWith() is not path-separator aware and wrongly accepts a target
+      // data source whose name merely starts with dsName (e.g. "OrdersX" or "OrdersX/g" against
+      // "Orders"). isSameOrDescendantPath() requires pathTo to equal dsName (move onto the data
+      // source itself) or be dsName + "/" + <folder> (move into one of its own data-model
+      // folders), which still allows a legitimate same-data-source subfolder move.
+      if(dsName != null && (pathTo == null || !Tool.isSameOrDescendantPath(dsName, pathTo))) {
          infos.get("error").add(catalog.getString("em.database.drag.dataModel.source.note"));
          return;
       }
