@@ -41,8 +41,9 @@
  * and filtered inputs fixed by #77273; script join keys still known-deadlock).</li>
  * <li>{@code MonitorFirstLensCycleTest}: #76960 B (R2), Sort/MaxRows/Union/Ranking monitors (MaxRows
  * fixed by #77311, also with the engine lock held by a formula lens over the shared lens;
- * Sort/Union/Ranking still known-deadlock).</li>
- * <li>{@code CrossSandboxCycleTest}: #76960 B (R2-X, R2-X′), #76964 (R3), #76938.</li>
+ * Sort/Union/Ranking fixed by #77874).</li>
+ * <li>{@code CrossSandboxCycleTest}: #76960 B (R2-X, R2-X′, fixed by #77223), #76964 (R3,
+ * {@code reversedNesting}, still known-deadlock), #76938.</li>
  * <li>{@code BoxResetCycleTest}: #76961, reset/dispose of the building sandbox.</li>
  * <li>{@code ScriptThreadGuardCycleTest}: #76960 C, isScriptThread-only sandbox lock guard.</li>
  * <li>{@code SubQueryConditionCycleTest}: #76965 (fixed by #77158), sub-query condition tables

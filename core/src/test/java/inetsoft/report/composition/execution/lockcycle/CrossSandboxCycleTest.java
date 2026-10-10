@@ -65,42 +65,56 @@ public class CrossSandboxCycleTest {
 
    /**
     * Bug #76960 B, R2-X. A {@code SummaryFilter} over sandbox 1's filtered formula table is
-    * first touched by sandbox 2's filter holder. {@code holdsScriptLock()} is true for any
-    * held lock, so #5531's inline path runs {@code process()} under the summary's monitor.
-    * Cycle: H holds L2 and the summary monitor and waits for L1 in the inner filter; T3 holds
-    * L1 (sandbox 1's filter over the same summary) and waits for the summary monitor in
-    * {@code SummaryFilter.waitForRow}.
+    * first touched by sandbox 2's filter holder. Before #5838, {@code holdsScriptLock()} was
+    * true for any held lock, so #5531's inline path ran {@code process()} under the summary's
+    * monitor. Cycle: H holds L2 and the summary monitor and waits for L1 in the inner filter;
+    * T3 holds L1 (sandbox 1's filter over the same summary) and waits for the summary monitor
+    * in {@code SummaryFilter.waitForRow}.
+    *
+    * <p>Fixed by #77223 (#5838): the first reader takes the chain's engine lock (L1, found by
+    * {@code ChainScriptLock}) before the summary monitor and processes inline. Reverting only
+    * {@code SummaryFilter.checkInit()} makes this case fail its inline precondition; the cycle
+    * timeout comes back only when the {@code holdsScriptLock()} inline decision is restored as
+    * well (bug #78239). See {@link #runSummary} for the inline assumption.
     */
    @Test
-   @Tag("known-deadlock")
-   @EnabledIfSystemProperty(named = "lockcycle.known", matches = "true")
    public void summaryFirstTouchedByOtherSandbox() throws Exception {
       assumeFalse(POOL, INLINE_UNDER_SCRIPT_LOCK);
-      runSummary(false, true, KNOWN_CAP);
+      runSummary(false, true, ACTIVE_CAP);
    }
 
    /**
     * Bug #76960 B, R2-X′. H is a script thread of another engine (e.g. the viewsheet engine,
-    * holding L2 inside {@code exec}) and first-touches the cached summary; script threads
-    * always process inline under the summary's monitor. Cycle: H holds L2 and the summary
-    * monitor and waits for L1; B holds L1 (sandbox 1's filter) and waits for the monitor.
+    * holding L2 inside {@code exec}) and first-touches the cached summary; before #5838 a
+    * script thread always processed inline under the summary's monitor. Cycle: H holds L2 and
+    * the summary monitor and waits for L1; B holds L1 (sandbox 1's filter) and waits for the
+    * monitor.
+    *
+    * <p>Fixed by #77223 (#5838): the first reader takes the chain's engine lock (L1, found by
+    * {@code ChainScriptLock}) before the summary monitor and processes inline. Reverting only
+    * {@code SummaryFilter.checkInit()} makes this case fail its inline precondition; the cycle
+    * timeout comes back only when the {@code holdsScriptLock()} inline decision is restored as
+    * well (bug #78239).
+    *
+    * <p>The case assumes the first toucher processes the summary inline. A redesign that moves
+    * the first read to a worker fails it by precondition ("H never processed the summary
+    * inline first"); that is a sign to revise the case, not a deadlock.
     */
    @Test
-   @Tag("known-deadlock")
-   @EnabledIfSystemProperty(named = "lockcycle.known", matches = "true")
    public void summaryFirstTouchedByOtherScriptThread() throws Exception {
+      assumeFalse(POOL, GUEST_INLINE_UNDER_CHAIN_LOCK);
       Sandbox s1 = harness.sandbox();
       Sandbox s2 = harness.sandbox();
       Summary summary = summary(s1);
 
       Started<List<List<Object>>> h =
          harness.startGated(summary.gate, () -> s2.asGuest(() -> drain(summary.summary)));
-      assertTrue(summary.gate.awaitEntered(KNOWN_CAP), "H never processed the summary inline first");
+      assertTrue(summary.gate.awaitEntered(ACTIVE_CAP), "H never processed the summary inline first");
       Started<List<List<Object>>> b = harness.start(() -> drain(cf2(summary.summary, s1.box)));
-      releaseAfter(summary.gate, b, KNOWN_CAP);
+      releaseAfter(summary.gate, b, ACTIVE_CAP);
 
-      assertEquals(summary.expectedOuter, harness.await(b.future, KNOWN_CAP, "B, sandbox 1's filter holder"));
-      assertEquals(summary.expectedLens, harness.await(h.future, KNOWN_CAP, "H, the other engine's script thread"));
+      assertEquals(summary.expectedOuter, harness.await(b.future, ACTIVE_CAP, "B, sandbox 1's filter holder"));
+      assertEquals(summary.expectedLens, harness.await(h.future, ACTIVE_CAP, "H, the other engine's script thread"));
    }
 
    /**
@@ -158,6 +172,11 @@ public class CrossSandboxCycleTest {
    }
 
    /**
+    * Assumes the first holder processes the summary inline on its own thread (it parks at
+    * the summary's gate). A redesign that moves the first read to a worker fails these cases
+    * by precondition ("the first filter holder never processed the summary inline first");
+    * that is a sign to revise the cases, not a deadlock.
+    *
     * @param ownFirst  sandbox 1's filter holder touches the summary first.
     * @param crossBox  the other holder is sandbox 2's (otherwise also sandbox 1's).
     */
@@ -224,6 +243,17 @@ public class CrossSandboxCycleTest {
    static final String INLINE_UNDER_SCRIPT_LOCK =
       "pool off only: premise is that the first holder processes the summary inline under " +
       "a held script lock, which pool mode never takes";
+
+   /**
+    * Why summaryFirstTouchedByOtherScriptThread is pinned to pool off (bug #78239): in pool
+    * mode {@code ChainScriptLock} finds no lock for the chain, so the R2-X′ cycle cannot form
+    * and the case passes even without #5838. Only the pool-off run (daily slow-tests.yml)
+    * guards it.
+    */
+   static final String GUEST_INLINE_UNDER_CHAIN_LOCK =
+      "pool off only: premise is that the guest script thread processes the summary inline " +
+      "under the chain's engine lock, which pool mode never finds, so the case would pass " +
+      "even without the fix";
 
    private static final int ROWS = 300;
    private LockCycleHarness harness;
