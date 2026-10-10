@@ -959,11 +959,15 @@ public class CalcTableService {
       List<String> aggregateFormulas = new ArrayList<>();
 
       try {
+         List<String> all = new ArrayList<>();
+
          for(inetsoft.uql.asset.AggregateFormula formula :
             inetsoft.uql.asset.AggregateFormula.getFormulas())
          {
-            aggregateFormulas.add(formula.getFormulaName());
+            all.add(formula.getFormulaName());
          }
+
+         aggregateFormulas = CalcCellVocabulary.advertisedFormulas(all);
       }
       catch(Throwable e) {
          LOG.debug("Could not list aggregate formulas; reporting none", e);

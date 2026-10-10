@@ -426,4 +426,62 @@ class CalcCellVocabularyTest {
 
       assertNull(sort.get("rankBy"));
    }
+
+   // ── summary formula (Bug #78189) ─────────────────────────────────────────────
+
+   private static Map<String, Object> summary(String formula) {
+      return spec("content", "column", "grouping", "summary",
+                  "field", Map.of("column", "Order:Total", "type", "measure"),
+                  "formula", formula);
+   }
+
+   @org.junit.jupiter.params.ParameterizedTest
+   @org.junit.jupiter.params.provider.ValueSource(strings = {
+      "First", "Last", "Correlation", "Covariance", "WeightedAverage",
+      "First()", "Last( )", "Correlation(  )", "Covariance()", "WeightedAverage()",
+      "First(3)", "Last(12)", "Correlation(3)", "Covariance( 7 )", "WeightedAverage(3)",
+      "first", "First<-1>", "First()<-1>", "First(3)<-1>"})
+   void refusesATwoColumnFormulaWithoutASecondColumn(String formula) {
+      IllegalArgumentException e = assertThrows(
+         IllegalArgumentException.class, () -> CalcCellVocabulary.validate(summary(formula)));
+      assertTrue(e.getMessage().contains("needs a second column"), e.getMessage());
+   }
+
+   @org.junit.jupiter.params.ParameterizedTest
+   @org.junit.jupiter.params.provider.ValueSource(strings = {
+      "First(Order:Date)", "First(Order:Date)<-1>", "First<-1>(Order:Date)",
+      "Correlation(Order:Discount)", "Covariance(Order:Discount)",
+      "WeightedAverage(Order:Quantity)", "First(Order:Total (USD))",
+      "NthLargest(3)", "NthLargest", "PthPercentile(90)", "Sum", "Sum<-1>", "Average",
+      "SumSQFormula", "SumSQ"})
+   void acceptsWellFormedSummaryFormulas(String formula) {
+      assertDoesNotThrow(() -> CalcCellVocabulary.validate(summary(formula)));
+   }
+
+   @org.junit.jupiter.params.ParameterizedTest
+   @org.junit.jupiter.params.provider.ValueSource(strings = {
+      "SumWT", "SumWTFormula", "SumWTFormula(Order:Discount)", "Sum2", "Sum2Formula",
+      "Sum2Formula(Order:Discount)", "Aggregate", "AggregateFormula", "aggregate"})
+   void refusesFormulasACalcCellCannotRun(String formula) {
+      IllegalArgumentException e = assertThrows(
+         IllegalArgumentException.class, () -> CalcCellVocabulary.validate(summary(formula)));
+      assertTrue(e.getMessage().contains("not a recognized aggregate formula"), e.getMessage());
+   }
+
+   @Test
+   void theFormulaRuleOnlyAppliesToSummaryColumnCells() {
+      assertDoesNotThrow(() -> CalcCellVocabulary.validate(
+         spec("content", "formula", "formula", "First")));
+      assertDoesNotThrow(() -> CalcCellVocabulary.validate(
+         spec("content", "column", "grouping", "detail",
+              "field", Map.of("column", "Order:Total", "type", "measure"), "formula", "First")));
+   }
+
+   @Test
+   void advertisedFormulasDropsTheUnsupportedAndKeepsSumSQ() {
+      List<String> out = CalcCellVocabulary.advertisedFormulas(List.of(
+         "Sum", "SumWTFormula", "Sum2Formula", "Aggregate", "SumSQFormula", "First"));
+
+      assertEquals(List.of("Sum", "SumSQFormula", "First"), out);
+   }
 }
