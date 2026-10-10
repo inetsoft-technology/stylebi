@@ -22,6 +22,7 @@ import inetsoft.report.*;
 import inetsoft.report.filter.BinaryTableFilter;
 import inetsoft.report.filter.SortedTable;
 import inetsoft.report.internal.Util;
+import inetsoft.report.internal.table.CancellableTableLens;
 import inetsoft.report.lens.AttributeTableLens;
 import inetsoft.report.lens.DefaultTableDataDescriptor;
 import inetsoft.uql.XMetaInfo;
@@ -37,7 +38,7 @@ import java.awt.*;
  * @author InetSoft Technology Corp
  */
 public class AssetTableLens extends AttributeTableLens
-   implements SortedTable, DFWrapper
+   implements SortedTable, DFWrapper, CancellableTableLens
 {
    /**
     * Constructor.
@@ -108,6 +109,33 @@ public class AssetTableLens extends AttributeTableLens
       if(table instanceof DFWrapper) {
          ((DFWrapper) table).completed();
       }
+   }
+
+   /**
+    * Forward the cancel to the nearest cancellable table below this one. This lens renames
+    * headers in the middle of a worksheet table's chain, and a parent that forwards a cancel
+    * only to its direct child would otherwise stop here (bug #78201).
+    */
+   @Override
+   public void cancel() {
+      CancellableTableLens cancelTable = getCancellableTable();
+
+      if(cancelTable != null) {
+         cancelTable.cancel();
+      }
+   }
+
+   /**
+    * Check if the nearest cancellable table below this one is cancelled.
+    */
+   @Override
+   public boolean isCancelled() {
+      CancellableTableLens cancelTable = getCancellableTable();
+      return cancelTable != null && cancelTable.isCancelled();
+   }
+
+   private CancellableTableLens getCancellableTable() {
+      return (CancellableTableLens) Util.getNestedTable(getTable(), CancellableTableLens.class);
    }
 
    /**
