@@ -1759,6 +1759,39 @@ class AssemblyPropertyServiceTest {
    // the same one set_assembly_properties calls.
 
    @Test
+   void writesCalendarMinAndMaxThroughTheShortAliases() throws Exception {
+      CalendarPropertyDialogModel model = new CalendarPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithCalendar(mock(CalendarVSAssembly.class), model);
+
+      service.set("tok", principal(), "Calendar1",
+                  Map.of("min", "2022-05-12", "max", "2022-06-12"), "");
+
+      assertEquals("2022-05-12", model.getCalendarAdvancedPaneModel().getMin().getValue());
+      assertEquals("2022-06-12", model.getCalendarAdvancedPaneModel().getMax().getValue());
+   }
+
+   @Test
+   @SuppressWarnings("unchecked")
+   void listsCalendarMinAndMaxWithASerializableCurrentValue() throws Exception {
+      CalendarPropertyDialogModel model = new CalendarPropertyDialogModel();
+      model.getCalendarAdvancedPaneModel().setMin(new DynamicValueModel("2022-05-12"));
+      AssemblyPropertyService service =
+         serviceWithCalendar(mock(CalendarVSAssembly.class), model);
+
+      Map<String, Object> listed = service.list("tok", principal(), "Calendar1");
+      java.util.List<Map<String, Object>> properties =
+         (java.util.List<Map<String, Object>>) listed.get("properties");
+      Map<String, Object> min = properties.stream()
+         .filter(p -> "min".equals(p.get("name"))).findFirst().orElseThrow();
+
+      assertEquals("calendarAdvancedPaneModel.min", min.get("path"));
+      assertTrue(properties.stream().anyMatch(p -> "max".equals(p.get("name"))));
+      String json = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(listed);
+      assertTrue(json.contains("2022-05-12"), json);
+   }
+
+   @Test
    void writesCalendarMinFromAStructuredJsonObjectWithAnExplicitType() throws Exception {
       CalendarPropertyDialogModel model = new CalendarPropertyDialogModel();
       AssemblyPropertyService service =
