@@ -81,28 +81,51 @@ class PDFVSExporterOnLoadWarningTest {
       assertEquals(0, countWarnings(texts), () -> "report texts: " + texts);
    }
 
+   // a multi-bookmark PDF exports each sheet into one exporter; each report gets its own warning
+   @Test
+   void multiSheetPrintLayoutWarnsOnlyFailedSheets() throws Exception {
+      List<ReportSheet> reports = exportPrintLayouts(ownErr, own, wrapperErr);
+      assertEquals(3, reports.size(), "each sheet should be exported through its print layout");
+      assertEquals(1, countWarnings(getTexts(reports.get(0))));
+      assertEquals(0, countWarnings(getTexts(reports.get(1))));
+      assertEquals(1, countWarnings(getTexts(reports.get(2))));
+   }
+
    private List<String> exportPrintLayoutTexts(RuntimeViewsheetExtension resource)
       throws Exception
    {
-      RuntimeViewsheet rvs = resource.getRuntimeViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox().orElseThrow();
+      List<ReportSheet> reports = exportPrintLayouts(resource);
+      assertEquals(1, reports.size(), "the sheet should be exported through its print layout");
+      return getTexts(reports.get(0));
+   }
+
+   private List<ReportSheet> exportPrintLayouts(RuntimeViewsheetExtension... resources)
+      throws Exception
+   {
       AbstractVSExporter exporter = (AbstractVSExporter) AbstractVSExporter.getVSExporter(
          FileFormatInfo.EXPORT_TYPE_PDF, PortalThemesManager.getColorTheme(),
          new ByteArrayOutputStream(), false, null);
-      exporter.setSandbox(box);
-      exporter.setAssetEntry(rvs.getEntry());
-      exporter.setRuntimeViewsheet(rvs);
-      exporter.export(box, "Current View", 0, null);
+
+      for(int i = 0; i < resources.length; i++) {
+         RuntimeViewsheet rvs = resources[i].getRuntimeViewsheet();
+         ViewsheetSandbox box = rvs.getViewsheetSandbox().orElseThrow();
+         exporter.setSandbox(box);
+         exporter.setAssetEntry(rvs.getEntry());
+         exporter.setRuntimeViewsheet(rvs);
+         exporter.export(box, i == 0 ? "Current View" : "Bookmark" + i, i, null);
+      }
 
       Field field = PDFVSExporter.class.getDeclaredField("reportList");
       field.setAccessible(true);
       @SuppressWarnings("unchecked")
       List<ReportSheet> reports = (List<ReportSheet>) field.get(exporter);
-      assertEquals(1, reports.size(), "the sheet should be exported through its print layout");
+      return reports;
+   }
 
+   private static List<String> getTexts(ReportSheet report) {
       List<String> texts = new ArrayList<>();
 
-      for(Object elem : reports.get(0).getAllElements()) {
+      for(Object elem : report.getAllElements()) {
          addTexts((ReportElement) elem, texts);
       }
 
