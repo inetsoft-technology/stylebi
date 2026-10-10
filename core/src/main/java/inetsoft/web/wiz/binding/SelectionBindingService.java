@@ -164,6 +164,7 @@ public class SelectionBindingService {
          List<BindableField> resolvedColumns =
             resolveColumns(tables, assemblyName, resolvedTable, columnsOrEmpty);
          List<String> resolvedAdditional = resolveAdditionalTables(tables, assemblyName, additional);
+         refuseOverlap(assemblyName, resolvedTable, resolvedAdditional);
 
          if(assembly instanceof SelectionListVSAssembly) {
             requireArity(assemblyName, "a selection list", resolvedColumns, 1, 1);
@@ -175,6 +176,14 @@ public class SelectionBindingService {
 
             if(replaceAdditional) {
                pane.setAdditionalTables(resolvedAdditional);
+            }
+            else {
+               List<String> pruned =
+                  pruneInheritedOverlap(resolvedTable, pane.getAdditionalTables(), result);
+
+               if(pruned != null) {
+                  pane.setAdditionalTables(pruned);
+               }
             }
 
             result.put("additionalTables", additionalOrEmpty(pane.getAdditionalTables()));
@@ -200,6 +209,14 @@ public class SelectionBindingService {
 
             if(replaceAdditional) {
                pane.setAdditionalTables(resolvedAdditional);
+            }
+            else {
+               List<String> pruned =
+                  pruneInheritedOverlap(resolvedTable, pane.getAdditionalTables(), result);
+
+               if(pruned != null) {
+                  pane.setAdditionalTables(pruned);
+               }
             }
 
             result.put("additionalTables", additionalOrEmpty(pane.getAdditionalTables()));
@@ -269,6 +286,14 @@ public class SelectionBindingService {
             if(replaceAdditional) {
                pane.setAdditionalTables(resolvedAdditional);
             }
+            else {
+               List<String> pruned =
+                  pruneInheritedOverlap(resolvedTable, pane.getAdditionalTables(), result);
+
+               if(pruned != null) {
+                  pane.setAdditionalTables(pruned);
+               }
+            }
 
             result.put("additionalTables", additionalOrEmpty(pane.getAdditionalTables()));
 
@@ -300,6 +325,14 @@ public class SelectionBindingService {
 
             if(replaceAdditional) {
                pane.setAdditionalTables(resolvedAdditional);
+            }
+            else {
+               List<String> pruned =
+                  pruneInheritedOverlap(resolvedTable, pane.getAdditionalTables(), result);
+
+               if(pruned != null) {
+                  pane.setAdditionalTables(pruned);
+               }
             }
 
             result.put("additionalTables", additionalOrEmpty(pane.getAdditionalTables()));
@@ -484,6 +517,56 @@ public class SelectionBindingService {
          "'" + assemblyName + "' cannot add 'additionalTables' entry '" + additionalTable +
          "': it does not match a bindable table for this viewsheet. Available: " +
          availableNames(tables) + ". See list_bindable_fields.");
+   }
+
+   /**
+    * The source table is already the first of the assembly's table names, so listing it again as
+    * an additional table builds a selection union of the table with itself. The product's own
+    * dialog never offers it; refuse an explicit list that does.
+    */
+   private static void refuseOverlap(String assemblyName, String resolvedTable,
+                                     List<String> resolvedAdditional)
+   {
+      for(String additionalTable : resolvedAdditional) {
+         if(additionalTable.equalsIgnoreCase(resolvedTable)) {
+            throw new IllegalArgumentException(
+               "'" + assemblyName + "' cannot use 'additionalTables' entry '" + additionalTable +
+               "': it is the source table itself ('" + resolvedTable + "'). " +
+               "additionalTables lists only the other tables sharing the filter.");
+         }
+      }
+   }
+
+   /**
+    * Drops the new source table from an inherited additional-table list (kept because
+    * {@code additionalTables} was omitted) and discloses it in {@code result}. Returns the pruned
+    * list, or null when nothing needed removing.
+    */
+   private static List<String> pruneInheritedOverlap(String resolvedTable, List<String> inherited,
+                                                     Map<String, Object> result)
+   {
+      if(inherited == null) {
+         return null;
+      }
+
+      List<String> kept = new ArrayList<>();
+      List<String> dropped = new ArrayList<>();
+
+      for(String additionalTable : inherited) {
+         if(additionalTable != null && additionalTable.equalsIgnoreCase(resolvedTable)) {
+            dropped.add(additionalTable);
+         }
+         else {
+            kept.add(additionalTable);
+         }
+      }
+
+      if(dropped.isEmpty()) {
+         return null;
+      }
+
+      result.put("droppedAdditionalTables", dropped);
+      return kept;
    }
 
    private static List<String> additionalOrEmpty(List<String> additionalTables) {
