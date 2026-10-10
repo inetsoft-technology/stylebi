@@ -260,8 +260,25 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
                let id: IdentityId = {name: model.name, orgID: model.organization};
                this.newUserIdentity = id;
                this.refreshTree(id, IdentityType.USER);
+               this.showCreateWarning(model);
             }
          });
+   }
+
+   /**
+    * Bug #78217, the identity is created but reports a warning, e.g. that the permission granted
+    * to its creator may not have been saved. It's only shown, the identity is kept.
+    */
+   private showCreateWarning(model: EditIdentityPaneModel): void {
+      if(model?.warning) {
+         this.dialog.open(MessageDialog, <MatDialogConfig>{
+            data: {
+               title: "_#(js:Warning)",
+               content: model.warning,
+               type: MessageDialogType.WARNING
+            }
+         });
+      }
    }
 
    setUser(model: EditIdentityPaneModel) {
@@ -448,6 +465,7 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
          .subscribe(model => {
             if(model) {
                this.refreshTree({name: model.name, orgID: model.organization}, IdentityType.GROUP);
+               this.showCreateWarning(model);
             }
          });
    }
@@ -463,6 +481,7 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
          .subscribe(model => {
             if(model) {
                this.refreshTree({name: model.name, orgID: model.organization}, IdentityType.ROLE);
+               this.showCreateWarning(model);
             }
          });
    }

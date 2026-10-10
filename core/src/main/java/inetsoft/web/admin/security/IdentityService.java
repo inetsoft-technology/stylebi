@@ -2022,8 +2022,15 @@ public class IdentityService {
       return Catalog.getCatalog().getString("em.servlet.sessionTimeout");
    }
 
-   public void createIdentityPermissions(IdentityID identityID, ResourceType resourceType,
-                                         Principal principal)
+   /**
+    * Grants the creator of a new identity the permission to administer it.
+    *
+    * @return {@code null} if the permission is saved, or the warning to show to the user if it
+    *         may not have been saved (Bug #78217). The identity is already created then, and
+    *         creating it again would create another identity with the next free name.
+    */
+   public String createIdentityPermissions(IdentityID identityID, ResourceType resourceType,
+                                           Principal principal)
    {
       AuthorizationProvider authoc = securityProvider.getAuthorizationProvider();
       Permission perm = new Permission();
@@ -2035,7 +2042,15 @@ public class IdentityService {
       }
 
       perm.setUserGrantsForOrg(ResourceAction.ADMIN, userGrants, OrganizationManager.getInstance().getCurrentOrgID());
-      authoc.setPermission(resourceType, identityID, perm);
+
+      try {
+         authoc.setPermission(resourceType, identityID, perm);
+      }
+      catch(RuntimeException e) {
+         return AbstractAssetEngine.getCreatorPermissionWarning(resourceType, identityID, e);
+      }
+
+      return null;
    }
 
    public List<IdentityModel> getPermission(String resourceName, ResourceType resourceType,

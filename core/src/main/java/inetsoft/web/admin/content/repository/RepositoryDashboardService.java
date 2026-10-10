@@ -403,9 +403,25 @@ public class RepositoryDashboardService {
       }
 
       perm.updateGrantAllByOrg(currentOrgID, true);
-      authz.setPermission(ResourceType.DASHBOARD, parentInfo.getPath(), perm);
-      return contentRepositoryTreeService.getDashboardNode(parentInfo.getPath(),
-                                                           parentInfo.getOwner());
+      String warning = null;
+
+      // Bug #78217, the dashboard is already created, a failed grant is shown as a warning
+      try {
+         authz.setPermission(ResourceType.DASHBOARD, parentInfo.getPath(), perm);
+      }
+      catch(RuntimeException e) {
+         warning = AbstractAssetEngine.getCreatorPermissionWarning(
+            ResourceType.DASHBOARD, parentInfo.getPath(), e);
+      }
+
+      ContentRepositoryTreeNode node = contentRepositoryTreeService.getDashboardNode(
+         parentInfo.getPath(), parentInfo.getOwner());
+
+      if(warning != null && node != null) {
+         node = ContentRepositoryTreeNode.builder().from(node).warning(warning).build();
+      }
+
+      return node;
    }
 
    public void delete(String path, IdentityID owner, Principal principal) throws Exception {

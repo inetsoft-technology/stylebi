@@ -496,6 +496,7 @@ public class UserTreeService {
 
          identityService.checkSystemAdminParentGroup(parentGroup, currOrgID, principal);
          FSGroup identity = null;
+         String warning = null;
 
          for(int i = 0; identity == null; i++) {
             String name = "group" + i;
@@ -510,8 +511,9 @@ public class UserTreeService {
                }
 
                ((EditableAuthenticationProvider) provider).addGroup(identity);
-               identityService.createIdentityPermissions(id, ResourceType.SECURITY_GROUP,
-                                                         principal);
+               // Bug #78217, the group is already created, a failed grant is shown as a warning
+               warning = identityService.createIdentityPermissions(
+                  id, ResourceType.SECURITY_GROUP, principal);
             }
          }
 
@@ -529,6 +531,7 @@ public class UserTreeService {
             .members(new ArrayList<>())
             .roles(new ArrayList<>())
             .permittedIdentities(new ArrayList<>())
+            .warning(warning)
             .build();
       }
       catch(Exception e) {
@@ -843,8 +846,9 @@ public class UserTreeService {
                                                           IdentityInfoRecord.ACTION_TYPE_CREATE,
                                                           null, state);
 
-         identityService.createIdentityPermissions(identity.getIdentityID(), ResourceType.SECURITY_USER,
-                                                   principal);
+         // Bug #78217, the user is already created, a failed grant is shown as a warning
+         String warning = identityService.createIdentityPermissions(
+            identity.getIdentityID(), ResourceType.SECURITY_USER, principal);
 
          List<String> localesList = localizationSettingsService.getModel().locales()
             .stream().map(LocalizationModel::label).collect(Collectors.toList());
@@ -862,6 +866,7 @@ public class UserTreeService {
             .theme(themeService.getTheme(identity.getIdentityID(), CustomTheme::getUsers))
             .newUser(true)
             .supportChangePassword(true)
+            .warning(warning)
             .build();
       }
       catch(Exception e) {

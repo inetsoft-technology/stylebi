@@ -65,6 +65,24 @@ public class DataCycleInfo implements Serializable {
       this.name = name;
    }
 
+   /**
+    * Bug #78217, gets a warning for the user about the cycle that was created, e.g. that the
+    * permission granted to its creator may not have been saved.
+    * @return the warning or {@code null}.
+    */
+   public String getWarning() {
+      return warning;
+   }
+
+   /**
+    * Bug #78217, sets a warning for the user about the cycle that was created.
+    * @param warning the warning.
+    */
+   public void setWarning(String warning) {
+      this.warning = warning;
+   }
+
    private String name;
    private String[] conditions;
+   private String warning;
 }

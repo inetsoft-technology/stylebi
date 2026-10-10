@@ -406,8 +406,8 @@ public abstract class DatasourcesBaseService {
       repository.removeDataSource(path, force);
       JDBCUtil.removeConnectionTestQuery(path);
       SreeEnv.save();
-      // revoke last, so a failed permission write doesn't skip the cleanup above
-      securityEngine.removePermission(ResourceType.DATA_SOURCE, path);
+      // Bug #78217, the registry removes the permission of the data source best-effort, and only
+      // when there is a data source at the path (Bug #77700)
       return null;
    }
 
@@ -928,40 +928,65 @@ public abstract class DatasourcesBaseService {
          return;
       }
 
+      // Bug #78217, the connections are already saved, so the writes are best-effort. The new
+      // names are written first and only then the old ones are removed, except the ones that are
+      // also a new name (swapped or chained names), so a failed write doesn't delete the only
+      // copy of a permission
+      Set<String> newResources = new HashSet<>();
+      Set<String> keptResources = new HashSet<>();
+
+      for(Map.Entry<String, String> rename : renames.entrySet()) {
+         Permission permission = permissions.get(rename.getKey());
+         String newResource = newParent + XUtil.ADDITIONAL_DS_CONNECTOR + rename.getValue();
+         newResources.add(newResource);
+
+         if(permission != null) {
+            if(!AbstractAssetEngine.setPermissionBestEffort(
+               securityEngine, ResourceType.DATA_SOURCE, newResource, permission))
+            {
+               keptResources.add(oldParent + XUtil.ADDITIONAL_DS_CONNECTOR + rename.getKey());
+            }
+         }
+         // a kept additional connection is sent without its old name, so the new name of a
+         // renamed one may be that of one removed in this save, and must not keep its permission
+         else {
+            AbstractAssetEngine.removePermissionBestEffort(
+               securityEngine, ResourceType.DATA_SOURCE, newResource);
+         }
+      }
+
+      Set<String> oldResources = new LinkedHashSet<>();
+
       for(String name : oldRemoved) {
-         securityEngine.removePermission(ResourceType.DATA_SOURCE,
-            oldParent + XUtil.ADDITIONAL_DS_CONNECTOR + name);
+         oldResources.add(oldParent + XUtil.ADDITIONAL_DS_CONNECTOR + name);
       }
 
       for(String name : removed) {
-         securityEngine.removePermission(ResourceType.DATA_SOURCE,
-            newParent + XUtil.ADDITIONAL_DS_CONNECTOR + name);
+         oldResources.add(newParent + XUtil.ADDITIONAL_DS_CONNECTOR + name);
+      }
+
+      for(String oldName : renames.keySet()) {
+         oldResources.add(oldParent + XUtil.ADDITIONAL_DS_CONNECTOR + oldName);
+      }
+
+      for(String resource : oldResources) {
+         if(newResources.contains(resource)) {
+            continue;
+         }
+
+         if(keptResources.contains(resource)) {
+            AbstractAssetEngine.reportPermissionMayRemain(
+               securityEngine, ResourceType.DATA_SOURCE, resource);
+            continue;
+         }
+
+         AbstractAssetEngine.removePermissionBestEffort(
+            securityEngine, ResourceType.DATA_SOURCE, resource);
       }
 
       // Bug #78203, and the folder grants of the removed connections' extended models
       dataSourceRegistry.removeAdditionalConnectionFolderPermissions(oldParent, oldRemoved);
       dataSourceRegistry.removeAdditionalConnectionFolderPermissions(newParent, removed);
-
-      for(String oldName : renames.keySet()) {
-         securityEngine.removePermission(ResourceType.DATA_SOURCE,
-            oldParent + XUtil.ADDITIONAL_DS_CONNECTOR + oldName);
-      }
-
-      // a kept additional connection is sent without its old name, so the new name of a renamed
-      // one may be that of one removed in this save, and must not keep its permission
-      for(String newName : renames.values()) {
-         securityEngine.removePermission(ResourceType.DATA_SOURCE,
-            newParent + XUtil.ADDITIONAL_DS_CONNECTOR + newName);
-      }
-
-      for(Map.Entry<String, String> rename : renames.entrySet()) {
-         Permission permission = permissions.get(rename.getKey());
-
-         if(permission != null) {
-            securityEngine.setPermission(ResourceType.DATA_SOURCE,
-               newParent + XUtil.ADDITIONAL_DS_CONNECTOR + rename.getValue(), permission);
-         }
-      }
    }
 
    /**

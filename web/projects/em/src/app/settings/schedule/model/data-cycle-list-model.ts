@@ -26,4 +26,6 @@ export class DataCycleListModel {
 export interface DataCycleInfo {
    name: string;
    conditions: string[];
+   // Bug #78217, a warning about the cycle that was created, e.g. a failed creator grant
+   warning?: string;
 }

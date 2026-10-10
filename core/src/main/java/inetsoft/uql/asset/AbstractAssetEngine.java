@@ -2215,6 +2215,158 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
    }
 
    /**
+    * Bug #78217, reports that the permission granted to the creator of a new item couldn't be
+    * saved after the item was created. The item is kept, because it may be named automatically and
+    * creating it again would create another one, so the failure is logged and a warning for the
+    * user is returned instead of thrown.
+    *
+    * @return the warning to show to the user.
+    */
+   public static String getCreatorPermissionWarning(ResourceType type, Object resource,
+                                                    Exception cause)
+   {
+      LOG.error("Failed to grant the permission of {} {} to its creator, it may not have been " +
+                "saved", type, resource, cause);
+
+      try {
+         return Catalog.getCatalog().getString("em.repository.creatorPermissionNotSaved");
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to get the message for the creator permission of {} {}",
+                  type, resource, e);
+         return "The item was created, but the permission that gives you access to it may not " +
+            "have been saved. Check its permissions before you use it.";
+      }
+   }
+
+   /**
+    * Writes the permission of an asset that is being moved or removed. The write is a side effect
+    * of the structural change, so a failure is logged and does not stop the rest of the change.
+    *
+    * @return {@code true} if the permission was written.
+    */
+   public static boolean setPermissionBestEffort(SecurityEngine security, ResourceType type,
+                                                 String path, Permission perm)
+   {
+      return setPermissionBestEffort(() -> security.setPermission(type, path, perm), type, path);
+   }
+
+   /**
+    * Writes the permission of an asset that is being moved or removed through an authorization
+    * provider. Bug #78217, the write is a side effect of the structural change, so a failure is
+    * logged and does not stop the rest of the change.
+    *
+    * @return {@code true} if the permission was written.
+    */
+   public static boolean setPermissionBestEffort(AuthorizationProvider provider, ResourceType type,
+                                                 String path, Permission perm)
+   {
+      return setPermissionBestEffort(() -> provider.setPermission(type, path, perm), type, path);
+   }
+
+   private static boolean setPermissionBestEffort(Runnable write, ResourceType type, String path) {
+      try {
+         write.run();
+         return true;
+      }
+      catch(RuntimeException e) {
+         LOG.error("Failed to set the permission of {} {}, it may not have been saved",
+                   type, path, e);
+         return false;
+      }
+   }
+
+   /**
+    * Removes the permission of an asset that is being moved or removed. The write is a side
+    * effect of the structural change, so a failure is logged and does not stop the rest of the
+    * change. A permission that may still be stored is reported to the user (Bug #77939).
+    *
+    * @return {@code true} if the permission was removed.
+    */
+   public static boolean removePermissionBestEffort(SecurityEngine security, ResourceType type,
+                                                    String path)
+   {
+      return removePermissionBestEffort(
+         () -> security.removePermission(type, path), security, type, path);
+   }
+
+   /**
+    * Removes the permission of an asset that is being moved or removed through an authorization
+    * provider. Bug #78217, the write is a side effect of the structural change, so a failure is
+    * logged and does not stop the rest of the change. A permission that may still be stored is
+    * reported to the user.
+    *
+    * @return {@code true} if the permission was removed.
+    */
+   public static boolean removePermissionBestEffort(AuthorizationProvider provider,
+                                                    ResourceType type, String path)
+   {
+      return removePermissionBestEffort(
+         () -> provider.removePermission(type, path), SecurityEngine.getSecurity(), type, path);
+   }
+
+   private static boolean removePermissionBestEffort(Runnable write, SecurityEngine security,
+                                                     ResourceType type, String path)
+   {
+      try {
+         write.run();
+         return true;
+      }
+      catch(RuntimeException e) {
+         LOG.error("Failed to remove the permission of {} {}, it may still be stored",
+                   type, path, e);
+         reportPermissionMayRemain(security, type, path);
+         return false;
+      }
+   }
+
+   /**
+    * Bug #78217, moves the permission of an asset that is already moved or renamed from its old
+    * resource to its new one. The new key is written before the old one is removed, so a failed
+    * write never deletes the only copy, and the old key is kept (and reported as possibly
+    * remaining) when the new one could not be written. Nothing is written when both are the same
+    * resource.
+    *
+    * @return {@code true} if the permission was moved.
+    */
+   public static boolean movePermissionBestEffort(SecurityEngine security, ResourceType type,
+                                                  String opath, String npath, Permission perm)
+   {
+      if(Objects.equals(opath, npath)) {
+         return true;
+      }
+
+      if(!setPermissionBestEffort(security, type, npath, perm)) {
+         reportPermissionMayRemain(security, type, opath);
+         return false;
+      }
+
+      return removePermissionBestEffort(security, type, opath);
+   }
+
+   /**
+    * Bug #78217, moves the permission of an asset that is already moved or renamed through an
+    * authorization provider, the same way as
+    * {@link #movePermissionBestEffort(SecurityEngine, ResourceType, String, String, Permission)}.
+    *
+    * @return {@code true} if the permission was moved.
+    */
+   public static boolean movePermissionBestEffort(AuthorizationProvider provider, ResourceType type,
+                                                  String opath, String npath, Permission perm)
+   {
+      if(Objects.equals(opath, npath)) {
+         return true;
+      }
+
+      if(!setPermissionBestEffort(provider, type, npath, perm)) {
+         reportPermissionMayRemain(SecurityEngine.getSecurity(), type, opath);
+         return false;
+      }
+
+      return removePermissionBestEffort(provider, type, opath);
+   }
+
+   /**
     * {@inheritDoc}
     */
    @Override

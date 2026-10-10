@@ -139,7 +139,9 @@ public final class RecycleUtils {
             recycleBin.addEntry(npath, path, name, originalPermission,
                                 RepositoryEntry.REPOSITORY | RepositoryEntry.FOLDER,
                                 assetScope, owner);
-            SecurityEngine.getSecurity().setPermission(ResourceType.REPORT, npath, originalPermission);
+            // Bug #78217, the folder is already in the recycle bin, which records its permission
+            AbstractAssetEngine.setPermissionBestEffort(
+               SecurityEngine.getSecurity(), ResourceType.REPORT, npath, originalPermission);
          }
          else {
             throw new RemoteException(msg);
@@ -241,8 +243,10 @@ public final class RecycleUtils {
          oldEntry.isViewsheet() ? RepositoryEntry.VIEWSHEET :
          RepositoryEntry.WORKSHEET, oldEntry.getScope(), oldEntry.getUser());
 
+      // Bug #78217, the entry is already in the recycle bin, which records its permission
       if(globalScope) {
-         SecurityEngine.getSecurity().setPermission(otype, newEntry.getPath(), originalPermission);
+         AbstractAssetEngine.setPermissionBestEffort(
+            SecurityEngine.getSecurity(), otype, newEntry.getPath(), originalPermission);
       }
    }
 
@@ -303,8 +307,10 @@ public final class RecycleUtils {
          originalPermission, RepositoryEntry.WORKSHEET_FOLDER, oldEntry.getScope(),
          oldEntry.getUser());
 
+      // Bug #78217, the entry is already in the recycle bin, which records its permission
       if(globalScope) {
-         SecurityEngine.getSecurity().setPermission(otype, newEntry.getPath(), originalPermission);
+         AbstractAssetEngine.setPermissionBestEffort(
+            SecurityEngine.getSecurity(), otype, newEntry.getPath(), originalPermission);
       }
    }
 
@@ -542,10 +548,17 @@ public final class RecycleUtils {
                                               Permission newPermission, int originalScope)
    {
       SecurityEngine sengine = SecurityEngine.getSecurity();
-      sengine.removePermission(type, oldPath);
 
+      // Bug #78217, the entry is already restored and its recycle bin entry removed, so a failed
+      // write must not stop the restore of the other entries. The permission is written at the
+      // original path before it is removed from the recycle bin path, so a failed write doesn't
+      // delete the only copy of it
       if(originalScope == AssetRepository.GLOBAL_SCOPE) {
-         sengine.setPermission(type, newPath, newPermission);
+         AbstractAssetEngine.movePermissionBestEffort(sengine, type, oldPath, newPath,
+                                                      newPermission);
+      }
+      else {
+         AbstractAssetEngine.removePermissionBestEffort(sengine, type, oldPath);
       }
 
       SecurityEngine.touch();

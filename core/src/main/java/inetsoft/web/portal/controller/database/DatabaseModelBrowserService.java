@@ -476,9 +476,11 @@ public class DatabaseModelBrowserService {
 
       Permission permission = securityEngine.getPermission(ResourceType.QUERY, resourcePathFrom);
 
+      // Bug #78217, the model is already moved, a failed permission write must not stop the
+      // dependency transform or the move of the other models
       if(permission != null) {
-         securityEngine.setPermission(ResourceType.QUERY, resourcePathTo, permission);
-         securityEngine.removePermission(ResourceType.QUERY, resourcePathFrom);
+         AbstractAssetEngine.movePermissionBestEffort(securityEngine, ResourceType.QUERY,
+                                                      resourcePathFrom, resourcePathTo, permission);
       }
    }
 
@@ -802,11 +804,13 @@ public class DatabaseModelBrowserService {
          repository.updateDataModel(dataModel);
          renameTransformHandler.addTransformTask(dinfo);
 
+         // Bug #78217, the folder is already renamed. The permission is written at the new name
+         // before it is removed from the old one, so a failed write doesn't delete the only copy
+         // of it or stop the permission moves of the models below
          if(permission != null) {
-            securityEngine.removePermission(
-               ResourceType.DATA_MODEL_FOLDER, databasePath + "/" + oldName);
-            securityEngine.setPermission(
-               ResourceType.DATA_MODEL_FOLDER, databasePath + "/" + folderName, permission);
+            AbstractAssetEngine.movePermissionBestEffort(securityEngine,
+               ResourceType.DATA_MODEL_FOLDER, databasePath + "/" + oldName,
+               databasePath + "/" + folderName, permission);
          }
 
          // the permission of each model in the folder is stored under the folder name

@@ -24,6 +24,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
+import inetsoft.uql.asset.AbstractAssetEngine;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.Identity;
 import inetsoft.uql.util.XUtil;
@@ -314,9 +315,11 @@ public class ResourcePermissionService {
 
       Permission permission = provider.getPermission(resourceType, oldPath);
 
+      // Bug #78217, the asset is already renamed, a failed permission write is logged and does
+      // not fail the rename
       if(permission != null) {
-         securityProvider.setPermission(ResourceType.ASSET, newPath, permission);
-         securityProvider.removePermission(ResourceType.ASSET, oldPath);
+         AbstractAssetEngine.movePermissionBestEffort(
+            securityProvider, ResourceType.ASSET, oldPath, newPath, permission);
       }
    }
 

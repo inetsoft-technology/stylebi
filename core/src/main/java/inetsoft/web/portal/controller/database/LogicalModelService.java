@@ -647,7 +647,10 @@ public class LogicalModelService {
       if(!isExtended) {
          // use the stored folder of the model, which is the form the permission is saved in
          String resource = XUtil.getLogicalModelResourceName(dataSource, model.getFolder(), name);
-         securityEngine.removePermission(ResourceType.QUERY, resource);
+         // Bug #78217, the model is already removed, a failed permission write must not stop
+         // the delete of its folder or of the other selected models
+         AbstractAssetEngine.removePermissionBestEffort(securityEngine, ResourceType.QUERY,
+                                                        resource);
       }
    }
 
@@ -666,9 +669,11 @@ public class LogicalModelService {
 
       Permission permission = securityEngine.getPermission(ResourceType.QUERY, oldResource);
 
+      // Bug #78217, the model is already saved, a failed permission write is logged and does not
+      // fail the save
       if(permission != null) {
-         securityEngine.setPermission(ResourceType.QUERY, newResource, permission);
-         securityEngine.removePermission(ResourceType.QUERY, oldResource);
+         AbstractAssetEngine.movePermissionBestEffort(securityEngine, ResourceType.QUERY,
+                                                      oldResource, newResource, permission);
       }
    }
 
