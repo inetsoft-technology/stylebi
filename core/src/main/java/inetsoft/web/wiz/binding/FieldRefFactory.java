@@ -448,7 +448,8 @@ public final class FieldRefFactory {
                                              RuntimeViewsheet rvs, SourceInfo source,
                                              String column)
    {
-      CalculateRef calc = aggregateCalcField(rvs, source, column);
+      CalculateRef found = findCalcField(rvs, source, column);
+      CalculateRef calc = found != null && !found.isBaseOnDetail() ? found : null;
 
       if(calc != null) {
          // Stamped whether or not a formula was supplied. A FieldRef carries no ref type, so a
@@ -469,7 +470,14 @@ public final class FieldRefFactory {
       }
 
       if(ref.getFormula() == null) {
-         String dataType = dataTypeOf(model, column);
+         // A detail calc field is not in the worksheet column list dataTypeOf reads, so its own
+         // declared type is the only place its numeric-ness is recorded.
+         String dataType = found != null ? found.getDataType() : null;
+
+         if(dataType == null) {
+            dataType = dataTypeOf(model, column);
+         }
+
          ref.setFormula(dataType != null && NUMERIC_TYPES.contains(dataType) ? SUM : COUNT);
       }
    }
@@ -492,6 +500,17 @@ public final class FieldRefFactory {
    public static CalculateRef aggregateCalcField(RuntimeViewsheet rvs, SourceInfo source,
                                                  String column)
    {
+      CalculateRef calc = findCalcField(rvs, source, column);
+      return calc != null && !calc.isBaseOnDetail() ? calc : null;
+   }
+
+   /**
+    * The calc field {@code column} names on the bound source, detail or aggregate mode, or
+    * {@code null} if it is not one. See {@link #aggregateCalcField} for the lookup.
+    */
+   public static CalculateRef findCalcField(RuntimeViewsheet rvs, SourceInfo source,
+                                            String column)
+   {
       Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
 
       if(vs == null || column == null) {
@@ -513,7 +532,7 @@ public final class FieldRefFactory {
          }
       }
 
-      return calc != null && !calc.isBaseOnDetail() ? calc : null;
+      return calc;
    }
 
    /**
