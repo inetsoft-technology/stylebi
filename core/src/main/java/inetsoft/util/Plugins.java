@@ -43,7 +43,8 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.security.Principal;
 import java.sql.Timestamp;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -145,6 +146,12 @@ public class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, AutoClo
     * instance is therefore replaced, the listener is added to the replacement, and the loaded
     * plugins are synchronized with the store, because the installs and uninstalls made on other
     * nodes while detached raised no event here (Bug #78253).
+    * <p>
+    * The synchronization is run on the resync executor, not on the calling thread: it takes the
+    * cluster-wide {@link #blobChangeLock} and publishes the plugin events, whose listeners take
+    * their own locks (e.g. the driver services lock in {@code Drivers}), and the read methods are
+    * called while holding such locks (e.g. {@code Drivers.initDriverServices()} or a plugin class
+    * loader). The write methods use {@link #getSyncedStorage()} instead.
     */
    private BlobStorage<Plugin.Descriptor> getStorage() {
       BlobStorage<Plugin.Descriptor> storage = blobStorage;
@@ -153,7 +160,39 @@ public class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, AutoClo
          return storage;
       }
 
-      return reattachStorage();
+      BlobStorage<Plugin.Descriptor> fresh = reattachStorage();
+
+      if(resyncPending.get() && !closed) {
+         try {
+            resyncExecutor.execute(this::resyncIfPending);
+         }
+         catch(RejectedExecutionException e) {
+            LOG.debug("The plugin resync executor is shut down", e);
+         }
+      }
+
+      return fresh;
+   }
+
+   /**
+    * Gets the live plugin storage and, after a re-attach, synchronizes the loaded plugins with
+    * the store on the calling thread before returning. Only for the install and uninstall
+    * methods, which are not called while holding another lock and which check the loaded plugins.
+    */
+   private BlobStorage<Plugin.Descriptor> getSyncedStorage() {
+      getStorage();
+
+      if(!Boolean.TRUE.equals(RESYNCING.get())) {
+         resyncIfPending();
+      }
+
+      return blobStorage;
+   }
+
+   private void resyncIfPending() {
+      if(!closed && resyncPending.compareAndSet(true, false)) {
+         resync(blobStorage);
+      }
    }
 
    private BlobStorage<Plugin.Descriptor> reattachStorage() {
@@ -178,10 +217,15 @@ public class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, AutoClo
             return old;
          }
 
-         // add the listener before the store is read below, so that a change made after the
+         // add the listener before the resync reads the store, so that a change made after the
          // read still raises an event here
          fresh.addListener(this);
          blobStorage = fresh;
+
+         // before init() runs, it loads the plugins from the replacement itself
+         if(initialized) {
+            resyncPending.set(true);
+         }
       }
 
       // the manager drops a closed instance without closing it, so its event thread is stopped
@@ -192,11 +236,6 @@ public class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, AutoClo
       }
       catch(Exception e) {
          LOG.debug("Failed to close the stale plugin storage", e);
-      }
-
-      // before init() runs, it loads the plugins from the replacement itself
-      if(initialized) {
-         resync(fresh);
       }
 
       return fresh;
@@ -464,7 +503,7 @@ public class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, AutoClo
 
       // re-attach a closed storage first, so that the checks below see the plugins installed
       // and uninstalled on other nodes meanwhile and the commit below raises an event here
-      getStorage();
+      getSyncedStorage();
 
       if(isPluginCompatible(descriptor, fileName)) {
          Plugin existing = plugins.get(pluginId);
@@ -718,7 +757,7 @@ public class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, AutoClo
     * @throws IOException if an I/O error occurs.
     */
    public void uninstallPlugin(String pluginId) throws IOException {
-      BlobStorage<Plugin.Descriptor> storage = getStorage();
+      BlobStorage<Plugin.Descriptor> storage = getSyncedStorage();
       Plugin plugin = plugins.get(pluginId);
 
       if(plugin == null || plugin.isReadOnly()) {
@@ -887,6 +926,16 @@ public class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, AutoClo
    public void close() throws Exception {
       // a closed manager must not fetch a replacement storage
       closed = true;
+      resyncExecutor.shutdown();
+
+      try {
+         if(!resyncExecutor.awaitTermination(10L, TimeUnit.SECONDS)) {
+            LOG.warn("Timed out waiting for the plugin resync to finish");
+         }
+      }
+      catch(InterruptedException e) {
+         Thread.currentThread().interrupt();
+      }
 
       for(Plugin plugin : plugins.values()) {
          try {
@@ -949,6 +998,13 @@ public class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, AutoClo
    private volatile BlobStorage<Plugin.Descriptor> blobStorage;
    private final BlobStorageManager blobStorageManager;
    private final Object storageMonitor = new Object();
+   // set by a re-attach until the loaded plugins have been synchronized with the store
+   private final AtomicBoolean resyncPending = new AtomicBoolean();
+   private final ExecutorService resyncExecutor = Executors.newSingleThreadExecutor(r -> {
+      Thread thread = new GroupedThread(r, "PluginsResync");
+      thread.setDaemon(true);
+      return thread;
+   });
    private volatile boolean closed = false;
    private final ApplicationEventPublisher eventPublisher;
    private final File pluginDirectory;
