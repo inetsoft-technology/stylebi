@@ -816,13 +816,17 @@ public final class PropertyPath {
       // Returns the domain's own spelling rather than the caller's. Matching case-insensitively
       // and then storing what the caller typed is the worst of both: the value looks accepted and
       // StyleBI, which compares these tokens exactly, keeps the default.
-      return allowed.stream()
+      String canonical = allowed.stream()
          .filter(v -> v.equalsIgnoreCase(text))
          .findFirst()
          .orElseThrow(() -> new IllegalArgumentException(
             "'" + path + "' accepts only " + new TreeSet<>(allowed) + "; '" + value + "' is not " +
-            "one of them. StyleBI ignores an unrecognised value and keeps the default, so this " +
-            "would have reported success without changing anything."));
+            "one of them. StyleBI ignores or misreads an unrecognised value, so this " +
+            "would have reported success without applying what was asked."));
+
+      // Util.getLineStyleName reads a "no line" shape back as NO_BORDER, which the write side
+      // only understands by accident (an unknown token falls through to 0); store the real name.
+      return "NO_BORDER".equals(canonical) ? "NONE" : canonical;
    }
 
    /**
@@ -896,7 +900,21 @@ public final class PropertyPath {
     * out: neither appears in that ladder either, so accepting them would just be a second silent
     * no-op wearing a valid-looking name.
     */
+   /**
+    * A shape's {@code lineStyle} is a String run through {@code Util.getStyleConstantsFromString},
+    * which turns an unknown token into 0 (no line) or stores a bare number. The set is the
+    * style-dropdown's list plus {@code NO_BORDER}, the name {@code Util.getLineStyleName} reads a
+    * no-line shape back as (canonicalized to NONE on write), and the two thin variants it can
+    * also emit.
+    */
+   private static final Set<String> SHAPE_LINE_STYLES = Set.of(
+      "NONE", "NO_BORDER", "THIN_LINE", "MEDIUM_LINE", "THICK_LINE", "DOUBLE_LINE", "DOT_LINE",
+      "DASH_LINE", "MEDIUM_DASH", "LARGE_DASH", "THIN_THIN_LINE", "ULTRA_THIN_LINE");
+
    private static final Map<String, Set<String>> CONSTRAINED_PATHS = Map.of(
       "textInputColumnOptionPaneModel.type",
-      Set.of("Text", "Date", "Integer", "Float", "Password"));
+      Set.of("Text", "Date", "Integer", "Float", "Password"),
+      "linePropertyPaneModel.linePropPaneModel.style", SHAPE_LINE_STYLES,
+      "ovalPropertyPaneModel.linePropPaneModel.style", SHAPE_LINE_STYLES,
+      "rectanglePropertyPaneModel.linePropPaneModel.style", SHAPE_LINE_STYLES);
 }

@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
+import inetsoft.graph.GraphConstants;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.test.*;
 import inetsoft.uql.ColumnSelection;
@@ -2812,6 +2813,81 @@ class AssemblyPropertyServiceTest {
          selectionContainer,
          mock(SubmitPropertyDialogService.class),
          outputService);
+   }
+
+   // ── calendar viewMode / chart line-style int-enum domains (bug #78194) ───
+
+   @Test
+   void canonicalizesDoubleTokenAndRefusesOutOfDomainCalendarViewMode() throws Exception {
+      CalendarPropertyDialogModel model = new CalendarPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithCalendar(mock(CalendarVSAssembly.class), model);
+
+      service.set("tok", principal(), "Calendar1", Map.of("viewMode", "double"), "");
+      assertEquals(2, model.getCalendarAdvancedPaneModel().getViewMode());
+      service.set("tok", principal(), "Calendar1", Map.of("viewMode", 1), "");
+      assertEquals(1, model.getCalendarAdvancedPaneModel().getViewMode());
+
+      for(Object bad : new Object[] { 999, 0, -5, "triple" }) {
+         Exception thrown = assertThrows(IllegalArgumentException.class,
+            () -> service.set("tok", principal(), "Calendar1", Map.of("viewMode", bad), ""));
+         assertTrue(thrown.getMessage().contains("'single' (1)") &&
+                    thrown.getMessage().contains("'double' (2)"), thrown.getMessage());
+      }
+
+      assertEquals(1, model.getCalendarAdvancedPaneModel().getViewMode());
+   }
+
+   @Test
+   void canonicalizesAndRefusesChartLineStyles() throws Exception {
+      ChartPropertyDialogModel model = new ChartPropertyDialogModel();
+      AssemblyPropertyService service = serviceWith(mock(ChartVSAssembly.class), model);
+
+      service.set("tok", principal(), "Chart1",
+                  Map.of("trendLineStyle", "dashed", "diagonalLineStyle", 4097,
+                         "quadrantGridLineStyle", "none"), "");
+      assertEquals(GraphConstants.DASH_LINE, model.getChartLinePaneModel().getTrendLineStyle());
+      assertEquals(GraphConstants.THIN_LINE, model.getChartLinePaneModel().getDiagonalLineStyle());
+      assertEquals(0, model.getChartLinePaneModel().getQuadrantGridLineStyle());
+
+      for(String key : new String[] { "trendLineStyle", "diagonalLineStyle",
+                                      "quadrantGridLineStyle", "chartLinePaneModel.xGridLineStyle",
+                                      "chartLinePaneModel.yGridLineStyle" })
+      {
+         for(Object bad : new Object[] { 999, -7, 1, "bogus" }) {
+            Exception thrown = assertThrows(IllegalArgumentException.class,
+               () -> service.set("tok", principal(), "Chart1", Map.of(key, bad), ""));
+            assertTrue(thrown.getMessage().contains("'dashed' (" + GraphConstants.DASH_LINE + ")"),
+                       "must name the valid values: " + thrown.getMessage());
+         }
+      }
+   }
+
+   @Test
+   void allowsDefaultMinusOneOnlyOnTheTrendLineStyle() throws Exception {
+      ChartPropertyDialogModel model = new ChartPropertyDialogModel();
+      AssemblyPropertyService service = serviceWith(mock(ChartVSAssembly.class), model);
+
+      service.set("tok", principal(), "Chart1", Map.of("trendLineStyle", -1), "");
+      assertEquals(-1, model.getChartLinePaneModel().getTrendLineStyle());
+      assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Chart1", Map.of("diagonalLineStyle", -1), ""));
+   }
+
+   /** Every value a read can emit (the dropdown's ints) must be accepted back on write. */
+   @Test
+   void acceptsEveryChartLineStyleIntRoundTrip() throws Exception {
+      ChartPropertyDialogModel model = new ChartPropertyDialogModel();
+      AssemblyPropertyService service = serviceWith(mock(ChartVSAssembly.class), model);
+      int[] styles = { 0, GraphConstants.THIN_LINE, GraphConstants.MEDIUM_LINE,
+                       GraphConstants.THICK_LINE, GraphConstants.DOT_LINE, GraphConstants.DASH_LINE,
+                       GraphConstants.THIN_THIN_LINE, GraphConstants.ULTRA_THIN_LINE,
+                       GraphConstants.MEDIUM_DASH, GraphConstants.LARGE_DASH };
+
+      for(int style : styles) {
+         service.set("tok", principal(), "Chart1", Map.of("diagonalLineStyle", style), "");
+         assertEquals(style, model.getChartLinePaneModel().getDiagonalLineStyle());
+      }
    }
 
    private static Principal principal() {

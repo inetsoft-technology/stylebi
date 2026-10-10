@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
+import inetsoft.graph.GraphConstants;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.XConstants;
@@ -1169,6 +1170,18 @@ public class AssemblyPropertyService {
       rangeType.put("minuteofday", TimeInfo.MINUTE_OF_DAY);
       rangeType.put("minute_of_day", TimeInfo.MINUTE_OF_DAY);
 
+      Map<String, Integer> viewMode = new LinkedHashMap<>();
+      viewMode.put("single", CalendarVSAssemblyInfo.SINGLE_CALENDAR_MODE);
+      viewMode.put("double", CalendarVSAssemblyInfo.DOUBLE_CALENDAR_MODE);
+
+      // The Composer's grid-line dropdown offers NONE plus the nine ChartTargetLineService styles;
+      // only the trend-line dropdown also offers -1 (default).
+      Map<String, Integer> lineStyle = new LinkedHashMap<>();
+      lineStyle.put("none", GraphConstants.NONE);
+      lineStyle.putAll(ChartTargetLineService.LINE_STYLES);
+      Map<String, Integer> trendLineStyle = new LinkedHashMap<>(lineStyle);
+      trendLineStyle.put("default", -1);
+
       Map<String, IntEnumDomain> domains = new LinkedHashMap<>();
       domains.put("selectionGeneralPaneModel.showType",
                   new IntEnumDomain("showType", selectionShowType));
@@ -1178,6 +1191,16 @@ public class AssemblyPropertyService {
       domains.put("selectionGeneralPaneModel.sortType", new IntEnumDomain("sortType", sortType));
       domains.put("rangeSliderAdvancedPaneModel.rangeSliderSizePaneModel.rangeType",
                   new IntEnumDomain("rangeType", rangeType));
+      domains.put("calendarAdvancedPaneModel.viewMode", new IntEnumDomain("viewMode", viewMode));
+
+      for(String name : new String[] { "diagonalLineStyle", "quadrantGridLineStyle",
+                                       "xGridLineStyle", "yGridLineStyle" })
+      {
+         domains.put("chartLinePaneModel." + name, new IntEnumDomain(name, lineStyle));
+      }
+
+      domains.put("chartLinePaneModel.trendLineStyle",
+                  new IntEnumDomain("trendLineStyle", trendLineStyle));
       INT_ENUM_DOMAINS = Collections.unmodifiableMap(domains);
    }
 
