@@ -316,8 +316,9 @@ public class DatabaseDatasourcesService {
 
       JDBCDataSource database = (JDBCDataSource) dataSource;
 
-      String driver = database.getDriver();
-      DatabaseType type = databaseTypeService.getDatabaseTypeForDriver(driver);
+      DatabaseType type = database.isCustom() ?
+         databaseTypeService.getDatabaseType(CustomDatabaseType.TYPE) :
+         databaseTypeService.getDatabaseTypeForDriver(database.getDriver());
 
       return JDBCUtil.buildDatabaseDefinition(database, type);
    }
