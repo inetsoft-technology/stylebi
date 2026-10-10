@@ -17,6 +17,7 @@
  */
 package inetsoft.web.composer.model.vs;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import inetsoft.web.binding.drm.DataRefModel;
 
 import javax.annotation.Nullable;
@@ -137,6 +138,19 @@ public class HighlightDialogModel implements Serializable {
       this.nonsupportBrowseFields = nonsupportBrowseFields;
    }
 
+   /**
+    * True when a chart highlight on a measure that exists only while a date comparison is active
+    * should be refused (the wiz agent path) instead of accepted and later lost (the Composer GUI).
+    */
+   @JsonIgnore
+   public boolean isRejectDerivedMeasure() {
+      return rejectDerivedMeasure;
+   }
+
+   public void setRejectDerivedMeasure(boolean rejectDerivedMeasure) {
+      this.rejectDerivedMeasure = rejectDerivedMeasure;
+   }
+
    public boolean isAxis() {
       return axis;
    }
@@ -181,6 +195,7 @@ public class HighlightDialogModel implements Serializable {
     private String[] usedHighlightNames;
     private List<String> nonsupportBrowseFields;
     private boolean axis;
+   private boolean rejectDerivedMeasure;
     private boolean text;
     private Integer revision;
 }

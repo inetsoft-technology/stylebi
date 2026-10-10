@@ -196,6 +196,7 @@ public class AssemblyHighlightService {
          }
 
          model.setHighlights(highlights.toArray(new HighlightModel[0]));
+         model.setRejectDerivedMeasure(true);
          highlightService.setHighlightDialogModel(runtimeId, assemblyName, model, linkUri, user,
                                                  dispatcher);
       });
