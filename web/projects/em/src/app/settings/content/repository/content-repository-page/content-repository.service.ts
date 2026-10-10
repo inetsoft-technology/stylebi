@@ -100,7 +100,7 @@ import { NewRepositoryEntryRequest } from "./new-repository-entry-request";
    providedIn: "root"
 })
 export class ContentRepositoryService implements OnDestroy {
-   private readonly addDashboard$ = this.subFactory(
+   private readonly addDashboard$ = <Subject<any>>this.subFactory(
       (parentInfo) => this.http.post<RepositoryTreeNode>(
          "../api/em/settings/content/repository/dashboard/add", parentInfo)
          // Bug #78217, the dashboard is added but reports a warning, e.g. that the permission
