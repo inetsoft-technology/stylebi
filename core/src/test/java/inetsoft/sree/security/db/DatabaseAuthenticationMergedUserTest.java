@@ -49,7 +49,8 @@ import static org.mockito.Mockito.*;
 @ContextConfiguration(classes = { BaseTestConfiguration.class },
    initializers = ConfigurationContextInitializer.class)
 @SreeHome
-@Tag("core")
+// over 10 s with the Spring context and the Derby databases
+@Tag("slow")
 class DatabaseAuthenticationMergedUserTest extends DatabaseAuthenticationCollationTestBase {
    @ParameterizedTest(name = "usersQuery=''{0}''")
    @ValueSource(strings = { "", "   " })
@@ -340,6 +341,63 @@ class DatabaseAuthenticationMergedUserTest extends DatabaseAuthenticationCollati
       // overlapping but different role sets tell the names apart
       assertEquals(List.of("Everyone", "role-bob"), roles(p.getRoles(id("bob"))));
       assertEquals(List.of("Everyone"), roles(p.getRoles(id("BOB"))));
+   }
+
+   @ParameterizedTest(name = "userRoleList={0}")
+   @ValueSource(booleans = { false, true })
+   void cacheLoader_caseVariantOrganizations_caseInsensitiveRolesTables_notMerged(
+      boolean userRoleList) throws Exception
+   {
+      // The users table compares exactly, so the users query returns one row, while the roles
+      // and emails queries compare organization IDs like a case-insensitive column collation
+      // would. The cached user list is a TreeSet whose IdentityID order ignores the case of the
+      // organization ID, so it keeps only one of bob@acme and bob@ACME.
+      createMultiTenantDb(false);
+      DatabaseAuthenticationProvider p = multiTenantProvider(true);
+      p.setUserRolesQuery(
+         "SELECT ROLE_NAME FROM UR WHERE UPPER(ORG_ID) = UPPER(?) AND USER_NAME = ?");
+      p.setUserEmailsQuery(
+         "SELECT EMAIL FROM UE WHERE UPPER(ORG_ID) = UPPER(?) AND USER_NAME = ?");
+      // the cache load fails without a group list query
+      p.setGroupListQuery("SELECT ROLE_NAME, ORG_ID FROM UR WHERE 1 = 0");
+
+      if(userRoleList) {
+         p.setUserRoleListQuery("SELECT U.NAME, UR.ROLE_NAME, U.ORG_ID FROM U JOIN UR " +
+            "ON UPPER(U.ORG_ID) = UPPER(UR.ORG_ID) AND U.NAME = UR.USER_NAME");
+      }
+
+      loadCache(p);
+
+      for(int i = 0; i < 2; i++) {
+         for(String org : new String[] { "acme", "ACME" }) {
+            IdentityID bob = new IdentityID("bob", org);
+            assertEquals(List.of(), roles(p.getRoles(bob)), "roles of bob@" + org + ", call " + i);
+            assertEquals(List.of(), sorted(p.getEmails(bob)),
+                         "emails of bob@" + org + ", call " + i);
+         }
+      }
+   }
+
+   @Test
+   void cacheLoader_caseVariantOrganizations_groupMembersNotMerged() throws Exception {
+      // the same cached TreeSet collapse for the group list of Bug #78251's group check
+      createMultiTenantDb(false);
+      exec("CREATE TABLE G (ORG_ID VARCHAR(50), GROUP_NAME VARCHAR(50))",
+           "CREATE TABLE GU (ORG_ID VARCHAR(50), GROUP_NAME VARCHAR(50), USER_NAME VARCHAR(50))",
+           "INSERT INTO U VALUES ('ACME', 'eve', 'pw-eve')",
+           "INSERT INTO G VALUES ('acme', 'sales'), ('ACME', 'sales')",
+           "INSERT INTO GU VALUES ('acme', 'sales', 'bob'), ('ACME', 'sales', 'eve')");
+      DatabaseAuthenticationProvider p = multiTenantProvider(true);
+      p.setGroupListQuery("SELECT GROUP_NAME, ORG_ID FROM G");
+      // compares organization IDs like a case-insensitive column collation would
+      p.setGroupUsersQuery(
+         "SELECT USER_NAME FROM GU WHERE UPPER(ORG_ID) = UPPER(?) AND GROUP_NAME = ?");
+      loadCache(p);
+
+      for(String org : new String[] { "acme", "ACME" }) {
+         assertEquals(List.of(), roles(p.getUsers(new IdentityID("sales", org))),
+                      "members of sales@" + org);
+      }
    }
 
    /**

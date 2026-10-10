@@ -574,10 +574,11 @@ class AuthenticationDAO {
    /**
     * Gets the group list for {@link #isAmbiguousGroup}. The cached list is used when the cache
     * is enabled, since the cached group members are reset together with it, otherwise the
-    * group list query is run on the given handle.
+    * group list query is run on the given handle. In multi-tenant mode the query is always
+    * run, see {@link #getUserList}.
     */
    private List<IdentityID> getGroupList(Handle handle) {
-      if(provider.isCacheEnabled() && !provider.isIgnoreCache()) {
+      if(provider.isCacheEnabled() && !provider.isIgnoreCache() && !provider.isMultiTenant()) {
          IdentityID[] groups = provider.getGroups();
 
          if(groups != null && groups.length > 0) {
@@ -803,14 +804,24 @@ class AuthenticationDAO {
 
       for(IdentityID other : indexIdentities(getUserList(handle)).candidates(user)) {
          if(values.equals(query.apply(other))) {
-            String userLabel = identityLabel(user);
-            LOG.warn(
+            // without the cache every lookup of the user reaches this, so warn once per user
+            String message =
                "The user {} query returned the same {} for user {} and user {}, the database " +
                "treats their names as the same name. The {} of user {} will not be loaded. " +
                "User names (and organization IDs) must be unique under the database " +
                "collation used by the user {} query, including case, accents, width, kana " +
-               "type and trailing spaces.",
-               kind, kind, userLabel, identityLabel(other), kind, userLabel, kind);
+               "type and trailing spaces.";
+            String userLabel = identityLabel(user);
+            Object[] args =
+               { kind, kind, userLabel, identityLabel(other), kind, userLabel, kind };
+
+            if(mergedUsers.add(kind + ":" + userLabel)) {
+               LOG.warn(message, args);
+            }
+            else {
+               LOG.debug(message, args);
+            }
+
             return true;
          }
       }
@@ -821,10 +832,13 @@ class AuthenticationDAO {
    /**
     * Gets the user list for {@link #isMergedUser}. The cached list is used when the cache is
     * enabled, since the cached user roles and emails are reset together with it, otherwise the
-    * user list query is run on the given handle.
+    * user list query is run on the given handle. In multi-tenant mode the query is always run:
+    * the cached list is a sorted set whose {@link IdentityID} order may ignore the case of the
+    * organization ID, so it keeps only one of "bob" in "acme" and "bob" in "ACME", and the
+    * other one would not be found as a candidate.
     */
    private List<IdentityID> getUserList(Handle handle) {
-      if(provider.isCacheEnabled() && !provider.isIgnoreCache()) {
+      if(provider.isCacheEnabled() && !provider.isIgnoreCache() && !provider.isMultiTenant()) {
          IdentityID[] users = provider.getUsers();
 
          if(users != null && users.length > 0) {
@@ -1203,6 +1217,7 @@ class AuthenticationDAO {
 
    private final DatabaseAuthenticationProvider provider;
    private final Set<IdentityID> ambiguousGroups = ConcurrentHashMap.newKeySet();
+   private final Set<String> mergedUsers = ConcurrentHashMap.newKeySet();
 
    private static final Pattern COMBINING_MARKS = Pattern.compile("\\p{M}+");
    private static final Logger LOG = LoggerFactory.getLogger(AuthenticationDAO.class);
