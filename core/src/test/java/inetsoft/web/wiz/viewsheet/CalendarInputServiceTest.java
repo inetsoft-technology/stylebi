@@ -229,15 +229,44 @@ class CalendarInputServiceTest {
    /** A single calendar ORs every token, so any count is legal -- no mode check applies. */
    @Test
    void validateDateCountAllowsAnyCountOnASingleCalendar() {
-      assertDoesNotThrow(() -> CalendarDisplayService.validateDateCount(false, false, 1, "Cal1"));
-      assertDoesNotThrow(() -> CalendarDisplayService.validateDateCount(false, false, 15, "Cal1"));
+      assertDoesNotThrow(() -> CalendarDisplayService.validateDateCount(false, false, false, 1, "Cal1"));
+      assertDoesNotThrow(() -> CalendarDisplayService.validateDateCount(false, false, false, 15, "Cal1"));
+   }
+
+   /** singleSelection=true on a non-double calendar holds one date: more is refused (#78213 S5). */
+   @Test
+   void validateDateCountAllowsOneDateOnSingleSelectionCalendar() {
+      assertDoesNotThrow(
+         () -> CalendarDisplayService.validateDateCount(true, false, false, 1, "Cal1"));
+   }
+
+   @Test
+   void validateDateCountRefusesTwoDatesOnSingleSelectionCalendar() {
+      IllegalArgumentException e = assertThrows(
+         IllegalArgumentException.class,
+         () -> CalendarDisplayService.validateDateCount(true, false, false, 2, "Cal1"));
+      assertTrue(e.getMessage().contains("single"), e.getMessage());
+      assertTrue(e.getMessage().contains("Cal1"), e.getMessage());
+      assertTrue(e.getMessage().contains("singleSelect:false"), e.getMessage());
+   }
+
+   @Test
+   void validateDateCountAllowsTwoDatesOnNonSingleSelectionCalendar() {
+      assertDoesNotThrow(
+         () -> CalendarDisplayService.validateDateCount(false, false, false, 2, "Cal1"));
+   }
+
+   @Test
+   void validateDateCountStillAllowsRangeEndpointsWhenSingleSelectionOnDoubleCalendar() {
+      assertDoesNotThrow(
+         () -> CalendarDisplayService.validateDateCount(true, true, false, 2, "Cal1"));
    }
 
    /** Double-calendar range mode reads only dates[0]/dates[1] -- up to 2 is fine. */
    @Test
    void validateDateCountAllowsUpToTwoInRangeMode() {
-      assertDoesNotThrow(() -> CalendarDisplayService.validateDateCount(true, false, 1, "Cal1"));
-      assertDoesNotThrow(() -> CalendarDisplayService.validateDateCount(true, false, 2, "Cal1"));
+      assertDoesNotThrow(() -> CalendarDisplayService.validateDateCount(false, true, false, 1, "Cal1"));
+      assertDoesNotThrow(() -> CalendarDisplayService.validateDateCount(false, true, false, 2, "Cal1"));
    }
 
    /**
@@ -247,7 +276,7 @@ class CalendarInputServiceTest {
    @Test
    void validateDateCountRefusesMoreThanTwoInRangeMode() {
       Exception e = assertThrows(IllegalArgumentException.class,
-         () -> CalendarDisplayService.validateDateCount(true, false, 3, "Cal1"));
+         () -> CalendarDisplayService.validateDateCount(false, true, false, 3, "Cal1"));
 
       assertTrue(e.getMessage().contains("range mode"), e.getMessage());
       assertTrue(e.getMessage().contains("Cal1"), e.getMessage());
@@ -256,8 +285,8 @@ class CalendarInputServiceTest {
    /** Double-calendar period-comparison mode splits the array in half -- even counts are fine. */
    @Test
    void validateDateCountAllowsEvenCountInPeriodMode() {
-      assertDoesNotThrow(() -> CalendarDisplayService.validateDateCount(true, true, 2, "Cal1"));
-      assertDoesNotThrow(() -> CalendarDisplayService.validateDateCount(true, true, 4, "Cal1"));
+      assertDoesNotThrow(() -> CalendarDisplayService.validateDateCount(false, true, true, 2, "Cal1"));
+      assertDoesNotThrow(() -> CalendarDisplayService.validateDateCount(false, true, true, 4, "Cal1"));
    }
 
    /**
@@ -267,7 +296,7 @@ class CalendarInputServiceTest {
    @Test
    void validateDateCountRefusesOddCountInPeriodMode() {
       Exception e = assertThrows(IllegalArgumentException.class,
-         () -> CalendarDisplayService.validateDateCount(true, true, 3, "Cal1"));
+         () -> CalendarDisplayService.validateDateCount(false, true, true, 3, "Cal1"));
 
       assertTrue(e.getMessage().contains("period-comparison"), e.getMessage());
       assertTrue(e.getMessage().contains("Cal1"), e.getMessage());
