@@ -136,7 +136,11 @@ abstract class DatabaseAuthenticationCollationTestBase {
    }
 
    DatabaseAuthenticationProvider multiTenantProvider() throws Exception {
-      DatabaseAuthenticationProvider p = newProvider(true, false);
+      return multiTenantProvider(false);
+   }
+
+   DatabaseAuthenticationProvider multiTenantProvider(boolean cache) throws Exception {
+      DatabaseAuthenticationProvider p = newProvider(true, cache);
       p.setMultiTenantSupplier(() -> true);
       p.setOrganizationListQuery("SELECT ID FROM O");
       p.setOrganizationNameQuery("SELECT NAME FROM O WHERE ID = ?");

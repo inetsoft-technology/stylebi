@@ -18,6 +18,7 @@
 
 package inetsoft.sree.security.db;
 
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
@@ -29,9 +30,12 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
 /**
  * Bug #78252: the check of Bug #77108, which refuses the roles and emails of a user whose name
@@ -233,4 +237,144 @@ class DatabaseAuthenticationMergedUserTest extends DatabaseAuthenticationCollati
       assertEquals(upperAcme, sorted(p.getOrganizationMembers("ACME")));
       assertEquals(acme, sorted(p.getOrganization("acme").getMembers()));
    }
+
+   @ParameterizedTest(name = "caseInsensitive={0}")
+   @ValueSource(booleans = { true, false })
+   void cacheLoader_joinedUserRoleList_caseVariantsLeftOut(boolean caseInsensitive)
+      throws Exception
+   {
+      createSingleTenantDb(caseInsensitive);
+      DatabaseAuthenticationProvider p = singleTenantProvider(true, true);
+      p.setUserRoleListQuery(JOINED_USER_ROLE_LIST);
+      loadCache(p);
+      Map<IdentityID, IdentityArray> loaded = Cluster.getInstance().getReplicatedMap(
+         "DatabaseSecurity:" + p.getProviderName() + ".userRoles");
+
+      // the loader passes its user list to the bulk read, which leaves out bob and BOB, whose
+      // roles are then checked one user at a time, and keeps users without a case variant
+      assertFalse(loaded.containsKey(id("bob")), "bob preloaded");
+      assertFalse(loaded.containsKey(id("BOB")), "BOB preloaded");
+      assertEquals(List.of("r-alice"), roles(loaded.get(id("alice")).getValue()));
+
+      for(int i = 0; i < 2; i++) {
+         assertEquals(caseInsensitive ? List.of() : List.of("role-bob"),
+                      roles(p.getRoles(id("bob"))), "bob roles, call " + i);
+         assertEquals(caseInsensitive ? List.of() : List.of("Administrator"),
+                      roles(p.getRoles(id("BOB"))), "BOB roles, call " + i);
+         assertEquals(List.of("r-alice"), roles(p.getRoles(id("alice"))));
+      }
+   }
+
+   @ParameterizedTest(name = "caseInsensitive={0}")
+   @ValueSource(booleans = { true, false })
+   void cacheLoader_caseVariantOrganizations_membersNotMerged(boolean caseInsensitive)
+      throws Exception
+   {
+      createMultiTenantDb(caseInsensitive);
+      exec("INSERT INTO U VALUES ('ACME', 'eve', 'pw-eve')");
+      DatabaseAuthenticationProvider p = multiTenantProvider(true);
+      p.setOrganizationMembersQuery("SELECT NAME FROM U WHERE ORG_ID = ?");
+      // the cache load fails without a group list query
+      p.setGroupListQuery("SELECT ROLE_NAME, ORG_ID FROM UR WHERE 1 = 0");
+      loadCache(p);
+
+      assertEquals(caseInsensitive ? List.of() : List.of("bob"),
+                   sorted(p.getOrganizationMembers("acme")));
+      assertEquals(caseInsensitive ? List.of() : List.of("bob", "eve"),
+                   sorted(p.getOrganizationMembers("ACME")));
+   }
+
+   @Test
+   void sameNameInUnrelatedOrganizations_rolesAndEmailsKept() throws Exception {
+      createMultiTenantDb(true);
+      exec("DELETE FROM O", "DELETE FROM U", "DELETE FROM UR", "DELETE FROM UE",
+           "INSERT INTO O VALUES ('acme', 'Acme'), ('beta', 'Beta')",
+           "INSERT INTO U VALUES ('acme', 'bob', 'pw-1'), ('beta', 'bob', 'pw-2')",
+           "INSERT INTO UR VALUES ('acme', 'bob', 'Designer'), ('beta', 'bob', 'Designer')",
+           "INSERT INTO UE VALUES ('acme', 'bob', 'bob@z'), ('beta', 'bob', 'bob@z')");
+      DatabaseAuthenticationProvider p = multiTenantProvider();
+
+      // the same name and the same values in organizations with unrelated IDs are no candidates
+      for(String org : new String[] { "acme", "beta" }) {
+         IdentityID bob = new IdentityID("bob", org);
+         assertEquals(List.of("Designer"), roles(p.getRoles(bob)), "roles of bob@" + org);
+         assertEquals(List.of("bob@z"), sorted(p.getEmails(bob)), "emails of bob@" + org);
+      }
+   }
+
+   @Test
+   void unlistedCaseVariant_rolesAndEmailsNotMerged() throws Exception {
+      // e.g. an SSO user "Bob" that the users table does not list, while it lists bob and BOB
+      createSingleTenantDb(true);
+      DatabaseAuthenticationProvider p = singleTenantProvider(false);
+      p.setUserQuery("");
+
+      assertEquals(List.of(), roles(p.getRoles(id("Bob"))));
+      assertEquals(List.of(), sorted(p.getEmails(id("Bob"))));
+   }
+
+   @Test
+   void accentVariants_rolesNotMerged() throws Exception {
+      createSingleTenantDb(true);
+      exec("INSERT INTO U VALUES ('jose', 'pw-1'), ('josé', 'pw-2')",
+           "INSERT INTO UR VALUES ('jose', 'r-jose'), ('josé', 'Administrator')");
+      DatabaseAuthenticationProvider p = singleTenantProvider(true);
+      p.setUserQuery("");
+
+      assertEquals(List.of(), roles(p.getRoles(id("jose"))));
+      assertEquals(List.of(), roles(p.getRoles(id("josé"))));
+   }
+
+   @ParameterizedTest(name = "cache={0}")
+   @ValueSource(booleans = { false, true })
+   void caseSensitiveDatabase_differentRoleSets_keepOwnRoles(boolean cache) throws Exception {
+      createSingleTenantDb(false);
+      exec("DELETE FROM UR WHERE USER_NAME IN ('bob', 'BOB')",
+           "INSERT INTO UR VALUES ('bob', 'Everyone'), ('bob', 'role-bob'), ('BOB', 'Everyone')");
+      DatabaseAuthenticationProvider p = singleTenantProvider(true, cache);
+
+      if(cache) {
+         loadCache(p);
+      }
+
+      // overlapping but different role sets tell the names apart
+      assertEquals(List.of("Everyone", "role-bob"), roles(p.getRoles(id("bob"))));
+      assertEquals(List.of("Everyone"), roles(p.getRoles(id("BOB"))));
+   }
+
+   /**
+    * Fills the replicated maps of the provider's cache with the real cache loader. Its
+    * {@code connect()} looks the provider up in a configured SecurityEngine, so the provider is
+    * set directly and the private load is called, and a stub service stands in for the
+    * cluster singleton.
+    */
+   private void loadCache(DatabaseAuthenticationProvider p) throws Exception {
+      assertTrue(p.isCacheEnabled());
+      String name = "mergeduser_cache_" + (cacheCounter++);
+      DatabaseAuthenticationCacheServiceImpl loader =
+         new DatabaseAuthenticationCacheServiceImpl(name);
+      loader.init();
+
+      try {
+         Field provider = DatabaseAuthenticationCacheServiceImpl.class.getDeclaredField("provider");
+         provider.setAccessible(true);
+         provider.set(loader, p);
+         Method load = DatabaseAuthenticationCacheServiceImpl.class
+            .getDeclaredMethod("loadInternal", boolean.class);
+         load.setAccessible(true);
+         load.invoke(loader, false);
+         assertTrue(loader.isInitialized(), "cache loaded");
+      }
+      finally {
+         loader.cancel();
+      }
+
+      DatabaseAuthenticationCacheService service = mock(DatabaseAuthenticationCacheService.class);
+      when(service.isInitialized()).thenReturn(true);
+      Cluster.getInstance().getSingletonService(
+         "DatabaseSecurity:" + name, DatabaseAuthenticationCacheService.class, () -> service);
+      p.setProviderName(name);
+   }
+
+   private static int cacheCounter = 0;
 }
