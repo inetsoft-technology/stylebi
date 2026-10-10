@@ -39,6 +39,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Proxy;
 import java.security.Principal;
 import java.sql.*;
+import java.text.Collator;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -195,6 +196,52 @@ class DatabaseAuthenticationGroupCollationTest {
 
       assertMembersUnchanged(p, "straße", "STRASSE");
       assertSupportUnchanged(p);
+   }
+
+   @Test
+   void expansionVariantGroups_caseInsensitiveDatabase_membersNotLoaded() throws Exception {
+      // TERRITORY_BASED:PRIMARY treats "æ" as "ae", an expansion that no Unicode normalization
+      // or case fold makes
+      createGroupDb(true, "æon", "aeon");
+      DatabaseAuthenticationProvider p = directProvider(true);
+
+      assertMembersNotLoaded(p, "æon", "aeon");
+      assertSupportUnchanged(p);
+   }
+
+   @Test
+   void expansionVariantGroups_caseSensitiveDatabase_membersUnchanged() throws Exception {
+      createGroupDb(false, "æon", "aeon");
+      DatabaseAuthenticationProvider p = directProvider(true);
+
+      assertMembersUnchanged(p, "æon", "aeon");
+      assertSupportUnchanged(p);
+   }
+
+   @Test
+   void candidateKey_mergesExpansionsAndIgnorablesAndKeepsLooseFolding() {
+      Collator collator = AuthenticationDAO.createCandidateCollator();
+      String[][] same = {
+         { "æon", "aeon" },
+         { "œuvre", "oeuvre" },
+         { "sa​les", "sales" }, // zero-width space
+         { FULL_WIDTH_SALES, "sales" },
+         { "せーるす", "セールス" }, // hiragana/katakana, which the collator alone keeps apart
+         { "Straße", "STRASSE" },
+         { ACCENTED, "SALES" },
+         { "sales　", "sales" }, // ideographic space
+      };
+
+      for(String[] pair : same) {
+         assertEquals(AuthenticationDAO.candidateKey(collator, pair[1]),
+                      AuthenticationDAO.candidateKey(collator, pair[0]),
+                      pair[0] + " / " + pair[1]);
+      }
+
+      assertNotEquals(AuthenticationDAO.candidateKey(collator, "sales"),
+                      AuthenticationDAO.candidateKey(collator, "sale"));
+      assertNotEquals(AuthenticationDAO.candidateKey(collator, "sales"),
+                      AuthenticationDAO.candidateKey(collator, "support"));
    }
 
    @Test

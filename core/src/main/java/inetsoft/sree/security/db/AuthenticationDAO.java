@@ -31,6 +31,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.*;
+import java.text.Collator;
 import java.text.Normalizer;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -458,17 +459,21 @@ class AuthenticationDAO {
          if(sortedMembers.equals(queryGroupUsers(handle, other).stream().sorted().toList())) {
             // every group lookup of every user reaches this, so warn once per group
             String message =
-               "The group users query returned the same members for group \"{}\" and group " +
-               "\"{}\", the database treats their names as the same name. The members of " +
-               "group \"{}\" will not be loaded. Group names (and organization IDs) must be " +
+               "The group users query returned the same members for group {} and group " +
+               "{}, the database treats their names as the same name. The members of " +
+               "group {} will not be loaded. Group names (and organization IDs) must be " +
                "unique under the database collation, including case, accents, width, kana " +
                "type and trailing spaces.";
 
+            // in multi-tenant mode the names can be equal and only the organization IDs differ
+            String groupLabel = groupLabel(group);
+            String otherLabel = groupLabel(other);
+
             if(ambiguousGroups.add(group)) {
-               LOG.warn(message, group.name, other.name, group.name);
+               LOG.warn(message, groupLabel, otherLabel, groupLabel);
             }
             else {
-               LOG.debug(message, group.name, other.name, group.name);
+               LOG.debug(message, groupLabel, otherLabel, groupLabel);
             }
 
             return true;
@@ -476,6 +481,15 @@ class AuthenticationDAO {
       }
 
       return false;
+   }
+
+   /**
+    * Gets the group name for a log message, with the organization ID in multi-tenant mode.
+    */
+   private String groupLabel(IdentityID group) {
+      return provider.isMultiTenant() ?
+         "\"" + group.name + "\" (organization \"" + group.orgID + "\")" :
+         "\"" + group.name + "\"";
    }
 
    /**
@@ -525,8 +539,32 @@ class AuthenticationDAO {
    }
 
    /**
-    * The listed groups, indexed by the loose key of their name, and of their organization ID
-    * in multi-tenant mode, where the group users query binds it.
+    * Creates the collator for {@link #candidateKey}: the root locale at primary strength with
+    * full decomposition.
+    */
+   static Collator createCandidateCollator() {
+      Collator collator = Collator.getInstance(Locale.ROOT);
+      collator.setStrength(Collator.PRIMARY);
+      collator.setDecomposition(Collator.FULL_DECOMPOSITION);
+      return collator;
+   }
+
+   /**
+    * Gets the key that groups the names a database collation may treat as the same name: the
+    * collation key of {@link #looseName} under the given {@link #createCandidateCollator
+    * collator}. The collation key also merges expansions ("&aelig;" and "ae", "&oelig;" and
+    * "oe") and ignorable characters (e.g. a zero-width space), as accent- and case-insensitive
+    * collations do, and {@link #looseName} adds the width, kana and trailing space folding that
+    * the collator lacks. A {@link Collator} is not thread-safe, so the caller must not share it
+    * between threads.
+    */
+   static String candidateKey(Collator collator, String name) {
+      return HexFormat.of().formatHex(collator.getCollationKey(looseName(name)).toByteArray());
+   }
+
+   /**
+    * The listed groups, indexed by the candidate key of their name, and of their organization
+    * ID in multi-tenant mode, where the group users query binds it.
     */
    static final class GroupIndex {
       GroupIndex(Collection<IdentityID> groups, boolean multiTenant) {
@@ -556,10 +594,13 @@ class AuthenticationDAO {
 
       private String key(IdentityID group) {
          return multiTenant ?
-            looseName(group.orgID) + '\u0000' + looseName(group.name) : looseName(group.name);
+            candidateKey(collator, group.orgID) + '/' + candidateKey(collator, group.name) :
+            candidateKey(collator, group.name);
       }
 
       private final boolean multiTenant;
+      // a Collator is not thread-safe, so each index has its own
+      private final Collator collator = createCandidateCollator();
       private final Map<String, List<IdentityID>> index = new HashMap<>();
    }
 
