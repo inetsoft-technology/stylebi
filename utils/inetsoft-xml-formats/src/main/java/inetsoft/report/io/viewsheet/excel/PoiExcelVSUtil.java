@@ -29,6 +29,7 @@ import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.util.filereader.ExcelDateUtil;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.*;
@@ -1959,7 +1960,7 @@ public class PoiExcelVSUtil {
          break;
       case NUMERIC:
          if(DateUtil.isCellDateFormatted(cell)) {
-            cellValue = cell.getDateCellValue();
+            cellValue = ExcelDateUtil.getDateCellValue(cell);
          }
          else {
             cellValue = cell.getNumericCellValue();
@@ -2061,14 +2062,14 @@ public class PoiExcelVSUtil {
       // we need to do something to deal with the situation.
       if(obj1 instanceof Date || obj2 instanceof Date) {
          if(obj1 instanceof Date && obj2 instanceof Double) {
-            Object obj = DateUtil.getJavaDate((Double) obj2);
+            Object obj = ExcelDateUtil.getJavaDate((Double) obj2, false);
 
             if(obj1.equals(obj)) {
                return true;
             }
          }
          else if(obj2 instanceof Date && obj1 instanceof Double) {
-            Object obj = DateUtil.getJavaDate((Double) obj1);
+            Object obj = ExcelDateUtil.getJavaDate((Double) obj1, false);
 
             if(obj2.equals(obj)) {
                return true;
