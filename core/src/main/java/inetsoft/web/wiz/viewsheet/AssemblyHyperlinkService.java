@@ -37,6 +37,7 @@ import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.VSBookmarkInfo;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.drm.DataRefModel;
@@ -151,6 +152,7 @@ public class AssemblyHyperlinkService {
       // nothing to refuse here, and opens no checkpoint the caller then has to undo.
       String type = requireType(link);
       requireValueForType(type, link);
+      requireBooleans(link);
 
       // Resolved here for the same reason, and it is the reason this ordering matters rather than
       // being tidy. A viewsheet link is stored by asset ID; resolving inside the mutate meant an
@@ -172,7 +174,7 @@ public class AssemblyHyperlinkService {
             runtimeId, assemblyName, target.row(), col, target.colName(),
             target.axis(), target.text(), target.titleLink(), target.emptyPlotLink(), user);
 
-         applyRowScope(assemblyName, model, link);
+         applyRowScope(assemblyName, model, link, hasRowLink(rvs, assemblyName));
          apply(rvs, assemblyName, model, type, link, assetId);
          hyperlinkService.setHyperlinkDialogModel(runtimeId, assemblyName, model, linkUri, user,
                                                  dispatcher);
@@ -268,7 +270,7 @@ public class AssemblyHyperlinkService {
     * data cells only).
     */
    private static void applyRowScope(String assemblyName, HyperlinkDialogModel model,
-                                     Map<String, Object> link)
+                                     Map<String, Object> link, boolean hasRowLink)
    {
       Object raw = link == null ? null : link.get("applyToRow");
 
@@ -278,10 +280,12 @@ public class AssemblyHyperlinkService {
       }
 
       if(raw == null) {
-         if(model.isApplyToRow()) {
+         // A header cell never reads the row link (applyToRow reads false there), yet writing it
+         // still clears the row link, so the persisted link is what decides, not the model.
+         if(model.isApplyToRow() || hasRowLink) {
             throw new IllegalArgumentException(
                "'" + assemblyName + "' has a row hyperlink, which every data cell of the " +
-               "table fires, and this cell reads it. Pass link.applyToRow:true to change that " +
+               "table fires, and setting a link on this cell would remove it. Pass link.applyToRow:true to change that " +
                "row link, or link.applyToRow:false to put a link on this cell only -- which " +
                "removes the row link, since a table holds one or the other.");
          }
@@ -298,6 +302,34 @@ public class AssemblyHyperlinkService {
       }
 
       model.setApplyToRow(applyToRow);
+   }
+
+   private static boolean hasRowLink(RuntimeViewsheet rvs, String assemblyName) {
+      Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+      VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
+
+      return assembly != null &&
+         assembly.getVSAssemblyInfo() instanceof TableDataVSAssemblyInfo info &&
+         info.getRowHyperlink() != null;
+   }
+
+   private static final String[] BOOLEAN_KEYS = {
+      "self", "sendViewsheetParameters", "sendSelectionsAsParameters", "disableParameterPrompt"
+   };
+
+   /**
+    * The link booleans must be real booleans: a string such as {@code "false"} used to be skipped
+    * by an {@code instanceof Boolean} test and the field silently kept its read default.
+    */
+   private static void requireBooleans(Map<String, Object> link) {
+      for(String key : BOOLEAN_KEYS) {
+         Object value = link.get(key);
+
+         if(value != null && !(value instanceof Boolean)) {
+            throw new IllegalArgumentException(
+               "'" + key + "' must be true or false, got '" + value + "'.");
+         }
+      }
    }
 
    public Map<String, Object> linkTypes() {

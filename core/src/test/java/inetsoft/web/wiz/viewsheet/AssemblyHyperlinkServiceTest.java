@@ -33,6 +33,7 @@ import inetsoft.uql.viewsheet.CrosstabVSAssembly;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.composer.model.vs.HyperlinkDialogModel;
 import inetsoft.web.composer.model.vs.InputParameterDialogModel;
@@ -1428,6 +1429,84 @@ class AssemblyHyperlinkServiceTest {
                    () -> h.service.set("tok", principal(), "Crosstab1", null,
                                        link("linkType", "web", "webLink", "https://example.com",
                                             "applyToRow", true), ""));
+   }
+
+   /** A header cell reads applyToRow=false, so the guard must key on the persisted row link. */
+   private static Harness rowLinkedHarness(boolean hasRowLink) throws Exception {
+      HyperlinkDialogModel model = new HyperlinkDialogModel();
+      model.setShowRow(false);
+      Harness h = harness(model);
+      TableVSAssembly assembly = mock(TableVSAssembly.class);
+      TableVSAssemblyInfo info = mock(TableVSAssemblyInfo.class);
+      when(info.getRowHyperlink()).thenReturn(hasRowLink ? mock(Hyperlink.class) : null);
+      when(assembly.getVSAssemblyInfo()).thenReturn(info);
+      wireRuntimeData(h, "Table1", assembly);
+      return h;
+   }
+
+   @Test
+   void aHeaderCellSetOnARowLinkedTableWithoutApplyToRowIsRefused() throws Exception {
+      Harness h = rowLinkedHarness(true);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Table1", new AssemblyHyperlinkService.Region(0, 0, null, false, false,
+                                                                      false, false),
+                             link("linkType", "web", "webLink", "https://example.com"), ""));
+
+      assertTrue(thrown.getMessage().contains("row hyperlink"));
+      verify(h.links, never()).setHyperlinkDialogModel(anyString(), anyString(), any(),
+                                                       anyString(), any(Principal.class), any());
+   }
+
+   @Test
+   void clearingAHeaderCellOfARowLinkedTableWithoutApplyToRowIsRefused() throws Exception {
+      Harness h = rowLinkedHarness(true);
+
+      assertThrows(IllegalArgumentException.class,
+                   () -> h.service.set("tok", principal(), "Table1",
+                                       new AssemblyHyperlinkService.Region(0, 0, null, false, false, false, false),
+                                       link("linkType", "none"), ""));
+   }
+
+   @Test
+   void aHeaderCellSetWithExplicitApplyToRowFalseIsAllowed() throws Exception {
+      Harness h = rowLinkedHarness(true);
+
+      h.service.set("tok", principal(), "Table1",
+                    new AssemblyHyperlinkService.Region(0, 0, null, false, false, false, false),
+                    link("linkType", "web", "webLink", "https://example.com",
+                         "applyToRow", false), "");
+
+      assertFalse(capture(h.links).isApplyToRow());
+   }
+
+   @Test
+   void aHeaderCellSetOnATableWithoutARowLinkIsUnaffected() throws Exception {
+      Harness h = rowLinkedHarness(false);
+
+      h.service.set("tok", principal(), "Table1",
+                    new AssemblyHyperlinkService.Region(0, 0, null, false, false, false, false),
+                    link("linkType", "web", "webLink", "https://example.com"), "");
+
+      assertEquals("https://example.com", capture(h.links).getWebLink());
+   }
+
+   @Test
+   void aStringBooleanInALinkFieldIsRefusedByName() {
+      for(String key : new String[] {"self", "sendViewsheetParameters",
+                                     "sendSelectionsAsParameters", "disableParameterPrompt"})
+      {
+         Harness h = harness(new HyperlinkDialogModel());
+
+         Exception thrown = assertThrows(
+            IllegalArgumentException.class,
+            () -> h.service.set("tok", principal(), "Chart1", null,
+                                link("linkType", "web", "webLink", "https://example.com",
+                                     key, "false"), ""));
+
+         assertTrue(thrown.getMessage().contains("'" + key + "'"), thrown.getMessage());
+      }
    }
 
    @Test
