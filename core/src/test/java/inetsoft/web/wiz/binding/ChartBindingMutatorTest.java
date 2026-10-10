@@ -1358,4 +1358,73 @@ class ChartBindingMutatorTest {
       assertEquals(1, model.getGroupFields().size());
       assertInstanceOf(ChartDimensionRefModel.class, model.getGroupFields().get(0));
    }
+
+   // ── single-shelf same-field resend carries state forward (bug #78188) ────────────────────
+   //
+   // setSingleShelf built a fresh ref via toChartRef and assigned it with no carry-forward, so
+   // an omitted timeSeries (and sort/ranking, calculateInfo) reset on every same-field resend.
+   // Every toChartRef caller that replaces an existing ref must carry state forward on a
+   // same-field resend; setShelf already did, setSingleShelf and the aesthetic path did not.
+
+   private static ChartDimensionRefModel singleDim(ChartBindingModel model, String shelf) {
+      return (ChartDimensionRefModel) ChartBindingMutator.readSingleShelf(model, shelf);
+   }
+
+   @Test
+   void singleShelfResendWithoutTimeSeriesKeyPreservesIt() {
+      for(String shelf : List.of("path", "start")) {
+         ChartBindingModel model = new ChartBindingModel();
+         ChartBindingMutator.setSingleShelf(model, shelf,
+            dimensionWithTimeSeries("Order Date", "day", true));
+
+         ChartBindingMutator.setSingleShelf(model, shelf,
+            new FieldRef("Order Date", "dimension", null, "day", null));
+
+         assertTrue(singleDim(model, shelf).isTimeSeries(), shelf);
+      }
+   }
+
+   @Test
+   void singleShelfResendWithExplicitFalseClearsTimeSeries() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setSingleShelf(model, "start",
+         dimensionWithTimeSeries("Order Date", "day", true));
+
+      ChartBindingMutator.setSingleShelf(model, "start",
+         dimensionWithTimeSeries("Order Date", "day", false));
+
+      assertFalse(singleDim(model, "start").isTimeSeries());
+   }
+
+   @Test
+   void singleShelfRebindToDifferentColumnOrDateLevelDoesNotCarryTimeSeries() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setSingleShelf(model, "start",
+         dimensionWithTimeSeries("Order Date", "day", true));
+
+      ChartBindingMutator.setSingleShelf(model, "start",
+         new FieldRef("Ship Date", "dimension", null, "day", null));
+      assertFalse(singleDim(model, "start").isTimeSeries());
+
+      ChartBindingMutator.setSingleShelf(model, "start",
+         dimensionWithTimeSeries("Ship Date", "day", true));
+      ChartBindingMutator.setSingleShelf(model, "start",
+         new FieldRef("Ship Date", "dimension", null, "month", null));
+      assertFalse(singleDim(model, "start").isTimeSeries());
+   }
+
+   @Test
+   void singleShelfSameMeasureResendPreservesCalculateInfoButDifferentMeasureDoesNot() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setSingleShelf(model, "close",
+         measureWithCalc("Price", "Sum", runningTotal("Sum")));
+
+      ChartBindingMutator.setSingleShelf(model, "close",
+         new FieldRef("Price", "measure", "Sum", null, null));
+      assertNotNull(((ChartAggregateRefModel) model.getCloseField()).getCalculateInfo());
+
+      ChartBindingMutator.setSingleShelf(model, "close",
+         new FieldRef("Cost", "measure", "Sum", null, null));
+      assertNull(((ChartAggregateRefModel) model.getCloseField()).getCalculateInfo());
+   }
 }

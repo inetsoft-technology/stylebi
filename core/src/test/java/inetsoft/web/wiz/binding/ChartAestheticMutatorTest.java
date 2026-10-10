@@ -2264,4 +2264,35 @@ class ChartAestheticMutatorTest {
       assertEquals(true, size.get("acceptsField"),
                    "callers that don't pass chart-type context keep the old, unrestricted answer");
    }
+
+   // ── same-field aesthetic resend carries state forward (bug #78188) ───────────────────────
+
+   private static FieldRef dimensionTs(String column, String level, Boolean ts) {
+      return new FieldRef(column, "dimension", null, level, null, null, null, null, null, null,
+                          null, null, ts);
+   }
+
+   @Test
+   void aestheticSameFieldResendWithoutTimeSeriesKeyPreservesIt() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setField(model, "color", dimensionTs("Order Date", "day", true));
+
+      ChartAestheticMutator.setField(model, "color",
+         new FieldRef("Order Date", "dimension", null, "day", null));
+
+      assertTrue(((ChartDimensionRefModel) model.getColorField().getDataInfo()).isTimeSeries());
+   }
+
+   @Test
+   void aestheticExplicitFalseOrDifferentFieldDoesNotCarryTimeSeries() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setField(model, "color", dimensionTs("Order Date", "day", true));
+      ChartAestheticMutator.setField(model, "color", dimensionTs("Order Date", "day", false));
+      assertFalse(((ChartDimensionRefModel) model.getColorField().getDataInfo()).isTimeSeries());
+
+      ChartAestheticMutator.setField(model, "color", dimensionTs("Order Date", "day", true));
+      ChartAestheticMutator.setField(model, "color",
+         new FieldRef("Ship Date", "dimension", null, "day", null));
+      assertFalse(((ChartDimensionRefModel) model.getColorField().getDataInfo()).isTimeSeries());
+   }
 }
