@@ -21,6 +21,7 @@ import inetsoft.report.composition.FormTableLens;
 import inetsoft.report.composition.FormTableRow;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.report.internal.Util;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.viewsheet.ColumnOption;
 import inetsoft.uql.viewsheet.TableVSAssembly;
@@ -98,13 +99,52 @@ public class FormTableRowService {
             .row(index + headerRowOffset(rvs, assemblyName))
             .start(0)
             .build();
+         FormTableLens before = resolveLens(rvs, assemblyName);
+         int rowsBefore = before == null ? -1 : dataRowCount(before);
          formTableService.addRow(runtimeId, event, linkUri, dispatcher, user);
+         FormTableLens after = resolveLens(rvs, assemblyName);
+
+         if(rowsBefore >= 0 && after != null && dataRowCount(after) <= rowsBefore) {
+            throw new IllegalArgumentException(noRowInsertedMessage(
+               assemblyName, rowsBefore, after.getHeaderRowCount(), dispatcher.getWarnings()));
+         }
+
          populateSnapshot(result, dispatcher, assemblyName);
       });
 
       result.put("assembly", assemblyName);
       putWarnings(result, warnings);
       return result;
+   }
+
+   /**
+    * {@code VSFormTableService.addRow} refuses an insert/append at the organization's
+    * {@code max.row.count} by dispatching a WARNING and returning early, so the only way to
+    * notice is that the row count did not grow. The native limit compares against the lens's
+    * header-inclusive row count, hence the data-row capacity is {@code max - headerRows}.
+    */
+   private static String noRowInsertedMessage(String assemblyName, int dataRows, int headerRows,
+                                              List<String> warnings)
+   {
+      int max = Util.getOrganizationMaxRow();
+      StringBuilder message = new StringBuilder("No row was inserted into '")
+         .append(assemblyName).append("'");
+
+      if(max > 0) {
+         message.append(": the organization row limit max.row.count = ").append(max)
+            .append(" (it counts the ").append(headerRows).append(" header row(s)) allows at most ")
+            .append(Math.max(0, max - headerRows)).append(" data rows and the table already has ")
+            .append(dataRows).append('.');
+      }
+      else {
+         message.append('.');
+      }
+
+      if(warnings != null && !warnings.isEmpty()) {
+         message.append(" Server message: ").append(String.join(" ", warnings));
+      }
+
+      return message.toString();
    }
 
    /** Deletes one or more rows in a single call -- {@code VSFormTableService} itself sorts and

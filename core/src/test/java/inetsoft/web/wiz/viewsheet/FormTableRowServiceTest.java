@@ -448,6 +448,87 @@ class FormTableRowServiceTest {
       assertEquals(List.of("Reached the maximum number of rows allowed."), result.get("warnings"));
    }
 
+   // ── refused insert at max.row.count (Bug #78211) ────────────────────────
+
+   /** A lens whose header-inclusive row count only grows once {@code addRow} was invoked. */
+   private static FormTableLens growingLens(int headerRows, int rowsBefore, boolean grows,
+                                            java.util.concurrent.atomic.AtomicBoolean added)
+   {
+      FormTableLens lens = mock(FormTableLens.class);
+      when(lens.getHeaderRowCount()).thenReturn(headerRows);
+      when(lens.getRowCount()).thenAnswer(
+         inv -> rowsBefore + (grows && added.get() ? 1 : 0));
+      return lens;
+   }
+
+   private static Harness insertHarness(FormTableLens lens,
+                                        java.util.concurrent.atomic.AtomicBoolean added,
+                                        List<String> warnings) throws Exception
+   {
+      Harness h = harnessWithLens(tableWith(true, true, true, true), lens, warnings);
+      doAnswer(inv -> {
+         added.set(true);
+         return null;
+      }).when(h.forms).addRow(anyString(), any(), any(), any(), any());
+      return h;
+   }
+
+   @Test
+   void insertRowRefusedAtTheOrgLimitNamesTheLimitAndDataRowCapacity() throws Exception {
+      var added = new java.util.concurrent.atomic.AtomicBoolean();
+      // header + 2 data rows = 3 native rows, max.row.count 3, one header row => capacity 2
+      Harness h = insertHarness(growingLens(1, 3, false, added), added, List.of());
+
+      try(var util = mockStatic(inetsoft.report.internal.Util.class)) {
+         util.when(inetsoft.report.internal.Util::getOrganizationMaxRow).thenReturn(3);
+         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+            () -> h.service.insertRow("tok", principal(), "Table1", 0, false, ""));
+         assertTrue(e.getMessage().contains("max.row.count = 3"), e.getMessage());
+         assertTrue(e.getMessage().contains("at most 2 data rows"), e.getMessage());
+         assertTrue(e.getMessage().contains("already has 2"), e.getMessage());
+      }
+   }
+
+   @Test
+   void appendRowRefusedAtTheOrgLimitIsAlsoRejected() throws Exception {
+      var added = new java.util.concurrent.atomic.AtomicBoolean();
+      Harness h = insertHarness(growingLens(1, 3, false, added), added, List.of());
+
+      try(var util = mockStatic(inetsoft.report.internal.Util.class)) {
+         util.when(inetsoft.report.internal.Util::getOrganizationMaxRow).thenReturn(3);
+         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+            () -> h.service.insertRow("tok", principal(), "Table1", 0, true, ""));
+         assertTrue(e.getMessage().contains("max.row.count = 3"), e.getMessage());
+      }
+   }
+
+   @Test
+   void noOpInsertWithUnlimitedRowCountGivesGenericMessageAndCapturedWarning() throws Exception {
+      var added = new java.util.concurrent.atomic.AtomicBoolean();
+      Harness h = insertHarness(growingLens(1, 3, false, added), added, List.of());
+      when(h.dispatcher.getWarnings()).thenReturn(List.of("Something else."));
+
+      try(var util = mockStatic(inetsoft.report.internal.Util.class)) {
+         util.when(inetsoft.report.internal.Util::getOrganizationMaxRow).thenReturn(0);
+         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+            () -> h.service.insertRow("tok", principal(), "Table1", 0, false, ""));
+         assertTrue(e.getMessage().startsWith("No row was inserted into 'Table1'."), e.getMessage());
+         assertFalse(e.getMessage().contains("max.row.count"), e.getMessage());
+         assertTrue(e.getMessage().contains("Something else."), e.getMessage());
+      }
+   }
+
+   @Test
+   void successfulInsertStillReturnsOkAndPassesWarningsThrough() throws Exception {
+      var added = new java.util.concurrent.atomic.AtomicBoolean();
+      Harness h = insertHarness(growingLens(1, 3, true, added), added, List.of("Heads up."));
+
+      Map<String, Object> result = h.service.insertRow("tok", principal(), "Table1", 0, false, "");
+
+      assertEquals(List.of("Heads up."), result.get("warnings"));
+      assertEquals("Table1", result.get("assembly"));
+   }
+
    @Test
    void setCellSurfacesWarningsMutateReturned() throws Exception {
       Harness h = harnessWithWarnings(tableWith(true, false, false, true),
@@ -688,6 +769,26 @@ class FormTableRowServiceTest {
     * {@code isEdit()}/{@code getVisibleColumnOption(col)} from.
     */
    private static Harness harnessWithLens(VSAssembly assembly, FormTableLens lens) {
+      Harness h = harnessWithLens(assembly, lens, List.of());
+      int rowsBefore = lens.getRowCount();
+      // a real addRow grows the lens; without this the Bug #78211 no-op guard would reject it
+
+      try {
+         doAnswer(inv -> {
+            when(lens.getRowCount()).thenReturn(rowsBefore + 1);
+            return null;
+         }).when(h.forms).addRow(anyString(), any(), any(), any(), any());
+      }
+      catch(Exception e) {
+         throw new IllegalStateException(e);
+      }
+
+      return h;
+   }
+
+   private static Harness harnessWithLens(VSAssembly assembly, FormTableLens lens,
+                                          List<String> warnings)
+   {
       Viewsheet vs = mock(Viewsheet.class);
       when(vs.getAssembly(anyString())).thenReturn(assembly);
 
@@ -713,7 +814,7 @@ class FormTableRowServiceTest {
          doAnswer(invocation -> {
             ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
             mutation.run(rvs, "rt1", dispatcher);
-            return List.of();
+            return warnings;
          }).when(sessions).mutate(anyString(), any(Principal.class), any());
       }
       catch(Exception e) {
