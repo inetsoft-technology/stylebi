@@ -2320,8 +2320,10 @@ public class WorksheetEditService {
       /**
        * Replaces the existing filter condition on {@code field} with a new one.
        *
-       * <p>Implemented as remove-then-add so the old condition is fully cleared
-       * before the replacement is appended.</p>
+       * <p>Bug #78145: replaced in place (same slot, level and junctions) after the new
+       * condition is fully built, so a refused call changes nothing. A field with several
+       * conditions is refused; a field with none gets the condition appended. See
+       * {@link WorksheetMutationSupport#replaceFilter}.</p>
        *
        * @param table     the assembly name
        * @param field     the column name whose condition to replace
@@ -2336,8 +2338,7 @@ public class WorksheetEditService {
       {
          TableAssembly t = requireTable(table);
          requireFilterable(t);
-         WorksheetMutationSupport.removeFilter(t, field);
-         WorksheetMutationSupport.addFilter(t, field, operation, values);
+         WorksheetMutationSupport.replaceFilter(t, field, operation, values);
       }
 
       /**

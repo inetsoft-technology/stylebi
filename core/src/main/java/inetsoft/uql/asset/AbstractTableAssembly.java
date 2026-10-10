@@ -765,7 +765,9 @@ public abstract class AbstractTableAssembly extends AbstractWSAssembly implement
     */
    @Override
    public void setMVUpdatePreConditionList(ConditionListWrapper conds) {
-      mvUpdatePreConds = conds;
+      // Bug #78145 (WSC-012): null-safe like setPreConditionList -- clone() and writeXML()
+      // dereference this list unconditionally.
+      mvUpdatePreConds = (conds == null) ? new ConditionList() : conds;
    }
 
    /**
@@ -781,7 +783,9 @@ public abstract class AbstractTableAssembly extends AbstractWSAssembly implement
     */
    @Override
    public void setMVUpdatePostConditionList(ConditionListWrapper conds) {
-      mvUpdatePostConds = conds;
+      // Bug #78145 (WSC-012): null-safe like setPreConditionList -- clone() and writeXML()
+      // dereference this list unconditionally.
+      mvUpdatePostConds = (conds == null) ? new ConditionList() : conds;
    }
 
    /**
@@ -797,7 +801,9 @@ public abstract class AbstractTableAssembly extends AbstractWSAssembly implement
     */
    @Override
    public void setMVDeletePreConditionList(ConditionListWrapper conds) {
-      mvDeletePreConds = conds;
+      // Bug #78145 (WSC-012): null-safe like setPreConditionList -- clone() and writeXML()
+      // dereference this list unconditionally.
+      mvDeletePreConds = (conds == null) ? new ConditionList() : conds;
    }
 
    /**
@@ -813,7 +819,9 @@ public abstract class AbstractTableAssembly extends AbstractWSAssembly implement
     */
    @Override
    public void setMVDeletePostConditionList(ConditionListWrapper conds) {
-      mvDeletePostConds = conds;
+      // Bug #78145 (WSC-012): null-safe like setPreConditionList -- clone() and writeXML()
+      // dereference this list unconditionally.
+      mvDeletePostConds = (conds == null) ? new ConditionList() : conds;
    }
 
    /**
