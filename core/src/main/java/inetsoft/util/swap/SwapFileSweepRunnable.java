@@ -59,6 +59,16 @@ public class SwapFileSweepRunnable extends TimedQueue.TimedRunnable {
 
    @Override
    public void run() {
+      // Bug #78245, only the directory resolution is caught here, and at DEBUG, matching
+      // XSwapper's own constructor logging of the same IOException from getCacheDirectory() --
+      // an undefined/misconfigured cache directory. Deliberately no broader catch(Exception)
+      // around sweepDeadSeedSwapFiles(dir): the one case that is genuinely expected during normal
+      // operation -- the cluster being stopped while this task fires -- is already caught and
+      // logged at DEBUG inside sweepDeadSeedSwapFiles() itself (its own Cluster.getInstance()/
+      // getLock()/lock() try/catch). Catching Exception again here would only hide an actual bug
+      // in the sweep logic at DEBUG forever; instead, like ClearOldCacheFilesRunnable (the
+      // existing TimedQueue.TimedRunnable this class is modeled on), anything unexpected is left
+      // to propagate to TimedQueue.WorkerThread.doRun()'s own catch(Throwable) -> LOG.error.
       try {
          FileSystemService fileSystemService = FileSystemService.getInstance();
          File dir = fileSystemService.getFile(fileSystemService.getCacheDirectory());
@@ -69,9 +79,6 @@ public class SwapFileSweepRunnable extends TimedQueue.TimedRunnable {
       }
       catch(IOException e) {
          LOG.debug("Unable to resolve swap cache directory for the recurring sweep", e);
-      }
-      catch(Exception e) {
-         LOG.debug("Unable to run the recurring swap file sweep, cluster may be stopped", e);
       }
    }
 
