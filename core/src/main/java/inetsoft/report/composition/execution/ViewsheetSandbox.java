@@ -1093,6 +1093,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                         String key = (String) iter.nextElement();
                         Object val = vars.get(key);
                         vtable.put(key, val);
+                        box.inheritedVars.put(key, val);
                      }
                   }
 
@@ -2648,6 +2649,82 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    }
 
    /**
+    * Push the variables an onLoad script added, changed or removed into the existing embedded
+    * viewsheet sandboxes. An embedded sandbox copies the root variable table once, when it is
+    * created, which for a direct child is before the root onLoad runs. A variable is only
+    * updated if the embedded sandbox still holds the value it inherited, so a value the
+    * embedded viewsheet wrote itself (onInit, input assembly) is kept.
+    * @param ovars the root variables before the onLoad script.
+    * @param vars the root variables after the onLoad script.
+    */
+   private void pushVariablesToEmbedded(VariableTable ovars, VariableTable vars) {
+      if(bmap.isEmpty()) {
+         return;
+      }
+
+      Set<String> keys = new HashSet<>();
+      Enumeration<String> iter = ovars.keys();
+
+      while(iter.hasMoreElements()) {
+         keys.add(iter.nextElement());
+      }
+
+      iter = vars.keys();
+
+      while(iter.hasMoreElements()) {
+         keys.add(iter.nextElement());
+      }
+
+      for(String key : keys) {
+         boolean added = vars.contains(key);
+         Object nval;
+
+         try {
+            Object oval = ovars.get(key);
+            nval = vars.get(key);
+
+            if(ovars.contains(key) == added && Tool.equals(oval, nval)) {
+               continue;
+            }
+         }
+         catch(Exception ex) {
+            LOG.debug("Failed to read variable: {}", key, ex);
+            continue;
+         }
+
+         for(ViewsheetSandbox box : bmap.values()) {
+            VariableTable vtable = box.getVariableTable();
+
+            if(vtable == null) {
+               continue;
+            }
+
+            try {
+               boolean has = box.inheritedVars.containsKey(key) || vtable.contains(key);
+               Object inherited = box.inheritedVars.get(key);
+
+               // the embedded viewsheet changed the value itself
+               if(has && !Tool.equals(inherited, vtable.get(key))) {
+                  continue;
+               }
+
+               if(added) {
+                  vtable.put(key, nval);
+                  box.inheritedVars.put(key, nval);
+               }
+               else {
+                  vtable.remove(key);
+                  box.inheritedVars.remove(key);
+               }
+            }
+            catch(Exception ex) {
+               LOG.debug("Failed to update variable {} of embedded viewsheet", key, ex);
+            }
+         }
+      }
+   }
+
+   /**
     * Process onLoad javascript attached to this viewsheet.
     * @param processDependency true to check if assemblies may have been
     * changed and trigger cascading selection processing
@@ -2710,6 +2787,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       // variable changed, clear cached data
       if(!vars.equals(ovars)) {
          metarep.clear();
+         pushVariablesToEmbedded(ovars, vars);
          reset(clist);
       }
 
@@ -9007,6 +9085,9 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    private static final int MAX_CHANGE_CANCEL_ATTEMPTS = 20;
    private final Set<String> vset; // view set
    private final Map<String, ViewsheetSandbox> bmap; // viewsheet sandbox map
+   // the root variables this embedded sandbox inherited, at creation or the last push
+   private final Map<String, Object> inheritedVars =
+      Collections.synchronizedMap(new HashMap<>());
    private final Map<String, Image> images; // image map
    private final Map<String, Painter> painters; // painter map
    private final Map<String, VGraphPair> pairs; // graph pairs map
