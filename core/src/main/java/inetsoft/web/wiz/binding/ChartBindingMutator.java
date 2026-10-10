@@ -453,6 +453,8 @@ public final class ChartBindingMutator {
 
       ChartRefModel ref = field == null
          ? null : FieldRefFactory.toChartRef(field, model, rvs, source, refModelService);
+      ChartRefModel previous = readSingleShelf(model, name);
+      carryForwardSameField(previous, ref, field);
 
       switch(name) {
       case "open" -> model.setOpenField(ref);
@@ -465,6 +467,27 @@ public final class ChartBindingMutator {
       case "start" -> model.setStartField(ref);
       case "end" -> model.setEndField(ref);
       default -> model.setMilestoneField(ref);
+      }
+   }
+
+   /**
+    * Carries a same-field resend's prior state onto a freshly built ref -- the single-shelf and
+    * aesthetic-channel counterpart of {@code setShelf}'s per-position carry-forward (bug
+    * #78188). Gated on identity (same column + date level / same measure), so a rebind to a
+    * different field never inherits state.
+    */
+   static void carryForwardSameField(ChartRefModel previous, ChartRefModel ref, FieldRef field) {
+      if(ref instanceof ChartDimensionRefModel dimension &&
+         previous instanceof ChartDimensionRefModel previousDim && matches(previousDim, field))
+      {
+         preserveDimensionState(previousDim, dimension, field);
+      }
+      else if(ref instanceof ChartAggregateRefModel aggregate &&
+              previous instanceof ChartAggregateRefModel previousAgg &&
+              sameMeasure(previousAgg, aggregate))
+      {
+         preserveAggregateState(previousAgg, aggregate, field);
+         preserveAggregateFrames(previousAgg, aggregate);
       }
    }
 

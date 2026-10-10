@@ -1358,4 +1358,96 @@ class ChartBindingMutatorTest {
       assertEquals(1, model.getGroupFields().size());
       assertInstanceOf(ChartDimensionRefModel.class, model.getGroupFields().get(0));
    }
+
+   // ── single-shelf same-field resend carries state forward (bug #78188) ────────────────────
+   //
+   // setSingleShelf built a fresh ref via toChartRef and assigned it with no carry-forward, so
+   // an omitted timeSeries (and sort/ranking, calculateInfo) reset on every same-field resend.
+   // Every toChartRef caller that replaces an existing ref must carry state forward on a
+   // same-field resend; setShelf already did, setSingleShelf and the aesthetic path did not.
+
+   private static ChartDimensionRefModel singleDim(ChartBindingModel model, String shelf) {
+      return (ChartDimensionRefModel) ChartBindingMutator.readSingleShelf(model, shelf);
+   }
+
+   /** A dimension ref already stored with timeSeries=true, as native drag-and-drop or a legacy
+    *  asset leaves it; the plugin's own write path may refuse to create this state (#78214). */
+   private static ChartDimensionRefModel nativeTimeSeriesDim(String column, String level) {
+      ChartDimensionRefModel ref = new ChartDimensionRefModel();
+      ref.setColumnValue(column);
+      ref.setName(column);
+      ref.setDateLevel(DateLevels.normalize(level));
+      ref.setTimeSeries(true);
+      return ref;
+   }
+
+   @Test
+   void singleShelfSourceResendWithoutTimeSeriesKeyPreservesIt() {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setSourceField(nativeTimeSeriesDim("Order Date", "day"));
+
+      ChartBindingMutator.setSingleShelf(model, "source",
+         new FieldRef("Order Date", "dimension", null, "day", null));
+
+      assertTrue(singleDim(model, "source").isTimeSeries());
+   }
+
+   @Test
+   void singleShelfPathResendWithoutTimeSeriesKeyPreservesIt() {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setPathField(nativeTimeSeriesDim("Order Date", "day"));
+
+      ChartBindingMutator.setSingleShelf(model, "path",
+         new FieldRef("Order Date", "dimension", null, "day", null));
+
+      assertTrue(singleDim(model, "path").isTimeSeries());
+   }
+
+   @Test
+   void singleShelfResendWithExplicitFalseClearsTimeSeries() {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setSourceField(nativeTimeSeriesDim("Order Date", "day"));
+
+      ChartBindingMutator.setSingleShelf(model, "source",
+         dimensionWithTimeSeries("Order Date", "day", false));
+
+      assertFalse(singleDim(model, "source").isTimeSeries());
+   }
+
+   @Test
+   void singleShelfRebindToDifferentColumnDoesNotCarryTimeSeries() {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setSourceField(nativeTimeSeriesDim("Order Date", "day"));
+
+      ChartBindingMutator.setSingleShelf(model, "source",
+         new FieldRef("Ship Date", "dimension", null, "day", null));
+
+      assertFalse(singleDim(model, "source").isTimeSeries());
+   }
+
+   @Test
+   void singleShelfRebindToDifferentDateLevelDoesNotCarryTimeSeries() {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setSourceField(nativeTimeSeriesDim("Ship Date", "day"));
+
+      ChartBindingMutator.setSingleShelf(model, "source",
+         new FieldRef("Ship Date", "dimension", null, "month", null));
+
+      assertFalse(singleDim(model, "source").isTimeSeries());
+   }
+
+   @Test
+   void singleShelfSameMeasureResendPreservesCalculateInfoButDifferentMeasureDoesNot() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setSingleShelf(model, "close",
+         measureWithCalc("Price", "Sum", runningTotal("Sum")));
+
+      ChartBindingMutator.setSingleShelf(model, "close",
+         new FieldRef("Price", "measure", "Sum", null, null));
+      assertNotNull(((ChartAggregateRefModel) model.getCloseField()).getCalculateInfo());
+
+      ChartBindingMutator.setSingleShelf(model, "close",
+         new FieldRef("Cost", "measure", "Sum", null, null));
+      assertNull(((ChartAggregateRefModel) model.getCloseField()).getCalculateInfo());
+   }
 }

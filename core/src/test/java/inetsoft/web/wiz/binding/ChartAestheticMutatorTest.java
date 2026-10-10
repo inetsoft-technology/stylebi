@@ -2264,4 +2264,57 @@ class ChartAestheticMutatorTest {
       assertEquals(true, size.get("acceptsField"),
                    "callers that don't pass chart-type context keep the old, unrestricted answer");
    }
+
+   // ── same-field aesthetic resend carries state forward (bug #78188) ───────────────────────
+
+   /** Stored-true dataInfo as native drag-and-drop or a legacy asset leaves it. */
+   private static void seedNativeTimeSeries(ChartBindingModel model, String column, String level) {
+      ChartDimensionRefModel ref = new ChartDimensionRefModel();
+      ref.setColumnValue(column);
+      ref.setName(column);
+      ref.setDateLevel(DateLevels.normalize(level));
+      ref.setTimeSeries(true);
+      AestheticInfo info = new AestheticInfo();
+      info.setFullName(column);
+      info.setDataInfo(ref);
+      model.setColorField(info);
+   }
+
+   private static boolean colorTimeSeries(ChartBindingModel model) {
+      return ((ChartDimensionRefModel) model.getColorField().getDataInfo()).isTimeSeries();
+   }
+
+   @Test
+   void aestheticSameFieldResendWithoutTimeSeriesKeyPreservesIt() {
+      ChartBindingModel model = new ChartBindingModel();
+      seedNativeTimeSeries(model, "Order Date", "day");
+
+      ChartAestheticMutator.setField(model, "color",
+         new FieldRef("Order Date", "dimension", null, "day", null));
+
+      assertTrue(colorTimeSeries(model));
+   }
+
+   @Test
+   void aestheticExplicitFalseClearsTimeSeries() {
+      ChartBindingModel model = new ChartBindingModel();
+      seedNativeTimeSeries(model, "Order Date", "day");
+
+      ChartAestheticMutator.setField(model, "color",
+         new FieldRef("Order Date", "dimension", null, "day", null, null, null, null, null, null,
+                      null, null, false));
+
+      assertFalse(colorTimeSeries(model));
+   }
+
+   @Test
+   void aestheticDifferentFieldDoesNotCarryTimeSeries() {
+      ChartBindingModel model = new ChartBindingModel();
+      seedNativeTimeSeries(model, "Order Date", "day");
+
+      ChartAestheticMutator.setField(model, "color",
+         new FieldRef("Ship Date", "dimension", null, "day", null));
+
+      assertFalse(colorTimeSeries(model));
+   }
 }
