@@ -2343,9 +2343,7 @@ public class ViewsheetAssemblyAgentController {
 
       if(name != null && !name.isEmpty()) {
          IdentityID uname = IdentityID.getIdentityIDFromKey(user.getName());
-         int assetScope = body != null && "user".equalsIgnoreCase(body.scope())
-            ? AssetRepository.USER_SCOPE
-            : AssetRepository.GLOBAL_SCOPE;
+         int assetScope = WizUtil.resolveAssetScope(body == null ? null : body.scope());
          IdentityID owner = assetScope == AssetRepository.USER_SCOPE ? uname : null;
          entry = new AssetEntry(assetScope, AssetEntry.Type.VIEWSHEET, name, owner, uname.orgID);
 
@@ -2469,8 +2467,7 @@ public class ViewsheetAssemblyAgentController {
 
          WizUtil.requireNoCaret(path, "path");
 
-         int assetScope = "user".equalsIgnoreCase(scope)
-            ? AssetRepository.USER_SCOPE : AssetRepository.GLOBAL_SCOPE;
+         int assetScope = WizUtil.resolveAssetScope(scope);
          IdentityID owner = assetScope == AssetRepository.USER_SCOPE ? uname : null;
          AssetEntry entry = new AssetEntry(assetScope, AssetEntry.Type.WORKSHEET, path.trim(),
                                            owner, uname.orgID);

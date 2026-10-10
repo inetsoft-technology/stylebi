@@ -33,6 +33,9 @@ import inetsoft.uql.viewsheet.TabVSAssembly;
 import inetsoft.uql.viewsheet.TitledVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.util.Catalog;
+import inetsoft.web.wiz.WizUtil;
 import inetsoft.web.composer.vs.event.CopyVSObjectsEvent;
 import inetsoft.web.composer.vs.objects.controller.ClipboardControllerService;
 import inetsoft.web.composer.vs.objects.controller.ComposerGroupService;
@@ -61,6 +64,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -294,11 +298,28 @@ public class ViewsheetEditService {
             event.setEntry(resolveEmbeddedViewsheetEntry(rvs, request, user));
          }
 
+         String embeddedName = null;
+
+         if(request.type() == AbstractSheet.VIEWSHEET_ASSET && rvs.getViewsheet() != null) {
+            // addNewObject returns null for an embedded viewsheet; addEmbeddedViewsheet names it
+            // with exactly this deterministic call, so predict the name to rename/resize it.
+            embeddedName =
+               AssetUtil.getNextName(rvs.getViewsheet(), AbstractSheet.VIEWSHEET_ASSET);
+         }
+
          String name = objects.addNewObject(runtimeId, event, user, dispatcher, linkUri);
 
+         if(name == null && embeddedName != null) {
+            if(rvs.getViewsheet().getAssembly(embeddedName) == null) {
+               throw new IllegalStateException(
+                  "Edit op 'add' (viewsheet): could not locate the new embedded viewsheet '" +
+                  embeddedName + "' to apply 'assembly'/'width'/'height'.");
+            }
+
+            name = embeddedName;
+         }
+
          if(name == null) {
-            // The VIEWSHEET_ASSET (embedded viewsheet) branch of addNewObject returns null --
-            // it has no single new assembly name to rename/resize.
             return;
          }
 
@@ -307,8 +328,15 @@ public class ViewsheetEditService {
             VSAssembly assembly = vs == null ? null : (VSAssembly) vs.getAssembly(name);
 
             if(assembly != null) {
-               propertyService.editObjectProperty(rvs, assembly.getVSAssemblyInfo(), name,
-                                                  request.assembly(), linkUri, user, dispatcher);
+               if(!propertyService.editObjectProperty(
+                  rvs, assembly.getVSAssemblyInfo(), name, request.assembly(), linkUri, user,
+                  dispatcher, true, null))
+               {
+                  throw new IllegalArgumentException(
+                     "Edit op 'add' could not rename the new assembly '" + name + "' to '" +
+                     request.assembly() + "'; it was added under the name '" + name + "'.");
+               }
+
                name = request.assembly();
             }
          }
@@ -368,8 +396,7 @@ public class ViewsheetEditService {
       }
 
       IdentityID uname = IdentityID.getIdentityIDFromKey(user.getName());
-      int assetScope = "user".equalsIgnoreCase(request.scope())
-         ? AssetRepository.USER_SCOPE : AssetRepository.GLOBAL_SCOPE;
+      int assetScope = WizUtil.resolveAssetScope(request.scope());
       IdentityID owner = assetScope == AssetRepository.USER_SCOPE ? uname : null;
       AssetEntry entry = new AssetEntry(assetScope, AssetEntry.Type.VIEWSHEET, trimmedPath, owner,
                                         uname.orgID);
@@ -390,6 +417,12 @@ public class ViewsheetEditService {
          throw new IllegalArgumentException(
             "no viewsheet named '" + trimmedPath + "' was found, or you lack permission to " +
             "read it");
+      }
+
+      if(Objects.equals(entry, rvs.getEntry())) {
+         throw new IllegalArgumentException(
+            Catalog.getCatalog().getString("common.selfUseForbidden") +
+            " A viewsheet cannot embed itself ('" + trimmedPath + "').");
       }
 
       return entry;

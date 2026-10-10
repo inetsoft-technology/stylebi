@@ -25,6 +25,7 @@ import inetsoft.report.composition.ExpiredSheetException;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
@@ -36,6 +37,7 @@ import java.awt.*;
 import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.Base64;
+import java.util.Locale;
 
 public class WizUtil {
    public static String decodeId(String id) {
@@ -313,6 +315,32 @@ public class WizUtil {
             "with a literal, unescaped '^', so a caret embedded in '" + field + "' corrupts the " +
             "orgID recovered on any later round-trip through AssetEntry.createAssetEntry(identifier).");
       }
+   }
+
+   /**
+    * Normalizes an agent-supplied asset {@code scope} to an {@link AssetRepository} scope.
+    * {@code null} means "not supplied" and resolves to global. Otherwise the value is trimmed and
+    * case-folded and must be {@code "global"} or {@code "user"}; anything else (including
+    * {@code "private"} and the empty string) is refused rather than silently resolved to the
+    * global repository, which for a save would write into the shared tree.
+    */
+   public static int resolveAssetScope(String scope) throws PairingException {
+      if(scope == null) {
+         return AssetRepository.GLOBAL_SCOPE;
+      }
+
+      String normalized = scope.trim().toLowerCase(Locale.ROOT);
+
+      if("user".equals(normalized)) {
+         return AssetRepository.USER_SCOPE;
+      }
+
+      if("global".equals(normalized)) {
+         return AssetRepository.GLOBAL_SCOPE;
+      }
+
+      throw new PairingException(
+         "'scope' must be \"global\" or \"user\" (got \"" + scope + "\").");
    }
 
    public static final String ANNOTATION_RAW_DATA_MAX_ROW = "annotation.rawdata.maxrow";
