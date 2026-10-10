@@ -569,7 +569,7 @@ public class RepositoryTreeController {
                entry.getAssetEntry(), principal, recycleBin, event.confirmed());
          }
          else {
-            RecycleUtils.moveRepositoryToRecycleBin(entry, principal, recycleBin);
+            RecycleUtils.moveRepositoryToRecycleBin(entry, principal, recycleBin, event.confirmed());
          }
 
          actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_SUCCESS);

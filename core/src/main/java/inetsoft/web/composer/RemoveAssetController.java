@@ -133,7 +133,8 @@ public class RemoveAssetController {
             RepositoryEntry rentry = new RepositoryEntry(rpath,
                                                          RepositoryEntry.FOLDER, entry.getUser());
 
-            RecycleUtils.moveRepositoryToRecycleBin(rentry, principal, recycleBin);
+            RecycleUtils.moveRepositoryToRecycleBin(rentry, principal, recycleBin,
+                                                    event.confirmed());
          }
          else if(entry.isFolder()) {
             RecycleUtils.moveAssetFolderToRecycleBin(entry, principal, recycleBin, event.confirmed());
