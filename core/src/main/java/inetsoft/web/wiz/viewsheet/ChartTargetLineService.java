@@ -716,7 +716,7 @@ public class ChartTargetLineService {
    private static final Pattern HEX_COLOR = Pattern.compile("#[0-9a-fA-F]{6}");
 
    /** The {@code GraphConstants} line styles, named. Insertion order is the listed order. */
-   private static final Map<String, Integer> LINE_STYLES;
+   static final Map<String, Integer> LINE_STYLES;
 
    static {
       Map<String, Integer> styles = new LinkedHashMap<>();
