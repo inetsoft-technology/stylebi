@@ -2399,6 +2399,87 @@ class AssemblyPropertyServiceTest {
       return serviceWith(assembly, model, null, null);
    }
 
+   // ── #78154 S6/S2b: TextInput column-option guards (same checks as set_column_options) ──
+
+   private void setTextInputColumnOption(TextInputPropertyDialogModel model,
+                                         Map<String, Object> patch)
+   {
+      AssemblyPropertyService service =
+         serviceWithTextInput(mock(TextInputVSAssembly.class), model, new Worksheet());
+
+      try {
+         service.set("tok", principal(), "Input1", patch, "");
+      }
+      catch(RuntimeException ex) {
+         throw ex;
+      }
+      catch(Exception ex) {
+         throw new RuntimeException(ex);
+      }
+   }
+
+   @Test
+   void refusesAnUnparseableTextInputDateMinimum() {
+      TextInputPropertyDialogModel model = new TextInputPropertyDialogModel();
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("textInputColumnOptionPaneModel.type", "Date");
+      patch.put("textInputColumnOptionPaneModel.dateEditorModel.minimum", "garbage-not-a-date");
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> setTextInputColumnOption(model, patch));
+
+      assertTrue(e.getMessage().contains("dateEditorModel.minimum"), e.getMessage());
+      assertTrue(e.getMessage().contains("garbage-not-a-date"), e.getMessage());
+   }
+
+   @Test
+   void refusesInvertedTextInputDateBounds() {
+      TextInputPropertyDialogModel model = new TextInputPropertyDialogModel();
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("textInputColumnOptionPaneModel.type", "Date");
+      patch.put("textInputColumnOptionPaneModel.dateEditorModel.minimum", "2030-01-01");
+      patch.put("textInputColumnOptionPaneModel.dateEditorModel.maximum", "2020-01-01");
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> setTextInputColumnOption(model, patch));
+
+      assertTrue(e.getMessage().contains("must not be greater than"), e.getMessage());
+   }
+
+   @Test
+   void refusesInvertedTextInputIntegerAndFloatBounds() {
+      Map<String, Object> ints = new LinkedHashMap<>();
+      ints.put("textInputColumnOptionPaneModel.type", "Integer");
+      ints.put("textInputColumnOptionPaneModel.integerEditorModel.minimum", 10);
+      ints.put("textInputColumnOptionPaneModel.integerEditorModel.maximum", 1);
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> setTextInputColumnOption(new TextInputPropertyDialogModel(), ints));
+      assertTrue(e.getMessage().contains("integerEditorModel.minimum"), e.getMessage());
+
+      Map<String, Object> floats = new LinkedHashMap<>();
+      floats.put("textInputColumnOptionPaneModel.type", "Float");
+      floats.put("textInputColumnOptionPaneModel.floatEditorModel.minimum", 5.5);
+      floats.put("textInputColumnOptionPaneModel.floatEditorModel.maximum", 1.5);
+      e = assertThrows(IllegalArgumentException.class,
+         () -> setTextInputColumnOption(new TextInputPropertyDialogModel(), floats));
+      assertTrue(e.getMessage().contains("floatEditorModel.minimum"), e.getMessage());
+   }
+
+   @Test
+   void allowsValidAndEqualTextInputBoundsAndIgnoresTheUnselectedEditor() {
+      TextInputPropertyDialogModel model = new TextInputPropertyDialogModel();
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("textInputColumnOptionPaneModel.type", "Integer");
+      patch.put("textInputColumnOptionPaneModel.integerEditorModel.minimum", 5);
+      patch.put("textInputColumnOptionPaneModel.integerEditorModel.maximum", 5);
+      // A bad value on an editor the pane's type does not select is never stored, so not checked.
+      patch.put("textInputColumnOptionPaneModel.dateEditorModel.minimum", "garbage-not-a-date");
+
+      assertDoesNotThrow(() -> setTextInputColumnOption(model, patch));
+      assertEquals(5, model.getTextInputColumnOptionPaneModel().getIntegerEditorModel()
+                      .getMinimum());
+   }
+
    private static AssemblyPropertyService serviceWithTextInput(
       VSAssembly assembly, TextInputPropertyDialogModel model, Worksheet baseWorksheet)
    {

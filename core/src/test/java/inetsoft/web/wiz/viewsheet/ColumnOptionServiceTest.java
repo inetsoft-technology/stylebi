@@ -29,6 +29,10 @@ import inetsoft.web.binding.handler.VSColumnHandler;
 import inetsoft.web.composer.model.vs.ColumnOptionDialogModel;
 import inetsoft.web.composer.model.vs.ComboBoxEditorModel;
 import inetsoft.web.composer.model.vs.DateEditorModel;
+import inetsoft.web.composer.model.vs.EditorModel;
+import inetsoft.web.composer.model.vs.FloatEditorModel;
+import inetsoft.web.composer.model.vs.IntegerEditorModel;
+import inetsoft.web.composer.model.vs.VariableListDialogModel;
 import inetsoft.web.composer.model.vs.SelectionListDialogModel;
 import inetsoft.web.composer.model.vs.SelectionListEditorModel;
 import inetsoft.web.composer.model.vs.TextEditorModel;
@@ -339,6 +343,157 @@ class ColumnOptionServiceTest {
 
       verify(h.inputs).setColumnOptionDialogModel(eq("rt1"), eq("Table1"), eq(0),
          any(), eq(h.user), eq(h.dispatcher), eq(""));
+   }
+
+   // ── #78154 ───────────────────────────────────────────────────────────────
+
+   private void assertRefused(Harness h, String control, EditorModel editor, String... fragments) {
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> h.service.set("tok", h.user, "Table1", 0, true, control, editor, ""));
+
+      for(String fragment : fragments) {
+         assertTrue(e.getMessage().contains(fragment), e.getMessage());
+      }
+
+      verifyNoInteractions(h.inputs);
+   }
+
+   private static IntegerEditorModel integerBounds(Integer min, Integer max) {
+      IntegerEditorModel editor = new IntegerEditorModel();
+      editor.setMinimum(min);
+      editor.setMaximum(max);
+      return editor;
+   }
+
+   private static ComboBoxEditorModel embeddedCombo(String dataType, String[] labels,
+                                                    String... values)
+   {
+      ComboBoxEditorModel editor = new ComboBoxEditorModel();
+      editor.setEmbedded(true);
+      editor.setDataType(dataType);
+      VariableListDialogModel list = new VariableListDialogModel();
+      list.setDataType(dataType);
+      list.setLabels(labels);
+      list.setValues(values);
+      editor.setVariableListDialogModel(list);
+      return editor;
+   }
+
+   // S2b
+   @Test
+   void refusesInvertedIntegerBounds() throws Exception {
+      assertRefused(harnessWith(columns("A")), "Integer", integerBounds(10, 1),
+                    "editor.minimum", "must not be greater than", "editor.maximum");
+   }
+
+   @Test
+   void refusesInvertedFloatBounds() throws Exception {
+      FloatEditorModel editor = new FloatEditorModel();
+      editor.setMinimum(5f);
+      editor.setMaximum(1f);
+      assertRefused(harnessWith(columns("A")), "Float", editor, "editor.minimum",
+                    "must not be greater than");
+   }
+
+   @Test
+   void refusesInvertedDateBounds() throws Exception {
+      DateEditorModel editor = new DateEditorModel();
+      editor.setMinimum("2030-01-01");
+      editor.setMaximum("2020-01-01");
+      assertRefused(harnessWith(columns("A")), "Date", editor, "editor.minimum",
+                    "must not be greater than");
+   }
+
+   @Test
+   void allowsEqualAndOneSidedBounds() throws Exception {
+      Harness h = harnessWith(columns("A"));
+      h.service.set("tok", h.user, "Table1", 0, true, "Integer", integerBounds(5, 5), "");
+      h.service.set("tok", h.user, "Table1", 0, true, "Integer", integerBounds(5, null), "");
+      DateEditorModel date = new DateEditorModel();
+      date.setMinimum("2026-01-01");
+      date.setMaximum("2026-01-01");
+      h.service.set("tok", h.user, "Table1", 0, true, "Date", date, "");
+      verify(h.inputs, times(3)).setColumnOptionDialogModel(any(), any(), anyInt(), any(), any(),
+                                                           any(), any());
+   }
+
+   // S3c
+   @Test
+   void refusesColumnComboBoxFieldsThatOnlyTheComboBoxAssemblyStores() throws Exception {
+      Harness h = harnessWith(columns("A"));
+      ComboBoxEditorModel calendar = new ComboBoxEditorModel();
+      calendar.setCalendar(true);
+      assertRefused(h, "ComboBox", calendar, "editor.calendar", "ComboBox assembly");
+
+      ComboBoxEditorModel minDate = new ComboBoxEditorModel();
+      minDate.setMinDate("2020-01-01");
+      assertRefused(h, "ComboBox", minDate, "editor.minDate");
+
+      ComboBoxEditorModel dflt = new ComboBoxEditorModel();
+      dflt.setDefaultValue("x");
+      assertRefused(h, "ComboBox", dflt, "editor.defaultValue");
+
+      ComboBoxEditorModel invalid = new ComboBoxEditorModel();
+      invalid.setValid(false);
+      assertRefused(h, "ComboBox", invalid, "editor.valid");
+   }
+
+   // S5b
+   @Test
+   void refusesAComboBoxQuerySourceWithATableButNoColumn() throws Exception {
+      Harness h = harnessWith(columns("A"));
+      when(h.vsColumnHandler.getTableColumns(any(), eq("CUSTOMERS"), eq(h.user)))
+         .thenReturn(columns("CUSTOMER_ID", "COMPANY_NAME"));
+
+      assertRefused(h, "ComboBox", comboBoxQuery("CUSTOMERS", null, null),
+                    "selectionListEditorModel.column", "table alone binds nothing");
+   }
+
+   @Test
+   void defaultsTheComboBoxQueryValueToTheColumn() throws Exception {
+      Harness h = harnessWith(columns("A"));
+      when(h.vsColumnHandler.getTableColumns(any(), eq("CUSTOMERS"), eq(h.user)))
+         .thenReturn(columns("CUSTOMER_ID", "COMPANY_NAME"));
+      ComboBoxEditorModel editor = comboBoxQuery("CUSTOMERS", "COMPANY_NAME", null);
+
+      h.service.set("tok", h.user, "Table1", 0, true, "ComboBox", editor, "");
+
+      assertEquals("COMPANY_NAME",
+         editor.getSelectionListDialogModel().getSelectionListEditorModel().getValue());
+      verify(h.inputs).setColumnOptionDialogModel(any(), any(), anyInt(), any(), any(), any(),
+                                                  any());
+   }
+
+   // S5c
+   @Test
+   void refusesAnEmbeddedValueThatIsNotOfItsDataType() throws Exception {
+      Harness h = harnessWith(columns("A"));
+      assertRefused(h, "ComboBox", embeddedCombo("integer", new String[0], "1", "abc"),
+                    "values[1]", "'abc'", "integer");
+      assertRefused(h, "ComboBox", embeddedCombo("integer", new String[0], "1.5"), "values[0]");
+      assertRefused(h, "ComboBox", embeddedCombo("boolean", new String[0], "abc"), "values[0]");
+      assertRefused(h, "ComboBox", embeddedCombo("byte", new String[0], "300"), "values[0]");
+   }
+
+   @Test
+   void refusesEmbeddedLabelValueCountAndDataTypeMismatch() throws Exception {
+      Harness h = harnessWith(columns("A"));
+      assertRefused(h, "ComboBox", embeddedCombo("string", new String[]{ "a" }, "x", "y"),
+                    "labels", "values");
+
+      ComboBoxEditorModel mismatch = embeddedCombo("integer", new String[0], "1");
+      mismatch.setDataType("string");
+      assertRefused(h, "ComboBox", mismatch, "dataType", "disagrees");
+   }
+
+   @Test
+   void allowsValidEmbeddedValuesAndTheDeliberateNull() throws Exception {
+      Harness h = harnessWith(columns("A"));
+      h.service.set("tok", h.user, "Table1", 0, true, "ComboBox",
+                    embeddedCombo("integer", new String[]{ "a", "b", "c" }, "1", "2", "__null__"),
+                    "");
+      verify(h.inputs).setColumnOptionDialogModel(any(), any(), anyInt(), any(), any(), any(),
+                                                  any());
    }
 
    // ── fixtures ──────────────────────────────────────────────────────────────

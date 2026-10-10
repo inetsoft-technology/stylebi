@@ -24,13 +24,12 @@ import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
-import inetsoft.util.Tool;
 import inetsoft.web.binding.handler.VSColumnHandler;
 import inetsoft.web.composer.model.vs.ColumnOptionDialogModel;
 import inetsoft.web.composer.model.vs.ComboBoxEditorModel;
-import inetsoft.web.composer.model.vs.DateEditorModel;
 import inetsoft.web.composer.model.vs.SelectionListEditorModel;
 import inetsoft.web.composer.model.vs.EditorModel;
+import inetsoft.web.composer.model.vs.VariableListDialogModel;
 import inetsoft.web.viewsheet.service.VSInputService;
 import org.springframework.stereotype.Service;
 
@@ -92,9 +91,16 @@ public class ColumnOptionService {
             "set_column_options requires 'inputControl' when 'enableColumnEditing' is true.");
       }
 
-      if(enableColumnEditing && editor instanceof DateEditorModel dateEditor) {
-         requireParsableDate(dateEditor.getMinimum(), "minimum");
-         requireParsableDate(dateEditor.getMaximum(), "maximum");
+      if(enableColumnEditing && editor != null) {
+         WizColumnOptionValidator.validate(editor, "set_column_options", "editor.");
+      }
+
+      if(enableColumnEditing && editor instanceof ComboBoxEditorModel comboEditor) {
+         requireColumnOptionComboBoxFields(comboEditor);
+
+         if(comboEditor.isEmbedded()) {
+            requireValidEmbeddedList(comboEditor);
+         }
       }
 
       ColumnOptionDialogModel model = new ColumnOptionDialogModel();
@@ -156,27 +162,83 @@ public class ColumnOptionService {
    }
 
    /**
-    * {@code DateColumnOption.validate()} parses {@code minimum}/{@code maximum} with
-    * {@link Tool#parseDate} on every call and swallows a {@code ParseException} into an
-    * unconditional {@code return false} -- an unparseable bound therefore rejects every value,
-    * permanently, once stored. Reusing {@code Tool.parseDate} itself here (rather than a
-    * hand-rolled format check) guarantees this rejects exactly the strings {@code validate()}
-    * would later choke on, and none that it would have accepted (it also feeds
-    * {@code org.pojava.datetime.DateTime}'s lenient multi-format parsing, not just one literal
-    * shape).
+    * {@code ComboBoxEditorModel} is shared with the ComboBox <em>assembly</em>, which persists
+    * calendar/minDate/maxDate/defaultValue/serverTZ/noDefault. A column's
+    * {@code ComboBoxColumnOption} has no slot for any of them (and {@code valid} is
+    * hard-coded true on read), so a non-default value would be accepted and never saved. Defaults
+    * pass so a get -> set round-trip of the read-back still works.
     */
-   private static void requireParsableDate(String value, String field) {
-      if(value == null || value.isBlank()) {
-         return;
+   private static void requireColumnOptionComboBoxFields(ComboBoxEditorModel editor) {
+      String unsupported = null;
+
+      if(editor.isCalendar()) {
+         unsupported = "calendar";
+      }
+      else if(editor.isServerTZ()) {
+         unsupported = "serverTZ";
+      }
+      else if(editor.isNoDefault()) {
+         unsupported = "noDefault";
+      }
+      else if(!editor.isValid()) {
+         unsupported = "valid";
+      }
+      else if(editor.getMinDate() != null && !editor.getMinDate().isEmpty()) {
+         unsupported = "minDate";
+      }
+      else if(editor.getMaxDate() != null && !editor.getMaxDate().isEmpty()) {
+         unsupported = "maxDate";
+      }
+      else if(editor.getDefaultValue() != null && !editor.getDefaultValue().isEmpty()) {
+         unsupported = "defaultValue";
       }
 
-      try {
-         Tool.parseDate(value);
-      }
-      catch(Exception ex) {
+      if(unsupported != null) {
          throw new IllegalArgumentException(
-            "set_column_options: 'editor." + field + "' is not a recognizable date -- '" +
-            value + "'.", ex);
+            "set_column_options: 'editor." + unsupported + "' is not supported by a column's " +
+            "ComboBox editor and would not be saved. calendar, minDate, maxDate, defaultValue, " +
+            "serverTZ and noDefault belong to the ComboBox assembly -- set them with " +
+            "set_assembly_properties on a ComboBox assembly.");
+      }
+   }
+
+   /**
+    * {@code VSInputService.setColumnOptionDialogModel} converts each embedded value with
+    * {@code Tool.getData}, which turns unparseable text into {@code null}/{@code false}/a
+    * truncated number without complaint. Parsing each value strictly first turns that into a
+    * named refusal. {@code __null__} stays a legal deliberate null.
+    */
+   private static void requireValidEmbeddedList(ComboBoxEditorModel editor) {
+      String prefix = "set_column_options: 'editor.variableListDialogModel.";
+      VariableListDialogModel list = editor.getVariableListDialogModel();
+      String[] values = list.getValues();
+      String[] labels = list.getLabels();
+
+      if(labels.length != 0 && labels.length != values.length) {
+         throw new IllegalArgumentException(
+            prefix + "labels' has " + labels.length + " entries but 'values' has " +
+            values.length + " -- they must match.");
+      }
+
+      String listType = list.getDataType();
+      String editorType = editor.getDataType();
+
+      if(listType != null && !listType.isBlank() && editorType != null &&
+         !editorType.isBlank() && !listType.equalsIgnoreCase(editorType))
+      {
+         throw new IllegalArgumentException(
+            prefix + "dataType' ('" + listType + "') disagrees with 'editor.dataType' ('" +
+            editorType + "') -- use the same data type for both.");
+      }
+
+      for(int i = 0; i < values.length; i++) {
+         try {
+            WizStrictValueParser.parse(values[i], listType);
+         }
+         catch(IllegalArgumentException ex) {
+            throw new IllegalArgumentException(
+               prefix + "values[" + i + "]': " + ex.getMessage(), ex);
+         }
       }
    }
 
@@ -212,13 +274,26 @@ public class ColumnOptionService {
             "existing worksheet table.");
       }
 
-      if(column != null && !column.isBlank() && findAttribute(selection, column) == null) {
+      if(column == null || column.isBlank()) {
+         throw new IllegalArgumentException(
+            "set_column_options: inputControl:\"ComboBox\" with query:true requires " +
+            "'editor.selectionListDialogModel.selectionListEditorModel.column' (the label " +
+            "column) -- a table alone binds nothing.");
+      }
+
+      if(value == null || value.isBlank()) {
+         // Same default as set_assembly_properties' list values: one column serves as both.
+         source.setValue(column);
+         value = column;
+      }
+
+      if(findAttribute(selection, column) == null) {
          throw new IllegalArgumentException(
             "set_column_options: '" + table + "' has no column named '" + column + "' -- " +
             "valid columns are " + columnNames(selection) + ".");
       }
 
-      if(value != null && !value.isBlank() && findAttribute(selection, value) == null) {
+      if(findAttribute(selection, value) == null) {
          throw new IllegalArgumentException(
             "set_column_options: '" + table + "' has no column named '" + value + "' -- " +
             "valid columns are " + columnNames(selection) + ".");
