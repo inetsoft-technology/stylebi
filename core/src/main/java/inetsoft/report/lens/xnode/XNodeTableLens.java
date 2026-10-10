@@ -109,6 +109,17 @@ public class XNodeTableLens extends AbstractTableLens
    }
 
    /**
+    * Check if the rows are loaded on a background thread after the table is created.
+    *
+    * @return {@code true} if the rows are loaded in the background.
+    *
+    * @see XNodeTable#isLoadInBackground()
+    */
+   public boolean isLoadInBackground() {
+      return delegate.isLoadInBackground();
+   }
+
+   /**
     * Check if this table lens is valid for use.
     * @return <tt>true</tt> if valid for use, <tt>false</tt> otherwise.
     */
