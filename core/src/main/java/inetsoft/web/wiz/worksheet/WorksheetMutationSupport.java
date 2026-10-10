@@ -582,6 +582,10 @@ public final class WorksheetMutationSupport {
                throw unresolvedFieldReferenceLiteral(s, i, dtype, false);
             }
 
+            if(op != XCondition.NULL && value instanceof String s) {
+               requireParsableNumericLiteral(field, dtype, s);
+            }
+
             c.addValue(value);
          }
 
@@ -3171,6 +3175,10 @@ public final class WorksheetMutationSupport {
                   {
                      throw unresolvedFieldReferenceLiteral(s, i, dtype, true);
                   }
+
+                  if(op != XCondition.NULL && value instanceof String s) {
+                     requireParsableNumericLiteral(spec.field(), dtype, s);
+                  }
                }
 
                for(Object value : resolvedValues) {
@@ -3848,6 +3856,67 @@ public final class WorksheetMutationSupport {
          dtype + " value -- if this is meant to compare against that column, " + remedy + ". " +
          "Left as a literal it would be silently coerced to a default value (e.g. 0, or the " +
          "current date) rather than compared against the column.");
+   }
+
+   /**
+    * Refuses a literal on a numeric column that {@code AbstractCondition.getObject} could not
+    * parse, which it would otherwise store silently as 0. Accepts exactly the parse chain
+    * getObject uses per type; a blank value is refused too (it also becomes 0).
+    *
+    * @throws IllegalArgumentException naming the column, value and type
+    */
+   static void requireParsableNumericLiteral(String field, String dtype, String value) {
+      if(!isNumericConditionType(dtype)) {
+         return;
+      }
+
+      boolean ok;
+
+      try {
+         if(value == null || value.isEmpty()) {
+            ok = false;
+         }
+         else if(XSchema.FLOAT.equals(dtype)) {
+            Float.valueOf(value);
+            ok = true;
+         }
+         else if(XSchema.DOUBLE.equals(dtype)) {
+            Double.valueOf(value);
+            ok = true;
+         }
+         else if(XSchema.BYTE.equals(dtype)) {
+            Byte.valueOf(value);
+            ok = true;
+         }
+         else {
+            try {
+               if(XSchema.SHORT.equals(dtype)) {
+                  Short.valueOf(value);
+               }
+               else if(XSchema.LONG.equals(dtype)) {
+                  Long.valueOf(value);
+               }
+               else {
+                  Integer.valueOf(value);
+               }
+            }
+            catch(NumberFormatException ex) {
+               Double.valueOf(value);
+            }
+
+            ok = true;
+         }
+      }
+      catch(NumberFormatException ex) {
+         ok = false;
+      }
+
+      if(!ok) {
+         throw new IllegalArgumentException(
+            "Condition value \"" + value + "\" is not a valid " + dtype + " for column " +
+            field + ". A non-numeric value would be stored as 0 and silently change what the " +
+            "filter means. Use a number, or a $(variable) reference.");
+      }
    }
 
    private static boolean parsesAsNumericLiteral(String value) {
