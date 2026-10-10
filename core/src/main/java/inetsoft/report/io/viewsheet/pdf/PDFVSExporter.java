@@ -129,7 +129,18 @@ public class PDFVSExporter extends AbstractVSExporter {
 
          viewsheet.updateCSSFormat("pdf", null, layoutBox);
 
+         // the canvas path records a failed onLoad script in prepareSheet(), which this branch
+         // never reaches. The script belongs to the sheet being exported, not to the embedded
+         // sheet whose layout is rendered, so take the error from the outer sandbox. (#78219)
+         box.prepareForExport();
+
          VsToReportConverter converter = new VsToReportConverter(layoutBox, libManagerProvider, cluster, fileSystemService, dataSpace);
+
+         if(box.getExportScriptError() != null) {
+            converter.setScriptErrorMessage(
+               Catalog.getCatalog().getString("vs.export.onLoadScriptFailed"));
+         }
+
          ReportSheet report = converter.generateReport();
 
          // Build a list of report sheets instead of generating a printlayout
