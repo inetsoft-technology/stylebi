@@ -28,6 +28,7 @@ import inetsoft.web.binding.model.table.OrderModel;
 import inetsoft.web.binding.model.table.TopNModel;
 
 import java.util.*;
+import java.util.regex.Pattern;
 
 /**
  * The agent-facing calc-table cell vocabulary.
@@ -102,7 +103,97 @@ public final class CalcCellVocabulary {
       "expansion", "expand",
       "role", "content' or 'grouping");
 
+   /**
+    * Formulas that take a second column, written {@code Name(Column)}, keyed by canonical
+    * normalized name (see {@link #normalizeFormulaName}) to the display name used in messages.
+    */
+   private static final Map<String, String> TWO_COLUMN_FORMULAS = Map.of(
+      "covariance", "Covariance", "correlation", "Correlation",
+      "weightedaverage", "WeightedAverage", "first", "First", "last", "Last");
+
+   /**
+    * The plugin's AGGREGATE_FORMULAS aliases (normalized key -> normalized canonical key) whose
+    * key differs from the canonical formula name: "AVG", "COUNT ALL", "COUNT DISTINCT", "SUMSQ"
+    * and "WEIGHTED AVG". Must stay in step with the plugin's normalizeFormulaKey rule.
+    */
+   private static final Map<String, String> FORMULA_ALIASES = Map.of(
+      "avg", "average", "countall", "count", "countdistinct", "distinctcount",
+      "sumsq", "sumsqformula", "weightedavg", "weightedaverage");
+
+   /**
+    * Formulas that cannot work on a calc-table summary cell: the weighted-sum and sum-of-squares
+    * pair need a second column no calc cell can carry (StyleBI fails with a column-not-found or a
+    * script ReferenceError, or silently renders blank), and Aggregate is not a runnable
+    * crosstab formula. One list drives both the refusal in {@link #validate} and what
+    * {@link #advertisedFormulas} leaves out of {@code list_cell_vocabulary}. SumSQFormula is
+    * deliberately not here: it renders on the crosstab path (layout-dependent on the script path).
+    */
+   private static final Set<String> UNSUPPORTED_CALC_FORMULAS = Set.of(
+      "sumwt", "sum2", "aggregate");
+
+   private static final Pattern PERCENT_SEGMENT = Pattern.compile("<-?\\d+>");
+
    private CalcCellVocabulary() {
+   }
+
+   /** {@code formulas} without the ones a calc-table summary cell cannot run. */
+   public static List<String> advertisedFormulas(Collection<String> formulas) {
+      List<String> out = new ArrayList<>();
+
+      for(String formula : formulas) {
+         if(!UNSUPPORTED_CALC_FORMULAS.contains(normalizeFormulaName(formula))) {
+            out.add(formula);
+         }
+      }
+
+      return out;
+   }
+
+   /**
+    * The canonical formula-name key shared with the plugin: lower-cased, whitespace/'_'/'-'
+    * removed, one trailing {@code formula} dropped when something remains, then the alias map
+    * applied. SumWTFormula, sum_wt and SUMWT all become sumwt; WeightedAvg becomes
+    * weightedaverage.
+    */
+   private static String normalizeFormulaName(String name) {
+      String n = name.toLowerCase(java.util.Locale.ROOT).replaceAll("[\\s_-]", "");
+
+      if(n.endsWith("formula") && n.length() > "formula".length()) {
+         n = n.substring(0, n.length() - "formula".length());
+      }
+
+      return FORMULA_ALIASES.getOrDefault(n, n);
+   }
+
+   /**
+    * A summary cell's aggregate formula string, checked before anything is written. Same rule as
+    * the plugin: only percent-shaped {@code <N>} segments are stripped, the name is everything
+    * before the first '(' (an unclosed '(' still ends the name, with an empty argument), the
+    * argument is between that '(' and the last ')', and an empty or digits-only argument counts
+    * as no second column.
+    */
+   private static void validateSummaryFormula(String formula) {
+      String text = PERCENT_SEGMENT.matcher(formula).replaceAll("").trim();
+      int open = text.indexOf('(');
+      int close = text.lastIndexOf(')');
+      String name = open >= 0 ? text.substring(0, open) : text;
+      String arg = open >= 0 && close > open ? text.substring(open + 1, close).trim() : "";
+      String normalized = normalizeFormulaName(name);
+
+      if(UNSUPPORTED_CALC_FORMULAS.contains(normalized)) {
+         throw new IllegalArgumentException(
+            "formula '" + formula + "' is not a recognized aggregate formula for a calc-table " +
+            "summary cell: '" + name.trim() + "' is not supported (it fails when the table " +
+            "renders). list_cell_vocabulary's 'aggregateFormulas' lists the accepted names.");
+      }
+
+      String display = TWO_COLUMN_FORMULAS.get(normalized);
+
+      if(display != null && (arg.isEmpty() || arg.chars().allMatch(Character::isDigit))) {
+         throw new IllegalArgumentException(
+            "formula '" + formula + "' needs a second column; use " + display +
+            "(<column>), e.g. " + display + "(Order:Date). Nothing was changed.");
+      }
    }
 
    public static int content(String token) {
@@ -174,6 +265,12 @@ public final class CalcCellVocabulary {
 
       if(type == CellBinding.BIND_COLUMN && cell.get("field") instanceof Map<?, ?> fieldMap) {
          validateInlineNamedGroup(fieldMap);
+      }
+
+      if(type == CellBinding.BIND_COLUMN && str(cell, "formula") != null &&
+         "summary".equalsIgnoreCase(str(cell, "grouping")))
+      {
+         validateSummaryFormula(str(cell, "formula"));
       }
 
       if(type == CellBinding.BIND_FORMULA && str(cell, "formula") == null &&

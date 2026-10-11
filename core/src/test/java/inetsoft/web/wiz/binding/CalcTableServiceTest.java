@@ -1432,4 +1432,31 @@ class CalcTableServiceTest {
       assertTrue(String.valueOf(vocabulary.get("layoutOps")).contains("appendCol"));
       assertTrue(String.valueOf(vocabulary.get("copyOps")).contains("remove"));
    }
+
+   @Test
+   void refusesABareTwoColumnFormulaBeforeOpeningACheckpoint() throws Exception {
+      Harness h = harness(2, 2);
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> h.service.setCellBinding("tok", principal(), "Calc1", 0, 1,
+            spec("content", "column", "grouping", "summary",
+                 "field", spec("column", "Order:Total", "type", "measure"),
+                 "formula", "First")));
+
+      assertTrue(e.getMessage().contains("needs a second column"));
+      verify(h.sessions, never()).mutate(anyString(), any(Principal.class), any());
+   }
+
+   @Test
+   void refusesSumWTBeforeOpeningACheckpoint() throws Exception {
+      Harness h = harness(2, 2);
+
+      assertThrows(IllegalArgumentException.class,
+         () -> h.service.setCellBinding("tok", principal(), "Calc1", 0, 1,
+            spec("content", "column", "grouping", "summary",
+                 "field", spec("column", "Order:Discount", "type", "measure"),
+                 "formula", "SumWTFormula(Order:Discount)")));
+
+      verify(h.sessions, never()).mutate(anyString(), any(Principal.class), any());
+   }
 }
