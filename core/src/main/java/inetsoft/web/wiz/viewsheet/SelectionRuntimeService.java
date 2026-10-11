@@ -580,6 +580,71 @@ public class SelectionRuntimeService {
    }
 
    /**
+    * Re-states a subtree clear from the post-apply state, scoped to the subtree. With an active
+    * search, {@code VSSelectionService.selectSubtree} merges back every selected value the search
+    * hides, so a clear can leave values behind (bug-78349); a branch with nothing selected clears
+    * nothing at all. {@code clearedCount} and {@code remainingUnderSubtree} count the subtree's own
+    * selected values (leaf paths on a fixed-hierarchy tree, descendant node ids on an ID-mode
+    * tree, whose subtree root is never deselected and is not counted).
+    */
+   private static void reportSubtreeClear(Map<String, Object> result,
+                                          SelectionVSAssembly assembly, List<String> path,
+                                          List<List<String>> before, boolean idMode)
+   {
+      List<List<String>> after = selectedUnderSubtree(selectionListOf(assembly), path, idMode);
+      result.put("clearedCount", Math.max(0, before.size() - after.size()));
+      result.put("remainingUnderSubtree", after.size());
+      String search = searchString((SelectionVSAssemblyInfo) assembly.getInfo());
+
+      if(!after.isEmpty() && search != null && !search.isBlank()) {
+         result.put("scopedBySearch", search);
+         result.put("scopedBySearchRetained", after);
+      }
+   }
+
+   /**
+    * The selected values under the subtree rooted at {@code path}. The root resolves positionally
+    * from the top, exactly as {@code VSSelectionService.findSubtreeRoot}/{@code findIDSubtreeRoot}
+    * do. A fixed-hierarchy tree returns the selected leaf paths that start with {@code path}; an
+    * ID-mode tree returns one single-element path per selected descendant node id, root excluded.
+    */
+   static List<List<String>> selectedUnderSubtree(SelectionList list, List<String> path,
+                                                  boolean idMode)
+   {
+      SelectionValue[] values = list == null ? null : list.getSelectionValues();
+
+      if(!idMode) {
+         return selectedPaths(values).stream()
+            .filter(p -> p.size() >= path.size() && p.subList(0, path.size()).equals(path))
+            .toList();
+      }
+
+      SelectionValue root = null;
+      SelectionValue[] level = values;
+
+      for(int i = 0; i < path.size() && level != null; i++) {
+         root = null;
+
+         for(SelectionValue candidate : level) {
+            if(candidate != null && Objects.equals(candidate.getValue(), path.get(i))) {
+               root = candidate;
+               break;
+            }
+         }
+
+         if(root == null) {
+            return List.of();
+         }
+
+         SelectionList children = root instanceof CompositeSelectionValue composite ?
+            composite.getSelectionList() : null;
+         level = children == null ? null : children.getSelectionValues();
+      }
+
+      return selectedNodeIds(level).stream().map(List::of).toList();
+   }
+
+   /**
     * Selects or clears a whole subtree of a selection tree.
     *
     * @param path the subtree root, as a path from the tree's root.
@@ -653,8 +718,15 @@ public class SelectionRuntimeService {
          value.setSelected(select);
          event.setValues(List.of(value));
 
+         List<List<String>> before = select ? List.of() :
+            selectedUnderSubtree(selectionListOf(assembly), path, tree.isIDMode());
+
          // selectSubtree NPEs on an unknown name and CCEs on a non-tree; both are refused above.
          selections.selectSubtree(runtimeId, assemblyName, event, user, dispatcher, linkUri);
+
+         if(!select) {
+            reportSubtreeClear(result, assembly, path, before, tree.isIDMode());
+         }
       });
 
       result.put("persistsOnSave", true);
