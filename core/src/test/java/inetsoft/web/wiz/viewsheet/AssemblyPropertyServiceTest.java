@@ -830,6 +830,80 @@ class AssemblyPropertyServiceTest {
    }
 
    /**
+    * Bug #78263: an unresolvable input binding reached the two pre-write guards through the
+    * static resolver, whose MessageException escaped as a 500. It must surface as a named
+    * IllegalArgumentException (400) and nothing may be written.
+    */
+   private void assertUnresolvableBindingRefused(
+      AssemblyPropertyService service, TextInputPropertyDialogModel model,
+      Map<String, Object> patch, String expected)
+   {
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Input", patch, ""));
+      assertTrue(thrown.getMessage().contains(expected),
+                 "must name the unresolved binding: " + thrown.getMessage());
+      assertFalse(thrown.getMessage().startsWith("Setting"),
+                  "must be refused by the pre-write guard, before the setter runs");
+   }
+
+   @Test
+   void bug78263ColumnValueUnknownVariableWithVariableFlagIsRefusedByName() {
+      TextInputPropertyDialogModel model = new TextInputPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithTextInput(mock(TextInputVSAssembly.class), model, new Worksheet());
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("dataInputPaneModel.columnValue", "$(Nope)");
+      patch.put("dataInputPaneModel.variable", true);
+      assertUnresolvableBindingRefused(service, model, patch, "Unknown variable 'Nope'");
+   }
+
+   @Test
+   void bug78263ColumnValueUnknownVariableAloneIsRefusedByName() {
+      TextInputPropertyDialogModel model = new TextInputPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithTextInput(mock(TextInputVSAssembly.class), model, new Worksheet());
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("dataInputPaneModel.columnValue", "$(Nope)");
+      assertUnresolvableBindingRefused(service, model, patch, "Unknown variable 'Nope'");
+   }
+
+   @Test
+   void bug78263TableUnknownVariableWithVariableFlagIsRefusedByName() {
+      TextInputPropertyDialogModel model = new TextInputPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithTextInput(mock(TextInputVSAssembly.class), model, new Worksheet());
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("dataInputPaneModel.table", "$(Nope)");
+      patch.put("dataInputPaneModel.variable", true);
+      assertUnresolvableBindingRefused(service, model, patch, "Unknown variable 'Nope'");
+   }
+
+   @Test
+   void bug78263UnknownPlainTableWithVariableFlagIsRefusedByName() {
+      TextInputPropertyDialogModel model = new TextInputPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithTextInput(mock(TextInputVSAssembly.class), model, new Worksheet());
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("dataInputPaneModel.table", "Nope");
+      patch.put("dataInputPaneModel.variable", true);
+      assertUnresolvableBindingRefused(service, model, patch, "Unknown table binding 'Nope'");
+   }
+
+   @Test
+   void bug78263UnknownVariableOnComboboxIsRefusedByName() {
+      ComboboxPropertyDialogModel model = new ComboboxPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithCombobox(mock(ComboBoxVSAssembly.class), model, new Worksheet());
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("dataInputPaneModel.table", "$(Nope)");
+      patch.put("dataInputPaneModel.variable", true);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Input", patch, ""));
+      assertTrue(thrown.getMessage().contains("Unknown variable 'Nope'"), thrown.getMessage());
+   }
+
+   /**
     * Bug #76530 part (b): a patch that explicitly touches {@code dataInputPaneModel.variable}
     * but leaves both {@code table} and {@code columnValue} unset cannot possibly resolve to a
     * variable reference -- this write must be refused, by field name, instead of reporting
@@ -2699,6 +2773,7 @@ class AssemblyPropertyServiceTest {
       Viewsheet vs = mock(Viewsheet.class);
       when(vs.getAssembly(anyString())).thenReturn(assembly);
       when(vs.getBaseWorksheet()).thenReturn(baseWorksheet);
+      when(vs.getAllVariables()).thenReturn(new inetsoft.uql.schema.UserVariable[0]);
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
       when(rvs.getViewsheet()).thenReturn(vs);
       when(rvs.getID()).thenReturn("rt1");
