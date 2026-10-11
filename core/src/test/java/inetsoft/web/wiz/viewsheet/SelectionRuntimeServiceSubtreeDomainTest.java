@@ -365,6 +365,62 @@ class SelectionRuntimeServiceSubtreeDomainTest {
       assertFalse(result.containsKey("scopedBySearchRetained"));
    }
 
+   // ── duplicate / overlapping entries (bug-78268) ───────────────────────────
+
+   /** A path named twice in 'deselect' is one deselect: 1 removed, not 2. */
+   @Test
+   void deselectNamingTheSamePathTwiceCountsItOnce() throws Exception {
+      SelectionList domain = eastNyAndBeta();
+      SelectionRuntimeServiceTest.Harness h =
+         SelectionRuntimeServiceTest.harness(searchedTree(false, domain, null));
+      doAnswer(inv -> {
+         domain.getSelectionValue(1).setSelected(false);
+         return null;
+      }).when(h.selections()).applySelection(anyString(), anyString(), any(),
+                                             any(Principal.class), any(), anyString());
+
+      Map<String, Object> result = h.service().setSelection(
+         "tok", SelectionRuntimeServiceTest.principal(), "Tree1", null,
+         List.of(List.of("Beta"), List.of("Beta")), null, null, null, "");
+
+      assertEquals(1, result.get("deselected"));
+      assertEquals(1, result.get("selectedTotal"));
+   }
+
+   /** [East] covers [East, NY]: one target, so one deselected, not 2. */
+   @Test
+   void deselectEntriesWhereOneCoversAnotherCountOnce() throws Exception {
+      SelectionList domain = eastNyAndBeta();
+      SelectionRuntimeServiceTest.Harness h =
+         SelectionRuntimeServiceTest.harness(searchedTree(false, domain, null));
+      doAnswer(inv -> {
+         CompositeSelectionValue east = (CompositeSelectionValue) domain.getSelectionValue(0);
+         east.setSelected(false);
+         east.getSelectionList().getSelectionValue(0).setSelected(false);
+         return null;
+      }).when(h.selections()).applySelection(anyString(), anyString(), any(),
+                                             any(Principal.class), any(), anyString());
+
+      Map<String, Object> result = h.service().setSelection(
+         "tok", SelectionRuntimeServiceTest.principal(), "Tree1", null,
+         List.of(List.of("East"), List.of("East", "NY")), null, null, null, "");
+
+      assertEquals(1, result.get("deselected"));
+   }
+
+   /** A value named twice in 'values' is one value. */
+   @Test
+   void valuesNamingTheSamePathTwiceReportsOne() throws Exception {
+      SelectionRuntimeServiceTest.Harness h =
+         SelectionRuntimeServiceTest.harness(searchedTree(false, eastNyAndBeta(), null));
+
+      Map<String, Object> result = h.service().setSelection(
+         "tok", SelectionRuntimeServiceTest.principal(), "Tree1",
+         List.of(List.of("Beta"), List.of("Beta")), null, null, null, null, "");
+
+      assertEquals(1, result.get("valuesSelected"));
+   }
+
    // ── clear_selection under a search (bug-78294) ─────────────────────────────
 
    private static SelectionList alphaBeta() {

@@ -157,12 +157,19 @@ public class SelectionRuntimeService {
     *              on a selection list or tree — a range slider has no search box.
     */
    public Map<String, Object> setSelection(String sessionToken, Principal user, String assemblyName,
-                                           List<List<String>> values, List<List<String>> deselect,
+                                           List<List<String>> rawValues,
+                                           List<List<String>> rawDeselect,
                                            String sortOrder, Boolean singleSelect, Boolean additive,
                                            String search, String linkUri)
       throws Exception
    {
       requireName(assemblyName);
+
+      // A path named twice is one path: dedupe up front so every count, the overlap check and the
+      // single-select guard see what the apply sees (bug-78268). Exact List.equals, the same
+      // comparison the apply uses.
+      final List<List<String>> values = distinctPaths(rawValues);
+      final List<List<String>> deselect = distinctPaths(rawDeselect);
 
       boolean hasDeselect = deselect != null && !deselect.isEmpty();
 
@@ -419,11 +426,15 @@ public class SelectionRuntimeService {
                // Measured after the apply: a value the active search hides is added back by
                // VSSelectionService.applySelection, so it is not deselected (bug-78216).
                List<List<String>> afterPaths = selectedPaths(assembly);
-               List<List<String>> stuck = deselect.stream()
+               // Counted in requested entries, with an entry another entry already covers (a
+               // prefix of it) folded into that one, so overlapping [East] and [East, NY] are one
+               // target, not two (bug-78268).
+               List<List<String>> requested = withoutCoveredPaths(deselect);
+               List<List<String>> stuck = requested.stream()
                   .filter(path -> everSelected(currentPaths, path) && everSelected(afterPaths, path))
                   .toList();
                result.put("deselected",
-                          (int) deselect.stream().filter(path -> everSelected(currentPaths, path))
+                          (int) requested.stream().filter(path -> everSelected(currentPaths, path))
                              .count() - stuck.size());
 
                String activeSearch = searchString(info);
@@ -1340,6 +1351,31 @@ public class SelectionRuntimeService {
       }
 
       return targets;
+   }
+
+   /** Order-preserving de-duplication of requested paths; null stays null. */
+   static List<List<String>> distinctPaths(List<List<String>> paths) {
+      if(paths == null) {
+         return null;
+      }
+
+      List<List<String>> result = new ArrayList<>();
+
+      for(List<String> path : paths) {
+         if(!result.contains(path)) {
+            result.add(path);
+         }
+      }
+
+      return result;
+   }
+
+   /** Drops each path that another path in the list is a proper prefix of (it is covered by it). */
+   static List<List<String>> withoutCoveredPaths(List<List<String>> paths) {
+      return paths.stream()
+         .filter(path -> paths.stream()
+            .noneMatch(other -> other.size() < path.size() && startsWithPath(path, other)))
+         .toList();
    }
 
    /** Whether {@code path} was ever actually part of {@code current} -- either is a prefix of the other. */
