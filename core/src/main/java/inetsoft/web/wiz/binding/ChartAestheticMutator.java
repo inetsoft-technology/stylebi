@@ -1442,6 +1442,12 @@ public final class ChartAestheticMutator {
       AestheticInfo info = reportedField(model, channel, perMeasureFrameChannels);
 
       view.put("field", fieldNameOf(info));
+      // The structured binding behind "field": what set_aesthetic_field can write, read back
+      // in the same vocabulary get_binding uses for shelf fields. Taken from the chart-level
+      // slot only -- a date comparison's injected per-measure field (see reportedField) has a
+      // "field" name but no chart-level binding to describe, and echoing it back is refused.
+      view.put("fieldRef", chartLevelField == null || chartLevelField.getDataInfo() == null
+         ? null : FieldRefFactory.from(chartLevelField.getDataInfo()));
       view.put("frame",
                VisualFrameAliases.describe(frameOf(model, channel, perMeasureFrameChannels)));
       view.put("acceptsField", rendersField(channel, sizeSupported, colorShapeSupported));
