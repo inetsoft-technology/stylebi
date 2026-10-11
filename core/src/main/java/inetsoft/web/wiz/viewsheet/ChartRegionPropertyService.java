@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
+import inetsoft.graph.data.PairsDataSet;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.uql.viewsheet.XDimensionRef;
@@ -39,6 +40,7 @@ import org.springframework.stereotype.Service;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 /**
  * Properties of a chart's <b>sub-elements</b>: its axes, legends and titles.
@@ -91,6 +93,7 @@ public class ChartRegionPropertyService {
       requireExistingTarget(sessionToken, user, assembly, name, key);
 
       if("axis".equals(name)) {
+         field = resolveAxisField(sessionToken, user, assembly, key, field);
          requireUnambiguousAxis(sessionToken, user, assembly, key, field);
       }
 
@@ -148,6 +151,7 @@ public class ChartRegionPropertyService {
       properties = normalizeToAliasKeys(name, properties);
 
       if("axis".equals(name)) {
+         field = resolveAxisField(sessionToken, user, assembly, key, field);
          // First, so a mixed or multi-dimension shelf gets the "pass field" message rather than a
          // misleading linear/non-linear one (bug #78187).
          requireUnambiguousAxis(sessionToken, user, assembly, key, field);
@@ -226,11 +230,12 @@ public class ChartRegionPropertyService {
       }
 
       final Object written = rebuilt;
+      final String writeField = field;
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          switch(name) {
          case "axis" -> regions.setAxisPropertyDialogModel(
-            runtimeId, assembly, axisType(key), 0, field, (AxisPropertyDialogModel) written,
+            runtimeId, assembly, axisType(key), 0, writeField, (AxisPropertyDialogModel) written,
             linkUri, user, dispatcher);
          case "legend" -> regions.setLegendFormatDialogModel(
             runtimeId, assembly, indexOf(key), (LegendFormatDialogModel) written, linkUri, user,
@@ -286,7 +291,7 @@ public class ChartRegionPropertyService {
          throw new IllegalArgumentException(
             "'" + String.join("', '", requested) + "' " + (requested.size() == 1 ? "only applies" : "only apply") + " to a linear (measure) axis. " +
             "'" + axisTarget + "'" + (field != null && !field.isBlank() ? " ('" + field + "')" : "")
-            + " on this chart is bound to a dimension, not a measure, so these would be " +
+            + " on this chart is bound to a dimension or discrete measure, not a measure, so these would be " +
             "silently ignored — or, on some chart types, corrupt the render instead of being " +
             "ignored. Omit them for a dimension axis.");
       }
@@ -301,10 +306,9 @@ public class ChartRegionPropertyService {
     * the Composer UI does not offer them there, so on a measure axis they were accepted and
     * silently dropped -- the mirror image of {@link #requireLinearAxisForLinearOnlyKeys}.
     *
-    * <p>A discrete measure ({@code ChartAggregateRef.isDiscrete()}) is deliberately not refused:
-    * it is mapped to a dimension-like column, so its axis is expected to be categorical and the
-    * UI shows these controls for it. That was not traced through scale creation, so the refusal
-    * is simply not widened to it.
+    * <p>A discrete measure ({@code ChartAggregateRef.isDiscrete()}) is treated as a dimension
+    * by {@link #computeTrueAxisKind}, so it is not refused here: the UI shows these controls for
+    * it (bug #78232 problem 6).
     */
    private void requireNonLinearAxisForNonLinearOnlyKeys(
       String sessionToken, Principal user, String assembly, String axisTarget, String field,
@@ -320,15 +324,83 @@ public class ChartRegionPropertyService {
 
       AxisKind kind = computeTrueAxisKind(sessionToken, user, assembly, axisTarget, field);
 
-      if(kind.linear() &&
-         !(kind.matchedRef() instanceof ChartAggregateRef aggregate && aggregate.isDiscrete()))
-      {
+      if(kind.linear()) {
          throw new IllegalArgumentException(
             "'" + String.join("', '", requested) + "' " + (requested.size() == 1 ? "only applies" : "only apply") + " to a dimension axis. " +
             "'" + axisTarget + "'" + (field != null && !field.isBlank() ? " ('" + field + "')" : "")
             + " on this chart is bound to a measure, so these would be silently ignored. " +
             "Omit them for a measure axis.");
       }
+   }
+
+   /**
+    * Resolves a caller-supplied axis {@code field} to the full name of a field that really is on
+    * the targeted axis, or refuses it (bug #78232 problem 4).
+    *
+    * <p>Nothing used to validate it: an unknown name fell through
+    * {@code ChartRegionHandler.getAxisDescriptor} to the chart's shared primary descriptor, so a
+    * read returned a full property set and a write reported success while mutating that shared
+    * descriptor. A base name matching more than one field (the same column at two date levels) is
+    * refused rather than resolved to the first hit, and a unique match is canonicalized to the
+    * full name, which is what the per-column format maps are keyed by. Blank stays blank.
+    * Names the handler resolves outside the plain shelf (period, runtime date-comparison, Gantt,
+    * mekko, scatter-matrix and radar labels) are accepted as given.
+    */
+   private String resolveAxisField(String sessionToken, Principal user, String assembly,
+                                   String axisTarget, String field)
+      throws Exception
+   {
+      if(field == null || field.isBlank()) {
+         return field;
+      }
+
+      return sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         VSChartInfo info = ChartRegionResolver.requireChart(rvs, assembly).getVSChartInfo();
+         String canonical = ChartRegionResolver.canonical(axisTarget);
+         boolean secondary = "y2".equals(canonical) || "x2".equals(canonical);
+         ChartRef[] candidates = axisCandidates(info, canonical);
+
+         List<ChartRef> matches = Arrays.stream(candidates)
+            .filter(r -> field.equals(r.getFullName())).toList();
+
+         if(matches.isEmpty()) {
+            matches = Arrays.stream(candidates)
+               .filter(r -> field.equals(r.getName())).toList();
+         }
+
+         if(matches.size() > 1) {
+            throw new IllegalArgumentException(
+               "Field '" + field + "' is ambiguous on axis '" + axisTarget + "': it matches " +
+               matches.stream().map(ChartRef::getFullName).collect(Collectors.joining(", ")) +
+               ". Pass the full name of one of them.");
+         }
+
+         if(matches.size() == 1) {
+            String full = matches.get(0).getFullName();
+            return full != null ? full : field;
+         }
+
+         if("_Parallel_Label_".equals(field) || PairsDataSet.XMEASURE_NAME.equals(field) ||
+            PairsDataSet.YMEASURE_NAME.equals(field))
+         {
+            return field;
+         }
+
+         ChartRef other = ChartRegionHandler.getChartRef(info, axisType(axisTarget), field);
+
+         // Same predicate as axisCandidates: a primary-axis dimension is not on y2/x2.
+         if(other != null && (other instanceof ChartAggregateRef a ? a.isSecondaryY() == secondary
+                              : !secondary))
+         {
+            return field;
+         }
+
+         throw new IllegalArgumentException(
+            "Unknown field '" + field + "' on axis '" + axisTarget + "'. Fields on this axis: " +
+            (candidates.length == 0 ? "(none)" : Arrays.stream(candidates)
+               .map(ChartRef::getFullName).collect(Collectors.joining(", "))) +
+            ". Omit 'field' when the axis has only one.");
+      });
    }
 
    /**
@@ -467,7 +539,6 @@ public class ChartRegionPropertyService {
          VSChartInfo info = ChartRegionResolver.requireChart(rvs, assembly).getVSChartInfo();
          String canonical = ChartRegionResolver.canonical(axisTarget);
          boolean secondary = "y2".equals(canonical) || "x2".equals(canonical);
-         boolean onYShelf = "y".equals(canonical) || "y2".equals(canonical);
          // Canonical x/x2 always reads getXFields(), canonical y/y2 always reads getYFields() --
          // the same convention ChartRegionResolver.fromBinding uses one call earlier in this same
          // class's requireExistingTarget (present.add("x") off getXFields() alone, with no
@@ -478,8 +549,7 @@ public class ChartRegionPropertyService {
          // canonical target to the wrong shelf on any inverted chart (e.g. a Gantt chart, which is
          // unconditionally inverted) -- reopening the exact corruption this method exists to close,
          // or wrongly refusing a legitimate write on a real measure axis.
-         ChartRef[] refs = onYShelf ? info.getYFields() : info.getXFields();
-         List<ChartRef> candidates = new ArrayList<>(Arrays.asList(refs));
+         List<ChartRef> candidates = new ArrayList<>(Arrays.asList(axisCandidates(info, canonical)));
 
          // A shelf can carry more than one field of the same axis type (the tool's own
          // vocabulary() note: "to address one of several axes of the same type... pass the
@@ -490,8 +560,13 @@ public class ChartRegionPropertyService {
          // it is not, matching how the rest of this class already treats an absent field as "the
          // shelf has just the one".
          if(field != null && !field.isBlank()) {
-            candidates.removeIf(ref ->
-               !field.equals(ref.getFullName()) && !field.equals(ref.getName()));
+            // Full name first, then base name, as resolveAxisField does, so a canonical full name
+            // that equals another ref's base name still resolves to one candidate.
+            List<ChartRef> byFull = candidates.stream()
+               .filter(ref -> field.equals(ref.getFullName())).toList();
+            List<ChartRef> kept = !byFull.isEmpty() ? byFull : candidates.stream()
+               .filter(ref -> field.equals(ref.getName())).toList();
+            candidates = new ArrayList<>(kept);
          }
 
          // Exact match, not "secondary implies acceptable, primary accepts anything": a measure
@@ -499,7 +574,7 @@ public class ChartRegionPropertyService {
          // either direction.
          ChartRef measureMatch = candidates.stream()
             .filter(ref -> ref instanceof ChartAggregateRef aggregate &&
-               aggregate.isSecondaryY() == secondary)
+               !aggregate.isDiscrete() && aggregate.isSecondaryY() == secondary)
             .findFirst().orElse(null);
 
          if(measureMatch != null) {
@@ -864,8 +939,13 @@ public class ChartRegionPropertyService {
       String runtimeId = sessions.runtimeId(sessionToken, user);
 
       Object model = switch(region) {
-         case "axis" -> regions.getAxisPropertyDialogModel(runtimeId, assembly, axisType(target),
-                                                           "0", field, "", user);
+         // With a field, index -1 makes ChartRegionHandler take its field-driven branch
+         // (columnName = field), so the alias list, rotation and enabled flags follow the field
+         // instead of whichever area happens to sort first. A blank field has nothing to
+         // follow, so the column must still come from area 0 (bug #78232 problem 5).
+         case "axis" -> regions.getAxisPropertyDialogModel(
+            runtimeId, assembly, axisType(target), field != null && !field.isBlank() ? "-1" : "0",
+            field, "", user);
          case "legend" -> regions.getLegendFormatDialogModel(runtimeId, assembly, target, "", user);
          default -> regions.getTitleFormatDialogModel(runtimeId, assembly, target, "", user);
       };
