@@ -497,10 +497,19 @@ public class WorksheetEditService {
                   WorksheetControllerService.findAggregateInputLossConflicts(ws, t, cr);
                List<WorksheetControllerService.ColumnReferenceLossConflict> referenceConflicts =
                   WorksheetControllerService.findColumnReferenceLossConflicts(ws, t, cr);
+               // Bug #78234 / WBS-108: the table's OWN conditions (incl. MV lists and value
+               // slots) and sort on this column are dropped (or left stale) just as silently as
+               // a downstream table's. Scanned here only, not in the shared downstream walker:
+               // hiding a column keeps it in the private selection, so its own conditions
+               // survive there.
+               List<String> ownReferences = dedupe(
+                  WorksheetControllerService.findOwnColumnReferences(t, cr));
 
-               if(!aggregateConflicts.isEmpty() || !referenceConflicts.isEmpty()) {
+               if(!aggregateConflicts.isEmpty() || !referenceConflicts.isEmpty() ||
+                  !ownReferences.isEmpty())
+               {
                   throw new PairingException(describeRemoveColumnConflicts(
-                     aggregateConflicts, referenceConflicts));
+                     table, ownReferences, aggregateConflicts, referenceConflicts));
                }
             }
 
@@ -526,15 +535,30 @@ public class WorksheetEditService {
          }
       }
 
+      private static List<String> dedupe(List<String> references) {
+         return new ArrayList<>(new LinkedHashSet<>(references));
+      }
+
       /**
        * Builds a field-named conflict message for {@link #removeColumn(String, String, boolean)},
-       * listing every downstream table and consumer kind (aggregate/group-by, and/or
-       * condition/ranking/expression) that would silently break.
+       * listing the table's own consumers of the column (condition/sort) and every downstream
+       * table and consumer kind (aggregate/group-by, and/or condition/ranking/expression/range/
+       * sort) that would silently break.
        */
       private static String describeRemoveColumnConflicts(
+         String table, List<String> ownReferences,
          List<WorksheetControllerService.AggregateInputLossConflict> aggregateConflicts,
          List<WorksheetControllerService.ColumnReferenceLossConflict> referenceConflicts)
       {
+         String own = ownReferences.isEmpty() ? "" :
+            "Removing this column would break table '" + table + "' itself, whose own " +
+            String.join(", ", ownReferences) + " references it (silently dropped or left " +
+            "stale). ";
+
+         if(aggregateConflicts.isEmpty() && referenceConflicts.isEmpty()) {
+            return own + "Confirm with the user before retrying with confirmed:true.";
+         }
+
          StringBuilder sb = new StringBuilder();
 
          for(WorksheetControllerService.AggregateInputLossConflict conflict : aggregateConflicts) {
@@ -555,8 +579,8 @@ public class WorksheetEditService {
                .append(String.join(", ", conflict.references())).append(")");
          }
 
-         return "This change would break the following downstream table(s), which reference " +
-            "the removed column: " + sb + ". Confirm with the user before retrying with " +
+         return own + "This change would break the following downstream table(s), which " +
+            "reference the removed column: " + sb + ". Confirm with the user before retrying with " +
             "confirmed:true -- this changes what those OTHER tables show, not just this one.";
       }
 

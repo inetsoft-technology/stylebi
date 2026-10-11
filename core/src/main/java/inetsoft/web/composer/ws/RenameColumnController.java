@@ -191,10 +191,12 @@ public class RenameColumnController extends WorksheetController {
          }
       }
 
-      renameConditionList(table.getPreConditionList(), ocolumn, column);
-      renameConditionList(table.getPostConditionList(), ocolumn, column);
-      // @by davyc, why not rename ranking condition? see bug1074735977535
-      renameConditionList(table.getRankingConditionList(), ocolumn, column);
+      // pre, post, ranking (@by davyc, why not rename ranking condition? see
+      // bug1074735977535) and the four MV lists (Bug #78234 / WBS-107)
+      for(ConditionListWrapper conds : conditionLists(table)) {
+         renameConditionList(conds, ocolumn, column);
+      }
+
       renameSortInfo(table.getSortInfo(), ocolumn, column);
       renameAggregateInfo(null, table, table.getAggregateInfo(), ocolumn, column);
 
@@ -345,6 +347,8 @@ public class RenameColumnController extends WorksheetController {
                   // this scan needs to search for.
                   String oldLocalName =
                      column instanceof ColumnRef ? ((ColumnRef) column).getAttribute() : null;
+                  String oldLocalEntity =
+                     column instanceof ColumnRef ? ((ColumnRef) column).getEntity() : null;
 
                   if(column instanceof ColumnRef) {
                      renameTableColumn(ws, composedTable, (ColumnRef) column, ncolumn);
@@ -361,7 +365,8 @@ public class RenameColumnController extends WorksheetController {
                   if(oldLocalName != null) {
                      String newLocalName = ncolumn.getAlias() != null ?
                         ncolumn.getName() : ncolumn.getAttribute();
-                     renameComposedTableOwnExpressions(composedTable, oldLocalName, newLocalName);
+                     renameComposedTableOwnExpressions(
+                        composedTable, oldLocalEntity, oldLocalName, newLocalName);
                   }
                }
             }
@@ -463,10 +468,21 @@ public class RenameColumnController extends WorksheetController {
     * access never triggers, and so would never gate this rewrite into running at all.
     */
    private static void renameComposedTableOwnExpressions(
-      TableAssembly composedTable, String oldLocalName, String newLocalName)
+      TableAssembly composedTable, String oldEntity, String oldLocalName, String newLocalName)
    {
       if(oldLocalName == null || newLocalName == null || oldLocalName.equals(newLocalName)) {
          return;
+      }
+
+      // Bug #78234 / WBS-104: one token-based matcher (FieldReferenceMatcher) for every syntax
+      // the script engine accepts -- field['x'], field["x"], field.x -- plus the qualified
+      // field['T.x'] form, instead of a literal "['x']" substring replace that only knew the
+      // single-quote bracket form.
+      Map<String, String> renames = new HashMap<>();
+      renames.put(oldLocalName, newLocalName);
+
+      if(oldEntity != null && !oldEntity.isEmpty()) {
+         renames.put(oldEntity + "." + oldLocalName, oldEntity + "." + newLocalName);
       }
 
       ColumnSelection columns = composedTable.getColumnSelection();
@@ -480,33 +496,18 @@ public class RenameColumnController extends WorksheetController {
 
          DataRef ref = ((ColumnRef) column).getDataRef();
 
-         if(ref instanceof ExpressionRef) {
+         // A RangeRef's expression is generated from its own base ref (re-pointed by
+         // renameTableColumn0), never read from the stored text -- nothing to rewrite here.
+         if(ref instanceof ExpressionRef && !(ref instanceof RangeRef)) {
             ExpressionRef exp = (ExpressionRef) ref;
-            exp.setExpression(
-               replaceLocalBracketReference(exp.getExpression(), oldLocalName, newLocalName));
+            String expr = exp.getExpression();
+            String renamed = FieldReferenceMatcher.rename(expr, renames);
+
+            if(renamed != expr) {
+               exp.setExpression(renamed);
+            }
          }
       }
-   }
-
-   /**
-    * Rewrites {@code expr}'s {@code field['<oldName>']} reference to {@code field['<newName>']},
-    * scoped to the exact bracketed substring only -- never a bare-name substring replace, which
-    * would also corrupt an unrelated occurrence of {@code oldName} elsewhere in the same
-    * expression (a string literal, or a column whose own name merely contains {@code oldName} as
-    * a substring, e.g. {@code field['AmountRate']} when renaming {@code Amount}). Deliberately
-    * NOT {@link Util#renameScriptRefDepended} (the SAME-table rewrite this otherwise mirrors,
-    * used by {@code renameColumn(CommandDispatcher, ...)}'s own {@code exprs} loop above): that
-    * shared method has the identical unscoped-replace shape (round-1 review, Bug #77005) and is
-    * used elsewhere for the SAME-table case, out of this fix's scope to change; this call site
-    * only ever needs to handle one shape (a downstream table's own local bracket reference, no
-    * cross-table dot-notation form applies to it), so it is narrowly reimplemented here instead.
-    */
-   private static String replaceLocalBracketReference(String expr, String oldName, String newName) {
-      if(expr == null || expr.isEmpty()) {
-         return expr;
-      }
-
-      return expr.replace("['" + oldName + "']", "['" + newName + "']");
    }
 
    private static void renameTableExpressionColumn(TableAssembly namedColtable,
@@ -543,25 +544,11 @@ public class RenameColumnController extends WorksheetController {
          {
             sb.append(new ScriptIterator.Token(token.type, ncolumn.getName(), token.length));
          }
-         // Bug #77005 / WBS-094: the dot-notation check above (Table.Column) never matches a
-         // bracket-string column reference (field['Amount']) -- a quoted string is not an
-         // isRef() token no matter what precedes it -- so a downstream mirror's OWN expression
-         // column, which has no table qualifier to give it a "Table." prefix in the first place,
-         // was never rewritten here even though renameScriptRefDepended (the SAME-table rename
-         // path, above) already handles this exact bracket form for its own table's expressions.
-         //
-         // Round-1 review: replace only the exact bracketed substring ("['Amount']" ->
-         // "['Revenue']"), never the bare name -- a bare token.val.replace(oldName, newName)
-         // would also rewrite any OTHER occurrence of the old name inside this same TEXT token,
-         // e.g. a string literal "'Amount Total: ' + field['Amount']" would corrupt the literal
-         // too, silently producing a plausible-but-wrong expression with no error.
-         else if(token.type == ScriptIterator.Token.TEXT &&
-            token.val.contains("['" + ocolumn.getName() + "']"))
-         {
-            sb.append(new ScriptIterator.Token(token.type,
-               token.val.replace("['" + ocolumn.getName() + "']", "['" + ncolumn.getName() + "']"),
-               token.length));
-         }
+         // Bug #78234: the former TEXT-token "['x']" substring branch is retired. A real
+         // field['x'] access is tokenized as a ref (never TEXT), so that branch only ever fired on
+         // text inside a string literal; and field['x'] on THIS table addresses its own column,
+         // not changedTable's. A downstream composed table's own field references are rewritten
+         // by renameComposedTableOwnExpressions via FieldReferenceMatcher.
          else {
             sb.append(token);
          }
@@ -610,11 +597,17 @@ public class RenameColumnController extends WorksheetController {
       ColumnRef newMirrorCol = new ColumnRef(newAttr);
       newMirrorCol.setOldName(ocolumn.getOldName());
       newMirrorCol.setLastOldName(ocolumn.getLastOldName());
-      renameMirrorConditionList(mirror.getPreConditionList(), column, newMirrorCol);
-      renameMirrorConditionList(mirror.getPostConditionList(), column, newMirrorCol);
-      renameMirrorConditionList(mirror.getRankingConditionList(), column, newMirrorCol);
-      renameSortInfo(mirror.getSortInfo(), column, ncolumn);
-      renameAggregateInfo(ws, mirror, mirror.getAggregateInfo(), column, newMirrorCol);
+      // Match every consumer against a snapshot of the pre-rename identity: a condition can
+      // share this exact ColumnRef object and renameMirrorConditionList renames it in place,
+      // after which the live object no longer matches the lists processed later.
+      ColumnRef oldMirrorCol = (ColumnRef) column.clone();
+
+      for(ConditionListWrapper conds : conditionLists(mirror)) {
+         renameMirrorConditionList(conds, oldMirrorCol, newMirrorCol);
+      }
+
+      renameSortInfo(mirror.getSortInfo(), oldMirrorCol, ncolumn);
+      renameAggregateInfo(ws, mirror, mirror.getAggregateInfo(), oldMirrorCol, newMirrorCol);
 
       if(mirror instanceof CompositeTableAssembly) {
          CompositeTableAssembly composite = (CompositeTableAssembly) mirror;
@@ -669,8 +662,12 @@ public class RenameColumnController extends WorksheetController {
          else if(cols.getAttribute(i) instanceof ColumnRef) {
             ColumnRef col = (ColumnRef) cols.getAttribute(i);
 
-            if(col.getDataRef() instanceof DateRangeRef) {
-               DateRangeRef rangeRef = (DateRangeRef) col.getDataRef();
+            // Bug #78234 / WBS-105: any RangeRef (date AND numeric). A NumericRangeRef is also
+            // an ExpressionRef, but its expression is generated from this base ref on every
+            // read, so the ExpressionRef text rewrite below never reached it -- the base ref
+            // itself has to be re-pointed.
+            if(col.getDataRef() instanceof RangeRef) {
+               RangeRef rangeRef = (RangeRef) col.getDataRef();
 
                if(rangeRef.getDataRef() instanceof AttributeRef) {
                   AttributeRef aref = (AttributeRef) rangeRef.getDataRef();
@@ -771,7 +768,80 @@ public class RenameColumnController extends WorksheetController {
             DataRef rref = rcond.getDataRef();
             renameConditionValue(rref, ocol, ncol);
          }
+
+         renameMirrorConditionValues(item.getXCondition(), ocol, ncol);
       }
+   }
+
+   /**
+    * Bug #78234 / WBS-106: a condition whose VALUE is another column ({@code Budget > [field
+    * Amount]}) holds that column as a {@link DataRef} in its value slot. Re-points it the same way
+    * the condition's own attribute is re-pointed. The value is replaced by a renamed copy, never
+    * mutated in place: it is usually the live column object from the table's selection.
+    */
+   private static void renameMirrorConditionValues(XCondition xcond, ColumnRef ocol,
+                                                   ColumnRef ncol)
+   {
+      if(!(xcond instanceof Condition)) {
+         return;
+      }
+
+      Condition cond = (Condition) xcond;
+
+      for(int v = 0; v < cond.getValueCount(); v++) {
+         Object value = cond.getValue(v);
+
+         if(!(value instanceof ColumnRef) || !value.equals(ocol)) {
+            continue;
+         }
+
+         ColumnRef valueCol = (ColumnRef) value;
+
+         if(valueCol.getDataRef() instanceof AttributeRef) {
+            ColumnRef renamed = (ColumnRef) valueCol.clone();
+            renamed.setDataRef(new AttributeRef(valueCol.getEntity(), ncol.getDisplayName()));
+            renamed.setView(renamed.getName());
+            cond.setValue(v, renamed);
+         }
+         else {
+            cond.setValue(v, ncol.clone());
+         }
+      }
+   }
+
+   /**
+    * Same as {@link #renameMirrorConditionValues} for a table renaming its OWN column, where
+    * {@code ncol} is the table's live, renamed column.
+    */
+   private static void renameOwnConditionValues(XCondition xcond, ColumnRef ocol,
+                                                ColumnRef ncol)
+   {
+      if(!(xcond instanceof Condition)) {
+         return;
+      }
+
+      Condition cond = (Condition) xcond;
+
+      for(int v = 0; v < cond.getValueCount(); v++) {
+         Object value = cond.getValue(v);
+
+         if(value instanceof ColumnRef && value.equals(ocol)) {
+            cond.setValue(v, ncol);
+         }
+      }
+   }
+
+   /**
+    * Every condition list a column rename has to carry through: pre, post, ranking, and (Bug
+    * #78234 / WBS-107) the four MV incremental-refresh lists, which nothing else re-validates,
+    * so a missed rename leaves them silently stale.
+    */
+   static List<ConditionListWrapper> conditionLists(TableAssembly table) {
+      return Arrays.asList(
+         table.getPreConditionList(), table.getPostConditionList(),
+         table.getRankingConditionList(),
+         table.getMVUpdatePreConditionList(), table.getMVUpdatePostConditionList(),
+         table.getMVDeletePreConditionList(), table.getMVDeletePostConditionList());
    }
 
    private static void renameConditionValue(DataRef ref, ColumnRef ocol, ColumnRef ncol) {
@@ -1004,6 +1074,8 @@ public class RenameColumnController extends WorksheetController {
                }
             }
          }
+
+         renameOwnConditionValues(xCondition, ocol, ncol);
       }
    }
 
