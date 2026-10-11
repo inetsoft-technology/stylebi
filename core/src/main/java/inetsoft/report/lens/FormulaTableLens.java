@@ -263,6 +263,10 @@ public class FormulaTableLens extends AbstractTableLens
    /**
     * Set the table name.
     */
+   public void setRejectArrayResult(boolean rejectArrayResult) {
+      this.rejectArrayResult = rejectArrayResult;
+   }
+
    public void setTableName(String tname) {
       this.tableName = tname;
    }
@@ -1508,6 +1512,16 @@ public class FormulaTableLens extends AbstractTableLens
             return row[col];
          }
 
+         if(rejectArrayResult && result instanceof Object[] &&
+            (types[col] == null || !types[col].isArray()))
+         {
+            throw new ScriptException(
+               "Expression column '" + headers[col] + "' returned an array of " +
+               ((Object[]) result).length + " values, but a worksheet column holds one value " +
+               "per row. Did you index another table by name (e.g. T['col'] or T.col)? Use " +
+               "field['T.col'] to read a column of a joined table.");
+         }
+
          // convert to declared type. ignore array (47059).
          if(types[col] != null && !(result instanceof Object[]) && result != null &&
             !types[col].equals(result.getClass()))
@@ -1995,6 +2009,9 @@ public class FormulaTableLens extends AbstractTableLens
 
    private TableLens table;
    private String tableName = null;
+   // worksheet expression columns only: a scalar column given an Object[] (a whole column of
+   // another table read by name) fails the query instead of storing the array (bug #78283)
+   private boolean rejectArrayResult = false;
    private Object[] headers;
    private String[] formulas;
    private boolean[] mergeables;

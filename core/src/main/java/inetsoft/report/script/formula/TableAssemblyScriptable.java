@@ -19,6 +19,7 @@ package inetsoft.report.script.formula;
 
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.execution.AssetQuery;
+import inetsoft.report.composition.execution.CircularTableReferenceException;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.report.script.TableArray;
@@ -143,6 +144,13 @@ public class TableAssemblyScriptable extends TableArray {
          return table;
       }
       catch(Exception ex) {
+         // a table that reads itself is not a missing table either (#78283)
+         CircularTableReferenceException circular = CircularTableReferenceException.find(ex);
+
+         if(circular != null) {
+            throw circular;
+         }
+
          // a lock stall is not a missing table, which TableArray reads as an empty one (#77123)
          LockStallException stall = LockStallException.find(ex);
 

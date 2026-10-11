@@ -599,6 +599,12 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
          }
 
          if(isExecuting(key)) {
+            // the executing owner is this thread when a table's build reads itself, e.g. a
+            // formula column naming its own table; nothing can end that wait (bug #78283)
+            if(executingOwners.get(key) == Thread.currentThread()) {
+               throw new CircularTableReferenceException(null);
+            }
+
             final DataKey executingKey = getExecutingKey(key);
 
             synchronized(executingKey) {
@@ -1004,10 +1010,13 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
             "Attempted to overwrite data key in executing set: %s", key);
          throw new IllegalStateException(message);
       }
+
+      executingOwners.put(key, Thread.currentThread());
    }
 
    private void unmarkExecuting(DataKey key) {
       executings.remove(key);
+      executingOwners.remove(key);
    }
 
    /**
@@ -1371,6 +1380,7 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
    private long lts = System.currentTimeMillis();
 
    private final Map<DataKey, DataKey> executings = new ConcurrentHashMap<>();
+   private final Map<DataKey, Thread> executingOwners = new ConcurrentHashMap<>();
    private final Striped<Lock> dataKeyLocks = Striped.lazyWeakLock(256);
    private final Map<String, List<Processor>> pmap = new HashMap<>();
    // key -> source (e.g. data source name)
