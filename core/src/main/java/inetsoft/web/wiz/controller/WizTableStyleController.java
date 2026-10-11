@@ -79,9 +79,16 @@ public class WizTableStyleController {
    public record TableStyleDetail(String styleId, String name, String folder,
                                   TableStyleFormatModel format) {}
 
-   public record CreateTableStyleRequest(String name, String folder, TableStyleFormatModel format) {}
+   /**
+    * @param createFolders opt-in: register any missing ancestor of {@code folder} (the explicit
+    *                      counterpart of the Composer's Add Folder). Without it a folder that is
+    *                      not already registered is refused.
+    */
+   public record CreateTableStyleRequest(String name, String folder, TableStyleFormatModel format,
+                                         Boolean createFolders) {}
 
-   public record UpdateTableStyleRequest(String name, String folder, TableStyleFormatModel format) {}
+   public record UpdateTableStyleRequest(String name, String folder, TableStyleFormatModel format,
+                                         Boolean createFolders) {}
 
    @GetMapping
    public List<TableStyleSummary> list(Principal principal) {
@@ -175,6 +182,9 @@ public class WizTableStyleController {
       }
 
       String internalFolder = toInternalFolder(request.folder());
+      LibManager lib = libManagerProvider.getManager(principal);
+      List<String> missingFolders =
+         requireFoldersAllowed(lib, internalFolder, request.createFolders(), request.folder());
       String styleName = tableStyleService.getTableStyleLabel(internalFolder, request.name());
       requirePermission(principal, styleName, ResourceAction.WRITE);
 
@@ -186,7 +196,6 @@ public class WizTableStyleController {
             ". Use update_table_style to change it, or pick a different name/folder.");
       }
 
-      LibManager lib = libManagerProvider.getManager(principal);
       XTableStyle style = new XTableStyle(tableStyleService.getTableModel());
       tableStyleService.initTableStyle(style);
       style.setID(lib.getNextStyleID(request.name()));
@@ -203,6 +212,7 @@ public class WizTableStyleController {
          request.format().updateTableStyle(style);
       }
 
+      registerFolders(lib, principal, missingFolders);
       lib.setTableStyle(style.getID(), style);
       lib.save();
 
@@ -218,6 +228,10 @@ public class WizTableStyleController {
       XTableStyle style = requireExists(lib, styleId).clone();
       String oldFullName = style.getName();
       requirePermission(principal, oldFullName, ResourceAction.WRITE);
+
+      if(request.format() != null) {
+         requireCompleteFormat(request.format());
+      }
 
       if(request.name() != null || request.folder() != null) {
          if(request.name() != null && request.name().isBlank()) {
@@ -259,10 +273,15 @@ public class WizTableStyleController {
             }
 
             requirePermission(principal, newFullName, ResourceAction.WRITE);
+            List<String> missingFolders = List.of();
 
             if(!Objects.equals(newInternalFolder, oldInternalFolder)) {
+               missingFolders = requireFoldersAllowed(
+                  lib, newInternalFolder, request.createFolders(), request.folder());
                requireFolderWritePermission(principal, newInternalFolder);
             }
+
+            registerFolders(lib, principal, missingFolders);
 
             lib.renameTableStyle(oldFullName, newFullName, styleId);
 
@@ -302,6 +321,70 @@ public class WizTableStyleController {
       requirePermission(principal, style.getName(), ResourceAction.DELETE);
       lib.removeTableStyle(styleId);
       lib.save();
+   }
+
+   /**
+    * Ancestors of {@code internalFolder} (outermost first, the folder itself last) that are not a
+    * registered, non-audit table style folder. {@code list()} only descends registered folders, so
+    * a style stored under an unregistered one is an invisible orphan. Uses {@code containsFolder}/
+    * {@code isAuditStyleFolder} like the table style import does, on the principal's own library
+    * (exact, case-sensitive match).
+    */
+   private List<String> missingFolders(LibManager lib, String internalFolder) {
+      List<String> missing = new ArrayList<>();
+
+      if(internalFolder == null) {
+         return missing;
+      }
+
+      String path = null;
+
+      for(String segment : internalFolder.split(java.util.regex.Pattern.quote(LibManager.SEPARATOR))) {
+         path = path == null ? segment : path + LibManager.SEPARATOR + segment;
+
+         if(!lib.containsFolder(path) || lib.isAuditStyleFolder(path)) {
+            missing.add(path);
+         }
+      }
+
+      return missing;
+   }
+
+   /**
+    * Refuses a folder that is not registered unless the caller opted in with
+    * {@code createFolders}; returns the folders {@link #registerFolders} must register.
+    */
+   private List<String> requireFoldersAllowed(LibManager lib, String internalFolder,
+                                              Boolean createFolders, String displayFolder)
+   {
+      List<String> missing = missingFolders(lib, internalFolder);
+
+      if(missing.isEmpty() || Boolean.TRUE.equals(createFolders)) {
+         return missing;
+      }
+
+      List<String> existing = new ArrayList<>();
+      collectFolders(lib, null, existing);
+
+      throw new IllegalArgumentException(
+         "'folder' '" + displayFolder + "' does not exist: '" + toDisplayFolder(missing.get(0)) +
+         "' is not a registered table style folder (folder names are case-sensitive). " +
+         "Existing table style folders: " + (existing.isEmpty() ? "(none)" : String.join(", ", existing)) +
+         ". Pass createFolders: true to create the missing folder(s), or use an existing folder.");
+   }
+
+   private void collectFolders(LibManager lib, String internalFolder, List<String> out) {
+      for(String sub : lib.getTableStyleFolders(internalFolder, true)) {
+         out.add(toDisplayFolder(sub));
+         collectFolders(lib, sub, out);
+      }
+   }
+
+   private void registerFolders(LibManager lib, Principal principal, List<String> missing) {
+      for(String folder : missing) {
+         requireFolderWritePermission(principal, internalFolderOf(folder));
+         lib.addTableStyleFolder(folder);
+      }
    }
 
    private TableStyleDetail toDetail(XTableStyle style) {
