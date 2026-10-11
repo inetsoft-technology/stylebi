@@ -128,17 +128,19 @@ public class WorksheetExpressionTableReadTest {
 
    @ParameterizedTest(name = "pool={0}")
    @ValueSource(booleans = { false, true })
-   public void cycleThroughAnotherTableTerminates(boolean pool) throws Exception {
+   public void cycleThroughAnotherTableFails(boolean pool) throws Exception {
       open(pool);
       Worksheet ws = new Worksheet();
       expression(embedded(ws, "A", 2), "ax", "B.length");
       expression(embedded(ws, "B", 2), "bx", "A.length");
       box = sandbox(ws, pool);
 
-      // A's build builds B, whose formula reads A again on this thread. The nested B build fails
-      // with the circular reference (B comes back as a failed query), where it waited for A
-      // forever before; A itself finishes.
-      harness.await(harness.start(() -> read(box, "A")).future, KNOWN_CAP, "A <-> B cycle");
+      // A's build builds B, whose formula reads A again on this thread: B's build fails with
+      // the circular reference, and A, which read B, must fail with it too instead of using
+      // B's design data (it previewed ax=2 before)
+      Exception failure = assertThrows(Exception.class, () -> harness.await(
+         harness.start(() -> read(box, "A")).future, KNOWN_CAP, "A <-> B cycle"));
+      assertNamed(failure, "A");
    }
 
    @ParameterizedTest(name = "pool={0}")
@@ -215,6 +217,25 @@ public class WorksheetExpressionTableReadTest {
       TableLens lens = sandbox.getTableLens(name, AssetQuerySandbox.RUNTIME_MODE);
       WizVsService.checkFailedQuery(lens, false);
       return drain(lens);
+   }
+
+   /**
+    * Review W1: a bare identifier that is both a column of the table and the name of another
+    * worksheet table is the row's column value, so {@code id.valueOf()} is plain member access.
+    */
+   @ParameterizedTest(name = "pool={0}")
+   @ValueSource(booleans = { false, true })
+   public void columnNamedLikeATableIsTheColumnValue(boolean pool) throws Exception {
+      open(pool);
+      Worksheet ws = new Worksheet();
+      embedded(ws, "id", "x", 2, 100);
+      expression(embedded(ws, "A", "id", 2, 1), "tenfold", "id.valueOf() * 10");
+      box = sandbox(ws, pool);
+
+      List<List<Object>> rows = harness.await(harness.start(() -> read(box, "A")).future,
+                                              KNOWN_CAP, "column named like a table");
+      assertEquals(10, ((Number) rows.get(1).get(1)).intValue());
+      assertEquals(20, ((Number) rows.get(2).get(1)).intValue());
    }
 
    private static void assertNamed(Exception failure, String table) {

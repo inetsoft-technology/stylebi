@@ -260,13 +260,13 @@ public class FormulaTableLens extends AbstractTableLens
       this.table.addChangeListener(listener);
    }
 
-   /**
-    * Set the table name.
-    */
    public void setRejectArrayResult(boolean rejectArrayResult) {
       this.rejectArrayResult = rejectArrayResult;
    }
 
+   /**
+    * Set the table name.
+    */
    public void setTableName(String tname) {
       this.tableName = tname;
    }

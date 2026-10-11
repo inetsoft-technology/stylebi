@@ -37,6 +37,23 @@ public class CircularTableReferenceException extends RuntimeException {
       super(buildMessage(table));
    }
 
+   private CircularTableReferenceException(String message, boolean raw) {
+      super(message);
+   }
+
+   /**
+    * The circular reference a failed build recorded as its failure message. A table whose
+    * build hit the circular reference comes back to its reader as a failed-query lens, and a
+    * script that reads it must fail too instead of using that lens's design data.
+    *
+    * @return the exception to rethrow, or {@code null} if {@code failedQueryMessage} is not a
+    *         circular reference.
+    */
+   public static CircularTableReferenceException ofFailedQuery(String failedQueryMessage) {
+      return failedQueryMessage != null && failedQueryMessage.contains(MARKER) ?
+         new CircularTableReferenceException(failedQueryMessage, true) : null;
+   }
+
    /**
     * Find the exception in the cause chain of {@code failure}, which a script engine may wrap.
     *
@@ -55,10 +72,12 @@ public class CircularTableReferenceException extends RuntimeException {
    }
 
    private static String buildMessage(String table) {
-      return "Table '" + (table == null ? "?" : table) + "' references itself while it is " +
-         "being built (an expression column reads its own table by name). Use " +
+      return "Table '" + (table == null ? "?" : table) + "' " + MARKER + " (an expression " +
+         "column reads its own table by name, directly or through another table). Use " +
          "field['column'] to read another column of the same row.";
    }
+
+   private static final String MARKER = "references itself while it is being built";
 
    @Serial
    private static final long serialVersionUID = 1L;
