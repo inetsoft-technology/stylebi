@@ -1966,7 +1966,18 @@ public class WorksheetAgentController {
       response.setContentType("text/csv");
       response.setHeader("Content-Disposition",
          ContentDisposition.attachment().filename(table + ".csv").build().toString());
-      rawDataService.writeLiveWorksheetTableCsvStream(rws, table, response.getOutputStream());
+      try {
+         rawDataService.writeLiveWorksheetTableCsvStream(rws, table, response.getOutputStream());
+      }
+      catch(RuntimeException e) {
+         // an unhandled RuntimeException is a bare 500 with no body; report the cause instead
+         if(response.isCommitted()) {
+            throw e;
+         }
+
+         response.reset();
+         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage(), e);
+      }
    }
 
    /**
