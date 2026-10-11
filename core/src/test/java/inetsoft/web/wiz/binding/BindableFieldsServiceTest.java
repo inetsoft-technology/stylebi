@@ -21,9 +21,13 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.SourceInfo;
+import inetsoft.uql.viewsheet.CalendarVSAssembly;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
+import inetsoft.uql.viewsheet.ComboBoxVSAssembly;
 import inetsoft.uql.viewsheet.GaugeVSAssembly;
+import inetsoft.uql.viewsheet.SelectionListVSAssembly;
 import inetsoft.uql.viewsheet.TextVSAssembly;
+import inetsoft.uql.viewsheet.TimeSliderVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.service.VSBindingTreeService;
@@ -461,6 +465,147 @@ class BindableFieldsServiceTest {
          assertEquals(Boolean.FALSE, byName(tables, "ORDERS1").current());
          assertEquals(Boolean.FALSE, byName(tables, "ORDER_DETAILS1").current());
       }
+   }
+
+   /**
+    * Bug #76592 (reopen): the real VSBindingTreeService.getBinding returns null for a name that
+    * resolves to anything but a Chart/Table, so the earlier any()-matching stub hid the defect. This
+    * stub behaves like the real service: null for a scoped non-data assembly, the worksheet tree
+    * only for an unscoped (null) name.
+    */
+   private static BindableFieldsService realisticServiceFor(TreeNodeModel unscopedRoot, String name,
+                                                            VSAssembly assembly,
+                                                            VSBindingTreeService tree)
+      throws Exception
+   {
+      return realisticServiceFor(unscopedRoot, name, assembly, tree, null);
+   }
+
+   private static BindableFieldsService realisticServiceFor(TreeNodeModel unscopedRoot, String name,
+                                                            VSAssembly assembly,
+                                                            VSBindingTreeService tree,
+                                                            AssetEntry baseEntry)
+      throws Exception
+   {
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssembly(name)).thenReturn(assembly);
+      when(vs.getBaseEntry()).thenReturn(baseEntry);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      ViewsheetService engine = mock(ViewsheetService.class);
+      when(engine.getViewsheet(eq("rt1"), any(Principal.class))).thenReturn(rvs);
+      when(tree.getBinding(eq("rt1"), eq(name), anyBoolean(), any(Principal.class)))
+         .thenReturn(null);
+      when(tree.getBinding(eq("rt1"), isNull(), anyBoolean(), any(Principal.class)))
+         .thenReturn(unscopedRoot);
+
+      return new BindableFieldsService(tree, engine);
+   }
+
+   @Test
+   void listsTheWorksheetTablesForNonDataAssembliesAndMarksTheBoundOne() throws Exception {
+      GaugeVSAssembly gauge = mock(GaugeVSAssembly.class);
+      when(gauge.getTableName()).thenReturn("ORDERS1");
+      TextVSAssembly text = mock(TextVSAssembly.class);
+      when(text.getTableName()).thenReturn("ORDERS1");
+      SelectionListVSAssembly list = mock(SelectionListVSAssembly.class);
+      when(list.getTableName()).thenReturn("ORDERS1");
+      TimeSliderVSAssembly slider = mock(TimeSliderVSAssembly.class);
+      when(slider.getTableName()).thenReturn("ORDERS1");
+      CalendarVSAssembly calendar = mock(CalendarVSAssembly.class);
+      when(calendar.getTableName()).thenReturn("ORDERS1");
+      ComboBoxVSAssembly combo = mock(ComboBoxVSAssembly.class);
+      when(combo.getTableName()).thenReturn("ORDERS1");
+
+      for(VSAssembly target : List.of(gauge, text, list, slider, calendar, combo)) {
+         VSBindingTreeService tree = mock(VSBindingTreeService.class);
+         List<BindableTable> tables = realisticServiceFor(twoTableTree(), "A1", target, tree)
+            .list("rt1", "A1", principal());
+
+         String type = target.getClass().getName();
+         assertEquals(2, tables.size(), type);
+         assertEquals(Boolean.TRUE, byName(tables, "ORDERS1").current(), type);
+         assertEquals(Boolean.FALSE, byName(tables, "ORDER_DETAILS1").current(), type);
+         verify(tree, never()).getBinding(eq("rt1"), eq("A1"), anyBoolean(), any(Principal.class));
+      }
+   }
+
+   @Test
+   void listsTablesWithNoneCurrentForAnUnboundNonDataAssembly() throws Exception {
+      GaugeVSAssembly gauge = mock(GaugeVSAssembly.class);
+      when(gauge.getTableName()).thenReturn(null);
+
+      List<BindableTable> tables =
+         realisticServiceFor(twoTableTree(), "Gauge1", gauge, mock(VSBindingTreeService.class))
+            .list("rt1", "Gauge1", principal());
+
+      assertEquals(2, tables.size());
+      assertEquals(Boolean.FALSE, byName(tables, "ORDERS1").current());
+      assertEquals(Boolean.FALSE, byName(tables, "ORDER_DETAILS1").current());
+   }
+
+   /** A bound name the tree does not carry (alias, cube) is documented as current=false, not true. */
+   @Test
+   void marksNothingCurrentWhenTheBoundNameIsNotInTheListing() throws Exception {
+      GaugeVSAssembly gauge = mock(GaugeVSAssembly.class);
+      when(gauge.getTableName()).thenReturn("SOME_ALIAS");
+
+      List<BindableTable> tables =
+         realisticServiceFor(twoTableTree(), "Gauge1", gauge, mock(VSBindingTreeService.class))
+            .list("rt1", "Gauge1", principal());
+
+      assertEquals(2, tables.size());
+      assertTrue(tables.stream().allMatch(t -> Boolean.FALSE.equals(t.current())));
+   }
+
+   /** A chart keeps the assembly-scoped tree. */
+   @Test
+   void stillScopesTheTreeFetchToADataAssembly() throws Exception {
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getSourceInfo()).thenReturn(new SourceInfo(SourceInfo.ASSET, null, "ORDERS1"));
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssembly("Chart1")).thenReturn(chart);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      ViewsheetService engine = mock(ViewsheetService.class);
+      when(engine.getViewsheet(eq("rt1"), any(Principal.class))).thenReturn(rvs);
+      VSBindingTreeService tree = mock(VSBindingTreeService.class);
+      TreeNodeModel root = twoTableTree();
+      when(tree.getBinding(eq("rt1"), eq("Chart1"), anyBoolean(), any(Principal.class)))
+         .thenReturn(root);
+
+      List<BindableTable> tables = new BindableFieldsService(tree, engine)
+         .list("rt1", "Chart1", principal());
+
+      verify(tree).getBinding(eq("rt1"), eq("Chart1"), eq(false), any(Principal.class));
+      assertEquals(Boolean.TRUE, byName(tables, "ORDERS1").current());
+   }
+
+   /**
+    * On a logical-model base the unscoped tree must be read in its unscoped shape: a non-null
+    * modelName would fold the Variables folder into the model's table as fake fields.
+    */
+   @Test
+   void readsTheUnscopedTreeInItsUnscopedShapeOnALogicalModelBase() throws Exception {
+      TreeNodeModel variables = TreeNodeModel.builder().label("Variables")
+         .data(entry(AssetEntry.Type.FOLDER, "Variables", null))
+         .addChildren(columnNode("var1", "string")).build();
+      TreeNodeModel root = TreeNodeModel.builder().label("root")
+         .addChildren(twoTableTree().children().get(0)).addChildren(variables).build();
+      GaugeVSAssembly gauge = mock(GaugeVSAssembly.class);
+      when(gauge.getTableName()).thenReturn("ORDERS1");
+      AssetEntry baseEntry = mock(AssetEntry.class);
+      when(baseEntry.isLogicModel()).thenReturn(true);
+      when(baseEntry.getName()).thenReturn("Order Model");
+
+      List<BindableTable> tables =
+         realisticServiceFor(root, "Gauge1", gauge, mock(VSBindingTreeService.class), baseEntry)
+            .list("rt1", "Gauge1", principal());
+
+      assertTrue(tables.stream().noneMatch(t -> "Order Model".equals(t.name())),
+                 "the Variables folder must not be folded into the model's table");
+      assertEquals(Boolean.FALSE, byName(tables, "Variables").current());
+      assertEquals(Boolean.TRUE, byName(tables, "ORDERS1").current());
    }
 
    private static BindableTable byName(List<BindableTable> tables, String name) {

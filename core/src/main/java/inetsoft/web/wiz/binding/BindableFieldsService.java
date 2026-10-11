@@ -70,6 +70,7 @@ public class BindableFieldsService {
    {
       String source = null;
       String modelName = null;
+      String treeScope = assembly;
 
       if(assembly != null) {
          RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, user);
@@ -101,9 +102,19 @@ public class BindableFieldsService {
          if(baseEntry != null && baseEntry.isLogicModel()) {
             modelName = baseEntry.getName();
          }
+
+         // Bug #76592: getBinding builds an assembly-scoped tree only for chart/table assemblies
+         // and returns null for any other (Gauge/Text/Selection/Input...). The native Composer
+         // builds those from the worksheet-wide tree (VSOutputService.getOutputTablesTree /
+         // getSelectionTablesTree), so fetch that and keep `source` to mark the bound table. The
+         // unscoped tree has no model-level calc folder, so modelName must not apply to it.
+         if(!(target instanceof DataVSAssembly)) {
+            treeScope = null;
+            modelName = null;
+         }
       }
 
-      TreeNodeModel root = tree.getBinding(runtimeId, assembly, false, user);
+      TreeNodeModel root = tree.getBinding(runtimeId, treeScope, false, user);
       List<BindableTable> tables = new ArrayList<>();
 
       if(root != null) {
