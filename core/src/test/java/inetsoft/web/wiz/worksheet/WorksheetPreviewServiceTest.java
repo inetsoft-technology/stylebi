@@ -17,6 +17,8 @@
  */
 package inetsoft.web.wiz.worksheet;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
@@ -484,6 +486,118 @@ class WorksheetPreviewServiceTest {
       assertEquals(List.of(Util.getColumnLimitMessage()), result.warnings());
       assertNull(CoreTool.getUserMessage(),
                  "no second copy of the warning should still be queued after the call");
+   }
+
+   // Bug #78350: a structured signal so callers need not match the localized warning text.
+   @Test
+   void columnLimitCarriesLimitAndTotalWhenPreviewItselfCaps() throws Exception {
+      int max = Util.getOrganizationMaxColumn();
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      TableLens wide = wideLens(max + 5);
+      when(box.getTableLens(eq("T"), anyInt())).thenReturn(wide);
+
+      WorksheetPreviewService.PreviewResult result = service.preview(rws(box), "T", 0, 10);
+
+      assertNotNull(result.columnLimit());
+      assertTrue(result.columnLimit().limited());
+      assertEquals(max, result.columnLimit().limit());
+      assertEquals(max + 5, result.columnLimit().total());
+   }
+
+   @Test
+   void columnLimitIsFlaggedWithoutTotalWhenTheSandboxAlreadyCapped() throws Exception {
+      int max = Util.getOrganizationMaxColumn();
+      TableLens capped = wideLens(max);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(box.getTableLens(eq("T"), anyInt())).thenAnswer(invocation -> {
+         CoreTool.addUserMessage(Util.getColumnLimitMessage());
+         return capped;
+      });
+
+      WorksheetPreviewService.PreviewResult result = service.preview(rws(box), "T", 0, 10);
+
+      assertNotNull(result.columnLimit());
+      assertTrue(result.columnLimit().limited());
+      assertEquals(max, result.columnLimit().limit());
+      assertNull(result.columnLimit().total(), "the original width is unknown on this path");
+   }
+
+   @Test
+   void columnLimitIsFlaggedWhenAnotherMessageIsPendingAlongsideTheSandboxCap() throws Exception {
+      int max = Util.getOrganizationMaxColumn();
+      TableLens capped = wideLens(max);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(box.getTableLens(eq("T"), anyInt())).thenAnswer(invocation -> {
+         CoreTool.addUserMessage("another pending message");
+         CoreTool.addUserMessage(Util.getColumnLimitMessage());
+         return capped;
+      });
+
+      WorksheetPreviewService.PreviewResult result = service.preview(rws(box), "T", 0, 10);
+
+      assertNotNull(result.columnLimit());
+      assertEquals(max, result.columnLimit().limit());
+   }
+
+   @Test
+   void warningRaisedLazilyWhileReadingRowsIsStillReported() throws Exception {
+      TableLens l = lens(new String[]{"x"}, new Object[][]{{"r1"}});
+      when(l.getObject(1, 0)).thenAnswer(invocation -> {
+         CoreTool.addUserMessage("raised while reading rows");
+         return "r1";
+      });
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(box.getTableLens(eq("T"), anyInt())).thenReturn(l);
+
+      WorksheetPreviewService.PreviewResult result = service.preview(rws(box), "T", 0, 10);
+
+      assertEquals(List.of("raised while reading rows"), result.warnings());
+   }
+
+   @Test
+   void columnLimitIsAbsentWhenNothingWasDropped() throws Exception {
+      int max = Util.getOrganizationMaxColumn();
+      TableLens atLimit = wideLens(max);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(box.getTableLens(eq("T"), anyInt())).thenReturn(atLimit);
+
+      assertNull(service.preview(rws(box), "T", 0, 10).columnLimit());
+   }
+
+   @Test
+   void columnLimitIsAbsentForAnUnrelatedWarning() throws Exception {
+      TableLens narrow = lens(new String[]{"x"}, new Object[][]{{"r1"}});
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(box.getTableLens(eq("T"), anyInt())).thenAnswer(invocation -> {
+         CoreTool.addUserMessage("something else happened");
+         return narrow;
+      });
+
+      WorksheetPreviewService.PreviewResult result = service.preview(rws(box), "T", 0, 10);
+
+      assertEquals(List.of("something else happened"), result.warnings());
+      assertNull(result.columnLimit());
+   }
+
+   @Test
+   void columnLimitSerializesOnlyWhenPresent() throws Exception {
+      ObjectMapper mapper = new ObjectMapper();
+
+      JsonNode absent = mapper.valueToTree(
+         new WorksheetPreviewService.PreviewResult(List.of(), List.of()));
+      assertFalse(absent.has("columnLimit"));
+
+      JsonNode known = mapper.valueToTree(
+         new WorksheetPreviewService.PreviewResult(List.of(), List.of(),
+            new WorksheetPreviewService.ColumnLimit(true, 200, 250)));
+      assertTrue(known.get("columnLimit").get("limited").asBoolean());
+      assertEquals(200, known.get("columnLimit").get("limit").asInt());
+      assertEquals(250, known.get("columnLimit").get("total").asInt());
+
+      JsonNode unknownTotal = mapper.valueToTree(
+         new WorksheetPreviewService.PreviewResult(List.of(), List.of(),
+            new WorksheetPreviewService.ColumnLimit(true, 200, null)));
+      assertFalse(unknownTotal.get("columnLimit").has("total"));
    }
 
    /**

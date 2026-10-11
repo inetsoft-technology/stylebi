@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.worksheet;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
@@ -146,15 +147,32 @@ public class WorksheetPreviewService {
          // Inside this try, not before it, so a lens whose getColCount() throws still surfaces as
          // the PairingException the catch below produces rather than a bare crash.
          int maxCols = Util.getOrganizationMaxColumn();
+         // The sandbox raises the same localized message on its own cap, so equality with it
+         // detects that path without parsing text. getUserMessage() consumes the pending
+         // message, hence it is read once here and carried forward.
+         List<String> warnings = new ArrayList<>(captureWarnings());
+         String limitMessage = Util.getColumnLimitMessage();
+         // pending messages are merged into one newline-joined string, so match by substring
+         boolean limited = warnings.stream().anyMatch(w -> w.contains(limitMessage));
+         Integer total = null;
+
+         if(limited && lens instanceof ColumnMapFilter filter) {
+            total = filter.getTable().getColCount();
+         }
 
          if(lens.getColCount() > maxCols) {
+            total = lens.getColCount();
             int[] map = new int[maxCols];
 
             for(int i = 0; i < maxCols; i++) {
                map[i] = i;
             }
 
-            CoreTool.addUserMessage(Util.getColumnLimitMessage());
+            if(!limited) {
+               warnings.add(limitMessage);
+               limited = true;
+            }
+
             lens = new ColumnMapFilter(lens, map);
          }
 
@@ -181,7 +199,11 @@ public class WorksheetPreviewService {
             rows.add(rowMap);
          }
 
-         return new PreviewResult(rows, captureWarnings());
+         // a message raised lazily while reading rows (e.g. a sort script error) is still reported
+         warnings.addAll(captureWarnings());
+
+         return new PreviewResult(rows, warnings,
+                                  limited ? new ColumnLimit(true, maxCols, total) : null);
       }
       catch(RuntimeException e) {
          throw new PairingException("Failed to read result columns for '"
@@ -216,7 +238,25 @@ public class WorksheetPreviewService {
     * them (e.g. the organization's column-count limit silently dropping trailing columns).
     * {@code warnings} is empty, never {@code null}, when nothing was raised.
     */
-   public record PreviewResult(List<Map<String, Object>> rows, List<String> warnings) {}
+   @JsonInclude(JsonInclude.Include.NON_NULL)
+   public record PreviewResult(List<Map<String, Object>> rows, List<String> warnings,
+                               ColumnLimit columnLimit)
+   {
+      public PreviewResult(List<Map<String, Object>> rows, List<String> warnings) {
+         this(rows, warnings, null);
+      }
+   }
+
+   /**
+    * Structured counterpart of the column-limit warning. Present on {@link PreviewResult} only
+    * when columns were dropped.
+    *
+    * @param limited always {@code true} when present
+    * @param limit   the organization's column limit
+    * @param total   the original column count, or {@code null} when not known
+    */
+   @JsonInclude(JsonInclude.Include.NON_NULL)
+   public record ColumnLimit(boolean limited, int limit, Integer total) {}
 
    /**
     * The structures {@link inetsoft.uql.asset.TableAssembly#replaceVariables} mutates:

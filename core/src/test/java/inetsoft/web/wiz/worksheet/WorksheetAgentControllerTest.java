@@ -2127,6 +2127,61 @@ class WorksheetAgentControllerTest {
       }
    }
 
+   @Test
+   void previewKeepsColumnLimitWhenDroppedConditionWarningsAreAppended() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      DefaultVariableAssembly declaredVar = new DefaultVariableAssembly(ws, "declaredVar");
+      ws.addAssembly(declaredVar);
+
+      TableAssembly table = mock(TableAssembly.class);
+      when(table.getName()).thenReturn("T");
+      when(table.getAssemblyType()).thenReturn(AbstractSheet.TABLE_ASSET);
+      when(table.isVisible()).thenReturn(true);
+      when(table.getAllVariables())
+         .thenReturn(new UserVariable[]{new UserVariable("declaredVar")});
+      ws.addAssembly(table);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.resolve(eq("TOK"), eq(agent))).thenReturn(rws);
+
+      WorksheetPreviewService previewSvc = mock(WorksheetPreviewService.class);
+      WorksheetPreviewService.PreviewResult unfiltered =
+         new WorksheetPreviewService.PreviewResult(
+            List.of(Map.of("x", "unfiltered-row")), List.of("limited"),
+            new WorksheetPreviewService.ColumnLimit(true, 200, 250));
+      when(previewSvc.preview(eq(rws), eq("T"), eq(0), eq(50))).thenReturn(unfiltered);
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class),
+         previewSvc);
+
+      VariableAssemblyModelInfo needsValue = new VariableAssemblyModelInfo();
+      needsValue.setName("declaredVar");
+      WSCollectVariablesCommand command = WSCollectVariablesCommand.builder()
+         .varInfos(List.of(needsValue))
+         .build();
+
+      try(MockedStatic<WorksheetEventUtil> eventUtil =
+             mockStatic(WorksheetEventUtil.class, CALLS_REAL_METHODS)) {
+         eventUtil.when(() -> WorksheetEventUtil.refreshVariables(eq(rws), any(), eq(false)))
+            .thenReturn(command);
+
+         WorksheetPreviewService.PreviewResult result = ctrl.preview("TOK", "T", 0, 50, agent);
+
+         assertEquals(unfiltered.rows(), result.rows());
+         assertEquals(2, result.warnings().size());
+         assertEquals(unfiltered.columnLimit(), result.columnLimit());
+         assertTrue(result.warnings().get(1).contains("declaredVar"),
+            "warning must name the specific variable: " + result.warnings());
+      }
+   }
+
    /**
     * Positive-case counterpart: once {@code set_variable_values} has given "declaredVar" a
     * session value, {@code WSCollectVariablesCommand.varInfos()} no longer lists it (the whole
