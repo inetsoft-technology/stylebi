@@ -1859,7 +1859,8 @@ public class WorksheetAgentController {
 
       List<String> warnings = new ArrayList<>(result.warnings());
       warnings.addAll(droppedConditionWarnings);
-      return new WorksheetPreviewService.PreviewResult(result.rows(), warnings);
+      return new WorksheetPreviewService.PreviewResult(
+         result.rows(), warnings, result.columnLimit());
    }
 
    /**
