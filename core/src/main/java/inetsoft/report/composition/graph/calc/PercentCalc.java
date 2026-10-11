@@ -389,9 +389,14 @@ public class PercentCalc extends AbstractCalc implements DynamicCalc {
    private DynamicValue columnName = new DynamicValue();
    private DynamicValue percentageByValue = new DynamicValue(
       null, XSchema.INTEGER,
+      // trailing entries are script/variable aliases; the first three keep
+      // getName() and the restriction[0] fallback unchanged
       new int[] {
          XConstants.PERCENTAGE_NONE,
          XConstants.PERCENTAGE_BY_COL,
-         XConstants.PERCENTAGE_BY_ROW},
-      new String[] {"none", "columns", "rows"});
+         XConstants.PERCENTAGE_BY_ROW,
+         XConstants.PERCENTAGE_BY_COL,
+         XConstants.PERCENTAGE_BY_ROW,
+         XConstants.PERCENTAGE_BY_COL},
+      new String[] {"none", "columns", "rows", "col", "row", "column"});
 }
