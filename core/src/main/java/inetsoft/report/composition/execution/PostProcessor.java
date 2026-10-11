@@ -152,6 +152,22 @@ public class PostProcessor {
                                    List<FormulaHeaderInfo> hinfos,
                                    List<Class<?>> types, boolean[] restricted)
    {
+      return formula(table, headers, formulas, senv, scope, mergeables, tableName, hinfos, types,
+                     restricted, false);
+   }
+
+   /**
+    * @param rejectArrayResult true to fail a scalar column whose expression returns an array,
+    *                          for worksheet expression columns (bug #78283).
+    */
+   public static TableLens formula(TableLens table, String[] headers,
+                                   String[] formulas, ScriptEnv senv,
+                                   Object scope, Boolean[] mergeables,
+                                   String tableName,
+                                   List<FormulaHeaderInfo> hinfos,
+                                   List<Class<?>> types, boolean[] restricted,
+                                   boolean rejectArrayResult)
+   {
       boolean[] mergeable2 = null;
 
       if(mergeables != null) {
@@ -218,6 +234,7 @@ public class PostProcessor {
          table, headers, formulas, senv, scope, mergeable2);
 
       ftbl.setTableName(tableName);
+      ftbl.setRejectArrayResult(rejectArrayResult);
       ftbl.setFormulaHeaderInfo(hinfos);
 
       for(int i = 0; i < restricted.length; i++) {

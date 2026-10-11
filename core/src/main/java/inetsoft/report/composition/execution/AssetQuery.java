@@ -700,8 +700,13 @@ public abstract class AssetQuery extends PreAssetQuery {
             LOG.debug("Failed to get cached table data", ex);
          }
 
-         base = mexecuted || key == null ? null :
-            AssetDataCache.getCache().getOrMarkExecutingOrWait(key, touchtime);
+         try {
+            base = mexecuted || key == null ? null :
+               AssetDataCache.getCache().getOrMarkExecutingOrWait(key, touchtime);
+         }
+         catch(CircularTableReferenceException ex) {
+            throw new CircularTableReferenceException(getTable().getName());
+         }
 
          if(AssetDataCache.isDebugData() && !(getTable() instanceof SnapshotEmbeddedTableAssembly)) {
             base = null;
@@ -1536,7 +1541,7 @@ public abstract class AssetQuery extends PreAssetQuery {
 
          base = PostProcessor.formula(
             base, harr, sarr, env, box.isScriptPoolMode() ? scope : box.getScope(), marr,
-            getTable().getName(), hinfos, types, restricted);
+            getTable().getName(), hinfos, types, restricted, true);
          formulaCols = new HashSet<>(Arrays.asList(harr));
 
          for(int i = 0; i < sarr.length; i++) {

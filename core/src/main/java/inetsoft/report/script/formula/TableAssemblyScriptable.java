@@ -20,6 +20,9 @@ package inetsoft.report.script.formula;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.execution.AssetQuery;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
+import inetsoft.report.composition.execution.CircularTableReferenceException;
+import inetsoft.report.internal.Util;
+import inetsoft.report.internal.XNodeMetaTable;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.report.script.TableArray;
 import inetsoft.uql.XTable;
@@ -29,6 +32,9 @@ import inetsoft.util.script.ScriptUtil;
 import inetsoft.util.stall.LockStallException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * This class is the javascript object for table assembly table data.
@@ -139,10 +145,18 @@ public class TableAssemblyScriptable extends TableArray {
       // Handle table changes properly
       try {
          TableLens table = box.getTableLens(tname, mode, null);
+         failOnCircularReference(table);
          table = AssetQuery.shuckOffFormat(table);
          return table;
       }
       catch(Exception ex) {
+         // a table that reads itself is not a missing table either (#78283)
+         CircularTableReferenceException circular = CircularTableReferenceException.find(ex);
+
+         if(circular != null) {
+            throw circular;
+         }
+
          // a lock stall is not a missing table, which TableArray reads as an empty one (#77123)
          LockStallException stall = LockStallException.find(ex);
 
@@ -156,6 +170,27 @@ public class TableAssemblyScriptable extends TableArray {
          }
 
          return null;
+      }
+   }
+
+   /**
+    * A table read from a script whose own build failed on a circular reference (A reads B, B
+    * reads A) comes back as a failed-query lens; reading its design data would give A a
+    * plausible value for a cycle (#78283).
+    */
+   private static void failOnCircularReference(XTable table) {
+      List<XTable> nested = new ArrayList<>();
+      Util.listNestedTable(table, XNodeMetaTable.class, nested);
+
+      for(XTable t : nested) {
+         if(t instanceof XNodeMetaTable meta && meta.isFailedQueryDefault()) {
+            CircularTableReferenceException circular =
+               CircularTableReferenceException.ofFailedQuery(meta.getFailedQueryMessage());
+
+            if(circular != null) {
+               throw circular;
+            }
+         }
       }
    }
 
