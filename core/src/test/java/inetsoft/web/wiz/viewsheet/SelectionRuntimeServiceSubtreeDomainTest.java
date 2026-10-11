@@ -24,6 +24,7 @@ import inetsoft.test.SwapperTestConfiguration;
 import inetsoft.uql.viewsheet.CalendarVSAssembly;
 import inetsoft.uql.viewsheet.CompositeSelectionValue;
 import inetsoft.uql.viewsheet.SelectionList;
+import inetsoft.uql.viewsheet.SelectionListVSAssembly;
 import inetsoft.uql.viewsheet.SelectionTreeVSAssembly;
 import inetsoft.uql.viewsheet.SelectionValue;
 import inetsoft.uql.viewsheet.internal.CalendarVSAssemblyInfo;
@@ -367,6 +368,120 @@ class SelectionRuntimeServiceSubtreeDomainTest {
 
       assertEquals(1, result.get("deselected"));
       assertFalse(result.containsKey("scopedBySearchRetained"));
+   }
+
+   // ── clear_selection under a search (bug-78294) ─────────────────────────────
+
+   private static SelectionList alphaBeta() {
+      SelectionList domain = new SelectionList();
+      SelectionValue alpha = new SelectionValue("Alpha", "Alpha");
+      alpha.setSelected(true);
+      SelectionValue beta = new SelectionValue("Beta", "Beta");
+      beta.setSelected(true);
+      domain.addSelectionValue(alpha);
+      domain.addSelectionValue(beta);
+      return domain;
+   }
+
+   /** The merge-back clears only what the search shows: Beta goes, Alpha is put back. */
+   private static void clearOnlyBeta(SelectionRuntimeServiceTest.Harness h, SelectionList domain) {
+      try {
+         doAnswer(inv -> {
+            domain.getSelectionValue(1).setSelected(false);
+            return null;
+         }).when(h.selections()).applySelection(anyString(), anyString(), any(),
+                                                any(Principal.class), any(), anyString());
+      }
+      catch(Exception e) {
+         throw new IllegalStateException(e);
+      }
+   }
+
+   @Test
+   void clearSelectionOnAnIdTreeUnderASearchReportsWhatActuallyCleared() throws Exception {
+      SelectionList domain = alphaBeta();
+      SelectionRuntimeServiceTest.Harness h =
+         SelectionRuntimeServiceTest.harness(searchedTree(true, domain, "Beta"));
+      clearOnlyBeta(h, domain);
+
+      Map<String, Object> result = h.service().clearSelection(
+         "tok", SelectionRuntimeServiceTest.principal(), "Tree1", "");
+
+      assertEquals(1, result.get("clearedCount"));
+      assertEquals(1, result.get("selectedTotal"));
+      assertEquals(List.of(List.of("Alpha")), result.get("scopedBySearchRetained"));
+      assertEquals("Beta", result.get("scopedBySearch"));
+   }
+
+   @Test
+   void clearSelectionOnAnIdTreeReportsNothingClearedWhenEverythingIsPutBack() throws Exception {
+      SelectionRuntimeServiceTest.Harness h =
+         SelectionRuntimeServiceTest.harness(searchedTree(true, alphaBeta(), "Beta"));
+
+      Map<String, Object> result = h.service().clearSelection(
+         "tok", SelectionRuntimeServiceTest.principal(), "Tree1", "");
+
+      assertEquals(0, result.get("clearedCount"));
+      assertEquals(2, result.get("selectedTotal"));
+   }
+
+   @Test
+   void clearSelectionOnANonIdTreeUnderASearchReportsWhatActuallyCleared() throws Exception {
+      SelectionList domain = eastNyAndBeta();
+      SelectionRuntimeServiceTest.Harness h =
+         SelectionRuntimeServiceTest.harness(searchedTree(false, domain, "Beta"));
+      doAnswer(inv -> {
+         domain.getSelectionValue(1).setSelected(false);
+         return null;
+      }).when(h.selections()).applySelection(anyString(), anyString(), any(),
+                                             any(Principal.class), any(), anyString());
+
+      Map<String, Object> result = h.service().clearSelection(
+         "tok", SelectionRuntimeServiceTest.principal(), "Tree1", "");
+
+      assertEquals(1, result.get("clearedCount"), "Beta cleared, East/NY put back");
+      assertEquals(1, result.get("selectedTotal"));
+      assertEquals(List.of(List.of("East", "NY")), result.get("scopedBySearchRetained"));
+      assertEquals("Beta", result.get("scopedBySearch"));
+   }
+
+   @Test
+   void clearSelectionOnAMultiSelectListUnderASearchReportsWhatActuallyCleared() throws Exception {
+      SelectionList domain = alphaBeta();
+      SelectionListVSAssembly assembly =
+         SelectionRuntimeServiceTest.list(0, false, "Beta");
+      when(assembly.getSelectionList()).thenReturn(domain);
+      SelectionRuntimeServiceTest.Harness h = SelectionRuntimeServiceTest.harness(assembly);
+      clearOnlyBeta(h, domain);
+
+      Map<String, Object> result = h.service().clearSelection(
+         "tok", SelectionRuntimeServiceTest.principal(), "Filter1", "");
+
+      assertEquals(1, result.get("clearedCount"));
+      assertEquals(1, result.get("selectedTotal"));
+      assertEquals(List.of(List.of("Alpha")), result.get("scopedBySearchRetained"));
+   }
+
+   /** Nothing retained: the same keys as before, plus only the additive selectedTotal of 0. */
+   @Test
+   void clearSelectionThatClearsEverythingReportsNoRetainedKeys() throws Exception {
+      SelectionList domain = alphaBeta();
+      SelectionRuntimeServiceTest.Harness h =
+         SelectionRuntimeServiceTest.harness(searchedTree(true, domain, null));
+      doAnswer(inv -> {
+         domain.getSelectionValue(0).setSelected(false);
+         domain.getSelectionValue(1).setSelected(false);
+         return null;
+      }).when(h.selections()).applySelection(anyString(), anyString(), any(),
+                                             any(Principal.class), any(), anyString());
+
+      Map<String, Object> result = h.service().clearSelection(
+         "tok", SelectionRuntimeServiceTest.principal(), "Tree1", "");
+
+      assertEquals(2, result.get("clearedCount"));
+      assertEquals(0, result.get("selectedTotal"));
+      assertFalse(result.containsKey("scopedBySearchRetained"));
+      assertFalse(result.containsKey("scopedBySearch"));
    }
 
    // ── clear_selection on a calendar ──────────────────────────────────────────
