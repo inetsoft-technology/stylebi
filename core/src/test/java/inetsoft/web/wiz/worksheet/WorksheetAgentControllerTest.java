@@ -5638,6 +5638,251 @@ class WorksheetAgentControllerTest {
       assertEquals("string", typeOf(ws, "Q1", "id"));
    }
 
+   // ---------------------------------------------------------------------------
+   // Bug #78357: replaceTable must not drop a column another table still uses.
+   // ---------------------------------------------------------------------------
+
+   private static void applyEd(Worksheet ws, ThrowingConsumer<
+      WorksheetEditService.Editor> mutation) throws Exception
+   {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-ED"), any())).thenReturn(session("TOK-ED"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+      SecurityEngine se = mock(SecurityEngine.class);
+      when(se.checkPermission(
+         any(), any(ResourceType.class), any(String.class), any(ResourceAction.class)))
+         .thenReturn(true);
+      WorksheetEditService svc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), se, mock(InnerJoinService.class));
+      svc.apply("TOK-ED", agent, mutation);
+   }
+
+   private static WorksheetAgentController.ImportCsvResponse replaceCsvFile(
+      WorksheetAgentController ctrl, String token, String table, String csv) throws Exception
+   {
+      return ctrl.importCsvFile(token,
+         new MockMultipartFile("file", "d.csv", "text/csv", csv.getBytes()),
+         null, null, null, null, null, null, null, null, null, table, null, null,
+         TestPrincipals.user("alice", "host-org"));
+   }
+
+   /**
+    * The XLSX reader lives in a module the core test classpath does not have, so the reader is
+    * faked: a header row and one data row, which is all {@code importExcel} consumes before it
+    * hands the table to the same {@code replaceEmbeddedTable} the CSV routes use.
+    */
+   private static WorksheetAgentController.ImportCsvResponse replaceExcel(
+      WorksheetAgentController ctrl, String token, String table, String[] headers,
+      Object[] row) throws Exception
+   {
+      inetsoft.uql.schema.XTypeNode meta = mock(inetsoft.uql.schema.XTypeNode.class);
+      when(meta.getChildCount()).thenReturn(headers.length);
+
+      for(int c = 0; c < headers.length; c++) {
+         inetsoft.uql.schema.XTypeNode col = mock(inetsoft.uql.schema.XTypeNode.class);
+         when(col.getName()).thenReturn(headers[c]);
+         when(col.getType()).thenReturn(row[c] instanceof Integer
+            ? inetsoft.uql.schema.XSchema.INTEGER : inetsoft.uql.schema.XSchema.STRING);
+         when(meta.getChild(c)).thenReturn(col);
+      }
+
+      inetsoft.uql.XTableNode data = mock(inetsoft.uql.XTableNode.class);
+      when(data.next()).thenReturn(true, false);
+
+      for(int c = 0; c < row.length; c++) {
+         when(data.getObject(c)).thenReturn(row[c]);
+      }
+
+      inetsoft.uql.util.filereader.ExcelFileReader reader =
+         mock(inetsoft.uql.util.filereader.ExcelFileReader.class);
+      when(reader.importHeader(any(), any(), any(), anyInt(), anyInt())).thenReturn(meta);
+      when(reader.read(any(), any(), any(), any(), anyInt(), anyInt(), anyBoolean(), any(),
+                       anyBoolean())).thenReturn(data);
+      inetsoft.uql.util.filereader.ExcelFileSupport support =
+         mock(inetsoft.uql.util.filereader.ExcelFileSupport.class);
+      when(support.createXLSXReader()).thenReturn(reader);
+
+      try(MockedStatic<inetsoft.uql.util.filereader.ExcelFileSupport> st =
+             mockStatic(inetsoft.uql.util.filereader.ExcelFileSupport.class))
+      {
+         st.when(inetsoft.uql.util.filereader.ExcelFileSupport::getInstance).thenReturn(support);
+         return ctrl.importExcel(token, excelFile(new byte[]{1, 2, 3}), "XLSX", null, null, table,
+                                 null, null, TestPrincipals.user("alice", "host-org"));
+      }
+   }
+
+   /** Q1(id, v) and its join J must be exactly as {@link #joinedImport} left them. */
+   private static void assertJoinedQ1Untouched(Worksheet ws) {
+      ColumnSelection cols = importedTable(ws, "Q1").getColumnSelection(false);
+      assertEquals(2, cols.getAttributeCount());
+      assertNotNull(cols.getAttribute("id"));
+      assertNotNull(cols.getAttribute("v"));
+      assertEquals("1", String.valueOf(importedTable(ws, "Q1").getEmbeddedData().getObject(1, 0)));
+      assertNotNull(ws.getAssembly("J"));
+   }
+
+   @Test
+   void importReplaceRefusesDroppingAJoinedKeyColumnAndLeavesTheWorksheetUntouched()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = joinedImport(ws, "TOK-78357-A");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> replaceCsv(ctrl, "TOK-78357-A", "Q1", "other,v\n1,a"));
+
+      assertTrue(ex.getMessage().contains("'J'"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("\"id\""), ex.getMessage());
+      assertJoinedQ1Untouched(ws);
+   }
+
+   @Test
+   void importReplaceRefusesDroppingAColumnUsedByDownstreamConditionExpressionAndAggregate()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-78357-B");
+      ctrl.importCsv("TOK-78357-B", new WorksheetAgentController.ImportCsvRequest(
+         "Q1", "id,v,w\n1,a,2\n2,b,3"), TestPrincipals.user("alice", "host-org"));
+      applyEd(ws, ed -> {
+         ed.addMirror("M1", "Q1");
+         ed.addMirror("M2", "Q1");
+         ed.addMirror("M3", "Q1");
+      });
+      applyEd(ws, ed -> {
+         ed.addFilter("M1", "v", "=", "a");
+         ed.addExpressionColumn("M2", "x", "field['w']*2", "double", false);
+         ed.setGroupAggregate("M3", List.of(new WorksheetMutationSupport.GroupSpec("v")),
+            List.of(new WorksheetMutationSupport.AggregateSpec("w", "Sum", null)), false, false);
+      });
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> replaceCsv(ctrl, "TOK-78357-B", "Q1", "id\n1"));
+
+      assertTrue(ex.getMessage().contains("'M1'"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("'M2'"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("'M3'"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("\"v\"") && ex.getMessage().contains("\"w\""),
+                 ex.getMessage());
+      assertEquals(3, importedTable(ws, "Q1").getColumnSelection(false).getAttributeCount());
+   }
+
+   @Test
+   void importReplaceAllowsDroppingAnUnreferencedColumnWhileAJoinExistsOnAKeptKey()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = joinedImport(ws, "TOK-78357-C");
+
+      replaceCsv(ctrl, "TOK-78357-C", "Q1", "id\n1");
+
+      assertEquals(1, importedTable(ws, "Q1").getColumnSelection(false).getAttributeCount());
+      assertNotNull(ws.getAssembly("J"));
+   }
+
+   @Test
+   void importReplaceAllowsRenamingAnUnusedHeaderButRefusesRenamingAJoinedOne() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = joinedImport(ws, "TOK-78357-D");
+
+      replaceCsv(ctrl, "TOK-78357-D", "Q1", "id,vv\n1,a");
+      assertNotNull(importedTable(ws, "Q1").getColumnSelection(false).getAttribute("vv"));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> replaceCsv(ctrl, "TOK-78357-D", "Q1", "key,vv\n1,a"));
+      assertTrue(ex.getMessage().contains("\"id\""), ex.getMessage());
+   }
+
+   @Test
+   void importReplaceRefusesACaseOnlyRenameOfAJoinedKey() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = joinedImport(ws, "TOK-78357-E");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> replaceCsv(ctrl, "TOK-78357-E", "Q1", "ID,v\n1,a"));
+
+      assertTrue(ex.getMessage().contains("\"id\""), ex.getMessage());
+      assertJoinedQ1Untouched(ws);
+   }
+
+   @Test
+   void importReplaceWithDuplicateHeadersKeepingTheKeyIsAccepted() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = joinedImport(ws, "TOK-78357-F");
+
+      replaceCsv(ctrl, "TOK-78357-F", "Q1", "id,id\n1,2");
+
+      assertNotNull(ws.getAssembly("J"));
+   }
+
+   @Test
+   void importReplaceWithoutAHeaderRowDropsTheKeyAndIsRefused() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = joinedImport(ws, "TOK-78357-G");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.importCsv("TOK-78357-G", new WorksheetAgentController.ImportCsvRequest(
+            null, "1,a", null, null, null, null, false, null, null, null, "Q1", null, null),
+            TestPrincipals.user("alice", "host-org")));
+
+      assertTrue(ex.getMessage().contains("\"id\""), ex.getMessage());
+      assertJoinedQ1Untouched(ws);
+   }
+
+   @Test
+   void importCsvFileReplaceRefusesDroppingAJoinedKeyAndAllowsAnUnusedColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = joinedImport(ws, "TOK-78357-H");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> replaceCsvFile(ctrl, "TOK-78357-H", "Q1", "other,v\n1,a"));
+      assertTrue(ex.getMessage().contains("'J'") && ex.getMessage().contains("\"id\""),
+                 ex.getMessage());
+      assertJoinedQ1Untouched(ws);
+
+      replaceCsvFile(ctrl, "TOK-78357-H", "Q1", "id\n1");
+      assertEquals(1, importedTable(ws, "Q1").getColumnSelection(false).getAttributeCount());
+   }
+
+   @Test
+   void importExcelReplaceRefusesDroppingAJoinedKeyAndAllowsAnUnusedColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = joinedImport(ws, "TOK-78357-I");
+      PairingException ex = assertThrows(PairingException.class,
+         () -> replaceExcel(ctrl, "TOK-78357-I", "Q1", new String[]{"other", "v"},
+                            new Object[]{1, "a"}));
+      assertTrue(ex.getMessage().contains("'J'") && ex.getMessage().contains("\"id\""),
+                 ex.getMessage());
+      assertJoinedQ1Untouched(ws);
+
+      replaceExcel(ctrl, "TOK-78357-I", "Q1", new String[]{"id"}, new Object[]{1});
+      assertEquals(1, importedTable(ws, "Q1").getColumnSelection(false).getAttributeCount());
+   }
+
+   @Test
+   void importReplaceKeepsTheRetypeGuardIndependentOfTheDroppedColumnGuard() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-78357-J");
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      ctrl.importCsv("TOK-78357-J", new WorksheetAgentController.ImportCsvRequest(
+         "Q1", "a,b\n1,2"), agent);
+      ctrl.importCsv("TOK-78357-J", new WorksheetAgentController.ImportCsvRequest(
+         "Q2", "k\n1"), agent);
+      ctrl.importCsv("TOK-78357-J", new WorksheetAgentController.ImportCsvRequest(
+         "Q3", "m\n1"), agent);
+      addTestJoin(ws, "J1", "Q1", "a", "Q2", "k");
+      addTestJoin(ws, "J2", "Q1", "b", "Q3", "m");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> replaceCsv(ctrl, "TOK-78357-J", "Q1", "a,c\nx,1"));
+
+      assertTrue(ex.getMessage().contains("integer to string"), ex.getMessage());
+   }
+
    @Test
    void importCsvReplaceTableWithDifferentColumnsUpdatesTheColumnSelection() throws Exception {
       Worksheet ws = new Worksheet();

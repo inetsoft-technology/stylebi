@@ -559,25 +559,7 @@ public class WorksheetEditService {
             return own + "Confirm with the user before retrying with confirmed:true.";
          }
 
-         StringBuilder sb = new StringBuilder();
-
-         for(WorksheetControllerService.AggregateInputLossConflict conflict : aggregateConflicts) {
-            if(sb.length() > 0) {
-               sb.append("; ");
-            }
-
-            sb.append("'").append(conflict.dependentAssemblyName()).append("' (aggregate/group-by on ")
-               .append(String.join(", ", conflict.lostColumns())).append(")");
-         }
-
-         for(WorksheetControllerService.ColumnReferenceLossConflict conflict : referenceConflicts) {
-            if(sb.length() > 0) {
-               sb.append("; ");
-            }
-
-            sb.append("'").append(conflict.dependentAssemblyName()).append("' (")
-               .append(String.join(", ", conflict.references())).append(")");
-         }
+         String sb = ColumnLossReport.dependentsClause(aggregateConflicts, referenceConflicts);
 
          return own + "This change would break the following downstream table(s), which " +
             "reference the removed column: " + sb + ". Confirm with the user before retrying with " +
