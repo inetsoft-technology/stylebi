@@ -321,15 +321,7 @@ public final class FieldRefFactory {
          // doesn't exist. Reconstruct the inline definition instead, from the same
          // {name, values} pairs the write side accepted, so a read-modify-write round trip
          // through this field doesn't silently drop the grouping.
-         // The read-side model builder (NamedGroupInfoModel.fixNamedGroupInfoModel) promotes an
-         // inline group to EXPERT_NAMEDGROUP_INFO while keeping its "Custom" name and its
-         // {name, values} groups, so a live read never sees SIMPLE and the test on type alone
-         // reported the nonexistent group "Custom" instead of the values (bug #78232).
-         if(ngInfo != null && (ngInfo.getType() == XNamedGroupInfo.SIMPLE_NAMEDGROUP_INFO ||
-            ngInfo.getType() == XNamedGroupInfo.EXPERT_NAMEDGROUP_INFO &&
-            "Custom".equals(ngInfo.getName()) &&
-            ngInfo.getGroups() != null && !ngInfo.getGroups().isEmpty()))
-         {
+         if(ngInfo != null && ngInfo.getType() == XNamedGroupInfo.SIMPLE_NAMEDGROUP_INFO) {
             List<FieldRef.NamedGroupValues.Clause> clauses = new ArrayList<>();
 
             if(ngInfo.getGroups() != null) {
