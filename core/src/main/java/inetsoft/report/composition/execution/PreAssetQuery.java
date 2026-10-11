@@ -4509,8 +4509,13 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
             condnode.setIsNot(cond.isNegated());
             return condnode;
          }
+         catch(ScriptException ex) {
+            // a throwing script condition must not be swallowed into an always-true condition,
+            // which would silently return unfiltered rows
+            throw ex;
+         }
          catch(Exception ex) {
-            if(!ex.getMessage().equals("no parameter set.")) {
+            if(!"no parameter set.".equals(ex.getMessage())) {
                LOG.warn("Failed to create condition", ex);
             }
 

@@ -2260,6 +2260,31 @@ class WorksheetAgentControllerTest {
       assertTrue(ex.getMessage().contains("missing"));
    }
 
+   /** Redmine 78271: the export failure must reach the client as a body naming the cause. */
+   @Test
+   void exportTableReportsTheFailureCauseAsAResponseStatusException() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.resolve(eq("TOK"), eq(agent))).thenReturn(rws);
+
+      RawDataService rawDataService = mock(RawDataService.class);
+      doThrow(new RuntimeException("Failed to export worksheet table 'T': undefinedFn is not defined"))
+         .when(rawDataService).writeLiveWorksheetTableCsvStream(eq(rws), eq("T"), any());
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class),
+         rawDataService);
+
+      HttpServletResponse servletResponse = mockServletResponse(new ByteArrayOutputStream());
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> ctrl.exportTable("TOK", "T", agent, servletResponse));
+      assertTrue(ex.getReason().contains("undefinedFn is not defined"));
+      verify(servletResponse).reset();
+   }
+
    // ---------------------------------------------------------------------------
    // dependents
    // ---------------------------------------------------------------------------
