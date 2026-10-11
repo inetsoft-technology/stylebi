@@ -417,7 +417,45 @@ public abstract class AbstractCondition implements XCondition {
             return Boolean.FALSE;
          }
       }
-      else if(type.equals(XSchema.TIME_INSTANT)) {
+      else if(isDateConditionType(type)) {
+         Object parsed = parseDateConditionValue(type, value);
+
+         if(parsed != null) {
+            return parsed;
+         }
+
+         if(LOG.isDebugEnabled()) {
+            LOG.debug(Catalog.getCatalog().getString("common.condition.date.convertError", value));
+         }
+
+         long now = System.currentTimeMillis();
+         return XSchema.TIME_INSTANT.equals(type) ? new java.sql.Timestamp(now) :
+            XSchema.TIME.equals(type) ? (Object) new java.sql.Time(now) : new java.sql.Date(now);
+      }
+
+      return value;
+   }
+
+   private static boolean isDateConditionType(String type) {
+      return XSchema.TIME_INSTANT.equals(type) || XSchema.TIME.equals(type) ||
+         XSchema.DATE.equals(type);
+   }
+
+   /**
+    * Parse a date, time or timestamp condition literal exactly as {@link #getObject} does,
+    * but report failure instead of substituting the current date/time.
+    *
+    * @param type  one of {@link XSchema#DATE}, {@link XSchema#TIME}, {@link XSchema#TIME_INSTANT}.
+    * @param value the literal text.
+    * @return the parsed value, or null if the text is not understood for the type (or the type
+    * is not a date type).
+    */
+   public static Object parseDateConditionValue(String type, String value) {
+      if(value == null || type == null) {
+         return null;
+      }
+
+      if(type.equals(XSchema.TIME_INSTANT)) {
          // try new format first, then old format
          if(value.startsWith("{ts")) {
             try {
@@ -450,12 +488,6 @@ public abstract class AbstractCondition implements XCondition {
                // ignore
             }
          }
-
-         if(LOG.isDebugEnabled()) {
-            LOG.debug(Catalog.getCatalog().getString("common.condition.date.convertError", value));
-         }
-
-         return new java.sql.Timestamp(System.currentTimeMillis());
       }
       else if(type.equals(XSchema.TIME)) {
          // try new format first, then old format
@@ -487,12 +519,6 @@ public abstract class AbstractCondition implements XCondition {
                // ignore
             }
          }
-
-         if(LOG.isDebugEnabled()) {
-            LOG.debug(Catalog.getCatalog().getString("common.condition.date.convertError", value));
-         }
-
-         return new java.sql.Time(System.currentTimeMillis());
       }
       else if(type.equals(XSchema.DATE)) {
          try {
@@ -515,15 +541,9 @@ public abstract class AbstractCondition implements XCondition {
          catch(Exception e) {
             // ignore
          }
-
-         if(LOG.isDebugEnabled()) {
-            LOG.debug(Catalog.getCatalog().getString("common.condition.date.convertError", value));
-         }
-
-         return new java.sql.Date(System.currentTimeMillis());
       }
 
-      return value;
+      return null;
    }
 
    /**
