@@ -663,11 +663,11 @@ public class HighlightDialogService {
       HighlightRef highlightRef =
          (HighlightRef) getMeasure(chartInfo, model.getMeasure(), false,
                                    model.isAxis(), model.isText(), true);
-      // the design-time ref the runtime date-comparison clone was cloned from; a write that
-      // only reaches the clone is dropped when the runtime refs are replaced (clear/switch)
-      HighlightRef persistedRef = highlightRef == null ? null :
-         (HighlightRef) getMeasure(chartInfo, model.getMeasure(), false,
-                                   model.isAxis(), model.isText(), false);
+      // The design-time ref the runtime date-comparison clone was cloned from. getMeasure() can
+      // fall back to the runtime fields, so look up the design fields only; a write that only
+      // reaches a runtime ref is dropped when the runtime refs are replaced (clear/switch).
+      HighlightRef persistedRef = highlightRef == null || model.getMeasure() == null ? null :
+         (HighlightRef) chartInfo.getFieldByName(model.getMeasure(), false);
       boolean geo = GraphTypes.isGeo(chartInfo.getChartType());
       // true to use highlight in chartInfo.
       boolean infoHL = highlightRef == null || (chartInfo instanceof MergedVSChartInfo &&
@@ -675,15 +675,12 @@ public class HighlightDialogService {
          !GraphTypes.isGantt(chartInfo.getChartType())) &&
          (((ChartRef) highlightRef).isMeasure() || geo);
 
-      // A name that matches no design-time field while a date comparison is active is a measure
-      // derived by the comparison (e.g. "Change from previous year of ...: Sum(X)"). It either
-      // resolves to a runtime-only ref or to nothing (then the highlight lands on the chart-level
-      // group); either way it does not survive the comparison changing.
+      // A measure the date comparison derives (e.g. "Change from previous year of ...: Sum(X)")
+      // is a runtime aggregate carrying a calculator with no design-time field behind it, so a
+      // highlight set on it does not survive the comparison changing.
       boolean derived = model.getMeasure() != null && persistedRef == null &&
-         getMeasure(chartInfo, model.getMeasure(), false, model.isAxis(), model.isText(),
-                    false) == null &&
-         chartInfo.getRuntimeDateComparisonRefs() != null &&
-         chartInfo.getRuntimeDateComparisonRefs().length > 0;
+         highlightRef instanceof VSChartAggregateRef &&
+         ((VSChartAggregateRef) highlightRef).getCalculator() != null;
 
       if(model.isRejectDerivedMeasure() && derived) {
          throw new IllegalArgumentException(
