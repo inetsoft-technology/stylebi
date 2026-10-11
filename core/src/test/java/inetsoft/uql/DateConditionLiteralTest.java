@@ -84,6 +84,63 @@ class DateConditionLiteralTest {
       assertEquals("10:30:00", DateConditionLiteral.canonicalize(XSchema.TIME, "10:30:00"));
    }
 
+   // Bug #78351: braced / HH:mm:ss forms rolled an impossible calendar value over
+   @Test
+   void canonicalizeRefusesImpossibleBracedAndClockValues() {
+      String[][] bad = {
+         { XSchema.DATE, "{d '2024-02-30'}" }, { XSchema.DATE, "{d '2023-02-29'}" },
+         { XSchema.DATE, "{d '2024-04-31'}" }, { XSchema.DATE, "{d '2024-13-45'}" },
+         { XSchema.DATE, "{d '2024-00-10'}" }, { XSchema.DATE, "{d '2024-01-00'}" },
+         { XSchema.TIME_INSTANT, "{ts '2024-02-30 12:00:00'}" },
+         { XSchema.TIME_INSTANT, "{ts '2024-02-30 25:61:00'}" },
+         { XSchema.TIME_INSTANT, "{ts '2024-01-15 25:61:00'}" },
+         { XSchema.TIME_INSTANT, "{ts '2024-01-15 10:30:99'}" },
+         { XSchema.TIME_INSTANT, "{d '2024-02-30 10:00:00'}" },
+         { XSchema.TIME_INSTANT, "{d '2024-02-30'}" },
+         { XSchema.TIME, "{t '25:00:00'}" }, { XSchema.TIME, "25:00:00" },
+         { XSchema.TIME, "10:61:00" }, { XSchema.TIME, "10:30:99" },
+         { XSchema.TIME, "{t '10:30:99'}" },
+      };
+
+      for(String[] c : bad) {
+         assertNull(AbstractCondition.parseDateConditionValue(c[0], c[1], true), c[1]);
+         assertNull(DateConditionLiteral.canonicalize(c[0], c[1]), c[1]);
+      }
+   }
+
+   @Test
+   void canonicalizeKeepsEveryValidBracedAndClockForm() {
+      String[][] ok = {
+         { XSchema.DATE, "{d '2024-2-3'}" }, { XSchema.DATE, "{d '2024-02-29'}" },
+         { XSchema.DATE, "{d '2024-12-31'}" }, { XSchema.DATE, "2024-02-29" },
+         { XSchema.DATE, "02/29/2024" },
+         { XSchema.TIME_INSTANT, "{ts '2024-01-15 9:05:00'}" },
+         { XSchema.TIME_INSTANT, "{ts '2024-02-29 00:00:00'}" },
+         { XSchema.TIME_INSTANT, "{ts '2024-12-31 23:59:59'}" },
+         { XSchema.TIME_INSTANT, "{d '2024-02-29'}" },
+         { XSchema.TIME_INSTANT, "2024-02-29 10:00:00" },
+         { XSchema.TIME, "00:00:00" }, { XSchema.TIME, "23:59:59" },
+         { XSchema.TIME, "{t '00:00:00'}" }, { XSchema.TIME, "{t '23:59:59'}" },
+      };
+
+      for(String[] c : ok) {
+         assertEquals(c[1], DateConditionLiteral.canonicalize(c[0], c[1]), c[1]);
+      }
+   }
+
+   /** The stored-condition runtime path stays lenient; only the write-time check is strict. */
+   @Test
+   void storedConditionRuntimeParsingIsStillLenient() {
+      Object lenient = AbstractCondition.getObject(XSchema.DATE, "{d '2024-02-30'}");
+      assertEquals("2024-03-01", lenient.toString());
+      assertEquals(lenient.toString(), AbstractCondition.parseDateConditionValue(
+         XSchema.DATE, "{d '2024-02-30'}").toString());
+      // a strict call must not poison the shared lenient format
+      assertNull(AbstractCondition.parseDateConditionValue(XSchema.DATE, "{d '2024-02-30'}", true));
+      assertEquals("2024-03-01", AbstractCondition.getObject(XSchema.DATE, "{d '2024-02-30'}")
+         .toString());
+   }
+
    @Test
    void nonDateTypesPassThrough() {
       assertEquals("abc", DateConditionLiteral.canonicalize(XSchema.STRING, "abc"));
