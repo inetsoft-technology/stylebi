@@ -21,7 +21,10 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
+import inetsoft.uql.viewsheet.GroupContainerVSAssembly;
 import inetsoft.uql.viewsheet.SelectionListVSAssembly;
+import inetsoft.uql.viewsheet.SelectionTreeVSAssembly;
+import inetsoft.uql.viewsheet.TabVSAssembly;
 import inetsoft.uql.viewsheet.SubmitVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
@@ -29,6 +32,7 @@ import inetsoft.uql.viewsheet.graph.RelationVSChartInfo;
 import inetsoft.uql.viewsheet.graph.VSChartDimensionRef;
 import inetsoft.uql.viewsheet.internal.SelectionListVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.SelectionVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.TabVSAssemblyInfo;
 import inetsoft.util.cachefs.BinaryTransfer;
 import inetsoft.web.service.BinaryTransferService;
 import inetsoft.web.viewsheet.controller.AssemblyImageService;
@@ -601,6 +605,144 @@ class ScriptImageServiceTest {
       assertTrue(img.note().contains("Dropdown1"));
       assertFalse(img.note().contains("ListMode1"));
       assertTrue(img.note().contains("is a dropdown-mode selection list"));
+   }
+
+   private static SelectionListVSAssembly dropdownList(Viewsheet vs, String name) {
+      SelectionListVSAssembly list = new SelectionListVSAssembly(vs, name);
+      ((SelectionListVSAssemblyInfo) list.getVSAssemblyInfo())
+         .setShowType(SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
+      vs.addAssembly(list);
+      return list;
+   }
+
+   private static SelectionTreeVSAssembly tree(Viewsheet vs, String name, int showType) {
+      SelectionTreeVSAssembly tree = new SelectionTreeVSAssembly(vs, name);
+      tree.getSelectionTreeInfo().setShowType(showType);
+      vs.addAssembly(tree);
+      return tree;
+   }
+
+   private String wholeSheetNote(Viewsheet vs) throws Exception {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      VSExportService exportService = mock(VSExportService.class);
+      stubExport(exportService, fakePng(400, 300));
+
+      ScriptImageService svc = new ScriptImageService(
+         mock(AssemblyImageService.class), mock(BinaryTransferService.class), exportService);
+      return svc.getViewsheetImage(rvs, null, null, TestPrincipals.user("alice", "host-org"))
+         .note();
+   }
+
+   @Test
+   void notesADropdownSelectionTreeOnTheWholeSheet() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      tree(vs, "Tree1", SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
+
+      String note = wholeSheetNote(vs);
+
+      assertNotNull(note);
+      assertTrue(note.contains("\"Tree1\" is a dropdown-mode selection tree"), note);
+      assertFalse(note.contains("empty box"), note);
+   }
+
+   @Test
+   void notesADropdownSelectionTreeOnTheTargetFallbackPath() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      tree(vs, "Tree1", SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+
+      BinaryTransfer transfer = mock(BinaryTransfer.class);
+      AssemblyImageService imageService = mock(AssemblyImageService.class);
+      when(imageService.processGetAssemblyImage(
+         eq(rvs), anyString(), anyDouble(), anyDouble(), anyDouble(), anyDouble(),
+         isNull(), eq(0), eq(0), eq(0), any(), eq(false), eq(true)))
+         .thenReturn(new AssemblyImageService.ImageRenderResult(true, transfer, 1, 1));
+      BinaryTransferService binaryTransferService = mock(BinaryTransferService.class);
+      when(binaryTransferService.getData(transfer)).thenReturn(fakePng(1, 1));
+      VSExportService exportService = mock(VSExportService.class);
+      stubExport(exportService, fakePng(400, 300));
+
+      ScriptImageService svc = new ScriptImageService(imageService, binaryTransferService, exportService);
+      ScriptImageService.ChartImage img = svc.getAssemblyImage(
+         rvs, "Tree1", null, null, TestPrincipals.user("alice", "host-org"));
+
+      assertNotNull(img.note());
+      assertTrue(img.note().contains("dropdown-mode selection tree"), img.note());
+   }
+
+   @Test
+   void doesNotNoteAListModeSelectionTree() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      tree(vs, "Tree1", SelectionVSAssemblyInfo.LIST_SHOW_TYPE);
+
+      assertNull(wholeSheetNote(vs));
+   }
+
+   @Test
+   void doesNotNoteAHiddenDropdownSelectionList() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      dropdownList(vs, "Shown1");
+      dropdownList(vs, "Hidden1").getVSAssemblyInfo().setVisibleValue("false");
+
+      String note = wholeSheetNote(vs);
+
+      assertNotNull(note);
+      assertTrue(note.contains("Shown1"), note);
+      assertFalse(note.contains("Hidden1"), note);
+   }
+
+   @Test
+   void doesNotNoteAHiddenDropdownSelectionTree() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      tree(vs, "Tree1", SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE)
+         .getVSAssemblyInfo().setVisibleValue("false");
+
+      assertNull(wholeSheetNote(vs));
+   }
+
+   @Test
+   void doesNotNoteADropdownInANonSelectedTab() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      dropdownList(vs, "TabA");
+      dropdownList(vs, "TabB");
+      TabVSAssembly tab = new TabVSAssembly(vs, "Tab1");
+      tab.setAssemblies(new String[] {"TabA", "TabB"});
+      ((TabVSAssemblyInfo) tab.getVSAssemblyInfo()).setSelected("TabA");
+      vs.addAssembly(tab);
+
+      String note = wholeSheetNote(vs);
+
+      assertNotNull(note);
+      assertTrue(note.contains("TabA"), note);
+      assertFalse(note.contains("TabB"), note);
+   }
+
+   @Test
+   void doesNotNoteADropdownInAHiddenContainer() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      dropdownList(vs, "Inner1");
+      GroupContainerVSAssembly group = new GroupContainerVSAssembly(vs, "Group1");
+      group.setAssemblies(new String[] {"Inner1"});
+      group.getVSAssemblyInfo().setVisibleValue("false");
+      vs.addAssembly(group);
+
+      assertNull(wholeSheetNote(vs));
+   }
+
+   @Test
+   void notesAMixedListAndTreeWithCombinedWording() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      dropdownList(vs, "List1");
+      tree(vs, "Tree1", SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
+
+      String note = wholeSheetNote(vs);
+
+      assertNotNull(note);
+      assertTrue(note.contains("\"List1\", \"Tree1\" are dropdown-mode selection lists/trees"),
+                 note);
+      assertTrue(note.contains("them"), note);
    }
 
    /**
