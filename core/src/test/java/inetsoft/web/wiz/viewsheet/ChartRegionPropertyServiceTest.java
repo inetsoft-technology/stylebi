@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
+import inetsoft.graph.data.PairsDataSet;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
@@ -483,28 +484,200 @@ class ChartRegionPropertyServiceTest {
    }
 
    /**
-    * A discrete measure is mapped to a dimension-like column, so its axis is expected to be
-    * categorical; the refusal must not widen to it (not traced through scale creation).
+    * Bug #78232 problem 6: a discrete measure is dimension-like, so its axis is classified
+    * non-linear. Before, it was classified linear, so ignoreNull/truncate were accepted and then
+    * dropped by {@code AxisPropertyDialogModel}'s linear branch.
     */
    @Test
-   void doesNotRefuseTruncateOnADiscreteMeasureAxis() throws Exception {
-      VSChartAggregateRef discrete = mock(VSChartAggregateRef.class);
-      when(discrete.isSecondaryY()).thenReturn(false);
-      when(discrete.isDiscrete()).thenReturn(true);
-      when(discrete.getFullName()).thenReturn("Sum(Qty)");
-      when(discrete.getAxisDescriptor()).thenReturn(mock(AxisDescriptor.class));
-
-      Harness h = harness(mixedShelfViewsheet(new ChartRef[] { discrete }));
+   void appliesTruncateOnADiscreteMeasureAxisAsNonLinear() throws Exception {
+      Harness h = harness(mixedShelfViewsheet(new ChartRef[] { discreteMeasure() }));
+      AxisPropertyDialogModel model = axisModel();
+      model.setLinear(true);
       when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
                                                 any(), anyString(), any(Principal.class)))
-         .thenReturn(axisModel());
+         .thenReturn(model);
 
       h.service.set("tok", principal(), "Chart1", "axis", "x", null,
                     Map.of("truncate", true), "");
 
+      ArgumentCaptor<AxisPropertyDialogModel> captor =
+         ArgumentCaptor.forClass(AxisPropertyDialogModel.class);
       verify(h.regions).setAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyInt(),
-                                                   any(), any(), anyString(), any(Principal.class),
-                                                   any());
+                                                   any(), captor.capture(), anyString(),
+                                                   any(Principal.class), any());
+      assertFalse(captor.getValue().getLinear());
+      assertTrue(captor.getValue().getAxisLinePaneModel().isTruncate());
+   }
+
+   /** The UI hides range/reverse for a non-linear axis, so a discrete axis now refuses them. */
+   @Test
+   void refusesLinearOnlyKeysOnADiscreteMeasureAxis() {
+      Harness h = harness(mixedShelfViewsheet(new ChartRef[] { discreteMeasure() }));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", "x", null,
+                             Map.of("reverse", true), ""));
+
+      assertTrue(thrown.getMessage().contains("reverse"));
+      verifyNoInteractions(h.regions);
+   }
+
+   private static VSChartAggregateRef discreteMeasure() {
+      VSChartAggregateRef discrete = mock(VSChartAggregateRef.class);
+      when(discrete.isSecondaryY()).thenReturn(false);
+      when(discrete.isDiscrete()).thenReturn(true);
+      when(discrete.getName()).thenReturn("Sum(Qty)");
+      when(discrete.getFullName()).thenReturn("discrete_Sum(Qty)");
+      when(discrete.getAxisDescriptor()).thenReturn(mock(AxisDescriptor.class));
+      return discrete;
+   }
+
+   private static VSChartDimensionRef namedDimension(String full, String base) {
+      VSChartDimensionRef dim = mock(VSChartDimensionRef.class);
+      when(dim.getFullName()).thenReturn(full);
+      when(dim.getName()).thenReturn(base);
+      when(dim.getAxisDescriptor()).thenReturn(mock(AxisDescriptor.class));
+      return dim;
+   }
+
+   /** getChartRef falls back to the runtime fields, which an unstubbed mock returns as null. */
+   private static Viewsheet withRuntimeFields(Viewsheet vs) {
+      VSChartInfo info = ((ChartVSAssembly) vs.getAssembly("Chart1")).getVSChartInfo();
+      when(info.getRTXFields()).thenReturn(new ChartRef[0]);
+      when(info.getRTYFields()).thenReturn(new ChartRef[0]);
+      return vs;
+   }
+
+   private static Harness twoDimensionHarness() {
+      return harness(withRuntimeFields(mixedShelfViewsheet(new ChartRef[] {
+         namedDimension("Year(Order:Date)", "Order:Date"),
+         namedDimension("Product:Category", "Product:Category") })));
+   }
+
+   /** Bug #78232 problem 4: an unknown field is refused on read and write, naming the valid ones. */
+   @Test
+   void refusesAnUnknownAxisFieldOnListAndSet() {
+      Harness h = twoDimensionHarness();
+
+      Exception listed = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.list("tok", principal(), "Chart1", "axis", "x", "Nonexistent:Field"));
+      Exception set = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", "x", "Nonexistent:Field",
+                             Map.of("showAxisLine", false), ""));
+
+      for(Exception e : new Exception[] { listed, set }) {
+         assertTrue(e.getMessage().contains("Nonexistent:Field"));
+         assertTrue(e.getMessage().contains("'x'"));
+         assertTrue(e.getMessage().contains("Year(Order:Date)"));
+         assertTrue(e.getMessage().contains("Product:Category"));
+      }
+
+      verifyNoInteractions(h.regions);
+   }
+
+   @Test
+   void refusesAYShelfFieldOnTheXAxis() {
+      Harness h = twoDimensionHarness();
+
+      assertThrows(IllegalArgumentException.class,
+                   () -> h.service.list("tok", principal(), "Chart1", "axis", "x", "Sum(Total)"));
+      verifyNoInteractions(h.regions);
+   }
+
+   /** Two date levels of one column share a base name: refuse rather than pick the first. */
+   @Test
+   void refusesAnAmbiguousBaseName() {
+      Harness h = harness(withRuntimeFields(mixedShelfViewsheet(new ChartRef[] {
+         namedDimension("Year(Order:Date)", "Order:Date"),
+         namedDimension("Month(Order:Date)", "Order:Date") })));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.list("tok", principal(), "Chart1", "axis", "x", "Order:Date"));
+
+      assertTrue(thrown.getMessage().contains("ambiguous"));
+      assertTrue(thrown.getMessage().contains("Year(Order:Date)"));
+      assertTrue(thrown.getMessage().contains("Month(Order:Date)"));
+      verifyNoInteractions(h.regions);
+   }
+
+   /** A unique base name is canonicalized to the full name the format maps are keyed by. */
+   @Test
+   void canonicalizesAUniqueBaseNameToTheFullName() throws Exception {
+      Harness h = twoDimensionHarness();
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(axisModel());
+
+      h.service.list("tok", principal(), "Chart1", "axis", "x", "Order:Date");
+
+      verify(h.regions).getAxisPropertyDialogModel(anyString(), anyString(), anyString(),
+                                                   anyString(), eq("Year(Order:Date)"),
+                                                   anyString(), any(Principal.class));
+   }
+
+   @Test
+   void acceptsADiscreteMeasureByFullAndBaseName() throws Exception {
+      Harness h = harness(withRuntimeFields(
+         mixedShelfViewsheet(new ChartRef[] { discreteMeasure() })));
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(axisModel());
+
+      h.service.list("tok", principal(), "Chart1", "axis", "x", "discrete_Sum(Qty)");
+      h.service.list("tok", principal(), "Chart1", "axis", "x", "Sum(Qty)");
+
+      verify(h.regions, times(2)).getAxisPropertyDialogModel(
+         anyString(), anyString(), anyString(), anyString(), eq("discrete_Sum(Qty)"), anyString(),
+         any(Principal.class));
+   }
+
+   @Test
+   void acceptsTheScatterMatrixAndParallelLabelSpecialNames() throws Exception {
+      Harness h = twoDimensionHarness();
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(axisModel());
+
+      for(String special : new String[] { "_Parallel_Label_", PairsDataSet.XMEASURE_NAME,
+                                          PairsDataSet.YMEASURE_NAME })
+      {
+         h.service.list("tok", principal(), "Chart1", "axis", "x", special);
+         verify(h.regions).getAxisPropertyDialogModel(
+            anyString(), anyString(), anyString(), anyString(), eq(special), anyString(),
+            any(Principal.class));
+      }
+   }
+
+   /** Bug #78232 problem 5: a field makes the handler take its field-driven branch (index -1). */
+   @Test
+   void readsTheAxisByFieldWithIndexMinusOneAndByAreaZeroWithout() throws Exception {
+      Harness h = twoDimensionHarness();
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(axisModel());
+
+      h.service.list("tok", principal(), "Chart1", "axis", "x", "Year(Order:Date)");
+      ArgumentCaptor<String> index = ArgumentCaptor.forClass(String.class);
+      verify(h.regions).getAxisPropertyDialogModel(anyString(), anyString(), anyString(),
+                                                   index.capture(), any(), anyString(),
+                                                   any(Principal.class));
+      assertEquals("-1", index.getValue());
+
+      Harness single = harness();
+      when(single.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(),
+                                                     anyString(), any(), anyString(),
+                                                     any(Principal.class)))
+         .thenReturn(axisModel());
+      single.service.list("tok", principal(), "Chart1", "axis", "y", null);
+      ArgumentCaptor<String> blank = ArgumentCaptor.forClass(String.class);
+      verify(single.regions).getAxisPropertyDialogModel(anyString(), anyString(), anyString(),
+                                                        blank.capture(), any(), anyString(),
+                                                        any(Principal.class));
+      assertEquals("0", blank.getValue());
    }
 
    /**
