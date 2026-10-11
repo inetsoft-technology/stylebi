@@ -528,6 +528,7 @@ public class SelectionRuntimeService {
                event.setType(ApplySelectionListEvent.Type.APPLY);
                selections.applySelection(runtimeId, assemblyName, event, user, dispatcher,
                                          linkUri);
+               reportRetainedAfterClear(result, assembly, cleared, countSelected(assembly), true);
             }
          }
          else {
@@ -542,12 +543,40 @@ public class SelectionRuntimeService {
                selections.applySelection(runtimeId, assemblyName,
                                          deselectEvent(deselectTargets(current, current)), user,
                                          dispatcher, linkUri);
+               reportRetainedAfterClear(result, assembly, current.size(),
+                                        selectedPaths(assembly).size(), false);
             }
          }
       });
 
       result.put("persistsOnSave", true);
       return result;
+   }
+
+   /**
+    * Re-states clear_selection's result from the post-apply state. With an active search,
+    * {@code VSSelectionService.applySelection} adds back every selected value the search hides --
+    * the interactive Clear button does the same -- so the pre-apply count overstates what was
+    * removed (bug-78294). {@code before} and {@code after} must be in the same unit.
+    */
+   private static void reportRetainedAfterClear(Map<String, Object> result,
+                                                SelectionVSAssembly assembly, int before,
+                                                int after, boolean idMode)
+   {
+      result.put("clearedCount", Math.max(0, before - after));
+      result.put("selectedTotal", after);
+
+      if(after > 0) {
+         SelectionList live = selectionListOf(assembly);
+         String search = searchString((SelectionVSAssemblyInfo) assembly.getInfo());
+
+         if(search != null && !search.isBlank()) {
+            result.put("scopedBySearch", search);
+            result.put("scopedBySearchRetained",
+                       retainedSelection(live == null ? null : live.getSelectionValues(),
+                                         List.of(), idMode));
+         }
+      }
    }
 
    /**

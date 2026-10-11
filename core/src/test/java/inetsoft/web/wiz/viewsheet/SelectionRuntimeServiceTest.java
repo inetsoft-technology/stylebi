@@ -1894,7 +1894,7 @@ class SelectionRuntimeServiceTest {
     * these endpoints on a column-less assembly; a test of that guard itself overrides it back to
     * null (see {@code refusesAnUnboundSelectionList} et al.).
     */
-   private static SelectionListVSAssembly list(int sortType, boolean single, String search,
+   static SelectionListVSAssembly list(int sortType, boolean single, String search,
                                                String... selected) {
       SelectionListVSAssembly assembly = mock(SelectionListVSAssembly.class);
       SelectionListVSAssemblyInfo info = mock(SelectionListVSAssemblyInfo.class);
