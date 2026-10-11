@@ -316,8 +316,9 @@ public class DatabaseDatasourcesService {
 
       JDBCDataSource database = (JDBCDataSource) dataSource;
 
-      String driver = database.getDriver();
-      DatabaseType type = databaseTypeService.getDatabaseTypeForDriver(driver);
+      DatabaseType type = database.isCustom() ?
+         databaseTypeService.getDatabaseType(CustomDatabaseType.TYPE) :
+         databaseTypeService.getDatabaseTypeForDriver(database.getDriver());
 
       return JDBCUtil.buildDatabaseDefinition(database, type);
    }
@@ -840,6 +841,7 @@ public class DatabaseDatasourcesService {
       DatabaseDefinition defaultDef = new DatabaseDefinition();
       defaultDef.setName("");
       defaultDef.setType(CustomDatabaseType.TYPE);
+      defaultDef.setTableNameOption(JDBCDataSource.DEFAULT_OPTION);
       info.setCustomEditMode(true);
       AuthenticationDetails authentication = new AuthenticationDetails();
       authentication.setRequired(false);
