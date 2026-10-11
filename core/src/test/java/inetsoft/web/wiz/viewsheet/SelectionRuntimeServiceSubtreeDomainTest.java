@@ -111,13 +111,6 @@ class SelectionRuntimeServiceSubtreeDomainTest {
       return domain;
    }
 
-   /** A flat, single-leaf ID-mode domain: only "RealChild" exists, at the top level. */
-   private static SelectionList idModeDomainWithOnlyRealChildAtTheTopLevel() {
-      SelectionList domain = new SelectionList();
-      domain.addSelectionValue(new SelectionValue("RealChild", "RealChild"));
-      return domain;
-   }
-
    /**
     * The reported gap, driven through {@code selectSubtree} itself rather than the static helper:
     * a path whose root segment names nothing in the live domain must now throw, for
@@ -153,25 +146,25 @@ class SelectionRuntimeServiceSubtreeDomainTest {
    }
 
    /**
-    * The refute's required case, driven end-to-end: an ID-mode tree, a typo'd parent segment, and
-    * a child segment ("RealChild") that genuinely exists in the domain -- just not under that
-    * parent. If {@code selectSubtree} ever silently reverted to threading {@code tree.isIDMode()}
-    * through to {@code missingIds} (the diagnosis's original, refute-rejected proposal)
-    * instead of hardcoding {@code idMode=false}, this would wrongly pass instead of throwing.
+    * The refute's required case, driven end-to-end: an ID-mode tree and a path of two REAL ids
+    * under the wrong parent ("W" does not hold "NY"). set_selection's ID-mode set semantics would
+    * accept it (both ids exist); {@code selectSubtree} is positional and must refuse it. If it
+    * ever threaded {@code tree.isIDMode()} through to the set check instead of hardcoding
+    * {@code idMode=false}, this would wrongly pass instead of throwing.
     */
    @Test
-   void selectRefusesATypoedParentInAnIdModeTreeEvenWhenTheChildExistsElsewhere() {
+   void selectRefusesRealIdsUnderTheWrongParentInAnIdModeTree() {
       SelectionTreeVSAssembly assembly = SelectionRuntimeServiceTest.tree(0, false);
       when(assembly.isIDMode()).thenReturn(true);
-      when(assembly.getSelectionList()).thenReturn(idModeDomainWithOnlyRealChildAtTheTopLevel());
+      when(assembly.getSelectionList()).thenReturn(idModeRegionDomain());
       SelectionRuntimeServiceTest.Harness h = SelectionRuntimeServiceTest.harness(assembly);
       Principal user = SelectionRuntimeServiceTest.principal();
 
       Exception e = assertThrows(IllegalArgumentException.class,
-         () -> h.service().selectSubtree(
-            "tok", user, "Tree1", List.of("TypoParent", "RealChild"), "select", ""));
+         () -> h.service().selectSubtree("tok", user, "Tree1", List.of("W", "NY"), "select", ""));
 
       assertTrue(e.getMessage().contains("has no subtree at"), e.getMessage());
+      verifyNoInteractions(h.selections());
    }
 
    /**
