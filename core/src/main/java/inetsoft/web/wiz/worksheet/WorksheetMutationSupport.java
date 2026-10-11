@@ -293,7 +293,7 @@ public final class WorksheetMutationSupport {
          c.setNegated(negate);
 
          for(String v : m.values()) {
-            c.addValue(v);
+            c.addValue(requireParsableDateLiteral(m.name(), conditionType, v));
          }
 
          conds.append(new ConditionItem(conditionRef, c, 0));
@@ -312,7 +312,7 @@ public final class WorksheetMutationSupport {
          c.setNegated(negate);
 
          for(String v : m.values()) {
-            c.addValue(v);
+            c.addValue(requireParsableDateLiteral(m.name(), conditionType, v));
          }
 
          conds.append(new ConditionItem(conditionRef, c, 0));
@@ -345,7 +345,7 @@ public final class WorksheetMutationSupport {
             c.setNegated(true);
          }
 
-         c.addValue(m.values().get(i));
+         c.addValue(requireParsableDateLiteral(m.name(), conditionType, m.values().get(i)));
          conds.append(new ConditionItem(conditionRef, c, 0));
       }
 
@@ -583,7 +583,8 @@ public final class WorksheetMutationSupport {
             }
 
             if(op != XCondition.NULL && value instanceof String s) {
-               value = requireParsableNumericLiteral(field, dtype, s);
+               value = requireParsableDateLiteral(
+                  field, dtype, requireParsableNumericLiteral(field, dtype, s));
             }
 
             c.addValue(value);
@@ -3177,7 +3178,8 @@ public final class WorksheetMutationSupport {
                   }
 
                   if(op != XCondition.NULL && value instanceof String s) {
-                     resolvedValues.set(i, requireParsableNumericLiteral(spec.field(), dtype, s));
+                     resolvedValues.set(i, requireParsableDateLiteral(
+                        spec.field(), dtype, requireParsableNumericLiteral(spec.field(), dtype, s)));
                   }
                }
 
@@ -3926,6 +3928,32 @@ public final class WorksheetMutationSupport {
          dtype + " value -- if this is meant to compare against that column, " + remedy + ". " +
          "Left as a literal it would be silently coerced to a default value (e.g. 0, or the " +
          "current date) rather than compared against the column.");
+   }
+
+   /**
+    * Validates a literal on a date, time or timestamp column. Two coercers would otherwise turn an
+    * unparseable value into some other date: {@code Condition.addValue} converts leniently at
+    * write time and {@code AbstractCondition.getObject} falls back to the current date/time at
+    * read time. See {@link DateConditionLiteral}.
+    *
+    * @param field the column (or named group) the literal is for, used in the message
+    *
+    * @return the trimmed text to store; the value itself for a non-date column
+    * @throws IllegalArgumentException naming the column, value and type
+    */
+   static String requireParsableDateLiteral(String field, String dtype, String value) {
+      String canonical = DateConditionLiteral.canonicalize(dtype, value);
+
+      if(canonical == null && DateConditionLiteral.isDateType(dtype)) {
+         throw new IllegalArgumentException(
+            "Condition value \"" + value + "\" is not a valid " + dtype + " for " + field +
+            ". An unparseable value would be stored as the current date/time or as a different " +
+            "date and silently change what the filter means. Use YYYY-MM-DD, {d 'yyyy-MM-dd'}, " +
+            "{ts 'yyyy-MM-dd HH:mm:ss'}, a time as HH:mm:ss or {t 'HH:mm:ss'} (matching the " +
+            "column type), or a $(variable) reference.");
+      }
+
+      return canonical;
    }
 
    /**
