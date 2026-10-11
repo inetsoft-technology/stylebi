@@ -25,6 +25,7 @@ import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.TableAssembly;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 
 /**
  * MVJob, the mv job to be executed at server node. Several sub mv tasks will
@@ -68,6 +69,7 @@ public final class MVJob extends AbstractJob {
          set("squery", squery);
       }
       catch(Exception ex) {
+         ScriptTimeoutGuard.rethrowStop(ex);
          throw new MVExecutionException(ex.getMessage());
       }
    }
