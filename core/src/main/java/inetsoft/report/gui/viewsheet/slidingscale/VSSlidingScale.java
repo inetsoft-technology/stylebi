@@ -22,6 +22,7 @@ import inetsoft.report.gui.viewsheet.VSFaceUtil;
 import inetsoft.report.gui.viewsheet.VSImageable;
 import inetsoft.report.internal.Common;
 import inetsoft.uql.viewsheet.VSCompositeFormat;
+import inetsoft.uql.viewsheet.internal.RangeOutputVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.SlidingScaleVSAssemblyInfo;
 import inetsoft.util.*;
 import inetsoft.util.graphics.SVGSupport;
@@ -449,6 +450,8 @@ public class VSSlidingScale extends VSImageable implements Cloneable {
       if(ranges == null || colors == null || ranges.length == 0 || colors.length == 0) {
          return;
       }
+
+      ranges = RangeOutputVSAssemblyInfo.resolveTrailingBlankBoundaries(ranges, info.getMax());
 
       // ranges and rangeColors may legitimately differ in length (#76909); only
       // render the segments that have both a boundary and a color.

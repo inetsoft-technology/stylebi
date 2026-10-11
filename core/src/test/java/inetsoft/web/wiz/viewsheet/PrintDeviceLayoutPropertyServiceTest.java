@@ -19,7 +19,11 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.vslayout.DeviceInfo;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.vslayout.DeviceRegistry;
+import inetsoft.uql.viewsheet.vslayout.LayoutInfo;
+import inetsoft.uql.viewsheet.vslayout.PrintLayout;
+import inetsoft.uql.viewsheet.vslayout.VSAssemblyLayout;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService;
 import org.junit.jupiter.api.Tag;
@@ -879,6 +883,97 @@ class PrintDeviceLayoutPropertyServiceTest {
       assertFalse(id.isBlank());
    }
 
+   // ── clear (Bug #78270 P3) ────────────────────────────────────────────────
+
+   @Test
+   void setThenClearLeavesNoPrintLayoutOnTheWrittenModel() throws Exception {
+      Harness h = new Harness(screensPaneWithNoPrintLayout());
+      h.service.setPrintLayout("tok", h.principal, Map.of("paperSize", "Letter"), "");
+
+      PrintDeviceLayoutPropertyService.ClearPrintLayoutResult result =
+         h.service.clearPrintLayout("tok", h.principal, false, "");
+
+      assertTrue(result.cleared());
+      assertEquals(0, result.discardedObjects());
+      ArgumentCaptor<ViewsheetPropertyDialogModel> captor =
+         ArgumentCaptor.forClass(ViewsheetPropertyDialogModel.class);
+      verify(h.dialog, times(2)).setViewsheetInfo(eq("rt1"), captor.capture(),
+                                                  any(Principal.class), any(), anyString(), any());
+      assertNull(captor.getValue().screensPane().getPrintLayout());
+   }
+
+   @Test
+   void clearWithNoPrintLayoutIsANoOpNotAnError() throws Exception {
+      Harness h = new Harness(screensPaneWithNoPrintLayout());
+
+      PrintDeviceLayoutPropertyService.ClearPrintLayoutResult result =
+         h.service.clearPrintLayout("tok", h.principal, false, "");
+
+      assertFalse(result.cleared());
+      assertEquals(0, result.discardedObjects());
+      verify(h.sessions, never()).mutate(anyString(), any(Principal.class), any());
+   }
+
+   @Test
+   void clearKeepsTheDeviceLayouts() throws Exception {
+      ScreensPaneModel screensPane = screensPaneWithNoPrintLayout();
+      screensPane.setPrintLayout(existingPrintLayout());
+      VSDeviceLayoutDialogModel phone = new VSDeviceLayoutDialogModel();
+      phone.setName("Phone");
+      screensPane.setDeviceLayouts(new java.util.ArrayList<>(List.of(phone)));
+      Harness h = new Harness(screensPane);
+
+      h.service.clearPrintLayout("tok", h.principal, false, "");
+
+      ArgumentCaptor<ViewsheetPropertyDialogModel> captor =
+         ArgumentCaptor.forClass(ViewsheetPropertyDialogModel.class);
+      verify(h.dialog).setViewsheetInfo(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                        anyString(), any());
+      assertNull(captor.getValue().screensPane().getPrintLayout());
+      assertEquals(1, captor.getValue().screensPane().getDeviceLayouts().size());
+      assertEquals("Phone", captor.getValue().screensPane().getDeviceLayouts().get(0).getName());
+   }
+
+   @Test
+   void clearWithPlacementsIsRefusedUnlessConfirmedAndWritesNothing() throws Exception {
+      ScreensPaneModel screensPane = screensPaneWithNoPrintLayout();
+      screensPane.setPrintLayout(existingPrintLayout());
+      Harness h = new Harness(screensPane);
+      h.livePrintLayout(2, 1, 3);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> h.service.clearPrintLayout("tok", h.principal, false, ""));
+
+      assertTrue(thrown.getMessage().contains("6"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("not undoable"), thrown.getMessage());
+      verify(h.sessions, never()).mutate(anyString(), any(Principal.class), any());
+      verify(h.dialog, never()).setViewsheetInfo(anyString(), any(), any(Principal.class), any(),
+                                                 anyString(), any());
+   }
+
+   @Test
+   void confirmedClearReportsTheDiscardedPlacements() throws Exception {
+      ScreensPaneModel screensPane = screensPaneWithNoPrintLayout();
+      screensPane.setPrintLayout(existingPrintLayout());
+      Harness h = new Harness(screensPane);
+      h.livePrintLayout(2, 1, 3);
+
+      PrintDeviceLayoutPropertyService.ClearPrintLayoutResult result =
+         h.service.clearPrintLayout("tok", h.principal, true, "");
+
+      assertTrue(result.cleared());
+      assertEquals(6, result.discardedObjects());
+      assertNull(screensPane.getPrintLayout());
+   }
+
+   private static VSPrintLayoutDialogModel existingPrintLayout() {
+      VSPrintLayoutDialogModel existing = new VSPrintLayoutDialogModel();
+      existing.setScaleFont(1.0f);
+      existing.setPaperSize("Letter");
+      existing.setUnits("inches");
+      return existing;
+   }
+
    // ── harness ───────────────────────────────────────────────────────────────
 
    private static ScreensPaneModel screensPaneWithNoPrintLayout() {
@@ -897,12 +992,12 @@ class PrintDeviceLayoutPropertyServiceTest {
       final ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       final ViewsheetPropertyDialogService dialog = mock(ViewsheetPropertyDialogService.class);
       final DeviceRegistry deviceRegistry = mock(DeviceRegistry.class);
+      final RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
       final PrintDeviceLayoutPropertyService service =
          new PrintDeviceLayoutPropertyService(sessions, dialog, deviceRegistry);
 
       Harness(ScreensPaneModel screensPane) {
          try {
-            RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
             when(rvs.getID()).thenReturn("rt1");
             when(sessions.resolve(anyString(), any(Principal.class))).thenReturn(rvs);
             doAnswer(invocation -> {
@@ -919,6 +1014,29 @@ class PrintDeviceLayoutPropertyServiceTest {
          catch(Exception e) {
             throw new IllegalStateException(e);
          }
+      }
+
+      /** The live print layout {@code clearPrintLayout} counts placements from. */
+      void livePrintLayout(int headers, int footers, int assemblies) {
+         PrintLayout layout = new PrintLayout();
+         layout.setHeaderLayouts(placements(headers));
+         layout.setFooterLayouts(placements(footers));
+         layout.setVSAssemblyLayouts(placements(assemblies));
+         LayoutInfo info = new LayoutInfo();
+         info.setPrintLayout(layout);
+         Viewsheet vs = mock(Viewsheet.class);
+         when(vs.getLayoutInfo()).thenReturn(info);
+         when(rvs.getViewsheet()).thenReturn(vs);
+      }
+
+      private static List<VSAssemblyLayout> placements(int n) {
+         List<VSAssemblyLayout> list = new java.util.ArrayList<>();
+
+         for(int i = 0; i < n; i++) {
+            list.add(mock(VSAssemblyLayout.class));
+         }
+
+         return list;
       }
 
       void registerDevices(String... ids) {

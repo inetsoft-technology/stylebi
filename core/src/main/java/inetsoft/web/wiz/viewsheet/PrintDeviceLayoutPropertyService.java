@@ -22,6 +22,8 @@ import inetsoft.report.internal.PaperSize;
 import inetsoft.util.Catalog;
 import inetsoft.uql.viewsheet.vslayout.DeviceInfo;
 import inetsoft.uql.viewsheet.vslayout.DeviceRegistry;
+import inetsoft.uql.viewsheet.vslayout.LayoutInfo;
+import inetsoft.uql.viewsheet.vslayout.PrintLayout;
 import inetsoft.uql.viewsheet.vslayout.PrintInfo;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService;
@@ -165,6 +167,70 @@ public class PrintDeviceLayoutPropertyService {
          requireUsableUnits(screensPane);
          dialogService.setViewsheetInfo(runtimeId, model, user, dispatcher, linkUri, null);
       });
+   }
+
+   /**
+    * Result of {@link #clearPrintLayout}.
+    *
+    * @param cleared          whether a print layout existed and was removed.
+    * @param discardedObjects the header, footer and assembly placements that went with it.
+    */
+   public record ClearPrintLayoutResult(boolean cleared, int discardedObjects) {
+   }
+
+   /**
+    * Removes the viewsheet's print layout, the same "Clear" the Composer's Page Setup offers
+    * ({@code setViewsheetInfo} with {@code screensPane.printLayout == null}). Device layouts are
+    * untouched. A viewsheet with no print layout is not an error: nothing is written and
+    * {@code cleared} is {@code false}.
+    *
+    * <p>The clear is lossy and plain undo cannot restore layout state, so when the layout holds
+    * header/footer/assembly placements the call is refused unless {@code confirmed} is true. The
+    * count and the refusal happen before the mutation seam opens, so a refused call leaves no
+    * undo checkpoint.
+    */
+   public ClearPrintLayoutResult clearPrintLayout(String sessionToken, Principal user,
+                                                   boolean confirmed, String linkUri)
+      throws Exception
+   {
+      RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
+
+      if(dialogService.getViewsheetInfo(rvs.getID(), user).screensPane().getPrintLayout() == null) {
+         return new ClearPrintLayoutResult(false, 0);
+      }
+
+      int discarded = countPrintPlacements(rvs);
+
+      if(discarded > 0 && !confirmed) {
+         throw new IllegalArgumentException(
+            "set_print_layout clear: the print layout holds " + discarded + " header, footer " +
+            "or assembly placement(s) that would be discarded, and a clear is not undoable. " +
+            "Pass confirmed:true to clear it anyway.");
+      }
+
+      sessions.mutate(sessionToken, user, (r, runtimeId, dispatcher) -> {
+         ViewsheetPropertyDialogModel model = dialogService.getViewsheetInfo(runtimeId, user);
+         model.screensPane().setPrintLayout(null);
+         dialogService.setViewsheetInfo(runtimeId, model, user, dispatcher, linkUri, null);
+      });
+
+      return new ClearPrintLayoutResult(true, discarded);
+   }
+
+   private static int countPrintPlacements(RuntimeViewsheet rvs) {
+      if(rvs.getViewsheet() == null) {
+         return 0;
+      }
+
+      LayoutInfo info = rvs.getViewsheet().getLayoutInfo();
+      PrintLayout layout = info == null ? null : info.getPrintLayout();
+
+      if(layout == null) {
+         return 0;
+      }
+
+      return layout.getHeaderLayouts().size() + layout.getFooterLayouts().size() +
+         layout.getVSAssemblyLayouts().size();
    }
 
    /**

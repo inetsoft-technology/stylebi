@@ -2216,6 +2216,23 @@ public class ViewsheetAssemblyAgentController {
                                                        linkUri);
    }
 
+   public record LayoutPrintClearRequest(Boolean confirmed) {}
+
+   /** {@code set_print_layout} with {@code clear:true}: remove the print layout. */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/layout/print/clear")
+   public PrintDeviceLayoutPropertyService.ClearPrintLayoutResult clearPrintLayout(
+      @PathVariable String sessionToken,
+      @RequestBody(required = false) LayoutPrintClearRequest request,
+      @RequestParam(required = false, defaultValue = "") String linkUri,
+      Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      boolean confirmed = request != null && Boolean.TRUE.equals(request.confirmed());
+      return printDeviceLayoutPropertyService.clearPrintLayout(sessionToken, user, confirmed,
+                                                               linkUri);
+   }
+
    public record LayoutDevicePatchRequest(String action, Map<String, Object> properties) {}
 
    /** {@code manage_device_layout}. */

@@ -18,6 +18,7 @@
 package inetsoft.report.gui.viewsheet.thermometer;
 
 import inetsoft.report.internal.Common;
+import inetsoft.uql.viewsheet.internal.RangeOutputVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.ThermometerVSAssemblyInfo;
 import inetsoft.util.Tool;
 import org.slf4j.Logger;
@@ -81,6 +82,8 @@ public class VSVerticalThermometer extends VSThermometer {
       if(ranges == null || colors == null || ranges.length == 0 || colors.length == 0) {
          return;
       }
+
+      ranges = RangeOutputVSAssemblyInfo.resolveTrailingBlankBoundaries(ranges, info.getMax());
 
       // ranges and rangeColors may legitimately differ in length (#76909); only
       // render the segments that have both a boundary and a color.
