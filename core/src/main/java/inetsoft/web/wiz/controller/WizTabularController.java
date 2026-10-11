@@ -444,6 +444,7 @@ public class WizTabularController {
       }
 
       String name = requireName(definition);
+      WizDatasourceNames.requireValidDatasourceName(name);
 
       // The request field is the one the portal sends, and the one the gate below needs before
       // anything is written. The definition's own value is a fallback rather than an error: a
@@ -526,6 +527,11 @@ public class WizTabularController {
       }
 
       String name = requireName(definition);
+
+      // Only a real rename is checked: a stored name that predates the rule must stay re-savable.
+      if(!name.equals(lastSegment(path))) {
+         WizDatasourceNames.requireValidDatasourceName(name);
+      }
 
       // It vanished between load and save. A 200 carrying this reason, not a 404: the request was
       // well formed and the caller was authorized; what failed is the save.

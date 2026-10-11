@@ -28,11 +28,13 @@ import org.slf4j.LoggerFactory;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -294,6 +296,34 @@ public class WizControllerErrorHandler {
       payload.put("error", e.getMessage());
       payload.put("errors", e.getErrors());
       return new ResponseEntity<>(payload, null, HttpStatus.CONFLICT);
+   }
+
+   /**
+    * Keeps the status and reason of a {@code ResponseStatusException} (Bug #78347).
+    *
+    * <p>The controllers in this package use it for their input and permission rejections, but the
+    * catch-all below accepts every {@code Exception} and outranks Spring's own
+    * {@code ResponseStatusExceptionResolver}, so each of them was answered with a generic 500
+    * that discarded the reason and told the caller retrying would fail the same way. The status
+    * and any headers the exception carries are passed through, and the reason is sent in the
+    * {@code error} key like every other handler here; the status phrase stands in when there is
+    * no reason.
+    */
+   @ExceptionHandler(ResponseStatusException.class)
+   public ResponseEntity<Map<String, String>> handleResponseStatus(ResponseStatusException e) {
+      LOG.warn("Wiz request rejected with {}: {}", e.getStatusCode(), e.getReason());
+
+      HttpStatusCode status = e.getStatusCode();
+      String reason = e.getReason();
+
+      if(reason == null || reason.isEmpty()) {
+         HttpStatus known = HttpStatus.resolve(status.value());
+         reason = known == null ? status.toString() : known.getReasonPhrase();
+      }
+
+      Map<String, String> payload = new HashMap<>();
+      payload.put("error", reason);
+      return new ResponseEntity<>(payload, e.getHeaders(), status);
    }
 
    /**

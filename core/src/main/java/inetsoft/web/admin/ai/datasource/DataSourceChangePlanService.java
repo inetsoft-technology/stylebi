@@ -31,6 +31,7 @@ import inetsoft.web.admin.ai.TaskAuditToken;
 import inetsoft.web.admin.general.DatabaseSettingsService;
 import inetsoft.web.admin.general.model.DatabaseSettingsModel;
 import inetsoft.web.admin.security.ConnectionStatus;
+import inetsoft.web.wiz.controller.WizDatasourceNames;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -160,6 +161,7 @@ public class DataSourceChangePlanService {
       requireUnused(label, "force", change.getForce());
 
       String folderPath = requireNonBlank(label + ".folderPath", change.getFolderPath());
+      WizDatasourceNames.requireValidFolderPath(label + ".folderPath", folderPath);
       String key = "folder:" + folderPath;
 
       if(!seenNames.add(key)) {
@@ -359,6 +361,10 @@ public class DataSourceChangePlanService {
       // 03-reconcile.md Addition 1: a name that differs from the resolved current name is a
       // distinct, flagged action, never silently accepted the way url/driver/etc are.
       String proposedName = proposed.getName();
+
+      if(proposedName != null && !proposedName.equals(name)) {
+         WizDatasourceNames.requireValidDatasourcePath(label + ".spec.name", proposedName);
+      }
 
       if(proposedName != null && !proposedName.equals(name) &&
          !Boolean.TRUE.equals(change.getConfirmRename()))

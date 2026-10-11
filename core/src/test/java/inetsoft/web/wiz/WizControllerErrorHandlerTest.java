@@ -22,7 +22,10 @@ import inetsoft.web.wiz.service.UnsupportedDatasourceException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -248,6 +251,48 @@ class WizControllerErrorHandlerTest {
          .andExpect(content().string(containsString("unexpected server error")));
    }
 
+   /**
+    * A {@code ResponseStatusException} must answer with its own status and reason. Before the
+    * dedicated handler it fell into the catch-all and every 400/403/404/422 the wiz controllers
+    * raise came back as a generic 500 with the reason discarded (Bug #78347).
+    */
+   @Test
+   void aResponseStatusExceptionKeepsItsStatusAndReason() throws Exception {
+      mvc.perform(get("/wiz-test/throw").param("type", "rse400"))
+         .andExpect(status().isBadRequest())
+         .andExpect(content().string(containsString("name is required")));
+      mvc.perform(get("/wiz-test/throw").param("type", "rse401"))
+         .andExpect(status().isUnauthorized())
+         .andExpect(content().string(containsString("Authentication required")));
+      mvc.perform(get("/wiz-test/throw").param("type", "rse403"))
+         .andExpect(status().isForbidden())
+         .andExpect(content().string(containsString("pairing is disabled")));
+      mvc.perform(get("/wiz-test/throw").param("type", "rse422"))
+         .andExpect(status().isUnprocessableEntity())
+         .andExpect(content().string(containsString("cannot be processed")));
+   }
+
+   @Test
+   void aResponseStatusExceptionWithoutAReasonFallsBackToTheStatusPhrase() throws Exception {
+      mvc.perform(get("/wiz-test/throw").param("type", "rse404"))
+         .andExpect(status().isNotFound())
+         .andExpect(content().string(containsString("Not Found")));
+   }
+
+   @Test
+   void aResponseStatusExceptionKeepsItsHeaders() throws Exception {
+      mvc.perform(get("/wiz-test/throw").param("type", "rse405"))
+         .andExpect(status().isMethodNotAllowed())
+         .andExpect(header().string("Allow", "POST"));
+   }
+
+   @Test
+   void anIllegalArgumentExceptionStillAnswersBadRequestWithItsMessage() throws Exception {
+      mvc.perform(get("/wiz-test/throw").param("type", "illegal"))
+         .andExpect(status().isBadRequest())
+         .andExpect(content().string(containsString("requires 'height'")));
+   }
+
    @RestController
    private static class ThrowingController {
       @GetMapping("/wiz-test/throw")
@@ -304,6 +349,32 @@ class WizControllerErrorHandlerTest {
 
          if("message".equals(type)) {
             throw new inetsoft.util.MessageException("Some permanent user-facing error.");
+         }
+
+         if(type.startsWith("rse")) {
+            switch(type) {
+            case "rse400":
+               throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "name is required");
+            case "rse401":
+               throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authentication required");
+            case "rse403":
+               throw new ResponseStatusException(
+                  HttpStatus.FORBIDDEN, "Sheet agent pairing is disabled");
+            case "rse404":
+               throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+            case "rse405":
+               throw new ResponseStatusException(HttpStatus.METHOD_NOT_ALLOWED, null) {
+                  @Override
+                  public HttpHeaders getHeaders() {
+                     HttpHeaders headers = new HttpHeaders();
+                     headers.set(HttpHeaders.ALLOW, "POST");
+                     return headers;
+                  }
+               };
+            default:
+               throw new ResponseStatusException(
+                  HttpStatus.UNPROCESSABLE_ENTITY, "The request cannot be processed");
+            }
          }
 
          if("unexpected".equals(type)) {

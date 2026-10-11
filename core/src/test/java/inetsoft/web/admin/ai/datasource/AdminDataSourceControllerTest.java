@@ -175,6 +175,16 @@ class AdminDataSourceControllerTest {
       assertSame(applied, result);
    }
 
+   @Test void anInvalidNameRefusalSurfacesAsAFieldNamedFailure() {
+      var body = controller.handleIllegalArgument(assertThrows(
+         IllegalArgumentException.class,
+         () -> inetsoft.web.wiz.controller.WizDatasourceNames.requireValidFolderPath(
+            "changes[0].folderPath", "Examples/Bad>Name")));
+
+      assertEquals("failed", body.get("status"));
+      assertTrue(body.get("error").startsWith("changes[0].folderPath"), body.get("error"));
+   }
+
    @Test void handleIllegalArgumentReturnsFailedStatus() {
       var body = controller.handleIllegalArgument(new IllegalArgumentException("bad input"));
 

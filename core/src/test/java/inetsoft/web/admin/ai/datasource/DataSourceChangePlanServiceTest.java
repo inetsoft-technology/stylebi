@@ -680,6 +680,60 @@ class DataSourceChangePlanServiceTest {
    }
 
    // -------------------------------------------------------------------------
+   // name validation (Bug #78347)
+   // -------------------------------------------------------------------------
+
+   @Test void resolveFolderCreateRefusesAnInvalidFolderName() throws Exception {
+      for(String path : new String[] { "Examples/Bad>Name", "Cubes", "A//B" }) {
+         DataSourceChangeRequest change = folderCreateChange(path);
+
+         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+            () -> service.resolve(request("task", List.of(change)), user), path);
+         assertTrue(ex.getMessage().contains("folderPath"), ex.getMessage());
+      }
+
+      verify(dataSourceService, never()).dataSourceFolderExists(anyString());
+   }
+
+   @Test void resolveFolderCreateAcceptsADotInsideAFolderName() throws Exception {
+      DataSourceChangeRequest change = folderCreateChange("Examples/v1.2");
+
+      assertDoesNotThrow(() -> service.resolve(request("task", List.of(change)), user));
+   }
+
+   @Test void resolveUpdateRefusesAnInvalidNewName() throws Exception {
+      stubList("Orders", "id-1", "jdbc");
+      stubGet("id-1", jdbc("id-1", "Orders", false, null));
+
+      for(String newName : new String[] { "Orders.v2", "Bad|Name", "Fo>lder/Orders" }) {
+         DataSourceChangeRequest change = updateChange("Orders", Map.of("name", newName));
+         change.setConfirmRename(true);
+
+         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+            () -> service.resolve(request("task", List.of(change)), user), newName);
+         assertTrue(ex.getMessage().contains("spec.name"), ex.getMessage());
+      }
+   }
+
+   @Test void resolveUpdateAcceptsAFolderQualifiedNewName() throws Exception {
+      stubList("Orders", "id-1", "jdbc");
+      stubGet("id-1", jdbc("id-1", "Orders", false, null));
+      DataSourceChangeRequest change = updateChange("Orders", Map.of("name", "NewFolder/Orders"));
+      change.setConfirmRename(true);
+
+      assertDoesNotThrow(() -> service.resolve(request("task", List.of(change)), user));
+   }
+
+   // A stored name that already breaks the rule stays editable when the name is left alone.
+   @Test void resolveUpdateKeepsALegacyNameThatIsNotBeingChanged() throws Exception {
+      stubList("My.Orders", "id-1", "jdbc");
+      stubGet("id-1", jdbc("id-1", "My.Orders", false, null));
+      DataSourceChangeRequest change = updateChange("My.Orders", Map.of("name", "My.Orders"));
+
+      assertDoesNotThrow(() -> service.resolve(request("task", List.of(change)), user));
+   }
+
+   // -------------------------------------------------------------------------
    // helpers
    // -------------------------------------------------------------------------
 
