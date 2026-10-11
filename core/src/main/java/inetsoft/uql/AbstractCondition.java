@@ -524,7 +524,7 @@ public abstract class AbstractCondition implements XCondition {
                if(strict) {
                   // the ExtendedDateFormat java.time pass resolves 24:00:00 as 00:00:00
                   java.time.LocalTime.parse(
-                     value.trim(), java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss")
+                     value.trim(), java.time.format.DateTimeFormatter.ofPattern("H:m:s")
                         .withResolverStyle(java.time.format.ResolverStyle.STRICT));
                }
 

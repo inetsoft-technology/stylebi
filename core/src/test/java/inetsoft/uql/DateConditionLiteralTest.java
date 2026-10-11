@@ -157,6 +157,15 @@ class DateConditionLiteralTest {
 
       assertEquals("{ts '2024-01-15 23:59:59'}", DateConditionLiteral.canonicalize(
          XSchema.TIME_INSTANT, "{ts '2024-01-15 23:59:59'}"));
+      // single-digit fields: the strict parse form is unchanged from base (accepted); the
+      // writer-level canonicalize already refused them on base (Condition.addValue disagrees)
+      assertEquals("09:05:00", AbstractCondition.parseDateConditionValue(
+         XSchema.TIME, "9:05:00", true).toString());
+      assertEquals("09:05:00", AbstractCondition.parseDateConditionValue(
+         XSchema.TIME, "9:5:00", true).toString());
+      assertNull(AbstractCondition.parseDateConditionValue(XSchema.TIME, "9:05", true));
+      assertNull(DateConditionLiteral.canonicalize(XSchema.TIME, "9:05:00"));
+      assertNull(DateConditionLiteral.canonicalize(XSchema.TIME, "9:05"));
       // runtime path unchanged
       assertEquals("00:00:00", AbstractCondition.parseDateConditionValue(
          XSchema.TIME, "24:00:00").toString());

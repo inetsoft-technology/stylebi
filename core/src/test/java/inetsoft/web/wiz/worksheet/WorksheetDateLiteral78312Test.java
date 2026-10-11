@@ -176,7 +176,7 @@ class WorksheetDateLiteral78312Test {
          { "TS", "timeInstant", "{ts '2024-02-30 25:61:00'}" },
          { "T1", "time", "{t '25:00:00'}" },
          { "T1", "time", "24:00:00" }, { "T1", "time", "24:00" },
-         { "T1", "time", "{t '24:00:00'}" },
+         { "T1", "time", "{t '24:00:00'}" }, { "T1", "time", "9:05:00" },
          { "TS", "timeInstant", "abc" }, { "TS", "timeInstant", "10:30:00" },
          { "TS", "timeInstant", "12" }, { "TS", "timeInstant", "{garbage}" },
          { "T1", "time", "abc" }, { "T1", "time", "abc:def" }, { "T1", "time", "10:30:00 AM" },
