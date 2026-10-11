@@ -107,7 +107,18 @@ public class AssetNamedGroupInfo implements XNamedGroupInfo, XMLSerializable, Co
 
       if(assembly.getAttachedType() == NamedGroupAssembly.COLUMN_ATTACHED) {
          DataRef attr = assembly.getAttachedAttribute();
-         return fld.getAttribute().equals(attr.getAttribute());
+         String fattr = fld.getAttribute();
+
+         if(fattr.equals(attr.getAttribute())) {
+            return true;
+         }
+
+         // a group attached to a logical model attribute stores (entity, attr), while a
+         // viewsheet bound directly to the model exposes that column as "entity:attr"
+         String entity = attr.getEntity();
+
+         return entity != null && !entity.isEmpty() &&
+            AssetUtil.trimEntity(fattr, entity).equals(attr.getAttribute());
       }
       else if(assembly.getAttachedType() ==
          NamedGroupAssembly.DATA_TYPE_ATTACHED)
