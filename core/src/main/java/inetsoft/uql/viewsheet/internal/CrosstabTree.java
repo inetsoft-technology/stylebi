@@ -1179,7 +1179,7 @@ public class CrosstabTree implements XMLSerializable, Cloneable, Serializable {
       writer.println("<CrosstabTree>");
 
       for(String field : expanded.keySet()) {
-         writer.println("<expanded field=\"" + field + "\">");
+         writer.println("<expanded field=\"" + Tool.escape(field) + "\">");
 
          for(Object path : expanded.get(field)) {
             String str = String.valueOf(path);
@@ -1193,7 +1193,7 @@ public class CrosstabTree implements XMLSerializable, Cloneable, Serializable {
       updateCollapsedRefs();
 
       for(String field : collapsedRefs.keySet()) {
-         writer.println("<collapsedRef field=\"" + field + "\">");
+         writer.println("<collapsedRef field=\"" + Tool.escape(field) + "\">");
          collapsedRefs.get(field).writeXML(writer);
          writer.println("</collapsedRef>");
       }
