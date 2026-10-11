@@ -10863,4 +10863,46 @@ class WorksheetEditServiceMutatorsTest {
       assertFalse(((ColumnRef) ((TableAssembly) ws.getAssembly("T")).getColumnSelection(false)
          .getAttribute("category")).isVisible());
    }
+
+   // =========================================================================
+   // Bug #78234 (WBS-103): renaming a NON-first concat source must leave the concat (and the
+   // concat's own downstream mirror) alone -- the concat's output columns come from its first
+   // source only. End to end through rename_column, including the post-edit refresh.
+   // =========================================================================
+
+   @Test
+   void renamingANonFirstConcatSourceKeepsTheConcatsAndItsMirrorsFilters78234a()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = table(ws, "A", col("Region", XSchema.STRING),
+         col("Product", XSchema.STRING), col("Amount", XSchema.DOUBLE));
+      EmbeddedTableAssembly b = table(ws, "B", col("Region", XSchema.STRING),
+         col("Product", XSchema.STRING), col("Amount", XSchema.DOUBLE));
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      svc.apply("TOK", agent, ed -> ed.addConcatenation("C", List.of("A", "B"), "UNION"));
+      // No data refresh runs in this harness, so build the concat's selection the way the
+      // product does (first source's columns, entity = first source).
+      ((ConcatenatedTableAssembly) ws.getAssembly("C")).initDefaultColumnSelection();
+      svc.apply("TOK", agent, ed -> ed.addMirror("PD", "C"));
+      svc.apply("TOK", agent, ed -> ed.addFilter("C", "Product", "=", "A"));
+      svc.apply("TOK", agent, ed -> ed.addFilter("PD", "Product", "=", "A"));
+
+      svc.apply("TOK", agent, ed -> ed.renameColumn("B", "Product", "Item"));
+
+      for(String name : List.of("C", "PD")) {
+         TableAssembly t = (TableAssembly) ws.getAssembly(name);
+         ColumnSelection cs = t.getColumnSelection(false);
+         assertEquals(List.of("Region", "Product", "Amount"),
+            List.of(((ColumnRef) cs.getAttribute(0)).getDisplayName(),
+                    ((ColumnRef) cs.getAttribute(1)).getDisplayName(),
+                    ((ColumnRef) cs.getAttribute(2)).getDisplayName()), name + "'s columns and order must be unchanged");
+         ConditionList conds = (ConditionList) t.getPreConditionList();
+         assertEquals(1, conds.getConditionSize(), name + "'s filter on Product must survive");
+         assertEquals("Product", conds.getConditionItem(0).getAttribute().getAttribute());
+      }
+   }
 }

@@ -333,6 +333,22 @@ public class RenameColumnController extends WorksheetController {
 
             for(String tableAssembly : tableAssemblies) {
                if(Tool.equals(table.getName(), tableAssembly)) {
+                  // Bug #78234 / WBS-103: a composed table with more than one source (concat,
+                  // join, merge join, cross join) can hold several columns with the same bare
+                  // name, from different sources -- so the propagated column is identified by
+                  // its SOURCE (entity) there, never by bare name. A single-source table (mirror,
+                  // rotate, unpivot) keeps the original bare-name path below unchanged.
+                  if(isMultiSource(composedTable)) {
+                     ColumnRef sourceColumn = findSourceColumn(ocolumn, table, composedTable);
+
+                     if(sourceColumn != null) {
+                        renameMultiSourceColumn(
+                           ws, table, composedTable, ocolumn, ncolumn, sourceColumn);
+                     }
+
+                     continue;
+                  }
+
                   final DataRef column = findColumn(ocolumn, composedTable);
 
                   // Bug #77005 / WBS-094: capture composedTable's OWN pre-rename BARE local
@@ -411,6 +427,165 @@ public class RenameColumnController extends WorksheetController {
       }
    }
 
+   /**
+    * Bug #78234 / WBS-103: whether a composed table draws its columns from more than one source
+    * table, so a bare column name may not identify which source a column comes from.
+    */
+   private static boolean isMultiSource(ComposedTableAssembly composedTable) {
+      String[] names = composedTable.getTableNames();
+      return names != null && names.length > 1;
+   }
+
+   /**
+    * Bug #78234 / WBS-103: finds the column of a multi-source composed table that comes FROM
+    * {@code source}'s column {@code ocolumn}. Composed tables build each column as
+    * {@code AssetUtil.getOuterAttribute(sourceName, sourceColumn)} -- entity = the source table,
+    * attribute = the source column's output name (alias, else attribute) -- so a column belongs to
+    * the renamed source iff its entity is that source and its attribute is the source column's old
+    * output name. The alias is tried against every column before the attribute: after an earlier
+    * rename (alias Item over attribute Product) a different column can carry the attribute Product.
+    * A concat's columns all carry its FIRST source as entity, so a non-first source never matches
+    * and the concat is left alone, which is correct: its output does not follow that source.
+    *
+    * @return the matching column, or {@code null} when the rename does not reach this table.
+    */
+   private static ColumnRef findSourceColumn(ColumnRef ocolumn, TableAssembly source,
+                                             ComposedTableAssembly composedTable)
+   {
+      ColumnSelection columns = composedTable.getColumnSelection();
+      String sourceName = source.getName();
+      List<String> names = new ArrayList<>();
+
+      if(!Tool.isEmptyString(ocolumn.getAlias())) {
+         names.add(ocolumn.getAlias());
+      }
+
+      if(!Tool.isEmptyString(ocolumn.getAttribute()) && !names.contains(ocolumn.getAttribute())) {
+         names.add(ocolumn.getAttribute());
+      }
+
+      for(String name : names) {
+         for(int i = 0; i < columns.getAttributeCount(); i++) {
+            if(columns.getAttribute(i) instanceof ColumnRef col &&
+               Tool.equals(sourceName, col.getEntity()) && name.equals(col.getAttribute()))
+            {
+               return col;
+            }
+         }
+      }
+
+      // A legacy column with no entity at all cannot be attributed to a source; match it by name
+      // rather than silently skipping it. Never the composed table's own expression columns.
+      for(String name : names) {
+         for(int i = 0; i < columns.getAttributeCount(); i++) {
+            if(columns.getAttribute(i) instanceof ColumnRef col &&
+               Tool.isEmptyString(col.getEntity()) && !col.isExpression() &&
+               name.equals(col.getAttribute()))
+            {
+               return col;
+            }
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * Bug #78234 / WBS-103: carries a source column rename into a multi-source composed table:
+    * re-points exactly {@code column} (the column that comes from the renamed source) and the
+    * table's own conditions/sort/aggregates/expressions on it, then -- only if that column's
+    * OUTPUT name actually changed -- carries the rename on to the composed table's own
+    * consumers, under the composed column's own old/new identity.
+    */
+   private static void renameMultiSourceColumn(Worksheet ws, TableAssembly source,
+                                               ComposedTableAssembly composedTable,
+                                               ColumnRef ocolumn, ColumnRef ncolumn,
+                                               ColumnRef column)
+   {
+      // Snapshot BEFORE anything is renamed: a condition can share this exact ColumnRef object
+      // and renameMirrorConditionList renames it in place (Bug #77005 / WBS-094).
+      ColumnRef oldColumn = (ColumnRef) column.clone();
+      ColumnRef newColumn =
+         renameTableColumn0(ws, source, composedTable, ocolumn, ncolumn, column, true);
+      String oldOutput = outputName(oldColumn);
+      String newOutput = outputName(newColumn);
+
+      // The table's own expression columns: field['<output name>'] follows the output name, and
+      // the qualified field['<source>.<attribute>'] follows the attribute.
+      Map<String, String> renames = new HashMap<>();
+
+      if(!Tool.equals(oldOutput, newOutput)) {
+         renames.put(oldOutput, newOutput);
+      }
+
+      if(!Tool.isEmptyString(oldColumn.getEntity()) &&
+         !Tool.equals(oldColumn.getAttribute(), newColumn.getAttribute()))
+      {
+         renames.put(oldColumn.getEntity() + "." + oldColumn.getAttribute(),
+                     newColumn.getEntity() + "." + newColumn.getAttribute());
+      }
+
+      renameOwnExpressions(composedTable, renames);
+
+      // A kept alias (e.g. a join's Product_1) means the composed table's output name did not
+      // change, so nothing downstream of it refers to anything that moved.
+      if(Tool.equals(oldOutput, newOutput)) {
+         return;
+      }
+
+      String sourceNewName = ncolumn.getAlias() != null ? ncolumn.getName() : ncolumn.getAttribute();
+      ColumnRef next = ncolumn;
+
+      // The composed column's final name differs from the source's new name when it had to be
+      // aliased to stay unique; downstream must follow that final name, not the source's.
+      if(!Tool.equals(newOutput, sourceNewName)) {
+         next = (ColumnRef) ncolumn.clone();
+         next.setAlias(newOutput);
+      }
+
+      renameTableColumn(ws, composedTable, oldColumn, next);
+   }
+
+   /** A column's name as the table exposes it: its alias, else its attribute. */
+   private static String outputName(ColumnRef column) {
+      return !Tool.isEmptyString(column.getAlias()) ? column.getAlias() : column.getAttribute();
+   }
+
+   /**
+    * Bug #78234 / WBS-103: a unique alias for a column renamed to {@code name} inside a composed
+    * table where a sibling already exposes that name -- the same {@code name_i} shape
+    * {@link AssetUtil#fixAlias} gives a duplicate, but assigned to the renamed column ONLY.
+    * Re-running the positional fixAlias over the whole selection could instead re-alias a column
+    * that was never renamed, silently changing its output name under its own consumers.
+    *
+    * @return {@code null} when {@code name} does not collide.
+    */
+   private static String uniqueAlias(ColumnSelection columns, int self, String name) {
+      if(!outputNameTaken(columns, self, name)) {
+         return null;
+      }
+
+      for(int i = 1; ; i++) {
+         String alias = name + "_" + i;
+
+         if(!outputNameTaken(columns, self, alias)) {
+            return alias;
+         }
+      }
+   }
+
+   private static boolean outputNameTaken(ColumnSelection columns, int self, String name) {
+      for(int i = 0; i < columns.getAttributeCount(); i++) {
+         if(i != self && columns.getAttribute(i) instanceof ColumnRef col &&
+            name.equalsIgnoreCase(outputName(col)))
+         {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
    private static ColumnRef createColumnRefForVariable(ColumnRef ncolumn, ColumnRef ocolumn) {
       String name = ncolumn.getAlias() != null ? ncolumn.getName() : ncolumn.getAttribute();
       AttributeRef attr = new AttributeRef(ocolumn.getEntity(), name);
@@ -483,6 +658,20 @@ public class RenameColumnController extends WorksheetController {
 
       if(oldEntity != null && !oldEntity.isEmpty()) {
          renames.put(oldEntity + "." + oldLocalName, oldEntity + "." + newLocalName);
+      }
+
+      renameOwnExpressions(composedTable, renames);
+   }
+
+   /**
+    * Rewrites {@code composedTable}'s own expression-column field references per {@code renames}
+    * (old reference name to new) with {@link FieldReferenceMatcher}.
+    */
+   private static void renameOwnExpressions(TableAssembly composedTable,
+                                            Map<String, String> renames)
+   {
+      if(renames.isEmpty()) {
+         return;
       }
 
       ColumnSelection columns = composedTable.getColumnSelection();
@@ -591,7 +780,23 @@ public class RenameColumnController extends WorksheetController {
          return;
       }
 
-      ColumnRef column = (ColumnRef) ref;
+      renameTableColumn0(ws, base, mirror, ocolumn, ncolumn, (ColumnRef) ref, false);
+   }
+
+   /**
+    * @param column     the column of {@code mirror} that follows the renamed source column.
+    * @param byIdentity Bug #78234 / WBS-103: true for a multi-source composed table -- replace
+    *                   exactly {@code column} (never every column with the same bare name, which
+    *                   can belong to another source), keep its existing alias (it is the composed
+    *                   table's output name), and alias it uniquely if the new name collides with
+    *                   a sibling. False keeps the original single-source (mirror) behaviour.
+    * @return the composed table's new column.
+    */
+   private static ColumnRef renameTableColumn0(Worksheet ws, TableAssembly base,
+                                               TableAssembly mirror, ColumnRef ocolumn,
+                                               ColumnRef ncolumn, ColumnRef column,
+                                               boolean byIdentity)
+   {
       String name = ncolumn.getAlias() != null ? ncolumn.getName() : ncolumn.getAttribute();
       AttributeRef newAttr = new AttributeRef(column.getEntity(), name);
       ColumnRef newMirrorCol = new ColumnRef(newAttr);
@@ -601,12 +806,34 @@ public class RenameColumnController extends WorksheetController {
       // share this exact ColumnRef object and renameMirrorConditionList renames it in place,
       // after which the live object no longer matches the lists processed later.
       ColumnRef oldMirrorCol = (ColumnRef) column.clone();
+      ColumnSelection cols = mirror.getColumnSelection();
+      ColumnSelection pcols = mirror.getColumnSelection(true);
+      int index = -1;
+      // A condition's attribute is rebuilt from ncol.getDisplayName(), so it is handed the
+      // unaliased new attribute even when the composed column keeps an alias.
+      ColumnRef conditionCol = newMirrorCol;
+      ColumnRef sortCol = ncolumn;
 
-      for(ConditionListWrapper conds : conditionLists(mirror)) {
-         renameMirrorConditionList(conds, oldMirrorCol, newMirrorCol);
+      if(byIdentity) {
+         index = indexOfColumn(cols, column);
+
+         if(!Tool.isEmptyString(column.getAlias())) {
+            newMirrorCol.setAlias(column.getAlias());
+         }
+         else {
+            newMirrorCol.setAlias(uniqueAlias(cols, index, name));
+         }
+
+         newMirrorCol.setDataType(column.getDataType());
+         conditionCol = new ColumnRef(newAttr);
+         sortCol = newMirrorCol;
       }
 
-      renameSortInfo(mirror.getSortInfo(), oldMirrorCol, ncolumn);
+      for(ConditionListWrapper conds : conditionLists(mirror)) {
+         renameMirrorConditionList(conds, oldMirrorCol, conditionCol);
+      }
+
+      renameSortInfo(mirror.getSortInfo(), oldMirrorCol, sortCol);
       renameAggregateInfo(ws, mirror, mirror.getAggregateInfo(), oldMirrorCol, newMirrorCol);
 
       if(mirror instanceof CompositeTableAssembly) {
@@ -644,19 +871,22 @@ public class RenameColumnController extends WorksheetController {
          }
       }
 
-      ColumnSelection cols = mirror.getColumnSelection();
-      ColumnSelection pcols = mirror.getColumnSelection(true);
-
       if(mirror instanceof RelationalJoinTableAssembly) {
          for(int i = 0; i < pcols.getAttributeCount(); i ++) {
-            if(pcols.getAttribute(i).getAttribute().equals(ocolumn.getDisplayName())) {
+            boolean match = byIdentity ? sameColumn(pcols.getAttribute(i), oldMirrorCol) :
+               pcols.getAttribute(i).getAttribute().equals(ocolumn.getDisplayName());
+
+            if(match) {
                pcols.setAttribute(i, newMirrorCol);
             }
          }
       }
 
       for(int i = 0; i < cols.getAttributeCount(); i ++) {
-         if(cols.getAttribute(i).getAttribute().equals(ocolumn.getDisplayName())) {
+         boolean match = byIdentity ? i == index :
+            cols.getAttribute(i).getAttribute().equals(ocolumn.getDisplayName());
+
+         if(match) {
             cols.setAttribute(i, newMirrorCol);
          }
          else if(cols.getAttribute(i) instanceof ColumnRef) {
@@ -704,6 +934,30 @@ public class RenameColumnController extends WorksheetController {
 
       mirror.setColumnSelection(cols);
       mirror.setColumnSelection(pcols, true);
+      return newMirrorCol;
+   }
+
+   /** Position of exactly {@code column} (same object, else same entity and attribute). */
+   private static int indexOfColumn(ColumnSelection cols, ColumnRef column) {
+      for(int i = 0; i < cols.getAttributeCount(); i++) {
+         if(cols.getAttribute(i) == column) {
+            return i;
+         }
+      }
+
+      for(int i = 0; i < cols.getAttributeCount(); i++) {
+         if(sameColumn(cols.getAttribute(i), column)) {
+            return i;
+         }
+      }
+
+      return -1;
+   }
+
+   private static boolean sameColumn(DataRef ref, ColumnRef column) {
+      return ref instanceof ColumnRef col && !col.isExpression() &&
+         Tool.equals(col.getEntity(), column.getEntity()) &&
+         Tool.equals(col.getAttribute(), column.getAttribute());
    }
 
    /**
