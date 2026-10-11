@@ -27,6 +27,7 @@ import inetsoft.util.script.graal.ScriptStopTestSupport;
 import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.script.graal.pool.PoolTestSupport;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -84,14 +85,14 @@ class MVConditionStopTest {
       assertTrue(ex.getMessage().contains("boom"), ex.getMessage());
    }
 
-   @org.junit.jupiter.api.Test
+   @Test
    void jobInitKeepsAStopFromTheConditionBuilder() {
       // the MVAssetQuery wrap of what the job constructor throws
       Exception ex = assertThrows(Exception.class, () -> newJob(ScriptStopTestSupport.stopped()));
       assertTrue(ScriptTimeoutGuard.isStop(new MVExecutionException(ex)), "stop lost: " + ex);
    }
 
-   @org.junit.jupiter.api.Test
+   @Test
    void jobInitStillWrapsAnOrdinaryFailure() {
       Exception ex = assertThrows(Exception.class,
                                   () -> newJob(new ScriptException("MV Script error: boom")));

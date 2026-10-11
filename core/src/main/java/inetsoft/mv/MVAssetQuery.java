@@ -43,6 +43,7 @@ import inetsoft.uql.viewsheet.CalculateRef;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Tool;
 import inetsoft.util.script.ScriptEnv;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.swap.XIntList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -716,6 +717,9 @@ public class MVAssetQuery extends AssetQuery {
          data = (TableLens) executor.getData();
       }
       catch(Exception ex) {
+         // a stopped script must not read as a broken MV: ViewsheetSandbox.getData recreates
+         // the MV on demand for an MVExecutionException and caches NULL (#78331)
+         ScriptTimeoutGuard.rethrowStop(ex);
          throw new MVExecutionException(ex);
       }
 
