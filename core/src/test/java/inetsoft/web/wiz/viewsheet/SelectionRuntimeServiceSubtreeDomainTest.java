@@ -27,8 +27,10 @@ import inetsoft.uql.viewsheet.SelectionList;
 import inetsoft.uql.viewsheet.SelectionListVSAssembly;
 import inetsoft.uql.viewsheet.SelectionTreeVSAssembly;
 import inetsoft.uql.viewsheet.SelectionValue;
+import inetsoft.uql.viewsheet.TimeSliderVSAssembly;
 import inetsoft.uql.viewsheet.internal.CalendarVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.SelectionTreeVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.TimeSliderVSAssemblyInfo;
 import inetsoft.web.viewsheet.event.ApplySelectionListEvent;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -109,13 +111,6 @@ class SelectionRuntimeServiceSubtreeDomainTest {
       return domain;
    }
 
-   /** A flat, single-leaf ID-mode domain: only "RealChild" exists, at the top level. */
-   private static SelectionList idModeDomainWithOnlyRealChildAtTheTopLevel() {
-      SelectionList domain = new SelectionList();
-      domain.addSelectionValue(new SelectionValue("RealChild", "RealChild"));
-      return domain;
-   }
-
    /**
     * The reported gap, driven through {@code selectSubtree} itself rather than the static helper:
     * a path whose root segment names nothing in the live domain must now throw, for
@@ -151,25 +146,25 @@ class SelectionRuntimeServiceSubtreeDomainTest {
    }
 
    /**
-    * The refute's required case, driven end-to-end: an ID-mode tree, a typo'd parent segment, and
-    * a child segment ("RealChild") that genuinely exists in the domain -- just not under that
-    * parent. If {@code selectSubtree} ever silently reverted to threading {@code tree.isIDMode()}
-    * through to {@code matchesAnywhere} (the diagnosis's original, refute-rejected proposal)
-    * instead of hardcoding {@code idMode=false}, this would wrongly pass instead of throwing.
+    * The refute's required case, driven end-to-end: an ID-mode tree and a path of two REAL ids
+    * under the wrong parent ("W" does not hold "NY"). set_selection's ID-mode set semantics would
+    * accept it (both ids exist); {@code selectSubtree} is positional and must refuse it. If it
+    * ever threaded {@code tree.isIDMode()} through to the set check instead of hardcoding
+    * {@code idMode=false}, this would wrongly pass instead of throwing.
     */
    @Test
-   void selectRefusesATypoedParentInAnIdModeTreeEvenWhenTheChildExistsElsewhere() {
+   void selectRefusesRealIdsUnderTheWrongParentInAnIdModeTree() {
       SelectionTreeVSAssembly assembly = SelectionRuntimeServiceTest.tree(0, false);
       when(assembly.isIDMode()).thenReturn(true);
-      when(assembly.getSelectionList()).thenReturn(idModeDomainWithOnlyRealChildAtTheTopLevel());
+      when(assembly.getSelectionList()).thenReturn(idModeRegionDomain());
       SelectionRuntimeServiceTest.Harness h = SelectionRuntimeServiceTest.harness(assembly);
       Principal user = SelectionRuntimeServiceTest.principal();
 
       Exception e = assertThrows(IllegalArgumentException.class,
-         () -> h.service().selectSubtree(
-            "tok", user, "Tree1", List.of("TypoParent", "RealChild"), "select", ""));
+         () -> h.service().selectSubtree("tok", user, "Tree1", List.of("W", "NY"), "select", ""));
 
       assertTrue(e.getMessage().contains("has no subtree at"), e.getMessage());
+      verifyNoInteractions(h.selections());
    }
 
    /**
@@ -526,5 +521,241 @@ class SelectionRuntimeServiceSubtreeDomainTest {
       assertEquals(0, result.get("clearedCount"));
       verifyNoInteractions(h.calendars());
       verifyNoInteractions(h.selections());
+   }
+
+   // ── over-long paths and fabricated ids (bug-78264 P1/P2, bug-78268 P1) ────────
+
+   /** {@code West -> CA -> {SF, LA}}: the three-level Region/State/City shape of VFO-020. */
+   private static SelectionList threeLevelDomain() {
+      SelectionList domain = new SelectionList();
+      CompositeSelectionValue west = new CompositeSelectionValue("West", "West");
+      SelectionList states = new SelectionList();
+      CompositeSelectionValue ca = new CompositeSelectionValue("CA", "CA");
+      SelectionList cities = new SelectionList();
+      cities.addSelectionValue(new SelectionValue("SF", "SF"));
+      cities.addSelectionValue(new SelectionValue("LA", "LA"));
+      ca.setSelectionList(cities);
+      states.addSelectionValue(ca);
+      west.setSelectionList(states);
+      domain.addSelectionValue(west);
+      return domain;
+   }
+
+   private static void assertRefusedNaming(Exception e, String segment) {
+      assertTrue(e.getMessage().contains("'" + segment + "'"), e.getMessage());
+   }
+
+   @Test
+   void setSelectionRefusesAnOverLongPathPastALeafOfARealThreeLevelTree() {
+      SelectionTreeVSAssembly assembly = SelectionRuntimeServiceTest.tree(0, false);
+      when(assembly.getSelectionList()).thenReturn(threeLevelDomain());
+      SelectionRuntimeServiceTest.Harness h = SelectionRuntimeServiceTest.harness(assembly);
+      Principal user = SelectionRuntimeServiceTest.principal();
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> h.service().setSelection("tok", user, "Tree1",
+                                        List.of(List.of("West", "CA", "SF", "FAKE4")), null, null,
+                                        null, null, ""));
+
+      assertRefusedNaming(e, "FAKE4");
+      verifyNoInteractions(h.selections());
+   }
+
+   @Test
+   void setSelectionStillAcceptsTheExactThreeLevelPath() {
+      SelectionTreeVSAssembly assembly = SelectionRuntimeServiceTest.tree(0, false);
+      when(assembly.getSelectionList()).thenReturn(threeLevelDomain());
+      SelectionRuntimeServiceTest.Harness h = SelectionRuntimeServiceTest.harness(assembly);
+
+      assertDoesNotThrow(() -> h.service().setSelection(
+         "tok", SelectionRuntimeServiceTest.principal(), "Tree1",
+         List.of(List.of("West", "CA", "SF")), null, null, null, null, ""));
+   }
+
+   @Test
+   void selectSubtreeRefusesASegmentPastALeaf() {
+      SelectionTreeVSAssembly assembly = SelectionRuntimeServiceTest.tree(0, false);
+      when(assembly.getSelectionList()).thenReturn(plainDomain());
+      SelectionRuntimeServiceTest.Harness h = SelectionRuntimeServiceTest.harness(assembly);
+      Principal user = SelectionRuntimeServiceTest.principal();
+
+      for(String mode : List.of("select", "clear")) {
+         Exception e = assertThrows(IllegalArgumentException.class,
+            () -> h.service().selectSubtree(
+               "tok", user, "Tree1", List.of("East", "NY", "Fabricated"), mode, ""));
+
+         assertRefusedNaming(e, "Fabricated");
+      }
+
+      verifyNoInteractions(h.selections());
+   }
+
+   @Test
+   void setSelectionRefusesAMultiSegmentPathAgainstARealFlatList() {
+      SelectionList domain = new SelectionList();
+      domain.addSelectionValue(new SelectionValue("A", "A"));
+      domain.addSelectionValue(new SelectionValue("B", "B"));
+      var assembly = SelectionRuntimeServiceTest.list(0, false, null);
+      when(assembly.getSelectionList()).thenReturn(domain);
+      SelectionRuntimeServiceTest.Harness h = SelectionRuntimeServiceTest.harness(assembly);
+      Principal user = SelectionRuntimeServiceTest.principal();
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> h.service().setSelection("tok", user, "Filter1", List.of(List.of("A", "B")), null,
+                                        null, null, null, ""));
+
+      assertRefusedNaming(e, "B");
+      verifyNoInteractions(h.selections());
+   }
+
+   /** {@code E -> {NY}, W -> {LA}}: node ids, ID-mode. */
+   private static SelectionList idModeRegionDomain() {
+      SelectionList domain = new SelectionList();
+      CompositeSelectionValue e = new CompositeSelectionValue("E", "E");
+      SelectionList eChildren = new SelectionList();
+      eChildren.addSelectionValue(new SelectionValue("NY", "NY"));
+      e.setSelectionList(eChildren);
+      domain.addSelectionValue(e);
+      CompositeSelectionValue w = new CompositeSelectionValue("W", "W");
+      SelectionList wChildren = new SelectionList();
+      wChildren.addSelectionValue(new SelectionValue("LA", "LA"));
+      w.setSelectionList(wChildren);
+      domain.addSelectionValue(w);
+      return domain;
+   }
+
+   @Test
+   void idModeSetSelectionRefusesARealIdPlusAFabricatedIdNamingTheFakeOne() {
+      SelectionTreeVSAssembly assembly = SelectionRuntimeServiceTest.tree(0, false);
+      when(assembly.isIDMode()).thenReturn(true);
+      when(assembly.getSelectionList()).thenReturn(idModeRegionDomain());
+      SelectionRuntimeServiceTest.Harness h = SelectionRuntimeServiceTest.harness(assembly);
+      Principal user = SelectionRuntimeServiceTest.principal();
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> h.service().setSelection("tok", user, "Tree1", List.of(List.of("NY", "FAKEID")),
+                                        null, null, null, null, ""));
+
+      assertRefusedNaming(e, "FAKEID");
+      verifyNoInteractions(h.selections());
+   }
+
+   @Test
+   void idModeSetSelectionStillAcceptsAWrongParentSetOfRealIds() {
+      SelectionTreeVSAssembly assembly = SelectionRuntimeServiceTest.tree(0, false);
+      when(assembly.isIDMode()).thenReturn(true);
+      when(assembly.getSelectionList()).thenReturn(idModeRegionDomain());
+      SelectionRuntimeServiceTest.Harness h = SelectionRuntimeServiceTest.harness(assembly);
+
+      assertDoesNotThrow(() -> h.service().setSelection(
+         "tok", SelectionRuntimeServiceTest.principal(), "Tree1", List.of(List.of("W", "NY")),
+         null, null, null, null, ""));
+   }
+
+   // ── range slider (bug-78264 P3) ───────────────────────────────────────────
+
+   /** Buckets "10".."60" step 10, with the given indexes selected. */
+   private static SelectionList sliderBuckets(int... selected) {
+      SelectionList buckets = new SelectionList();
+
+      for(int i = 0; i < 6; i++) {
+         SelectionValue bucket = new SelectionValue(String.valueOf((i + 1) * 10),
+                                                    String.valueOf((i + 1) * 10));
+
+         for(int s : selected) {
+            if(s == i) {
+               bucket.setSelected(true);
+            }
+         }
+
+         buckets.addSelectionValue(bucket);
+      }
+
+      return buckets;
+   }
+
+   /** A slider whose apply flips the bucket flags the way the TimeSlider branch of the apply does. */
+   private static SelectionRuntimeServiceTest.Harness slider(SelectionList buckets) {
+      TimeSliderVSAssembly slider = mock(TimeSliderVSAssembly.class);
+      TimeSliderVSAssemblyInfo info = mock(TimeSliderVSAssemblyInfo.class);
+      doReturn(info).when(slider).getInfo();
+      when(slider.getSelectionList()).thenReturn(buckets);
+      when(slider.isUpperInclusive()).thenReturn(false);
+      SelectionRuntimeServiceTest.Harness h = SelectionRuntimeServiceTest.harness(slider);
+
+      try {
+         doAnswer(invocation -> {
+            ApplySelectionListEvent event = invocation.getArgument(2);
+            int start = event.getSelectStart();
+            int end = event.getSelectEnd() - 1;
+            SelectionValue[] values = buckets.getSelectionValues();
+
+            for(int i = 0; i < values.length; i++) {
+               values[i].setSelected(i >= start && i <= end);
+            }
+
+            return null;
+         }).when(h.selections()).applySelection(anyString(), anyString(), any(),
+                                                any(Principal.class), any(), anyString());
+      }
+      catch(Exception e) {
+         throw new IllegalStateException(e);
+      }
+
+      return h;
+   }
+
+   private static Map<String, Object> selectRange(SelectionRuntimeServiceTest.Harness h,
+                                                  String from, String to)
+      throws Exception
+   {
+      return h.service().setSelection(
+         "tok", SelectionRuntimeServiceTest.principal(), "Slider1",
+         List.of(List.of(from), List.of(to)), null, null, null, null, "");
+   }
+
+   @Test
+   void clearSelectionOnANarrowedSliderReportsTheSelectedBucketsNotTheTotal() throws Exception {
+      SelectionRuntimeServiceTest.Harness h = slider(sliderBuckets(1, 2));
+
+      Map<String, Object> result = h.service().clearSelection(
+         "tok", SelectionRuntimeServiceTest.principal(), "Slider1", "");
+
+      assertEquals(2, result.get("clearedCount"));
+   }
+
+   @Test
+   void clearSelectionOnAFullRangeSliderReportsNothingCleared() throws Exception {
+      SelectionRuntimeServiceTest.Harness h = slider(sliderBuckets(0, 1, 2, 3, 4, 5));
+
+      Map<String, Object> result = h.service().clearSelection(
+         "tok", SelectionRuntimeServiceTest.principal(), "Slider1", "");
+
+      assertEquals(0, result.get("clearedCount"));
+   }
+
+   @Test
+   void setSelectionOnASliderReportsTheRangeBeforeAndAfterAndTheBucketCount() throws Exception {
+      // Narrowed before, whole range after.
+      Map<String, Object> result = selectRange(slider(sliderBuckets(1, 2)), "10", "60");
+
+      assertEquals(Boolean.FALSE, result.get("rangeWasFull"));
+      assertEquals(Boolean.TRUE, result.get("fullRange"));
+      assertEquals(6, result.get("selectedBuckets"));
+
+      // Whole range before and after.
+      SelectionRuntimeServiceTest.Harness h = slider(sliderBuckets(0, 1, 2, 3, 4, 5));
+      result = selectRange(h, "10", "60");
+
+      assertEquals(Boolean.TRUE, result.get("rangeWasFull"));
+      assertEquals(Boolean.TRUE, result.get("fullRange"));
+
+      // Whole range before, narrowed after: 20..30 is two buckets.
+      h = slider(sliderBuckets(0, 1, 2, 3, 4, 5));
+      result = selectRange(h, "20", "30");
+
+      assertEquals(Boolean.TRUE, result.get("rangeWasFull"));
+      assertEquals(Boolean.FALSE, result.get("fullRange"));
+      assertEquals(2, result.get("selectedBuckets"));
    }
 }

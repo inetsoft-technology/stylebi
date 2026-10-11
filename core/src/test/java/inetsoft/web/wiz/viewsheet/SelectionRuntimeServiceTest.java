@@ -584,41 +584,109 @@ class SelectionRuntimeServiceTest {
    }
 
    /**
-    * The revision-round edge case: a tree path with more segments than the domain has levels, whose
-    * resolvable prefix bottoms out at a non-composite leaf before the path ends. The real
-    * {@code updateSelectionOfChangedAssembly} applies the selection to that leaf and silently ignores
-    * the leftover segments (it does not require them to resolve to anything) — so this must be a
-    * match, not a false rejection, or the validation would reject values the real backend already
-    * accepts.
+    * A tree path with more segments than the domain has levels, whose resolvable prefix bottoms out
+    * at a non-composite leaf before the path ends. The real {@code updateSelectionOfChangedAssembly}
+    * would select the leaf and silently ignore the leftover segments, but that is an accident of the
+    * apply, not something a caller can mean: the validation exists to refuse input the apply would
+    * silently drop, so an over-long path is refused (bug-78264 P2 / bug-78268 P1).
     */
    @Test
-   void treatsAnOverLongPathThatBottomsOutAtALeafAsAMatch() {
+   void refusesAnOverLongPathThatBottomsOutAtALeaf() {
       SelectionValue east = mock(SelectionValue.class);
       when(east.getValue()).thenReturn("East");
       // Not a CompositeSelectionValue: it has no children for the trailing "NY" segment to
-      // resolve against, and the real apply code does not require it to.
+      // resolve against.
 
       List<List<String>> unmatched = SelectionRuntimeService.findUnmatchedPaths(
          new SelectionValue[]{ east }, List.of(List.of("East", "NY")), false);
+
+      assertEquals(List.of(List.of("East", "NY")), unmatched);
+   }
+
+   /** A flat list has no hierarchy, so a multi-segment path is refused rather than truncated. */
+   @Test
+   void refusesAMultiSegmentPathAgainstAFlatList() {
+      SelectionValue a = mock(SelectionValue.class);
+      when(a.getValue()).thenReturn("A");
+      SelectionValue b = mock(SelectionValue.class);
+      when(b.getValue()).thenReturn("B");
+
+      List<List<String>> unmatched = SelectionRuntimeService.findUnmatchedPaths(
+         new SelectionValue[]{ a, b }, List.of(List.of("A", "B")), false);
+
+      assertEquals(List.of(List.of("A", "B")), unmatched);
+   }
+
+   /** The search-scoped twin must not call an over-long path a match either (lockstep hygiene). */
+   @Test
+   void filterBySearchDoesNotMatchAnOverLongPathThatBottomsOutAtALeaf() {
+      SelectionValue east = mock(SelectionValue.class);
+      when(east.getValue()).thenReturn("East");
+      when(east.match(anyString(), eq(true))).thenReturn(true);
+
+      List<List<String>> matching = SelectionRuntimeService.filterBySearch(
+         new SelectionValue[]{ east }, List.of(List.of("East", "NY")), false, "East");
+
+      assertEquals(List.of(), matching);
+   }
+
+   /**
+    * ID-mode treats a path as an unordered set of node ids ({@code updateIDSelectionTree} selects
+    * every node whose id is in the array), so every listed id must exist as a node somewhere --
+    * the parent/child order is not checked.
+    */
+   @Test
+   void acceptsAnIdModePathWhoseEveryIdExistsWhateverTheirParents() {
+      SelectionValue ny = mock(SelectionValue.class);
+      when(ny.getValue()).thenReturn("NY");
+      SelectionValue west = mock(SelectionValue.class);
+      when(west.getValue()).thenReturn("W");
+
+      List<List<String>> unmatched = SelectionRuntimeService.findUnmatchedPaths(
+         new SelectionValue[]{ ny, west }, List.of(List.of("W", "NY")), true);
 
       assertEquals(List.of(), unmatched);
    }
 
    /**
-    * ID-mode matches by {@code Tool.contains} against the whole path array — a flat "does this
-    * node's value appear anywhere in the requested array" scan — not by segment-by-segment descent.
-    * A domain node matching only the second element of a two-element requested path still counts as
-    * matched, which a descent-based match (as used for non-ID-mode) would not allow.
+    * The reported gap: one real id plus a fabricated one used to pass, because the scan accepted
+    * the path as soon as any single element resolved and the apply then dropped the rest.
     */
    @Test
-   void matchesAnIdModeValueAnywhereInTheRequestedPathArray() {
+   void refusesAnIdModePathWhoseOtherElementIsNotANode() {
       SelectionValue ny = mock(SelectionValue.class);
       when(ny.getValue()).thenReturn("NY");
 
       List<List<String>> unmatched = SelectionRuntimeService.findUnmatchedPaths(
-         new SelectionValue[]{ ny }, List.of(List.of("East", "NY")), true);
+         new SelectionValue[]{ ny }, List.of(List.of("NY", "FAKEID")), true);
+      assertEquals(List.of(List.of("NY", "FAKEID")), unmatched);
 
-      assertEquals(List.of(), unmatched);
+      unmatched = SelectionRuntimeService.findUnmatchedPaths(
+         new SelectionValue[]{ ny }, List.of(List.of("East", "NY")), true);
+      assertEquals(List.of(List.of("East", "NY")), unmatched);
+   }
+
+   /** The refusal names the id that is missing, not just the whole path. */
+   @Test
+   void namesTheMissingIdsOfAnIdModePath() {
+      SelectionValue ny = mock(SelectionValue.class);
+      when(ny.getValue()).thenReturn("NY");
+
+      assertEquals(List.of("FAKEID", "GHOST"),
+                   SelectionRuntimeService.missingIds(
+                      new SelectionValue[]{ ny }, new String[]{ "NY", "FAKEID", "GHOST" }));
+   }
+
+   /** The id match is case-sensitive, like the apply's own {@code Tool.contains}. */
+   @Test
+   void idModeIdMatchIsCaseSensitive() {
+      SelectionValue ny = mock(SelectionValue.class);
+      when(ny.getValue()).thenReturn("NY");
+
+      List<List<String>> unmatched = SelectionRuntimeService.findUnmatchedPaths(
+         new SelectionValue[]{ ny }, List.of(List.of("NY", "ny")), true);
+
+      assertEquals(List.of(List.of("NY", "ny")), unmatched);
    }
 
    /** An ID that appears nowhere in the domain is refused the same as any other unmatched value. */
@@ -753,7 +821,7 @@ class SelectionRuntimeServiceTest {
 
    /**
     * ID mode matches by scanning the whole tree for a node whose value appears anywhere in the
-    * requested path array (mirroring {@code matchesAnywhere}) — the search-match test has to ride
+    * requested path array (mirroring {@code missingIds}) — the search-match test has to ride
     * along the same scan, not a segment-by-segment descent.
     */
    @Test
@@ -1419,7 +1487,7 @@ class SelectionRuntimeServiceTest {
 
    /**
     * Documents a known gap, not a passing behaviour to celebrate: an ID-mode path is matched by
-    * value anywhere in the tree (see {@code matchesAnywhere}), not positionally from the root, so
+    * value anywhere in the tree (see {@code missingIds}), not positionally from the root, so
     * {@code path.size()} says nothing about how many levels remain below the named node -- the
     * depth heuristic above would be actively wrong here, not just imprecise, so the guard is
     * skipped entirely for an ID-mode tree (see the caller's comment in {@code selectSubtree}).
@@ -1566,7 +1634,7 @@ class SelectionRuntimeServiceTest {
    /**
     * The refute's required case. {@code findIDSubtreeRoot} is positional from the root, exactly
     * like {@code findSubtreeRoot} -- NOT the flat "does this value appear anywhere in the tree"
-    * scan {@code matchesAnywhere}/{@code updateIDSelectionTree} use for {@code setSelection}'s own
+    * scan {@code missingIds}/{@code updateIDSelectionTree} use for {@code setSelection}'s own
     * idMode branch. So {@code selectSubtree} must call {@code findUnmatchedPaths} with
     * {@code idMode=false} for an ID-mode tree too. With {@code idMode=true} (the diagnosis's
     * original proposal, before the refute's objection), a typo'd PARENT segment would be
@@ -1578,22 +1646,32 @@ class SelectionRuntimeServiceTest {
     */
    @Test
    void idModeTreeUsesPositionalMatchingNotAnywhereMatching() {
-      SelectionValue realChildElsewhere = mock(SelectionValue.class);
-      when(realChildElsewhere.getValue()).thenReturn("RealChild");
+      SelectionValue realParent = mock(SelectionValue.class);
+      when(realParent.getValue()).thenReturn("RealParent");
+      SelectionValue otherParent = mock(SelectionValue.class);
+      when(otherParent.getValue()).thenReturn("OtherParent");
+      SelectionValue realChild = mock(SelectionValue.class);
+      when(realChild.getValue()).thenReturn("RealChild");
 
-      List<List<String>> path = List.of(List.of("TypoParent", "RealChild"));
+      // Both ids exist as nodes, but RealChild is not under OtherParent (here: OtherParent is not
+      // even a branch).
+      List<List<String>> path = List.of(List.of("OtherParent", "RealChild"));
+      SelectionValue[] domain = { realParent, otherParent, realChild };
 
-      // What selectSubtree actually calls: idMode=false, positional from the root. The typo'd
-      // parent never resolves, so this is unmatched -- correctly refused.
-      List<List<String>> positional = SelectionRuntimeService.findUnmatchedPaths(
-         new SelectionValue[]{ realChildElsewhere }, path, false);
-      assertEquals(List.of(List.of("TypoParent", "RealChild")), positional);
+      // What selectSubtree actually calls: idMode=false, positional from the root. OtherParent
+      // has no children to hold RealChild, so this is unmatched -- correctly refused.
+      List<List<String>> positional = SelectionRuntimeService.findUnmatchedPaths(domain, path, false);
+      assertEquals(path, positional);
 
-      // What the diagnosis originally proposed: idMode=true, "anywhere". "RealChild" appears
-      // somewhere in the requested path array, so the whole path is wrongly treated as matched.
-      List<List<String>> anywhere = SelectionRuntimeService.findUnmatchedPaths(
-         new SelectionValue[]{ realChildElsewhere }, path, true);
+      // set_selection's own idMode=true treats the path as a set of ids: both exist, so it is
+      // accepted. selectSubtree must therefore hardcode idMode=false, not thread tree.isIDMode().
+      List<List<String>> anywhere = SelectionRuntimeService.findUnmatchedPaths(domain, path, true);
       assertEquals(List.of(), anywhere);
+
+      // A typo'd id is refused under either mode.
+      List<List<String>> typo = List.of(List.of("TypoParent", "RealChild"));
+      assertEquals(typo, SelectionRuntimeService.findUnmatchedPaths(domain, typo, false));
+      assertEquals(typo, SelectionRuntimeService.findUnmatchedPaths(domain, typo, true));
    }
 
    // ── the shared guards ─────────────────────────────────────────────────────
