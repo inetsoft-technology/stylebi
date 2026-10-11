@@ -71,11 +71,18 @@ public final class DateConditionLiteral {
          return null;
       }
 
+      String text = trimmed;
+
+      // Condition.addValue only reads an 8-character time as HH:mm:ss, so pad "9:05:00"
+      if(XSchema.TIME.equals(type) && parsed instanceof java.sql.Time && !trimmed.startsWith("{")) {
+         text = parsed.toString();
+      }
+
       Condition probe = new Condition(type);
-      probe.addValue(trimmed);
+      probe.addValue(text);
       Object stored = probe.getValue(0);
 
-      return sameInstant(parsed, stored) ? trimmed : null;
+      return sameInstant(parsed, stored) ? text : null;
    }
 
    private static boolean sameInstant(Object a, Object b) {

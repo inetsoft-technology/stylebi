@@ -23,7 +23,9 @@ import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
+import inetsoft.uql.ConditionList;
 import inetsoft.uql.ConditionListWrapper;
+import inetsoft.uql.Condition;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.asset.*;
@@ -176,7 +178,8 @@ class WorksheetDateLiteral78312Test {
          { "TS", "timeInstant", "{ts '2024-02-30 25:61:00'}" },
          { "T1", "time", "{t '25:00:00'}" },
          { "T1", "time", "24:00:00" }, { "T1", "time", "24:00" },
-         { "T1", "time", "{t '24:00:00'}" }, { "T1", "time", "9:05:00" },
+         { "T1", "time", "{t '24:00:00'}" }, { "T1", "time", "9:05" },
+         { "T1", "time", "10:60:00" },
          { "TS", "timeInstant", "abc" }, { "TS", "timeInstant", "10:30:00" },
          { "TS", "timeInstant", "12" }, { "TS", "timeInstant", "{garbage}" },
          { "T1", "time", "abc" }, { "T1", "time", "abc:def" }, { "T1", "time", "10:30:00 AM" },
@@ -269,6 +272,15 @@ class WorksheetDateLiteral78312Test {
       svc.apply("TOK", agent, ed -> ed.setConditions("M", List.of(cond("D1", "is_null", 0))));
       svc.apply("TOK", agent, ed -> ed.setConditions("M", List.of(
          cond("D1", "date_in", 0, "Last month"))));
+   }
+
+   @Test
+   void unpaddedTimeIsStoredZeroPadded() throws Exception {
+      fixture();
+      svc.apply("TOK", agent, ed -> ed.addFilter("M", "T1", "=", "9:05:00"));
+      ConditionList list = m.getPreConditionList().getConditionList();
+      Condition stored = (Condition) list.getXCondition(0);
+      assertEquals("09:05:00", stored.getValue(0).toString());
    }
 
    @Test
