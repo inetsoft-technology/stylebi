@@ -10553,4 +10553,314 @@ class WorksheetEditServiceMutatorsTest {
 
       assertNull(left.getColumnSelection(false).getAttribute("note"));
    }
+
+   // =========================================================================
+   // Bug #78234 (WBS-104..108): rename_column / remove_column consumer kinds and reference
+   // syntaxes the Bug #77005 propagation/pre-check did not cover -- field["x"] / field.x /
+   // qualified field['T.x'] expression references, range columns, field-valued condition values,
+   // MV condition lists, a downstream sort, and the removed table's OWN conditions and sort.
+   // =========================================================================
+
+   private WorksheetEditService mirror78234(Worksheet ws, Principal agent) throws Exception {
+      EmbeddedTableAssembly left =
+         TestWorksheets.tableWithColumns(ws, "L", "id", "budget", "amount");
+      ws.addAssembly(left);
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      svc.apply("TOK", agent, ed -> ed.addMirror("DEP", "L"));
+      return svc;
+   }
+
+   private static String expressionOf(TableAssembly t, String column) {
+      ColumnRef ref = (ColumnRef) t.getColumnSelection(false).getAttribute(column);
+      assertNotNull(ref, "expression column " + column + " must survive");
+      return ((ExpressionRef) ref.getDataRef()).getExpression();
+   }
+
+   @ParameterizedTest
+   @CsvSource(delimiter = '|', value = {
+      "field[\"amount\"] * 2|field[\"revenue\"] * 2",
+      "field.amount * 2|field.revenue * 2",
+      "field['amount'] + field.amount2|field['revenue'] + field.amount2",
+   })
+   void renameColumnRewritesEveryDownstreamFieldReferenceSyntax78234(String expr, String expected)
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = mirror78234(ws, agent);
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn("DEP", "calc", expr, "double", false));
+
+      svc.apply("TOK", agent, ed -> ed.renameColumn("L", "amount", "revenue"));
+
+      assertEquals(expected, expressionOf((TableAssembly) ws.getAssembly("DEP"), "calc"));
+   }
+
+   @ParameterizedTest
+   @CsvSource(delimiter = '|', value = {
+      "field[\"amount\"] * 2",
+      "field.amount * 2",
+      "field['L.amount'] * 2",
+   })
+   void removeColumnRefusesEveryDownstreamFieldReferenceSyntax78234(String expr) throws Exception {
+      Worksheet ws = new Worksheet();
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = mirror78234(ws, agent);
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn("DEP", "calc", expr, "double", false));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.removeColumn("L", "amount")));
+
+      assertTrue(ex.getMessage().contains("DEP"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("calc"), ex.getMessage());
+      assertNotNull(((TableAssembly) ws.getAssembly("L")).getColumnSelection(false)
+                       .getAttribute("amount"), "the refused removal must not be applied");
+   }
+
+   @ParameterizedTest
+   @CsvSource(delimiter = '|', value = {
+      "field.amount2 * 2",
+      "'field.amount' + field['budget']",
+      "\"field['amount']\" + field.budget",
+   })
+   void removeColumnIgnoresDownstreamFieldReferenceLookalikes78234(String expr) throws Exception {
+      Worksheet ws = new Worksheet();
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = mirror78234(ws, agent);
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn("DEP", "calc", expr, "string", false));
+
+      svc.apply("TOK", agent, ed -> ed.removeColumn("L", "amount"));
+
+      assertNull(((TableAssembly) ws.getAssembly("L")).getColumnSelection(false)
+                    .getAttribute("amount"));
+   }
+
+   @Test
+   void renameColumnRepointsADownstreamNumericRangeColumn78234() throws Exception {
+      Worksheet ws = new Worksheet();
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = mirror78234(ws, agent);
+      svc.apply("TOK", agent, ed ->
+         ed.addNumericRangeColumn("DEP", "amount", new double[] { 15, 35 }, null));
+
+      svc.apply("TOK", agent, ed -> ed.renameColumn("L", "amount", "revenue"));
+
+      TableAssembly dep = (TableAssembly) ws.getAssembly("DEP");
+      ColumnRef range = (ColumnRef) dep.getColumnSelection(false).getAttribute("amount_range");
+      assertNotNull(range, "the range column itself must survive the rename");
+      NumericRangeRef rangeRef = (NumericRangeRef) range.getDataRef();
+      assertEquals("revenue", rangeRef.getDataRef().getAttribute(),
+         "the range's base column must follow the rename, or every row falls into 'Others'");
+      assertTrue(rangeRef.getExpression().contains("revenue"), rangeRef.getExpression());
+   }
+
+   @Test
+   void removeColumnRefusesWhenADownstreamRangeColumnIsBuiltOnIt78234() throws Exception {
+      Worksheet ws = new Worksheet();
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = mirror78234(ws, agent);
+      svc.apply("TOK", agent, ed ->
+         ed.addNumericRangeColumn("DEP", "amount", new double[] { 15, 35 }, null));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.removeColumn("L", "amount")));
+
+      assertTrue(ex.getMessage().contains("DEP"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("range column 'amount_range'"), ex.getMessage());
+   }
+
+   private static List<WorksheetMutationSupport.ConditionNode> budgetAboveAmount78234() {
+      return List.of(new WorksheetMutationSupport.ConditionNode(
+         new WorksheetMutationSupport.ConditionSpec("budget", ">", List.of("L.amount"), false,
+            null, List.of(new WorksheetMutationSupport.ConditionValueSpec(
+               "field", "L.amount", null, null, 0))),
+         null, 0));
+   }
+
+   @Test
+   void renameColumnRepointsADownstreamConditionsFieldValue78234() throws Exception {
+      Worksheet ws = new Worksheet();
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = mirror78234(ws, agent);
+      svc.apply("TOK", agent, ed -> ed.setConditions("DEP", budgetAboveAmount78234()));
+
+      svc.apply("TOK", agent, ed -> ed.renameColumn("L", "amount", "revenue"));
+
+      Condition cond = firstCondition((TableAssembly) ws.getAssembly("DEP"));
+      assertEquals(1, cond.getValueCount());
+      DataRef value = (DataRef) cond.getValue(0);
+      assertEquals("revenue", value.getAttribute(),
+         "the condition's field VALUE must follow the rename, not keep the stale column");
+   }
+
+   @Test
+   void removeColumnRefusesWhenADownstreamConditionsFieldValueReferencesIt78234()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = mirror78234(ws, agent);
+      svc.apply("TOK", agent, ed -> ed.setConditions("DEP", budgetAboveAmount78234()));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.removeColumn("L", "amount")));
+
+      assertTrue(ex.getMessage().contains("DEP"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("pre-condition value"), ex.getMessage());
+   }
+
+   @Test
+   void renameColumnPropagatesIntoADownstreamMirrorsMVConditions78234() throws Exception {
+      Worksheet ws = new Worksheet();
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = mirror78234(ws, agent);
+      svc.apply("TOK", agent, ed -> ed.setMVConditions("DEP",
+         List.of(conditionNode("amount", ">", "15")), null, null,
+         List.of(conditionNode("amount", ">", "15")), null));
+
+      svc.apply("TOK", agent, ed -> ed.renameColumn("L", "amount", "revenue"));
+
+      TableAssembly dep = (TableAssembly) ws.getAssembly("DEP");
+      assertEquals("revenue", dep.getMVUpdatePreConditionList().getConditionItem(0)
+         .getAttribute().getAttribute());
+      assertEquals("revenue", dep.getMVDeletePostConditionList().getConditionItem(0)
+         .getAttribute().getAttribute());
+   }
+
+   @Test
+   void renameColumnPropagatesIntoTheTablesOwnMVConditions78234() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "id", "amount");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      svc.apply("TOK", agent, ed -> ed.setMVConditions("T",
+         List.of(conditionNode("amount", ">", "15")), null, null, null, null));
+
+      svc.apply("TOK", agent, ed -> ed.renameColumn("T", "amount", "revenue"));
+
+      assertEquals("revenue",
+         t.getMVUpdatePreConditionList().getConditionItem(0).getAttribute().getName());
+   }
+
+   @Test
+   void removeColumnRefusesWhenADownstreamMirrorsMVConditionReferencesIt78234()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = mirror78234(ws, agent);
+      svc.apply("TOK", agent, ed -> ed.setMVConditions("DEP",
+         List.of(conditionNode("amount", ">", "15")), null, null, null, null));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.removeColumn("L", "amount")));
+
+      assertTrue(ex.getMessage().contains("DEP"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("MV update pre-condition"), ex.getMessage());
+   }
+
+   @Test
+   void removeColumnRefusesWhenADownstreamMirrorSortsByIt78234() throws Exception {
+      Worksheet ws = new Worksheet();
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = mirror78234(ws, agent);
+      svc.apply("TOK", agent, ed -> ed.setSort("DEP", "amount", "DESC"));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.removeColumn("L", "amount")));
+
+      assertTrue(ex.getMessage().contains("DEP"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("sort"), ex.getMessage());
+      assertEquals(1, ((TableAssembly) ws.getAssembly("DEP")).getSortInfo().getSortCount(),
+         "the refused removal must leave DEP's sort in place");
+   }
+
+   private WorksheetEditService ownTable78234(Worksheet ws, Principal agent) throws Exception {
+      TableAssembly t =
+         TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "id", "category", "amount");
+      ws.addAssembly(t);
+      return service(rws(ws), "Worksheet/ws1", agent, "TOK");
+   }
+
+   @Test
+   void removeColumnRefusesWhenTheTablesOwnFilterReferencesIt78234() throws Exception {
+      Worksheet ws = new Worksheet();
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = ownTable78234(ws, agent);
+      svc.apply("TOK", agent, ed -> ed.addFilter("T", "category", "=", "Games"));
+      TableAssembly t = (TableAssembly) ws.getAssembly("T");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.removeColumn("T", "category")));
+
+      assertTrue(ex.getMessage().contains("'T' itself"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("pre-condition"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("confirmed"), ex.getMessage());
+      assertNotNull(t.getColumnSelection(false).getAttribute("category"));
+      assertEquals(1, ((ConditionList) t.getPreConditionList()).getConditionSize(),
+         "the refused removal must leave T's own filter in place");
+   }
+
+   @Test
+   void removeColumnRefusesWhenTheTablesOwnSortOrMVConditionReferencesIt78234()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = ownTable78234(ws, agent);
+      svc.apply("TOK", agent, ed -> ed.setSort("T", "category", "DESC"));
+      svc.apply("TOK", agent, ed -> ed.setMVConditions("T",
+         List.of(conditionNode("category", "=", "Games")), null, null, null, null));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.removeColumn("T", "category")));
+
+      assertTrue(ex.getMessage().contains("'T' itself"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("sort"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("MV update pre-condition"), ex.getMessage());
+   }
+
+   @Test
+   void removeColumnStillRemovesAnOwnFilteredColumnWhenConfirmed78234() throws Exception {
+      Worksheet ws = new Worksheet();
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = ownTable78234(ws, agent);
+      svc.apply("TOK", agent, ed -> ed.addFilter("T", "category", "=", "Games"));
+
+      assertDoesNotThrow(
+         () -> svc.apply("TOK", agent, ed -> ed.removeColumn("T", "category", true)));
+   }
+
+   @Test
+   void removeColumnOfAnUnreferencedColumnIsNotRefusedByTheTablesOwnFilter78234()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = ownTable78234(ws, agent);
+      svc.apply("TOK", agent, ed -> ed.addFilter("T", "category", "=", "Games"));
+
+      svc.apply("TOK", agent, ed -> ed.removeColumn("T", "amount"));
+
+      assertNull(((TableAssembly) ws.getAssembly("T")).getColumnSelection(false)
+                    .getAttribute("amount"));
+   }
+
+   /**
+    * The own-table scan belongs to remove_column only: hiding keeps the column in the private
+    * selection, so the table's own filter keeps working and must not cause a refusal.
+    */
+   @Test
+   void hidingAColumnIsNotRefusedByTheTablesOwnFilter78234() throws Exception {
+      Worksheet ws = new Worksheet();
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = ownTable78234(ws, agent);
+      svc.apply("TOK", agent, ed -> ed.addFilter("T", "category", "=", "Games"));
+      svc.apply("TOK", agent, ed -> ed.setSort("T", "category", "DESC"));
+
+      svc.apply("TOK", agent, ed -> ed.setColumnVisibility("T", "category", false));
+
+      assertFalse(((ColumnRef) ((TableAssembly) ws.getAssembly("T")).getColumnSelection(false)
+         .getAttribute("category")).isVisible());
+   }
 }

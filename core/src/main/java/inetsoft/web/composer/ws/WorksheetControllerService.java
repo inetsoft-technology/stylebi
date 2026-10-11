@@ -23,6 +23,7 @@ import inetsoft.report.composition.*;
 import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.Condition;
 import inetsoft.uql.ConditionItem;
 import inetsoft.uql.ConditionList;
 import inetsoft.uql.ConditionListWrapper;
@@ -48,6 +49,7 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -794,13 +796,9 @@ public class WorksheetControllerService {
                AssetUtil.getColumnRefFromAttribute(dependent.getColumnSelection(), outerRef);
 
             if(mappedRef != null) {
-               collectConditionReferences(
-                  dependent.getPreConditionList(), mappedRef, "pre-condition", found);
-               collectConditionReferences(
-                  dependent.getPostConditionList(), mappedRef, "post-condition", found);
-               collectConditionReferences(
-                  dependent.getRankingConditionList(), mappedRef, "ranking condition", found);
+               collectTableStateReferences(dependent, mappedRef, found);
                collectExpressionReferences(dependent, mappedRef, found);
+               collectRangeReferences(dependent, mappedRef, found);
             }
 
             if(!found.isEmpty()) {
@@ -820,6 +818,98 @@ public class WorksheetControllerService {
          }
          finally {
             visited.remove(assemblyName);
+         }
+      }
+   }
+
+   /**
+    * The references {@code table}'s OWN state holds to its own column {@code ref} -- every
+    * condition list (pre, post, ranking, the four MV lists; attribute, ranking field, and value
+    * slots) and its sort -- for {@code remove_column} on that same table (Bug #78234 / WBS-108).
+    * Removing the column makes the post-mutation refresh drop those conditions and the sort
+    * silently, and leaves the MV lists stale.
+    *
+    * <p>Deliberately NOT part of the downstream walker {@link #findColumnReferenceLossConflicts}:
+    * that walker is shared with hiding a column ({@code set_column_visibility}) and the aggregate
+    * guard, where the column stays in the table's own private selection, so its own conditions
+    * and sort survive and must not cause a refusal.</p>
+    */
+   public static List<String> findOwnColumnReferences(TableAssembly table, ColumnRef ref) {
+      List<String> found = new ArrayList<>();
+
+      if(table != null && ref != null) {
+         collectTableStateReferences(table, ref, found);
+      }
+
+      return found;
+   }
+
+   /**
+    * Condition lists and sort of {@code table} that reference {@code ref}. Shared by the
+    * downstream walker and {@link #findOwnColumnReferences}.
+    */
+   private static void collectTableStateReferences(
+      TableAssembly table, ColumnRef ref, List<String> found)
+   {
+      collectConditionReferences(table.getPreConditionList(), ref, "pre-condition", found);
+      collectConditionReferences(table.getPostConditionList(), ref, "post-condition", found);
+      collectConditionReferences(
+         table.getRankingConditionList(), ref, "ranking condition", found);
+      // Bug #78234 / WBS-107: the MV incremental-refresh condition lists
+      collectConditionReferences(
+         table.getMVUpdatePreConditionList(), ref, "MV update pre-condition", found);
+      collectConditionReferences(
+         table.getMVUpdatePostConditionList(), ref, "MV update post-condition", found);
+      collectConditionReferences(
+         table.getMVDeletePreConditionList(), ref, "MV delete pre-condition", found);
+      collectConditionReferences(
+         table.getMVDeletePostConditionList(), ref, "MV delete post-condition", found);
+      collectSortReferences(table.getSortInfo(), ref, found);
+   }
+
+   /**
+    * Bug #78234: a sort on the column is dropped silently by the post-mutation refresh once the
+    * column is gone.
+    */
+   private static void collectSortReferences(SortInfo sortInfo, ColumnRef ref,
+                                             List<String> references)
+   {
+      if(sortInfo == null) {
+         return;
+      }
+
+      for(SortRef sort : sortInfo.getSorts()) {
+         if(sort != null && referencesColumn(sort.getDataRef(), ref)) {
+            references.add("sort");
+            return;
+         }
+      }
+   }
+
+   /**
+    * Bug #78234 / WBS-105: a range column (numeric or date) built on the column. Checked on the
+    * range's own base ref rather than on its generated expression text.
+    */
+   private static void collectRangeReferences(
+      TableAssembly dependent, ColumnRef ref, List<String> references)
+   {
+      ColumnSelection columns = dependent.getColumnSelection();
+
+      for(int i = 0; i < columns.getAttributeCount(); i++) {
+         DataRef column = columns.getAttribute(i);
+
+         if(!(column instanceof ColumnRef) ||
+            !(((ColumnRef) column).getDataRef() instanceof RangeRef range))
+         {
+            continue;
+         }
+
+         DataRef base = range.getDataRef();
+
+         if(base != null && Tool.equals(base.getEntity(), ref.getEntity()) &&
+            Tool.equals(base.getAttribute(), ref.getAttribute()))
+         {
+            references.add("range column '" + ((ColumnRef) column).getName() + "'");
          }
       }
    }
@@ -860,6 +950,20 @@ public class WorksheetControllerService {
             referencesColumn(rankingCondition.getDataRef(), ref))
          {
             references.add(kind);
+            continue;
+         }
+
+         // Bug #78234 / WBS-106: a condition whose VALUE is another column (Budget > [field
+         // Amount]) holds that column as a DataRef in its value slot.
+         if(item.getXCondition() instanceof Condition condition) {
+            for(int v = 0; v < condition.getValueCount(); v++) {
+               if(condition.getValue(v) instanceof DataRef valueRef &&
+                  referencesColumn(valueRef, ref))
+               {
+                  references.add(kind + " value");
+                  break;
+               }
+            }
          }
       }
    }
@@ -985,25 +1089,20 @@ public class WorksheetControllerService {
 
    /**
     * Appends one entry per {@code dependent} expression column whose script text references
-    * {@code ref} under {@code dependent}'s own local column identity -- {@code field['<name>']},
-    * with no cross-table qualifier at all, the pattern wiz's own {@code add_expression_column}
-    * generates (Bug #77005 / WBS-094). This is a plain substring scan, not the {@link
-    * AbstractTableAssembly#getExpressionDependeds}/{@code ScriptIterator} machinery
-    * {@code RenameColumnController} uses for a cross-assembly {@code Table.Column} reference (see
-    * {@link #collectDotNotationExpressionReferences} for that case, added Bug #77005 review round
-    * 2) -- that machinery answers a different question ("does this script reference ANOTHER
-    * assembly by name") that a same-table local field access never triggers, so it would never
-    * flag this case at all.
+    * {@code ref} under {@code dependent}'s own local column identity -- {@code field['x']},
+    * {@code field["x"]}, {@code field.x}, or the qualified {@code field['T.x']} (Bug #77005 /
+    * WBS-094; Bug #78234 / WBS-104/105). Uses {@link FieldReferenceMatcher}, the same token
+    * matcher the rename rewrite uses, so remove and rename agree on what counts as a reference.
+    * A cross-assembly {@code Table.Column} reference is {@link
+    * #collectDotNotationExpressionReferences}'s job. Range columns are skipped here: their
+    * expression is generated from their base ref, which {@link #collectRangeReferences} checks.
     */
    private static void collectExpressionReferences(
       TableAssembly dependent, ColumnRef ref, List<String> references)
    {
-      // getAttribute(), not getName() -- field['amount'] addresses a column by its BARE
-      // attribute; getName() falls back to an entity-qualified "Table.amount" once no alias
-      // is set (AbstractDataRef#getName0), which never appears literally in that bracket form.
-      String name = ref.getAttribute();
+      Set<String> names = fieldNames(dependent, ref);
 
-      if(name == null) {
+      if(names.isEmpty()) {
          return;
       }
 
@@ -1018,16 +1117,73 @@ public class WorksheetControllerService {
 
          DataRef inner = ((ColumnRef) column).getDataRef();
 
-         if(!(inner instanceof ExpressionRef)) {
+         if(!(inner instanceof ExpressionRef) || inner instanceof RangeRef) {
             continue;
          }
 
          String expr = ((ExpressionRef) inner).getExpression();
 
-         if(expr != null && expr.contains("['" + name + "']")) {
+         if(FieldReferenceMatcher.references(expr, names)) {
             references.add("expression column '" + ((ColumnRef) column).getName() + "'");
          }
       }
+   }
+
+   /**
+    * The names a {@code field[...]} script reference can address {@code ref} by inside
+    * {@code dependent}: its output name (alias if set, else attribute) and its entity-qualified
+    * {@code Entity.attribute} form. The bare attribute is included for an aliased column only when
+    * no other column of {@code dependent} outputs that same name -- in a join where both sides
+    * have {@code Amount} (the second aliased {@code Amount_1}), {@code field['Amount']} reads the
+    * FIRST side's column and must not count as a reference to the second.
+    */
+   static Set<String> fieldNames(TableAssembly dependent, ColumnRef ref) {
+      Set<String> names = new LinkedHashSet<>();
+      String attribute = ref.getAttribute();
+      String alias = ref.getAlias();
+      String entity = ref.getEntity();
+      boolean aliased = alias != null && !alias.isEmpty();
+
+      if(aliased) {
+         names.add(alias);
+      }
+      else if(attribute != null) {
+         names.add(attribute);
+      }
+
+      if(attribute != null && entity != null && !entity.isEmpty()) {
+         names.add(entity + "." + attribute);
+      }
+
+      if(aliased && attribute != null && !isOutputNameOfAnotherColumn(dependent, ref, attribute)) {
+         names.add(attribute);
+      }
+
+      return names;
+   }
+
+   private static boolean isOutputNameOfAnotherColumn(TableAssembly table, ColumnRef ref,
+                                                      String name)
+   {
+      ColumnSelection columns = table.getColumnSelection();
+
+      for(int i = 0; i < columns.getAttributeCount(); i++) {
+         DataRef column = columns.getAttribute(i);
+
+         if(!(column instanceof ColumnRef other) || other == ref || other.equals(ref)) {
+            continue;
+         }
+
+         String otherAlias = other.getAlias();
+         String output = otherAlias != null && !otherAlias.isEmpty() ?
+            otherAlias : other.getAttribute();
+
+         if(name.equals(output)) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    protected boolean isBeDepend(ColumnSelection columns, DataRef target) {
