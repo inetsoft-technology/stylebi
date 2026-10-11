@@ -110,10 +110,12 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
 
    /**
     * Check if data is a chart data set whose table chain a cancel cut short, by whichever
-    * query manager cancelled the shared table (bug #78342).
+    * query manager cancelled the shared table (bug #78342). A table with a load failure also
+    * reports cancelled, but it stays as it was cached: running its query again would not help.
     */
    public static boolean isDataSetCancelled(Object data) {
-      return data instanceof VSDataSet dataSet && isCancelled(dataSet.getTable());
+      return data instanceof VSDataSet dataSet && isCancelled(dataSet.getTable()) &&
+         getLoadException(dataSet.getTable()) == null;
    }
 
    /**

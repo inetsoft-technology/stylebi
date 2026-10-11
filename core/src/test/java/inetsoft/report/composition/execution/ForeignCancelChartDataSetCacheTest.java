@@ -19,6 +19,7 @@ package inetsoft.report.composition.execution;
 
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.graph.VSDataSet;
+import inetsoft.report.lens.xnode.XNodeTableLens;
 import inetsoft.test.*;
 import inetsoft.uql.XTable;
 import inetsoft.uql.asset.*;
@@ -110,9 +111,43 @@ class ForeignCancelChartDataSetCacheTest {
       prepare();
       Object first = box.getData(VICTIM, true, DataMap.ZOOM);
       assertEquals(expected, rows(first));
-      box.getQueryManager(VICTIM).cancel();
+      assertTrue(box.getQueryManager(VICTIM).cancel() > 0,
+                 "fixture: the manager held no lens to cancel");
       assertFalse(AssetDataCache.isDataSetCancelled(first));
       assertSame(first, box.getData(VICTIM, true, DataMap.ZOOM));
+   }
+
+   /**
+    * A cancelled data set found in dmap is a miss: the next read computes the data again.
+    */
+   @Test
+   void cancelledDataSetInDmapIsComputedAgain() throws Exception {
+      prepare();
+      VSDataSet cut = new VSDataSet(new FlaggedLens(true, null), null);
+      assertTrue(AssetDataCache.isDataSetCancelled(cut), "fixture: the data set is cancelled");
+      dmap(box).put(VICTIM, cut, DataMap.ZOOM);
+      Object next = box.getData(VICTIM, true, DataMap.ZOOM);
+      assertTrue(next != cut, "the cancelled data set was served from dmap");
+      assertEquals(expected, rows(next));
+      assertEquals(expectedTotal, total(next), 0.0001);
+   }
+
+   /**
+    * A complete data set, and one over a load failure, are still served from dmap.
+    */
+   @Test
+   void completeAndLoadFailedDataSetsAreServedFromDmap() throws Exception {
+      prepare();
+      VSDataSet complete = new VSDataSet(new FlaggedLens(false, null), null);
+      dmap(box).put(VICTIM, complete, DataMap.ZOOM);
+      assertSame(complete, box.getData(VICTIM, true, DataMap.ZOOM));
+
+      VSDataSet failed =
+         new VSDataSet(new FlaggedLens(true, new RuntimeException("load failure")), null);
+      assertFalse(AssetDataCache.isDataSetCancelled(failed),
+                  "a load failure is not a cancel cut");
+      dmap(box).put(VICTIM, failed, DataMap.ZOOM);
+      assertSame(failed, box.getData(VICTIM, true, DataMap.ZOOM));
    }
 
    @Test
@@ -345,6 +380,29 @@ class ForeignCancelChartDataSetCacheTest {
          Collections.newSetFromMap(Collections.synchronizedMap(new IdentityHashMap<>()));
       private final CountDownLatch cancelled = new CountDownLatch(1);
       private volatile int lastCancelCount;
+   }
+
+   /**
+    * An empty lens reporting the given cancel and load failure state.
+    */
+   private static final class FlaggedLens extends XNodeTableLens {
+      FlaggedLens(boolean cancelled, Exception failure) {
+         this.cancelled = cancelled;
+         this.failure = failure;
+      }
+
+      @Override
+      public boolean isCancelled() {
+         return cancelled;
+      }
+
+      @Override
+      public Exception getLoadException() {
+         return failure;
+      }
+
+      private final boolean cancelled;
+      private final Exception failure;
    }
 
    @RegisterExtension
