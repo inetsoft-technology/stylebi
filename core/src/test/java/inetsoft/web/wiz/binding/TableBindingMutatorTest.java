@@ -480,6 +480,74 @@ class TableBindingMutatorTest {
                    "a correctly composite-keyed entry must not be pruned as an orphan");
    }
 
+   /**
+    * Redmine #78157 (VTB-036), ROWS case. Suppressing State mid-shelf, then removing a
+    * different, earlier field (Reseller) that never names State, used to delete State's
+    * suppression entry outright: its old key ({@code State:rows1}) no longer matched State's
+    * new position ({@code rows0}) once Reseller's removal shifted everything after it down one
+    * slot, and {@link TableBindingMutator#removeField} never asked to change State's
+    * suppression at all. {@code pruneOrphanedSuppression} could only delete the stale key, never
+    * rename it -- {@code rekeySuppression} now runs first and carries the value forward.
+    */
+   @Test
+   void removingAnEarlierFieldCarriesALaterSuppressedFieldsEntryToItsNewKey() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows",
+         List.of(dim("Reseller"), dim("State"), dim("Region")));
+      model.getSuppressGroupTotal().put("State:rows1", Boolean.TRUE);
+
+      TableBindingMutator.removeField(model, "rows", "Reseller");
+
+      assertEquals(Map.of("State:rows0", Boolean.TRUE), model.getSuppressGroupTotal(),
+         "State is still bound, just one slot earlier -- its suppression must follow it to " +
+         "rows0, not be deleted as if it were orphaned, and Region (never suppressed) must not " +
+         "gain an entry either");
+   }
+
+   /**
+    * Redmine #78157 (VTB-036), COLS case. A plain reorder -- nothing added or removed, just two
+    * already-bound dimensions trading places -- shifts both of their absolute indexes the same
+    * way a remove/insert does, so it hits the identical stale-key-gets-deleted defect. State's
+    * suppression must follow it from {@code cols1} to {@code cols0}.
+    */
+   @Test
+   void reorderingTwoColsCarriesTheSuppressedOnesEntryToItsNewKey() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "cols", List.of(dim("Region"), dim("State")));
+      model.getSuppressGroupTotal().put("State:cols1", Boolean.TRUE);
+
+      TableBindingMutator.setShelf(model, "cols", List.of(dim("State"), dim("Region")));
+
+      assertEquals(Map.of("State:cols0", Boolean.TRUE), model.getSuppressGroupTotal(),
+         "a plain reorder must carry State's suppression to its new position, cols0, rather " +
+         "than losing it the way pruneOrphanedSuppression's pure delete-only logic used to");
+   }
+
+   /**
+    * A true swap between two occurrences of the SAME duplicate-bound column (e.g. a Year/Quarter
+    * drill trading places) is the one shape where a naive remove-then-reinsert, one pair at a
+    * time, can read back a value this same rekey pass already overwrote -- because one rekey's
+    * new key is literally another rekey's old key. Both occurrences' distinct values must
+    * survive the swap, not collapse into one or the other.
+    */
+   @Test
+   void swappingTwoOccurrencesOfADuplicateBoundColumnKeepsBothSuppressionValuesSeparate() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows",
+         List.of(dated("ORDER_DATE", "year"), dated("ORDER_DATE", "quarter")));
+      model.getSuppressGroupTotal().put("ORDER_DATE:rows0", Boolean.TRUE);
+      model.getSuppressGroupTotal().put("ORDER_DATE:rows1", Boolean.FALSE);
+
+      // Swap the two occurrences: quarter now first, year now second.
+      TableBindingMutator.setShelf(model, "rows",
+         List.of(dated("ORDER_DATE", "quarter"), dated("ORDER_DATE", "year")));
+
+      assertEquals(Map.of("ORDER_DATE:rows0", Boolean.FALSE, "ORDER_DATE:rows1", Boolean.TRUE),
+         model.getSuppressGroupTotal(),
+         "year's TRUE must follow it to rows1 and quarter's FALSE must follow it to rows0 -- " +
+         "neither value may be lost or duplicated across the swap");
+   }
+
    @Test
    void aBareNameKeyIsPrunedRatherThanSurviving() {
       CrosstabBindingModel model = new CrosstabBindingModel();

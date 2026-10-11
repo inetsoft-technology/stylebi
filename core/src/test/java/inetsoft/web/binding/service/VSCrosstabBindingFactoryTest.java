@@ -260,6 +260,42 @@ class VSCrosstabBindingFactoryTest {
     * updateAssembly} call whose incoming model says nothing about grouping for that field, must
     * still be preserved rather than dropped.
     */
+   /**
+    * Redmine #78157 (VTB-036): {@code updateAssembly}'s cols loop used to read a missing {@code
+    * suppressGroupTotal} key as "suppress = true" ({@code suppress = suppress == null ||
+    * suppress}), unconditionally overwriting whatever {@code createDataRef()} just defaulted
+    * {@code subTotalVisibleValue} to -- unlike the rows loop, which simply leaves a missing
+    * key's default standing. That asymmetry meant a column with no suppression entry at all
+    * (confirmed live: even a never-touched, freshly-bound cols dimension) defaulted to
+    * suppressed on cols and to visible on rows, for the identical "no entry" condition. This
+    * pins both shelves to the same, symmetric default once the fix is applied.
+    */
+   @Test
+   void updateAssemblyLeavesAMissingSuppressionKeyVisibleOnColsJustAsItDoesOnRows() {
+      VSCrosstabBindingFactory factory =
+         new VSCrosstabBindingFactory(mock(DataRefModelFactoryService.class));
+      CrosstabVSAssembly assembly = new CrosstabVSAssembly();
+
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      model.setOption(new CrosstabOptionInfo());
+      TableBindingMutator.setShelf(model, "rows",
+         List.of(new FieldRef("Region", "dimension", null, null, null)));
+      TableBindingMutator.setShelf(model, "cols",
+         List.of(new FieldRef("State", "dimension", null, null, null)));
+      // No suppressGroupTotal entry for either -- the ordinary shape of a brand-new bind.
+      assertTrue(model.getSuppressGroupTotal().isEmpty(), "sanity: nothing explicitly suppressed");
+
+      factory.updateAssembly(model, assembly);
+
+      VSCrosstabInfo crossInfo = assembly.getVSCrosstabInfo();
+      VSDimensionRef row = (VSDimensionRef) crossInfo.getDesignRowHeaders()[0];
+      VSDimensionRef col = (VSDimensionRef) crossInfo.getDesignColHeaders()[0];
+      assertEquals("true", row.getSubTotalVisibleValue(),
+         "sanity: rows has always left a missing key visible");
+      assertEquals("true", col.getSubTotalVisibleValue(),
+         "cols must now leave a missing key visible too, instead of forcing it suppressed");
+   }
+
    @Test
    void updateAssemblyPreservesExistingNamedGroupInfoWhenModelDoesNotSpecifyOne() {
       VSCrosstabBindingFactory factory =
