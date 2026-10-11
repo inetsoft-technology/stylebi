@@ -885,6 +885,40 @@ class PropertyAliasesTest {
    }
 
    /**
+    * Redmine 78271: no assembly type reads {@code basicGeneralPaneModel.enabled} back, so the raw
+    * write is refused on every type (not only the six input assemblies), including the embedded
+    * viewsheet, and the refusal only points at the {@code enabled} alias where one is live.
+    */
+   @Test
+   void refusesBasicGeneralEnabledOnEveryAssemblyType() {
+      java.util.Map<String, String> prefixes = java.util.Map.of(
+         "gauge", "gaugeGeneralPaneModel.outputGeneralPaneModel",
+         "text", "textGeneralPaneModel.outputGeneralPaneModel",
+         "calendar", "calendarGeneralPaneModel.dataGeneralPaneModel",
+         "table", "tableGeneralPaneModel.dataGeneralPaneModel",
+         "selectionlist", "selectionListGeneralPaneModel",
+         "chart", "chartGeneralPaneModel",
+         "viewsheet", "viewsheetGeneralPaneModel",
+         "groupcontainer", "groupContainerGeneralPane",
+         "rectangle", "shapeGeneralPaneModel");
+
+      for(var entry : prefixes.entrySet()) {
+         String type = entry.getKey();
+         String path = entry.getValue() + ".generalPropPaneModel.basicGeneralPaneModel.enabled";
+         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+            () -> PropertyAliases.resolveForWrite(type, path),
+            "basicGeneralPaneModel.enabled has no effect on write for " + type);
+         boolean pointsAtAlias = ex.getMessage().contains("'enabled' alias");
+         boolean hasLiveAlias = !java.util.Set.of("viewsheet", "groupcontainer", "rectangle")
+            .contains(type);
+         assertEquals(hasLiveAlias, pointsAtAlias, type + ": " + ex.getMessage());
+      }
+
+      assertDoesNotThrow(() -> PropertyAliases.resolveForWrite("gauge", "enabled"));
+      assertDoesNotThrow(() -> PropertyAliases.resolveForWrite("text", "enabled"));
+   }
+
+   /**
     * Bug #76771 (VCG-008): {@code hierarchyPropertyPaneModel.dimensions} is a
     * {@code VSDimensionModel[]} that {@link PropertyPath#coerce} cannot build -- no bean-array
     * branch exists at all -- so the raw dotted path, the only way in (the field is not

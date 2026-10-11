@@ -19,6 +19,8 @@ package inetsoft.web.wiz.service;
 
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.RuntimeWorksheet;
+import inetsoft.report.internal.XNodeMetaTable;
+import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.uql.XRepository;
@@ -228,5 +230,33 @@ class RawDataServiceTest {
          () -> deps.service().writeLiveWorksheetTableCsvStream(rws, "T", new ByteArrayOutputStream()));
       assertTrue(ex.getMessage().contains("T"),
          "expected the error to name the table, got: " + ex.getMessage());
+   }
+
+   /**
+    * A failed JS expression column makes the sandbox hand back a failed-query design lens (sample
+    * rows, not null). The export must fail loudly, like preview, and write no bytes (Redmine 78271).
+    */
+   @Test
+   void writeLiveWorksheetTableCsvStreamFailsLoudlyOnFailedQueryLens() throws Exception {
+      Deps deps = new Deps();
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+
+      DefaultTableLens failed = new DefaultTableLens(2, 1);
+      failed.setObject(0, 0, "a");
+      failed.setObject(1, 0, "XXX");
+      failed.setProperty(XNodeMetaTable.FAILED_QUERY_PROPERTY, "undefinedFn is not defined");
+
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(box.getTableLens(eq("T"), anyInt())).thenReturn(failed);
+      RuntimeWorksheet rws = liveRuntimeWorksheet(ws, box);
+
+      ByteArrayOutputStream out = new ByteArrayOutputStream();
+      RuntimeException ex = assertThrows(RuntimeException.class,
+         () -> deps.service().writeLiveWorksheetTableCsvStream(rws, "T", out));
+      assertTrue(ex.getMessage().contains("undefinedFn is not defined"),
+         "expected the underlying cause, got: " + ex.getMessage());
+      assertEquals(0, out.size());
    }
 }

@@ -95,6 +95,8 @@ public class RawDataService {
             throw new RuntimeException("Table " + tableName + " produced no data.");
          }
 
+         // a failed query degrades to sample rows (999/XXX); fail like worksheet preview does
+         WizVsService.checkFailedQuery(lens, false);
          writeCsvContent(lens, outputStream);
       }
       catch(RuntimeException e) {
@@ -147,6 +149,8 @@ public class RawDataService {
             throw new RuntimeException("Table " + tableName + " produced no data.");
          }
 
+         // a failed query degrades to sample rows (999/XXX); fail like worksheet preview does
+         WizVsService.checkFailedQuery(lens, false);
          writeCsvContent(lens, outputStream);
       }
       catch(RuntimeException e) {
