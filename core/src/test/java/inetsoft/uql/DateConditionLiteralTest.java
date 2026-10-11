@@ -164,8 +164,14 @@ class DateConditionLiteralTest {
       assertEquals("09:05:00", AbstractCondition.parseDateConditionValue(
          XSchema.TIME, "9:5:00", true).toString());
       assertNull(AbstractCondition.parseDateConditionValue(XSchema.TIME, "9:05", true));
-      assertNull(DateConditionLiteral.canonicalize(XSchema.TIME, "9:05:00"));
-      assertNull(DateConditionLiteral.canonicalize(XSchema.TIME, "9:05"));
+      assertEquals("09:05:00", DateConditionLiteral.canonicalize(XSchema.TIME, "9:05:00"));
+      assertEquals("09:05:00", DateConditionLiteral.canonicalize(XSchema.TIME, "9:5:0"));
+      assertEquals("{t '9:05:00'}", DateConditionLiteral.canonicalize(
+         XSchema.TIME, "{t '9:05:00'}"));
+
+      for(String bad : new String[] { "9:05", "9:05:00 AM", "24:00:00", "10:60:00" }) {
+         assertNull(DateConditionLiteral.canonicalize(XSchema.TIME, bad), bad);
+      }
       // runtime path unchanged
       assertEquals("00:00:00", AbstractCondition.parseDateConditionValue(
          XSchema.TIME, "24:00:00").toString());
