@@ -353,6 +353,18 @@ class SelectionRuntimeServiceTest {
                                                     any(Principal.class), any(), anyString());
    }
 
+   /** The same value named twice is one value, so a single-select assembly accepts it (bug-78268). */
+   @Test
+   void acceptsTheSameValueNamedTwiceOnASingleSelectAssembly() throws Exception {
+      Harness h = harness(list(XConstants.SORT_ASC, true, null));
+
+      Map<String, Object> result = h.service.setSelection(
+         "tok", principal(), "Filter1", List.of(List.of("West"), List.of("West")), null, null,
+         null, null, "");
+
+      assertEquals(1, result.get("valuesSelected"));
+   }
+
    /**
     * A range slider always fully overwrites its own selection per call (index range against every
     * value), so it must never be <i>diffed</i> like a list/tree — that invariant is unaffected by
