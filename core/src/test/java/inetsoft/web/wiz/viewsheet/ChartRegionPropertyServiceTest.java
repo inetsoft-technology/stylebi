@@ -652,6 +652,67 @@ class ChartRegionPropertyServiceTest {
       }
    }
 
+   /** Review r1 F1: a primary-axis dimension is not on y2, even though getChartRef finds it. */
+   @Test
+   void refusesAPrimaryDimensionFieldOnY2() {
+      Harness h = harness(yShelfViewsheet(dimAndTwoMeasures(true)));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", "y2", "Region",
+                             Map.of("truncate", true), ""));
+
+      assertTrue(thrown.getMessage().contains("Region"));
+      assertTrue(thrown.getMessage().contains("Sum(B)"));
+      verifyNoInteractions(h.regions);
+   }
+
+   /** Review r1 F1, inverted chart: x2 carries the secondary measure, not the x dimension. */
+   @Test
+   void refusesAPrimaryDimensionFieldOnX2() {
+      VSChartDimensionRef dimension = mock(VSChartDimensionRef.class);
+      when(dimension.getFullName()).thenReturn("Region");
+      when(dimension.getName()).thenReturn("Region");
+      VSChartAggregateRef secondary = mock(VSChartAggregateRef.class);
+      when(secondary.isSecondaryY()).thenReturn(true);
+      when(secondary.getFullName()).thenReturn("Sum(B)");
+      when(secondary.getName()).thenReturn("Sum(B)");
+      Viewsheet vs = withRuntimeFields(mixedShelfViewsheet(new ChartRef[] { dimension, secondary }));
+      VSChartInfo info = ((ChartVSAssembly) vs.getAssembly("Chart1")).getVSChartInfo();
+      when(info.isInvertedGraph()).thenReturn(true);
+      Harness h = harness(vs);
+
+      assertThrows(IllegalArgumentException.class,
+                   () -> h.service.set("tok", principal(), "Chart1", "axis", "x2", "Region",
+                                       Map.of("truncate", true), ""));
+      verifyNoInteractions(h.regions);
+   }
+
+   /** Review r1 N1: a full name equal to another ref's base name still resolves to one ref. */
+   @Test
+   void resolvesAFullNameThatEqualsAnotherRefsBaseName() throws Exception {
+      VSChartDimensionRef year = mock(VSChartDimensionRef.class);
+      when(year.getFullName()).thenReturn("Year(Order:Date)");
+      when(year.getName()).thenReturn("Order:Date");
+      when(year.getDataType()).thenReturn(XSchema.DATE);
+      when(year.isTimeSeries()).thenReturn(true);
+      VSChartDimensionRef other = mock(VSChartDimensionRef.class);
+      when(other.getFullName()).thenReturn("Month(Order:Date)");
+      when(other.getName()).thenReturn("Year(Order:Date)");
+
+      Harness h = harness(withRuntimeFields(mixedShelfViewsheet(new ChartRef[] { year, other })));
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(axisModel());
+
+      h.service.set("tok", principal(), "Chart1", "axis", "x", "Year(Order:Date)",
+                    Map.of("increment", "5"), "");
+
+      verify(h.regions).setAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyInt(),
+                                                   eq("Year(Order:Date)"), any(), anyString(),
+                                                   any(Principal.class), any());
+   }
+
    /** Bug #78232 problem 5: a field makes the handler take its field-driven branch (index -1). */
    @Test
    void readsTheAxisByFieldWithIndexMinusOneAndByAreaZeroWithout() throws Exception {

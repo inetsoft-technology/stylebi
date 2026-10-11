@@ -291,7 +291,7 @@ public class ChartRegionPropertyService {
          throw new IllegalArgumentException(
             "'" + String.join("', '", requested) + "' " + (requested.size() == 1 ? "only applies" : "only apply") + " to a linear (measure) axis. " +
             "'" + axisTarget + "'" + (field != null && !field.isBlank() ? " ('" + field + "')" : "")
-            + " on this chart is bound to a dimension, not a measure, so these would be " +
+            + " on this chart is bound to a dimension or discrete measure, not a measure, so these would be " +
             "silently ignored — or, on some chart types, corrupt the render instead of being " +
             "ignored. Omit them for a dimension axis.");
       }
@@ -388,8 +388,9 @@ public class ChartRegionPropertyService {
 
          ChartRef other = ChartRegionHandler.getChartRef(info, axisType(axisTarget), field);
 
-         if(other != null && (!(other instanceof ChartAggregateRef a) ||
-                              a.isSecondaryY() == secondary))
+         // Same predicate as axisCandidates: a primary-axis dimension is not on y2/x2.
+         if(other != null && (other instanceof ChartAggregateRef a ? a.isSecondaryY() == secondary
+                              : !secondary))
          {
             return field;
          }
@@ -538,7 +539,6 @@ public class ChartRegionPropertyService {
          VSChartInfo info = ChartRegionResolver.requireChart(rvs, assembly).getVSChartInfo();
          String canonical = ChartRegionResolver.canonical(axisTarget);
          boolean secondary = "y2".equals(canonical) || "x2".equals(canonical);
-         boolean onYShelf = "y".equals(canonical) || "y2".equals(canonical);
          // Canonical x/x2 always reads getXFields(), canonical y/y2 always reads getYFields() --
          // the same convention ChartRegionResolver.fromBinding uses one call earlier in this same
          // class's requireExistingTarget (present.add("x") off getXFields() alone, with no
@@ -549,8 +549,7 @@ public class ChartRegionPropertyService {
          // canonical target to the wrong shelf on any inverted chart (e.g. a Gantt chart, which is
          // unconditionally inverted) -- reopening the exact corruption this method exists to close,
          // or wrongly refusing a legitimate write on a real measure axis.
-         ChartRef[] refs = onYShelf ? info.getYFields() : info.getXFields();
-         List<ChartRef> candidates = new ArrayList<>(Arrays.asList(refs));
+         List<ChartRef> candidates = new ArrayList<>(Arrays.asList(axisCandidates(info, canonical)));
 
          // A shelf can carry more than one field of the same axis type (the tool's own
          // vocabulary() note: "to address one of several axes of the same type... pass the
@@ -561,8 +560,13 @@ public class ChartRegionPropertyService {
          // it is not, matching how the rest of this class already treats an absent field as "the
          // shelf has just the one".
          if(field != null && !field.isBlank()) {
-            candidates.removeIf(ref ->
-               !field.equals(ref.getFullName()) && !field.equals(ref.getName()));
+            // Full name first, then base name, as resolveAxisField does, so a canonical full name
+            // that equals another ref's base name still resolves to one candidate.
+            List<ChartRef> byFull = candidates.stream()
+               .filter(ref -> field.equals(ref.getFullName())).toList();
+            List<ChartRef> kept = !byFull.isEmpty() ? byFull : candidates.stream()
+               .filter(ref -> field.equals(ref.getName())).toList();
+            candidates = new ArrayList<>(kept);
          }
 
          // Exact match, not "secondary implies acceptable, primary accepts anything": a measure
