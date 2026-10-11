@@ -378,6 +378,29 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
    }
 
    /**
+    * Map blank (NaN) boundaries that follow the last real boundary to the maximum, so a
+    * trailing blank range entry means "up to max" as it does for the gauge (#5025). A blank
+    * boundary before a real one is left alone.
+    * @param ranges the runtime ranges, may contain NaN.
+    * @param max    the maximum of the assembly.
+    * @return a copy of the ranges with trailing NaN boundaries replaced by max.
+    */
+   public static double[] resolveTrailingBlankBoundaries(double[] ranges, double max) {
+      if(ranges == null) {
+         return null;
+      }
+
+      double[] result = ranges.clone();
+      int last = result.length - 1;
+
+      while(last >= 0 && Double.isNaN(result[last])) {
+         result[last--] = max;
+      }
+
+      return result;
+   }
+
+   /**
     * Get the runtime range colors.
     * @return the range colors of the assembly.
     */

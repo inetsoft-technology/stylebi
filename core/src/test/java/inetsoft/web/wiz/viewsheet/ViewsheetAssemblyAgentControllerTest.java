@@ -3182,6 +3182,58 @@ class ViewsheetAssemblyAgentControllerTest {
    }
 
    @Test
+   void clearPrintLayoutDelegatesAndReturnsTheServiceResult() throws Exception {
+      PrintDeviceLayoutPropertyService propertyService =
+         mock(PrintDeviceLayoutPropertyService.class);
+      PrintDeviceLayoutPropertyService.ClearPrintLayoutResult expected =
+         new PrintDeviceLayoutPropertyService.ClearPrintLayoutResult(true, 4);
+      when(propertyService.clearPrintLayout(eq("tok"), any(Principal.class), eq(true),
+                                            eq("link")))
+         .thenReturn(expected);
+
+      ViewsheetAssemblyAgentController controller = controllerWithLayoutServices(
+         mock(LayoutReadService.class), propertyService, mock(LayoutMutationService.class),
+         mock(LayoutUndoService.class));
+
+      assertSame(expected, controller.clearPrintLayout("tok",
+         new ViewsheetAssemblyAgentController.LayoutPrintClearRequest(true), "link",
+         principal()));
+   }
+
+   @Test
+   void clearPrintLayoutWithNoBodyOrNoFlagIsUnconfirmed() throws Exception {
+      PrintDeviceLayoutPropertyService propertyService =
+         mock(PrintDeviceLayoutPropertyService.class);
+
+      ViewsheetAssemblyAgentController controller = controllerWithLayoutServices(
+         mock(LayoutReadService.class), propertyService, mock(LayoutMutationService.class),
+         mock(LayoutUndoService.class));
+
+      controller.clearPrintLayout("tok", null, "", principal());
+      controller.clearPrintLayout("tok",
+         new ViewsheetAssemblyAgentController.LayoutPrintClearRequest(null), "", principal());
+
+      verify(propertyService, times(2)).clearPrintLayout(eq("tok"), any(Principal.class),
+                                                         eq(false), eq(""));
+   }
+
+   @Test
+   void clearPrintLayoutIsRoutedAsAPostOnLayoutPrintClear() throws Exception {
+      java.lang.reflect.Method method = ViewsheetAssemblyAgentController.class.getMethod(
+         "clearPrintLayout", String.class,
+         ViewsheetAssemblyAgentController.LayoutPrintClearRequest.class, String.class,
+         Principal.class);
+
+      org.springframework.web.bind.annotation.PostMapping mapping =
+         method.getAnnotation(org.springframework.web.bind.annotation.PostMapping.class);
+
+      assertNotNull(mapping);
+      assertArrayEquals(
+         new String[] { "/api/wiz/v1/agent/viewsheet/{sessionToken}/layout/print/clear" },
+         mapping.value());
+   }
+
+   @Test
    void manageDeviceLayoutDelegatesToThePropertyService() throws Exception {
       PrintDeviceLayoutPropertyService propertyService =
          mock(PrintDeviceLayoutPropertyService.class);
