@@ -19,7 +19,10 @@ package inetsoft.web.wiz.binding;
 
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.XConstants;
+import inetsoft.uql.viewsheet.graph.CandleVSChartInfo;
+import inetsoft.uql.viewsheet.graph.GanttVSChartInfo;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
+import inetsoft.uql.viewsheet.graph.RelationVSChartInfo;
 import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.VSChartGeoRef;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
@@ -36,6 +39,7 @@ import inetsoft.web.binding.model.graph.aesthetic.StaticTextureModel;
 import inetsoft.web.binding.model.graph.calc.RunningTotalCalcInfo;
 import inetsoft.web.wiz.binding.model.FieldRef;
 import inetsoft.web.wiz.pairing.WizAgentTestSupport;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -45,6 +49,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 
 @WizAgentTestSupport
+@Tag("core")
 class ChartBindingMutatorTest {
    @Test
    void setsTheXShelfFromFieldRefs() {
@@ -1105,6 +1110,56 @@ class ChartBindingMutatorTest {
       finally {
          SreeEnv.setProperty("max.col.count", original);
       }
+   }
+
+   // ── single shelf family must match the chart type (#78232 problem 2) ─────
+
+   private static FieldRef measure(String col) {
+      return new FieldRef(col, "measure", "Sum", null, null);
+   }
+
+   @Test
+   void refusesSingleShelvesTheChartTypeWouldSilentlyDiscard() {
+      for(String shelf : List.of("close", "source", "start")) {
+         ChartBindingModel model = new ChartBindingModel();
+         Exception thrown = assertThrows(
+            IllegalArgumentException.class,
+            () -> ChartBindingMutator.setSingleShelf(
+               model, shelf, measure("Price"), null, null, null, new VSChartInfo()));
+         assertTrue(thrown.getMessage().contains("'" + shelf + "'"), thrown.getMessage());
+         assertTrue(thrown.getMessage().contains("set_chart_type"), thrown.getMessage());
+         assertNull(ChartBindingMutator.readSingleShelf(model, shelf));
+      }
+   }
+
+   @Test
+   void acceptsSingleShelvesTheChartTypeHolds() throws Exception {
+      ChartBindingModel candle = new ChartBindingModel();
+      ChartBindingMutator.setSingleShelf(
+         candle, "close", measure("Price"), null, null, null, new CandleVSChartInfo());
+      assertNotNull(ChartBindingMutator.readSingleShelf(candle, "close"));
+
+      ChartBindingModel relation = new ChartBindingModel();
+      ChartBindingMutator.setSingleShelf(
+         relation, "source", measure("Price"), null, null, null, new RelationVSChartInfo());
+      assertNotNull(ChartBindingMutator.readSingleShelf(relation, "source"));
+
+      ChartBindingModel gantt = new ChartBindingModel();
+      ChartBindingMutator.setSingleShelf(
+         gantt, "start", measure("Price"), null, null, null, new GanttVSChartInfo());
+      assertNotNull(ChartBindingMutator.readSingleShelf(gantt, "start"));
+   }
+
+   @Test
+   void leavesPathUngatedAndAllowsClearingOnAnyChartType() throws Exception {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setSingleShelf(
+         model, "path", measure("Price"), null, null, null, new VSChartInfo());
+      assertNotNull(ChartBindingMutator.readSingleShelf(model, "path"));
+
+      ChartBindingMutator.setSingleShelf(
+         model, "close", null, null, null, null, new VSChartInfo());
+      assertNull(ChartBindingMutator.readSingleShelf(model, "close"));
    }
 
    @Test

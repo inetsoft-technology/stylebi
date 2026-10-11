@@ -21,7 +21,10 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.internal.Util;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.SourceInfo;
+import inetsoft.uql.viewsheet.graph.CandleChartInfo;
+import inetsoft.uql.viewsheet.graph.GanttChartInfo;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
+import inetsoft.uql.viewsheet.graph.RelationChartInfo;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.graph.VSMapInfo;
 import inetsoft.web.binding.model.BDimensionRefModel;
@@ -476,6 +479,10 @@ public final class ChartBindingMutator {
       int newCount = field == null ? 0 : 1;
       requireColumnLimit(chartInfo, oldCount, newCount);
 
+      if(field != null) {
+         requireShelfSupportedByChartType(chartInfo, name);
+      }
+
       ChartRefModel ref = field == null
          ? null : FieldRefFactory.toChartRef(field, model, rvs, source, refModelService);
       ChartRefModel previous = readSingleShelf(model, name);
@@ -493,6 +500,51 @@ public final class ChartBindingMutator {
             assignSingleShelf(model, name, previous);
             throw e;
          }
+      }
+   }
+
+   /**
+    * Refuses a single-shelf write the chart's current type would silently discard.
+    * {@code ChartInfoModelBuilder.updateChartInfo} copies open/high/low/close only onto a
+    * {@link CandleChartInfo}, source/target only onto a {@link RelationChartInfo} and
+    * start/end/milestone only onto a {@link GanttChartInfo}; for any other info class the value is
+    * dropped after this write has already answered ok. The conditions here mirror those
+    * {@code instanceof} checks so the gate cannot drift from the drop. {@code path} is left
+    * ungated: it is stored regardless and only rendered on line/map charts, which depends on the
+    * runtime type.
+    */
+   private static void requireShelfSupportedByChartType(VSChartInfo chartInfo, String shelf) {
+      if(chartInfo == null) {
+         return;
+      }
+
+      String holders;
+      boolean supported;
+
+      switch(shelf) {
+      case "open", "high", "low", "close" -> {
+         supported = chartInfo instanceof CandleChartInfo;
+         holders = "candle and stock";
+      }
+      case "source", "target" -> {
+         supported = chartInfo instanceof RelationChartInfo;
+         holders = "tree, network and circular";
+      }
+      case "start", "end", "milestone" -> {
+         supported = chartInfo instanceof GanttChartInfo;
+         holders = "gantt";
+      }
+      default -> {
+         return;
+      }
+      }
+
+      if(!supported) {
+         throw new IllegalArgumentException(
+            "The '" + shelf + "' shelf is not held by this chart's current type (GraphTypes code " +
+            chartInfo.getChartType() + "), so a field bound there would be discarded. Only " +
+            holders + " charts hold it; call set_chart_type to switch to one first, then bind '" +
+            shelf + "'.");
       }
    }
 
