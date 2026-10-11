@@ -22,7 +22,10 @@ import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.report.composition.WorksheetService;
 import inetsoft.sree.internal.DeployManagerService;
+import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.OrganizationManager;
+import inetsoft.storage.BlobStorage;
+import inetsoft.storage.BlobTransaction;
 import inetsoft.storage.KeyValueStorageManager;
 import inetsoft.test.*;
 import inetsoft.uql.XRepository;
@@ -42,7 +45,12 @@ import org.springframework.context.annotation.*;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.Serializable;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Set;
@@ -72,6 +80,8 @@ class SnapshotFileGcServiceTest {
    private WorksheetService worksheetService;
    @Autowired
    private SnapshotFileGcService gcService;
+   @Autowired
+   private KeyValueStorageManager keyValueStorageManager;
 
    @BeforeEach
    void resetGcState() throws Exception {
@@ -210,6 +220,267 @@ class SnapshotFileGcServiceTest {
       finally {
          worksheetService.closeWorksheet(id, null);
       }
+   }
+
+   // bug #78328 (A): a private worksheet whose owner the security provider does not list (security
+   // off, SSO-only, ...) must still be seen by the full sweep, which used to enumerate USER_SCOPE
+   // only for provider-listed users and so deleted the file the worksheet still names.
+   @Test
+   void unlistedOwnersPrivateWorksheetFileIsKeptByEveryCycle() throws Exception {
+      AssetEntry e = userEntry("gc_user_w1");
+      String[] paths = saveOwner(e, "u", 10);
+
+      try {
+         Instant now0 = Instant.now();
+
+         for(Duration offset : new Duration[] { Duration.ZERO, Duration.ofHours(24),
+                                                Duration.ofHours(49), Duration.ofDays(8),
+                                                Duration.ofDays(11), Duration.ofDays(15) })
+         {
+            gcService.removeOrphanedPermanentSnapshotFiles(now0.plus(offset));
+            assertFilesExist(paths, true,
+                             "private worksheet's file deleted at t0+" + offset.toHours() + "h");
+         }
+      }
+      finally {
+         cleanup(e, paths);
+      }
+   }
+
+   // bug #78328 (A): protection by the incremental scan alone (a private worksheet edited after the
+   // watermark) used to be lost again at the next weekly full sweep.
+   @Test
+   void editedPrivateWorksheetFileSurvivesTheNextFullSweep() throws Exception {
+      AssetEntry e = userEntry("gc_user_w2");
+      String[] paths = saveOwner(e, "u", 10);
+
+      try {
+         Instant now0 = Instant.now();
+         gcService.removeOrphanedPermanentSnapshotFiles(now0);
+
+         Worksheet ws = open(e);
+         ws.setLastModified(System.currentTimeMillis());
+         save(ws, e);
+
+         for(Duration offset : new Duration[] { Duration.ofHours(24), Duration.ofHours(49),
+                                                Duration.ofDays(8), Duration.ofDays(11) })
+         {
+            gcService.removeOrphanedPermanentSnapshotFiles(now0.plus(offset));
+            assertFilesExist(paths, true,
+                             "edited private worksheet's file deleted at t0+" + offset.toHours() + "h");
+         }
+      }
+      finally {
+         cleanup(e, paths);
+      }
+   }
+
+   // bug #78328 (A) control: enumerating from the storage keys must not over-reference -- a private
+   // worksheet's file that the worksheet no longer names is still collected.
+   @Test
+   void privateWorksheetsOrphanedFileIsStillCleanedUp() throws Exception {
+      AssetEntry e = userEntry("gc_user_w3");
+      String[] paths = saveOwner(e, "u", 10);
+
+      try {
+         Instant now0 = Instant.now();
+         gcService.removeOrphanedPermanentSnapshotFiles(now0);
+         assertFilesExist(paths, true, "referenced file deleted by the seeding GC cycle");
+
+         Worksheet ws = open(e);
+         assertTrue(ws.removeAssembly(NAME));
+         save(ws, e);
+
+         gcService.removeOrphanedPermanentSnapshotFiles(now0.plus(Duration.ofHours(1)));
+         assertFilesExist(paths, true, "file deleted before the grace period elapsed");
+
+         gcService.removeOrphanedPermanentSnapshotFiles(now0.plus(Duration.ofDays(9)));
+         assertFilesExist(paths, false, "private worksheet's orphaned file not cleaned up");
+      }
+      finally {
+         cleanup(e, paths);
+      }
+   }
+
+   // bug #78328 (B): a stored worksheet that no longer parses still names its file. Its raw text is
+   // salvaged, so the file is kept from the very first full sweep on, the readable control is kept,
+   // and an unrelated true orphan is still collected while the corrupt entry exists.
+   @Test
+   void unreadableWorksheetsFileIsKeptByRawSalvageWhileTrueOrphansAreStillCollected()
+      throws Exception
+   {
+      AssetEntry broken = entry("gc_corrupt_w1");
+      AssetEntry control = entry("gc_corrupt_control1");
+      AssetEntry orphaned = entry("gc_corrupt_orphan1");
+      String[] brokenPaths = saveOwner(broken, "b", 10);
+      String[] controlPaths = saveOwner(control, "c", 10);
+      String[] orphanPaths = saveOwner(orphaned, "o", 10);
+      Worksheet ws = open(orphaned);
+      assertTrue(ws.removeAssembly(NAME));
+      save(ws, orphaned);
+      corrupt(broken);
+
+      try {
+         assertThrows(Exception.class, () -> repository().getStorage(broken)
+            .getXMLSerializable(broken.toIdentifier(), null, orgId()));
+
+         Instant now0 = Instant.now();
+
+         for(Duration offset : new Duration[] { Duration.ZERO, Duration.ofHours(49),
+                                                Duration.ofDays(8), Duration.ofDays(11) })
+         {
+            gcService.removeOrphanedPermanentSnapshotFiles(now0.plus(offset));
+            assertFilesExist(brokenPaths, true,
+                             "unreadable worksheet's file deleted at t0+" + offset.toHours() + "h");
+            assertFilesExist(controlPaths, true,
+                             "control's file deleted at t0+" + offset.toHours() + "h");
+         }
+
+         assertFilesExist(orphanPaths, false, "true orphan not collected next to a corrupt entry");
+      }
+      finally {
+         cleanup(broken, brokenPaths);
+         cleanup(control, controlPaths);
+         cleanup(orphaned, orphanPaths);
+      }
+   }
+
+   // bug #78328 (B), incremental arm: an entry first seen by an incremental scan (it was saved
+   // after the seeding full sweep) that no longer parses must not lose its file to the next full
+   // sweep.
+   @Test
+   void worksheetCorruptedAfterTheSeedingSweepKeepsItsFile() throws Exception {
+      AssetEntry broken = entry("gc_corrupt_w2");
+      Instant now0 = Instant.now();
+      gcService.removeOrphanedPermanentSnapshotFiles(now0);
+
+      String[] brokenPaths = saveOwner(broken, "b", 10);
+      corrupt(broken);
+
+      try {
+         gcService.removeOrphanedPermanentSnapshotFiles(now0.plus(Duration.ofHours(1)));
+         gcService.removeOrphanedPermanentSnapshotFiles(now0.plus(Duration.ofHours(50)));
+         assertFilesExist(brokenPaths, true, "file deleted by an incremental scan");
+
+         gcService.removeOrphanedPermanentSnapshotFiles(now0.plus(Duration.ofDays(8)));
+         assertFilesExist(brokenPaths, true, "file deleted by the full sweep");
+
+         gcService.removeOrphanedPermanentSnapshotFiles(now0.plus(Duration.ofDays(11)));
+         assertFilesExist(brokenPaths, true, "file deleted by the following cycle");
+      }
+      finally {
+         cleanup(broken, brokenPaths);
+      }
+   }
+
+   // bug #78328 (B) fallback: when a corrupt entry's raw text cannot be obtained either, nothing in
+   // the organization is confirmed or deleted while it exists; once it is gone the next full sweep
+   // collects the orphan again.
+   @Test
+   void unsalvageableWorksheetSuspendsDeletionUntilItIsRemoved() throws Exception {
+      SnapshotFileGcService noRaw = new SnapshotFileGcService(
+         (ViewsheetService) worksheetService, EmbeddedTableStorage.getInstance(),
+         keyValueStorageManager)
+      {
+         @Override
+         byte[] readRawWorksheet(IndexedStorage storage, String key, String orgId) {
+            return null;
+         }
+      };
+
+      AssetEntry broken = entry("gc_corrupt_w3");
+      AssetEntry orphaned = entry("gc_corrupt_orphan3");
+      String[] brokenPaths = saveOwner(broken, "b", 10);
+      String[] orphanPaths = saveOwner(orphaned, "o", 10);
+      Worksheet ws = open(orphaned);
+      assertTrue(ws.removeAssembly(NAME));
+      save(ws, orphaned);
+      corrupt(broken);
+
+      try {
+         Instant now0 = Instant.now();
+
+         for(Duration offset : new Duration[] { Duration.ZERO, Duration.ofHours(49),
+                                                Duration.ofDays(8), Duration.ofDays(11) })
+         {
+            noRaw.removeOrphanedPermanentSnapshotFiles(now0.plus(offset));
+            assertFilesExist(brokenPaths, true, "unreadable worksheet's file deleted");
+            assertFilesExist(orphanPaths, true,
+                             "deletion not suspended at t0+" + offset.toHours() + "h");
+         }
+
+         repository().removeSheet(broken, null, true);
+         noRaw.removeOrphanedPermanentSnapshotFiles(now0.plus(Duration.ofDays(20)));
+         assertFilesExist(orphanPaths, false, "orphan not collected once the corrupt entry is gone");
+      }
+      finally {
+         cleanup(broken, brokenPaths);
+         cleanup(orphaned, orphanPaths);
+      }
+   }
+
+   private void cleanup(AssetEntry entry, String[] paths) {
+      try {
+         repository().removeSheet(entry, null, true);
+      }
+      catch(Exception ignore) {
+         // already removed
+      }
+
+      for(String path : paths) {
+         try {
+            EmbeddedTableStorage.getInstance().removeTable(path + "_s.tdat", orgId());
+         }
+         catch(Exception ignore) {
+            // already removed
+         }
+      }
+   }
+
+   /**
+    * Rewrites the stored blob with a raw U+001F after the worksheet start tag, keeping its
+    * metadata, as a save before bugs #78128/#78110 could leave it.
+    */
+   @SuppressWarnings({ "rawtypes", "unchecked" })
+   private static void corrupt(AssetEntry entry) throws Exception {
+      IndexedStorage storage = repository().getStorage(entry);
+      Method m = null;
+
+      for(Class<?> c = storage.getClass(); c != null && m == null; c = c.getSuperclass()) {
+         try {
+            m = c.getDeclaredMethod("getMetadataStorage", String.class);
+         }
+         catch(NoSuchMethodException ignore) {
+            // look in the superclass
+         }
+      }
+
+      assertNotNull(m);
+      m.setAccessible(true);
+      BlobStorage blobs = (BlobStorage) m.invoke(storage, orgId());
+      String key = entry.toIdentifier();
+      Serializable metadata = (Serializable) blobs.getMetadata(key);
+      String xml;
+
+      try(InputStream in = blobs.getInputStream(key)) {
+         xml = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+      }
+
+      int start = xml.indexOf("<worksheet");
+      int end = xml.indexOf('>', start);
+      assertTrue(start >= 0 && end > 0);
+      String bad = xml.substring(0, end + 1) + "\u001F" + xml.substring(end + 1);
+
+      try(BlobTransaction tx = blobs.beginTransaction(); OutputStream out = tx.newStream(key, metadata)) {
+         out.write(bad.getBytes(StandardCharsets.UTF_8));
+         out.flush();
+         tx.commit();
+      }
+   }
+
+   private static AssetEntry userEntry(String name) {
+      return new AssetEntry(AssetRepository.USER_SCOPE, AssetEntry.Type.WORKSHEET, name,
+                            new IdentityID("anonymous", orgId()), orgId());
    }
 
    private String[] saveOwner(AssetEntry entry, String tag, int rows) throws Exception {
