@@ -33,6 +33,7 @@ import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.SelectionTreeVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.SelectionVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.util.MessageException;
 import inetsoft.web.adhoc.model.property.TargetInfo;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.model.vs.ImagePreviewPaneModel;
@@ -741,6 +742,23 @@ public class AssemblyPropertyService {
    }
 
    /**
+    * {@link VSInputService#resolvesToVariableBinding} throws a {@link MessageException} for an
+    * unresolvable binding (bug #78263). Called directly from the guards it would bypass the
+    * reflective IllegalArgumentException translation in {@code writeModel} and surface as an
+    * opaque 500, so refuse it here as a named 400, message unchanged.
+    */
+   private static boolean resolvesToVariableBindingOrRefuse(
+      Worksheet ws, Viewsheet vs, String table, String columnValue)
+   {
+      try {
+         return VSInputService.resolvesToVariableBinding(ws, vs, table, columnValue);
+      }
+      catch(MessageException e) {
+         throw new IllegalArgumentException(e.getMessage(), e);
+      }
+   }
+
+   /**
     * Refuses a {@code dataInputPaneModel.variable} write that doesn't match what the resolved
     * {@code table}/{@code columnValue} binding can actually achieve (bug #76530/#76552) -- the
     * real setter always derives the persisted flag from the binding, never from this field
@@ -751,7 +769,7 @@ public class AssemblyPropertyService {
       String table = (String) PropertyPath.get(model, "dataInputPaneModel.table");
       String columnValue = (String) PropertyPath.get(model, "dataInputPaneModel.columnValue");
       Worksheet ws = vs == null ? null : vs.getBaseWorksheet();
-      boolean achieved = VSInputService.resolvesToVariableBinding(ws, vs, table, columnValue);
+      boolean achieved = resolvesToVariableBindingOrRefuse(ws, vs, table, columnValue);
 
       if(requested != achieved) {
          throw new IllegalArgumentException(
@@ -798,7 +816,7 @@ public class AssemblyPropertyService {
       String rowValue = (String) PropertyPath.get(model, "dataInputPaneModel.rowValue");
       Worksheet ws = vs == null ? null : vs.getBaseWorksheet();
 
-      if(VSInputService.resolvesToVariableBinding(ws, vs, table, columnValue)) {
+      if(resolvesToVariableBindingOrRefuse(ws, vs, table, columnValue)) {
          return;
       }
 
