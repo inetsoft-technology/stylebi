@@ -17,6 +17,8 @@
  */
 package inetsoft.web.wiz.worksheet;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
@@ -521,6 +523,38 @@ class WorksheetPreviewServiceTest {
    }
 
    @Test
+   void columnLimitIsFlaggedWhenAnotherMessageIsPendingAlongsideTheSandboxCap() throws Exception {
+      int max = Util.getOrganizationMaxColumn();
+      TableLens capped = wideLens(max);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(box.getTableLens(eq("T"), anyInt())).thenAnswer(invocation -> {
+         CoreTool.addUserMessage("another pending message");
+         CoreTool.addUserMessage(Util.getColumnLimitMessage());
+         return capped;
+      });
+
+      WorksheetPreviewService.PreviewResult result = service.preview(rws(box), "T", 0, 10);
+
+      assertNotNull(result.columnLimit());
+      assertEquals(max, result.columnLimit().limit());
+   }
+
+   @Test
+   void warningRaisedLazilyWhileReadingRowsIsStillReported() throws Exception {
+      TableLens l = lens(new String[]{"x"}, new Object[][]{{"r1"}});
+      when(l.getObject(1, 0)).thenAnswer(invocation -> {
+         CoreTool.addUserMessage("raised while reading rows");
+         return "r1";
+      });
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(box.getTableLens(eq("T"), anyInt())).thenReturn(l);
+
+      WorksheetPreviewService.PreviewResult result = service.preview(rws(box), "T", 0, 10);
+
+      assertEquals(List.of("raised while reading rows"), result.warnings());
+   }
+
+   @Test
    void columnLimitIsAbsentWhenNothingWasDropped() throws Exception {
       int max = Util.getOrganizationMaxColumn();
       TableLens atLimit = wideLens(max);
@@ -547,21 +581,20 @@ class WorksheetPreviewServiceTest {
 
    @Test
    void columnLimitSerializesOnlyWhenPresent() throws Exception {
-      com.fasterxml.jackson.databind.ObjectMapper mapper =
-         new com.fasterxml.jackson.databind.ObjectMapper();
+      ObjectMapper mapper = new ObjectMapper();
 
-      com.fasterxml.jackson.databind.JsonNode absent = mapper.valueToTree(
+      JsonNode absent = mapper.valueToTree(
          new WorksheetPreviewService.PreviewResult(List.of(), List.of()));
       assertFalse(absent.has("columnLimit"));
 
-      com.fasterxml.jackson.databind.JsonNode known = mapper.valueToTree(
+      JsonNode known = mapper.valueToTree(
          new WorksheetPreviewService.PreviewResult(List.of(), List.of(),
             new WorksheetPreviewService.ColumnLimit(true, 200, 250)));
       assertTrue(known.get("columnLimit").get("limited").asBoolean());
       assertEquals(200, known.get("columnLimit").get("limit").asInt());
       assertEquals(250, known.get("columnLimit").get("total").asInt());
 
-      com.fasterxml.jackson.databind.JsonNode unknownTotal = mapper.valueToTree(
+      JsonNode unknownTotal = mapper.valueToTree(
          new WorksheetPreviewService.PreviewResult(List.of(), List.of(),
             new WorksheetPreviewService.ColumnLimit(true, 200, null)));
       assertFalse(unknownTotal.get("columnLimit").has("total"));

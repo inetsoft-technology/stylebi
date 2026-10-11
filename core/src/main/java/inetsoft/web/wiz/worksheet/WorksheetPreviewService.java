@@ -152,7 +152,8 @@ public class WorksheetPreviewService {
          // message, hence it is read once here and carried forward.
          List<String> warnings = new ArrayList<>(captureWarnings());
          String limitMessage = Util.getColumnLimitMessage();
-         boolean limited = warnings.contains(limitMessage);
+         // pending messages are merged into one newline-joined string, so match by substring
+         boolean limited = warnings.stream().anyMatch(w -> w.contains(limitMessage));
          Integer total = null;
 
          if(limited && lens instanceof ColumnMapFilter filter) {
@@ -197,6 +198,9 @@ public class WorksheetPreviewService {
 
             rows.add(rowMap);
          }
+
+         // a message raised lazily while reading rows (e.g. a sort script error) is still reported
+         warnings.addAll(captureWarnings());
 
          return new PreviewResult(rows, warnings,
                                   limited ? new ColumnLimit(true, maxCols, total) : null);
