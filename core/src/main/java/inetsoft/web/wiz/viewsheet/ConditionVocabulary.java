@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
+import inetsoft.uql.DateConditionLiteral;
 import inetsoft.uql.JunctionOperator;
 import inetsoft.uql.XCondition;
 import inetsoft.uql.schema.XSchema;
@@ -219,7 +220,7 @@ public final class ConditionVocabulary {
          condition.setValues(new ConditionValueModel[] { rankingValue(values.get(0), index, fields) });
       }
       else {
-         condition.setValues(values.stream().map(raw -> value(raw, index, fields, field))
+         condition.setValues(values.stream().map(raw -> value(raw, index, fields, field, operation))
                                 .toArray(ConditionValueModel[]::new));
          requireSessionDataOperator(condition.getValues(), operator, operation, index);
       }
@@ -258,6 +259,10 @@ public final class ConditionVocabulary {
       }
    }
 
+   private static final String DATE_FORMS_HINT =
+      "Pass a date string such as '2024-01-01', '2024-01-01 00:00:00', {d '2024-01-01'}, " +
+      "{ts '2024-01-01 00:00:00'} or {t '12:30:00'}.";
+
    /**
     * A plain scalar (string/number/boolean/null) means {@code VALUE}, exactly as before. An
     * object carrying a recognized {@code type} discriminator selects one of the four non-VALUE
@@ -268,10 +273,38 @@ public final class ConditionVocabulary {
     * tractable minimal-field summary.
     */
    private static ConditionValueModel value(Object raw, int index, Map<String, DataRefModel> fields,
-                                            DataRefModel targetField)
+                                            DataRefModel targetField, int operation)
    {
       if(raw instanceof Map<?, ?> map && map.get("type") instanceof String typeToken) {
          return typedValue(typeToken, map, index, fields);
+      }
+
+      String fieldType = targetField.getDataType();
+
+      // date_in takes a built-in range name ("Last month"), not a date literal.
+      if(DateConditionLiteral.isDateType(fieldType) && operation != XCondition.DATE_IN) {
+         if(raw instanceof Number || raw instanceof Boolean) {
+            throw new IllegalArgumentException(
+               "Condition " + index + "'s value " + raw + " is a " +
+               (raw instanceof Number ? "number" : "boolean") + " but field '" +
+               targetField.getName() + "' is a " + fieldType + ". " + DATE_FORMS_HINT);
+         }
+
+         if(raw instanceof String str && !str.isBlank()) {
+            String canonical = DateConditionLiteral.canonicalize(fieldType, str);
+
+            if(canonical == null) {
+               throw new IllegalArgumentException(
+                  "Condition " + index + "'s value '" + str + "' is not a valid " + fieldType +
+                  " for field '" + targetField.getName() + "' and would be stored as the " +
+                  "current date/time. " + DATE_FORMS_HINT);
+            }
+
+            ConditionValueModel value = new ConditionValueModel();
+            value.setValue(canonical);
+            value.setType(ConditionValueModel.VALUE);
+            return value;
+         }
       }
 
       // ConditionUtil later force-coerces a literal VALUE against the target field's declared
