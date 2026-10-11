@@ -1367,6 +1367,33 @@ public final class WorksheetMutationSupport {
                "first.");
          }
 
+         // Bug #78346: a group-by key keeps its name but a named group outputs string (and
+         // removing one restores the source type), which the identity guard above does not
+         // see. Unconditional: `confirmed` never bypasses it.
+         List<JoinKeyTypeGuard.Break> typeBreaks = new ArrayList<>();
+
+         for(int i = 0; i < ainfo.getGroupCount(); i++) {
+            GroupRef gref = ainfo.getGroup(i);
+
+            if(!(gref.getDataRef() instanceof ColumnRef gcol)) {
+               continue;
+            }
+
+            String alias = originalAliases.get(gcol);
+            String keyName = alias != null && !alias.isEmpty() ? alias : gcol.getName();
+            DataRef before = resolveJoinKey(t, keyName);
+
+            if(before != null) {
+               JoinKeyTypeGuard.collect(
+                  mutationWs, t, keyName, before.getDataType(), gref.getDataType(), typeBreaks);
+            }
+         }
+
+         JoinKeyTypeGuard.throwIfAny(
+            typeBreaks, t.getName(), "This grouping would change the type of",
+            "A named group outputs string, and removing it restores the source type. Keep the " +
+            "key's grouping as it was, or remove or edit the join first.");
+
          // Bug #76891 / WBS-078: unlike the join-key case above, a column relied on
          // purely as ANOTHER table's own aggregate INPUT (e.g. a mirror several hops
          // downstream that itself sums this column) is not a hard block -- it is a

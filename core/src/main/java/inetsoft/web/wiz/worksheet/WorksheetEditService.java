@@ -2420,32 +2420,14 @@ public class WorksheetEditService {
             return;
          }
 
-         StringBuilder msg = new StringBuilder("Cannot change the type of \"").append(col)
-            .append("\" on \"").append(table).append("\" from ").append(oldType).append(" to ")
-            .append(newType).append(": it would break ")
-            .append(conflicts.size() == 1 ? "a join" : "joins").append(" -- ");
-
-         for(int i = 0; i < conflicts.size(); i++) {
-            WorksheetControllerService.JoinKeyTypeConflict c = conflicts.get(i);
-
-            if(i > 0) {
-               msg.append("; ");
-            }
-
-            msg.append("join \"").append(c.join()).append("\" keys it against \"")
-               .append(c.otherTable()).append("\".\"").append(c.otherKey()).append("\" (")
-               .append(c.otherType()).append(")");
-         }
-
-         msg.append(", and a join between ").append(newType)
-            .append(" and those key types returns no rows. Remove or edit the join first.");
+         String msg = JoinKeyTypeGuard.describe(table, col, oldType, newType, conflicts);
 
          if(reInferred) {
-            msg.append(" The expression's type was re-inferred as ").append(newType)
-               .append("; pass an explicit `type` (e.g. \"double\") to keep the column numeric.");
+            msg += " The expression's type was re-inferred as " + newType +
+               "; pass an explicit `type` (e.g. \"double\") to keep the column numeric.";
          }
 
-         throw new PairingException(msg.toString());
+         throw new PairingException(msg);
       }
 
       /**

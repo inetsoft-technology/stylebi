@@ -1491,7 +1491,9 @@ public class WorksheetAgentController {
          // scratchQuery/scratchAssembly (never attached to ws); nothing has been committed to
          // the live assembly yet.
          assertSqlEditAllowsColumnRemoval(
-            ws, liveAssembly, liveAssembly.getColumnSelection(false), newColumns);
+            ws, liveAssembly, liveAssembly.getColumnSelection(false), newColumns,
+            "Editing this table would change the type of",
+            breaks -> JoinKeyTypeGuard.tabularRemedy());
 
          // Commit: only now does the live assembly's own query/columns actually change.
          liveInfo.setQuery(scratchQuery);
@@ -3131,6 +3133,10 @@ public class WorksheetAgentController {
                "instead.");
          }
 
+         // Bug #78346: the import re-detects every column's type from the file, so refuse before
+         // any mutation when that retypes a join key into an unmergeable pair.
+         requireImportKeepsJoinKeyTypes(ws, assembly, tableName, table);
+
          // Only reset the column selection -- and therefore anything bound to it -- when the
          // shape actually changed; otherwise every join/filter/binding on this table survives
          // the swap untouched, which is the entire point of replacing rather than recreating.
@@ -3152,6 +3158,51 @@ public class WorksheetAgentController {
 
          return new ImportCsvResponse(tableName, nrows - 1, ncols);
       });
+   }
+
+   /**
+    * Bug #78346: refuses a replace-import whose detected column types would break a join keyed
+    * on one of the table's columns. Columns are matched the way {@code setEmbeddedData} names
+    * them (by index when the shape is unchanged, else by the formatted header), and every
+    * conflicting column is reported.
+    */
+   private static void requireImportKeepsJoinKeyTypes(Worksheet ws, EmbeddedTableAssembly assembly,
+                                                      String tableName, XEmbeddedTable table)
+      throws PairingException
+   {
+      ColumnSelection cols = assembly.getColumnSelection(false);
+      boolean same = isSameColumns(cols, table);
+      List<JoinKeyTypeGuard.Break> breaks = new ArrayList<>();
+
+      for(int i = 0; i < table.getColCount(); i++) {
+         ColumnRef old = null;
+
+         if(same) {
+            old = (ColumnRef) cols.getAttribute(i);
+         }
+         else {
+            String header = AssetUtil.format(inetsoft.uql.util.XUtil.getHeader(table, i));
+
+            for(int j = 0; j < cols.getAttributeCount(); j++) {
+               ColumnRef c = (ColumnRef) cols.getAttribute(j);
+
+               if(Objects.equals(c.getName(), header)) {
+                  old = c;
+                  break;
+               }
+            }
+         }
+
+         if(old != null) {
+            JoinKeyTypeGuard.collect(
+               ws, assembly, old.getName(), old.getDataType(),
+               inetsoft.util.Tool.getDataType(table.getColType(i)), breaks);
+         }
+      }
+
+      JoinKeyTypeGuard.throwIfAny(
+         breaks, tableName, "Replacing the data of this table would change the type of",
+         JoinKeyTypeGuard.importRemedy(breaks));
    }
 
    /**
@@ -3806,7 +3857,9 @@ public class WorksheetAgentController {
          // Query dialog, which reverts rather than applying such an edit. Everything above
          // this point ran against scratchQuery/sql (clones), so nothing has been committed
          // to the live assembly yet, and this throws before anything is.
-         assertSqlEditAllowsColumnRemoval(ws, sqlTable, sqlTable.getColumnSelection(), columns);
+         assertSqlEditAllowsColumnRemoval(
+            ws, sqlTable, sqlTable.getColumnSelection(), columns,
+            "This query would change the type of", JoinKeyTypeGuard::sqlRemedy);
 
          info.getQuery().setSQLDefinition(sql);
          sqlTable.setSQLEdited(true);
@@ -3840,9 +3893,10 @@ public class WorksheetAgentController {
     * @throws PairingException naming the first old column that is both absent from
     *                          {@code newColumns} and still used by a dependent
     */
-   private static void assertSqlEditAllowsColumnRemoval(Worksheet ws, TableAssembly assembly,
-                                                         ColumnSelection oldColumns,
-                                                         ColumnSelection newColumns)
+   static void assertSqlEditAllowsColumnRemoval(
+      Worksheet ws, TableAssembly assembly, ColumnSelection oldColumns,
+      ColumnSelection newColumns, String lead,
+      java.util.function.Function<List<JoinKeyTypeGuard.Break>, String> remedy)
       throws PairingException
    {
       if(oldColumns == null) {
@@ -3861,6 +3915,11 @@ public class WorksheetAgentController {
                "common.columnDependency", attribute.getAttribute()));
          }
       }
+
+      // Bug #78346: a surviving join key whose type changes is as broken as a removed one.
+      List<JoinKeyTypeGuard.Break> breaks =
+         JoinKeyTypeGuard.findSelectionBreaks(ws, assembly, oldColumns, safeNewColumns);
+      JoinKeyTypeGuard.throwIfAny(breaks, assembly.getName(), lead, remedy.apply(breaks));
    }
 
    // ---------------------------------------------------------------------------
