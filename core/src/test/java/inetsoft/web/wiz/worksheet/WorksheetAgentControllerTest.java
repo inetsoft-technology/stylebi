@@ -1055,6 +1055,77 @@ class WorksheetAgentControllerTest {
    }
 
    /**
+    * Bug #78346: edit_table re-detects every column's type from the connector, so an edit that
+    * leaves a joined key with a different type than the one the join was built on is refused
+    * before anything is committed -- including a type the user had set explicitly.
+    */
+   @Test
+   void editTableRefusesWhenTheRedetectedTypeBreaksADependentJoin() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      FakeColumnProducingNamedConnectorQuery liveQuery = new FakeColumnProducingNamedConnectorQuery();
+      liveQuery.setColumnsByEndpoint(Map.of(
+         "Repos", List.of("repoId", "repoName"), "Issues", List.of("repoId", "issueTitle")));
+      liveQuery.setEndpoint("Repos");
+      JDBCDataSource ds = mock(JDBCDataSource.class);
+      when(ds.getFullName()).thenReturn("MyDatasource");
+      liveQuery.setDataSource(ds);
+
+      Worksheet ws = new Worksheet();
+      TabularTableAssembly liveAssembly = new TabularTableAssembly(ws, "Calendars");
+      ((TabularTableAssemblyInfo) liveAssembly.getTableInfo()).setQuery(liveQuery);
+      ws.addAssembly(liveAssembly);
+      liveAssembly.loadColumnSelection(new VariableTable(), true, null);
+
+      EmbeddedTableAssembly right = TestWorksheets.tableWithColumns(ws, "R", "repoId");
+      ws.addAssembly(right);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-ET78346"), any())).thenReturn(session("TOK-ET78346"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+      SecurityEngine joinSecurityEngine = mock(SecurityEngine.class);
+      when(joinSecurityEngine.checkPermission(
+         any(), any(ResourceType.class), any(String.class), any(ResourceAction.class)))
+         .thenReturn(true);
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), joinSecurityEngine, mock(InnerJoinService.class));
+
+      // The connector reports string; the user had retyped both key sides to integer explicitly,
+      // which is what lets the join be built on a mergeable pair.
+      ((ColumnRef) liveAssembly.getColumnSelection(false).getAttribute("repoId"))
+         .setDataType("integer");
+      ((ColumnRef) right.getColumnSelection(false).getAttribute("repoId")).setDataType("integer");
+      editSvc.apply("TOK-ET78346", agent,
+         ed -> ed.addJoin("J", "Calendars", "repoId", "R", "repoId", "INNER", null, null));
+
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+      XRepository xrepository = mock(XRepository.class);
+      when(xrepository.getDataSource(eq("MyDatasource"))).thenReturn(mock(TabularDataSource.class));
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         xrepository, mock(QueryManagerService.class));
+
+      EditRequest req = editTableRequest("Calendars", "Issues", null, null, null, null, null, null);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-ET78346", req, agent));
+      assertTrue(ex.getMessage().contains("join \"J\""), ex.getMessage());
+      assertTrue(ex.getMessage().contains("integer to string"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("re-detected"), ex.getMessage());
+
+      assertEquals("Repos", liveQuery.getEndpoint(),
+         "a refused edit must not mutate the live query's own endpoint");
+      assertEquals("integer",
+         liveAssembly.getColumnSelection(false).getAttribute("repoId").getDataType());
+      assertNotNull(ws.getAssembly("J"));
+   }
+
+   /**
     * Code-review follow-up (PR #5391, finding 2): a success test for the suffix form -- only the
     * endpoint form had one. Uses FakeColumnProducingCustomRestQuery (a generic/custom REST-JSON
     * connector with no endpoint property, so editTabularTable dispatches to the suffix branch).
@@ -5353,6 +5424,163 @@ class WorksheetAgentControllerTest {
          "a replace must keep the same assembly instance, not swap in a new one under the same name");
       assertEquals("9", String.valueOf(after.getEmbeddedData().getObject(1, 0)),
          "the new file's data must have landed on the table");
+   }
+
+   // ---------------------------------------------------------------------------
+   // Bug #78346: replaceTable must not retype a join key into an unmergeable pair.
+   // ---------------------------------------------------------------------------
+
+   private static void addTestJoin(Worksheet ws, String join, String left, String leftKey,
+                                   String right, String rightKey) throws Exception
+   {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-JN"), any())).thenReturn(session("TOK-JN"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+      SecurityEngine se = mock(SecurityEngine.class);
+      when(se.checkPermission(
+         any(), any(ResourceType.class), any(String.class), any(ResourceAction.class)))
+         .thenReturn(true);
+      WorksheetEditService svc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), se, mock(InnerJoinService.class));
+      svc.apply("TOK-JN", agent,
+                ed -> ed.addJoin(join, left, leftKey, right, rightKey, "INNER", null, null));
+   }
+
+   private static WorksheetAgentController.ImportCsvResponse replaceCsv(
+      WorksheetAgentController ctrl, String token, String table, String csv) throws Exception
+   {
+      return ctrl.importCsv(token, new WorksheetAgentController.ImportCsvRequest(
+         null, csv, null, null, null, null, null, null, null, null, table),
+         TestPrincipals.user("alice", "host-org"));
+   }
+
+   /** Q1(id integer, v) joined on id to Q2(k integer) through join J. */
+   private static WorksheetAgentController joinedImport(Worksheet ws, String token)
+      throws Exception
+   {
+      WorksheetAgentController ctrl = importCtrl(ws, token);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      ctrl.importCsv(token, new WorksheetAgentController.ImportCsvRequest(
+         "Q1", "id,v\n1,a\n2,b"), agent);
+      ctrl.importCsv(token, new WorksheetAgentController.ImportCsvRequest(
+         "Q2", "k\n1\n2"), agent);
+      addTestJoin(ws, "J", "Q1", "id", "Q2", "k");
+      return ctrl;
+   }
+
+   private static String typeOf(Worksheet ws, String table, String col) {
+      return importedTable(ws, table).getColumnSelection(false).getAttribute(col).getDataType();
+   }
+
+   @Test
+   void importReplaceRefusesRetypingAJoinedKeyAndLeavesTheTableUntouched() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = joinedImport(ws, "TOK-78346-A");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> replaceCsv(ctrl, "TOK-78346-A", "Q1", "id,v\nx1,a\nx2,b"));
+
+      assertTrue(ex.getMessage().contains("join \"J\""), ex.getMessage());
+      assertTrue(ex.getMessage().contains("integer to string"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("re-detects"), ex.getMessage());
+      assertFalse(ex.getMessage().contains("stringColumns"), ex.getMessage());
+      assertEquals("integer", typeOf(ws, "Q1", "id"));
+      assertEquals("1", String.valueOf(importedTable(ws, "Q1").getEmbeddedData().getObject(1, 0)));
+      assertNotNull(ws.getAssembly("J"));
+   }
+
+   @Test
+   void importReplaceAllowsUnchangedMergeableAndNonKeyRetypes() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = joinedImport(ws, "TOK-78346-B");
+
+      replaceCsv(ctrl, "TOK-78346-B", "Q1", "id,v\n7,z");
+      replaceCsv(ctrl, "TOK-78346-B", "Q1", "id,v\n7,5");
+      assertEquals("integer", typeOf(ws, "Q1", "v"));
+      replaceCsv(ctrl, "TOK-78346-B", "Q1", "id,v\n1.5,5");
+      assertEquals("double", typeOf(ws, "Q1", "id"));
+   }
+
+   @Test
+   void importReplaceShapeChangeKeepingTheKeyTypeIsAccepted() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = joinedImport(ws, "TOK-78346-C");
+
+      replaceCsv(ctrl, "TOK-78346-C", "Q1", "id,w,x\n1,a,b");
+
+      assertEquals(3, importedTable(ws, "Q1").getColumnSelection(false).getAttributeCount());
+   }
+
+   @Test
+   void importReplaceShapeChangeRetypingTheKeyByHeaderIsRefused() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = joinedImport(ws, "TOK-78346-D");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> replaceCsv(ctrl, "TOK-78346-D", "Q1", "id,w\nx,y"));
+
+      assertTrue(ex.getMessage().contains("\"id\""), ex.getMessage());
+      assertEquals(2, importedTable(ws, "Q1").getColumnSelection(false).getAttributeCount());
+      assertNotNull(importedTable(ws, "Q1").getColumnSelection(false).getAttribute("v"));
+   }
+
+   @Test
+   void importReplaceOfAnExplicitlyRetypedStringKeyPointsAtStringColumns() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = joinedImport(ws, "TOK-78346-E");
+      // change_column_type made both sides string (a mergeable pair); the importer would
+      // re-detect integer for the numeric-looking values.
+      ((ColumnRef) importedTable(ws, "Q1").getColumnSelection(false).getAttribute("id"))
+         .setDataType("string");
+      ((ColumnRef) importedTable(ws, "Q2").getColumnSelection(false).getAttribute("k"))
+         .setDataType("string");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> replaceCsv(ctrl, "TOK-78346-E", "Q1", "id,v\n1,a"));
+
+      assertTrue(ex.getMessage().contains("string to integer"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("discarded"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("stringColumns"), ex.getMessage());
+      assertEquals("string", typeOf(ws, "Q1", "id"));
+   }
+
+   @Test
+   void importReplaceListsEveryBrokenKeyColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-78346-F");
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      ctrl.importCsv("TOK-78346-F", new WorksheetAgentController.ImportCsvRequest(
+         "Q1", "a,b\n1,2"), agent);
+      ctrl.importCsv("TOK-78346-F", new WorksheetAgentController.ImportCsvRequest(
+         "Q2", "k\n1"), agent);
+      ctrl.importCsv("TOK-78346-F", new WorksheetAgentController.ImportCsvRequest(
+         "Q3", "m\n1"), agent);
+      addTestJoin(ws, "J1", "Q1", "a", "Q2", "k");
+      addTestJoin(ws, "J2", "Q1", "b", "Q3", "m");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> replaceCsv(ctrl, "TOK-78346-F", "Q1", "a,b\nx,y"));
+
+      assertTrue(ex.getMessage().contains("\"a\""), ex.getMessage());
+      assertTrue(ex.getMessage().contains("\"b\""), ex.getMessage());
+      assertTrue(ex.getMessage().contains("J1") && ex.getMessage().contains("J2"),
+         ex.getMessage());
+   }
+
+   @Test
+   void importReplaceWithoutAJoinAllowsAnyRetype() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-78346-G");
+      ctrl.importCsv("TOK-78346-G", new WorksheetAgentController.ImportCsvRequest(
+         "Q1", "id,v\n1,a"), TestPrincipals.user("alice", "host-org"));
+
+      replaceCsv(ctrl, "TOK-78346-G", "Q1", "id,v\nx,a");
+
+      assertEquals("string", typeOf(ws, "Q1", "id"));
    }
 
    @Test
