@@ -110,7 +110,10 @@ public class RadioButtonVSAScriptable extends InputVSAScriptable
                   info.getClass(), info);
       addProperty("titleVisible", "isTitleVisible", "setTitleVisible",
                   boolean.class, info.getClass(), info);
-      addProperty("value", null);
+      // live getter/setter, same shape as CheckBoxVSAScriptable (#76699); cellValue still takes
+      // precedence during per-cell dynamic-format iteration
+      addProperty("value", "getSelectedObject", "setSelectedObject", Object.class,
+                  getClass(), this);
    }
 
    /**

@@ -93,6 +93,30 @@ public class RadioButtonVSAScriptableTest {
    }
 
    @Test
+   void testValueReadsLiveSelection() {
+      assertNull(radioButtonVSAScriptable.getMember("value"));
+      radioButtonVSAssemblyInfo.setSelectedObject("a");
+      assertEquals("a", radioButtonVSAScriptable.getMember("value"));
+      radioButtonVSAssemblyInfo.setSelectedObject("b");
+      assertEquals("b", radioButtonVSAScriptable.getMember("value"));
+   }
+
+   @Test
+   void testCellValueWinsThenNullRestoresLiveRead() {
+      radioButtonVSAssemblyInfo.setSelectedObject("a");
+      radioButtonVSAScriptable.setCellValue("cell");
+      assertEquals("cell", radioButtonVSAScriptable.getMember("value"));
+      radioButtonVSAScriptable.setCellValue(CompositeVSAScriptable.NULL);
+      assertEquals("a", radioButtonVSAScriptable.getMember("value"));
+   }
+
+   @Test
+   void testPutValueWritesSelection() {
+      radioButtonVSAScriptable.putMember("value", "x");
+      assertEquals("x", radioButtonVSAssemblyInfo.getSelectedObject());
+   }
+
+   @Test
    void testHas() {
       assertFalse(radioButtonVSAScriptable.hasMember("property1"));
       radioButtonVSAScriptable.setCellValue("value1");

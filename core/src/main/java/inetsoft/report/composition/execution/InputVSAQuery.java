@@ -479,16 +479,14 @@ public class InputVSAQuery extends VSAQuery {
       data.setFormats(fmts);
 
       if(scriptable instanceof CompositeVSAScriptable) {
-         if(iassembly instanceof SingleInputVSAssembly) {
-            ((CompositeVSAScriptable) scriptable)
-               .setCellValue(((SingleInputVSAssembly) iassembly).getSelectedObject());
-         }
-         // CheckBox's "value" is now a live getter (CheckBoxVSAScriptable.addProperties()), so
-         // clear the per-cell dynamic-format iteration's scratch value here instead of
-         // re-snapshotting the whole selection, which would otherwise go stale relative to any
-         // later direct model mutation (e.g. a subsequent selection change) that doesn't happen
-         // to re-run this method before the next script read of CheckBox.value.
-         else if(iassembly instanceof CompositeInputVSAssembly) {
+         // CheckBox's and RadioButton's "value" are live getters (addProperties()), so clear the
+         // per-cell dynamic-format iteration's scratch value here instead of re-snapshotting the
+         // selection, which would otherwise go stale relative to any later direct model mutation
+         // (e.g. a subsequent selection change) that doesn't happen to re-run this method before
+         // the next script read of .value.
+         if(iassembly instanceof SingleInputVSAssembly ||
+            iassembly instanceof CompositeInputVSAssembly)
+         {
             ((CompositeVSAScriptable) scriptable).setCellValue(CompositeVSAScriptable.NULL);
          }
       }
