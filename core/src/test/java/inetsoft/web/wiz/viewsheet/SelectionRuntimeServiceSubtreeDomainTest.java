@@ -421,6 +421,67 @@ class SelectionRuntimeServiceSubtreeDomainTest {
       assertEquals(1, result.get("valuesSelected"));
    }
 
+   /** Partly merged-back covering entry: only LA is really removed, so deselected is 1. */
+   @Test
+   void deselectOfACoveringEntryUnderASearchCountsOnlyWhatWasRemoved() throws Exception {
+      SelectionList domain = new SelectionList();
+      CompositeSelectionValue east = new CompositeSelectionValue("East", "East");
+      east.setSelected(true);
+      SelectionList children = new SelectionList();
+      SelectionValue ny = new SelectionValue("NY", "NY");
+      ny.setSelected(true);
+      ny.setLevel(1);
+      SelectionValue la = new SelectionValue("LA", "LA");
+      la.setSelected(true);
+      la.setLevel(1);
+      children.addSelectionValue(ny);
+      children.addSelectionValue(la);
+      east.setSelectionList(children);
+      domain.addSelectionValue(east);
+      SelectionRuntimeServiceTest.Harness h =
+         SelectionRuntimeServiceTest.harness(searchedTree(false, domain, "LA"));
+      doAnswer(inv -> {
+         la.setSelected(false);
+         return null;
+      }).when(h.selections()).applySelection(anyString(), anyString(), any(),
+                                             any(Principal.class), any(), anyString());
+
+      Map<String, Object> result = h.service().setSelection(
+         "tok", SelectionRuntimeServiceTest.principal(), "Tree1", null,
+         List.of(List.of("East"), List.of("East", "LA")), null, null, null, "");
+
+      assertEquals(1, result.get("deselected"));
+      assertEquals(1, result.get("selectedTotal"));
+   }
+
+   /** The reported shape: a flat list, deselect [A, A] after [A, B] removes one value. */
+   @Test
+   void flatListDeselectNamingAValueTwiceCountsItOnce() throws Exception {
+      SelectionList domain = new SelectionList();
+      SelectionValue a = new SelectionValue("A", "A");
+      a.setSelected(true);
+      SelectionValue b = new SelectionValue("B", "B");
+      b.setSelected(true);
+      domain.addSelectionValue(a);
+      domain.addSelectionValue(b);
+      inetsoft.uql.viewsheet.SelectionListVSAssembly list =
+         SelectionRuntimeServiceTest.list(inetsoft.uql.XConstants.SORT_ASC, false, null);
+      when(list.getSelectionList()).thenReturn(domain);
+      SelectionRuntimeServiceTest.Harness h = SelectionRuntimeServiceTest.harness(list);
+      doAnswer(inv -> {
+         a.setSelected(false);
+         return null;
+      }).when(h.selections()).applySelection(anyString(), anyString(), any(),
+                                             any(Principal.class), any(), anyString());
+
+      Map<String, Object> result = h.service().setSelection(
+         "tok", SelectionRuntimeServiceTest.principal(), "Filter1", null,
+         List.of(List.of("A"), List.of("A")), null, null, null, "");
+
+      assertEquals(1, result.get("deselected"));
+      assertEquals(1, result.get("selectedTotal"));
+   }
+
    // ── clear_selection under a search (bug-78294) ─────────────────────────────
 
    private static SelectionList alphaBeta() {

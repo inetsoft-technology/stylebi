@@ -426,16 +426,18 @@ public class SelectionRuntimeService {
                // Measured after the apply: a value the active search hides is added back by
                // VSSelectionService.applySelection, so it is not deselected (bug-78216).
                List<List<String>> afterPaths = selectedPaths(assembly);
-               // Counted in requested entries, with an entry another entry already covers (a
-               // prefix of it) folded into that one, so overlapping [East] and [East, NY] are one
-               // target, not two (bug-78268).
-               List<List<String>> requested = withoutCoveredPaths(deselect);
-               List<List<String>> stuck = requested.stream()
+               // Counted as selected paths a requested entry touches that are really gone after
+               // the apply, so duplicate or overlapping entries count once and a partly merged-back
+               // branch counts only what was removed (bug-78268). Same leaf-path unit as
+               // selectedTotal on a non-ID tree.
+               List<List<String>> stuck = deselect.stream()
                   .filter(path -> everSelected(currentPaths, path) && everSelected(afterPaths, path))
                   .toList();
                result.put("deselected",
-                          (int) requested.stream().filter(path -> everSelected(currentPaths, path))
-                             .count() - stuck.size());
+                          (int) currentPaths.stream()
+                             .filter(p -> deselect.stream().anyMatch(r -> everSelected(List.of(p), r)))
+                             .filter(p -> !afterPaths.contains(p))
+                             .count());
 
                String activeSearch = searchString(info);
 
@@ -1368,14 +1370,6 @@ public class SelectionRuntimeService {
       }
 
       return result;
-   }
-
-   /** Drops each path that another path in the list is a proper prefix of (it is covered by it). */
-   static List<List<String>> withoutCoveredPaths(List<List<String>> paths) {
-      return paths.stream()
-         .filter(path -> paths.stream()
-            .noneMatch(other -> other.size() < path.size() && startsWithPath(path, other)))
-         .toList();
    }
 
    /** Whether {@code path} was ever actually part of {@code current} -- either is a prefix of the other. */
