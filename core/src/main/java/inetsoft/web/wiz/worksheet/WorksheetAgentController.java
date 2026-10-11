@@ -3138,6 +3138,10 @@ public class WorksheetAgentController {
          // any mutation when that retypes a join key into an unmergeable pair.
          requireImportKeepsJoinKeyTypes(ws, assembly, tableName, table);
 
+         // Bug #78357: the same replace can also drop a column by omission; that is as broken
+         // for a dependent as a retype, and equally refused before anything is mutated.
+         requireImportKeepsReferencedColumns(ws, assembly, tableName, table);
+
          // Only reset the column selection -- and therefore anything bound to it -- when the
          // shape actually changed; otherwise every join/filter/binding on this table survives
          // the swap untouched, which is the entire point of replacing rather than recreating.
@@ -3204,6 +3208,39 @@ public class WorksheetAgentController {
       JoinKeyTypeGuard.throwIfAny(
          breaks, tableName, "Replacing the data of this table would change the type of",
          JoinKeyTypeGuard.importRemedy(breaks));
+   }
+
+   /**
+    * Bug #78357: refuses a replace-import whose new header row no longer has a column that a join,
+    * downstream condition/expression/aggregate, or the table's own condition/sort still uses.
+    * Columns are matched by their user-visible name, the way {@code setEmbeddedData} derives the
+    * new ones from the headers.
+    */
+   private static void requireImportKeepsReferencedColumns(Worksheet ws,
+                                                           EmbeddedTableAssembly assembly,
+                                                           String tableName,
+                                                           XEmbeddedTable table)
+      throws PairingException
+   {
+      ColumnSelection cols = assembly.getColumnSelection(false);
+
+      if(isSameColumns(cols, table)) {
+         return;
+      }
+
+      Set<String> kept = new HashSet<>();
+
+      for(int i = 0; i < table.getColCount(); i++) {
+         kept.add(AssetUtil.format(inetsoft.uql.util.XUtil.getHeader(table, i)));
+      }
+
+      List<ColumnRef> old = new ArrayList<>();
+
+      for(int i = 0; i < cols.getAttributeCount(); i++) {
+         old.add((ColumnRef) cols.getAttribute(i));
+      }
+
+      ColumnLossReport.requireImportKeepsReferencedColumns(ws, assembly, tableName, old, kept);
    }
 
    /**
