@@ -364,6 +364,25 @@ public class CalcTableVSAssembly extends TableDataVSAssembly implements FormulaT
    }
 
    /**
+    * Rename the bound column of cells referencing a renamed reference.
+    */
+   @Override
+   public void renameBindingCol(String oname, String nname) {
+      super.renameBindingCol(oname, nname);
+      TableLayout layout = getTableLayout();
+
+      if(oname == null || layout == null) {
+         return;
+      }
+
+      for(TableCellBinding cell : LayoutTool.getTableCellBindings(layout, 0)) {
+         if(oname.equals(cell.getValue())) {
+            cell.setValue(nname);
+         }
+      }
+   }
+
+   /**
     * Get the sort info.
     * @return the sort info.
     */

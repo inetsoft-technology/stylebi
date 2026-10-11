@@ -18,7 +18,12 @@
 package inetsoft.web.binding.controller;
 
 import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.report.BaseLayout;
+import inetsoft.report.CellBinding;
+import inetsoft.report.TableCellBinding;
+import inetsoft.report.TableLayout;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
@@ -29,7 +34,9 @@ import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.ExpressionRef;
+import inetsoft.uql.viewsheet.CalcTableVSAssembly;
 import inetsoft.uql.viewsheet.CalculateRef;
+import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.CrosstabVSAssembly;
 import inetsoft.uql.viewsheet.VSCrosstabInfo;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -473,5 +480,78 @@ class ModifyCalculateFieldServiceTest {
             c.getMessage() != null && c.getMessage().contains("viewsheet"));
       assertFalse(sawRefreshWarning,
          "refreshViewsheet should have succeeded with the correct id -- no warning expected");
+   }
+
+   /**
+    * Bug #78282: the calc-table cell must follow a rename whichever assembly the caller names
+    * (a chart, or none), not only when the named assembly is the calc table itself.
+    */
+   private void renameWithNamedAssembly(String named) throws Exception {
+      String id = "rt-calcfield-rename-cell";
+      String table = "Orders";
+      Principal principal = mock(Principal.class);
+
+      Viewsheet vs = new Viewsheet();
+      vs.addCalcField(table, calc("NetRevenue", "field['Total']", true));
+
+      TableLayout layout = new TableLayout();
+      layout.setColCount(1);
+      BaseLayout.Region region = layout.new Region();
+      region.setRowCount(1);
+      layout.addRegion(new DefaultTableLens(new Object[][] { { "a" } })
+         .getDescriptor().getRowDataPath(0), region);
+      TableCellBinding cell = new TableCellBinding(CellBinding.BIND_COLUMN, "NetRevenue");
+      cell.setBType(CellBinding.SUMMARY);
+      layout.setCellBinding(0, 0, cell);
+
+      CalcTableVSAssembly calcTable = new CalcTableVSAssembly(vs, "CalcTable1");
+      calcTable.setTableLayout(layout);
+      calcTable.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, table));
+      vs.addAssembly(calcTable);
+      vs.addAssembly(new ChartVSAssembly(vs, "Chart1"));
+
+      CalculateRef renamed = calc("NetRevenue2", "field['Total']", true);
+      CalculateRefModel calcModel = mock(CalculateRefModel.class);
+      when(calcModel.createDataRef()).thenReturn(renamed);
+
+      ModifyCalculateFieldEvent event = mock(ModifyCalculateFieldEvent.class);
+      when(event.calculateRef()).thenReturn(calcModel);
+      when(event.tableName()).thenReturn(table);
+      when(event.refName()).thenReturn("NetRevenue");
+      when(event.create()).thenReturn(false);
+      when(event.remove()).thenReturn(false);
+      when(event.wizard()).thenReturn(false);
+      when(event.name()).thenReturn(named);
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(mock(ViewsheetSandbox.class)));
+      ViewsheetService viewsheetService = mock(ViewsheetService.class);
+      when(viewsheetService.getViewsheet(eq(id), eq(principal))).thenReturn(rvs);
+
+      ModifyCalculateFieldService service = new ModifyCalculateFieldService(
+         mock(VSBindingService.class), mock(VSBindingTreeControllerServiceProxy.class),
+         mock(VSChartHandler.class), mock(XRepository.class), mock(VSWizardBindingHandler.class),
+         mock(VSRefreshController.class), viewsheetService, mock(VSAssemblyInfoHandler.class),
+         mock(DataSourceRegistry.class));
+
+      service.modifyCalculateField(id, event, principal, mock(CommandDispatcher.class), "");
+
+      assertEquals("NetRevenue2", calcTable.getTableLayout().getCellBinding(0, 0).getValue());
+   }
+
+   @Test
+   void renameRewritesCalcTableCellWhenAnotherAssemblyIsNamed() throws Exception {
+      renameWithNamedAssembly("Chart1");
+   }
+
+   @Test
+   void renameRewritesCalcTableCellWhenNoAssemblyIsNamed() throws Exception {
+      renameWithNamedAssembly(null);
+   }
+
+   @Test
+   void renameRewritesCalcTableCellWhenTheCalcTableIsNamed() throws Exception {
+      renameWithNamedAssembly("CalcTable1");
    }
 }
