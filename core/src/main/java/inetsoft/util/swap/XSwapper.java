@@ -476,9 +476,9 @@ public final class XSwapper {
    }
 
    /**
-    * Deletes the swap files of this cache directory whose seed is registered in
-    * {@link #SWAP_SEED_MAP} and confirmed dead (none of its owner nodes are in the current
-    * cluster topology), as long as the file is past {@link #SWAP_FILE_GRACE_PERIOD}. This is
+    * Deletes the swap files of this cache directory that are not in use by a JVM that may still
+    * be running (see {@link RegisteredSwapFiles#contains}): not registered in the swap file map
+    * and not of a seed that a node of the current cluster topology owns, as long as the file is past {@link #SWAP_FILE_GRACE_PERIOD}. This is
     * the same, unmodified check the constructor's one-shot startup sweep above runs; it is
     * factored out here, unchanged, so it can also be re-run by a short recurring task
     * (Bug #78245) instead of only once per JVM. A swap file written in the last seconds of a
@@ -1730,7 +1730,9 @@ public final class XSwapper {
     * stopped while other nodes stayed up (e.g. in a rolling restart) would protect its files
     * forever. An entry protects its file unless the seed in the file name is registered in
     * {@link #SWAP_SEED_MAP} and none of the nodes that use the seed is in the cluster anymore. A
-    * seed that is not registered (e.g. of a JVM of an older version) is assumed to be alive.
+    * seed that is not registered (e.g. of a JVM of an older version) is assumed to be alive for
+    * entries in the map. A file that is not in the map is protected when its seed is registered
+    * and at least one of its owner nodes is in the cluster (Bug #78322).
     * An instance is meant for a single sweep.
     */
    public static final class RegisteredSwapFiles {
@@ -1741,12 +1743,31 @@ public final class XSwapper {
       }
 
       /**
-       * Checks if a file is registered in the swap file map by a JVM that may still be running.
+       * Checks if a file is in use by a JVM that may still be running: it is registered in the
+       * swap file map by such a JVM, or its seed is registered in {@link #SWAP_SEED_MAP} and one
+       * of the nodes that use the seed is in the cluster. The second case protects the files
+       * that are not (yet) registered, e.g. of a swappable that does not register its files or
+       * is still inside the batch window of Bug #77627. A seed that is not registered is not
+       * treated as live here, so that the files of a JVM that is gone and whose seed was already
+       * removed are still deleted.
        * @param file the file.
        * @return <tt>true</tt> if the file is in use.
        */
       public boolean contains(File file) {
-         return map.containsKey(file.getAbsolutePath()) && !isStale(file.getName());
+         if(map.containsKey(file.getAbsolutePath()) && !isStale(file.getName())) {
+            return true;
+         }
+
+         Long seed = getSwapFileSeed(file.getName());
+         return seed != null && isLive(seed);
+      }
+
+      // one distributed read per seed, not per file, a cache directory can hold many files
+      private boolean isLive(Long seed) {
+         return live.computeIfAbsent(seed, s -> {
+            String owners = seeds.get(s);
+            return owners != null && !owners.isEmpty() && !dead.computeIfAbsent(s, this::isDead);
+         });
       }
 
       /**
@@ -1821,6 +1842,7 @@ public final class XSwapper {
       private final DistributedMap<String, Integer> map;
       private final Map<Long, String> seeds;
       private final Map<Long, Boolean> dead = new HashMap<>();
+      private final Map<Long, Boolean> live = new HashMap<>();
       private final Map<Long, String> deadOwners = new HashMap<>();
       private Set<String> nodes;
    }

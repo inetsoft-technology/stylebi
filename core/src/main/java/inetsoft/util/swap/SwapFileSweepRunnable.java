@@ -30,9 +30,10 @@ import java.io.IOException;
  * fixed interval instead of only once per JVM (at construction) or on a manual EM Clean Up.
  * <p>
  * {@link XSwapper}'s constructor already sweeps the swap cache directory once, in a background
- * thread, deleting a <tt>*.tdat</tt> file only if its seed is registered in
- * {@link XSwapper#SWAP_SEED_MAP} and confirmed dead -- i.e. none of its owner nodes are in the
- * current cluster topology -- and the file is older than
+ * thread, deleting a <tt>*.tdat</tt> file only if it is not in use by a JVM that may still be running
+ * (Bug #78322: not registered in the swap file map, and its seed in
+ * {@link XSwapper#SWAP_SEED_MAP} has no owner node in the current cluster topology, or is not
+ * registered anymore) and the file is older than
  * {@link XSwapper#SWAP_FILE_GRACE_PERIOD}. A file written in the last seconds of a JVM that then
  * leaves the cluster (e.g. during a rolling restart) can still be inside that grace period the
  * one time the startup sweep evaluates it, and since that sweep never runs again for the life of

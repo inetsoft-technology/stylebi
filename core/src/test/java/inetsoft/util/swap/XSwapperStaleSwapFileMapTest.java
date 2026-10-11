@@ -247,6 +247,62 @@ class XSwapperStaleSwapFileMapTest {
          "SwapFileSweepRunnable.run() did not resolve the cache directory and sweep it");
    }
 
+   @Test
+   void unregisteredFilesAreKeptOnlyForLiveSeedsBySweepRunnable() throws Exception {
+      Map<Long, String> seeds = Cluster.getInstance().getMap(XSwapper.SWAP_SEED_MAP);
+      seeds.put(901L, OTHER_LIVE_NODE);
+      seeds.put(902L, DEAD_NODE);
+      seeds.put(904L, DEAD_NODE + "," + OTHER_LIVE_NODE);
+      seeds.put(905L, Cluster.getInstance().getLocalNodeId());
+      File live = createUnregistered("s901_1.tdat");
+      File dead = createUnregistered("s902_1_dict.tdat");
+      File unknown = createUnregistered("s903_1_0.tdat");
+      File shared = createUnregistered("s904_1.tdat");
+      File local = createUnregistered("s905_1.tdat");
+      new SwapFileSweepRunnable().run();
+      assertTrue(live.exists(), "unregistered file of a live foreign seed");
+      assertFalse(dead.exists(), "unregistered file of a dead seed");
+      assertFalse(unknown.exists(), "unregistered file of an unknown seed");
+      assertTrue(shared.exists(), "unregistered file of a seed shared by a dead and a live node");
+      assertTrue(local.exists(), "unregistered file of a seed owned by the local node");
+   }
+
+   @Test
+   void unregisteredFilesOfLiveSeedsAreKeptByCleanUpAndDataCache() throws Exception {
+      Map<Long, String> seeds = Cluster.getInstance().getMap(XSwapper.SWAP_SEED_MAP);
+      seeds.put(911L, OTHER_LIVE_NODE);
+      seeds.put(912L, DEAD_NODE);
+      File live = createUnregistered("s911_1.tdat");
+      File liveNonTdat = createUnregistered("s911_2_slist.swap");
+      File marker = createUnregistered("s912_1.tdat");
+      FileSystemService.getInstance().clearCacheFiles(null);
+      waitUntilDeleted(marker);
+      assertTrue(live.exists(), "clearCacheFiles, live foreign seed");
+      assertTrue(liveNonTdat.exists(), "non-tdat file of a live foreign seed");
+
+      seeds.put(921L, OTHER_LIVE_NODE);
+      long now = System.currentTimeMillis();
+      File live2 = createUnregistered("s921_1.tdat");
+      File unk = createUnregistered("s923_1.tdat");
+      assertTrue(live2.setLastModified(now - 1000 * 86400000L));
+      assertTrue(unk.setLastModified(now - 999 * 86400000L));
+      Method clearDataCache = ClearOldCacheFilesRunnable.class.getDeclaredMethod("clearDataCache");
+      clearDataCache.setAccessible(true);
+      clearDataCache.invoke(new ClearOldCacheFilesRunnable());
+      assertTrue(live2.exists(), "clearDataCache, live foreign seed");
+      assertFalse(unk.exists(), "clearDataCache, unknown seed");
+   }
+
+   // not in SWAP_FILE_MAP: a swappable that never registers its files, or one still inside the
+   // batch window of Bug #77627
+   private File createUnregistered(String name) throws Exception {
+      File file = FileSystemService.getInstance().getCacheFile(name);
+      Files.write(file.toPath(), new byte[] { 1, 2, 3 });
+      assertTrue(file.setLastModified(System.currentTimeMillis() - 2 * 3600000L));
+      created.add(file);
+      return file;
+   }
+
    private static void waitUntilDeleted(File file) throws InterruptedException {
       // the sweeps run in a background thread
       long end = System.currentTimeMillis() + 30000L;
