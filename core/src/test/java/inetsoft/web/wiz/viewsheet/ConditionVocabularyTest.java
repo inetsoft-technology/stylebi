@@ -948,6 +948,17 @@ class ConditionVocabularyTest {
    }
 
    @Test
+   void impossibleCalendarDatesAreRefusedInsteadOfRollingOver() {
+      assertThrows(IllegalArgumentException.class, () -> dateConditions("date", "equals", "{d '2024-02-30'}"));
+      assertThrows(IllegalArgumentException.class, () -> dateConditions("date", "equals", "{d '2023-02-29'}"));
+      assertThrows(IllegalArgumentException.class,
+                   () -> dateConditions("timeInstant", "equals", "{ts '2024-02-30 25:61:00'}"));
+      assertThrows(IllegalArgumentException.class, () -> dateConditions("time", "equals", "{t '25:00:00'}"));
+      assertEquals("{d '2024-02-29'}", dateConditions(
+         "date", "equals", "{d '2024-02-29'}")[0].getValues()[0].getValue());
+   }
+
+   @Test
    void honestDateFormsAreAcceptedAndStoredAsGiven() {
       assertEquals("{ts '2024-01-01 00:00:00'}", dateConditions(
          "timeInstant", "equals", "{ts '2024-01-01 00:00:00'}")[0].getValues()[0].getValue());

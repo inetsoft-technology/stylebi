@@ -65,7 +65,7 @@ public final class DateConditionLiteral {
       }
 
       String trimmed = value.trim();
-      Object parsed = AbstractCondition.parseDateConditionValue(type, trimmed);
+      Object parsed = AbstractCondition.parseDateConditionValue(type, trimmed, true);
 
       if(parsed == null) {
          return null;

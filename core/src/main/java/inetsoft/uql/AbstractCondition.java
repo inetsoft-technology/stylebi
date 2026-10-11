@@ -451,6 +451,16 @@ public abstract class AbstractCondition implements XCondition {
     * is not a date type).
     */
    public static Object parseDateConditionValue(String type, String value) {
+      return parseDateConditionValue(type, value, false);
+   }
+
+   /**
+    * Same as {@link #parseDateConditionValue(String, String)}, optionally refusing an impossible
+    * calendar/clock value (e.g. {@code {d '2024-02-30'}}) instead of rolling it over.
+    *
+    * @param strict true to parse the braced and {@code HH:mm:ss} forms non-leniently.
+    */
+   public static Object parseDateConditionValue(String type, String value, boolean strict) {
       if(value == null || type == null) {
          return null;
       }
@@ -459,7 +469,7 @@ public abstract class AbstractCondition implements XCondition {
          // try new format first, then old format
          if(value.startsWith("{ts")) {
             try {
-               return new java.sql.Timestamp(CoreTool.timeInstantFmt.get().parse(value).getTime());
+               return new java.sql.Timestamp(format(CoreTool.timeInstantFmt.get(), strict).parse(value).getTime());
             }
             catch(Exception ex) {
             }
@@ -468,13 +478,13 @@ public abstract class AbstractCondition implements XCondition {
          if(value.startsWith("{d")) {
             try {
                return new java.sql.Timestamp(
-                  CoreTool.timeInstantFmt_old.get().parse(value).getTime());
+                  format(CoreTool.timeInstantFmt_old.get(), strict).parse(value).getTime());
             }
             catch(Exception ex) {
             }
 
             try {
-               return new java.sql.Timestamp(CoreTool.dateFmt.get().parse(value).getTime());
+               return new java.sql.Timestamp(format(CoreTool.dateFmt.get(), strict).parse(value).getTime());
             }
             catch(Exception ex) {
             }
@@ -493,7 +503,7 @@ public abstract class AbstractCondition implements XCondition {
          // try new format first, then old format
          if(value.startsWith("{t")) {
             try {
-               return new java.sql.Time(CoreTool.timeFmt.get().parse(value).getTime());
+               return new java.sql.Time(format(CoreTool.timeFmt.get(), strict).parse(value).getTime());
             }
             catch(Exception ex) {
                // ignore
@@ -502,7 +512,7 @@ public abstract class AbstractCondition implements XCondition {
 
          if(value.startsWith("{d")) {
             try {
-               return new java.sql.Time(CoreTool.timeFmt_old.get().parse(value).getTime());
+               return new java.sql.Time(format(CoreTool.timeFmt_old.get(), strict).parse(value).getTime());
             }
             catch(Exception ex) {
                // ignore
@@ -512,7 +522,7 @@ public abstract class AbstractCondition implements XCondition {
          if(value.contains(":")) {
             try {
                DateFormat dfmt =
-                  CoreTool.createDateFormat(CoreTool.DEFAULT_TIME_PATTERN);
+                  format(CoreTool.createDateFormat(CoreTool.DEFAULT_TIME_PATTERN), strict);
                return new java.sql.Time(dfmt.parse(value).getTime());
             }
             catch(Exception e) {
@@ -523,7 +533,7 @@ public abstract class AbstractCondition implements XCondition {
       else if(type.equals(XSchema.DATE)) {
          try {
             if(value.startsWith("{d")) {
-               DateFormat dfmt = CoreTool.dateFmt.get();
+               DateFormat dfmt = format(CoreTool.dateFmt.get(), strict);
 
                try {
                   return new java.sql.Date(dfmt.parse(value).getTime());
@@ -544,6 +554,20 @@ public abstract class AbstractCondition implements XCondition {
       }
 
       return null;
+   }
+
+   /**
+    * Returns the shared format for lenient parsing, or a non-lenient clone for strict parsing.
+    * The shared thread-local instance is never mutated.
+    */
+   private static DateFormat format(DateFormat fmt, boolean strict) {
+      if(!strict) {
+         return fmt;
+      }
+
+      DateFormat copy = (DateFormat) fmt.clone();
+      copy.setLenient(false);
+      return copy;
    }
 
    /**
