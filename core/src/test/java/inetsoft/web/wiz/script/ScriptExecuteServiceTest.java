@@ -26,6 +26,7 @@ import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.SubmitVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.SubmitVSAssemblyInfo;
@@ -559,8 +560,7 @@ class ScriptExecuteServiceTest {
       throws Exception
    {
       String script = "runQuery('ws:admin:ws')";
-      ViewsheetScope scope = mock(ViewsheetScope.class);
-      when(scope.execute(eq(script), nullable(String.class))).thenReturn(0.0);
+      ViewsheetScope scope = scopeObserving(script, 0.0, "ws:admin:ws", XUtil.RunQueryOutcome.NOT_FOUND);
 
       RuntimeViewsheet rvs = viewsheetWithScript(script, scope);
       XPrincipal user = callerPrincipal("admin", "host-org");
@@ -602,8 +602,7 @@ class ScriptExecuteServiceTest {
       throws Exception
    {
       String script = "runQuery('ws:global:ws')";
-      ViewsheetScope scope = mock(ViewsheetScope.class);
-      when(scope.execute(eq(script), nullable(String.class))).thenReturn(0.0);
+      ViewsheetScope scope = scopeObserving(script, 0.0, "ws:global:ws", XUtil.RunQueryOutcome.NOT_FOUND);
 
       RuntimeViewsheet rvs = viewsheetWithScript(script, scope);
       XPrincipal user = callerPrincipal("admin", "host-org");
@@ -637,8 +636,7 @@ class ScriptExecuteServiceTest {
    @Test
    void runLiveAddsNoWsScopeMismatchNoteWhenTheAddressedScopeActuallyHasTheAsset() throws Exception {
       String script = "runQuery('ws:global:ws')";
-      ViewsheetScope scope = mock(ViewsheetScope.class);
-      when(scope.execute(eq(script), nullable(String.class))).thenReturn(36.0);
+      ViewsheetScope scope = scopeObserving(script, 36.0, "ws:global:ws", XUtil.RunQueryOutcome.FOUND);
 
       RuntimeViewsheet rvs = viewsheetWithScript(script, scope);
       XPrincipal user = callerPrincipal("admin", "host-org");
@@ -662,29 +660,194 @@ class ScriptExecuteServiceTest {
       }
    }
 
-   /** Genuinely missing on both sides is NOT a scope mismatch -- no false positive. */
+   /**
+    * Bug #78285: a worksheet missing at the addressed scope AND the sibling used to produce no
+    * note at all. It now gets one generic note (the call was observed executing and resolved
+    * nothing). Rewrites the former "no note when absent at both scopes" expectation.
+    */
    @Test
-   void runLiveAddsNoWsScopeMismatchNoteWhenTheAssetDoesNotExistAtEitherScope() throws Exception {
-      String script = "runQuery('ws:admin:doesNotExist')";
-      ViewsheetScope scope = mock(ViewsheetScope.class);
-      when(scope.execute(eq(script), nullable(String.class))).thenReturn(null);
+   void runLiveAddsGenericNoteWhenTheAssetDoesNotExistAtEitherScope() throws Exception {
+      ScriptExecResult result = runObserved("runQuery('ws:admin:doesNotExist')", repoWithNothing(),
+                                            "ws:admin:doesNotExist", XUtil.RunQueryOutcome.NOT_FOUND);
 
-      RuntimeViewsheet rvs = viewsheetWithScript(script, scope);
-      XPrincipal user = callerPrincipal("admin", "host-org");
-      when(rvs.getUser()).thenReturn(user);
+      assertTrue(result.ok());
+      assertTrue(result.summary().contains("runQuery('ws:admin:doesNotExist') returned no data"),
+                 result.summary());
+      assertFalse(result.summary().contains("nothing exists there"), result.summary());
+   }
 
+   @Test
+   void runLiveWsNoteWordingIsIdenticalForDeniedNotFoundAndError() throws Exception {
+      String a = runObserved("runQuery('ws:bob:p')", repoWithNothing(), "ws:bob:p",
+                             XUtil.RunQueryOutcome.NOT_FOUND).summary();
+      String b = runObserved("runQuery('ws:bob:p')", repoWithNothing(), "ws:bob:p",
+                             XUtil.RunQueryOutcome.DENIED).summary();
+      String c = runObserved("runQuery('ws:bob:p')", repoWithNothing(), "ws:bob:p",
+                             XUtil.RunQueryOutcome.ERROR).summary();
+
+      assertEquals(a, b);
+      assertEquals(a, c);
+      assertFalse(a.toLowerCase().contains("permission"), a);
+      assertFalse(a.contains("exists"), a);
+   }
+
+   @Test
+   void runLiveGenericNoteDoesNotClaimTheWorksheetDoesNotExist() throws Exception {
+      for(XUtil.RunQueryOutcome o : XUtil.RunQueryOutcome.values()) {
+         if(o == XUtil.RunQueryOutcome.FOUND) {
+            continue;
+         }
+
+         String summary = runObserved("runQuery('ws:global:ws')", repoWithNothing(),
+                                      "ws:global:ws", o).summary();
+
+         assertFalse(summary.contains("was found"), summary);
+         assertFalse(summary.contains("does not exist"), summary);
+         assertTrue(summary.contains("could not be found, accessed or run"), summary);
+         assertTrue(summary.contains("check the worksheet itself"), summary);
+      }
+   }
+
+   /** Another user's scope never probes the repository, so the note can't reveal existence. */
+   @Test
+   void runLiveOtherUsersScopeNeverUsesTheSiblingMismatchText() throws Exception {
       AssetRepository repo = mock(AssetRepository.class);
-      when(repo.containsEntry(any(AssetEntry.class))).thenReturn(false);
+      when(repo.containsEntry(any(AssetEntry.class))).thenReturn(true);
 
+      String summary = runObserved("runQuery('ws:bob:p')", repo, "ws:bob:p",
+                                   XUtil.RunQueryOutcome.DENIED).summary();
+
+      assertTrue(summary.contains("returned no data"), summary);
+      assertFalse(summary.contains("ws:global:p"), summary);
+      verify(repo, never()).containsEntry(any(AssetEntry.class));
+   }
+
+   @Test
+   void runLiveAddsNoNoteForCommentedOrStringMentionedLiterals() throws Exception {
+      // nothing executed -> the observer is never invoked, whatever the text says
+      for(String script : new String[] {
+         "// runQuery('ws:admin:ws')\nvar x = 1;",
+         "/* runQuery('ws:admin:ws') */ var x = 1;",
+         "var s = \"see runQuery('ws:admin:ws')\";",
+         "if(false) { runQuery('ws:global:__none__'); }"})
+      {
+         ScriptExecResult result = runObserved(script, repoWithGlobalSibling(), null, null);
+
+         assertTrue(result.ok());
+         assertFalse(String.valueOf(result.summary()).contains("runQuery("), result.summary());
+      }
+   }
+
+   @Test
+   void runLiveReportsOnlyTheExecutedCallNotADeadOne() throws Exception {
+      ScriptExecResult result = runObserved(
+         "runQuery('ws:global:live'); // runQuery('ws:global:dead')", repoWithNothing(),
+         "ws:global:live", XUtil.RunQueryOutcome.NOT_FOUND);
+
+      assertTrue(result.summary().contains("ws:global:live"), result.summary());
+      assertFalse(result.summary().contains("dead"), result.summary());
+   }
+
+   @Test
+   void runLiveDedupesAndBoundsTheNotes() throws Exception {
+      String script = "many";
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(eq(script), nullable(String.class))).thenAnswer(inv -> {
+         for(int i = 0; i < 10; i++) {
+            notifyObserver("ws:global:w" + (i % 5), XUtil.RunQueryOutcome.NOT_FOUND);
+            notifyObserver("ws:global:w" + (i % 5), XUtil.RunQueryOutcome.NOT_FOUND);
+         }
+
+         return null;
+      });
+      ScriptExecResult result = runLiveWith(script, scope, repoWithNothing());
+      String summary = result.summary();
+
+      assertEquals(3, summary.split("returned no data", -1).length - 1, summary);
+      assertEquals(1, summary.split("ws:global:w0", -1).length - 1, summary);
+   }
+
+   @Test
+   void runLiveClearsTheObserverAfterExecuteIncludingOnException() throws Exception {
+      assertNull(currentObserver());
+
+      runObserved("runQuery('ws:global:ws')", repoWithNothing(), "ws:global:ws",
+                  XUtil.RunQueryOutcome.FOUND);
+      assertNull(currentObserver());
+
+      String script = "boom";
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(eq(script), nullable(String.class))).thenAnswer(inv -> {
+         assertNotNull(currentObserver());
+         throw new RuntimeException("boom");
+      });
+      ScriptExecResult result = runLiveWith(script, scope, repoWithNothing());
+
+      assertFalse(result.ok());
+      assertNull(currentObserver());
+   }
+
+   // ---- Bug #78285 helpers: drive XUtil's observer from inside the mocked scope.execute ----
+
+   private ViewsheetScope scopeObserving(String script, Object value, String literal,
+                                         XUtil.RunQueryOutcome outcome) throws Exception
+   {
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(eq(script), nullable(String.class))).thenAnswer(inv -> {
+         if(literal != null) {
+            notifyObserver(literal, outcome);
+         }
+
+         return value;
+      });
+      return scope;
+   }
+
+   private ScriptExecResult runObserved(String script, AssetRepository repo, String literal,
+                                        XUtil.RunQueryOutcome outcome) throws Exception
+   {
+      return runLiveWith(script, scopeObserving(script, null, literal, outcome), repo);
+   }
+
+   private ScriptExecResult runLiveWith(String script, ViewsheetScope scope, AssetRepository repo)
+      throws Exception
+   {
+      RuntimeViewsheet rvs = viewsheetWithScript(script, scope);
+      XPrincipal caller = callerPrincipal("admin", "host-org");
+      when(rvs.getUser()).thenReturn(caller);
       ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
 
       try(MockedStatic<AssetUtil> assetUtil = mockStatic(AssetUtil.class)) {
          assetUtil.when(() -> AssetUtil.getAssetRepository(false)).thenReturn(repo);
-
-         ScriptExecResult result = svc.runLive(rvs, ScriptTarget.parse("vs-init"), true);
-
-         assertTrue(result.ok());
-         assertFalse(result.summary().contains("scope, but nothing exists there"), result.summary());
+         return svc.runLive(rvs, ScriptTarget.parse("vs-init"), true);
       }
+   }
+
+   private static AssetRepository repoWithNothing() throws Exception {
+      AssetRepository repo = mock(AssetRepository.class);
+      when(repo.containsEntry(any(AssetEntry.class))).thenReturn(false);
+      return repo;
+   }
+
+   private static AssetRepository repoWithGlobalSibling() throws Exception {
+      AssetRepository repo = mock(AssetRepository.class);
+      when(repo.containsEntry(any(AssetEntry.class))).thenAnswer(
+         inv -> ((AssetEntry) inv.getArgument(0)).getScope() == AssetRepository.GLOBAL_SCOPE);
+      return repo;
+   }
+
+   private static void notifyObserver(String literal, XUtil.RunQueryOutcome outcome)
+      throws Exception
+   {
+      java.lang.reflect.Method m = XUtil.class.getDeclaredMethod(
+         "notifyRunQueryObserver", AssetEntry.class, XUtil.RunQueryOutcome.class);
+      m.setAccessible(true);
+      m.invoke(null, AssetEntry.createAssetEntry(literal, "host-org"), outcome);
+   }
+
+   private static Object currentObserver() throws Exception {
+      java.lang.reflect.Field f = XUtil.class.getDeclaredField("RUN_QUERY_OBSERVER");
+      f.setAccessible(true);
+      return ((ThreadLocal<?>) f.get(null)).get();
    }
 }

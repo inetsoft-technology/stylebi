@@ -3754,6 +3754,8 @@ public final class XUtil {
 
       // log execution
       QueryRecord queryRecord = null;
+      AssetEntry observedEntry = null;
+      boolean observed = false;
 
       try {
          // BC, same as 11.1 XUtil.runQuery and ReportJavaScriptEngine.runQuery
@@ -3774,6 +3776,7 @@ public final class XUtil {
          // check for worksheet e.g. ws:global:f1/worksheet1
          if(name.startsWith("ws:")) {
             AssetEntry entry = AssetEntry.createAssetEntry(name, ((XPrincipal) user).getOrgId());
+            observedEntry = entry;
             boolean noPermission = SreeEnv.getProperty("security.provider").equals("") &&
                !VpmProcessor.useVpmSecurity();
 
@@ -3803,10 +3806,14 @@ public final class XUtil {
                   catch(Exception ex) {
                      LOG.error(
                         "Failed to check asset permission: " + entry, ex);
+                     notifyRunQueryObserver(entry, RunQueryOutcome.ERROR);
+                     observed = true;
                      return null;
                   }
 
                   if(message != null) {
+                     notifyRunQueryObserver(entry, RunQueryOutcome.DENIED);
+                     observed = true;
                      throw new ScriptException(message);
                   }
                }
@@ -3825,6 +3832,9 @@ public final class XUtil {
             ReportWorksheetProcessor proc = new ReportWorksheetProcessor();
 
             table = proc.execute(entry, vars, user);
+            notifyRunQueryObserver(
+               entry, table == null ? RunQueryOutcome.NOT_FOUND : RunQueryOutcome.FOUND);
+            observed = true;
 
             if(queryRecord != null) {
                queryRecord.setExecTimestamp(new Timestamp(System.currentTimeMillis()));
@@ -3843,6 +3853,10 @@ public final class XUtil {
             queryRecord.setExecTimestamp(new Timestamp(System.currentTimeMillis()));
             queryRecord.setExecStatus(QueryRecord.EXEC_STATUS_FAILURE);
             queryRecord.setExecError(ex.getMessage());
+         }
+
+         if(!observed) {
+            notifyRunQueryObserver(observedEntry, RunQueryOutcome.ERROR);
          }
 
          LOG.error("Failed to run query: " + name, ex);
@@ -3865,6 +3879,64 @@ public final class XUtil {
       }
 
       return null;
+   }
+
+   /**
+    * Outcome of a {@code ws:} {@link #runQuery} call, as reported to the thread's
+    * {@link #setRunQueryObserver observer}.
+    */
+   public enum RunQueryOutcome {
+      /** The worksheet was resolved and executed. */
+      FOUND,
+      /** The worksheet run returned no table (absent entry, or an existing worksheet with no data). */
+      NOT_FOUND,
+      /** The caller failed the READ permission check. */
+      DENIED,
+      /** Resolution or execution failed for another reason. */
+      ERROR
+   }
+
+   /**
+    * Install an opt-in observer for the {@code ws:} runQuery calls made on the current thread.
+    * Unset by default, so Viewer/Composer/Schedule behavior is unchanged.
+    *
+    * @return the previously installed observer (or null), to be passed back to
+    *         {@link #restoreRunQueryObserver} in a finally block.
+    */
+   public static BiConsumer<AssetEntry, RunQueryOutcome> setRunQueryObserver(
+      BiConsumer<AssetEntry, RunQueryOutcome> observer)
+   {
+      BiConsumer<AssetEntry, RunQueryOutcome> previous = RUN_QUERY_OBSERVER.get();
+      RUN_QUERY_OBSERVER.set(observer);
+      return previous;
+   }
+
+   /**
+    * Restore the observer returned by {@link #setRunQueryObserver}.
+    */
+   public static void restoreRunQueryObserver(BiConsumer<AssetEntry, RunQueryOutcome> previous) {
+      if(previous == null) {
+         RUN_QUERY_OBSERVER.remove();
+      }
+      else {
+         RUN_QUERY_OBSERVER.set(previous);
+      }
+   }
+
+   private static void notifyRunQueryObserver(AssetEntry entry, RunQueryOutcome outcome) {
+      BiConsumer<AssetEntry, RunQueryOutcome> observer = RUN_QUERY_OBSERVER.get();
+
+      if(observer == null || entry == null) {
+         return;
+      }
+
+      try {
+         observer.accept(entry, outcome);
+      }
+      catch(Throwable ex) {
+         // an observer fault must never change runQuery's result
+         LOG.debug("runQuery observer failed", ex);
+      }
    }
 
    /**
@@ -4885,6 +4957,8 @@ public final class XUtil {
    public static final String ADDITIONAL_DS_CONNECTOR = "::";
 
    private static final Logger LOG = LoggerFactory.getLogger(XUtil.class);
+   private static final ThreadLocal<BiConsumer<AssetEntry, RunQueryOutcome>> RUN_QUERY_OBSERVER =
+      new ThreadLocal<>();
 
    private static final String IDENTITY_KEY = XUtil.class.getName() + ".identity";
    private static final Lock IDENTITY_LOCK = new ReentrantLock();
