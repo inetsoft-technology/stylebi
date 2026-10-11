@@ -283,8 +283,9 @@ public class SelectionRuntimeService {
 
                if(!unmatched.isEmpty()) {
                   throw new IllegalArgumentException(
-                     "'" + assemblyName + "' has no value matching " + unmatched + " -- confirm " +
-                     "the exact spelling via browse_condition_values before selecting it.");
+                     "'" + assemblyName + "' has no value matching " + unmatched +
+                     unresolvedDetail(domain, unmatched, idMode) + " -- confirm the exact " +
+                     "spelling via browse_condition_values before selecting it.");
                }
             }
 
@@ -335,6 +336,7 @@ public class SelectionRuntimeService {
                // plain value-array apply (what every other assembly type above uses) is a total
                // no-op here, silently: no exception, and the response still claims success.
                SelectionValue[] buckets = bucketsOf(slider);
+               boolean rangeWasFull = isFullRangeSelected(buckets);
                List<Map<String, Object>> clamped = new ArrayList<>();
                int[] range = sliderBucketRange(assemblyName, buckets, values, clamped);
                ApplySelectionListEvent event = new ApplySelectionListEvent();
@@ -342,6 +344,15 @@ public class SelectionRuntimeService {
                event.setSelectStart(range[0]);
                event.setSelectEnd(adjustedEnd(slider.isUpperInclusive(), range[1]));
                selections.applySelection(runtimeId, assemblyName, event, user, dispatcher, linkUri);
+
+               // The plugin cannot see the bucket flags, so report the range before and after
+               // the apply and the bucket count: a range spanning every bucket filters nothing,
+               // and "narrows" / "N values" would be false for it (bug-78264).
+               SelectionValue[] after = bucketsOf(slider);
+               result.put("rangeWasFull", rangeWasFull);
+               result.put("fullRange", isFullRangeSelected(after));
+               result.put("selectedBuckets", countSelected(after));
+               result.put("totalBuckets", after.length);
 
                if(!clamped.isEmpty()) {
                   // A requested bound outside the slider's actual bucket range was silently
@@ -480,7 +491,7 @@ public class SelectionRuntimeService {
             // actually-filtered slider needs its own full-range apply, not deselectEvent.
             SelectionValue[] buckets = bucketsOf(slider);
             boolean fullRange = isFullRangeSelected(buckets);
-            result.put("clearedCount", fullRange ? 0 : buckets.length);
+            result.put("clearedCount", fullRange ? 0 : countSelected(buckets));
 
             if(!fullRange && buckets.length > 0) {
                ApplySelectionListEvent event = new ApplySelectionListEvent();
@@ -682,7 +693,7 @@ public class SelectionRuntimeService {
          // from the root -- an exact match at each level, descending into a
          // CompositeSelectionValue's own children -- for a non-ID-mode AND an ID-mode tree alike.
          // A subtree apply is not the flat "does this value appear anywhere in the tree" scan
-         // updateIDSelectionTree/matchesAnywhere use for setSelection's own idMode branch; that
+         // updateIDSelectionTree/missingIds use for setSelection's own idMode branch; that
          // scan belongs to a values apply, not a subtree one. So the same positional predicate
          // (idMode=false) validates both tree shapes here, reusing the domain-existence check
          // already shipped for setSelection's values-mode fix (bug 76544): refuse a path that
@@ -693,8 +704,9 @@ public class SelectionRuntimeService {
 
          if(!unmatched.isEmpty()) {
             throw new IllegalArgumentException(
-               "'" + assemblyName + "' has no subtree at " + path + " -- confirm the exact " +
-               "spelling via browse_condition_values before selecting it.");
+               "'" + assemblyName + "' has no subtree at " + path +
+               unresolvedDetail(selectionListOf(assembly), unmatched, false) +
+               " -- confirm the exact spelling via browse_condition_values before selecting it.");
          }
 
          // Not extended to an ID-mode tree: findIDSubtreeRoot is positional (see above), not an
@@ -1403,10 +1415,13 @@ public class SelectionRuntimeService {
     * Split out from its {@code SelectionList} container so it is testable -- {@code SelectionList}
     * cannot be constructed or mocked outside a Spring context (see {@link #selectedPaths(SelectionValue[])}).
     *
-    * <p>Mirrors exactly what {@code updateSelectionOfChangedAssembly}/{@code updateIDSelectionTree}
-    * will do when the values are actually applied, rather than a stricter approximation of it -- the
-    * point is to predict the real apply outcome, not to reject something the backend would have
-    * happily accepted.
+    * <p>Stricter than the apply on purpose: {@code updateSelectionOfChangedAssembly} and
+    * {@code updateIDSelectionTree} silently skip whatever in a path does not resolve (a segment past
+    * a leaf, an id that is no node) and still report success, so mirroring them would make this
+    * check vacuous for exactly the input it exists to refuse. A non-ID-mode path must resolve
+    * segment by segment, every one; an ID-mode path is a set of node ids ({@code updateIDSelectionTree}
+    * selects every node whose id is in it), so every id must exist as a node but their order and
+    * parentage are not checked.
     */
    static List<List<String>> findUnmatchedPaths(SelectionValue[] domain, List<List<String>> values,
                                                 boolean idMode)
@@ -1415,7 +1430,8 @@ public class SelectionRuntimeService {
 
       for(List<String> path : values) {
          String[] segments = path.toArray(new String[0]);
-         boolean matched = idMode ? matchesAnywhere(domain, segments) : matchesPath(domain, segments, 0);
+         boolean matched = idMode ? missingIds(domain, segments).isEmpty()
+                                   : matchesPath(domain, segments, 0);
 
          if(!matched) {
             unmatched.add(path);
@@ -1447,7 +1463,7 @@ public class SelectionRuntimeService {
     * Split out from its {@code SelectionList} container so it is testable, the same reason
     * {@link #findUnmatchedPaths(SelectionValue[], List, boolean)} is. Reuses that method's own
     * path-resolution walk ({@link #matchesSearchPath}/{@link #matchesSearchAnywhere} mirror
-    * {@link #matchesPath}/{@link #matchesAnywhere} exactly, substituting a search-match test for an
+    * {@link #matchesPath}/{@link #missingIds}, substituting a search-match test for an
     * existence test at the point a path resolves to a value) so the two checks -- does this value
     * exist at all, does it match the active search -- stay in lockstep as the domain-walking logic
     * evolves.
@@ -1480,7 +1496,7 @@ public class SelectionRuntimeService {
    private static boolean matchesSearchPath(SelectionValue[] level, String[] path, int index,
                                             String search)
    {
-      if(level == null) {
+      if(level == null || index >= path.length) {
          return false;
       }
 
@@ -1490,7 +1506,11 @@ public class SelectionRuntimeService {
          return false;
       }
 
-      if(value instanceof CompositeSelectionValue composite && index < path.length - 1) {
+      if(index < path.length - 1) {
+         if(!(value instanceof CompositeSelectionValue composite)) {
+            return false;
+         }
+
          SelectionList childList = composite.getSelectionList();
          return matchesSearchPath(childList == null ? null : childList.getSelectionValues(), path,
                                   index + 1, search);
@@ -1499,7 +1519,7 @@ public class SelectionRuntimeService {
       return value.match(search, true);
    }
 
-   /** {@link #matchesAnywhere} with a search-match test alongside the existence test. */
+   /** The ID-mode set scan with a search-match test alongside the existence test. */
    private static boolean matchesSearchAnywhere(SelectionValue[] level, String[] path,
                                                 String search)
    {
@@ -1531,15 +1551,15 @@ public class SelectionRuntimeService {
    }
 
    /**
-    * Mirrors {@code updateSelectionOfChangedAssembly}: resolve {@code path[index]} at this level via
-    * an exact-match lookup (the same match {@code SelectionList.findValue(val, false)} does); if it
-    * resolves to a {@code CompositeSelectionValue} and segments remain, descend into its children;
-    * otherwise -- found and not composite, or the last segment -- stop and call it matched. An
-    * over-long path whose resolvable prefix bottoms out at a leaf before the path ends is still a
-    * match, since that is what the real apply does with it (it just ignores the leftover segments).
+    * Resolves {@code path[index]} at this level via an exact-match lookup (the same match
+    * {@code SelectionList.findValue(val, false)} does) and, while segments remain, descends into
+    * the found value's children -- every segment must resolve. A path that runs past a leaf is
+    * refused: {@code updateSelectionOfChangedAssembly} would select the leaf and silently ignore
+    * the leftover segments, but nothing legitimate produces such a path (the client builds them
+    * from real ancestry), so accepting it only hides a fabricated segment (bug-78264, bug-78268).
     */
    private static boolean matchesPath(SelectionValue[] level, String[] path, int index) {
-      if(level == null) {
+      if(level == null || index >= path.length) {
          return false;
       }
 
@@ -1549,13 +1569,115 @@ public class SelectionRuntimeService {
          return false;
       }
 
-      if(value instanceof CompositeSelectionValue composite && index < path.length - 1) {
+      if(index < path.length - 1) {
+         if(!(value instanceof CompositeSelectionValue composite)) {
+            return false;
+         }
+
          SelectionList childList = composite.getSelectionList();
          return matchesPath(childList == null ? null : childList.getSelectionValues(), path,
                             index + 1);
       }
 
       return true;
+   }
+
+   /**
+    * The elements of an ID-mode path that name no node anywhere in the tree. Compared with the
+    * apply's own {@code Tool.contains}/{@code Tool.equals} semantics (case-sensitive), so what is
+    * accepted here is exactly what {@code updateIDSelectionTree} would find.
+    */
+   static List<String> missingIds(SelectionValue[] domain, String[] path) {
+      List<String> missing = new ArrayList<>();
+
+      for(String id : path) {
+         if(!hasNode(domain, id)) {
+            missing.add(id);
+         }
+      }
+
+      return missing;
+   }
+
+   private static boolean hasNode(SelectionValue[] level, String id) {
+      if(level == null) {
+         return false;
+      }
+
+      for(SelectionValue value : level) {
+         if(value == null) {
+            continue;
+         }
+
+         if(Tool.contains(new String[]{ id }, value.getValue(), true, true, true)) {
+            return true;
+         }
+
+         if(value instanceof CompositeSelectionValue composite) {
+            SelectionList childList = composite.getSelectionList();
+
+            if(hasNode(childList == null ? null : childList.getSelectionValues(), id)) {
+               return true;
+            }
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Names what in each unmatched path cannot be resolved -- the missing ids of an ID-mode path, or
+    * the first segment a positional path fails at -- so the refusal points at the fabricated part
+    * instead of only echoing the whole path.
+    */
+   private static String unresolvedDetail(SelectionList domain, List<List<String>> unmatched,
+                                          boolean idMode)
+   {
+      SelectionValue[] values = domain == null ? null : domain.getSelectionValues();
+      List<String> named = new ArrayList<>();
+
+      for(List<String> path : unmatched) {
+         String[] segments = path.toArray(new String[0]);
+
+         if(idMode) {
+            missingIds(values, segments).forEach(id -> named.add("'" + id + "'"));
+         }
+         else {
+            int index = firstUnresolvedSegment(values, segments);
+
+            if(index < segments.length) {
+               named.add("'" + segments[index] + "'");
+            }
+         }
+      }
+
+      return named.isEmpty() ? "" : " (not found: " + String.join(", ", named) + ")";
+   }
+
+   /** Index of the first segment that does not resolve, or {@code path.length} if none fails. */
+   private static int firstUnresolvedSegment(SelectionValue[] level, String[] path) {
+      for(int index = 0; index < path.length; index++) {
+         if(level == null) {
+            return index;
+         }
+
+         SelectionValue value = findByValue(level, path[index]);
+
+         if(value == null) {
+            return index;
+         }
+
+         if(index < path.length - 1) {
+            if(!(value instanceof CompositeSelectionValue composite)) {
+               return index + 1;
+            }
+
+            SelectionList childList = composite.getSelectionList();
+            level = childList == null ? null : childList.getSelectionValues();
+         }
+      }
+
+      return path.length;
    }
 
    /** The one-level, non-recursive exact match {@code SelectionList.findValue(val, false)} does. */
@@ -1567,37 +1689,6 @@ public class SelectionRuntimeService {
       }
 
       return null;
-   }
-
-   /**
-    * Mirrors {@code updateIDSelectionTree}: a flat "does this path array contain a node's value
-    * anywhere in the tree" scan, not a segment-by-segment descent -- ID-mode matches every node
-    * whose value appears anywhere in the requested path array.
-    */
-   private static boolean matchesAnywhere(SelectionValue[] level, String[] path) {
-      if(level == null) {
-         return false;
-      }
-
-      for(SelectionValue value : level) {
-         if(value == null) {
-            continue;
-         }
-
-         if(Tool.contains(path, value.getValue(), true, true, true)) {
-            return true;
-         }
-
-         if(value instanceof CompositeSelectionValue composite) {
-            SelectionList childList = composite.getSelectionList();
-
-            if(matchesAnywhere(childList == null ? null : childList.getSelectionValues(), path)) {
-               return true;
-            }
-         }
-      }
-
-      return false;
    }
 
    // ── range slider bucket resolution ──────────────────────────────────────────
