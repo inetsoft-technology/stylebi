@@ -917,4 +917,59 @@ class ConditionVocabularyTest {
          List.of(clause("Region", operator, List.of("x"), null)), FIELDS);
       return ((ConditionModel) list[0]).getOperation();
    }
+
+   // ── date-typed fields: no silent now, no 500 ─────────────────────────────
+
+   private static ConditionModel[] dateConditions(String type, String operator, Object value) {
+      DataRefModel year = field("Year(OrderDate)", type);
+      Object[] list = ConditionVocabulary.toConditionList(
+         List.of(clause("Year(OrderDate)", operator, List.of(value), null)),
+         new DataRefModel[] { year });
+      return new ConditionModel[] { (ConditionModel) list[0] };
+   }
+
+   @Test
+   void numberOnADateLevelFieldIsRefusedWithAFieldNamedError() {
+      for(String type : new String[] { "timeInstant", "date" }) {
+         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+            () -> dateConditions(type, "equals", 2024));
+         assertTrue(ex.getMessage().contains("Year(OrderDate)"), ex.getMessage());
+         assertTrue(ex.getMessage().contains("{ts '"), ex.getMessage());
+         assertThrows(IllegalArgumentException.class, () -> dateConditions(type, "equals", 2024.0));
+         assertThrows(IllegalArgumentException.class, () -> dateConditions(type, "equals", true));
+      }
+   }
+
+   @Test
+   void unparseableDateStringsAreRefusedInsteadOfBecomingNow() {
+      assertThrows(IllegalArgumentException.class, () -> dateConditions("timeInstant", "equals", "2024"));
+      assertThrows(IllegalArgumentException.class, () -> dateConditions("timeInstant", "equals", "abc"));
+      assertThrows(IllegalArgumentException.class, () -> dateConditions("date", "equals", "abc"));
+   }
+
+   @Test
+   void honestDateFormsAreAcceptedAndStoredAsGiven() {
+      assertEquals("{ts '2024-01-01 00:00:00'}", dateConditions(
+         "timeInstant", "equals", "{ts '2024-01-01 00:00:00'}")[0].getValues()[0].getValue());
+      assertEquals("2024-01-01", dateConditions(
+         "timeInstant", "equals", " 2024-01-01 ")[0].getValues()[0].getValue());
+      assertEquals("{d '2024-01-01'}", dateConditions(
+         "date", "equals", "{d '2024-01-01'}")[0].getValues()[0].getValue());
+      assertEquals("12:30:00", dateConditions(
+         "time", "equals", "12:30:00")[0].getValues()[0].getValue());
+   }
+
+   @Test
+   void dateInStillAcceptsABuiltInRangeName() {
+      assertEquals("Last month", dateConditions(
+         "timeInstant", "date_in", "Last month")[0].getValues()[0].getValue());
+   }
+
+   @Test
+   void nonDateFieldsKeepTheirValuesUnchanged() {
+      DataRefModel n = field("Revenue", "integer");
+      Object[] list = ConditionVocabulary.toConditionList(
+         List.of(clause("Revenue", "equals", List.of(5), null)), new DataRefModel[] { n });
+      assertEquals(5, ((ConditionModel) list[0]).getValues()[0].getValue());
+   }
 }
