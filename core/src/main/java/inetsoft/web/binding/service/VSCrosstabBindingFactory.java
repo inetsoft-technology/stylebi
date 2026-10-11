@@ -254,11 +254,24 @@ public class VSCrosstabBindingFactory
          }
       }
 
+      // Bug #78157 (VTB-036): this used to read a missing key as "suppress = true" --
+      // suppress = suppress == null || suppress -- unconditionally overwriting whatever
+      // createDataRef() just defaulted subTotalVisibleValue to ("true", i.e. visible). The rows
+      // loop above has never done that: a missing key there is simply left untouched. That
+      // asymmetry meant a dimension with no suppressGroupTotal entry at all -- a brand-new
+      // column just bound, or one whose entry was pruned by an unrelated shelf edit -- defaulted
+      // to suppressed on cols and to visible on rows, for the identical "no entry" condition.
+      // Matching rows' guard here removes that asymmetry: a missing key means "nothing explicit
+      // was ever set for this position," on both shelves alike, and leaves createDataRef()'s own
+      // default standing rather than silently overriding it.
       for(int i = 0; i < cols.length; i++) {
          cols[i] = model.getCols().get(i).createDataRef();
-         Boolean suppress = model.getSuppressGroupTotal().get(cols[i].getName() + ":cols" + i);
-         suppress = suppress == null || suppress;
-         ((VSDimensionRef) cols[i]).setSubTotalVisibleValue(!suppress + "");
+         Boolean suppressGroupTotal =
+            model.getSuppressGroupTotal().get(cols[i].getName() + ":cols" + i);
+
+         if(suppressGroupTotal != null) {
+            ((VSDimensionRef) cols[i]).setSubTotalVisibleValue(!suppressGroupTotal + "");
+         }
 
          if(i < dataRefCols.length) {
             updateDataRefGroupInfo((VSDimensionRef) cols[i], (VSDimensionRef) dataRefCols[i]);

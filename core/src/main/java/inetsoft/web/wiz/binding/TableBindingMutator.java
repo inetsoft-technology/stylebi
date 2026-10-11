@@ -144,6 +144,7 @@ public final class TableBindingMutator {
             // see dimensions()'s own note on why this is matched by position, not just column.
             List<BDimensionRefModel> previous = dimensionsOf(model, name);
             List<BDimensionRefModel> next = dimensions(refs, previous, rvs, source, refModelService);
+            rekeySuppression(model, name, previous, refs);
 
             switch(name) {
                case "rows" -> ((CrosstabBindingModel) model).setRows(next);
@@ -648,6 +649,99 @@ public final class TableBindingMutator {
    }
 
    /**
+    * Carries a still-bound dimension's {@code suppressGroupTotal} entry from its old composite
+    * key to its new one when a shelf write shifts its absolute position -- e.g. removing
+    * {@code Reseller} ahead of a suppressed {@code State} on rows shifts State from {@code
+    * rows1} to {@code rows0}. Without this, {@link #pruneOrphanedSuppression} -- which only
+    * knows how to delete a key that is no longer valid, never rename one -- deletes State's
+    * entry outright as if it were orphaned trash, silently reverting its subtotal to visible
+    * even though the edit never named State at all (Redmine #78157 / VTB-036).
+    *
+    * <p>Matched the same way {@link #matches(BDimensionRefModel, FieldRef)} already
+    * disambiguates a column bound twice on one shelf -- by column (case-insensitive) + date
+    * level -- but <b>unlike</b> {@link #dimensions}'s own position-locked matching (one previous
+    * ref candidate per new index, which deliberately does not follow a field across an index
+    * shift elsewhere on the shelf -- see that method's own javadoc and the accepted-boundary
+    * regression test for sort/ranking), this searches every remaining old position for each new
+    * one, consuming each old entry at most once in encounter order. Carrying suppression across
+    * exactly this kind of shift is the bug being fixed here, not the accepted boundary {@code
+    * dimensions()} documents for sort/ranking -- the two are independent concerns on the same
+    * shelf write and this method does not touch sort/ranking at all.
+    *
+    * @param previous the shelf's own {@code BDimensionRefModel} list before this write (same
+    *                 list {@link #dimensions} is called with).
+    * @param next     the shelf's incoming {@code FieldRef} list, in its new order.
+    */
+   private static void rekeySuppression(BaseTableBindingModel model, String shelf,
+                                        List<BDimensionRefModel> previous, List<FieldRef> next)
+   {
+      if(!(model instanceof CrosstabBindingModel crosstab) ||
+         !("rows".equals(shelf) || "cols".equals(shelf)))
+      {
+         return;
+      }
+
+      Hashtable<String, Boolean> suppression = crosstab.getSuppressGroupTotal();
+
+      if(suppression == null || suppression.isEmpty() || previous.isEmpty()) {
+         return;
+      }
+
+      boolean[] consumed = new boolean[previous.size()];
+      // old composite key -> new composite key, for every dimension still bound but shifted.
+      Map<String, String> rekeys = new LinkedHashMap<>();
+
+      for(int newIndex = 0; newIndex < next.size(); newIndex++) {
+         FieldRef field = next.get(newIndex);
+
+         for(int oldIndex = 0; oldIndex < previous.size(); oldIndex++) {
+            if(consumed[oldIndex] || !matches(previous.get(oldIndex), field)) {
+               continue;
+            }
+
+            consumed[oldIndex] = true;
+
+            if(oldIndex != newIndex) {
+               BDimensionRefModel oldRef = previous.get(oldIndex);
+               String oldColumn = oldRef.getColumnValue() == null
+                  ? oldRef.getName() : oldRef.getColumnValue();
+               rekeys.put(oldColumn + ":" + shelf + oldIndex,
+                         field.column() + ":" + shelf + newIndex);
+            }
+
+            break;
+         }
+      }
+
+      if(rekeys.isEmpty()) {
+         return;
+      }
+
+      // Snapshot every value before mutating anything: a true swap between two shifted
+      // dimensions (most directly, two occurrences of the same duplicate-bound column trading
+      // places) can make one rekey's new key equal another rekey's OLD key, so removing and
+      // re-inserting one pair at a time could read back a value this same loop already
+      // overwrote, losing one of the two values.
+      Map<String, Boolean> values = new LinkedHashMap<>();
+
+      for(String oldKey : rekeys.keySet()) {
+         Boolean value = suppression.get(oldKey);
+
+         if(value != null) {
+            values.put(oldKey, value);
+         }
+      }
+
+      for(String oldKey : values.keySet()) {
+         suppression.remove(oldKey);
+      }
+
+      for(Map.Entry<String, Boolean> entry : values.entrySet()) {
+         suppression.put(rekeys.get(entry.getKey()), entry.getValue());
+      }
+   }
+
+   /**
     * {@code suppressGroupTotal} is keyed by {@code "<column>:rows<i>"}/{@code "<column>:cols<i>"}
     * -- the same composite, position-qualified form {@link VSCrosstabBindingFactory} reads and
     * writes (a column can be bound twice at different date levels, e.g. a Year > Quarter drill,
@@ -659,6 +753,10 @@ public final class TableBindingMutator {
     * entry as an orphan and deleted it on every single write, which is what let {@code
     * suppressGroupTotal} regress to a complete no-op. Every write prunes what is no longer bound,
     * using the real key shape.
+    *
+    * <p>By the time this runs, {@link #rekeySuppression} has already carried a still-bound,
+    * merely-shifted dimension's entry to its new key -- so what remains to be deleted here is
+    * genuinely orphaned: a dimension no longer bound anywhere on either shelf at all.
     */
    private static void pruneOrphanedSuppression(BaseTableBindingModel model) {
       if(!(model instanceof CrosstabBindingModel crosstab)) {
