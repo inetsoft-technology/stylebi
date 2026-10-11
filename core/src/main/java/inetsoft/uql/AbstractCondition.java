@@ -521,6 +521,13 @@ public abstract class AbstractCondition implements XCondition {
 
          if(value.contains(":")) {
             try {
+               if(strict) {
+                  // the ExtendedDateFormat java.time pass resolves 24:00:00 as 00:00:00
+                  java.time.LocalTime.parse(
+                     value.trim(), java.time.format.DateTimeFormatter.ofPattern("H:m:s")
+                        .withResolverStyle(java.time.format.ResolverStyle.STRICT));
+               }
+
                DateFormat dfmt =
                   format(CoreTool.createDateFormat(CoreTool.DEFAULT_TIME_PATTERN), strict);
                return new java.sql.Time(dfmt.parse(value).getTime());
