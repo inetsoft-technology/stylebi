@@ -60,9 +60,14 @@ public class VSCrosstabInfo implements AssetObject, DateComparisonBinding {
       calculateTotal= new DynamicValue2("false", XSchema.BOOLEAN);
       percentageByValue = new DynamicValue(
          null, XSchema.INTEGER,
+         // trailing entries are script/variable aliases; the first two keep
+         // getName() and the restriction[0] fallback unchanged
          new int[] {XConstants.PERCENTAGE_BY_COL,
-                    XConstants.PERCENTAGE_BY_ROW},
-         new String[] {"columns", "rows"});
+                    XConstants.PERCENTAGE_BY_ROW,
+                    XConstants.PERCENTAGE_BY_COL,
+                    XConstants.PERCENTAGE_BY_ROW,
+                    XConstants.PERCENTAGE_BY_COL},
+         new String[] {"columns", "rows", "col", "row", "column"});
 
       aggrs = new DataRef[0];
       cols = new DataRef[0];
