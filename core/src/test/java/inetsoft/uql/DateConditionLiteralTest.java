@@ -141,6 +141,28 @@ class DateConditionLiteralTest {
          .toString());
    }
 
+   // Bug #78356: plain 24:00:00 was parsed by a lenient java.time resolver and stored as 00:00:00
+   @Test
+   void canonicalizeRefusesTwentyFourHourTimeLiteral() {
+      for(String bad : new String[] { "24:00:00", " 24:00:00 ", "24:00", "{t '24:00:00'}",
+                                      "24:00:01", "23:59:60", "25:00:00" })
+      {
+         assertNull(AbstractCondition.parseDateConditionValue(XSchema.TIME, bad, true), bad);
+         assertNull(DateConditionLiteral.canonicalize(XSchema.TIME, bad), bad);
+      }
+
+      for(String ok : new String[] { "23:59:59", "00:00:00", "09:05:00", "{t '00:00:00'}" }) {
+         assertEquals(ok, DateConditionLiteral.canonicalize(XSchema.TIME, ok), ok);
+      }
+
+      assertEquals("{ts '2024-01-15 23:59:59'}", DateConditionLiteral.canonicalize(
+         XSchema.TIME_INSTANT, "{ts '2024-01-15 23:59:59'}"));
+      // runtime path unchanged
+      assertEquals("00:00:00", AbstractCondition.parseDateConditionValue(
+         XSchema.TIME, "24:00:00").toString());
+      assertEquals("00:00:00", AbstractCondition.getObject(XSchema.TIME, "24:00:00").toString());
+   }
+
    @Test
    void nonDateTypesPassThrough() {
       assertEquals("abc", DateConditionLiteral.canonicalize(XSchema.STRING, "abc"));
