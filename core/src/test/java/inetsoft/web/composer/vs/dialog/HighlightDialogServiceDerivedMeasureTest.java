@@ -17,6 +17,7 @@
  */
 package inetsoft.web.composer.vs.dialog;
 
+import inetsoft.graph.data.SumDataSet;
 import inetsoft.report.filter.HighlightGroup;
 import inetsoft.report.filter.TextHighlight;
 import inetsoft.test.*;
@@ -176,6 +177,69 @@ class HighlightDialogServiceDerivedMeasureTest {
       assertNotNull(group.getHighlight("Hot"));
       info.setRuntimeDateComparisonRefs(null);
       assertNotNull(design.getHighlightGroup().getHighlight("Hot"));
+   }
+
+   @Test
+   void decoratedBaseNameStillPersistsOnTheDesignRefDuringComparison() throws Exception {
+      Chart chart = comparisonChart(DateComparisonInfo.CHANGE_VALUE);
+      VSChartInfo info = (VSChartInfo) chart.info().clone();
+      VSChartAggregateRef design = (VSChartAggregateRef) info.getYFields()[0];
+      String decorated = SumDataSet.ALL_HEADER_PREFIX + design.getFullName();
+
+      HighlightDialogService.applyChartHighlights(
+         info, dialogModel(decorated, true, "Hot"), CONVERT);
+      info.setRuntimeDateComparisonRefs(null);
+
+      assertNotNull(design.getHighlightGroup());
+      assertNotNull(design.getHighlightGroup().getHighlight("Hot"));
+   }
+
+   private static VSChartInfo textChart(VSChartAggregateRef measure, VSChartAggregateRef text) {
+      VSChartInfo info = new DefaultVSChartInfo();
+      info.addYField(measure);
+      info.addYField(text);
+      AestheticRef aref = new VSAestheticRef();
+      aref.setDataRef(text);
+      info.setTextField(aref);
+      return info;
+   }
+
+   @Test
+   void textHighlightLandsOnlyOnTheTextFieldNotTheMeasure() throws Exception {
+      VSChartAggregateRef measure = new VSChartAggregateRef();
+      measure.setDataRef(new AttributeRef("v"));
+      measure.setFormula(AggregateFormula.SUM);
+      VSChartAggregateRef text = new VSChartAggregateRef();
+      text.setDataRef(new AttributeRef("w"));
+      text.setFormula(AggregateFormula.SUM);
+      VSChartInfo info = textChart(measure, text);
+      HighlightDialogModel model = dialogModel(measure.getFullName(), true, "Hot");
+      model.setText(true);
+
+      HighlightDialogService.applyChartHighlights(info, model, CONVERT);
+
+      HighlightGroup own = measure.getTextHighlightGroup();
+      assertTrue(own == null || own.isEmpty(), "measure's own text group must be untouched");
+      assertNotNull(text.getTextHighlightGroup().getHighlight("Hot"));
+   }
+
+   @Test
+   void textHighlightLeavesTheMeasureRegularGroupUntouched() throws Exception {
+      VSChartAggregateRef measure = new VSChartAggregateRef();
+      measure.setDataRef(new AttributeRef("v"));
+      measure.setFormula(AggregateFormula.SUM);
+      VSChartAggregateRef text = new VSChartAggregateRef();
+      text.setDataRef(new AttributeRef("w"));
+      text.setFormula(AggregateFormula.SUM);
+      VSChartInfo info = textChart(measure, text);
+      info.setChartType(GraphTypes.CHART_POINT);
+      HighlightDialogModel model = dialogModel(measure.getFullName(), true, "Hot");
+      model.setText(true);
+
+      HighlightDialogService.applyChartHighlights(info, model, CONVERT);
+
+      HighlightGroup own = measure.getHighlightGroup();
+      assertTrue(own == null || own.isEmpty(), "measure's own group must be untouched");
    }
 
    @Test

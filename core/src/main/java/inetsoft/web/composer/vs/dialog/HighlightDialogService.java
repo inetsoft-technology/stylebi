@@ -663,11 +663,11 @@ public class HighlightDialogService {
       HighlightRef highlightRef =
          (HighlightRef) getMeasure(chartInfo, model.getMeasure(), false,
                                    model.isAxis(), model.isText(), true);
-      // The design-time ref the runtime date-comparison clone was cloned from. getMeasure() can
-      // fall back to the runtime fields, so look up the design fields only; a write that only
-      // reaches a runtime ref is dropped when the runtime refs are replaced (clear/switch).
-      HighlightRef persistedRef = highlightRef == null || model.getMeasure() == null ? null :
-         (HighlightRef) chartInfo.getFieldByName(model.getMeasure(), false);
+      // the design-time ref the runtime date-comparison clone was cloned from; a write that
+      // only reaches the clone is dropped when the runtime refs are replaced (clear/switch)
+      HighlightRef persistedRef = highlightRef == null ? null :
+         (HighlightRef) getMeasure(chartInfo, model.getMeasure(), false,
+                                   model.isAxis(), model.isText(), false);
       boolean geo = GraphTypes.isGeo(chartInfo.getChartType());
       // true to use highlight in chartInfo.
       boolean infoHL = highlightRef == null || (chartInfo instanceof MergedVSChartInfo &&
@@ -678,7 +678,10 @@ public class HighlightDialogService {
       // A measure the date comparison derives (e.g. "Change from previous year of ...: Sum(X)")
       // is a runtime aggregate carrying a calculator with no design-time field behind it, so a
       // highlight set on it does not survive the comparison changing.
-      boolean derived = model.getMeasure() != null && persistedRef == null &&
+      // getMeasure() can fall back to the runtime fields, so only a design-only lookup says
+      // whether a design field exists.
+      boolean derived = model.getMeasure() != null &&
+         chartInfo.getFieldByName(model.getMeasure(), false) == null &&
          highlightRef instanceof VSChartAggregateRef &&
          ((VSChartAggregateRef) highlightRef).getCalculator() != null;
 
