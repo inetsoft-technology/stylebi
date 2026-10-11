@@ -25,6 +25,7 @@ import inetsoft.storage.KeyValueStorage;
 import inetsoft.storage.KeyValueStorageManager;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.util.AbstractIndexedStorage;
 import inetsoft.util.IndexedStorage;
 import inetsoft.util.Tool;
 import org.slf4j.Logger;
@@ -38,6 +39,7 @@ import org.w3c.dom.Element;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Serializable;
+import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.time.Duration;
 import java.time.Instant;
@@ -62,8 +64,8 @@ import java.util.concurrent.TimeUnit;
  * reference check. The reference signal is built from reading stored content directly, never the
  * dependency index (it has no file-path-level entries, only sheet-to-sheet references):
  * <ul>
- *    <li>every stored {@code WORKSHEET} asset in the organization's {@code GLOBAL_SCOPE} and each
- *    identity's {@code USER_SCOPE}, read as stored (not opened or locked), for its
+ *    <li>every stored {@code WORKSHEET} asset in the organization's indexed storage (any scope and
+ *    owner, enumerated from the storage keys), read as stored (not opened or locked), for its
  *    {@link SnapshotEmbeddedTableAssembly#getDataPaths()};
  *    <li>every auto-save draft, the same bucket {@link AutoSaveService} already enumerates for its
  *    own temp-file cleanup;
@@ -185,11 +187,14 @@ public class SnapshotFileGcService {
             boolean fullSweep =
                now.toEpochMilli() - state.lastFullSweep >= FULL_SWEEP_INTERVAL.toMillis();
 
+            List<String> existing = embeddedTableStorage.listPermanentTablePaths(orgId);
+            Set<String> unreadable;
+
             if(fullSweep) {
-               refreshAllWorksheetEntries(orgId, state);
+               unreadable = refreshAllWorksheetEntries(orgId, state, existing);
             }
             else {
-               refreshChangedWorksheetEntries(orgId, state, now);
+               unreadable = refreshChangedWorksheetEntries(orgId, state, now, existing);
             }
 
             refreshAutoSaveEntries(orgId, state);
@@ -198,7 +203,15 @@ public class SnapshotFileGcService {
             state.assetDataPaths.values().forEach(referenced::addAll);
             state.autosaveDataPaths.values().forEach(referenced::addAll);
 
-            processCandidates(orgId, now, fullSweep, referenced, state);
+            if(!unreadable.isEmpty()) {
+               LOG.warn("Snapshot data file deletion is suspended for organization {} this cycle: " +
+                        "{} stored worksheet(s) could not be read, so which files they name is " +
+                        "unknown (first keys: {})", orgId, unreadable.size(),
+                        unreadable.stream().limit(10).toList());
+            }
+
+            processCandidates(orgId, now, fullSweep, referenced, state, existing,
+                              !unreadable.isEmpty());
 
             state.watermark = now.toEpochMilli();
 
@@ -221,129 +234,137 @@ public class SnapshotFileGcService {
     * Full, non-incremental reconciliation sweep: re-reads every stored {@code WORKSHEET} entry's
     * content regardless of its stored {@code lastModified}, so it cannot miss a backdated-import's
     * reference the way an incremental, watermark-bounded scan structurally can.
+    *
+    * <p>Entries are enumerated from the organization's indexed-storage keys, not by walking the
+    * folder tree per security-provider-listed user, so a worksheet owned by an identity the
+    * provider does not list (security off, SSO-only, deleted or renamed in the provider) is still
+    * seen.
+    *
+    * @return the keys that could neither be parsed nor salvaged from their raw text.
     */
-   private void refreshAllWorksheetEntries(String orgId, SnapshotGcState state) throws Exception {
+   private Set<String> refreshAllWorksheetEntries(String orgId, SnapshotGcState state,
+                                                  List<String> existing) throws Exception
+   {
       AssetRepository repository = AssetUtil.getAssetRepository(false);
+      IndexedStorage storage = IndexedStorage.getIndexedStorage();
       Map<String, Set<String>> paths = new HashMap<>();
+      Set<String> unreadable = new LinkedHashSet<>();
 
-      for(AssetEntry candidate : enumerateWorksheetEntries(repository, orgId)) {
-         String key = candidate.toIdentifier();
-         Set<String> dataPaths = readWorksheetDataPaths(repository, candidate, orgId);
+      for(String key : storage.getKeys(worksheetFilter(), orgId)) {
+         Set<String> dataPaths = readOrSalvageDataPaths(repository, key, orgId, existing);
 
-         if(dataPaths != null) {
-            paths.put(key, dataPaths);
-         }
-         else {
-            // a transient read failure must not look like "no longer references anything" --
-            // keep whatever this key's last known-good read found, the same null-safety
-            // getFrozenCopyDataPaths/isNamedByFrozenCopy already apply for the same reason
+         if(dataPaths == null) {
+            unreadable.add(key);
+
+            // keep whatever this key's last known-good read found; the cycle's deletion is
+            // suspended regardless, so a stale set only ever adds protection
             Set<String> previous = state.assetDataPaths.get(key);
 
             if(previous != null) {
                paths.put(key, previous);
             }
          }
+         else {
+            paths.put(key, dataPaths);
+         }
       }
 
       state.assetDataPaths = paths;
+      return unreadable;
    }
 
    /**
     * Incremental scan: only re-reads stored {@code WORKSHEET} entries
     * {@link IndexedStorage#getTimestamps(IndexedStorage.Filter, long)} reports as changed since
     * the last successful run, bounding the daily cost to what changed rather than the total
-    * corpus size.
+    * corpus size. A key with no recorded paths (its last read failed and could not be salvaged)
+    * is re-attempted every cycle, so an unreadable entry keeps suspending deletion until it is
+    * repaired or removed.
+    *
+    * @return the keys that could neither be parsed nor salvaged from their raw text.
     */
-   private void refreshChangedWorksheetEntries(String orgId, SnapshotGcState state, Instant now)
+   private Set<String> refreshChangedWorksheetEntries(String orgId, SnapshotGcState state,
+                                                      Instant now, List<String> existing)
       throws Exception
    {
       AssetRepository repository = AssetUtil.getAssetRepository(false);
       IndexedStorage storage = IndexedStorage.getIndexedStorage();
-      IndexedStorage.Filter worksheetFilter = key -> {
-         AssetEntry e = AssetEntry.createAssetEntry(key);
-         return e != null && e.isWorksheet();
-      };
-
-      Map<String, Long> changed = storage.getTimestamps(worksheetFilter, state.watermark);
-
-      for(String key : changed.keySet()) {
-         AssetEntry entry = AssetEntry.createAssetEntry(key, orgId);
-
-         if(entry == null) {
-            continue;
-         }
-
-         Set<String> dataPaths = readWorksheetDataPaths(repository, entry, orgId);
-
-         if(dataPaths != null) {
-            state.assetDataPaths.put(key, dataPaths);
-         }
-         // else: a transient read failure keeps whatever was already recorded for this key,
-         // the same null-safety the full sweep applies
-      }
+      IndexedStorage.Filter worksheetFilter = worksheetFilter();
+      Set<String> unreadable = new LinkedHashSet<>();
 
       // drop bookkeeping for keys that no longer exist, so a deleted worksheet's paths stop
       // being treated as referenced
       Set<String> currentKeys = storage.getKeys(worksheetFilter, orgId);
       state.assetDataPaths.keySet().removeIf(key -> !currentKeys.contains(key));
+
+      Set<String> toRead = new LinkedHashSet<>(
+         storage.getTimestamps(worksheetFilter, state.watermark).keySet());
+
+      for(String key : currentKeys) {
+         if(!state.assetDataPaths.containsKey(key)) {
+            toRead.add(key);
+         }
+      }
+
+      for(String key : toRead) {
+         if(!currentKeys.contains(key)) {
+            continue;
+         }
+
+         Set<String> dataPaths = readOrSalvageDataPaths(repository, key, orgId, existing);
+
+         if(dataPaths != null) {
+            state.assetDataPaths.put(key, dataPaths);
+         }
+         else {
+            // the entry changed and no longer parses, so the previously recorded paths are not
+            // trusted to still be what it names
+            state.assetDataPaths.remove(key);
+            unreadable.add(key);
+         }
+      }
+
+      return unreadable;
+   }
+
+   private static IndexedStorage.Filter worksheetFilter() {
+      return key -> {
+         AssetEntry e = AssetEntry.createAssetEntry(key);
+         return e != null && e.isWorksheet();
+      };
    }
 
    /**
-    * Enumerate every stored {@code WORKSHEET} entry in an organization: the {@code GLOBAL_SCOPE}
-    * root, plus one {@code USER_SCOPE} root per identity in the organization (the production
-    * precedent for this primitive, {@code ScheduleService.getViewsheets}, only ever builds a
-    * {@code USER_SCOPE} root for the calling principal's own identity, not every identity in an
-    * org, so looping every identity here is new, not copied).
-    *
-    * <p>The {@code GLOBAL_SCOPE} branch of {@code getAllEntries} runs a real ACL check with no
-    * automatic site-admin bypass, so it is wrapped in {@link AssetRepository#IGNORE_PERM} --
-    * otherwise a global folder this task's (ambient, often null) principal lacks READ on would be
-    * silently excluded, causing a real reference to be missed. The {@code USER_SCOPE} branch does
-    * no permission filtering at all (confirmed by reading {@code getAllEntries}'s own filter: a
-    * {@code USER_SCOPE} root only matches entries by the root's own declared owner, never by the
-    * principal argument), so it needs no such wrapping.
+    * The raw stored bytes of a worksheet entry, or {@code null} if the storage cannot supply them.
+    * Package-private so a test can simulate that.
     */
-   private List<AssetEntry> enumerateWorksheetEntries(AssetRepository repository, String orgId)
-      throws Exception
-   {
-      List<AssetEntry> entries = new ArrayList<>();
-      AssetEntry.Selector selector = new AssetEntry.Selector(AssetEntry.Type.WORKSHEET);
-      AssetEntry globalRoot = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
-                                             AssetEntry.Type.REPOSITORY_FOLDER, "/", null, orgId);
-
-      AssetRepository.IGNORE_PERM.set(true);
-
-      try {
-         entries.addAll(Arrays.asList(
-            repository.getAllEntries(globalRoot, null, ResourceAction.READ, selector)));
-      }
-      finally {
-         AssetRepository.IGNORE_PERM.remove();
-      }
-
-      for(IdentityID user : SecurityEngine.getSecurity().getOrgUsers(orgId)) {
-         AssetEntry userRoot = new AssetEntry(AssetRepository.USER_SCOPE,
-                                              AssetEntry.Type.REPOSITORY_FOLDER, "/", user, orgId);
-         entries.addAll(Arrays.asList(
-            repository.getAllEntries(userRoot, null, ResourceAction.READ, selector)));
-      }
-
-      return entries;
+   byte[] readRawWorksheet(IndexedStorage storage, String key, String orgId) throws Exception {
+      return storage instanceof AbstractIndexedStorage ?
+         ((AbstractIndexedStorage) storage).get(key, orgId) : null;
    }
 
    /**
-    * Read a stored worksheet entry's content directly (not through
-    * {@link AssetRepository#getSheet}, so this never competes with a live editing session's lock)
-    * and extract its snapshot tables' data paths.
+    * Reads a stored worksheet's snapshot data paths directly (not through
+    * {@link AssetRepository#getSheet}, so this never competes with a live editing session's
+    * lock); if it cannot be parsed, salvages the paths it names by matching the existing
+    * permanent file names against its raw stored text (an over-match only keeps an extra file).
     *
-    * @return the data paths, or {@code null} if the entry could not be read.
+    * @return the data paths, or {@code null} if the entry can neither be parsed nor salvaged.
     */
-   private Set<String> readWorksheetDataPaths(AssetRepository repository, AssetEntry entry,
-                                              String orgId)
+   private Set<String> readOrSalvageDataPaths(AssetRepository repository, String key,
+                                              String orgId, List<String> existing)
    {
+      AssetEntry entry = AssetEntry.createAssetEntry(key, orgId);
+
+      if(entry == null) {
+         return null;
+      }
+
+      IndexedStorage storage = null;
+
       try {
-         IndexedStorage storage = repository.getStorage(entry);
-         Object sheet = storage.getXMLSerializable(entry.toIdentifier(), null, orgId);
+         storage = repository.getStorage(entry);
+         Object sheet = storage.getXMLSerializable(key, null, orgId);
 
          if(sheet instanceof Worksheet) {
             return SnapshotEmbeddedTableAssembly.getDataPaths((Worksheet) sheet);
@@ -351,7 +372,28 @@ public class SnapshotFileGcService {
       }
       catch(Exception ex) {
          LOG.warn("Failed to read worksheet {} while scanning for referenced snapshot data " +
-                  "files", entry, ex);
+                  "files", key, ex);
+      }
+
+      try {
+         byte[] raw = readRawWorksheet(storage, key, orgId);
+
+         if(raw != null) {
+            String text = new String(raw, StandardCharsets.UTF_8);
+            Set<String> salvaged = new HashSet<>();
+
+            for(String path : existing) {
+               if(text.contains(path)) {
+                  salvaged.add(path);
+               }
+            }
+
+            return salvaged;
+         }
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to salvage snapshot data paths from the raw content of worksheet {}",
+                  key, ex);
       }
 
       return null;
@@ -414,9 +456,9 @@ public class SnapshotFileGcService {
     * set built this cycle, and delete the ones gated as safe to delete.
     */
    private void processCandidates(String orgId, Instant now, boolean fullSweep,
-                                  Set<String> referenced, SnapshotGcState state)
+                                  Set<String> referenced, SnapshotGcState state,
+                                  List<String> existing, boolean deletionSuspended)
    {
-      List<String> existing = embeddedTableStorage.listPermanentTablePaths(orgId);
       Set<String> existingSet = new HashSet<>(existing);
       long nowMillis = now.toEpochMilli();
 
@@ -430,6 +472,12 @@ public class SnapshotFileGcService {
 
          CandidateState candidate =
             state.candidates.computeIfAbsent(path, k -> new CandidateState(nowMillis));
+
+         // an unreadable worksheet makes "unreferenced" untrustworthy for every path, so it can
+         // neither confirm nor delete anything this cycle
+         if(deletionSuspended) {
+            continue;
+         }
 
          if(fullSweep) {
             candidate.sweepConfirmed = true;
