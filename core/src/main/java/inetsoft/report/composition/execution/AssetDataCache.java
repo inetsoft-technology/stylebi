@@ -22,6 +22,7 @@ import inetsoft.mv.RuntimeMV;
 import inetsoft.report.TableFilter;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.WorksheetService;
+import inetsoft.report.composition.graph.VSDataSet;
 import inetsoft.report.filter.BinaryTableFilter;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.XNodeMetaTable;
@@ -105,6 +106,14 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
       throws Exception
    {
       return getData0(id, table, box, ignoredVars, mode, limit, ts, qmgr);
+   }
+
+   /**
+    * Check if data is a chart data set whose table chain a cancel cut short, by whichever
+    * query manager cancelled the shared table (bug #78342).
+    */
+   public static boolean isDataSetCancelled(Object data) {
+      return data instanceof VSDataSet dataSet && isCancelled(dataSet.getTable());
    }
 
    /**

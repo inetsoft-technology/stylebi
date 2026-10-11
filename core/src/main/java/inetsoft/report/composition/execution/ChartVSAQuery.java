@@ -234,7 +234,8 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
     */
    @Override
    public boolean isDataCancelled(Object data) {
-      return !(data instanceof TableLens) && isFetchCancelled();
+      return !(data instanceof TableLens) &&
+         (isFetchCancelled() || AssetDataCache.isDataSetCancelled(data));
    }
 
    @Override
