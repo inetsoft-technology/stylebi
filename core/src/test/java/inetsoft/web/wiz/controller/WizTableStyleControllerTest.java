@@ -28,6 +28,7 @@ import inetsoft.web.composer.tablestyle.TableStyleFormatModel;
 import inetsoft.web.composer.tablestyle.service.TableStyleService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.mockito.InOrder;
 
 import java.security.Principal;
 import java.util.List;
@@ -44,7 +45,7 @@ class WizTableStyleControllerTest {
       when(fixture.tableStyleService.contains(null, "BorderedBands")).thenReturn(true);
 
       Exception thrown = assertThrows(IllegalArgumentException.class, () -> fixture.controller.create(
-         new WizTableStyleController.CreateTableStyleRequest("BorderedBands", null, null),
+         new WizTableStyleController.CreateTableStyleRequest("BorderedBands", null, null, null),
          fixture.principal));
 
       assertTrue(thrown.getMessage().contains("already exists"),
@@ -64,7 +65,7 @@ class WizTableStyleControllerTest {
 
       assertThrows(IllegalArgumentException.class, () -> fixture.controller.create(
          new WizTableStyleController.CreateTableStyleRequest(
-            "BorderedBands", "User Defined/Sales", null),
+            "BorderedBands", "User Defined/Sales", null, null),
          fixture.principal));
 
       verify(fixture.tableStyleService).contains("User Defined~Sales", "BorderedBands");
@@ -75,7 +76,7 @@ class WizTableStyleControllerTest {
       Fixture fixture = new Fixture();
 
       Exception thrown = assertThrows(IllegalArgumentException.class, () -> fixture.controller.create(
-         new WizTableStyleController.CreateTableStyleRequest("   ", null, null), fixture.principal));
+         new WizTableStyleController.CreateTableStyleRequest("   ", null, null, null), fixture.principal));
 
       assertTrue(thrown.getMessage().contains("requires 'name'"));
       verifyNoInteractions(fixture.lib);
@@ -93,7 +94,7 @@ class WizTableStyleControllerTest {
       Fixture fixture = new Fixture();
 
       Exception thrown = assertThrows(IllegalArgumentException.class, () -> fixture.controller.create(
-         new WizTableStyleController.CreateTableStyleRequest("Foo~Bar", null, null), fixture.principal));
+         new WizTableStyleController.CreateTableStyleRequest("Foo~Bar", null, null, null), fixture.principal));
 
       assertTrue(thrown.getMessage().contains("'name' must not contain"));
       verifyNoInteractions(fixture.lib);
@@ -104,7 +105,7 @@ class WizTableStyleControllerTest {
       Fixture fixture = new Fixture();
 
       Exception thrown = assertThrows(IllegalArgumentException.class, () -> fixture.controller.create(
-         new WizTableStyleController.CreateTableStyleRequest("BorderedBands", "User Defined~Sales", null),
+         new WizTableStyleController.CreateTableStyleRequest("BorderedBands", "User Defined~Sales", null, null),
          fixture.principal));
 
       assertTrue(thrown.getMessage().contains("'folder' must not contain"));
@@ -123,7 +124,7 @@ class WizTableStyleControllerTest {
       TableStyleFormatModel incomplete = new TableStyleFormatModel();
 
       Exception thrown = assertThrows(IllegalArgumentException.class, () -> fixture.controller.update(
-         "1001", new WizTableStyleController.UpdateTableStyleRequest(null, null, incomplete),
+         "1001", new WizTableStyleController.UpdateTableStyleRequest(null, null, incomplete, null),
          fixture.principal));
 
       assertTrue(thrown.getMessage().contains("topBorderFormat"));
@@ -144,7 +145,7 @@ class WizTableStyleControllerTest {
       long originalModified = fixture.existingStyle.getLastModified();
 
       fixture.controller.update(
-         "1001", new WizTableStyleController.UpdateTableStyleRequest(null, null, null), fixture.principal);
+         "1001", new WizTableStyleController.UpdateTableStyleRequest(null, null, null, null), fixture.principal);
 
       assertEquals(originalModified, fixture.existingStyle.getLastModified(),
                    "the shared cached instance must be untouched");
@@ -158,7 +159,7 @@ class WizTableStyleControllerTest {
       when(fixture.lib.getTableStyle("1001")).thenReturn(fixture.existingStyle);
 
       fixture.controller.update("1001",
-         new WizTableStyleController.UpdateTableStyleRequest("Renamed", null, null), fixture.principal);
+         new WizTableStyleController.UpdateTableStyleRequest("Renamed", null, null, null), fixture.principal);
 
       verify(fixture.lib).renameTableStyle("User Defined~BorderedBands", "User Defined~Renamed", "1001");
       verify(fixture.lib).setTableStyle(eq("1001"),
@@ -171,7 +172,7 @@ class WizTableStyleControllerTest {
       when(fixture.lib.getTableStyle("1001")).thenReturn(fixture.existingStyle);
 
       fixture.controller.update("1001",
-         new WizTableStyleController.UpdateTableStyleRequest(null, "Sales", null), fixture.principal);
+         new WizTableStyleController.UpdateTableStyleRequest(null, "Sales", null, null), fixture.principal);
 
       verify(fixture.lib).renameTableStyle("User Defined~BorderedBands", "Sales~BorderedBands", "1001");
       verify(fixture.lib).setTableStyle(eq("1001"),
@@ -184,7 +185,7 @@ class WizTableStyleControllerTest {
       when(fixture.lib.getTableStyle("1001")).thenReturn(fixture.existingStyle);
 
       fixture.controller.update("1001",
-         new WizTableStyleController.UpdateTableStyleRequest("Renamed", "Sales", null), fixture.principal);
+         new WizTableStyleController.UpdateTableStyleRequest("Renamed", "Sales", null, null), fixture.principal);
 
       verify(fixture.lib).renameTableStyle("User Defined~BorderedBands", "Sales~Renamed", "1001");
       verify(fixture.lib).setTableStyle(eq("1001"),
@@ -204,7 +205,7 @@ class WizTableStyleControllerTest {
       when(fixture.tableStyleService.contains("User Defined", "Taken")).thenReturn(true);
 
       Exception thrown = assertThrows(IllegalArgumentException.class, () -> fixture.controller.update(
-         "1001", new WizTableStyleController.UpdateTableStyleRequest("Taken", null, null),
+         "1001", new WizTableStyleController.UpdateTableStyleRequest("Taken", null, null, null),
          fixture.principal));
 
       assertTrue(thrown.getMessage().contains("already exists"),
@@ -219,7 +220,7 @@ class WizTableStyleControllerTest {
       when(fixture.lib.getTableStyle("1001")).thenReturn(fixture.existingStyle);
 
       Exception thrown = assertThrows(IllegalArgumentException.class, () -> fixture.controller.update(
-         "1001", new WizTableStyleController.UpdateTableStyleRequest("Foo~Bar", null, null),
+         "1001", new WizTableStyleController.UpdateTableStyleRequest("Foo~Bar", null, null, null),
          fixture.principal));
 
       assertTrue(thrown.getMessage().contains("'name' must not contain"));
@@ -233,7 +234,7 @@ class WizTableStyleControllerTest {
       when(fixture.lib.getTableStyle("1001")).thenReturn(fixture.existingStyle);
 
       Exception thrown = assertThrows(IllegalArgumentException.class, () -> fixture.controller.update(
-         "1001", new WizTableStyleController.UpdateTableStyleRequest(null, "User Defined~Sales", null),
+         "1001", new WizTableStyleController.UpdateTableStyleRequest(null, "User Defined~Sales", null, null),
          fixture.principal));
 
       assertTrue(thrown.getMessage().contains("'folder' must not contain"));
@@ -256,7 +257,7 @@ class WizTableStyleControllerTest {
       TableStyleFormatModel completeFormat = new TableStyleFormatModel(fixture.existingStyle);
 
       fixture.controller.update("1001",
-         new WizTableStyleController.UpdateTableStyleRequest("Renamed", null, completeFormat),
+         new WizTableStyleController.UpdateTableStyleRequest("Renamed", null, completeFormat, null),
          fixture.principal);
 
       verify(fixture.lib).setTableStyle(eq("1001"),
@@ -273,7 +274,7 @@ class WizTableStyleControllerTest {
       when(fixture.lib.getTableStyle("1001")).thenReturn(fixture.existingStyle);
 
       fixture.controller.update("1001",
-         new WizTableStyleController.UpdateTableStyleRequest("Renamed", null, null), fixture.principal);
+         new WizTableStyleController.UpdateTableStyleRequest("Renamed", null, null, null), fixture.principal);
 
       // Simulate the real LibManager after the first call: renameTableStyle mutates the stored
       // entry in place, keyed by the same oid, so a re-fetch by styleId now returns the new name.
@@ -282,7 +283,7 @@ class WizTableStyleControllerTest {
       TableStyleFormatModel completeFormat = new TableStyleFormatModel(renamedStoredEntry);
 
       fixture.controller.update("1001",
-         new WizTableStyleController.UpdateTableStyleRequest(null, null, completeFormat),
+         new WizTableStyleController.UpdateTableStyleRequest(null, null, completeFormat, null),
          fixture.principal);
 
       verify(fixture.lib, times(2)).setTableStyle(eq("1001"),
@@ -371,6 +372,186 @@ class WizTableStyleControllerTest {
       assertEquals(List.of(new WizTableStyleController.TableStyleSummary("1001", "Simple", "")), result);
    }
 
+   // ---- Bug #78289: a style stored under an unregistered folder is an invisible orphan ----
+
+   private static void registerFolders(Fixture fixture, String... folders) {
+      when(fixture.lib.containsFolder(anyString())).thenReturn(false);
+
+      for(String folder : folders) {
+         when(fixture.lib.containsFolder(folder)).thenReturn(true);
+      }
+
+      when(fixture.lib.getTableStyleFolders(isNull(), eq(true))).thenReturn(folders.length == 0 ?
+         new String[0] : new String[]{ folders[0] });
+   }
+
+   @Test
+   void create_acceptsAnExistingFolderWithoutTheFlag() throws Exception {
+      Fixture fixture = new Fixture();
+      registerFolders(fixture, "User Defined", "User Defined~Sales");
+
+      fixture.controller.create(
+         new WizTableStyleController.CreateTableStyleRequest("Bands", "User Defined/Sales", null, null),
+         fixture.principal);
+
+      verify(fixture.lib, never()).addTableStyleFolder(anyString());
+      verify(fixture.lib).setTableStyle(any(), any());
+   }
+
+   @Test
+   void create_refusesANonexistentFolderNamingItListingExistingOnesAndTheFlag() {
+      Fixture fixture = new Fixture();
+      registerFolders(fixture, "User Defined");
+      when(fixture.lib.getTableStyleFolders(eq("User Defined"), eq(true))).thenReturn(new String[0]);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () -> fixture.controller.create(
+         new WizTableStyleController.CreateTableStyleRequest("Bands", "NoSuch", null, null),
+         fixture.principal));
+
+      String message = thrown.getMessage();
+      assertTrue(message.contains("'folder' 'NoSuch' does not exist"), message);
+      assertTrue(message.contains("case-sensitive"), message);
+      assertTrue(message.contains("User Defined"), message);
+      assertTrue(message.contains("createFolders"), message);
+      verify(fixture.lib, never()).setTableStyle(any(), any());
+      verify(fixture.lib, never()).addTableStyleFolder(anyString());
+   }
+
+   @Test
+   void create_refusesAFolderWhoseCaseDiffers() {
+      Fixture fixture = new Fixture();
+      registerFolders(fixture, "Sales");
+      when(fixture.lib.getTableStyleFolders(eq("Sales"), eq(true))).thenReturn(new String[0]);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () -> fixture.controller.create(
+         new WizTableStyleController.CreateTableStyleRequest("Bands", "sales", null, null),
+         fixture.principal));
+
+      assertTrue(thrown.getMessage().contains("'sales'"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Sales"), thrown.getMessage());
+      verify(fixture.lib, never()).setTableStyle(any(), any());
+   }
+
+   @Test
+   void create_refusesANestedFolderWhoseParentIsMissingNamingTheMissingSegment() {
+      Fixture fixture = new Fixture();
+      registerFolders(fixture, "User Defined");
+      when(fixture.lib.getTableStyleFolders(eq("User Defined"), eq(true))).thenReturn(new String[0]);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () -> fixture.controller.create(
+         new WizTableStyleController.CreateTableStyleRequest(
+            "Bands", "User Defined/Missing/Deep", null, null), fixture.principal));
+
+      assertTrue(thrown.getMessage().contains("'User Defined/Missing' is not a registered"),
+                 thrown.getMessage());
+      verify(fixture.lib, never()).setTableStyle(any(), any());
+   }
+
+   @Test
+   void create_withCreateFoldersRegistersEveryMissingAncestorOutermostFirstThenStoresTheStyle()
+      throws Exception
+   {
+      Fixture fixture = new Fixture();
+      registerFolders(fixture, "User Defined");
+
+      fixture.controller.create(
+         new WizTableStyleController.CreateTableStyleRequest(
+            "Bands", "User Defined/New/Deep", null, true), fixture.principal);
+
+      InOrder order = inOrder(fixture.lib);
+      order.verify(fixture.lib).addTableStyleFolder("User Defined~New");
+      order.verify(fixture.lib).addTableStyleFolder("User Defined~New~Deep");
+      order.verify(fixture.lib).setTableStyle(any(), any());
+      order.verify(fixture.lib).save();
+      verify(fixture.lib, never()).addTableStyleFolder("User Defined");
+   }
+
+   @Test
+   void create_withCreateFoldersReRegistersAnAuditFolder() throws Exception {
+      Fixture fixture = new Fixture();
+      when(fixture.lib.isAuditStyleFolder("Audit")).thenReturn(true);
+
+      fixture.controller.create(
+         new WizTableStyleController.CreateTableStyleRequest("Bands", "Audit", null, true),
+         fixture.principal);
+
+      verify(fixture.lib).addTableStyleFolder("Audit");
+   }
+
+   @Test
+   void create_refusesAnAuditFolderWithoutTheFlag() {
+      Fixture fixture = new Fixture();
+      when(fixture.lib.isAuditStyleFolder("Audit")).thenReturn(true);
+
+      assertThrows(IllegalArgumentException.class, () -> fixture.controller.create(
+         new WizTableStyleController.CreateTableStyleRequest("Bands", "Audit", null, null),
+         fixture.principal));
+
+      verify(fixture.lib, never()).setTableStyle(any(), any());
+   }
+
+   @Test
+   void create_withCreateFoldersButNoWritePermissionOnTheParentGivesADistinctError() throws Exception {
+      Fixture fixture = new Fixture();
+      registerFolders(fixture, "User Defined");
+      when(fixture.securityEngine.checkPermission(any(), eq(ResourceType.TABLE_STYLE),
+         eq("User Defined"), eq(ResourceAction.WRITE))).thenReturn(false);
+
+      Exception thrown = assertThrows(SecurityException.class, () -> fixture.controller.create(
+         new WizTableStyleController.CreateTableStyleRequest(
+            "Bands", "User Defined/New", null, true), fixture.principal));
+
+      assertTrue(thrown.getMessage().contains("No WRITE permission on table style folder"),
+                 thrown.getMessage());
+      verify(fixture.lib, never()).addTableStyleFolder(anyString());
+      verify(fixture.lib, never()).setTableStyle(any(), any());
+   }
+
+   @Test
+   void update_refusesMovingToANonexistentFolder() {
+      Fixture fixture = new Fixture();
+      when(fixture.lib.getTableStyle("1001")).thenReturn(fixture.existingStyle);
+      registerFolders(fixture, "User Defined");
+      when(fixture.lib.getTableStyleFolders(eq("User Defined"), eq(true))).thenReturn(new String[0]);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () -> fixture.controller.update(
+         "1001", new WizTableStyleController.UpdateTableStyleRequest(null, "NoSuch", null, null),
+         fixture.principal));
+
+      assertTrue(thrown.getMessage().contains("'folder' 'NoSuch' does not exist"), thrown.getMessage());
+      verify(fixture.lib, never()).renameTableStyle(any(), any(), any());
+      verify(fixture.lib, never()).setTableStyle(any(), any());
+   }
+
+   @Test
+   void update_withCreateFoldersRegistersTheMissingFolderBeforeTheMove() throws Exception {
+      Fixture fixture = new Fixture();
+      when(fixture.lib.getTableStyle("1001")).thenReturn(fixture.existingStyle);
+      registerFolders(fixture, "User Defined");
+
+      fixture.controller.update("1001",
+         new WizTableStyleController.UpdateTableStyleRequest(null, "User Defined/New", null, true),
+         fixture.principal);
+
+      InOrder order = inOrder(fixture.lib);
+      order.verify(fixture.lib).addTableStyleFolder("User Defined~New");
+      order.verify(fixture.lib).renameTableStyle(
+         "User Defined~BorderedBands", "User Defined~New~BorderedBands", "1001");
+   }
+
+   @Test
+   void update_aRenameInTheSameFolderNeverChecksFolders() throws Exception {
+      Fixture fixture = new Fixture();
+      when(fixture.lib.getTableStyle("1001")).thenReturn(fixture.existingStyle);
+      when(fixture.lib.containsFolder(anyString())).thenReturn(false);
+
+      fixture.controller.update("1001",
+         new WizTableStyleController.UpdateTableStyleRequest("Renamed", null, null, null),
+         fixture.principal);
+
+      verify(fixture.lib).renameTableStyle("User Defined~BorderedBands", "User Defined~Renamed", "1001");
+   }
+
    private static XTableStyle newStyle(String id, String name) {
       XTableStyle style = new XTableStyle(new DefaultTableLens());
       style.setID(id);
@@ -400,6 +581,12 @@ class WizTableStyleControllerTest {
          }
 
          when(libManagerProvider.getManager(any(Principal.class))).thenReturn(lib);
+         // Every folder is registered unless a test says otherwise.
+         when(lib.containsFolder(anyString())).thenReturn(true);
+         when(lib.getTableStyleFolders(nullable(String.class), anyBoolean())).thenReturn(new String[0]);
+         when(tableStyleService.getTableStyleLabel(nullable(String.class), anyString()))
+            .thenAnswer(inv -> inv.getArgument(0) == null ? inv.getArgument(1) :
+               inv.getArgument(0) + LibManager.SEPARATOR + inv.getArgument(1));
          // IdentityID.getIdentityIDFromKey(null) returns null, and setLastModifiedBy(pId.getName())
          // would NPE on that -- every write path needs a real name here, not Mockito's default null.
          when(principal.getName()).thenReturn("admin");
