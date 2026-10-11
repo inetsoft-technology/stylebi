@@ -166,7 +166,12 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
       cancelLock.lock();
 
       try {
-         cancelled = !completed;
+         // a repeated cancel, after the cancelled scan ended, must not make the partial rows
+         // look whole (bug #78341)
+         if(!completed) {
+            cancelled = true;
+            cancelCount++;
+         }
 
          if(table instanceof CancellableTableLens) {
             ((CancellableTableLens) table).cancel();
@@ -239,13 +244,14 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
       }
 
       final XSwappableIntList rows2 = rows;
+      final int cancels = cancelCount;
 
       // if this is called from JavaScriptEngine.exec() or a condition filter
       // (bug #76938), the script engine is already locked. joining in a separate
       // thread would create a deadlock waiting forever for the JavaScriptEngine lock
       // to be released.
       if(JavaScriptEngine.holdsScriptLock()) {
-         join(rows2);
+         join(rows2, cancels);
          return;
       }
 
@@ -260,7 +266,7 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
             borrower.begin();
 
             try {
-               join(rows2);
+               join(rows2, cancels);
             }
             finally {
                borrower.end();
@@ -272,7 +278,7 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
    /**
     * Find the rows matching the join operators.
     */
-   private void join(XSwappableIntList rows2) {
+   private void join(XSwappableIntList rows2, int cancels) {
       SelfJoinOperator[] ops = new SelfJoinOperator[oplist.size()];
       oplist.toArray(ops);
       LockStallException stall = null;
@@ -283,6 +289,12 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
       try {
          OUTER:
          for(int i = table.getHeaderRowCount(); table.moreRows(i); i++) {
+            // cancelled during this pass: end with the rows so far. a cancel of an earlier pass
+            // does not end a re-run after invalidate() (bug #78341)
+            if(cancelCount != cancels) {
+               break;
+            }
+
             scannedRows = i;
 
             for(int j = 0; j < ops.length; j++) {
@@ -1066,6 +1078,7 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
    private TableLens table;       // base table
    private boolean completed;     // completed flag
    private volatile boolean cancelled;     // cancelled flag
+   private volatile int cancelCount;       // cancels of an unfinished lens
    private final Lock cancelLock = new ReentrantLock();
    private int maxRows = Integer.MAX_VALUE;
    private transient boolean maxAlert = false;

@@ -23,6 +23,7 @@ import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.table.CancellableTableLens;
 import inetsoft.report.lens.JoinTableLens;
+import inetsoft.report.lens.SelfJoinTableLens;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
 import inetsoft.uql.*;
@@ -254,6 +255,69 @@ class AliasedTableCancelTest {
       fail("the cancel never landed while the join was running");
    }
 
+   /** Bug #78341: a non-equality join is a SelfJoinTableLens, Stop query must stop its scan. */
+   @Test
+   void stopQueryStopsANonEquiJoin() throws Exception {
+      assertCancelStopsNonEquiJoin(AliasedTableCancelTest::stopQuery);
+   }
+
+   @Test
+   void queryManagerCancelStopsANonEquiJoin() throws Exception {
+      assertCancelStopsNonEquiJoin((box, lens) -> box.getQueryManager().cancel());
+   }
+
+   // T1.id < T2.id2 in memory: ROWS * (ROWS - 1) / 2 rows
+   private static void assertCancelStopsNonEquiJoin(Canceller canceller) throws Exception {
+      int full = ROWS * (ROWS - 1) / 2;
+
+      for(int i = 0; i < 5; i++) {
+         Worksheet ws = joinWorksheet(false, TableAssemblyOperator.LESS_JOIN, "id", "id2");
+         AssetQuerySandbox box1 = new AssetQuerySandbox(ws);
+         box1.setQueryManager(new QueryManager());
+         TableLens lens1 = box1.getTableLens("J1", AssetQuerySandbox.RUNTIME_MODE,
+                                             new VariableTable());
+         assertNotNull(lens1, "the query failed, see the log");
+         String chain = chain(lens1, SelfJoinTableLens.class);
+         SelfJoinTableLens join1 =
+            (SelfJoinTableLens) Util.getNestedTable(lens1, SelfJoinTableLens.class);
+         assertNotNull(join1, chain);
+
+         // the join is cancelled once its bases are loaded
+         ((TableLens) join1.getTable()).moreRows(XTable.EOT);
+
+         if(join1.getRowCount() >= 0) {
+            continue;
+         }
+
+         canceller.cancel(box1, lens1);
+         lens1.moreRows(XTable.EOT);
+         join1.moreRows(XTable.EOT);
+         int rows1 = join1.getRowCount() - join1.getHeaderRowCount();
+         System.out.println("AliasedTableCancelTest: " + chain + ", cancelled at " + rows1 +
+                            " of " + full + " rows");
+
+         assertTrue(rows1 < full, "the cancel did not stop the running join: " + chain);
+         assertTrue(join1.isCancelled(), chain);
+         assertTrue(AssetDataCache.isCancelled(lens1), chain);
+
+         AssetQuerySandbox box2 = new AssetQuerySandbox(ws);
+         TableLens lens2 = box2.getTableLens("J1", AssetQuerySandbox.RUNTIME_MODE,
+                                             new VariableTable());
+         assertNotNull(lens2, "the query failed, see the log");
+         SelfJoinTableLens join2 =
+            (SelfJoinTableLens) Util.getNestedTable(lens2, SelfJoinTableLens.class);
+         assertNotNull(join2, chain(lens2));
+         lens2.moreRows(XTable.EOT);
+         join2.moreRows(XTable.EOT);
+
+         assertNotSame(join1, join2, "the cancelled join was taken from the cache");
+         assertEquals(full, join2.getRowCount() - join2.getHeaderRowCount());
+         return;
+      }
+
+      fail("the cancel never landed while the join was running");
+   }
+
    private static void assertStopQueryStopsSingleTable(boolean alias) throws Exception {
       Worksheet ws = new Worksheet();
       SQLBoundTableAssembly table = sqlTable(
@@ -310,6 +374,13 @@ class AliasedTableCancelTest {
    // T1(id, g) INNER JOIN T2 ON g, in memory; T2(id, g) gets the aliases id_1, g_1 in the
    // join, T2(id2, g2) keeps its names
    private static Worksheet joinWorksheet(boolean alias) throws Exception {
+      return joinWorksheet(alias, TableAssemblyOperator.INNER_JOIN, "g", alias ? "g" : "g2");
+   }
+
+   private static Worksheet joinWorksheet(boolean alias, int operation, String left,
+                                          String right)
+      throws Exception
+   {
       Worksheet ws = new Worksheet();
       int run = RUN.incrementAndGet();
       SQLBoundTableAssembly t1 = sqlTable(ws, "T1", "select pa.id, pa.g from pa where pa.id > -" +
@@ -322,11 +393,11 @@ class AliasedTableCancelTest {
       t2.setSQLMergeable(false);
       TableAssemblyOperator operator = new TableAssemblyOperator();
       TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
-      op.setOperation(TableAssemblyOperator.INNER_JOIN);
+      op.setOperation(operation);
       op.setLeftTable("T1");
       op.setRightTable("T2");
-      op.setLeftAttribute(t1.getColumnSelection(false).getAttribute("g"));
-      op.setRightAttribute(t2.getColumnSelection(false).getAttribute(alias ? "g" : "g2"));
+      op.setLeftAttribute(t1.getColumnSelection(false).getAttribute(left));
+      op.setRightAttribute(t2.getColumnSelection(false).getAttribute(right));
       operator.addOperator(op);
       RelationalJoinTableAssembly join = new RelationalJoinTableAssembly(
          ws, "J1", new TableAssembly[] { t1, t2 }, new TableAssemblyOperator[] { operator });
@@ -342,6 +413,10 @@ class AliasedTableCancelTest {
 
    // the lenses from the top to the first one that is not a filter
    private static String chain(TableLens lens) {
+      return chain(lens, JoinTableLens.class);
+   }
+
+   private static String chain(TableLens lens, Class<?> stop) {
       List<String> names = new ArrayList<>();
 
       for(XTable table = lens; table != null;
@@ -350,7 +425,7 @@ class AliasedTableCancelTest {
          names.add(table.getClass().getSimpleName() +
                       (table instanceof CancellableTableLens ? "(C)" : ""));
 
-         if(table instanceof JoinTableLens) {
+         if(stop.isInstance(table)) {
             break;
          }
       }
