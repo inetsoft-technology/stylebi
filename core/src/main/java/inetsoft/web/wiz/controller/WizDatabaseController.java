@@ -671,6 +671,7 @@ public class WizDatabaseController {
    {
       WizDatabaseDefinition definition = request == null ? null : request.definition();
       String name = requireName(definition);
+      WizDatasourceNames.requireValidDatasourceName(name);
       String parentPath = normalizePath(request.parentPath());
 
       requireCreatePermission(parentPath, principal);
@@ -717,6 +718,12 @@ public class WizDatabaseController {
    {
       String database = requirePath(path);
       String name = requireName(definition);
+
+      // Only a real rename is checked: a stored name that predates the rule must stay re-savable.
+      if(!name.equals(lastSegment(database))) {
+         WizDatasourceNames.requireValidDatasourceName(name);
+      }
+
       String actionName = databaseDatasourcesService.getActionName(database, name);
 
       // The save path treats a path with no data source behind it as a parent folder and would
@@ -1727,6 +1734,8 @@ public class WizDatabaseController {
          throw new ResponseStatusException(
             HttpStatus.BAD_REQUEST, "name must be a single path segment");
       }
+
+      WizDatasourceNames.requireValidFolderName(name);
 
       return name;
    }
