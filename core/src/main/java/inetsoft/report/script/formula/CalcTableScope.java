@@ -51,6 +51,9 @@ public class CalcTableScope extends PropertyScriptable implements DynamicScope {
       this.table = table;
 
       field = new TableRow(table, 0);
+      // the default field is the calc table's own row, so a miss means the formula
+      // referenced a source column that is not in scope; fail loud, not undefined/0
+      field.setStrictMissing(true);
       addProperty("field", field);
 
       if(table instanceof RuntimeCalcTableLens) {
