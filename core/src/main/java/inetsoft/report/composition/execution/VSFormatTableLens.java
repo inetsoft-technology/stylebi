@@ -327,11 +327,12 @@ public final class VSFormatTableLens extends FormatTableLens {
             fmt.setBorderColorsValue(objfmt.getBorderColors());
          }
 
-         // only strip the object-level foreground when the table style itself
-         // defines an explicit color for this cell (e.g. Colorful1's white
-         // header text) -- if the style leaves the color unset here, let the
-         // object format fall through instead of silently discarding it.
-         Color styleForeground = styled && getTable() != null ?
+         // a user-defined object-level foreground wins over the table style's
+         // foreground. A non-user (default) object foreground still yields when the
+         // table style itself defines an explicit color for this cell (e.g.
+         // Colorful1's white header text), and is left to fall through when the
+         // style leaves the color unset.
+         Color styleForeground = styled && !objForeground && getTable() != null ?
             getTable().getForeground(row, col) : null;
 
          if(styleForeground != null) {
