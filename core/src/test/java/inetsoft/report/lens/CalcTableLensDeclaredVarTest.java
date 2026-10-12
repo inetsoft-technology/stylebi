@@ -40,7 +40,9 @@ import static org.mockito.Mockito.*;
  * scope chain - a summary function of its CalcTableScope (max, count, min, sum, ...), a
  * member such as field, or the assembly's value - is the cell's own var, in every compile
  * shape: it does not read the member, and a write does not replace the member on the scope
- * every cell and row of the table shares (Bug #78247).
+ * every cell and row of the table shares (Bug #78247). A var declared without an
+ * initializer starts undefined on every run, so it never reads what another cell or row
+ * left in the table's var store.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class, LibManagerTestConfiguration.class, PluginsTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -153,14 +155,106 @@ class CalcTableLensDeclaredVarTest {
          Arrays.asList(null, 3.0, 2.0)), values(calc));
    }
 
-   // an accumulator keeps its value in the table's var store across cells, as any var of
-   // the plain path does (CalcTableLensStallVarTest), and does not read the sum function
+   // an accumulator keeps its value in the table's var store across cells, as a var with
+   // an initializer of the plain path does (CalcTableLensStallVarTest), and does not read
+   // the sum function
    @Test
    void anAccumulatorNamedLikeASummaryFunctionPersistsAcrossCells() {
       CalcTableLens calc = calcTable(1, "var sum = (sum || 0) + 1; sum",
                                      "var sum = (sum || 0) + 1; sum");
 
       assertEquals(List.of(List.of(1.0, 2.0)), values(calc));
+   }
+
+   // the reopened report: a plain `var max; max` cell must not read the max another cell
+   // (an eval wrapper, which hoists its vars to the table's store) assigned, whichever cell
+   // and row is read first (Bug #78247)
+   @Test
+   void aPlainInitializerlessVarDoesNotReadAnotherCellsValue() {
+      String a = "var max; if(this != null) max = 5; max";
+      String b = "var max; max";
+      List<List<Object>> ab = Arrays.asList(Arrays.asList(5.0, null, 7.0),
+         Arrays.asList(5.0, null, 7.0), Arrays.asList(5.0, null, 7.0));
+      List<List<Object>> ba = Arrays.asList(Arrays.asList(null, 5.0, 7.0),
+         Arrays.asList(null, 5.0, 7.0), Arrays.asList(null, 5.0, 7.0));
+
+      assertEquals(ab, values(calcTable(3, a, b, "max([3,7])")));
+      assertEquals(ab, columnMajorValues(calcTable(3, a, b, "max([3,7])")));
+      assertEquals(ba, values(calcTable(3, b, a, "max([3,7])")));
+      assertEquals(ba, columnMajorValues(calcTable(3, b, a, "max([3,7])")));
+      assertEquals(ab, values(calcTable(3, a, b, "max([3,7])").process()));
+      assertEquals(ba, values(calcTable(3, b, a, "max([3,7])").process()));
+   }
+
+   // the live report: the reader runs before a split writer (which resets the name on
+   // every run and assigns the named cell $total on some rows) in the same row
+   @Test
+   void aPlainInitializerlessVarDoesNotReadTheNamedCellAnotherCellAssigned() {
+      CalcTableLens calc = calcTable(1, "[100, 300, 120, 400, 50]", "var zz; zz",
+                                     "var zz; if($total > 150) zz = $total; zz");
+      calc.setExpansion(0, 0, CalcTableLens.EXPAND_VERTICAL);
+      calc.setCellName(0, 0, "total");
+
+      assertEquals(Arrays.asList(
+         Arrays.asList(100.0, null, null),
+         Arrays.asList(300.0, null, 300.0),
+         Arrays.asList(120.0, null, null),
+         Arrays.asList(400.0, null, 400.0),
+         Arrays.asList(50.0, null, null)), values(calc.process()));
+   }
+
+   // the whole live table: both readers of max (before and after the this writer) and the
+   // zz reader before its split writer, all in one table with the named cell
+   @Test
+   void theLiveTableReadersAreEmptyOnEveryRow() {
+      String b = "var max; max";
+      CalcTableLens calc = calcTable(1, "[100, 300, 120, 400, 50]", b,
+                                     "var max; if(this != null) max = 5; max", "var zz; zz",
+                                     "var zz; if($total > 150) zz = $total; zz", b);
+      calc.setExpansion(0, 0, CalcTableLens.EXPAND_VERTICAL);
+      calc.setCellName(0, 0, "total");
+
+      assertEquals(Arrays.asList(
+         Arrays.asList(100.0, null, 5.0, null, null, null),
+         Arrays.asList(300.0, null, 5.0, null, 300.0, null),
+         Arrays.asList(120.0, null, 5.0, null, null, null),
+         Arrays.asList(400.0, null, 5.0, null, 400.0, null),
+         Arrays.asList(50.0, null, 5.0, null, null, null)), values(calc.process()));
+   }
+
+   // any name, a plain writer: only the initializer-less declarations are reset (b reads
+   // the writer's b in its initializer). A cell without the var still reads the store, as
+   // in Rhino, so it reads what the last cell that ran left there: undefined after a
+   // reset of the name, the writer's value otherwise
+   @Test
+   void onlyTheInitializerlessVarsOfAPlainCellAreReset() {
+      CalcTableLens calc = calcTable(3, "var zz = row + 20, a = 1, b = row + 10; zz",
+                                     "var zz; zz",
+                                     "zz", "var a, b = b; String(a) + '|' + b");
+
+      assertEquals(Arrays.asList(
+         Arrays.asList(20.0, null, null, "undefined|10"),
+         Arrays.asList(21.0, null, null, "undefined|11"),
+         Arrays.asList(22.0, null, null, "undefined|12")), values(calc));
+
+      calc = calcTable(3, "var zz = row + 20; zz", "zz");
+
+      assertEquals(Arrays.asList(
+         Arrays.asList(20.0, 20.0),
+         Arrays.asList(21.0, 21.0),
+         Arrays.asList(22.0, 22.0)), values(calc));
+   }
+
+   // an accumulator with an initializer still counts across rows; one whose var has no
+   // initializer starts undefined on every run, as in a split or this body
+   @Test
+   void anInitializerlessVarStartsUndefinedOnEveryRun() {
+      assertEquals(Arrays.asList(List.of(1.0), List.of(2.0), List.of(3.0)),
+                   values(calcTable(3, "var acc = (acc || 0) + 1; acc")));
+      assertEquals(Arrays.asList(List.of(1.0), List.of(1.0), List.of(1.0)),
+                   values(calcTable(3, "var x; x = (x || 0) + 1; x")));
+      assertEquals(Arrays.asList(List.of(1.0), List.of(1.0), List.of(1.0)),
+                   values(calcTable(3, "var x; x = (x || 0) + 1; if(false) x = 0; x")));
    }
 
    // the assembly's value, a member of the parent scope of the table's scope; a cell that
@@ -212,6 +306,42 @@ class CalcTableLensDeclaredVarTest {
 
          for(int c = 0; c < calc.getColCount(); c++) {
             row.add(num(calc.getValue(r, c)));
+         }
+
+         values.add(row);
+      }
+
+      return values;
+   }
+
+   // the values column by column, each column top to bottom, returned row by row
+   private static List<List<Object>> columnMajorValues(CalcTableLens calc) {
+      Object[][] values = new Object[calc.getRowCount()][calc.getColCount()];
+
+      for(int c = 0; c < calc.getColCount(); c++) {
+         for(int r = 0; r < calc.getRowCount(); r++) {
+            values[r][c] = num(calc.getValue(r, c));
+         }
+      }
+
+      List<List<Object>> rows = new ArrayList<>();
+
+      for(Object[] row : values) {
+         rows.add(Arrays.asList(row));
+      }
+
+      return rows;
+   }
+
+   // the values of the runtime table of process(), row by row, each row left to right
+   private static List<List<Object>> values(RuntimeCalcTableLens runtime) {
+      List<List<Object>> values = new ArrayList<>();
+
+      for(int r = 0; r < runtime.getRowCount(); r++) {
+         List<Object> row = new ArrayList<>();
+
+         for(int c = 0; c < runtime.getColCount(); c++) {
+            row.add(num(runtime.getObject(r, c)));
          }
 
          values.add(row);
