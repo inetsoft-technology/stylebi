@@ -8061,13 +8061,78 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             }
          }
 
-         flens = new FormTableLens((TableLens) getData(name));
+         flens = new FormTableLens(getFormData(name));
          flens.setEdit(info.isEdit());
          flens.setColumnSelection(cols);
          fmap.put(name, flens);
       }
 
       return flens;
+   }
+
+   /**
+    * Get the fully loaded data of a form table. The data is a lazy table, and a cancel of the
+    * assembly's query manager after it is returned and before it is read, e.g. by a selection's
+    * change or a newer query of the table, cuts it short: it keeps only the rows read before the
+    * cancel and a negative row count. Such data is never made the form data, the table is
+    * fetched again, a bounded number of times like executeDataAfterChangeCancel() (#78244).
+    * A cancel by the user, a drill or a dispose is thrown as is.
+    */
+   private TableLens getFormData(String name) throws Exception {
+      QueryManager qmgr = getQueryManager(name);
+      Boolean qcancel = VSAQuery.Q_CANCEL.get();
+
+      try {
+         for(int attempt = 1; ; attempt++) {
+            long[] counts = qmgr.getCancelCounts();
+            TableLens data = (TableLens) getData(name);
+
+            if(data == null) {
+               return null;
+            }
+
+            data.moreRows(Integer.MAX_VALUE);
+
+            if(data.getRowCount() >= 0 && !AssetDataCache.isCancelled(data)) {
+               return data;
+            }
+
+            if(disposed || qmgr.getCancelCount() != counts[0] &&
+               !qmgr.isCancelledForNewerOnly(counts))
+            {
+               throw new CancelledException("Form data of " + name + " cancelled");
+            }
+
+            if(attempt >= MAX_CHANGE_CANCEL_ATTEMPTS) {
+               LOG.warn("Form data of {} cancelled {} times in a row, not fetched again",
+                        name, attempt);
+               CoreTool.addUserWarning(Catalog.getCatalog().getString(
+                  "viewer.viewsheet.data.cancelledByChanges", name));
+               throw new ChangeCancelledException(
+                  new CancelledException("Form data of " + name + " cancelled"));
+            }
+
+            LOG.debug("Form data of {} cut short by a cancel, fetch it again", name);
+
+            // a cut table that was cached is fetched again by getData() if it reads as
+            // cancelled, drop one that doesn't so the next getData() doesn't return it again
+            if(dmap.get(name, DataMap.NORMAL) == data) {
+               dmap.remove(name, DataMap.NORMAL);
+            }
+
+            // fetching it again leaves the other queries of the assembly alone, e.g. another
+            // thread's fetch of this form table, so the two can't keep cancelling each other
+            VSAQuery.Q_CANCEL.set(Boolean.FALSE);
+         }
+      }
+      finally {
+         if(qcancel == null) {
+            VSAQuery.Q_CANCEL.remove();
+         }
+         else {
+            VSAQuery.Q_CANCEL.set(qcancel);
+         }
+      }
    }
 
    /**
