@@ -41,6 +41,7 @@ import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.binding.model.BAggregateRefModel;
 import inetsoft.web.binding.model.BDimensionRefModel;
 import inetsoft.web.binding.model.BindingModel;
+import inetsoft.web.binding.model.NamedGroupInfoModel;
 import inetsoft.web.binding.model.ChartBindingModel;
 import inetsoft.web.binding.model.graph.calc.RunningTotalCalcInfo;
 import inetsoft.web.binding.model.table.CrosstabBindingModel;
@@ -1818,6 +1819,48 @@ class TableBindingMutatorTest {
       assertEquals(XNamedGroupInfo.EXPERT_NAMEDGROUP_INFO, dim.getNamedGroupInfo().getType());
       assertEquals(1, dim.getNamedGroupInfo().getConditions().size());
       assertEquals("West", dim.getNamedGroupInfo().getConditions().get(0).getName());
+   }
+
+   /**
+    * Bug #78359: the chart-side inline-group read rule must not reach a crosstab -- adding an
+    * unrelated field never turns an expert (worksheet-group) dimension into an inline group, and its
+    * read keeps its named-group read rather than flipping to inline values.
+    */
+   @Test
+   void addFieldNeverTurnsAnExpertNamedGroupIntoAnInlineOne() throws Exception {
+      Condition condition = mock(Condition.class);
+      when(condition.getOperation()).thenReturn(Condition.EQUAL_TO);
+      when(condition.getValues()).thenReturn(List.of("CA"));
+      ConditionList conditionList = new ConditionList();
+      conditionList.append(new ConditionItem(new AttributeRef(null, "REGION"), condition, 0));
+      NamedGroupInfo namedGroupInfo = new NamedGroupInfo();
+      namedGroupInfo.setGroupCondition("West", conditionList);
+
+      DefaultNamedGroupAssembly ngAssembly = mock(DefaultNamedGroupAssembly.class);
+      when(ngAssembly.getName()).thenReturn("Coastal");
+      when(ngAssembly.getAttachedType()).thenReturn(AttachedAssembly.COLUMN_ATTACHED);
+      when(ngAssembly.getAttachedSource()).thenReturn(QUERY1_SOURCE);
+      when(ngAssembly.getAttachedAttribute()).thenReturn(new AttributeRef(null, "REGION"));
+      when(ngAssembly.getNamedGroupInfo()).thenReturn(namedGroupInfo);
+
+      Worksheet ws = mock(Worksheet.class);
+      when(ws.getAssemblies()).thenReturn(new inetsoft.uql.asset.Assembly[]{ ngAssembly });
+
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dimWithNamedGroup("REGION", "Coastal")),
+                                   rvsWithWorksheet(ws), QUERY1_SOURCE, refModelService());
+      FieldRef before = TableBindingMutator.read(model, "rows").get(0);
+      assertNull(before.namedGroupValues());
+
+      TableBindingMutator.addField(model, "rows", dim("Year"), null);
+
+      // The no-rvs addField overload drops a group whose read carries no name (pre-existing,
+      // unrelated to #78359); what must not happen is the group coming back as an inline one.
+      NamedGroupInfoModel after = model.getRows().get(0).getNamedGroupInfo();
+      assertTrue(after == null || after.getType() != XNamedGroupInfo.SIMPLE_NAMEDGROUP_INFO);
+      FieldRef read = TableBindingMutator.read(model, "rows").get(0);
+      assertEquals(before.namedGroup(), read.namedGroup());
+      assertNull(read.namedGroupValues());
    }
 
    @Test

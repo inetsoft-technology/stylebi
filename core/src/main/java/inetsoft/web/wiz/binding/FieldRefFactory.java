@@ -20,7 +20,9 @@ package inetsoft.web.wiz.binding;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.internal.binding.AssetNamedGroupInfo;
 import inetsoft.report.internal.binding.SummaryAttr;
+import inetsoft.uql.XCondition;
 import inetsoft.uql.XConstants;
+import inetsoft.uql.JunctionOperator;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.DefaultNamedGroupAssembly;
 import inetsoft.uql.asset.SourceInfo;
@@ -43,6 +45,9 @@ import inetsoft.web.binding.model.graph.ChartDimensionRefModel;
 import inetsoft.web.binding.model.graph.ChartRefModel;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.composer.model.condition.ConditionExpression;
+import inetsoft.web.composer.model.condition.ConditionModel;
+import inetsoft.web.composer.model.condition.ConditionValueModel;
+import inetsoft.web.composer.model.condition.JunctionOperatorModel;
 import inetsoft.web.composer.model.condition.ConditionUtil;
 import inetsoft.web.wiz.binding.model.FieldRef;
 
@@ -51,6 +56,8 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /** Converts between StyleBI's ref models and the agent-facing {@link FieldRef}. */
 public final class FieldRefFactory {
@@ -336,6 +343,20 @@ public final class FieldRefFactory {
                                 null, dimension.isTimeSeries());
          }
 
+         // A chart's inline group is promoted to an EXPERT group of per-member conditions (and
+         // stays EXPERT after any later chart write), so recognize it by the shape of those
+         // conditions instead of by type. Chart models only: a crosstab/table expert group (e.g.
+         // a resolved worksheet group, which carries equality conditions too) keeps its read.
+         List<FieldRef.NamedGroupValues.Clause> inline = dimension instanceof ChartDimensionRefModel
+            ? inlineClauses(ngInfo, dimension) : null;
+
+         if(inline != null) {
+            return new FieldRef(dimension.getColumnValue(), DIMENSION, null,
+                                dimension.getDateLevel(), null, null, null,
+                                new FieldRef.NamedGroupValues(inline, null), null, null, null,
+                                null, dimension.isTimeSeries());
+         }
+
          return new FieldRef(dimension.getColumnValue(), DIMENSION, null,
                              dimension.getDateLevel(), ngInfo == null ? null : ngInfo.getName(),
                              null, null, null, null, null, null, null, dimension.isTimeSeries());
@@ -351,6 +372,107 @@ public final class FieldRefFactory {
       return new FieldRef(ref == null ? null : ref.getName(), null, null, null, null, null, null,
                           null, null, label);
    }
+
+   /**
+    * The {name, values} clauses of an EXPERT group whose every group is a plain membership
+    * list -- positive EQUAL_TO / NULL ("" member) / ONE_OF conditions on the dimension's own
+    * column, OR-joined at level 0 -- or null when the group is anything else (or in any doubt),
+    * so the caller keeps reporting it as the placeholder. Values come from the conditions, as
+    * the flat {@code groups} list drops the "" member.
+    */
+   private static List<FieldRef.NamedGroupValues.Clause> inlineClauses(
+      NamedGroupInfoModel ngInfo, BDimensionRefModel dimension)
+   {
+      if(ngInfo == null || ngInfo.getType() != XNamedGroupInfo.EXPERT_NAMEDGROUP_INFO ||
+         ngInfo.getConditions() == null || ngInfo.getConditions().isEmpty() ||
+         dimension.getColumnValue() == null)
+      {
+         return null;
+      }
+
+      List<FieldRef.NamedGroupValues.Clause> clauses = new ArrayList<>();
+
+      for(ConditionExpression ce : ngInfo.getConditions()) {
+         Object[] list = ce == null ? null : ce.getList();
+
+         if(ce == null || ce.getName() == null || list == null || list.length == 0 ||
+            list.length % 2 == 0)
+         {
+            return null;
+         }
+
+         List<Object> values = new ArrayList<>();
+
+         for(int i = 0; i < list.length; i++) {
+            if(i % 2 == 1) {
+               if(!(list[i] instanceof JunctionOperatorModel junction) ||
+                  junction.getType() != JunctionOperator.OR || junction.getLevel() != 0)
+               {
+                  return null;
+               }
+
+               continue;
+            }
+
+            if(!(list[i] instanceof ConditionModel cond) || cond.isNegated() ||
+               cond.getLevel() != 0 || cond.getField() == null ||
+               !dimension.getColumnValue().equals(cond.getField().getName()))
+            {
+               return null;
+            }
+
+            ConditionValueModel[] cvs = cond.getValues();
+
+            if(cond.getOperation() == XCondition.NULL) {
+               if(cvs != null && cvs.length > 0) {
+                  return null;
+               }
+
+               values.add("");
+            }
+            else if(cond.getOperation() == XCondition.EQUAL_TO ||
+                    cond.getOperation() == XCondition.ONE_OF)
+            {
+               if(cvs == null || cvs.length == 0 ||
+                  cond.getOperation() == XCondition.EQUAL_TO && cvs.length != 1)
+               {
+                  return null;
+               }
+
+               for(ConditionValueModel cv : cvs) {
+                  if(cv == null || !ConditionValueModel.VALUE.equals(cv.getType())) {
+                     return null;
+                  }
+
+                  values.add(plainValue(cv.getValue()));
+               }
+            }
+            else {
+               return null;
+            }
+         }
+
+         clauses.add(new FieldRef.NamedGroupValues.Clause(ce.getName(), values));
+      }
+
+      return clauses;
+   }
+
+   /** Strips the JDBC date/time escape ({d '..'}, {t '..'}, {ts '..'}) a date member reads as. */
+   private static Object plainValue(Object value) {
+      if(value instanceof String str) {
+         Matcher matcher = JDBC_ESCAPE.matcher(str.trim());
+
+         if(matcher.matches()) {
+            return matcher.group(1);
+         }
+      }
+
+      return value;
+   }
+
+   private static final Pattern JDBC_ESCAPE =
+      Pattern.compile("\\{(?:d|t|ts)\\s+'([^']*)'\\}");
 
    /**
     * Fails loud when the discriminator is absent or unrecognized. Never defaults it: a ref
