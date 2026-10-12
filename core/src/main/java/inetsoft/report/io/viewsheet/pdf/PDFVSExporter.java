@@ -239,6 +239,12 @@ public class PDFVSExporter extends AbstractVSExporter {
     * Get the sandbox of the embedded viewsheet whose print layout the exported sheet inherits.
     * Returns <tt>null</tt> when nothing is inherited or the embedded sandbox is unavailable, in
     * which case the caller falls back to the master layout.
+    *
+    * The owner is the absolute name of the embedded viewsheet, which may sit below a thin
+    * intermediate wrapper. Every embedded sandbox is kept by the root sandbox under its absolute
+    * name, so one lookup on the root sandbox returns the one that was reset for the export.
+    * Looking it up level by level with relative names would create a duplicate sandbox, or with
+    * colliding names return the intermediate wrapper's. (#78132)
     * @param box the sandbox of the sheet being exported.
     * @param viewsheet the sheet being exported.
     */
