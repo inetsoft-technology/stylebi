@@ -459,7 +459,71 @@ class StoredWildcardReparseTest {
       assertNull(JDBCUtil.failStoredWildcard(failed));
    }
 
+   /**
+    * Review R3-B1: a wildcard of a derived table (stored as its sql text by 1.1) was expanded
+    * to the qualified names of the inner columns (d."""c"".CITY"), which no database runs. The
+    * stored text ran as written before, so the parse of the sql is failed instead, with the
+    * text kept, opened or run.
+    */
+   @Test
+   void derivedTableWildcardRunsAsWritten() throws Exception {
+      String alias = "select c.\"CUSTOMER_ID\", c.\"CITY\" from \"public\".\"CUSTOMERS\" c";
+      String qualified = "select \"CUSTOMERS\".\"CUSTOMER_ID\", \"CUSTOMERS\".\"CITY\" " +
+         "from \"public\".\"CUSTOMERS\"";
+      String star = "select \"CUSTOMERS\".* from \"public\".\"CUSTOMERS\"";
+      String plain = "select \"CUSTOMER_ID\", \"CITY\" from \"public\".\"CUSTOMERS\"";
+      List<String> failures = new ArrayList<>();
+
+      for(String inner : new String[] { alias, qualified, star, plain }) {
+         for(String wildcard : new String[] { "d.*", "*" }) {
+            String text = "select " + wildcard + " from (" + inner + ") d";
+
+            for(boolean variables : new boolean[] { true, false }) {
+               String label = text + (variables ? " (opened)" : " (run)");
+               JDBCDataSource ds = dataSource();
+               SQLBoundTableAssembly table = newTable(ds, legacyDerived(inner, wildcard, text));
+               JDBCQuery stored = ((SQLBoundTableAssemblyInfo) table.getTableInfo()).getQuery();
+               assertTrue(JDBCUtil.hasStoredWildcard((UniformSQL) stored.getSQLDefinition()),
+                          label);
+               strict(true);
+
+               if(variables) {
+                  table.getAllVariables();
+               }
+
+               SQLBoundQuery query = new SQLBoundQuery(AssetQuerySandbox.RUNTIME_MODE,
+                  new AssetQuerySandbox(table.getWorksheet()), table, false, false);
+               UniformSQL nsql = (UniformSQL) query.getQuery().getSQLDefinition();
+
+               if(nsql.getParseResult() != UniformSQL.PARSE_FAILED || XUtil.isParsedSQL(nsql) ||
+                  UniformSQL.hasWildcard(nsql.getSelection()) ||
+                  !text.equals(nsql.getSQLString()) || JDBCUtil.hasStoredWildcard(nsql))
+               {
+                  failures.add(label + " -> " + nsql.getParseResult() + " " +
+                     nsql.getSelection() + " / " + nsql.getSQLString());
+               }
+            }
+         }
+      }
+
+      assertEquals(List.of(), failures);
+   }
+
    // ---- helpers ----
+
+   // the uniform_sql of a 1.1 save of a wildcard of a derived table, stored as its sql text
+   private static String legacyDerived(String inner, String wildcard, String text) {
+      return "<uniform_sql parse=\"true\">" +
+         "<table><alias><![CDATA[d]]></alias>" +
+         "<name><![CDATA[" + inner + "]]></name><issql><![CDATA[true]]></issql>" +
+         "<xlocation><![CDATA[0]]></xlocation><ylocation><![CDATA[0]]></ylocation>" +
+         "<xScroll><![CDATA[0]]></xScroll><yScroll><![CDATA[0]]></yScroll></table>" +
+         "<column><![CDATA[" + wildcard + "]]><alias><![CDATA[]]></alias>" +
+         "<type><![CDATA[]]></type><table><![CDATA[]]></table>" +
+         "<description><![CDATA[]]></description><isExp><![CDATA[false]]></isExp></column>" +
+         "<where></where><sortby></sortby><groupby></groupby><having></having>" +
+         "<sqlstring parseResult=\"0\"><![CDATA[" + text + "]]></sqlstring></uniform_sql>";
+   }
 
    private void assertFailedExecution(SQLBoundTableAssembly table) throws Exception {
       SQLBoundQuery query = new SQLBoundQuery(AssetQuerySandbox.RUNTIME_MODE,

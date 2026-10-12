@@ -263,6 +263,14 @@ public class JDBCUtil {
             }
          }
 
+         // a wildcard of a derived table is expanded to the qualified names of the columns of
+         // the derived table (e.g. d.c.CITY), which are written as one identifier. The stored
+         // sql of such a wildcard ran as written, it's failed instead of parsed again
+         if(hasDerivedTableWildcard(nsql)) {
+            LOG.debug("The wildcard of a derived table is not parsed again: {}", text);
+            return failStoredWildcard(sql);
+         }
+
          fixUniformSQLInfo(nsql, repository, session, xds);
          // keep the meta info of the columns selected explicitly
          fixUniformSQLSelection(sql, nsql);
@@ -277,6 +285,50 @@ public class JDBCUtil {
       }
 
       return nsql;
+   }
+
+   /**
+    * Check if a wildcard of the selection of a sql, or of a derived table, selects the columns
+    * of a derived table: its qualifier is the alias of a derived table, or it's a bare wildcard
+    * and a derived table is in the from clause.
+    */
+   private static boolean hasDerivedTableWildcard(UniformSQL sql) {
+      Set<String> derived = new HashSet<>();
+
+      for(int i = 0; i < sql.getTableCount(); i++) {
+         SelectTable table = sql.getSelectTable(i);
+
+         if(table.getName() instanceof UniformSQL) {
+            if(hasDerivedTableWildcard((UniformSQL) table.getName())) {
+               return true;
+            }
+
+            derived.add(unquoteIdentifier(table.getAlias()));
+         }
+      }
+
+      if(derived.isEmpty()) {
+         return false;
+      }
+
+      XSelection selection = sql.getSelection();
+
+      for(int i = 0; i < selection.getColumnCount(); i++) {
+         String path = selection.getColumn(i);
+
+         if("*".equals(path) || path != null && path.endsWith(".*") &&
+            derived.contains(unquoteIdentifier(path.substring(0, path.length() - 2))))
+         {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   // the identifier without its quotes, in lower case, to compare a qualifier with an alias
+   private static String unquoteIdentifier(String name) {
+      return name == null ? "" : name.replaceAll("[\"`\\[\\]]", "").toLowerCase();
    }
 
    /**
