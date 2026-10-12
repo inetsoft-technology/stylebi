@@ -24,6 +24,7 @@ import inetsoft.report.composition.VSTableLens;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.filter.HighlightGroup;
 import inetsoft.report.internal.table.TableHighlightAttr;
+import inetsoft.report.internal.binding.ExpertNamedGroupInfo;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.ColumnRef;
@@ -41,6 +42,7 @@ import inetsoft.web.binding.event.ApplyVSAssemblyInfoEvent;
 import inetsoft.web.binding.handler.ClearTableHeaderAliasHandler;
 import inetsoft.web.binding.handler.SetTableHeaderAliasHandler;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
+import inetsoft.web.binding.model.BDimensionRefModel;
 import inetsoft.web.binding.model.SourceInfo;
 import inetsoft.web.binding.model.BindingModel;
 import inetsoft.web.binding.model.table.BaseTableBindingModel;
@@ -1828,7 +1830,51 @@ public class TableBindingService {
             ", not a table or crosstab. Use the chart binding tools for charts.");
       }
 
+      completeExpertNamedGroups(table, assembly);
       return table;
+   }
+
+   /**
+    * {@code NamedGroupInfoModel(XNamedGroupInfo)} reads an {@code ExpertNamedGroupInfo} as its
+    * flat member values only -- {@code conditions} stays empty -- so a model written back
+    * unchanged is rebuilt through {@code createNamedGroupInfo}'s {@code groups} branch, which
+    * flattens every operator (STARTING_WITH, ...) to EQUAL_TO. That happens on every wiz write to
+    * the crosstab, not only one that touches the dimension's own shelf (bug #78362). Completing
+    * the conditions here, before any mutation, makes an untouched dimension round-trip as stored.
+    *
+    * <p>Pairing is by index, which is safe because {@code VSCrosstabBindingFactory.createModel}
+    * adds exactly one model per header, in order, from the same live assembly. Restricted to
+    * EXPERT: {@code fixNamedGroupInfoModel} forces the type to EXPERT, which would break the
+    * inline-group read of a SIMPLE group.
+    */
+   private void completeExpertNamedGroups(BaseTableBindingModel table, VSAssembly assembly) {
+      if(!(table instanceof CrosstabBindingModel crosstabModel) ||
+         !(assembly instanceof CrosstabVSAssembly crosstab) ||
+         crosstab.getVSCrosstabInfo() == null)
+      {
+         return;
+      }
+
+      VSCrosstabInfo info = crosstab.getVSCrosstabInfo();
+      completeExpertNamedGroups(crosstabModel.getRows(), info.getRowHeaders());
+      completeExpertNamedGroups(crosstabModel.getCols(), info.getColHeaders());
+   }
+
+   private void completeExpertNamedGroups(List<BDimensionRefModel> models,
+                                          DataRef[] headers)
+   {
+      if(models == null || headers == null) {
+         return;
+      }
+
+      for(int i = 0; i < models.size() && i < headers.length; i++) {
+         if(headers[i] instanceof VSDimensionRef dim &&
+            dim.getNamedGroupInfo() instanceof ExpertNamedGroupInfo expert &&
+            models.get(i).getNamedGroupInfo() != null)
+         {
+            models.get(i).getNamedGroupInfo().fixNamedGroupInfoModel(expert, refModelService);
+         }
+      }
    }
 
    private final ViewsheetSessionService sessions;

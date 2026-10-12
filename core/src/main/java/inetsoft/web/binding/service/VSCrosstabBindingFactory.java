@@ -248,11 +248,9 @@ public class VSCrosstabBindingFactory
          }
 
          VSUtil.fixVariableAggInDim(fixAggVariableInDimMap, aggs, rows[i]);
-
-         if(i < dataRefRows.length) {
-            updateDataRefGroupInfo((VSDimensionRef) rows[i], (VSDimensionRef) dataRefRows[i]);
-         }
       }
+
+      restoreGroupInfo(rows, dataRefRows);
 
       // Bug #78157 (VTB-036): this used to read a missing key as "suppress = true" --
       // suppress = suppress == null || suppress -- unconditionally overwriting whatever
@@ -272,11 +270,9 @@ public class VSCrosstabBindingFactory
          if(suppressGroupTotal != null) {
             ((VSDimensionRef) cols[i]).setSubTotalVisibleValue(!suppressGroupTotal + "");
          }
-
-         if(i < dataRefCols.length) {
-            updateDataRefGroupInfo((VSDimensionRef) cols[i], (VSDimensionRef) dataRefCols[i]);
-         }
       }
+
+      restoreGroupInfo(cols, dataRefCols);
 
       for(int i = 0; i < aggregates.length; i++) {
          aggregates[i] = createAggregateRef(model.getAggregates().get(i));
@@ -605,6 +601,62 @@ public class VSCrosstabBindingFactory
             list.add((XDimensionRef) ref);
          }
       });
+   }
+
+   /**
+    * Restores the old live refs' group, group type and data ref onto the incoming dimensions that
+    * stand for them (see {@link #updateDataRefGroupInfo}), so a group lands on the right column. Matching by position (the
+    * previous behavior) handed a freshly inserted or shifted dimension its neighbor's group,
+    * group type and data ref whenever a dimension was added, removed or moved ahead of it (bug
+    * #78362; not specific to expert groups).
+    *
+    * <p>Matched by column + date level, the n-th occurrence to the n-th occurrence, so the same
+    * column bound twice (a Year/Quarter drill) keeps each group on its own occurrence. A
+    * dimension left over falls back to the first unconsumed old ref of the same column -- a
+    * date-level change in the binding pane still restores what it did before. Never by index.
+    */
+   private void restoreGroupInfo(DataRef[] fresh, DataRef[] oldRefs) {
+      int count = fresh.length;
+      VSDimensionRef[] matched = new VSDimensionRef[count];
+      boolean[] consumed = new boolean[oldRefs.length];
+
+      for(int pass = 0; pass < 2; pass++) {
+         for(int i = 0; i < count; i++) {
+            if(matched[i] != null || !(fresh[i] instanceof VSDimensionRef nref)) {
+               continue;
+            }
+
+            for(int j = 0; j < oldRefs.length; j++) {
+               if(!consumed[j] && oldRefs[j] instanceof VSDimensionRef oref &&
+                  sameColumn(nref, oref) && (pass == 1 || sameLevel(nref, oref)))
+               {
+                  consumed[j] = true;
+                  matched[i] = oref;
+                  break;
+               }
+            }
+         }
+      }
+
+      for(int i = 0; i < count; i++) {
+         if(matched[i] != null) {
+            updateDataRefGroupInfo((VSDimensionRef) fresh[i], matched[i]);
+         }
+      }
+   }
+
+   private static boolean sameColumn(VSDimensionRef nref, VSDimensionRef oref) {
+      String column = nref.getGroupColumnValue();
+      return column != null && column.equalsIgnoreCase(oref.getGroupColumnValue());
+   }
+
+   private static boolean sameLevel(VSDimensionRef nref, VSDimensionRef oref) {
+      return normalizeLevel(nref.getDateLevelValue()).equals(
+         normalizeLevel(oref.getDateLevelValue()));
+   }
+
+   private static String normalizeLevel(String level) {
+      return level == null || level.isBlank() ? "-1" : level;
    }
 
    private void updateDataRefGroupInfo(VSDimensionRef nref, VSDimensionRef oref) {

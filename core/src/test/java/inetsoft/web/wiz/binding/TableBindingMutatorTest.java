@@ -1113,14 +1113,13 @@ class TableBindingMutatorTest {
    }
 
    /**
-    * Documents strategy (a)'s accepted boundary, not a bug: matching is by absolute shelf
-    * index, not by following a field across an edit elsewhere on the shelf. Removing CATEGORY
-    * (index 0) shifts ORDER_DATE from index 1 to index 0, so the new index-0 field no longer
-    * matches "the same position" ORDER_DATE held, and its sort resets to default instead of
-    * surviving.
+    * Removing CATEGORY (index 0) shifts ORDER_DATE from index 1 to index 0. A wholesale replace
+    * (set_table_fields) still matches by absolute index and so does not follow it, but removeField
+    * knows which field it removed and carries every other entry's own model, so ORDER_DATE keeps
+    * its sort (bug #78362; this used to be the documented boundary for this edit).
     */
    @Test
-   void removingAnEarlierFieldShiftsALaterFieldsIndexSoItsSortIsNotPreserved() {
+   void removingAnEarlierFieldKeepsALaterFieldsSort() {
       CrosstabBindingModel model = new CrosstabBindingModel();
       TableBindingMutator.setShelf(model, "rows", List.of(dim("Category"), dim("ORDER_DATE")));
       TableBindingMutator.setSort(model, "rows", "ORDER_DATE", null,
@@ -1129,9 +1128,21 @@ class TableBindingMutatorTest {
       TableBindingMutator.removeField(model, "rows", "Category");
 
       assertEquals(1, model.getRows().size());
-      assertEquals(XConstants.SORT_ASC, model.getRows().get(0).getOrder(),
-         "ORDER_DATE shifted from index 1 to index 0, so strategy (a) does not preserve its " +
-         "sort across this edit -- accepted boundary, not a bug");
+      assertEquals(XConstants.SORT_DESC, model.getRows().get(0).getOrder(),
+         "ORDER_DATE shifted from index 1 to index 0 but is carried whole, sort included");
+   }
+
+   /** The wholesale-replace boundary the test above used to document is unchanged. */
+   @Test
+   void replacingTheShelfWithAnEarlierFieldRemovedStillMatchesByIndex() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Category"), dim("ORDER_DATE")));
+      TableBindingMutator.setSort(model, "rows", "ORDER_DATE", null,
+         new DimensionSortRanking.Sort("desc", null, null));
+
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("ORDER_DATE")));
+
+      assertEquals(XConstants.SORT_ASC, model.getRows().get(0).getOrder());
    }
 
    /**

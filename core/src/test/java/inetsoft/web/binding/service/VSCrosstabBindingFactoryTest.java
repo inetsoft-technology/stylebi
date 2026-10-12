@@ -334,4 +334,43 @@ class VSCrosstabBindingFactoryTest {
       assertEquals(List.of("Business", "Hardware"),
                    ((SNamedGroupInfo) liveRow.getNamedGroupInfo()).getGroupValue("bu"));
    }
+
+   /**
+    * Bug #78362: {@code updateDataRefGroupInfo} used to restore the old live ref's group, group
+    * type and data ref by INDEX, so a dimension inserted ahead of a grouped one inherited the
+    * grouped one's group (simple groups too), and a dimension removed ahead of it left the
+    * survivor wearing the removed one's data ref. Restoring is now by column + date level.
+    */
+   @Test
+   void updateAssemblyRestoresAnOldGroupByColumnNotByIndex() {
+      VSCrosstabBindingFactory factory =
+         new VSCrosstabBindingFactory(mock(DataRefModelFactoryService.class));
+      CrosstabVSAssembly assembly = new CrosstabVSAssembly();
+
+      FieldRef.NamedGroupValues spec = new FieldRef.NamedGroupValues(
+         List.of(new FieldRef.NamedGroupValues.Clause("bu", List.of("Business", "Hardware"))),
+         null);
+      CrosstabBindingModel grouped = new CrosstabBindingModel();
+      grouped.setOption(new CrosstabOptionInfo());
+      TableBindingMutator.setShelf(grouped, "rows", List.of(
+         new FieldRef("Product:Category", "dimension", null, null, null, null, null, spec)));
+      factory.updateAssembly(grouped, assembly);
+
+      // Year inserted at 0; Category is re-sent with NO group, as an unrelated re-bind does.
+      CrosstabBindingModel shifted = new CrosstabBindingModel();
+      shifted.setOption(new CrosstabOptionInfo());
+      TableBindingMutator.setShelf(shifted, "rows", List.of(
+         new FieldRef("Year", "dimension", null, null, null),
+         new FieldRef("Product:Category", "dimension", null, null, null)));
+      factory.updateAssembly(shifted, assembly);
+
+      VSDimensionRef[] rows = {
+         (VSDimensionRef) assembly.getVSCrosstabInfo().getDesignRowHeaders()[0],
+         (VSDimensionRef) assembly.getVSCrosstabInfo().getDesignRowHeaders()[1]
+      };
+      assertNull(rows[0].getNamedGroupInfo(), "the inserted dimension must not inherit the group");
+      assertNotNull(rows[1].getNamedGroupInfo(), "the group stays on its own column");
+      assertEquals(List.of("Business", "Hardware"),
+                   ((SNamedGroupInfo) rows[1].getNamedGroupInfo()).getGroupValue("bu"));
+   }
 }
