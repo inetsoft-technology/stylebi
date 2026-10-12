@@ -192,6 +192,74 @@ class ScheduleChangesetApplyServiceDeleteRollbackTest {
                                                     any(Permission.class));
    }
 
+   @Test
+   void rollbackOfDeleteRestoresEverySaveToServerFormatInANestedFolder() throws Exception {
+      ScheduleTask stored = new ScheduleTask();
+      stored.setName("t1");
+      stored.setOwner(OWNER);
+      stored.setEnabled(true);
+      stored.setPath("/Reports/Monthly");
+      stored.addCondition(TimeCondition.atDayOfMonth(1, 9, 0, 0));
+
+      // save each format to a different server: SFTP, FTP and an FTP login from a secret
+      ViewsheetAction formats = viewsheetAction();
+      formats.setFilePath(PDF, new ServerPathInfo("sftp://sftp.example.com/pdf", "sftpuser",
+                                                  "sftpSecret"));
+      formats.setFilePath(EXCEL, new ServerPathInfo("ftp://ftp.example.com/xls", "ftpuser",
+                                                    "ftpSecret"));
+      ServerPathInfo fromSecret = new ServerPathInfo("ftp://ftp.example.com/ppt");
+      fromSecret.setUseCredential(true);
+      fromSecret.setSecretId("ppt-secret-id");
+      formats.setFilePath(POWERPOINT, fromSecret);
+      stored.addAction(formats);
+
+      IndividualAssetBackupAction backup = new IndividualAssetBackupAction();
+      backup.setServerPaths(new ServerPathInfo("sftp://sftp.example.com/bk", "bkuser",
+                                               "bkSecret"));
+      stored.addAction(backup);
+
+      Permission permission = new Permission();
+      permission.setUserGrants(ResourceAction.WRITE,
+                               Set.of(new Permission.PermissionIdentity("editor", ORG)));
+      permission.setRoleGrants(ResourceAction.READ,
+                               Set.of(new Permission.PermissionIdentity("Viewer", ORG)));
+
+      Recreated recreated = applyDeleteThenFailingDelete(stored, permission);
+
+      ScheduleTask task = recreated.task.get();
+      assertNotNull(task, "t1 was re-created");
+      ViewsheetAction rformats = (ViewsheetAction) task.getAction(0);
+      IndividualAssetBackupAction rbackup = (IndividualAssetBackupAction) task.getAction(1);
+      ServerPathInfo pdf = rformats.getFilePathInfo(PDF);
+      ServerPathInfo excel = rformats.getFilePathInfo(EXCEL);
+      ServerPathInfo ppt = rformats.getFilePathInfo(POWERPOINT);
+      AssetEntry parent = recreated.parent.get();
+
+      assertAll(
+         () -> assertEquals(3, rformats.getSaveFormats().length, "save formats"),
+         () -> assertEquals("sftp://sftp.example.com/pdf", pdf.getPath(), "pdf path"),
+         () -> assertEquals("sftpuser", pdf.getUsername(), "pdf user"),
+         () -> assertEquals("sftpSecret", pdf.getPassword(), "pdf sftp password"),
+         () -> assertEquals("ftp://ftp.example.com/xls", excel.getPath(), "excel path"),
+         () -> assertEquals("ftpSecret", excel.getPassword(), "excel ftp password"),
+         () -> assertTrue(ppt.isUseCredential(), "powerpoint useCredential"),
+         () -> assertEquals("ppt-secret-id", ppt.getSecretId(), "powerpoint secret id"),
+         () -> assertEquals("bkSecret", rbackup.getServerPath().getPassword(),
+                            "backup sftp password"),
+         () -> assertEquals("/Reports/Monthly", parent == null ? null : parent.getPath(),
+                            "nested folder"),
+         () -> assertEquals(ORG, parent == null ? null : parent.getOrgID(), "folder org"));
+
+      // the grants captured before the delete are the ones written back
+      ArgumentCaptor<Permission> restored = ArgumentCaptor.forClass(Permission.class);
+      verify(securityEngine).setPermission(eq(ResourceType.SCHEDULE_TASK), eq(T1),
+                                           restored.capture());
+      assertEquals(Set.of(new Permission.PermissionIdentity("editor", ORG)),
+                   restored.getValue().getUserGrants(ResourceAction.WRITE), "user grant");
+      assertEquals(Set.of(new Permission.PermissionIdentity("Viewer", ORG)),
+                   restored.getValue().getRoleGrants(ResourceAction.READ), "role grant");
+   }
+
    /**
     * Applies [delete t1, delete t2], t2 never disappears, so its delete fails to verify and the
     * delete of t1 is rolled back.
@@ -279,6 +347,10 @@ class ScheduleChangesetApplyServiceDeleteRollbackTest {
    private static final String T1 = OWNER.convertToKey() + ":t1";
    private static final int PDF =
       inetsoft.web.api.schedule.ViewsheetAction.Format.PDF.getTypeValue();
+   private static final int EXCEL =
+      inetsoft.web.api.schedule.ViewsheetAction.Format.EXCEL.getTypeValue();
+   private static final int POWERPOINT =
+      inetsoft.web.api.schedule.ViewsheetAction.Format.POWERPOINT.getTypeValue();
    private AnalyticRepository repository;
    private ScheduleManager scheduleManager;
    private SecurityEngine securityEngine;
