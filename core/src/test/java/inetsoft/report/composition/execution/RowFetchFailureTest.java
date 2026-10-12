@@ -125,6 +125,13 @@ class RowFetchFailureTest {
    private static final String DB_MESSAGE = "Attempt to divide by zero.";
    private static final AtomicInteger RUN = new AtomicInteger();
 
+   /**
+    * The query of a failing table that fails before its table is returned, or {@code null}
+    * for one that fails while its rows are fetched. It takes the run number of the distinct
+    * where clause.
+    */
+   private static String failingQuery;
+
    @Configuration
    static class JdbcConfig {
       @Bean
@@ -239,6 +246,7 @@ class RowFetchFailureTest {
    void reset() {
       SreeEnv.remove("replet.streaming");
       CoreTool.clearUserMessage();
+      failingQuery = null;
    }
 
    @Test
@@ -867,6 +875,176 @@ class RowFetchFailureTest {
             assertNull(CoreTool.getUserMessage());
          }
       }
+   }
+
+   // Bug #78411: a query that fails before its table is returned (at statement execute, as
+   // opposed to a row fetch) failed a scheduled run with the raw database error, which every
+   // reader that turns its other failures into a null value swallowed, and ViewsheetSandbox
+   // cached as no data. A missing column or table was swallowed into an empty table by
+   // AssetQuery itself, so a scheduled export succeeded with no rows. Each now reaches the
+   // reader as a load failure with the database message, as a row fetch error does
+   private static final String[][] EXECUTE_FAILURES = {
+      // Derby reads every row for the group by before it returns the first one
+      { "select max(big.id) as id, big.g, sum(1/(big.id-" + FAIL_ROW + ")) as x from big " +
+        "where big.id > -%d group by big.g", DB_MESSAGE },
+      { "select big.id, big.g, big.nosuch as x from big where big.id > -%d",
+        "Column 'BIG.NOSUCH' is either not in any table" },
+      { "select nt.id, nt.g, nt.x from nosuchtable nt where nt.id > -%d",
+        "Table/View 'NOSUCHTABLE' does not exist." } };
+
+   @Test
+   void scheduledWorksheetReadOfAnExecuteFailureFails() throws Exception {
+      for(String[] failure : EXECUTE_FAILURES) {
+         failingQuery = failure[0];
+         String message = failure[1];
+
+         Worksheet ws = new Worksheet();
+         sqlTable(ws, "T1", true);
+         AssetQuerySandbox box = new AssetQuerySandbox(ws);
+         // as ScheduleTask sets it
+         VariableTable vars = new VariableTable();
+         vars.put("__is_scheduler__", Boolean.TRUE);
+
+         Exception ex = assertThrows(Exception.class, () -> dataRows(
+            box.getTableLens("T1", AssetQuerySandbox.RUNTIME_MODE, vars)), message);
+         TableLoadException loadFailure = TableLoadException.find(ex);
+         assertNotNull(loadFailure, message + ": " + ex);
+         // the database message, not the text of a wrapping exception
+         assertTrue(loadFailure.getMessage().startsWith(message), loadFailure.getMessage());
+         assertTrue(hasSqlException(loadFailure), message + ": " + loadFailure.getCause());
+
+         // interactive: no rows and the warning, as before
+         CoreTool.clearUserMessage();
+         Worksheet ws2 = new Worksheet();
+         sqlTable(ws2, "T1", true);
+         TableLens lens = new AssetQuerySandbox(ws2)
+            .getTableLens("T1", AssetQuerySandbox.RUNTIME_MODE, new VariableTable());
+         assertTrue(lens == null || dataRows(lens) == 0, message);
+         UserMessage warning = CoreTool.getUserMessage();
+         assertNotNull(warning, message);
+         assertTrue(warning.getMessage().contains(message), warning.getMessage());
+      }
+   }
+
+   @Test
+   void scheduledScriptReadsAndExportOfAnExecuteFailureFail() throws Exception {
+      String script =
+         "var t = TableV.table; throw new Error(t == null ? 'null' : 'len ' + t.length);";
+
+      for(String[] failure : EXECUTE_FAILURES) {
+         failingQuery = failure[0];
+         String message = failure[1];
+
+         ViewsheetSandbox vbox = executeFailureSandbox(true, script);
+         vbox.prepareForExport();
+         assertLoadFailure(vbox.getExportScriptError(), message);
+
+         // the failed read was not cached as no data: a later read fails again, and the export
+         // fails with the database error, not a NullPointerException over the cached null
+         assertLoadFailure(assertThrows(Exception.class, () -> vbox.getData("TableV")), message);
+         CSVVSExporter exporter = new CSVVSExporter(new ByteArrayOutputStream(), null);
+         assertLoadFailure(assertThrows(Exception.class, () -> {
+            exporter.export(vbox, "TableV", null);
+            exporter.write();
+         }), message);
+
+         // the export with no script fails with the load failure too
+         ViewsheetSandbox exportBox = executeFailureSandbox(true, null);
+         CSVVSExporter exporter2 = new CSVVSExporter(new ByteArrayOutputStream(), null);
+         assertLoadFailure(assertThrows(Exception.class, () -> {
+            exporter2.export(exportBox, "TableV", null);
+            exporter2.write();
+         }), message);
+
+         // interactive: the script reads no load failure, the export has no rows, as before
+         ViewsheetSandbox interactive = executeFailureSandbox(false, script);
+         interactive.prepareForExport();
+         Exception error = interactive.getExportScriptError();
+         assertNotNull(error, message);
+         assertNull(TableLoadException.find(error), message + ": " + error);
+         CSVVSExporter exporter3 = new CSVVSExporter(new ByteArrayOutputStream(), null);
+         exporter3.export(executeFailureSandbox(false, null), "TableV", null);
+         exporter3.write();
+      }
+   }
+
+   @Test
+   void scheduledCalcOutputAndRangeReadsOfAnExecuteFailureFail() throws Exception {
+      String[] scripts = {
+         "var t = Calc1.table; throw new Error(t == null ? 'null' : 'len ' + t.length);",
+         "var t = Calc1.data; throw new Error(t == null ? 'null' : 'len ' + t.length);",
+         "var v = Text1.value; throw new Error('v=' + v);" };
+      String range = "sum(data['id?TableV.table.length < 0'])";
+
+      for(String[] failure : EXECUTE_FAILURES) {
+         failingQuery = failure[0];
+         String message = failure[1];
+
+         for(String script : scripts) {
+            assertLoadFailure(onLoadError(true, true, script), message, script);
+
+            Exception error = onLoadError(true, false, script);
+            assertNotNull(error, script);
+            assertNull(TableLoadException.find(error), script + ": " + error);
+         }
+
+         // the swallowed read was null, which the range took as selected: the sum of every row
+         assertLoadFailure(assertThrows(Exception.class, () -> calcCells(
+            (TableLens) conditionSandbox(true, true, range).getData("Calc1")), message), message);
+      }
+   }
+
+   @Test
+   void scheduledSuccessfulAggregateIsUnchanged() throws Exception {
+      failingQuery = "select max(big.id) as id, big.g, sum(big.g) as x from big " +
+         "where big.id > -%d group by big.g";
+      ByteArrayOutputStream out = new ByteArrayOutputStream();
+      CSVVSExporter exporter = new CSVVSExporter(out, null);
+      exporter.export(executeFailureSandbox(true, null), "TableV", null);
+      exporter.write();
+      assertTrue(out.size() > 0);
+      assertNull(CoreTool.getUserMessage());
+
+      Object data = executeFailureSandbox(true, null).getData("TableV");
+      TableLens lens = data instanceof VSDataSet ? ((VSDataSet) data).getTable() : (TableLens) data;
+      assertEquals(10, dataRows(lens));
+   }
+
+   // the table TableV bound to the failing T1, with the onLoad script if not null
+   private static ViewsheetSandbox executeFailureSandbox(boolean scheduler, String script)
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      sqlTable(ws, "T1", true);
+      ViewsheetSandbox vbox = vsTable(ws, querySandbox(ws, scheduler));
+
+      if(script != null) {
+         vbox.getViewsheet().getViewsheetInfo().setOnLoad(script);
+      }
+
+      return vbox;
+   }
+
+   private static void assertLoadFailure(Throwable ex, String message) {
+      assertLoadFailure(ex, message, "");
+   }
+
+   private static void assertLoadFailure(Throwable ex, String message, String shape) {
+      assertNotNull(ex, message + " " + shape);
+      assertNotNull(TableLoadException.find(ex), message + " " + shape + ": " + ex);
+      assertTrue(String.valueOf(ex.getMessage()).contains(message),
+                 message + " " + shape + ": " + ex);
+   }
+
+   // the load failure is caused by the database error
+   private static boolean hasSqlException(Throwable ex) {
+      for(int i = 0; ex != null && i < 16; ex = ex.getCause(), i++) {
+         if(ex instanceof java.sql.SQLException) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    // the error of an onLoad script of a viewsheet with the calc table Calc1 (sum of id) and
@@ -1570,6 +1748,10 @@ class RowFetchFailureTest {
    private static SQLBoundTableAssembly sqlTable(Worksheet ws, String name, boolean fail)
       throws Exception
    {
+      if(fail && failingQuery != null) {
+         return sqlTable(ws, name, String.format(failingQuery, RUN.incrementAndGet()));
+      }
+
       return sqlTable(ws, name, "select big.id, big.g, " +
          (fail ? "1/(big.id-" + FAIL_ROW + ")" : "big.g") + " as x from big where big.id > -" +
          RUN.incrementAndGet());

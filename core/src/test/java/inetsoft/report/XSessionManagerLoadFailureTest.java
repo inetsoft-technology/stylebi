@@ -22,10 +22,12 @@ import inetsoft.report.lens.xnode.XNodeTableLens;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
 import inetsoft.uql.*;
+import inetsoft.uql.jdbc.SQLExpressionFailedException;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.TableLoadException;
 import inetsoft.uql.util.XSessionService;
 import inetsoft.util.*;
+import inetsoft.util.stall.LockStallException;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.MockedStatic;
@@ -34,6 +36,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.sql.SQLDataException;
+import java.sql.SQLSyntaxErrorException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
@@ -63,6 +66,7 @@ class XSessionManagerLoadFailureTest {
    private XSessionService sessionService;
 
    private final AtomicInteger runs = new AtomicInteger();
+   private Exception executeFailure;
    private Supplier<XNode> nodes;
    private XSessionManager manager;
    private MockedStatic<ThreadPool> threadPool;
@@ -72,6 +76,7 @@ class XSessionManagerLoadFailureTest {
       SreeEnv.setProperty("replet.streaming", "true");
       CoreTool.clearUserMessage();
       runs.set(0);
+      executeFailure = null;
 
       // the data service stands in for the handler, which looks up the result cache first
       XRepository dataService = mock(XRepository.class);
@@ -81,6 +86,10 @@ class XSessionManagerLoadFailureTest {
 
             if(!visitor.visitCache("bug78126")) {
                runs.incrementAndGet();
+            }
+
+            if(executeFailure != null) {
+               throw executeFailure;
             }
 
             return nodes.get();
@@ -176,6 +185,119 @@ class XSessionManagerLoadFailureTest {
       UserMessage message = CoreTool.getUserMessage();
       assertNotNull(message);
       assertTrue(message.getMessage().contains(DB_MESSAGE), message.getMessage());
+   }
+
+   // Bug #78411: a query that fails before its table is returned (at statement execute) fails a
+   // scheduled reader with a load failure, as a row fetch error does, so that the readers that
+   // turn their other failures into a null value fail too
+
+   @Test
+   void scheduledExecuteFailureIsLoadFailure() {
+      SQLDataException dbError = new SQLDataException(DB_MESSAGE);
+      executeFailure = dbError;
+
+      // ScheduleTask sets the flag as a Boolean
+      Exception ex = assertThrows(Exception.class, () -> getTable(scheduledVars(Boolean.TRUE)));
+
+      TableLoadException loadFailure = assertInstanceOf(TableLoadException.class, ex);
+      assertSame(dbError, loadFailure.getCause());
+      assertEquals(DB_MESSAGE, loadFailure.getMessage());
+   }
+
+   @Test
+   void scheduledWrappedFailureHasDatabaseMessage() {
+      // a non-streaming fetch error or a tabular handler error wraps the database error
+      SQLDataException dbError = new SQLDataException(DB_MESSAGE);
+      executeFailure = new RuntimeException("Query failed", dbError);
+
+      Exception ex = assertThrows(Exception.class, () -> getTable(scheduledVars("true")));
+
+      TableLoadException loadFailure = assertInstanceOf(TableLoadException.class, ex);
+      assertSame(executeFailure, loadFailure.getCause());
+      assertEquals(DB_MESSAGE, loadFailure.getMessage());
+   }
+
+   @Test
+   void scheduledFailureWithoutMessageUsesItsName() {
+      executeFailure = new NullPointerException();
+
+      Exception ex = assertThrows(Exception.class, () -> getTable(scheduledVars(Boolean.TRUE)));
+
+      TableLoadException loadFailure = assertInstanceOf(TableLoadException.class, ex);
+      assertEquals(NullPointerException.class.getName(), loadFailure.getMessage());
+   }
+
+   @Test
+   void scheduledSqlExpressionFailureIsLoadFailure() {
+      // a missing column or table, which AssetQuery swallows into an empty table in a runtime
+      // query
+      String message = "Column 'BIG.NOSUCH' is either not in any table in the FROM list";
+      SQLExpressionFailedException sqlError =
+         new SQLExpressionFailedException(new SQLSyntaxErrorException(message, "42X04"));
+      executeFailure = sqlError;
+
+      Exception ex = assertThrows(Exception.class, () -> getTable(scheduledVars(Boolean.TRUE)));
+
+      TableLoadException loadFailure = assertInstanceOf(TableLoadException.class, ex);
+      assertSame(sqlError, loadFailure.getCause());
+      assertEquals(message, loadFailure.getMessage());
+   }
+
+   @Test
+   void interactiveExecuteFailureStillGivesNullAndWarning() throws Exception {
+      executeFailure = new SQLDataException(DB_MESSAGE);
+
+      assertNull(getTable(new VariableTable()));
+      UserMessage message = CoreTool.getUserMessage();
+      assertNotNull(message);
+      assertEquals(Catalog.getCatalog().getString("common.table.getDataFailed") + ": " +
+                   DB_MESSAGE, message.getMessage());
+   }
+
+   @Test
+   void interactiveSqlExpressionFailureIsUnchanged() {
+      SQLExpressionFailedException sqlError =
+         new SQLExpressionFailedException(new SQLSyntaxErrorException("no such column"));
+      executeFailure = sqlError;
+
+      Exception ex = assertThrows(Exception.class, () -> getTable(new VariableTable()));
+
+      assertSame(sqlError, ex);
+   }
+
+   @Test
+   void scheduledStallStopAndLoadFailureKeepTheirType() throws Exception {
+      Exception[] failures = {
+         new LockStallException("site", "thread", 1000, null),
+         new RuntimeException(new LockStallException("site", "thread", 1000, null)),
+         new InterruptedException(),
+         new TableLoadException(DB_MESSAGE, new SQLDataException(DB_MESSAGE)),
+      };
+
+      for(Exception failure : failures) {
+         executeFailure = failure;
+
+         Exception ex =
+            assertThrows(Exception.class, () -> getTable(scheduledVars(Boolean.TRUE)));
+
+         assertSame(failure, ex);
+      }
+   }
+
+   @Test
+   void scheduledSuccessfulQueryIsUnchanged() throws Exception {
+      nodes = () -> new FetchNode(false, false);
+      TableLens lens = getTable(scheduledVars(Boolean.TRUE));
+
+      assertFalse(lens.moreRows(Integer.MAX_VALUE));
+      assertEquals(ROWS + 1, lens.getRowCount());
+      assertNull(CoreTool.getUserMessage());
+   }
+
+   private static VariableTable scheduledVars(Object flag) {
+      VariableTable vars = new VariableTable();
+      vars.put("__is_scheduler__", flag);
+      return vars;
    }
 
    private TableLens getTable(VariableTable vars) throws Exception {
