@@ -1842,6 +1842,8 @@ public class XEngine implements XRepository, XQueryRepository {
       key = OrganizationManager.getInstance().getCurrentOrgID() + "__" + key;
 
       boolean cache = true;
+      boolean refresh = mtype != null &&
+         "true".equals(mtype.getAttribute(XUtil.REFRESH_META_DATA));
       XNode node;
 
       // @by Charvi
@@ -1919,6 +1921,13 @@ public class XEngine implements XRepository, XQueryRepository {
                {
                   node = null;
                }
+            }
+
+            // the caller can't trust the cached result (e.g. the columns of a table that
+            // didn't exist when it was cached), it is fetched again, and the fresh result
+            // replaces it in memory and on disk (Bug #78384)
+            if(refresh && node != pendingFlag) {
+               node = null;
             }
 
             while(node == pendingFlag) {

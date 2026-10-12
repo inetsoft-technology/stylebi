@@ -152,12 +152,26 @@ public class JDBCUtil {
                                         JDBCDataSource xds, Principal principal)
       throws Exception
    {
+      fixUniformSQLInfo(sql, repository, session, xds, principal, false);
+   }
+
+   /**
+    * Fix the information in the UniformSQL by connecting the database.
+    * @param refetchEmpty <tt>true</tt> to not trust an empty column list cached for a table
+    *                     a wildcard of the selection covers, it is fetched again once, e.g.
+    *                     the table didn't exist when the list was cached (Bug #78384).
+    */
+   public static void fixUniformSQLInfo(UniformSQL sql, XRepository repository, Object session,
+                                        JDBCDataSource xds, Principal principal,
+                                        boolean refetchEmpty)
+      throws Exception
+   {
       // set to false as soon as a wildcard is found unexpandable, so a later step that throws
       // doesn't lose it
       boolean[] expanded = { true };
 
       try {
-         fixUniformSQLInfo0(sql, repository, session, xds, principal, expanded);
+         fixUniformSQLInfo0(sql, repository, session, xds, principal, expanded, refetchEmpty);
       }
       finally {
          // the record is only for the metadata step that follows the parse
@@ -207,7 +221,7 @@ public class JDBCUtil {
    /**
     * Check if a wildcard is left in the selection of a sql or of its derived tables.
     */
-   private static boolean hasWildcard(UniformSQL sql) {
+   public static boolean hasWildcard(UniformSQL sql) {
       if(UniformSQL.hasWildcard(sql.getSelection())) {
          return true;
       }
@@ -226,10 +240,13 @@ public class JDBCUtil {
    /**
     * @param expanded set to <tt>false</tt> if a wildcard of the selection, or of a derived
     *                 table, could not be expanded because the columns of its table are unknown.
+    * @param refetchEmpty <tt>true</tt> to fetch an empty column list again for the tables of
+    *                     a selection with a wildcard.
     */
    private static void fixUniformSQLInfo0(UniformSQL sql, XRepository repository,
                                           Object session, JDBCDataSource xds,
-                                          Principal principal, boolean[] expanded)
+                                          Principal principal, boolean[] expanded,
+                                          boolean refetchEmpty)
       throws Exception
    {
       synchronized(sql) {
@@ -293,6 +310,8 @@ public class JDBCUtil {
       // the aliases of the tables whose columns are known from the metadata, not from the
       // field list: a table whose columns are all vpm hidden has no fields but is known
       Set<String> known = new HashSet<>();
+      // only a wildcard needs all the columns of a table
+      boolean wildcard = UniformSQL.hasWildcard(sql.getSelection());
 
       // add XFields
       try {
@@ -310,7 +329,8 @@ public class JDBCUtil {
                // an unexpanded wildcard of the derived table leaves its select list short, and
                // so the fields of this query
                try {
-                  fixUniformSQLInfo0(sql1, repository, session, xds, null, expanded);
+                  fixUniformSQLInfo0(sql1, repository, session, xds, null, expanded,
+                                     refetchEmpty);
                }
                finally {
                   sql1.clearParsedUnquotedSegments();
@@ -346,7 +366,8 @@ public class JDBCUtil {
                      new String[] { sourceName }, new String[0], dataSourceName,
                      null, null, principal);
                table.setAttribute("supportCatalog", root.getAttribute("supportCatalog"));
-               XTypeNode cols = getTableColumns(table, repository, session, xds);
+               XTypeNode cols = getTableColumns(table, repository, session, xds,
+                                                refetchEmpty && wildcard);
 
                if(cols.getChildCount() > 0) {
                   known.add(alias);
@@ -404,6 +425,21 @@ public class JDBCUtil {
                   Object session, XDataSource xds)
       throws Exception
    {
+      return getTableColumns(table, repository, session, xds, false);
+   }
+
+   /**
+    * Get the table columns description.
+    * @param refetchEmpty <tt>true</tt> to not trust an empty column list cached for the table,
+    *                     here or by the repository (in memory and on disk). The table may not
+    *                     have existed when it was cached, so it is fetched again from the
+    *                     database (Bug #78384).
+    */
+   public static XTypeNode getTableColumns(XNode table, XRepository repository,
+                                           Object session, XDataSource xds,
+                                           boolean refetchEmpty)
+      throws Exception
+   {
       String key = xds.getFullName();
 
       if(xds instanceof JDBCDataSource &&
@@ -416,19 +452,33 @@ public class JDBCUtil {
       Pair p1 = new Pair(table, key);
       XTypeNode cols = (XTypeNode) tablemeta.get(p1);
 
-      if(cols == null) {
-         XNode meta = repository.getMetaData(session, xds, table, true, null);
+      if(cols == null || refetchEmpty && cols.getChildCount() == 0) {
+         cols = getResultColumns(repository.getMetaData(session, xds, table, true, null));
 
-         if(meta instanceof XTypeNode) {
-            XNode thisResult = meta.getNode("this.Result");
-            cols = thisResult instanceof XTypeNode ? (XTypeNode) thisResult : null;
+         if(refetchEmpty && cols.getChildCount() == 0) {
+            XNode mtype = (XNode) table.clone();
+            mtype.setAttribute(XUtil.REFRESH_META_DATA, "true");
+            cols = getResultColumns(repository.getMetaData(session, xds, mtype, true, null));
          }
 
-         cols = cols == null ? new XTypeNode() : cols;
          tablemeta.put(p1, cols);
       }
 
       return cols;
+   }
+
+   /**
+    * Get the columns of the table meta data, an empty node if there is none.
+    */
+   private static XTypeNode getResultColumns(XNode meta) {
+      XTypeNode cols = null;
+
+      if(meta instanceof XTypeNode) {
+         XNode thisResult = meta.getNode("this.Result");
+         cols = thisResult instanceof XTypeNode ? (XTypeNode) thisResult : null;
+      }
+
+      return cols == null ? new XTypeNode() : cols;
    }
 
    /**
