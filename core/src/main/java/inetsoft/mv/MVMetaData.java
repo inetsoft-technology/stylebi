@@ -101,6 +101,13 @@ public class MVMetaData implements XMLSerializable, Serializable, Cloneable {
       this.plan = plan;
    }
 
+   /**
+    * Get ws table plan, the VPM-aware query plan of the identity the MV was defined for.
+    */
+   public String getPlan() {
+      return plan;
+   }
+
    public void updatePlan(String oWsId, String nWsId) {
       this.plan = this.plan.replace(oWsId, nWsId);
    }

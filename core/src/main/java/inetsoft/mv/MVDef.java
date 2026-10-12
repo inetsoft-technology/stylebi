@@ -2148,8 +2148,53 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
       return "";
    }
 
+   /**
+    * Check if the VPM gives the specified user the same query as the identity this MV was
+    * built for, i.e. if the user's query plan equals the plan stored when the MV was defined.
+    * The MV data is filtered by the VPM of that identity, so it may only be served to a user
+    * whose VPM result is the same (Bug #78390). Fails closed: a missing or empty plan on
+    * either side, or an error, is not equal. A VPM keyed on a parameter rather than on the
+    * user, roles or groups can't be told apart, since the plans are built without variables.
+    */
+   public boolean isPlanEqual(XPrincipal user) {
+      MVMetaData meta = getMetaData();
+      String plan0 = meta == null ? null : meta.getPlan();
+
+      try {
+         Worksheet ws = getWorksheet();
+         Assembly table = ws == null ? null : ws.getAssembly(tname);
+
+         // a cube table has no sql plan and no VPM
+         if(table instanceof TableAssembly && AssetUtil.isCubeTable((TableAssembly) table)) {
+            return true;
+         }
+
+         if(plan0 == null || plan0.isEmpty()) {
+            return false;
+         }
+
+         String plan1 = getPlan(user);
+         return plan1 != null && !plan1.isEmpty() && plan0.equals(plan1);
+      }
+      catch(Throwable ex) {
+         LOG.debug("Failed to create sql plan for table {} and user {}", tname, user, ex);
+         return false;
+      }
+   }
+
+   /**
+    * Get the execution plan as stored in the MV meta data, for the specified user.
+    */
+   String getPlan(XPrincipal user) throws Exception {
+      return getPlan(true, user);
+   }
+
    private String getPlan(boolean shrink) throws Exception {
       XPrincipal user = users == null || users.length == 0 ? null : users[0].create();
+      return getPlan(shrink, user);
+   }
+
+   private String getPlan(boolean shrink, XPrincipal user) throws Exception {
       Worksheet ws = getWorksheet();
       assert ws != null;
       ws = new WorksheetWrapper(ws);
