@@ -203,6 +203,25 @@ class CalcTableLensDeclaredVarTest {
          Arrays.asList(50.0, null, null)), values(calc.process()));
    }
 
+   // the whole live table: both readers of max (before and after the this writer) and the
+   // zz reader before its split writer, all in one table with the named cell
+   @Test
+   void theLiveTableReadersAreEmptyOnEveryRow() {
+      String b = "var max; max";
+      CalcTableLens calc = calcTable(1, "[100, 300, 120, 400, 50]", b,
+                                     "var max; if(this != null) max = 5; max", "var zz; zz",
+                                     "var zz; if($total > 150) zz = $total; zz", b);
+      calc.setExpansion(0, 0, CalcTableLens.EXPAND_VERTICAL);
+      calc.setCellName(0, 0, "total");
+
+      assertEquals(Arrays.asList(
+         Arrays.asList(100.0, null, 5.0, null, null, null),
+         Arrays.asList(300.0, null, 5.0, null, 300.0, null),
+         Arrays.asList(120.0, null, 5.0, null, null, null),
+         Arrays.asList(400.0, null, 5.0, null, 400.0, null),
+         Arrays.asList(50.0, null, 5.0, null, null, null)), values(calc.process()));
+   }
+
    // any name, a plain writer: only the initializer-less declarations are reset (b reads
    // the writer's b in its initializer). A cell without the var still reads the store, as
    // in Rhino, so it reads what the last cell that ran left there: undefined after a
