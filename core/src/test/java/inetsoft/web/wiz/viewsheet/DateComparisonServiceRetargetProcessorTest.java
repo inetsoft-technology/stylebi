@@ -21,6 +21,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.test.*;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.DateRangeRef;
+import inetsoft.uql.asset.SNamedGroupInfo;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
@@ -126,6 +127,69 @@ class DateComparisonServiceRetargetProcessorTest {
          DateComparisonInfo.ALL, DateComparisonInfo.WEEK, XConstants.YEAR_DATE_GROUP);
 
       assertRetarget(out, "none", "week");
+   }
+
+   /**
+    * Custom periods on a bound dimension that already has its own named group: both the bound
+    * and the period dimension carry a named group, and the bound one must still be reported.
+    */
+   @Test
+   void chartReportsACustomPeriodsRetargetOnANamedGroupDimension() throws Exception {
+      VSChartDimensionRef designDim = dateDim(VSChartDimensionRef::new,
+                                              XConstants.YEAR_DATE_GROUP);
+      designDim.setNamedGroupInfo(namedGroup());
+      VSChartInfo info = chartInfo(designDim, designDim.clone());
+      new ChartDcProcessor(info, dcInfo(custom(), DateComparisonInfo.ALL,
+                                        DateComparisonInfo.WEEK, XConstants.YEAR_DATE_GROUP))
+         .process("ds", new Viewsheet());
+
+      assertRetarget(describe(chartAssembly(info)), "year", "week");
+   }
+
+   @Test
+   void crosstabReportsACustomPeriodsRetargetOnANamedGroupDimension() throws Exception {
+      VSDimensionRef bound = dateDim(VSDimensionRef::new, XConstants.YEAR_DATE_GROUP);
+      bound.setNamedGroupInfo(namedGroup());
+      Map<String, Object> out = describe(crosstabAssembly(crosstabInfo(bound, dcInfo(
+         custom(), DateComparisonInfo.ALL, DateComparisonInfo.WEEK, XConstants.YEAR_DATE_GROUP))));
+
+      assertRetarget(out, "year", "week");
+   }
+
+   /** The date dimension on Y: the bound dimension is looked up on the Y shelves. */
+   @Test
+   void chartReportsARetargetWithTheDateDimensionOnY() throws Exception {
+      VSChartDimensionRef designDim = dateDim(VSChartDimensionRef::new,
+                                              XConstants.MONTH_DATE_GROUP);
+      VSChartAggregateRef measure = new VSChartAggregateRef();
+      measure.setDataRef(new AttributeRef("SALES"));
+      measure.setColumnValue("SALES");
+      VSChartInfo info = new VSChartInfo();
+      info.addYField(designDim);
+      info.addXField(measure);
+      info.setRTYFields(new ChartRef[] { designDim.clone() });
+      info.setRTXFields(new ChartRef[] { measure });
+      new ChartDcProcessor(info, dcInfo(standard(XConstants.YEAR_DATE_GROUP),
+         DateComparisonInfo.ALL, DateComparisonInfo.MONTH, XConstants.YEAR_DATE_GROUP))
+         .process("ds", new Viewsheet());
+
+      assertRetarget(describe(chartAssembly(info)), "month", "month_of_year");
+   }
+
+   /** A timestamp bound at a time level: the design level is named, not printed as a code. */
+   @Test
+   void chartNamesATimeLevelDesignDimension() throws Exception {
+      AttributeRef attr = new AttributeRef("ORDER_DATE");
+      attr.setDataType(XSchema.TIME_INSTANT);
+      VSChartDimensionRef designDim = new VSChartDimensionRef(attr);
+      designDim.setDateLevel(XConstants.HOUR_DATE_GROUP);
+      designDim.setDataType(XSchema.TIME_INSTANT);
+      VSChartInfo info = chartInfo(designDim, designDim.clone());
+      new ChartDcProcessor(info, dcInfo(standard(XConstants.MONTH_DATE_GROUP),
+         DateComparisonInfo.ALL, DateComparisonInfo.WEEK, XConstants.MONTH_DATE_GROUP))
+         .process("ds", new Viewsheet());
+
+      assertRetarget(describe(chartAssembly(info)), "hour", "week_of_month");
    }
 
    /**
@@ -390,6 +454,12 @@ class DateComparisonServiceRetargetProcessorTest {
          new DatePeriod(fmt.parse("2020-01-01"), fmt.parse("2020-06-30")),
          new DatePeriod(fmt.parse("2021-01-01"), fmt.parse("2021-06-30")))));
       return periods;
+   }
+
+   private static SNamedGroupInfo namedGroup() {
+      SNamedGroupInfo group = new SNamedGroupInfo();
+      group.setGroupValue("Early", new ArrayList<>(List.of("2020-01-01")));
+      return group;
    }
 
    private static DateComparisonInfo dcInfo(DateComparisonPeriods periods, int intervalLevel,
