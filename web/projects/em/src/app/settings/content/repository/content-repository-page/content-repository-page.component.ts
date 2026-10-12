@@ -21,7 +21,7 @@ import { Component, OnDestroy, OnInit } from "@angular/core";
 import { MatDialog, MatDialogConfig } from "@angular/material/dialog";
 import { MatSnackBar } from "@angular/material/snack-bar";
 import { ActivatedRoute, Router } from "@angular/router";
-import { BehaviorSubject, Observable, Subject } from "rxjs";
+import { BehaviorSubject, Observable, Subject, Subscription } from "rxjs";
 import { catchError, map, takeUntil } from "rxjs/operators";
 import { RepositoryEntryType } from "../../../../../../../shared/data/repository-entry-type.enum";
 import { RepositoryEditorModel } from "../../../../../../../shared/util/model/repository-editor-model";
@@ -85,6 +85,12 @@ export class ContentRepositoryPageComponent implements OnInit, OnDestroy {
    wsMVEnabled: boolean = false;
    private _loading: boolean = false;
    private afterLoadingRefreshData: TreeSelectionEvent;
+   // Bug #78414, the tree reload in flight, the selection event and force flag it carries
+   // (carried over from any reload it superseded), and the editor loads of the last reload
+   private treeReload: Subscription;
+   private pendingReloadEvent: TreeSelectionEvent = null;
+   private pendingReloadForce: boolean = false;
+   private reloadEditorLoads = new Subscription();
 
    get loading(): boolean {
       return this._loading;
@@ -170,6 +176,8 @@ export class ContentRepositoryPageComponent implements OnInit, OnDestroy {
    }
 
    ngOnDestroy() {
+      this.treeReload?.unsubscribe();
+      this.reloadEditorLoads.unsubscribe();
       this.destroy$.next();
       this.destroy$.complete();
       this.editorModel.complete();
@@ -181,25 +189,44 @@ export class ContentRepositoryPageComponent implements OnInit, OnDestroy {
    }
 
    refreshTree(event?: TreeSelectionEvent, force: boolean = false) {
-      let owner = event && event.data ? event.data.owner : null;
-      this.dataSource.refresh(owner).subscribe((newNodes) => {
+      // Bug #78414, only the latest reload may replace the tree. A reload sent earlier (e.g. by
+      // em-content-changed from a previous change) can return a tree computed before a rename or
+      // delete, which would bring the old item back and re-select it. Cancel the reload in flight
+      // before its tree is applied, and carry its selection event and force flag over to this one.
+      if(event && event.data) {
+         this.pendingReloadEvent = event;
+      }
+
+      this.pendingReloadForce = this.pendingReloadForce || force;
+      this.treeReload?.unsubscribe();
+      this.reloadEditorLoads.unsubscribe();
+      this.reloadEditorLoads = new Subscription();
+
+      const pending = this.pendingReloadEvent;
+      let owner = pending && pending.data ? pending.data.owner : null;
+      this.treeReload = this.dataSource.refresh(owner).subscribe((newNodes) => {
+         const reloadEvent = this.pendingReloadEvent;
+         const reloadForce = this.pendingReloadForce;
+         this.pendingReloadEvent = null;
+         this.pendingReloadForce = false;
+
          // refresh tree and re-select selected nodes that still match
          let selected = this.service.selectedNodes;
          this.service.clearSelectedNodes();
 
-         if(force) {
+         if(reloadForce) {
             this.updateEditorModel();
          }
 
-         if(event && event.data) {
-            const data = event.data;
+         if(reloadEvent && reloadEvent.data) {
+            const data = reloadEvent.data;
             let node: RepositoryFlatNode;
 
             if(data.reportSettings) {
                data.owner = data.reportSettings.owner;
             }
 
-            if(event.selected) {
+            if(reloadEvent.selected) {
                node = newNodes.find(n => n.data.path == data.path && n.data.type == data.type && equalsIdentity(n.data.owner, data.owner));
             }
             else {
@@ -231,7 +258,12 @@ export class ContentRepositoryPageComponent implements OnInit, OnDestroy {
                if(newNode != null) {
                   find = true;
                   this.service.selectNode(newNode);
-                  this.service.getEditor(newNode).subscribe(model => this.updateEditorModel(newNode, model));
+                  // Bug #78414, the node is re-selected automatically, not clicked. If it no longer
+                  // exists, the tree was out of date and the next reload removes it, so don't report it
+                  this.reloadEditorLoads.add(this.service.getEditor(newNode, true).subscribe({
+                     next: model => this.updateEditorModel(newNode, model),
+                     error: error => this.editorLoadFailed(newNode, error)
+                  }));
                }
             }
 
@@ -313,14 +345,29 @@ export class ContentRepositoryPageComponent implements OnInit, OnDestroy {
    }
 
    updateEditorModel(node: RepositoryFlatNode = null, model: RepositoryEditorModel = null) {
-      if(node != null && !!this.service.selectedNodes && this.service.selectedNodes.length > 0 &&
-         !Tool.isEquals(node, this.service.selectedNodes[0])) {
+      // Bug #78414, drop the editor of a node that is no longer selected, including when the
+      // selection has been cleared since the editor was requested
+      if(node != null && (!this.service.selectedNodes || this.service.selectedNodes.length == 0 ||
+         !Tool.isEquals(node, this.service.selectedNodes[0])))
+      {
          return;
       }
 
       this.editingNode = node;
       this.unsavedChanges = node == null ? false : this.unsavedChanges;
       this.editorModel.next(model);
+   }
+
+   /**
+    * An editor load started by a tree reload failed. Some editor requests have no error
+    * handling of their own, so handle it here instead of leaving it uncaught.
+    */
+   private editorLoadFailed(node: RepositoryFlatNode, error: any): void {
+      if(!this.service.isMissingResourceError(error)) {
+         console.error("Failed to load the repository editor: ", error);
+      }
+
+      this.updateEditorModel(node, null);
    }
 
    public filterNodes(filter: number): void {

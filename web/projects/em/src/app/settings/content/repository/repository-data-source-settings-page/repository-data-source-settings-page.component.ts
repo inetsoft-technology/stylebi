@@ -59,7 +59,11 @@ export class RepositoryDataSourceSettingsPageComponent extends DataSourceSetting
 
    ngOnChanges(changes: SimpleChanges) {
       if(changes.model) {
-         this.setModel(this.model.settings);
+         // Bug #78414, there are no settings when the data source failed to load
+         if(!!this.model?.settings) {
+            this.setModel(this.model.settings);
+         }
+
          this._oldModel = Tool.clone(this.model);
       }
    }

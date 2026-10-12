@@ -57,12 +57,13 @@ export class RepositoryScriptSettingsPageComponent implements OnInit, OnChanges 
    }
 
    ngOnInit() {
+      // Bug #78414, there are no settings when the script failed to load
       this.form = new UntypedFormGroup({
-         name: new UntypedFormControl(this.model.scriptSettings.name, [
+         name: new UntypedFormControl(this.model?.scriptSettings?.name, [
             Validators.required,
             FormValidators.assetEntryBannedCharacters,
             FormValidators.assetNameStartWithCharDigit]),
-         description: new UntypedFormControl(this.model.scriptSettings.description)
+         description: new UntypedFormControl(this.model?.scriptSettings?.description)
       });
 
       this.form.get("name").valueChanges.subscribe((val) => {
