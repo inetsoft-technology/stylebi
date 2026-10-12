@@ -89,4 +89,29 @@ class ContainedListHeightTest {
 
       assertEquals(30 + 6 * 25 + 32, info.getContainedListHeight());
    }
+
+   // the rows a contained height holds are the rows it was built from
+   @Test
+   void theFittingRowsInvertTheContainedHeight() {
+      for(String density : new String[] { "comfortable", "compact", "dense" }) {
+         SelectionListVSAssemblyInfo info = list(density, VizMark.MODERN_LIGHT);
+         assertEquals(6, info.getFittingListHeight(info.getContainedListHeight()), density);
+      }
+
+      assertEquals(6, list("comfortable", null).getFittingListHeight(140));
+   }
+
+   @Test
+   void aMarkedListFitsWholeRowsAndAtLeastOne() {
+      SelectionListVSAssemblyInfo info = list("comfortable", VizMark.MODERN_LIGHT);
+
+      assertEquals(6, info.getFittingListHeight(250), "188 / 28 drops the partial row");
+      assertEquals(1, info.getFittingListHeight(40), "below the lane and inset still keeps one");
+   }
+
+   // what the composer has always stored for an unmarked list: no floor
+   @Test
+   void anUnmarkedListFitsDefhRowsExactly() {
+      assertEquals(0, list("comfortable", null).getFittingListHeight(35));
+   }
 }

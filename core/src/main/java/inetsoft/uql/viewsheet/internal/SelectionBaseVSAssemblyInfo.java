@@ -163,6 +163,33 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
    }
 
    /**
+    * The rows a box of this height holds, the inverse of getContainedListHeight. Marked, whole
+    * rows at its own density inside its card inset and never fewer than one; unmarked keeps the
+    * legacy defh rows exactly.
+    */
+   public int getFittingListHeight(int height) {
+      if(getVizMark() == null) {
+         return (height - getTitleHeight()) / AssetUtil.defh;
+      }
+
+      Insets inset = getPadding();
+      int body = height - getTitleHeight() - (inset == null ? 0 : inset.top + inset.bottom);
+      return Math.max(1, body / Math.max(1, getEffectiveCellHeight()));
+   }
+
+   /**
+    * Store the rows this list's box holds, so a switch back from a dropdown or a container expand
+    * rebuilds the same box. A dropdown's box is its title lane and its rows are the author's.
+    */
+   public void fitListHeightToBox() {
+      Dimension size = getPixelSize();
+
+      if(size != null && getShowTypeValue() != DROPDOWN_SHOW_TYPE) {
+         setListHeight(getFittingListHeight(size.height));
+      }
+   }
+
+   /**
     * Whether the user has explicitly set the cell height.
     */
    public boolean isUserCellHeight() {
@@ -1013,9 +1040,11 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
       //
       // Unmarked, only Revert's transition may reset the box: an open or a density re-seed runs
       // this too, and must not shrink an unmarked list that merely happens to sit at a tier size.
-      // An author's size carries userSize and this rule leaves it alone
+      // An author's size carries userSize and this rule leaves it alone. The rows go with the box,
+      // since a dropdown and a container expand rebuild the box from them
       if((ctx.modern || ctx.transition) && followsDensitySize()) {
          setPixelSize(VSDensityDefaults.selectionSize(ctx));
+         fitListHeightToBox();
       }
    }
 

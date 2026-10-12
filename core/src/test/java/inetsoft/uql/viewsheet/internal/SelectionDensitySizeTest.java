@@ -23,6 +23,8 @@ import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -153,5 +155,130 @@ class SelectionDensitySizeTest {
    @AfterEach
    void reset() {
       SreeEnv.setProperty("viewsheet.density", null);
+   }
+
+   // the tier box holds five rows; storing six made a Dropdown to List rebuild 230 / 194 / 156
+   @ParameterizedTest
+   @CsvSource({ "comfortable, 202", "compact, 170", "dense, 136" })
+   void aFreshMarkedListStoresTheRowsItsBoxHolds(String density, int height) {
+      SelectionListVSAssemblyInfo info = created(density, VizMark.MODERN_LIGHT);
+
+      assertEquals(5, info.getListHeight());
+      assertEquals(height, info.getContainedListHeight(), "the rows rebuild the box they came from");
+   }
+
+   @Test
+   void aFreshMarkedTreeStoresTheRowsItsBoxHolds() {
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      SelectionTreeVSAssemblyInfo info = new SelectionTreeVSAssemblyInfo();
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      info.initDefaultFormat();
+
+      assertEquals(5, info.getListHeight());
+   }
+
+   @Test
+   void aFreshUnmarkedListKeepsSixRows() {
+      SelectionListVSAssemblyInfo info = created("comfortable", null);
+
+      assertEquals(new Dimension(100, 120), info.getPixelSize());
+      assertEquals(6, info.getListHeight(), "legacy creation is unchanged");
+   }
+
+   @Test
+   void aDensityChangeCarriesTheRowsWithTheBox() {
+      SelectionListVSAssemblyInfo info = created("comfortable", VizMark.MODERN_LIGHT);
+      info.setListHeight(6);
+
+      SreeEnv.setProperty("viewsheet.density", "dense");
+      info.seedChromeDefaults(VizContext.of(info));
+
+      assertEquals(new Dimension(116, 136), info.getPixelSize());
+      assertEquals(5, info.getListHeight());
+   }
+
+   // a density change moves pixels, not rows: an author's box keeps its size and its row count
+   @Test
+   void aDensityChangeLeavesAnAuthorSizedListsRows() {
+      SelectionListVSAssemblyInfo info = created("comfortable", VizMark.MODERN_LIGHT);
+      info.setPixelSize(new Dimension(132, 230));
+      info.setUserSize(true);
+      info.setListHeight(6);
+
+      SreeEnv.setProperty("viewsheet.density", "dense");
+      info.seedChromeDefaults(VizContext.of(info));
+
+      assertEquals(new Dimension(132, 230), info.getPixelSize());
+      assertEquals(6, info.getListHeight());
+   }
+
+   // a dropdown's rows are the author's, even when its box still carries a seeded size
+   @Test
+   void theSeedLeavesADropdownsRowsAlone() {
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      SelectionListVSAssemblyInfo info = new SelectionListVSAssemblyInfo();
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      info.setShowTypeValue(SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
+      info.setListHeight(10);
+
+      info.seedChromeDefaults(VizContext.of(info));
+
+      assertEquals(10, info.getListHeight());
+   }
+
+   @Test
+   void modernizeFitsALegacyListsRowsToItsTierBox() {
+      SelectionListVSAssemblyInfo info = created("comfortable", null);
+
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      info.seedChromeDefaults(VizContext.ofTransition(null, VizMark.MODERN_LIGHT));
+
+      assertEquals(new Dimension(132, 202), info.getPixelSize());
+      assertEquals(5, info.getListHeight());
+   }
+
+   // the legacy 100x120 holds five 20px rows under its 20px lane, so Revert stores five
+   @Test
+   void revertFitsTheRowsToTheLegacyBox() {
+      SelectionListVSAssemblyInfo info = created("comfortable", VizMark.MODERN_LIGHT);
+      info.setListHeight(6);
+
+      info.setVizMark(null);
+      info.seedChromeDefaults(VizContext.ofTransition(null, null));
+
+      assertEquals(new Dimension(100, 120), info.getPixelSize());
+      assertEquals(5, info.getListHeight());
+      assertEquals(120, info.getContainedListHeight());
+   }
+
+   @Test
+   void openingAnUnmarkedListLeavesItsRowsAlone() {
+      SelectionListVSAssemblyInfo info = created("comfortable", null);
+
+      VizModernizeUtil.reseedAfterRestore(info);
+
+      assertEquals(6, info.getListHeight());
+   }
+
+   // an author cell height takes its rows from the same box: (202 - 30 - 32) / 40
+   @Test
+   void aSeededBoxWithAnAuthorCellHeightStoresTheRowsThatFit() {
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      SelectionListVSAssemblyInfo info = new SelectionListVSAssemblyInfo();
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      info.setCellHeight(40);
+      info.setUserCellHeight(true);
+
+      info.seedChromeDefaults(VizContext.of(info));
+
+      assertEquals(3, info.getListHeight());
+   }
+
+   private SelectionListVSAssemblyInfo created(String density, VizMark mark) {
+      SreeEnv.setProperty("viewsheet.density", density);
+      SelectionListVSAssemblyInfo info = new SelectionListVSAssemblyInfo();
+      info.setVizMark(mark);
+      info.initDefaultFormat();
+      return info;
    }
 }
