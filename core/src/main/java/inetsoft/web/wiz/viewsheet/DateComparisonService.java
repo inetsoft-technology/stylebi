@@ -78,8 +78,12 @@ public class DateComparisonService {
    /**
     * A date-comparison request in the agent vocabulary.
     *
-    * @param periods          how many periods back to compare
-    * @param level            the period level — the date level token, e.g. year, quarter, month
+    * @param periods          how many periods back to compare — an integer of at least 1, or a
+    *                        dynamic value ({@code $(Component)} / {@code =expression}). Text so a
+    *                        dynamic value survives deserialization; a JSON number is coerced to its
+    *                        text form
+    * @param level            the period level — the date level token, e.g. year, quarter, month —
+    *                        or a dynamic value
     * @param endDate          the range end. Required unless {@code endToday} is set.
     * @param endToday         anchor the range on today instead of an explicit end
     * @param comparisonOption what the numbers mean — value, change, percentChange,
@@ -102,9 +106,9 @@ public class DateComparisonService {
     *                     with {@code interval}/{@code intervalEndDate}/{@code intervalEndToday}
     *                     (StyleBI does not expose interval sub-windows for a custom period — see
     *                     {@code DateComparisonInfo.getIntervalConditions()}, ticket 64217). Each
-    *                     {@link CustomPeriod}'s {@code start}/{@code end} must be a literal date
-    *                     string — expressions and variables are not supported (see
-    *                     {@link CustomPeriod}).
+    *                     {@link CustomPeriod}'s {@code start}/{@code end} is a literal date string
+    *                     or a dynamic value (see {@link CustomPeriod}). Only {@code
+    *                     intervalGranularity} may accompany it among the interval fields.
     * @param intervalEndDate the interval's own literal cutoff — StyleBI's "Use Range End Date"
     *                     control ({@code IntervalPaneModel.intervalEndDate}), independent of the
     *                     period's own {@code endDate}/{@code endToday}. Only meaningful when
@@ -118,40 +122,60 @@ public class DateComparisonService {
     *                     instead. Only meaningful when {@code interval} is set to something other
     *                     than {@code "all"}. Omitting both this and {@code intervalEndDate} is a
     *                     no-op — the interval's own anchor is left exactly as it already is.
+    * @param intervalGranularity the interval's granularity ({@code IntervalPaneModel.granularity}):
+    *                     year, quarter, month, week, day, or (custom periods only) all — or a
+    *                     dynamic value. Counts as setting the period, like {@code interval}.
+    * @param intervalContextLevel the interval's context level ({@code
+    *                     IntervalPaneModel.contextLevel}): year, quarter, month, week — or a
+    *                     dynamic value. Standard periods only; counts as setting the period.
     */
-   public record Comparison(Integer periods, String level, String endDate, boolean endToday,
+   public record Comparison(String periods, String level, String endDate, boolean endToday,
                             String interval, Boolean useFacet, Boolean onlyShowMostRecentDate,
                             String comparisonOption, String shareAssembly, Boolean toDate,
                             Boolean inclusive, List<CustomPeriod> customPeriods,
-                            String intervalEndDate, Boolean intervalEndToday) {
+                            String intervalEndDate, Boolean intervalEndToday,
+                            String intervalGranularity, String intervalContextLevel) {
+      /** Backward-compatible with every call site that predates {@code intervalGranularity}/
+       *  {@code intervalContextLevel}. */
+      public Comparison(String periods, String level, String endDate, boolean endToday,
+                        String interval, Boolean useFacet, Boolean onlyShowMostRecentDate,
+                        String comparisonOption, String shareAssembly, Boolean toDate,
+                        Boolean inclusive, List<CustomPeriod> customPeriods,
+                        String intervalEndDate, Boolean intervalEndToday)
+      {
+         this(periods, level, endDate, endToday, interval, useFacet, onlyShowMostRecentDate,
+              comparisonOption, shareAssembly, toDate, inclusive, customPeriods, intervalEndDate,
+              intervalEndToday, null, null);
+      }
+
       /** Backward-compatible with every call site that predates {@code intervalEndDate}/
        *  {@code intervalEndToday}. */
-      public Comparison(Integer periods, String level, String endDate, boolean endToday,
+      public Comparison(String periods, String level, String endDate, boolean endToday,
                         String interval, Boolean useFacet, Boolean onlyShowMostRecentDate,
                         String comparisonOption, String shareAssembly, Boolean toDate,
                         Boolean inclusive, List<CustomPeriod> customPeriods)
       {
          this(periods, level, endDate, endToday, interval, useFacet, onlyShowMostRecentDate,
-              comparisonOption, shareAssembly, toDate, inclusive, customPeriods, null, null);
+              comparisonOption, shareAssembly, toDate, inclusive, customPeriods, null, null,
+              null, null);
       }
 
       /** Backward-compatible with every call site that predates {@code customPeriods}. */
-      public Comparison(Integer periods, String level, String endDate, boolean endToday,
+      public Comparison(String periods, String level, String endDate, boolean endToday,
                         String interval, Boolean useFacet, Boolean onlyShowMostRecentDate,
                         String comparisonOption, String shareAssembly, Boolean toDate,
                         Boolean inclusive)
       {
          this(periods, level, endDate, endToday, interval, useFacet, onlyShowMostRecentDate,
-              comparisonOption, shareAssembly, toDate, inclusive, null, null, null);
+              comparisonOption, shareAssembly, toDate, inclusive, null, null, null, null, null);
       }
    }
 
    /**
     * One caller-defined date-range pair, e.g. {@code {start: "2026-03-01", end: "2026-03-15"}}.
-    * {@code start}/{@code end} must be literal date strings — expressions and variables (e.g.
-    * {@code $(startDate)}) are not supported here; {@code setDynamic()} stores them as plain
-    * values without the variable/expression-type detection {@code DynamicValueModel}'s own
-    * {@code (String)} constructor performs.
+    * {@code start}/{@code end} are literal {@code yyyy-MM-dd} date strings or dynamic values
+    * ({@code $(startDate)} / {@code =expression}); {@code setDynamic()} stores a dynamic value
+    * trimmed, with its model type set from the prefix.
     */
    public record CustomPeriod(String start, String end) {}
 
@@ -297,7 +321,7 @@ public class DateComparisonService {
 
          apply(model, comparison);
          if(setsPeriod(comparison)) {
-            requireValidComparison(model);
+            requireValidComparison(model, comparison);
          }
 
          DateComparisonInfo info = model.toDateComparisonInfo();
@@ -417,6 +441,8 @@ public class DateComparisonService {
       fields.put("intervalEndDate",
                  comparison.intervalEndDate() != null && !comparison.intervalEndDate().isBlank());
       fields.put("intervalEndToday", comparison.intervalEndToday() != null);
+      fields.put("intervalGranularity", comparison.intervalGranularity() != null);
+      fields.put("intervalContextLevel", comparison.intervalContextLevel() != null);
       fields.put("useFacet", comparison.useFacet() != null);
       fields.put("onlyShowMostRecentDate", comparison.onlyShowMostRecentDate() != null);
       fields.put("comparisonOption", comparison.comparisonOption() != null);
@@ -1053,9 +1079,8 @@ public class DateComparisonService {
             "say — a range that ends before the data does, and nothing reports it.");
       }
 
-      if(comparison.periods() != null && comparison.periods() < 1) {
-         throw new IllegalArgumentException(
-            "'periods' must be at least 1, got " + comparison.periods() + ".");
+      if(comparison.periods() != null) {
+         normalizePeriods(comparison.periods());
       }
    }
 
@@ -1108,6 +1133,8 @@ public class DateComparisonService {
          || (comparison.endDate() != null && !comparison.endDate().isBlank())
          || comparison.endToday()
          || comparison.interval() != null
+         || comparison.intervalGranularity() != null
+         || comparison.intervalContextLevel() != null
          || comparison.toDate() != null
          || comparison.inclusive() != null
          || hasCustomPeriods(comparison);
@@ -1140,13 +1167,13 @@ public class DateComparisonService {
       }
 
       if(comparison.interval() != null || comparison.intervalEndDate() != null ||
-         comparison.intervalEndToday() != null)
+         comparison.intervalEndToday() != null || comparison.intervalContextLevel() != null)
       {
          throw new IllegalArgumentException(
-            "'interval'/'intervalEndDate'/'intervalEndToday' cannot be combined with " +
-            "'customPeriods'. StyleBI's date-comparison engine does not expose an interval " +
-            "sub-window (e.g. monthToDate) for a custom period. Drop them, or use " +
-            "'periods'/'level' instead of 'customPeriods'.");
+            "'interval'/'intervalEndDate'/'intervalEndToday'/'intervalContextLevel' cannot be " +
+            "combined with 'customPeriods'. StyleBI's date-comparison engine does not expose an " +
+            "interval sub-window (e.g. monthToDate) for a custom period. Drop them, or use " +
+            "'periods'/'level' instead of 'customPeriods'. ('intervalGranularity' is allowed.)");
       }
    }
 
@@ -1193,7 +1220,9 @@ public class DateComparisonService {
     * or {@code comparisonOption} alone) must not be refused over an unrelated, already-broken
     * period/interval combination it neither created nor was asked to fix.
     */
-   private static void requireValidComparison(DateComparisonPaneModel model) {
+   private static void requireValidComparison(DateComparisonPaneModel model,
+                                              Comparison comparison)
+   {
       PeriodPaneModel periods = model.getPeriodPaneModel();
       IntervalPaneModel interval = model.getIntervalPaneModel();
       Integer intervalLevel = parseLevel(interval == null ? null : interval.getLevel());
@@ -1213,30 +1242,185 @@ public class DateComparisonService {
       else if(periods != null && periods.getCustomPeriodPaneModel() != null &&
          periods.getCustomPeriodPaneModel().getDatePeriods() != null)
       {
+         // A dynamic side ($(x) / =expr) only resolves at render time, so it is neither parsed
+         // nor compared; literal sides are checked exactly as before.
          boolean invalidPeriod = periods.getCustomPeriodPaneModel().getDatePeriods().stream()
             .anyMatch(period -> {
-               java.time.LocalDate start = parseDate(period.getStart());
-               java.time.LocalDate end = parseDate(period.getEnd());
-               return start == null || end == null || start.isAfter(end);
+               boolean startDynamic = isDynamic(text(period.getStart()));
+               boolean endDynamic = isDynamic(text(period.getEnd()));
+               java.time.LocalDate start = startDynamic ? null : parseDate(period.getStart());
+               java.time.LocalDate end = endDynamic ? null : parseDate(period.getEnd());
+
+               if((!startDynamic && start == null) || (!endDynamic && end == null)) {
+                  return true;
+               }
+
+               return !startDynamic && !endDynamic && start.isAfter(end);
             });
 
          if(invalidPeriod) {
             throw new IllegalArgumentException(
                "One of 'customPeriods' has a 'start' after its 'end' (or a missing/unparseable " +
-               "start or end). Each period's 'start' must be on or before its 'end'.");
+               "start or end). Each period's 'start' must be on or before its 'end'. A start/end " +
+               "may also be a dynamic value ($(Component) / =expression).");
          }
       }
+
+      requireValidIntervalFields(model, comparison);
 
       boolean compareAll = intervalLevel != null && intervalLevel == DateComparisonInfo.ALL;
 
       if(!compareAll && interval != null && !interval.isEndDayAsToDate() &&
+         !isDynamic(text(interval.getIntervalEndDate())) &&
          parseDate(interval.getIntervalEndDate()) == null)
       {
          throw new IllegalArgumentException(
-            "'interval' needs an end anchor — pass 'intervalEndDate' (a date StyleBI can parse)" +
-            " or 'intervalEndToday:true'. A value 'intervalEndDate' could not parse as a date" +
+            "'interval' needs an end anchor — pass 'intervalEndDate' (a yyyy-MM-dd date or a " +
+            "dynamic value) or 'intervalEndToday:true'. A value 'intervalEndDate' could not " +
+            "parse as a date" +
             " resolves to this same missing-anchor state.");
       }
+   }
+
+   private static final int ALL_GRANULARITIES = DateComparisonInfo.YEAR | DateComparisonInfo.QUARTER |
+      DateComparisonInfo.MONTH | DateComparisonInfo.WEEK | DateComparisonInfo.DAY;
+
+   /**
+    * Mirrors the lists {@code date-comparison-interval-pane.component.ts}'s
+    * {@code getGranularities()}/{@code getContextLevels()} offer a human, for the granularity /
+    * context level this call itself set. Those are UI-side filters the engine never enforces
+    * ({@link DateComparisonInfo#invalid()} ignores both), so without this an agent could store a
+    * value the dialog would never show. Only literal values are checked: when the granularity,
+    * the interval level or the period level is dynamic the dialog returns the unfiltered list,
+    * and nothing is knowable until render. A field this call did not set is not re-checked — the
+    * stored default granularity ({@code year}) is not one the dialog offers for e.g.
+    * {@code monthToDate}, and refusing every such call would break callers that never touched it.
+    */
+   private static void requireValidIntervalFields(DateComparisonPaneModel model,
+                                                  Comparison comparison)
+   {
+      PeriodPaneModel periods = model.getPeriodPaneModel();
+      IntervalPaneModel interval = model.getIntervalPaneModel();
+
+      if(periods == null || interval == null || periods.isCustom()) {
+         return;
+      }
+
+      StandardPeriodPaneModel standard = periods.getStandardPeriodPaneModel();
+      Integer periodLevel = standard == null ? null : parseLevel(standard.getDateLevel());
+      Integer intervalLevel = parseLevel(interval.getLevel());
+
+      if(comparison.intervalGranularity() != null) {
+         Integer granularity = parseLevel(interval.getGranularity());
+
+         if(granularity != null && intervalLevel != null) {
+            int allowed = allowedGranularities(intervalLevel, periodLevel);
+
+            if((allowed & granularity) != granularity) {
+               List<String> words = new ArrayList<>();
+
+               for(int code : new int[] {DateComparisonInfo.YEAR, DateComparisonInfo.QUARTER,
+                                         DateComparisonInfo.MONTH, DateComparisonInfo.WEEK,
+                                         DateComparisonInfo.DAY})
+               {
+                  if((allowed & code) == code) {
+                     words.add(granularityWord(code));
+                  }
+               }
+
+               throw new IllegalArgumentException(
+                  "'intervalGranularity' (" + granularityWord(granularity) + ") is not one the " +
+                  "Date Comparison dialog offers for interval '" + intervalWord(intervalLevel) +
+                  "'" + (periodLevel == null ? "" : " at period level '" + levelWord(periodLevel) +
+                  "'") + ". Use one of: " + String.join(", ", words) + ".");
+            }
+         }
+      }
+
+      if(comparison.intervalContextLevel() != null) {
+         Integer context = parseLevel(interval.getContextLevel());
+
+         if(context != null) {
+            boolean allowed = periodLevel == null || context <= periodLevel;
+
+            if(allowed && intervalLevel != null) {
+               int group = intervalGroupLevel(intervalLevel);
+               boolean same = (intervalLevel & DateComparisonInfo.SAME_DATE) ==
+                  DateComparisonInfo.SAME_DATE;
+               allowed = group < 0 || same ? context > group : context >= group;
+            }
+
+            if(!allowed) {
+               throw new IllegalArgumentException(
+                  "'intervalContextLevel' (" + contextLevelWord(context) + ") is not one the " +
+                  "Date Comparison dialog offers for this period level / interval. It must not " +
+                  "be coarser than 'level', and must be finer than (same*) or at least as fine " +
+                  "as (*ToDate) the 'interval' level.");
+            }
+         }
+      }
+   }
+
+   /** The granularity bits {@code getGranularities()} offers for a standard period. */
+   private static int allowedGranularities(int intervalLevel, Integer periodLevel) {
+      int day = DateComparisonInfo.DAY;
+      int week = DateComparisonInfo.WEEK | day;
+      int month = DateComparisonInfo.MONTH | week;
+      int quarter = DateComparisonInfo.QUARTER | month;
+
+      switch(intervalLevel) {
+      case DateComparisonInfo.ALL:
+         if(periodLevel == null) {
+            return ALL_GRANULARITIES;
+         }
+
+         switch(periodLevel) {
+         case XConstants.QUARTER_DATE_GROUP:
+            return quarter;
+         case XConstants.MONTH_DATE_GROUP:
+            return month;
+         case XConstants.WEEK_DATE_GROUP:
+            return week;
+         case XConstants.DAY_DATE_GROUP:
+            return day;
+         default:
+            return ALL_GRANULARITIES;
+         }
+      case DateComparisonInfo.YEAR_TO_DATE:
+         return ALL_GRANULARITIES;
+      case DateComparisonInfo.QUARTER_TO_DATE:
+      case DateComparisonInfo.SAME_QUARTER:
+         return quarter;
+      case DateComparisonInfo.MONTH_TO_DATE:
+      case DateComparisonInfo.SAME_MONTH:
+         return month;
+      case DateComparisonInfo.WEEK_TO_DATE:
+      case DateComparisonInfo.SAME_WEEK:
+         return week;
+      default:
+         return day;
+      }
+   }
+
+   /** The context-level group code of an interval level, -1 for none. Year bit tested first. */
+   private static int intervalGroupLevel(int level) {
+      if((level & DateComparisonInfo.YEAR) == DateComparisonInfo.YEAR) {
+         return XConstants.YEAR_DATE_GROUP;
+      }
+      else if((level & DateComparisonInfo.QUARTER) == DateComparisonInfo.QUARTER) {
+         return XConstants.QUARTER_DATE_GROUP;
+      }
+      else if((level & DateComparisonInfo.MONTH) == DateComparisonInfo.MONTH) {
+         return XConstants.MONTH_DATE_GROUP;
+      }
+      else if((level & DateComparisonInfo.WEEK) == DateComparisonInfo.WEEK) {
+         return XConstants.WEEK_DATE_GROUP;
+      }
+      else if((level & DateComparisonInfo.DAY) == DateComparisonInfo.DAY) {
+         return XConstants.DAY_DATE_GROUP;
+      }
+
+      return -1;
    }
 
    /**
@@ -1357,6 +1541,13 @@ public class DateComparisonService {
             setDynamic(interval.getLevel(), String.valueOf(DateComparisonInfo.ALL));
          }
 
+         // The one interval setting a custom period does render: the granularity its ranges are
+         // broken down by (custom_granularities in the dialog, which adds "All").
+         if(comparison.intervalGranularity() != null) {
+            setDynamic(interval == null ? null : interval.getGranularity(),
+                       normalizeGranularity(comparison.intervalGranularity(), true));
+         }
+
          return;
       }
 
@@ -1377,7 +1568,7 @@ public class DateComparisonService {
       }
 
       if(comparison.periods() != null) {
-         setDynamic(standard.getPreCount(), String.valueOf(comparison.periods()));
+         setDynamic(standard.getPreCount(), normalizePeriods(comparison.periods()));
       }
 
       if(comparison.level() != null) {
@@ -1422,6 +1613,16 @@ public class DateComparisonService {
          interval.setEndDayAsToDate(false);
          setDynamic(interval.getIntervalEndDate(), comparison.intervalEndDate());
       }
+
+      if(comparison.intervalGranularity() != null) {
+         setDynamic(interval == null ? null : interval.getGranularity(),
+                    normalizeGranularity(comparison.intervalGranularity(), false));
+      }
+
+      if(comparison.intervalContextLevel() != null) {
+         setDynamic(interval == null ? null : interval.getContextLevel(),
+                    normalizeContextLevel(comparison.intervalContextLevel()));
+      }
    }
 
    private static final Map<String, Integer> LEVEL_WORDS = Map.of(
@@ -1440,11 +1641,16 @@ public class DateComparisonService {
     * Date Comparison editor.
     */
    private static String normalizeLevel(String level) {
+      if(isDynamic(level.trim())) {
+         return level.trim();
+      }
+
       Integer code = LEVEL_WORDS.get(level.trim().toLowerCase());
 
       if(code == null) {
          throw new IllegalArgumentException(
-            "'level' must be one of: year, quarter, month, week, day. Got '" + level + "'.");
+            "'level' must be one of: year, quarter, month, week, day, or a dynamic value " +
+            "($(Component) / =expression). Got '" + level + "'.");
       }
 
       return code.toString();
@@ -1531,15 +1737,116 @@ public class DateComparisonService {
     * is the same class of defect that method exists to prevent.
     */
    private static String normalizeInterval(String interval) {
+      if(isDynamic(interval.trim())) {
+         return interval.trim();
+      }
+
       Integer code = INTERVAL_WORDS.get(interval.trim().toLowerCase().replace(" ", ""));
 
       if(code == null) {
          throw new IllegalArgumentException(
             "'interval' must be one of: all, yearToDate, quarterToDate, monthToDate, " +
-            "weekToDate, sameQuarter, sameMonth, sameWeek, sameDay. Got '" + interval + "'.");
+            "weekToDate, sameQuarter, sameMonth, sameWeek, sameDay, or a dynamic value " +
+            "($(Component) / =expression). Got '" + interval + "'.");
       }
 
       return code.toString();
+   }
+
+   private static final Map<String, Integer> GRANULARITY_WORDS = Map.of(
+      "all", DateComparisonInfo.ALL,
+      "year", DateComparisonInfo.YEAR,
+      "quarter", DateComparisonInfo.QUARTER,
+      "month", DateComparisonInfo.MONTH,
+      "week", DateComparisonInfo.WEEK,
+      "day", DateComparisonInfo.DAY
+   );
+
+   /**
+    * Translates the interval-granularity word to the {@code DateComparisonInfo} bitmask the
+    * dialog sends — the inverse of {@link #granularityWord(int)}. "all" is a custom-period-only
+    * choice, as in the dialog's {@code custom_granularities}.
+    */
+   private static String normalizeGranularity(String granularity, boolean custom) {
+      String trimmed = granularity.trim();
+
+      if(isDynamic(trimmed)) {
+         return trimmed;
+      }
+
+      Integer code = GRANULARITY_WORDS.get(trimmed.toLowerCase());
+
+      if(code == null || (code == DateComparisonInfo.ALL && !custom)) {
+         throw new IllegalArgumentException(
+            "'intervalGranularity' must be one of: year, quarter, month, week, day" +
+            (custom ? ", all" : " ('all' is only for customPeriods)") +
+            ", or a dynamic value ($(Component) / =expression). Got '" + granularity + "'.");
+      }
+
+      return code.toString();
+   }
+
+   /** The context-level words the dialog offers: the {@code XConstants} year..week group codes. */
+   private static String normalizeContextLevel(String contextLevel) {
+      String trimmed = contextLevel.trim();
+
+      if(isDynamic(trimmed)) {
+         return trimmed;
+      }
+
+      Integer code = LEVEL_WORDS.get(trimmed.toLowerCase());
+
+      if(code == null || code == XConstants.DAY_DATE_GROUP) {
+         throw new IllegalArgumentException(
+            "'intervalContextLevel' must be one of: year, quarter, month, week, or a dynamic " +
+            "value ($(Component) / =expression). Got '" + contextLevel + "'.");
+      }
+
+      return code.toString();
+   }
+
+   /**
+    * 'periods' as text so a dynamic value survives JSON binding, which means Jackson also lets
+    * through blank, {@code 2.5} and {@code true} — none of which may reach the model.
+    */
+   private static String normalizePeriods(String periods) {
+      String trimmed = periods.trim();
+
+      if(isDynamic(trimmed)) {
+         return trimmed;
+      }
+
+      int count;
+
+      try {
+         count = Integer.parseInt(trimmed);
+      }
+      catch(NumberFormatException e) {
+         throw new IllegalArgumentException(
+            "'periods' must be an integer of at least 1, or a dynamic value " +
+            "($(Component) / =expression). Got '" + periods + "'.");
+      }
+
+      if(count < 1) {
+         throw new IllegalArgumentException("'periods' must be at least 1, got " + periods + ".");
+      }
+
+      return String.valueOf(count);
+   }
+
+   /**
+    * Same definition as {@code VSUtil.isVariableValue}/{@code isScriptValue}, restated locally:
+    * touching {@code VSUtil} would trigger its static init, which this class's unit tests can't
+    * survive (see {@link #requireValidComparison}). The runtime does not trim, so callers pass
+    * and store the trimmed string.
+    */
+   private static boolean isDynamic(String value) {
+      return value != null && (value.startsWith("$(") && value.endsWith(")") ||
+         value.startsWith("="));
+   }
+
+   private static String text(DynamicValueModel model) {
+      return model == null || model.getValue() == null ? null : model.getValue().toString().trim();
    }
 
    private static void setDynamic(DynamicValueModel target, String value) {
@@ -1548,7 +1855,10 @@ public class DateComparisonService {
             "This assembly's date comparison does not expose that setting.");
       }
 
-      target.setValue(value);
+      String trimmed = value == null ? null : value.trim();
+      target.setValue(trimmed);
+      target.setType(trimmed != null && trimmed.startsWith("=") ? DynamicValueModel.EXPRESSION :
+                        isDynamic(trimmed) ? DynamicValueModel.VARIABLE : DynamicValueModel.VALUE);
    }
 
    private static final Map<Integer, String> INTERVAL_NAMES = Map.of(
@@ -1584,6 +1894,13 @@ public class DateComparisonService {
 
    private static String granularityWord(int granularity) {
       return GRANULARITY_NAMES.getOrDefault(granularity, String.valueOf(granularity));
+   }
+
+   /** The context level is an {@code XConstants} group code; only year..week are offered. */
+   private static String contextLevelWord(int contextLevel) {
+      return contextLevel >= XConstants.WEEK_DATE_GROUP &&
+         contextLevel <= XConstants.YEAR_DATE_GROUP ? levelWord(contextLevel) :
+         String.valueOf(contextLevel);
    }
 
    // ── read normalization ────────────────────────────────────────────────────
@@ -1652,6 +1969,9 @@ public class DateComparisonService {
       out.put("level", describeCode(interval.getLevel(), DateComparisonService::intervalWord));
       out.put("granularity",
               describeCode(interval.getGranularity(), DateComparisonService::granularityWord));
+      out.put("contextLevel",
+              describeCode(interval.getContextLevel(),
+                          code -> code == DateComparisonInfo.ALL ? null : contextLevelWord(code)));
       out.put("endDayAsToDate", interval.isEndDayAsToDate());
       out.put("intervalEndDate",
               interval.isEndDayAsToDate() ? null : value(interval.getIntervalEndDate()));
