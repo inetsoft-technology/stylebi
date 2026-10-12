@@ -782,10 +782,28 @@ class VSEmailServiceCreateSandboxTest {
    /**
     * Whether /proc/self/fd lists this process's descriptors as symbolic links. On Windows,
     * "/proc/self/fd" resolves to a directory on the current drive, so a stray directory of
-    * that name is not enough (Bug #78370).
+    * that name is not enough (Bug #78370). Listing the directory opens a descriptor itself,
+    * so a real /proc/self/fd always has at least one link.
     */
    private static boolean hasProcFds() {
-      return Files.isSymbolicLink(Path.of("/proc/self/fd/0"));
+      Path fds = Path.of("/proc/self/fd");
+
+      if(!Files.isDirectory(fds)) {
+         return false;
+      }
+
+      try(DirectoryStream<Path> links = Files.newDirectoryStream(fds)) {
+         for(Path link : links) {
+            if(Files.isSymbolicLink(link)) {
+               return true;
+            }
+         }
+      }
+      catch(IOException ignore) {
+         // not a readable descriptor directory
+      }
+
+      return false;
    }
 
    /**
