@@ -2295,14 +2295,22 @@ public class ScheduleService {
       throws Exception
    {
       List<String> noPermissionPaths = new ArrayList<>();
+      List<String> allowedPaths = new ArrayList<>();
       boolean deleted = false;
 
+      // Bug #78321, check every selected path before deleting anything. Deleting a folder
+      // removes the permissions of its whole subtree, so a selected descendant checked after
+      // its ancestor was deleted would inherit nothing and be reported as unauthorized.
       for(String folderPath : model.taskNames()) {
-         if(!taskFolderService.checkFolderPermission(folderPath, principal, ResourceAction.DELETE)) {
-            noPermissionPaths.add(folderPath);
-            continue;
+         if(taskFolderService.checkFolderPermission(folderPath, principal, ResourceAction.DELETE)) {
+            allowedPaths.add(folderPath);
          }
+         else {
+            noPermissionPaths.add(folderPath);
+         }
+      }
 
+      for(String folderPath : allowedPaths) {
          AssetEntry taskEntry = taskFolderService.getFolderEntry(folderPath);
          String actionName = ActionRecord.ACTION_NAME_DELETE;
          String objectName = "Tasks/" + taskEntry.getPath();
