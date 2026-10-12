@@ -167,7 +167,7 @@ public class CalcFieldAgentService {
       List<String> rewrittenDependents = new ArrayList<>();
       List<String> aggregateWarnings = new ArrayList<>();
 
-      List<String> warnings =sessions.mutate(sessionToken, agent, (rvs, runtimeId, dispatcher) -> {
+      List<String> warnings = sessions.mutate(sessionToken, agent, (rvs, runtimeId, dispatcher) -> {
          BindableTable bindable = requireBindableTable(runtimeId, req.table(), agent);
          String tableName = bindable.name();
          boolean editing = !req.create();
@@ -280,32 +280,48 @@ public class CalcFieldAgentService {
    }
 
    /**
-    * Refuses an aggregate (baseOnDetail:false, non-SQL) expression containing a
-    * {@code field['…']} reference that is not shaped like an aggregate tag,
-    * {@code <FormulaName>(<args>)} -- the only shape {@link VSUtil#findAggregate} can ever detect
-    * (its tags come from {@link VSUtil#getAggregateString} and the aggregate-alias forms, all of
-    * which start with a formula name). An outer call such as {@code sum(field['X'])}, a bare
-    * {@code field['X']} (including another calc field's name) and the mixed
-    * {@code field['Sum(A)']/field['B']} are all refused.
+    * Refuses an aggregate (baseOnDetail:false, non-SQL) expression containing any {@code field}
+    * access other than a detectable aggregate tag. {@link VSUtil#findAggregate} only ever detects
+    * the literal text {@code field['<FormulaName>(<args>)']} (single quotes, no whitespace in the
+    * wrapper or before the parenthesis; see {@link VSUtil#getAggregateString} and the alias forms),
+    * and {@code CalcFieldFormula} rewrites exactly that text. Every other access -- an outer call
+    * such as {@code sum(field['X'])}, a bare {@code field['X']} (including another calc field's
+    * name), the mixed {@code field['Sum(A)']/field['B']}, {@code field["Sum(X)"]},
+    * {@code field[ 'Sum(X)' ]}, {@code field.X} or {@code field[expr]} -- is left raw and throws,
+    * since no {@code field} object exists in an aggregate calc field's script scope.
     */
    static void checkAggregateReferences(String name, String expression) {
-      List<String> bad = new ArrayList<>();
+      String text = expression == null ? "" : expression;
+      StringBuilder rest = new StringBuilder();
+      Matcher tag = AGGREGATE_TAG_REFERENCE.matcher(text);
+      int last = 0;
 
-      for(String[] ref : fieldReferences(expression)) {
-         if(!isAggregateTagShape(ref[1])) {
-            bad.add(ref[0]);
-         }
+      // Blank out the legal tags; whatever field access remains is refused.
+      while(tag.find()) {
+         rest.append(text, last, tag.start());
+         rest.append(isFormulaName(tag.group(2)) ? " " : tag.group());
+         last = tag.end();
+      }
+
+      rest.append(text.substring(last));
+      List<String> bad = new ArrayList<>();
+      Matcher access = FIELD_ACCESS.matcher(rest);
+
+      while(access.find()) {
+         bad.add(access.group());
       }
 
       if(!bad.isEmpty()) {
          throw new IllegalArgumentException(
             "Calc field '" + name + "' is an aggregate calc field (baseOnDetail:false), so every " +
-            "field['...'] reference in its expression must name an aggregate, written with the " +
-            "formula inside the quotes, e.g. field['Sum(Order:Discount)']. These references do " +
-            "not: " + String.join(", ", bad) + ". An outer call such as sum(field['X']) or a " +
-            "bare field['X'] is never computed in aggregate mode. Rewrite each as " +
-            "field['Sum(X)'] (or another aggregate, e.g. field['Average(X)']), or set " +
-            "baseOnDetail:true for a per-row calculation.");
+            "field reference in its expression must name an aggregate, spelled exactly like " +
+            "field['Sum(Order:Discount)']: single quotes, no spaces between field, [, the " +
+            "quote and the formula name, the formula name directly followed by '(', and ')' " +
+            "directly followed by the closing ']. These references are not: " +
+            String.join(", ", bad) + ". An outer call such as sum(field['X']), a bare " +
+            "field['X'], field.X, field[expr], or a double-quoted or spaced variant is never " +
+            "computed in aggregate mode. Rewrite each as field['Sum(X)'] (or another aggregate, " +
+            "e.g. field['Average(X)']), or set baseOnDetail:true for a per-row calculation.");
       }
    }
 
@@ -347,35 +363,34 @@ public class CalcFieldAgentService {
       return warnings;
    }
 
-   /** Every {@code field['…']} reference in {@code expression}: {whole reference, inner text}. */
+   /**
+    * Every detectable aggregate tag reference in {@code expression} (see
+    * {@link #checkAggregateReferences}): {whole reference, inner text}.
+    */
    private static List<String[]> fieldReferences(String expression) {
       List<String[]> refs = new ArrayList<>();
-      Matcher matcher = FIELD_REFERENCE.matcher(expression == null ? "" : expression);
+      Matcher matcher = AGGREGATE_TAG_REFERENCE.matcher(expression == null ? "" : expression);
 
       while(matcher.find()) {
-         refs.add(new String[] { matcher.group(), matcher.group(2) });
+         if(isFormulaName(matcher.group(2))) {
+            refs.add(new String[] { matcher.group(), matcher.group(1) });
+         }
       }
 
       return refs;
    }
 
-   private static boolean isAggregateTagShape(String inner) {
-      Matcher matcher = AGGREGATE_TAG.matcher(inner);
-
-      if(!matcher.matches()) {
-         return false;
-      }
-
-      String formula = matcher.group(1);
-
+   private static boolean isFormulaName(String formula) {
       return Arrays.stream(AggregateFormula.getFormulas())
          .anyMatch(f -> formula.equalsIgnoreCase(f.getFormulaName()));
    }
 
-   private static final Pattern FIELD_REFERENCE =
-      Pattern.compile("field\\s*\\[\\s*(['\"])(.*?)\\1\\s*\\]", Pattern.DOTALL);
-   private static final Pattern AGGREGATE_TAG =
-      Pattern.compile("\\s*([A-Za-z][A-Za-z0-9]*)\\s*\\(.*\\)\\s*", Pattern.DOTALL);
+   /** The only spelling detection can match: field['<Name>(<args>)']. */
+   private static final Pattern AGGREGATE_TAG_REFERENCE =
+      Pattern.compile("field\\['(([A-Za-z][A-Za-z0-9]*)\\([^']*\\))'\\]");
+   /** Any field access: field[...] (any key) or field.name. */
+   private static final Pattern FIELD_ACCESS =
+      Pattern.compile("\\bfield\\s*(?:\\[[^\\]]*\\]?|\\.\\s*[\\w$]*)");
 
    /**
     * Refuses a create/rename whose target name (case-insensitively) is held by another calc field

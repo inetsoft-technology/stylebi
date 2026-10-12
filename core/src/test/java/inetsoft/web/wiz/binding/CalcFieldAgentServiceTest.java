@@ -1035,4 +1035,53 @@ class CalcFieldAgentServiceTest {
          () -> CalcFieldAgentService.checkAggregateReferences("C", "field['Avg(X)']"));
       assertTrue(thrown.getMessage().contains("field['Avg(X)']"), thrown.getMessage());
    }
+
+   /**
+    * Review r1 (R1-1): detection only matches the literal field['Name(...)'] text, so a
+    * double-quoted or spaced variant can never be detected, whatever is bound. It is refused, not
+    * warned "bind Sum(X)" (binding would never help).
+    */
+   @Test
+   void refusesUndetectableSpellingsOfAWellFormedTagInsteadOfWarning() throws Exception {
+      for(String ref : List.of(
+         "field[\"Sum(Discount)\"]", "field[ 'Sum(Discount)' ]", "field['Sum (Discount)']",
+         "field['Sum(Discount) ']", "field ['Sum(Discount)']"))
+      {
+         CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "RateSpelled", null,
+            ref + "/field['Sum(Total)']", "double", false, false, false, true);
+
+         IllegalArgumentException thrown =
+            assertRefusedBeforeWrite(realVsWithAggregates("Discount", "Total"), req);
+         assertTrue(thrown.getMessage().contains("spelled exactly like"), thrown.getMessage());
+         assertFalse(thrown.getMessage().contains("not: field['Sum(Total)']"), thrown.getMessage());
+      }
+   }
+
+   /**
+    * Review r1 (R1-2): no field object exists in an aggregate calc field's script scope, so a dot
+    * or computed-key access throws just like a bare field['X'] and must be refused too.
+    */
+   @Test
+   void refusesDotAndComputedKeyFieldAccess() throws Exception {
+      for(String[] expressionAndBad : new String[][] {
+         { "sum(field.Discount)/sum(field.Total)", "field.Discount, field.Total" },
+         { "field[col] * 2", "field[col]" },
+         { "field['Sum(Discount)'] + field[0]", "field[0]" } })
+      {
+         CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "RateDot", null,
+            expressionAndBad[0], "double", false, false, false, true);
+
+         IllegalArgumentException thrown =
+            assertRefusedBeforeWrite(realVsWithAggregates("Discount", "Total"), req);
+         assertTrue(thrown.getMessage().contains("not: " + expressionAndBad[1] + "."),
+            thrown.getMessage());
+      }
+   }
+
+   /** A word boundary: an identifier that merely ends in "field" is not a field access. */
+   @Test
+   void anIdentifierEndingInFieldIsNotAFieldAccess() {
+      assertDoesNotThrow(() -> CalcFieldAgentService.checkAggregateReferences(
+         "C", "subfield['X'] + field['Sum(X)']"));
+   }
 }
