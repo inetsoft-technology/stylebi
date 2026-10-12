@@ -2070,17 +2070,17 @@ class ChartBindingMutatorTest {
    }
 
    @Test
-   void appendingADimensionAfterClearsACarriedTimeSeriesThatIsNowIllegal() {
+   void appendingADimensionAfterKeepsACarriedTimeSeriesPerIssue78214Tolerance() {
       ChartBindingModel model = xWithYearTimeSeries();
       ChartBindingMutator.setShelf(model, "x",
          List.of(dimensionWithTimeSeries("Order Date", "year", null),
                  dimensionWithTimeSeries("Region", null, null)));
 
-      assertFalse(xDim(model, 0).isTimeSeries(), "year is now an outer dimension");
+      assertTrue(xDim(model, 0).isTimeSeries(), "a carried true is kept even though year is now outer");
    }
 
    @Test
-   void swappingOrderClearsACarriedTimeSeriesThatIsNowIllegal() {
+   void swappingOrderKeepsACarriedTimeSeriesPerIssue78214Tolerance() {
       ChartBindingModel model = new ChartBindingModel();
       ChartBindingMutator.setShelf(model, "x",
          List.of(dimensionWithTimeSeries("Region", null, null),
@@ -2089,7 +2089,7 @@ class ChartBindingMutatorTest {
          List.of(dimensionWithTimeSeries("Order Date", "year", null),
                  dimensionWithTimeSeries("Region", null, null)));
 
-      assertFalse(xDim(model, 0).isTimeSeries());
+      assertTrue(xDim(model, 0).isTimeSeries());
    }
 
    @Test

@@ -137,8 +137,6 @@ public final class ChartBindingMutator {
 
       // Same pool for dimensions, matched by identity (column + date level), not by index.
       List<ChartDimensionRefModel> unconsumedDimensions = new ArrayList<>();
-      // Positions whose timeSeries came from the previous ref rather than from the caller.
-      Map<Integer, Boolean> carriedTimeSeries = new LinkedHashMap<>();
 
       for(ChartRefModel old : oldRefs) {
          if(old instanceof ChartAggregateRefModel aggregate) {
@@ -169,7 +167,6 @@ public final class ChartBindingMutator {
             if(previous != null) {
                unconsumedDimensions.remove(previous);
                preserveDimensionState(previous, dimension, field);
-               carriedTimeSeries.put(i, field.timeSeries() == null && previous.isTimeSeries());
             }
          }
 
@@ -212,15 +209,8 @@ public final class ChartBindingMutator {
 
          for(int i = 0; i < refs.size(); i++) {
             if(refs.get(i) instanceof ChartDimensionRefModel dimension) {
-               // A flag the caller never asked for is dropped, not stored, where the Composer
-               // would not honour it (the field moved to an outer position, etc.).
-               if(Boolean.TRUE.equals(carriedTimeSeries.get(i)) && dimension.isTimeSeries() &&
-                  ChartTimeSeriesGuard.unsupportedReason(model, place, name, i, dimension, false)
-                     != null)
-               {
-                  dimension.setTimeSeries(false);
-               }
-
+               // A stored true carried by a keyless resend is kept even where the dimension
+               // became outer (#78214's tolerance); only a new explicit true is refused here.
                ChartTimeSeriesGuard.require(model, place, name, i, dimension, fieldList.get(i),
                                             oldRefs);
             }
