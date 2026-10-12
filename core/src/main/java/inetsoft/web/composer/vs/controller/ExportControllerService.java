@@ -240,8 +240,20 @@ public class ExportControllerService {
       // reports in write() from these sandboxes' own table lenses. Never dispose rbox.get(),
       // which belongs to the runtime viewsheet.
       List<ViewsheetSandbox> createdBoxes = new ArrayList<>();
+      // Bug #78131: a PDF decides whether to use an inherited print layout over all states,
+      // so it needs every bookmark's sandbox before the current view is exported. Other
+      // formats keep creating each bookmark's sandbox after the previous state is exported.
+      boolean prepareStates = exporter.isPrepareStatesRequired();
+      List<ViewsheetSandbox> bookmarkBoxes = new ArrayList<>();
 
       try {
+         if(prepareStates) {
+            for(String bookmark : bookmarks) {
+               bookmarkBoxes.add(createBookmarkSandbox(rvs, bookmark, vmode, principal,
+                                                       rbox.get(), createdBoxes));
+            }
+         }
+
          if(current) {
             // Bug #76576: the live ViewsheetSandbox is mutated in place below (setViewsheet()
             // is not synchronized), so overlapping exports of the same runtime viewsheet can
@@ -297,6 +309,13 @@ public class ExportControllerService {
                      ((AbstractVSExporter) exporter).setRuntimeViewsheet(rvs);
                   }
 
+                  if(prepareStates) {
+                     List<ViewsheetSandbox> states = new ArrayList<>();
+                     states.add(exportBox);
+                     states.addAll(bookmarkBoxes);
+                     exporter.prepareStates(states);
+                  }
+
                   exporter.export(exportBox, catalog.getString("Current View"), new VSPortalHelper());
                }
                finally {
@@ -305,55 +324,14 @@ public class ExportControllerService {
                }
             }
          }
-
-         Catalog catalog = Catalog.getCatalog(principal);
+         else if(prepareStates) {
+            exporter.prepareStates(bookmarkBoxes);
+         }
 
          for(int i = 0; i < bookmarks.length; i++) {
-            String bookmark = bookmarks[i];
-
-            if(catalog.getString("(Home)").equals(bookmark)) {
-               bookmark = "(Home)";
-            }
-
-            rvs.getViewsheet().getRuntimeEntry().setProperty("keepAnnoVis", "true");
-            Viewsheet vs = rvs.getOriginalBookmark(bookmark, rvs.getEntry().getOrgID());
-            rvs.getViewsheet().getRuntimeEntry().setProperty("keepAnnoVis", null);
-            VSEventUtil.clearScale(vs);
-            ViewsheetSandbox sandbox = new ViewsheetSandbox(vs, vmode, principal, false, rvs.getEntry());
-            createdBoxes.add(sandbox);
-            AssetQuerySandbox abox = sandbox.getAssetQuerySandbox();
-
-            if(abox != null) {
-               abox.refreshVariableTable(rbox.get().getVariableTable());
-            }
-
-            // Clear input assembly variables from the sandbox variable table before reset.
-            // During reset, applyParameterToInput() reads from this table and would otherwise
-            // overwrite bookmark-restored assembly selections (checkbox, radio button, etc.)
-            VariableTable sandboxVars = sandbox.getVariableTable();
-
-            if(sandboxVars != null) {
-               for(Assembly assembly : vs.getAssemblies()) {
-                  if(assembly instanceof InputVSAssembly inputAssembly) {
-                     sandboxVars.remove(assembly.getName());
-                     String varKey = inputAssembly.getVariableTableKey();
-
-                     if(varKey != null) {
-                        sandboxVars.remove(varKey);
-                     }
-                  }
-               }
-            }
-
-            try {
-               sandbox.processOnInit();
-               sandbox.reset(null, vs.getAssemblies(),
-                             new ChangedAssemblyList(), true, true, null);
-            }
-            catch(Exception ex) {
-               LOG.error("Failed to execute onInit() and onLoad() scripts", ex);
-            }
-
+            ViewsheetSandbox sandbox = prepareStates ? bookmarkBoxes.get(i) :
+               createBookmarkSandbox(rvs, bookmarks[i], vmode, principal, rbox.get(),
+                                     createdBoxes);
             bookmarks[i] = Tool.replaceAll(bookmarks[i], ":", "-");
 
             if(exporter instanceof AbstractVSExporter) {
@@ -371,6 +349,63 @@ public class ExportControllerService {
             box.dispose();
          }
       }
+   }
+
+   /**
+    * Create the sandbox of a bookmark to export and add it to createdBoxes.
+    */
+   private ViewsheetSandbox createBookmarkSandbox(RuntimeViewsheet rvs, String bookmark,
+                                                  int vmode, Principal principal,
+                                                  ViewsheetSandbox rbox,
+                                                  List<ViewsheetSandbox> createdBoxes)
+      throws Exception
+   {
+      Catalog catalog = Catalog.getCatalog(principal);
+
+      if(catalog.getString("(Home)").equals(bookmark)) {
+         bookmark = "(Home)";
+      }
+
+      rvs.getViewsheet().getRuntimeEntry().setProperty("keepAnnoVis", "true");
+      Viewsheet vs = rvs.getOriginalBookmark(bookmark, rvs.getEntry().getOrgID());
+      rvs.getViewsheet().getRuntimeEntry().setProperty("keepAnnoVis", null);
+      VSEventUtil.clearScale(vs);
+      ViewsheetSandbox sandbox = new ViewsheetSandbox(vs, vmode, principal, false, rvs.getEntry());
+      createdBoxes.add(sandbox);
+      AssetQuerySandbox abox = sandbox.getAssetQuerySandbox();
+
+      if(abox != null) {
+         abox.refreshVariableTable(rbox.getVariableTable());
+      }
+
+      // Clear input assembly variables from the sandbox variable table before reset.
+      // During reset, applyParameterToInput() reads from this table and would otherwise
+      // overwrite bookmark-restored assembly selections (checkbox, radio button, etc.)
+      VariableTable sandboxVars = sandbox.getVariableTable();
+
+      if(sandboxVars != null) {
+         for(Assembly assembly : vs.getAssemblies()) {
+            if(assembly instanceof InputVSAssembly inputAssembly) {
+               sandboxVars.remove(assembly.getName());
+               String varKey = inputAssembly.getVariableTableKey();
+
+               if(varKey != null) {
+                  sandboxVars.remove(varKey);
+               }
+            }
+         }
+      }
+
+      try {
+         sandbox.processOnInit();
+         sandbox.reset(null, vs.getAssemblies(),
+                       new ChangedAssemblyList(), true, true, null);
+      }
+      catch(Exception ex) {
+         LOG.error("Failed to execute onInit() and onLoad() scripts", ex);
+      }
+
+      return sandbox;
    }
 
    private void writeSnapshotExport(RuntimeViewsheet rvs, OutputStream out) throws Exception {
