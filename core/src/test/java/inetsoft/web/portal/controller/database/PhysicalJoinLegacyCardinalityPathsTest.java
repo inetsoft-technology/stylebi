@@ -85,6 +85,9 @@ class PhysicalJoinLegacyCardinalityPathsTest {
       when(cache.remove(any())).thenAnswer(i -> store.remove(i.<String>getArgument(0)) != null);
       Cluster cluster = mock(Cluster.class);
       when(cluster.getCache(anyString(), anyBoolean(), any())).thenReturn((Cache) cache);
+      // RuntimePartitionService updates a runtime in a transaction
+      when(cluster.runInTransaction(org.mockito.ArgumentMatchers.anyLong(), any(), any()))
+         .thenAnswer(i -> i.<inetsoft.sree.internal.cluster.TransactionalAction<?, ?>>getArgument(2).run());
 
       runtimePartitionService = new RuntimePartitionService(cluster);
       runtimePartitionService.init();

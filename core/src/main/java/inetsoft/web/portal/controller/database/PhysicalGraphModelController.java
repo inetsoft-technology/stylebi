@@ -82,23 +82,32 @@ public class PhysicalGraphModelController {
       if(StringUtils.hasText(alias)) {
          RuntimePartitionService.RuntimeXPartition runtimePartition =
             this.runtimePartitionService.getRuntimePartition(runtimeId);
-         XPartition partition = runtimePartition.getPartition();
+         int aliasWidth = width;
 
-         Rectangle rectangle = partition.getRuntimeAliasTableBounds(alias);
-
-         if(rectangle != null ) {
-            Rectangle box = rectangle.getBounds();
-
-            if(box != null && box.width != width) {
-               box.width = width;
-               partition.setRuntimeAliasTableBounds(alias, box);
-               changed = true;
-               runtimePartitionService.saveRuntimePartition(runtimePartition);
-            }
+         // the width is sent for every node shown, only lock the runtime when it changes
+         if(setAliasWidth(runtimePartition.getPartition(), alias, aliasWidth)) {
+            changed = Boolean.TRUE.equals(runtimePartitionService.update(
+               runtimeId, rp -> setAliasWidth(rp.getPartition(), alias, aliasWidth)));
          }
       }
 
       return graphService.updateGraphNodeWidth(runtimeId, table, width) || changed;
+   }
+
+   private static boolean setAliasWidth(XPartition partition, String alias, int width) {
+      Rectangle rectangle = partition.getRuntimeAliasTableBounds(alias);
+
+      if(rectangle != null) {
+         Rectangle box = rectangle.getBounds();
+
+         if(box != null && box.width != width) {
+            box.width = width;
+            partition.setRuntimeAliasTableBounds(alias, box);
+            return true;
+         }
+      }
+
+      return false;
    }
 
    @Secured(@RequiredPermission(
@@ -116,6 +125,13 @@ public class PhysicalGraphModelController {
          runtimePartitionService.getRuntimePartition(event.getRuntimeID()), ds);
       XDataModel dataModel = physicalModelService.getDataModel(ds, physicalView);
       XPartition partition = this.runtimePartitionService.getPartition(event.getRuntimeID());
+      boolean autoJoin = event.getTableJoinInfo() != null &&
+         event.getTableJoinInfo().isAutoCreateColumnJoin();
+      Set<XRelationship> oldJoins = Collections.newSetFromMap(new IdentityHashMap<>());
+
+      if(autoJoin) {
+         oldJoins.addAll(Collections.list(partition.getRelationships()));
+      }
 
       PhysicalModelDefinition pmModel =
          physicalModelService.createModel(ds, dataModel, partition,
@@ -123,9 +139,27 @@ public class PhysicalGraphModelController {
 
       JoinGraphModel graphModel = JoinGraphModel.convertModel(pmModel, event, partition);
 
-      if(event.getTableJoinInfo() != null && event.getTableJoinInfo().isAutoCreateColumnJoin()) {
-         // partition may have been updated, need to save
-         runtimePartitionService.updatePartition(event.getRuntimeID(), partition);
+      if(autoJoin) {
+         // Bug #78428, the auto joins are created on a copy of the runtime from meta-data, add
+         // only them to the runtime
+         List<XRelationship> autoJoins = new ArrayList<>();
+         Collections.list(partition.getRelationships()).stream()
+            .filter(join -> !oldJoins.contains(join))
+            .forEach(autoJoins::add);
+
+         if(!autoJoins.isEmpty()) {
+            runtimePartitionService.update(event.getRuntimeID(), rp -> {
+               XPartition fresh = rp.getPartition();
+
+               for(XRelationship join : autoJoins) {
+                  if(!JoinGraphModel.joinExist(fresh, join)) {
+                     fresh.addRelationship(join);
+                  }
+               }
+
+               return null;
+            });
+         }
       }
 
       return graphModel;
@@ -167,10 +201,8 @@ public class PhysicalGraphModelController {
                                  @RequestParam("newRuntimeId") String newRuntimeId,
                                  @RequestParam(value="save", required = false) boolean save)
    {
-      if(save) {
-         RuntimePartitionService.RuntimeXPartition rp =
-            this.runtimePartitionService.getRuntimePartition(newRuntimeId);
-         XPartition partition = rp == null ? null : rp.getPartition();
+      this.runtimePartitionService.closeRuntimePartition(originRuntimeId, newRuntimeId, save, rp -> {
+         XPartition partition = rp.getPartition();
 
          // the pane keeps the auto-alias of a deleted join so that re-creating it keeps the
          // same alias, remove the ones that are not joined anymore
@@ -179,11 +211,8 @@ public class PhysicalGraphModelController {
             // tables joined in the pane (created or dragged) keep the alias the user chose,
             // don't restore the auto-aliases removed from them earlier
             rp.forgetJoinedRemovedIncomingJoins();
-            runtimePartitionService.saveRuntimePartition(rp);
          }
-      }
-
-      this.runtimePartitionService.closeRuntimePartition(originRuntimeId, newRuntimeId, save);
+      });
    }
 
    /**
@@ -206,35 +235,36 @@ public class PhysicalGraphModelController {
       String runtimeId = event.getRuntimeId();
       String tableName = event.getTable();
       String aliasName = event.getAlias();
+      Rectangle moved = rectangle;
 
-      RuntimePartitionService.RuntimeXPartition rp
-         = this.runtimePartitionService.getRuntimePartition(runtimeId);
-      XPartition partition = rp.getPartition();
-      Rectangle oldBounds = null;
+      runtimePartitionService.update(runtimeId, rp -> {
+         XPartition partition = rp.getPartition();
+         Rectangle oldBounds = null;
 
-      if(tableName != null) {
-         oldBounds = partition.getBounds(tableName);
-      }
-      else if(aliasName != null) {
-         oldBounds = partition.getRuntimeAliasTableBounds(aliasName);
-      }
+         if(tableName != null) {
+            oldBounds = partition.getBounds(tableName);
+         }
+         else if(aliasName != null) {
+            oldBounds = partition.getRuntimeAliasTableBounds(aliasName);
+         }
 
-      int width = oldBounds.width;
-      int height = oldBounds.height; // rectangle.height is default portal graph height
-      int x = (int) Math.round(rectangle.getX() / SCALE_X);
-      int y = (int) Math.round(rectangle.getY() / SCALE_Y);
+         int width = oldBounds.width;
+         int height = oldBounds.height; // rectangle.height is default portal graph height
+         int x = (int) Math.round(moved.getX() / SCALE_X);
+         int y = (int) Math.round(moved.getY() / SCALE_Y);
 
-      rectangle = new Rectangle(x, y, width, height);
+         Rectangle bounds = new Rectangle(x, y, width, height);
 
-      if(tableName != null) {
-         rp.setBounds(tableName, rectangle);
-      }
+         if(tableName != null) {
+            rp.setBounds(tableName, bounds);
+         }
 
-      if(!StringUtils.isEmpty(aliasName)) {
-         partition.setRuntimeAliasTableBounds(aliasName, rectangle);
-      }
+         if(!StringUtils.isEmpty(aliasName)) {
+            partition.setRuntimeAliasTableBounds(aliasName, bounds);
+         }
 
-      runtimePartitionService.saveRuntimePartition(rp);
+         return null;
+      });
    }
 
    @Secured(@RequiredPermission(
@@ -246,14 +276,17 @@ public class PhysicalGraphModelController {
    public void createJoin(@RequestBody TableDetailJoinInfo joinInfo) throws Exception {
       XPartition partition = this.runtimePartitionService.getPartition(joinInfo.getRuntimeId());
 
+      // Bug #78428, the default join reads meta-data, so it is made from a copy of the runtime
       XRelationship join = PhysicalModelService.createJoin(joinInfo.getSourceTable(),
          JoinGraphModel.makeDefaultJoin(joinInfo.getSourceTable(), joinInfo.getSourceColumn(),
             joinInfo.getTargetTable(), joinInfo.getTargetColumn(),
             physicalModelService.getMetaDataProvider(joinInfo.getRuntimeId()),
             partition));
 
-      partition.addRelationship(join);
-      runtimePartitionService.updatePartition(joinInfo.getRuntimeId(), partition);
+      runtimePartitionService.update(joinInfo.getRuntimeId(), rp -> {
+         rp.getPartition().addRelationship(join);
+         return null;
+      });
    }
 
    @Secured(@RequiredPermission(
@@ -263,13 +296,13 @@ public class PhysicalGraphModelController {
    ))
    @DeleteMapping("/api/data/physicalmodel/table/{runtimeId}")
    public void clearTable(@PathVariable("runtimeId") String runtimeId) {
-      RuntimePartitionService.RuntimeXPartition rp =
-         this.runtimePartitionService.getRuntimePartition(runtimeId);
-      XPartition partition = rp.getPartition();
-      partition.clearTable();
-      partition.clearRelationship();
-      rp.clearRemovedIncomingJoins();
-      runtimePartitionService.saveRuntimePartition(rp);
+      runtimePartitionService.update(runtimeId, rp -> {
+         XPartition partition = rp.getPartition();
+         partition.clearTable();
+         partition.clearRelationship();
+         rp.clearRemovedIncomingJoins();
+         return null;
+      });
    }
 
    @Secured(@RequiredPermission(
@@ -279,13 +312,13 @@ public class PhysicalGraphModelController {
    ))
    @DeleteMapping("/api/data/physicalmodel/join/{runtimeId}")
    public void clearJoin(@PathVariable("runtimeId") String runtimeId) {
-      RuntimePartitionService.RuntimeXPartition rp =
-         this.runtimePartitionService.getRuntimePartition(runtimeId);
-      XPartition partition = rp.getPartition();
-      partition.clearRelationship();
-      partition.removeAllAutoAliases();
-      rp.clearRemovedIncomingJoins();
-      runtimePartitionService.saveRuntimePartition(rp);
+      runtimePartitionService.update(runtimeId, rp -> {
+         XPartition partition = rp.getPartition();
+         partition.clearRelationship();
+         partition.removeAllAutoAliases();
+         rp.clearRemovedIncomingJoins();
+         return null;
+      });
    }
 
    @Secured(@RequiredPermission(
@@ -311,19 +344,24 @@ public class PhysicalGraphModelController {
    }
 
    private void deleteJoins(TableJoinInfo joinInfo, boolean removeAutoAlias) {
-      XPartition partition = this.runtimePartitionService.getPartition(joinInfo.getRuntimeId());
+      String sourceTable = joinInfo.getSourceTable();
+      String targetTable = joinInfo.getTargetTable();
 
-      // fix source and target table as design mode table.
-      XPartition applyAliasPartition = partition.applyAutoAliases();
-      joinInfo.setSourceTable(DatabaseModelUtil.getOutgoingAutoAliasSourceOrTable(
-         joinInfo.getSourceTable(), partition, applyAliasPartition));
-      joinInfo.setTargetTable(DatabaseModelUtil.getOutgoingAutoAliasSourceOrTable(
-         joinInfo.getTargetTable(), partition, applyAliasPartition));
+      runtimePartitionService.update(joinInfo.getRuntimeId(), rp -> {
+         XPartition partition = rp.getPartition();
 
-      List<XRelationship> joins = this.findJoin(partition, joinInfo);
+         // fix source and target table as design mode table.
+         XPartition applyAliasPartition = partition.applyAutoAliases();
+         joinInfo.setSourceTable(DatabaseModelUtil.getOutgoingAutoAliasSourceOrTable(
+            sourceTable, partition, applyAliasPartition));
+         joinInfo.setTargetTable(DatabaseModelUtil.getOutgoingAutoAliasSourceOrTable(
+            targetTable, partition, applyAliasPartition));
 
-      joins.forEach(join -> physicalModelManager.deleteJoin(partition, join, removeAutoAlias));
-      runtimePartitionService.updatePartition(joinInfo.getRuntimeId(), partition);
+         List<XRelationship> joins = this.findJoin(partition, joinInfo);
+
+         joins.forEach(join -> physicalModelManager.deleteJoin(partition, join, removeAutoAlias));
+         return null;
+      });
    }
 
    @Secured(@RequiredPermission(
@@ -337,8 +375,19 @@ public class PhysicalGraphModelController {
       XPartition.PartitionTable partitionTable = partition.getPartitionTable(table);
 
       if(partitionTable != null) {
+         // Bug #78428, delete the cached meta-data file before locking the runtime, the
+         // update then only removes the meta-data cached in the runtime
          partitionTable.removeMetaData();
-         runtimePartitionService.updatePartition(runtimeId, partition);
+
+         runtimePartitionService.update(runtimeId, rp -> {
+            XPartition.PartitionTable freshTable = rp.getPartition().getPartitionTable(table);
+
+            if(freshTable != null) {
+               freshTable.removeMetaData();
+            }
+
+            return null;
+         });
       }
    }
 
@@ -349,26 +398,26 @@ public class PhysicalGraphModelController {
    ))
    @PutMapping("/api/data/physicalmodel/join")
    public void editJoin(@RequestBody EditJoinEvent event) {
-      XPartition partition =
-         runtimePartitionService.getPartition(event.getDetailJoinInfo().getRuntimeId());
-      List<XRelationship> joins = findJoin(partition, event.getDetailJoinInfo());
+      runtimePartitionService.update(event.getDetailJoinInfo().getRuntimeId(), rp -> {
+         List<XRelationship> joins = findJoin(rp.getPartition(), event.getDetailJoinInfo());
 
-      if(joins.isEmpty()) {
-         return;
-      }
+         if(joins.isEmpty()) {
+            return null;
+         }
 
-      XRelationship join = joins.getFirst();
-      int dependentCardinality = join.getDependentCardinality();
-      int independentCardinality = join.getIndependentCardinality();
-      event.getJoinModel().store(join.getDependentTable(), join);
+         XRelationship join = joins.getFirst();
+         int dependentCardinality = join.getDependentCardinality();
+         int independentCardinality = join.getIndependentCardinality();
+         event.getJoinModel().store(join.getDependentTable(), join);
 
-      // a legacy join without a stored cardinality (0/0) is sent as null, keep it as is
-      if(event.getJoinModel().getCardinality() == null) {
-         join.setDependentCardinality(dependentCardinality);
-         join.setIndependentCardinality(independentCardinality);
-      }
+         // a legacy join without a stored cardinality (0/0) is sent as null, keep it as is
+         if(event.getJoinModel().getCardinality() == null) {
+            join.setDependentCardinality(dependentCardinality);
+            join.setIndependentCardinality(independentCardinality);
+         }
 
-      runtimePartitionService.updatePartition(event.getDetailJoinInfo().getRuntimeId(), partition);
+         return null;
+      });
    }
 
    @Secured(@RequiredPermission(

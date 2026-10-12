@@ -27,6 +27,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.awt.*;
+import java.util.ArrayList;
+import java.util.List;
 
 @Component
 public class PhysicalGraphModelService {
@@ -41,17 +43,15 @@ public class PhysicalGraphModelService {
    }
 
    public void updateGraphPaneSize(String runtimeId, int width, int height) {
-      RuntimePartitionService.RuntimeXPartition runtimePartition =
-         this.partitionService.getRuntimePartition(runtimeId);
+      Boolean updated = partitionService.update(runtimeId, runtimePartition -> {
+         runtimePartition.setGraphWidth(width);
+         runtimePartition.setGraphHeight(height);
+         return Boolean.TRUE;
+      });
 
-      if(runtimePartition == null) {
+      if(updated == null) {
          LOG.info("Runtime partition is null for {}!", runtimeId);
-         return;
       }
-
-      runtimePartition.setGraphWidth(width);
-      runtimePartition.setGraphHeight(height);
-      partitionService.saveRuntimePartition(runtimePartition);
    }
 
    public boolean updateGraphNodeWidth(String runtimeId, String table, int width) {
@@ -64,7 +64,19 @@ public class PhysicalGraphModelService {
          return false;
       }
 
-      XPartition partition = runtimePartition.getPartition();
+      // the width is sent for every node shown, only lock the runtime when it changes
+      if(!setGraphNodeWidth(runtimePartition, table, width)) {
+         return false;
+      }
+
+      return Boolean.TRUE.equals(
+         partitionService.update(runtimeId, rp -> setGraphNodeWidth(rp, table, width)));
+   }
+
+   private static boolean setGraphNodeWidth(RuntimePartitionService.RuntimeXPartition runtime,
+                                            String table, int width)
+   {
+      XPartition partition = runtime.getPartition();
       // only self node.
       XPartition.PartitionTable partitionTable = partition.getPartitionTable(table, true);
 
@@ -73,15 +85,13 @@ public class PhysicalGraphModelService {
       }
 
       Rectangle bounds = partition.getBounds(partitionTable);
-      boolean changed = false;
 
       if(bounds.width != width) {
          bounds.width = width;
-         partitionService.saveRuntimePartition(runtimePartition);
-         changed = true;
+         return true;
       }
 
-      return changed;
+      return false;
    }
 
    public void layoutPhysicalModel(String runtimeId, String dataSource, String modelName)
@@ -95,6 +105,8 @@ public class PhysicalGraphModelService {
       throws Exception
    {
       XDataModel dataModel = modelService.getDataModel(dataSource, modelName);
+      // Bug #78428, the layout reads meta-data, so it is computed on a copy of the runtime,
+      // and only the bounds it sets are applied to the runtime
       RuntimePartitionService.RuntimeXPartition rPartition
          = this.partitionService.getRuntimePartition(runtimeId);
       RuntimePartitionService.checkDataSource(rPartition, dataSource);
@@ -107,15 +119,54 @@ public class PhysicalGraphModelService {
          = JoinGraphModel.convertModel(pmModel, null, partition, true);
 
       GraphViewModel graphModel = physicalGraphModel.getGraphViewModel();
-      new PhysicalGraphLayout(graphModel, rPartition, colPriority).layout();
-      this.partitionService.saveRuntimePartition(rPartition);
+      List<LayoutBounds> layout = new ArrayList<>();
+
+      new PhysicalGraphLayout(graphModel, rPartition, colPriority) {
+         @Override
+         public void setBounds(String name, Rectangle bounds, boolean runtime) {
+            super.setBounds(name, bounds, runtime);
+            layout.add(new LayoutBounds(name, bounds.getBounds(), runtime));
+         }
+      }.layout();
+
+      partitionService.update(runtimeId, rp -> {
+         XPartition fresh = rp.getPartition();
+
+         for(LayoutBounds bounds : layout) {
+            // skip a table removed meanwhile
+            if(bounds.runtime() && fresh.getRuntimeAliasTableBounds(bounds.name()) != null ||
+               fresh.getPartitionTable(bounds.name()) != null)
+            {
+               rp.setBounds(bounds.name(), bounds.bounds().getBounds(), bounds.runtime());
+            }
+         }
+
+         return null;
+      });
    }
 
    public void createAlias(String runtimeId, String table, String alias) throws Exception {
+      // Bug #78428, fixing the bounds reads meta-data, so they are computed on a copy of the
+      // runtime, and the alias is then added to the runtime with them
       RuntimePartitionService.RuntimeXPartition runtimePartition =
          this.partitionService.getRuntimePartition(runtimeId);
-
       XPartition partition = runtimePartition.getPartition();
+      addAliasTable(partition, table, alias);
+      Rectangle bounds = modelService.fixTableBounds(runtimeId, partition, alias);
+
+      partitionService.update(runtimeId, rp -> {
+         XPartition fresh = rp.getPartition();
+         addAliasTable(fresh, table, alias);
+
+         if(bounds != null && fresh.getPartitionTable(alias) != null) {
+            fresh.setBounds(alias, bounds.getBounds());
+         }
+
+         return null;
+      });
+   }
+
+   private static void addAliasTable(XPartition partition, String table, String alias) {
       String sourceTable = DatabaseModelUtil.getOutgoingAutoAliasSource(table, partition);
       XPartition.PartitionTable temp = partition.getPartitionTable(sourceTable);
 
@@ -131,16 +182,19 @@ public class PhysicalGraphModelService {
       }
 
       partition.setAliasTable(alias, sourceTable);
-      runtimePartition.setPartition(partition);
-      modelService.fixTableBounds(runtimeId, partition, alias);
-      partitionService.saveRuntimePartition(runtimePartition);
    }
 
    public void editAlias(String alias, String oldAlias, String runtimeId) {
-      RuntimePartitionService.RuntimeXPartition runtimePartition =
-         this.partitionService.getRuntimePartition(runtimeId);
-      managerService.editAlias(alias, oldAlias, runtimePartition);
-      partitionService.saveRuntimePartition(runtimePartition);
+      partitionService.update(runtimeId, runtimePartition -> {
+         managerService.editAlias(alias, oldAlias, runtimePartition);
+         return null;
+      });
+   }
+
+   /**
+    * The bounds of a table set by an auto layout.
+    */
+   private record LayoutBounds(String name, Rectangle bounds, boolean runtime) {
    }
 
    private final RuntimePartitionService partitionService;

@@ -255,7 +255,7 @@ class ModelEditorPermissionTest {
 
       assertDenied(() -> graph.layoutPhysicalModel("rt", OTHER_DS, VIEW, false));
       verify(physical, never()).createModel(any(), any(), any(), anyBoolean());
-      verify(runtimes, never()).saveRuntimePartition(any());
+      verify(runtimes, never()).update(any(), any());
    }
 
    @Test

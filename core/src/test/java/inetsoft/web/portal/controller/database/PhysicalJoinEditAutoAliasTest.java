@@ -58,6 +58,9 @@ class PhysicalJoinEditAutoAliasTest {
       when(cache.remove(any())).thenAnswer(i -> store.remove(i.<String>getArgument(0)) != null);
       Cluster cluster = mock(Cluster.class);
       when(cluster.getCache(anyString(), anyBoolean(), any())).thenReturn((Cache) cache);
+      // RuntimePartitionService updates a runtime in a transaction
+      when(cluster.runInTransaction(org.mockito.ArgumentMatchers.anyLong(), any(), any()))
+         .thenAnswer(i -> i.<inetsoft.sree.internal.cluster.TransactionalAction<?, ?>>getArgument(2).run());
 
       runtimePartitionService = new RuntimePartitionService(cluster);
       runtimePartitionService.init();
@@ -251,9 +254,10 @@ class PhysicalJoinEditAutoAliasTest {
 
    /** What PhysicalGraphModelController.createJoin does to the partition. */
    private void recreate(String runtimeId, String src, String srcCol, String tgt, String tgtCol) {
-      XPartition partition = partition(runtimeId);
-      partition.addRelationship(new XRelationship(src, srcCol, tgt, tgtCol, "="));
-      runtimePartitionService.updatePartition(runtimeId, partition);
+      runtimePartitionService.update(runtimeId, rp -> {
+         rp.getPartition().addRelationship(new XRelationship(src, srcCol, tgt, tgtCol, "="));
+         return null;
+      });
    }
 
    private static TableDetailJoinInfo detail(String runtimeId, String src, String srcCol,
