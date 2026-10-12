@@ -1175,12 +1175,36 @@ public class ChartRegionPropertyService {
       Map<String, Object> normalized = new LinkedHashMap<>();
 
       for(Map.Entry<String, Object> entry : properties.entrySet()) {
-         String key = entry.getKey();
+         String key = lowerSegmentInitials(entry.getKey());
          String canonical = key != null ? reverse.get(key) : null;
          normalized.put(canonical != null ? canonical : key, entry.getValue());
       }
 
       return normalized;
+   }
+
+   /**
+    * PropertyPath resolves each segment through {@code get/set + capitalize(segment)}, so the
+    * first letter of every segment is case-insensitive there. Lowering it here gives every keyed
+    * guard one canonical spelling of a raw path (bug #77027 item 3); only the first character is
+    * touched, as the remaining characters are matched exactly by PropertyPath.
+    */
+   private static String lowerSegmentInitials(String key) {
+      if(key == null || key.indexOf('.') < 0) {
+         return key;
+      }
+
+      String[] segments = key.split("\\.", -1);
+
+      for(int i = 0; i < segments.length; i++) {
+         String segment = segments[i];
+
+         if(!segment.isEmpty()) {
+            segments[i] = Character.toLowerCase(segment.charAt(0)) + segment.substring(1);
+         }
+      }
+
+      return String.join(".", segments);
    }
 
    /** Old legend property names renamed for clarity (bug #77027 items 4/5) -- kept only so a

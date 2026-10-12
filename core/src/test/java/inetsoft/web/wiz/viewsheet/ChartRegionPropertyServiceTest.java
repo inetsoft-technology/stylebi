@@ -29,6 +29,8 @@ import inetsoft.web.graph.handler.ChartRegionHandler;
 import inetsoft.web.graph.model.dialog.*;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 
 import java.security.Principal;
@@ -2197,6 +2199,78 @@ class ChartRegionPropertyServiceTest {
       TitleDescriptor titleDescriptor = mock(TitleDescriptor.class);
       when(titleDescriptor.isVisible()).thenReturn(!hidden);
       return titleDescriptor;
+   }
+
+   /**
+    * Bug #77027 item 3: a raw path whose segments start with a capital letter resolves to the same
+    * accessor in PropertyPath, but used to miss the alias bridge and so every keyed guard.
+    */
+   @ParameterizedTest
+   @ValueSource(strings = {
+      "AxisLinePaneModel.Minimum", "axisLinePaneModel.Minimum", "AxisLinePaneModel.Increment",
+      "AxisLinePaneModel.LogarithmicScale" })
+   void refusesCapitalizedLinearOnlyRawPathsOnADimensionAxis(String path) {
+      Harness h = harness();
+
+      assertThrows(IllegalArgumentException.class,
+                   () -> h.service.set("tok", principal(), "Chart1", "axis", "x", null,
+                                       Map.of(path, "5"), ""));
+
+      verifyNoInteractions(h.regions);
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "30", "auto" })
+   void refusesCapitalizedRawTitleRotationPath(String value) {
+      Harness h = harness();
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "title", "y", null,
+                             Map.of("TitleFormatPaneModel.RotationRadioGroupModel.Rotation", value),
+                             ""));
+
+      assertTrue(thrown.getMessage().contains("rotation"));
+      verifyNoInteractions(h.regions);
+   }
+
+   @Test
+   void refusesCapitalizedRawLegendSymbolSizeAndPosition() throws Exception {
+      Harness h = harness();
+      when(h.regions.getLegendFormatDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(Principal.class)))
+         .thenReturn(legendModel());
+
+      assertThrows(IllegalArgumentException.class,
+                   () -> h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                                       Map.of("LegendFormatGeneralPaneModel.SymbolSize", 200), ""));
+      assertThrows(IllegalArgumentException.class,
+                   () -> h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                                       Map.of("LegendFormatGeneralPaneModel.Position", "bogus"),
+                                       ""));
+
+      verify(h.regions, never()).setLegendFormatDialogModel(anyString(), anyString(), anyInt(),
+                                                            any(), anyString(),
+                                                            any(Principal.class), any());
+   }
+
+   @Test
+   void writesCapitalizedRawAxisRotationCanonically() throws Exception {
+      Harness h = harness();
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(axisModel());
+
+      h.service.set("tok", principal(), "Chart1", "axis", "y", null,
+                    Map.of("AxisLabelPaneModel.RotationRadioGroupModel.Rotation", "45"), "");
+
+      ArgumentCaptor<AxisPropertyDialogModel> captor =
+         ArgumentCaptor.forClass(AxisPropertyDialogModel.class);
+      verify(h.regions).setAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyInt(),
+                                                   any(), captor.capture(), anyString(),
+                                                   any(Principal.class), any());
+      assertEquals("45", captor.getValue().getAxisLabelPaneModel().getRotationRadioGroupModel()
+                      .getRotation());
    }
 
    private static Principal principal() {
