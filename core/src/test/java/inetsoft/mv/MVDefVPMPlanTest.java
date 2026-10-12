@@ -17,8 +17,11 @@
  */
 package inetsoft.mv;
 
+import inetsoft.sree.SreeEnv;
+import inetsoft.sree.UserEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.SRPrincipal;
 import inetsoft.test.*;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.XPrincipal;
@@ -31,6 +34,8 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.*;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.storage.BlobStorageManager;
+import inetsoft.util.Catalog;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.util.Plugins;
 import inetsoft.util.ThreadContext;
 import inetsoft.util.credential.CredentialService;
@@ -149,15 +154,111 @@ class MVDefVPMPlanTest {
       assertNull(viewer.getProperty(SUtil.VPM_USER));
    }
 
+   // the UserEnv catalog getter, installed JVM-wide by an in-process (cloud) scheduler, takes
+   // the locale from the principal rather than the thread
+   @Test
+   void principalLocaleDoesNotMatterWithUserCatalog() throws Exception {
+      withUserCatalog(() -> {
+         SRPrincipal buildUser = principal(XPrincipal.SYSTEM, Locale.FRENCH);
+         MVDef def = def(new DefaultIdentity(new IdentityID(XPrincipal.SYSTEM, ORG),
+                                             Identity.USER)
+         {
+            @Override
+            public XPrincipal create() {
+               return buildUser;
+            }
+         });
+         SRPrincipal viewer = principal("b78390u", Locale.GERMAN);
+         ThreadContext.setContextPrincipal(viewer);
+
+         String build = def.getBuildPlan();
+
+         // the localized text is used, so the plans would differ in the users' own locales
+         assertTrue(def.isPlanEqual(viewer, build), build);
+         assertTrue(Catalog.getCatalog(viewer).getString("common.queryMergeOK")
+                       .startsWith("[de]"));
+         // the principals and the thread are not changed
+         assertEquals(Locale.FRENCH, buildUser.getLocale());
+         assertEquals(Locale.GERMAN, viewer.getLocale());
+         assertSame(viewer, ThreadContext.getContextPrincipal());
+      });
+   }
+
+   // without a build user, the UserEnv catalog getter takes the locale from the context
+   // principal, which is the viewer
+   @Test
+   void contextLocaleDoesNotMatterWithUserCatalog() throws Exception {
+      withUserCatalog(() -> {
+         MVDef def = def((Identity[]) null);
+         SRPrincipal viewer = principal("b78390u", Locale.GERMAN);
+         SRPrincipal viewer2 = principal("b78390v", Locale.FRENCH);
+
+         ThreadContext.setContextPrincipal(viewer);
+         String build = def.getBuildPlan();
+         ThreadContext.setContextPrincipal(viewer2);
+
+         assertTrue(def.isPlanEqual(viewer2, build), build);
+         assertEquals(Locale.GERMAN, viewer.getLocale());
+         assertSame(viewer2, ThreadContext.getContextPrincipal());
+
+         ThreadContext.setContextPrincipal(null);
+         assertTrue(def.isPlanEqual(viewer2, build), build);
+         assertNull(ThreadContext.getContextPrincipal());
+      });
+   }
+
+   private static void withUserCatalog(ThrowingRunnable test) throws Exception {
+      String key = Catalog.class.getName() + ".catalogGetter";
+      Object getter = ConfigurationContext.getContext().put(key, UserEnv.getCatalogGetter());
+      String resource = SreeEnv.getProperty(CATALOG_RESOURCE);
+      String viewerLocale = SreeEnv.getProperty(VIEWER_LOCALE);
+      SreeEnv.setProperty(CATALOG_RESOURCE, "inetsoft/mv/b78390catalog");
+      SreeEnv.setProperty(VIEWER_LOCALE, "en_US");
+
+      try {
+         test.run();
+      }
+      finally {
+         if(getter == null) {
+            ConfigurationContext.getContext().remove(key);
+         }
+         else {
+            ConfigurationContext.getContext().put(key, getter);
+         }
+
+         restoreProperty(CATALOG_RESOURCE, resource);
+         restoreProperty(VIEWER_LOCALE, viewerLocale);
+      }
+   }
+
+   private static void restoreProperty(String name, String value) {
+      if(value == null) {
+         SreeEnv.remove(name);
+      }
+      else {
+         SreeEnv.setProperty(name, value);
+      }
+   }
+
+   private static SRPrincipal principal(String name, Locale locale) {
+      SRPrincipal user = new SRPrincipal(new IdentityID(name, ORG), new IdentityID[0],
+                                         new String[0], ORG, 0L);
+      user.setLocale(locale);
+      return user;
+   }
+
    private static MVDef def() throws Exception {
+      return def(new DefaultIdentity(new IdentityID(XPrincipal.SYSTEM, ORG), Identity.USER));
+   }
+
+   private static MVDef def(Identity... users) throws Exception {
       Worksheet ws = new Worksheet();
       sqlTable(ws);
 
       MVDef def = spy(new MVDef());
       set(def, "tname", TABLE);
       set(def, "wsId", "1^2^__NULL__^ws1^" + ORG);
-      def.setUsers(new Identity[] {
-         new DefaultIdentity(new IdentityID(XPrincipal.SYSTEM, ORG), Identity.USER) });
+      def.setUsers(users);
       MVMetaData data = new MVMetaData();
       data.setBypassVPM(false);
       doReturn(data).when(def).getMetaData();
@@ -212,6 +313,13 @@ class MVDefVPMPlanTest {
       field.set(target, value);
    }
 
+   @FunctionalInterface
+   private interface ThrowingRunnable {
+      void run() throws Exception;
+   }
+
+   private static final String CATALOG_RESOURCE = "StyleReport.locale.resource";
+   private static final String VIEWER_LOCALE = "viewer.locale";
    private Principal oldPrincipal;
    private Principal oldContextPrincipal;
    private Locale oldLocale;

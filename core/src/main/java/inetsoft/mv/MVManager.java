@@ -878,8 +878,9 @@ public final class MVManager implements MessageListener {
       String buildPlan = getBuildPlan(def, mvKey, cacheable);
       boolean compatible = def.isPlanEqual(user, buildPlan);
 
+      // expected for every VPM-restricted user, so not logged at info level
       if(!compatible) {
-         LOG.info("Materialized view {} is not used for user {}, the VPM gives the user " +
+         LOG.debug("Materialized view {} is not used for user {}, the VPM gives the user " +
                      "a different query than the identity the view is built for",
                   def.getName(), user == null ? null : user.getName());
       }
@@ -912,6 +913,13 @@ public final class MVManager implements MessageListener {
          plan0 = def.getBuildPlan();
       }
       catch(Throwable ex) {
+         // the failure isn't cached, so only report it once per view until the next change
+         if(BUILD_PLAN_FAILURES.put(mvKey, Boolean.TRUE) == null) {
+            LOG.info("Materialized view {} is not used for any other identity than it is " +
+                        "built for, failed to create its sql plan: {}", def.getName(),
+                     ex.toString());
+         }
+
          LOG.debug("Failed to create sql plan for materialized view {}", def.getName(), ex);
          return null;
       }
@@ -978,6 +986,7 @@ public final class MVManager implements MessageListener {
       VPM_GENERATION.incrementAndGet();
       VPM_CHECKS.clear();
       BUILD_PLANS.clear();
+      BUILD_PLAN_FAILURES.clear();
    }
 
    /**
@@ -1887,6 +1896,13 @@ public final class MVManager implements MessageListener {
       new LinkedHashMap<>(16, 0.75f, true) {
          @Override
          protected boolean removeEldestEntry(Map.Entry<String, BuildPlan> eldest) {
+            return size() > BUILD_PLAN_MAX;
+         }
+      });
+   private static final Map<String, Boolean> BUILD_PLAN_FAILURES = Collections.synchronizedMap(
+      new LinkedHashMap<>(16, 0.75f, true) {
+         @Override
+         protected boolean removeEldestEntry(Map.Entry<String, Boolean> eldest) {
             return size() > BUILD_PLAN_MAX;
          }
       });

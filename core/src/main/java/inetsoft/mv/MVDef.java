@@ -25,8 +25,10 @@ import inetsoft.mv.trans.*;
 import inetsoft.report.composition.QueryTreeModel.QueryNode;
 import inetsoft.report.composition.WorksheetWrapper;
 import inetsoft.report.composition.execution.*;
+import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.OrganizationManager;
+import inetsoft.sree.security.SRPrincipal;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.*;
@@ -48,6 +50,7 @@ import java.io.*;
 import java.lang.ref.SoftReference;
 import java.nio.ByteBuffer;
 import java.nio.channels.*;
+import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
@@ -2188,12 +2191,12 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
     * also changes with the locale, an upgrade, or a model change.
     */
    public String getBuildPlan() throws Exception {
-      return getVPMPlan(users == null || users.length == 0 ? null : users[0].create());
+      return getUserPlan(users == null || users.length == 0 ? null : users[0].create());
    }
 
    /**
     * Get the VPM-aware query plan of the specified user. The user is copied since the
-    * query sandbox modifies its VPM user.
+    * query sandbox modifies its VPM user and the plan pins its locale.
     */
    String getUserPlan(XPrincipal user) throws Exception {
       XPrincipal user0 = user == null ? null : (XPrincipal) user.clone();
@@ -2208,17 +2211,69 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
    /**
     * Get the query plan for the specified user, the same flavour as stored in the MV meta
     * data. The plan contains localized text, so it's always built in the same locale to
-    * compare the plans of different users.
+    * compare the plans of different users. The locale of the catalog comes from the thread
+    * with the default catalog getter, but from the principal (or the context principal for
+    * a null user) with the UserEnv getter, so it is pinned on all of them. The user must be
+    * a private copy, it's modified.
     */
    String getVPMPlan(XPrincipal user) throws Exception {
-      Locale locale = ThreadContext.getLocale();
-      ThreadContext.setLocale(Locale.ROOT);
+      Locale locale = getPlanLocale();
+      Locale olocale = ThreadContext.getLocale();
+      Thread thread = Thread.currentThread();
+      GroupedThread gthread = thread instanceof GroupedThread &&
+         ((GroupedThread) thread).getPrincipal() != null ? (GroupedThread) thread : null;
+      Principal ocontext = gthread != null ? gthread.getPrincipal() : ThreadContext.getPrincipal();
+      Principal context = ocontext;
+
+      if(user instanceof SRPrincipal) {
+         ((SRPrincipal) user).setLocale(locale);
+      }
+
+      // don't change the locale of the live context principal
+      if(ocontext instanceof SRPrincipal) {
+         context = (Principal) ((SRPrincipal) ocontext).clone();
+
+         if(context == null) {
+            throw new Exception("Failed to copy user " + ocontext);
+         }
+
+         ((SRPrincipal) context).setLocale(locale);
+      }
+
+      ThreadContext.setLocale(locale);
+      setContextPrincipal(gthread, context, ocontext);
 
       try {
          return getPlan(true, user);
       }
       finally {
-         ThreadContext.setLocale(locale);
+         ThreadContext.setLocale(olocale);
+         setContextPrincipal(gthread, ocontext, context);
+      }
+   }
+
+   /**
+    * Get the locale a catalog lookup without a principal locale falls back to, so a principal
+    * that can't hold a locale gives the same plan as a pinned one.
+    */
+   private static Locale getPlanLocale() {
+      String locstr = SreeEnv.getProperty("viewer.locale");
+      Locale locale = locstr == null ? null : Catalog.parseLocale(locstr);
+      return locale == null ? Locale.getDefault() : locale;
+   }
+
+   private static void setContextPrincipal(GroupedThread gthread, Principal principal,
+                                           Principal current)
+   {
+      if(principal == current) {
+         return;
+      }
+
+      if(gthread != null) {
+         gthread.setPrincipal(principal);
+      }
+      else {
+         ThreadContext.setPrincipal(principal);
       }
    }
 
