@@ -21,6 +21,7 @@ import inetsoft.report.internal.binding.OrderInfo;
 import inetsoft.report.script.formula.FormulaFunctions;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
+import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
@@ -33,6 +34,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.lang.reflect.Method;
 import java.sql.Timestamp;
 import java.util.*;
 
@@ -106,16 +108,73 @@ class LegacyBuddhistManualOrderTest {
    @ValueSource(booleans = { true, false })
    void namedGroupNamesUnchanged(boolean on) {
       SreeEnv.setProperty(COMPAT_PROPERTY, String.valueOf(on));
-      OrderInfo order = manualOrder(
-         List.of("2567 Target", "2568-01-01 00:00:00", "2569 Others"), XConstants.YEAR_DATE_GROUP);
-      SNamedGroupInfo groups = new SNamedGroupInfo();
-      groups.addGroupName("2567 Target");
-      order.setNamedGroupInfo(groups);
-      order.setOtherLabel("2569 Others");
+      OrderInfo order = namedGroupOrder();
 
+      assertTrue(createOption(XSchema.DATE, order).contains(
+         "manualvalues=2567 Target;" + (on ? "2025" : "2568") + "-01-01 00^_^00^_^00;2569 Others"));
+   }
+
+   // the crosstab optimized calc table expression has its own manualvalues option
+   @ParameterizedTest
+   @ValueSource(booleans = { true, false })
+   void crosstabManualOrder(boolean on) throws Exception {
+      SreeEnv.setProperty(COMPAT_PROPERTY, String.valueOf(on));
+      OrderInfo order = manualOrder(List.of(
+         "2569-01-01 00:00:00", "2567-01-01 00:00:00", "2568-01-01 00:00:00"),
+         XConstants.YEAR_DATE_GROUP);
+      TableCellBinding cell = new TableCellBinding(CellBinding.BIND_COLUMN, "col");
+      cell.setBType(TableCellBinding.GROUP);
+      cell.setOrderInfo(order);
+      GroupRef group = group(XSchema.DATE, order);
+
+      Method method = LayoutTool.class.getDeclaredMethod(
+         "createCrosstabCalcExpression", TableLens.class, List.class, CalcGroup[].class,
+         String[].class, TableCellBinding.class, String.class, boolean.class, boolean.class);
+      method.setAccessible(true);
+      String exp = (String) method.invoke(null, null, List.of(cell), new CalcGroup[] { group },
+                                          new String[] { "col" }, cell, "data", true, false);
+      Object[] years = (Object[]) FormulaFunctions.toList(new Object[] {
+         new Date(date(2024, 1, 1)), new Date(date(2025, 1, 1)), new Date(date(2026, 1, 1)) },
+         option(exp));
+
+      assertEquals(on ? List.of(2026, 2024, 2025) : List.of(2024, 2025, 2026), years(years));
+   }
+
+   // the manual order sent to the client with a cell binding (VSTableLayoutService) and given
+   // to the manual order dialog values (VSDataService) takes the type of the source column
+   @ParameterizedTest
+   @ValueSource(booleans = { true, false })
+   void cellManualOrder(boolean on) {
+      SreeEnv.setProperty(COMPAT_PROPERTY, String.valueOf(on));
+      OrderInfo order = namedGroupOrder();
+      ColumnSelection columns = new ColumnSelection();
+      columns.addAttribute(column("date", XSchema.DATE));
+      columns.addAttribute(column("text", XSchema.STRING));
+      List<String> manual = order.getManualOrder();
+
+      List<String> result = LayoutTool.getGregorianManualOrder(
+         order, columns, "date", XConstants.YEAR_DATE_GROUP);
       assertEquals(List.of("2567 Target", on ? "2025-01-01 00:00:00" : "2568-01-01 00:00:00",
-                           "2569 Others"),
-                   LayoutTool.getGregorianManualOrder(order, true));
+                           "2569 Others"), result);
+      assertSame(manual, order.getManualOrder());
+
+      // the client sorts the dialog values (Gregorian) by the cell's manual order, as
+      // calc-group-option.component.ts getSortedManualOrders() does, a value not in the
+      // manual order would be moved before the named group
+      List<String> dialog = new ArrayList<>(List.of("2567 Target", "2025-01-01 00:00:00"));
+      dialog.sort(Comparator.comparingInt(result::indexOf));
+      assertEquals(on ? List.of("2567 Target", "2025-01-01 00:00:00") :
+                      List.of("2025-01-01 00:00:00", "2567 Target"), dialog);
+
+      // a string column, a date part level or a column that is not found is not converted
+      assertSame(manual, LayoutTool.getGregorianManualOrder(
+         order, columns, "text", XConstants.YEAR_DATE_GROUP));
+      assertSame(manual, LayoutTool.getGregorianManualOrder(
+         order, columns, "date", XConstants.MONTH_OF_YEAR_DATE_GROUP));
+      assertSame(manual, LayoutTool.getGregorianManualOrder(
+         order, columns, "other", XConstants.YEAR_DATE_GROUP));
+      assertSame(manual, LayoutTool.getGregorianManualOrder(
+         order, null, "date", XConstants.YEAR_DATE_GROUP));
    }
 
    @Test
@@ -135,15 +194,38 @@ class LegacyBuddhistManualOrderTest {
       return order;
    }
 
+   // a named group name and the others label in the same list as an ungrouped date value
+   private static OrderInfo namedGroupOrder() {
+      OrderInfo order = manualOrder(
+         List.of("2567 Target", "2568-01-01 00:00:00", "2569 Others"), XConstants.YEAR_DATE_GROUP);
+      SNamedGroupInfo groups = new SNamedGroupInfo();
+      groups.addGroupName("2567 Target");
+      order.setNamedGroupInfo(groups);
+      order.setOtherLabel("2569 Others");
+      return order;
+   }
+
+   private static ColumnRef column(String name, String type) {
+      ColumnRef column = new ColumnRef(new AttributeRef(null, name));
+      column.setDataType(type);
+      return column;
+   }
+
+   private static GroupRef group(String type, OrderInfo order) {
+      GroupRef group = new GroupRef(column("col", type));
+      group.setOrderInfo(order);
+      return group;
+   }
+
    // the options of the toList() expression of a group cell, which hold no quote or comma
    private static String createOption(String type, OrderInfo order) {
-      ColumnRef column = new ColumnRef(new AttributeRef(null, "col"));
-      column.setDataType(type);
-      GroupRef group = new GroupRef(column);
-      group.setOrderInfo(order);
       String exp = LayoutTool.createGroupExpression(
-         new CalcGroup[] { group }, new String[] { "col" }, 0, null, "data", null, null, null,
-         null, null, null, null, false);
+         new CalcGroup[] { group(type, order) }, new String[] { "col" }, 0, null, "data", null,
+         null, null, null, null, null, null, false);
+      return option(exp);
+   }
+
+   private static String option(String exp) {
       int idx = exp.lastIndexOf(",'");
 
       assertTrue(idx > 0 && exp.endsWith("')"), exp);

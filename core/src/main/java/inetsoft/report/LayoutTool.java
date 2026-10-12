@@ -31,6 +31,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.schema.UserVariable;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XNamedGroupInfo;
 import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.*;
@@ -2544,6 +2545,29 @@ public class LayoutTool {
       }
 
       return buffer.toString();
+   }
+
+   /**
+    * Get the manual order of a Freehand table cell, with the Buddhist years of a date column
+    * converted, see getGregorianManualOrder(OrderInfo, boolean). A cell binding has no data
+    * type, so the type is taken from the column of the source table.
+    * @param columns the columns of the source table.
+    * @param name the column the cell is bound to.
+    * @param dateLevel the date level of the cell.
+    */
+   public static List<String> getGregorianManualOrder(OrderInfo orderInfo,
+                                                      ColumnSelection columns, String name,
+                                                      int dateLevel)
+   {
+      DataRef column = columns == null || name == null ? null : columns.getAttribute(name);
+
+      if(column == null && columns != null && name != null) {
+         column = columns.getAttribute(VSLayoutTool.getOriginalColumn(name));
+      }
+
+      boolean date = column != null && XSchema.isDateType(column.getDataType()) &&
+         (dateLevel & DateRangeRef.PART_DATE_GROUP) == 0;
+      return getGregorianManualOrder(orderInfo, date);
    }
 
    /**
