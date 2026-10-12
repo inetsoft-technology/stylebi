@@ -10551,6 +10551,105 @@ class WorksheetAgentControllerTest {
       verify(connectedRvs, never()).resetRuntime();
    }
 
+   /**
+    * Regression for Bug #76482 (VBM-005 residual): {@code save(name:<the worksheet's own path>,
+    * confirmed:true)} builds an entry {@code equals()} to the session's own entry, yet used to be
+    * classified as a Save-As purely because a name was given -- so the connected viewsheet was
+    * never reset (it kept serving pre-save data) and the response carried a false PVA-003
+    * "created a new copy" warning naming the same path twice. It must behave as a plain save.
+    */
+   @Test
+   void sameEntryNamedConfirmedSaveIsAnInPlaceSave() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      AssetEntry oldEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.WORKSHEET, "Orders WS", null, "host-org");
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getEntry()).thenReturn(oldEntry);
+      when(rws.getWorksheet()).thenReturn(new Worksheet());
+      when(rws.getCurrent()).thenReturn(5);
+
+      WorksheetEditService edit = mock(WorksheetEditService.class);
+      when(edit.resolveWithSession(eq("TOK-SAVE-SELF"), eq(agent)))
+         .thenReturn(new WorksheetEditService.ResolvedSession(rws, "rt-ws-self"));
+
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getBaseEntry()).thenReturn(oldEntry);
+      RuntimeViewsheet connectedRvs = mock(RuntimeViewsheet.class);
+      when(connectedRvs.getViewsheet()).thenReturn(vs);
+      when(connectedRvs.getID()).thenReturn("rt-vs-self");
+      when(connectedRvs.getUser()).thenReturn(agent);
+
+      WorksheetService ws = mock(WorksheetService.class);
+      when(ws.getRuntimeSheets(any())).thenReturn(new RuntimeSheet[]{ connectedRvs });
+      // the session's own asset exists, so the overwrite guard needs confirmed:true
+      when(ws.isDuplicatedEntry(any(), any())).thenReturn(true);
+
+      WorksheetAgentController ctrl = controller(featureOn(), mock(SheetJoinService.class),
+         mock(SheetSessionService.class), mock(WorksheetReadService.class), edit, ws);
+
+      Map<String, Object> result;
+
+      try(MockedStatic<DependencyTool> dependencyTool = mockStatic(DependencyTool.class)) {
+         dependencyTool.when(() -> DependencyTool.getDependencies(anyString())).thenReturn(List.of());
+
+         result = ctrl.save("TOK-SAVE-SELF",
+            new WorksheetAgentController.SaveRequest("Orders WS", null, true), agent);
+      }
+
+      assertEquals(Boolean.TRUE, result.get("ok"));
+      assertNull(result.get("warning"),
+         "a save onto the session's own entry creates no copy -- no Save-As warning");
+      verify(connectedRvs).resetRuntime();
+      verify(ws).setWorksheet(any(), same(oldEntry), any(), anyBoolean(), anyBoolean());
+   }
+
+   /**
+    * Negative control for {@link #sameEntryNamedConfirmedSaveIsAnInPlaceSave}: a confirmed save
+    * onto a DIFFERENT existing entry is still a genuine Save-As -- PVA-003 warning, no reset.
+    */
+   @Test
+   void confirmedSaveAsOntoADifferentEntryStillWarnsAndDoesNotReset() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      AssetEntry oldEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.WORKSHEET, "Orders WS", null, "host-org");
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getEntry()).thenReturn(oldEntry);
+      when(rws.getWorksheet()).thenReturn(new Worksheet());
+      when(rws.getCurrent()).thenReturn(5);
+
+      WorksheetEditService edit = mock(WorksheetEditService.class);
+      when(edit.resolveWithSession(eq("TOK-SAVE-OTHER"), eq(agent)))
+         .thenReturn(new WorksheetEditService.ResolvedSession(rws, "rt-ws-other"));
+
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getBaseEntry()).thenReturn(oldEntry);
+      RuntimeViewsheet connectedRvs = mock(RuntimeViewsheet.class);
+      when(connectedRvs.getViewsheet()).thenReturn(vs);
+      when(connectedRvs.getID()).thenReturn("rt-vs-other");
+      when(connectedRvs.getUser()).thenReturn(agent);
+
+      WorksheetService ws = mock(WorksheetService.class);
+      when(ws.getRuntimeSheets(any())).thenReturn(new RuntimeSheet[]{ connectedRvs });
+      when(ws.isDuplicatedEntry(any(), any())).thenReturn(true);
+
+      WorksheetAgentController ctrl = controller(featureOn(), mock(SheetJoinService.class),
+         mock(SheetSessionService.class), mock(WorksheetReadService.class), edit, ws);
+
+      Map<String, Object> result = ctrl.save("TOK-SAVE-OTHER",
+         new WorksheetAgentController.SaveRequest("Orders WS Copy", null, true), agent);
+
+      assertEquals(Boolean.TRUE, result.get("ok"));
+      Object warning = result.get("warning");
+      assertNotNull(warning, "a genuine Save-As must keep the PVA-003 warning");
+      assertTrue(warning.toString().contains("new copy") &&
+                 warning.toString().contains("rt-vs-other"), warning.toString());
+      verify(connectedRvs, never()).resetRuntime();
+   }
+
    // ---------------------------------------------------------------------------
    // save -- PVA-011: a plain re-save must cascade a column/table rename to already-saved
    // dependent assets (e.g. a bound viewsheet), the same "Dependencies Changed" update the

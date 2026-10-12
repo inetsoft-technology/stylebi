@@ -2151,10 +2151,10 @@ public class WorksheetAgentController {
       // first save out of TEMPORARY_SCOPE) only ever moves this session's own RuntimeWorksheet
       // entry pointer -- nothing here updates a connected viewsheet's Viewsheet.baseEntry, so the
       // viewsheet silently keeps pointing at the pre-Save-As asset (Bug PVA-003). There is no
-      // in-place fix for that without a repoint tool, so at minimum, warn.
-      boolean isSaveAs = name != null && !name.isEmpty() && !wasTemporary;
-      List<String> affectedViewsheets = isSaveAs
-         ? connectedViewsheetIds(connectedViewsheets(oldEntry, user)) : List.of();
+      // in-place fix for that without a repoint tool, so at minimum, warn. Classified below, once
+      // the target entry is built.
+      boolean isSaveAs = false;
+      List<String> affectedViewsheets = List.of();
 
       boolean isDuplicatedEntry = false;
 
@@ -2184,6 +2184,20 @@ public class WorksheetAgentController {
          }
          catch(Exception e) {
             throw new PairingException("Failed to check for a duplicate name: " + e.getMessage(), e);
+         }
+
+         // Bug #76482: a name that resolves to this session's own entry (same path, scope, owner
+         // and org) creates no copy -- it is a plain in-place save, so keep the session's entry
+         // and let the reset/cascade below run. This deliberately diverges from the Composer UI,
+         // whose Save-As dialog refuses an opened asset ("Cannot overwrite an opened asset.",
+         // SaveWorksheetDialogService.process0()): with confirmed:true the intent is unambiguous.
+         if(entry.equals(oldEntry)) {
+            entry = oldEntry;
+         }
+         else if(!wasTemporary) {
+            isSaveAs = true;
+            // captured before setWorksheet()/rws.setEntry() below move the session to the copy
+            affectedViewsheets = connectedViewsheetIds(connectedViewsheets(oldEntry, user));
          }
       }
 
