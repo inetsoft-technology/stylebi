@@ -70,6 +70,8 @@ class XPartitionCtrlCharRoundTripTest {
          "select '" + (char) 0 + "x0' from t", null, null)));
    }
 
+   // Guards round-trip losslessness only: the parser accepts a raw U+FFFE, so this case
+   // passes on the unfixed writer too and does not prove parseability.
    @Test
    void nonCharacterFffe() throws Exception {
       assertSql("select '" + (char) 0xfffe + "' from t", xml(partition(
@@ -127,6 +129,49 @@ class XPartitionCtrlCharRoundTripTest {
       }
    }
 
+   @Test
+   void extendedViewSqlAndDescription() throws Exception {
+      String sql = "select 'a" + (char) 0x1f + "]]>b' from t";
+      String desc = "d" + (char) 2 + "]]>e";
+      XPartition base = new XPartition("base");
+      base.addTable("bv", PartitionTable.VIEW, "select 1 from t",
+                    new Rectangle(0, 0, 10, 10), null, null);
+      XPartition ext = new XPartition("ext", base);
+      ext.addTable("ev", PartitionTable.VIEW, sql, new Rectangle(0, 0, 10, 10), null, null);
+      ext.setDescription(desc);
+
+      String xml = xml(ext);
+      assertFalse(xml.contains("select 1 from t"), "base table must not be written");
+      assertTrue(xml.contains("ctrlEncoded"));
+
+      XPartition back = new XPartition();
+      back.parseXML(parseElement(xml));
+      // getDescription() delegates to the base once one is set, so read it first
+      assertEquals(desc, back.getDescription());
+      back.setBaseParitition(base);
+
+      assertEquals(sql, back.getPartitionTable("ev").getSql());
+      assertEquals("select 1 from t", back.getPartitionTable("bv").getSql());
+   }
+
+   @Test
+   void catalogSchemaAndAuthors() throws Exception {
+      for(String text : new String[] { "c" + (char) 0x1f + "d", "c]]>d", "c]]>d" + (char) 1 }) {
+         XPartition part = new XPartition("p");
+         part.addTable("t", PartitionTable.PHYSICAL, "", new Rectangle(0, 0, 10, 10),
+                       text, text);
+         part.setCreatedBy(text);
+         part.setLastModifiedBy(text);
+
+         XPartition back = roundTrip(part);
+
+         assertEquals(text, back.getPartitionTable("t").getCatalog());
+         assertEquals(text, back.getPartitionTable("t").getSchema());
+         assertEquals(text, back.getCreatedBy());
+         assertEquals(text, back.getLastModifiedBy());
+      }
+   }
+
    private static XPartition partition(String sql, String description, String alias) {
       XPartition part = new XPartition("p");
 
@@ -153,12 +198,15 @@ class XPartitionCtrlCharRoundTripTest {
       return parse(xml(part));
    }
 
-   private static XPartition parse(String xml) throws Exception {
+   private static Element parseElement(String xml) throws Exception {
       byte[] bytes = xml.getBytes(StandardCharsets.UTF_8);
-      Element elem = Tool.parseXML(new ByteArrayInputStream(bytes), "UTF-8", false, false)
+      return Tool.parseXML(new ByteArrayInputStream(bytes), "UTF-8", false, false)
          .getDocumentElement();
+   }
+
+   private static XPartition parse(String xml) throws Exception {
       XPartition back = new XPartition();
-      back.parseXML(elem);
+      back.parseXML(parseElement(xml));
       return back;
    }
 
