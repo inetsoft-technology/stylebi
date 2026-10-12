@@ -60,7 +60,9 @@ import static org.mockito.Mockito.when;
  * <p>
  * {@code getStatus()} must also never block its caller on the cluster (bug #77880): the cluster
  * calls run on a single probe thread with a bounded wait, a stuck probe reports not-ready and is
- * not repeated, and the check never creates the sreeProperties map.
+ * not repeated, and the check never creates the sreeProperties map. The probe must also make no
+ * cluster-wide call such as {@code DistributedMap.size()}, which blocks on a paused peer
+ * (bug #78366).
  */
 @Tag("core")
 public class ClusterHealthServiceTest {
@@ -162,8 +164,39 @@ public class ClusterHealthServiceTest {
          "the normal, successful-load case must still report ready (regression check)");
       assertEquals("Cluster is ready", status.getMessage());
       // the bounded probe still exercises the map, which is what detects startup readiness
-      verify(map).size();
       verify(map).containsKey("__health_check__");
+   }
+
+   /**
+    * Bug #78366: {@code DistributedMap.size()} is a cluster-wide Ignite {@code SizeTask} that
+    * waits for every data node, so one paused peer still in the topology made every healthy
+    * node's probe time out. The probe must never make that call.
+    */
+   @Test
+   public void probeNeverCallsClusterWideSize() {
+      Cluster cluster = mock(Cluster.class);
+      KeyValueStorageManager keyValueStorageManager = mock(KeyValueStorageManager.class);
+      DistributedMap<String, String> map = mock(DistributedMap.class);
+      KeyValueStorage<?> storage = mock(KeyValueStorage.class);
+
+      when(cluster.isClusterReady()).thenReturn(true);
+      when(cluster.mapExists(anyString())).thenReturn(true);
+      doReturn(map).when(cluster).getReplicatedMap(anyString());
+      // size() never answers, like a SizeTask waiting on a paused peer
+      when(map.size()).thenAnswer(inv -> {
+         release.await();
+         return 0;
+      });
+      when(storage.isLoaded()).thenReturn(true);
+      doReturn(storage).when(keyValueStorageManager).peekStorage(eq("sreeProperties"));
+
+      service = new ClusterHealthService(cluster, keyValueStorageManager, BLOCKED_TIMEOUT_MILLIS);
+      ClusterHealthStatus status = service.getStatus();
+
+      assertTrue(status.isReady(),
+         "a cluster-wide call that waits on a peer must not be part of the probe: " +
+         status.getMessage());
+      verify(map, never()).size();
    }
 
    @Test
@@ -178,8 +211,8 @@ public class ClusterHealthServiceTest {
       when(cluster.isClusterReady()).thenReturn(true);
       when(cluster.mapExists(anyString())).thenReturn(true);
       doReturn(map).when(cluster).getReplicatedMap(anyString());
-      // size() parks like GridCacheAdapter.size() does during a stuck partition map exchange
-      when(map.size()).thenAnswer(inv -> {
+      // containsKey() parks like a cache read does during a stuck partition map exchange
+      when(map.containsKey(anyString())).thenAnswer(inv -> {
          blocked.countDown();
 
          try {
@@ -190,7 +223,7 @@ public class ClusterHealthServiceTest {
             throw e;
          }
 
-         return 0;
+         return false;
       });
       when(storage.isLoaded()).thenReturn(true);
       doReturn(storage).when(keyValueStorageManager).peekStorage(eq("sreeProperties"));
@@ -201,7 +234,7 @@ public class ClusterHealthServiceTest {
       ClusterHealthStatus first = service.getStatus();
       long firstMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
 
-      assertTrue(blocked.await(5, TimeUnit.SECONDS), "the probe must have reached size()");
+      assertTrue(blocked.await(5, TimeUnit.SECONDS), "the probe must have reached containsKey()");
       assertFalse(first.isReady(), "a probe blocked on the cluster must report not-ready");
       assertEquals("Cluster health check timed out after " + BLOCKED_TIMEOUT_MILLIS + " ms",
                    first.getMessage());
@@ -219,7 +252,7 @@ public class ClusterHealthServiceTest {
                  "a call during a running probe must not wait, took " + secondMillis + " ms");
       // the second call must not have started another cluster operation
       verify(cluster, times(1)).isClusterReady();
-      verify(map, times(1)).size();
+      verify(map, times(1)).containsKey(anyString());
 
       // once the cluster recovers, the parked probe finishes and the next call reports ready
       release.countDown();
@@ -268,11 +301,11 @@ public class ClusterHealthServiceTest {
       when(cluster.isClusterReady()).thenReturn(true);
       when(cluster.mapExists(anyString())).thenReturn(true);
       doReturn(map).when(cluster).getReplicatedMap(anyString());
-      // a healthy but slow exchange: size() takes a while, well within the bound
-      when(map.size()).thenAnswer(inv -> {
+      // a healthy but slow exchange: containsKey() takes a while, well within the bound
+      when(map.containsKey(anyString())).thenAnswer(inv -> {
          blocked.countDown();
          release.await();
-         return 1;
+         return true;
       });
       when(storage.isLoaded()).thenReturn(true);
       doReturn(storage).when(keyValueStorageManager).peekStorage(eq("sreeProperties"));
@@ -282,7 +315,7 @@ public class ClusterHealthServiceTest {
 
       try {
          Future<ClusterHealthStatus> first = callers.submit(service::getStatus);
-         assertTrue(blocked.await(5, TimeUnit.SECONDS), "the first probe must have reached size()");
+         assertTrue(blocked.await(5, TimeUnit.SECONDS), "the first probe must have reached containsKey()");
          Future<ClusterHealthStatus> second = callers.submit(service::getStatus);
 
          // the second call joins the running probe rather than answering not-ready at once
@@ -297,7 +330,7 @@ public class ClusterHealthServiceTest {
                     "a call during a healthy probe gets its result: " + secondStatus.getMessage());
          // both answers came from the one probe
          verify(cluster, times(1)).isClusterReady();
-         verify(map, times(1)).size();
+         verify(map, times(1)).containsKey(anyString());
       }
       finally {
          callers.shutdownNow();

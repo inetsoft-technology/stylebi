@@ -36,8 +36,8 @@ import java.util.function.LongSupplier;
 /**
  * {@code ClusterHealthService} provides health status for the cluster.
  * <p>
- * Every cluster call the check makes ({@code isClusterReady()}, the map lookup, {@code size()}
- * and {@code containsKey()}) can park its thread with no timeout while an Ignite partition map
+ * Every cluster call the check makes ({@code isClusterReady()}, the map lookup and
+ * {@code containsKey()}) can park its thread with no timeout while an Ignite partition map
  * exchange cannot finish. The check therefore runs those calls on a single daemon probe thread
  * and waits for at most {@code health.cluster.timeout} milliseconds (default 5000). A probe that
  * overruns reports not-ready and is left running: it is never interrupted, and no new probe
@@ -48,6 +48,12 @@ import java.util.function.LongSupplier;
  * own deadline (its start plus the timeout), so concurrent probes of a healthy cluster all get
  * its result, and no request waits longer than the timeout. A request that arrives after the
  * running probe has already overrun reports not-ready at once.
+ * <p>
+ * The probe must only make calls that this node can answer from its own state. It must never
+ * make a cluster-wide call such as {@code IgniteCache.size()}, which waits for a reply from
+ * every data node: one paused or stalled peer that is still in the topology (until the failure
+ * detection timeout drops it) would then make every healthy node report not-ready, and the load
+ * balancer would take all of them out (Bug #78366).
  */
 @Service
 @Lazy
@@ -251,15 +257,17 @@ public class ClusterHealthService {
          // The map name for sreeProperties is "inetsoft.storage.kv.sreeProperties"
          DistributedMap<String, String> map = cluster.getReplicatedMap(SREE_PROPERTIES_MAP);
 
-         // Verify we can actually perform operations on the map
-         // This will fail with NPE on AffinityTopologyVersion if topology is not ready
-         int size = map.size();
-
-         // Also try to read a key (even if it doesn't exist) to verify read operations work
-         // This is a more thorough check than just getting the size
+         // Read a key (even if it doesn't exist) to verify read operations work. This fails
+         // with an NPE on AffinityTopologyVersion if the topology is not ready.
+         //
+         // Keep this call. On a data node it is answered locally from the REPLICATED cache, so a
+         // paused peer doesn't block it, yet it is the only call in the probe that parks during
+         // a stuck partition map exchange, because isClusterReady() still reports true then
+         // (Bug #77880). Don't replace it with localSize() or localPeek(), which never wait on
+         // the exchange, and don't add a cluster-wide call such as size() here (Bug #78366).
          map.containsKey("__health_check__");
 
-         LOG.debug("sreeProperties map accessible, size: {}", size);
+         LOG.debug("sreeProperties map accessible");
       }
       catch(NullPointerException e) {
          // Likely AffinityTopologyVersion is null - topology not ready
