@@ -48,6 +48,7 @@ import inetsoft.web.composer.model.vs.StaticImagePaneModel;
 import inetsoft.web.composer.model.vs.RadioButtonPropertyDialogModel;
 import inetsoft.web.composer.model.vs.RangeSliderPropertyDialogModel;
 import inetsoft.web.composer.model.vs.SelectionContainerPropertyDialogModel;
+import inetsoft.web.composer.model.vs.OutputColumnRefModel;
 import inetsoft.web.composer.model.vs.SelectionListPropertyDialogModel;
 import inetsoft.web.composer.model.vs.SelectionTreePropertyDialogModel;
 import inetsoft.web.composer.model.vs.TableViewPropertyDialogModel;
@@ -59,6 +60,7 @@ import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.SelectionTreeVSAssemblyInfo;
 import inetsoft.web.viewsheet.service.VSOutputService;
 import org.mockito.ArgumentCaptor;
+import inetsoft.web.composer.vs.dialog.DataOutputService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -67,7 +69,9 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.security.Principal;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -1645,6 +1649,151 @@ class AssemblyPropertyServiceTest {
       service.set("tok", principal(), "SelectionTree1", Map.of("mode", 2), "");
 
       assertEquals(SelectionTreeVSAssemblyInfo.ID, model.getSelectionTreePaneModel().getMode());
+   }
+
+   // ── #78396: selection measure written through set_assembly_properties ──────
+
+   private static DataOutputService lastDataOutput;
+
+   private static void offerMeasures(String... names) throws Exception {
+      List<OutputColumnRefModel> columns = new ArrayList<>();
+      columns.add(new OutputColumnRefModel());
+
+      for(String name : names) {
+         OutputColumnRefModel column = new OutputColumnRefModel();
+         column.setName(name);
+         columns.add(column);
+      }
+
+      when(lastDataOutput.getOutputSelectionColumns(eq("rt1"), any(), any()))
+         .thenReturn(columns.toArray(new OutputColumnRefModel[0]));
+   }
+
+   private static SelectionListPropertyDialogModel boundList() {
+      SelectionListPropertyDialogModel model = new SelectionListPropertyDialogModel();
+      model.getSelectionListPaneModel().setSelectedTable("ORDERS");
+      model.getSelectionListPaneModel().getSelectionMeasurePaneModel().setMeasure("AMOUNT");
+      return model;
+   }
+
+   private static String listMeasure(SelectionListPropertyDialogModel model) {
+      return model.getSelectionListPaneModel().getSelectionMeasurePaneModel().getMeasure();
+   }
+
+   private static String treeMeasure(SelectionTreePropertyDialogModel model) {
+      return model.getSelectionTreePaneModel().getSelectionMeasurePaneModel().getMeasure();
+   }
+
+   private static SelectionTreePropertyDialogModel boundTree() {
+      SelectionTreePropertyDialogModel model = new SelectionTreePropertyDialogModel();
+      model.getSelectionTreePaneModel().setSelectedTable("ORDERS");
+      model.getSelectionTreePaneModel().getSelectionMeasurePaneModel().setMeasure("AMOUNT");
+      return model;
+   }
+
+   private static void setList(SelectionListPropertyDialogModel model, Map<String, Object> patch)
+      throws Exception
+   {
+      AssemblyPropertyService service =
+         serviceWithSelectionList(mock(SelectionListVSAssembly.class), model);
+      offerMeasures("STATE", "AMOUNT");
+      service.set("tok", principal(), "List1", patch, "");
+   }
+
+   @Test
+   void refusesAnUnknownSelectionListMeasureAndLeavesItUnchanged() throws Exception {
+      for(String bad : new String[] {"$Foo", "Foo"}) {
+         SelectionListPropertyDialogModel model = boundList();
+         Exception thrown = assertThrows(IllegalArgumentException.class,
+            () -> setList(model, Map.of("measure", bad)));
+
+         assertTrue(thrown.getMessage().contains(bad));
+      }
+   }
+
+   @Test
+   void refusesAnUnknownSelectionTreeMeasureOnTheRawPath() throws Exception {
+      SelectionTreePropertyDialogModel model = boundTree();
+      AssemblyPropertyService service =
+         serviceWithSelectionTree(mock(SelectionTreeVSAssembly.class), model);
+      offerMeasures("STATE", "AMOUNT");
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Tree1",
+            Map.of("selectionTreePaneModel.selectionMeasurePaneModel.measure", "$Foo"), ""));
+
+      assertTrue(thrown.getMessage().contains("$Foo"));
+   }
+
+   @Test
+   void refusesAnUnknownMeasureOnACapitalisedRawPath() throws Exception {
+      SelectionListPropertyDialogModel model = boundList();
+
+      assertThrows(IllegalArgumentException.class, () -> setList(model, Map.of(
+         "SelectionListPaneModel.SelectionMeasurePaneModel.Measure", "$Foo")));
+   }
+
+   @Test
+   void refusesABareEqualsSelectionMeasureOnTheAlias() throws Exception {
+      SelectionListPropertyDialogModel model = boundList();
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> setList(model, Map.of("measure", "=")));
+
+      assertTrue(thrown.getMessage().contains("measure"));
+   }
+
+   @Test
+   void canonicalisesASelectionMeasureToTheColumnName() throws Exception {
+      SelectionListPropertyDialogModel model = boundList();
+      model.getSelectionListPaneModel().getSelectionMeasurePaneModel().setMeasure(null);
+
+      setList(model, Map.of("measure", "amount"));
+
+      assertEquals("AMOUNT", listMeasure(model));
+   }
+
+   @Test
+   void passesDynamicSelectionMeasuresThroughWithoutALookup() throws Exception {
+      for(String ok : new String[] {"$(x)", "=1+1"}) {
+         SelectionListPropertyDialogModel model = boundList();
+         setList(model, Map.of("measure", ok));
+
+         assertEquals(ok, listMeasure(model));
+         verify(lastDataOutput, never()).getOutputSelectionColumns(any(), any(), any());
+      }
+   }
+
+   @Test
+   void aBlankSelectionMeasureStillClears() throws Exception {
+      SelectionListPropertyDialogModel model = boundList();
+
+      setList(model, Map.of("measure", ""));
+
+      assertEquals("", listMeasure(model));
+      verify(lastDataOutput, never()).getOutputSelectionColumns(any(), any(), any());
+   }
+
+   @Test
+   void refusesANonBlankSelectionMeasureWhenNoTableIsBound() throws Exception {
+      SelectionListPropertyDialogModel model = new SelectionListPropertyDialogModel();
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> setList(model, Map.of("measure", "AMOUNT")));
+
+      assertTrue(thrown.getMessage().contains("set_selection_source"));
+      verify(lastDataOutput, never()).getOutputSelectionColumns(any(), any(), any());
+   }
+
+   @Test
+   void checksTheMeasureAgainstATableSetInTheSamePatch() throws Exception {
+      SelectionListPropertyDialogModel model = new SelectionListPropertyDialogModel();
+
+      setList(model, Map.of("selectionListPaneModel.selectedTable", "ORDERS",
+                            "measure", "amount"));
+
+      assertEquals("AMOUNT", listMeasure(model));
+      verify(lastDataOutput).getOutputSelectionColumns(eq("rt1"), eq(List.of("ORDERS")), any());
    }
 
    // ── selectionGeneralPaneModel.sortType alias/domain (bug #76925) ──────────
@@ -3230,6 +3379,7 @@ class AssemblyPropertyServiceTest {
       GaugePropertyDialogService gauge, VSOutputService outputService,
       VSColumnHandler columnHandler)
    {
+      lastDataOutput = mock(DataOutputService.class);
       Viewsheet vs = mock(Viewsheet.class);
       when(vs.getAssembly(anyString())).thenReturn(assembly);
       when(vs.getBaseWorksheet()).thenReturn(baseWorksheet);
@@ -3430,7 +3580,7 @@ class AssemblyPropertyServiceTest {
          mock(RectanglePropertyDialogService.class),
          selectionContainer,
          mock(SubmitPropertyDialogService.class),
-         outputService, columnHandler);
+         outputService, columnHandler, lastDataOutput);
    }
 
    // ── calendar viewMode / chart line-style int-enum domains (bug #78194) ───

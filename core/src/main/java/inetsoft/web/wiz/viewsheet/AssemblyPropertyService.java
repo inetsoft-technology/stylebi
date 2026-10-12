@@ -45,6 +45,7 @@ import inetsoft.web.composer.model.vs.TableStylePaneModel;
 import inetsoft.web.composer.model.vs.TextInputColumnOptionPaneModel;
 import inetsoft.web.composer.model.vs.TipCustomizeDialogModel;
 import inetsoft.web.composer.vs.dialog.*;
+import inetsoft.web.wiz.binding.SelectionMeasureResolver;
 import inetsoft.web.viewsheet.service.VSInputService;
 import inetsoft.web.viewsheet.service.VSOutputService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
@@ -127,9 +128,11 @@ public class AssemblyPropertyService {
                                   SelectionContainerPropertyDialogService containerService,
                                   SubmitPropertyDialogService submitService,
                                   VSOutputService outputService,
-                                  VSColumnHandler columnHandler)
+                                  VSColumnHandler columnHandler,
+                                  DataOutputService dataOutputService)
    {
       this.sessions = sessions;
+      this.dataOutputService = dataOutputService;
       this.outputService = outputService;
       this.columnHandler = columnHandler;
       Map<String, Binding> map = new LinkedHashMap<>();
@@ -262,6 +265,7 @@ public class AssemblyPropertyService {
       return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          String type = typeOf(rvs, assemblyName);
          Object model = readModel(rvs, type, assemblyName, user);
+         String measureBefore = selectionMeasure(type, model);
 
          // Resolved whole before anything is written: a typo in the fourth key must not
          // leave the first three applied, which would be a partial edit the caller has no
@@ -293,6 +297,9 @@ public class AssemblyPropertyService {
 
             model = PropertyPath.set(model, entry.getValue(), value);
          }
+
+         model = requireKnownSelectionMeasure(runtimeId, user, assemblyName, type, model,
+                                              measureBefore);
 
          if(PropertyAliases.derivesVariableFlagFromTable(type)) {
             model = normalizeVariableTableBinding(model);
@@ -344,6 +351,49 @@ public class AssemblyPropertyService {
 
          writeModel(runtimeId, type, assemblyName, model, linkUri, user, dispatcher);
       });
+   }
+
+   private static String selectionPane(String type) {
+      return switch(type) {
+         case "selectionlist" -> "selectionListPaneModel";
+         case "selectiontree" -> "selectionTreePaneModel";
+         default -> null;
+      };
+   }
+
+   private static String selectionMeasure(String type, Object model) {
+      String pane = selectionPane(type);
+      return pane == null ? null :
+         (String) PropertyPath.get(model, pane + ".selectionMeasurePaneModel.measure");
+   }
+
+   /**
+    * A selection list/tree {@code measure} was stored verbatim, so a column that does not exist
+    * (or a bare {@code "="}) left the bars/aggregate silently broken. Compares the pane's measure
+    * before and after the patch loop -- so it catches the {@code measure} alias, a raw path in any
+    * case and the tree, which has no alias -- and runs the same resolution
+    * {@code set_selection_source} does against the post-patch table, before anything is written.
+    * Blank clears the measure and is not checked.
+    */
+   private Object requireKnownSelectionMeasure(String runtimeId, Principal user,
+                                               String assemblyName, String type, Object model,
+                                               String before) throws Exception
+   {
+      String pane = selectionPane(type);
+      String after = selectionMeasure(type, model);
+
+      if(pane == null || after == null || after.isBlank() || after.equals(before)) {
+         return model;
+      }
+
+      String table = (String) PropertyPath.get(model, pane + ".selectedTable");
+      @SuppressWarnings("unchecked")
+      List<String> additional = (List<String>) PropertyPath.get(model, pane + ".additionalTables");
+      String resolved = SelectionMeasureResolver.resolve(
+         dataOutputService, runtimeId, user, assemblyName, table, additional, after);
+
+      return resolved.equals(after) ? model :
+         PropertyPath.set(model, pane + ".selectionMeasurePaneModel.measure", resolved);
    }
 
    /**
@@ -1464,5 +1514,6 @@ public class AssemblyPropertyService {
    private final ViewsheetSessionService sessions;
    private final VSOutputService outputService;
    private final VSColumnHandler columnHandler;
+   private final DataOutputService dataOutputService;
    private final Map<String, Binding> bindings;
 }
