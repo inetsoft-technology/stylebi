@@ -307,6 +307,23 @@ public final class ConditionVocabulary {
          }
       }
 
+      // ConditionUtil converts only String literals, so a raw JSON boolean/number that doesn't
+      // fit the field's type reaches the condition unconverted and silently matches nothing.
+      if(raw instanceof Boolean && (XSchema.isNumericType(fieldType) ||
+         XSchema.STRING.equals(fieldType)) ||
+         raw instanceof Number && (XSchema.BOOLEAN.equals(fieldType) ||
+         XSchema.STRING.equals(fieldType)))
+      {
+         String kind = raw instanceof Boolean ? "boolean" : "number";
+         String hint = XSchema.STRING.equals(fieldType) ?
+            "Quote it as a string (e.g. \"" + raw + "\")." :
+            XSchema.BOOLEAN.equals(fieldType) ? "Use true or false." :
+            "Pass a JSON number or a numeric string.";
+         throw new IllegalArgumentException(
+            "Condition " + index + "'s value " + raw + " is a " + kind + " but field '" +
+            targetField.getName() + "' is a " + fieldType + ". " + hint);
+      }
+
       // ConditionUtil later force-coerces a literal VALUE against the target field's declared
       // type (Tool.getData(dataType, value)) and silently keeps null on failure -- checking here,
       // one hop earlier, catches a bare string that can't become the field's type (e.g. a column

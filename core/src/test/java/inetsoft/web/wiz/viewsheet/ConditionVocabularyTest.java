@@ -912,6 +912,47 @@ class ConditionVocabularyTest {
       }
    }
 
+   @Test
+   void refusesARawBooleanForANumericOrStringField() {
+      for(String type : List.of("integer", "double", "string")) {
+         DataRefModel[] fields = { field("Budget", type) };
+
+         Exception thrown = assertThrows(IllegalArgumentException.class,
+            () -> ConditionVocabulary.toConditionList(
+               List.of(clause("Budget", "greater_than", List.of(true), null)), fields), type);
+
+         assertTrue(thrown.getMessage().contains("Budget"), type);
+         assertTrue(thrown.getMessage().contains("boolean"), type);
+      }
+   }
+
+   @Test
+   void refusesARawNumberForABooleanOrStringField() {
+      for(String type : List.of("boolean", "string")) {
+         DataRefModel[] fields = { field("Paid", type) };
+
+         Exception thrown = assertThrows(IllegalArgumentException.class,
+            () -> ConditionVocabulary.toConditionList(
+               List.of(clause("Paid", "equals", List.of(5), null)), fields), type);
+
+         assertTrue(thrown.getMessage().contains("Paid"), type);
+         assertTrue(thrown.getMessage().contains("number"), type);
+      }
+   }
+
+   @Test
+   void stillAcceptsMatchingRawNumbersAndBooleans() {
+      assertDoesNotThrow(() -> ConditionVocabulary.toConditionList(
+         List.of(clause("Budget", "greater_than", List.of(5), null)),
+         new DataRefModel[] { field("Budget", "integer") }));
+      assertDoesNotThrow(() -> ConditionVocabulary.toConditionList(
+         List.of(clause("Budget", "greater_than", List.of(5.5), null)),
+         new DataRefModel[] { field("Budget", "double") }));
+      assertDoesNotThrow(() -> ConditionVocabulary.toConditionList(
+         List.of(clause("Paid", "equals", List.of(true), null)),
+         new DataRefModel[] { field("Paid", "boolean") }));
+   }
+
    private static int operationOf(String operator) {
       Object[] list = ConditionVocabulary.toConditionList(
          List.of(clause("Region", operator, List.of("x"), null)), FIELDS);
