@@ -1622,4 +1622,150 @@ class AssemblyHyperlinkServiceTest {
 
       assertEquals(mine.toIdentifier(), capture(h.links).getAssetLinkId());
    }
+
+   // -- bug #78400 (verify): the advice a refusal gives is accepted when followed ----------
+
+   /**
+    * A table whose dialog model mirrors HyperlinkDialogService.getHyperlinkDialogModel's table
+    * branch: showRow = plain Table && row >= headerRows; applyToRow read from the row link on a
+    * data row only.
+    */
+   private static Harness rowScopeHarness(TableVSAssembly assembly, int headerRows,
+                                          boolean rowLinked) throws Exception
+   {
+      Harness h = harness(new HyperlinkDialogModel());
+      boolean embedded = assembly instanceof EmbeddedTableVSAssembly;
+      when(h.links().getHyperlinkDialogModel(anyString(), anyString(), any(), any(), any(),
+                                             anyBoolean(), anyBoolean(), anyBoolean(),
+                                             anyBoolean(), any(Principal.class)))
+         .thenAnswer(inv -> {
+            int row = inv.<Integer>getArgument(2);
+            boolean header = row < headerRows;
+            HyperlinkDialogModel m = new HyperlinkDialogModel();
+            m.setTable(true);
+            m.setRow(row);
+            m.setShowRow(!embedded && !header);
+            m.setApplyToRow(!header && rowLinked);
+            return m;
+         });
+      TableVSAssemblyInfo info = mock(TableVSAssemblyInfo.class);
+      when(info.getRowHyperlink()).thenReturn(rowLinked ? mock(Hyperlink.class) : null);
+      when(assembly.getVSAssemblyInfo()).thenReturn(info);
+      ViewsheetSandbox sandbox = wireRuntimeData(h, "Table1", assembly);
+      VSTableLens lens = mock(VSTableLens.class);
+      when(lens.getHeaderRowCount()).thenReturn(headerRows);
+      when(sandbox.getVSTableLens("Table1", false)).thenReturn(lens);
+      return h;
+   }
+
+   private static AssemblyHyperlinkService.Region rowOf(Integer row) {
+      return new AssemblyHyperlinkService.Region(row, 0, null, false, false, false, false);
+   }
+
+   private static Map<String, Object> web(Object applyToRow) {
+      Map<String, Object> link = link("linkType", "web", "webLink", "https://example.com");
+
+      if(applyToRow != null) {
+         link.put("applyToRow", applyToRow);
+      }
+
+      return link;
+   }
+
+   /** Every header row of a 3-row header, including an omitted row: follow the advice. */
+   @Test
+   void verify78400_followingTheHeaderRefusalAdviceSucceedsOnAMultiRowHeader() throws Exception {
+      for(Integer row : new Integer[] { null, 0, 1, 2 }) {
+         Harness refused = rowScopeHarness(mock(TableVSAssembly.class), 3, true);
+         String message = assertThrows(IllegalArgumentException.class,
+            () -> refused.service().set("tok", principal(), "Table1", rowOf(row), web(null), ""))
+            .getMessage();
+
+         assertFalse(message.contains("Pass link.applyToRow:true"), message);
+         assertTrue(message.contains("Row " + (row == null ? 0 : row) + " is a header row"),
+                    message);
+         java.util.regex.Matcher m =
+            java.util.regex.Pattern.compile("row >= (\\d+)").matcher(message);
+         assertTrue(m.find(), message);
+         int dataRow = Integer.parseInt(m.group(1));
+         assertEquals(3, dataRow, message);
+
+         // advice 1: applyToRow:true on the named data row
+         Harness rewrite = rowScopeHarness(mock(TableVSAssembly.class), 3, true);
+         rewrite.service().set("tok", principal(), "Table1", rowOf(dataRow), web(true), "");
+         assertTrue(capture(rewrite.links()).isApplyToRow());
+
+         // advice 2: applyToRow:false here
+         Harness cellOnly = rowScopeHarness(mock(TableVSAssembly.class), 3, true);
+         cellOnly.service().set("tok", principal(), "Table1", rowOf(row), web(false), "");
+         assertFalse(capture(cellOnly.links()).isApplyToRow());
+      }
+   }
+
+   @Test
+   void verify78400_explicitApplyToRowTrueOnAHeaderIsRefusedNamingTheDataRow() throws Exception {
+      for(boolean rowLinked : new boolean[] { true, false }) {
+         Harness h = rowScopeHarness(mock(TableVSAssembly.class), 2, rowLinked);
+         String message = assertThrows(IllegalArgumentException.class,
+            () -> h.service().set("tok", principal(), "Table1", rowOf(1), web(true), ""))
+            .getMessage();
+
+         assertTrue(message.contains("row >= 2"), message);
+         verify(h.links(), never()).setHyperlinkDialogModel(anyString(), anyString(), any(),
+                                                            anyString(), any(Principal.class), any());
+      }
+   }
+
+   /** No row link yet: a header link and a data-row link are written without any refusal. */
+   @Test
+   void verify78400_aTableWithNoRowLinkTakesHeaderAndRowLinksUnrefused() throws Exception {
+      Harness header = rowScopeHarness(mock(TableVSAssembly.class), 1, false);
+      header.service().set("tok", principal(), "Table1", rowOf(0), web(null), "");
+      assertFalse(capture(header.links()).isApplyToRow());
+
+      Harness data = rowScopeHarness(mock(TableVSAssembly.class), 1, false);
+      data.service().set("tok", principal(), "Table1", rowOf(1), web(true), "");
+      assertTrue(capture(data.links()).isApplyToRow());
+   }
+
+   @Test
+   void verify78400_anEmbeddedTableAdviceIsOnlyApplyToRowFalseAndThatIsAccepted()
+      throws Exception
+   {
+      for(int row : new int[] { 0, 2 }) {
+         Harness refused = rowScopeHarness(mock(EmbeddedTableVSAssembly.class), 1, true);
+         String message = assertThrows(IllegalArgumentException.class,
+            () -> refused.service().set("tok", principal(), "Table1", rowOf(row), web(null), ""))
+            .getMessage();
+         assertFalse(message.contains("Pass link.applyToRow:true"), message);
+         assertFalse(message.contains("row >="), message);
+         assertTrue(message.contains("link.applyToRow:false"), message);
+
+         Harness explicitTrue = rowScopeHarness(mock(EmbeddedTableVSAssembly.class), 1, true);
+         String trueMessage = assertThrows(IllegalArgumentException.class,
+            () -> explicitTrue.service().set("tok", principal(), "Table1", rowOf(row),
+                                             web(true), "")).getMessage();
+         assertTrue(trueMessage.contains("embedded"), trueMessage);
+         assertFalse(trueMessage.contains("row >="), trueMessage);
+
+         Harness cellOnly = rowScopeHarness(mock(EmbeddedTableVSAssembly.class), 1, true);
+         cellOnly.service().set("tok", principal(), "Table1", rowOf(row), web(false), "");
+         assertFalse(capture(cellOnly.links()).isApplyToRow());
+      }
+   }
+
+   /** A data cell of a row-linked plain table keeps the old advice, and following it works. */
+   @Test
+   void verify78400_aDataCellStillAdvisesApplyToRowTrue() throws Exception {
+      Harness refused = rowScopeHarness(mock(TableVSAssembly.class), 1, true);
+      String message = assertThrows(IllegalArgumentException.class,
+         () -> refused.service().set("tok", principal(), "Table1", rowOf(4), web(null), ""))
+         .getMessage();
+      assertTrue(message.contains("Pass link.applyToRow:true"), message);
+      assertFalse(message.contains("header row"), message);
+
+      Harness rewrite = rowScopeHarness(mock(TableVSAssembly.class), 1, true);
+      rewrite.service().set("tok", principal(), "Table1", rowOf(4), web(true), "");
+      assertTrue(capture(rewrite.links()).isApplyToRow());
+   }
 }
