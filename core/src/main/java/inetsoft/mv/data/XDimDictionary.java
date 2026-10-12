@@ -301,6 +301,12 @@ public class XDimDictionary extends XSwappable implements Cloneable {
 
       // raw value not used if the regular index is not overflown
       if(!overflow) {
+         // Bug #78368, delete the fragment files now instead of waiting for finalization, the
+         // cache sweeps keep them while the swapper seed is alive
+         if(rawValues != null) {
+            rawValues.dispose();
+         }
+
          rawValues = null;
       }
 
