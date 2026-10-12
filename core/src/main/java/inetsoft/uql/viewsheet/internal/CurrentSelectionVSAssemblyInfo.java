@@ -284,6 +284,21 @@ public class CurrentSelectionVSAssemblyInfo extends ContainerVSAssemblyInfo
    }
 
    /**
+    * Check if the title gives up its lane. A hidden title does on a marked container, which the
+    * viewer draws from its top; an unmarked container keeps the lane its exports always left.
+    */
+   public boolean isTitleLaneDropped() {
+      return !isTitleVisible() && getVizMark() != null;
+   }
+
+   /**
+    * Get the height of the lane above the out-selection rows and the children.
+    */
+   public int getTitleLaneHeight() {
+      return isTitleLaneDropped() ? 0 : getTitleHeight();
+   }
+
+   /**
     * Get the current selection title height value.
     * @return the title height value of the current selection assembly.
     */

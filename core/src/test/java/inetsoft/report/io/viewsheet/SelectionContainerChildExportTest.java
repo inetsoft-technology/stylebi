@@ -42,7 +42,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * children above it, where the viewer stacks it too - not from its stored offset, which is an old
  * stacking the container no longer draws. An unmarked child keeps the stored-offset clip. The
  * same holds for whether the child is exported at all: a marked one is left out only when the
- * container draws it past its bottom.
+ * container draws it past its bottom. With its title hidden, a marked container draws from its
+ * top, so its first child sits at gap 0 and its bottom child keeps the lane's room.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class },
@@ -88,6 +89,122 @@ class SelectionContainerChildExportTest {
    @Test
    void aMarkedListChildDrawnPastTheContainerIsLeftOut() {
       assertFalse(exported(VizMark.MODERN_LIGHT, 100, false));
+   }
+
+   // a marked comfortable container at (418, 38), 300 x 210, title hidden: Customer (180) above
+   // Region (30) at 38 and 218, as the viewer draws them; under the 30px lane Region would sit
+   // at 248, past the bottom
+   @Test
+   void aHiddenTitleMarkedContainersFirstListIsExportedAtItsTop() {
+      CurrentSelectionVSAssembly container = lists(VizMark.MODERN_LIGHT, false);
+      assertTrue(matchLayout(container).needExport(childOf(container, "Customer")));
+   }
+
+   @Test
+   void aHiddenTitleMarkedContainersBottomListIsExportedWhole() {
+      CurrentSelectionVSAssembly container = lists(VizMark.MODERN_LIGHT, false);
+      AbstractVSExporter exporter = matchLayout(container);
+      VSAssembly region = childOf(container, "Region");
+
+      assertTrue(exporter.needExport(region));
+      exporter.prepareAssembly(region);
+      assertEquals(30, region.getPixelSize().height);
+   }
+
+   @Test
+   void aVisibleTitleMarkedContainersBottomListIsLeftOutAsBefore() {
+      CurrentSelectionVSAssembly container = lists(VizMark.MODERN_LIGHT, true);
+      assertFalse(matchLayout(container).needExport(childOf(container, "Region")));
+   }
+
+   // unmarked, the stored stack keeps the 20px lane: Region at 238, cut to the 10 left
+   @Test
+   void aHiddenTitleUnmarkedContainersBottomListIsClippedAsBefore() {
+      CurrentSelectionVSAssembly container = lists(null, false);
+      AbstractVSExporter exporter = matchLayout(container);
+      VSAssembly region = childOf(container, "Region");
+
+      assertTrue(exporter.needExport(region));
+      exporter.prepareAssembly(region);
+      assertEquals(10, region.getPixelSize().height);
+   }
+
+   // a slider is measured from its stored offset, which layout() writes as drawn: under Customer
+   // (160) it sits at 198 and keeps its 40; under the lane it would sit at 228, cut to 20
+   @Test
+   void aHiddenTitleMarkedContainersSliderIsClippedFromWhereItIsDrawn() {
+      CurrentSelectionVSAssembly container = sliderStack(VizMark.MODERN_LIGHT, false, false);
+      VSAssembly slider = childOf(container, "Slider");
+      matchLayout(container).prepareAssembly(slider);
+      assertEquals(40, slider.getPixelSize().height);
+   }
+
+   @Test
+   void aVisibleTitleMarkedContainersSliderIsClippedAsBefore() {
+      CurrentSelectionVSAssembly container = sliderStack(VizMark.MODERN_LIGHT, true, false);
+      VSAssembly slider = childOf(container, "Slider");
+      matchLayout(container).prepareAssembly(slider);
+      assertEquals(20, slider.getPixelSize().height);
+   }
+
+   @Test
+   void aHiddenTitleMarkedContainersFirstSliderIsExportedAtItsTop() {
+      CurrentSelectionVSAssembly container = sliderStack(VizMark.MODERN_LIGHT, false, true);
+      assertTrue(matchLayout(container).needExport(childOf(container, "Slider")));
+   }
+
+   private static CurrentSelectionVSAssembly lists(VizMark mark, boolean titleVisible) {
+      CurrentSelectionVSAssembly container = container210(mark, titleVisible);
+      Viewsheet vs = container.getViewsheet();
+      child(vs, "Customer", new Point(418, 0), 180).getVSAssemblyInfo().setVizMark(mark);
+      child(vs, "Region", new Point(418, 0), 30).getVSAssemblyInfo().setVizMark(mark);
+      container.setAssemblies(new String[] { "Customer", "Region" });
+      container.layout();
+      return container;
+   }
+
+   private static CurrentSelectionVSAssembly sliderStack(VizMark mark, boolean titleVisible,
+                                                         boolean sliderFirst)
+   {
+      CurrentSelectionVSAssembly container = container210(mark, titleVisible);
+      Viewsheet vs = container.getViewsheet();
+      child(vs, "Customer", new Point(418, 0), 160).getVSAssemblyInfo().setVizMark(mark);
+      TimeSliderVSAssembly slider = new TimeSliderVSAssembly(vs, "Slider");
+      vs.addAssembly(slider);
+      TimeSliderVSAssemblyInfo info = (TimeSliderVSAssemblyInfo) slider.getVSAssemblyInfo();
+      info.setVizMark(mark);
+      info.setPixelOffset(new Point(418, 0));
+      info.setPixelSize(new Dimension(300, 40));
+      container.setAssemblies(sliderFirst ? new String[] { "Slider", "Customer" } :
+                                 new String[] { "Customer", "Slider" });
+      container.layout();
+      return container;
+   }
+
+   private static CurrentSelectionVSAssembly container210(VizMark mark, boolean titleVisible) {
+      Viewsheet vs = new Viewsheet();
+      vs.getViewsheetInfo().setVizDensity("comfortable");
+      CurrentSelectionVSAssembly container = new CurrentSelectionVSAssembly(vs, "CurrentSelection1");
+      vs.addAssembly(container);
+      CurrentSelectionVSAssemblyInfo info = (CurrentSelectionVSAssemblyInfo) container.getVSAssemblyInfo();
+      info.setPixelOffset(new Point(418, 38));
+      info.setPixelSize(new Dimension(300, 210));
+      info.setTitleHeightValue(20);
+      info.setTitleVisibleValue(titleVisible);
+      info.setVizMark(mark);
+      container.setShowCurrentSelectionValue(false);
+      return container;
+   }
+
+   private static AbstractVSExporter matchLayout(CurrentSelectionVSAssembly container) {
+      AbstractVSExporter exporter = new HTMLVSExporter(new ByteArrayOutputStream());
+      exporter.viewsheet = container.getViewsheet();
+      exporter.setMatchLayout(true);
+      return exporter;
+   }
+
+   private static VSAssembly childOf(CurrentSelectionVSAssembly container, String name) {
+      return (VSAssembly) container.getViewsheet().getAssembly(name);
    }
 
    private static int preparedHeight(VizMark mark, int childHeight, boolean match) {

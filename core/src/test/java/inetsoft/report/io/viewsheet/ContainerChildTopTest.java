@@ -25,6 +25,8 @@ import inetsoft.uql.viewsheet.internal.*;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -102,6 +104,56 @@ class ContainerChildTopTest {
       assertArrayEquals(new int[] { 128, 158, 228, 458 }, storedTops(container));
    }
 
+   private static CurrentSelectionVSAssemblyInfo info(CurrentSelectionVSAssembly container) {
+      return (CurrentSelectionVSAssemblyInfo) container.getVSAssemblyInfo();
+   }
+
+   // two 30px rows from the container top, then the dropdown, the slider (40 + 30) and the list
+   @Test
+   void aMarkedContainerWithAHiddenTitleDrawsItsChildrenFromItsTop() {
+      CurrentSelectionVSAssembly container = container(VizMark.MODERN_LIGHT, "comfortable", false);
+      assertArrayEquals(new float[] { 98, 128, 198, 428 }, exportTops(container));
+   }
+
+   @Test
+   void aMarkedContainerWithAHiddenTitleStoresTheStackItDraws() {
+      CurrentSelectionVSAssembly container = container(VizMark.MODERN_LIGHT, "comfortable", false);
+      container.layout();
+      assertArrayEquals(new int[] { 98, 128, 198, 428 }, storedTops(container));
+   }
+
+   @Test
+   void anUnmarkedContainerWithAHiddenTitleKeepsTheLaneAsBefore() {
+      CurrentSelectionVSAssembly container = container(null, "comfortable", false);
+      assertArrayEquals(new float[] { 98, 118, 178, 318 }, exportTops(container));
+      container.layout();
+      assertArrayEquals(new int[] { 98, 118, 158, 298 }, storedTops(container));
+   }
+
+   // the first child sits under the two out rows, and under the title lane only while it shows
+   @ParameterizedTest
+   @CsvSource({ "comfortable, 128, 98", "compact, 116, 90", "dense, 98, 78" })
+   void aHiddenTitleGivesUpItsLaneAtEveryTier(String density, float visible, float hidden) {
+      assertEquals(visible, exportTops(container(VizMark.MODERN_LIGHT, density, true))[0]);
+      assertEquals(hidden, exportTops(container(VizMark.MODERN_LIGHT, density, false))[0]);
+   }
+
+   @ParameterizedTest
+   @CsvSource({ "comfortable", "compact", "dense" })
+   void anUnmarkedContainerKeepsAHiddenTitlesLaneAtEveryTier(String density) {
+      assertEquals(98f, exportTops(container(null, density, false))[0]);
+   }
+
+   @Test
+   void onlyAMarkedContainersHiddenTitleDropsTheLane() {
+      assertTrue(info(container(VizMark.MODERN_LIGHT, "comfortable", false)).isTitleLaneDropped());
+      assertEquals(0, info(container(VizMark.MODERN_LIGHT, "comfortable", false)).getTitleLaneHeight());
+      assertEquals(30, info(container(VizMark.MODERN_LIGHT, "comfortable", true)).getTitleLaneHeight());
+      assertFalse(info(container(null, "comfortable", false)).isTitleLaneDropped());
+      assertEquals(20, info(container(null, "comfortable", false)).getTitleLaneHeight());
+      assertEquals(20, info(container(null, "comfortable", true)).getTitleLaneHeight());
+   }
+
    private static float[] exportTops(CurrentSelectionVSAssembly container) {
       float[] tops = new float[CHILDREN.length];
 
@@ -127,15 +179,22 @@ class ContainerChildTopTest {
       return (VSAssembly) container.getViewsheet().getAssembly(name);
    }
 
-   // every mark is pinned, because construction takes the org gate's
    private static CurrentSelectionVSAssembly container(VizMark mark) {
+      return container(mark, "comfortable", true);
+   }
+
+   // every mark is pinned, because construction takes the org gate's
+   private static CurrentSelectionVSAssembly container(VizMark mark, String density,
+                                                       boolean titleVisible)
+   {
       Viewsheet vs = new Viewsheet();
-      vs.getViewsheetInfo().setVizDensity("comfortable");
+      vs.getViewsheetInfo().setVizDensity(density);
       CurrentSelectionVSAssembly container = new CurrentSelectionVSAssembly(vs, "CurrentSelection1");
       vs.addAssembly(container);
       container.getVSAssemblyInfo().setVizMark(mark);
       container.getVSAssemblyInfo().setPixelOffset(new Point(418, 38));
       container.getVSAssemblyInfo().setPixelSize(new Dimension(300, 600));
+      info(container).setTitleVisibleValue(titleVisible);
       int lane = mark != null ? 30 : 20;
 
       list(vs, "L1", mark, SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE, lane);

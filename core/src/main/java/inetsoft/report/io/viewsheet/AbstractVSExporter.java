@@ -2702,7 +2702,10 @@ public abstract class AbstractVSExporter implements VSExporter {
                   (CurrentSelectionVSAssembly) container;
                int gap = getContainerChildTop(csAssembly, assembly) -
                   csAssembly.getPixelOffset().y;
-               return gap > 0 && gap < csAssembly.getPixelSize().height;
+               // with the title lane dropped, the first child sits at the container's top
+               boolean inside = gap > 0 || gap == 0 &&
+                  ((CurrentSelectionVSAssemblyInfo) csAssembly.getVSAssemblyInfo()).isTitleLaneDropped();
+               return inside && gap < csAssembly.getPixelSize().height;
             }
          }
 

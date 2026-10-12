@@ -177,14 +177,14 @@ public class CurrentSelectionVSAssembly extends AbstractContainerVSAssembly
    }
 
    /**
-    * The y this container draws a child at: under its title and any collapsed out-selection rows,
+    * The y this container draws a child at: under its title lane and any collapsed out-selection rows,
     * after the children above it.
     * @param containerTop the container's top, in the caller's pixel space.
     */
    public float getChildTop(VSAssembly child, double containerTop) {
       Viewsheet vs = child.getViewsheet();
       CurrentSelectionVSAssemblyInfo cinfo = (CurrentSelectionVSAssemblyInfo) getVSAssemblyInfo();
-      float titleH = cinfo.getTitleHeight();
+      float titleH = cinfo.getTitleLaneHeight();
       int outN = !isShowCurrentSelection() ? 0 : getOutSelectionTitles().length;
       float currentY = (float) (containerTop + titleH +
          outN * cinfo.getOutSelectionRowHeight(AssetUtil.defh));
