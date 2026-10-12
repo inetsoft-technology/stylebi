@@ -23,6 +23,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.schedule.BatchAction;
 import inetsoft.test.*;
 import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.schema.XSchema;
@@ -57,6 +58,12 @@ import static org.junit.jupiter.api.Assertions.*;
  * periods and the deployment date of a jar. Each object is written by its real writer, its
  * 1996 years are replaced by the Buddhist 2539 and the legacy XML is parsed by its real reader.
  * A Buddhist 2539-02-29 read as a Gregorian year rolls to 2539-02-28 or 2539-03-01.
+ *
+ * <p>Bug #78363 adds two more sites to the same family: a Combo Box's own
+ * {@code defaultValue} (not just its candidate {@code values}/{@code selectedObject}, which
+ * #78040 already covered) and a date dimension's manual sort order (both the raw
+ * {@code VSDimensionRef.manualOrderList} and the {@link inetsoft.graph.internal.ManualOrderComparer}
+ * built from it via {@code createComparator}).
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class },
@@ -217,6 +224,115 @@ class LegacyBuddhistPersistedValueTest {
       parse(info2, legacy(toXML(info)), on);
 
       assertDate(on, info2.getDeploymentDate());
+   }
+
+   // Bug #78363: a Combo Box's own defaultValue, read raw by ComboBoxVSAssemblyInfo.parseAttributes,
+   // must be converted the same way its sibling candidate values already are (Bug #78040), or a
+   // legacy th_TH server's saved default silently stops matching any candidate and validate()
+   // falls back to the first one instead of the designed default.
+   @ParameterizedTest
+   @ValueSource(booleans = { true, false })
+   void comboBoxDefaultValue(boolean on) throws Exception {
+      ComboBoxVSAssemblyInfo info = new ComboBoxVSAssemblyInfo();
+      info.setDataType(XSchema.DATE);
+      ListData data = new ListData();
+      data.setDataType(XSchema.DATE);
+      data.setValues(new Object[] {
+         new java.sql.Date(date(1996, 1, 15)), new java.sql.Date(date(1996, 2, 29)) });
+      data.setLabels(new String[] { "1996-01-15", "1996-02-29" });
+      info.setListData(data);
+      info.setValues(new Object[] {
+         new java.sql.Date(date(1996, 1, 15)), new java.sql.Date(date(1996, 2, 29)) });
+      info.setLabels(new String[] { "1996-01-15", "1996-02-29" });
+      info.setDefaultValue("1996-02-29");
+
+      ComboBoxVSAssemblyInfo info2 = new ComboBoxVSAssemblyInfo();
+      parse(info2, legacy(toXML(info)), on);
+
+      // the raw attribute itself is converted when on, and left exactly as persisted when off
+      assertEquals(on ? "1996-02-29" : "2539-02-29", info2.getDefaultValue());
+
+      info2.validate();
+
+      if(on) {
+         // the designed default (Feb 29) is now matched and selected -- not converted to a typed
+         // Date here (Tool.getPersistentDataString is a pre-existing, unrelated String pass-through
+         // in this branch of validate()), but crucially not the wrong first candidate (Jan 15)
+         // that the pre-fix defaultValue mismatch produced
+         assertEquals("1996-02-29", info2.getSelectedObject());
+      }
+   }
+
+   // Bug #78363: the conversion must be gated on the field actually being a date type, or a
+   // non-date default value that happens to look like a Buddhist-window year would be corrupted.
+   @Test
+   void comboBoxDefaultValueNonDateTypeUnaffected() throws Exception {
+      SreeEnv.setProperty(COMPAT_PROPERTY, "true");
+
+      ComboBoxVSAssemblyInfo info = new ComboBoxVSAssemblyInfo();
+      info.setDataType(XSchema.INTEGER);
+      info.setDefaultValue("2500");
+
+      ComboBoxVSAssemblyInfo info2 = new ComboBoxVSAssemblyInfo();
+      info2.parseXML(Tool.parseXML(new StringReader(toXML(info))).getDocumentElement());
+
+      assertEquals("2500", info2.getDefaultValue());
+   }
+
+   // Bug #78363: a date dimension's manual sort order, read raw by VSDimensionRef.parseContents,
+   // must be converted the same way, or a legacy th_TH server's saved order is parsed as the
+   // literal (wrong) Gregorian year, never matches real query values, and createComparator()'s
+   // ManualOrderComparer silently discards the designed order.
+   @ParameterizedTest
+   @ValueSource(booleans = { true, false })
+   void vsDimensionRefManualOrder(boolean on) throws Exception {
+      // a manual order item round-trips through ItemList's own byte encoding
+      // (Tool.byteEncode/ItemList.writeSerializableObject), not plain CDATA text, so the
+      // Buddhist-tainted value is set directly rather than text-replaced in written XML, the
+      // same shape VSDimensionRef.parseContents actually sees after the generic decode
+      VSDimensionRef ref = new VSDimensionRef(new AttributeRef(null, "date"));
+      ref.setDataType(XSchema.DATE);
+      ref.setOrder(XConstants.SORT_SPECIFIC);
+      ref.setManualOrderList(new ArrayList<>(List.of("2539-02-29", "2539-01-15")));
+
+      SreeEnv.setProperty(COMPAT_PROPERTY, String.valueOf(on));
+      VSDimensionRef result = new VSDimensionRef();
+      result.parseXML(Tool.parseXML(new StringReader(toXML(ref))).getDocumentElement());
+
+      if(on) {
+         assertEquals(List.of("1996-02-29", "1996-01-15"), result.getManualOrderList());
+
+         // the designed order puts Feb 29 before Jan 15, the opposite of natural ascending order
+         java.util.Comparator comparator = result.createComparator(null);
+         assertTrue(comparator.compare(
+            new java.sql.Date(date(1996, 1, 15)), new java.sql.Date(date(1996, 2, 29))) > 0);
+      }
+      else {
+         // unchanged pre-fix behavior when compat is off: entries stay the raw Buddhist strings
+         assertEquals(List.of("2539-02-29", "2539-01-15"), result.getManualOrderList());
+      }
+   }
+
+   // Bug #78363: a named group's manual order holds group names, not dates, and must never be
+   // run through the date conversion even when the dimension's own data type is a date type and
+   // date.legacy.buddhist.compat is on.
+   @Test
+   void vsDimensionRefManualOrderSkipsNamedGroup() throws Exception {
+      VSDimensionRef ref = new VSDimensionRef(new AttributeRef(null, "date"));
+      ref.setDataType(XSchema.DATE);
+      ref.setOrder(XConstants.SORT_SPECIFIC);
+      ref.setManualOrderList(new ArrayList<>(List.of("2539-02-29", "2539-01-15")));
+      SNamedGroupInfo groupInfo = new SNamedGroupInfo();
+      // a non-empty group list is enough to make isNameGroup() true, the fix's actual gate
+      groupInfo.addGroupName("g1");
+      ref.setNamedGroupInfo(groupInfo);
+
+      SreeEnv.setProperty(COMPAT_PROPERTY, "true");
+      VSDimensionRef result = new VSDimensionRef();
+      result.parseXML(Tool.parseXML(new StringReader(toXML(ref))).getDocumentElement());
+
+      // left exactly as persisted, not converted to 1996, even though compat is on
+      assertEquals(List.of("2539-02-29", "2539-01-15"), result.getManualOrderList());
    }
 
    private static Viewsheet buildViewsheet() {
