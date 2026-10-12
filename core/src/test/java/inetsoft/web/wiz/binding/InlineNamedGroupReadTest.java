@@ -17,10 +17,23 @@
  */
 package inetsoft.web.wiz.binding;
 
+import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.Condition;
+import inetsoft.uql.ConditionItem;
+import inetsoft.uql.ConditionList;
 import inetsoft.uql.JunctionOperator;
+import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.asset.AttachedAssembly;
+import inetsoft.uql.asset.DefaultNamedGroupAssembly;
+import inetsoft.uql.asset.NamedGroupInfo;
+import inetsoft.uql.asset.SourceInfo;
+import inetsoft.uql.asset.Worksheet;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.XCondition;
 import inetsoft.uql.asset.SNamedGroupInfo;
 import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.util.XNamedGroupInfo;
 import inetsoft.uql.viewsheet.graph.AestheticRef;
 import inetsoft.uql.viewsheet.graph.ChartRef;
@@ -59,6 +72,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Bug #78359: a chart read reports an inline named group as {@code namedGroupValues}, not the
@@ -236,6 +251,118 @@ class InlineNamedGroupReadTest {
 
       assertEquals("Custom", ref.namedGroup());
       assertNull(ref.namedGroupValues());
+   }
+
+   /**
+    * A worksheet named-group reference on a chart dimension is snapshotted into an EXPERT group
+    * (no live link), so an all-equality one reads as the equivalent inline values -- the accepted
+    * trade-off -- while one with a STARTING_WITH condition keeps the placeholder read.
+    */
+   @Test
+   void aWorksheetGroupReferenceReadsAsValuesOnlyWhenItIsAllEquality() throws Exception {
+      try(AnnotationConfigApplicationContext context = context()) {
+         DataRefModelFactoryService refs = context.getBean(DataRefModelFactoryService.class);
+         ChartRefModelFactoryService service = context.getBean(ChartRefModelFactoryService.class);
+
+         FieldRef equality = worksheetGroupRead(
+            service, refs, "ByEq", worksheetGroup("ByEq", "West", Condition.EQUAL_TO, "CA"));
+         assertNull(equality.namedGroup());
+         assertEquals("West", equality.namedGroupValues().groups().get(0).name());
+         assertEquals(List.of("CA"), equality.namedGroupValues().groups().get(0).values());
+
+         FieldRef prefix = worksheetGroupRead(
+            service, refs, "ByPrefix",
+            worksheetGroup("ByPrefix", "West", Condition.STARTING_WITH, "C"));
+         assertEquals("Custom", prefix.namedGroup());
+         assertNull(prefix.namedGroupValues());
+      }
+   }
+
+   /** A year-level date member survives the real write/paste/read path as the period start. */
+   @Test
+   void aYearLevelDateMemberReadsBackAsPlainDateText() {
+      try(AnnotationConfigApplicationContext context = context()) {
+         ChartRefModelFactoryService service = context.getBean(ChartRefModelFactoryService.class);
+         FieldRef.NamedGroupValues groups = new FieldRef.NamedGroupValues(List.of(
+            new FieldRef.NamedGroupValues.Clause("Early", List.of("2020", "2021"))), null);
+         ChartBindingModel written = new ChartBindingModel();
+         ChartBindingMutator.setShelf(written, "group", List.of(
+            new FieldRef("Order Date", "dimension", null, "year", null, null, null, groups)));
+         ChartRefModel model = written.getGroupFields().get(0);
+         AttributeRef typed = new AttributeRef("Order Date");
+         typed.setDataType(XSchema.DATE);
+         AttributeRefModel column = new AttributeRefModel(typed) {
+            @Override
+            public DataRef createDataRef() {
+               return typed;
+            }
+         };
+         ((ChartDimensionRefModel) model).setDataRefModel(column);
+         VSChartInfo cinfo = new DefaultVSChartInfo();
+         cinfo.setChartType(GraphTypes.CHART_POINT);
+
+         for(int i = 0; i < 2; i++) {
+            ChartRef ref = service.pasteChartRef(cinfo, model);
+            model = service.createRefModel(
+               ref, cinfo, new OriginalDescriptor(OriginalDescriptor.GROUP, 0));
+         }
+
+         FieldRef read = FieldRefFactory.from(model);
+
+         assertNull(read.namedGroup());
+         assertEquals(List.of("2020-01-01", "2021-01-01"),
+                      read.namedGroupValues().groups().get(0).values());
+      }
+   }
+
+   private static FieldRef worksheetGroupRead(
+      ChartRefModelFactoryService service, DataRefModelFactoryService refs, String groupName,
+      DefaultNamedGroupAssembly assembly) throws Exception
+   {
+      Worksheet ws = mock(Worksheet.class);
+      when(ws.getAssemblies()).thenReturn(new Assembly[]{ assembly });
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getBaseWorksheet()).thenReturn(ws);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      SourceInfo source = new SourceInfo(SourceInfo.ASSET, null, "Query1");
+
+      ChartBindingModel written = new ChartBindingModel();
+      ChartBindingMutator.setShelf(written, "group", List.of(
+         new FieldRef("State", "dimension", null, null, groupName)), rvs, source, refs);
+      ChartRefModel model = written.getGroupFields().get(0);
+      VSChartInfo cinfo = new DefaultVSChartInfo();
+      cinfo.setChartType(GraphTypes.CHART_POINT);
+
+      for(int i = 0; i < 2; i++) {
+         ChartRef ref = service.pasteChartRef(cinfo, model);
+         bindColumn(ref, "State");
+         model = service.createRefModel(
+            ref, cinfo, new OriginalDescriptor(OriginalDescriptor.GROUP, 0));
+      }
+
+      return FieldRefFactory.from(model);
+   }
+
+   private static DefaultNamedGroupAssembly worksheetGroup(
+      String name, String member, int operation, String value) throws Exception
+   {
+      Condition condition = mock(Condition.class);
+      when(condition.getOperation()).thenReturn(operation);
+      when(condition.getValues()).thenReturn(List.of(value));
+      ConditionList conditions = new ConditionList();
+      conditions.append(new ConditionItem(new AttributeRef(null, "State"), condition, 0));
+      NamedGroupInfo info = new NamedGroupInfo();
+      info.setGroupCondition(member, conditions);
+
+      DefaultNamedGroupAssembly assembly = mock(DefaultNamedGroupAssembly.class);
+      when(assembly.getName()).thenReturn(name);
+      when(assembly.getAttachedType()).thenReturn(AttachedAssembly.COLUMN_ATTACHED);
+      when(assembly.getAttachedSource()).thenReturn(
+         new SourceInfo(SourceInfo.ASSET, null, "Query1"));
+      when(assembly.getAttachedAttribute()).thenReturn(new AttributeRef(null, "State"));
+      when(assembly.getNamedGroupInfo()).thenReturn(info);
+      return assembly;
    }
 
    private static void assertCustom(ChartDimensionRefModel dim) {
