@@ -1459,4 +1459,48 @@ class CalcTableServiceTest {
 
       verify(h.sessions, never()).mutate(anyString(), any(Principal.class), any());
    }
+
+   /** Bug #78404 D1: a two-column formula's second column is checked like the primary one. */
+   @Test
+   void refusesASecondColumnNotOnTheAssemblysSourceNamingIt() throws Exception {
+      Harness h = harness(2, 2);
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> h.service.setCellBinding("tok", principal(), "Calc1", 0, 1,
+            spec("content", "column", "grouping", "summary",
+                 "field", spec("column", "PAID", "type", "measure"),
+                 "formula", "First(NoSuchCol)")));
+
+      assertTrue(e.getMessage().contains("NoSuchCol"), e.getMessage());
+      verify(h.layoutService, never()).setCellBinding(anyString(), any(), any(Principal.class),
+                                                       any());
+   }
+
+   @Test
+   void acceptsASecondColumnThatIsOnTheSource() throws Exception {
+      Harness h = harness(2, 2);
+
+      h.service.setCellBinding("tok", principal(), "Calc1", 0, 1,
+         spec("content", "column", "grouping", "summary",
+              "field", spec("column", "PAID", "type", "measure"),
+              "formula", "First(Region)"));
+
+      verify(h.layoutService).setCellBinding(eq("rt1"), any(), any(Principal.class), any());
+   }
+
+   /** Bug #78404 D3: the script path lower-cases only the first letter, so spelling must be canonical. */
+   @Test
+   void canonicalizesTheSummaryFormulaSpellingBeforeItReachesTheLayoutService() throws Exception {
+      Harness h = harness(2, 2);
+
+      h.service.setCellBinding("tok", principal(), "Calc1", 0, 1,
+         spec("content", "column", "grouping", "summary",
+              "field", spec("column", "PAID", "type", "measure"), "formula", "SUMSQ"));
+
+      ArgumentCaptor<SetCellBindingEvent> captor =
+         ArgumentCaptor.forClass(SetCellBindingEvent.class);
+      verify(h.layoutService).setCellBinding(eq("rt1"), captor.capture(), any(Principal.class),
+                                             any());
+      assertEquals("SumSQFormula", captor.getValue().getBinding().getFormula());
+   }
 }

@@ -17,6 +17,7 @@
  */
 package inetsoft.report.script.formula;
 
+import inetsoft.mv.formula.SumSQFormula;
 import inetsoft.report.TableLens;
 import inetsoft.report.filter.*;
 import inetsoft.report.internal.Util;
@@ -72,6 +73,7 @@ public class CalcTableScope extends PropertyScriptable implements DynamicScope {
          addFunctionProperty(getClass(), "count", params);
          addFunctionProperty(getClass(), "countDistinct", params);
          addFunctionProperty(getClass(), "max", params);
+         addFunctionProperty(getClass(), "sumSQFormula", params);
          addFunctionProperty(getClass(), "min", params);
          addFunctionProperty(getClass(), "product", params);
          addFunctionProperty(getClass(), "concat", params);
@@ -299,6 +301,30 @@ public class CalcTableScope extends PropertyScriptable implements DynamicScope {
          // report scope function, (table, column)
          return toDouble(ReportGraalJavaScriptEngine.summarize(
                             column, group, "distinct count", formula, cond, null));
+      }
+   }
+
+   /**
+    * Calculate the sum of squares of a group on the summary column.
+    * @param column summary column.
+    * @param group group column.
+    * @param cond optional condition expression for conditional summary.
+    */
+   public Object sumSQFormula(Object column, String group, String cond) {
+      Formula formula = new SumSQFormula();
+
+      if(isCellRange(column)) {
+         return summarize((String) column, "sumSQFormula", formula);
+      }
+
+      TableLens lens = (TableLens) PropertyDescriptor.convert(column, TableLens.class);
+
+      if(lens == null) {
+         return summarize2(column, formula);
+      }
+      else {
+         return ReportGraalJavaScriptEngine.summarize(column, group, "sumSQFormula", formula,
+                                                      cond, null);
       }
    }
 

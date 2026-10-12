@@ -85,6 +85,15 @@ public class CalcTableScopeTest {
       assertInstanceOf(CalcRef.class, calcTableScope.getMember("$name"));
    }
 
+
+   /** Bug #78404: sumSQFormula was not registered, so a layout with a formula cell threw a ReferenceError. */
+   @Test
+   void testSumSQFormulaIsRegisteredAndComputes() {
+      assertInstanceOf(ScriptFunction.class, calcTableScope.getMember("sumSQFormula"));
+      assertEquals(14.0, ((Number) calcTableScope.sumSQFormula("[1,id]:[3,id]", null, null)).doubleValue());
+      assertEquals(9.0 + 49.0 + 81.0,
+                   ((Number) calcTableScope.sumSQFormula(new Object[]{3, 7, 9}, null, null)).doubleValue());
+   }
    /**
     * test setRow
     */

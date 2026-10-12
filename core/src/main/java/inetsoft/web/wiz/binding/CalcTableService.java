@@ -365,6 +365,13 @@ public class CalcTableService {
 
          if(cellBindingInfo.getType() == CellBinding.BIND_COLUMN) {
             requireBindableColumn(runtimeId, user, assemblyName, cellBindingInfo.getValue());
+
+            String secondary = CalcCellVocabulary.isSummary(cellBindingInfo.getBtype())
+               ? CalcCellVocabulary.secondaryColumn(cellBindingInfo.getFormula()) : null;
+
+            if(secondary != null) {
+               requireBindableColumn(runtimeId, user, assemblyName, secondary);
+            }
          }
 
          Object field = binding.get("field");
@@ -1020,7 +1027,7 @@ public class CalcTableService {
                "aggregate rather than rendering an unaggregated cell.");
          }
 
-         info.setFormula(formula);
+         info.setFormula(CalcCellVocabulary.canonicalFormula(formula));
       }
       else if(type == CellBinding.BIND_FORMULA) {
          String script = str(binding, "formula");
