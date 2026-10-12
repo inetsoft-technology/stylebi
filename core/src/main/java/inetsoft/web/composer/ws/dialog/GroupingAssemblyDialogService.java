@@ -36,6 +36,7 @@ import inetsoft.web.composer.model.condition.ConditionUtil;
 import inetsoft.web.composer.model.ws.GroupingAssemblyDialogModel;
 import inetsoft.web.composer.ws.WorksheetControllerService;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.springframework.stereotype.Service;
 
@@ -49,10 +50,12 @@ public class GroupingAssemblyDialogService extends WorksheetControllerService {
 
    public GroupingAssemblyDialogService(ViewsheetService viewsheetService,
                                         DataRefModelFactoryService dataRefModelFactoryService,
-                                        DataSourceRegistry dataSourceRegistry)
+                                        DataSourceRegistry dataSourceRegistry,
+                                        QueryManagerService queryManagerService)
    {
       super(viewsheetService, dataSourceRegistry);
       this.dataRefModelFactoryService = dataRefModelFactoryService;
+      this.queryManagerService = queryManagerService;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -136,16 +139,8 @@ public class GroupingAssemblyDialogService extends WorksheetControllerService {
       boolean created = false;
       String name = model.getOldName();
       String dataType = model.getType();
-      NamedGroupInfo groupInfo = extractGroupInfo(model, principal);
       NamedGroupAssembly assembly = (NamedGroupAssembly) ws.getAssembly(name);
-
-      if(assembly == null) {
-         created = true;
-         assembly = new DefaultNamedGroupAssembly(ws, model.getNewName());
-      }
-
       SourceInfo sourceInfo = null;
-      DataRef ref = null;
 
       if(model.getOnlyFor() != null) {
          AssetEntry entry = model.getOnlyFor();
@@ -153,6 +148,25 @@ public class GroupingAssemblyDialogService extends WorksheetControllerService {
                                      entry.getProperty("prefix"),
                                      entry.getProperty("source"));
          sourceInfo.setProperty("isJDBC", entry.getProperty("isJDBC"));
+
+         // the columns of the source are resolved below without a permission check, so check
+         // a newly attached source before the group conditions and the attribute are
+         // resolved from it. An unchanged source is not checked (Bug #77427)
+         if(assembly == null || !sourceInfo.equals(assembly.getAttachedSource())) {
+            queryManagerService.checkSourceReadPermission(sourceInfo, principal);
+         }
+      }
+
+      NamedGroupInfo groupInfo = extractGroupInfo(model, principal);
+
+      if(assembly == null) {
+         created = true;
+         assembly = new DefaultNamedGroupAssembly(ws, model.getNewName());
+      }
+
+      DataRef ref = null;
+
+      if(sourceInfo != null) {
          ref = ConditionUtil.getOriginalDataRef(
             model.getAttribute().createDataRef(), sourceInfo, super.getWorksheetEngine(),
             principal);
@@ -234,4 +248,5 @@ public class GroupingAssemblyDialogService extends WorksheetControllerService {
    }
 
    private DataRefModelFactoryService dataRefModelFactoryService;
+   private final QueryManagerService queryManagerService;
 }

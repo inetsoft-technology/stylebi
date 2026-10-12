@@ -91,6 +91,7 @@ public class DeleteColumnsService extends WorksheetControllerService {
       RuntimeWorksheet rws = super.getRuntimeWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
       String tname = event.getTableName();
+      checkCubeTableReadPermission(principal, tname);
       TableAssembly table = (TableAssembly) ws.getAssembly(tname);
       ColumnRefModel[] columnRefs = event.getColumns();
 

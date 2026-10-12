@@ -1,0 +1,14 @@
+<viewsheet>
+<assembly>
+<assemblies>
+<oneAssembly>
+<assembly class="inetsoft.uql.viewsheet.LineVSAssembly">
+<assemblyInfo><name><![CDATA[Line77583Align]]></name><absoluteName><![CDATA[Line77583Align]]></absoluteName>
+<formatInfo><aFormat><tableDataPath>
+</tableDataPath>
+<VSCompositeFormat><defaultFormat><VSFormat  alignValue="*-1">
+</VSFormat></defaultFormat>
+</VSCompositeFormat></aFormat></formatInfo></assemblyInfo></assembly></oneAssembly>
+</assemblies>
+</assembly>
+</viewsheet>

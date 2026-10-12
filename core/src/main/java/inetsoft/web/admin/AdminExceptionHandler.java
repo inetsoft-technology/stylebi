@@ -107,9 +107,14 @@ public class AdminExceptionHandler {
    }
 
    /**
-    * Error handler for access denied. The {@link SecurityException} thrown by
-    * {@link inetsoft.web.security.SecuredAspect} is a checked exception; Spring AOP wraps it in
-    * an {@link UndeclaredThrowableException} before it reaches this handler.
+    * Error handler for access denied. A checked {@link SecurityException} or
+    * {@link UnauthorizedAccessException} is wrapped by Spring AOP in an
+    * {@link UndeclaredThrowableException} only when an aspect (for example,
+    * {@link inetsoft.web.security.DeniedMultiTenancyOrgUserAspect}) throws it through the proxy
+    * of a controller method that does not declare it. When controller or service code throws it,
+    * the method must declare it, so it arrives unwrapped and is handled by
+    * {@link #handleCheckedSecurityException(SecurityException)} or
+    * {@link #handleUnauthorizedAccess(UnauthorizedAccessException)}.
     */
    @ExceptionHandler(UndeclaredThrowableException.class)
    @ResponseBody
@@ -124,7 +129,7 @@ public class AdminExceptionHandler {
    public ResponseEntity<GenericError> handleUndeclaredThrowable(UndeclaredThrowableException e) {
       Throwable cause = e.getCause();
 
-      if(cause instanceof SecurityException) {
+      if(cause instanceof SecurityException || cause instanceof UnauthorizedAccessException) {
          return accessDenied(cause);
       }
 
@@ -135,8 +140,7 @@ public class AdminExceptionHandler {
    /**
     * Error handler for access denied. The {@link inetsoft.web.security.SecuredAspect} throws an unchecked
     * {@link java.lang.SecurityException} when authorization fails; because it is unchecked,
-    * Spring AOP propagates it directly (unlike the checked {@link SecurityException} handled by
-    * {@link #handleUndeclaredThrowable(UndeclaredThrowableException)}). Map it to a sanitized 403
+    * Spring AOP propagates it directly. Map it to a sanitized 403
     * so that authorization failures are not reported as server errors and no principal, role,
     * group, or organization details are exposed to the client.
     */
@@ -152,18 +156,40 @@ public class AdminExceptionHandler {
    }
 
    /**
-    * Error handler for access denied when a controller throws the checked
-    * {@link SecurityException} directly (not via {@link inetsoft.web.security.SecuredAspect},
-    * which is handled above through {@link #handleUndeclaredThrowable}).
+    * Error handler for access denied. The checked {@link SecurityException} is thrown by
+    * controller and service permission checks (for example, a refused role edit). Because the
+    * method that throws it must declare it, it reaches this handler unwrapped, even through a
+    * class proxy. Map it to a sanitized 403 instead of reporting it as a server error. Its message
+    * often embeds the principal (client, host, roles, groups, organization) or the requested
+    * resource, so it is never returned to the client.
     */
    @ExceptionHandler(SecurityException.class)
    @ResponseBody
    @ApiResponses({
       @ApiResponse(
          responseCode = "403",
-         description = "Access was denied because the requested action is not enabled or permitted.")
+         description = "Access was denied because the user does not have the required permissions.")
    })
-   public ResponseEntity<GenericError> handleCheckedAccessDenied(SecurityException e) {
+   public ResponseEntity<GenericError> handleCheckedSecurityException(SecurityException e) {
+      return accessDenied(e);
+   }
+
+   /**
+    * Error handler for access denied. {@link UnauthorizedAccessException} is thrown by
+    * {@link inetsoft.web.security.DeniedMultiTenancyOrgUserAspect} and by service-level
+    * permission checks; it reaches this handler unwrapped when the controller method declares
+    * it. Map it to a sanitized 403 instead of reporting it as a server error. The return type
+    * allows a subclass to override it with a more specific error, as the enterprise public API
+    * handler does to keep its 401 response.
+    */
+   @ExceptionHandler(UnauthorizedAccessException.class)
+   @ResponseBody
+   @ApiResponses({
+      @ApiResponse(
+         responseCode = "403",
+         description = "Access was denied because the user does not have the required permissions.")
+   })
+   public ResponseEntity<? extends ApiError> handleUnauthorizedAccess(UnauthorizedAccessException e) {
       return accessDenied(e);
    }
 
@@ -190,8 +216,8 @@ public class AdminExceptionHandler {
    @ResponseBody
    @ApiResponses({
       @ApiResponse(
-         responseCode = "401",
-         description = "You are not authorized to access the requested resource."),
+         responseCode = "403",
+         description = "Access was denied because the user does not have the required permissions."),
       @ApiResponse(
          responseCode = "404",
          description = "The requested resource was not found."),
@@ -211,9 +237,9 @@ public class AdminExceptionHandler {
       Throwable cause = e.getCause();
 
       if(cause instanceof UnauthorizedAccessException unauthorized) {
-         LOG.debug("Unauthorized access to resource", unauthorized);
-         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-            .body(new UnauthorizedAccessError(unauthorized));
+         // sanitized as the unwrapped exception is, its message can embed the principal
+         return ResponseEntity.status(HttpStatus.FORBIDDEN)
+            .body(accessDenied(unauthorized).getBody());
       }
       else if(cause instanceof MissingResourceException missing) {
          return ResponseEntity.status(HttpStatus.NOT_FOUND).body(handleMissingResource(missing));

@@ -34,9 +34,11 @@ import java.security.Principal;
  * user folders and dashboards.
  * <p>
  * The check belongs at the entry points and not in the registry managers, which are legitimately
- * called with owners of other organizations by organization rename and clone.
+ * called with owners of other organizations by organization rename and clone. It is public for
+ * the repository export and the schedule backup action, which build assets from a client-supplied
+ * owner in {@code inetsoft.web.admin.deploy.DeployService}.
  */
-final class RepositoryOwnerOrgCheck {
+public final class RepositoryOwnerOrgCheck {
    private RepositoryOwnerOrgCheck() {
    }
 
@@ -52,7 +54,7 @@ final class RepositoryOwnerOrgCheck {
     * @throws MessageException if the owner belongs to another organization or its name or
     *                          organization contains a parent path segment.
     */
-   static void checkOwnerOrg(IdentityID owner, Principal principal) {
+   public static void checkOwnerOrg(IdentityID owner, Principal principal) {
       if(owner == null) {
          return;
       }

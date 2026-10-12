@@ -256,7 +256,11 @@ public class TitleInfo implements AssetObject {
     */
    protected void writeAttributes(PrintWriter writer) {
       writer.print(" titleVisible=\"" + isTitleVisible() + "\"");
-      writer.print(" titleVisibleValue=\"" + getTitleVisibleValue() + "\"");
+      // persist the stored design value, not getTitleVisibleValue(), so a $(var),
+      // =expr or truthy literal such as "yes" is not rewritten to false
+      String titleVisibleValue = titleVisible.getDValue();
+      writer.print(" titleVisibleValue=\"" +
+         Tool.escape(titleVisibleValue == null ? "true" : titleVisibleValue) + "\"");
       writer.print(" titleHeight=\"" + getTitleHeight() + "\"");
       writer.print(" titleHeightValue=\"" + getTitleHeightValue() + "\"");
       writer.print(" padding=\"" + padding + "\"");
@@ -295,13 +299,13 @@ public class TitleInfo implements AssetObject {
 
       if(title != null) {
          writer.print("<title>");
-         writer.print("<![CDATA[" + title + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(title) + "]]>");
          writer.println("</title>");
       }
 
       if(getTitleValue() != null) {
          writer.print("<titleValue>");
-         writer.print("<![CDATA[" + getTitleValue() + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(getTitleValue()) + "]]>");
          writer.println("</titleValue>");
       }
    }

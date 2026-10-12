@@ -43,7 +43,7 @@ import static org.junit.jupiter.api.Assertions.*;
                       initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
-@Tag("core")
+@Tag("slow")
 class WsTimeoutInterruptLeakTest {
    public static final class Spinner {
       /** A host call that ignores interrupts, so the timeout's interrupt cannot stop it. */

@@ -70,7 +70,7 @@ public class DataSpaceFileSettingsController {
    {
       DataSpace space = this.dataSpace;
       Date time = new Date(space.getLastModified(null, path));
-      SimpleDateFormat sformat = new SimpleDateFormat(SreeEnv.getProperty("format.date.time"));
+      SimpleDateFormat sformat = Tool.createGregorianDateFormat(SreeEnv.getProperty("format.date.time"));
       sformat.setTimeZone(TimeZone.getTimeZone(timeZone));
       String lmt = sformat.format(time);
 
@@ -140,6 +140,7 @@ public class DataSpaceFileSettingsController {
                                                    ActionRecord.ACTION_STATUS_SUCCESS, null);
 
       if(request.newFile()) {
+         DataSpaceContentSettingsService.validateName(request.name());
          path = dataSpaceContentSettingsService.getPath(path, request.name());
          actionRecord.setActionName(ActionRecord.ACTION_NAME_CREATE);
          actionRecord.setObjectName(path);
@@ -150,13 +151,24 @@ public class DataSpaceFileSettingsController {
          }
       }
       else {
-         if(!request.newName().equals(request.name())) {
-            String npath =
-               dataSpaceContentSettingsService.getNewPath(path, request.name(), request.newName());
-            boolean success = space.rename(path, npath);
+         // in community mode the name field shows the display name, so newName differs from
+         // name on a plain content edit, but getNewPath() maps it back to the same path
+         String npath = request.newName().equals(request.name()) ? path :
+            dataSpaceContentSettingsService.getNewPath(path, request.name(), request.newName());
+
+         if(!Objects.equals(npath, path)) {
+            DataSpaceContentSettingsService.validateName(request.newName());
             actionRecord.setActionName(ActionRecord.ACTION_NAME_RENAME);
             actionRecord.setObjectName(path);
             actionRecord.setActionError("new name:" + npath);
+
+            // rename overwrites an existing target, so refuse it here
+            if(space.exists(null, npath)) {
+               actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_FAILURE);
+               throw new ResourceExistsException(npath);
+            }
+
+            boolean success = space.rename(path, npath);
 
             if(!success) {
                actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_FAILURE);

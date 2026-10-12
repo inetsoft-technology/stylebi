@@ -20,6 +20,7 @@ package inetsoft.report.lens;
 import inetsoft.report.*;
 import inetsoft.report.event.TableChangeEvent;
 import inetsoft.report.event.TableChangeListener;
+import inetsoft.report.filter.DefaultTableChangeListener;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.table.TableFormat;
 import inetsoft.uql.*;
@@ -32,12 +33,12 @@ import org.slf4j.LoggerFactory;
 
 import java.awt.*;
 import java.io.*;
-import java.lang.ref.Reference;
 import java.lang.ref.WeakReference;
 import java.text.Format;
 import java.util.List;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Supplier;
 
 /**
  * The AbstractTableLens class provides default implementations for most
@@ -119,7 +120,39 @@ public abstract class AbstractTableLens implements TableLens {
     */
    @Override
    public void addChangeListener(TableChangeListener listener) {
-      clisteners.add(new WeakReference<>(listener));
+      if(listener == null) {
+         return;
+      }
+
+      clisteners.removeIf(AbstractTableLens::isDeadListener);
+
+      // a DefaultTableChangeListener holds its filter weakly, so it is kept
+      // strongly here to deliver events for as long as the filter is alive.
+      // filters register it inline, so a weak entry would be lost at the next gc.
+      // other listeners are kept weakly, so this table does not keep them alive.
+      if(listener instanceof DefaultTableChangeListener) {
+         Object target = ((DefaultTableChangeListener) listener).getTarget();
+
+         if(target == null) {
+            return;
+         }
+
+         synchronized(clisteners) {
+            // a filter only needs one listener on its table, e.g. when setTable()
+            // is called again with the same table
+            for(Supplier<TableChangeListener> entry : clisteners) {
+               if(isListenerFor(entry.get(), target)) {
+                  return;
+               }
+            }
+
+            clisteners.add(() -> listener);
+         }
+      }
+      else {
+         WeakReference<TableChangeListener> ref = new WeakReference<>(listener);
+         clisteners.add(ref::get);
+      }
    }
 
    /**
@@ -128,7 +161,33 @@ public abstract class AbstractTableLens implements TableLens {
     */
    @Override
    public void removeChangeListener(TableChangeListener listener) {
-      clisteners.removeIf(ref -> ref.get() == listener);
+      // a DefaultTableChangeListener is removed by its filter, since only the
+      // first listener added for a filter is kept
+      Object target = listener instanceof DefaultTableChangeListener ?
+         ((DefaultTableChangeListener) listener).getTarget() : null;
+
+      clisteners.removeIf(entry -> {
+         TableChangeListener registered = entry.get();
+         return registered == listener || isListenerFor(registered, target) ||
+            isDeadListener(entry);
+      });
+   }
+
+   /**
+    * Check if the listener is a DefaultTableChangeListener for the filter.
+    */
+   private static boolean isListenerFor(TableChangeListener listener, Object target) {
+      return target != null && listener instanceof DefaultTableChangeListener &&
+         ((DefaultTableChangeListener) listener).getTarget() == target;
+   }
+
+   /**
+    * Check if the listener entry no longer has a listener or a filter to notify.
+    */
+   private static boolean isDeadListener(Supplier<TableChangeListener> entry) {
+      TableChangeListener listener = entry.get();
+      return listener == null || listener instanceof DefaultTableChangeListener &&
+         ((DefaultTableChangeListener) listener).getTarget() == null;
    }
 
    /**
@@ -167,13 +226,18 @@ public abstract class AbstractTableLens implements TableLens {
          event = new TableChangeEvent(this);
       }
 
-      try {
-         // @by larryl, should clone here in case the listener is changed
-         // during change event. But currently we don't and it is expensive.
-         List<Reference<TableChangeListener>> vec = clisteners;
+      boolean dead = false;
 
-         for(Reference<TableChangeListener> ref : vec) {
-            TableChangeListener listener = ref.get();
+      try {
+         // the list is copy-on-write, so the loop is not affected by listeners
+         // added or removed during the change event
+         for(Supplier<TableChangeListener> entry : clisteners) {
+            if(isDeadListener(entry)) {
+               dead = true;
+               continue;
+            }
+
+            TableChangeListener listener = entry.get();
 
             if(listener != null) {
                listener.tableChanged(event);
@@ -182,6 +246,10 @@ public abstract class AbstractTableLens implements TableLens {
       }
       catch(Exception ex) {
          LOG.error("Failed to process change event", ex);
+      }
+
+      if(dead) {
+         clisteners.removeIf(AbstractTableLens::isDeadListener);
       }
    }
 
@@ -765,7 +833,7 @@ public abstract class AbstractTableLens implements TableLens {
    protected transient TableDataDescriptor descriptor;
    private XIdentifierContainer identifiers;
    protected Map<Integer, Class<?>> columnTypes = new HashMap<>();
-   private transient List<Reference<TableChangeListener>> clisteners = new CopyOnWriteArrayList<>();
+   private transient List<Supplier<TableChangeListener>> clisteners = new CopyOnWriteArrayList<>();
    private transient TableChangeEvent event;
    private Locale local = Locale.getDefault();
    private Map<String, Object> prop = null;;

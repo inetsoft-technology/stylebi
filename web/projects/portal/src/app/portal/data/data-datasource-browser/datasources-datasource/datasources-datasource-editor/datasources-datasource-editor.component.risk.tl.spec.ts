@@ -281,4 +281,50 @@ describe("DatasourcesDatasourceEditor — authorize", () => {
       await waitFor(() => expect(changed.length).toBeGreaterThan(0));
       expect(changed[0].name).toBe("OAuthDS");
    });
+
+   // Bug #78243, the server checks that the caller may save the data source that a password
+   // grant is for, so the request names it even though oauth-params returns those fields empty
+   it("passes the data source identity to the authorization", async () => {
+      server.use(
+         http.post("*/api/portal/data/datasources/oauth-params", () =>
+            HttpResponse.json({
+               license: "key",
+               user: "user",
+               password: "secret",
+               tokenUri: "https://auth.example.com/token",
+               dataSourceName: null,
+               dataSourceOldName: null,
+               dataSourceParentPath: null,
+               parentDataSource: null
+            })
+         ),
+         http.post("*/api/portal/data/datasources/oauth-tokens", () =>
+            HttpResponse.json(makeDataSource({ name: "Connection" }))
+         )
+      );
+
+      const { of } = await import("rxjs");
+      OAUTH_MOCK.authorize.mockReturnValue(of({ accessToken: "tok" }));
+
+      const { comp } = await renderEditor({
+         datasource: makeDataSource({
+            name: "Connection",
+            oldName: "Old",
+            parentPath: "folder1",
+            parentDataSource: "Parent"
+         })
+      });
+
+      comp.authorize(makeTabularButton({ type: "OAUTH", method: "setTokens" }));
+
+      await waitFor(() => expect(OAUTH_MOCK.authorize).toHaveBeenCalled());
+      expect(OAUTH_MOCK.authorize).toHaveBeenCalledWith(expect.objectContaining({
+         method: "setTokens",
+         tokenUri: "https://auth.example.com/token",
+         dataSourceName: "Connection",
+         dataSourceOldName: "Old",
+         dataSourceParentPath: "folder1",
+         parentDataSource: "Parent"
+      }));
+   });
 });

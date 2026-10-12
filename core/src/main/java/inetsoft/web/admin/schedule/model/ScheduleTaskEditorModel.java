@@ -36,6 +36,14 @@ public interface ScheduleTaskEditorModel {
    @Nullable
    String orgId();
 
+   /**
+    * Bug #77973, true when the actions and conditions carry the original index of the stored
+    * item they replace. An older client doesn't send it, its items are paired with the stored
+    * items by position.
+    */
+   @Nullable
+   Boolean itemsIdentified();
+
    static ScheduleTaskEditorModel.Builder builder() {
       return new ScheduleTaskEditorModel.Builder();
    }

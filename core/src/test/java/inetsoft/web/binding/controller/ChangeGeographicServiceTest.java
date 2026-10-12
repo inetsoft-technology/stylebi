@@ -123,11 +123,11 @@ class ChangeGeographicServiceTest {
 
       VSBindingService bindingFactory = mock(VSBindingService.class);
       when(bindingFactory.createModel(chart)).thenReturn(mock(BindingModel.class));
-      when(bindingFactory.updateAssembly(any(), eq(chart))).thenReturn(updated);
+      when(bindingFactory.updateAssembly(any(), eq(chart), any())).thenReturn(updated);
 
       VSAssemblyInfoHandler assemblyInfoHandler = mock(VSAssemblyInfoHandler.class);
       when(assemblyInfoHandler.handleSourceChanged(any(), anyString(), anyString(), any(), any(),
-                                                   any())).thenReturn(false);
+                                                   any(), any())).thenReturn(false);
 
       VSChartHandler chartHandler = mock(VSChartHandler.class);
       when(chartHandler.fixMapInfo(any(), anyString(), anyString())).thenReturn(false);

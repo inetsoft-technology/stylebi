@@ -78,7 +78,7 @@ public class RelMonitorHolderLensReadTest {
          pooled = null;
       }
 
-      StallPolicy.setOverride(null);
+      StallTestSupport.clearOverride();
    }
 
    @Test

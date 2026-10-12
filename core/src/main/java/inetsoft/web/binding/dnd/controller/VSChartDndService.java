@@ -123,7 +123,8 @@ public class VSChartDndService {
       // Handle source changed.
       if(sourceChanged(assembly, event.getTable())) {
          check = true;
-         assemblyInfoHandler.changeSource(nassembly, event.getTable(), event.getSourceType());
+         assemblyInfoHandler.changeSource(nassembly, event.getTable(), event.getSourceType(),
+                                          principal);
          VSChartInfo vsChartInfo = ninfo.getVSChartInfo();
          VSUtil.setDefaultGeoColumns(vsChartInfo, rvs, event.getTable());
          AggregateInfo ainfo = vsChartInfo.getAggregateInfo();

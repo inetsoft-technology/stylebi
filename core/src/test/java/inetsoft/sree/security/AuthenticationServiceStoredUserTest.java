@@ -31,6 +31,7 @@ import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.XSessionService;
 import inetsoft.uql.XPrincipal;
 import inetsoft.util.IndexedStorage;
+import inetsoft.util.ThreadContext;
 import inetsoft.util.audit.Audit;
 import inetsoft.util.audit.SessionRecord;
 import org.junit.jupiter.api.*;
@@ -73,9 +74,18 @@ class AuthenticationServiceStoredUserTest {
    private XSessionService sessionService;
    private AuthenticationService service;
    private List<IdentityID> queried;
+   private Principal savedPrincipal;
+
+   @BeforeEach
+   void savePrincipal() {
+      // AuthenticationService.authenticate() sets the thread's principal, restored in tearDown()
+      savedPrincipal = ThreadContext.getPrincipal();
+   }
 
    @AfterEach
    void tearDown() {
+      ThreadContext.setPrincipal(savedPrincipal);
+
       if(sutil != null) {
          sutil.close();
       }

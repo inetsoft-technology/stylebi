@@ -42,6 +42,7 @@ import inetsoft.web.portal.service.database.PhysicalGraphService;
 import inetsoft.web.viewsheet.*;
 import org.apache.commons.io.FileExistsException;
 import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -148,16 +149,10 @@ public class PhysicalModelManagerService {
          return null;
       }
 
-      if(!dataSourceService.checkPermission(dataSource, model.getFolder(),
-         ResourceAction.WRITE, principal))
-      {
-         throw new SecurityException(
-            "Unauthorized access to resource \"" + dataSource + "\" by user " + principal);
-      }
-
       boolean isExtended = !StringUtils.isBlank(parent);
-      XPartition partition = physicalModelService.createPartition(model);
       XDataModel dataModel = getDataModel(dataSource);
+      checkCreatePermission(dataSource, dataModel, model.getFolder(), parent, principal);
+      XPartition partition = physicalModelService.createPartition(model);
       partition.setDataModel(dataModel);
 
       if(isExtended) {
@@ -216,11 +211,7 @@ public class PhysicalModelManagerService {
          path = dataSource + "/" + parent + "/" + model.getName();
       }
 
-      if(!dataSourceService.checkPermission(dataSource, folder, ResourceAction.WRITE, principal)) {
-         throw new SecurityException(
-            "Unauthorized access to resource \"" + dataSource + "\" by user " + principal);
-      }
-
+      checkCreatePermission(dataSource, dataModel, folder, parent, principal);
       DataSourceRegistry.IGNORE_GLOBAL_SHARE.set(true);
 
       try {
@@ -241,11 +232,10 @@ public class PhysicalModelManagerService {
          DataSourceRegistry.IGNORE_GLOBAL_SHARE.remove();
       }
 
-      getRuntimePartition(model.getId()).ifPresent(
-         p -> {
-            createAndSaveModel(dataModel, p, path, parent, isExtended, principal);
-            runtimePartitionService.saveRuntimePartition(p);
-         });
+      RuntimePartitionService.RuntimeXPartition p = getRuntimeToSave(
+         dataSource, model.getId(), model.getName(), folder, !isExtended, principal);
+      createAndSaveModel(dataModel, p, path, parent, isExtended, principal);
+      runtimePartitionService.saveRuntimePartition(p);
    }
 
    private void createAndSaveModel(XDataModel dataModel,
@@ -321,6 +311,7 @@ public class PhysicalModelManagerService {
    {
       XDataModel dataModel = getDataModel(dsName);
       boolean isExtended = !StringUtils.isBlank(parent);
+      XPartition storedPartition;
 
       if(isExtended) {
          XPartition parentPartition = dataModel.getPartition(parent);
@@ -332,18 +323,29 @@ public class PhysicalModelManagerService {
          if(parentPartition.getPartition(name) == null) {
             throw new FileNotFoundException(dsName + "/" + parent + "/" + name);
          }
+
+         storedPartition = parentPartition;
       }
       else {
-         if(dataModel.getPartition(name) == null) {
+         storedPartition = dataModel.getPartition(name);
+
+         if(storedPartition == null) {
             throw new FileNotFoundException(dsName + "/" + name);
          }
       }
 
-      if(!dataSourceService.checkPermission(dsName, folder, ResourceAction.WRITE, principal)) {
+      // check the folder the view is stored in, not the one named in the request
+      checkWritePermission(dsName, storedPartition, principal);
+
+      // the model written below is identified by the definition, so it must be the checked one
+      if(model == null || !Tool.equals(name, model.getName())) {
          throw new SecurityException(
-            "Unauthorized access to resource \"" + dsName + "\" by user " +
-               principal);
+            "Physical view \"" + dsName + "/" + name + "\" cannot be saved as \"" +
+               (model == null ? null : model.getName()) + "\" by user " + principal);
       }
+
+      RuntimePartitionService.RuntimeXPartition p = getRuntimeToSave(
+         dsName, model.getId(), name, storedPartition.getFolder(), !isExtended, principal);
 
       for(PhysicalTableModel table: model.getTables()) {
          if(!Tool.equals(table.getOldAlias(), table.getAlias())) {
@@ -364,10 +366,54 @@ public class PhysicalModelManagerService {
          AssetEntry.Type.PARTITION;
       AssetEntry entry = dataSourceService.getModelAssetEntry(
          new AssetEntry(AssetRepository.QUERY_SCOPE, entryType, path, null));
-      getRuntimePartition(model.getId()).ifPresent(p -> {
-         updateAndSaveModel(dataModel, p, parent, name, entry, isExtended);
-         runtimePartitionService.saveRuntimePartition(p);
-      });
+      updateAndSaveModel(dataModel, p, parent, name, entry, isExtended);
+      runtimePartitionService.saveRuntimePartition(p);
+   }
+
+   /**
+    * Gets the runtime whose partition a save writes, and checks that it is the view the save
+    * was permission-checked for. The partition is stored under its own name and folder, which
+    * come from whoever created the runtime, not from the save request.
+    *
+    * @param dataSource    the name of the parent data source.
+    * @param runtimeId     the runtime identifier from the definition.
+    * @param name          the view name the save checked.
+    * @param checkedFolder the folder the save checked WRITE on ({@code null} for the root).
+    * @param checkFolder   {@code false} for an extended view: it is written under its base
+    *                      view whatever its own folder is, and the caller has already checked
+    *                      WRITE on the stored base view's folder.
+    * @param principal     a principal that identifies the remote user.
+    */
+   private RuntimePartitionService.RuntimeXPartition getRuntimeToSave(
+      String dataSource, String runtimeId, String name, String checkedFolder,
+      boolean checkFolder, Principal principal)
+      throws Exception
+   {
+      RuntimePartitionService.RuntimeXPartition runtime =
+         getRuntimePartition(runtimeId).orElse(null);
+
+      if(runtime == null || runtime.getPartition() == null) {
+         throw new FileNotFoundException(
+            "The physical view runtime \"" + runtimeId + "\" does not exist");
+      }
+
+      RuntimePartitionService.checkDataSource(runtime, dataSource);
+      XPartition partition = runtime.getPartition();
+
+      if(!Tool.equals(name, partition.getName())) {
+         throw new SecurityException(
+            "Physical view \"" + dataSource + "/" + name + "\" cannot be saved from a runtime of \"" +
+               partition.getName() + "\" by user " + principal);
+      }
+
+      // a runtime in another folder moves the view there, which needs WRITE on that folder
+      String folder = Tool.isEmptyString(checkedFolder) ? null : checkedFolder;
+
+      if(checkFolder && !Tool.equals(folder, partition.getFolder())) {
+         checkWritePermission(dataSource, partition, principal);
+      }
+
+      return runtime;
    }
 
    private void renameAttribute(XLogicalModel logicalModel, PhysicalTableModel table) {
@@ -476,10 +522,12 @@ public class PhysicalModelManagerService {
          throw new FileNotFoundException(dataSource);
       }
 
-      if(!dataSourceService.checkPermission(dataSource, folder, ResourceAction.WRITE, principal)) {
-         throw new SecurityException(
-            "Unauthorized access to resource \"" + dataSource + "\" by user " +
-               principal);
+      // check the folder the view is stored in, not the one named in the request
+      XPartition storedPartition = dataModel.getPartition(oldName);
+      checkWritePermission(dataSource, storedPartition, principal);
+
+      if(storedPartition != null) {
+         folder = storedPartition.getFolder();
       }
 
       if(dataModel.getPartition(newName) != null) {
@@ -557,13 +605,12 @@ public class PhysicalModelManagerService {
          throw new FileNotFoundException(dataSource);
       }
 
-      if(!dataSourceService.checkPermission(dataSource, folder, ResourceAction.WRITE, principal)) {
-         throw new SecurityException(
-            "Unauthorized access to resource \"" + dataSource + "\" by user " +
-               principal);
-      }
-
       boolean isExtended = !StringUtils.isBlank(parent);
+
+      // check the folder the view (or its base view) is stored in, not the one in the request
+      checkWritePermission(
+         dataSource, dataModel.getPartition(isExtended ? parent : name), principal);
+
       XPartition partition;
       XPartition basePartition = null;
 
@@ -1057,6 +1104,8 @@ public class PhysicalModelManagerService {
       throws Exception
    {
       String additional = model.getConnection();
+      // reads metadata of, and may run inline-view SQL on, the named source
+      dataSourceService.checkDataModelEditPermission(dataSource, additional, principal);
       JDBCDataSource jdbc = (JDBCDataSource) dataSourceService.getDataSource(dataSource, additional);
       XDataModel dataModel = getDataModel(dataSource);
       AutoJoinColumnsModel result = new AutoJoinColumnsModel();
@@ -1090,8 +1139,23 @@ public class PhysicalModelManagerService {
             }
          }
          else {
-            xTableNode =
-               physicalModelService.executeSQLQuery(partitionTable.getSql(), dataSource, principal);
+            try {
+               // the view belongs to the model's connection, so run it there
+               xTableNode = physicalModelService.executeSQLQuery(
+                  partitionTable.getSql(), dataSource, additional, principal);
+            }
+            catch(Exception ex) {
+               // an outage, timeout or other server-side failure still fails the request
+               if(!PhysicalModelService.isUserSqlError(ex)) {
+                  throw ex;
+               }
+
+               // the database rejected the view's SQL: skip the view, so the other tables
+               // still offer their joins
+               LOG.debug("Inline view {} skipped for auto-join, its SQL was rejected: {}",
+                         fqn, partitionTable.getSql(), ex);
+               continue;
+            }
 
             if(xTableNode == null) {
                continue;
@@ -1208,33 +1272,17 @@ public class PhysicalModelManagerService {
          XPartition.PartitionTable independentTable =
             xPartition.getPartitionTable(join.getForeignTable());
 
-         if(dependentTable != null) {
-            XNode tableNode;
-
-            if(TableType.forType(dependentTable.getType()) == TableType.PHYSICAL) {
-               tableNode = metaData.getPrimaryKeys(
-                  PhysicalModelService.getTableXNode(xPartition, tableName, metaData));
-            }
-            else {
-               tableNode = metaData.getPrimaryKeys(physicalModelService.executeSQLQuery(
-                  dependentTable.getSql(), database, principal));
-            }
-
+         // the key columns of an inline view are not known, so it counts as having no
+         // primary key (as when a join is drawn in the graph)
+         if(PhysicalModelService.isPhysicalTable(dependentTable)) {
+            XNode tableNode = metaData.getPrimaryKeys(
+               PhysicalModelService.getTableXNode(xPartition, tableName, metaData));
             isDependentKey = XUtil.isPrimaryKey(join.getColumn(), tableNode);
          }
 
-         if(independentTable != null) {
-            XNode tableNode;
-
-            if(TableType.forType(independentTable.getType()) == TableType.PHYSICAL) {
-               tableNode = metaData.getPrimaryKeys(PhysicalModelService.getTableXNode(
-                  xPartition, join.getForeignTable(), metaData));
-            }
-            else {
-               tableNode = metaData.getPrimaryKeys(physicalModelService.executeSQLQuery(
-                  independentTable.getSql(), database, principal));
-            }
-
+         if(PhysicalModelService.isPhysicalTable(independentTable)) {
+            XNode tableNode = metaData.getPrimaryKeys(PhysicalModelService.getTableXNode(
+               xPartition, join.getForeignTable(), metaData));
             isIndependentKey = XUtil.isPrimaryKey(join.getForeignColumn(), tableNode);
          }
 
@@ -1333,6 +1381,13 @@ public class PhysicalModelManagerService {
 
       for(int i = 0; i < partition.getRelationshipCount(); i++) {
          if(oldRelationship.equalContents(partition.getRelationship(i))) {
+            // a legacy join without a stored cardinality (0/0) is sent as null, keep it as is
+            if(join.getCardinality() == null) {
+               XRelationship stored = partition.getRelationship(i);
+               newRelationship.setDependentCardinality(stored.getDependentCardinality());
+               newRelationship.setIndependentCardinality(stored.getIndependentCardinality());
+            }
+
             partition.setRelationship(i, newRelationship);
             break;
          }
@@ -1670,6 +1725,52 @@ public class PhysicalModelManagerService {
    }
 
    /**
+    * Checks the permission to create a physical view. An extended view is written under its
+    * base view, so it needs WRITE on the stored base view's folder, as opening or removing it
+    * does, whatever folder the request names. Other views need WRITE on the folder they are
+    * created in.
+    *
+    * @param dataSource the name of the parent data source.
+    * @param dataModel  the data model of the data source.
+    * @param folder     the folder named in the request.
+    * @param parent     the name of the base view or {@code null} if none.
+    * @param principal  a principal that identifies the remote user.
+    */
+   private void checkCreatePermission(String dataSource, XDataModel dataModel, String folder,
+                                      String parent, Principal principal)
+      throws Exception
+   {
+      if(!StringUtils.isBlank(parent)) {
+         checkWritePermission(dataSource, dataModel.getPartition(parent), principal);
+      }
+      else if(!dataSourceService.checkPermission(dataSource, folder, ResourceAction.WRITE,
+                                                 principal))
+      {
+         throw new SecurityException(
+            "Unauthorized access to resource \"" + dataSource + "\" by user " + principal);
+      }
+   }
+
+   /**
+    * Checks WRITE on the folder a stored physical view is in (the data source when it is at the
+    * root, or when the view does not exist), the same rule {@link #openModel} applies.
+    *
+    * @param dataSource the name of the parent data source.
+    * @param partition  the stored view, or its base view for an extended view.
+    * @param principal  a principal that identifies the remote user.
+    */
+   private void checkWritePermission(String dataSource, XPartition partition, Principal principal)
+      throws Exception
+   {
+      String folder = partition == null ? null : partition.getFolder();
+
+      if(!dataSourceService.checkPermission(dataSource, folder, ResourceAction.WRITE, principal)) {
+         throw new SecurityException("Unauthorized access to resource \"" + dataSource +
+            (folder == null ? "" : "/" + folder) + "\" by user " + principal);
+      }
+   }
+
+   /**
     * Load runtime columns for target partition table.
     * @param database         the database name.
     * @param partitionId      the partition runtime id in portal data model.
@@ -1692,6 +1793,8 @@ public class PhysicalModelManagerService {
                                         boolean preview)
       throws Exception
    {
+      RuntimePartitionService.checkDataSource(
+         runtimePartitionService.getRuntimePartition(partitionId), database);
       XPartition partition = this.runtimePartitionService.getPartition(partitionId);
 
       if(preview) {
@@ -1795,4 +1898,6 @@ public class PhysicalModelManagerService {
    private final DataSourceRegistry dataSourceRegistry;
    private final DependencyHandler dependencyHandler;
    private final RenameTransformHandler renameTransformHandler;
+
+   private static final Logger LOG = LoggerFactory.getLogger(PhysicalModelManagerService.class);
 }

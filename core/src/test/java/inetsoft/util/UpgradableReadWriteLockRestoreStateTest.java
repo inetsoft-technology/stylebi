@@ -33,7 +33,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * on success and on a bounded failure. Thread A is a single-thread executor, so its per-thread
  * lock state stays on one thread while the test thread drives the peers.
  */
-@Tag("core")
+@Tag("slow")
 class UpgradableReadWriteLockRestoreStateTest {
    static final long BOUND = 300;
    static final long HANG = 3000;

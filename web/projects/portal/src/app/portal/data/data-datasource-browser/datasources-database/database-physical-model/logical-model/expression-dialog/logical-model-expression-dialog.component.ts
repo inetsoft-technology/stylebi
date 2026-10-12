@@ -44,6 +44,8 @@ export class LogicalModelExpressionDialog implements OnInit, OnDestroy {
    @Input() databaseName: string;
    @Input() physicalModelName: string;
    @Input() additional: string;
+   @Input() logicalModelName: string;
+   @Input() logicalModelParent: string;
    @Output() onCommit: EventEmitter<any> = new EventEmitter<any>();
    @Output() onCancel: EventEmitter<string> = new EventEmitter<string>();
    @ViewChild("notifications") notifications: NotificationsComponent;
@@ -214,7 +216,7 @@ export class LogicalModelExpressionDialog implements OnInit, OnDestroy {
     */
    private loadFields(): void {
       let event = new GetModelEvent(this.databaseName, this.physicalModelName,
-         null, null, this.additional);
+         this.logicalModelName, this.logicalModelParent, this.additional);
 
       this.http.post<TreeNodeModel>(FIELDS_URI, event)
          .subscribe(

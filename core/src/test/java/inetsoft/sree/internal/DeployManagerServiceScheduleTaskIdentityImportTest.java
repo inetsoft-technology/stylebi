@@ -25,8 +25,11 @@ import inetsoft.sree.web.dashboard.DashboardManager;
 import inetsoft.sree.web.dashboard.DashboardRegistryManager;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.XRepository;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.DependencyHandler;
 import inetsoft.uql.asset.EmbeddedTableStorage;
+import inetsoft.uql.asset.internal.AssetFolder;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.Identity;
 import inetsoft.uql.util.XSessionService;
@@ -206,6 +209,25 @@ class DeployManagerServiceScheduleTaskIdentityImportTest {
       verify(asset).parseContent(any(InputStream.class), any(), eq(true), eq(false));
    }
 
+   // Bug #78120, #78129, a task the save refuses (e.g. its owner can't read its sheet) fails only
+   // its own entry, the later tasks of the same import are imported
+   @Test
+   void refusedTaskSave_failsOnlyThatTask_laterTasksAreImported() throws Exception {
+      ScheduleTaskAsset refused = taskAsset();
+      String message = "Unauthorized access to viewsheet \"4^128^bob~;~" + ORG_A +
+         "^vs1^" + ORG_A + "\" by oa, it isn't readable by the user or the task's run principal";
+      doThrow(new inetsoft.sree.security.SecurityException(message))
+         .when(refused).parseContent(any(InputStream.class), any(), anyBoolean(), anyBoolean());
+      ScheduleTaskAsset later = taskAsset();
+      List<String> failed = new ArrayList<>();
+
+      importEntry(taskXml(BOB.convertToKey(), ""), refused, failed);
+      importEntry(taskXml(BOB.convertToKey(), ""), later, failed);
+
+      assertEquals(List.of(message), failed);
+      verify(later).parseContent(any(InputStream.class), any(), eq(true), eq(false));
+   }
+
    @Test
    void siteAdmin_isNotChecked() throws Exception {
       when(orgManager.isSiteAdmin(principal)).thenReturn(true);
@@ -271,7 +293,9 @@ class DeployManagerServiceScheduleTaskIdentityImportTest {
 
          ArgumentCaptor<ScheduleTask> stored = ArgumentCaptor.forClass(ScheduleTask.class);
          verify(scheduleManager).setScheduleTask(anyString(), stored.capture(), isNull(),
-                                                 any(Principal.class));
+                                                 any(Principal.class),
+                                                 // Bug #77972, saved with the replaced task as the baseline
+                                                 nullable(ScheduleTask.class));
          assertEquals(BOB, stored.getValue().getOwner());
          assertTrue(stored.getValue().isRemovable());
          assertTrue(stored.getValue().isEditable());
@@ -294,6 +318,71 @@ class DeployManagerServiceScheduleTaskIdentityImportTest {
       }
    }
 
+   // Bug #77406, the folder owner of the file isn't checked, a new folder gets no owner, like a
+   // folder created in the UI
+   @Test
+   void restrictedParseContent_createsFoldersWithoutOwner() throws Exception {
+      // Bug #77454, the importer may create the folders
+      when(securityEngine.checkPermission(any(), eq(ResourceType.SCHEDULE_TASK_FOLDER),
+                                          anyString(), eq(ResourceAction.WRITE))).thenReturn(true);
+      Map<String, XMLSerializable> store = importFolders(principal, false);
+
+      assertNull(((AssetFolder) store.get(folderId("F"))).getOwner());
+      assertNull(((AssetFolder) store.get(folderId("F/G"))).getOwner());
+   }
+
+   // Bug #77454, the folder owner is moved to the current organization, like the task owner
+   @Test
+   void siteAdminParseContent_remapsFolderOwnerToCurrentOrg() throws Exception {
+      Map<String, XMLSerializable> store = importFolders(null, true);
+
+      IdentityID owner = new IdentityID("admin", ORG_A);
+      assertEquals(owner, ((AssetFolder) store.get(folderId("F"))).getOwner());
+      assertEquals(owner, ((AssetFolder) store.get(folderId("F/G"))).getOwner());
+   }
+
+   private Map<String, XMLSerializable> importFolders(Principal restrictedImporter,
+                                                      boolean isSiteAdmin)
+      throws Exception
+   {
+      Map<String, XMLSerializable> store = new HashMap<>();
+      store.put(folderId("/"), new AssetFolder());
+      IndexedStorage indexedStorage = mock(IndexedStorage.class);
+      when(indexedStorage.getXMLSerializable(anyString(), any()))
+         .thenAnswer(inv -> store.get(inv.<String>getArgument(0)));
+      when(indexedStorage.contains(anyString()))
+         .thenAnswer(inv -> store.containsKey(inv.<String>getArgument(0)));
+      doAnswer(inv -> store.put(inv.getArgument(0), inv.getArgument(1)))
+         .when(indexedStorage).putXMLSerializable(anyString(), any());
+
+      try(MockedStatic<IndexedStorage> storage = mockStatic(IndexedStorage.class);
+          MockedStatic<XSessionService> sessions = mockStatic(XSessionService.class))
+      {
+         sessions.when(XSessionService::getService).thenReturn(mock(XSessionService.class));
+         storage.when(IndexedStorage::getIndexedStorage).thenReturn(indexedStorage);
+         ScheduleTaskAsset asset = new ScheduleTaskAsset();
+         asset.setRestrictedImporter(restrictedImporter);
+         String folderOwner = new IdentityID("admin", HOST_ORG).convertToKey();
+         String xml = taskXml(BOB.convertToKey(), "")
+            .replace("path=\"/\"", "path=\"F/G\"")
+            .replace("<scheduleTask>", "<scheduleTask><folders>" +
+               "<Folder path=\"F\" owner=\"" + folderOwner + "\"></Folder>" +
+               "<Folder path=\"F/G\" owner=\"" + folderOwner + "\"></Folder></folders>");
+
+         asset.parseContent(new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8)),
+                            null, true, isSiteAdmin);
+      }
+
+      assertNotNull(store.get(folderId("F")));
+      assertNotNull(store.get(folderId("F/G")));
+      return store;
+   }
+
+   private static String folderId(String path) {
+      return new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER,
+                            path, null).toIdentifier();
+   }
+
    private ScheduleTaskAsset taskAsset() throws Exception {
       ScheduleTaskAsset asset = mock(ScheduleTaskAsset.class);
       when(asset.getType()).thenReturn(ScheduleTaskAsset.SCHEDULETASK);
@@ -307,6 +396,18 @@ class DeployManagerServiceScheduleTaskIdentityImportTest {
     * Imports one SCHEDULETASK entry through the private per-asset import step.
     */
    private List<String> importEntry(String content, ScheduleTaskAsset asset) throws Exception {
+      List<String> failed = new ArrayList<>();
+      importEntry(content, asset, failed);
+      return failed;
+   }
+
+   /**
+    * Imports one SCHEDULETASK entry through the private per-asset import step, adding a failure
+    * to a list shared by the entries of one import.
+    */
+   private void importEntry(String content, ScheduleTaskAsset asset, List<String> failed)
+      throws Exception
+   {
       File file = write(content);
       Map<String, String> names = new HashMap<>();
       names.put(file.getName(), ScheduleTaskAsset.SCHEDULETASK + "_" +
@@ -315,7 +416,6 @@ class DeployManagerServiceScheduleTaskIdentityImportTest {
       when(info.getNames()).thenReturn(names);
       XAssetConfig config = new XAssetConfig();
       config.setOverwriting(true);
-      List<String> failed = new ArrayList<>();
 
       Method method = Arrays.stream(DeployManagerService.class.getDeclaredMethods())
          .filter(m -> m.getName().equals("importAsset") && m.getParameterCount() == 14)
@@ -323,7 +423,6 @@ class DeployManagerServiceScheduleTaskIdentityImportTest {
       method.setAccessible(true);
       method.invoke(service, file, asset, new ArrayList<>(), failed, null, new ArrayList<>(),
                     new ArrayList<>(), true, null, info, false, config, null, principal);
-      return failed;
    }
 
    private File write(String content) throws Exception {

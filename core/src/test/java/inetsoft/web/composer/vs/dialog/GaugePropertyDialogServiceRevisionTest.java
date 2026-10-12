@@ -27,6 +27,7 @@ import inetsoft.web.composer.model.vs.GaugePropertyDialogModel;
 import inetsoft.web.composer.model.vs.VSAssemblyScriptPaneModel;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.composer.vs.objects.controller.VSTrapService;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.service.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
@@ -66,7 +67,8 @@ class GaugePropertyDialogServiceRevisionTest {
          dialogService,
          engine,
          trapService,
-         assemblyInfoHandler);
+         assemblyInfoHandler,
+         org.mockito.Mockito.mock(QueryManagerService.class));
    }
 
    @Test

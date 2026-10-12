@@ -31,6 +31,7 @@ import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.DefaultMetaDataProvider;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.Tool;
+import inetsoft.web.admin.content.repository.ResourcePermissionService;
 import inetsoft.web.portal.controller.SearchComparator;
 import inetsoft.web.portal.model.database.*;
 import inetsoft.web.viewsheet.DatasourceIgnoreGlobalShare;
@@ -76,7 +77,10 @@ public class DataSourceService {
                                      Principal principal)
       throws Exception
    {
-      return securityEngine.checkPermission(principal, ResourceType.DATA_SOURCE, databasePath,
+      // Bug #78249, an additional connection path P/add is checked as P::add
+      return securityEngine.checkPermission(
+         principal, ResourceType.DATA_SOURCE,
+         ResourcePermissionService.getDataSourcePermissionName(databasePath, dataSourceRegistry),
          action);
    }
 
@@ -99,6 +103,68 @@ public class DataSourceService {
 
       return securityEngine.checkPermission(principal, ResourceType.DATA_MODEL_FOLDER,
          SUtil.appendPath(databasePath, folder), action);
+   }
+
+   /**
+    * Checks that the current user may edit the data models of a data source: READ on the
+    * source and WRITE on the source or on one of its data model folders, which is what the Data
+    * tab requires before it offers to create or edit a physical view or logical model there. An
+    * additional connection, if named, also needs READ. Used by model-editor endpoints that take
+    * the data source from the request and carry no model or folder to check instead.
+    *
+    * @param databasePath the database path.
+    * @param additional   the additional connection, or {@code null} for the default one.
+    * @param principal    current login user.
+    *
+    * @throws SecurityException if the user does not have the required permission.
+    */
+   public void checkDataModelEditPermission(String databasePath, String additional,
+                                            Principal principal)
+      throws Exception
+   {
+      boolean allowed = checkPermission(databasePath, ResourceAction.READ, principal);
+
+      if(allowed && !checkPermission(databasePath, ResourceAction.WRITE, principal)) {
+         XDataModel dataModel = repository.getDataModel(databasePath);
+         String[] folders = dataModel == null ? null : dataModel.getFolders();
+         allowed = false;
+
+         for(int i = 0; folders != null && i < folders.length && !allowed; i++) {
+            allowed = checkPermission(databasePath, folders[i], ResourceAction.WRITE, principal);
+         }
+      }
+
+      if(allowed && !StringUtils.isEmpty(additional) &&
+         !XUtil.OUTER_MOSE_LAYER_DATABASE.equals(additional) &&
+         !XDataModel.DEFAULTCONNECTION.equals(additional))
+      {
+         allowed = checkPermission(databasePath + "::" + additional, ResourceAction.READ,
+                                   principal);
+      }
+
+      if(!allowed) {
+         throw new SecurityException(
+            "Unauthorized access to resource \"" + databasePath + "\" by user " + principal);
+      }
+   }
+
+   /**
+    * Checks that the current user may read a data source, which the Data tab requires before it
+    * shows the source or any of its models and folders. Used by the name checks and dialect
+    * settings of the Data tab dialogs, whose every legitimate caller has this right.
+    *
+    * @param databasePath the database path.
+    * @param principal    current login user.
+    *
+    * @throws SecurityException if the user does not have the required permission.
+    */
+   public void checkDataSourceReadPermission(String databasePath, Principal principal)
+      throws Exception
+   {
+      if(!checkPermission(databasePath, ResourceAction.READ, principal)) {
+         throw new SecurityException(
+            "Unauthorized access to resource \"" + databasePath + "\" by user " + principal);
+      }
    }
 
    /**
@@ -278,7 +344,9 @@ public class DataSourceService {
       }
 
       List<Vpm> results = new ArrayList<>();
-      AssetEntry[] entries = getModelAssetEntries(database + "/", AssetEntry.Type.VPM);
+      // Bug #77820, not the VPMs of a data source of a folder at the same path
+      AssetEntry[] entries = dataSourceRegistry.getDataSourceEntries(
+         database, database + "/", AssetEntry.Type.VPM, false);
 
       if(!checkPermission(database, ResourceAction.WRITE, principal)) {
          return model;
@@ -327,8 +395,10 @@ public class DataSourceService {
          result.setCreatedDateLabel(dateLabel);
          result.setId(entry.toIdentifier());
          result.setDatabaseName(database);
-         vmodel = dataModel.getVirtualPrivateModel(entry.getName());
-         result.setDescription(vmodel.getDescription());
+         // the name may have "/" in it, the entry name is only its last part
+         vmodel = dataModel.getVirtualPrivateModel(
+            entry.getPath().substring(database.length() + 1));
+         result.setDescription(vmodel != null ? vmodel.getDescription() : null);
          results.add(result);
       }
 
@@ -364,15 +434,20 @@ public class DataSourceService {
          return results;
       }
 
-      AssetEntry[] entries = getModelAssetEntries(database + "/", AssetEntry.Type.PARTITION);
+      // Bug #77820, not the views of a data source of a folder at the same path
+      AssetEntry[] entries = dataSourceRegistry.getDataSourceEntries(
+         database, database + "/", AssetEntry.Type.PARTITION, false);
 
       for(AssetEntry entry : entries) {
-         XPartition partition = dataModel.getPartition(entry.getName());
-         String folderName = partition.getFolder();
+         // the name may have "/" in it, the entry name is only its last part
+         XPartition partition =
+            dataModel.getPartition(entry.getPath().substring(database.length() + 1));
 
          if(partition == null) {
             continue;
          }
+
+         String folderName = partition.getFolder();
 
          if(!allChild && Tool.equals(folderName, folder) ||
             // for search
@@ -442,12 +517,10 @@ public class DataSourceService {
       List<PhysicalModel> result = new ArrayList<>();
       String basePath = parent.getPath();
 
-      if(basePath != null && !basePath.endsWith("/")) {
-         basePath += "/";
-      }
-
-      AssetEntry[] entries =
-         getModelAssetEntries(basePath, AssetEntry.Type.EXTENDED_PARTITION);
+      // Bug #77820, not the views of a data source of a folder at the path of the data source.
+      // Bug #77842, not the ones of a view "<name>/..." or of an unreadable entry
+      AssetEntry[] entries = dataSourceRegistry.getExtendedModelEntries(
+         database, basePath, AssetEntry.Type.EXTENDED_PARTITION, false);
 
       if(entries != null) {
          for(AssetEntry entry : entries) {
@@ -458,8 +531,11 @@ public class DataSourceService {
                continue;
             }
 
-            result.add(buildPhysicalModel(entry, database, basePartition, parent.getName(),
-               basePartition.getFolder(), principal, provider));
+            PhysicalModel view = buildPhysicalModel(entry, database, basePartition,
+               parent.getName(), basePartition.getFolder(), principal, provider);
+            // the name may have "/" in it, the entry name is only its last part
+            view.setName(entry.getPath().substring(basePath.length() + 1));
+            result.add(view);
          }
       }
 
@@ -586,14 +662,10 @@ public class DataSourceService {
       List<LogicalModel> result = new ArrayList<>();
       String basePath = parent.getPath();
 
-      if(basePath != null && !basePath.endsWith("/")) {
-         basePath += "/";
-      }
-
-      AssetEntry[] extendModels =
-         getModelAssetEntries(basePath, AssetEntry.Type.EXTENDED_LOGIC_MODEL);
-      String connection = null;
-      XLogicalModel childModel = null;
+      // Bug #77820, not the models of a data source of a folder at the path of the data source.
+      // Bug #77842, not the ones of a model "<name>/..." or of an unreadable entry
+      AssetEntry[] extendModels = dataSourceRegistry.getExtendedModelEntries(
+         database, basePath, AssetEntry.Type.EXTENDED_LOGIC_MODEL, false);
 
       if(extendModels != null) {
          for(AssetEntry entry : extendModels) {
@@ -608,15 +680,15 @@ public class DataSourceService {
                continue;
             }
 
-            childModel = baseModel.getLogicalModel(entry.getName());
-
-            if(childModel != null) {
-               connection = childModel.getConnection();
-            }
-
+            // Bug #77842, the name may have "/" in it, the entry name is only its last part
+            String name = entry.getPath().substring(basePath.length() + 1);
+            XLogicalModel childModel = baseModel.getLogicalModel(name);
+            String connection = childModel != null ? childModel.getConnection() : null;
             entry.setProperty(XUtil.DATASOURCE_ADDITIONAL, connection);
-            result.add(buildLogicalModel(entry, database, baseModel, physicalView,
-                  parent.getName(), baseModel.getFolder(), connection, provider, principal));
+            LogicalModel model = buildLogicalModel(entry, database, baseModel, physicalView,
+                  parent.getName(), baseModel.getFolder(), connection, provider, principal);
+            model.setName(name);
+            result.add(model);
          }
       }
 

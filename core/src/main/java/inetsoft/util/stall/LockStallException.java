@@ -53,6 +53,26 @@ public class LockStallException extends RuntimeException {
       this.dumpPath = cause.dumpPath;
    }
 
+   private LockStallException(LockStallException original, Throwable cause) {
+      super(original.getMessage(), cause);
+      this.site = original.site;
+      this.threadName = original.threadName;
+      this.stalledMillis = original.stalledMillis;
+      this.dumpPath = original.dumpPath;
+      setStackTrace(original.getStackTrace());
+   }
+
+   /**
+    * Copy this stall: a new instance with the same message, fields, cause and stack trace,
+    * and none of its suppressed exceptions. Unlike {@link #LockStallException(LockStallException)}
+    * the copy does not keep this instance in its cause chain, so it can be kept or thrown
+    * where this instance may have been thrown through a script, which adds a suppressed
+    * stack trace element that cannot be serialized to the instance (bug #78084).
+    */
+   public LockStallException copy() {
+      return new LockStallException(this, getCause());
+   }
+
    /**
     * Find the stall in the cause chain of {@code failure}, e.g. one a base table wrapped.
     *

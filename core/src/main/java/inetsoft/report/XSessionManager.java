@@ -522,6 +522,9 @@ public class XSessionManager {
             XNodeTableLens xNodeTableLens =
                (XNodeTableLens) Util.getNestedTable(table, XNodeTableLens.class);
             xNodeTableLens.setMaxRowHintMap(map);
+            // a scheduled run fails on a row fetch error instead of using the rows read
+            // before it (Bug #77901)
+            xNodeTableLens.setFailOnLoadException(isScheduler(qvars));
          }
          catch(SQLExpressionFailedException sqlExpressionException) {
             LOG.error("A SQL Expression failed for query: {}", query);
@@ -550,7 +553,7 @@ public class XSessionManager {
             inetsoft.report.internal.XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.set(
                rootCauseMessage(ex));
 
-            if(Boolean.TRUE.equals(qvars.get("__is_scheduler__"))) {
+            if(isScheduler(qvars)) {
                throw ex;
             }
          }
@@ -582,6 +585,16 @@ public class XSessionManager {
       return msg != null && !msg.isBlank() ? msg.trim() : null;
    }
 
+   private static boolean isScheduler(VariableTable qvars) {
+      try {
+         Object scheduler = qvars.get("__is_scheduler__");
+         return Boolean.TRUE.equals(scheduler) || "true".equals(scheduler);
+      }
+      catch(Exception ex) {
+         return false;
+      }
+   }
+
    private TableLens buildXTable(XQuery query, XNode node, String queryId,
                                       DataCacheResult item, boolean useCache,
                                       VariableTable qvars)
@@ -603,11 +616,25 @@ public class XSessionManager {
          table = new XNodeTableLens(node);
 
          if(table.isCancelled()) {
-            throw new CancelledException(
-               Catalog.getCatalog().getString("Query abandoned") + ".");
-         }
+            Exception loadException = table.getLoadException();
 
-         if(useCache) {
+            if(loadException == null) {
+               throw new CancelledException(
+                  Catalog.getCatalog().getString("Query abandoned") + ".");
+            }
+
+            // the rows failed to load (e.g. a database error while reading the result), report
+            // the failure instead of a cancel (Bug #77901)
+            if(!table.isLoadInBackground()) {
+               throw loadException;
+            }
+
+            // rows loading in the background can fail before or after this check, so return
+            // the rows read before the failure either way and let the reader report it at the
+            // end of the rows (XNodeTableLens.checkLoadException), but don't cache the failed
+            // result (Bug #78126)
+         }
+         else if(useCache) {
             CEntry cacheEntry =
                new CEntry(table, System.currentTimeMillis());
             addCacheData(item.getCacheKey(), cacheEntry,
@@ -619,7 +646,9 @@ public class XSessionManager {
          table = table.cloneShared();
       }
 
-      if(item.getCacheNormalizer() != null) {
+      // restore the original column order only if JDBCHandler executed the sorted sql,
+      // a kept sql string (e.g. lossy) is already in the original order. (Bug #77485)
+      if(item.getCacheNormalizer() != null && item.isSortedSqlExecuted()) {
          return item.getCacheNormalizer().transformTableLens(table);
       }
 
@@ -945,6 +974,22 @@ public class XSessionManager {
          return cacheNormalizer;
       }
 
+      /**
+       * Check if the executed sql selected its columns in the cache normalizer's sorted
+       * order, so the result must be transformed back to the original column order.
+       */
+      public boolean isSortedSqlExecuted() {
+         return sortedSqlExecuted;
+      }
+
+      /**
+       * Set if the executed sql selected its columns in the sorted order. This is set by
+       * JDBCHandler from the sql that is actually executed (or used as the cache key).
+       */
+      public void setSortedSqlExecuted(boolean sortedSqlExecuted) {
+         this.sortedSqlExecuted = sortedSqlExecuted;
+      }
+
       protected DataCache<String, CEntry> datacache;
       protected boolean usecache;
       protected long touched;
@@ -954,6 +999,7 @@ public class XSessionManager {
       protected String key;
       protected Object lens;
       private final JDBCQueryCacheNormalizer cacheNormalizer;
+      private boolean sortedSqlExecuted = false;
    }
 
    private static final ExecutionMap emap = new ExecutionMap();

@@ -20,6 +20,7 @@ package inetsoft.report.composition.execution;
 
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
+import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.XTable;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.erm.AttributeRef;
@@ -162,6 +163,8 @@ public class TimeSliderVSAQueryTest {
          ref.setDataType(XSchema.DOUBLE);
          tinfo.setDataRef(ref);
          assembly.setTimeInfo(tinfo);
+         // the nearest-tick rescue only applies to ad hoc VS_ASSEMBLY sliders
+         assembly.setSourceType(XSourceInfo.VS_ASSEMBLY);
       }
 
       /**
@@ -306,6 +309,120 @@ public class TimeSliderVSAQueryTest {
          SelectionList stateList = new SelectionList();
          stateList.addSelectionValue(sval);
          assembly.setStateSelectionList(stateList);
+      }
+   }
+
+   /**
+    * When the data max drops below a selection on the top bucket, a slider bound to a
+    * worksheet table resets to the full range (bug1295840324493). #76942's nearest-tick
+    * rescue must not snap it to the grid's last tick, which starts no bucket and so shows
+    * no data.
+    */
+   @Nested
+   class DataShrinkBelowSelection {
+      @BeforeEach
+      void setUpNumberRange() {
+         SingleTimeInfo tinfo = new SingleTimeInfo();
+         tinfo.setRangeTypeValue(TimeInfo.NUMBER);
+         ColumnRef ref = createRef(MEASURE);
+         ref.setDataType(XSchema.DOUBLE);
+         tinfo.setDataRef(ref);
+         assembly.setTimeInfo(tinfo);
+      }
+
+      @Test
+      void keepsSelectionWhenGridIsUnchanged() throws Exception {
+         double[] ticks = selectLastTick();
+         double step = ticks[1] - ticks[0];
+         double top = ticks[ticks.length - 1];
+
+         invokeRefreshSingleSelectionValue(query, new Object[] { 0.0, 1.0 - step * 0.5 },
+                                           NORMAL_HINT);
+
+         SelectionList state = assembly.getStateSelectionList();
+
+         assertNotNull(state);
+         assertTrue(state.getSelectionValueCount() > 0);
+         assertEquals(Tool.toString(top), state.getSelectionValue(0).getValue());
+      }
+
+      @Test
+      void resetsToFullRangeWhenMaxDropsOneStep() throws Exception {
+         double[] ticks = selectLastTick();
+         double step = ticks[1] - ticks[0];
+
+         invokeRefreshSingleSelectionValue(query, new Object[] { 0.0, 1.0 - step },
+                                           NORMAL_HINT);
+
+         assertFullRange();
+      }
+
+      @Test
+      void resetsToFullRangeWhenMaxDropsOneAndAHalfSteps() throws Exception {
+         double[] ticks = selectLastTick();
+         double step = ticks[1] - ticks[0];
+
+         invokeRefreshSingleSelectionValue(query, new Object[] { 0.0, 1.0 - step * 1.5 },
+                                           NORMAL_HINT);
+
+         assertFullRange();
+      }
+
+      /**
+       * An ad hoc VS_ASSEMBLY slider keeps the nearest-tick rescue, but never lands on the
+       * grid-closing last tick.
+       */
+      @Test
+      void vsAssemblyRescueDoesNotLandOnLastTick() throws Exception {
+         assembly.setSourceType(XSourceInfo.VS_ASSEMBLY);
+         double[] ticks = selectLastTick();
+         double step = ticks[1] - ticks[0];
+
+         invokeRefreshSingleSelectionValue(query, new Object[] { 0.0, 1.0 - step * 1.5 },
+                                           NORMAL_HINT);
+
+         SelectionList newTicks = assembly.getSelectionList();
+         String lastTick = newTicks.getSelectionValue(
+            newTicks.getSelectionValueCount() - 1).getValue();
+         SelectionList state = assembly.getStateSelectionList();
+
+         assertNotNull(state);
+         assertTrue(state.getSelectionValueCount() > 0);
+         assertNotEquals(lastTick, state.getSelectionValue(0).getValue());
+      }
+
+      /**
+       * Settles the [0, 1] grid and selects its last tick as the previous min, as the
+       * issue's probe does.
+       */
+      private double[] selectLastTick() throws Exception {
+         invokeRefreshSingleSelectionValue(query, new Object[] { 0.0, 1.0 }, NORMAL_HINT);
+         invokeRefreshSingleSelectionValue(query, new Object[] { 0.0, 1.0 }, NORMAL_HINT);
+         SelectionList list = assembly.getSelectionList();
+         double[] ticks = new double[list.getSelectionValueCount()];
+
+         for(int i = 0; i < ticks.length; i++) {
+            ticks[i] = Double.parseDouble(list.getSelectionValue(i).getValue());
+         }
+
+         String top = Tool.toString(ticks[ticks.length - 1]);
+         SelectionValue sval = new SelectionValue(top, top);
+         sval.setState(SelectionValue.STATE_SELECTED);
+         SelectionList stateList = new SelectionList();
+         stateList.addSelectionValue(sval);
+         assembly.setStateSelectionList(stateList);
+
+         return ticks;
+      }
+
+      // pos stays -1, so no sub-range is selected and the entire range is in effect
+      private void assertFullRange() {
+         SelectionList state = assembly.getStateSelectionList();
+
+         assertNotNull(state);
+         assertEquals(0, state.getSelectionValueCount(),
+            "a selection above the new data max should reset to the full range, not snap " +
+            "to the grid's last tick");
       }
    }
 

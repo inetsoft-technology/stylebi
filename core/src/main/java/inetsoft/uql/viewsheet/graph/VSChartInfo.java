@@ -56,8 +56,8 @@ public class VSChartInfo extends AbstractChartInfo implements ContentObject, Dat
     */
    public static VSChartInfo createVSChartInfo(Element elem) throws Exception {
       String cls = Tool.getAttribute(elem, "class");
-      VSChartInfo info = (VSChartInfo) VSChartInfo.class.getClassLoader()
-         .loadClass(cls).getConstructor().newInstance();
+      VSChartInfo info = (VSChartInfo) Tool.loadSubclass(cls, VSChartInfo.class)
+         .getConstructor().newInstance();
       info.parseXML(elem);
 
       return info;
@@ -149,25 +149,25 @@ public class VSChartInfo extends AbstractChartInfo implements ContentObject, Dat
 
       if(toolTipValue != null && getToolTipValue() != null) {
          writer.println("<toolTipValue><![CDATA[");
-         writer.println(getToolTipValue());
+         writer.println(Tool.cdataText(getToolTipValue()));
          writer.println("]]></toolTipValue>");
       }
 
       if(toolTipValue != null && getToolTip() != null) {
          writer.println("<toolTip><![CDATA[");
-         writer.println(getToolTip());
+         writer.println(Tool.cdataText(getToolTip()));
          writer.println("]]></toolTip>");
       }
 
       if(combinedTooltip != null && combinedTooltip.getDValue() != null) {
          writer.println("<combinedToolTipValue><![CDATA[");
-         writer.println(combinedTooltip.getDValue());
+         writer.println(Tool.cdataText(combinedTooltip.getDValue()));
          writer.println("]]></combinedToolTipValue>");
       }
 
       if(combinedTooltip != null && combinedTooltip.getRValue() != null) {
          writer.println("<combinedTooltip><![CDATA[");
-         writer.println(combinedTooltip.getRValue());
+         writer.println(Tool.cdataText(String.valueOf(combinedTooltip.getRValue())));
          writer.println("]]></combinedTooltip>");
       }
 

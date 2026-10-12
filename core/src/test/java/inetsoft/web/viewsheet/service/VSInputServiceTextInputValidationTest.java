@@ -147,7 +147,7 @@ class VSInputServiceTextInputValidationTest {
       when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
 
       VSInputService service = new VSInputService(null, coreLifecycleService, null, null, null,
-                                                    null, null, null, null);
+                                                    null, null, null, null, null);
 
       Method method = VSInputService.class.getDeclaredMethod(
          "applySelection0", RuntimeViewsheet.class, String.class, Object.class,

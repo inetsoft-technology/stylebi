@@ -20,11 +20,12 @@
  * ScheduleFolderTreeComponent — Testing Library style
  *
  * Risk-first coverage:
- *   Group 1 [Risk 3] — isDescendant: startsWith false positive for sibling paths sharing a prefix
+ *   Group 1 [Risk 3] — isDescendant: startsWith false positive for sibling paths sharing a prefix (Bug #77705, fixed)
  *   Group 2 [Risk 3] — editTaskFolder: rename path uses indexOf (first "/") not lastIndexOf (it.failing — confirmed bug)
  *   Group 3 [Risk 2] — editFolderEnabled: root-path guard and empty-selection guard
  *   Group 4 [Risk 2] — contextMenuClick: node selection toggle behavior
  *   Group 5 [Risk 2] — excludeCurrentPath: recursive path-based child removal
+ *   Group 7 [Risk 2] — newTaskFolder / editTaskFolder: refused folder calls are surfaced (Bug #78136)
  *
  * Confirmed bugs (it.failing — remove wrapper once fixed):
  *
@@ -52,12 +53,13 @@ import { MatDialog } from "@angular/material/dialog";
 import { render, waitFor } from "@testing-library/angular";
 import { http, HttpResponse as MswHttpResponse } from "msw";
 
-import { EMPTY, of, Subject } from "rxjs";
+import { config as rxjsConfig, EMPTY, of, Subject } from "rxjs";
 import { server } from "@test-mocks/server";
 import { ScheduleFolderTreeComponent } from "./schedule-folder-tree.component";
 import { EmScheduleChangeService } from "../schedule-task-list/em-schedule-change.service";
 import { ScheduleTaskDragService } from "../schedule-task-list/schedule-task-drag.service";
 import { StompClientService } from "../../../../../../shared/stomp/stomp-client.service";
+import { Tool } from "../../../../../../shared/util/tool";
 import { RepositoryFlatNode, RepositoryTreeNode } from "../../content/repository/repository-tree-node";
 import { RepositoryEntryType } from "../../../../../../shared/data/repository-entry-type.enum";
 
@@ -144,11 +146,10 @@ async function renderComponent() {
 
 describe("ScheduleFolderTreeComponent — isDescendant: startsWith false positive", () => {
 
-   // Boundary / defensive only: isDescendant must distinguish "folder1" from "folder10".
+   // Bug #77705: isDescendant must distinguish "folder1" from "folder10".
    // A naive startsWith("folder1") returns true for "folder10/sub", which is NOT a real descendant.
-   // This can cause moveTaskFolder to incorrectly skip a valid move operation. Not always
-   // user-visible in normal UI flows; keep as an implementation-level guard.
-   it.fails("should return false when searchNode path shares only a string prefix, not a real ancestor relationship", async () => {
+   // moveTaskFolder then skipped the drag of a folder onto a sibling such as "folder10".
+   it("should return false when searchNode path shares only a string prefix, not a real ancestor relationship", async () => {
       const { comp } = await renderComponent();
 
       const parent     = makeTreeNode("folder1", "folder1");
@@ -167,6 +168,82 @@ describe("ScheduleFolderTreeComponent — isDescendant: startsWith false positiv
       const child  = makeTreeNode("folder1/sub", "sub");
 
       expect((comp as any).isDescendant([parent], child)).toBe(true);
+   });
+
+   // Bug #77705: the folder itself still counts, so a drop onto itself stays blocked
+   it("should return true when searchNode is the parent itself", async () => {
+      const { comp } = await renderComponent();
+
+      const parent = makeTreeNode("folder1", "folder1");
+      expect((comp as any).isDescendant([parent], makeTreeNode("folder1", "folder1"))).toBe(true);
+   });
+
+   // Bug #77705: a drag of F onto its sibling Fx is moved; onto F itself or F/G it is not
+   it("should move a folder onto a sibling sharing its prefix but not onto itself or a subfolder", async () => {
+      const bodies: any[] = [];
+      server.use(
+         http.post("*/api/em/schedule/check-folder", async ({ request }) => {
+            bodies.push(await request.json());
+            return MswHttpResponse.json(true);
+         })
+      );
+      const { comp } = await renderComponent();
+      const f = makeRepositoryFlatNode("F", "F", 1);
+      const drop = (target: RepositoryFlatNode) => {
+         comp.selectedNodes = [f];
+         comp.moveTaskFolder(target);
+      };
+
+      drop(makeRepositoryFlatNode("F", "F", 1));
+      drop(makeRepositoryFlatNode("F/G", "G", 2));
+      drop(makeRepositoryFlatNode("Fx", "Fx", 1));
+
+      await waitFor(() => expect(bodies.length).toBe(1));
+      expect(bodies[0].target.path).toBe("Fx");
+      expect(bodies[0].folders).toEqual(["F"]);
+   });
+
+   // Bug #77705: the same for nested folders, a/F onto a/Fx is moved; onto a/F or a/F/G it is not
+   it("should move a nested folder onto a nested sibling sharing its prefix but not onto itself or a subfolder", async () => {
+      const bodies: any[] = [];
+      server.use(
+         http.post("*/api/em/schedule/check-folder", async ({ request }) => {
+            bodies.push(await request.json());
+            return MswHttpResponse.json(true);
+         })
+      );
+      const { comp } = await renderComponent();
+      const f = makeRepositoryFlatNode("a/F", "F", 2);
+      const drop = (target: RepositoryFlatNode) => {
+         comp.selectedNodes = [f];
+         comp.moveTaskFolder(target);
+      };
+
+      drop(makeRepositoryFlatNode("a/F", "F", 2));
+      drop(makeRepositoryFlatNode("a/F/G", "G", 3));
+      drop(makeRepositoryFlatNode("a/Fx", "Fx", 2));
+
+      await waitFor(() => expect(bodies.length).toBe(1));
+      expect(bodies[0].target.path).toBe("a/Fx");
+      expect(bodies[0].folders).toEqual(["a/F"]);
+   });
+
+   // Bug #77705: a multi-select of F and its sibling Fx keeps both folders
+   it("should keep a selected sibling sharing the prefix of another selected folder", async () => {
+      const bodies: any[] = [];
+      server.use(
+         http.post("*/api/em/schedule/check-folder", async ({ request }) => {
+            bodies.push(await request.json());
+            return MswHttpResponse.json(true);
+         })
+      );
+      const { comp } = await renderComponent();
+      comp.selectedNodes = [makeRepositoryFlatNode("F", "F", 1), makeRepositoryFlatNode("Fx", "Fx", 1),
+                            makeRepositoryFlatNode("F/G", "G", 2)];
+      comp.moveTaskFolder(makeRepositoryFlatNode("Y", "Y", 1));
+
+      await waitFor(() => expect(bodies.length).toBe(1));
+      expect([...bodies[0].folders].sort()).toEqual(["F", "Fx"]);
    });
 
    // Boundary: empty parents array → never a descendant
@@ -418,4 +495,158 @@ describe("ScheduleFolderTreeComponent — excludeCurrentPath: recursive removal"
       expect(() => comp.excludeCurrentPath(parent, ["parent/x"])).not.toThrow();
    });
 
+});
+
+// ---------------------------------------------------------------------------
+// Group 6 [Risk 3] — removeTasks: folder dependency check (Bug #78002)
+// ---------------------------------------------------------------------------
+
+describe("ScheduleFolderTreeComponent — removeTasks: folder dependency check", () => {
+
+   async function deleteFolder(dependencies: string[]) {
+      let removeBodies: any[] = [];
+      let checkCalled = false;
+      server.use(
+         http.post("*/api/em/schedule/folder/check-dependency", () => {
+            checkCalled = true;
+            // server returns a TaskListModel object, never a bare array
+            return MswHttpResponse.json({ taskNames: dependencies });
+         }),
+         http.post("*/api/em/schedule/folder/remove", async ({ request }) => {
+            removeBodies.push(await request.json());
+            return MswHttpResponse.json({});
+         }),
+      );
+
+      const { comp } = await renderComponent();
+      vi.spyOn(comp as any, "safeRefreshTree").mockImplementation(() => {});
+      // confirm dialog answers OK, every later dialog is just recorded
+      const dialogOpen = vi.fn().mockReturnValue({ afterClosed: () => of(true) });
+      comp.dialog.open = dialogOpen;
+
+      const folder = makeRepositoryFlatNode("f1", "f1");
+      comp.selectedNodes = [folder];
+      comp.removeTasks(folder.data);
+
+      await waitFor(() => expect(checkCalled).toBe(true));
+      return { dialogOpen, removeBodies: () => removeBodies };
+   }
+
+   // Bug #78002: a folder whose tasks have dependents shows the dependency message and removes nothing
+   it("should show the dependency dialog and not remove the folder when tasks have dependents", async () => {
+      const formatSpy = vi.spyOn(Tool, "formatCatalogString");
+      const { dialogOpen, removeBodies } = await deleteFolder(["B"]);
+
+      await waitFor(() => expect(dialogOpen).toHaveBeenCalledTimes(2));
+      const [, cfg] = dialogOpen.mock.calls[1] as any[];
+      expect(cfg.data.title).toBe("_#(js:em.schedule.dependenciesFound)");
+      // the catalog is not loaded in tests, so check the dependent names passed to the message format
+      expect(formatSpy).toHaveBeenCalledWith("_#(js:em.schedule.task.removeDependency)", ["B"]);
+      expect(cfg.data.content).toBe(formatSpy.mock.results.at(-1).value);
+
+      // give a stray remove request the chance to arrive before asserting it never did
+      await new Promise(resolve => setTimeout(resolve, 50));
+      expect(removeBodies()).toEqual([]);
+   });
+
+   // Bug #78002: no dependents -> the folder is removed and no dependency dialog is shown
+   it("should remove the folder when there are no dependents", async () => {
+      const { dialogOpen, removeBodies } = await deleteFolder([]);
+
+      await waitFor(() => expect(removeBodies().length).toBe(1));
+      expect(removeBodies()[0].taskNames).toEqual(["f1"]);
+      expect(dialogOpen).toHaveBeenCalledTimes(1);
+   });
+
+});
+
+// ---------------------------------------------------------------------------
+// Group 7 [Risk 2] — refused folder calls are surfaced (Bug #78136)
+// ---------------------------------------------------------------------------
+describe("ScheduleFolderTreeComponent — refused folder calls are surfaced (Bug #78136)", () => {
+
+   // handleError emits errorResponse and rethrows, the rethrown error reaches rxjs's unhandled
+   // error hook, which is captured here so it doesn't fail the run
+   async function withCapturedErrors(run: (captured: unknown[]) => Promise<void>) {
+      const captured: unknown[] = [];
+      const previousOnUnhandledError = rxjsConfig.onUnhandledError;
+      rxjsConfig.onUnhandledError = (err) => captured.push(err);
+
+      try {
+         await run(captured);
+      }
+      finally {
+         rxjsConfig.onUnhandledError = previousOnUnhandledError;
+      }
+   }
+
+   function denied() {
+      return MswHttpResponse.json(
+         { type: "SecurityException", message: "denied" }, { status: 403 });
+   }
+
+   async function newFolder(hint: () => any) {
+      let addCalls = 0;
+      server.use(
+         http.post("*/api/em/schedule/add/checkDuplicate", hint),
+         http.post("*/api/em/schedule/folder/add", () => {
+            addCalls++;
+            return MswHttpResponse.json({});
+         }),
+      );
+
+      const { comp } = await renderComponent();
+      vi.spyOn(comp as any, "safeRefreshTree").mockImplementation(() => {});
+      comp.selectedNodes = [makeRepositoryFlatNode("f1", "f1")];
+      const dialogOpen = vi.fn().mockReturnValue({ afterClosed: () => of({ folderName: "new" }) });
+      comp.dialog.open = dialogOpen;
+      const errors: any[] = [];
+      comp.errorResponse.subscribe(e => errors.push(e));
+
+      comp.newTaskFolder(makeTreeNode("f1", "f1"));
+      return { errors, dialogOpen, addCalls: () => addCalls };
+   }
+
+   // a duplicate hint refused without write permission on the parent folder (#77811) shows the
+   // error instead of nothing, and the folder isn't added
+   it("should surface a refused duplicate hint and not add the folder", async () => {
+      await withCapturedErrors(async () => {
+         const { errors, dialogOpen, addCalls } = await newFolder(denied);
+
+         await waitFor(() => expect(errors.length).toBe(1));
+         expect(errors[0].status).toBe(403);
+         expect(errors[0].error.message).toBe("denied");
+         await new Promise(resolve => setTimeout(resolve, 50));
+         expect(addCalls()).toBe(0);
+         // only the new folder dialog, no duplicate-name dialog
+         expect(dialogOpen).toHaveBeenCalledTimes(1);
+      });
+   });
+
+   // control: an allowed hint that isn't a duplicate still adds the folder
+   it("should add the folder when the hint allows it", async () => {
+      const { errors, addCalls } = await newFolder(() => MswHttpResponse.json(false));
+
+      await waitFor(() => expect(addCalls()).toBe(1));
+      expect(errors).toEqual([]);
+   });
+
+   // the edit model refused without permission on the folder (#77906) shows the error and
+   // doesn't open the edit dialog
+   it("should surface a refused edit model and not open the edit dialog", async () => {
+      await withCapturedErrors(async () => {
+         server.use(http.post("*/api/em/schedule/folder/editModel", denied));
+         const { comp } = await renderComponent();
+         const dialogOpen = vi.fn().mockReturnValue({ afterClosed: () => of(false) });
+         comp.dialog.open = dialogOpen;
+         const errors: any[] = [];
+         comp.errorResponse.subscribe(e => errors.push(e));
+
+         comp.editTaskFolder(makeTreeNode("f1", "f1"));
+
+         await waitFor(() => expect(errors.length).toBe(1));
+         expect(errors[0].status).toBe(403);
+         expect(dialogOpen).not.toHaveBeenCalled();
+      });
+   });
 });

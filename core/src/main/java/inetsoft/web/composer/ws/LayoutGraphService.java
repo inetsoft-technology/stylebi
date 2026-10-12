@@ -54,6 +54,9 @@ public class LayoutGraphService extends WorksheetControllerService {
       throws Exception
    {
       RuntimeWorksheet rws = getRuntimeWorksheet(runtimeId, principal);
+      // the names are client-supplied here, the worksheet overload is only called with the
+      // names of a worksheet built on the server (Bug #77462)
+      checkCubeTableReadPermission(principal, event.names());
       commandDispatcher.sendCommand(layoutGraph(rws.getWorksheet(), event));
       return null;
    }

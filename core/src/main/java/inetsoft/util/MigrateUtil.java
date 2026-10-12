@@ -159,14 +159,15 @@ public class MigrateUtil {
          return taskName;
       }
 
-      String[] split = taskName.split(":");
+      // Bug #77883, the owner key ends at the first ':', the task name may contain ':'
+      int index = taskName.indexOf(':');
 
-      if(split.length == 2) {
-         IdentityID identityID = IdentityID.getIdentityIDFromKey(split[0]);
+      if(index > 0) {
+         IdentityID identityID = IdentityID.getIdentityIDFromKey(taskName.substring(0, index));
 
          if(Tool.equals(oName, identityID.name)) {
             identityID.setName(nName);
-            taskName = identityID.convertToKey() + ":" + split[1];
+            taskName = identityID.convertToKey() + taskName.substring(index);
          }
       }
 

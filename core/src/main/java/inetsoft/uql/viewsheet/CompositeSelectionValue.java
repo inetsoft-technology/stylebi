@@ -17,7 +17,10 @@
  */
 package inetsoft.uql.viewsheet;
 
+import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.util.Tool;
+import inetsoft.util.swap.SwapFileReadException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
@@ -57,6 +60,32 @@ public class CompositeSelectionValue extends SelectionValue {
     */
    public SelectionList getSelectionList() {
       return list;
+   }
+
+   /**
+    * Correct the years of the date values in this tree read from a persisted asset, which may
+    * have been written in the Buddhist or Japanese calendar before #77605. The value of a node
+    * is changed only if the data ref of its level has a date type.
+    * @param refs the data refs of the tree levels.
+    */
+   public void toGregorianPersistentDates(DataRef[] refs) {
+      if(list == null || refs == null) {
+         return;
+      }
+
+      for(SelectionValue val : list.getSelectionValues()) {
+         int level = val.getLevel();
+
+         if(level >= 0 && level < refs.length && refs[level] != null &&
+            XSchema.isDateType(refs[level].getDataType()))
+         {
+            val.setValue(Tool.toGregorianPersistentDate(val.getValue()));
+         }
+
+         if(val instanceof CompositeSelectionValue) {
+            ((CompositeSelectionValue) val).toGregorianPersistentDates(refs);
+         }
+      }
    }
 
    /**
@@ -172,17 +201,37 @@ public class CompositeSelectionValue extends SelectionValue {
     */
    @Override
    public Object clone() {
+      return clone0(false);
+   }
+
+   /**
+    * Clone the value like clone(), but keep the selection lists whose values can't be read back
+    * in their unreadable state, see SelectionList.cloneKeepingLost() (bug #77864).
+    * @return the cloned object.
+    */
+   public CompositeSelectionValue cloneKeepingLost() {
+      return (CompositeSelectionValue) clone0(true);
+   }
+
+   private Object clone0(boolean keepLost) {
       try {
          CompositeSelectionValue value =
             (CompositeSelectionValue) super.clone();
 
          if(list != null) {
-            value.list = (SelectionList) list.clone();
+            value.list = keepLost ? list.cloneKeepingLost() : (SelectionList) list.clone();
          }
 
          return value;
       }
       catch(Exception ex) {
+         // a null child would be added silently to the cloned parent list (bug #77864)
+         SwapFileReadException swapFailure = SwapFileReadException.find(ex);
+
+         if(swapFailure != null) {
+            throw swapFailure;
+         }
+
          LOG.error("Failed to clone CompositeSelectionValue", ex);
       }
 

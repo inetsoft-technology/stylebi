@@ -24,6 +24,7 @@ import inetsoft.sree.schedule.ScheduleCondition;
 import inetsoft.sree.schedule.TimeCondition;
 import inetsoft.sree.security.*;
 import inetsoft.sree.security.SecurityException;
+import inetsoft.uql.asset.AbstractAssetEngine;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
@@ -156,7 +157,13 @@ public class ScheduleCycleService {
          .build();
    }
 
-   public String addDataCycle(Principal principal, String timeZoneId) {
+   /**
+    * Creates a data cycle with the next free name.
+    *
+    * @return the new cycle, with a warning if the permission granted to its creator may not have
+    *         been saved, or a cycle without a name if it couldn't be created.
+    */
+   public DataCycleInfo addDataCycle(Principal principal, String timeZoneId) {
       ActionRecord actionRecord = SUtil.getActionRecord(principal, ActionRecord.ACTION_NAME_CREATE,
                                                         null, ActionRecord.OBJECT_TYPE_CYCLE);
 
@@ -190,14 +197,25 @@ public class ScheduleCycleService {
          cycleInfo.setLastModified(System.currentTimeMillis());
          dataCycleManager.setCycleInfo(cycleName, orgId, cycleInfo);
          dataCycleManager.save();
-         addCyclePermission(cycleName, principal);
-         return cycleName;
+         DataCycleInfo info = new DataCycleInfo(cycleName);
+
+         // Bug #78217, the cycle is already saved, a failed grant is shown as a warning. The
+         // cycle is named automatically, so creating it again would create another one
+         try {
+            addCyclePermission(cycleName, principal);
+         }
+         catch(RuntimeException e) {
+            info.setWarning(AbstractAssetEngine.getCreatorPermissionWarning(
+               ResourceType.SCHEDULE_CYCLE, cycleName, e));
+         }
+
+         return info;
       }
       catch(Exception ex) {
          LOG.error("Failed to create cycle", ex);
          actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_FAILURE);
          actionRecord.setActionError(ex.getMessage());
-         return null;
+         return new DataCycleInfo(null);
       }
       finally {
          Audit.getInstance().auditAction(actionRecord, principal);

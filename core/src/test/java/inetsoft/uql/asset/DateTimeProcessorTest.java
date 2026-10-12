@@ -117,6 +117,95 @@ class DateTimeProcessorTest {
       }
    }
 
+   /**
+    * {@code getWeekOfYear} built a bare {@code GregorianCalendar}, so it inherited the JVM
+    * default locale's {@code minimalDaysInFirstWeek} (1 for en_US/zh_CN, 4 for en_GB/de_DE)
+    * and only ever re-synced {@code firstDayOfWeek}. On an en_GB/de_DE server, 2026-01-01 came
+    * out as week 53 of 2025 instead of week 1 of 2026 -- disagreeing with both an en_US/zh_CN
+    * server and {@code CALC.weeknum}, whose default return type treats the week containing
+    * January 1 as week 1 (Bug #78112).
+    */
+   @Test
+   void weekOfYearIgnoresTheDefaultLocale() {
+      Locale old = Locale.getDefault();
+
+      try {
+         // week.start left at its default (Sunday), matching the bug report.
+         List<Integer> underEnUS = weeksOfYear(Locale.US);
+         List<Integer> underEnGB = weeksOfYear(Locale.UK);
+         List<Integer> underDeDE = weeksOfYear(Locale.GERMANY);
+         List<Integer> underZhCN = weeksOfYear(Locale.SIMPLIFIED_CHINESE);
+         List<String> labels = weekOfYearLabels();
+
+         for(int i = 0; i < labels.size(); i++) {
+            assertEquals(underEnUS.get(i), underEnGB.get(i),
+                         "week of year changed with the JVM default locale (en-GB) for " +
+                            labels.get(i));
+            assertEquals(underEnUS.get(i), underDeDE.get(i),
+                         "week of year changed with the JVM default locale (de-DE) for " +
+                            labels.get(i));
+            assertEquals(underEnUS.get(i), underZhCN.get(i),
+                         "week of year changed with the JVM default locale (zh-CN) for " +
+                            labels.get(i));
+         }
+      }
+      finally {
+         Locale.setDefault(old);
+      }
+   }
+
+   /**
+    * The reporter's exact repro date: 2026-01-01 (a Thursday) must be week 1, matching
+    * {@code CALC.weeknum(d, 1)} -- not week 53 of 2025, which is what an uncorrected
+    * {@code minimalDaysInFirstWeek} produces under en-GB/de-DE.
+    */
+   @Test
+   void weekOfYearJan1stIsWeekOneUnderAnyLocale() {
+      Locale old = Locale.getDefault();
+
+      try {
+         for(Locale locale : new Locale[]{
+            Locale.US, Locale.UK, Locale.GERMANY, Locale.SIMPLIFIED_CHINESE })
+         {
+            Locale.setDefault(locale);
+            Date jan1_2026 = makeDate(2026, Calendar.JANUARY, 1);
+            assertEquals(1, DateTimeProcessor.at(jan1_2026.getTime()).getWeekOfYear(),
+                         "2026-01-01 should be week 1 under locale " + locale);
+         }
+      }
+      finally {
+         Locale.setDefault(old);
+      }
+   }
+
+   private static List<Integer> weeksOfYear(Locale defaultLocale) {
+      Locale.setDefault(defaultLocale);
+      List<Integer> results = new ArrayList<>();
+
+      for(Date day : everyDayOf(2026)) {
+         results.add(DateTimeProcessor.at(day.getTime()).getWeekOfYear());
+      }
+
+      return results;
+   }
+
+   private static List<String> weekOfYearLabels() {
+      List<String> labels = new ArrayList<>();
+
+      for(Date day : everyDayOf(2026)) {
+         labels.add(day.toString());
+      }
+
+      return labels;
+   }
+
+   private static Date makeDate(int year, int month, int day) {
+      Calendar cal = new GregorianCalendar();
+      cal.clear();
+      cal.set(year, month, day, 12, 0, 0);
+      return cal.getTime();
+   }
+
    private static List<Timestamp> yearsOfFullWeek(Locale defaultLocale) {
       Locale.setDefault(defaultLocale);
       List<Timestamp> results = new ArrayList<>();

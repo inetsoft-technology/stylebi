@@ -43,14 +43,16 @@ public class OAuthAuthenticator<T extends AbstractRestDataSource & OAuthDataSour
 
       if(tokens != null) {
          dataSource.updateTokens(tokens);
-      }
 
-      if(dataSource.getFullName() != null) {
-         try {
-            XRepository.getRepository().updateDataSource(dataSource, dataSource.getFullName());
-         }
-         catch(Exception e) {
-            LOG.warn("Failed to save data source after refreshing token", e);
+         // Bug #77692, save only after a refresh, and onto the stored definition, not this
+         // runtime instance whose variables have been replaced with the values of the query
+         if(dataSource.getFullName() != null) {
+            try {
+               XRepository.getRepository().updateDataSourceTokens(dataSource, tokens);
+            }
+            catch(Exception e) {
+               LOG.warn("Failed to save data source after refreshing token", e);
+            }
          }
       }
 

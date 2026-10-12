@@ -31,6 +31,7 @@ import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.composer.vs.objects.controller.VSTrapService;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.service.*;
 import org.springframework.stereotype.Service;
 
@@ -53,7 +54,8 @@ public class CalendarPropertyDialogService {
                                         VSDialogService dialogService,
                                         ViewsheetService viewsheetService,
                                         VSTrapService trapService,
-                                        VSAssemblyInfoHandler assemblyInfoHandler)
+                                        VSAssemblyInfoHandler assemblyInfoHandler,
+                                        QueryManagerService queryManagerService)
    {
       this.vsObjectPropertyService = vsObjectPropertyService;
       this.vsOutputService = vsOutputService;
@@ -61,6 +63,7 @@ public class CalendarPropertyDialogService {
       this.viewsheetService = viewsheetService;
       this.trapService = trapService;
       this.assemblyInfoHandler = assemblyInfoHandler;
+      this.queryManagerService = queryManagerService;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -182,12 +185,16 @@ public class CalendarPropertyDialogService {
          info.setDataRef(null);
       }
       else {
-         info.setFirstTableName(
-            VSUtil.getTableName(calendarDataPaneModel.getSelectedTable()));
+         String firstTable = VSUtil.getTableName(calendarDataPaneModel.getSelectedTable());
          List<String> additionalNames =
             calendarDataPaneModel.getAdditionalTables().stream()
                .map(VSUtil::getTableName)
                .collect(Collectors.toList());
+         // a cube table is resolved from its data source without a permission check, so
+         // check a newly bound one before it is set (Bug #77427)
+         queryManagerService.checkNewCubeTablesReadPermission(
+            firstTable, additionalNames, info.getTableNames(), principal);
+         info.setFirstTableName(firstTable);
          info.setAdditionalTableNames(additionalNames);
          AttributeRef aRef = new AttributeRef(selectedColumn.getEntity(),
                                               selectedColumn.getAttribute());
@@ -252,12 +259,16 @@ public class CalendarPropertyDialogService {
          info.setDataRef(null);
       }
       else {
-         info.setFirstTableName(
-            VSUtil.getTableName(calendarDataPaneModel.getSelectedTable()));
+         String firstTable = VSUtil.getTableName(calendarDataPaneModel.getSelectedTable());
          List<String> additionalNames =
             calendarDataPaneModel.getAdditionalTables().stream()
                .map(VSUtil::getTableName)
                .collect(Collectors.toList());
+         // a cube table is resolved from its data source without a permission check, so
+         // check a newly bound one before it is set (Bug #77427)
+         queryManagerService.checkNewCubeTablesReadPermission(
+            firstTable, additionalNames, info.getTableNames(), principal);
+         info.setFirstTableName(firstTable);
          info.setAdditionalTableNames(additionalNames);
          AttributeRef aRef = new AttributeRef(selectedColumn.getEntity(),
                                               selectedColumn.getAttribute());
@@ -430,4 +441,5 @@ public class CalendarPropertyDialogService {
    private final ViewsheetService viewsheetService;
    private final VSTrapService trapService;
    private final VSAssemblyInfoHandler assemblyInfoHandler;
+   private final QueryManagerService queryManagerService;
 }

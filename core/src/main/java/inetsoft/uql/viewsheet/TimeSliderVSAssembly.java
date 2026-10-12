@@ -172,7 +172,7 @@ public class TimeSliderVSAssembly extends AbstractSelectionVSAssembly
          int dot = str.indexOf('.');
          int dp = str.length() - dot - 1;
          double factor = Math.pow(10, dp);
-         BigInteger binc0 = createBigInteger(inc * factor);
+         BigInteger binc0 = roundToBigInteger(inc * factor);
          double mind0 = mind * factor;
          double inc0 = binc0.doubleValue();
 
@@ -230,7 +230,7 @@ public class TimeSliderVSAssembly extends AbstractSelectionVSAssembly
          int dot = str.indexOf('.');
          int dp = str.length() - dot - 1;
          double factor = Math.pow(10, dp);
-         BigInteger size = createBigInteger(nums[2] * factor);
+         BigInteger size = roundToBigInteger(nums[2] * factor);
          int mod5 = size.mod(BigInteger.valueOf(5)).intValue();
          int mod3 = size.mod(BigInteger.valueOf(3)).intValue();
          BigDecimal power = createBigDecimal(Math.pow(10, pow));
@@ -257,10 +257,12 @@ public class TimeSliderVSAssembly extends AbstractSelectionVSAssembly
    }
 
    /**
-    * Create one big integer from the given double value.
+    * Round a scaled decimal (e.g. 0.57 * 100 = 56.99999999999999) to the nearest integer.
+    * Truncating it would shorten the step (56 instead of 57), so the ticks would stop below
+    * the max (Bug #78073).
     */
-   private static BigInteger createBigInteger(double val) {
-      return BigDecimal.valueOf(val).toBigInteger();
+   private static BigInteger roundToBigInteger(double val) {
+      return BigDecimal.valueOf(val).setScale(0, RoundingMode.HALF_UP).toBigInteger();
    }
 
    /**
@@ -979,6 +981,12 @@ public class TimeSliderVSAssembly extends AbstractSelectionVSAssembly
          snode = Tool.getFirstChildNode(snode);
          SelectionList slist = new SelectionList();
          slist.parseXML(snode);
+
+         // a date saved before #77605 may have a Buddhist or Japanese year
+         if(getTimeSliderInfo().isPersistentDateValue()) {
+            slist.toGregorianPersistentDates();
+         }
+
          setStateSelectionList(slist);
       }
       else {
@@ -1195,7 +1203,9 @@ public class TimeSliderVSAssembly extends AbstractSelectionVSAssembly
          TimeSliderVSAssembly assembly2 = (TimeSliderVSAssembly) super.clone();
 
          if(slist != null) {
-            assembly2.slist = (SelectionList) slist.clone();
+            // keep a state selection that can't be read back unreadable in the clone, an
+            // empty state would silently select nothing, e.g. after an undo (bug #77864)
+            assembly2.slist = slist.cloneKeepingLost();
          }
 
          return assembly2;

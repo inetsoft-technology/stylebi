@@ -71,10 +71,19 @@ public class FreeFormSQLPaneModel implements Serializable {
       this.parseResult = parseResult;
    }
 
+   public boolean isLossy() {
+      return lossy;
+   }
+
+   public void setLossy(boolean lossy) {
+      this.lossy = lossy;
+   }
+
    private boolean hasSqlString;
    private String sqlString;
    private String generatedSqlString;
    private boolean parseSql;
    private boolean hasColumnInfo;
    private int parseResult;
+   private boolean lossy;
 }

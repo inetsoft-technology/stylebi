@@ -34,6 +34,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import static inetsoft.util.stall.StallTestSupport.assertStallOf;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -68,7 +69,7 @@ class ScriptTableReadStallTest {
 
       Throwable thrown = assertThrows(Throwable.class,
          () -> senv.exec(senv.compile(SUM), scope, null, null));
-      assertSame(stall, LockStallException.find(thrown));
+      assertStallOf(stall, LockStallException.find(thrown));
    }
 
    @Test
@@ -86,7 +87,7 @@ class ScriptTableReadStallTest {
 
       Throwable thrown = assertThrows(Throwable.class,
          () -> senv.exec(senv.compile("Gauge1.value * 2"), null, null, null));
-      assertSame(stall, LockStallException.find(thrown));
+      assertStallOf(stall, LockStallException.find(thrown));
    }
 
    @Test

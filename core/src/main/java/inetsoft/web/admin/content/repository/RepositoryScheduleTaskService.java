@@ -53,8 +53,7 @@ public class RepositoryScheduleTaskService {
                                                Principal principal)
       throws Exception
    {
-      securityEngine.checkPermission(
-         principal, ResourceType.SCHEDULE_TASK_FOLDER, path, ResourceAction.ADMIN);
+      // the endpoint gate checks ADMIN on the path, the only resource this method writes
       resourcePermissionService.setResourcePermissions(path, ResourceType.SCHEDULE_TASK_FOLDER,
          model, principal);
    }

@@ -403,7 +403,7 @@ public class XAttribute implements Cloneable, Serializable, XMLSerializable {
       if(getDescription() != null) {
          writer.print("<description>");
          writer.print("<![CDATA[");
-         writer.print(getDescription());
+         writer.print(Tool.cdataText(getDescription()));
          writer.print("]]>");
          writer.println("</description>");
       }

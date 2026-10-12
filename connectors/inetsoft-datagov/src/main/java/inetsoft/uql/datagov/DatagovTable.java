@@ -273,7 +273,7 @@ class DatagovTable extends XTableNode {
 
    private int maxRows;
    private final SimpleDateFormat formatter =
-      new SimpleDateFormat("yyyy-MM-dd HH:mm:SS");
+      Tool.createGregorianDateFormat("yyyy-MM-dd HH:mm:SS");
    private List<String> names = new ArrayList<>();
    private Object[][] data;
    private Class[] types;

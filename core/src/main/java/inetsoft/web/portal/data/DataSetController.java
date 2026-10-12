@@ -23,6 +23,7 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.util.MessageException;
 import inetsoft.util.MissingAssetClassNameException;
+import inetsoft.util.Tool;
 import inetsoft.web.factory.RemainingPath;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
@@ -223,6 +224,8 @@ public class DataSetController {
    public void addFolder(@RequestBody AddFolderRequest request, Principal principal)
       throws Exception
    {
+      // Bug #77733, a name with a slash would build a path under another parent
+      Tool.checkFolderNameSeparator(request.name());
       String path;
       String parentPath = request.parentPath();
 
@@ -451,15 +454,34 @@ public class DataSetController {
    public void removeAll(@RequestBody WorksheetBrowserInfo[] entries,
                          Principal principal) throws Exception
    {
+      // Bug #78217, a failed delete, e.g. of a permission after the entry is already in the
+      // recycle bin, must not stop the delete of the other entries. The first failure is reported
+      // once all are processed
+      Exception failure = null;
+
       for(WorksheetBrowserInfo entry : entries) {
-         if(entry.type() == AssetEntry.Type.FOLDER) {
-            dataSetService.deleteFolder(
-               dataSetService.getAuditPath(entry.path(), entry.scope(), principal),
-               entry.path(), entry.scope(), principal);
+         try {
+            if(entry.type() == AssetEntry.Type.FOLDER) {
+               dataSetService.deleteFolder(
+                  dataSetService.getAuditPath(entry.path(), entry.scope(), principal),
+                  entry.path(), entry.scope(), principal);
+            }
+            else if(entry.type() == AssetEntry.Type.WORKSHEET) {
+               dataSetService.deleteWorksheet(entry.path(), entry.scope(), principal, false);
+            }
          }
-         else if(entry.type() == AssetEntry.Type.WORKSHEET) {
-            dataSetService.deleteWorksheet(entry.path(), entry.scope(), principal, false);
+         catch(Exception e) {
+            if(failure == null) {
+               failure = e;
+            }
+            else {
+               failure.addSuppressed(e);
+            }
          }
+      }
+
+      if(failure != null) {
+         throw failure;
       }
    }
 

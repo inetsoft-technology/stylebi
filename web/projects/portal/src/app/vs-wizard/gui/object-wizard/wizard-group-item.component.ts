@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
+import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges } from "@angular/core";
 import { NgbModal, NgbTooltip } from "@ng-bootstrap/ng-bootstrap";
 import { Tool } from "../../../../../../shared/util/tool";
 import { BDimensionRef } from "../../../binding/data/b-dimension-ref";
@@ -37,15 +37,55 @@ import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo
     styleUrls: ["./wizard-group-item.component.scss"],
     imports: [NgbTooltip, DynamicComboBox, FixedDropdownDirective, FormattingPane]
 })
-export class VSWizardGroupItem extends VSWizardItem<BDimensionRef> implements OnInit {
+export class VSWizardGroupItem extends VSWizardItem<BDimensionRef> implements OnChanges {
    @Input() showName: boolean;
    @Input() showMore: boolean;
    @Output() addItem = new EventEmitter<number>();
    @Output() onEditDimension = new EventEmitter<null>();
-   dateGroups: any[];
-   timeGroups: any[];
-   dateTimeGroups: any[];
+   readonly timeGroups: any[] = [
+      { label: "_#(js:Hour)", value: XConstants.HOUR_DATE_GROUP  + "" },
+      { label: "_#(js:Minute)", value: XConstants.MINUTE_DATE_GROUP + "" },
+      { label: "_#(js:Second)", value: XConstants.SECOND_DATE_GROUP + "" },
+      { label: "_#(js:Hour of Day)", value: XConstants.HOUR_OF_DAY_DATE_GROUP + "" },
+      { label: "_#(js:Minute of Hour)", value: XConstants.MINUTE_OF_HOUR_DATE_GROUP + "" },
+      { label: "_#(js:Second of Minute)", value: XConstants.SECOND_OF_MINUTE_DATE_GROUP + "" },
+      { label: "_#(js:None)", value: XConstants.NONE_DATE_GROUP + "" }
+   ];
+   readonly dateGroups: any[] = [
+      { label: "_#(js:Year)", value: XConstants.YEAR_DATE_GROUP + "" },
+      { label: "_#(js:Quarter)", value: XConstants.QUARTER_DATE_GROUP + "" },
+      { label: "_#(js:Month)", value: XConstants.MONTH_DATE_GROUP + "" },
+      { label: "_#(js:Week)", value: XConstants.WEEK_DATE_GROUP + "" },
+      { label: "_#(js:Day)", value: XConstants.DAY_DATE_GROUP + "" },
+      { label: "_#(js:Quarter of Year)", value: XConstants.QUARTER_OF_YEAR_DATE_GROUP + "" },
+      { label: "_#(js:Month of Year)", value: XConstants.MONTH_OF_YEAR_DATE_GROUP + "" },
+      { label: "_#(js:Week of Year)", value: XConstants.WEEK_OF_YEAR_DATE_GROUP + "" },
+      { label: "_#(js:Day of Month)", value: XConstants.DAY_OF_MONTH_DATE_GROUP + "" },
+      { label: "_#(js:Day of Week)", value: XConstants.DAY_OF_WEEK_DATE_GROUP + "" },
+      { label: "_#(js:None)", value: XConstants.NONE_DATE_GROUP + "" }
+   ];
+   readonly dateTimeGroups: any[] = [
+      { label: "_#(js:Year)", value: XConstants.YEAR_DATE_GROUP + "" },
+      { label: "_#(js:Quarter)", value: XConstants.QUARTER_DATE_GROUP + "" },
+      { label: "_#(js:Month)", value: XConstants.MONTH_DATE_GROUP + "" },
+      { label: "_#(js:Week)", value: XConstants.WEEK_DATE_GROUP + "" },
+      { label: "_#(js:Day)", value: XConstants.DAY_DATE_GROUP + "" },
+      { label: "_#(js:Hour)", value: XConstants.HOUR_DATE_GROUP + "" },
+      { label: "_#(js:Minute)", value: XConstants.MINUTE_DATE_GROUP + "" },
+      { label: "_#(js:Second)", value: XConstants.SECOND_DATE_GROUP + "" },
+      { label: "_#(js:Quarter of Year)", value: XConstants.QUARTER_OF_YEAR_DATE_GROUP + "" },
+      { label: "_#(js:Month of Year)", value: XConstants.MONTH_OF_YEAR_DATE_GROUP + "" },
+      { label: "_#(js:Week of Year)", value: XConstants.WEEK_OF_YEAR_DATE_GROUP + "" },
+      { label: "_#(js:Day of Month)", value: XConstants.DAY_OF_MONTH_DATE_GROUP + "" },
+      { label: "_#(js:Day of Week)", value: XConstants.DAY_OF_WEEK_DATE_GROUP + "" },
+      { label: "_#(js:Hour of Day)", value: XConstants.HOUR_OF_DAY_DATE_GROUP + "" },
+      { label: "_#(js:Minute of Hour)", value: XConstants.MINUTE_OF_HOUR_DATE_GROUP + "" },
+      { label: "_#(js:Second of Minute)", value: XConstants.SECOND_OF_MINUTE_DATE_GROUP + "" },
+      { label: "_#(js:None)", value: XConstants.NONE_DATE_GROUP + "" }
+   ];
    dateLevelExamples: string[] = [];
+   // data type the current dateLevelExamples were loaded for
+   private examplesDataType: string;
 
    constructor(protected modalService: NgbModal,
                protected clientService: ViewsheetClientService,
@@ -56,51 +96,30 @@ export class VSWizardGroupItem extends VSWizardItem<BDimensionRef> implements On
       super(modalService, clientService, treeService, modelService);
    }
 
-   ngOnInit() {
-      this.timeGroups =  [
-         { label: "_#(js:Hour)", value: XConstants.HOUR_DATE_GROUP  + "" },
-         { label: "_#(js:Minute)", value: XConstants.MINUTE_DATE_GROUP + "" },
-         { label: "_#(js:Second)", value: XConstants.SECOND_DATE_GROUP + "" },
-         { label: "_#(js:Hour of Day)", value: XConstants.HOUR_OF_DAY_DATE_GROUP + "" },
-         { label: "_#(js:Minute of Hour)", value: XConstants.MINUTE_OF_HOUR_DATE_GROUP + "" },
-         { label: "_#(js:Second of Minute)", value: XConstants.SECOND_OF_MINUTE_DATE_GROUP + "" },
-         { label: "_#(js:None)", value: XConstants.NONE_DATE_GROUP + "" }
-       ];
-      this.dateGroups = [
-         { label: "_#(js:Year)", value: XConstants.YEAR_DATE_GROUP + "" },
-         { label: "_#(js:Quarter)", value: XConstants.QUARTER_DATE_GROUP + "" },
-         { label: "_#(js:Month)", value: XConstants.MONTH_DATE_GROUP + "" },
-         { label: "_#(js:Week)", value: XConstants.WEEK_DATE_GROUP + "" },
-         { label: "_#(js:Day)", value: XConstants.DAY_DATE_GROUP + "" },
-         { label: "_#(js:Quarter of Year)", value: XConstants.QUARTER_OF_YEAR_DATE_GROUP + "" },
-         { label: "_#(js:Month of Year)", value: XConstants.MONTH_OF_YEAR_DATE_GROUP + "" },
-         { label: "_#(js:Week of Year)", value: XConstants.WEEK_OF_YEAR_DATE_GROUP + "" },
-         { label: "_#(js:Day of Month)", value: XConstants.DAY_OF_MONTH_DATE_GROUP + "" },
-         { label: "_#(js:Day of Week)", value: XConstants.DAY_OF_WEEK_DATE_GROUP + "" },
-         { label: "_#(js:None)", value: XConstants.NONE_DATE_GROUP + "" }
-       ];
-      this.dateTimeGroups = [
-         { label: "_#(js:Year)", value: XConstants.YEAR_DATE_GROUP + "" },
-         { label: "_#(js:Quarter)", value: XConstants.QUARTER_DATE_GROUP + "" },
-         { label: "_#(js:Month)", value: XConstants.MONTH_DATE_GROUP + "" },
-         { label: "_#(js:Week)", value: XConstants.WEEK_DATE_GROUP + "" },
-         { label: "_#(js:Day)", value: XConstants.DAY_DATE_GROUP + "" },
-         { label: "_#(js:Hour)", value: XConstants.HOUR_DATE_GROUP + "" },
-         { label: "_#(js:Minute)", value: XConstants.MINUTE_DATE_GROUP + "" },
-         { label: "_#(js:Second)", value: XConstants.SECOND_DATE_GROUP + "" },
-         { label: "_#(js:Quarter of Year)", value: XConstants.QUARTER_OF_YEAR_DATE_GROUP + "" },
-         { label: "_#(js:Month of Year)", value: XConstants.MONTH_OF_YEAR_DATE_GROUP + "" },
-         { label: "_#(js:Week of Year)", value: XConstants.WEEK_OF_YEAR_DATE_GROUP + "" },
-         { label: "_#(js:Day of Month)", value: XConstants.DAY_OF_MONTH_DATE_GROUP + "" },
-         { label: "_#(js:Day of Week)", value: XConstants.DAY_OF_WEEK_DATE_GROUP + "" },
-         { label: "_#(js:Hour of Day)", value: XConstants.HOUR_OF_DAY_DATE_GROUP + "" },
-         { label: "_#(js:Minute of Hour)", value: XConstants.MINUTE_OF_HOUR_DATE_GROUP + "" },
-         { label: "_#(js:Second of Minute)", value: XConstants.SECOND_OF_MINUTE_DATE_GROUP + "" },
-         { label: "_#(js:None)", value: XConstants.NONE_DATE_GROUP + "" }
-       ];
+   ngOnChanges(changes: SimpleChanges): void {
+      // rows are tracked by index, so this instance may be handed a ref of a different
+      // data type (e.g. after moving a dimension up/down), reload examples when it changes
+      if(changes.dataRef && this.dataRef && this.dataRef.dataType !== this.examplesDataType) {
+         this.loadDateLevelExamples();
+      }
+   }
+
+   private loadDateLevelExamples(): void {
+      const dataType = this.dataRef.dataType;
+      this.examplesDataType = dataType;
+      this.dateLevelExamples = [];
+
+      if(!this.isDate()) {
+         return;
+      }
 
       this.examplesService.loadDateLevelExamples(this.getDateLevelOpts().map(val => val.value),
-         this.dataRef.dataType).subscribe((data: any) => this.dateLevelExamples = data.dateLevelExamples);
+         dataType).subscribe((data: any) => {
+            // ignore a stale response if the data type changed while loading
+            if(this.examplesDataType === dataType) {
+               this.dateLevelExamples = data.dateLevelExamples;
+            }
+         });
    }
 
    getDateLevelOpts(): any[] {

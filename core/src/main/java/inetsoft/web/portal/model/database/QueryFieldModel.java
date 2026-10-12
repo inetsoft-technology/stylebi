@@ -52,6 +52,19 @@ public class QueryFieldModel implements Serializable {
       this.drillInfo = drillInfo;
    }
 
+   /**
+    * Get the column as written in the sql when it was a quoted identifier (t."MixedCase"),
+    * which the expression editor starts from. The name doesn't show the quotes.
+    * @return the quoted spelling, or <tt>null</tt> if the column isn't quoted.
+    */
+   public String getQuotedName() {
+      return quotedName;
+   }
+
+   public void setQuotedName(String quotedName) {
+      this.quotedName = quotedName;
+   }
+
    public XFormatInfoModel getFormat() {
       return format;
    }
@@ -65,4 +78,5 @@ public class QueryFieldModel implements Serializable {
    private String dataType;
    private AutoDrillInfo drillInfo;
    private XFormatInfoModel format;
+   private String quotedName;
 }

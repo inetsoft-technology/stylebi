@@ -45,9 +45,10 @@ import java.util.stream.Collectors;
 @TernClass(url = "#cshid=CategoricalColorFrame")
 public class CategoricalColorFrame extends ColorFrame implements CategoricalFrame {
    /**
-    * The color palette.
+    * The color palette. Unmodifiable: it is the default of every chart in the JVM and is
+    * reachable from scripts (Bug #77497).
     */
-   public static final Color[] COLOR_PALETTE = new Color[] {
+   public static final List<Color> COLOR_PALETTE = List.of(
       new Color(0x518db9), new Color(0xb9dbf4), new Color(0x62a640),
       new Color(0xade095), new Color(0xfc8f2a), new Color(0xfde3a7),
       new Color(0xd64541), new Color(0xfda7a5), new Color(0x9368be),
@@ -61,7 +62,7 @@ public class CategoricalColorFrame extends ColorFrame implements CategoricalFram
       new Color(0xCCCC66), new Color(0xCC6600), new Color(0x9999FF),
       new Color(0x0066CC), new Color(0xFFCC00), new Color(0x009999),
       new Color(0x99CC33), new Color(0xFF9900), new Color(0x66CCCC),
-      new Color(0x339966), new Color(0xCCCC33)};
+      new Color(0x339966), new Color(0xCCCC33));
 
    /**
     * Create a color frame for categorical values.
@@ -69,7 +70,7 @@ public class CategoricalColorFrame extends ColorFrame implements CategoricalFram
    public CategoricalColorFrame() {
       super();
 
-      defaultColors = new ArrayList<>(Arrays.asList(COLOR_PALETTE));
+      defaultColors = new ArrayList<>(COLOR_PALETTE);
    }
 
    /**
@@ -400,7 +401,7 @@ public class CategoricalColorFrame extends ColorFrame implements CategoricalFram
             else {
                // Add default until we reach size.
                while(index > defaultColors.size()) {
-                  defaultColors.add(COLOR_PALETTE[0]);
+                  defaultColors.add(COLOR_PALETTE.get(0));
                }
 
                defaultColors.add(color);

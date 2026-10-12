@@ -31,6 +31,7 @@ import inetsoft.web.binding.drm.ColumnRefModel;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.composer.BrowseDataController;
 import inetsoft.web.composer.model.BrowseDataModel;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -65,6 +66,7 @@ public class WSUtilControllers extends WorksheetController {
       SourceInfo source = new SourceInfo(Integer.parseInt(entry.getProperty("type")),
                                           entry.getProperty("prefix"),
                                           entry.getProperty("source"));
+      checkSourceReadPermission(source, principal);
       ColumnSelection columns = AssetEventUtil.getAttributesBySource(
          getWorksheetEngine(), principal, source);
       DataRef ref = columns.getAttribute(attribute);
@@ -154,6 +156,7 @@ public class WSUtilControllers extends WorksheetController {
       SourceInfo source = new SourceInfo(Integer.parseInt(entry.getProperty("type")),
                                          entry.getProperty("prefix"),
                                          entry.getProperty("source"));
+      checkSourceReadPermission(source, principal);
       ColumnSelection columns = AssetEventUtil.getAttributesBySource(
          getWorksheetEngine(), principal, source);
       ColumnRefModel[] attributes = new ColumnRefModel[columns.getAttributeCount()];
@@ -185,6 +188,21 @@ public class WSUtilControllers extends WorksheetController {
       this.analyticAssistant = analyticAssistant;
    }
 
+   @Autowired
+   public void setQueryManagerService(QueryManagerService queryManagerService) {
+      this.queryManagerService = queryManagerService;
+   }
+
+   /**
+    * The source is built from the client's entry properties, whatever the entry's scope, and
+    * its logical model is listed without a permission check, so check the source here
+    * (Bug #77189). A physical table also requires PHYSICAL_TABLE ACCESS (Bug #77400).
+    */
+   private void checkSourceReadPermission(SourceInfo source, Principal principal) {
+      queryManagerService.checkSourceReadPermission(source, principal);
+   }
+
    private DataRefModelFactoryService dataRefModelFactoryService;
    private AnalyticAssistant analyticAssistant;
+   private QueryManagerService queryManagerService;
 }

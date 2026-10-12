@@ -31,6 +31,12 @@ public interface ImportAssetResponse {
 
    List<String> ignoreUserAssets();
 
+   /**
+    * Warnings about assets that were imported, e.g. secrets that could not be decrypted. A
+    * warning does not mark the import as failed.
+    */
+   List<String> warnings();
+
    @Value.Default
    default boolean failed() { return false; }
 

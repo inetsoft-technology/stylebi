@@ -24,6 +24,7 @@ import inetsoft.uql.VariableTable;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.*;
+import inetsoft.util.script.FormulaContext;
 import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.ScriptException;
 import inetsoft.web.composer.model.vs.DynamicValueModel;
@@ -791,7 +792,7 @@ public class RepletRequest implements java.io.Serializable, Cloneable, HttpXMLSe
             val = "__NULL__";
          }
          else {
-            val = Tool.byteEncode(String.valueOf(val));
+            val = encodeStringValue(String.valueOf(val));
          }
       }
 
@@ -813,7 +814,7 @@ public class RepletRequest implements java.io.Serializable, Cloneable, HttpXMLSe
       }
       else if(ptype.equals(XSchema.DATE)) {
          try {
-            return dateFmt.parse(pvalue);
+            return dateFmt.parse(Tool.toGregorianPersistentDate(pvalue));
          }
          catch(Throwable e) {
             LOG.error("Failed to parse date: " + pvalue, e);
@@ -823,7 +824,8 @@ public class RepletRequest implements java.io.Serializable, Cloneable, HttpXMLSe
       }
       else if(ptype.equals(XSchema.TIME_INSTANT)) {
          try {
-            return new Timestamp(datetimeFmt.parse(pvalue).getTime());
+            return new Timestamp(
+               datetimeFmt.parse(Tool.toGregorianPersistentDate(pvalue)).getTime());
          }
          catch(Throwable e) {
             LOG.error("Failed to parse date/time:" + pvalue, e);
@@ -846,6 +848,15 @@ public class RepletRequest implements java.io.Serializable, Cloneable, HttpXMLSe
    }
 
    /**
+    * Encode a string parameter value for its CDATA section. The reader byteDecodes it, so the
+    * control characters byteEncode keeps, which XML 1.0 can't carry, are written in the
+    * ~_hex_~ form byteDecode reads back (Bug #77806). Other text is written as before.
+    */
+   private static String encodeStringValue(String val) {
+      return RepositoryEntry.encodeControlChars(Tool.byteEncode(val), true);
+   }
+
+   /**
     * Get parameter representative string.
     */
    private String getParameterString(String name, Object val) {
@@ -859,9 +870,10 @@ public class RepletRequest implements java.io.Serializable, Cloneable, HttpXMLSe
 
          buffer.append("type=\"" + dynamicParameterValue.getDataType() + "\"");
          buffer.append(">");
-         buffer.append("<value>");
 
          if(DynamicValueModel.VALUE.equals(dynamicParameterValue.getType())) {
+            buffer.append("<value>");
+
             if(val instanceof Object[]) {
                buffer.append("<parameters>");
                Object[] arr = (Object[]) val;
@@ -877,7 +889,15 @@ public class RepletRequest implements java.io.Serializable, Cloneable, HttpXMLSe
             }
          }
          else {
-            buffer.append("<![CDATA[").append(val).append("]]>");
+            // an expression or variable is read back as is (no byteDecode), so a character
+            // XML 1.0 can't carry is encoded and marked for getParameterValue (Bug #77806)
+            String text = String.valueOf(val);
+            boolean ctrl = Tool.hasXMLIllegalChars(text);
+            buffer.append("<value").append(ctrl ? " " + XML_ILLEGAL_CHARS_ATTR + "=\"true\"" : "")
+               .append(">");
+            buffer.append("<![CDATA[")
+               .append(Tool.splitCDATAEnd(ctrl ? Tool.encodeXMLIllegalChars(text) : text))
+               .append("]]>");
          }
 
          buffer.append("</value>");
@@ -947,7 +967,7 @@ public class RepletRequest implements java.io.Serializable, Cloneable, HttpXMLSe
             val = "__NULL__";
          }
          else {
-            val = Tool.byteEncode(String.valueOf(val));
+            val = encodeStringValue(String.valueOf(val));
          }
       }
 
@@ -1044,6 +1064,11 @@ public class RepletRequest implements java.io.Serializable, Cloneable, HttpXMLSe
       if(valueNode != null) {
          pvalue = Tool.getValue(valueNode);
          pvalue = pvalue != null ? pvalue : "";
+
+         // see getParameterString, unmarked text is never decoded
+         if("true".equals(Tool.getAttribute(valueNode, XML_ILLEGAL_CHARS_ATTR))) {
+            pvalue = Tool.decodeXMLIllegalChars(pvalue);
+         }
       }
 
       String dynamicType = param.getAttribute("dynamicType");
@@ -1126,7 +1151,9 @@ public class RepletRequest implements java.io.Serializable, Cloneable, HttpXMLSe
       }
       else if(ptype.equals("Date")) {
          try {
-            java.sql.Date val = new java.sql.Date(dateFmt.parse(pvalue).getTime());
+            // a date saved before #77605 may have a Buddhist or Japanese year
+            java.sql.Date val = new java.sql.Date(
+               dateFmt.parse(Tool.toGregorianPersistentDate(pvalue)).getTime());
 
             if(parameterValue != null) {
                parameterValue.setValue(val);
@@ -1144,7 +1171,8 @@ public class RepletRequest implements java.io.Serializable, Cloneable, HttpXMLSe
       }
       else if(ptype.equals("TimeInstant")) {
          try {
-            Timestamp val = new Timestamp(datetimeFmt.parse(pvalue).getTime());
+            Timestamp val = new Timestamp(
+               datetimeFmt.parse(Tool.toGregorianPersistentDate(pvalue)).getTime());
             dateTimeList.add(pname);
 
             if(parameterValue != null) {
@@ -1309,8 +1337,12 @@ public class RepletRequest implements java.io.Serializable, Cloneable, HttpXMLSe
 
       ScriptEnv senv = scope.getScriptEnv();
       Object val;
+      // a schedule parameter expression is written by users with schedule access, run it
+      // restricted (bug #77396)
+      boolean restricted = FormulaContext.isRestricted();
 
       try {
+         FormulaContext.setRestricted(true);
          val = senv.exec(senv.compile(cmd), scope, null, null);
       }
       catch(Exception ex) {
@@ -1328,6 +1360,9 @@ public class RepletRequest implements java.io.Serializable, Cloneable, HttpXMLSe
 
          throw new ScriptException(msg);
       }
+      finally {
+         FormulaContext.setRestricted(restricted);
+      }
 
       return val;
    }
@@ -1336,6 +1371,12 @@ public class RepletRequest implements java.io.Serializable, Cloneable, HttpXMLSe
    private Vector<String> dateTimeList = new Vector<>(); // try to keep time instance type
    private transient Hashtable<String, Object> hints;
    private boolean encoding = false;
+
+   /**
+    * Marks a CDATA value whose XML 1.0 illegal characters were encoded with
+    * {@link Tool#encodeXMLIllegalChars}, the same marker UniformSQL uses (Bug #77806).
+    */
+   private static final String XML_ILLEGAL_CHARS_ATTR = "ctrlEncoded";
    private static final Object NULL = new Object();
 
    /**

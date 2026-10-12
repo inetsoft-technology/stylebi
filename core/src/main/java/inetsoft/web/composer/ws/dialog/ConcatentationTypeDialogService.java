@@ -85,6 +85,7 @@ public class ConcatentationTypeDialogService extends WorksheetControllerService 
       String tname = model.concatenatedTableName();
       String lname = model.leftTableName();
       String rname = model.rightTableName();
+      checkCubeTableReadPermission(principal, lname, rname);
       boolean all = model.all();
       TableAssemblyOperator.Operator operator = WorksheetEventUtil.convertOperator(ws, model.operator());
       ConcatenatedTableAssembly table =

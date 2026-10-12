@@ -39,11 +39,13 @@ import inetsoft.uql.util.*;
 import inetsoft.uql.viewsheet.CalculateRef;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.*;
+import inetsoft.util.script.FormulaContext;
 import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.ScriptException;
 import inetsoft.util.script.ScriptStateLint;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import inetsoft.util.script.graal.ScriptScope;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -710,6 +712,8 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
       }
 
       List list = new ArrayList();
+      List<String> quotes = new ArrayList<>();
+      boolean quoted = false;
 
       for(int i = 0; i < groups.length; i++) {
          GroupRef group = groups[i];
@@ -725,10 +729,32 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
 
          String col = getColumn(column);
          list.add(col);
+         // keep the quoting of a column written as a quoted identifier, by position, another
+         // group by field may have the same text (Bug #77786)
+         int bidx = column == null || column.isExpression() ?
+            -1 : getQuotedSourceIndex(column, col);
+
+         if(bidx >= 0) {
+            String seg = getQuotedSourceSegment(bidx);
+            quotes.add(seg == null ? "" : seg);
+            quoted = true;
+         }
+         else {
+            // as setGroupBy(Object[]) quotes the field, by its text
+            String seg = nsql.getQuotedFieldColumn(col);
+            quotes.add(!nsql.isQuotedField(col) ? null : seg == null ? "" : seg);
+         }
       }
 
       if(list.size() > 0) {
-         nsql.setGroupBy(list.toArray(new String[list.size()]));
+         String[] groupBy = (String[]) list.toArray(new String[list.size()]);
+
+         if(quoted) {
+            nsql.setGroupBy(groupBy, quotes.toArray(new String[0]));
+         }
+         else {
+            nsql.setGroupBy(groupBy);
+         }
       }
 
       // clear the original order by fields for they are useless
@@ -960,6 +986,15 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
             String order = getOrder(orderType);
             nsql.insertOrderBy(0, col, order);
             nsql.clearSQLString();
+
+            // keep the quoting of a column written as a quoted identifier, on the item,
+            // another item may have the same text (Bug #77786)
+            int bidx = attr instanceof AggregateRef || column == null ||
+               column.isExpression() ? -1 : getQuotedSourceIndex(column, col);
+
+            if(bidx >= 0) {
+               nsql.getOrderByItems()[0].setQuoted(true, getQuotedSourceSegment(bidx));
+            }
          }
       }
 
@@ -1101,6 +1136,14 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
                nidx = nselection.addColumn(col);
                nselection.setExpression(nidx, bselection.isExpression(bidx));
                nsql.clearSQLString();
+
+               // keep the quoting of a column written as a quoted identifier (Bug #77786)
+               if(nselection instanceof JDBCSelection && bselection instanceof JDBCSelection &&
+                  !bselection.isExpression(bidx) && ((JDBCSelection) bselection).isQuoted(bidx))
+               {
+                  ((JDBCSelection) nselection).setQuoted(
+                     nidx, ((JDBCSelection) bselection).getQuotedColumn(bidx));
+               }
 
                if(alias != null) {
                   nselection.setAlias(nidx, alias, getColumnAliasQuote());
@@ -1430,6 +1473,13 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
          nselection.setAlias(index, alias, getColumnAliasQuote());
       }
 
+      // keep the quoting of a column written as a quoted identifier (Bug #77786)
+      int bidx = column.isExpression() ? -1 : getQuotedSourceIndex(column, col);
+
+      if(bidx >= 0 && nselection instanceof JDBCSelection) {
+         ((JDBCSelection) nselection).setQuoted(index, getQuotedSourceSegment(bidx));
+      }
+
       if(!column.isExpression() && isQualifiedName(col)) {
          String tname = getMergedTableName(column);
 
@@ -1547,6 +1597,15 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
          ((JDBCSelection) nselection).setAggregate(col, true);
          String ocol = getColumn(column);
          nselection.setOriginalColumn(index, ocol);
+
+         // the aggregate of a qualified column written as a quoted identifier
+         // (sum(o."Mixed")), as the parser records it (Bug #77786)
+         int bidx = column.isExpression() || aggregate.getSecondaryColumn() != null ?
+            -1 : getQuotedSourceIndex(column, ocol);
+
+         if(bidx >= 0) {
+            ((JDBCSelection) nselection).setQuotedAggregate(index, getQuotedSourceSegment(bidx));
+         }
 
          // if there is more than one aggregate for any data ref column,
          // we need to replace the column ref with two alias column refs
@@ -1966,10 +2025,18 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
       }
 
       column = findColumn(column);
-      String col = getColumn(column);
+      String path = getColumn(column);
+      String col = path;
 
       if(!column.isExpression() && isQualifiedName(col)) {
          col = quoteColumn(col);
+      }
+
+      // keep the quoting of a column written as a quoted identifier (Bug #77786)
+      int bidx = column.isExpression() ? -1 : getQuotedSourceIndex(column, path);
+
+      if(bidx >= 0 && col != null) {
+         col = quoteSourceColumn(path, col, getQuotedSourceSegment(bidx));
       }
 
       return col;
@@ -2540,6 +2607,105 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
       }
 
       return col;
+   }
+
+   /**
+    * Get the select column of the query before the merge, written as a quoted identifier
+    * (o."Mixed", "Order Date"), that a column is merged from. The parser stores the column
+    * without its quotes and records the quoting by position, so the merge, which rebuilds the
+    * select list, group by, order by and conditions from the stored text, has to carry the
+    * record (Bug #77786).
+    * The column is found by its exact name, as written: getAttributeColumn ignores case, so
+    * with o."Mixed" and o.mixed both selected it may give the path of the other column.
+    * @param column the specified column.
+    * @param col the merged column text, from getColumn.
+    * @return the index in the backup selection, or -1 if the column was not written as a
+    *         quoted identifier, or is not found by its exact name.
+    */
+   private int getQuotedSourceIndex(DataRef column, String col) {
+      UniformSQL nsql = getUniformSQL();
+
+      if(column == null || col == null || nsql == null ||
+         !(nsql.getBackupSelection() instanceof JDBCSelection bselection))
+      {
+         return -1;
+      }
+
+      DataRef base = getBaseAttribute(column);
+
+      if(base == null || base.isExpression()) {
+         return -1;
+      }
+
+      int idx = indexOfExactColumn(bselection, getAttributeString(base));
+      return idx >= 0 && col.equals(bselection.getColumn(idx)) &&
+         !bselection.isExpression(idx) && bselection.isQuoted(idx) ? idx : -1;
+   }
+
+   /**
+    * Find a column by its path, alias or column segment, as XSelection.indexOfColumn does,
+    * comparing case.
+    */
+   private static int indexOfExactColumn(XSelection selection, String name) {
+      if(name == null) {
+         return -1;
+      }
+
+      for(int i = 0; i < selection.getColumnCount(); i++) {
+         if(name.equals(selection.getColumn(i))) {
+            return i;
+         }
+      }
+
+      for(int i = 0; i < selection.getColumnCount(); i++) {
+         if(name.equals(selection.getAlias(i))) {
+            return i;
+         }
+      }
+
+      for(int i = 0; i < selection.getColumnCount(); i++) {
+         String path = selection.getColumn(i);
+
+         if(selection.getAlias(i) == null && path != null && path.endsWith("." + name)) {
+            return i;
+         }
+      }
+
+      return -1;
+   }
+
+   /**
+    * Get the column segment, as written, of the quoted select column at an index of the
+    * backup selection (Mixed for o."Mixed"), or <tt>null</tt> for a bare quoted identifier.
+    */
+   private String getQuotedSourceSegment(int bidx) {
+      return ((JDBCSelection) getUniformSQL().getBackupSelection()).getQuotedColumn(bidx);
+   }
+
+   /**
+    * Restore the quotes of a column written as a quoted identifier in the text of a column
+    * used inside an expression (e.g. an aggregate), as the parser keeps it in the text of an
+    * expression (o."Mixed"). A part already quoted is left as it is.
+    * @param path the stored column, without its quotes.
+    * @param str the text generated for the column.
+    * @param segment the column segment as written, or <tt>null</tt> for a bare identifier.
+    */
+   private String quoteSourceColumn(String path, String str, String segment) {
+      String q = getSQLHelper(getUniformSQL()).getQuote();
+      boolean qualified = segment != null && path.endsWith("." + segment);
+      String column = qualified ? segment : path;
+      // escape an embedded quote char by doubling it (#77661)
+      String quoted = q + column.replace(q, q + q) + q;
+
+      if(str.equals(column)) {
+         return quoted;
+      }
+      else if(qualified && str.endsWith("." + column)) {
+         return str.substring(0, str.length() - column.length()) + quoted;
+      }
+
+      // already quoted
+      return str;
    }
 
    /**
@@ -4135,10 +4301,13 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
       ScriptEnv senv = box.getScriptEnv();
       Object val = null;
       ScriptScope scope = null;
+      // a condition expression is written by end users, run it restricted (bug #77396)
+      boolean restricted = FormulaContext.isRestricted();
 
       try {
          ViewsheetSandbox vbox = box.getViewsheetSandbox();
          Viewsheet vs = vbox == null ? null : vbox.getViewsheet();
+         FormulaContext.setRestricted(true);
          val = senv.exec(ScriptStateLint.checkCondition(senv.compile(exp), exp, scope0, "condition"),
                          scope = scope0, null, vs);
       }
@@ -4155,7 +4324,13 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
             LOG.warn(msg);
          }
 
-         throw new ScriptException(msg);
+         ScriptException se = new ScriptException(msg);
+         // keep a timeout's or cancel's stop, or a reader caches the failure (bug #78212)
+         se.setStopped(ScriptTimeoutGuard.isStop(ex));
+         throw se;
+      }
+      finally {
+         FormulaContext.setRestricted(restricted);
       }
 
       return getScriptValue(val, cond);
@@ -4446,6 +4621,16 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
             field = new XExpression(col, XExpression.FIELD);
          }
 
+         // keep the quoting of a column written as a quoted identifier (Bug #77786)
+         int bidx = base.isExpression() ? -1 : getQuotedSourceIndex(column, col);
+
+         if(bidx >= 0) {
+            field = new XExpression(col, XExpression.FIELD);
+            field.setQuote("`".equals(getSQLHelper(getUniformSQL()).getQuote()) ?
+                              XExpression.QUOTE_SINGLE : XExpression.QUOTE_DOUBLE);
+            field.setQuotedColumn(getQuotedSourceSegment(bidx));
+         }
+
          // Some JDBC drivers misreport a logically boolean column's SQL type (e.g. as
          // VARCHAR instead of BOOLEAN/BIT) in their column metadata. Trusting that over
          // the worksheet column's own logical type causes fixConditionValue() below to
@@ -4515,6 +4700,10 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
             throw ex;
          }
          catch(Exception ex) {
+            // a stopped condition script fails the query, ignoring the node would run it
+            // unfiltered and cache the wrong rows (bug #78212)
+            ScriptTimeoutGuard.rethrowStop(ex);
+
             if(!"no parameter set.".equals(ex.getMessage())) {
                LOG.warn("Failed to create condition", ex);
             }

@@ -28,6 +28,7 @@ import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.util.*;
 import inetsoft.util.migrate.MigrateViewsheetTask;
 import inetsoft.util.migrate.MigrateWorksheetTask;
+import inetsoft.web.admin.deploy.XAssetExportPermission;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.*;
@@ -48,6 +49,17 @@ import java.util.stream.Collectors;
  * @version 13.4
  */
 public final class AutoSaveUtils {
+   /**
+    * The entry properties that make {@code AbstractAssetEngine.getSheet} read an auto save file
+    * instead of the sheet, without the permission check of the sheet. Removed from an entry that
+    * must be a saved sheet (Bug #77549, {@code BatchAction.removeAutoSaveProperties}).
+    */
+   public static final String OPEN_AUTO_SAVED = "openAutoSaved";
+   public static final String AUTO_FILE_NAME = "autoFileName";
+   public static final String IS_RECYCLE = "isRecycle";
+   public static final List<String> AUTO_SAVE_PROPERTIES =
+      List.of(OPEN_AUTO_SAVED, AUTO_FILE_NAME, IS_RECYCLE);
+
    // Create asset entry according to auto save file's file name
    // property file name will get right file to open
    // isCycle means get auto save file from recycle bin.
@@ -70,9 +82,9 @@ public final class AutoSaveUtils {
       // than the temporary scope, the ip address would be parsed as the organization id.
       AssetEntry entry = AssetEntry.createAssetEntryForCurrentOrg(
          scope + typeStr + ouser + "^" + name + "^" + ip);
-      entry.setProperty("openAutoSaved", "true");
-      entry.setProperty("autoFileName", autoFile);
-      entry.setProperty("isRecycle", "true");
+      entry.setProperty(OPEN_AUTO_SAVED, "true");
+      entry.setProperty(AUTO_FILE_NAME, autoFile);
+      entry.setProperty(IS_RECYCLE, "true");
 
       return entry;
    }
@@ -83,8 +95,8 @@ public final class AutoSaveUtils {
    // from the entry and the current user.
    // Otherwise, create the file name from the entry and the current user.
    public static String getAutoSavedFile(AssetEntry entry, Principal user) {
-      String fileName = entry.getProperty("autoFileName");
-      boolean isRecycle = "true".equals(entry.getProperty("isRecycle"));
+      String fileName = entry.getProperty(AUTO_FILE_NAME);
+      boolean isRecycle = "true".equals(entry.getProperty(IS_RECYCLE));
 
       if(fileName != null) {
          fileName = SUtil.addAutoSaveOrganization(fileName);
@@ -267,6 +279,28 @@ public final class AutoSaveUtils {
    }
 
    /**
+    * Bug #77947, checks that a principal may act on every named auto-save file, before any of them
+    * is acted on. The owner is taken from the file name as stored
+    * ({@link XAssetExportPermission#isStoredAutoSavePermitted}): the owner, a user with ADMIN
+    * permission on the owner, or for a file without an owner or with an owner of another
+    * organization a site or organization administrator.
+    *
+    * @param names     the names of the auto-save files, without the recycle bin prefix.
+    * @param principal the principal.
+    *
+    * @throws MessageException if the principal may not act on one of the files.
+    */
+   public static void checkAutoSavePermission(Collection<String> names, Principal principal) {
+      for(String name : names) {
+         if(!XAssetExportPermission.isStoredAutoSavePermitted(name, principal)) {
+            String[] fields = name == null ? new String[0] : Tool.split(name, '^');
+            throw new MessageException(Catalog.getCatalog().getString(
+               "em.common.security.no.permission", fields.length > 3 ? fields[3] : name));
+         }
+      }
+   }
+
+   /**
     * Delete all auto save files (active and recycle bin) owned by the given user.
     * Used when a user is deleted so their drafts are not left orphaned.
     */
@@ -362,7 +396,10 @@ public final class AutoSaveUtils {
       }
 
       Date date = new Date(time);
-      SimpleDateFormat format = new SimpleDateFormat(SreeEnv.getProperty("format.date.time"));
+      // Bug #77566: a locale-less SimpleDateFormat uses the JVM default locale's calendar (e.g.
+      // Buddhist for th_TH, Japanese imperial for ja_JP_JP) for a value that is only ever
+      // displayed, never parsed back -- force Gregorian so the displayed year is correct.
+      SimpleDateFormat format = Tool.createGregorianDateFormat(SreeEnv.getProperty("format.date.time"));
       format.setTimeZone(TimeZone.getTimeZone(clientTimeZone));
       return format.format(date);
    }

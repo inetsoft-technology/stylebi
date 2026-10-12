@@ -51,6 +51,7 @@ public class SetColumnIndexService extends WorksheetControllerService {
       int index = event.newIndex();
       int[] columnIndices = event.oldIndices();
 
+      checkCubeTableReadPermission(principal, tname);
       setColumnIndex0(tname, index, rws, columnIndices, false);
 
       WorksheetEventUtil.loadTableData(rws, tname, true, true);

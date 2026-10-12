@@ -56,9 +56,9 @@ export class FormattingPane {
 
       this.dateFormats = [
          {value: "FULL", label: "_#(js:Full)"},
-         {value: "LONG", label: "_#(js:Long)"},
+         {value: "LONG", label: "_#(js:date.format.long)"},
          {value: "MEDIUM", label: "_#(js:Medium)"},
-         {value: "SHORT", label: "_#(js:Short)"},
+         {value: "SHORT", label: "_#(js:date.format.short)"},
          {value: "Custom", label: "_#(js:Custom)"}
       ];
 

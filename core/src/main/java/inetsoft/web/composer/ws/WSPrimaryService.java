@@ -52,6 +52,7 @@ public class WSPrimaryService extends WorksheetControllerService {
       RuntimeWorksheet rws = super.getRuntimeWorksheet(runtiemId, principal);
       Worksheet ws = rws.getWorksheet();
       String name = event.getAssemblyName();
+      checkCubeTableReadPermission(principal, name);
       String old = ws.getPrimaryAssemblyName();
 
       if(name == null) {

@@ -298,9 +298,9 @@ public class RadioButtonVSAssemblyInfo extends ListInputVSAssemblyInfo
             getViewsheet(), getName());
       }
 
-      writer.print("<selectedObject>");
-      writer.print("<![CDATA[" + Tool.getPersistentDataString(selectedObject,
-         getDataType()) + "]]>");
+      String str = Tool.getPersistentDataString(selectedObject, getDataType());
+      writer.print("<selectedObject" + Tool.cdataDataAttr(str) + ">");
+      writer.print("<![CDATA[" + Tool.cdataData(str) + "]]>");
       writer.print("</selectedObject>");
    }
 
@@ -317,7 +317,7 @@ public class RadioButtonVSAssemblyInfo extends ListInputVSAssemblyInfo
       Element snode = Tool.getChildNodeByTagName(elem, "selectedObject");
 
       if(snode != null) {
-         selectedObject = getPersistentData(getDataType(), Tool.getValue(snode));
+         selectedObject = getPersistentData(getDataType(), Tool.getCDATAData(snode));
       }
    }
 

@@ -581,8 +581,10 @@ public class StylePage implements java.io.Serializable, Cloneable {
     * Write the page to a file. If processing of the report is not
     * completed, this could be a partial save of the page data.
     * This function is used together with restore() to swap page
-    * in and out of memory to conserve space. After this function
-    * is called, this page can not be used until a load is called.
+    * in and out of memory to conserve space. The page keeps its data in
+    * memory until swapCompleted() is called once the output is complete,
+    * so a failed write does not lose the page. After swapCompleted() is
+    * called, this page can not be used until a load is called.
     * @param output output stream to save the page.
     * @param completed true if the processing of report has completed.
     * @return true if the page is fully saved, false if it is partially
@@ -595,21 +597,7 @@ public class StylePage implements java.io.Serializable, Cloneable {
       // because page is swapped in groups in 5.1
       if(swapped && output == null) {
          if(inmemory) {
-            for(int i = 0; i < items.size(); i++) {
-               Object pt = items.get(i);
-               BasePaintable bpt = (pt instanceof BasePaintable) ?
-                 (BasePaintable) pt : null;
-
-               if(swapfull || bpt == null || !bpt.isBatchWaiting()) {
-                  if(bpt != null && !bpt.isSerializable()) {
-                     continue;
-                  }
-
-                  items.set(i, null);
-               }
-            }
-
-            inmemory = false;
+            clearSwapped();
          }
 
          return true;
@@ -619,13 +607,39 @@ public class StylePage implements java.io.Serializable, Cloneable {
          return true;
       }
 
-      boolean rc = save(output, completed, true);
+      return save(output, completed, true);
+   }
 
-      swapfull = rc;
+   /**
+    * Mark the page as swapped and free the saved paintables. This is called
+    * after the output written by swap(output, completed) is complete.
+    * @param full the value returned by swap(output, completed).
+    */
+   public synchronized void swapCompleted(boolean full) {
+      swapfull = full;
       swapped = true;
-      inmemory = false;
+      clearSwapped();
+   }
 
-      return rc;
+   /**
+    * Free the paintables that are in the swap file.
+    */
+   private void clearSwapped() {
+      for(int i = 0; i < items.size(); i++) {
+         Object pt = items.get(i);
+         BasePaintable bpt = (pt instanceof BasePaintable) ?
+           (BasePaintable) pt : null;
+
+         if(swapfull || bpt == null || !bpt.isBatchWaiting()) {
+            if(bpt != null && !bpt.isSerializable()) {
+               continue;
+            }
+
+            items.set(i, null);
+         }
+      }
+
+      inmemory = false;
    }
 
    /**
@@ -639,7 +653,16 @@ public class StylePage implements java.io.Serializable, Cloneable {
          return false;
       }
 
-      load(inp, swapfull, true);
+      try {
+         load(inp, swapfull, true);
+      }
+      catch(Throwable ex) {
+         // a partly loaded page must not be kept: a partial load skips the slots that are
+         // already set, so a retry would put the data in the wrong slots (bug #77984)
+         clearSwapped();
+         throw ex;
+      }
+
       inmemory = true;
 
       if(removal) {
@@ -662,7 +685,8 @@ public class StylePage implements java.io.Serializable, Cloneable {
     * completed, this could be a partial save of the page data.
     * @param stream output stream to save the page.
     * @param completed true if the processing of report has completed.
-    * @param swap if true, free the objects that have been saved.
+    * @param swap true if the page is saved to a swap file. The paintables
+    * stay in memory, see swapCompleted().
     * @return true if the page is fully saved, false if it is partially
     * saved.
     */
@@ -671,7 +695,6 @@ public class StylePage implements java.io.Serializable, Cloneable {
    {
       boolean all = true;
       stream.writeInt(getPaintableCount());
-      swapped = swapped || swap;
 
       for(int i = 0; i < getPaintableCount(); i++) {
          Paintable pt = getPaintable(i);
@@ -691,10 +714,6 @@ public class StylePage implements java.io.Serializable, Cloneable {
          }
 
          stream.writeObject(pt);
-
-         if(swap) {
-            items.set(i, null); // remove the paintable from memory
-         }
       }
 
       if(!swap) {

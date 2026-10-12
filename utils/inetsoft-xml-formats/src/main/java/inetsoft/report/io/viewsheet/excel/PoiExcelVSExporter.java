@@ -1064,7 +1064,7 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
       if(info instanceof TextVSAssemblyInfo) {
          size = info.getPixelSize();
          painter = VSUtil.createPainter((TextVSAssembly) assembly);
-         shadowed = ((TextVSAssemblyInfo) info).getShadowValue();
+         shadowed = ((TextVSAssemblyInfo) info).isShadow();
       }
       else if(info instanceof TextInputVSAssemblyInfo) {
          size = info.getPixelSize();

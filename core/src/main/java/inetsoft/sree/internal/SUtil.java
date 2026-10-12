@@ -27,8 +27,10 @@ import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.report.io.viewsheet.snapshot.ViewsheetAsset2;
 import inetsoft.sree.*;
 import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.schedule.FTPUtil;
 import inetsoft.sree.schedule.ScheduleClient;
 import inetsoft.sree.schedule.ScheduleTask;
+import inetsoft.sree.schedule.ServerPathInfo;
 import inetsoft.sree.security.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
@@ -329,9 +331,81 @@ public class SUtil {
          return path;
       }
 
-      dir = Util.verifyDirectory(dir, "log");
+      dir = verifyDirectory(dir, "log");
       LOG.debug("Create log: {}", dir);
       return dir + File.separator + name;
+   }
+
+   /**
+    * Verify a directory. If the directory does not exist, create a directory
+    * in the user home directory instead and return the new path.
+    *
+    * <p>Bug #78079: relocated here from the script-admitted
+    * {@code inetsoft.report.internal.Util} (this, its only caller, is not a
+    * script-admitted class) so a restricted script can no longer mkdir or probe
+    * directory existence through it. Private because {@link #verifyLog} is the
+    * only caller.
+    *
+    * @param dir directory setting from the configuration.
+    * @param name default directory name.
+    */
+   private static String verifyDirectory(String dir, String name) {
+      FileSystemService fileSystemService = FileSystemService.getInstance();
+      File file = fileSystemService.getFile(dir);
+
+      try {
+         if(mkdir(file)) {
+            return dir;
+         }
+      }
+      catch(Exception e) {
+      }
+
+      try {
+         String home = SreeEnv.getProperty("user.home");
+         File file2 = fileSystemService.getFile(home + File.separator + "sree", name);
+
+         if(mkdir(file2)) {
+            LOG.warn(
+               "Directory [" + dir +
+               "] does not exist, using default directory: " + file2);
+            return file2.getPath();
+         }
+      }
+      catch(Exception e) {
+         LOG.error("Failed to verify directory " + dir + ", " + name, e);
+      }
+
+      return ".";
+   }
+
+   /**
+    * Create a directory recursively.
+    */
+   private static boolean mkdir(File dir) {
+      if(dir.exists()) {
+         return true;
+      }
+
+      return mkdir(dir.getParent(), dir.getName());
+   }
+
+   /**
+    * Create the parent and then the directory in the parent.
+    */
+   private static boolean mkdir(String parent, String name) {
+      FileSystemService fileSystemService = FileSystemService.getInstance();
+
+      if(parent == null) {
+         return (fileSystemService.getFile(".", name)).mkdir();
+      }
+
+      if(mkdir(fileSystemService.getFile(Tool.convertUserFileName(parent)))) {
+         return (fileSystemService.getFile(Tool.convertUserFileName(parent),
+            Tool.convertUserFileName(name))).mkdir();
+      }
+
+      return false;
    }
 
    /**
@@ -894,9 +968,12 @@ public class SUtil {
    /**
     * Gets the principal for a schedule task owner. Unlike {@link #getPrincipal}, this
     * handles the case where a site admin owns tasks in an organization other than their
-    * home org: if the owner is not found in the specified org, it searches for a site
-    * admin with the same name across all orgs and returns a principal using that admin's
-    * roles with the original org preserved as the context.
+    * home org: if the owner is not a user of the specified org and a site admin with the same
+    * name exists in another org (see {@link #getSameNameSiteAdmin}), the returned principal
+    * gets the organization administrator roles of the owner's org (see
+    * {@link #getScheduleTaskOrgAdminRoles}), with the owner's org as the context. It never gets
+    * the roles of the site admin (Bug #77452). If the org has no such role, the principal has
+    * no roles.
     */
    public static SRPrincipal getScheduleTaskOwnerPrincipal(IdentityID owner, String addr,
                                                             boolean fireEvent)
@@ -905,45 +982,162 @@ public class SUtil {
 
       // If the user does not exist in the specified org, check whether the name belongs to a
       // site admin in a different org
-      if(owner != null && owner.orgID != null &&
-         !XPrincipal.ANONYMOUS.equals(owner.name) && !XPrincipal.SYSTEM.equals(owner.name))
-      {
-         try {
-            SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      try {
+         SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+         IdentityID siteAdminId = getSameNameSiteAdmin(provider, owner);
+         User siteAdmin = siteAdminId == null ? null : provider.getUser(siteAdminId);
 
-            if(provider.getUser(owner) == null) {
-               for(IdentityID candidateId : provider.getUsers()) {
-                  if(candidateId.name.equals(owner.name) && !owner.orgID.equals(candidateId.orgID)) {
-                     User candidate = provider.getUser(candidateId);
+         if(siteAdmin != null) {
+            // Bug #77452, the task runs with the organization administrator roles of the
+            // owner's org, not with the roles of the site admin. Anyone who can change what the
+            // task runs (e.g. the child task of a batch action, the sheets it runs) could
+            // otherwise act as a site admin.
+            IdentityID[] roles = getScheduleTaskOrgAdminRoles(provider, owner.orgID);
 
-                     if(candidate != null && OrganizationManager.getInstance().isSiteAdmin(candidateId)) {
-                        // Create a principal with the site admin's roles but the originally-
-                        // requested org as context so org-scoped lookups (task map, assets)
-                        // continue to use the correct org.
-                        // Bug #77281, the owner is in another organization than the site admin
-                        // whose roles it gets, log it so that a task whose owner was forged
-                        // before the owner was checked on every write path can be found
-                        LOG.warn("Schedule task owner {} does not exist, running it with the " +
-                                 "roles of the site admin {} of organization {}",
-                                 owner, candidateId, candidateId.orgID);
-                        principal = new SRPrincipal(
-                           new ClientInfo(owner, addr, null, null),
-                           candidate.getRoles(), new String[0], owner.orgID,
-                           getRandom().nextLong(), candidate.getAlias());
-                        principal.setIgnoreLogin(true);
-                        setAdditionalDatasource(principal);
-                        break;
-                     }
-                  }
-               }
+            if(roles.length == 0) {
+               // fail closed, the principal of a missing owner has no roles
+               LOG.warn("Schedule task owner {} does not exist and organization {} has no " +
+                        "organization administrator role that may be used, running it " +
+                        "without roles instead of with the roles of the site admin {}",
+                        owner, owner.orgID, siteAdminId);
+            }
+            else {
+               // Bug #77281, the owner is in another organization than the site admin of the
+               // same name, log it so that a task whose owner was forged before the owner was
+               // checked on every write path can be found
+               LOG.warn("Schedule task owner {} does not exist, running it with the " +
+                        "organization administrator roles {} of organization {} " +
+                        "(site admin of the same name: {})",
+                        owner, Arrays.toString(roles), owner.orgID, siteAdminId);
+               // keep the originally-requested org as context so org-scoped lookups (task
+               // map, assets) continue to use the correct org.
+               principal = new SRPrincipal(
+                  new ClientInfo(owner, addr, null, null),
+                  roles, new String[0], owner.orgID,
+                  getRandom().nextLong(), siteAdmin.getAlias());
+               principal.setIgnoreLogin(true);
+               setAdditionalDatasource(principal);
             }
          }
-         catch(Exception e) {
-            LOG.warn("Failed to find cross-org site admin principal for {}", owner, e);
-         }
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to find the organization administrator principal for {}", owner, e);
       }
 
       return principal;
+   }
+
+   /**
+    * Bug #77452, gets the principal a schedule task runs its actions with: the principal of its
+    * execute-as identity, or the principal of its owner
+    * ({@link #getScheduleTaskOwnerPrincipal}) when the task has no execute-as identity or
+    * security is disabled. Every path that runs a task's actions (the scheduler job, the cluster
+    * job store and the batch action child tasks) uses this method, so that the principal a
+    * task's content runs with only depends on that task. Internal tasks are not handled here,
+    * the callers decide if such a task gets a principal.
+    * <p>
+    * Bug #77168, a non-null identity may be an unresolved placeholder kept by
+    * ScheduleTask.parseXML (Bug #77120/#77168); with security disabled that placeholder can
+    * never be resolved to a real principal, so the owner is used instead.
+    *
+    * @param task      the schedule task.
+    * @param addr      the remote address of the principal.
+    * @param fireEvent {@code true} to fire the login event.
+    *
+    * @return the principal.
+    */
+   public static SRPrincipal getScheduleTaskRunPrincipal(ScheduleTask task, String addr,
+                                                         boolean fireEvent)
+   {
+      Identity identity = task.getIdentity();
+      boolean securityEnabled;
+
+      try {
+         securityEnabled = SecurityEngine.getSecurity().isSecurityEnabled();
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to check whether security is enabled", ex);
+         securityEnabled = false;
+      }
+
+      if(identity == null || !securityEnabled) {
+         return getScheduleTaskOwnerPrincipal(task.getOwner(), addr, fireEvent);
+      }
+
+      return getPrincipal(identity, addr, fireEvent);
+   }
+
+   /**
+    * Bug #77452, gets the roles that a schedule task owned by a missing user that has the name of
+    * a site admin runs with (see {@link #getScheduleTaskOwnerPrincipal}): the organization
+    * administrator roles that have no organization or are in the specified organization. A role
+    * that is or inherits, directly or through its parents, a system administrator role is never
+    * included, because the permission check follows the inheritance.
+    *
+    * @param provider the security provider.
+    * @param orgID    the organization of the task owner.
+    *
+    * @return the roles, empty if there is none.
+    */
+   public static IdentityID[] getScheduleTaskOrgAdminRoles(SecurityProvider provider,
+                                                           String orgID)
+   {
+      IdentityID[] roles = provider.getRoles();
+
+      if(roles == null || orgID == null) {
+         return new IdentityID[0];
+      }
+
+      return Arrays.stream(roles)
+         .filter(Objects::nonNull)
+         .filter(role -> role.orgID == null || role.orgID.equalsIgnoreCase(orgID))
+         .filter(provider::isOrgAdministratorRole)
+         .filter(role -> {
+            IdentityID[] allRoles = provider.getAllRoles(new IdentityID[] { role });
+            return allRoles == null ||
+               Arrays.stream(allRoles).noneMatch(r -> r != null &&
+                  provider.isSystemAdministratorRole(r));
+         })
+         .distinct()
+         .toArray(IdentityID[]::new);
+   }
+
+   /**
+    * Bug #77309, gets the site admin of the same name in another organization as a schedule
+    * task owner that is not a user. A task with such an owner runs with elevated roles in
+    * {@link #getScheduleTaskOwnerPrincipal} (the organization administrator roles of the
+    * owner's organization since Bug #77452). Every check of who may store such an owner uses
+    * this method, so that it can't differ from the run path.
+    *
+    * @param provider the security provider.
+    * @param owner    the task owner.
+    *
+    * @return the site admin, or {@code null} if a task owned by the user runs with the roles of
+    *         the user itself (or no roles when the user doesn't exist).
+    */
+   public static IdentityID getSameNameSiteAdmin(SecurityProvider provider, IdentityID owner) {
+      if(owner == null || owner.orgID == null || XPrincipal.ANONYMOUS.equals(owner.name) ||
+         XPrincipal.SYSTEM.equals(owner.name) || provider.getUser(owner) != null)
+      {
+         return null;
+      }
+
+      IdentityID[] users = provider.getUsers();
+
+      if(users == null) {
+         return null;
+      }
+
+      for(IdentityID candidateId : users) {
+         if(candidateId.name.equals(owner.name) && !owner.orgID.equals(candidateId.orgID) &&
+            provider.getUser(candidateId) != null &&
+            OrganizationManager.getInstance().isSiteAdmin(candidateId))
+         {
+            return candidateId;
+         }
+      }
+
+      return null;
    }
 
    /**
@@ -1232,8 +1426,7 @@ public class SUtil {
 
       String subject = catalog.getString("Test Mail Subject");
       String body = catalog.getString("Test Mail Body",
-         SimpleDateFormat.getDateInstance(
-         SimpleDateFormat.FULL).format(new Date()));
+         Tool.createDateFormat("FULL").format(new Date()));
       Mailer mailer = new Mailer();
       mailer.send(emails, null, subject, body, null);
 
@@ -1287,8 +1480,7 @@ public class SUtil {
 
       if(principal instanceof SRPrincipal) {
          SRPrincipal srp = (SRPrincipal) principal;
-         locale = LocaleService.getInstance().getLocale(locale, principal);
-         srp.setProperty(SRPrincipal.LOCALE, locale);
+         applyScheduleTaskLocale(srp, locale);
          srp.setIgnoreLogin(true);
          userID = SUtil.getUserID(srp.getClientUserID(), userID);
       }
@@ -1309,6 +1501,22 @@ public class SUtil {
       }
 
       return sessionRecord;
+   }
+
+   /**
+    * Sets the locale a schedule task runs with on the principal it runs with: the locale of the
+    * task, resolved for the user ({@link LocaleService#getLocale(String, Principal)}). Used by
+    * {@link #runTask} and, Bug #77452, by the child task of a batch action, so that the child
+    * runs with its own locale as when it is run directly.
+    *
+    * @param principal the principal the task runs with.
+    * @param locale    the locale of the task, see {@link ScheduleTask#getLocale()}.
+    */
+   public static void applyScheduleTaskLocale(Principal principal, String locale) {
+      if(principal instanceof SRPrincipal) {
+         ((SRPrincipal) principal).setProperty(
+            SRPrincipal.LOCALE, LocaleService.getInstance().getLocale(locale, principal));
+      }
    }
 
    /**
@@ -3234,11 +3442,13 @@ public class SUtil {
          return name;
       }
 
-      String[] names = name.split(":");
+      // Bug #77883, the owner key ends at the first ':', the task name may contain ':'
+      int index = name.indexOf(':');
+      String owner = name.substring(0, index);
 
-      if(names[0].indexOf(IdentityID.KEY_DELIMITER) > 0) {
-         String[] userNames = names[0].split(IdentityID.KEY_DELIMITER);
-         return userNames[0] + ":" + names[1];
+      if(owner.indexOf(IdentityID.KEY_DELIMITER) > 0) {
+         String[] userNames = owner.split(IdentityID.KEY_DELIMITER);
+         return userNames[0] + name.substring(index);
       }
 
       return name;
@@ -3249,8 +3459,8 @@ public class SUtil {
          return name;
       }
 
-      String[] names = name.split(":");
-      return names[1];
+      // Bug #77883, the task name may contain ':'
+      return name.substring(name.indexOf(':') + 1);
    }
 
    public static IdentityID getOwnerForNewTask(IdentityID user) {
@@ -3463,6 +3673,18 @@ public class SUtil {
    }
 
    public static List<ServerLocation> getServerLocations() {
+      return getServerLocations(false);
+   }
+
+   /**
+    * Gets the server locations with the stored password of each location in its path info model.
+    * Only use it on the server, never send the result to a client.
+    */
+   public static List<ServerLocation> getServerLocationsWithPasswords() {
+      return getServerLocations(true);
+   }
+
+   private static List<ServerLocation> getServerLocations(boolean withPasswords) {
       List<ServerLocation> locations = new ArrayList<>();
       String property = SreeEnv.getProperty("server.save.locations");
 
@@ -3497,15 +3719,27 @@ public class SUtil {
                }
             }
 
+            // Bug #77971, the property may be written without splitting the path
+            FTPUtil.PathPassword pathPassword =
+               splitServerLocationPassword(path, useSecretId, secretId, username);
+
+            if(pathPassword != null) {
+               path = pathPassword.path();
+               username = pathPassword.user();
+               password = pathPassword.password();
+               useSecretId = false;
+               secretId = null;
+            }
+
             path = path.replaceAll("[/\\\\]+$", "");
             ServerPathInfoModel pathInfoModel = ServerPathInfoModel.builder()
                .path(path)
                .username(username)
-               .password(password == null ? null : Util.PLACEHOLDER_PASSWORD)
+               .password(password == null || withPasswords ? password : Util.PLACEHOLDER_PASSWORD)
                .secretId(secretId)
                .useCredential(useSecretId)
                .ftp(!Tool.isEmptyString(username) || !Tool.isEmptyString(secretId))
-               .oldPasswordKey(Tool.buildString(path, label, username))
+               .oldPasswordKey(String.join("|", path, label, Objects.toString(username, "")))
                .build();
             locations.add(ServerLocation.builder().path(path).label(label).pathInfoModel(pathInfoModel).build());
          }
@@ -3515,27 +3749,32 @@ public class SUtil {
       return locations;
    }
 
-   public static Map<String, String> getServerLocationsPwdMap() {
-      HashMap map = new HashMap();
-      String val = SreeEnv.getProperty("server.save.locations");
+   /**
+    * Bug #77971, splits the password out of the user info of a server location path, as
+    * {@link ServerPathInfo} does for the path of a task, so it isn't sent to a client in the path.
+    * The password in the path wins over the password and the secret of the location.
+    *
+    * @param path        the location path.
+    * @param useSecretId {@code true} if the location uses a secret.
+    * @param secretId    the secret id of the location.
+    * @param username    the user name field of the location.
+    *
+    * @return the path without the password, the user and the password, or {@code null} if the
+    *         path has no password.
+    */
+   public static FTPUtil.PathPassword splitServerLocationPassword(String path,
+                                                                  boolean useSecretId,
+                                                                  String secretId,
+                                                                  String username)
+   {
+      ServerPathInfo info = new ServerPathInfo();
+      info.setUseCredential(useSecretId);
+      info.setSecretId(secretId);
+      info.setUsername(username);
+      info.setPath(path);
 
-      if(Tool.isEmptyString(val)) {
-         return map;
-      }
-
-      String[] paths = val.split(";");
-
-      for(int i = 0; i < paths.length; i++) {
-         String path = paths[i];
-         String[] parts = path.split("\\|");
-
-         if(parts.length == 4) {
-            String pwd = parts[3];
-            map.put(Tool.buildString(parts[0], parts[1], parts[2]), pwd);
-         }
-      }
-
-      return map;
+      return Objects.equals(path, info.getPath()) ? null :
+         new FTPUtil.PathPassword(info.getPath(), info.getUsername(), info.getPassword());
    }
 
    public static String writeCookiesString(Cookie[] cookies) {

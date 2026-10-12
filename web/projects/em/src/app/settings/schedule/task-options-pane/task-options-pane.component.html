@@ -98,9 +98,11 @@
             </mat-error>
             <mat-spinner matSuffix *ngIf="isAdminNameLoading" mode="indeterminate" diameter="17"></mat-spinner>
           </mat-form-field>
-          <mat-form-field appearance="outline" color="accent">
+          <!-- Bug #78038, show the owner a task without an execute-as identity runs as -->
+          <mat-form-field appearance="outline" color="accent"
+            [floatLabel]="executeAsFallback ? 'always' : 'auto'">
             <mat-label>_#(Execute As)</mat-label>
-            <input matInput placeholder="_#(Execute As)"
+            <input matInput [placeholder]="executeAsFallback || '_#(Execute As)'"
               formControlName="executeAs"
               (change)="fireModelChanged()">
             <div class="flex-row" matSuffix>

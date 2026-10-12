@@ -26,6 +26,8 @@ import java.util.*;
  * One pool configuration of the reliability harness (Testing #77123): the pool on or off plus
  * {@link PoolConfig} property overrides. A sandbox reads the pool mode when it is built and
  * the tuning when it creates its env, so {@link #apply()} runs before the sandbox is built.
+ * {@link #QUERY_BUILD} is the harness's own: a run reads its lens inside one worksheet query
+ * build, as AssetQuery.getTableLens opens it (pool on only).
  */
 public record RelConfig(boolean pool, Map<String, String> props) {
    public RelConfig {
@@ -46,14 +48,33 @@ public record RelConfig(boolean pool, Map<String, String> props) {
       return new RelConfig(pool, map);
    }
 
+   /**
+    * @return this configuration whose runs read their lens inside one query build.
+    */
+   public RelConfig inQueryBuild() {
+      return with(QUERY_BUILD, "true");
+   }
+
+   /**
+    * @return whether a run reads its lens inside one query build (G10 piece Q, #5932): all
+    * its scripts share one claim, so an implicit global lives for the whole run.
+    */
+   public boolean queryBuild() {
+      return pool && "true".equals(props.get(QUERY_BUILD));
+   }
+
    public void apply() {
       SreeEnv.setProperty(PoolConfig.ENABLED, String.valueOf(pool));
-      props.forEach(SreeEnv::setProperty);
+      props.forEach((k, v) -> {
+         if(!QUERY_BUILD.equals(k)) {
+            SreeEnv.setProperty(k, v);
+         }
+      });
    }
 
    public void clear() {
       SreeEnv.remove(PoolConfig.ENABLED);
-      props.keySet().forEach(SreeEnv::remove);
+      props.keySet().stream().filter(k -> !QUERY_BUILD.equals(k)).forEach(SreeEnv::remove);
    }
 
    @Override
@@ -63,4 +84,7 @@ public record RelConfig(boolean pool, Map<String, String> props) {
          .append('=').append(v));
       return str.toString();
    }
+
+   /** the harness key of {@link #inQueryBuild()}, not a SreeEnv property */
+   public static final String QUERY_BUILD = "rel.queryBuild";
 }

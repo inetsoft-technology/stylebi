@@ -62,6 +62,7 @@ public class ChangeDependencyService extends WorksheetControllerService{
       String oldDepended = event.oldDepended();
       String target = event.target();
       String newDepended = event.newDepended();
+      checkCubeTableReadPermission(principal, oldDepended, target, newDepended);
       Assembly oldDependedAssembly = ws.getAssembly(oldDepended);
       Assembly targetAssembly = ws.getAssembly(target);
       Assembly newDependedAssembly = ws.getAssembly(newDepended);

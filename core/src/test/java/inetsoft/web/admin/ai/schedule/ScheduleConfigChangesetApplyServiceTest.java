@@ -262,7 +262,9 @@ class ScheduleConfigChangesetApplyServiceTest {
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, apply(createLocation(created)).status());
 
       ServerPathInfoModel info = readBack().serverLocations().get(0).pathInfoModel();
-      Map<String, Object> updated = locationSpec("/qa/sl-bs09-moved", "BS09");
+      // the stored password is only kept for the same server and user (Bug #77953), so the
+      // update changes the label and keeps the location
+      Map<String, Object> updated = locationSpec("/qa/sl-bs09", "BS09-renamed");
       updated.put("username", "ftpuser");
       updated.put("password", Util.PLACEHOLDER_PASSWORD);
       updated.put("oldPasswordKey", info.oldPasswordKey());
@@ -270,7 +272,7 @@ class ScheduleConfigChangesetApplyServiceTest {
       ApplyResult result = apply(updateLocation("/qa/sl-bs09", updated));
 
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
-      assertEquals("/qa/sl-bs09-moved", readBack().serverLocations().get(0).path());
+      assertEquals("/qa/sl-bs09", readBack().serverLocations().get(0).path());
       assertEquals("s3cret", properties.get("server.save.locations").split("\\|")[3]);
    }
 

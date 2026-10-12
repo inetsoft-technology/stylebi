@@ -24,7 +24,7 @@ import {
    OnInit,
    Output
 } from "@angular/core";
-import { HttpClient, HttpParams } from "@angular/common/http";
+import { HttpClient, HttpErrorResponse, HttpParams } from "@angular/common/http";
 import { Rectangle } from "../../../../../../common/data/rectangle";
 import { GuiTool } from "../../../../../../common/util/gui-tool";
 import { Subscription } from "rxjs";
@@ -104,9 +104,9 @@ export class SqlQueryPreviewPaneComponent implements OnDestroy, OnInit {
                   this.tableData = res;
                   this.scrollbarWidth = GuiTool.measureScrollbars();
                },
-               (error) => {
+               (error: HttpErrorResponse) => {
                   this.previewPending = false;
-                  let errorMsg: string = error.error;
+                  let errorMsg: string = this.getErrorMessage(error);
 
                   if(errorMsg.startsWith("java.sql.SQLSyntaxErrorException:")) {
                      errorMsg = "_#(js:common.sqlquery.syntaxError)\n" + errorMsg;
@@ -120,6 +120,27 @@ export class SqlQueryPreviewPaneComponent implements OnDestroy, OnInit {
          this.previewPending = false;
          this.goBackToPreviousTab.emit();
       });
+   }
+
+   /**
+    * The message of a failed preview. The body is the database message as a string for an
+    * error in the SQL, a {error, message} object for e.g. an expired query session, or
+    * neither (no body, or a ProgressEvent when the server can't be reached).
+    */
+   private getErrorMessage(error: HttpErrorResponse): string {
+      const body: any = error?.error;
+
+      if(typeof body === "string" && body.trim()) {
+         return body;
+      }
+
+      if(body && typeof body === "object" && typeof body.message === "string" &&
+         body.message.trim())
+      {
+         return body.message;
+      }
+
+      return "_#(js:internal.error)";
    }
 
    getPreviewContainerMaxWidth(): string {

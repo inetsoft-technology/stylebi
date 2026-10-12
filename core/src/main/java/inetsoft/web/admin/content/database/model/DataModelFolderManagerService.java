@@ -20,6 +20,7 @@ package inetsoft.web.admin.content.database.model;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XRepository;
+import inetsoft.uql.asset.AbstractAssetEngine;
 import inetsoft.uql.asset.DependencyException;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.erm.vpm.VirtualPrivateModel;
@@ -137,8 +138,10 @@ public class DataModelFolderManagerService {
 
       dataModel.removeFolder(folderName);
       repository.updateDataModel(dataModel);
-      securityEngine.removePermission(ResourceType.DATA_MODEL_FOLDER,
-         databasePath + "/" + folderName);
+      // Bug #78217, the folder is already removed, a failed permission write must not fail the
+      // delete or stop the delete of the other selected nodes
+      AbstractAssetEngine.removePermissionBestEffort(securityEngine,
+         ResourceType.DATA_MODEL_FOLDER, databasePath + "/" + folderName);
 
       return true;
    }

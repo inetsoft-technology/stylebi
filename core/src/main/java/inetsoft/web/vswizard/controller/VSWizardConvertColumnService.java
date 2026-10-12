@@ -136,7 +136,8 @@ public class VSWizardConvertColumnService {
          //change source
          boolean changeSource =
             bindingHandler.changeSource(newSource, oldSource, event,
-                                        tempInfo, vs, "/events/vs/wizard/convertColumn", dispatcher);
+                                        tempInfo, vs, "/events/vs/wizard/convertColumn", dispatcher,
+                                        principal);
 
          if(changeSource || tempChartInfo.getAggregateInfo() == null) {
             return null;

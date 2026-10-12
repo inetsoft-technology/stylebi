@@ -36,6 +36,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.util.XSessionService;
+import inetsoft.util.ThreadContext;
 import inetsoft.web.composer.ws.event.SaveSheetEvent;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
@@ -45,6 +46,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+
+import java.security.Principal;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -71,9 +74,12 @@ class ComposerSaveOtherUsersViewsheetTest {
    private IdentityID bobId;
    private String runtimeId;
    private SRPrincipal admin;
+   private Principal savedPrincipal;
 
    @BeforeEach
    void setUp() throws Exception {
+      // opening the viewsheet as admin sets the thread's principal, restored in tearDown()
+      savedPrincipal = ThreadContext.getPrincipal();
       SecurityEngineOverrides.assertInstalled(SecurityEngine.getSecurity());
       overrides.setSecurityEnabled(true);
       assertTrue(SecurityEngine.getSecurity().isSecurityEnabled(), "test requires security on");
@@ -84,6 +90,10 @@ class ComposerSaveOtherUsersViewsheetTest {
       admin = new SRPrincipal(new IdentityID("admin", orgId),
                               new IdentityID[] { new IdentityID("Administrator", null) },
                               new String[0], orgId, 1L);
+      // a real admin session is in SecurityEngine's logged-in map; admin-of-owner checks on
+      // another user's private asset now ask SecurityEngine, which refuses a principal that is
+      // not (Bug #78075)
+      admin.setIgnoreLogin(true);
       assertTrue(OrganizationManager.getInstance().isSiteAdmin(admin), "admin must be site admin");
 
       AssetEntry created = new AssetEntry(AssetRepository.USER_SCOPE, AssetEntry.Type.VIEWSHEET,
@@ -114,6 +124,7 @@ class ComposerSaveOtherUsersViewsheetTest {
       finally {
          runtimeId = null;
          overrides.clear();
+         ThreadContext.setPrincipal(savedPrincipal);
       }
    }
 

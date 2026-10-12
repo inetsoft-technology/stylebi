@@ -647,6 +647,28 @@ public class RepletEngine extends AbstractAssetEngine
    }
 
    /**
+    * {@inheritDoc}
+    */
+   @Override
+   public boolean checkPermission(Principal principal, ResourceType type,
+                                  IdentityID resource, EnumSet<ResourceAction> actions)
+   {
+      if(actions == null) {
+         return true;
+      }
+
+      // route each action through the single-action overload, which catches a
+      // not-logged-in principal's SecurityException and answers false
+      for(ResourceAction action : actions) {
+         if(!checkPermission(principal, type, resource, action)) {
+            return false;
+         }
+      }
+
+      return true;
+   }
+
+   /**
     * Check if the access matches license.
     */
    public void checkAccess(Principal principal) throws RepletException {
@@ -1143,10 +1165,10 @@ public class RepletEngine extends AbstractAssetEngine
                String nname = nentry.getPath();
                ResourceType otype = getAssetResourceType(oentry);
                String oname = oentry.getPath();
-               security.setPermission(ntype, nname, security.getPermission(otype, oname));
+               setPermissionBestEffort(security, ntype, nname, security.getPermission(otype, oname));
 
                if(!Tool.equals(oname, nname)) {
-                  security.removePermission(otype, oname);
+                  removePermissionBestEffort(security, otype, oname);
                }
             }
          }
@@ -1155,7 +1177,7 @@ public class RepletEngine extends AbstractAssetEngine
             if(security != null) {
                ResourceType otype = getAssetResourceType(oentry);
                String oname = oentry.getPath();
-               security.removePermission(otype, oname);
+               removePermissionBestEffort(security, otype, oname);
             }
          }
       }
@@ -1240,29 +1262,6 @@ public class RepletEngine extends AbstractAssetEngine
    }
 
    /**
-    * Import assets assets into the repository.
-    */
-   public void importAssets(byte[] data, boolean replace) throws Exception {
-      importAssets(data, replace, null);
-   }
-
-   /**
-    * Import assets assets into the repository.
-    */
-   public void importAssets(byte[] data, boolean replace,
-                            ActionRecord actionRecord) throws Exception
-   {
-      writeLock.lock();
-
-      try {
-         deployManagerService.importAssets(data, replace, actionRecord);
-      }
-      finally {
-         writeLock.unlock();
-      }
-   }
-
-   /**
     * {@inheritDoc}
     */
    @Override
@@ -1316,8 +1315,8 @@ public class RepletEngine extends AbstractAssetEngine
                ResourceType otype = getAssetResourceType(oentry);
                String oname = oentry.getPath();
                Permission temp = security.getPermission(otype, oname);
-               security.removePermission(otype, oname);
-               security.setPermission(ntype, nname, temp);
+               removePermissionBestEffort(security, otype, oname);
+               setPermissionBestEffort(security, ntype, nname, temp);
             }
          }
          // remove permission
@@ -1325,7 +1324,7 @@ public class RepletEngine extends AbstractAssetEngine
             if(security != null) {
                ResourceType otype = getAssetResourceType(oentry);
                String oname = oentry.getPath();
-               security.removePermission(otype, oname);
+               removePermissionBestEffort(security, otype, oname);
             }
          }
       }
@@ -1379,7 +1378,7 @@ public class RepletEngine extends AbstractAssetEngine
          if(security != null) {
             ResourceType otype = getAssetResourceType(entry);
             String oname = entry.getPath();
-            security.removePermission(otype, oname);
+            removePermissionBestEffort(security, otype, oname);
          }
       }
    }
@@ -1400,7 +1399,7 @@ public class RepletEngine extends AbstractAssetEngine
          if(security != null) {
             ResourceType otype = getAssetResourceType(entry);
             String oname = entry.getPath();
-            security.removePermission(otype, oname);
+            removePermissionBestEffort(security, otype, oname);
          }
       }
 
@@ -1435,7 +1434,13 @@ public class RepletEngine extends AbstractAssetEngine
             perm.setUserGrantsForOrg(ResourceAction.WRITE, users, orgId);
             perm.setUserGrantsForOrg(ResourceAction.DELETE, users, orgId);
 
-            setPermission(user, ResourceType.REPORT, name, perm);
+            // Bug #78217, the folder is already added, a failed grant is reported as a warning
+            try {
+               setPermission(user, ResourceType.REPORT, name, perm);
+            }
+            catch(RuntimeException e) {
+               Tool.addUserWarning(getCreatorPermissionWarning(ResourceType.REPORT, name, e));
+            }
          }
       }
       finally {
@@ -1598,43 +1603,37 @@ public class RepletEngine extends AbstractAssetEngine
     * {@inheritDoc}
     */
    @Override
-   public void checkFolderRemoveable(AssetEntry entry, Principal user)
-      throws Exception
-   {
-      if(entry.isRepositoryFolder()) {
-         throw new MessageException(catalog.getString(
-            "common.invalidEntry", entry));
-      }
-
-      super.checkFolderRemoveable(entry, user);
-   }
-
-   /**
-    * {@inheritDoc}
-    */
-   @Override
    public void renameUser(IdentityID oname, IdentityID nname) throws Exception {
       if(oname == null || nname == null || Tool.equals(oname, nname)) {
          return;
       }
 
-      super.renameUser(oname, nname);
+      // Bug #78230, the folders are changed under the engine's folder lock, as in changeFolder()
+      lockWrite();
 
-      AssetEntry oentry = new AssetEntry(AssetRepository.USER_SCOPE,
-         AssetEntry.Type.REPOSITORY_FOLDER, "/", oname);
-      AssetEntry nentry = new AssetEntry(AssetRepository.USER_SCOPE,
-         AssetEntry.Type.REPOSITORY_FOLDER, "/", nname);
-      IndexedStorage ostorage = getStorage(oentry);
-      IndexedStorage nstorage = getStorage(nentry);
+      try {
+         super.renameUser(oname, nname);
 
-      Map<AssetEntry, AssetEntry> changed = changeFolder0(oentry, ostorage, nentry, nstorage, true);
+         AssetEntry oentry = new AssetEntry(AssetRepository.USER_SCOPE,
+            AssetEntry.Type.REPOSITORY_FOLDER, "/", oname);
+         AssetEntry nentry = new AssetEntry(AssetRepository.USER_SCOPE,
+            AssetEntry.Type.REPOSITORY_FOLDER, "/", nname);
+         IndexedStorage ostorage = getStorage(oentry);
+         IndexedStorage nstorage = getStorage(nentry);
 
-      for(Map.Entry<AssetEntry, AssetEntry> e : changed.entrySet()) {
-         if(e.getKey().isViewsheet()) {
-            AssetEntry bentry = getVSBookmarkEntry(e.getKey(), oname, true);
-            AssetEntry nbentry = getVSBookmarkEntry(e.getValue(), nname, true);
-            renameVSBookmark0(bentry, nbentry);
+         Map<AssetEntry, AssetEntry> changed =
+            changeFolder0(oentry, ostorage, nentry, nstorage, true);
+
+         for(Map.Entry<AssetEntry, AssetEntry> e : changed.entrySet()) {
+            if(e.getKey().isViewsheet()) {
+               AssetEntry bentry = getVSBookmarkEntry(e.getKey(), oname, true);
+               AssetEntry nbentry = getVSBookmarkEntry(e.getValue(), nname, true);
+               renameVSBookmark0(bentry, nbentry);
+            }
          }
+      }
+      finally {
+         unlockWrite();
       }
    }
 
@@ -1643,12 +1642,20 @@ public class RepletEngine extends AbstractAssetEngine
     */
    @Override
    public void removeUser(IdentityID identityID) throws Exception {
-      super.removeUser(identityID);
-      AssetEntry entry = new AssetEntry(AssetRepository.USER_SCOPE,
-         AssetEntry.Type.REPOSITORY_FOLDER, "/", identityID);
-      IndexedStorage storage = getStorage(entry);
+      // Bug #78230, the folders are changed under the engine's folder lock, as in removeFolder()
+      lockWrite();
 
-      removeFolder0(entry, storage, true);
+      try {
+         super.removeUser(identityID);
+         AssetEntry entry = new AssetEntry(AssetRepository.USER_SCOPE,
+            AssetEntry.Type.REPOSITORY_FOLDER, "/", identityID);
+         IndexedStorage storage = getStorage(entry);
+
+         removeFolder0(entry, storage, true);
+      }
+      finally {
+         unlockWrite();
+      }
    }
 
    /**
@@ -1742,8 +1749,8 @@ public class RepletEngine extends AbstractAssetEngine
                   Permission perm = security.getPermission(ResourceType.REPORT, oname);
 
                   if(perm != null) {
-                     security.setPermission(ResourceType.REPORT, nname, perm);
-                     security.removePermission(ResourceType.REPORT, oname);
+                     setPermissionBestEffort(security, ResourceType.REPORT, nname, perm);
+                     removePermissionBestEffort(security, ResourceType.REPORT, oname);
                   }
                }
             }
@@ -1878,7 +1885,7 @@ public class RepletEngine extends AbstractAssetEngine
                SecurityEngine security = getSecurity();
 
                if(security != null) {
-                  security.removePermission(ResourceType.REPORT, path);
+                  removePermissionBestEffort(security, ResourceType.REPORT, path);
                }
             }
          }

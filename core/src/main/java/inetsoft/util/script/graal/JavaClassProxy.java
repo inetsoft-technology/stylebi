@@ -103,7 +103,7 @@ public final class JavaClassProxy implements ProxyObject, ProxyExecutable, Proxy
     */
    private Object construct(Value... arguments) {
       try {
-         return wrapConstructed(hostType.newInstance((Object[]) arguments));
+         return wrapConstructed(instantiate((Object[]) arguments));
       }
       catch(IllegalArgumentException ex) {
          Object[] coerced = coerceNumericStrings(arguments);
@@ -113,11 +113,36 @@ public final class JavaClassProxy implements ProxyObject, ProxyExecutable, Proxy
          }
 
          try {
-            return wrapConstructed(hostType.newInstance(coerced));
+            return wrapConstructed(instantiate(coerced));
          }
          catch(IllegalArgumentException ignore) {
             throw ex;
          }
+      }
+   }
+
+   /**
+    * Call {@link Value#newInstance} on the host type, turning its refusal of a
+    * type GraalVM cannot instantiate (a HostAccess type deny, an abstract class,
+    * a class with no public constructor) into a host exception the script can
+    * catch.
+    *
+    * <p>{@code Value.newInstance} refuses with an {@link UnsupportedOperationException}.
+    * GraalVM maps a UOE leaving a proxy method to "message not supported", but this
+    * proxy always reports itself instantiable and executable, so under {@code -ea}
+    * Truffle's interop asserts turn that into an internal {@code AssertionError}
+    * the script's {@code try/catch} never sees, and without {@code -ea} the
+    * {@code TypeError} names this proxy rather than the class. An exception thrown
+    * by the constructor body arrives as a {@code PolyglotException}, not a UOE, so
+    * it is not affected. (#77919)
+    */
+   private Value instantiate(Object... arguments) {
+      try {
+         return hostType.newInstance(arguments);
+      }
+      catch(UnsupportedOperationException ex) {
+         throw new IllegalStateException(
+            "instantiate on " + className + " failed due to: Message not supported.");
       }
    }
 

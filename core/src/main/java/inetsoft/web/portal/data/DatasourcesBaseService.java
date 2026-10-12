@@ -139,12 +139,19 @@ public abstract class DatasourcesBaseService {
    }
 
    public DataSourceDefinition refreshTabularView(DataSourceDefinition definition) {
-      refreshDraftDataSource(definition);
+      DraftDataSource draft = refreshDraftDataSource(definition);
+
+      // the OAuth button can't be used until the secret id is resolved, tell the user why
+      if(isAuthorizeBlocked(draft, definition)) {
+         CoreTool.addUserMessage(getSecretIdWithheldMessage(draft.principal()));
+      }
+
       return definition;
    }
 
    public TabularOAuthParams getOAuthParams(DataSourceOAuthParamsRequest request) {
-      Object ds = refreshDraftDataSource(request.dataSource());
+      DraftDataSource draft = refreshDraftDataSource(request.dataSource());
+      Object ds = draft.dataSource();
       String license = SreeEnv.getProperty("license.key");
       int index = license.indexOf(',');
 
@@ -158,6 +165,10 @@ public abstract class DatasourcesBaseService {
       if(!LicenseManager.isEnterprise() && (license == null || license.isEmpty())) {
          return builder.error(Catalog.getCatalog().getString("em.license.communityAPIKeyMissing"))
             .build();
+      }
+
+      if(isAuthorizeBlocked(draft, request.dataSource())) {
+         return builder.error(getSecretIdWithheldMessage(draft.principal())).build();
       }
 
       if(ds != null) {
@@ -192,7 +203,7 @@ public abstract class DatasourcesBaseService {
    }
 
    public DataSourceDefinition setOAuthTokens(DataSourceOAuthTokens tokens) {
-      Object ds = refreshDraftDataSource(tokens.dataSource());
+      Object ds = refreshDraftDataSource(tokens.dataSource()).dataSource();
 
       if(ds != null) {
          Tokens params = Tokens.builder()
@@ -215,13 +226,56 @@ public abstract class DatasourcesBaseService {
     * view. The definition may reference any secret id, so a secret is only resolved if the caller
     * can already see it through a saved data source.
     */
-   private Object refreshDraftDataSource(DataSourceDefinition definition) {
+   private DraftDataSource refreshDraftDataSource(DataSourceDefinition definition) {
       Principal principal = ThreadContext.getContextPrincipal();
       Map<String, Boolean> authorized = new HashMap<>();
-      return TabularDataSource.withCredentialFetchGate(
+      Object ds = TabularDataSource.withCredentialFetchGate(
          secretId -> authorized.computeIfAbsent(
             secretId, id -> isSecretIdAuthorized(definition, id, principal)),
          () -> refreshAndGetDataSource(definition));
+      // only the data source's own secret id counts, not those of its additional connections
+      boolean withheld = ds instanceof TabularDataSource<?> tabular &&
+         tabular.isUseCredentialId() && !Tool.isEmptyString(tabular.getCredentialId()) &&
+         Boolean.FALSE.equals(authorized.get(tabular.getCredentialId()));
+      return new DraftDataSource(ds, withheld, principal);
+   }
+
+   /**
+    * Gets the message that explains why the secret id of a draft data source was not resolved.
+    * Saving the data source resolves it only if the caller may introduce new secret ids.
+    */
+   private String getSecretIdWithheldMessage(Principal principal) {
+      return Catalog.getCatalog().getString(
+         secretIdAuthorizer.canIntroduceSecretIds(principal) ?
+            "data.datasources.saveBeforeAuthorize" : "data.datasources.secretIdNotAllowed");
+   }
+
+   /**
+    * Determines if the OAuth button of a draft data source can't be used because its secret id
+    * was withheld. A button that uses a hosted OAuth service does not need the secret.
+    */
+   private static boolean isAuthorizeBlocked(DraftDataSource draft,
+                                             DataSourceDefinition definition)
+   {
+      return draft.secretIdWithheld() && definition.getTabularView() != null &&
+         hasVisibleClientOAuthButton(definition.getTabularView().getViews());
+   }
+
+   private static boolean hasVisibleClientOAuthButton(TabularView[] views) {
+      if(views != null) {
+         for(TabularView view : views) {
+            TabularButton button = view.getButton();
+
+            if(view.isVisible() && (button != null && button.getType() == ButtonType.OAUTH &&
+               Tool.isEmptyString(button.getOauthServiceName()) ||
+               hasVisibleClientOAuthButton(view.getViews())))
+            {
+               return true;
+            }
+         }
+      }
+
+      return false;
    }
 
    /**
@@ -239,15 +293,24 @@ public abstract class DatasourcesBaseService {
    }
 
    private static String getSavedDataSourcePath(DataSourceDefinition definition) {
-      String name = definition.getParentDataSource() != null ?
-         definition.getParentDataSource() :
-         (definition.getOldName() != null ? definition.getOldName() : definition.getName());
+      return getSavedDataSourcePath(
+         definition.getParentDataSource(), definition.getOldName(), definition.getName(),
+         definition.getParentPath());
+   }
+
+   /**
+    * Gets the path that a data source is saved under, or that the parent data source of an
+    * additional connection is saved under.
+    */
+   private static String getSavedDataSourcePath(String parentDataSource, String oldName,
+                                                String name, String parentPath)
+   {
+      name = parentDataSource != null ? parentDataSource : (oldName != null ? oldName : name);
 
       if(StringUtils.isEmpty(name)) {
          return null;
       }
 
-      String parentPath = definition.getParentPath();
       return StringUtils.isEmpty(parentPath) || "/".equals(parentPath) ?
          name : parentPath + "/" + name;
    }
@@ -274,6 +337,9 @@ public abstract class DatasourcesBaseService {
       return TabularDataSource.withCredentialFetchGate(check, () -> {
          XDataSource result = createDataSource(definition, ds);
          SecretIdAuthorizer.checkSecretId(SecretIdAuthorizer.getCloudSecretId(result), check);
+         // Bug #64331, a server path, such as the root folder of a Text/Excel Directory data
+         // source, must be under an allowed root unless it is unchanged
+         ServerFilePathPolicy.create(securityEngine).checkDataSource(result, stored, principal);
          List<AdditionalConnectionDataSource<?>> additionals = null;
 
          // additional connections are added after the data source is saved, so create them now
@@ -282,7 +348,9 @@ public abstract class DatasourcesBaseService {
          if(result instanceof AdditionalConnectionDataSource<?> parent &&
             definition instanceof DataSourceDefinition dsDefinition)
          {
-            additionals = createAdditionalConnections(dsDefinition, parent);
+            additionals = createAdditionalConnections(dsDefinition, parent,
+               stored instanceof AdditionalConnectionDataSource<?> storedParent ?
+                  storedParent : parent);
 
             for(AdditionalConnectionDataSource<?> child : additionals) {
                SecretIdAuthorizer.checkSecretId(
@@ -345,17 +413,73 @@ public abstract class DatasourcesBaseService {
       throws Exception
    {
       repository.removeDataSource(path, force);
-      securityEngine.removePermission(ResourceType.DATA_SOURCE, path);
-      SreeEnv.remove("inetsoft.uql.jdbc.pool." + path + ".connectionTestQuery");
+      JDBCUtil.removeConnectionTestQuery(path);
       SreeEnv.save();
+      // Bug #78217, the registry removes the permission of the data source best-effort, and only
+      // when there is a data source at the path (Bug #77700)
       return null;
    }
 
-   public void checkDataSourceFolderOuterDependencies(String fname) throws Exception {
-      String[] sources = repository.getSubDataSourceNames(fname);
+   public void checkDataSourceFolderOuterDependencies(String fname, Principal principal)
+      throws Exception
+   {
+      // the data sources at any depth, which the folder delete deletes (Bug #77731)
+      List<String> sources = dataSourceRegistry.getFolderTreeDataSourceNames(fname);
 
       for(String source : sources) {
-         checkDataSourceOuterDependencies(source);
+         // the folder delete refuses a source the user can't delete, so don't report its
+         // dependencies
+         if(securityEngine.checkPermission(
+            principal, ResourceType.DATA_SOURCE, source, ResourceAction.DELETE))
+         {
+            checkDataSourceOuterDependencies(source);
+         }
+      }
+   }
+
+   /**
+    * Checks the DELETE permission on every data source and subfolder of a data source folder at
+    * any depth, which the folder delete deletes. The permission on the folder itself is not
+    * checked here.
+    *
+    * @throws SecurityException if the user may not delete one of them.
+    */
+   public void checkDataSourceFolderTreeDelete(String fname, Principal principal)
+      throws SecurityException
+   {
+      for(String source : dataSourceRegistry.getFolderTreeDataSourceNames(fname)) {
+         checkDelete(ResourceType.DATA_SOURCE, source, principal);
+      }
+
+      for(String folder : dataSourceRegistry.getFolderTreeSubfolderNames(fname)) {
+         checkDelete(ResourceType.DATA_SOURCE_FOLDER, folder, principal);
+      }
+   }
+
+   /**
+    * Checks that a data source or a data source folder may be deleted, if a data source and a
+    * data source folder share its path (Bug #77725).
+    *
+    * @param path   the path of the data source or folder.
+    * @param folder {@code true} if it is a folder.
+    *
+    * @throws MessageException if the delete would delete the other one's entries.
+    */
+   public void checkDeletePathClash(String path, boolean folder) {
+      if(folder) {
+         dataSourceRegistry.checkDataSourceFolderDeletePathClash(path);
+      }
+      else {
+         dataSourceRegistry.checkDataSourcePathClash(path);
+      }
+   }
+
+   private void checkDelete(ResourceType type, String path, Principal principal)
+      throws SecurityException
+   {
+      if(!securityEngine.checkPermission(principal, type, path, ResourceAction.DELETE)) {
+         throw new SecurityException(
+            "Unauthorized access to resource \"" + path + "\" by user " + principal);
       }
    }
 
@@ -408,7 +532,100 @@ public abstract class DatasourcesBaseService {
                                    Principal principal)
       throws Exception
    {
-      String folder = definition.getParentPath();
+      boolean folderPermission =
+         checkCreateDataSourcePermission(definition.getParentPath(), principal);
+
+      AuthorizedDataSource authorized =
+         createAuthorizedDataSource(definition, null, null, principal);
+      XDataSource ds = authorized.dataSource();
+
+      if(ds != null) {
+         String name = ds.getName();
+         IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
+         ds.setCreatedBy(pId.getName());
+         ds.setLastModifiedBy(pId.getName());
+         ds.setCreated(System.currentTimeMillis());
+         ds.setLastModified(System.currentTimeMillis());
+
+         dataSourceStatusService.updateStatus(ds);
+         repository.updateDataSource(ds, null, false);
+         afterUpdateSourceCallback(definition, ds, true);
+
+         boolean isSelfUser = Tool.equals(Organization.getSelfOrganizationID(),
+                                          OrganizationManager.getInstance().getCurrentOrgID(principal));
+         // some kind private datasource of the current user, created through the create data
+         // source permission when the caller can't write the folder
+         boolean grant = isSelfUser || !folderPermission;
+         // the failure of a step after the data source is saved, which a failed permission write
+         // doesn't replace
+         Throwable saveFailure = null;
+
+         try {
+            AssetEntry entry = new AssetEntry(
+               AssetRepository.QUERY_SCOPE, isXmla ? AssetEntry.Type.DOMAIN : AssetEntry.Type.DATA_SOURCE, name, null);
+            entry = getDataSourceAssetEntry(entry);
+
+            if(entry != null) {
+               entry.setCreatedUsername(principal.getName());
+               entry.setCreatedDate(new Date());
+               updateDataSourceAssetEntry(entry);
+            }
+
+            if(authorized.additionalConnections() != null) {
+               saveAdditionalConnections((DataSourceDefinition) definition,
+                  (AdditionalConnectionDataSource<?>) ds, authorized.additionalConnections(), null);
+            }
+         }
+         catch(Throwable e) {
+            saveFailure = e;
+            throw e;
+         }
+         finally {
+            // the grant is written last, so a failed permission write doesn't skip the asset entry
+            // or the additional connections of the saved data source, and written even if one of
+            // them fails, since the data source is saved by then
+            if(grant) {
+               String userWithoutOrg = principal.getName() != null ?
+                  IdentityID.getIdentityIDFromKey(principal.getName()).getName() : null;
+               Set<String> users = Collections.singleton(userWithoutOrg);
+               Permission permission = new Permission();
+               String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+               permission.setUserGrantsForOrg(ResourceAction.READ, users, orgId);
+               permission.setUserGrantsForOrg(ResourceAction.WRITE, users, orgId);
+               permission.setUserGrantsForOrg(ResourceAction.DELETE, users, orgId);
+               permission.updateGrantAllByOrg(orgId, true);
+
+               try {
+                  securityEngine.setPermission(
+                     ResourceType.DATA_SOURCE, ds.getFullName(), permission);
+               }
+               catch(RuntimeException e) {
+                  if(saveFailure == null) {
+                     throw e;
+                  }
+
+                  saveFailure.addSuppressed(e);
+               }
+            }
+         }
+      }
+   }
+
+   /**
+    * Checks that the caller may create a data source in a folder.
+    *
+    * @param folder    the folder of the new data source, empty or "/" for the root folder.
+    * @param principal the caller.
+    *
+    * @return {@code true} if the caller can write the folder, or {@code false} if the caller may
+    *         only create a data source in the root folder through the create data source
+    *         permission.
+    *
+    * @throws SecurityException if the caller may not create a data source in the folder.
+    */
+   protected boolean checkCreateDataSourcePermission(String folder, Principal principal)
+      throws Exception
+   {
       boolean newSourcePermission = false;
       boolean folderPermission;
 
@@ -442,55 +659,39 @@ public abstract class DatasourcesBaseService {
                principal);
       }
 
-      AuthorizedDataSource authorized =
-         createAuthorizedDataSource(definition, null, null, principal);
-      XDataSource ds = authorized.dataSource();
+      return folderPermission;
+   }
 
-      if(ds != null) {
-         String name = ds.getName();
-         IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
-         ds.setCreatedBy(pId.getName());
-         ds.setLastModifiedBy(pId.getName());
-         ds.setCreated(System.currentTimeMillis());
-         ds.setLastModified(System.currentTimeMillis());
+   /**
+    * Checks that the caller may save the data source that an OAuth password grant is requested
+    * for. The grant posts the credentials to a token URI that the client chooses, so only a caller
+    * who may save that data source, and so may already point it at any URL, may request it
+    * (Bug #78243). Whether the data source is new is decided by the stored data sources, never by
+    * the request. A new data source needs the permission to create it in its folder, and a saved
+    * one, or the parent of an additional connection, needs write permission on it.
+    *
+    * @param request   the password grant request, which names the data source.
+    * @param principal the caller.
+    *
+    * @throws SecurityException if the caller may not save the data source.
+    */
+   public void checkPasswordGrantPermission(TabularOAuthParams request, Principal principal)
+      throws Exception
+   {
+      String path = getSavedDataSourcePath(
+         request.parentDataSource(), request.dataSourceOldName(), request.dataSourceName(),
+         request.dataSourceParentPath());
+      XDataSource stored = path == null ? null : repository.getDataSource(path);
 
-         dataSourceStatusService.updateStatus(ds);
-         repository.updateDataSource(ds, null, false);
-         afterUpdateSourceCallback(definition, ds, true);
-
-
-         boolean isSelfUser = Tool.equals(Organization.getSelfOrganizationID(),
-                                          OrganizationManager.getInstance().getCurrentOrgID(principal));
-
-         // some kind private datasource of the current user
-         if(isSelfUser || (!folderPermission && newSourcePermission)) {
-            String userWithoutOrg = principal.getName() != null ?
-               IdentityID.getIdentityIDFromKey(principal.getName()).getName() : null;
-            Set<String> users = Collections.singleton(userWithoutOrg);
-            Permission permission = new Permission();
-            String orgId = OrganizationManager.getInstance().getCurrentOrgID();
-            permission.setUserGrantsForOrg(ResourceAction.READ, users, orgId);
-            permission.setUserGrantsForOrg(ResourceAction.WRITE, users, orgId);
-            permission.setUserGrantsForOrg(ResourceAction.DELETE, users, orgId);
-            permission.updateGrantAllByOrg(orgId, true);
-            securityEngine.setPermission(
-               ResourceType.DATA_SOURCE, ds.getFullName(), permission);
-         }
-
-         AssetEntry entry = new AssetEntry(
-            AssetRepository.QUERY_SCOPE, isXmla ? AssetEntry.Type.DOMAIN : AssetEntry.Type.DATA_SOURCE, name, null);
-         entry = getDataSourceAssetEntry(entry);
-
-         if(entry != null) {
-            entry.setCreatedUsername(principal.getName());
-            entry.setCreatedDate(new Date());
-            updateDataSourceAssetEntry(entry);
-         }
-
-         if(authorized.additionalConnections() != null) {
-            saveAdditionalConnections((DataSourceDefinition) definition,
-               (AdditionalConnectionDataSource<?>) ds, authorized.additionalConnections());
-         }
+      if(stored == null) {
+         checkCreateDataSourcePermission(request.dataSourceParentPath(), principal);
+      }
+      else if(!securityEngine.checkPermission(
+         principal, ResourceType.DATA_SOURCE, stored.getFullName(), ResourceAction.WRITE))
+      {
+         throw new SecurityException(
+            "Unauthorized access to resource \"" + stored.getFullName() + "\" by user " +
+               principal);
       }
    }
 
@@ -510,6 +711,27 @@ public abstract class DatasourcesBaseService {
       String parentPath = "".equals(definition.getParentPath()) ? "" : definition.getParentPath() + "/";
       String oldName = parentPath + name;
       String nName = parentPath + definition.getName();
+
+      // an additional connection is saved through its parent data source, saving it by its path
+      // would turn it into a standalone data source
+      if(dataSourceRegistry.isAdditionalConnectionPath(oldName)) {
+         throw new MessageException(Catalog.getCatalog(principal).getString(
+            "common.datasource.additionalConnectionMove"));
+      }
+
+      // the name is the name of the data source in the folder of the definition. A folder in it
+      // would make this update move the data source to an ancestor folder without the checks of
+      // a move, and replace a data source of the same name there (Bug #77836)
+      if(Tool.containsPathSeparator(name)) {
+         throw new MessageException(Catalog.getCatalog(principal).getString(
+            "common.datasource.slashNotAllowed"));
+      }
+
+      // Bug #77725, Bug #77820, a rename that XEngine refuses, checked before anything is written
+      if(!Tool.equals(oldName, nName)) {
+         dataSourceRegistry.checkDataSourceMovePathClash(oldName);
+      }
+
       XDataSource oldSrc = repository.getDataSource(oldName);
       checkUpdateDatasourcePermission(nName, oldSrc, principal);
       AuthorizedDataSource authorized = createAuthorizedDataSource(
@@ -522,12 +744,27 @@ public abstract class DatasourcesBaseService {
                "data.datasources.saveDataSourceLost"));
          }
 
-         if(authorized.additionalConnections() != null) {
-            saveAdditionalConnections((DataSourceDefinition) definition,
-               (AdditionalConnectionDataSource<?>) newSrc, authorized.additionalConnections());
+         // an update that changes the path never replaces another data source or a folder
+         // (Bug #77836)
+         if(!Tool.equals(oldSrc.getFullName(), nName) &&
+            dataSourceRegistry.isDataSourcePathInUse(nName))
+         {
+            throw new MessageException(Catalog.getCatalog(principal).getString(
+               "common.datasource.moveTargetExists", nName));
          }
 
+         // Bug #77843, the parent is renamed first. The rename moves every additional connection
+         // still under the old name, with its permission, to the new name, so they are saved and
+         // removed under the new name only after it. Saved before the rename, they would be
+         // overwritten by the stored ones that it moves, and a renamed or removed one would be
+         // moved back.
          updateDatasource(oldName, newSrc, definition);
+
+         if(authorized.additionalConnections() != null) {
+            saveAdditionalConnections((DataSourceDefinition) definition,
+               (AdditionalConnectionDataSource<?>) newSrc, authorized.additionalConnections(),
+               newSrc.getFullName());
+         }
       }
    }
 
@@ -597,9 +834,14 @@ public abstract class DatasourcesBaseService {
    /**
     * Creates the additional connections that a definition describes, without adding them to the
     * parent data source.
+    *
+    * @param stored the data source whose stored additional connections are updated, which is the
+    *               stored parent before this save. It differs from {@code parent} by name if the
+    *               save renames the parent (Bug #77843).
     */
    private List<AdditionalConnectionDataSource<?>> createAdditionalConnections(
-      DataSourceDefinition definition, AdditionalConnectionDataSource<?> parent)
+      DataSourceDefinition definition, AdditionalConnectionDataSource<?> parent,
+      AdditionalConnectionDataSource<?> stored)
    {
       List<AdditionalConnectionDataSource<?>> additionals = new ArrayList<>();
 
@@ -608,7 +850,7 @@ public abstract class DatasourcesBaseService {
             additional.setParentPath(definition.getParentPath());
             additional.setParentDataSource(definition.getName());
 
-            AdditionalConnectionDataSource<?> child = parent.getDataSource(additional.getName());
+            AdditionalConnectionDataSource<?> child = stored.getDataSource(additional.getName());
 
             if(child == null) {
                child = (AdditionalConnectionDataSource<?>) createDataSource(additional, null);
@@ -626,51 +868,205 @@ public abstract class DatasourcesBaseService {
 
    /**
     * Saves the additional connections created by
-    * {@link #createAdditionalConnections(DataSourceDefinition, AdditionalConnectionDataSource)}
+    * {@link #createAdditionalConnections(DataSourceDefinition, AdditionalConnectionDataSource,
+    * AdditionalConnectionDataSource)}
     * and removes the ones that the definition no longer contains.
+    *
+    * @param oldParent the full name that the stored additional connections and their permissions
+    *                  are under when this method is called, or {@code null} if the parent is
+    *                  created by this save. A renamed parent is renamed before this method is
+    *                  called, so this is its new name (Bug #77843).
     */
    private void saveAdditionalConnections(DataSourceDefinition definition,
                                           AdditionalConnectionDataSource<?> parent,
-                                          List<AdditionalConnectionDataSource<?>> additionals)
+                                          List<AdditionalConnectionDataSource<?>> additionals,
+                                          String oldParent)
    {
       Set<String> updated = new HashSet<>();
+      Set<String> removed = new HashSet<>();
+      // the new names of the renamed additional connections, by old name
+      Map<String, String> renames = new LinkedHashMap<>();
+      // the additional connections under the old parent name that this save doesn't keep. A kept
+      // one is sent without its old name, a renamed one with it
+      Set<String> oldRemoved = getAdditionalConnectionNames(oldParent);
+
+      if(definition.getAdditionalConnections() != null) {
+         for(DataSourceDefinition additional : definition.getAdditionalConnections()) {
+            String oldName = additional.getOldName();
+            oldRemoved.remove(oldName != null ? oldName : additional.getName());
+
+            if(oldName != null && !Tool.equals(oldName, additional.getName())) {
+               renames.put(oldName, additional.getName());
+            }
+         }
+      }
+
+      // read before the old names are removed below
+      Map<String, Permission> renamedPermissions = getAdditionalPermissions(oldParent, renames);
 
       if(definition.getAdditionalConnections() != null) {
          for(int i = 0; i < additionals.size(); i++) {
             DataSourceDefinition additional = definition.getAdditionalConnections().get(i);
             updated.add(additional.getName());
             parent.addDatasource(additionals.get(i));
-            updateAdditionalPermission(definition, additional);
          }
       }
 
       for(String child : parent.getDataSourceNames()) {
          if(!updated.contains(child)) {
             parent.removeDatasource(child);
+            removed.add(child);
          }
       }
+
+      updateAdditionalPermissions(oldParent, parent.getFullName(), oldRemoved, removed, renames,
+                                  renamedPermissions);
    }
 
-   private void updateAdditionalPermission(DataSourceDefinition parent, DataSourceDefinition additional)
+   /**
+    * Gets the names of the additional connections of a data source, read before they are saved.
+    */
+   private Set<String> getAdditionalConnectionNames(String path) {
+      Set<String> names = new HashSet<>();
+
+      if(path != null &&
+         dataSourceRegistry.getDataSource(path) instanceof AdditionalConnectionDataSource<?> ads)
+      {
+         String[] children = ads.getDataSourceNames();
+
+         if(children != null) {
+            names.addAll(Arrays.asList(children));
+         }
+      }
+
+      return names;
+   }
+
+   /**
+    * Gets the permissions of the additional connections that are renamed, by old name.
+    */
+   private Map<String, Permission> getAdditionalPermissions(String oldParent,
+                                                            Map<String, String> renames)
    {
-      if(additional.getOldName() == null || Tool.equals(additional.getOldName(), additional.getName())) {
+      Map<String, Permission> permissions = new HashMap<>();
+
+      if(oldParent == null || renames.isEmpty() || !hasPermissionStore()) {
+         return permissions;
+      }
+
+      for(String oldName : renames.keySet()) {
+         permissions.put(oldName, securityEngine.getPermission(ResourceType.DATA_SOURCE,
+            oldParent + XUtil.ADDITIONAL_DS_CONNECTOR + oldName));
+      }
+
+      return permissions;
+   }
+
+   /**
+    * Updates the permissions of the additional connections of a data source after they are
+    * removed or renamed. The names that are removed or renamed are removed from the old parent
+    * name, the removed ones also from the new parent name, and a renamed additional connection
+    * gets its permission under the new parent name. A renamed parent is renamed before its
+    * additional connections are saved, which moves their permissions, so both names are its new
+    * name then (Bug #77843).
+    *
+    * @param oldParent   the full name that the permissions of the stored additional connections
+    *                    are under, or {@code null} if the parent is created by this save.
+    * @param newParent   the full name of the parent after this save.
+    * @param oldRemoved  the names of the additional connections under the old parent name that
+    *                    this save doesn't keep.
+    * @param removed     the names of the additional connections removed from the new parent name.
+    * @param renames     the new names of the renamed additional connections, by old name.
+    * @param permissions the permissions of the renamed additional connections, by old name, read
+    *                    before any of them was removed.
+    */
+   private void updateAdditionalPermissions(String oldParent, String newParent,
+                                            Set<String> oldRemoved, Set<String> removed,
+                                            Map<String, String> renames,
+                                            Map<String, Permission> permissions)
+   {
+      if(oldParent == null || oldRemoved.isEmpty() && removed.isEmpty() && renames.isEmpty() ||
+         !hasPermissionStore())
+      {
          return;
       }
 
-      String folder = additional.getParentPath();
-      folder = folder == null ? "" : folder;
-      String oParentName = parent.getOldName();
-      oParentName = oParentName == null ? parent.getName() : oParentName;
-      String resource = Tool.buildString(folder, "/", oParentName,
-                                         XUtil.ADDITIONAL_DS_CONNECTOR, additional.getOldName());
-      Permission perm = securityEngine.getPermission(ResourceType.DATA_SOURCE, resource);
+      // Bug #78217, the connections are already saved, so the writes are best-effort. The new
+      // names are written first and only then the old ones are removed, except the ones that are
+      // also a new name (swapped or chained names), so a failed write doesn't delete the only
+      // copy of a permission
+      Set<String> newResources = new HashSet<>();
+      Set<String> keptResources = new HashSet<>();
 
-      if(perm != null) {
-         securityEngine.removePermission(ResourceType.DATA_SOURCE, resource);
-         String nresource = Tool.buildString(folder, "/", parent.getName(),
-                                             XUtil.ADDITIONAL_DS_CONNECTOR, additional.getName());
-         securityEngine.setPermission(ResourceType.DATA_SOURCE, nresource, perm);
+      for(Map.Entry<String, String> rename : renames.entrySet()) {
+         Permission permission = permissions.get(rename.getKey());
+         String newResource = newParent + XUtil.ADDITIONAL_DS_CONNECTOR + rename.getValue();
+         newResources.add(newResource);
+
+         if(permission != null) {
+            if(!AbstractAssetEngine.setPermissionBestEffort(
+               securityEngine, ResourceType.DATA_SOURCE, newResource, permission))
+            {
+               keptResources.add(oldParent + XUtil.ADDITIONAL_DS_CONNECTOR + rename.getKey());
+            }
+         }
+         // a kept additional connection is sent without its old name, so the new name of a
+         // renamed one may be that of one removed in this save, and must not keep its permission
+         else {
+            AbstractAssetEngine.removePermissionBestEffort(
+               securityEngine, ResourceType.DATA_SOURCE, newResource);
+         }
       }
+
+      Set<String> oldResources = new LinkedHashSet<>();
+
+      for(String name : oldRemoved) {
+         oldResources.add(oldParent + XUtil.ADDITIONAL_DS_CONNECTOR + name);
+      }
+
+      for(String name : removed) {
+         oldResources.add(newParent + XUtil.ADDITIONAL_DS_CONNECTOR + name);
+      }
+
+      for(String oldName : renames.keySet()) {
+         oldResources.add(oldParent + XUtil.ADDITIONAL_DS_CONNECTOR + oldName);
+      }
+
+      for(String resource : oldResources) {
+         if(newResources.contains(resource)) {
+            continue;
+         }
+
+         if(keptResources.contains(resource)) {
+            AbstractAssetEngine.reportPermissionMayRemain(
+               securityEngine, ResourceType.DATA_SOURCE, resource);
+            continue;
+         }
+
+         AbstractAssetEngine.removePermissionBestEffort(
+            securityEngine, ResourceType.DATA_SOURCE, resource);
+      }
+
+      // Bug #78203, and the folder grants of the removed connections' extended models
+      // Bug #78223, not the renamed ones, which the stored additional connections list under
+      // their old names, since their folder grants are moved below
+      Set<String> goneOld = new HashSet<>(oldRemoved);
+      goneOld.removeAll(renames.keySet());
+      Set<String> goneNew = new HashSet<>(removed);
+      goneNew.removeAll(renames.keySet());
+      dataSourceRegistry.removeAdditionalConnectionFolderPermissions(oldParent, goneOld);
+      dataSourceRegistry.removeAdditionalConnectionFolderPermissions(newParent, goneNew);
+      // the folder grants of the renamed connections' extended models, after the removal, as a
+      // connection renamed to the name of a removed one gets the grants it had
+      dataSourceRegistry.moveAdditionalConnectionFolderPermissions(oldParent, newParent, renames);
+   }
+
+   /**
+    * Checks if the security provider stores permissions of its own, i.e. it is not virtual.
+    */
+   private boolean hasPermissionStore() {
+      SecurityProvider provider = securityEngine.getSecurityProvider();
+      return provider == null || !provider.isVirtual();
    }
 
    /**
@@ -721,6 +1117,45 @@ public abstract class DatasourcesBaseService {
    }
 
    /**
+    * Checks the name of a data source that is created or renamed, and that its path is not used
+    * by another data source or a data source folder (Bug #77691). The data sources in a folder
+    * with the path of a data source would be taken for its additional connections.
+    *
+    * @param oldName    the name of the existing data source, or null if it is created.
+    * @param definition the definition of the data source or additional connection.
+    */
+   protected void checkDatasourceNameValid(String oldName, BaseDataSourceDefinition definition) {
+      String newName = definition.getName();
+      checkDatasourceNameValid(oldName, newName, definition.getParentPath());
+
+      if(oldName != null && oldName.equals(newName)) {
+         return;
+      }
+
+      // build the path as the data source is named, see DatasourcesService.createDataSource
+      String parentPath = definition.getParentPath();
+      String folder = parentPath == null || parentPath.isEmpty() || "/".equals(parentPath) ?
+         "" : parentPath + "/";
+      String parentDataSource = definition instanceof DataSourceDefinition ds ?
+         ds.getParentDataSource() : null;
+      boolean additional = parentDataSource != null && !parentDataSource.isEmpty();
+      String path = additional ?
+         folder + parentDataSource + "/" + newName : folder + newName;
+      Catalog catalog = Catalog.getCatalog();
+
+      if(dataSourceRegistry.isDataSourcePathInUse(path)) {
+         throw new MessageException(catalog.getString("common.datasource.moveTargetExists", path));
+      }
+
+      String ancestor = additional ? null : dataSourceRegistry.getDataSourceAncestor(path);
+
+      if(ancestor != null) {
+         throw new MessageException(
+            catalog.getString("common.datasource.createUnderDataSource", path, ancestor));
+      }
+   }
+
+   /**
     * Create a new data source connection.
     *
     * @param definition new data source definition.
@@ -760,6 +1195,19 @@ public abstract class DatasourcesBaseService {
    private final DataSourceRegistry dataSourceRegistry;
    private final Config uqlConfig;
    private final SecretIdAuthorizer secretIdAuthorizer;
+
+   /**
+    * A data source created from a client-supplied definition.
+    *
+    * @param dataSource       the data source, or {@code null} if it could not be created.
+    * @param secretIdWithheld {@code true} if the secret id of the data source was not resolved
+    *                         because the caller may not use it yet.
+    * @param principal        the caller.
+    */
+   private record DraftDataSource(Object dataSource, boolean secretIdWithheld,
+                                  Principal principal)
+   {
+   }
 
    private record AuthorizedDataSource(XDataSource dataSource,
                                        List<AdditionalConnectionDataSource<?>> additionalConnections)

@@ -203,7 +203,7 @@ public class ConditionItem implements Serializable, HierarchyItem {
          cls = str;
       }
 
-      condition = (XCondition) Class.forName(cls).newInstance();
+      condition = (XCondition) Tool.loadSubclass(cls, XCondition.class).newInstance();
       condition.parseAttributes(ctag);
 
       // @By mikec, 2003-10-22 backward compatibility code to read

@@ -72,6 +72,14 @@ public interface ScriptEnv {
       throws Exception;
 
    /**
+    * Compile a freehand table cell formula, whose top-level var wins over a same-named
+    * member of the table's scope chain (Bug #78247).
+    */
+   default Object compileDeclaredVars(String cmd) throws Exception {
+      return compile(cmd, true);
+   }
+
+   /**
     * Execute a script.
     * @param script script object.
     * @param scope scope this script should execute in.

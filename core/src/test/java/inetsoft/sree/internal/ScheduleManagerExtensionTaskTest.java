@@ -134,10 +134,14 @@ class ScheduleManagerExtensionTaskTest {
    @Test
    void roundTrippedDataCycleTaskIsNotStoredAsScheduleTask() throws Exception {
       // e.g. a data cycle task imported through asset deploy (ScheduleTaskAsset.parseContent):
-      // parseXML() mangles the id and drops the cycle info, so no extension owns it
+      // parseXML() drops the cycle info, and the data cycle has no generated task, so no
+      // extension owns it. Bug #77883, the ':' in the name is kept, the id is not mangled
       ScheduleTask task = roundTrip(createCycleTask(true));
       assertEquals(ScheduleTask.Type.CYCLE_TASK, task.getType());
-      assertNotEquals(TASK_ID, task.getTaskId(), "precondition: the id is mangled");
+      assertEquals(TASK_ID, task.getTaskId(), "precondition: the id round-trips");
+      assertNull(task.getCycleInfo(), "precondition: the cycle info is dropped");
+      assertFalse(dataCycleManager.containsTask(TASK_ID, ORG),
+                  "precondition: no extension owns the task");
 
       scheduleManager.setScheduleTask(task.getTaskId(), task, null, admin);
 
@@ -292,6 +296,34 @@ class ScheduleManagerExtensionTaskTest {
       assertNoStoredCycleTaskKey();
       assertEquals(List.of(), getStoredCycleTasks(), "no ghost may be listed");
       assertTrue(readAsset().isEnabled(), "the data cycle must be left unchanged");
+   }
+
+   // Bug #77883, the imported cycle task id now equals the id of the generated task of the same
+   // data cycle, the import must still leave the data cycle and its generated task alone
+   @Test
+   void overwritingImportOfGeneratedDataCycleTaskLeavesDataCycleUnchanged() throws Exception {
+      installGeneratedTask(createCycleTask(true));
+      StringWriter buffer = new StringWriter();
+      PrintWriter writer = new PrintWriter(buffer);
+      writer.write("<ScheduleTask>");
+      createCycleTask(false).writeXML(writer);
+      writer.write("</ScheduleTask>");
+      writer.flush();
+      Set<String> keysBefore = getCycleStorageKeys();
+      inetsoft.util.dep.XAssetConfig config = new inetsoft.util.dep.XAssetConfig();
+      config.setOverwriting(true);
+
+      new inetsoft.util.dep.ScheduleTaskAsset().parseContent(
+         new java.io.ByteArrayInputStream(
+            buffer.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8)),
+         config, true, false);
+
+      assertEquals(keysBefore, getCycleStorageKeys(), "import must not store the cycle task");
+      assertNoStoredCycleTaskKey();
+      assertEquals(List.of(), getStoredCycleTasks(), "no ghost may be listed");
+      assertTrue(readAsset().isEnabled(), "the data cycle must be left unchanged");
+      assertNotNull(scheduleManager.getScheduleTask(TASK_ID, ORG),
+                    "the generated task must be kept");
    }
 
    private Set<String> getCycleStorageKeys() {

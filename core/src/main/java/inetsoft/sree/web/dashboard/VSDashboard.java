@@ -191,12 +191,12 @@ public class VSDashboard implements Dashboard {
       writer.println("<dashboard class=\"" + getClass().getName() + "\">");
 
       if(createdBy != null) {
-         writer.println("<createdBy><![CDATA[" + createdBy +"]]>");
+         writer.println("<createdBy><![CDATA[" + Tool.splitCDATAEnd(createdBy) +"]]>");
          writer.println("</createdBy>");
       }
 
       if(modifiedBy != null) {
-         writer.println("<modifiedBy><![CDATA[" + modifiedBy +"]]>");
+         writer.println("<modifiedBy><![CDATA[" + Tool.splitCDATAEnd(modifiedBy) +"]]>");
          writer.println("</modifiedBy>");
       }
 
@@ -211,7 +211,7 @@ public class VSDashboard implements Dashboard {
       }
 
       if(description != null) {
-         writer.println("<description><![CDATA[" + getDescription() +"]]>");
+         writer.println("<description><![CDATA[" + Tool.cdataText(getDescription()) +"]]>");
          writer.println("</description>");
       }
 

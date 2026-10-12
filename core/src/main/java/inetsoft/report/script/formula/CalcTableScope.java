@@ -25,9 +25,13 @@ import inetsoft.report.internal.table.RuntimeCalcTableLens;
 import inetsoft.report.lens.CalcTableLens;
 import inetsoft.report.script.*;
 import inetsoft.report.script.graal.ReportGraalJavaScriptEngine;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.util.script.DynamicScope;
 import inetsoft.util.script.JavaScriptEngine;
-import inetsoft.util.stall.LockStallException;
+import inetsoft.util.script.graal.DeclaredVarScope;
+import inetsoft.util.script.graal.ScopeLocals;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
+import inetsoft.util.swap.DataUnavailable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,7 +48,7 @@ import java.util.Iterator;
  * handled centrally by BindingRootProxy/FormulaContext, so {@code null} is passed
  * here as a cutover bridge; rewire when ReportJavaScriptEngine is migrated.
  */
-public class CalcTableScope extends PropertyScriptable implements DynamicScope {
+public class CalcTableScope extends PropertyScriptable implements DynamicScope, DeclaredVarScope {
    /**
     * Create a scope for a freehand table.
     */
@@ -168,12 +172,24 @@ public class CalcTableScope extends PropertyScriptable implements DynamicScope {
    }
 
    /**
+    * Bug #77866: this scope holds the var stores of its formulas, since it is made per table
+    * lens and an engine outlives it, and its {@code field} and cell references reach it
+    * through the lens.
+    */
+   @Override
+   public ScopeLocals getScopeLocals() {
+      return scopeLocals;
+   }
+
+   /**
     * Make a copy of this scope.
     */
    @Override
    public CalcTableScope clone() {
       try {
-         return (CalcTableScope) super.clone();
+         CalcTableScope obj = (CalcTableScope) super.clone();
+         obj.scopeLocals = new ScopeLocals(); // a copy has its own vars
+         return obj;
       }
       catch(Exception ex) {
          LOG.error("Failed to clone object", ex);
@@ -819,12 +835,14 @@ public class CalcTableScope extends PropertyScriptable implements DynamicScope {
          return sum.getResult();
       }
       catch(Exception ex) {
-         // a stalled table has no value to return, the stall is not a script value (#77123)
-         LockStallException stall = LockStallException.find(ex);
-
-         if(stall != null) {
-            throw stall;
-         }
+         // a stalled table or one whose swap file is lost has no value to return, the failure
+         // is not a script value (#77123, #77910), nor has a cell whose formula was stopped by
+         // a script timeout or cancel (#77949)
+         DataUnavailable.rethrow(ex);
+         ScriptTimeoutGuard.rethrowStop(ex);
+         // nor has a table that failed to load for a reader that has to fail, e.g. a
+         // scheduled run (#78083)
+         TableLoadException.rethrow(ex);
 
          LOG.warn("Failed to summarize range " + range +
             " using formula " + sum, ex);
@@ -888,6 +906,7 @@ public class CalcTableScope extends PropertyScriptable implements DynamicScope {
 
    private final CalcTableLens table;
    private final TableRow field;
+   private ScopeLocals scopeLocals = new ScopeLocals();
 
    private static final Logger LOG = LoggerFactory.getLogger(CalcTableScope.class);
 }

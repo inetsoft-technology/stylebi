@@ -114,7 +114,7 @@ public class CategoricalColorFrameWrapper extends ColorFrameWrapper {
       if(colorValueFrame) {
          if(frame2 == null) {
             frame2 = new ColorValueColorFrame();
-            frame2.setDefaultColor(CategoricalColorFrame.COLOR_PALETTE[0]);
+            frame2.setDefaultColor(CategoricalColorFrame.COLOR_PALETTE.get(0));
          }
 
          return frame2;

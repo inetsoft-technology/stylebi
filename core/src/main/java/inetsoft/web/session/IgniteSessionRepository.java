@@ -66,6 +66,8 @@ public class IgniteSessionRepository
       this.sessions = cluster.getCache(
          this.sessionMapName, true, new PropertyAccessedExpiryPolicy());
       this.cluster.addReplicatedMapListener(this.sessionMapName, this);
+      // start the shared attribute cache now, the only partition map exchange it causes
+      getSessionAttributes();
    }
 
    @Override
@@ -99,7 +101,7 @@ public class IgniteSessionRepository
       javax.cache.expiry.Duration expiry = PropertyAccessedExpiryPolicy.getExpiryFromProperty();
       cached.setMaxInactiveInterval(
          Duration.ofSeconds(expiry.getTimeUnit().toSeconds(expiry.getDurationAmount())));
-      createSessionAttributeMap(cached.getId());
+      createSessionAttributes(cached.getId());
       IgniteSession session = new IgniteSession(cached, true);
       session.flushImmediateIfNecessary();
       return session;
@@ -217,11 +219,36 @@ public class IgniteSessionRepository
       return new IgniteSession(saved, false);
    }
 
+   /**
+    * Resolves a session read by a background scan of {@link #sessions} (an {@code iterator()}
+    * entry) without renewing its Ignite access TTL, unlike {@link #findById}. Any {@code get}
+    * through {@link #sessions} resets the TTL (see {@link PropertyAccessedExpiryPolicy}); iteration
+    * does not. Only the request path ({@link #findById} for the requesting session) should keep a
+    * session alive. A background reader that renewed every live session kept the TTL from firing
+    * when an idle session timed out, so the session ended late (Bug #77886).
+    *
+    * <p>An expired session is still swept here. It is re-read through {@link #findById}, which
+    * deletes it if it is still expired (so a session renewed by a concurrent request since the
+    * iteration is not deleted). Returns {@code null} only on that expired path, when the session
+    * is deleted or already gone. A live session is always returned as a wrapper of the iterated
+    * value, even if another thread deletes it concurrently.
+    */
+   private IgniteSession findIteratedSession(MapSession session) {
+      if(session.isExpired()) {
+         return findById(session.getId());
+      }
+
+      return new IgniteSession(session, false);
+   }
+
    @Override
    public void deleteById(String id) {
       MapSession session = this.sessions.get(id);
 
       if(session == null) {
+         // A session invalidated before its first save() was never in the sessions cache, so no
+         // remove event will purge its attributes (Bug #78108)
+         purgeSessionAttributesLater(id);
          return;
       }
 
@@ -255,7 +282,7 @@ public class IgniteSessionRepository
       try {
          while(iter.hasNext()) {
             Cache.Entry<String, MapSession> session = iter.next();
-            IgniteSession igniteSession = findById(session.getValue().getId());
+            IgniteSession igniteSession = findIteratedSession(session.getValue());
 
             // could be out of sync due to session expiration, need to check for null
             if(igniteSession != null && isSessionForUser(igniteSession, indexValue)) {
@@ -308,7 +335,7 @@ public class IgniteSessionRepository
             IgniteSession igniteSession = new IgniteSession(session, false);
             sendApplicationEvent(new SessionDeletedEvent(this.getClass().getName(), igniteSession));
             logout(session, "");
-            destroySessionAttributeMap(session.getId());
+            purgeSessionAttributesLater(session.getId());
          }
       }
    }
@@ -341,7 +368,7 @@ public class IgniteSessionRepository
       IgniteSession igniteSession = new IgniteSession(session, false);
       logout(igniteSession, SessionRecord.LOGOFF_SESSION_TIMEOUT);
       sendApplicationEvent(new SessionExpiredEvent(this.getClass().getName(), igniteSession));
-      destroySessionAttributeMap(session.getId());
+      purgeSessionAttributesLater(session.getId());
    }
 
    /**
@@ -410,7 +437,7 @@ public class IgniteSessionRepository
          try {
             while(iter.hasNext()) {
                Cache.Entry<String, MapSession> entry = iter.next();
-               IgniteSession igniteSession = findById(entry.getValue().getId());
+               IgniteSession igniteSession = findIteratedSession(entry.getValue());
 
                // could be out of sync due to session expiration, need to check for null
                if(igniteSession != null &&
@@ -435,7 +462,8 @@ public class IgniteSessionRepository
       try {
          while(iter.hasNext()) {
             Cache.Entry<String, MapSession> session = iter.next();
-            IgniteSessionRepository.IgniteSession igniteSession = findById(session.getValue().getId());
+            IgniteSessionRepository.IgniteSession igniteSession =
+               findIteratedSession(session.getValue());
 
             // could be out of sync due to session expiration, need to check for null
             if(igniteSession != null) {
@@ -462,7 +490,7 @@ public class IgniteSessionRepository
       try {
          while(iter.hasNext()) {
             Cache.Entry<String, MapSession> entry = iter.next();
-            IgniteSession igniteSession = findById(entry.getValue().getId());
+            IgniteSession igniteSession = findIteratedSession(entry.getValue());
 
             if(igniteSession != null) {
                updatePrincipalInSession(
@@ -507,7 +535,11 @@ public class IgniteSessionRepository
       }
    }
 
-   @Scheduled(fixedRate = 20000) // Check every 20 seconds
+   // Every 10 seconds: this pass is what ends an idle session (it deletes the sessions past their
+   // timeout), so its period bounds how late the end can be. Every node runs it, but the nodes'
+   // phases are arbitrary and can coincide, so the bound is one period, not a fraction of it
+   // (Bug #77886: three nodes ran their 20 s passes within 5 s of each other).
+   @Scheduled(fixedRate = 10000)
    public void checkSessions() {
       long currentTime = System.currentTimeMillis();
       long protectionExpirationTime = nodeProtectionService.getExpirationTime();
@@ -526,9 +558,20 @@ public class IgniteSessionRepository
             long sessionRemainingTime = lastAccessedTime.toEpochMilli() +
                maxInactiveInterval.toMillis() - currentTime;
 
-            // only check sessions that haven't expired already
-            if(sessionRemainingTime > 0) {
-               IgniteSession igniteSession = findById(session.getId());
+            // an expired session is deleted now (findById() re-checks and deletes it) instead of
+            // being left for Ignite's TTL; live sessions are read without renewing the TTL
+            // (Bug #77886)
+            if(sessionRemainingTime <= 0) {
+               // one failed deletion must not skip the rest of the pass
+               try {
+                  findById(session.getId());
+               }
+               catch(RuntimeException e) {
+                  LOG.warn("Failed to delete expired session {}", session.getId(), e);
+               }
+            }
+            else {
+               IgniteSession igniteSession = findIteratedSession(session);
 
                // could be out of sync due to session expiration, need to check for null
                if(igniteSession == null) {
@@ -580,61 +623,154 @@ public class IgniteSessionRepository
       }
    }
 
-   private static String getSessionAttributeMapName(String sessionId) {
-      return SESSION_ATTRIBUTE_MAP + sessionId;
-   }
+   /**
+    * Removes the attributes of the sessions that no longer exist, in case their purge was never
+    * scheduled or was lost. A session's attributes are removed when its id is not in the sessions
+    * cache in two runs in a row and its marker is older than {@link #ORPHAN_GRACE_PERIOD}, so a new
+    * session that is not saved yet and the attributes kept for a session that just ended are left
+    * alone. Only the master node runs it. The first run on the master also destroys the
+    * per-session caches of older versions (Bug #78108).
+    */
+   @Scheduled(initialDelay = 300000, fixedDelay = 1800000)
+   public void sweepSessionAttributes() {
+      if(!cluster.isMaster()) {
+         orphanSessionIds.clear();
+         return;
+      }
 
-   private static DistributedMap<String, Object> createSessionAttributeMap(String sessionId) {
-      DistributedMap<String, Object> map = Cluster.getInstance()
-         .getReplicatedMap(getSessionAttributeMapName(sessionId));
-      SESSION_ATTRIBUTE_MAPS.put(sessionId, map);
-      return map;
-   }
-
-   private static void destroySessionAttributeMap(String sessionId) {
-      DistributedMap<String, Object> map = SESSION_ATTRIBUTE_MAPS.remove(sessionId);
-
-      if(map != null) {
-         Cluster.getInstance().getScheduledExecutor()
-            .scheduleWithId("destroy-map-" + sessionId,
-                            new DestroyMapTask(getSessionAttributeMapName(sessionId)),
-                            10, TimeUnit.MINUTES);
+      try {
+         destroyLegacySessionAttributeMaps();
+         sweepSessionAttributes(System.currentTimeMillis());
+      }
+      catch(RuntimeException e) {
+         LOG.warn("Failed to remove the attributes of ended sessions", e);
       }
    }
 
-   public static DistributedMap<String, Object> getSessionAttributeMap(String sessionId) {
-      // Single atomic get (not containsKey() + get()) -- the previous two-call sequence was a
-      // TOCTOU: a concurrent destroySessionAttributeMap() could remove the entry between the
-      // containsKey() check and the get(), spuriously falling through as if never cached
-      // (Bug #77306). DistributedMap values are never stored as null, so a non-null get() result
-      // is equivalent to "was present" without a second call.
-      DistributedMap<String, Object> cached = SESSION_ATTRIBUTE_MAPS.get(sessionId);
+   void sweepSessionAttributes(long currentTime) {
+      DistributedMap<SessionAttributeKey, Object> attributes = getSessionAttributes();
+      Map<String, Set<SessionAttributeKey>> sessionKeys = new HashMap<>();
 
-      if(cached != null) {
-         return cached;
+      for(SessionAttributeKey key : attributes.keySetWithoutValues()) {
+         sessionKeys.computeIfAbsent(key.getSessionId(), k -> new HashSet<>()).add(key);
       }
 
-      Cluster cluster = Cluster.getInstance();
+      Set<String> orphans = new HashSet<>();
 
-      if(cluster.mapExists(getSessionAttributeMapName(sessionId))) {
-         DistributedMap<String, Object> map = cluster
-            .getReplicatedMap(getSessionAttributeMapName(sessionId));
+      for(Map.Entry<String, Set<SessionAttributeKey>> entry : sessionKeys.entrySet()) {
+         String sessionId = entry.getKey();
 
-         if(cluster.getCache(DEFAULT_SESSION_MAP_NAME).containsKey(sessionId)) {
-            // computeIfAbsent() makes the "not yet cached -> cache it" transition atomic per key,
-            // closing the same-key TOCTOU between this cold path and a concurrent
-            // destroySessionAttributeMap()/another getSessionAttributeMap() caching the map first
-            // (Bug #77306). Only reached when the session is still known to exist -- preserve the
-            // pre-existing behavior of NOT caching (and just returning) the freshly-fetched map
-            // when the underlying session cache no longer contains this id.
-            DistributedMap<String, Object> fetched = map;
-            return SESSION_ATTRIBUTE_MAPS.computeIfAbsent(sessionId, id -> fetched);
+         if(sessions.containsKey(sessionId)) {
+            continue;
          }
 
-         return map;
+         Object created =
+            attributes.get(SessionAttributeMap.getKey(sessionId, SESSION_CREATED_KEY));
+
+         if(created instanceof Long time && currentTime - time < ORPHAN_GRACE_PERIOD) {
+            continue;
+         }
+
+         if(orphanSessionIds.contains(sessionId)) {
+            attributes.removeAll(entry.getValue());
+         }
+         else {
+            orphans.add(sessionId);
+         }
       }
 
-      return null;
+      orphanSessionIds.clear();
+      orphanSessionIds.addAll(orphans);
+   }
+
+   /**
+    * Destroys the per-session attribute caches that older versions created, in one partition map
+    * exchange per batch. The caches of sessions that are still in the sessions cache are kept.
+    */
+   private void destroyLegacySessionAttributeMaps() {
+      if(legacyMapsDestroyed) {
+         return;
+      }
+
+      List<String> names = cluster.getMapNames(LEGACY_SESSION_ATTRIBUTE_MAP).stream()
+         .filter(n -> !sessions.containsKey(n.substring(LEGACY_SESSION_ATTRIBUTE_MAP.length())))
+         .toList();
+
+      for(int i = 0; i < names.size(); i += LEGACY_DESTROY_BATCH_SIZE) {
+         cluster.destroyReplicatedMaps(
+            names.subList(i, Math.min(names.size(), i + LEGACY_DESTROY_BATCH_SIZE)));
+      }
+
+      if(!names.isEmpty()) {
+         LOG.info("Destroyed {} session attribute caches of an older version", names.size());
+      }
+
+      legacyMapsDestroyed = true;
+   }
+
+   /**
+    * Gets the cache that holds the attributes of all sessions. It is one cache for all sessions,
+    * so that creating or ending a session does not start or destroy a cache, which is a
+    * cluster-wide partition map exchange (Bug #78108).
+    */
+   private static DistributedMap<SessionAttributeKey, Object> getSessionAttributes() {
+      Cluster cluster = Cluster.getInstance();
+      SessionAttributes attributes = sessionAttributes;
+
+      if(attributes == null || attributes.cluster != cluster) {
+         attributes = new SessionAttributes(cluster, cluster.getReplicatedMap(SESSION_ATTRIBUTES));
+         sessionAttributes = attributes;
+      }
+
+      return attributes.map;
+   }
+
+   private static void createSessionAttributes(String sessionId) {
+      getSessionAttributes().put(
+         SessionAttributeMap.getKey(sessionId, SESSION_CREATED_KEY), System.currentTimeMillis());
+   }
+
+   /**
+    * Schedules the removal of a session's attributes. They are kept for 10 minutes after the
+    * session ends, so that the consumers of the session's expired and deleted events can still
+    * read them (Bug #77178).
+    */
+   private static void purgeSessionAttributesLater(String sessionId) {
+      if(getSessionAttributeMap(sessionId) != null) {
+         Cluster.getInstance().getScheduledExecutor()
+            .scheduleWithId("destroy-map-" + sessionId,
+                            new PurgeSessionAttributesTask(sessionId), 10, TimeUnit.MINUTES);
+      }
+   }
+
+   /**
+    * Removes the attributes of a session, including its marker.
+    */
+   static void purgeSessionAttributes(String sessionId) {
+      DistributedMap<SessionAttributeKey, Object> attributes = getSessionAttributes();
+      attributes.removeAll(attributes.keySetByAffinityKey(sessionId));
+   }
+
+   /**
+    * Gets the attributes of a session.
+    *
+    * @param sessionId the session ID.
+    *
+    * @return the attributes, or {@code null} if the session is unknown or its attributes have
+    *         been removed.
+    */
+   public static DistributedMap<String, Object> getSessionAttributeMap(String sessionId) {
+      if(sessionId == null) {
+         return null;
+      }
+
+      DistributedMap<SessionAttributeKey, Object> attributes = getSessionAttributes();
+
+      if(!attributes.containsKey(SessionAttributeMap.getKey(sessionId, SESSION_CREATED_KEY))) {
+         return null;
+      }
+
+      return new SessionAttributeMap(attributes, sessionId);
    }
 
    private String sessionMapName = DEFAULT_SESSION_MAP_NAME;
@@ -647,6 +783,8 @@ public class IgniteSessionRepository
    private final AuthenticationService authenticationService;
    private final NodeProtectionService nodeProtectionService;
    private final Set<String> loggingOutSessions = ConcurrentHashMap.newKeySet();
+   private final Set<String> orphanSessionIds = new HashSet<>();
+   private boolean legacyMapsDestroyed;
 
    public static final String DEFAULT_SESSION_MAP_NAME = "spring.session.sessions";
    private static final Logger LOG = LoggerFactory.getLogger(IgniteSessionRepository.class);
@@ -657,18 +795,17 @@ public class IgniteSessionRepository
    private static final int PROTECTION_EXPIRATION_WARNING_INTERVAL = 120000; // 2 minutes, how often to warn about protection expiring
    private static final String EXPIRING_SOON_ATTR = IgniteSessionRepository.class.getName() + ".expiringSoon";
    private static final String LAST_PROTECTION_WARNING_TIME_ATTR = IgniteSessionRepository.class.getName() + ".lastProtectionWarningTime";
-   // ConcurrentHashMap, not HashMap -- this map is shared by every HTTP session on the node and
-   // mutated concurrently from at least three independent thread contexts (request threads via
-   // createSessionAttributeMap()/getSessionAttributeMap()'s cold-path put, the single-threaded
-   // Ignite cache-event listener executor via destroySessionAttributeMap(), and the
-   // @Scheduled(fixedRate = 20000) checkSessions() thread's cold-path put for every session
-   // cluster-wide). Concurrent put/remove on a plain HashMap can corrupt its internal structure
-   // badly enough to spuriously null out (or lose) an entirely unrelated key, with the damage
-   // persisting for the life of the map -- this was the root cause of Bug #77306 (a sibling
-   // session's own PRINCIPAL_COOKIE attribute intermittently reading back null, producing a
-   // spurious HTTP 403 on an unrelated, still-active session).
-   private static final Map<String, DistributedMap<String, Object>> SESSION_ATTRIBUTE_MAPS = new ConcurrentHashMap<>();
-   private static final String SESSION_ATTRIBUTE_MAP = IgniteSessionRepository.class.getName() + ".sessionAttributeMap.";
+   // One cache holds the attributes of all sessions, keyed by SessionAttributeKey (Bug #78108)
+   private static final String SESSION_ATTRIBUTES =
+      IgniteSessionRepository.class.getName() + ".sessionAttributes";
+   // the key of the marker that a session's attributes exist, holding the time it was created
+   static final String SESSION_CREATED_KEY = IgniteSessionRepository.class.getName() + ".created";
+   // the name prefix of the per-session attribute caches of older versions
+   private static final String LEGACY_SESSION_ATTRIBUTE_MAP =
+      IgniteSessionRepository.class.getName() + ".sessionAttributeMap.";
+   private static final int LEGACY_DESTROY_BATCH_SIZE = 500;
+   private static final long ORPHAN_GRACE_PERIOD = TimeUnit.HOURS.toMillis(1);
+   private static volatile SessionAttributes sessionAttributes;
 
    public final class IgniteSession implements Session {
       IgniteSession(MapSession cached, boolean isNew) {
@@ -698,13 +835,21 @@ public class IgniteSessionRepository
          this.delegate.setId(newSessionId);
          this.sessionIdChanged = true;
 
-         DistributedMap<String, Object> newMap = getSessionAttributeMap(newSessionId);
          DistributedMap<String, Object> oldMap = getSessionAttributeMap(oldSessionId);
 
          // could be out of sync due to session expiration, need to check for null (Bug #77306)
          if(oldMap != null) {
-            for(Map.Entry<String, Object> entry : oldMap.entrySet()) {
-               newMap.put(entry.getKey(), entry.getValue());
+            createSessionAttributes(newSessionId);
+            DistributedMap<String, Object> newMap = getSessionAttributeMap(newSessionId);
+
+            if(newMap != null) {
+               Map<String, Object> entries = new HashMap<>();
+
+               for(Map.Entry<String, Object> entry : oldMap.entrySet()) {
+                  entries.put(entry.getKey(), entry.getValue());
+               }
+
+               newMap.putAll(entries);
             }
          }
 
@@ -854,6 +999,39 @@ public class IgniteSessionRepository
       private static final String ATTR_PREFIX = "IgniteSession.ATTR.";
    }
 
+   private static final class SessionAttributes {
+      SessionAttributes(Cluster cluster, DistributedMap<SessionAttributeKey, Object> map) {
+         this.cluster = cluster;
+         this.map = map;
+      }
+
+      private final Cluster cluster;
+      private final DistributedMap<SessionAttributeKey, Object> map;
+   }
+
+   /**
+    * Removes the attributes of a session that has ended, unless the session is in the sessions
+    * cache again.
+    */
+   private static final class PurgeSessionAttributesTask implements Runnable, Serializable {
+      PurgeSessionAttributesTask(String sessionId) {
+         this.sessionId = sessionId;
+      }
+
+      @Override
+      public void run() {
+         Cluster cluster = ConfigurationContext.getContext().getSpringBean(Cluster.class);
+
+         if(!cluster.getCache(DEFAULT_SESSION_MAP_NAME).containsKey(sessionId)) {
+            purgeSessionAttributes(sessionId);
+         }
+      }
+
+      private final String sessionId;
+   }
+
+   // Destroys the per-session attribute cache of an older version. Kept so that such a task that
+   // is still in the scheduler can be read.
    private final static class DestroyMapTask implements Runnable, Serializable {
       public DestroyMapTask(String name) {
          this.name = name;

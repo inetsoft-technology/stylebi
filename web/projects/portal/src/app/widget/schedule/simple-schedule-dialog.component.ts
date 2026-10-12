@@ -33,6 +33,7 @@ import {
    TimeConditionModel,
    TimeConditionType
 } from "../../../../../shared/schedule/model/time-condition-model";
+import { getTimeZoneOffset } from "../../../../../shared/schedule/time-zone-offset";
 import { TimeZoneService } from "../../../../../shared/schedule/time-zone.service";
 import { Tool } from "../../../../../shared/util/tool";
 import { ComponentTool } from "../../common/util/component-tool";
@@ -654,12 +655,11 @@ export class SimpleScheduleDialog implements OnInit, OnDestroy {
          this.model.actionModel.emailInfoModel.csvConfigModel.selectedAssemblies.length == 0;
    }
 
+   /**
+    * Returns UTC minus the time zone, in milliseconds.
+    */
    private getTimezoneOffset(timeZoneId: string): number {
-      let date = new Date();
-      const UTC = new Date(date.toLocaleString([], { timeZone: "UTC" }));
-      const selectedTZ = new Date(date.toLocaleString([], { timeZone: timeZoneId }));
-
-      return (UTC.getTime() - selectedTZ.getTime());
+      return -getTimeZoneOffset(timeZoneId) || 0;
    }
 
    ngOnDestroy(): void {

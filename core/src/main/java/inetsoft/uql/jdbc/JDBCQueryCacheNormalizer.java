@@ -20,10 +20,13 @@ package inetsoft.uql.jdbc;
 import inetsoft.report.TableLens;
 import inetsoft.report.filter.ColumnMapFilter;
 import inetsoft.uql.path.XSelection;
+import inetsoft.uql.util.SQLQuoteScanner;
 import inetsoft.uql.util.XUtil;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.Arrays;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Transforms the jdbc sql query such that it hits the cache more often
@@ -62,7 +65,7 @@ public class JDBCQueryCacheNormalizer {
       String sqlString = usql.sqlstring;
       Object[] orderByFields = usql.getOrderByFields();
 
-      if(noneContainsSortByDistinctSql(usql)) {
+      if(noneContainsSortByDistinctSql(usql) || hasPositionalReference(usql)) {
          return false;
       }
 
@@ -90,15 +93,33 @@ public class JDBCQueryCacheNormalizer {
          return true;
       }
 
-      sqlString = sqlString.toLowerCase();
-      boolean hasMaxRow = sqlString.indexOf(" top ") != -1 || sqlString.indexOf(" limit ") != -1 ||
-         sqlString.indexOf(" fetch first ") != -1 || sqlString.indexOf(" rownum < ") != -1;
-
-      if(usql.isParseSQL() && hasMaxRow) {
+      if(usql.isParseSQL() && hasMaxRow(sqlString)) {
          return false;
       }
 
       return usql.getParseResult() != UniformSQL.PARSE_FAILED;
+   }
+
+   /**
+    * Check if the sql has a row limit keyword (top, limit, fetch first, rownum &lt;) as a
+    * whole word outside string literals and quoted names. A keyword in a literal or quoted
+    * name ('no limit set', "the top one") is not a row limit. (#77698)
+    */
+   static boolean hasMaxRow(String sql) {
+      Matcher matcher = MAX_ROW_KEYWORD.matcher(sql);
+      boolean[] quoted = null;
+
+      while(matcher.find()) {
+         if(quoted == null) {
+            quoted = SQLQuoteScanner.findQuoted(sql);
+         }
+
+         if(!quoted[matcher.start()] && !quoted[matcher.end() - 1]) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    public boolean isClearedSqlString() {
@@ -138,6 +159,37 @@ public class JDBCQueryCacheNormalizer {
    }
 
    /**
+    * Check if the order by or group by of this query level refers to a select list column by
+    * its position, e.g. 'order by 1' or 'group by 1, 3'. The parser stores an order by ordinal
+    * as an Integer, while a query loaded from xml and a group by ordinal hold it as a String.
+    */
+   private static boolean hasPositionalReference(UniformSQL usql) {
+      return containsPositional(usql.getOrderByFields()) || containsPositional(usql.getGroupBy());
+   }
+
+   private static boolean containsPositional(Object[] fields) {
+      if(fields == null) {
+         return false;
+      }
+
+      for(Object field : fields) {
+         if(field instanceof Number) {
+            return true;
+         }
+
+         if(field instanceof String) {
+            String str = ((String) field).trim();
+
+            if(!str.isEmpty() && str.chars().allMatch(c -> c >= '0' && c <= '9')) {
+               return true;
+            }
+         }
+      }
+
+      return false;
+   }
+
+   /**
     * Returns an index mapping that can be used to transform a sql selection such that the
     * columns are sorted.
     * <p>
@@ -148,12 +200,31 @@ public class JDBCQueryCacheNormalizer {
     * in order to transform it into a sql that looks like this 'select a, b, c from ...'
     */
    public static int[] generateSortedColumnMap(UniformSQL usql) {
+      // an ordinal in order by or group by refers to a select list position, so sorting the
+      // select list would change what it refers to. Checked ahead of the sorted hint, which may
+      // be stale or inherited by a subquery from its parent. (Bug #77557)
+      if(hasPositionalReference(usql)) {
+         return null;
+      }
+
+      // a wildcard left in the select list (not expanded from the metadata) is one item for
+      // many result columns, so the map of the items doesn't fit the result (Bug #77617)
+      if(UniformSQL.hasWildcard(usql.getSelection())) {
+         return null;
+      }
+
       boolean noSortDistinct = noneContainsSortByDistinctSql(usql);
 
       if(!Boolean.TRUE.equals(usql.getHint(UniformSQL.HINT_SORTED_SQL, !noSortDistinct)) &&
          !isApplicable(usql) ||
          Boolean.TRUE.equals(usql.getHint(UniformSQL.HINT_WITHOUT_SORTED_SQL, !noSortDistinct)))
       {
+         return null;
+      }
+
+      // a parse-off sql string is sent as written: never clear it, and never sort its columns,
+      // since its selection may be stale and doesn't describe the sql. (Bug #77483)
+      if(!usql.isParseSQL() && usql.sqlstring != null) {
          return null;
       }
 
@@ -202,6 +273,13 @@ public class JDBCQueryCacheNormalizer {
 
       return map;
    }
+
+   // a row limit keyword as a whole word, in any case. A letter of any language, a digit,
+   // _, $ or # next to it makes it part of a name (credit_limit, a non-ascii name)
+   private static final Pattern MAX_ROW_KEYWORD = Pattern.compile(
+      "(?<![\\p{L}\\p{M}\\p{N}_$#])(top|limit|fetch\\s+first)(?![\\p{L}\\p{M}\\p{N}_$#])|" +
+      "(?<![\\p{L}\\p{M}\\p{N}_$#])rownum\\s*<",
+      Pattern.CASE_INSENSITIVE);
 
    private JDBCQuery query;
    private int[] sortedColumnMap;

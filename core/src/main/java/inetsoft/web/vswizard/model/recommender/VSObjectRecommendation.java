@@ -66,8 +66,8 @@ public interface VSObjectRecommendation extends Serializable, XMLSerializable {
 
    public static VSObjectRecommendation createVSObjectRecommendation(Element elem) throws Exception {
       String cls = Tool.getAttribute(elem, "class");
-      VSObjectRecommendation info = (VSObjectRecommendation) VSObjectRecommendation.class.getClassLoader()
-         .loadClass(cls).getConstructor().newInstance();
+      VSObjectRecommendation info = (VSObjectRecommendation)
+         Tool.loadSubclass(cls, VSObjectRecommendation.class).getConstructor().newInstance();
       info.parseXML(elem);
 
       return info;

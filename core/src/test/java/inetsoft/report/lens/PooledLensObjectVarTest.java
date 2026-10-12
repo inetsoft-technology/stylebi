@@ -243,7 +243,11 @@ class PooledLensObjectVarTest {
       String var = what.equals("function") ? "\"f\" holds a function"
          : "\"fmt\" holds an Intl.NumberFormat object";
       assertTrue(warns.get(0).contains(var), warns.get(0));
-      assertFalse(warns.get(0).contains("\"t\""), warns.get(0));
+      assertFalse(warns.get(0).contains("\"t\" holds"), warns.get(0));
+      // a function hides references (its closure): the kept t, an object, is named as a copy;
+      // an Intl formatter hides none, so nothing is named
+      assertEquals(what.equals("function") ? List.of("t") : List.of(),
+                   PooledLensHiddenAliasTest.copiesIn(warns.get(0)), warns.get(0));
    }
 
    /**
@@ -490,6 +494,43 @@ class PooledLensObjectVarTest {
    }
 
    /**
+    * As {@link #anObjectOverTheBudgetStaysOnItsOuterSpan} for the marking budget (post-merge
+    * review M1): a var holding a function next to a large array is lost for its function, and
+    * marking its graph for objects shared with the small var m runs past the marking budget
+    * (four entry caps), which loses m to the budget. That keeps the table's objects live on
+    * the outer span's context: every row exact, the function callable, no warning. Past the
+    * budget as a long array (refused before its keys are listed) or as many small objects.
+    */
+   @ParameterizedTest(name = "{0}")
+   @ValueSource(strings = { "array", "objects" })
+   void aVarPastTheMarkingBudgetStaysOnItsOuterSpan(String shape) throws Exception {
+      SreeEnv.setProperty(HAND_OFF_ENTRIES, "100");
+      int rows = 1000;
+      AssetQuerySandbox box = box();
+      WorksheetScriptEnv w = (WorksheetScriptEnv) box.getScriptEnv();
+      TableLens t = make(box, base(rows), "var b = b || {f: function(x) { return x; }, " +
+         "a: (function() { var x = []; for(var i = 0; i < " +
+         (shape.equals("array") ? "500; i++) x[i] = i; " : "150; i++) x[i] = {v: i, w: i}; ") +
+         "return x; })()}; var m = m || {cnt: 0}; m.cnt++; b.f(m.cnt)", "T");
+      double[] v = new double[rows + 1];
+
+      try(ScriptSpan all = w.openSpan()) {
+         assertEquals(2, ((Number) w.exec(w.compile("1 + 1"), null, null, null)).intValue());
+
+         for(int s = 1; s <= rows; s += 100) {
+            try(ScriptSpan page = w.openSpan()) {
+               assertEquals(2, ((Number) w.exec(w.compile("1 + 1"), null, null, null))
+                  .intValue());
+               read(t, v, s, s + 99);
+            }
+         }
+      }
+
+      assertAll(v, "past the marking budget (" + shape + ")");
+      assertTrue(warnings().isEmpty(), () -> "no warning: " + warningTexts());
+   }
+
+   /**
     * A6: a hand-off of a million-entry array stops at the entry cap: bounded, the var is lost
     * with one warning, and a second reader waits no longer than the hand-off. The hand-off
     * and the reader race for the idle home: if the reader takes it first, nothing is handed
@@ -552,9 +593,24 @@ class PooledLensObjectVarTest {
          }
          else {
             assertEquals(1, count, "one home");
+            // the reader may have computed rows 21..40 on the home, the array still kept,
+            // before the hand-off took it idle: read on past the rows computed ahead
+            last = 200;
+            read(t, v, 41, last);
          }
 
-         assertEquals(2.0, v[last], "the lost array was started again");
+         // kept (1) up to the loss, then started again (2), never kept after it
+         int lostAt = 21;
+
+         while(lostAt <= last && v[lostAt] == 1.0) {
+            lostAt++;
+         }
+
+         for(int r = lostAt; r <= last; r++) {
+            assertEquals(2.0, v[r], "the lost array was started again: row " + r);
+         }
+
+         assertTrue(lostAt <= last, "the lost array was started again by row " + last);
          List<String> warns = warningTexts();
          assertEquals(1, warns.size(), () -> "one warning: " + warns);
          assertTrue(warns.get(0).contains("\"a\" holds a value with more than"), warns.get(0));
@@ -836,20 +892,13 @@ class PooledLensObjectVarTest {
       read(t, v, 1, 200);
       assertAll(v, 200, "before");
       assertNotNull(home[0]);
-      ExecutorService ex = Executors.newSingleThreadExecutor();
+      Runnable release = PoolTestSupport.holdElsewhere(home[0]);
 
       try {
-         Runnable release = PoolTestSupport.holdElsewhere(home[0], ex);
-
-         try {
-            read(t, v, 201, ROWS);
-         }
-         finally {
-            release.run();
-         }
+         read(t, v, 201, ROWS);
       }
       finally {
-         ex.shutdownNow();
+         release.run();
       }
 
       // the rows of that batch are exact; the next batch's a starts over, never stale

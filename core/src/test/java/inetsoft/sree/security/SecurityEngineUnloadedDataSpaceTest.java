@@ -111,6 +111,11 @@ class SecurityEngineUnloadedDataSpaceTest {
       // load it
       AnnotationConfigApplicationContext node = new AnnotationConfigApplicationContext();
       Exception thrown = null;
+      // Bug #77656: the chains of this test's context still get the change events of its startup
+      // load, and they get the data space from the current context. While the node is the
+      // current context, each event created the node's data space again and added loads. Remove
+      // the chains before the node becomes the current context.
+      engine.getSecurityProvider().tearDown();
 
       try {
          new ConfigurationContextInitializer().initialize(node);

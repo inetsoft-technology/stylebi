@@ -230,6 +230,11 @@ class SecurityServiceRenameSelfGrantIntegrationTest {
       IdentityID r = new IdentityID("r", ORG_ID);
       IdentityID r3 = new IdentityID("r3", ORG_ID);
       selfGrant(ResourceType.SECURITY_ROLE, r, Identity.ROLE);
+      // the REST role GET reads the ASSIGN grantees of a non-root role, which is the action the PUT
+      // writes (Bug #77868), so the self grant is also seeded as ASSIGN for the GET to return it
+      Permission seeded = chain.getPermission(ResourceType.SECURITY_ROLE, r, ORG_ID);
+      seeded.setRoleGrantsForOrg(ResourceAction.ASSIGN, Set.of(r.name), ORG_ID);
+      chain.setPermission(ResourceType.SECURITY_ROLE, r, seeded, ORG_ID);
 
       SecurityRole body = OrganizationManager.runInOrgScope(
          ORG_ID, () -> service.getRole(r, siteAdmin));

@@ -328,7 +328,7 @@ public class TimeEvent implements XMLSerializable {
    }
 
    private static final SimpleDateFormat df =
-      new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
+      Tool.createGregorianDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
    private String eventClassName;
    private String pid;
    private Date startTime;

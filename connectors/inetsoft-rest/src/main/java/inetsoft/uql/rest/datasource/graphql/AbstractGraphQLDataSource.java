@@ -32,12 +32,14 @@ import inetsoft.util.credential.CredentialType;
       vertical = true,
       colspan = 2,
       elements = {
-         @View2(value = "clientId", visibleMethod = "useCredentialForOauth"),
-         @View2(value = "clientSecret", visibleMethod = "useCredentialForOauth"),
+         @View2(value = "clientId", visibleMethod = "useCredentialForOauthClient"),
+         @View2(value = "clientSecret", visibleMethod = "useCredentialForOauthClient"),
          @View2(value = "authorizationUri", visibleMethod = "useCredentialForOauth"),
-         @View2(value = "tokenUri", visibleMethod = "useCredentialForOauth"),
-         @View2(value = "scope", visibleMethod = "useCredentialForOauth"),
+         @View2(value = "tokenUri", visibleMethod = "useCredentialForOauthClient"),
+         @View2(value = "scope", visibleMethod = "useCredentialForOauthClient"),
          @View2(value = "oauthFlags", visibleMethod = "useCredentialForOauth"),
+         @View2(value = "clientAuthMethod", visibleMethod = "isOauthClientCredentials"),
+         @View2(value = "audience", visibleMethod = "isOauthClientCredentials"),
          @View2(
             type = ViewType.BUTTON,
             text = "Authorize",

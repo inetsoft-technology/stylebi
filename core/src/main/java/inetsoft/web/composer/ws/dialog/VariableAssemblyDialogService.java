@@ -174,6 +174,8 @@ public class VariableAssemblyDialogService extends WorksheetControllerService {
       RuntimeWorksheet rws = super.getRuntimeWorksheet(runtimeId, principal);
       AssetQuerySandbox box = rws.getAssetQuerySandbox();
       Worksheet ws = rws.getWorksheet();
+      checkCubeTableReadPermission(
+         principal, model.getVariableTableListDialogModel().getTableName());
       VariableAssembly assembly = model
          .getOldName() == null ? null : (VariableAssembly) ws
          .getAssembly(model.getOldName());

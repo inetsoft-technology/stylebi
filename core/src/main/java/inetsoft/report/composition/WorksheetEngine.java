@@ -667,7 +667,24 @@ public abstract class WorksheetEngine extends SheetLibraryEngine implements Work
                                        ownerName, unameName), LogLevel.WARN, false);
       }
 
-      ((AbstractAssetEngine) engine).setSheet(entry, sheet, user, force, true, updateDependency);
+      if(!(sheet instanceof Worksheet)) {
+         ((AbstractAssetEngine) engine).setSheet(entry, sheet, user, force, true, updateDependency);
+         return;
+      }
+
+      // write the snapshot data before the worksheet is stored, so that a failed write
+      // fails the save instead of storing the worksheet without its data (bug #77986)
+      Worksheet ws = (Worksheet) sheet;
+      boolean saved = false;
+
+      try {
+         SnapshotEmbeddedTableAssembly.writeDataFilesForSave(ws);
+         ((AbstractAssetEngine) engine).setSheet(entry, sheet, user, force, true, updateDependency);
+         saved = true;
+      }
+      finally {
+         SnapshotEmbeddedTableAssembly.finishSave(ws, saved, engine, entry);
+      }
    }
 
    /**
@@ -1280,6 +1297,21 @@ public abstract class WorksheetEngine extends SheetLibraryEngine implements Work
     */
    public static WorksheetService getWorksheetService() {
       return ConfigurationContext.getContext().getSpringBean(WorksheetService.class);
+   }
+
+   /**
+    * Get the data paths named by every currently open runtime worksheet/viewsheet session,
+    * cluster-wide. Used by the orphaned permanent snapshot file cleanup (bug #78035) as a
+    * "referenced by a live session" signal, additive to its stored-content scan.
+    *
+    * <p>Deliberately narrower than exposing the backing {@link RuntimeSheetCache} itself: that
+    * cache is a live, mutable {@code Map<String, RuntimeSheet>} view of every open session
+    * cluster-wide, and handing it out widens what any caller reachable from a
+    * {@code WorksheetEngine}/{@code ViewsheetService} reference can do (e.g. evict another
+    * user's open session) well beyond what this cleanup, or anything else today, actually needs.
+    */
+   public Set<String> getOpenWorksheetDataPaths() {
+      return amap.getOpenWorksheetDataPaths();
    }
 
    /**

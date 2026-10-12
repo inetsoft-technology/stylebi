@@ -508,14 +508,19 @@ class GenericLdapAuthenticationProviderTest {
       SSLSession expiredSession = mock(SSLSession.class);
       when(expiredSession.isValid()).thenReturn(false);
 
-      // Mock a LdapContext that also implements the package-private StartTlsContext interface
-      LdapContext tlsContext = mock(
-         LdapContext.class,
-         withSettings().extraInterfaces(GenericLdapAuthenticationProvider.StartTlsContext.class));
-      when(((GenericLdapAuthenticationProvider.StartTlsContext) tlsContext).getSslSession())
-         .thenReturn(expiredSession);
+      // Mock a same-package type that implements both interfaces. extraInterfaces() can't add the
+      // package-private StartTlsContext, because the mock class would be defined in a different
+      // class loader than the one that loaded StartTlsContext.
+      TlsLdapContext tlsContext = mock(TlsLdapContext.class);
+      when(tlsContext.getSslSession()).thenReturn(expiredSession);
 
       assertFalse(provider.testContext(tlsContext));
+      verify(tlsContext).getSslSession();
+   }
+
+   abstract static class TlsLdapContext
+      implements LdapContext, GenericLdapAuthenticationProvider.StartTlsContext
+   {
    }
 
    @Test

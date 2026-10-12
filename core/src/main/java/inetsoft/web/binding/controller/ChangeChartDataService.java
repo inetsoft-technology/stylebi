@@ -91,7 +91,7 @@ public class ChangeChartDataService {
       BindingModel obinding = bindingFactory.createModel(assembly);
       ChartVSAssembly clone = (ChartVSAssembly) assembly.clone();
       ChartBindingModel cmodel = event.getModel();
-      clone = (ChartVSAssembly) bindingFactory.updateAssembly(cmodel, clone);
+      clone = (ChartVSAssembly) bindingFactory.updateAssembly(cmodel, clone, principal);
       ChartVSAssemblyInfo ninfo = clone.getChartInfo();
       vs = assembly.getViewsheet();
       String table = assembly.getTableName();

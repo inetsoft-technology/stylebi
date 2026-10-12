@@ -107,10 +107,11 @@ public class VSCheckFormDataService {
 
    /**
     * Check if any form table in the viewsheet has edits (added, changed or deleted rows)
-    * that have not been submitted or written back yet.
+    * that have not been submitted or written back yet. Only the form tables already built are
+    * checked, a form table that isn't built has no edits, so the check never runs a query,
+    * e.g. on every update tick (#78244).
     */
    static boolean hasPendingFormEdits(Viewsheet viewsheet, ViewsheetSandbox box)
-      throws Exception
    {
       // include the form tables in embedded viewsheets
       Assembly[] assemblies = viewsheet.getAssemblies(true);
@@ -122,9 +123,8 @@ public class VSCheckFormDataService {
       // Go through each table,
       for(int i = 0; i < assemblies.length; i++) {
          String assemblyName = assemblies[i].getAbsoluteName();
-         FormTableLens lens = box.getFormTableLens(assemblyName);
+         FormTableLens lens = box.getCachedFormTableLens(assemblyName);
 
-         // could be cancelled
          if(lens != null) {
             // and accumulate the writeback edits which are pending,
             added += lens.rows(FormTableRow.ADDED).length;

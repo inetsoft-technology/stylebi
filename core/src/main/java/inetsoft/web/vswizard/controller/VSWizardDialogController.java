@@ -21,6 +21,7 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.sree.security.*;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.util.Catalog;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.*;
@@ -39,13 +40,15 @@ public class VSWizardDialogController {
                                    RuntimeViewsheetManager runtimeViewsheetManager,
                                    RuntimeViewsheetRef runtimeViewsheetRef,
                                    VSWizardDialogServiceProxy vsWizardDialogServiceProxy,
-                                   SecurityEngine securityEngine)
+                                   SecurityEngine securityEngine,
+                                   QueryManagerService queryManagerService)
    {
       this.viewsheetService = viewsheetService;
       this.runtimeViewsheetManager = runtimeViewsheetManager;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.vsWizardDialogServiceProxy = vsWizardDialogServiceProxy;
       this.securityEngine = securityEngine;
+      this.queryManagerService = queryManagerService;
    }
 
    @LoadingMask(watchdogTimeout = 0)
@@ -63,6 +66,9 @@ public class VSWizardDialogController {
             "composer.authorization.permissionDenied"));
       }
 
+      // the base source of the new viewsheet is newly bound (Bug #77400)
+      queryManagerService.checkViewsheetBaseEntryPermission(
+         event.getEntry(), viewsheetService.getAssetRepository(), principal);
       String runtimeId = viewsheetService.openTemporaryViewsheet(event.getEntry(), principal);
       vsWizardDialogServiceProxy.createRuntimeSheet(runtimeId, linkUri, dispatcher, principal);
 
@@ -113,5 +119,6 @@ public class VSWizardDialogController {
    private final VSWizardDialogServiceProxy vsWizardDialogServiceProxy;
    private final RuntimeViewsheetManager runtimeViewsheetManager;
    private final ViewsheetService viewsheetService;
+   private final QueryManagerService queryManagerService;
 
 }

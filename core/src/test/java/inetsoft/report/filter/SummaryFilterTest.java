@@ -22,6 +22,8 @@ import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
 import inetsoft.uql.*;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.util.swap.SwapFileReadException;
+import inetsoft.util.swap.SwapLostTestSupport.LostTable;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -33,6 +35,8 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Date;
+
+import static inetsoft.util.swap.SwapLostTestSupport.*;
 
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -493,5 +497,103 @@ public class SummaryFilterTest {
    private Date date(String date) {
       return new Date(LocalDate.parse(date).atStartOfDay()
                          .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli());
+   }
+
+   /**
+    * A lost swap file of the base fails the read of the summary on its worker, it is never a
+    * summary of the rows read before the failure (bug #77651).
+    */
+   @Test
+   public void lostSwapFileOfTheBaseFailsTheRead() throws Exception {
+      SwapFileReadException lost = swapLost();
+      SummaryFilter summary = summary(new LostTable(values(40), 21, lost));
+
+      assertSwapOf(lost, swapIn(failureOf(15, () -> drain(summary))));
+   }
+
+   /**
+    * A wrapped lost swap file is found in the cause chain.
+    */
+   @Test
+   public void wrappedLostSwapFileOfTheBaseFailsTheRead() throws Exception {
+      SwapFileReadException lost = swapLost();
+      SummaryFilter summary =
+         summary(new LostTable(values(40), 21, new RuntimeException("wrapped", lost)));
+
+      assertSwapOf(lost, swapIn(failureOf(15, () -> drain(summary))));
+   }
+
+   /**
+    * A pass that completed because a cancel already ended the rows of its base (a query
+    * manager cancels the lenses below the summary first) is cut short: the cancel of the
+    * summary that follows stays a cancel (bug #78200).
+    */
+   @Test
+   public void cancelAfterACancelledBaseEndedThePassIsACancel() {
+      CancelledBase base = new CancelledBase(values(10));
+      base.cancel();
+      SummaryFilter summary = new SummaryFilter(new SortFilter(base, new int[] { 0 }),
+                                                new int[] { 0 }, new int[] { 1 },
+                                                new SumFormula(), new SumFormula());
+      drain(summary);
+
+      summary.cancel();
+      Assertions.assertTrue(summary.isCancelled(), "the cut-short summary is not cancelled");
+   }
+
+   /**
+    * The control: a cancel after the pass completed over a whole base is no cancel.
+    */
+   @Test
+   public void cancelAfterThePassCompletedOverAWholeBaseIsNoCancel() {
+      CancelledBase base = new CancelledBase(values(10));
+      SummaryFilter summary = new SummaryFilter(new SortFilter(base, new int[] { 0 }),
+                                                new int[] { 0 }, new int[] { 1 },
+                                                new SumFormula(), new SumFormula());
+      drain(summary);
+
+      summary.cancel();
+      Assertions.assertFalse(summary.isCancelled(), "the complete summary is cancelled");
+   }
+
+   /** A base whose cancel is recorded, as a query result whose rows a cancel ended. */
+   private static final class CancelledBase extends DefaultTableLens
+      implements inetsoft.report.internal.table.CancellableTableLens
+   {
+      CancelledBase(Object[][] data) {
+         super(data);
+      }
+
+      @Override
+      public void cancel() {
+         cancelled = true;
+      }
+
+      @Override
+      public boolean isCancelled() {
+         return cancelled;
+      }
+
+      private volatile boolean cancelled;
+   }
+
+   private static SummaryFilter summary(DefaultTableLens base) {
+      return new SummaryFilter(base, new int[] { 0 }, new int[] { 1 }, new SumFormula(),
+                               new SumFormula());
+   }
+
+   /**
+    * {@code rows} rows of {@code key, value}, key {@code k(i % 3)} and value {@code i} for
+    * row {@code i}.
+    */
+   private static Object[][] values(int rows) {
+      Object[][] data = new Object[rows + 1][];
+      data[0] = new Object[] { "key", "value" };
+
+      for(int r = 1; r <= rows; r++) {
+         data[r] = new Object[] { "k" + (r % 3), r };
+      }
+
+      return data;
    }
 }

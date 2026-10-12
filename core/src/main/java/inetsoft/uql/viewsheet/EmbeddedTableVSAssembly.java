@@ -208,7 +208,8 @@ public class EmbeddedTableVSAssembly extends TableVSAssembly {
             }
 
             String dtype = nref != null ? nref.getDataType() : XSchema.STRING;
-            Object obj = Tool.getData(dtype, val);
+            // a date saved before #77605 may have a Buddhist or Japanese year
+            Object obj = Tool.getPersistentData(dtype, val, false);
             dmap.put(ref, obj);
          }
       }

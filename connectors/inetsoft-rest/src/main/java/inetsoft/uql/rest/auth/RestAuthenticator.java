@@ -33,4 +33,15 @@ public interface RestAuthenticator {
    default boolean writesQueryParameters() {
       return false;
    }
+
+   /**
+    * Called when the server rejected a request authenticated by this authenticator with a
+    * 401 Unauthorized response.
+    *
+    * @return true if the credentials were discarded so that authenticating the request again
+    *         uses new ones, in which case the request is retried once.
+    */
+   default boolean credentialsRejected() throws InterruptedException {
+      return false;
+   }
 }

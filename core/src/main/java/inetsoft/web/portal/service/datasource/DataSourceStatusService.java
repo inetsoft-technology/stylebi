@@ -19,10 +19,14 @@
 package inetsoft.web.portal.service.datasource;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.security.*;
+import inetsoft.uql.AdditionalConnectionDataSource;
 import inetsoft.uql.XDataSource;
 import inetsoft.uql.XRepository;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.util.*;
 import inetsoft.util.log.LogContext;
+import inetsoft.web.admin.content.repository.ResourcePermissionService;
 import inetsoft.web.portal.data.DataSourceConnectionStatusRequest;
 import inetsoft.web.portal.data.DataSourceStatus;
 import org.slf4j.*;
@@ -38,8 +42,12 @@ import java.util.*;
 @Service
 public class DataSourceStatusService {
    @Autowired
-   public DataSourceStatusService(XRepository repository) {
+   public DataSourceStatusService(XRepository repository, SecurityEngine securityEngine,
+                                  DataSourceRegistry dataSourceRegistry)
+   {
       this.repository = repository;
+      this.securityEngine = securityEngine;
+      this.dataSourceRegistry = dataSourceRegistry;
    }
 
    public List<DataSourceStatus> getDataSourceConnectionStatuses(
@@ -53,6 +61,18 @@ public class DataSourceStatusService {
       for(int i = 0; i < paths.size(); i++) {
          final int idx = i;
 
+         // Bug #77429, an unreadable data source gets no status (a null entry), the same as
+         // one that does not exist, so it is neither tested nor saved. Bug #78249, an
+         // additional connection path P/add is checked as P::add.
+         if(!securityEngine.checkPermission(
+            principal, ResourceType.DATA_SOURCE,
+            ResourcePermissionService.getDataSourcePermissionName(
+               paths.get(idx), dataSourceRegistry),
+            ResourceAction.READ))
+         {
+            continue;
+         }
+
          final Thread thread = new GroupedThread(() -> {
             XDataSource.Status status = null;
             LogContext.setUser(ThreadContext.getContextPrincipal());
@@ -60,6 +80,9 @@ public class DataSourceStatusService {
 
             try {
                status = getDataSourceConnectionStatus(paths.get(idx), request.updateStatus());
+            }
+            catch(FileNotFoundException ex) {
+               status = null;
             }
             catch(Exception ex) {
                String errorMessage = ex.getMessage() == null ? "" : ex.getMessage().toLowerCase();
@@ -81,7 +104,11 @@ public class DataSourceStatusService {
       // save all data sources with the new status once all of them have finished the checks
       if(request.updateStatus()) {
          for(int i = 0; i < paths.size(); i++) {
-            XDataSource dataSource = repository.getDataSource(paths.get(i));
+            if(statuses[i] == null) {
+               continue;
+            }
+
+            XDataSource dataSource = getDataSource(paths.get(i));
 
             if(dataSource != null) {
                dataSource.setStatus(statuses[i]);
@@ -99,7 +126,7 @@ public class DataSourceStatusService {
    public XDataSource.Status getDataSourceConnectionStatus(String path, boolean updateStatus)
       throws Exception
    {
-      XDataSource dataSource = repository.getDataSource(path);
+      XDataSource dataSource = getDataSource(path);
 
       if(dataSource == null) {
          throw new FileNotFoundException(path);
@@ -110,6 +137,31 @@ public class DataSourceStatusService {
       }
 
       return dataSource.getStatus();
+   }
+
+   /**
+    * Gets a data source by its path. If the path is that of an additional connection, e.g.
+    * {@code P/add}, its base data source is set, so that the additional connection is saved under
+    * its parent and not at the top level under its bare name (Bug #77672).
+    */
+   @SuppressWarnings({ "rawtypes", "unchecked" })
+   private XDataSource getDataSource(String path) throws Exception {
+      XDataSource dataSource = repository.getDataSource(path);
+
+      if(dataSource instanceof AdditionalConnectionDataSource additional &&
+         additional.getBaseDatasource() == null && path != null &&
+         !path.equals(dataSource.getFullName()) &&
+         path.endsWith("/" + dataSource.getFullName()))
+      {
+         String parentPath =
+            path.substring(0, path.length() - dataSource.getFullName().length() - 1);
+
+         if(repository.getDataSource(parentPath) instanceof AdditionalConnectionDataSource parent) {
+            additional.setBaseDatasource(parent);
+         }
+      }
+
+      return dataSource;
    }
 
    public void updateStatus(XDataSource dataSource) throws Exception {
@@ -145,7 +197,7 @@ public class DataSourceStatusService {
 
       Catalog catalog = Catalog.getCatalog(principal);
       String errorMessage = status.getErrorMessage();
-      SimpleDateFormat format = new SimpleDateFormat(SreeEnv.getProperty("format.date.time"));
+      SimpleDateFormat format = Tool.createGregorianDateFormat(SreeEnv.getProperty("format.date.time"));
       format.setTimeZone(TimeZone.getTimeZone(timeZone));
       String time = format.format(new Date(status.getLastUpdateTime()));
       String message;
@@ -188,5 +240,7 @@ public class DataSourceStatusService {
    }
 
    private final XRepository repository;
+   private final SecurityEngine securityEngine;
+   private final DataSourceRegistry dataSourceRegistry;
    private static final Logger LOG = LoggerFactory.getLogger(DataSourceStatusService.class);
 }

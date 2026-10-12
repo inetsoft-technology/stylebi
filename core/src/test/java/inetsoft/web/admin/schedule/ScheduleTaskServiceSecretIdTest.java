@@ -63,8 +63,11 @@ class ScheduleTaskServiceSecretIdTest {
       securityEngine = mock(SecurityEngine.class);
       when(securityEngine.isSecurityEnabled()).thenReturn(true);
       scheduleManager = mock(ScheduleManager.class);
+      // the save checks the owner with the security provider (Bug #77405), the task owner is
+      // not a site admin
       service = new ScheduleTaskService(mock(AnalyticRepository.class), scheduleManager,
-                                        scheduleService, null, null, null, securityEngine);
+                                        scheduleService, null, mock(SecurityProvider.class),
+                                        null, securityEngine);
       principal = mock(XPrincipal.class);
       when(principal.getName()).thenReturn(new IdentityID("alice", "orga").convertToKey());
    }
@@ -178,6 +181,45 @@ class ScheduleTaskServiceSecretIdTest {
       }
    }
 
+   // Bug #77979, the user in the path overrides the secret's user name when the file is uploaded
+
+   @Test
+   void rejectsConfiguredLocationSecretIdWithAnotherPathUser() {
+      configureLocation();
+
+      assertRejected(() -> service.sanitizeAction(
+         saveAction("ftp://attacker@files.corp.example/reports/a.pdf", LOCATION_ID), null,
+         principal, List.of()));
+   }
+
+   @Test
+   void rejectsUnchangedSecretIdWithAnotherPathUser() {
+      ViewsheetAction original = saveAction("ftp://files.corp.example/x/a.pdf", OWN_ID);
+
+      assertRejected(() -> service.sanitizeAction(
+         saveAction("ftp://attacker@files.corp.example/y/a.pdf", OWN_ID), original, principal,
+         List.of(original)));
+
+      ViewsheetAction bob = saveAction("ftp://bob@files.corp.example/x/a.pdf", OWN_ID);
+
+      assertRejected(() -> service.sanitizeAction(
+         saveAction("ftp://attacker@files.corp.example/x/a.pdf", OWN_ID), bob, principal,
+         List.of(bob)));
+      assertRejected(() -> service.sanitizeAction(
+         saveAction("ftp://files.corp.example/x/a.pdf", OWN_ID), bob, principal, List.of(bob)));
+   }
+
+   @Test
+   void acceptsUnchangedSecretIdWithSamePathUser() {
+      ViewsheetAction bob = saveAction("sftp://bob@files.corp.example/x/a.pdf", OWN_ID);
+      ViewsheetAction action = saveAction("sftp://bob@files.corp.example:22/y/b.pdf", OWN_ID);
+
+      service.sanitizeAction(action, bob, principal, List.of(bob));
+
+      assertEquals(OWN_ID, action.getFilePathInfo(PDF).getSecretId());
+      verifyNotResolved(OWN_ID);
+   }
+
    // ── administrators ──────────────────────────────────────────────────────
 
    @Test
@@ -266,7 +308,7 @@ class ScheduleTaskServiceSecretIdTest {
       stored.addAction(saveAction("ftp://files.corp.example/out/a", OWN_ID));
       when(scheduleManager.getScheduleTask("task1")).thenReturn(stored);
       when(scheduleService.updateTaskName(any(), any(), any(), any())).thenReturn("task1");
-      when(scheduleService.getActionFromModel(any(), any(), any(), any()))
+      when(scheduleService.getActionFromModel(any(), any(), any(), any(), any()))
          .thenReturn(saveAction("ftp://collector.invalid/out", FOREIGN_ID));
       ScheduleTaskEditorModel model = ScheduleTaskEditorModel.builder()
          .taskName("task1")

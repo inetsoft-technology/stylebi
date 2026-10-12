@@ -21,6 +21,8 @@ import inetsoft.analytic.composition.ViewsheetEngine;
 import inetsoft.report.internal.Util;
 import inetsoft.uql.erm.vpm.VpmProcessor;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.security.Organization;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.AssetEntry;
@@ -150,6 +152,261 @@ public class JDBCUtil {
                                         JDBCDataSource xds, Principal principal)
       throws Exception
    {
+      fixUniformSQLInfo(sql, repository, session, xds, principal, false);
+   }
+
+   /**
+    * Fix the information in the UniformSQL by connecting the database.
+    * @param refetchEmpty <tt>true</tt> to not trust an empty column list cached for a table
+    *                     a wildcard of the selection covers, it is fetched again once, e.g.
+    *                     the table didn't exist when the list was cached (Bug #78384).
+    */
+   public static void fixUniformSQLInfo(UniformSQL sql, XRepository repository, Object session,
+                                        JDBCDataSource xds, Principal principal,
+                                        boolean refetchEmpty)
+      throws Exception
+   {
+      // set to false as soon as a wildcard is found unexpandable, so a later step that throws
+      // doesn't lose it
+      boolean[] expanded = { true };
+
+      try {
+         fixUniformSQLInfo0(sql, repository, session, xds, principal, expanded, refetchEmpty);
+      }
+      finally {
+         // the record is only for the metadata step that follows the parse
+         sql.clearParsedUnquotedSegments();
+
+         // Bug #77617, a wildcard whose table columns are unknown, or whose qualifier isn't a
+         // table of the query, is not expanded, so the selection doesn't hold the columns of the
+         // sql. The sql runs as written and is never regenerated from the selection (merge, vpm
+         // and the cache normalizer check the parse). Vpm can't narrow a wildcard of a table.
+         int result = sql.getParseResult();
+
+         if((!expanded[0] || hasWildcard(sql)) && sql.hasSQLString() &&
+            (result == UniformSQL.PARSE_SUCCESS || result == UniformSQL.PARSE_PARTIALLY))
+         {
+            LOG.debug("The columns of a wildcard are unknown, the sql is not parsed: {}",
+                      sql.getSQLString());
+            sql.setParseResult(UniformSQL.PARSE_FAILED);
+            // as an unexpandable wildcard, it isn't kept for a regeneration to write
+            removeWildcards(sql);
+         }
+      }
+   }
+
+   /**
+    * Remove the wildcards left in the selection of a sql and of its derived tables.
+    */
+   private static void removeWildcards(UniformSQL sql) {
+      XSelection selection = sql.getSelection();
+
+      for(int i = selection.getColumnCount() - 1; i >= 0; i--) {
+         String path = selection.getColumn(i);
+
+         if(path != null && (path.equals("*") || path.endsWith(".*"))) {
+            selection.removeColumn(i);
+         }
+      }
+
+      for(int i = 0; i < sql.getTableCount(); i++) {
+         Object name = sql.getSelectTable(i).getName();
+
+         if(name instanceof UniformSQL) {
+            removeWildcards((UniformSQL) name);
+         }
+      }
+   }
+
+   /**
+    * Bug #78383, re-parse a stored sql whose selection still holds a wildcard of a table (e.g.
+    * saved before #77617), from its sql string, the way the sql dialog parses it, and run the
+    * metadata step on it, so the wildcard is expanded to the columns of its table. A wildcard
+    * that still can't be expanded fails the parse (see fixUniformSQLInfo).
+    * <p>
+    * The parse runs on a copy, which the caller puts in place of the stored sql. The stored sql
+    * isn't changed, as it may be shared (e.g. cloned for an execution meanwhile), and a parse in
+    * place leaves it without its sql string until the parser thread is done.
+    * @return the re-parsed sql, or <tt>null</tt> if the sql is not a parsed sql with a sql string
+    * and a wildcard in its selection, or the parse didn't end.
+    */
+   public static UniformSQL reparseStoredWildcard(UniformSQL sql, XRepository repository,
+                                                  Object session, JDBCDataSource xds)
+   {
+      return reparseStoredWildcard(sql, repository, session, xds, REPARSE_TIMEOUT);
+   }
+
+   /**
+    * Re-parse a stored sql whose selection still holds a wildcard of a table, waiting at most
+    * the given time for the parser thread.
+    * @param timeout the longest wait for the parse, in milliseconds.
+    * @see #reparseStoredWildcard(UniformSQL, XRepository, Object, JDBCDataSource)
+    */
+   public static UniformSQL reparseStoredWildcard(UniformSQL sql, XRepository repository,
+                                                  Object session, JDBCDataSource xds,
+                                                  long timeout)
+   {
+      if(xds == null || !hasStoredWildcard(sql)) {
+         return null;
+      }
+
+      UniformSQL nsql = sql.clone();
+
+      if(nsql == null) {
+         return null;
+      }
+
+      String text = nsql.getSQLString();
+      nsql.setDataSource(xds);
+
+      try {
+         // the parser thread sets the sql string and notifies the sql when it's done
+         synchronized(nsql) {
+            nsql.setSQLString(text, true);
+            long end = System.currentTimeMillis() + timeout;
+
+            while(!nsql.hasSQLString()) {
+               long wait = end - System.currentTimeMillis();
+
+               if(wait <= 0) {
+                  LOG.warn("The sql with a wildcard is not parsed again in time: {}", text);
+                  return null;
+               }
+
+               nsql.wait(wait);
+            }
+         }
+
+         // a wildcard of a derived table is expanded to the qualified names of the columns of
+         // the derived table (e.g. d.c.CITY), which are written as one identifier. The stored
+         // sql of such a wildcard ran as written, it's failed instead of parsed again
+         if(hasDerivedTableWildcard(nsql)) {
+            LOG.debug("The wildcard of a derived table is not parsed again: {}", text);
+            return failStoredWildcard(sql);
+         }
+
+         fixUniformSQLInfo(nsql, repository, session, xds);
+         // keep the meta info of the columns selected explicitly
+         fixUniformSQLSelection(sql, nsql);
+      }
+      catch(InterruptedException ex) {
+         Thread.currentThread().interrupt();
+         return null;
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to parse the sql with a wildcard again: {}", text, ex);
+         return null;
+      }
+
+      return nsql;
+   }
+
+   /**
+    * Check if a wildcard of the selection of a sql, or of a derived table, selects the columns
+    * of a derived table: its qualifier is the alias of a derived table, or it's a bare wildcard
+    * and a derived table is in the from clause.
+    */
+   private static boolean hasDerivedTableWildcard(UniformSQL sql) {
+      Set<String> derived = new HashSet<>();
+
+      for(int i = 0; i < sql.getTableCount(); i++) {
+         SelectTable table = sql.getSelectTable(i);
+
+         if(table.getName() instanceof UniformSQL) {
+            if(hasDerivedTableWildcard((UniformSQL) table.getName())) {
+               return true;
+            }
+
+            derived.add(unquoteIdentifier(table.getAlias()));
+         }
+      }
+
+      if(derived.isEmpty()) {
+         return false;
+      }
+
+      XSelection selection = sql.getSelection();
+
+      for(int i = 0; i < selection.getColumnCount(); i++) {
+         String path = selection.getColumn(i);
+
+         if("*".equals(path) || path != null && path.endsWith(".*") &&
+            derived.contains(unquoteIdentifier(path.substring(0, path.length() - 2))))
+         {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   // the identifier without its quotes, in lower case, to compare a qualifier with an alias
+   private static String unquoteIdentifier(String name) {
+      return name == null ? "" : name.replaceAll("[\"`\\[\\]]", "").toLowerCase();
+   }
+
+   /**
+    * Bug #78383, a copy of a stored sql whose selection still holds a wildcard of a table, with
+    * its parse failed and the wildcard removed, as the metadata step does with a wildcard it
+    * can't expand (#77617). It's used in place of the stored sql when the sql can't be parsed
+    * again, so the sql runs as written and vpm refuses it instead of regenerating the wildcard.
+    * @return the failed copy, or <tt>null</tt> if the sql doesn't hold such a wildcard.
+    */
+   public static UniformSQL failStoredWildcard(UniformSQL sql) {
+      if(!hasStoredWildcard(sql)) {
+         return null;
+      }
+
+      UniformSQL nsql = sql.clone();
+
+      if(nsql != null) {
+         nsql.setParseResult(UniformSQL.PARSE_FAILED);
+         removeWildcards(nsql);
+      }
+
+      return nsql;
+   }
+
+   /**
+    * Check if a parsed sql with a sql string still holds a wildcard of a table in its selection,
+    * or in the selection of a derived table, so reparseStoredWildcard parses it again.
+    */
+   public static boolean hasStoredWildcard(UniformSQL sql) {
+      return sql != null && sql.isParseSQL() && sql.hasSQLString() &&
+         sql.getParseResult() == UniformSQL.PARSE_SUCCESS && hasWildcard(sql);
+   }
+
+   /**
+    * Check if a wildcard is left in the selection of a sql or of its derived tables.
+    */
+   public static boolean hasWildcard(UniformSQL sql) {
+      if(UniformSQL.hasWildcard(sql.getSelection())) {
+         return true;
+      }
+
+      for(int i = 0; i < sql.getTableCount(); i++) {
+         Object name = sql.getSelectTable(i).getName();
+
+         if(name instanceof UniformSQL && hasWildcard((UniformSQL) name)) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * @param expanded set to <tt>false</tt> if a wildcard of the selection, or of a derived
+    *                 table, could not be expanded because the columns of its table are unknown.
+    * @param refetchEmpty <tt>true</tt> to fetch an empty column list again for the tables of
+    *                     a selection with a wildcard.
+    */
+   private static void fixUniformSQLInfo0(UniformSQL sql, XRepository repository,
+                                          Object session, JDBCDataSource xds,
+                                          Principal principal, boolean[] expanded,
+                                          boolean refetchEmpty)
+      throws Exception
+   {
       synchronized(sql) {
          if(sql.getTableCount() <= 0 || sql.getFieldList().length > 0) {
             fixSelectionInfo(sql);
@@ -183,6 +440,12 @@ public class JDBCUtil {
                continue;
             }
 
+            // a name written with quoted segments keeps its case (#77569)
+            if(tables[i].getQuotedSegments() != null) {
+               sql.addTable(tables[i]);
+               continue;
+            }
+
             XNode tnode = SQLTypes.getSQLTypes(xds).getQualifiedTableNode(
                name.toString(),
                "true".equals(root.getAttribute("hasCatalog")),
@@ -202,6 +465,12 @@ public class JDBCUtil {
          }
       }
 
+      // the aliases of the tables whose columns are known from the metadata, not from the
+      // field list: a table whose columns are all vpm hidden has no fields but is known
+      Set<String> known = new HashSet<>();
+      // only a wildcard needs all the columns of a table
+      boolean wildcard = UniformSQL.hasWildcard(sql.getSelection());
+
       // add XFields
       try {
          for(int i = 0; i < sql.getTableCount(); i++) {
@@ -212,7 +481,20 @@ public class JDBCUtil {
 
             if(name instanceof UniformSQL) {
                UniformSQL sql1 = (UniformSQL) name;
-               fixUniformSQLInfo(sql1, repository, session, xds);
+               // the parser records the names of a derived table in the outer query
+               sql1.addParsedUnquotedSegments(sql.getParsedUnquotedSegments());
+
+               // an unexpanded wildcard of the derived table leaves its select list short, and
+               // so the fields of this query
+               try {
+                  fixUniformSQLInfo0(sql1, repository, session, xds, null, expanded,
+                                     refetchEmpty);
+               }
+               finally {
+                  sql1.clearParsedUnquotedSegments();
+               }
+
+               known.add(alias);
                XSelection xSelects = sql1.getSelection();
 
                for(int j = 0; j < xSelects.getColumnCount(); j++) {
@@ -242,7 +524,12 @@ public class JDBCUtil {
                      new String[] { sourceName }, new String[0], dataSourceName,
                      null, null, principal);
                table.setAttribute("supportCatalog", root.getAttribute("supportCatalog"));
-               XTypeNode cols = getTableColumns(table, repository, session, xds);
+               XTypeNode cols = getTableColumns(table, repository, session, xds,
+                                                refetchEmpty && wildcard);
+
+               if(cols.getChildCount() > 0) {
+                  known.add(alias);
+               }
 
                for(int j = 0; j < cols.getChildCount(); j++) {
                   XTypeNode colnode = (XTypeNode) cols.getChild(j);
@@ -274,7 +561,10 @@ public class JDBCUtil {
       fixSelectionInfo(sql);
 
       // expand "*"
-      expandAsterisk(sql);
+      if(!expandAsterisk(sql, known)) {
+         expanded[0] = false;
+      }
+
       fixWhereInfo(sql);
       sql.syncTable();
    }
@@ -293,6 +583,21 @@ public class JDBCUtil {
                   Object session, XDataSource xds)
       throws Exception
    {
+      return getTableColumns(table, repository, session, xds, false);
+   }
+
+   /**
+    * Get the table columns description.
+    * @param refetchEmpty <tt>true</tt> to not trust an empty column list cached for the table,
+    *                     here or by the repository (in memory and on disk). The table may not
+    *                     have existed when it was cached, so it is fetched again from the
+    *                     database (Bug #78384).
+    */
+   public static XTypeNode getTableColumns(XNode table, XRepository repository,
+                                           Object session, XDataSource xds,
+                                           boolean refetchEmpty)
+      throws Exception
+   {
       String key = xds.getFullName();
 
       if(xds instanceof JDBCDataSource &&
@@ -305,19 +610,33 @@ public class JDBCUtil {
       Pair p1 = new Pair(table, key);
       XTypeNode cols = (XTypeNode) tablemeta.get(p1);
 
-      if(cols == null) {
-         XNode meta = repository.getMetaData(session, xds, table, true, null);
+      if(cols == null || refetchEmpty && cols.getChildCount() == 0) {
+         cols = getResultColumns(repository.getMetaData(session, xds, table, true, null));
 
-         if(meta instanceof XTypeNode) {
-            XNode thisResult = meta.getNode("this.Result");
-            cols = thisResult instanceof XTypeNode ? (XTypeNode) thisResult : null;
+         if(refetchEmpty && cols.getChildCount() == 0) {
+            XNode mtype = (XNode) table.clone();
+            mtype.setAttribute(XUtil.REFRESH_META_DATA, "true");
+            cols = getResultColumns(repository.getMetaData(session, xds, mtype, true, null));
          }
 
-         cols = cols == null ? new XTypeNode() : cols;
          tablemeta.put(p1, cols);
       }
 
       return cols;
+   }
+
+   /**
+    * Get the columns of the table meta data, an empty node if there is none.
+    */
+   private static XTypeNode getResultColumns(XNode meta) {
+      XTypeNode cols = null;
+
+      if(meta instanceof XTypeNode) {
+         XNode thisResult = meta.getNode("this.Result");
+         cols = thisResult instanceof XTypeNode ? (XTypeNode) thisResult : null;
+      }
+
+      return cols == null ? new XTypeNode() : cols;
    }
 
    /**
@@ -330,7 +649,7 @@ public class JDBCUtil {
 
       for(int i = 0; i < select.getColumnCount(); i++) {
          String path = select.getColumn(i);
-         XField field = sql.getFieldByPath(path);
+         XField field = getColumnField(sql, path, false);
 
          if(field == null && !path.endsWith("*") &&
             !path.equals(select.getAlias(i)))
@@ -357,32 +676,20 @@ public class JDBCUtil {
          String path = xselect.getColumn(i);
          String alias = xselect.getAlias(i);
 
-         // A bare select-list identifier the parser could not resolve to a known table — e.g. a
-         // column passed through from a subquery in the FROM clause, or a window-function column —
-         // is captured wrapped in double-quotes (e.g. "role"). That quoted form becomes the column's
-         // identifier in the result lens, but the worksheet/viewsheet binding layer refers to it
-         // unquoted (role) and then cannot resolve it, so a chart bound to such a column silently
-         // renders no rows (and the column can't be renamed). Give it a clean alias — the unquoted
-         // name — which is exactly what an explicit AS alias does (those bind correctly), while
-         // leaving the quoted source path untouched for SQL generation.
-         if((alias == null || alias.isEmpty()) && path != null && path.length() >= 3 &&
-            path.charAt(0) == '"' && path.charAt(path.length() - 1) == '"' &&
-            path.indexOf('.') < 0 && path.indexOf('"', 1) == path.length() - 1)
-         {
-            alias = path.substring(1, path.length() - 1);
-            xselect.setAlias(i, alias);
-         }
-
-         String fp = getFullPathOf(sql, path);
+         // the flag of this column, which stays at its position (Bug #77573)
+         boolean quoted = xselect.isQuoted(i);
+         String fp = getFullPathOf(sql, path, quoted);
 
          if(fp != null) {
             path = fp;
          }
 
-         XField field = sql.getFieldByPath(path);
+         // the field of the column getFullPathOf resolved, of its type
+         XField field = getColumnField(sql, path, quoted);
 
          if(field != null && field.getTable().length() > 0) {
-            xselect.setColumn(i, path);
+            // the same column qualified by its table, it keeps its quoting
+            xselect.renameColumn(i, path);
             xselect.setAlias(i, alias);
             xselect.setTable(path, field.getTable());
 
@@ -400,6 +707,18 @@ public class JDBCUtil {
     * @param path column name
     */
    public static String getFullPathOf(UniformSQL sql, String path) {
+      return getFullPathOf(sql, path, false);
+   }
+
+   /**
+    * Get full path of column.
+    * @param sql Uniform SQL object
+    * @param path column name
+    * @param quoted <tt>true</tt> if the column was written as a quoted identifier
+    *               ("MixedCase" or t."MixedCase"), its case is only changed if no column has
+    *               the same case.
+    */
+   public static String getFullPathOf(UniformSQL sql, String path, boolean quoted) {
       String res = null;
       int idx = path.lastIndexOf('.');
       String table, col;
@@ -433,7 +752,7 @@ public class JDBCUtil {
       }
 
       res = table + "." + col;
-      XField field = sql.getFieldByPath(res);
+      XField field = getColumnField(sql, res, quoted);
 
       if(field != null && field.getTable().length() > 0) {
          if(!field.getName().equals(col)) {
@@ -446,16 +765,66 @@ public class JDBCUtil {
    }
 
    /**
-    * Expand "*" in the selection
+    * Get the field of a column path. A case-sensitive helper whose database folds unquoted
+    * names to one case stores the exact name of a column, so the field of that case is
+    * preferred over one that only matches ignoring case, and a column segment written
+    * unquoted in the sql parsed last is matched in the folded case (Bug #77643).
+    * @param quoted <tt>true</tt> if the column was written as a quoted identifier.
+    */
+   private static XField getColumnField(UniformSQL sql, String path, boolean quoted) {
+      SQLHelper.IdentifierCase fold = sql.getSQLHelper().getIdentifierCase();
+
+      if(fold == SQLHelper.IdentifierCase.UNKNOWN) {
+         return sql.getFieldByPath(path, quoted);
+      }
+
+      int idx = path.lastIndexOf('.');
+      String col = path.substring(idx + 1);
+
+      // stored with the quotes of the helper ("MixedCase")
+      if(col.length() > 2 && sql.isParsedUnquotedSegment(col)) {
+         String quote = col.substring(0, 1);
+         path = path.substring(0, idx + 1) + quote +
+            fold.fold(col.substring(1, col.length() - 1)) + quote;
+      }
+
+      return sql.getFieldByPath(path, true);
+   }
+
+   /**
+    * Expand "*" in the selection with the columns of the field list.
     */
    public static void expandAsterisk(UniformSQL sql) {
+      Set<String> known = new HashSet<>();
+
+      for(int i = 0; i < sql.getTableCount(); i++) {
+         known.add(sql.getTableAlias(i));
+      }
+
+      expandAsterisk(sql, known);
+   }
+
+   /**
+    * Expand "*" in the selection. Every column of the expansion is added at the position of
+    * the wildcard, also a column the selection has elsewhere, so the selection keeps the
+    * columns of the sql in their order (Bug #77617).
+    * @param known the aliases of the tables whose columns are known.
+    * @return <tt>false</tt> if a wildcard covers a table whose columns are unknown, it is
+    * not expanded.
+    */
+   private static boolean expandAsterisk(UniformSQL sql, Set<String> known) {
       JDBCSelection select = (JDBCSelection) sql.getSelection();
       JDBCSelection newSelect = new JDBCSelection();
+      boolean expanded = true;
 
       for(int i = 0; i < select.getColumnCount(); i++) {
          String path = select.getColumn(i);
 
          if(path.equals("*")) {
+            for(int j = 0; j < sql.getTableCount(); j++) {
+               expanded &= known.contains(sql.getTableAlias(j));
+            }
+
             XField[] fields = sql.getFieldList();
 
             for(int j = 0; j < fields.length; j++) {
@@ -463,11 +832,6 @@ public class JDBCUtil {
 
                if(table.length() > 0) {
                   path = table + "." + fields[j].getName();
-
-                  if(select.contains(path)) {
-                     continue;
-                  }
-
                   newSelect.addColumn(path);
                   newSelect.setType(path, fields[j].getType());
                   newSelect.setTable(path, table);
@@ -479,17 +843,24 @@ public class JDBCUtil {
          else if(path.endsWith(".*")) {
             String table = path.substring(0, path.length() - 2);
 
-            if(sql.getTableIndex(table) >= 0) {
+            int tidx = sql.getTableIndex(table);
+
+            // a quoted alias ("x" for x), or the bare name of the one unaliased
+            // schema-qualified table it names (t for public.t), is the table it refers to.
+            // A wildcard of a table left in the selection would be regenerated as is, and
+            // vpm can't remove a hidden column from it (Bug #77617)
+            if(tidx < 0) {
+               tidx = sql.getJoinTableIndex(table);
+               table = tidx >= 0 ? sql.getTableAlias(tidx) : table;
+            }
+
+            if(tidx >= 0) {
+               expanded &= known.contains(sql.getTableAlias(tidx));
                XField[] fields = sql.getFieldList();
 
                for(int j = 0; j < fields.length; j++) {
                   if(table.equalsIgnoreCase(fields[j].getTable())) {
                      path = fields[j].getTable() + "." + fields[j].getName();
-
-                     if(select.contains(path)) {
-                        continue;
-                     }
-
                      newSelect.addColumn(path);
                      newSelect.setType(path, fields[j].getType());
                      newSelect.setTable(path, table);
@@ -507,11 +878,14 @@ public class JDBCUtil {
          newSelect.setType(path, select.getType(path));
          newSelect.setDescription(path, select.getDescription(path));
          newSelect.setTable(path, select.getTable(path));
+         newSelect.copyQuoted(aidx, select, i);
+         newSelect.setQuotedAggregate(aidx, select.getQuotedAggregate(i));
          newSelect.setXMetaInfo(aidx, select.getXMetaInfo(i));
          newSelect.setExpression(aidx, select.isExpression(i));
       }
 
       sql.setSelection(newSelect);
+      return expanded;
    }
 
    /**
@@ -536,7 +910,7 @@ public class JDBCUtil {
     */
    private static void normalizeExpression(XExpression exp, UniformSQL sql) {
       String ex1 = exp.toString();
-      String fullPath1 = getFullPathOf(sql, ex1);
+      String fullPath1 = getFullPathOf(sql, ex1, exp.isQuotedField());
 
       if(fullPath1 != null) {
          String type = sql.isTableColumn(fullPath1) ? XExpression.FIELD :
@@ -562,6 +936,8 @@ public class JDBCUtil {
             ((XJoin) root).getExpression2(), ((XJoin) root).getOp());
 
          newNode.setName(root.getName());
+         // keep the negation, e.g. "a.k = 1 or not (a.id = b.k)"
+         newNode.setIsNot(root.isIsNot());
          fixFakeJoins(sql, newNode, hash);
          return newNode;
       }
@@ -992,18 +1368,25 @@ public class JDBCUtil {
       result.setTransactionIsolation(jdbcDataSource.getTransactionIsolation());
       result.setChangeDefaultDB(!Tool.isEmptyString(jdbcDataSource.getDefaultDatabase()));
 
-      String testQuery = SreeEnv.getProperty(
-         "inetsoft.uql.jdbc.pool." + jdbcDataSource.getFullName() + ".connectionTestQuery");
-
+      // the test query field of a custom database edits the connectionTestQuery pool
+      // property, so it is not listed in the pool properties table too. The Access editor has
+      // no test query field and keeps the property in the table.
       if(type.getType().equals(CustomDatabaseType.TYPE)) {
+         TreeMap<String, String> poolProperties = jdbcDataSource.getPoolProperties() == null ?
+            null : new TreeMap<>(jdbcDataSource.getPoolProperties());
+         String testQuery = poolProperties == null ?
+            null : poolProperties.remove(CONNECTION_TEST_QUERY_PROPERTY);
+
+         // a test query saved in SreeEnv by an older version is shown, so the user sees it
+         // and moves it to the pool properties when saving the data source
+         if(testQuery == null) {
+            testQuery = getConnectionTestQuery(jdbcDataSource.getFullName());
+         }
+
          CustomDatabaseType.CustomDatabaseInfo customInfo =
             (CustomDatabaseType.CustomDatabaseInfo) result.getInfo();
+         customInfo.setPoolProperties(poolProperties);
          customInfo.setTestQuery(testQuery);
-      }
-      else if(type.getType().equals(AccessDatabaseType.TYPE)) {
-         AccessDatabaseType.AccessDatabaseInfo accessInfo =
-            (AccessDatabaseType.AccessDatabaseInfo) result.getInfo();
-         accessInfo.setTestQuery(testQuery);
       }
 
       return result;
@@ -1085,7 +1468,6 @@ public class JDBCUtil {
       String quote = XUtil.getQuote(dataSource);
       JDBCSelection selection = new JDBCSelection();
       Set<String> aliases = new HashSet<>();
-      SQLHelper sqlHelper = SQLHelper.getSQLHelper(sql);
 
       for(String path : columns) {
          String table = null;
@@ -1132,7 +1514,9 @@ public class JDBCUtil {
          aliases.add(alias);
          index = selection.addColumn(path);
          selection.setTable(path, table);
-         selection.setAlias(index, selection.getValidAlias(index, alias, sqlHelper));
+         // store the name itself, a name the database can't take is replaced by an ALIAS_n
+         // each time the sql is generated and mapped back in the result (Bug #77711)
+         selection.setAlias(index, alias);
          selection.setType(path, type);
       }
 
@@ -1295,8 +1679,9 @@ public class JDBCUtil {
       if(xfn instanceof XUnaryCondition) {
          c.setValue1(getClauseValue(xfn.getExpression1(), datasource));
          Operation op = new Operation();
-         op.setName(XFilterNode.getOpName(((XUnaryCondition) xfn).getOp()));
-         op.setSymbol(((XUnaryCondition) xfn).getOp());
+         String symbol = getClauseOpSymbol(xfn, ((XUnaryCondition) xfn).getOp());
+         op.setName(XFilterNode.getOpName(symbol));
+         op.setSymbol(symbol);
          c.setOperation(op);
          c.setValue2(new ClauseValue(XExpression.VALUE));
          c.setValue3(new ClauseValue(XExpression.VALUE));
@@ -1306,8 +1691,9 @@ public class JDBCUtil {
          c.setValue2(getClauseValue(((XBinaryCondition) xfn).getExpression2(), datasource));
 
          Operation op = new Operation();
-         op.setName(XFilterNode.getOpName(((XBinaryCondition) xfn).getOp()));
-         op.setSymbol(((XBinaryCondition) xfn).getOp());
+         String symbol = getClauseOpSymbol(xfn, ((XBinaryCondition) xfn).getOp());
+         op.setName(XFilterNode.getOpName(symbol));
+         op.setSymbol(symbol);
          c.setOperation(op);
          c.setValue3(new ClauseValue(XExpression.VALUE));
       }
@@ -1317,8 +1703,9 @@ public class JDBCUtil {
          c.setValue3(getClauseValue(((XTrinaryCondition) xfn).getExpression3(), datasource));
 
          Operation op = new Operation();
-         op.setName(XFilterNode.getOpName(((XTrinaryCondition) xfn).getOp()));
-         op.setSymbol(((XTrinaryCondition) xfn).getOp());
+         String symbol = getClauseOpSymbol(xfn, ((XTrinaryCondition) xfn).getOp());
+         op.setName(XFilterNode.getOpName(symbol));
+         op.setSymbol(symbol);
          c.setOperation(op);
       }
 
@@ -1326,6 +1713,21 @@ public class JDBCUtil {
       c.setValue(xfn.toString());
 
       return c;
+   }
+
+   /**
+    * Get the operator symbol sent to the conditions pane. The parser keeps an operator as
+    * typed (e.g. "is null", "Like"), so send the canonical symbol the pane's operator list
+    * uses. "!=" is sent as "<>" for a plain condition (not a join). An operator in no
+    * operator list is kept as is.
+    */
+   private static String getClauseOpSymbol(XFilterNode xfn, String op) {
+      if("!=".equals(op) && xfn instanceof XBinaryCondition && !(xfn instanceof XJoin)) {
+         return "<>";
+      }
+
+      String symbol = XFilterNode.getCanonicalOpSymbol(op);
+      return symbol == null || symbol.isEmpty() ? op : symbol;
    }
 
    private static ClauseValue getClauseValue(XExpression xe, XDataSource dataSource) {
@@ -1491,15 +1893,23 @@ public class JDBCUtil {
 
       SQLHelper helper = SQLHelper.getSQLHelper(dataSource);
       Set<String> keys = aliasMap.keySet();
+      Map<String, String> qualifiers = new HashMap<>();
 
       for(String key : keys) {
          String newAlias = aliasMap.get(key);
          String tableName = getTableName(tables, newAlias);
          String oldAlias = getQuoteAlias(key, helper, tableName);
-         expression = expression.replaceAll(oldAlias + ".", getQuoteAlias(newAlias, helper, tableName) + ".");
+         String nalias = getQuoteAlias(newAlias, helper, tableName);
+
+         if(!oldAlias.equals(nalias)) {
+            qualifiers.put(oldAlias, nalias);
+         }
       }
 
-      return expression;
+      // a literal match at the start of an identifier, so max(a.x) and "a".x are not
+      // touched by a.x (#77569)
+      return qualifiers.isEmpty() ? expression :
+         SQLHelper.replaceQualifiers(expression, qualifiers);
    }
 
    private static String getTableName(Vector<SelectTable> tables, String alias) {
@@ -1669,11 +2079,133 @@ public class JDBCUtil {
       return result.toString();
    }
 
+   /**
+    * Gets the connection test query that an older version saved in SreeEnv. The connection pool
+    * does not read it; the test query is kept in the
+    * {@link #CONNECTION_TEST_QUERY_PROPERTY} pool property of the data source. The data source
+    * editor shows this value only when the pool property is not set. The value is stored in
+    * the current organization's scope, because data source names are only unique within an
+    * organization. Values saved before the key was organization scoped are global and are
+    * attributed to the host organization only.
+    *
+    * @param fullName the data source full name.
+    *
+    * @return the test query or <code>null</code> if none is set.
+    */
+   public static String getConnectionTestQuery(String fullName) {
+      String key = getConnectionTestQueryKey(fullName);
+      String orgID = getConnectionTestQueryOrgID();
+
+      if(orgID == null || isHostOrganization(orgID)) {
+         // the organization key first, then the legacy global key
+         return SreeEnv.getProperty(key);
+      }
+
+      return SreeEnv.getProperty("inetsoft.org." + orgID + "." + key, false, false);
+   }
+
+   /**
+    * Sets the legacy SreeEnv connection test query of a data source in the current
+    * organization's scope. It is only used to move a legacy value to a renamed data source; the
+    * data source editor saves the test query in the {@link #CONNECTION_TEST_QUERY_PROPERTY} pool
+    * property.
+    *
+    * @param fullName  the data source full name.
+    * @param testQuery the test query.
+    */
+   public static void setConnectionTestQuery(String fullName, String testQuery) {
+      SreeEnv.setProperty(getConnectionTestQueryKey(fullName), testQuery, true);
+   }
+
+   /**
+    * Removes the connection test query of a data source in the current organization's scope.
+    * In the host organization the legacy global key is removed too, so that it is not shown
+    * again after the user clears the test query or saves it to the pool properties.
+    *
+    * @param fullName the data source full name.
+    */
+   public static void removeConnectionTestQuery(String fullName) {
+      String key = getConnectionTestQueryKey(fullName);
+      String orgID = getConnectionTestQueryOrgID();
+      SreeEnv.remove(key, true);
+
+      if(orgID != null && isHostOrganization(orgID)) {
+         SreeEnv.remove(key);
+      }
+   }
+
+   /**
+    * Moves the legacy SreeEnv connection test query of a renamed or moved data source to its new
+    * name in the current organization's scope, so that the data source editor still shows it
+    * until the data source is saved. If the old name has no test query, a value left at the new
+    * name by a data source deleted earlier is removed, so that it is not shown for this one.
+    *
+    * @param oldName the old data source full name.
+    * @param newName the new data source full name.
+    *
+    * @return <code>true</code> if a property was changed and SreeEnv needs to be saved.
+    */
+   public static boolean renameConnectionTestQuery(String oldName, String newName) {
+      String testQuery = getConnectionTestQuery(oldName);
+      boolean changed = removeConnectionTestQueryIfSet(newName);
+
+      if(testQuery != null) {
+         removeConnectionTestQuery(oldName);
+         setConnectionTestQuery(newName, testQuery);
+         changed = true;
+      }
+
+      return changed;
+   }
+
+   /**
+    * Removes the connection test query of a data source in the current organization's scope
+    * if one is set.
+    *
+    * @param fullName the data source full name.
+    *
+    * @return <code>true</code> if a property was removed and SreeEnv needs to be saved.
+    */
+   public static boolean removeConnectionTestQueryIfSet(String fullName) {
+      if(getConnectionTestQuery(fullName) == null) {
+         return false;
+      }
+
+      removeConnectionTestQuery(fullName);
+      return true;
+   }
+
+   private static String getConnectionTestQueryKey(String fullName) {
+      return "inetsoft.uql.jdbc.pool." + fullName + ".connectionTestQuery";
+   }
+
+   /**
+    * Gets the organization that SreeEnv scopes the test query to, or <code>null</code> if
+    * the thread has no principal and SreeEnv uses the global key.
+    */
+   private static String getConnectionTestQueryOrgID() {
+      if(ThreadContext.getPrincipal() == null && ThreadContext.getContextPrincipal() == null) {
+         return null;
+      }
+
+      return OrganizationManager.getInstance().getCurrentOrgID();
+   }
+
+   private static boolean isHostOrganization(String orgID) {
+      // the enterprise organization manager does not lower case the organization ID
+      return Organization.getDefaultOrganizationID().equalsIgnoreCase(orgID);
+   }
+
    // table xnode->XTypeNode(columns)
    private static Hashtable<Pair, XTypeNode> tablemeta = new Hashtable<>();
 
    private static final String [] aggregateFunction =
       {"sum", "count", "avg", "min", "max"};
+
+   /**
+    * The pool property that holds the connection test query of a data source.
+    */
+   public static final String CONNECTION_TEST_QUERY_PROPERTY = "connectionTestQuery";
 
    private static final List<DatabaseType> databaseTypes;
    private static final String MAP_KEY_ACCESS_PATTERN = "([^\\s\\[\\]]+)\\[\\s*'([^\\s']+)'\\s*\\]";
@@ -1692,5 +2224,10 @@ public class JDBCUtil {
       databaseTypes.add(new CustomDatabaseType());
    }
 
+   // the longest wait for the parse of reparseStoredWildcard. The parse queues on the single
+   // parser thread (UniformSQL.parserPool) behind the other parses, and a parse itself may take
+   // up to two PARSE_PERIODs (8s) with its fallbacks, so the wait allows a few queued parses.
+   // When it runs out, the sql isn't parsed again, and the caller keeps or fails the stored sql
+   private static final long REPARSE_TIMEOUT = 30000L;
    private static final Logger LOG = LoggerFactory.getLogger(JDBCUtil.class);
 }

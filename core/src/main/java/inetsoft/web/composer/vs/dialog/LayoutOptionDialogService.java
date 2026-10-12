@@ -36,6 +36,7 @@ import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.command.PopulateVSObjectTreeCommand;
 import inetsoft.web.composer.vs.objects.controller.GroupingService;
 import inetsoft.web.composer.vs.objects.controller.VSTableService;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.service.*;
 import org.springframework.stereotype.Service;
 
@@ -56,13 +57,15 @@ public class LayoutOptionDialogService {
                                     VSObjectTreeService vsObjectTreeService,
                                     ViewsheetService engine,
                                     VSTableService vsTableService,
-                                    CoreLifecycleService coreLifecycleService)
+                                    CoreLifecycleService coreLifecycleService,
+                                    QueryManagerService queryManagerService)
    {
       this.groupingService = groupingService;
       this.vsObjectTreeService = vsObjectTreeService;
       this.engine = engine;
       this.vsTableService = vsTableService;
       this.coreLifecycleService = coreLifecycleService;
+      this.queryManagerService = queryManagerService;
    }
 
    @ClusterWriteMethod
@@ -102,7 +105,8 @@ public class LayoutOptionDialogService {
             viewsheet.addAssembly(object);
          }
          else if("table".equalsIgnoreCase(model.getObject())) {
-            object = vsTableService.createTable(rvs, engine, model.getColumns().get(0), 0, 0);
+            object = vsTableService.createTable(
+               rvs, engine, model.getColumns().get(0), 0, 0, principal);
             viewsheet.addAssembly(object);
          }
          else {
@@ -203,6 +207,9 @@ public class LayoutOptionDialogService {
          columns.addAttribute(ref);
       }
 
+      // the table of a new assembly is newly bound, and a cube table is resolved from its
+      // data source without a permission check (Bug #77427)
+      queryManagerService.checkCubeTableReadPermission(table, principal);
       String name = AssetUtil.getNextName(viewsheet, type);
       final List<String> tables = Collections.singletonList(table);
       VSAssembly vsassembly = vsTableService.createSelectionVSAssembly(viewsheet, type, dtype,
@@ -243,4 +250,5 @@ public class LayoutOptionDialogService {
    private final ViewsheetService engine;
    private final VSTableService vsTableService;
    private final CoreLifecycleService coreLifecycleService;
+   private final QueryManagerService queryManagerService;
 }

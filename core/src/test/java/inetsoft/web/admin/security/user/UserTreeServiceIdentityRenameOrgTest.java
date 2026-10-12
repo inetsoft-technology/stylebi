@@ -35,7 +35,10 @@ import inetsoft.mv.MVManager;
 import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
+import inetsoft.sree.web.dashboard.DashboardManager;
 import inetsoft.uql.XRepository;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.sync.DependencyStorageService;
 import inetsoft.uql.erm.HiddenColumns;
 import inetsoft.uql.erm.XDataModel;
@@ -50,6 +53,7 @@ import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 import org.mockito.quality.Strictness;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 
 import java.security.Principal;
 import java.util.*;
@@ -61,6 +65,7 @@ import static org.mockito.Mockito.*;
 @Tag("core")
 class UserTreeServiceIdentityRenameOrgTest {
    @BeforeEach
+   @SuppressWarnings("unchecked")
    void setUp() throws Exception {
       sUtilStatic = mockStatic(SUtil.class, withSettings().strictness(Strictness.LENIENT));
 
@@ -129,6 +134,9 @@ class UserTreeServiceIdentityRenameOrgTest {
          providerService, systemAdminService, identityService, null, securityEngine,
          mock(IdentityThemeService.class), null, mock(FavoritesService.class), cycleManager, null,
          mvManager, storage, null, null, xRepository, dependencyStorageService, recycleBin);
+      // no dashboard manager unless a test gives one, so that a rename doesn't look up the bean
+      ObjectProvider<DashboardManager> noDashboardManager = mock(ObjectProvider.class);
+      service.setDashboardManager(noDashboardManager);
    }
 
    @AfterEach
@@ -224,6 +232,29 @@ class UserTreeServiceIdentityRenameOrgTest {
                            "cycle@" + ORG_A), migrations);
    }
 
+   // Bug #77798: the rename is already saved when the permission write fails, so every rename
+   // migration still runs and the failure is reported after them
+   @Test
+   void renameUser_permissionWriteFails_migrationsStillRunThenFailureReported() throws Exception {
+      IdentityID oldUser = new IdentityID("bob", ORG_A);
+      IdentityID newUser = new IdentityID("bob2", ORG_A);
+      stubUser(oldUser);
+      inetsoft.util.MessageException failure =
+         new inetsoft.util.MessageException("may not have been saved");
+      doThrow(failure).when(identityService).setIdentityPermissions(
+         any(IdentityID.class), any(IdentityID.class), any(ResourceType.class), any(), any(),
+         anyString());
+
+      Exception thrown = assertThrows(Exception.class, () ->
+         service.editUser(userModel("bob", "bob2", ORG_A), "Primary", principal));
+
+      assertSame(failure, thrown);
+      assertEquals(List.of("storage@" + ORG_A, "mvAssets@" + ORG_A, "mvUsers@" + ORG_A,
+                           "cycle@" + ORG_A), migrations);
+      verify(dependencyStorageService).migrateStorageData(oldUser, newUser);
+      verify(recycleBin).renameUser(oldUser, newUser);
+   }
+
    @Test
    void userEditWithoutRename_runsNoMigrations() throws Exception {
       stubUser(new IdentityID("bob", ORG_B));
@@ -263,6 +294,65 @@ class UserTreeServiceIdentityRenameOrgTest {
       verify(dependencyStorageService).migrateStorageData(oldUser, newUser);
       verify(recycleBin).renameUser(oldUser, newUser);
       assertEquals(ORG_A, orgManager.getCurrentOrgID(), "the org scope must be restored");
+   }
+
+   // Bug #78101: the viewsheets of the dashboard creates refused while the user was renamed are
+   // removed once the user's assets are moved, in the user's org, not while they are moved
+   @Test
+   @SuppressWarnings("unchecked")
+   void migrateUserRename_removesRefusedDashboardViewsheetsAfterTheMove() throws Exception {
+      IdentityID oldUser = new IdentityID("bob", ORG_B);
+      IdentityID newUser = new IdentityID("bob2", ORG_B);
+      String refused = new AssetEntry(AssetRepository.USER_SCOPE, AssetEntry.Type.VIEWSHEET,
+                                      "d1", oldUser).toIdentifier();
+      DashboardManager dashboardManager = mock(DashboardManager.class);
+      doAnswer(inv -> {
+         record("lock");
+         ((Runnable) inv.getArgument(0)).run();
+         return null;
+      }).when(dashboardManager).runLocked(any());
+      when(dashboardManager.takeRefusedViewsheets(oldUser)).thenReturn(List.of(refused));
+      doAnswer(inv -> record("removeRefused"))
+         .when(dashboardManager).removeRefusedViewsheet(any(), any(), any());
+      ObjectProvider<DashboardManager> managerProvider = mock(ObjectProvider.class);
+      when(managerProvider.getIfAvailable()).thenReturn(dashboardManager);
+      service.setDashboardManager(managerProvider);
+
+      service.migrateUserRename(oldUser, newUser);
+
+      assertEquals(List.of("storage@" + ORG_B, "mvAssets@" + ORG_B, "mvUsers@" + ORG_B,
+                           "cycle@" + ORG_B, "lock@" + ORG_B, "removeRefused@" + ORG_B),
+                   migrations);
+      verify(dashboardManager).removeRefusedViewsheet(
+         argThat(e -> oldUser.equals(e.getUser()) && "d1".equals(e.getPath())), eq(newUser),
+         any());
+   }
+
+   // Bug #78101: a stale Spring AOT bean definition of UserTreeService (another jar's copy first
+   // on the classpath) didn't apply setDashboardManager(), so the refused creates' viewsheets were
+   // never removed. Without the injected manager the Spring bean is used.
+   @Test
+   void migrateUserRename_withoutInjectedDashboardManager_usesTheBean() throws Exception {
+      IdentityID oldUser = new IdentityID("bob", ORG_B);
+      IdentityID newUser = new IdentityID("bob2", ORG_B);
+      String refused = new AssetEntry(AssetRepository.USER_SCOPE, AssetEntry.Type.VIEWSHEET,
+                                      "d1", oldUser).toIdentifier();
+      DashboardManager dashboardManager = mock(DashboardManager.class);
+      doAnswer(inv -> {
+         ((Runnable) inv.getArgument(0)).run();
+         return null;
+      }).when(dashboardManager).runLocked(any());
+      when(dashboardManager.takeRefusedViewsheets(oldUser)).thenReturn(List.of(refused));
+      service.setDashboardManager(null);
+
+      try(MockedStatic<DashboardManager> managerStatic = mockStatic(DashboardManager.class)) {
+         managerStatic.when(DashboardManager::getManager).thenReturn(dashboardManager);
+         service.migrateUserRename(oldUser, newUser);
+      }
+
+      verify(dashboardManager).removeRefusedViewsheet(
+         argThat(e -> oldUser.equals(e.getUser()) && "d1".equals(e.getPath())), eq(newUser),
+         any());
    }
 
    @Test

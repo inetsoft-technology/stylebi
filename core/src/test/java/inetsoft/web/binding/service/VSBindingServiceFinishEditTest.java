@@ -29,6 +29,7 @@ import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.objects.controller.GroupingService;
 import inetsoft.web.composer.vs.objects.controller.VSTableService;
 import inetsoft.web.composer.vs.objects.controller.VSTrapService;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import inetsoft.web.viewsheet.service.VSSelectionContainerService;
@@ -72,7 +73,7 @@ class VSBindingServiceFinishEditTest {
       service = new VSBindingService(trapService, vsTableService, groupingService,
          viewsheetService, Collections.emptyList(), dataRefService, objectModelService,
          wizardTemporaryInfoService, vsSelectionContainerService, analyticAssistant,
-         assemblyHandler, vsObjectTreeService, coreLifecycleService);
+         assemblyHandler, vsObjectTreeService, coreLifecycleService, mock(QueryManagerService.class));
    }
 
    @Test

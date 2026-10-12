@@ -19,22 +19,12 @@ package inetsoft.uql.asset.sync;
 
 import inetsoft.storage.LoadKeyValueTask;
 
+/**
+ * Loads an organization's dependency store. The rename queue is not kept here; it lives in the
+ * cluster-global store loaded by {@link LoadRenameQueueTask}.
+ */
 public class LoadDependencyStorageTask extends LoadKeyValueTask<RenameTransformObject> {
    public LoadDependencyStorageTask(String id) {
       super(id);
-   }
-
-   @Override
-   public void run() {
-      super.run();
-
-      RenameTransformQueue queue =
-         (RenameTransformQueue) getMap().get(DependencyStorageService.QUEUE_KEY);
-
-      if(queue != null) {
-         for(RenameDependencyInfo info : queue) {
-            getCluster().submit("renameTransform", new RenameTransformTask.Rename(info));
-         }
-      }
    }
 }

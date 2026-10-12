@@ -27,6 +27,7 @@ import inetsoft.report.script.TableRowScope;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
 import inetsoft.util.script.graal.GraalJavaScriptEngine;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.script.graal.pool.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -306,7 +307,21 @@ class PooledLensDateVarTest {
 
             assertTrue(failedAt > 0 && failedAt <= 300, "the timeout ended a batch: " + failedAt);
             final int from = failedAt;
-            PoolTestSupport.whileHeldElsewhere(w, () -> read(t, v, from, 800));
+            PoolTestSupport.whileHeldElsewhere(w, () -> {
+               read(t, v, from, 299);
+               // the timed-out row has no value: its read fails with the stop, every time,
+               // without running into the timeout again (bug #77949)
+               assertTrue(t.moreRows(300));
+
+               for(int i = 0; i < 2; i++) {
+                  long start = System.currentTimeMillis();
+                  Throwable stop = assertThrows(Throwable.class, () -> t.getObject(300, 2));
+                  assertTrue(ScriptTimeoutGuard.isStop(stop), "a stop: " + stop);
+                  assertTrue(System.currentTimeMillis() - start < 1500, "not run again");
+               }
+
+               read(t, v, 301, 800);
+            });
 
             assertEquals(299.0, v[299]);
             assertEquals(301.0, v[301], "the Date continues after the timed-out batch");

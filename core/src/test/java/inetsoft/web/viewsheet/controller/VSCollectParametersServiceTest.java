@@ -18,8 +18,7 @@
 package inetsoft.web.viewsheet.controller;
 
 import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.uql.VariableTable;
-import inetsoft.uql.XRepository;
+import inetsoft.uql.*;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.util.XSessionService;
 import inetsoft.web.composer.ws.assembly.VariableAssemblyModelInfo;
@@ -27,7 +26,7 @@ import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.junit.jupiter.api.*;
 
 import java.security.Principal;
-import java.util.List;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -38,9 +37,10 @@ class VSCollectParametersServiceTest {
    @BeforeEach
    void setUp() {
       viewsheetService = mock(ViewsheetService.class);
+      xRepository = mock(XRepository.class);
       service = new VSCollectParametersService(
          mock(CoreLifecycleService.class), viewsheetService, mock(AssetRepository.class),
-         mock(XSessionService.class), mock(XRepository.class));
+         mock(XSessionService.class), xRepository);
    }
 
    // Bug #77329, a viewer must not be able to set the identity variables that VPM filters on
@@ -55,7 +55,7 @@ class VSCollectParametersServiceTest {
       VariableTable vtable = new VariableTable();
       Principal user = mock(Principal.class);
 
-      service.fillVariableTable(variables, vtable, user, "plain");
+      service.fillVariableTable(variables, vtable, user, "plain", Set.of());
 
       assertFalse(vtable.contains("_USER_"));
       assertFalse(vtable.contains("_ROLES_"));
@@ -69,6 +69,44 @@ class VSCollectParametersServiceTest {
       verify(viewsheetService).setCachedProperty(user, "plain variable : region", "West");
    }
 
+   // Bug #77429, a db login for a data source the viewsheet did not prompt for is dropped, so
+   // the server neither tests the credentials nor caches them
+   @Test
+   void fillVariableTableDropsUnpromptedDbLogin() throws Exception {
+      List<VariableAssemblyModelInfo> variables = List.of(
+         variable("_Db_User_Secret", "sa"),
+         variable("_Db_Password_Secret", "guess"),
+         variable("region", "West"));
+      VariableTable vtable = new VariableTable();
+      XPrincipal user = mock(XPrincipal.class);
+
+      service.fillVariableTable(variables, vtable, user, "plain", Set.of());
+
+      assertFalse(vtable.contains("_Db_User_Secret"));
+      assertFalse(vtable.contains("_Db_Password_Secret"));
+      assertEquals("West", vtable.get("region"));
+      verify(xRepository, never()).getDataSource(anyString());
+      verify(xRepository, never()).testDataSource(any(), any(), any());
+      verify(xRepository, never()).connect(any(), anyString(), any());
+      verify(user, never()).setProperty(anyString(), anyString());
+      verify(viewsheetService, never())
+         .setCachedProperty(any(), contains("_Db_"), any());
+   }
+
+   // Bug #77429, a prompted name that does not resolve is skipped instead of being tested as null
+   @Test
+   void fillVariableTableSkipsUnresolvedDataSource() throws Exception {
+      List<VariableAssemblyModelInfo> variables = List.of(
+         variable("_Db_User_Gone", "sa"),
+         variable("_Db_Password_Gone", "pw"));
+
+      service.fillVariableTable(variables, new VariableTable(), mock(XPrincipal.class), "plain",
+                                Set.of("_Db_User_Gone", "_Db_Password_Gone"));
+
+      verify(xRepository, never()).testDataSource(any(), any(), any());
+      verify(xRepository, never()).connect(any(), anyString(), any());
+   }
+
    private static VariableAssemblyModelInfo variable(String name, String value) {
       VariableAssemblyModelInfo info = new VariableAssemblyModelInfo();
       info.setName(name);
@@ -78,5 +116,6 @@ class VSCollectParametersServiceTest {
    }
 
    private ViewsheetService viewsheetService;
+   private XRepository xRepository;
    private VSCollectParametersService service;
 }

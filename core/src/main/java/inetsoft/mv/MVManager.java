@@ -141,7 +141,8 @@ public final class MVManager implements MessageListener {
       if(entry.isWorksheet()) {
          MVDef mv = findMV(entry, tname, user, null);
 
-         if(mv != null) {
+         // an mv that is not created (yet) has no data to query
+         if(mv != null && mv.isSuccess()) {
             return new RuntimeMV(entry, null, null, tname, mv.getName(),
                                  false, mv.getLastUpdateTime(), null);
          }

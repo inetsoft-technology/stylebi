@@ -17,7 +17,7 @@
  */
 import { HttpErrorResponse } from "@angular/common/http";
 import { Component, HostBinding, OnInit, ViewChild, ViewEncapsulation } from "@angular/core";
-import { UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { UntypedFormBuilder, UntypedFormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { MatDialog } from "@angular/material/dialog";
 import { MatSnackBar } from "@angular/material/snack-bar";
 import { ActivatedRoute, Router } from "@angular/router";
@@ -175,7 +175,7 @@ export class ScheduleTaskEditorPageComponent implements OnInit {
                private scheduleTaskNamesService: ScheduleTaskNamesService)
    {
       this.form = formBuilder.group({
-         "taskName": ["", [Validators.required, FormValidators.invalidTaskName]]
+         "taskName": ["", [FormValidators.required, FormValidators.invalidTaskName]]
       });
    }
 
@@ -365,7 +365,8 @@ export class ScheduleTaskEditorPageComponent implements OnInit {
          conditions: this.model.taskConditionPaneModel.conditions,
          actions: this.model.taskActionPaneModel.actions,
          options: this.model.taskOptionsPaneModel,
-         orgId: this.pageTitle.currentOrgId
+         orgId: this.pageTitle.currentOrgId,
+         itemsIdentified: true
       };
 
       // remove folderPermission property from actions as it's only used on the portal side

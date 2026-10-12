@@ -120,11 +120,11 @@ class ConvertChartRefServiceTest {
 
       VSBindingService bindingFactory = mock(VSBindingService.class);
       when(bindingFactory.createModel(chart)).thenReturn(mock(BindingModel.class));
-      when(bindingFactory.updateAssembly(any(), eq(chart))).thenReturn(nchart);
+      when(bindingFactory.updateAssembly(any(), eq(chart), any())).thenReturn(nchart);
 
       VSAssemblyInfoHandler assemblyInfoHandler = mock(VSAssemblyInfoHandler.class);
       when(assemblyInfoHandler.handleSourceChanged(any(), anyString(), anyString(), any(), any(),
-                                                   any())).thenReturn(false);
+                                                   any(), any())).thenReturn(false);
 
       VSBindingTreeControllerServiceProxy vsBindingTreeService =
          mock(VSBindingTreeControllerServiceProxy.class);

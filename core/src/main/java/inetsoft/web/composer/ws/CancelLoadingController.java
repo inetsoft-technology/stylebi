@@ -32,6 +32,7 @@ public class CancelLoadingController extends WorksheetController {
    /**
     * From 12.2 LoadingMetaDataEvent.
     */
+   // listed in SheetEventOrderInterceptor, which does not queue it behind the sheet's events
    @MessageMapping("/composer/worksheet/cancel-loading")
    public void cancelLoading(
       Principal principal, CommandDispatcher commandDispatcher) throws Exception

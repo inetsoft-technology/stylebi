@@ -242,8 +242,8 @@ public class NamedGroupInfo implements XNamedGroupInfo, AssetObject {
       for(String group : groups) {
          ConditionList conditions = getGroupCondition(group);
          writer.println("<oneGroup>");
-         writer.print("<group>");
-         writer.print("<![CDATA[" + group + "]]>");
+         writer.print("<group" + Tool.cdataDataAttr(group) + ">");
+         writer.print("<![CDATA[" + Tool.cdataData(group) + "]]>");
          writer.println("</group>");
          conditions.writeXML(writer);
          writer.println("</oneGroup>");
@@ -275,7 +275,7 @@ public class NamedGroupInfo implements XNamedGroupInfo, AssetObject {
       for(int i = 0; i < nodes.getLength(); i++) {
          Element onode = (Element) nodes.item(i);
          Element gnode = Tool.getChildNodeByTagName(onode, "group");
-         String group = Tool.getValue(gnode);
+         String group = Tool.getCDATAData(gnode);
          Element cnode = Tool.getChildNodeByTagName(onode, "conditions");
          ConditionList conditions = new ConditionList();
          conditions.parseXML(cnode);

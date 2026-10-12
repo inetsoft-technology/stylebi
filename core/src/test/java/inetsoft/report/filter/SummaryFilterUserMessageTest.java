@@ -291,7 +291,11 @@ class SummaryFilterUserMessageTest {
    private static boolean isWaitingForRow(Thread thread) {
       Thread.State state = thread.getState();
 
-      if(state != Thread.State.WAITING && state != Thread.State.TIMED_WAITING) {
+      // BLOCKED: the reader enters the filter's monitor in waitForRow() while the worker holds
+      // it, blocked in merge() by the latch (rowIterationGetsOwnMessage)
+      if(state != Thread.State.WAITING && state != Thread.State.TIMED_WAITING &&
+         state != Thread.State.BLOCKED)
+      {
          return false;
       }
 

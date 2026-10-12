@@ -838,37 +838,40 @@ public class VSAggregateRef extends AbstractDataRef implements ContentObject, XA
 
       if(refValue.getDValue() != null) {
          writer.print("<refValue>");
-         writer.print("<![CDATA[" + refValue.getDValue() + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(refValue.getDValue()) + "]]>");
          writer.println("</refValue>");
       }
 
       if(refValue.getRuntimeValue(true) != null) {
          writer.print("<refRValue>");
-         writer.print("<![CDATA[" + refValue.getRuntimeValue(true) + "]]>");
+         writer.print("<![CDATA[" +
+                      Tool.cdataText(String.valueOf(refValue.getRuntimeValue(true))) + "]]>");
          writer.println("</refRValue>");
       }
 
       if(ref2Value.getDValue() != null) {
          writer.print("<secondaryValue>");
-         writer.print("<![CDATA[" + ref2Value.getDValue() + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(ref2Value.getDValue()) + "]]>");
          writer.println("</secondaryValue>");
       }
 
       if(ref2Value.getRuntimeValue(true) != null) {
          writer.print("<secondaryRValue>");
-         writer.print("<![CDATA[" + ref2Value.getRuntimeValue(true) + "]]>");
+         writer.print("<![CDATA[" +
+                      Tool.cdataText(String.valueOf(ref2Value.getRuntimeValue(true))) + "]]>");
          writer.println("</secondaryRValue>");
       }
 
       if(formulaValue.getDValue() != null) {
          writer.print("<formulaValue>");
-         writer.print("<![CDATA[" + formulaValue.getDValue() + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(formulaValue.getDValue()) + "]]>");
          writer.println("</formulaValue>");
       }
 
       if(formulaValue.getRuntimeValue(true) != null) {
          writer.print("<formulaRValue>");
-         writer.print("<![CDATA[" + formulaValue.getRuntimeValue(true) +
+         writer.print("<![CDATA[" +
+                      Tool.cdataText(String.valueOf(formulaValue.getRuntimeValue(true))) +
                       "]]>");
          writer.println("</formulaRValue>");
       }
@@ -900,7 +903,7 @@ public class VSAggregateRef extends AbstractDataRef implements ContentObject, XA
 
       if(caption != null) {
          writer.print("<caption>");
-         writer.print("<![CDATA[" + caption + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(caption) + "]]>");
          writer.println("</caption>");
       }
 
@@ -943,7 +946,7 @@ public class VSAggregateRef extends AbstractDataRef implements ContentObject, XA
 
       if(fullName != null && !fullName.equals("")) {
          writer.print("<fullName>");
-         writer.print("<![CDATA[" + fullName + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(fullName) + "]]>");
          writer.println("</fullName>");
       }
 
@@ -951,7 +954,7 @@ public class VSAggregateRef extends AbstractDataRef implements ContentObject, XA
 
       if(oriFullName != null && !oriFullName.equals("")) {
          writer.print("<oriFullName>");
-         writer.print("<![CDATA[" + oriFullName + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(oriFullName) + "]]>");
          writer.println("</oriFullName>");
       }
 
@@ -960,7 +963,7 @@ public class VSAggregateRef extends AbstractDataRef implements ContentObject, XA
 
       if(oriView != null && !oriView.equals(toView())) {
          writer.print("<oriView>");
-         writer.print("<![CDATA[" + oriView + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(oriView) + "]]>");
          writer.println("</oriView>");
       }
 
@@ -1076,7 +1079,6 @@ public class VSAggregateRef extends AbstractDataRef implements ContentObject, XA
             ("common.viewsheet.aggrInvalid", refValue));
       }
       */
-      final boolean aggregated = isAggregateEnabled();
       final boolean variable = isVariable();
 
       if(this.isDynamicBinding()) {
@@ -1091,6 +1093,11 @@ public class VSAggregateRef extends AbstractDataRef implements ContentObject, XA
          String rtext = Tool.toString(arr[i]);
          DataRef ref = columns.getAttribute(rtext, getEntity());
          DataRef ref2 = null;
+         // formula parsed from an "Agg(col)" variable value, overrides the design formula
+         String parsedFormula = null;
+         // runtime column value; arr may be the variable's cached value array, so it
+         // must not be rewritten or the next update() would lose the parsed formula
+         Object rvalue = arr[i];
 
          // fix Bug #41264, CalculateRef do not support formula.
          if(isApplyAlias() && ref instanceof CalculateRef) {
@@ -1102,8 +1109,10 @@ public class VSAggregateRef extends AbstractDataRef implements ContentObject, XA
             boolean shouldThrow = true;
 
             // parse out the aggregate and column name for variable bindings so we can
-            // change the formula type dynamically
-            if(variable && !aggregated && rtext.contains("(")) {
+            // change the formula type dynamically. This applies regardless of the design
+            // formula (Bug #78087); a value naming only a column matches above and keeps
+            // the design formula.
+            if(variable && rtext.contains("(")) {
                final int open = rtext.indexOf('(');
                final boolean isAggText = rtext.endsWith(")");
 
@@ -1112,9 +1121,9 @@ public class VSAggregateRef extends AbstractDataRef implements ContentObject, XA
                   final AggregateFormula formula = AggregateFormula.getFormula(agg);
 
                   if(formula != null) {
-                     farr[i] = agg;
+                     parsedFormula = agg;
                      final String name = rtext.substring(open + 1, rtext.length() - 1);
-                     arr[i] = name;
+                     rvalue = name;
                      ref = columns.getAttribute(name, getEntity());
                      shouldThrow = false;
                   }
@@ -1141,7 +1150,16 @@ public class VSAggregateRef extends AbstractDataRef implements ContentObject, XA
          // When the ref's runtime value is vingues, use its own value to create
          // alias ref.
          VSAggregateRef aref = (VSAggregateRef) this.clone();
-         aref.refValue.setRValue(arr[i]);
+         aref.refValue.setRValue(rvalue);
+
+         // apply the parsed formula before the alias name is computed from the full name
+         if(parsedFormula != null) {
+            aref.formulaValue.setRValue(parsedFormula);
+            // the cached flag (true means NOT None, despite its name) was computed from
+            // the design formula, recompute it so isAggregateEnabled() reflects the
+            // parsed formula
+            aref.noneFormula = isNoneFormula(parsedFormula);
+         }
 
          if(ref instanceof ColumnRef) {
             ColumnRef col = (ColumnRef) ref;
@@ -1194,7 +1212,7 @@ public class VSAggregateRef extends AbstractDataRef implements ContentObject, XA
          aref.setCaption(caption);
          aref.setSecondaryColumn(ref2);
 
-         if(farr.length > 0) {
+         if(parsedFormula == null && farr.length > 0) {
             aref.formulaValue.setRValue(farr[i % farr.length]);
          }
 

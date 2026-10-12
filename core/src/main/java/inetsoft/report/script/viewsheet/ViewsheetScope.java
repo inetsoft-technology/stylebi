@@ -1033,6 +1033,10 @@ public class ViewsheetScope implements Cloneable, DynamicScope {
          throw new ScriptException(msg, ex);
       };
 
+      // put back the flag of the caller instead of clearing it, so a script run while a
+      // restricted formula runs leaves that formula restricted (bug #77396)
+      boolean restricted = FormulaContext.isRestricted();
+
       // execute the script object
       try {
          // compile the script
@@ -1095,7 +1099,7 @@ public class ViewsheetScope implements Cloneable, DynamicScope {
             vtable.copyParameters((XPrincipal) box.getUser());
          }
 
-         FormulaContext.setRestricted(false);
+         FormulaContext.setRestricted(restricted);
       }
    }
 

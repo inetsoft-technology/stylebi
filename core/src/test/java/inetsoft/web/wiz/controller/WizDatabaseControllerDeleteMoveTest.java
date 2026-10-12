@@ -115,7 +115,7 @@ class WizDatabaseControllerDeleteMoveTest {
       assertFalse(item.ok());
       assertEquals(WizDatasourceDeleteItemResult.PERMISSION_DENIED, item.reason());
       verify(fixture.dataSourceBrowserService, never())
-         .deleteDataSourceFolder(any(), any(), anyBoolean(), any());
+         .deleteDataSourceFolderResult(any(), any(), anyBoolean(), any());
    }
 
    @Test
@@ -204,7 +204,7 @@ class WizDatabaseControllerDeleteMoveTest {
       List<DeletedDataSource> deleted = List.of(
          new DeletedDataSource("Examples/ds1", "JDBC"),
          new DeletedDataSource("Examples/sub/ds2", "REST"));
-      when(fixture.dataSourceBrowserService.deleteDataSourceFolder(
+      when(fixture.dataSourceBrowserService.deleteDataSourceFolderResult(
          eq("Examples"), any(), anyBoolean(), eq(fixture.principal)))
          .thenReturn(FolderDeleteResult.success(deleted));
 
@@ -229,7 +229,7 @@ class WizDatabaseControllerDeleteMoveTest {
          eq(fixture.principal), eq(ResourceType.DATA_SOURCE_FOLDER), eq("Examples"),
          eq(ResourceAction.DELETE)))
          .thenReturn(true);
-      when(fixture.dataSourceBrowserService.deleteDataSourceFolder(
+      when(fixture.dataSourceBrowserService.deleteDataSourceFolderResult(
          eq("Examples"), any(), anyBoolean(), eq(fixture.principal)))
          .thenReturn(FolderDeleteResult.failure(new ConnectionStatus("used by Worksheet1")));
 
@@ -367,7 +367,8 @@ class WizDatabaseControllerDeleteMoveTest {
       WizDependencyCheckResult result = fixture.controller.checkOuterDependencies(
          new WizCheckDependenciesRequest(List.of(
             new WizDatasourceRef("/orders", "orders", false),
-            new WizDatasourceRef("/clean", "clean", false))));
+            new WizDatasourceRef("/clean", "clean", false))),
+         fixture.principal);
 
       assertTrue(result.messagesByPath().containsKey("/orders"));
       assertFalse(result.messagesByPath().containsKey("/clean"));

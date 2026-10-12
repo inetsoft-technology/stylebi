@@ -45,8 +45,10 @@ public class GDataRequestInitializer implements HttpRequestInitializer {
             throw new IllegalStateException("Refresh token is not set");
          }
 
+         Tokens tokens;
+
          try {
-            Tokens tokens =
+            tokens =
                AuthorizationClient.refresh("google-sheets-picker", dataSource.getRefreshToken(), null);
             dataSource.updateTokens(tokens);
          }
@@ -54,9 +56,12 @@ public class GDataRequestInitializer implements HttpRequestInitializer {
             throw new RuntimeException("Failed to refresh the access token", e);
          }
 
+         // Bug #77699, save onto the stored definition, not this runtime instance whose
+         // variables may have been replaced with the values of the query
          if(saveTokens && dataSource.getFullName() != null) {
             try {
-               XRepository.getRepository().updateDataSource(dataSource, dataSource.getFullName());
+               XRepository.getRepository().updateDataSourceTokens(
+                  dataSource, stored -> ((GDataDataSource) stored).updateTokens(tokens));
             }
             catch(Exception e) {
                LOG.warn("Failed to save data source after refreshing token", e);

@@ -120,9 +120,12 @@ public class ExpressionAttribute extends XAttribute {
          "\" parseable=\"" + isParseable() +
          (formula == null ? "" :  "\" formula=\"" + formula) +
          "\" aggregate=\"" + isAggregateExpression() + "\">");
-      writer.println("<description>" +
-         (getDescription() == null ? "" : getDescription()) + "</description>");
-      writer.println("<expr><![CDATA[" +  getExpression() + "]]></expr>");
+      String desc = getDescription();
+      // the description is free text, so write it in CDATA (with any ]]> split) so that
+      // characters such as & and < don't make the logical model unreadable
+      writer.println("<description>" + (desc == null || desc.isEmpty() ? "" :
+         "<![CDATA[" + Tool.cdataText(desc) + "]]>") + "</description>");
+      writer.println("<expr><![CDATA[" + Tool.cdataText(getExpression()) + "]]></expr>");
 
       if(getBrowseDataQuery() != null) {
          writer.print("<browseDataQuery>");

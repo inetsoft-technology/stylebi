@@ -567,6 +567,14 @@ public final class XSwapUtil {
             // is a config flag that reset() does not clear, so set it once here.
             com.esotericsoftware.kryo.kryo5.Kryo kryo = new com.esotericsoftware.kryo.kryo5.Kryo();
             kryo.setRegistrationRequired(false);
+            // a class without a no-arg constructor (e.g. java.util.UUID) is written
+            // fine but can't be created on read, which nulls the whole swapped column.
+            // Fall back to Objenesis only for such classes; classes with a no-arg
+            // constructor are still created through it. Objects built by the fallback
+            // skip constructors, so constructor-initialized transient fields are null.
+            kryo.setInstantiatorStrategy(
+               new com.esotericsoftware.kryo.kryo5.util.DefaultInstantiatorStrategy(
+                  new com.esotericsoftware.kryo.kryo5.objenesis.strategy.StdInstantiatorStrategy()));
             return kryo;
          }
 

@@ -18,10 +18,12 @@
 package inetsoft.util.script.graal;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.util.script.LendableReentrantLock;
 import inetsoft.util.script.ScriptException;
 import inetsoft.util.script.graal.pool.WsExecContext;
-import inetsoft.util.stall.LockStallException;
+import inetsoft.util.swap.DataUnavailable;
+import inetsoft.util.swap.SwapReadInterruptedException;
 import org.graalvm.polyglot.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -81,6 +83,18 @@ public class GraalJavaScriptEngine implements AutoCloseable {
    private Value hostGlobals;
    private final Set<String> hostGlobalNames = new java.util.HashSet<>();
 
+   // Bug #77595: the per-scope var stores of the current context (see localsFor), the
+   // frozen empty object a script reads as its store when its vars stay globals, and the
+   // function that makes a store. Rebuilt on (re)init; guarded by lock.
+   // Bug #77866: a scope with a ScopeLocals holds its own store (keyed by this engine),
+   // ownedLocals only names those scopes, to release their stores of a closed context.
+   private final Map<ScriptScope, LocalsEntry> localStores = new WeakHashMap<>();
+   private final Set<ScriptScope> ownedLocals = java.util.Collections.newSetFromMap(
+      new WeakHashMap<>());
+   private Value noLocals;
+   private Value newLocals;
+   private Value setLocalsParent;
+
    // These config props are read on the per-script hot path (exec runs hundreds
    // of thousands of times for data-driven worksheet formula columns), and a raw
    // SreeEnv lookup per call is a measurable cost. SreeEnv.Value caches the value
@@ -104,10 +118,21 @@ public class GraalJavaScriptEngine implements AutoCloseable {
    // builtins, init-installed globals, put() names), which the plain-path reset
    // of a rewritten initializer-less let/const must never touch.
    private static final String HOST_GLOBALS_VAR = "__inetsoft_host_globals__";
+   // Bug #77595: the expression that reads the var store of the scope a script runs in
+   // (or NO_LOCALS_VAR's object, see localsFor), the frozen empty object itself, and the
+   // function that declares a script's top-level var names in its store.
+   private static final String LOCALS_VAR = "__scope__." + BindingRootProxy.LOCALS_MEMBER;
+   private static final String OWN_LOCALS_VAR =
+      "__scope__." + BindingRootProxy.OWN_LOCALS_MEMBER;
+   private static final String NO_LOCALS_VAR = "__inetsoft_no_locals__";
+   private static final String DECLARE_FN = "__inetsoft_declare__";
    // Names the #77181 reset never emits, whatever the runtime set says: the
    // engine's own wrapper globals (resetting __scope__ breaks every later script).
    private static final Set<String> NEVER_RESET = Set.of(
       "__scope__", HOST_GLOBALS_VAR, RESULT_VAR, VALUE_VAR, HOIST_ERR_VAR,
+      BindingRootProxy.LOCALS_MEMBER, BindingRootProxy.OWN_LOCALS_MEMBER, NO_LOCALS_VAR,
+      BindingRootProxy.DECLARED_VARS_MEMBER,
+      DECLARE_FN,
       "globalThis", "undefined", "NaN", "Infinity", "eval", "arguments");
 
    // Bug #75625: matches the `this` keyword as an identifier token. Used to decide
@@ -155,6 +180,11 @@ public class GraalJavaScriptEngine implements AutoCloseable {
 
    public void init(Map<String, Object> vars) throws Exception {
       lock.lock();
+      // Testing #77123: a caller's cancel (the thread's interrupt flag) is kept, but it must not
+      // stop the init: Graal would raise it at the init's first guest safepoint and clear it,
+      // and the catches below would swallow it, leaving a half-built engine for its life.
+      // Clear it while the init runs and set it again after
+      boolean cancelled = Thread.interrupted();
 
       try {
          if(context != null) {
@@ -164,6 +194,9 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          classFilter = ScriptHostAccess.classFilter();
          scopeProxy = null; // rebound against the new context on next exec
          hostGlobals = null; // rebuilt against the new context by installHostGlobals
+         // the var stores belong to the old context (#77595)
+         releaseLocals();
+         noLocals = newLocals = setLocalsParent = null;
 
          context = Context.newBuilder("js")
             .engine(polyglotEngine())
@@ -175,6 +208,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             .allowCreateProcess(false)
             .allowEnvironmentAccess(org.graalvm.polyglot.EnvironmentAccess.NONE)
             .build();
+         // test every Java.type name, not just a context's first lookup (bug #77396)
+         ScriptHostAccess.installTypeLookupCheck(context, classFilter);
 
          // FIX B: reset per-Source error counts on (re)init
          resetErrorCounts();
@@ -183,6 +218,10 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          installHostGlobals();
       }
       finally {
+         if(cancelled) {
+            Thread.currentThread().interrupt();
+         }
+
          lock.unlock();
       }
    }
@@ -198,26 +237,90 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * a global the engine itself defined. Taken after {@link #initScope}, so
     * script-created globals (the stale values the reset exists to clear) are
     * never in it. Caller holds {@code lock}.
+    * <p>
+    * An interrupt that stops it would leave the engine without the set for its life, so the
+    * install, our own bounded JS, is retried without the interrupt flag on any interrupt (a
+    * cancel or a timeout of a guard of the thread); only a cancel's flag is set again after
+    * (Testing #77123).
     */
    private void installHostGlobals() {
-      hostGlobalNames.clear();
-      hostGlobals = null;
+      boolean cancelled = false;
 
       try {
-         context.eval(Source.newBuilder("js",
-            "(function(g){var h=Object.create(null),k=Object.getOwnPropertyNames(g);" +
-            "for(var i=0;i<k.length;i++){h[k[i]]=true;}h['" + HOST_GLOBALS_VAR + "']=true;" +
-            "Object.defineProperty(g,'" + HOST_GLOBALS_VAR +
-            "',{value:h,writable:false,enumerable:false,configurable:true});})(globalThis)",
-            "<host-globals>").buildLiteral());
-         Value names = context.getBindings("js").getMember(HOST_GLOBALS_VAR);
-         hostGlobalNames.addAll(names.getMemberKeys());
-         hostGlobals = names;
+         for(int attempt = 1; ; attempt++) {
+            try {
+               installHostGlobals0();
+               return;
+            }
+            catch(PolyglotException ex) {
+               if(attempt < 3 && ScriptTimeoutGuard.isInterrupt(ex)) {
+                  cancelled |= ScriptTimeoutGuard.isCancel(ex, null);
+                  Thread.interrupted();
+                  continue;
+               }
+
+               ScriptTimeoutGuard.keepCancel(ex, null);
+               // without the set every reset is skipped (the emitted guard checks it)
+               LOG.warn("Failed to install the host global names", ex);
+               return;
+            }
+         }
       }
-      catch(PolyglotException ex) {
-         // without the set every reset is skipped (the emitted guard checks it)
-         LOG.warn("Failed to install the host global names", ex);
+      finally {
+         if(cancelled) {
+            Thread.currentThread().interrupt();
+         }
       }
+   }
+
+   private void installHostGlobals0() {
+      hostGlobalNames.clear();
+      hostGlobals = null;
+      installLocals();
+      context.eval(Source.newBuilder("js",
+         "(function(g){var h=Object.create(null),k=Object.getOwnPropertyNames(g);" +
+         "for(var i=0;i<k.length;i++){h[k[i]]=true;}h['" + HOST_GLOBALS_VAR + "']=true;" +
+         "Object.defineProperty(g,'" + HOST_GLOBALS_VAR +
+         "',{value:h,writable:false,enumerable:false,configurable:true});})(globalThis)",
+         "<host-globals>").buildLiteral());
+      Value names = context.getBindings("js").getMember(HOST_GLOBALS_VAR);
+      hostGlobalNames.addAll(names.getMemberKeys());
+      hostGlobals = names;
+   }
+
+   /**
+    * Bug #77595: install the globals of the per-scope var stores (see
+    * {@link #localsFor}): {@link #NO_LOCALS_VAR}, a frozen empty object, which a script
+    * reads as its store when its vars stay globals, and {@link #DECLARE_FN}, which
+    * declares a script's top-level var names in its store as Rhino declared them on the
+    * scope the script ran in (a name the store already has keeps its value), sets the
+    * names of its optional third argument to undefined in the store (Bug #78247, see
+    * {@link #localsOpen(Set, Set)}) and returns the store; without a store it does
+    * nothing, so a reset never writes a global. Run before the host globals snapshot, so
+    * the names are host globals. Idempotent, as the snapshot may be retried. Caller holds {@code lock}.
+    */
+   private void installLocals() {
+      if(noLocals != null) {
+         return;
+      }
+
+      Value fns = context.eval(Source.newBuilder("js",
+         "(function(g){var none=Object.freeze(Object.create(null));" +
+         "var own=Object.prototype.hasOwnProperty;" +
+         "Object.defineProperty(g,'" + NO_LOCALS_VAR +
+         "',{value:none,writable:false,enumerable:false,configurable:false});" +
+         "Object.defineProperty(g,'" + DECLARE_FN + "',{value:function(o,n,r){" +
+         "if(o!==none){for(var i=0;i<n.length;i++){if(!own.call(o,n[i])){o[n[i]]=void 0;}}" +
+         "if(r){for(var j=0;j<r.length;j++){o[r[j]]=void 0;}}}" +
+         "return o;}," +
+         "writable:false,enumerable:false,configurable:false});" +
+         "var sp=Object.setPrototypeOf;" +
+         "return [none,function(p){return Object.create(p===undefined?null:p);}," +
+         "function(o,p){sp(o,p===undefined?null:p);}];" +
+         "})(globalThis)", "<locals>").buildLiteral());
+      newLocals = fns.getArrayElement(1);
+      setLocalsParent = fns.getArrayElement(2);
+      noLocals = fns.getArrayElement(0);
    }
 
    /**
@@ -325,6 +428,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          putFunction(bindings, "numberToString", jse, "numberToString", Object.class);
       }
       catch(Throwable ex) {
+         // a cancel that landed during the init is kept (Testing #77123)
+         ScriptTimeoutGuard.keepCancel(ex, null);
          LOG.warn("Failed to install global utility functions", ex);
       }
 
@@ -336,6 +441,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
                      int.class, int.class, int.class, int.class);
       }
       catch(Throwable ex) {
+         // a cancel that landed during the init is kept (Testing #77123)
+         ScriptTimeoutGuard.keepCancel(ex, null);
          LOG.warn("Failed to install setupGoogleMapsPlot", ex);
       }
 
@@ -346,6 +453,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          addStaticFunctions(bindings, inetsoft.report.script.formula.FormulaFunctions.class);
       }
       catch(Throwable ex) {
+         // a cancel that landed during the init is kept (Testing #77123)
+         ScriptTimeoutGuard.keepCancel(ex, null);
          LOG.warn("Failed to install FormulaFunctions", ex);
       }
    }
@@ -389,6 +498,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          calcScope = calc;
       }
       catch(Throwable ex) {
+         // a cancel that landed during the init is kept (Testing #77123)
+         ScriptTimeoutGuard.keepCancel(ex, null);
          LOG.warn("Failed to install CALC functions", ex);
       }
 
@@ -461,6 +572,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          bindings.putMember(name, ScriptValueConverter.toGuest(scope));
       }
       catch(Throwable ex) {
+         // a cancel that landed during the init is kept (Testing #77123)
+         ScriptTimeoutGuard.keepCancel(ex, null);
          LOG.warn("Failed to install constant object " + name, ex);
       }
    }
@@ -486,6 +599,21 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * being unavailable in minimal/test contexts.
     */
    private void installLibraryFunctions() {
+      // the top level of a library runs here, and the globals it leaves are seen by every
+      // script of this context, restricted ones included, so it runs restricted. A function
+      // body still runs under its caller's flag (bug #77396)
+      boolean restricted = inetsoft.util.script.FormulaContext.isRestricted();
+      inetsoft.util.script.FormulaContext.setRestricted(true);
+
+      try {
+         installLibraryFunctions0();
+      }
+      finally {
+         inetsoft.util.script.FormulaContext.setRestricted(restricted);
+      }
+   }
+
+   private void installLibraryFunctions0() {
       Map<String, String> sources = librarySources();
 
       if(sources != null) {
@@ -508,6 +636,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       }
       catch(Throwable ex) {
          // LibManager/provider unavailable (e.g. minimal/test contexts) — skip
+         ScriptTimeoutGuard.keepCancel(ex, null);
          LOG.debug("Library functions not installed; LibManager unavailable", ex);
       }
    }
@@ -536,6 +665,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       }
       catch(PolyglotException ex) {
          // don't let one bad library function break engine init
+         // a cancel that landed during the init is kept (Testing #77123)
+         ScriptTimeoutGuard.keepCancel(ex, null);
          LOG.warn("Failed to compile library function " + name, ex);
       }
    }
@@ -802,6 +933,21 @@ public class GraalJavaScriptEngine implements AutoCloseable {
    }
 
    public Object compile(String cmd, boolean fieldOnly) throws Exception {
+      return compile0(cmd, false);
+   }
+
+   /**
+    * Bug #78247: compile a freehand table cell formula, which runs on a
+    * {@link DeclaredVarScope} root, so that a name it declares with a top-level
+    * {@code var} is its own var, not a same-named member of the scope chain (see
+    * {@link #scopeWith}). Every other script is compiled by {@link #compile}, whose
+    * source is unchanged.
+    */
+   public Object compileDeclaredVars(String cmd) throws Exception {
+      return compile0(cmd, true);
+   }
+
+   private Object compile0(String cmd, boolean declaredVars) throws Exception {
       // Rhino parity: Context.evaluateString(scope, ...) bound the top-level
       // `this` to the scope object, so dashboard scripts routinely reference
       // assembly properties as `this.position`, `this.scaledPosition`, etc. A
@@ -879,9 +1025,10 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          // A function declared in a nested block keeps the eval wrapper too: as a
          // piece it would keep its function across runs (hasBlockFunctionDeclaration).
          Object pieces = THIS_REF.matcher(body).find() || hasBlockFunctionDeclaration(body) ?
-            null : buildPieceScript(body, lexicalBody, statements);
+            null : buildPieceScript(body, lexicalBody, statements, declaredVars);
 
-         return pieces != null ? pieces : buildCompletionPreservingSource(body, statements);
+         return pieces != null ? pieces :
+            buildCompletionPreservingSource(body, statements, declaredVars);
       }
 
       // Bug #75625: the direct-eval wrapper below re-parses the script body on
@@ -894,7 +1041,10 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       // once and reused: it preserves the statement-list completion value (value/
       // expression bindings) and top-level `var`/`function` declarations persist
       // to the context global across executions naturally (so #75596 holds
-      // without the declaration hoist). Block-vs-object completion semantics
+      // without the declaration hoist). Bug #77595: a `var` of a script run on a
+      // scope other than the sheet's own (an assembly, a calc table) lives in the
+      // var store of that scope instead (localsOpen, localsFor), as in Rhino, so
+      // it never replaces an onInit/onLoad global. Block-vs-object completion semantics
       // (e.g. a bare `{a:1}`) are identical to the eval form because the body is
       // still evaluated in statement position, not wrapped in `return (...)`.
       //
@@ -923,12 +1073,16 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       // where one of its names is a host global.
       if(!THIS_REF.matcher(body).find()) {
          Set<String> resetNames = collectInitializerlessLexicalNames(lexicalBody);
+         // Bug #77595: the vars are declared in the store of the exec scope, so the
+         // reset (inside its with) resets the store, or the global if there is none
+         Set<String> localNames = localNames(body);
          Source plain = Source.newBuilder("js",
-            buildLexicalReset(resetNames) + "with(__scope__){" + body + "\n}", "<cmd>")
+            localsOpen(localNames, varResetNames(lexicalBody, localNames, declaredVars)) +
+            buildLexicalReset(resetNames) + scopeWith(localNames, declaredVars) + body + "\n}}", "<cmd>")
             .buildLiteral();
 
          return resetNames.isEmpty() ? plain :
-            buildPlainScript(plain, body, lexicalBody, resetNames);
+            buildPlainScript(plain, body, lexicalBody, resetNames, declaredVars);
       }
 
       // Bug #75596: top-level `var`/`function` declarations must persist across
@@ -941,7 +1095,9 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       // behavior while keeping the #75550 `this`-binding and completion-value
       // semantics. Names that were not actually declared at the eval's top level
       // (e.g. inside a nested function, or block-scoped let/const confined to the
-      // eval) are guarded by `typeof` and simply skipped.
+      // eval) are guarded by `typeof` and simply skipped. Bug #77595: for a script
+      // run on a scope other than the sheet's own, the names are copied to the var
+      // store of that scope instead of the global (buildDeclarationHoist).
       //
       // A top-level `return` in the script body is not a case this needs to
       // handle: GraalJS rejects it with a SyntaxError ("Invalid return
@@ -950,7 +1106,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       // never be skipped by an early return here — the eval throws before the
       // hoist statement would matter either way, and that throw is pre-existing
       // behavior unrelated to this fix.
-      return buildEvalWrapper(body);
+      return buildEvalWrapper(body, declaredVars);
    }
 
    /**
@@ -959,11 +1115,14 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * (#75550), keeping its completion value, and its top-level declarations are
     * copied to the global afterwards (#75596).
     */
-   private static Source buildEvalWrapper(String body) {
+   private static Source buildEvalWrapper(String body, boolean declaredVars) {
       String hoist = buildDeclarationHoist(body);
-      return Source.newBuilder("js",
-         "(function(){with(__scope__){var " + RESULT_VAR + "=eval(" + toJsStringLiteral(body) +
-            ");" + hoist + "return " + RESULT_VAR + ";}}).call(__scope__)", "<cmd>")
+      // Bug #77595: inside the store's with, so the body reads the vars an earlier run
+      // left in the store of its scope, as the hoist copies them there
+      return Source.newBuilder("js", "with(" + LOCALS_VAR + "){" +
+         "(function(){" + scopeWith(localNames(body), declaredVars) + "var " + RESULT_VAR + "=eval(" +
+            toJsStringLiteral(body) + ");" + hoist + "return " + RESULT_VAR +
+            ";}}).call(__scope__)}", "<cmd>")
          .buildLiteral();
    }
 
@@ -1012,14 +1171,18 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * added before the {@code with}, so error line numbers do not move.
     */
    private Object buildPlainScript(Source plain, String body, String lexicalBody,
-                                   Set<String> resetNames)
+                                   Set<String> resetNames, boolean declaredVars)
    {
+      // Bug #77595: only the declarations that stay a var are declared in the var store;
+      // a kept let must not shadow the engine global for the other scripts of the scope
+      String kept = keepInitializerlessLexicalDeclarations(lexicalBody);
+      Set<String> localNames = localNames(kept);
       Source colliding = Source.newBuilder("js",
-         "with(__scope__){" + keepInitializerlessLexicalDeclarations(lexicalBody) + "\n}",
-         "<cmd>").buildLiteral();
+         localsOpen(localNames, varResetNames(kept, localNames, declaredVars)) +
+         scopeWith(localNames, declaredVars) + kept + "\n}}", "<cmd>").buildLiteral();
 
       if(!sourcesAllParse(new Source[] { colliding })) {
-         colliding = buildEvalWrapper(body);
+         colliding = buildEvalWrapper(body, declaredVars);
       }
 
       return new PlainScript(plain, colliding, body, resetNames);
@@ -1144,9 +1307,14 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * to {@code var} by {@link #rewriteTopLevelLexicalDeclarations} (#76980); a
     * top-level {@code class} is still confined to its own piece.)
     */
-   private static Object buildCompletionPreservingSource(String body, List<String> statements) {
+   private static Object buildCompletionPreservingSource(String body, List<String> statements,
+                                                         boolean declaredVars)
+   {
       StringBuilder sb = new StringBuilder();
-      sb.append("(function(){with(__scope__){var ").append(RESULT_VAR).append(",")
+      // Bug #77595: inside the store's with, as buildEvalWrapper
+      sb.append("with(").append(LOCALS_VAR).append("){");
+      sb.append("(function(){").append(scopeWith(localNames(body), declaredVars)).append("var ")
+         .append(RESULT_VAR).append(",")
          .append(VALUE_VAR).append(";");
 
       int pos = 0;
@@ -1170,7 +1338,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       }
 
       sb.append(buildDeclarationHoist(body));
-      sb.append("return ").append(RESULT_VAR).append(";}}).call(__scope__)");
+      sb.append("return ").append(RESULT_VAR).append(";}}).call(__scope__)}");
 
       return Source.newBuilder("js", sb.toString(), "<cmd>").buildLiteral();
    }
@@ -1207,11 +1375,15 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     *         {@code body} (defensive) or a built piece does not parse as it runs;
     *         the caller then keeps the eval wrapper.
     */
-   private Object buildPieceScript(String body, String lexicalBody, List<String> statements) {
+   private Object buildPieceScript(String body, String lexicalBody, List<String> statements,
+                                   boolean declaredVars)
+   {
       Set<String> resetNames = collectInitializerlessLexicalNames(lexicalBody);
       resetNames.addAll(collectOwnedVarNames(List.of(lexicalBody)));
       resetNames.removeAll(NEVER_RESET);
       String reset = buildLexicalReset(resetNames);
+      Set<String> localNames = localNames(body);
+      String locals = localsOpen(localNames);
       Source[] pieces = new Source[statements.size()];
       int pos = 0;
       int scanned = 0;
@@ -1231,15 +1403,20 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          scanned = at;
 
          StringBuilder sb = new StringBuilder(
-            stmt.length() + lines + 20 + (i == 0 ? reset.length() : 0));
+            stmt.length() + lines + 40 + (i == 0 ? locals.length() + reset.length() : 0));
 
+         // Bug #77595: every piece runs in the store's with, and the first one declares
+         // the body's vars there before the reset, which then resets the store
          if(i == 0) {
-            sb.append(reset);
+            sb.append(locals).append(reset);
+         }
+         else {
+            sb.append(localsReopen(localNames));
          }
 
-         sb.append("with(__scope__){");
+         sb.append(scopeWith(localNames, declaredVars));
          sb.append("\n".repeat(lines));
-         sb.append(stmt).append("\n}");
+         sb.append(stmt).append("\n}}");
          pieces[i] = Source.newBuilder("js", sb.toString(), "<cmd>").buildLiteral();
          pos = at + stmt.length();
       }
@@ -1255,7 +1432,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       // script, and the Context reuses the parse for the first eval); if one fails,
       // keep the eval wrapper.
       return sourcesAllParse(pieces) ?
-         new PieceScript(pieces, body, resetNames, statements) : null;
+         new PieceScript(pieces, body, resetNames, statements, declaredVars) : null;
    }
 
    /**
@@ -1314,12 +1491,13 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     */
    static final class PieceScript {
       PieceScript(Source[] pieces, String text, Set<String> resetNames,
-                  List<String> statements)
+                  List<String> statements, boolean declaredVars)
       {
          this.pieces = pieces;
          this.text = text;
          this.resetNames = resetNames.toArray(new String[0]);
          this.statements = List.copyOf(statements);
+         this.declaredVars = declaredVars;
       }
 
       /**
@@ -1341,7 +1519,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
 
          if(source == null) {
             // a racing build yields an equal Source
-            wrapper = source = (Source) buildCompletionPreservingSource(text, statements);
+            wrapper = source =
+               (Source) buildCompletionPreservingSource(text, statements, declaredVars);
          }
 
          return source;
@@ -1385,6 +1564,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       private final String text;
       private final String[] resetNames;
       private final List<String> statements;
+      private final boolean declaredVars;
       private volatile Source wrapper;
    }
 
@@ -1834,6 +2014,124 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * {@code var}, never a same-named member of the scope. It has no line break,
     * so error line numbers do not move. Empty when there is nothing to reset.
     */
+   /**
+    * Bug #77595: the start of the {@code with} block of a script's var store, the store of
+    * the scope {@link #exec} runs it in (see {@link #localsFor}), declaring in it
+    * {@code names}, the names {@code body} declares with {@code var} outside a function
+    * (a top-level {@code let}/{@code const} is a {@code var} by then, #76980). The block
+    * is outside {@code with(__scope__)}, so a scope member of the same name still wins,
+    * as on the exec scope in Rhino, except for a freehand cell formula on a
+    * {@link DeclaredVarScope} root (Bug #78247, see {@link #scopeWith}); a name the scope does not have resolves to the store,
+    * so the {@code var} never writes a global of the same name, such as an onInit
+    * variable. No line break, so error line numbers do not move. Closed by {@code "}"}.
+    */
+   private static String localsOpen(Set<String> names) {
+      return localsOpen(names, Set.of());
+   }
+
+   /**
+    * {@link #localsOpen(Set)} that also sets {@code resetNames} (a subset of
+    * {@code names}) to undefined in the store at the start of every run (Bug #78247, see
+    * {@link #varResetNames}). Without a store nothing is reset, so a name such as the
+    * CALC {@code max} is never cleared as a global. With no reset names the source is
+    * that of {@link #localsOpen(Set)}.
+    */
+   private static String localsOpen(Set<String> names, Set<String> resetNames) {
+      if(names.isEmpty()) {
+         return localsReopen(names);
+      }
+
+      StringBuilder sb = new StringBuilder("with(").append(DECLARE_FN).append('(')
+         .append(OWN_LOCALS_VAR).append(",[");
+      int i = 0;
+
+      for(String name : names) {
+         sb.append(i++ > 0 ? "," : "").append(toJsStringLiteral(name));
+      }
+
+      sb.append(']');
+
+      if(!resetNames.isEmpty()) {
+         sb.append(",[");
+         i = 0;
+
+         for(String name : resetNames) {
+            sb.append(i++ > 0 ? "," : "").append(toJsStringLiteral(name));
+         }
+
+         sb.append(']');
+      }
+
+      return sb.append(")){").toString();
+   }
+
+   /**
+    * Bug #78247: the names of {@code localNames} that {@code body} declares with a
+    * {@code var} outside a function without an initializer ({@code var a, b = 1;} yields
+    * {@code a}), for a script compiled by {@link #compileDeclaredVars}
+    * ({@code declaredVars}), else none. A freehand table shares one var store between all
+    * its cells and rows, so on the plain single-piece path such a var would start with
+    * whatever another cell (or the cell itself on the previous row) left in the store; the
+    * other paths already start it undefined (the piece path resets it, the eval wrapper's
+    * var is a fresh local). A var with an initializer is not reset, so an accumulator
+    * {@code var c = (c || 0) + 1} still counts across cells and rows. {@code body} is the
+    * body before the let/const rewrite (which keeps offsets), so only a real {@code var}
+    * counts; an initializer-less {@code let} has its own #77181 reset.
+    */
+   private static Set<String> varResetNames(String body, Set<String> localNames,
+                                            boolean declaredVars)
+   {
+      if(!declaredVars || localNames.isEmpty()) {
+         return Set.of();
+      }
+
+      Set<String> names = new LinkedHashSet<>();
+      collectOwnedVarNames(body, new LinkedHashSet<>(), names);
+      names.retainAll(localNames);
+      return names;
+   }
+
+   /**
+    * Bug #77595: the names {@link #localsOpen} declares for {@code body}, the names it
+    * declares with {@code var} outside a function.
+    */
+   private static Set<String> localNames(String body) {
+      Set<String> names = collectOwnedVarNames(List.of(body));
+      names.removeAll(NEVER_RESET);
+      return names;
+   }
+
+   /**
+    * Bug #77595: the start of the {@code with} block of the var store of a later piece of
+    * a script whose first piece opened it with {@link #localsOpen} for {@code names}, or
+    * of a script without vars, which only reads its store.
+    */
+   private static String localsReopen(Set<String> names) {
+      return "with(" + (names.isEmpty() ? LOCALS_VAR : OWN_LOCALS_VAR) + "){";
+   }
+
+   /**
+    * Bug #78247: the start of the scope {@code with} block of a script body that declares
+    * {@code names} with {@code var} outside a function (see {@link #localNames}). Only for
+    * a script compiled by {@link #compileDeclaredVars} ({@code declaredVars}), any other one
+    * opens on {@code __scope__}, so its source (and what a message quotes of it) is
+    * unchanged. On a {@link DeclaredVarScope} root (a freehand table cell) it opens on a view of
+    * {@code __scope__} without those names, so they resolve to the script's own var (its
+    * var store, or a local of the eval wrapper) and a same-named member of the scope chain
+    * (the table's {@code max}, the assembly's {@code value}) is neither read nor replaced;
+    * on any other root on {@code __scope__} itself, so the member still wins, as on the
+    * exec scope in Rhino. Lexical, so a function declared elsewhere that the body calls
+    * still sees the member. No line break, so error line numbers do not move.
+    */
+   private static String scopeWith(Set<String> names, boolean declaredVars) {
+      if(!declaredVars || names.isEmpty()) {
+         return "with(__scope__){";
+      }
+
+      return "with(__scope__." + BindingRootProxy.DECLARED_VARS_MEMBER + "(" +
+         toJsStringLiteral(String.join(",", names)) + ")){";
+   }
+
    private static String buildLexicalReset(Set<String> names) {
       if(names.isEmpty()) {
          return "";
@@ -2380,6 +2678,9 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          ScriptScope prevScope = scopeProxy.swapGlobal(rootScope);
          LegacyJavaShim.ImportScope prevImports = scopeProxy.swapImports(null);
          Map<String, Object> prevAssigned = scopeProxy.swapAssigned(null);
+         // the var store of the scope the script runs in, made on first read (bug #77595)
+         BindingRootProxy.LocalsSource prevLocals =
+            scopeProxy.swapLocals(new LocalsSupplier(rootScope, rscope));
 
          // mark this thread as inside script execution (drives isScriptThread()
          // / getExecScriptable(), e.g. PropertiesEngine's env-modification guard).
@@ -2412,20 +2713,41 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             }
          }
          catch(PolyglotException ex) {
-            // a lock stall of Java code the script called, e.g. a read of a table, is not a
-            // script error: rethrow it as it is so the reader gets it (bug #76967)
+            // a lock stall or a lost swap file of Java code the script called, e.g. a read of
+            // a table, is not a script error: rethrow it so the reader gets it, and do not
+            // count it toward the script's errors (bugs #76967, #77910). Rethrow a copy: the
+            // instance the Java code threw carries a suppressed Truffle stack trace element,
+            // which cannot be serialized, e.g. in the response of a cluster call (bug #78084)
             if(ex.isHostException()) {
-               LockStallException stall = LockStallException.find(ex.asHostException());
+               RuntimeException unavailable = DataUnavailable.find(ex.asHostException());
 
-               if(stall != null) {
-                  throw stall;
+               // but a swap read interrupted on the exec thread means a timeout or a cancel
+               // stopped this exec, not that the data is lost: report the stop, with no
+               // swap failure in its cause chain, so a reader does not take it for a lost
+               // swap and run the script again from the state the stopped exec left, e.g. a
+               // var it already changed (bug #78098)
+               if(unavailable instanceof SwapReadInterruptedException) {
+                  ScriptException se = new ScriptException(ex.getMessage());
+                  se.setStackTrace(ex.getStackTrace());
+                  se.setStopped(true);
+                  throw se;
+               }
+
+               if(unavailable != null) {
+                  throw DataUnavailable.copy(unavailable);
                }
             }
+
+            // nor is the load failure of a table the script read, for a reader that has to fail,
+            // e.g. a scheduled run. It is kept as the cause, for the readers that look for it
+            // (a calc table), and other callers get the script error as before (bug #78071)
+            TableLoadException loadFailure = ex.isHostException() ?
+               TableLoadException.find(ex.asHostException()) : null;
 
             // FIX B: increment per-Source error count and warn when limit first crossed
             int limit = maxErrors();
 
-            if(limit > 0) {
+            if(limit > 0 && loadFailure == null) {
                int prev = errorCounts().getOrDefault(script, 0);
                int next = prev + 1;
                errorCounts().put(script, next);
@@ -2447,8 +2769,18 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             // across the cluster (e.g. an Ignite affinity-call response). The
             // message already carries the JS error text and line; copy the
             // merged host/guest stack trace so nothing useful is lost. (#75555)
-            ScriptException se = new ScriptException(ex.getMessage() + loc);
+            // Nor the load failure itself, which carries a suppressed Truffle stack trace
+            // element once it crossed the engine: keep a copy of it (bug #78071)
+            ScriptException se = loadFailure == null ?
+               new ScriptException(ex.getMessage() + loc) :
+               new ScriptException(ex.getMessage() + loc, new TableLoadException(
+                  loadFailure.getMessage(), loadFailure.getCause()));
             se.setStackTrace(ex.getStackTrace());
+            // what the dropped cause said: stopped by a timeout or cancel, not failed. Also
+            // when Java code the script called was stopped, e.g. a read of a formula cell
+            // that timed out, so the stop is not taken for an error of this script (bug #77949)
+            se.setStopped(ex.isInterrupted() || ex.isCancelled() ||
+                          ex.isHostException() && ScriptTimeoutGuard.isStop(ex.asHostException()));
             throw se;
          }
          finally {
@@ -2462,6 +2794,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             scopeProxy.swapGlobal(prevScope);
             scopeProxy.swapImports(prevImports);
             scopeProxy.swapAssigned(prevAssigned);
+            scopeProxy.swapLocals(prevLocals);
 
             // an interrupt that could not stop this exec leaves the Context in an unknown
             // state (bug #76960, spec §9); the base engine keeps it, a pooled one dooms it
@@ -2523,6 +2856,194 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       return pieces.collidesWith(hostGlobals != null ? hostGlobalNames : null) ?
          context.eval(pieces.wrapper()) : pieces.eval(context);
    }
+
+   /**
+    * Bug #77595: the var stores of a script run on {@code root} (see {@link #localsFor}),
+    * looked up on their first read. Only a script that declares vars reads {@link #own},
+    * so a script without vars never makes a store. Read from the guest, under
+    * {@code lock}.
+    */
+   private final class LocalsSupplier implements BindingRootProxy.LocalsSource {
+      LocalsSupplier(ScriptScope root, Object rscope) {
+         this.root = root;
+         this.rscope = rscope;
+      }
+
+      @Override
+      public Object view() {
+         if(own != null) {
+            return own;
+         }
+
+         if(view == null) {
+            view = localsFor(root, rscope, false);
+         }
+
+         return view;
+      }
+
+      @Override
+      public Object own() {
+         if(own == null) {
+            own = localsFor(root, rscope, true);
+         }
+
+         return own;
+      }
+
+      private final ScriptScope root;
+      private final Object rscope;
+      private Value view;
+      private Value own;
+   }
+
+   /** A var store and the store of the nearest ancestor scope that has one. */
+   private static final class LocalsEntry {
+      LocalsEntry(Value store, LocalsEntry parent) {
+         this.store = store;
+         this.parent = parent;
+      }
+
+      final Value store;
+      LocalsEntry parent;
+   }
+
+   /**
+    * Bug #77595: the var store of {@code root}, the scope a script runs in. Rhino defined
+    * a script's top-level {@code var} on that scope: an assembly script's on the
+    * assembly, a calc table cell's on the table, onInit's on the viewsheet scope. So a
+    * {@code var} shadowed a variable of the same name of a parent scope (an onInit or
+    * onLoad variable) for the script and the scripts of its scope only, and lived as long
+    * as its scope. Here every script's top-level vars are globals of the Context, so a
+    * script's {@code var n} would replace onInit's {@code n} for every later script.
+    *
+    * <p>A store is a native object made once per scope object (identity, weakly held, so
+    * it lives as long as the scope), whose prototype is the store of the nearest
+    * ancestor scope ({@link ScriptScope#getParentScope}) that has one, so a script also
+    * reads the vars of its parent scopes' scripts, as through Rhino's scope chain. A
+    * function a script declares closes over the store of its run. Unlike Rhino, an
+    * assignment without {@code var} to a parent store's var (a calc table cell setting
+    * its assembly script's var) makes a copy in the child's store, as for any
+    * prototype; the vars of the sheet's own scripts are globals, so this never applies
+    * to them. A scope with a {@link ScopeLocals} holds its own store, so the store
+    * lives as long as the scope even when a var of it refers back to the scope (#77866);
+    * the store of any other scope is held by this engine, weakly keyed by the scope, and
+    * one holding a value that refers to its own scope keeps the scope until this engine
+    * is re-initialized, closed or dropped.
+    *
+    * <p>The vars of these scripts stay globals, as before, and the frozen empty
+    * {@link #NO_LOCALS_VAR} object is returned:
+    * <ul>
+    *   <li>a script run on the report or viewsheet scope itself ({@code root == rscope},
+    *       onInit) or on a direct child of it ({@code thisViewsheet}, onLoad), whose
+    *       declarations every script of the sheet sees (#75596). In Rhino an onLoad
+    *       var lived on {@code thisViewsheet}, which every assembly's chain passes
+    *       through, so the global gives those scripts the same value, and keeps it
+    *       visible to a script run on a scope outside that chain;</li>
+    *   <li>a script run without a scope;</li>
+    *   <li>a script run on a scope chain with an {@link OwnedVarScope} (a formula table,
+    *       Testing #77123), whose top-level vars the table owns.</li>
+    * </ul>
+    * @param create whether to make the store of {@code root} if it has none; if not, the
+    *               store of its nearest ancestor scope that has one is returned instead.
+    *
+    * Caller holds {@code lock}.
+    */
+   private Value localsFor(ScriptScope root, Object rscope, boolean create) {
+      if(noLocals == null) {
+         installLocals();
+      }
+
+      if(root == EMPTY_SCOPE || root == rscope ||
+         rscope != null && root.getParentScope() == rscope || hasOwnedVarScope(root))
+      {
+         return noLocals;
+      }
+
+      LocalsEntry parent = nearestLocals(root.getParentScope());
+      LocalsEntry entry = storedLocals(root);
+
+      if(entry == null && !create) {
+         return parent != null ? parent.store : noLocals;
+      }
+
+      if(entry == null) {
+         entry = new LocalsEntry(
+            newLocals.execute(parent != null ? parent.store : null), parent);
+         ScopeLocals held = root.getScopeLocals();
+
+         if(held != null) {
+            held.put(this, entry);
+            ownedLocals.add(root);
+         }
+         else {
+            localStores.put(root, entry);
+         }
+      }
+      else if(entry.parent != parent) {
+         // a parent scope ran its first script after this one
+         setLocalsParent.execute(entry.store, parent != null ? parent.store : null);
+         entry.parent = parent;
+      }
+
+      return entry.store;
+   }
+
+   /** The store of {@code scope} or of its nearest ancestor that has one, or null. */
+   private LocalsEntry nearestLocals(ScriptScope scope) {
+      for(int depth = 0; scope != null && depth < MAX_SCOPE_DEPTH; depth++) {
+         LocalsEntry entry = storedLocals(scope);
+
+         if(entry != null) {
+            return entry;
+         }
+
+         scope = scope.getParentScope();
+      }
+
+      return null;
+   }
+
+   /**
+    * The store of {@code scope} itself, or null. Bug #77866: the store of a scope with a
+    * {@link ScopeLocals} is held by the scope, not by this engine: a store whose var refers
+    * back to its scope (the scope itself, as {@code worksheet} on a query view, or a member
+    * object that reaches it, as a calc table's {@code field}) would otherwise keep the
+    * scope, a {@link WeakHashMap} key, as long as this engine. Caller holds {@code lock}.
+    */
+   private LocalsEntry storedLocals(ScriptScope scope) {
+      ScopeLocals held = scope.getScopeLocals();
+      return held != null ? (LocalsEntry) held.get(this) : localStores.get(scope);
+   }
+
+   /** Drop the var stores of the current context (#77595, #77866). Caller holds lock. */
+   private void releaseLocals() {
+      for(ScriptScope scope : ownedLocals) {
+         ScopeLocals held = scope.getScopeLocals();
+
+         if(held != null) {
+            held.remove(this);
+         }
+      }
+
+      ownedLocals.clear();
+      localStores.clear();
+   }
+
+   private static boolean hasOwnedVarScope(ScriptScope scope) {
+      for(int depth = 0; scope != null && depth < MAX_SCOPE_DEPTH; depth++) {
+         if(scope instanceof OwnedVarScope) {
+            return true;
+         }
+
+         scope = scope.getParentScope();
+      }
+
+      return false;
+   }
+
+   // a bound on a scope chain walk, against a chain that loops
+   private static final int MAX_SCOPE_DEPTH = 64;
 
    /** Lazily create the reusable __scope__ proxy and bind it once. Caller holds lock. */
    private void ensureScopeProxy() {
@@ -2714,12 +3235,16 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          return "";
       }
 
+      // Bug #77595: copied to the var store of the exec scope if exec bound one, so
+      // the declaration stays in the scope the script ran in, as in Rhino
       StringBuilder sb = new StringBuilder();
+      String target = "(" + OWN_LOCALS_VAR + "===" + NO_LOCALS_VAR + "?globalThis:" +
+         OWN_LOCALS_VAR + ")";
 
       for(String name : names) {
          sb.append("try{if(typeof ").append(name).append("!==\"undefined\"&&!this.")
             .append(BindingRootProxy.OWNED_VAR_PROBE).append("(")
-            .append(toJsStringLiteral(name)).append(")){globalThis[")
+            .append(toJsStringLiteral(name)).append(")){").append(target).append("[")
             .append(toJsStringLiteral(name)).append("]=").append(name)
             .append(";}}catch(").append(HOIST_ERR_VAR).append("){}");
       }
@@ -2761,6 +3286,17 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * Add the names {@code script} declares with {@code var} outside any function body.
     */
    private static void collectOwnedVarNames(String script, Set<String> names) {
+      collectOwnedVarNames(script, names, null);
+   }
+
+   /**
+    * {@link #collectOwnedVarNames(String, Set)} that also adds to {@code initializerless},
+    * if not null, the names those declarations declare without an initializer (see
+    * {@link #collectDeclaratorNames}).
+    */
+   private static void collectOwnedVarNames(String script, Set<String> names,
+                                            Set<String> initializerless)
+   {
       String src = stripStringsAndComments(script);
       // per open brace, whether it opens a function body
       Deque<Boolean> braces = new ArrayDeque<>();
@@ -2786,6 +3322,11 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             // ignore keywords used as member names (obj.var / obj.function)
             if(prev != '.') {
                if(word.equals("var") && fdepth == 0) {
+                  if(initializerless != null) {
+                     // the stripped source keeps the offsets of the script
+                     collectDeclaratorNames(script, i, initializerless);
+                  }
+
                   i = collectVarNames(src, i, names);
                }
                else if(word.equals("function")) {
@@ -3770,6 +4311,9 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             context.close(true);
             context = null;
          }
+
+         // a long-lived scope must not keep the stores of the closed context (#77866)
+         releaseLocals();
       }
       finally {
          lock.unlock();

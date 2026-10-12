@@ -19,6 +19,7 @@ package inetsoft.util.dep;
 
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,7 +43,7 @@ public class XAssetUtil {
       String className = idx < 0 ? identifier : identifier.substring(0, idx);
 
       try {
-         XAsset asset = (XAsset) Class.forName(className).newInstance();
+         XAsset asset = (XAsset) Tool.loadSubclass(className, XAsset.class).newInstance();
          asset.parseIdentifier(identifier);
          return asset;
       }

@@ -209,7 +209,7 @@ public class GroupField extends BaseField implements DataRefWrapper, CalcGroup {
       String cls = Tool.getAttribute(tag2, "class");
 
       if(cls != null) {
-         Field fld = (Field) Class.forName(cls).newInstance();
+         Field fld = (Field) Tool.loadSubclass(cls, Field.class).newInstance();
          fld.parseXML(tag2);
 
          field = fld;

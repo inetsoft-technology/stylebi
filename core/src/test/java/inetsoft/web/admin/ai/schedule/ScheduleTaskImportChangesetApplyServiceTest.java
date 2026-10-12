@@ -193,7 +193,7 @@ class ScheduleTaskImportChangesetApplyServiceTest {
          tc.setHour(1);
          tc.setMinute(30);
          return null;
-      }).when(scheduleTaskService).sanitizeConditions(any(), any(), eq(user));
+      }).when(scheduleTaskService).sanitizeConditions(any(ScheduleTask.class), any(ScheduleTask.class), eq(user));
 
       // Preview, before any stubbing -- like the Finding 1 test above, this relies on the mock's
       // default null return (no existing task yet), matching applyOne's own "re-resolve fresh at

@@ -377,9 +377,12 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
                this.http.post(NEW_TASKS_FOLDER_URI, addFolderEvent).subscribe(() => {
                   this.loadTaskFolderTree();
                   this.loadTasks();
-               });
+               },
+               (error) => this.showFolderError(error));
             }
-         });
+         },
+         // Bug #78136, the hint is refused without write permission on the parent folder
+         (error) => this.showFolderError(error));
       };
 
       const dialog = ComponentTool.showDialog(this.modal, EditTaskFolderDialog, commit);
@@ -419,13 +422,25 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
                let commit = (result) => {
                   this.http.post<string>(TASKS_FOLDER_NAME_URI, result).subscribe((newPath) => {
                      this.loadTaskFolderTree(!!newPath ? [newPath] : null);
-                  });
+                  },
+                  (error) => this.showFolderError(error));
                };
 
                const dialog = ComponentTool.showDialog(this.modal, EditTaskFolderDialog, commit);
                dialog.model = data;
             }
-         });
+         },
+         // Bug #78136, the edit model is refused without permission on the folder (#77906)
+         (error) => this.showFolderError(error));
+   }
+
+   /**
+    * Shows the message of a refused folder add or rename, e.g. a blank or invalid name.
+    */
+   private showFolderError(error: any): void {
+      if(error?.error?.message) {
+         ComponentTool.showMessageDialog(this.modal, "_#(js:Error)", error.error.message);
+      }
    }
 
    getTaskName(task: ScheduleTaskModel): string {

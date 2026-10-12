@@ -28,6 +28,7 @@ import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.model.*;
 import inetsoft.web.composer.ws.assembly.VariableAssemblyModelInfo;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.event.CollectParametersOverEvent;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -51,13 +52,15 @@ public class AssetTreeController {
                               AssetTreeService assetTreeService,
                               AssetTreeServiceProxy assetTreeServiceProxy,
                               XRepository xRepository,
-                              LibManagerProvider libManagerProvider)
+                              LibManagerProvider libManagerProvider,
+                              QueryManagerService queryManagerService)
    {
       this.assetRepository = assetRepository;
       this.assetTreeService = assetTreeService;
       this.assetTreeServiceProxy = assetTreeServiceProxy;
       this.libManagerProvider = libManagerProvider;
       this.xRepository = xRepository;
+      this.queryManagerService = queryManagerService;
    }
 
    @PostMapping("/api/vs/bindingtree/getConnectionParameters")
@@ -108,6 +111,11 @@ public class AssetTreeController {
 
       if(variables != null) {
          for(VariableAssemblyModelInfo var : variables) {
+            // Bug #77423, the identity variables are set from the user, never from the client
+            if(VariableTable.isContextVariable(var.getName())) {
+               continue;
+            }
+
             Object[] values = Arrays.stream(var.getValue())
                .map((val) -> val == null ? null : val.toString())
                .map((val) -> val == null || val.length() == 0 ? null :
@@ -131,6 +139,12 @@ public class AssetTreeController {
             }
          }
 
+         // Bug #77401, the data source lookup, test and connect below check nothing, so every
+         // named source must be readable. Check all of them before acting on any.
+         for(String db : dbs) {
+            queryManagerService.checkDataSourceReadPermission(db, principal);
+         }
+
          Object session = assetRepository.getSession();
          XRepository rep = xRepository;
          Iterator iterator = dbs.iterator();
@@ -139,7 +153,7 @@ public class AssetTreeController {
             String db = (String) iterator.next();
             XDataSource ds = rep.getDataSource(db);
 
-            if(db != null) {
+            if(ds != null) {
                try {
                   rep.testDataSource(session, ds, vtable);
                }
@@ -231,4 +245,5 @@ public class AssetTreeController {
    private final AssetTreeServiceProxy assetTreeServiceProxy;
    private final LibManagerProvider libManagerProvider;
    private final XRepository xRepository;
+   private final QueryManagerService queryManagerService;
 }

@@ -1,0 +1,16 @@
+<ScheduleTask><Task name="FuzzSeed-2" owner="admin~;~host-org" enabled="true" editable="true" removable="true" delNotRun="false" durable="false" path="/" lastModified="1790803039405" type="NORMAL_TASK">
+<Condition type="TimeCondition" timeType="6" timezone="-18000000:America/New_York" timeZoneLabel="Eastern Daylight Time (local time zone)" hour="1" minute="30" second="0" hour_end="23" minute_end="-1" second_end="-1" daysOfWeek="2,6" interval="1"></Condition><Action type="Viewsheet" viewsheet="1^128^__NULL__^Risk Dashboard V3^host-org" bookmarkReadOnly="false">
+<MailTo  email="" from="stylereport@example.com" ccAddresses="" bccAddresses="" format="" compressFile="false" matched="false" expandSelections="false" onlyDataComponents="false" exportAllTabbedTables="false" useCredential="false" messageHtml="true" attachmentName="" subject="">
+<message><![CDATA[]]></message>
+</MailTo>
+<Bookmark name="(Home)" type="1" user="admin~;~host-org"/>
+<Notify email="" onError="false" link="false"/>
+<Deliver deliverLink="false"/>
+<SaveToServer match="true" expandSelections="false" saveExportAllTabbedTables="false" onlyDataComponents="false"/>
+<SaveFile format="2">
+<ServerPath  path="fuzzseed2_output.pdf" useCredential="false"/> </SaveFile>
+<Request>
+</Request>
+</Action>
+</Task>
+</ScheduleTask>

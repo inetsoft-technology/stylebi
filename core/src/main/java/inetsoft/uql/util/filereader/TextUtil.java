@@ -564,7 +564,7 @@ public final class TextUtil {
       String format = getStructuredDateFormat(str);
 
       if(format != null) {
-         return new TypeFormat(getDateType(new SimpleDateFormat(format)), format);
+         return new TypeFormat(getDateType(Tool.createGregorianDateFormat(format)), format);
       }
 
       return null;

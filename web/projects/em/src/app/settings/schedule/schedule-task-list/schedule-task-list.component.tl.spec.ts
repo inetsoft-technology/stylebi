@@ -42,7 +42,7 @@ import { ReactiveFormsModule, UntypedFormGroup } from "@angular/forms";
 import { HttpClientModule } from "@angular/common/http";
 import { RouterTestingModule } from "@angular/router/testing";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
-import { render } from "@testing-library/angular";
+import { render, waitFor } from "@testing-library/angular";
 import { http, HttpResponse as MswHttpResponse } from "msw";
 import { MatDialog } from "@angular/material/dialog";
 import { MatPaginator } from "@angular/material/paginator";
@@ -63,6 +63,7 @@ import { ScheduleTaskModel, TaskDistribution } from "../../../../../../shared/sc
 import { ScheduleTaskChange } from "../../../../../../shared/schedule/model/schedule-task-change";
 import { IdentityId } from "../../security/users/identity-id";
 import { StompClientService } from "../../../../../../shared/stomp/stomp-client.service";
+import { Tool } from "../../../../../../shared/util/tool";
 
 // ---------------------------------------------------------------------------
 // Constants mirrored from component (file-private there)
@@ -610,6 +611,71 @@ describe("ScheduleTaskListComponent — isAllSelected: page-scoped checkbox logi
 
       // Page 0 contains tasks[0] and tasks[1] — both selected → true
       expect(comp.isAllSelected()).toBe(true);
+   });
+
+});
+
+// ---------------------------------------------------------------------------
+// Group 10 [Risk 3] — removeTasks: task dependency check (Bug #78002)
+// ---------------------------------------------------------------------------
+
+describe("ScheduleTaskListComponent — removeTasks: task dependency check", () => {
+
+   async function deleteTasks(dependencies: string[]) {
+      let removeBodies: any[] = [];
+      let checkCalled = false;
+      const { comp } = await renderComponent();
+      server.use(
+         http.post("*/api/em/schedule/check-dependency", () => {
+            checkCalled = true;
+            // server returns a TaskListModel object, never a bare array
+            return MswHttpResponse.json({ taskNames: dependencies });
+         }),
+         http.post("*/api/em/schedule/remove", async ({ request }) => {
+            removeBodies.push(await request.json());
+            return MswHttpResponse.json({ tasks: [] });
+         }),
+      );
+
+      // confirm dialog answers OK, every later dialog is just recorded
+      const dialogOpen = vi.fn().mockReturnValue({ afterClosed: () => of(true) });
+      comp.dialog.open = dialogOpen;
+
+      const tasks = [makeTask("A"), makeTask("B")];
+      comp.selection.select(...tasks);
+      comp.removeTasks();
+
+      await waitFor(() => expect(checkCalled).toBe(true));
+      return { comp, dialogOpen, removeBodies: () => removeBodies };
+   }
+
+   // Bug #78002: selected tasks with dependents show the dependency message and nothing is removed
+   it("should show the dependency dialog and not remove tasks when they have dependents", async () => {
+      const formatSpy = vi.spyOn(Tool, "formatCatalogString");
+      const { comp, dialogOpen, removeBodies } = await deleteTasks(["B"]);
+
+      await waitFor(() => expect(dialogOpen).toHaveBeenCalledTimes(2));
+      const [, cfg] = dialogOpen.mock.calls[1] as any[];
+      expect(cfg.data.title).toBe("_#(js:em.schedule.dependenciesFound)");
+      // the catalog is not loaded in tests, so check the dependent names passed to the message format
+      expect(formatSpy).toHaveBeenCalledWith("_#(js:em.schedule.task.removeDependency)", ["B"]);
+      expect(cfg.data.content).toBe(formatSpy.mock.results.at(-1).value);
+
+      // give a stray remove request the chance to arrive before asserting it never did
+      await new Promise(resolve => setTimeout(resolve, 50));
+      expect(removeBodies()).toEqual([]);
+      expect(comp.selection.selected.length).toBe(2);
+   });
+
+   // Bug #78002: no dependents -> the selected tasks are removed and no dependency dialog is shown
+   it("should remove the selected tasks when there are no dependents", async () => {
+      const { comp, dialogOpen, removeBodies } = await deleteTasks([]);
+
+      await waitFor(() => expect(removeBodies().length).toBe(1));
+      expect(removeBodies()[0].map((t: ScheduleTaskModel) => t.name))
+         .toEqual([`alice${KEY_DELIMITER}org1:A`, `alice${KEY_DELIMITER}org1:B`]);
+      expect(dialogOpen).toHaveBeenCalledTimes(1);
+      expect(comp.selection.selected.length).toBe(0);
    });
 
 });

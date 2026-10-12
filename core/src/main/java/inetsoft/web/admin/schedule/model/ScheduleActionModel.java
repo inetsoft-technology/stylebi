@@ -41,4 +41,12 @@ public abstract class ScheduleActionModel {
 
    @Nullable
    public abstract String actionClass();
+
+   /**
+    * The position of the stored action in the task when the editor got it, {@code null} for
+    * an action added in the editor. Bug #77973, a save pairs an action with the stored action it
+    * replaces by this index, not by its position in the list.
+    */
+   @Nullable
+   public abstract Integer originalIndex();
 }

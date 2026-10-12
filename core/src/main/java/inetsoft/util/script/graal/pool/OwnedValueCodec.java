@@ -114,10 +114,11 @@ public final class OwnedValueCodec {
    /**
     * The snapshot of {@code v}, a value of {@link #context()}; aliases share one node through
     * {@code ids}. Never throws a RuntimeException: a value that cannot be read is
-    * {@link Lost}.
+    * {@link Lost}. A caller's cancel is kept (see {@link #snapshotTree}).
     */
    public Object snapshot(Value v, Map<Value, Object> ids) {
       Object node;
+      boolean cancelled = Thread.interrupted();
 
       try {
          Supplier<? extends Throwable> fault = readFault;
@@ -156,7 +157,13 @@ public final class OwnedValueCodec {
          ids.put(v, node);
       }
       catch(RuntimeException ex) {
+         ScriptTimeoutGuard.keepCancel(ex, null);
          node = UNREADABLE;
+      }
+      finally {
+         if(cancelled) {
+            Thread.currentThread().interrupt();
+         }
       }
 
       return node;
@@ -167,8 +174,26 @@ public final class OwnedValueCodec {
     * share one value through {@code built}.
     *
     * @return the value, or {@code null} if the node is not rebuilt (a {@link Lost} value).
+    *         A caller's cancel is kept (see {@link #snapshotTree}).
     */
    public Value rebuild(Object node, IdentityHashMap<Object, Value> built) {
+      boolean cancelled = Thread.interrupted();
+
+      try {
+         return rebuild0(node, built);
+      }
+      catch(RuntimeException ex) {
+         ScriptTimeoutGuard.keepCancel(ex, null);
+         throw ex;
+      }
+      finally {
+         if(cancelled) {
+            Thread.currentThread().interrupt();
+         }
+      }
+   }
+
+   private Value rebuild0(Object node, IdentityHashMap<Object, Value> built) {
       Value seen = built.get(node);
 
       if(seen != null) {
@@ -370,12 +395,16 @@ public final class OwnedValueCodec {
     * waiting, run {@code save} with its codec (a tree snapshot), stop reserving it for the
     * tenant, and give it back.
     *
+    * A pool thread that holds the home for a moment without the tenant's lock (a probe: a
+    * take-over, the expiry, a retire) is waited out, for at most {@link #PULL_SPIN_NANOS} and
+    * never by an interrupted thread (Testing #77123, finding G1).
+    *
     * @return {@code false} if the slot is held or closed: nothing was saved.
     */
    public static boolean pull(Home home, SlotTenant tenant, Consumer<OwnedValueCodec> save) {
       Slot slot = home.slot;
 
-      if(!slot.tryAcquire()) {
+      if(!takeForPull(slot)) {
          return false;
       }
 
@@ -401,10 +430,62 @@ public final class OwnedValueCodec {
    }
 
    /**
+    * Take {@code slot} for a pull without waiting for a claim: only a probe of a pool thread
+    * (which never waits for anything this thread holds: it only tryLocks, and takes the
+    * pool's leaf homes lock) is waited out, spinning, for at most {@link #PULL_SPIN_NANOS}.
+    * An interrupted thread stops at once and keeps its interrupt flag.
+    *
+    * @return whether the calling thread holds the slot now.
+    */
+   private static boolean takeForPull(Slot slot) {
+      if(slot.tryAcquire()) {
+         return true;
+      }
+
+      if(slot.isHeldByCurrentThread()) {
+         return false;
+      }
+
+      Thread thread = Thread.currentThread();
+      long start = System.nanoTime();
+
+      while(slot.isProbed() && !slot.isClosed() && !thread.isInterrupted()) {
+         Consumer<Slot> hook = pullSpinHook;
+
+         if(hook != null) {
+            hook.accept(slot);
+         }
+
+         Thread.onSpinWait();
+
+         if(slot.tryAcquire()) {
+            return true;
+         }
+
+         if(System.nanoTime() - start >= PULL_SPIN_NANOS) {
+            return false;
+         }
+      }
+
+      // a prober gives the slot back before its probe ends: once it ended, one more try
+      return !thread.isInterrupted() && slot.tryAcquire();
+   }
+
+   /** The longest a pull waits out a probe of its home (finding G1), about 50 ms. */
+   static final long PULL_SPIN_NANOS = java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(50);
+
+   /**
     * Snapshot {@code roots}, values of {@link #context()}, into one context-free tree with the
     * context's pristine cloner, so aliases and cycles among them are kept. Runs no script code.
     * Bounded by the pool's hand-off budget (an entry cap and a time bound, not the script
     * timeout, amendment A6), and by an interrupt past it. Never throws a RuntimeException.
+    * <p>
+    * A caller's cancel (an interrupt of the thread) is kept (Testing #77123): a flag set
+    * before the snapshot is cleared while it runs, so Graal does not stop the snapshot on it,
+    * and set again after; a cancel that lands during the snapshot loses every root (it is
+    * {@link #UNREADABLE}, never kept from an older batch) and is re-asserted, since Graal
+    * cleared it. Only an interrupt of the hand-off's own time bound, or of a timeout guard
+    * still open on the thread, is a time-out.
     *
     * @return one node per root: a {@link TreeRef}, or a {@link Lost} naming what that root
     *         holds that is not kept (a function, a class instance, a Proxy, an accessor...);
@@ -426,7 +507,11 @@ public final class OwnedValueCodec {
       List<Object> kept = new ArrayList<>();
       Map<Integer, String> failed = new HashMap<>();
       Map<Integer, String> drops = new HashMap<>();
+      Set<Integer> hides = new HashSet<>();
+      Set<Integer> copies = new HashSet<>();
       long start = System.nanoTime();
+      ScriptTimeoutGuard.Guard budget = null;
+      boolean cancelled = Thread.interrupted();
 
       try {
          Supplier<? extends Throwable> fault = readFault;
@@ -450,11 +535,14 @@ public final class OwnedValueCodec {
          KEEP_OUT.set(kept);
          FAILS.set(failed);
          DROPS.set(drops);
+         HIDES.set(hides);
+         COPIES.set(copies);
 
          // a backstop past the cloner's own time checks
          try(ScriptTimeoutGuard.Guard guard =
                 slot.engine().guard(Duration.ofMillis(config.handOffMillis() + 1000)))
          {
+            budget = guard;
             text = snap.execute(ProxyArray.fromList(new ArrayList<Object>(roots)),
                                 config.handOffEntries(), config.handOffMillis(),
                                 markBudget(config.handOffEntries())).asString();
@@ -464,23 +552,32 @@ public final class OwnedValueCodec {
 
          for(int i = 0; i < nodes.length; i++) {
             String kind = failed.get(i);
-            nodes[i] = kind != null ? new Lost(kind, isBudgetKind(kind))
-               : new TreeRef(tree, i, drops.get(i));
+            nodes[i] = kind != null ? new Lost(kind, isBudgetKind(kind), hides.contains(i))
+               : new TreeRef(tree, i, drops.get(i), copies.contains(i));
          }
       }
       catch(PolyglotException ex) {
-         Arrays.fill(nodes, ex.isInterrupted() || ex.isCancelled()
+         // a caller's cancel, not this hand-off's time bound: kept, the roots unreadable
+         boolean cancel = ScriptTimeoutGuard.keepCancel(ex, budget);
+         Arrays.fill(nodes, !cancel && (ex.isInterrupted() || ex.isCancelled())
             ? new Lost("a value that took longer than " + config.handOffMillis() +
                        " ms to save", true) : UNREADABLE);
       }
       catch(RuntimeException ex) {
+         ScriptTimeoutGuard.keepCancel(ex, budget);
          Arrays.fill(nodes, UNREADABLE);
       }
       finally {
          KEEP_OUT.remove();
          FAILS.remove();
          DROPS.remove();
+         HIDES.remove();
+         COPIES.remove();
          slot.metrics().handedOff(System.nanoTime() - start);
+
+         if(cancelled) {
+            Thread.currentThread().interrupt();
+         }
       }
 
       return nodes;
@@ -531,10 +628,11 @@ public final class OwnedValueCodec {
 
    /** One root of a tree snapshot. */
    public static final class TreeRef {
-      TreeRef(Tree tree, int index, String dropped) {
+      TreeRef(Tree tree, int index, String dropped, boolean copies) {
          this.tree = tree;
          this.index = index;
          this.dropped = dropped;
+         this.copies = copies;
       }
 
       /**
@@ -546,7 +644,19 @@ public final class OwnedValueCodec {
          return dropped;
       }
 
+      /**
+       * @return {@code true} if this root holds an array or object (a copy now) that a root
+       *         lost by the same hand-off, whose value hid references (see
+       *         {@link Lost#hidesReferences()}), may have reached unseen; {@code false} for a
+       *         bigint or a Date whose properties hold no object, and whenever no root of the
+       *         hand-off hid references (review L1 of Testing #77123).
+       */
+      public boolean holdsCopies() {
+         return copies;
+      }
+
       private final String dropped;
+      private final boolean copies;
 
       private final Tree tree;
       private final int index;
@@ -557,6 +667,8 @@ public final class OwnedValueCodec {
    static final ThreadLocal<List<Object>> KEEP_IN = new ThreadLocal<>();
    static final ThreadLocal<Map<Integer, String>> FAILS = new ThreadLocal<>();
    static final ThreadLocal<Map<Integer, String>> DROPS = new ThreadLocal<>();
+   static final ThreadLocal<Set<Integer>> HIDES = new ThreadLocal<>();
+   static final ThreadLocal<Set<Integer>> COPIES = new ThreadLocal<>();
 
    /**
     * The marking budget of a hand-off (the objects walked to check the lost roots for
@@ -590,8 +702,13 @@ public final class OwnedValueCodec {
       }
 
       Lost(String kind, boolean budget) {
+         this(kind, budget, false);
+      }
+
+      Lost(String kind, boolean budget, boolean hides) {
          this.kind = kind;
          this.budget = budget;
+         this.hides = hides;
       }
 
       /** @return what the value was, with its article ("an array", "a function"). */
@@ -608,8 +725,20 @@ public final class OwnedValueCodec {
          return budget;
       }
 
+      /**
+       * @return {@code true} if the value held, at its hand-off, something whose references
+       *         the cloner cannot list (a function's closure, a getter, a WeakMap, a class
+       *         instance, a Proxy): a var kept by the same hand-off may be a copy of an object
+       *         it reached there, which no longer shares anything with it (Testing #77123, B1
+       *         residual).
+       */
+      public boolean hidesReferences() {
+         return hides;
+      }
+
       private final String kind;
       private final boolean budget;
+      private final boolean hides;
    }
 
    /**
@@ -637,6 +766,10 @@ public final class OwnedValueCodec {
 
    /** The node of a value whose snapshot failed: it is lost, never kept from an older batch. */
    public static final Lost UNREADABLE = new Lost("a value that could not be read");
+
+   // tests only: run by a pull at each retry while a pool thread probes the home (Testing
+   // #77123, finding G1), on the pulling thread
+   static volatile Consumer<Slot> pullSpinHook;
 
    // tests only (PoolTestSupport.failOwnedValueReads): every snapshot read throws this
    static volatile Supplier<? extends Throwable> readFault;

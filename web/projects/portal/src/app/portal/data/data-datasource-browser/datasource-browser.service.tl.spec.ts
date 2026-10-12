@@ -25,11 +25,13 @@
  *   Group 3 [Risk 3, 2]    - moveDataSource (2 cases)
  *   Group 4 [Risk 2]       - moveSelected (1 case)
  *   Group 5 [Risk 3]       - renameDataSourceFolder (1 case)
- *   Group 6 [Risk 3, 2]    - deleteDataSource0 (2 cases)
+ *   Group 6 [Risk 3, 2]    - deleteDataSource0 (2 cases) + deleteDataSource (1 case)
  *   Group 7 [Risk 3, 3, 2] - moveDataSourcesToFolder (3 cases)
  *   Group 8 [Risk 3, 2]    - createDataSourceInfos (2 cases)
  *
  * Fixed bugs:
+ *   - Bug #77460: deleteDataSource sent the leaf name to checkOuterDependencies, which the server
+ *     now gates with DELETE on the data source; it must send the full path.
  *   - Bug #75600: createDataSourceInfos([root entry]) used to throw because getParentPath0("/")
  *     returns null and the caller dereferenced parent.length. The name computation now treats a
  *     null parent the same as "/", so it no longer throws.
@@ -369,6 +371,32 @@ describe("DatasourceBrowserService", () => {
          expect(callback).toHaveBeenCalledWith(
             "danger",
             "_#(js:data.datasources.deleteDataSourceError)");
+      });
+   });
+
+   describe("deleteDataSource", () => {
+      it("[Risk 3] should check dependencies by the full path before deleting", async () => {
+         // Bug #77460: the dependency check is gated by DELETE on the full path, so sending the
+         // leaf name would check (and look up) the wrong data source for a foldered source
+         const confirmSpy = vi.spyOn(ComponentTool, "showConfirmDialog")
+            .mockResolvedValue("ok");
+
+         service.deleteDataSource("Sales DB", "Folder/Sales DB");
+
+         const check = http.expectOne(DATASOURCES_URI + "/checkOuterDependencies");
+         expect(check.request.method).toBe("POST");
+         expect(check.request.body.databaseName).toBe("Folder/Sales DB");
+         check.flush(null);
+
+         await flushPromises();
+
+         expect(confirmSpy).toHaveBeenCalledWith(
+            modalService,
+            "_#(js:Delete)",
+            "_#(js:data.datasources.confirmDeleteDataSource)");
+         const del = http.expectOne(req => req.url === DATASOURCES_URI + "/Folder/Sales%20DB");
+         expect(del.request.params.get("name")).toBe("Sales DB");
+         del.flush(null);
       });
    });
 

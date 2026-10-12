@@ -379,11 +379,11 @@ export class TaskConditionPane implements OnInit, OnChanges {
 
    private updateStartTime(): void {
       if((<TimeConditionModel>this.condition).type != TimeConditionType.AT) {
-         this.startTime = {
+         this.startTime = this.toDisplayTime({
             hour: (<TimeConditionModel> this.condition).hour,
             minute: (<TimeConditionModel> this.condition).minute,
             second: (<TimeConditionModel> this.condition).second
-         };
+         });
       }
       else {
          const time: number = (<TimeConditionModel> this.condition).date;
@@ -449,9 +449,10 @@ export class TaskConditionPane implements OnInit, OnChanges {
 
    private setStartTime(time: NgbTimeStruct): void {
       if(time && (<TimeConditionModel> this.condition).type != TimeConditionType.AT) {
-         (<TimeConditionModel> this.condition).hour = time.hour;
-         (<TimeConditionModel> this.condition).minute = time.minute;
-         (<TimeConditionModel> this.condition).second = time.second;
+         const storedTime = this.toStoredTime(time);
+         (<TimeConditionModel> this.condition).hour = storedTime.hour;
+         (<TimeConditionModel> this.condition).minute = storedTime.minute;
+         (<TimeConditionModel> this.condition).second = storedTime.second;
       }
       else if((<TimeConditionModel> this.condition).type == TimeConditionType.AT) {
          const dateTime: number = (<TimeConditionModel>this.condition).date;
@@ -543,18 +544,19 @@ export class TaskConditionPane implements OnInit, OnChanges {
    }
 
    private updateEndTime(): void {
-      this.endTime = {
+      this.endTime = this.toDisplayTime({
          hour: (<TimeConditionModel> this.condition).hourEnd,
          minute: (<TimeConditionModel> this.condition).minuteEnd,
          second: (<TimeConditionModel> this.condition).secondEnd
-      } as NgbTimeStruct;
+      } as NgbTimeStruct);
    }
 
    private setEndTime(time: NgbTimeStruct): void {
       if(time) {
-         (<TimeConditionModel> this.condition).hourEnd = time.hour;
-         (<TimeConditionModel> this.condition).minuteEnd = time.minute;
-         (<TimeConditionModel> this.condition).secondEnd = time.second;
+         const storedTime = this.toStoredTime(time);
+         (<TimeConditionModel> this.condition).hourEnd = storedTime.hour;
+         (<TimeConditionModel> this.condition).minuteEnd = storedTime.minute;
+         (<TimeConditionModel> this.condition).secondEnd = storedTime.second;
       }
    }
 
@@ -671,7 +673,8 @@ export class TaskConditionPane implements OnInit, OnChanges {
          (result: string) => {
             if(result === "ok") {
                const conditions: number[] = Tool.clone(this.selectedConditions);
-               conditions.sort();
+               // Bug #77973, sort the indexes as numbers, not as strings
+               conditions.sort((a, b) => a - b);
                conditions.reverse();
 
                for(let index of conditions) {
@@ -1194,6 +1197,23 @@ export class TaskConditionPane implements OnInit, OnChanges {
     * Init which timezone to display from local storage (local or server).
     */
    private initTimeZone(edit?: boolean): void {
+      // Opening a condition must not change its time zone, only a user selection does. The
+      // stored zone may be missing from the options (TimeZoneModel has a fixed list), and
+      // setLocalTimeZone() would then select the first option and write it into the condition,
+      // so add it to keep the zone shown and the zone saved the same (Bug #77511). A null zone
+      // is still filled below, as for a new condition. The editor already adds the zones of
+      // all the conditions when it loads the task, so this only matters when it didn't.
+      const storedCondition = this.isTimeCondition(this.condition) ? this.timeCondition : null;
+      const storedTimeZone = storedCondition?.timeZone;
+      const storedTimeZoneLabel = storedCondition?.timeZoneLabel;
+
+      if(storedTimeZone && this.timeZoneOptions &&
+         !this.timeZoneOptions.some(option => option.timeZoneId == storedTimeZone))
+      {
+         this.timeZoneOptions.push(
+            this.timeZoneService.createTimeZoneOption(storedTimeZone, storedTimeZoneLabel));
+      }
+
       this.setLocalTimeZone(this.timeCondition.timeZone);
       this.localTimeZoneOffset = this.timeZoneService.calculateTimezoneOffset(this.localTimeZoneId);
       const serverTZ: string = LocalStorage.getItem(TZ_STORAGE_KEY);
@@ -1210,59 +1230,58 @@ export class TaskConditionPane implements OnInit, OnChanges {
    }
 
    /**
-    * Change show server time setting.
+    * Change show server time setting. This only changes how the times are displayed: the
+    * conditions keep their times in their own time zone, so saving a task while the server
+    * time zone is shown doesn't move when it runs. Every condition, including the ones not
+    * being edited, is displayed in the server time zone when it is edited (Bug #75325).
     */
    changeServerTimeZone(serverTimeZone: boolean): void {
       const changed = this.serverTimeZone != serverTimeZone;
       this.serverTimeZone = serverTimeZone;
 
       if(changed) {
-         if(this.serverTimeZone) {
-            this.convertToTimeZone(this.localTimeZoneOffset, this.serverTimeZoneOffset);
-         }
-         else {
-            this.convertToTimeZone(this.serverTimeZoneOffset, this.localTimeZoneOffset);
-         }
-
-         // also convert the other conditions of a multi-condition task so their times are
-         // displayed in the new time zone when edited later (Bug #75325). each condition is
-         // converted using its own time zone offset, which may differ from the current one.
-         this.convertOtherConditions(this.serverTimeZone);
-
          this.updateTimeZone();
          LocalStorage.setItem(TZ_STORAGE_KEY, this.serverTimeZone + "");
+         this.updateTimesAndDates();
       }
    }
 
    /**
-    * Converts the times of the task's other time conditions (not currently being edited)
-    * between their own time zone and the server time zone.
+    * Converts a time of the current condition from its own time zone to the displayed one.
     */
-   private convertOtherConditions(toServerTimeZone: boolean): void {
-      if(!this.model || !this.model.conditions) {
-         return;
+   private toDisplayTime(time: NgbTimeStruct): NgbTimeStruct {
+      return this.convertDisplayedTime(time, true);
+   }
+
+   /**
+    * Converts a time entered in the displayed time zone to the current condition's time zone.
+    */
+   private toStoredTime(time: NgbTimeStruct): NgbTimeStruct {
+      return this.convertDisplayedTime(time, false);
+   }
+
+   private convertDisplayedTime(time: NgbTimeStruct, toDisplay: boolean): NgbTimeStruct {
+      if(!this.serverTimeZone || !time || time.hour == null || time.minute == null ||
+         !this.isTimeCondition(this.condition))
+      {
+         return time;
       }
 
-      for(const cond of this.model.conditions) {
-         if(cond === this.condition || !this.isTimeCondition(cond)) {
-            continue;
-         }
+      // a condition without a time zone runs in the server time zone
+      const conditionTimeZone = this.timeCondition.timeZone;
+      const conditionTzOffset = conditionTimeZone ?
+         this.timeZoneService.calculateTimezoneOffset(conditionTimeZone) :
+         this.serverTimeZoneOffset;
 
-         const timeCondition = <TimeConditionModel> cond;
-         const condTzOffset =
-            this.timeZoneService.calculateTimezoneOffset(timeCondition.timeZone);
-
-         if(condTzOffset == this.serverTimeZoneOffset) {
-            continue;
-         }
-
-         if(toServerTimeZone) {
-            this.convertTimeCondition(timeCondition, condTzOffset, this.serverTimeZoneOffset);
-         }
-         else {
-            this.convertTimeCondition(timeCondition, this.serverTimeZoneOffset, condTzOffset);
-         }
+      if(conditionTzOffset == this.serverTimeZoneOffset) {
+         return time;
       }
+
+      const value = {...time, second: time.second ?? 0};
+
+      return toDisplay ?
+         this.convertTime(value, conditionTzOffset, this.serverTimeZoneOffset) :
+         this.convertTime(value, this.serverTimeZoneOffset, conditionTzOffset);
    }
 
    /**
@@ -1280,7 +1299,11 @@ export class TaskConditionPane implements OnInit, OnChanges {
          this.form?.get("timeZone")?.disable();
       }
       else {
-         if(this.isTimeCondition(this.condition)) {
+         // only write a changed zone, so that showing a condition, or the form echoing the
+         // selected zone back, doesn't replace its stored label (Bug #77511)
+         if(this.isTimeCondition(this.condition) &&
+            this.timeCondition.timeZone != this.localTimeZoneId)
+         {
             this.timeCondition.timeZone = this.localTimeZoneId;
             this.timeCondition.timeZoneLabel = this.localTimeZoneLabel || null;
          }

@@ -1,0 +1,28 @@
+<ScheduleTask><Task name="FuzzSeed-4" owner="admin~;~host-org" enabled="true" editable="true" removable="true" delNotRun="false" durable="false" path="/" lastModified="1790803342781" type="NORMAL_TASK">
+<Condition type="TimeCondition" timeType="1" timezone="-18000000:America/New_York" hour="1" minute="30" second="0" hour_end="23" minute_end="-1" second_end="-1" weekday="false" interval="1"></Condition><Condition type="TimeCondition" timeType="7" timezone="-18000000:America/New_York" timeZoneLabel="Eastern Daylight Time (local time zone)" hour="1" minute="30" second="0" hour_end="23" minute_end="-1" second_end="-1" dayOfMonth="1" monthsOfYear="0,6"></Condition><Action type="Viewsheet" viewsheet="1^128^__NULL__^Risk Dashboard V3^host-org" bookmarkReadOnly="false">
+<MailTo  email="" from="stylereport@example.com" ccAddresses="" bccAddresses="" format="" compressFile="false" matched="false" expandSelections="false" onlyDataComponents="false" exportAllTabbedTables="false" useCredential="false" messageHtml="true" attachmentName="" subject="">
+<message><![CDATA[]]></message>
+</MailTo>
+<Bookmark name="(Home)" type="1" user="admin~;~host-org"/>
+<LinkURI uri="http://localhost:8080/sree/"></LinkURI>
+<Notify email="notify@example.com" onError="false" link="false"/>
+<Deliver deliverLink="false"/>
+<SaveToServer match="true" expandSelections="false" saveExportAllTabbedTables="false" onlyDataComponents="false"/>
+<Request>
+</Request>
+</Action>
+<Action type="Backup"
+>
+<ServerPath  path="fuzzseed4_backup.zip" useCredential="false"/> <XAsset type="SCHEDULETASK" path="admin~;~host-org:FuzzSeed-1" user="admin~;~host-org">
+</XAsset>
+<XAsset type="SCHEDULETASK" path="admin~;~host-org:FuzzSeed-2" user="admin~;~host-org">
+</XAsset>
+<XAsset type="SCHEDULETASK" path="admin~;~host-org:FuzzSeed-3" user="admin~;~host-org">
+</XAsset>
+<XAsset type="SCHEDULETASK" path="admin~;~host-org:Task1" user="admin~;~host-org">
+</XAsset>
+<XAsset type="SCHEDULETASK" path="admin~;~host-org:FuzzSeed-4" user="admin~;~host-org">
+</XAsset>
+</Action>
+</Task>
+</ScheduleTask>

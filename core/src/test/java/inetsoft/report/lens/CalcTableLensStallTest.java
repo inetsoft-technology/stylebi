@@ -69,7 +69,7 @@ public class CalcTableLensStallTest {
       }
 
       pool.shutdownNow();
-      StallPolicy.setOverride(null);
+      StallTestSupport.clearOverride();
    }
 
    /**

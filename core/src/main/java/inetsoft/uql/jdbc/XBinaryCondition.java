@@ -157,6 +157,7 @@ public class XBinaryCondition extends XFilterNode {
       }
 
       this.setClause(getClause());
+      parseAttributes(node);
 
       NodeList nlist;
 
@@ -193,10 +194,44 @@ public class XBinaryCondition extends XFilterNode {
       if(nlist != null && nlist.getLength() == 1) {
          this.setOp(Tool.getValue(((Element) nlist.item(0))));
       }
+
+      // a condition without an operand or operator has no SQL meaning, and writeXML() and
+      // SQL generation dereference every part, so refuse it rather than load it (#77586).
+      // Only a missing element is refused, an empty value still loads.
+      checkPresent(getTag(), expression1, "expression1");
+      checkPresent(getTag(), expression2, "expression2");
+      checkPresent(getTag(), nlist != null && nlist.getLength() == 1 ? "" : null, "op");
+   }
+
+   /**
+    * Throw if a required part of a condition was not found when parsing it.
+    *
+    * @param tag     the XML tag of the condition.
+    * @param value   the parsed part, null if it was missing.
+    * @param element the name of the XML element that holds the part.
+    */
+   static void checkPresent(String tag, Object value, String element) throws Exception {
+      if(value == null) {
+         throw new Exception(tag + " is missing <" + element + ">");
+      }
    }
 
    String getTag() {
       return XML_TAG;
+   }
+
+   /**
+    * Write the attributes a subclass adds to the XML tag.
+    */
+   void writeAttributes(PrintWriter writer) {
+      // no attributes
+   }
+
+   /**
+    * Parse the attributes a subclass adds to the XML tag.
+    */
+   void parseAttributes(Element node) {
+      // no attributes
    }
 
    /**
@@ -210,6 +245,7 @@ public class XBinaryCondition extends XFilterNode {
       writer.print(" clause=" + "\"" + getClause() + "\"");
       boolean cnull = "true".equals(getAttribute("containsNull"));
       writer.print(" containsNull=" + "\"" + cnull + "\"");
+      writeAttributes(writer);
       writer.println(">");
 
       writer.println("<expression1>");
@@ -285,8 +321,16 @@ public class XBinaryCondition extends XFilterNode {
       try {
          XBinaryCondition condition = (XBinaryCondition) super.clone();
 
-         condition.expression1 = (XExpression) expression1.clone();
-         condition.expression2 = (XExpression) expression2.clone();
+         // a null expression must not make the clone fail, a null clone drops the whole
+         // condition tree it is in (XNode.clone)
+         if(expression1 != null) {
+            condition.expression1 = (XExpression) expression1.clone();
+         }
+
+         if(expression2 != null) {
+            condition.expression2 = (XExpression) expression2.clone();
+         }
+
          return condition;
       }
       catch(Exception e) {

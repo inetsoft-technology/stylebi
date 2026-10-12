@@ -82,12 +82,20 @@ public class GroupRowSelectorTest {
       Map<String, Object> groupSpecs = provideMockGroupSpecs(Map.of("name", "a", "=field['id']", "1"));
       groupRowSelector = new GroupRowSelector(defaultSummaryTable, groupSpecs);
 
+      // popped in finally: the scope stack is a thread local, and a mock left on it is the
+      // exec scope of every later script on this thread (it made a script test hang)
       FormulaContext.pushScope(mock(CalcTableScope.class));
-      // Call the match method
-      int result = groupRowSelector.match(mockGroupedTable, 1, 0);
 
-      // Assert the expected result
-      assertEquals(RangeProcessor.NO, result);
+      try {
+         // Call the match method
+         int result = groupRowSelector.match(mockGroupedTable, 1, 0);
+
+         // Assert the expected result
+         assertEquals(RangeProcessor.NO, result);
+      }
+      finally {
+         FormulaContext.popScope();
+      }
    }
    @Test
    void testMatchWithInvalidInput() {

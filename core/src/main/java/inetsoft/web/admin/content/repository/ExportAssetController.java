@@ -116,7 +116,9 @@ public class ExportAssetController {
       )
    )
    @GetMapping("/api/em/content/repository/export/check-permission/value")
-   public SelectedAssetModelList getAssetPermissionValue(HttpServletRequest request) throws Exception {
+   public ResponseEntity<SelectedAssetModelList> getAssetPermissionValue(HttpServletRequest request)
+      throws Exception
+   {
       try {
          return getData(PERM_ATTR, request, SelectedAssetModelList.class);
       }
@@ -179,7 +181,7 @@ public class ExportAssetController {
       )
    )
    @GetMapping("/api/em/content/repository/export/get-dependent-assets/value")
-   public RequiredAssetModelList getDependentAssetsValue(HttpServletRequest request)
+   public ResponseEntity<RequiredAssetModelList> getDependentAssetsValue(HttpServletRequest request)
       throws Exception
    {
       try {
@@ -283,12 +285,19 @@ public class ExportAssetController {
                                   .build());
    }
 
-   private <T> T getData(String attr, HttpServletRequest req, Class<T> type) throws Exception {
+   private <T> ResponseEntity<T> getData(String attr, HttpServletRequest req, Class<T> type)
+      throws Exception
+   {
       CompletableFuture<?> future =
          (CompletableFuture<?>) req.getSession(true).getAttribute(attr);
 
+      // Bug #77505, no pending request in the session (never posted, or the value was already read)
+      if(future == null) {
+         return ResponseEntity.notFound().build();
+      }
+
       try {
-         return type.cast(future.get());
+         return ResponseEntity.ok(type.cast(future.get()));
       }
       catch(ExecutionException e) {
          if(e.getCause() instanceof MessageException) {

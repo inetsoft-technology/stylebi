@@ -237,6 +237,20 @@ public class ClusterConfig implements Serializable {
    }
 
    /**
+    * A flag that indicates if a server node that finds itself in a minority cluster island
+    * (another, larger cluster of the same deployment answers on the discovery addresses) raises
+    * a segmentation failure, so that Ignite halts it and the container orchestrator restarts it
+    * into the larger cluster. When off (the default), such a node only reports not-ready.
+    */
+   public boolean isMinorityIslandHalt() {
+      return minorityIslandHalt;
+   }
+
+   public void setMinorityIslandHalt(boolean minorityIslandHalt) {
+      this.minorityIslandHalt = minorityIslandHalt;
+   }
+
+   /**
     * The minimum number of seconds that the last instance should be kept up before scaling to zero.
     *
     * @return the minimum uptime in seconds.
@@ -247,6 +261,33 @@ public class ClusterConfig implements Serializable {
 
    public void setMinSingleInstanceUptime(long minSingleInstanceUptime) {
       this.minSingleInstanceUptime = minSingleInstanceUptime;
+   }
+
+   /**
+    * The failure detection timeout, in milliseconds, used by the cluster to decide that an
+    * unresponsive node has failed. If not set, the Ignite default (10 seconds) is used.
+    * <p>
+    * Raising this value lets the cluster ride out longer node pauses, but it also raises the
+    * threshold for reporting blocked system workers and lengthens the time that a node that has
+    * really died blocks cache operations that wait for all nodes (FULL_SYNC). That time can
+    * exceed the cluster health check timeout ({@code health.cluster.timeout}).
+    * <p>
+    * The value is in milliseconds (for example {@code 20000} for 20 seconds), not seconds. It does
+    * not change how long servers wait before failing a client node such as a cloud runner job,
+    * which stays at the Ignite default of 30 seconds, and the connection recovery timeout stays at
+    * 10 seconds.
+    * <p>
+    * Every node in the cluster must be set to the same value. Ignite does not check that the
+    * value matches when a node joins, so a mismatch is not reported.
+    *
+    * @return the failure detection timeout in milliseconds or {@code null} if not set.
+    */
+   public Long getFailureDetectionTimeout() {
+      return failureDetectionTimeout;
+   }
+
+   public void setFailureDetectionTimeout(Long failureDetectionTimeout) {
+      this.failureDetectionTimeout = failureDetectionTimeout;
    }
 
    /**
@@ -284,4 +325,6 @@ public class ClusterConfig implements Serializable {
    private KubernetesConfig k8s;
    private int minNodes = -1;
    private long minSingleInstanceUptime = -1;
+   private Long failureDetectionTimeout;
+   private boolean minorityIslandHalt = false;
 }

@@ -26,11 +26,13 @@ import inetsoft.report.lens.SubTableLens;
 import inetsoft.report.internal.Util;
 import inetsoft.report.script.formula.CellRange;
 import inetsoft.uql.XTable;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.util.Tool;
 import inetsoft.util.script.ArrayObject;
 import inetsoft.util.script.graal.ScriptArrayScope;
 import inetsoft.util.script.graal.pool.WsExecContext;
-import inetsoft.util.stall.LockStallException;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
+import inetsoft.util.swap.DataUnavailable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,6 +40,7 @@ import java.awt.*;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -251,11 +254,18 @@ public class TableArray implements ArrayObject, ScriptArrayScope {
          }
       }
       catch(Exception ex) {
-         // a stalled table has no value to return, the stall is not a script value (#77123)
-         LockStallException stall = LockStallException.find(ex);
+         // a stalled table or one whose swap file is lost has no value to return, the failure
+         // is not a script value (#77123, #77910)
+         DataUnavailable.rethrow(ex);
+         // nor has a read or condition stopped by a script timeout or cancel (#78076)
+         ScriptTimeoutGuard.rethrowStop(ex);
 
-         if(stall != null) {
-            throw stall;
+         // nor has a table that failed to load, for a reader that has to fail, e.g. a
+         // scheduled run (bug #78071)
+         TableLoadException loadFailure = TableLoadException.find(ex);
+
+         if(loadFailure != null) {
+            throw loadFailure;
          }
 
          LOG.warn("Failed to get table property: " + id, ex);
@@ -502,7 +512,9 @@ public class TableArray implements ArrayObject, ScriptArrayScope {
    private static final int MAX_ROWS = 100;
    protected boolean data = false; // true if use data (non-filter) table
 
-   protected final Map<String, Object> members = new LinkedHashMap<>();
+   // pooled worksheet contexts of one sandbox reach one table array from several threads
+   protected final Map<String, Object> members =
+      Collections.synchronizedMap(new LinkedHashMap<>());
    private XTable table = null; // table lens
    private final RowWindow sharedWindow = new RowWindow();
    private String property = "Object"; // property type

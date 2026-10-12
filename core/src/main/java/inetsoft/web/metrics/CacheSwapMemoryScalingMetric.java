@@ -28,7 +28,8 @@ public class CacheSwapMemoryScalingMetric extends ScalingMetric {
 
    @Override
    protected double calculate() {
-      return Math.clamp((4D - swapper.getMemoryState()) / 4D, 0D, 1D);
+      // without G1 eden, which is mostly garbage, so a moderate live set doesn't read as load
+      return Math.clamp((4D - swapper.getMemoryStateExcludingEden()) / 4D, 0D, 1D);
    }
 
    private final XSwapper swapper;

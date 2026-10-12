@@ -91,6 +91,7 @@ package inetsoft.web.session;
  */
 
 import inetsoft.sree.RepletRepository;
+import inetsoft.sree.SreeEnv;
 import inetsoft.sree.ClientInfo;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.MockCluster;
@@ -109,12 +110,16 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.session.FindByIndexNameSessionRepository;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import javax.cache.Cache;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Proxy;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -518,200 +523,54 @@ class IgniteSessionRepositoryTest {
    }
 
    /**
-    * Regression test for Bug #77306: {@code SESSION_ATTRIBUTE_MAPS} was a single static,
-    * unsynchronized {@code HashMap} shared by every session on the node, mutated concurrently by
-    * request threads ({@code createSessionAttributeMap()}/{@code getSessionAttributeMap()}'s
-    * cold-path put) and the Ignite cache-event listener path ({@code destroySessionAttributeMap()}
-    * from {@code entryExpired()}/{@code entryRemoved()}). The refuter demonstrated experimentally
-    * that two threads concurrently {@code put}/{@code remove}-ing on a plain {@code HashMap} --
-    * regardless of resize, bucket collision, or total map size -- reliably corrupts it badly
-    * enough to spuriously null out an entirely unrelated key, with the corruption persisting for
-    * the life of the map.
-    *
-    * <p>This exercises the exact static field via reflection (rather than routing through full
-    * session/EntryEvent/Mockito plumbing, which is too slow to reach the operation volume needed
-    * to reliably surface the corruption within a reasonable test time -- confirmed by hand before
-    * writing this version, see the fix write-up), with several writer threads doing real
-    * concurrent {@code put}/{@code remove} churn while a reader thread continuously reads one
-    * untouched "victim" key, asserting it is never spuriously lost or corrupted.
-    *
-    * <p><b>Round 2 (independent verification finding, 04-verify.md):</b> the first version of this
-    * test churned disjoint, sequential keys ({@code prefix + i}), which measured only ~90%
-    * reliable against the un-fixed {@code HashMap} (18/20 fail, 2/20 false-negative over 20 runs)
-    * -- with the map staying small (well under the 16-bucket/12-entry default resize threshold),
-    * most churn keys land in a *different* bucket from the victim key purely by chance, and it is
-    * corruption of the victim's own bucket that actually surfaces as a lost/corrupted read. This
-    * version instead precomputes, per writer thread, a small set of keys forced (via
-    * {@link #hashMapBucket}/{@link #findCollidingKeyIndex}) into the exact same {@code HashMap}
-    * bucket as the victim key -- the same technique the refuter used in {@code 02-refute.md} --
-    * making every churn {@code put()}/{@code remove()} a genuine same-bucket collision with the
-    * victim key instead of leaving collision to chance. Manually reverting
-    * {@code SESSION_ATTRIBUTE_MAPS} to a plain {@code HashMap} makes this test fail reliably
-    * (confirmed across repeated runs); it passes reliably with the fixed
-    * {@code ConcurrentHashMap}.
+    * Bug #78108: the attributes of all sessions are in one cache. A session's view only sees its
+    * own attributes, and its existence marker is not one of them.
     */
    @Test
-   void concurrentSessionAttributeMapAccess_neverCorruptsUnrelatedKey() throws Exception {
-      Field field = IgniteSessionRepository.class.getDeclaredField("SESSION_ATTRIBUTE_MAPS");
-      field.setAccessible(true);
-      @SuppressWarnings("unchecked")
-      Map<String, Object> map = (Map<String, Object>) field.get(null);
+   void sessionAttributeMap_onlySeesItsOwnSessionsAttributes() {
+      IgniteSessionRepository.IgniteSession first = repository.createSession();
+      IgniteSessionRepository.IgniteSession second = repository.createSession();
+      first.setAttribute("a", "first-a");
+      first.setAttribute("b", "first-b");
+      second.setAttribute("a", "second-a");
 
-      String victimKey = "bug-77306-victim-" + UUID.randomUUID();
-      Object victimValue = new Object();
-      map.put(victimKey, victimValue);
+      assertEquals(java.util.Set.of("a", "b"), first.getAttributeNames());
+      assertEquals(java.util.Set.of("a"), second.getAttributeNames());
+      assertEquals("first-a", first.getAttribute("a"));
+      assertEquals("second-a", second.getAttribute("a"));
 
-      try {
-         int writerThreads = 4;
-         int iterations = 200_000;
-
-         // Force every writer thread's churn keys into the SAME HashMap bucket as the victim key
-         // (see the class-level javadoc "Round 2" note above) instead of leaving the collision to
-         // chance.
-         int capacity = expectedHashMapCapacity(map.size());
-         int victimBucket = hashMapBucket(victimKey, capacity);
-         int keysPerThread = 8;
-         String[][] collidingKeys = new String[writerThreads][];
-
-         for(int t = 0; t < writerThreads; t++) {
-            String prefix = "bug-77306-churn-" + t + "-";
-            String[] keys = new String[keysPerThread];
-            int searchIndex = 0;
-
-            for(int k = 0; k < keysPerThread; k++) {
-               searchIndex = findCollidingKeyIndex(prefix, searchIndex, victimBucket, capacity);
-               keys[k] = prefix + searchIndex;
-               searchIndex++;
-            }
-
-            collidingKeys[t] = keys;
-         }
-
-         ExecutorService pool = Executors.newFixedThreadPool(writerThreads + 1);
-         CountDownLatch start = new CountDownLatch(1);
-         AtomicBoolean failed = new AtomicBoolean(false);
-         AtomicReference<String> failureDetail = new AtomicReference<>();
-         List<Future<?>> futures = new ArrayList<>();
-
-         // Writer threads: repeatedly put(), then remove(), one of a small set of keys
-         // precomputed to collide into the victim key's own HashMap bucket -- mirrors
-         // createSessionAttributeMap()'s put() racing destroySessionAttributeMap()'s remove() for
-         // unrelated sessions, forced into the exact bucket-collision scenario that reliably
-         // corrupts a plain HashMap.
-         for(int t = 0; t < writerThreads; t++) {
-            String[] keys = collidingKeys[t];
-
-            futures.add(pool.submit(() -> {
-               try {
-                  start.await();
-
-                  for(int i = 0; i < iterations && !failed.get(); i++) {
-                     String key = keys[i % keys.length];
-                     map.put(key, new Object());
-                     map.remove(key);
-                  }
-               }
-               catch(Exception e) {
-                  failed.set(true);
-                  failureDetail.set("writer thread failed: " + e);
-               }
-            }));
-         }
-
-         // Reader thread: continuously reads the victim key -- this must never come back
-         // null/wrong, regardless of how much unrelated put()/remove() churn is happening
-         // concurrently on the shared static map.
-         futures.add(pool.submit(() -> {
-            try {
-               start.await();
-
-               for(int i = 0; i < writerThreads * iterations && !failed.get(); i++) {
-                  Object read = map.get(victimKey);
-
-                  if(read != victimValue) {
-                     failed.set(true);
-                     failureDetail.set(
-                        "victim key was lost/corrupted at iteration " + i + ": got " + read);
-                     break;
-                  }
-               }
-            }
-            catch(Exception e) {
-               failed.set(true);
-               failureDetail.set("reader thread failed: " + e);
-            }
-         }));
-
-         start.countDown();
-
-         for(Future<?> future : futures) {
-            future.get(120, TimeUnit.SECONDS);
-         }
-
-         pool.shutdown();
-
-         assertFalse(failed.get(), failureDetail.get());
-      }
-      finally {
-         map.remove(victimKey);
-      }
+      inetsoft.sree.internal.cluster.DistributedMap<String, Object> map =
+         IgniteSessionRepository.getSessionAttributeMap(second.getId());
+      assertNotNull(map);
+      assertEquals(java.util.Set.of("IgniteSession.ATTR.a"), map.keySet(),
+                   "the view must not list another session's attributes or the marker");
+      assertEquals(1, map.size());
    }
 
    /**
-    * Regression test for Bug #77306 review finding 2 (05-review-r1.md): getSessionAttributeMap()'s
-    * cold path "fetch but don't cache" branch -- reached when the per-session replicated map still
-    * exists in the cluster but the underlying session has already been swept from
-    * DEFAULT_SESSION_MAP_NAME -- must be preserved by the computeIfAbsent() rewrite (fix part 2).
-    * Before this test, only AbstractSecurityFilterSessionSweepTest exercised this cold path, and
-    * only incidentally: it never asserts on caching behavior, so a subtly-broken reimplementation
-    * (caching unconditionally, or never caching at all) would still pass it.
+    * Bug #78108: a session id that was never created, or whose attributes were purged, has no
+    * attribute map, so callers such as DestinationUserNameProviderPrincipal fall back to their
+    * local values.
     */
    @Test
-   void getSessionAttributeMap_fetchesWithoutCaching_whenUnderlyingSessionGone() throws Exception {
-      String sessionId = "bug-77306-nocache-" + UUID.randomUUID();
-      String mapName =
-         IgniteSessionRepository.class.getName() + ".sessionAttributeMap." + sessionId;
-      Cluster instanceCluster = Cluster.getInstance();
-      inetsoft.sree.internal.cluster.DistributedMap<String, Object> attrMap =
-         instanceCluster.getReplicatedMap(mapName);
-      attrMap.put("k", "v");
+   void getSessionAttributeMap_returnsNullForUnknownOrPurgedSession() {
+      assertNull(IgniteSessionRepository.getSessionAttributeMap("bug-78108-" + UUID.randomUUID()));
+      assertNull(IgniteSessionRepository.getSessionAttributeMap(null));
 
-      Map<String, Object> cacheField = sessionAttributeMapsField();
+      IgniteSessionRepository.IgniteSession session = repository.createSession();
+      session.setAttribute("a", "value");
+      assertNotNull(IgniteSessionRepository.getSessionAttributeMap(session.getId()),
+                    "a created session has an attribute map before it is saved");
 
-      try {
-         Cache<String, Object> sessionCache =
-            instanceCluster.getCache(IgniteSessionRepository.DEFAULT_SESSION_MAP_NAME);
-         assertFalse(cacheField.containsKey(sessionId),
-                     "sanity check: nothing should have cached this session id yet");
-         assertFalse(sessionCache.containsKey(sessionId),
-                     "sanity check: the underlying session must be absent for this to hit the " +
-                     "intended branch");
+      IgniteSessionRepository.purgeSessionAttributes(session.getId());
 
-         inetsoft.sree.internal.cluster.DistributedMap<String, Object> first =
-            IgniteSessionRepository.getSessionAttributeMap(sessionId);
-         assertNotNull(first, "the map still exists in the cluster and should be fetched");
-         assertEquals("v", first.get("k"));
-         assertFalse(cacheField.containsKey(sessionId),
-                     "must not cache the map once the underlying session is confirmed gone " +
-                     "(Bug #77306 review finding 2)");
-
-         inetsoft.sree.internal.cluster.DistributedMap<String, Object> second =
-            IgniteSessionRepository.getSessionAttributeMap(sessionId);
-         assertNotNull(second, "a second call should still re-fetch, not fail");
-         assertFalse(cacheField.containsKey(sessionId), "a second call must still not cache it");
-      }
-      finally {
-         cacheField.remove(sessionId);
-         instanceCluster.destroyReplicatedMap(mapName);
-      }
+      assertNull(IgniteSessionRepository.getSessionAttributeMap(session.getId()));
    }
 
    /**
-    * Regression test for Bug #77306 review finding 1/2 (05-review-r1.md): getAttribute(),
-    * setAttribute(), removeAttribute(), and getAttributeNames() must all handle
+    * getAttribute(), setAttribute(), removeAttribute(), and getAttributeNames() must all handle
     * getSessionAttributeMap() returning null gracefully (return null/empty, or no-op) instead of
-    * NPE-ing. Exercises the null-guards this fix adds directly, rather than relying on the
-    * swallowed-403 symptom (or a passing but non-asserting cold-path test) to ever hit them.
+    * NPE-ing (Bug #77306), here after the session's attributes were purged (Bug #78108).
     */
    @Test
    void igniteSession_handlesMissingAttributeMapGracefully() throws Exception {
@@ -721,15 +580,9 @@ class IgniteSessionRepositoryTest {
       repository.save(session);
 
       assertEquals("some-value", session.getAttribute(RepletRepository.PRINCIPAL_COOKIE),
-                   "sanity check: attribute resolution must work before the map is torn down");
+                   "sanity check: attribute resolution must work before the attributes are purged");
 
-      // Simulate the map being destroyed out from under a still-referenced IgniteSession ("could
-      // be out of sync due to session expiration", per the fix's own comment): remove the cached
-      // entry AND destroy the underlying replicated map so getSessionAttributeMap(id) genuinely
-      // returns null rather than silently re-fetching it.
-      String mapName = IgniteSessionRepository.class.getName() + ".sessionAttributeMap." + id;
-      sessionAttributeMapsField().remove(id);
-      Cluster.getInstance().destroyReplicatedMap(mapName);
+      IgniteSessionRepository.purgeSessionAttributes(id);
 
       assertNull(session.getAttribute(RepletRepository.PRINCIPAL_COOKIE),
                  "getAttribute() must return null, not NPE, when the map is gone");
@@ -739,51 +592,279 @@ class IgniteSessionRepositoryTest {
                           "removeAttribute() must no-op, not NPE, when the map is gone");
       assertTrue(session.getAttributeNames().isEmpty(),
                  "getAttributeNames() must return empty, not NPE, when the map is gone");
-   }
-
-   @SuppressWarnings("unchecked")
-   private static Map<String, Object> sessionAttributeMapsField() throws Exception {
-      Field field = IgniteSessionRepository.class.getDeclaredField("SESSION_ATTRIBUTE_MAPS");
-      field.setAccessible(true);
-      return (Map<String, Object>) field.get(null);
+      assertNull(IgniteSessionRepository.getSessionAttributeMap(id),
+                 "a write after the purge must not bring the session's attributes back");
    }
 
    /**
-    * Computes the bucket index a plain {@code java.util.HashMap} (default load factor 0.75,
-    * default initial capacity 16, doubling on resize) would place {@code key} into, mirroring
-    * {@code HashMap.hash()}'s own spread function ({@code h ^ (h >>> 16)}) and its
-    * {@code (capacity - 1) & hash} bucket index formula.
+    * Bug #78108: the master's sweep removes the attributes of a session that is not in the
+    * sessions cache, e.g. one invalidated before its first save whose purge was lost, once two
+    * runs in a row found it and its marker is older than the grace period. A saved session and a
+    * new session that is not saved yet keep their attributes.
     */
-   private static int hashMapBucket(Object key, int capacity) {
-      int h = key.hashCode();
-      h ^= (h >>> 16);
-      return h & (capacity - 1);
+   @Test
+   void sweepSessionAttributes_removesOrphanedAttributesOnly() {
+      IgniteSessionRepository.IgniteSession saved = repository.createSession();
+      saved.setAttribute("a", "saved");
+      repository.save(saved);
+      IgniteSessionRepository.IgniteSession orphan = repository.createSession();
+      orphan.setAttribute("a", "orphan");
+      long later = System.currentTimeMillis() + TimeUnit.HOURS.toMillis(2);
+
+      repository.sweepSessionAttributes(System.currentTimeMillis());
+      repository.sweepSessionAttributes(System.currentTimeMillis());
+      assertNotNull(IgniteSessionRepository.getSessionAttributeMap(orphan.getId()),
+                    "a new session that is not saved yet must keep its attributes");
+
+      repository.sweepSessionAttributes(later);
+      assertNotNull(IgniteSessionRepository.getSessionAttributeMap(orphan.getId()),
+                    "one run must not remove the attributes");
+
+      repository.sweepSessionAttributes(later);
+      assertNull(IgniteSessionRepository.getSessionAttributeMap(orphan.getId()),
+                 "the second run must remove the orphaned attributes");
+      assertNull(Cluster.getInstance().getReplicatedMap(
+         IgniteSessionRepository.class.getName() + ".sessionAttributes")
+                    .get(new SessionAttributeKey(orphan.getId(), "IgniteSession.ATTR.a")),
+                 "every entry of the orphaned session must be removed");
+      assertEquals("saved", saved.getAttribute("a"), "a saved session must keep its attributes");
    }
 
-   /** Mirrors HashMap's own resize decision (grow once size exceeds capacity * loadFactor). */
-   private static int expectedHashMapCapacity(int size) {
-      int capacity = 16;
+   /**
+    * Bug #78108: the master destroys the per-session attribute caches of older versions, except
+    * those of sessions that are still in the sessions cache.
+    */
+   @Test
+   void sweepSessionAttributes_destroysLegacyAttributeMapsOfEndedSessions() {
+      String prefix = IgniteSessionRepository.class.getName() + ".sessionAttributeMap.";
+      IgniteSessionRepository.IgniteSession live = repository.createSession();
+      repository.save(live);
+      String ended = "bug-78108-ended-" + UUID.randomUUID();
+      cluster.getReplicatedMap(prefix + live.getId()).put("k", "v");
+      cluster.getReplicatedMap(prefix + ended).put("k", "v");
 
-      while(size > capacity * 0.75f) {
-         capacity <<= 1;
+      repository.sweepSessionAttributes();
+
+      assertTrue(cluster.mapExists(prefix + live.getId()),
+                 "the cache of a session that still exists must be kept");
+      assertFalse(cluster.mapExists(prefix + ended), "the cache of an ended session must go");
+   }
+
+   /**
+    * Bug #77886: in production the repository's session cache is a
+    * {@code withExpiryPolicy(PropertyAccessedExpiryPolicy)} view, so every {@code get} through it
+    * renews the session's Ignite TTL. A background scan that read each live session through
+    * findById() (a {@code get}) kept an idle session's TTL from firing at its timeout. The scans
+    * must read the iterated value instead and never {@code get} a live session.
+    * ({@link MockCluster} ignores the expiry policy, so this counts {@code get} calls instead.)
+    */
+   @Test
+   void backgroundScans_doNotReadLiveSessionsThroughRenewingGet() throws Exception {
+      SRPrincipal principal = mockPrincipal("admin", "127.0.0.1");
+      IgniteSessionRepository.IgniteSession session = repository.createSession();
+      session.setAttribute(RepletRepository.PRINCIPAL_COOKIE, principal);
+      repository.save(session);
+
+      AtomicInteger gets = countGets();
+
+      repository.checkSessions();
+      assertEquals(1, repository.getActiveSessions().size(), "the live session is still listed");
+      repository.findByIndexNameAndIndexValue(
+         FindByIndexNameSessionRepository.PRINCIPAL_NAME_INDEX_NAME, "admin");
+      repository.updatePrincipalRolesAndGroups(
+         new IdentityID("nobody", "host-org"), new IdentityID[0], new String[0],
+         mock(AuthenticationProvider.class));
+
+      assertEquals(0, gets.get(), "background scans must not renew a live session's TTL");
+      verifyNoInteractions(authenticationService);
+      assertNotNull(repository.findById(session.getId()), "the live session must not be deleted");
+   }
+
+   /**
+    * Bug #77886: checkSessions() skipped sessions past their timeout, so nothing deleted an idle
+    * session that no other reader touched; it lived until Ignite's TTL fired. It must now delete
+    * the expired session and log it off with the session-timeout reason.
+    */
+   @Test
+   void checkSessions_deletesExpiredSession() {
+      SRPrincipal principal = mockPrincipal("admin", "127.0.0.1");
+      // the logout deregisters the principal, as AuthenticationService does, so the cache-removal
+      // listener's own reaction to the same deletion is gated by isActiveUser()
+      AtomicBoolean active = new AtomicBoolean(true);
+      when(securityEngine.isActiveUser(principal)).thenAnswer(invocation -> active.get());
+      doAnswer(invocation -> {
+         active.set(false);
+         return null;
+      }).when(authenticationService).logout(any(), anyString(), anyString());
+
+      IgniteSessionRepository.IgniteSession session = repository.createSession();
+      session.setAttribute(RepletRepository.PRINCIPAL_COOKIE, principal);
+      repository.save(session);
+      String id = session.getId();
+      session.setLastAccessedTime(Instant.now().minus(session.getMaxInactiveInterval())
+                                     .minusSeconds(1));
+      repository.save(session);
+
+      @SuppressWarnings("unchecked")
+      Cache<String, org.springframework.session.MapSession> rawSessions =
+         cluster.getCache(IgniteSessionRepository.DEFAULT_SESSION_MAP_NAME, true, null);
+      assertTrue(rawSessions.get(id).isExpired(), "premise: the stored session is expired");
+
+      repository.checkSessions();
+
+      verify(authenticationService, times(1))
+         .logout(same(principal), eq("127.0.0.1"), eq(SessionRecord.LOGOFF_SESSION_TIMEOUT));
+      assertNull(rawSessions.get(id), "checkSessions() must delete the expired session");
+   }
+
+   /**
+    * Bug #77886: getActiveSessions() no longer reads live sessions through the renewing get, but
+    * it must still sweep expired ones. It is the periodic deleter at the default monitor level
+    * (MonitorSchedulingTask -> UserService.updateMetrics0, every 30 s on every node), so a scan
+    * that only listed sessions would leave an expired one to Ignite's TTL. The expired session must
+    * be deleted and logged off with the session-timeout reason, and not listed; the live one must
+    * be listed and kept.
+    */
+   @Test
+   void getActiveSessions_deletesExpiredSessionAndKeepsLiveOne() {
+      SRPrincipal expiredPrincipal = mockPrincipal("expired", "127.0.0.1");
+      SRPrincipal livePrincipal = mockPrincipal("live", "127.0.0.2");
+      AtomicBoolean active = new AtomicBoolean(true);
+      when(securityEngine.isActiveUser(expiredPrincipal)).thenAnswer(invocation -> active.get());
+      doAnswer(invocation -> {
+         active.set(false);
+         return null;
+      }).when(authenticationService).logout(same(expiredPrincipal), anyString(), anyString());
+
+      IgniteSessionRepository.IgniteSession expired = repository.createSession();
+      expired.setAttribute(RepletRepository.PRINCIPAL_COOKIE, expiredPrincipal);
+      repository.save(expired);
+      String expiredId = expired.getId();
+      expired.setLastAccessedTime(Instant.now().minus(expired.getMaxInactiveInterval())
+                                     .minusSeconds(1));
+      repository.save(expired);
+
+      IgniteSessionRepository.IgniteSession live = repository.createSession();
+      live.setAttribute(RepletRepository.PRINCIPAL_COOKIE, livePrincipal);
+      repository.save(live);
+      String liveId = live.getId();
+
+      @SuppressWarnings("unchecked")
+      Cache<String, org.springframework.session.MapSession> rawSessions =
+         cluster.getCache(IgniteSessionRepository.DEFAULT_SESSION_MAP_NAME, true, null);
+      assertTrue(rawSessions.get(expiredId).isExpired(), "premise: the stored session is expired");
+
+      List<SRPrincipal> listed = repository.getActiveSessions();
+
+      assertEquals(1, listed.size(), "only the live session is listed");
+      assertSame(livePrincipal, listed.get(0), "only the live session is listed");
+      verify(authenticationService, times(1))
+         .logout(same(expiredPrincipal), eq("127.0.0.1"), eq(SessionRecord.LOGOFF_SESSION_TIMEOUT));
+      verify(authenticationService, never()).logout(same(livePrincipal), anyString(), anyString());
+      assertNull(rawSessions.get(expiredId), "getActiveSessions() must delete the expired session");
+      assertNotNull(rawSessions.get(liveId), "the live session must be kept");
+   }
+
+   /**
+    * Bug #77886: the Ignite TTL of a session entry must outlast the session timeout by a margin.
+    * A session is ended (LOGOFF record, license release, SessionExpiredEvent) by a sweep that finds
+    * its expired MapSession still in the cache and deletes it. With TTL == timeout the entry
+    * vanished the moment the session expired, so no sweep could see it and, because Ignite's own
+    * expiry never reached entryExpired(), the session ended with no logout at all.
+    */
+   @Test
+   void expiryPolicy_keepsEntryPastSessionTimeoutForTheSweep() {
+      String oldTimeout = SreeEnv.getProperty("http.session.timeout");
+
+      try {
+         SreeEnv.setProperty("http.session.timeout", "60");
+         PropertyAccessedExpiryPolicy policy = new PropertyAccessedExpiryPolicy();
+         javax.cache.expiry.Duration ttl = new javax.cache.expiry.Duration(
+            TimeUnit.SECONDS, 60 + PropertyAccessedExpiryPolicy.TTL_MARGIN_SECONDS);
+
+         assertEquals(ttl, policy.getExpiryForCreation());
+         assertEquals(ttl, policy.getExpiryForAccess());
+         assertNull(policy.getExpiryForUpdate(), "an update must still leave the TTL unchanged");
+         assertTrue(PropertyAccessedExpiryPolicy.TTL_MARGIN_SECONDS >= 40,
+                    "the margin must cover several 10 s checkSessions periods");
+         assertEquals(java.time.Duration.ofSeconds(60),
+                      repository.createSession().getMaxInactiveInterval(),
+                      "the session itself still times out at http.session.timeout");
       }
-
-      return capacity;
-   }
-
-   /**
-    * Finds the smallest {@code i >= startIndex} such that {@code prefix + i} falls into
-    * {@code targetBucket} for the given (assumed) HashMap capacity, brute-force -- with a
-    * ~1/capacity hit rate per candidate this resolves in a handful of iterations in practice.
-    */
-   private static int findCollidingKeyIndex(String prefix, int startIndex, int targetBucket,
-                                             int capacity)
-   {
-      for(int i = startIndex; ; i++) {
-         if(hashMapBucket(prefix + i, capacity) == targetBucket) {
-            return i;
+      finally {
+         if(oldTimeout == null) {
+            SreeEnv.remove("http.session.timeout");
+         }
+         else {
+            SreeEnv.setProperty("http.session.timeout", oldTimeout);
          }
       }
+   }
+
+   /**
+    * Bug #77886: checkSessions() now deletes expired sessions inside its scan. One failed deletion
+    * must not abort the pass and leave the other expired sessions (and the expiring-soon warnings)
+    * for the next pass.
+    */
+   @Test
+   void checkSessions_continuesPassWhenOneDeletionFails() {
+      doThrow(new IllegalStateException("audit store down"))
+         .when(authenticationService).logout(any(), anyString(), anyString());
+      when(securityEngine.isActiveUser(any())).thenReturn(true);
+      List<String> ids = new ArrayList<>();
+
+      for(int i = 0; i < 2; i++) {
+         IgniteSessionRepository.IgniteSession session = repository.createSession();
+         session.setAttribute(RepletRepository.PRINCIPAL_COOKIE,
+                              mockPrincipal("user" + i, "127.0.0." + (i + 1)));
+         repository.save(session);
+         session.setLastAccessedTime(Instant.now().minus(session.getMaxInactiveInterval())
+                                        .minusSeconds(1));
+         repository.save(session);
+         ids.add(session.getId());
+      }
+
+      assertDoesNotThrow(() -> repository.checkSessions());
+
+      // two calls per session at most (deleteById, then the removal listener's entryExpired);
+      // what matters is that the pass reached the second session after the first one failed
+      verify(authenticationService, atLeast(2)).logout(any(), anyString(), anyString());
+      @SuppressWarnings("unchecked")
+      Cache<String, org.springframework.session.MapSession> rawSessions =
+         cluster.getCache(IgniteSessionRepository.DEFAULT_SESSION_MAP_NAME, true, null);
+
+      for(String id : ids) {
+         assertNull(rawSessions.get(id), "every expired session must be deleted in one pass");
+      }
+   }
+
+   /**
+    * Replaces the repository's session cache with a proxy that counts {@code get} calls and
+    * delegates everything to the original cache.
+    */
+   @SuppressWarnings("unchecked")
+   private AtomicInteger countGets() throws Exception {
+      Field field = IgniteSessionRepository.class.getDeclaredField("sessions");
+      field.setAccessible(true);
+      Cache<String, org.springframework.session.MapSession> delegate =
+         (Cache<String, org.springframework.session.MapSession>) field.get(repository);
+      AtomicInteger gets = new AtomicInteger();
+      Object proxy = Proxy.newProxyInstance(
+         Cache.class.getClassLoader(), new Class<?>[] { Cache.class },
+         (p, method, args) -> {
+            if("get".equals(method.getName())) {
+               gets.incrementAndGet();
+            }
+
+            try {
+               return method.invoke(delegate, args);
+            }
+            catch(InvocationTargetException e) {
+               throw e.getCause();
+            }
+         });
+      field.set(repository, proxy);
+      return gets;
    }
 
    private static SRPrincipal mockPrincipal(String name, String ip) {

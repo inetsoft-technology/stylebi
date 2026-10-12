@@ -163,9 +163,9 @@ public class RadioButtonVSAssembly extends ListInputVSAssembly
 
       Object obj = getSelectedObject();
 
-      writer.print("<state_selectedObject>");
-      writer.print("<![CDATA[" + Tool.getPersistentDataString(obj, getDataType()) +
-                   "]]>");
+      String str = Tool.getPersistentDataString(obj, getDataType());
+      writer.print("<state_selectedObject" + Tool.cdataDataAttr(str) + ">");
+      writer.print("<![CDATA[" + Tool.cdataData(str) + "]]>");
       writer.print("</state_selectedObject>");
    }
 
@@ -180,7 +180,7 @@ public class RadioButtonVSAssembly extends ListInputVSAssembly
       super.parseStateContent(elem, runtime);
 
       Element snode = Tool.getChildNodeByTagName(elem, "state_selectedObject");
-      Object obj = getRadioButtonInfo().getPersistentData(getDataType(), Tool.getValue(snode));
+      Object obj = getRadioButtonInfo().getPersistentData(getDataType(), Tool.getCDATAData(snode));
       setSelectedObject(obj);
    }
 }

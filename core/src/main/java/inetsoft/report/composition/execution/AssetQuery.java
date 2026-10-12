@@ -19,10 +19,12 @@ package inetsoft.report.composition.execution;
 
 import inetsoft.mv.*;
 import inetsoft.mv.formula.CompositeVarianceFormula;
+import inetsoft.mv.trans.AbstractTransformer;
 import inetsoft.mv.trans.NamedGroupTransformer;
 import inetsoft.mv.trans.TransformationDescriptor;
 import inetsoft.report.*;
 import inetsoft.report.composition.WorksheetService;
+import inetsoft.report.composition.WorksheetWrapper;
 import inetsoft.report.filter.*;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.XNodeMetaTable;
@@ -35,11 +37,12 @@ import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.*;
 import inetsoft.uql.erm.*;
-import inetsoft.uql.erm.vpm.VirtualPrivateModel;
 import inetsoft.uql.jdbc.*;
 import inetsoft.uql.path.XSelection;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.schema.XTypeNode;
+import inetsoft.uql.tabular.TabularQuery;
+import inetsoft.uql.tabular.TabularUtil;
 import inetsoft.uql.util.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.VSUtil;
@@ -48,6 +51,7 @@ import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.log.LogLevel;
 import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.*;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.script.graal.pool.SlotClaim;
 import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.Logger;
@@ -91,14 +95,14 @@ public abstract class AssetQuery extends PreAssetQuery {
 
          TableAssembly ntable = null;
          TableAssembly rmvtable = MVTransformer.findMVTable(table);
+         // the table without the worksheet mvs attached below, queried live if they fail
+         TableAssembly otable = table;
 
-         // don't apply ws mv during ws design as per Bug #33943
-         /*
-         if(rmvtable == null && !box.isActive() && SreeEnv.getBooleanProperty("ws.mv.enabled")) {
-            applyWSRuntimeMV(table, box, user);
-            rmvtable = MVTransformer.findMVTable(table);
+         // the worksheet mvs are used by the queries of a viewsheet over the worksheet (78053),
+         // but not while the worksheet is designed (33943)
+         if(rmvtable == null && !metadata && isWSMVEnabled(box, mode)) {
+            table = applyWSRuntimeMV(table, box, user);
          }
-         */
 
          rrinfo = rmvtable == null ? null : rmvtable.getRuntimeMV();
 
@@ -133,6 +137,8 @@ public abstract class AssetQuery extends PreAssetQuery {
             }
 
             table.setRuntimeMV(null);
+            // drop every worksheet mv attached above, not only one on the root (78053)
+            table = otable;
          }
          catch(Exception ex) {
             boolean required = "true".equals(SreeEnv.getProperty("mv.required"));
@@ -145,6 +151,7 @@ public abstract class AssetQuery extends PreAssetQuery {
             else {
                LOG.warn("MV not supported for " + table, ex);
                table.setRuntimeMV(null);
+               table = otable;
             }
          }
 
@@ -360,6 +367,255 @@ public abstract class AssetQuery extends PreAssetQuery {
       query.validate();
 
       return query;
+   }
+
+   /**
+    * Check if the worksheet mvs may be used by the queries of a sandbox. They are used by a
+    * viewsheet over the worksheet, its preview and its export (78053), and not by the runtime
+    * worksheet of the worksheet composer (33943) or by the creation of an mv.
+    */
+   private static boolean isWSMVEnabled(AssetQuerySandbox box, int mode) {
+      AssetEntry wsEntry = box.getWSEntry();
+
+      // the base of a viewsheet may be a logical model or a query, which has no worksheet mv.
+      // the sandbox creating an mv has no worksheet entry
+      if(wsEntry == null || !wsEntry.isWorksheet() || box.isCreatingMV() ||
+         box.isRuntimeWorksheet() || AssetQuerySandbox.isDesignMode(mode))
+      {
+         return false;
+      }
+
+      ViewsheetSandbox vbox = box.getViewsheetSandbox();
+
+      if(vbox != null && !vbox.isMVEnabled()) {
+         return false;
+      }
+
+      return SreeEnv.getBooleanProperty("ws.mv.enabled");
+   }
+
+   /**
+    * Attach the worksheet mvs of the bound tables under a table. They are attached to copies,
+    * since the tables of the sandbox worksheet are shared by the other queries.
+    * @return the copy of the table holding the mvs, or the table if none is found.
+    */
+   private static TableAssembly applyWSRuntimeMV(TableAssembly table, AssetQuerySandbox box,
+                                                 XPrincipal user)
+   {
+      // not on the table itself. WSMVTransformer drops the runtime conditions of a bound root,
+      // and they hold the conditions and selections of a viewsheet
+      if(!(table instanceof ComposedTableAssembly) || table.getWorksheet() == null) {
+         return table;
+      }
+
+      Map<String, RuntimeMV> mvs = new HashMap<>();
+      findWSRuntimeMV((ComposedTableAssembly) table, box.getWSEntry(), user, mvs,
+                      new HashSet<>());
+
+      if(mvs.isEmpty()) {
+         return table;
+      }
+
+      // the wrapper copies a sub table from the worksheet when it is looked up
+      WorksheetWrapper wrapper = new WorksheetWrapper(table.getWorksheet(), true);
+      TableAssembly ntable = (TableAssembly) table.clone();
+      wrapper.addAssembly(ntable);
+
+      for(Map.Entry<String, RuntimeMV> entry : mvs.entrySet()) {
+         Assembly sub = wrapper.getAssembly(entry.getKey());
+
+         if(sub instanceof TableAssembly) {
+            ((TableAssembly) sub).setRuntimeMV(entry.getValue());
+         }
+      }
+
+      return ntable;
+   }
+
+   /**
+    * Find the worksheet mvs of the bound tables under a table, per the identity of the user.
+    */
+   private static void findWSRuntimeMV(ComposedTableAssembly table, AssetEntry wsEntry,
+                                       XPrincipal user, Map<String, RuntimeMV> mvs,
+                                       Set<String> visited)
+   {
+      TableAssembly[] subs = table.getTableAssemblies(false);
+
+      if(subs == null) {
+         return;
+      }
+
+      for(TableAssembly sub : subs) {
+         if(sub == null || !visited.add(sub.getName())) {
+            continue;
+         }
+
+         // a worksheet mv is created for a bound table only (WSMVAnalyzer)
+         if(sub instanceof BoundTableAssembly) {
+            // the mv holds the data for the default values of the variables
+            if(sub.getRuntimeMV() == null && !isVariableDependent(sub, new HashSet<>())) {
+               RuntimeMV rmv = MVManager.getManager().findRuntimeMV(
+                  wsEntry, null, null, getWSTableName(sub), user, null, true, true);
+
+               if(rmv != null) {
+                  mvs.put(sub.getName(), rmv);
+               }
+            }
+         }
+         else if(sub instanceof ComposedTableAssembly) {
+            findWSRuntimeMV((ComposedTableAssembly) sub, wsEntry, user, mvs, visited);
+         }
+      }
+   }
+
+   /**
+    * Get the name of a bound table in the worksheet, which is the name its worksheet mv is
+    * registered with (WSMVAnalyzer). In the worksheet of a viewsheet, a table T bound by a
+    * viewsheet assembly is renamed to T_O under a mirror T (Viewsheet.createMirrorTable).
+    */
+   private static String getWSTableName(TableAssembly table) {
+      String name = table.getName();
+      String wsName = VSUtil.stripOuter(name);
+      Worksheet ws = table.getWorksheet();
+
+      if(wsName.equals(name) || ws == null) {
+         return name;
+      }
+
+      // only a table renamed by the viewsheet, not one named T_O in the worksheet
+      return ws.getAssembly(wsName) instanceof MirrorTableAssembly mirror &&
+         "true".equals(mirror.getProperty(Viewsheet.VS_MIRROR_TABLE)) &&
+         name.equals(mirror.getAssemblyName()) ? wsName : name;
+   }
+
+   /**
+    * Check if the data of a table depends on variables (parameters or session variables). A
+    * worksheet mv is created with the default values of the variables (MVCreatorUtil), so it
+    * doesn't hold the data for other values. The rules are those of a viewsheet mv, whose
+    * analysis moves such conditions out of the mv or doesn't create the mv
+    * (AbstractTransformer.isDynamicFilter, TransformationDescriptor.processDynamicExpressions,
+    * VSMVAnalyzer.containsQueryVariable and containsNamedGroupVariable). The runtime
+    * conditions (the conditions and selections of a viewsheet) are applied on the mv, so they
+    * are not checked.
+    */
+   private static boolean isVariableDependent(TableAssembly table, Set<String> visited) {
+      if(table == null || !visited.add(table.getName())) {
+         return false;
+      }
+
+      List<ConditionListWrapper> conds = new ArrayList<>();
+      conds.add(table.getPreConditionList());
+      conds.add(table.getPostConditionList());
+      conds.add(table.getRankingConditionList());
+
+      // the condition assemblies are added to the pre conditions by BoundQuery
+      if(table instanceof BoundTableAssembly) {
+         for(ConditionAssembly cond : ((BoundTableAssembly) table).getConditionAssemblies()) {
+            conds.add(cond.getConditionList());
+         }
+      }
+
+      TransformationDescriptor desc = new TransformationDescriptor();
+
+      for(ConditionListWrapper wrapper : conds) {
+         if(AbstractTransformer.isDynamicFilter(desc, wrapper, null) ||
+            isSubQueryVariableDependent(wrapper, table.getWorksheet(), visited))
+         {
+            return true;
+         }
+      }
+
+      if(table instanceof SQLBoundTableAssembly) {
+         JDBCQuery query = ((SQLBoundTableAssemblyInfo) table.getInfo()).getQuery();
+
+         // includes the session variables
+         if(query != null && query.getAllDefinedVariables().hasMoreElements()) {
+            return true;
+         }
+      }
+      // the query and data source properties of a tabular (connector) query are
+      // substituted with the variables at runtime (TabularHandler)
+      else if(table instanceof TabularTableAssembly) {
+         TabularQuery query = ((TabularTableAssemblyInfo) table.getInfo()).getQuery();
+
+         try {
+            if(query != null && (!TabularUtil.findVariables(query).isEmpty() ||
+               query.getDataSource() != null &&
+               !TabularUtil.findVariables(query.getDataSource()).isEmpty()))
+            {
+               return true;
+            }
+         }
+         catch(Exception ex) {
+            LOG.debug("Failed to find the variables of the tabular query: {}", table.getName(), ex);
+            return true;
+         }
+      }
+
+      AggregateInfo ainfo = table.getAggregateInfo();
+
+      if(ainfo != null) {
+         for(GroupRef group : ainfo.getGroups()) {
+            XNamedGroupInfo info = group.getNamedGroupInfo();
+
+            if(info != null && info.getAllVariables().length > 0) {
+               return true;
+            }
+         }
+      }
+
+      ColumnSelection cols = table.getColumnSelection(false);
+
+      for(int i = 0; i < cols.getAttributeCount(); i++) {
+         DataRef ref = cols.getAttribute(i);
+         ref = ref instanceof ColumnRef ? ((ColumnRef) ref).getDataRef() : ref;
+
+         // e.g. parameter.x in an expression
+         if(ref instanceof ExpressionRef &&
+            !MVTool.isExpressionMVCompatible(((ExpressionRef) ref).getExpression()))
+         {
+            return true;
+         }
+      }
+
+      if(table instanceof ComposedTableAssembly) {
+         for(TableAssembly sub : ((ComposedTableAssembly) table).getTableAssemblies(false)) {
+            if(isVariableDependent(sub, visited)) {
+               return true;
+            }
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Check if a condition uses a sub query on a table depending on variables.
+    */
+   private static boolean isSubQueryVariableDependent(ConditionListWrapper wrapper, Worksheet ws,
+                                                      Set<String> visited)
+   {
+      ConditionList list = wrapper == null ? null : wrapper.getConditionList();
+
+      if(list == null || ws == null) {
+         return false;
+      }
+
+      for(int i = 0; i < list.getSize(); i += 2) {
+         XCondition cond = list.getConditionItem(i).getXCondition();
+         SubQueryValue val = cond instanceof AssetCondition ?
+            ((AssetCondition) cond).getSubQueryValue() : null;
+         Assembly stable = val == null || val.getQuery() == null ?
+            null : ws.getAssembly(val.getQuery());
+
+         if(stable instanceof TableAssembly &&
+            isVariableDependent((TableAssembly) stable, visited))
+         {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    private static TableAssembly getNoAggregateTable(MirrorTableAssembly mvtable,
@@ -700,12 +956,21 @@ public abstract class AssetQuery extends PreAssetQuery {
             LOG.debug("Failed to get cached table data", ex);
          }
 
+         // the reader of the cached data: taken before the query runs or is waited for, a
+         // cancel of this query since is its own (bug #78200)
+         TableFilter2.Reader reader = key == null ? null : new TableFilter2.Reader(
+            AssetDataCache.isScheduler(box, vars), box.getQueryManager(), getQueryManager());
+
          try {
             base = mexecuted || key == null ? null :
                AssetDataCache.getCache().getOrMarkExecutingOrWait(key, touchtime);
          }
          catch(CircularTableReferenceException ex) {
             throw new CircularTableReferenceException(getTable().getName());
+         }
+
+         if(base instanceof TableFilter2) {
+            ((TableFilter2) base).setReader(reader);
          }
 
          if(AssetDataCache.isDebugData() && !(getTable() instanceof SnapshotEmbeddedTableAssembly)) {
@@ -741,7 +1006,15 @@ public abstract class AssetQuery extends PreAssetQuery {
                }
 
                if(key != null) {
-                  base = AssetDataCache.getCache().setCachedData(key, base, getTable());
+                  TableLens cached =
+                     AssetDataCache.getCache().setCachedData(key, base, getTable());
+
+                  // a table that is not cached is not a copy of the cache's
+                  if(cached != base && cached instanceof TableFilter2) {
+                     ((TableFilter2) cached).setReader(reader);
+                  }
+
+                  base = cached;
                }
             }
             catch(ConfirmException | CancelledException | MVExecutionException ex) {
@@ -751,6 +1024,14 @@ public abstract class AssetQuery extends PreAssetQuery {
             // fails. Need to extract column name information and include in
             // error message
             catch(ExpressionFailedException ex) {
+               // a stopped script (a script timeout or cancel) is no expression error to
+               // correct: its column must not be shown as the design table, which this
+               // sandbox and the tables built on it would keep. the reader fails with the
+               // stop and the next one runs the query again (bug #78134)
+               if(ScriptTimeoutGuard.isStop(ex)) {
+                  throw ex;
+               }
+
                Throwable expressionException = ex;
 
                if(AssetQuerySandbox.isLiveMode(mode) || AssetQuerySandbox.isRuntimeMode(mode)) {
@@ -837,7 +1118,7 @@ public abstract class AssetQuery extends PreAssetQuery {
 
                // if in composer, return meta data so the error can be corrected
                if((throwEx == null || !throwEx) && AssetQuerySandbox.isLiveMode(mode) &&
-                  !(ex instanceof ScriptException))
+                  !(ex instanceof ScriptException) && !ScriptTimeoutGuard.isStop(ex))
                {
                   List<Exception> exs = WorksheetService.ASSET_EXCEPTIONS.get();
 
@@ -875,7 +1156,21 @@ public abstract class AssetQuery extends PreAssetQuery {
       // merge the query
       merge(vars);
 
-      QueryManager qmgr = box.getQueryManager();
+      // Bug #78033: prefer this AssetQuery's own, correctly-set per-instance query manager
+      // (set via setQueryManager() by callers like AssetDataCache.Processor.run0(), which thread
+      // the right per-assembly manager down from VSAQuery) over the shared AssetQuerySandbox-level
+      // one. box.getQueryManager()/setQueryManager() is a single field shared by every assembly's
+      // AssetQuery on one ViewsheetSandbox, and VSAQuery.getTableLens() overwrites it on every
+      // chart/table fetch -- concurrent fetches can otherwise read back a sibling assembly's
+      // manager here and register this query's table for cancellation on the wrong QueryManager.
+      // Still read the shared field unconditionally (it's a plain, side-effect-free field getter)
+      // and fall back to it only when this instance was never given its own manager (e.g.
+      // AssetQuerySandbox.getTableLens(String, int, VariableTable) and most other non-VSAQuery
+      // callers of AssetQuery.createAssetQuery(), which rely on the shared field as their only
+      // registration mechanism) -- this keeps the shared field's value available for that
+      // fallback without ever acting on it when this.qmgr is already set.
+      QueryManager sharedQmgr = box.getQueryManager();
+      QueryManager qmgr = this.qmgr != null ? this.qmgr : sharedQmgr;
 
       // get base table
       TableLens base = getBaseTableLens(vars);
@@ -2542,10 +2837,58 @@ public abstract class AssetQuery extends PreAssetQuery {
          }
 
          ColumnSelection columns = getTable().getColumnSelection(true);
+
+         // a row-limited (preview) run only sees a sample of the data, so a column
+         // header value missing from it may still exist. keep the known header
+         // columns so the columns and joins built on them aren't dropped. (77538)
+         if(!AssetQuerySandbox.isRuntimeMode(mode)) {
+            keepCrosstabHeaderColumns(ncolumns, columns, getTable().getColumnSelection(false),
+                                      info);
+         }
+
          ncolumns.setProperty("public", "true");
          validateColumnSelection(ncolumns, columns, false, false, false, false);
 
          return stable;
+      }
+   }
+
+   /**
+    * Add the crosstab column header columns (dynamic columns created from the values of
+    * the column header group) in the old column selection that are not generated by the
+    * current execution to the new column selection.
+    * @param ncolumns the column selection generated by the current execution.
+    * @param ocolumns the current public column selection of the table.
+    * @param icolumns the private (input) column selection of the table.
+    * @param info the aggregate info of the crosstab.
+    */
+   static void keepCrosstabHeaderColumns(ColumnSelection ncolumns, ColumnSelection ocolumns,
+                                         ColumnSelection icolumns, AggregateInfo info)
+   {
+      for(int i = 0; i < ocolumns.getAttributeCount(); i++) {
+         DataRef ref = ocolumns.getAttribute(i);
+
+         if(!(ref instanceof ColumnRef) || ref.isExpression() ||
+            ncolumns.containsAttribute(ref))
+         {
+            continue;
+         }
+
+         ColumnRef column = (ColumnRef) ref;
+         DataRef attr = column.getDataRef();
+
+         // dynamic header columns are created without an entity, see getSummaryTableLens.
+         // a column of the table itself (e.g. a row header removed from the groups) is not
+         // a header value even if it has no entity
+         if(!(attr instanceof AttributeRef) || attr.getEntity() != null ||
+            info.getGroup(column) != null || info.getAggregate(column) != null ||
+            icolumns.containsAttribute(column) ||
+            icolumns.getAttribute(column.getAttribute()) != null)
+         {
+            continue;
+         }
+
+         ncolumns.addAttribute((ColumnRef) column.clone());
       }
    }
 
@@ -3948,57 +4291,6 @@ public abstract class AssetQuery extends PreAssetQuery {
    }
 
    /**
-    * check groupby columns is the vpm hidden columns(data type is date).
-    * @return sql is groupby hidden column(date type).
-    */
-   private boolean isGroupedByHiddenCols(JDBCQuery query, VariableTable vars,
-      String groupByCols) throws Exception
-   {
-      String[] tables = new String[0];
-      String[] columns = new String[0];
-
-      XDataSource dx = query.getDataSource();
-      String dname = dx == null ? null : dx.getFullName();
-      XDataModel model = XRepository.getRepository().getDataModel(dname);
-
-      if(model == null) {
-         return false;
-      }
-
-      String[] names = model.getVirtualPrivateModelNames();
-      String[] result =  null;
-
-      for(String name : names) {
-         VirtualPrivateModel vpm = model.getVirtualPrivateModel(name);
-         HiddenColumns hcolumns = vpm.getHiddenColumns();
-
-         if(hcolumns != null) {
-            result = hcolumns.evaluate(tables, columns, vars, box.getUser(), false,
-                                       query.getPartition());
-         }
-      }
-
-      int index = groupByCols.indexOf('(');
-
-      if(index > 0) {
-         groupByCols = groupByCols.substring(index + 1,
-            groupByCols.length() - 1);
-      }
-
-      if(result == null) {
-         return false;
-      }
-
-      for(String aResult : result) {
-         if(aResult.indexOf(groupByCols) > 0) {
-            return true;
-         }
-      }
-
-      return false;
-   }
-
-   /**
     * Get the target jdbc query to merge into.
     * @return the target jdbc query to merge into.
     */
@@ -4021,10 +4313,6 @@ public abstract class AssetQuery extends PreAssetQuery {
    protected TableLens getPreBaseTableLens(VariableTable vars) throws Exception {
       JDBCQuery query = getQuery();
       ColumnSelection columns = gmerged ? gcolumns : used;
-
-      if(isGroupedByHiddenCols(query, vars, columns.toString())) {
-         return null;
-      }
 
       if(columns.getAttributeCount() == 0) {
          XEmbeddedTable table =
@@ -4089,8 +4377,16 @@ public abstract class AssetQuery extends PreAssetQuery {
       // all the queries; meanwhile, when a chart is reexecuted, we need
       // to cancel the previous execution if any, so there might be a
       // specific query manager
-      query.setProperty("queryManager", box.getQueryManager());
-      query.setProperty("queryManager2", getQueryManager());
+      //
+      // Bug #78033: prefer this AssetQuery's own, correctly-set per-instance manager for
+      // "queryManager" too (not just "queryManager2"), for the same reason
+      // getRuntimeTableLens() does -- see the comment there. JDBCHandler registers the live
+      // statement on both properties when both are present, so leaving "queryManager" on the
+      // racy shared field left the live statement cancellable by a sibling's manager even
+      // when "queryManager2" was already correct.
+      QueryManager ownQmgr = getQueryManager();
+      query.setProperty("queryManager", ownQmgr != null ? ownQmgr : box.getQueryManager());
+      query.setProperty("queryManager2", ownQmgr);
 
       if(query.getSQLDefinition() instanceof UniformSQL) {
          ((UniformSQL) query.getSQLDefinition()).setVpmUser(box.getVPMUser());
@@ -4548,10 +4844,13 @@ public abstract class AssetQuery extends PreAssetQuery {
                         }
 
                         AssetQueryScope scope = null;
+                        // a condition expression is written by end users, run it restricted (bug #77396)
+                        boolean restricted = FormulaContext.isRestricted();
 
                         try {
                            ViewsheetSandbox vbox = box.getViewsheetSandbox();
                            Viewsheet vs = vbox == null ? null : vbox.getViewsheet();
+                           FormulaContext.setRestricted(true);
                            val = varName != null && vval == null ? attr :
                               senv.exec(ScriptStateLint.checkCondition(senv.compile(exp), exp,
                                  scope = postConditionScope(box), "post-aggregate condition"),
@@ -4579,7 +4878,14 @@ public abstract class AssetQuery extends PreAssetQuery {
                                  "common.conditionMerge") + scriptMsg;
                            }
 
-                           throw new ScriptException(scriptMsg);
+                           ScriptException se = new ScriptException(scriptMsg);
+                           // keep a timeout's or cancel's stop, or a reader caches the
+                           // failure (bug #78212)
+                           se.setStopped(ScriptTimeoutGuard.isStop(ex));
+                           throw se;
+                        }
+                        finally {
+                           FormulaContext.setRestricted(restricted);
                         }
 
                         if(val instanceof Object[]) {
@@ -5135,6 +5441,6 @@ public abstract class AssetQuery extends PreAssetQuery {
 
    static final String DESIGN_TABLE = AssetQuery.class.getName() + ".designTable";
    public static final String BROWSE_MAXROWS = "browse_maxrows";
-   public static ThreadLocal<Boolean> THROW_EXECUTE_EXCEPTION = ThreadLocal.withInitial(() -> Boolean.FALSE);
+   public static final ThreadLocal<Boolean> THROW_EXECUTE_EXCEPTION = ThreadLocal.withInitial(() -> Boolean.FALSE);
    private static final Logger LOG = LoggerFactory.getLogger(AssetQuery.class);
 }

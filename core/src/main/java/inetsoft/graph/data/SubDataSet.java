@@ -21,6 +21,7 @@ import inetsoft.graph.internal.GDefaults;
 import inetsoft.report.Hyperlink;
 import inetsoft.report.composition.graph.VSDataSet;
 import inetsoft.util.CoreTool;
+import inetsoft.util.swap.SwapFileReadException;
 import inetsoft.util.swap.XIntFragment;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntList;
@@ -385,7 +386,15 @@ public class SubDataSet extends AbstractDataSetFilter {
 
    @Override
    public String toString() {
-      Object key = getConditionKey();
+      Object key;
+
+      try {
+         key = getConditionKey();
+      }
+      catch(SwapFileReadException ex) {
+         // the mapping could not be read back, the error is reported where the rows are read
+         key = null;
+      }
 
       if(key != null) {
          return super.toString() + "[" + key + "]";

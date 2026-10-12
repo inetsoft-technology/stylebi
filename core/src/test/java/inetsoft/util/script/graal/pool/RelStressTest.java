@@ -56,7 +56,7 @@ import static org.junit.jupiter.api.Assertions.*;
                       initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
-@Tag("core")
+@Tag("slow")
 class RelStressTest {
    enum Op { COUNTER, NESTED, PUT_READ, HELD, THROW, RESET, TIMEOUT }
 

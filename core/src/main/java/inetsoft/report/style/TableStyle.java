@@ -19,6 +19,7 @@ package inetsoft.report.style;
 
 import inetsoft.report.*;
 import inetsoft.report.lens.*;
+import inetsoft.util.Tool;
 
 import java.awt.*;
 import java.util.Hashtable;
@@ -107,9 +108,10 @@ public class TableStyle extends AttributeTableLens {
       TableStyle tableStyle = null;
 
       try {
-         tableStyle = (TableStyle) Class.forName(
-            className != null ?
-               className : "inetsoft.report.style.TableStyle").newInstance();
+         // Bug #77421: check the type before any code of the named class runs
+         tableStyle = Tool.loadSubclass(
+            className != null ? className : "inetsoft.report.style.TableStyle",
+            TableStyle.class).getDeclaredConstructor().newInstance();
       }
       catch(Exception e) {
       }

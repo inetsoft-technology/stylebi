@@ -19,6 +19,7 @@ package inetsoft.uql.viewsheet.internal;
 
 import inetsoft.graph.GraphConstants;
 import inetsoft.uql.CompositeValue;
+import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
@@ -26,6 +27,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.util.DataSerializable;
 import inetsoft.util.Tool;
 import inetsoft.util.css.CSSConstants;
+import inetsoft.util.swap.SwapFileReadException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
@@ -585,8 +587,12 @@ public class TimeSliderVSAssemblyInfo extends MaxModeSelectionVSAssemblyInfo
       }
       boolean writeAllSelectedValues = true;
 
+      // only a date range is written as start/end/selected and rebuilt when read. A number
+      // list (linear, decimal or log ticks) can't always be rebuilt exactly, and a different
+      // list changes the range the next query keeps (#77998), so it is written in full.
       if(slist != null && slist.getSelectionValueCount() > 0 && timeSliderSelection != null &&
-         timeSliderSelection.getLabelFormat() != null && timeSliderSelection.getIncrement() != -1)
+         timeSliderSelection.getLabelFormat() != null && timeSliderSelection.getIncrement() != -1 &&
+         timeSliderSelection.getDateLevels() != null)
       {
          writeAllSelectedValues = false;
          timeSliderSelection.writeXML(writer, slist);
@@ -595,6 +601,23 @@ public class TimeSliderVSAssemblyInfo extends MaxModeSelectionVSAssemblyInfo
       if(slist != null) {
          slist.writeXML(writer, writeAllSelectedValues);
       }
+   }
+
+   /**
+    * Check if the selection values are dates written by the canonical value formats (e.g.
+    * {y '2026'}), which are corrected when read from a persisted asset (#77605). Composite
+    * and cube (member caption) values are not.
+    */
+   public boolean isPersistentDateValue() {
+      String table = getTableName();
+
+      if(!(tinfo instanceof SingleTimeInfo) || table != null && table.startsWith(Assembly.CUBE_VS)) {
+         return false;
+      }
+
+      int unit = ((SingleTimeInfo) tinfo).getRangeType();
+      return unit == TimeInfo.YEAR || unit == TimeInfo.MONTH || unit == TimeInfo.DAY ||
+         unit == TimeInfo.HOUR || unit == TimeInfo.MINUTE;
    }
 
    /**
@@ -624,10 +647,17 @@ public class TimeSliderVSAssemblyInfo extends MaxModeSelectionVSAssemblyInfo
       if(snode != null) {
          slist = new SelectionList();
          slist.parseXML(snode);
+
+         // a date saved before #77605 may have a Buddhist or Japanese year
+         if(isPersistentDateValue()) {
+            slist.toGregorianPersistentDates();
+         }
       }
 
       if(tslnode != null) {
-         timeSliderSelection.parseXML(tslnode, slist);
+         // a log scale set by an expression is not known until it runs
+         timeSliderSelection.parseXML(tslnode, slist,
+                                      !"false".equalsIgnoreCase(logScaleValue.getDValue()));
       }
 
       titleInfo.parseXML(elem);
@@ -650,7 +680,15 @@ public class TimeSliderVSAssemblyInfo extends MaxModeSelectionVSAssemblyInfo
            }
 
             if(slist != null) {
-               info.slist = (SelectionList) slist.clone();
+               try {
+                  info.slist = (SelectionList) slist.clone();
+               }
+               catch(SwapFileReadException ex) {
+                  // the swapped values are lost. don't fail the whole clone (e.g. an undo checkpoint),
+                  // leave the selection list out so it is queried again (bug #77864)
+                  LOG.warn("Selection list not cloned, its swap file is lost: " + ex.getFile());
+                  info.slist = null;
+               }
             }
 
             if(logScaleValue != null) {
@@ -675,6 +713,17 @@ public class TimeSliderVSAssemblyInfo extends MaxModeSelectionVSAssemblyInfo
 
             if(tickVisibleValue != null) {
                info.tickVisibleValue = (DynamicValue) tickVisibleValue.clone();
+            }
+
+            // paired with slist, which is copied above. a shared object is changed in place by
+            // the query and the property dialog, and a clone (e.g. an undo checkpoint) would then
+            // be written with formats that don't match its own values (bug #77980)
+            if(timeSliderSelection != null) {
+               info.timeSliderSelection = timeSliderSelection.clone();
+            }
+
+            if(titleInfo != null) {
+               info.titleInfo = (TitleInfo) titleInfo.clone();
             }
          }
 
@@ -904,6 +953,12 @@ public class TimeSliderVSAssemblyInfo extends MaxModeSelectionVSAssemblyInfo
       {
          oldTimeSliderSelection.setValueFormat(newTimeSliderSelection.getValueFormat());
       }
+
+      // the increment and date levels go with the formats. keeping the old ones (e.g. date
+      // levels after a change to a number column) writes a selection that can't be read back
+      oldTimeSliderSelection.setIncrement(newTimeSliderSelection.getIncrement());
+      int[] newDateLevels = newTimeSliderSelection.getDateLevels();
+      oldTimeSliderSelection.setDateLevels(newDateLevels == null ? null : newDateLevels.clone());
 
       return result;
    }

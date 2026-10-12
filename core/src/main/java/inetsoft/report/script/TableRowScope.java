@@ -33,6 +33,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.concurrent.locks.Lock;
+import java.util.stream.Collectors;
 
 /**
  * This is used to execute script in a TableRow scope. It makes the builtin
@@ -54,8 +55,24 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
 
    @Override
    public boolean hasMember(String id) {
-      return valmap.containsKey(id) || owned.contains(id) ||
-         (basename != null && basename.equals(id)) || base.hasMember(id);
+      // the base name is matched first, as getMember does
+      if(valmap.containsKey(id) || owned.contains(id) ||
+         (basename != null && basename.equals(id)))
+      {
+         return true;
+      }
+
+      // a builtin this scope defers to (see getMember) is absent here, so the name resolves
+      // to the global builtin, not to a same-named column (Bug #77999)
+      return !isDeferredBuiltin(id) && base.hasMember(id);
+   }
+
+   /**
+    * Whether a column named {@code id} must not hide the global builtin of that name: Array
+    * and Math always, Date when {@link #setBuiltinDate} is set.
+    */
+   private boolean isDeferredBuiltin(String id) {
+      return "Array".equals(id) || "Math".equals(id) || builtinDate && "Date".equals(id);
    }
 
    /**
@@ -393,9 +410,30 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
          return false;
       }
 
+      // the vars this hand-off keeps as copies of arrays or objects: a copy of an object that
+      // a lost var reached through a closure, a getter or a WeakMap no longer shares it
+      // (Testing #77123, B1 residual). A bigint is immutable; a Date var already loses its
+      // identity at the batch-end Date snapshot, so neither is named
+      List<String> kept = new ArrayList<>();
+
       for(int i = 0; i < nodes.length; i++) {
          valmap.put(names.get(i), nodes[i]);
          snapshots.remove(names.get(i));
+
+         if(nodes[i] instanceof OwnedValueCodec.TreeRef ref && ref.holdsCopies()) {
+            kept.add(names.get(i));
+         }
+      }
+
+      for(int i = 0; i < nodes.length; i++) {
+         if(nodes[i] instanceof OwnedValueCodec.Lost lost && lost.hidesReferences() &&
+            !kept.isEmpty())
+         {
+            hiddenFrom.put(names.get(i), kept);
+         }
+         else {
+            hiddenFrom.remove(names.get(i));
+         }
       }
 
       return true;
@@ -444,6 +482,7 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
          e -> owned.contains(e.getKey()) && isObjectSlot(e.getValue()));
       // no formula reads them again in this scope
       snapshots.clear();
+      hiddenFrom.clear();
       hasObjects = false;
       resident = false;
       spanHome = false;
@@ -491,16 +530,10 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
          return base;
       }
 
-      // avoid overriding builtin from column; returning null lets the
-      // engine resolve the builtin (Array/Math/Date) from the global scope
-      switch(id) {
-      case "Array":
-      case "Math":
+      // avoid overriding builtin from column: hasMember reports these names absent, so the
+      // engine resolves the builtin (Array/Math/Date) from the global scope
+      if(isDeferredBuiltin(id)) {
          return null;
-      case "Date":
-         if(builtinDate) {
-            return null;
-         }
       }
 
       return base.getMember(id);
@@ -576,6 +609,7 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
       }
 
       Object held = valmap.remove(id);
+      String copies = copiesOf(id, held);
 
       if(warned.add(id)) {
          if(held == OwnedValueCodec.HOME_BUSY) {
@@ -591,11 +625,48 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
                      "script context of the worksheet context pool; it cannot be used there " +
                      "and reads as undefined. Keep a number, string, boolean, Date, or an " +
                      "array or plain object of them, in a variable that must last for the " +
-                     "whole table.", id, kind);
+                     "whole table.{}", id, kind, copies == null ? "" : copies);
          }
+      }
+      else if(copies != null) {
+         // a later hand-off kept new copies: named on a line of their own, the var's own
+         // warning is logged once
+         LOG.warn("The formula variable \"{}\" was lost again at a hand-off of the worksheet " +
+                  "context pool.{}", id, copies);
       }
 
       return UNDEFINED;
+   }
+
+   /**
+    * The warning text naming the vars that the hand-off which lost {@code id} kept as
+    * copies, if {@code held} hid references (a function's closure, a getter, a WeakMap, a
+    * class instance): such a copy no longer shares an object that {@code id} reached, so it
+    * may be stale once {@code id} is created again (Testing #77123, B1 residual). Each var is
+    * named once, so these warnings are at most one per var; {@code null} if there is none
+    * left to name.
+    */
+   private String copiesOf(String id, Object held) {
+      List<String> kept = hiddenFrom.remove(id);
+
+      if(kept == null || !(held instanceof OwnedValueCodec.Lost lost) ||
+         !lost.hidesReferences())
+      {
+         return null;
+      }
+
+      List<String> fresh = kept.stream().filter(copied::add).toList();
+
+      if(fresh.isEmpty()) {
+         return null;
+      }
+
+      String names = fresh.stream().map(n -> "\"" + n + "\"").collect(Collectors.joining(", "));
+      return " The same hand-off kept the variable" + (fresh.size() > 1 ? "s " : " ") + names +
+         " of this table as a copy: an object of " + (fresh.size() > 1 ? "theirs" : "its") +
+         " that \"" + id + "\" reached through a closure, a getter or setter, a WeakMap or " +
+         "WeakSet, or a class instance, if any, keeps its values from before the hand-off and " +
+         "no longer changes with \"" + id + "\".";
    }
 
    /**
@@ -745,6 +816,11 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
    private HashMap valmap = new HashMap();
    private Set<String> owned = Set.of();
    private final Set<String> warned = new HashSet<>();
+   // a lost var whose value hid references at its hand-off -> the vars that hand-off kept
+   // (copies that no longer share what it reached); confined like valmap
+   private final HashMap<String, List<String>> hiddenFrom = new HashMap<>();
+   // the vars named in such a warning, each once
+   private final Set<String> copied = new HashSet<>();
    // the batch-end snapshots (OwnedValueCodec nodes) of the owned vars that hold Dates, by
    // var name; confined like valmap (written in the batch's finally, before the lens lock is
    // released)

@@ -716,7 +716,51 @@ public class ValueOfColumnTest {
       assertEquals(6, result);
    }
 
+   /**
+    * Previous Quarters + Week granularity: each week must be compared with the same week of the
+    * previous quarter. 2021-10-03 - 3 months = 2021-07-03, which is in the week of 2021-06-27
+    * (the last week of Q2), so the lookup used to land on Q2's first week instead of Q3's.
+    */
+   @Test
+   void testPreviousQuarterWeekLooksUpPreviousQuarterNotTheOneBefore() {
+      for(boolean firstWeek : new boolean[] { true, false }) {
+         DefaultTableLens tb = new DefaultTableLens(new Object[][]{
+            { "date", "id" },
+            { toDate("2021-04-04"), 31 },
+            { toDate("2021-07-04"), 46 },
+            { toDate("2021-10-03"), 47 }
+         });
+
+         assertEquals(31, testCalculateWithDatasetOfWeekGroup(
+            tb, ValueOfCalc.PREVIOUS_QUARTER, firstWeek, 1), "Q3 wk1 vs Q2 wk1");
+         assertEquals(46, testCalculateWithDatasetOfWeekGroup(
+            tb, ValueOfCalc.PREVIOUS_QUARTER, firstWeek, 2), "Q4 wk1 vs Q3 wk1");
+      }
+   }
+
+   @Test
+   void testPreviousQuarterWeekAcrossYearAndMidQuarter() {
+      DefaultTableLens tb = new DefaultTableLens(new Object[][]{
+         { "date", "id" },
+         { toDate("2021-10-03"), 5 },   // Q4 2021 wk1
+         { toDate("2021-10-17"), 6 },   // Q4 2021 wk3
+         { toDate("2022-01-02"), 7 },   // Q1 2022 wk1
+         { toDate("2022-01-16"), 8 }    // Q1 2022 wk3
+      });
+
+      assertEquals(5, testCalculateWithDatasetOfWeekGroup(
+         tb, ValueOfCalc.PREVIOUS_QUARTER, false, 2), "Q1 2022 wk1 vs Q4 2021 wk1");
+      assertEquals(6, testCalculateWithDatasetOfWeekGroup(
+         tb, ValueOfCalc.PREVIOUS_QUARTER, false, 3), "Q1 2022 wk3 vs Q4 2021 wk3");
+   }
+
    private Object testCalculateWithDatasetOfWeekGroup(DefaultTableLens tableLens, int level, Boolean isFirstWeek) {
+      return testCalculateWithDatasetOfWeekGroup(tableLens, level, isFirstWeek, 1);
+   }
+
+   private Object testCalculateWithDatasetOfWeekGroup(DefaultTableLens tableLens, int level,
+                                                      Boolean isFirstWeek, int row)
+   {
       valueOfColumn = new ValueOfColumn("id", "sum(id)");
       valueOfColumn.setDim("date");
 
@@ -730,7 +774,7 @@ public class ValueOfColumnTest {
       valueOfColumn.setDateComparisonDims(Arrays.asList(vsDimensionRef));
       valueOfColumn.setFirstWeek(isFirstWeek);
 
-      return valueOfColumn.calculate(vsDataSet, 1, false, false);
+      return valueOfColumn.calculate(vsDataSet, row, false, false);
    }
 
    private VSDataSet createVSDataSet(DefaultTableLens tableLens, String name) {

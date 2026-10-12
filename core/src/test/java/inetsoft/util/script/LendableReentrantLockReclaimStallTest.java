@@ -44,7 +44,7 @@ public class LendableReentrantLockReclaimStallTest {
    @AfterEach
    public void tearDown() {
       release.countDown();
-      StallPolicy.setOverride(null);
+      StallTestSupport.clearOverride();
       StallTestSupport.resetGlobalStallState();
    }
 

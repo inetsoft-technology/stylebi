@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { NgZone } from "@angular/core";
+import { ChangeDetectorRef, NgZone } from "@angular/core";
 import { Router } from "@angular/router";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Subject } from "rxjs";
@@ -25,6 +25,7 @@ import { LogoutService } from "../../../shared/util/logout.service";
 import { SessionExpirationModel } from "../../../shared/util/model/session-expiration-model";
 import { AppComponent } from "./app.component";
 import { SessionExpirationDialog } from "./widget/dialog/session-expiration-dialog/session-expiration-dialog.component";
+import { NotificationsComponent } from "./widget/notifications/notifications.component";
 
 // Bug #77340: when the node protection (server shutdown) warning timer ends on a dialog that was
 // left open, a guest must not be logged out, because logging out sends a guest to the login page
@@ -113,5 +114,62 @@ describe("AppComponent session expiration timer", () => {
 
       expect(modal).not.toBe(first);
       expect(logoutService.logout).not.toHaveBeenCalled();
+   });
+});
+
+// Bug #77624: each notification toast must show only its own message, not every earlier message
+describe("AppComponent notifications", () => {
+   let component: AppComponent;
+   let info: ReturnType<typeof vi.fn>;
+
+   beforeEach(() => {
+      component = new AppComponent(
+         <Router> <any> { events: new Subject() },
+         <StompClientService> <any> { connect: vi.fn(() => new Subject()) },
+         <NgbModal> <any> {},
+         <NgZone> <any> { run: (fn: () => any) => fn() },
+         document,
+         <SsoHeartbeatDispatcherService> <any> { dispatch: vi.fn() },
+         <LogoutService> <any> { logout: vi.fn(), setInGracePeriod: vi.fn() });
+      info = vi.fn();
+      component.notifications = <any> { info };
+   });
+
+   const notify = (message: string): void => (component as any).notify({ message });
+
+   it("should show only the newest message in each toast", () => {
+      notify("first");
+      notify("second");
+      notify("third");
+
+      expect(info.mock.calls.map(c => c[0])).toEqual(["first", "second", "third"]);
+   });
+
+   it("should show a message again after an earlier toast with it", () => {
+      notify("authorized");
+      notify("other");
+      notify("authorized");
+
+      expect(info.mock.calls.map(c => c[0])).toEqual(["authorized", "other", "authorized"]);
+   });
+
+   it("should drop a message identical to a toast still showing", () => {
+      vi.useFakeTimers();
+      const toasts = new NotificationsComponent(<ChangeDetectorRef> <any> { detectChanges: vi.fn() });
+      toasts.timeout = 5000;
+      component.notifications = toasts;
+
+      try {
+         notify("authorized");
+         notify("authorized");
+         expect(toasts.alerts.map(a => a.message)).toEqual(["authorized"]);
+
+         vi.advanceTimersByTime(5000);
+         notify("authorized");
+         expect(toasts.alerts.map(a => a.message)).toEqual(["authorized"]);
+      }
+      finally {
+         vi.useRealTimers();
+      }
    });
 });

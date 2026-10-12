@@ -71,7 +71,17 @@ public class MigrateScheduleTask extends MigrateDocumentTask {
       String name = task.getAttribute("name");
 
       if(getOldOrganization() == null && getNewOrganization() == null) {
-         task.setAttribute("name", MigrateUtil.getNewUserTaskName(name, getOldName(), getNewName()));
+         // Bug #77883, the name of a task with an owner key is the bare task name, which may
+         // contain ':', only a legacy name or a name prefixed by the owner key has an owner
+         String owner = task.getAttribute("owner");
+         int index = name.indexOf(':');
+         boolean bareName = !Tool.isEmptyString(owner) &&
+            owner.contains(IdentityID.KEY_DELIMITER) &&
+            (index < 0 || !name.substring(0, index).contains(IdentityID.KEY_DELIMITER));
+
+         if(!bareName) {
+            task.setAttribute("name", MigrateUtil.getNewUserTaskName(name, getOldName(), getNewName()));
+         }
       }
       else {
          task.setAttribute("name", MigrateUtil.getNewOrgTaskName(name, ((Organization) getOldOrganization()).getId(),
@@ -307,10 +317,12 @@ public class MigrateScheduleTask extends MigrateDocumentTask {
       }
 
       String nOrgID = getNewOrganization() == null ? null : getNewOrganization().getOrganizationID();
-      String[] names = taskId.split(":");
+      // Bug #77883, the owner key ends at the first ':', the task name may contain ':'
+      int index = taskId.indexOf(':');
+      String owner = index > 0 ? taskId.substring(0, index) : null;
 
-      if(names.length > 1 && names[0].indexOf(IdentityID.KEY_DELIMITER) > 0) {
-         String[] userNames = names[0].split(IdentityID.KEY_DELIMITER);
+      if(owner != null && owner.indexOf(IdentityID.KEY_DELIMITER) > 0) {
+         String[] userNames = owner.split(IdentityID.KEY_DELIMITER);
 
          if(nOrgID == null) {
             userNames[0] = getNewName();
@@ -319,7 +331,8 @@ public class MigrateScheduleTask extends MigrateDocumentTask {
             userNames[1] = nOrgID;
          }
 
-         return Tool.buildString(userNames[0], IdentityID.KEY_DELIMITER, userNames[1], ":", names[1]);
+         return Tool.buildString(userNames[0], IdentityID.KEY_DELIMITER, userNames[1],
+                                 taskId.substring(index));
       }
 
       return taskId;

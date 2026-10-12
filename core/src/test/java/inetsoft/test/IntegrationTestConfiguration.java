@@ -244,7 +244,7 @@ public class IntegrationTestConfiguration {
 
    @Bean
    public Plugins plugins(BlobStorageManager blobStorageManager, Cluster cluster, ApplicationEventPublisher eventPublisher) {
-      return new Plugins(blobStorageManager.getStorage("plugins", true), cluster, eventPublisher);
+      return new Plugins(blobStorageManager, cluster, eventPublisher);
    }
 
    @Bean

@@ -497,7 +497,7 @@ public class TargetParameterWrapper implements Cloneable, Serializable {
       }
 
       try {
-         Class clsObj = Class.forName(cls);
+         Class clsObj = Tool.loadSubclass(cls, Formula.class);
          return (Formula) clsObj.newInstance();
       }
       catch(Throwable ex) {

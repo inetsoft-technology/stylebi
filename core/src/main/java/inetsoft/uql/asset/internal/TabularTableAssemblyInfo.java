@@ -124,7 +124,7 @@ public class TabularTableAssemblyInfo extends BoundTableAssemblyInfo {
          }
 
          try {
-            Class<?> pluginClass = Config.getConfig().getClass(type, cls);
+            Class<?> pluginClass = Config.getConfig().getClass(type, cls, TabularQuery.class);
 
             if(pluginClass != null) {
                query = (TabularQuery) pluginClass.getConstructor().newInstance();

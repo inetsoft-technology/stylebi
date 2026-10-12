@@ -23,6 +23,8 @@ import java.text.*;
 import java.util.*;
 import inetsoft.uql.viewsheet.SelectionList;
 import inetsoft.uql.viewsheet.SelectionValue;
+import inetsoft.uql.viewsheet.TimeSliderVSAssembly;
+import inetsoft.util.DecimalPatternUtil;
 import inetsoft.util.ExtendedDateFormat;
 import inetsoft.util.Tool;
 import org.slf4j.Logger;
@@ -30,10 +32,28 @@ import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
-public class TimeSliderSelection {
+public class TimeSliderSelection implements Cloneable {
 
    public TimeSliderSelection() {
 
+   }
+
+   /**
+    * Deep copy. The formats and date levels are paired with the selection list of the assembly
+    * info that owns this object, so a cloned info (e.g. an undo checkpoint) must own its own copy.
+    */
+   @Override
+   public TimeSliderSelection clone() {
+      try {
+         TimeSliderSelection copy = (TimeSliderSelection) super.clone();
+         copy.labelFormat = labelFormat == null ? null : (Format) labelFormat.clone();
+         copy.valueFormat = valueFormat == null ? null : (Format) valueFormat.clone();
+         copy.dateLevels = dateLevels == null ? null : dateLevels.clone();
+         return copy;
+      }
+      catch(CloneNotSupportedException ex) {
+         throw new IllegalStateException(ex);
+      }
    }
 
    public void writeXML(PrintWriter writer, SelectionList list) {
@@ -66,6 +86,15 @@ public class TimeSliderSelection {
    }
 
    public void parseXML(Element elem, SelectionList list) throws Exception {
+      parseXML(elem, list, false);
+   }
+
+   /**
+    * Parse the range and rebuild the selection values in the list.
+    * @param logScale true if the slider's numbers are in log scale (or may be, e.g. set by an
+    *                 expression). Number values are then not rebuilt from the range.
+    */
+   public void parseXML(Element elem, SelectionList list, boolean logScale) throws Exception {
       Element incrementNode = Tool.getChildNodeByTagName(elem, "increment");
       Element labelFmtNode = Tool.getChildNodeByTagName(elem, "labelFmt");
       Element valueFmtNode = Tool.getChildNodeByTagName(elem, "valueFmt");
@@ -83,19 +112,19 @@ public class TimeSliderSelection {
          Element lastSelectedNode = Tool.getChildNodeByTagName(lastSelectedParent, "VSValue");
 
          String cls = Tool.getAttribute(startVNode, "class");
-         SelectionValue startVal = (SelectionValue) Class.forName(cls).newInstance();
+         SelectionValue startVal = (SelectionValue) Tool.loadSubclass(cls, SelectionValue.class).newInstance();
          startVal.parseXML(startVNode);
 
          cls = Tool.getAttribute(endVNode, "class");
-         SelectionValue endVal = (SelectionValue) Class.forName(cls).newInstance();
+         SelectionValue endVal = (SelectionValue) Tool.loadSubclass(cls, SelectionValue.class).newInstance();
          endVal.parseXML(endVNode);
 
          cls = Tool.getAttribute(firstSelectedNode, "class");
-         SelectionValue firstSelectedVal = (SelectionValue) Class.forName(cls).newInstance();
+         SelectionValue firstSelectedVal = (SelectionValue) Tool.loadSubclass(cls, SelectionValue.class).newInstance();
          firstSelectedVal.parseXML(firstSelectedNode);
 
          cls = Tool.getAttribute(lastSelectedNode, "class");
-         SelectionValue lastSelectedVal = (SelectionValue) Class.forName(cls).newInstance();
+         SelectionValue lastSelectedVal = (SelectionValue) Tool.loadSubclass(cls, SelectionValue.class).newInstance();
          lastSelectedVal.parseXML(lastSelectedNode);
 
          Format lblfmt = null;
@@ -106,10 +135,11 @@ public class TimeSliderSelection {
          cls = Tool.getAttribute(labelFmtNode, "class");
 
          try {
-            lblfmt = (Format) Class.forName(cls).newInstance();
+            lblfmt = (Format) Tool.loadSubclass(cls, Format.class).newInstance();
 
             if(lblfmt instanceof DecimalFormat) {
-               ((DecimalFormat) lblfmt).applyPattern(lblfmtPattern);
+               ((DecimalFormat) lblfmt).applyPattern(
+                  DecimalPatternUtil.normalizeEmptyPattern(lblfmtPattern));
             }
             else if(lblfmt instanceof ExtendedDateFormat) {
                ((ExtendedDateFormat) lblfmt).applyPattern(lblfmtPattern);
@@ -136,10 +166,11 @@ public class TimeSliderSelection {
             cls = Tool.getAttribute(valueFmtNode, "class");
 
             try {
-               valfmt = (Format) Class.forName(cls).newInstance();
+               valfmt = (Format) Tool.loadSubclass(cls, Format.class).newInstance();
 
                if(valfmt instanceof DecimalFormat) {
-                  ((DecimalFormat) valfmt).applyPattern(valfmtPattern);
+                  ((DecimalFormat) valfmt).applyPattern(
+                     DecimalPatternUtil.normalizeEmptyPattern(valfmtPattern));
                }
                else if(valfmt instanceof ExtendedDateFormat) {
                   ((ExtendedDateFormat) valfmt).applyPattern(valfmtPattern);
@@ -185,7 +216,9 @@ public class TimeSliderSelection {
          this.increment = Double.parseDouble(incrementNode.getTextContent());
          this.dateLevels = dateLvls;
 
-         List<SelectionValue> rList = repopulateList(startVal, endVal, firstSelectedVal, lastSelectedVal, lblfmt, valfmt, dateLvls);
+         List<SelectionValue> rList = repopulateList(startVal, endVal, firstSelectedVal,
+                                                     lastSelectedVal, lblfmt, valfmt, dateLvls,
+                                                     logScale);
 
          if(rList != null) {
             list.setSelectionValues(rList.toArray(new SelectionValue[0]));
@@ -195,7 +228,9 @@ public class TimeSliderSelection {
 
    private List<SelectionValue> repopulateList(SelectionValue startVal, SelectionValue endVal,
                                                SelectionValue firstSelected, SelectionValue lastSelected,
-                                               Format labelfmt, Format valuefmt, int[] dateLevels){
+                                               Format labelfmt, Format valuefmt, int[] dateLevels,
+                                               boolean logScale)
+   {
       //repopulate as date
       if(dateLevels != null) {
          Date firstSelectedDate = null;
@@ -204,37 +239,106 @@ public class TimeSliderSelection {
          Date endDate = null;
 
          try {
-            firstSelectedDate = (Date) valuefmt.parseObject(firstSelected.getValue());
-            lastSelectedDate = (Date) valuefmt.parseObject(lastSelected.getValue());
-            startDate = (Date) valuefmt.parseObject(startVal.getValue());
-            endDate = (Date) valuefmt.parseObject(endVal.getValue());
+            // a date saved before #77605 may have a Buddhist or Japanese year
+            firstSelectedDate = (Date) valuefmt.parseObject(
+               Tool.toGregorianPersistentDate(firstSelected.getValue()));
+            lastSelectedDate = (Date) valuefmt.parseObject(
+               Tool.toGregorianPersistentDate(lastSelected.getValue()));
+            startDate = (Date) valuefmt.parseObject(
+               Tool.toGregorianPersistentDate(startVal.getValue()));
+            endDate = (Date) valuefmt.parseObject(Tool.toGregorianPersistentDate(endVal.getValue()));
          }
          catch(Exception e) {
-            LOG.warn("dates not parsed correctly, selectionList readxml may fail:" + e);
+            LOG.warn("dates not parsed correctly, the selection is rebuilt by the next query: " + e);
+         }
+
+         // the values don't match the value format (e.g. written with another date level).
+         // the stored list has no values, so the slider loads empty and the next query
+         // rebuilds the full range (the selected range is reset)
+         if(firstSelectedDate == null || lastSelectedDate == null || startDate == null ||
+            endDate == null)
+         {
+            return null;
          }
 
          return populateDateList(startDate, endDate, firstSelectedDate, lastSelectedDate, labelfmt, valuefmt, dateLevels);
       }
-      //repopulate as number
-      else if(isNumber(firstSelected.getValue()) && isNumber(lastSelected.getValue())) {
-         return populateNumberList(Double.parseDouble(startVal.getValue()),Double.parseDouble(endVal.getValue()),
-                                   Double.parseDouble(firstSelected.getValue()), Double.parseDouble(lastSelected.getValue()), labelfmt);
+      // repopulate as number. Only written before #77998 (a number slider now writes its
+      // full list). The log ticks and a zero increment (min == max) can't be rebuilt from the
+      // range; the stored list has no values, so the next query rebuilds them and the
+      // selection is restored from the state selection list.
+      else if(isNumber(firstSelected.getValue()) && isNumber(lastSelected.getValue()) &&
+         isNumber(startVal.getValue()) && isNumber(endVal.getValue()))
+      {
+         if(logScale) {
+            LOG.debug("log scale values are rebuilt by the next query");
+            return null;
+         }
+
+         return populateNumberList(Double.parseDouble(startVal.getValue()),
+                                   Double.parseDouble(endVal.getValue()),
+                                   Double.parseDouble(firstSelected.getValue()),
+                                   Double.parseDouble(lastSelected.getValue()), labelfmt);
       }
 
       return null;
    }
 
+   /**
+    * Rebuild the ticks with the query's own tick generator and select
+    * [firstSelected, lastSelected].
+    * @return the values, or null if the range is not on a grid of the increment.
+    */
    private ArrayList<SelectionValue> populateNumberList(double start, double end,
-                                                        double firstSelected, double lastSelected, Format fmt){
+                                                        double firstSelected, double lastSelected,
+                                                        Format fmt)
+   {
+      if(!(increment > 0) || Double.isInfinite(increment) || Double.isNaN(start) ||
+         Double.isNaN(end) || Double.isInfinite(start) || Double.isInfinite(end))
+      {
+         LOG.debug("number range not rebuilt, increment: {}", increment);
+         return null;
+      }
+
+      double count = Math.rint((end - start) / increment);
+      double tolerance = increment * 1e-6;
+
+      if(count < 0 || count > MAX_NUMBER_TICKS ||
+         Math.abs(start + count * increment - end) > tolerance)
+      {
+         LOG.debug("number range not rebuilt, start: {}, end: {}, increment: {}",
+                   start, end, increment);
+         return null;
+      }
+
+      // the same values (including float noise) as TimeSliderVSAQuery's linear ticks. A single
+      // value (min == max) is just the start
+      double[] ticks = count == 0 ? new double[] { start } :
+         TimeSliderVSAssembly.getPreferredTicks(start, end, 0, false, false, increment);
+
+      // the generator may build another grid (e.g. a truncated step) that doesn't end at the
+      // saved end; the query's list can't be known then
+      if(ticks.length != (int) count + 1 ||
+         Math.abs(ticks[ticks.length - 1] - end) > tolerance)
+      {
+         LOG.debug("number range not rebuilt, {} ticks for start: {}, end: {}, increment: {}",
+                   ticks.length, start, end, increment);
+         return null;
+      }
+
+      double firstIdx = Math.rint((firstSelected - start) / increment);
+      double lastIdx = Math.rint((lastSelected - start) / increment);
       ArrayList<SelectionValue> repopList = new ArrayList<>();
 
-      for(double s = start; s <= end; s += increment) {
+      for(int i = 0; i < ticks.length; i++) {
+         double s = ticks[i];
          String val = Tool.toString(s);
-         String label = (fmt != null) ? fmt.format(s) : Tool.toString(s);
+         String label = (fmt != null && !(fmt instanceof DateFormat))
+            ? fmt.format(s) : Tool.toString(s);
 
          SelectionValue sval = new SelectionValue(label, val);
          sval.setLevel(0);
-         sval.setSelected(true);
+         sval.setSelected(i >= firstIdx && i <= lastIdx);
          repopList.add(sval);
       }
 
@@ -248,7 +352,6 @@ public class TimeSliderSelection {
       Calendar firstSelectedCal = new GregorianCalendar();
       Calendar lastSelectedCal = new GregorianCalendar();
       Calendar maxcal = new GregorianCalendar();
-      Calendar omaxcal = null;
       Calendar currcal = null;
       int counter = 0;
       int pos = -1;
@@ -280,37 +383,15 @@ public class TimeSliderSelection {
          SelectionValue sval = new SelectionValue(label, val);
          sval.setLevel(0);
 
-         //if date between selected
+         // if date between selected
          if(compareLevel(firstSelectedCal, calendar, datelevels) <= 0 &&
-            compareLevel(calendar, lastSelectedCal, datelevels) >= 0) {
+            compareLevel(calendar, lastSelectedCal, datelevels) <= 0) {
             sval.setSelected(true);
          }
 
          popList.add(sval);
          calendar.add(datelevels[0], (int) increment);
          counter++;
-      }
-
-      if(omaxcal != null) {
-         calendar.add(datelevels[0], - (int) increment);
-
-         // make the max in range always >= the max in the data
-         if(compareLevel(calendar, omaxcal, datelevels) < 0) {
-            calendar.add(datelevels[0], (int) increment);
-            Object obj = calendar.getTime();
-            String label = labelfmt.format(obj);
-            String val = valuefmt.format(obj);
-            SelectionValue sval = new SelectionValue(label, val);
-            sval.setLevel(0);
-
-            //if date between selected
-            if(compareLevel(firstSelectedCal, omaxcal, datelevels) <= 0 &&
-               compareLevel(omaxcal, lastSelectedCal, datelevels) >= 0) {
-               sval.setSelected(true);
-            }
-
-            popList.add(sval);
-         }
       }
 
       return popList;
@@ -477,6 +558,8 @@ public class TimeSliderSelection {
    private double increment;
    private int[] dateLevels;
 
+   // the query creates at most a few hundred number ticks
+   private static final int MAX_NUMBER_TICKS = 100000;
    private static final Logger LOG = LoggerFactory.getLogger(TimeSliderSelection.class);
 
 }

@@ -34,6 +34,8 @@ package inetsoft.web.admin.schedule;
  *                                      runtime id (Bug #77058)
  *   [getParameters: unreadable vs]     one viewsheet the caller cannot open is skipped; the
  *                                      others and the action's own variables still returned
+ *   [getQueryColumns: auto-save props] the client entry's openAutoSaved/autoFileName/isRecycle
+ *                                      are removed before the worksheet is read (Bug #77549)
  *
  * ScheduleManager.hasTaskPermission() is a static method intercepted with
  * Mockito.mockStatic() using lenient() to suppress UnnecessaryStubbingException.
@@ -42,8 +44,7 @@ package inetsoft.web.admin.schedule;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.*;
-import inetsoft.uql.asset.AssetEntry;
-import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.asset.*;
 import inetsoft.web.admin.content.repository.ContentRepositoryTreeService;
 import inetsoft.web.admin.schedule.model.BatchParameterListModel;
 import org.junit.jupiter.api.*;
@@ -179,5 +180,31 @@ class EMScheduleBatchActionControllerTest {
       assertEquals(List.of("deniedVar", "year"), List.copyOf(result.parameterNames()));
       verify(emActionServiceProxy).closeViewsheet(eq("Sales-1"), same(principal));
       verify(emActionServiceProxy, times(1)).closeViewsheet(any(), any());
+   }
+
+   // -------------------------------------------------------------------------
+   // getQueryColumns()
+   // -------------------------------------------------------------------------
+
+   // Bug #77549, with openAutoSaved the worksheet would be read from the auto-saved file named
+   // by autoFileName (e.g. another user's unsaved worksheet) without a permission check
+   @Test
+   void getQueryColumns_autoSaveProperties_areRemovedBeforeTheWorksheetIsRead() throws Exception {
+      AssetEntry entry = AssetEntry.createAssetEntry("1^2^__NULL__^ws1^host-org");
+      entry.setProperty("openAutoSaved", "true");
+      entry.setProperty("autoFileName", "4^WORKSHEET^victim~;~host-org^Private^~");
+      entry.setProperty("isRecycle", "true");
+      when(assetRepository.getSheet(any(AssetEntry.class), eq(principal), eq(true),
+                                    eq(AssetContent.ALL))).thenReturn(mock(Worksheet.class));
+
+      controller.getQueryColumns(entry, principal);
+
+      ArgumentCaptor<AssetEntry> read = ArgumentCaptor.forClass(AssetEntry.class);
+      verify(assetRepository).getSheet(read.capture(), eq(principal), eq(true),
+                                       eq(AssetContent.ALL));
+      assertNull(read.getValue().getProperty("openAutoSaved"));
+      assertNull(read.getValue().getProperty("autoFileName"));
+      assertNull(read.getValue().getProperty("isRecycle"));
+      assertEquals("1^2^__NULL__^ws1^host-org", read.getValue().toIdentifier());
    }
 }

@@ -239,6 +239,25 @@ class UserTreeServiceEditGroupTest {
       assertNothingWritten();
    }
 
+   // Bug #77798: the rename is already saved when the permission write fails, so the rename
+   // migration still runs and the failure is reported after it
+   @Test
+   void renamePermissionWriteFails_migrationStillRunsThenFailureReported() throws Exception {
+      IdentityID path = new IdentityID("g1", ORG_A);
+      when(provider.getGroup(path)).thenReturn(new FSGroup(path));
+      MessageException failure = new MessageException("may not have been saved");
+      doThrow(failure).when(identityService).setIdentityPermissions(
+         any(IdentityID.class), any(IdentityID.class), any(ResourceType.class), any(), anyList(),
+         anyString());
+
+      MessageException thrown = assertThrows(MessageException.class, () ->
+         service.editGroup("Primary", path, model("g1", "g1new", ORG_A), principal));
+
+      assertSame(failure, thrown);
+      verify(indexedStorage).migrateStorageData(
+         path, new IdentityID("g1new", ORG_A), Identity.GROUP);
+   }
+
    private static EditGroupPaneModel model(String oldName, String name, String org) {
       return EditGroupPaneModel.builder().oldName(oldName).name(name).organization(org).build();
    }

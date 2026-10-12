@@ -155,15 +155,20 @@ class GraalJavaScriptEnginePieceScriptTest {
       Source[] pieces = ((GraalJavaScriptEngine.PieceScript)
          engine.compile("x77249 = 1;   if(x77249) { 2 }\n  if(false) { 3 }")).pieces();
       assertEquals(3, pieces.length);
-      assertEquals("with(__scope__){x77249 = 1;   \n}", pieces[0].getCharacters().toString());
-      assertEquals("with(__scope__){if(x77249) { 2 }\n  \n}",
+      // each piece runs in the var store of its scope (Bug #77595), on its first line
+      String locals = "with(__scope__.__inetsoft_locals__){";
+      assertEquals(locals + "with(__scope__){x77249 = 1;   \n}}",
+                   pieces[0].getCharacters().toString());
+      assertEquals(locals + "with(__scope__){if(x77249) { 2 }\n  \n}}",
                    pieces[1].getCharacters().toString());
-      assertEquals("with(__scope__){\nif(false) { 3 }\n}", pieces[2].getCharacters().toString());
+      assertEquals(locals + "with(__scope__){\nif(false) { 3 }\n}}",
+                   pieces[2].getCharacters().toString());
 
       Source[] reset = ((GraalJavaScriptEngine.PieceScript)
          engine.compile("var y77249 = 1; if(y77249) { 2 }")).pieces();
       assertTrue(reset[0].getCharacters().toString().contains("y77249=void 0;"));
-      assertTrue(reset[1].getCharacters().toString().startsWith("with(__scope__){"));
+      assertTrue(reset[1].getCharacters().toString()
+                    .startsWith("with(__scope__.__inetsoft_own_locals__){with(__scope__){"));
    }
 
    // two compiles of one formula are equal, so a recompile keeps the error count

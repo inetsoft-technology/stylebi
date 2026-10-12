@@ -2095,7 +2095,8 @@ class TableBindingServiceTest {
             coreLifecycleService,
             mock(inetsoft.web.binding.service.DataRefModelFactoryService.class),
             mock(inetsoft.web.viewsheet.service.ParameterService.class),
-            mock(inetsoft.uql.service.DataSourceRegistry.class));
+            mock(inetsoft.uql.service.DataSourceRegistry.class),
+            mock(inetsoft.web.portal.controller.database.QueryManagerService.class));
 
       TableBindingService service = new TableBindingService(
          sessions, mock(VSBindingService.class), mock(VSBindingModelService.class),

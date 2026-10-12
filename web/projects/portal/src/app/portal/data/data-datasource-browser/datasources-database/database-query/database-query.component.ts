@@ -85,10 +85,10 @@ export class DatabaseQueryComponent implements OnDestroy {
    set queryModel(model: AdvancedSqlQueryModel) {
       this._queryModel = model;
 
-      if(!!model?.freeFormSQLPaneModel.sqlString &&
-         model?.freeFormSQLPaneModel.parseResult == ParseResult.PARSE_FAILED)
+      if((!!model?.freeFormSQLPaneModel.sqlString &&
+         model?.freeFormSQLPaneModel.parseResult == ParseResult.PARSE_FAILED) || this.isSqlOnly())
       {
-         this.updateTab(DatabaseQueryTabs.SQL_STRING)
+         this.updateTab(this.getSqlTab());
       }
 
       this.oldSqlString = model.freeFormSQLPaneModel.sqlString;
@@ -135,6 +135,14 @@ export class DatabaseQueryComponent implements OnDestroy {
       let parseFailed = !!this.queryModel?.freeFormSQLPaneModel?.sqlString &&
          this.queryModel?.freeFormSQLPaneModel?.parseResult == ParseResult.PARSE_FAILED;
 
+      // the structured view cannot represent the sql string, editing it there would drop parts
+      // of the sql (the server keeps the sql string for such a query, Bug #77437)
+      if(tab != DatabaseQueryTabs.SQL_STRING && tab != DatabaseQueryTabs.PREVIEW &&
+         this.isSqlOnly())
+      {
+         return true;
+      }
+
       switch(tab) {
          case DatabaseQueryTabs.FIELDS:
             return parseFailed || !this.queryModel || !this.queryModel.linkPaneModel ||
@@ -149,9 +157,32 @@ export class DatabaseQueryComponent implements OnDestroy {
       return false;
    }
 
+   /**
+    * Check if the sql string cannot be regenerated from the structured view without losing
+    * information: parsing is off, the parse is not a full success, or the parse is lossy
+    * (e.g. TOP). Matches QueryManagerService.isSqlOnly().
+    */
+   isSqlOnly(): boolean {
+      const sql = this.queryModel?.freeFormSQLPaneModel;
+
+      return !!sql && sql.hasSqlString &&
+         (!sql.parseSql || sql.parseResult != ParseResult.PARSE_SUCCESS || !!sql.lossy);
+   }
+
+   // the tab to show a sql-only query on, the sql tab is not rendered without the permission
+   private getSqlTab(): string {
+      return this.freeFormSqlEnabled === false ? DatabaseQueryTabs.PREVIEW :
+         DatabaseQueryTabs.SQL_STRING;
+   }
+
    updateQueryTab(event: NgbNavChangeEvent): void {
       event.preventDefault();
       let nextTab = event.nextId;
+
+      // updateTab() bypasses [disabled], never switch to a disabled tab programmatically
+      if(this.isTabDisabled(nextTab)) {
+         return;
+      }
 
       if(this.activeTab == DatabaseQueryTabs.FIELDS) {
          this.updateQuery(DatabaseQueryTabs.FIELDS, () => this.updateTab(nextTab));
@@ -214,7 +245,13 @@ export class DatabaseQueryComponent implements OnDestroy {
          let generatedSqlString = this.trimSqlString(sql.generatedSqlString);
          let sqlString = this.trimSqlString(sql.sqlString);
 
-         if(sql.parseSql && sql.hasSqlString && sql.parseResult == ParseResult.PARSE_SUCCESS &&
+         // a lossy parse (e.g. TOP) cannot be edited in the structured view at all, don't
+         // offer the info lost confirm, a yes there would silently drop parts of the sql
+         if(sql.parseSql && sql.parseResult == ParseResult.PARSE_SUCCESS && this.isSqlOnly()) {
+            ComponentTool.showMessageDialog(this.modalService, "_#(js:Info)",
+                  "_#(js:designer.qb.sqlOnly)");
+         }
+         else if(sql.parseSql && sql.hasSqlString && sql.parseResult == ParseResult.PARSE_SUCCESS &&
             generatedSqlString != sqlString)
          {
             ComponentTool.showConfirmDialog(this.modalService, "_#(js:Confirm)",
@@ -313,6 +350,10 @@ export class DatabaseQueryComponent implements OnDestroy {
       }
       else {
          this._queryModel = newModel;
+      }
+
+      if(this.isSqlOnly() && this.isTabDisabled(this.activeTab)) {
+         this.updateTab(this.getSqlTab());
       }
    }
 

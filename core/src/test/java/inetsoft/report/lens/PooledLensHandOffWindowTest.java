@@ -84,6 +84,7 @@ class PooledLensHandOffWindowTest {
 
       for(WorksheetScriptEnv env : envs) {
          setHook(env, null);
+         setField(env, "plainTakeHook", null);
          env.retire();
       }
 
@@ -270,6 +271,111 @@ class PooledLensHandOffWindowTest {
       assertNotNull(tenant);
    }
 
+   /**
+    * A claim of another thread checks that a slot is no home, the table's batch makes it its
+    * home and releases it, and only then the claim takes the slot (Testing #77123, finding G2).
+    * The claim must not keep the table's home for itself: on main it held it for its whole
+    * claim, so the table's next batch missed its home, its pull failed, and row 201 read 1 with
+    * one warning "... another thread is using". The claim now gives the new home back and
+    * takes it as a home: a hard home is left to the table and the claim takes another context,
+    * a soft one (maxHomes 0) is taken over through the hand-off.
+    */
+   @ParameterizedTest(name = "maxHomes {0}")
+   @ValueSource(strings = { "default", "0" })
+   void aClaimNeverKeepsASlotThatBecameAHomeBeforeItTookIt(String maxHomes) throws Exception {
+      if(!maxHomes.equals("default")) {
+         SreeEnv.setProperty(MAX_HOMES, maxHomes);
+      }
+
+      AssetQuerySandbox box = PoolTestSupport.poolBox(true);
+      WorksheetScriptEnv w = (WorksheetScriptEnv) box.getScriptEnv();
+      envs.add(w);
+      TableLens t = make(box, base(ROWS), OBJ_DATE, "T");
+      double[] v = new double[ROWS + 1];
+      assertEquals(0, PoolTestSupport.homes(w), "no home yet");
+      // an idle primary: the other claim checks it, the table's batch takes it meanwhile
+      w.init();
+
+      Thread[] claimThread = new Thread[1];
+      Object[] newHome = new Object[1];
+      AtomicInteger tookOver = new AtomicInteger();
+      CountDownLatch checked = new CountDownLatch(1);
+      CountDownLatch resume = new CountDownLatch(1);
+      CountDownLatch claimed = new CountDownLatch(1);
+      CountDownLatch done = new CountDownLatch(1);
+      // the claim's take-over of the new home: the fall-through, not only the give-back
+      setHook(w, slot -> {
+         if(Thread.currentThread() == claimThread[0] && slot == newHome[0]) {
+            tookOver.incrementAndGet();
+         }
+      });
+      setField(w, "plainTakeHook", (Consumer<?>) slot -> {
+         if(Thread.currentThread() == claimThread[0] && checked.getCount() > 0) {
+            newHome[0] = slot;
+            checked.countDown();
+
+            try {
+               resume.await(30, TimeUnit.SECONDS);
+            }
+            catch(InterruptedException ex) {
+               Thread.currentThread().interrupt();
+            }
+         }
+      });
+
+      ExecutorService pool = Executors.newSingleThreadExecutor();
+
+      try {
+         // the other claim: found the primary is no home, paused before it takes it
+         Future<?> claim = pool.submit(() -> {
+            claimThread[0] = Thread.currentThread();
+
+            try(SlotClaim ignored = w.claimSlot()) {
+               claimed.countDown();
+               done.await(30, TimeUnit.SECONDS);
+            }
+
+            return null;
+         });
+
+         assertTrue(checked.await(30, TimeUnit.SECONDS), "the claim did not check the slot");
+
+         // the table's first batch makes the (idle) primary its home
+         read(t, v, 1, 200);
+         assertEquals(1, PoolTestSupport.homes(w), "the table has a home");
+         resume.countDown();
+         assertTrue(claimed.await(30, TimeUnit.SECONDS), "the claim did not take a slot");
+
+         // the table's next batch, while the other claim is open
+         read(t, v, 201, 400);
+         done.countDown();
+         claim.get(30, TimeUnit.SECONDS);
+      }
+      finally {
+         resume.countDown();
+         done.countDown();
+         pool.shutdownNow();
+      }
+
+      read(t, v, 401, ROWS);
+      List<String> bad = new ArrayList<>();
+
+      for(int r = 1; r <= ROWS; r++) {
+         if(v[r] != r) {
+            bad.add(r + "=" + v[r]);
+         }
+      }
+
+      List<String> warns = appender.list.stream().filter(e -> e.getLevel() == Level.WARN)
+         .map(ILoggingEvent::getFormattedMessage).toList();
+      assertTrue(bad.isEmpty() && warns.isEmpty(), () -> "maxHomes " + maxHomes + ": " +
+         bad.size() + " wrong rows, first " + bad.subList(0, Math.min(5, bad.size())) + "; " +
+         warns);
+      // a soft home (maxHomes 0) is taken over through the hand-off; a hard one is left alone
+      assertEquals(maxHomes.equals("0") ? 1 : 0, tookOver.get(),
+                   "maxHomes " + maxHomes + ": take-overs of the new home by the claim");
+   }
+
    private static boolean waitsForLensLock(Thread thread) {
       if(thread == null) {
          return false;
@@ -293,10 +399,16 @@ class PooledLensHandOffWindowTest {
 
    // the pool's hand-off hook is package-private: set by reflection, as PoolTestSupport does
    private static void setHook(WorksheetScriptEnv env, Consumer<?> hook) throws Exception {
+      setField(env, "handOffHook", hook);
+   }
+
+   private static void setField(WorksheetScriptEnv env, String name, Consumer<?> hook)
+      throws Exception
+   {
       java.lang.reflect.Method pool = WorksheetScriptEnv.class.getDeclaredMethod("pool");
       pool.setAccessible(true);
       Object slotPool = pool.invoke(env);
-      Field field = slotPool.getClass().getDeclaredField("handOffHook");
+      Field field = slotPool.getClass().getDeclaredField(name);
       field.setAccessible(true);
       field.set(slotPool, hook);
    }

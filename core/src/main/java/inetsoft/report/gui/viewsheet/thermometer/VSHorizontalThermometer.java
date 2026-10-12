@@ -78,12 +78,15 @@ public class VSHorizontalThermometer extends VSThermometer {
       ThermometerVSAssemblyInfo info =
          (ThermometerVSAssemblyInfo) getAssemblyInfo();
       double[] ranges = info.getRanges();
-      Color[] colors = info.getRangeColors();
+      Color[] colors = info.getRangeRenderColors();
 
       if(ranges == null || colors == null || ranges.length == 0 || colors.length == 0) {
          return;
       }
 
+      // the end color keeps the NaN of a row without a value (Bug #78009), only the band
+      // geometry gets the trailing blank boundaries resolved to max (Bug #78270)
+      double[] valueRanges = ranges;
       ranges = RangeOutputVSAssemblyInfo.resolveTrailingBlankBoundaries(ranges, info.getMax());
 
       // ranges and rangeColors may legitimately differ in length (#76909); only
@@ -112,7 +115,9 @@ public class VSHorizontalThermometer extends VSThermometer {
          }
 
          Color c1 = colors[i];
-         Color c2 = (i < n - 1) ? colors[i + 1] : c1.darker();
+         // the next row with a value, else the blend slot (#78009)
+         int end = getRangeEndColorIndex(valueRanges, colors, i);
+         Color c2 = end >= 0 ? colors[end] : c1.darker();
          double wrate = (range - (i > 0 ? ranges[i - 1] : min)) / (max - min);
          double xrate = (range - min) / (max - min);
          int width = (int) (wrate * rangeHeight);

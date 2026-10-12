@@ -177,8 +177,13 @@ class UserTreeServiceTest {
       Properties raw = new Properties();
       raw.setProperty("inetsoft.org." + orgId + ".custom.key", "v");
       sreeEnvStatic.when(SreeEnv::getProperties).thenReturn(raw);
-      sreeEnvStatic.when(() -> SreeEnv.getProperty(eq("custom.key"), eq(false), eq(true)))
-         .thenAnswer(inv -> orgId.equals(currentOrg[0]) ? "v" : null);
+      // the value is read by its already-org-qualified key, which does not depend on the caller's
+      // current org. The org-scoped read of the bare name that this test first stubbed is the
+      // other fix of the same defect (Bug #76812), replaced by the qualified read of the
+      // merged code. Only the qualified read resolves the property here.
+      sreeEnvStatic.when(() -> SreeEnv.getProperty(
+            eq("inetsoft.org." + orgId + ".custom.key"), eq(false), eq(false)))
+         .thenReturn("v");
 
       EditOrganizationPaneModel result =
          service.getOrganizationModel("provider1", orgIdentity, principal, false, null);

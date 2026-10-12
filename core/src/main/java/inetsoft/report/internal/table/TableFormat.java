@@ -31,6 +31,7 @@ import org.w3c.dom.Element;
 import java.awt.*;
 import java.io.PrintWriter;
 import java.io.Serializable;
+import java.math.RoundingMode;
 import java.text.*;
 import java.util.*;
 
@@ -186,14 +187,26 @@ public class TableFormat implements XMLSerializable, Serializable, Cloneable {
          return null;
       }
 
-      String key = format + format_spec + locale;
+      // separated so that two different (format, spec, locale) triples can't share an entry,
+      // e.g. a null spec and the literal spec "null"
+      String key = format + KEY_SEPARATOR + (format_spec == null ? NULL_SPEC : format_spec) +
+         KEY_SEPARATOR + locale;
       // @by jasons, don't cache the format directly, instead use a thread-local
       //             variable, so that we don't get data corruption from
       //             asynchronous use of formats.
       FormatThreadLocal local = formatCache.get(key);
 
+      // a rejected spec is cached too, otherwise every cell formatted with it rebuilds the
+      // format and logs the stack trace again. The user message is per request, so it is
+      // still added on every lookup.
+      if(local == FAILED_FORMAT) {
+         Tool.addUserMessage(getFailedFormatMessage(format, format_spec, locale));
+         return null;
+      }
+
       if(local == null) {
          Format fmt = null;
+         boolean failed = false;
 
          try {
             if(format.equals(DATE_FORMAT) || format.equals(TIME_FORMAT)
@@ -211,16 +224,16 @@ public class TableFormat implements XMLSerializable, Serializable, Cloneable {
                   }
                }
                else if(format_spec.equals("FULL")) {
-                  fmt = DateFormat.getDateInstance(DateFormat.FULL, locale);
+                  fmt = Tool.createDateFormat("FULL", locale);
                }
                else if(format_spec.equals("LONG")) {
-                  fmt = DateFormat.getDateInstance(DateFormat.LONG, locale);
+                  fmt = Tool.createDateFormat("LONG", locale);
                }
                else if(format_spec.equals("MEDIUM")) {
-                  fmt = DateFormat.getDateInstance(DateFormat.MEDIUM, locale);
+                  fmt = Tool.createDateFormat("MEDIUM", locale);
                }
                else if(format_spec.equals("SHORT")) {
-                  fmt = DateFormat.getDateInstance(DateFormat.SHORT, locale);
+                  fmt = Tool.createDateFormat("SHORT", locale);
                }
                else {
                   fmt = Tool.createDateFormat(format_spec, locale);
@@ -233,9 +246,14 @@ public class TableFormat implements XMLSerializable, Serializable, Cloneable {
                   fmt = NumberFormat.getInstance(locale);
                }
                else if(rounding != null) {
-                  fmt = new RoundDecimalFormat(format_spec,
-                                               new DecimalFormatSymbols(locale));
-                  ((RoundDecimalFormat) fmt).setRoundingByName(rounding);
+                  // keep the K/M/B, suffix and other extended patterns, and round the
+                  // number as displayed (e.g. after the division for K)
+                  ExtendedDecimalFormat efmt = new ExtendedDecimalFormat(
+                     format_spec, new DecimalFormatSymbols(locale));
+                  fmt = efmt;
+                  // an invalid option keeps a working format that rounds ROUND_HALF_EVEN
+                  efmt.setRounding(RoundingMode.HALF_EVEN);
+                  efmt.setRoundingByName(rounding);
                }
                else {
                   fmt = new ExtendedDecimalFormat(format_spec,
@@ -260,10 +278,16 @@ public class TableFormat implements XMLSerializable, Serializable, Cloneable {
                   // @by stephenwebster, For Bug #6026
                   // Handle special case where regular percent format causes
                   // loss of precision for rounding purposes.
-                  DecimalFormat decimalFormat = new DecimalFormat("#,##0.#%");
-                  fmt = new RoundDecimalFormat(decimalFormat.toPattern(),
-                                               new DecimalFormatSymbols(locale));
-                  ((RoundDecimalFormat) fmt).setRoundingByName(rounding);
+                  RoundDecimalFormat rfmt = new RoundDecimalFormat(
+                     "#,##0.#%", new DecimalFormatSymbols(locale));
+                  fmt = rfmt;
+                  rfmt.setRoundingByName(rounding);
+
+                  // a rounding option rounds to a whole percent, ROUND_HALF_EVEN (or an
+                  // invalid option) keeps one decimal
+                  if(rfmt.getRoundingMode() != RoundingMode.HALF_EVEN) {
+                     rfmt.applyPattern("#,##0%");
+                  }
                }
                else {
                   fmt = NumberFormat.getPercentInstance(locale);
@@ -284,10 +308,10 @@ public class TableFormat implements XMLSerializable, Serializable, Cloneable {
             }
          }
          catch(Exception ex) {
-            String msg = "Failed to get format \"" + format + "\" for specification \"" +
-               format_spec + "\" in locale " + locale;
+            String msg = getFailedFormatMessage(format, format_spec, locale);
             Tool.addUserMessage(msg);
             LOG.info(msg, ex);
+            failed = true;
          }
 
          if(formatCache.size() > 200) {
@@ -297,9 +321,19 @@ public class TableFormat implements XMLSerializable, Serializable, Cloneable {
          if(fmt != null) {
             formatCache.put(key, local = new FormatThreadLocal(fmt));
          }
+         else if(failed) {
+            formatCache.put(key, FAILED_FORMAT);
+         }
       }
 
       return local == null ? null : local.get();
+   }
+
+   private static String getFailedFormatMessage(String format, String format_spec,
+                                                Locale locale)
+   {
+      return "Failed to get format \"" + format + "\" for specification \"" +
+         format_spec + "\" in locale " + locale;
    }
 
    /**
@@ -875,6 +909,10 @@ public class TableFormat implements XMLSerializable, Serializable, Cloneable {
    public boolean suppressIfDuplicate = false;
 
    private static final Hashtable<String, FormatThreadLocal> formatCache = new Hashtable<>();
+   // cache entry of a format spec that failed to construct
+   private static final FormatThreadLocal FAILED_FORMAT = new FormatThreadLocal(null);
+   private static final char KEY_SEPARATOR = '\u0001';
+   private static final String NULL_SPEC = "\u0000";
 
    private static final Logger LOG = LoggerFactory.getLogger(TableFormat.class);
 }

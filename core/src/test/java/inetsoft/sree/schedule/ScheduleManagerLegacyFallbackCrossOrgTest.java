@@ -147,9 +147,8 @@ class ScheduleManagerLegacyFallbackCrossOrgTest {
    @Test
    void exactIds_stillResolve() {
       assertTaskId(bobs, scheduleManager.getScheduleTask(bobs.getTaskId(), ORG_B));
-      // the stored copy is re-parsed and its name rewritten (pre-existing, not this bug), so only
-      // check that the id with a ':' in the name is found
-      assertNotNull(scheduleManager.getScheduleTask(colon.getTaskId(), ORG_A));
+      // Bug #77883, the stored copy is re-parsed with the same id
+      assertTaskId(colon, scheduleManager.getScheduleTask(colon.getTaskId(), ORG_A));
    }
 
    private static void assertTaskId(ScheduleTask expected, ScheduleTask actual) {

@@ -63,7 +63,7 @@ package inetsoft.sree.security;
 
 /*
  * clearScopedProperties decision tree
- *  ├─ [A] property starts with "inetsoft.org." + orgId (case-insensitive) → SreeEnv.remove called
+ *  ├─ [A] property starts with getOrgPropertyPrefix(orgId)                → SreeEnv.remove called
  *  ├─ [B] property does not match prefix                                  → not removed
  *  ├─ [C] empty Properties                                                → no remove calls
  *  └─ [D] orgId passed with uppercase letters                             → lowercased prefix matches
@@ -142,7 +142,8 @@ class AbstractEditableAuthenticationProviderStaticDepTest {
    @Test
    void clearScopedProperties_matchingProperty_removed() {
       Properties props = new Properties();
-      props.setProperty("inetsoft.org.fromOrg.someKey", "value");
+      // stored org-scoped names have the org ID lower case (PropertiesEngine.getOrgPropertyPrefix)
+      props.setProperty("inetsoft.org.fromorg.somekey", "value");
       props.setProperty("other.property", "other");
 
       try(MockedStatic<SreeEnv> sreeEnv = mockStatic(SreeEnv.class)) {
@@ -150,7 +151,7 @@ class AbstractEditableAuthenticationProviderStaticDepTest {
 
          provider.clearScopedProperties("fromOrg");
 
-         sreeEnv.verify(() -> SreeEnv.remove("inetsoft.org.fromOrg.someKey"));
+         sreeEnv.verify(() -> SreeEnv.remove("inetsoft.org.fromorg.somekey"));
          sreeEnv.verify(() -> SreeEnv.remove(any(String.class)), times(1));
       }
    }

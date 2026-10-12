@@ -53,7 +53,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
-@Tag("core")
+@Tag("slow")
 public class DistinctTableLensInvalidateRaceTest {
    @BeforeEach
    public void setUp() {
@@ -65,7 +65,7 @@ public class DistinctTableLensInvalidateRaceTest {
 
    @AfterEach
    public void tearDown() {
-      StallPolicy.setOverride(null);
+      StallTestSupport.clearOverride();
    }
 
    @Test

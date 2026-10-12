@@ -24,4 +24,6 @@ export interface ScheduleActionModel {
    parameters?: AddParameterDialogModel[];
    useCredential?: boolean;
    secretId?: string;
+   // Bug #77973, the position of the stored action when the editor got it, none for a new one
+   originalIndex?: number;
 }

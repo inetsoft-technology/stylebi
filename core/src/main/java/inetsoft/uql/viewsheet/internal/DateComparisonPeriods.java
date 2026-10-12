@@ -41,7 +41,8 @@ public interface DateComparisonPeriods extends Cloneable, XMLSerializable, Seria
          return null;
       }
 
-      DateComparisonPeriods dateComparisonPeriods = (DateComparisonPeriods) Class.forName(cls).newInstance();
+      DateComparisonPeriods dateComparisonPeriods = (DateComparisonPeriods)
+         Tool.loadSubclass(cls, DateComparisonPeriods.class).newInstance();
       dateComparisonPeriods.parseXML(element);
 
       return dateComparisonPeriods;

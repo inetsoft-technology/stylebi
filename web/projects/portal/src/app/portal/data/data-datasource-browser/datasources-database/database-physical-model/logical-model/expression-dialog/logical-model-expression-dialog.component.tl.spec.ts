@@ -116,6 +116,8 @@ interface RenderOpts {
    databaseName?: string;
    physicalModelName?: string;
    additional?: string;
+   logicalModelName?: string;
+   logicalModelParent?: string;
 }
 
 async function renderComp(opts: RenderOpts = {}) {
@@ -137,6 +139,8 @@ async function renderComp(opts: RenderOpts = {}) {
          databaseName: opts.databaseName ?? "testDB",
          physicalModelName: opts.physicalModelName ?? "physModel",
          additional: opts.additional ?? null,
+         logicalModelName: opts.logicalModelName ?? null,
+         logicalModelParent: opts.logicalModelParent ?? null,
       },
       on: {
          onCommit: onCommitSpy,
@@ -414,6 +418,24 @@ describe("LogicalModelExpressionDialog — ngOnInit", () => {
       expect(capturedBody.datasource).toBe("myDB");
       expect(capturedBody.physicalName).toBe("myPhys");
       expect(capturedBody.additional).toBe("myConn");
+   });
+
+   // Bug #77402: the server grants the fields tree on READ of the logical model named in the
+   // request, so a user whose only right is a per-model grant needs the name to be sent.
+   it("should send the logical model name and parent with the loadFields POST", async () => {
+      let capturedBody: any;
+      server.use(
+         http.post("*/api/data/logicalModel/tables/nodes", async ({ request }) => {
+            capturedBody = await request.json();
+            return MswHttpResponse.json({ label: "Fields", expanded: false, leaf: false, children: [] });
+         })
+      );
+
+      await renderComp({ logicalModelName: "LM1", logicalModelParent: "BaseLM" });
+
+      await waitFor(() => expect(capturedBody).toBeDefined());
+      expect(capturedBody.logicalName).toBe("LM1");
+      expect(capturedBody.parent).toBe("BaseLM");
    });
 });
 

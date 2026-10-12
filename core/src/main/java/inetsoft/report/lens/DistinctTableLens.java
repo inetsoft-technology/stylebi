@@ -21,15 +21,21 @@ import inetsoft.report.*;
 import inetsoft.report.filter.*;
 import inetsoft.report.internal.table.CancellableTableLens;
 import inetsoft.sree.SreeEnv;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.util.ThreadPool;
 import inetsoft.util.Tool;
+import inetsoft.util.UserMessage;
 import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.script.LendableReentrantLock;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.stall.WaitRecord;
 import inetsoft.util.stall.WaitRegistry;
+import inetsoft.util.swap.DataUnavailable;
+import inetsoft.util.swap.SwapFileReadException;
+import inetsoft.util.swap.SwapReadInterruptedException;
 import inetsoft.util.swap.XSwappableIntList;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import org.slf4j.Logger;
@@ -213,34 +219,54 @@ public class DistinctTableLens extends AbstractTableLens
    }
 
    /**
+    * Check if a script timeout or cancel interrupted a swap read of the base table as this
+    * table was computed (bug #78100), or stopped a script of the base table (bug #78134), so
+    * every read fails until it is invalidated. A cache treats such a table as not cached, and
+    * the next reader computes it again.
+    */
+   public boolean isStopped() {
+      RuntimeException baseFailure = this.baseFailure;
+      return baseFailure instanceof SwapReadInterruptedException ||
+         ScriptTimeoutGuard.isStop(baseFailure);
+   }
+
+   /**
     * Invalidate the table filter forcely, and the table filter will
     * perform filtering calculation to validate itself.
     */
    @Override
-   public synchronized void invalidate() {
-      // publish new rows with the header rows in them, and don't dispose the old ones: a
-      // reader or the worker of the old pass may still hold them, the finalizer frees them
-      // (bug #77333)
-      XSwappableIntList rows = new XSwappableIntList();
+   public void invalidate() {
+      synchronized(this) {
+         // publish new rows with the header rows in them, and don't dispose the old ones: a
+         // reader or the worker of the old pass may still hold them, the finalizer frees them
+         // (bug #77333)
+         XSwappableIntList rows = new XSwappableIntList();
 
-      if(table != null) {
-         for(int i = 0; i < table.getHeaderRowCount() && table.moreRows(i); i++)
-         {
-            rows.add(i);
+         if(table != null) {
+            for(int i = 0; i < table.getHeaderRowCount() && table.moreRows(i); i++)
+            {
+               rows.add(i);
+            }
          }
+
+         this.rows = rows;
+
+         if(table != null) {
+            // notify waiting consumers
+            notifyAll();
+         }
+
+         completed = false;
+         validated = false;
+         stallFailure = null;
+         baseFailure = null;
+         userMsg = null;
+         scannedRows = 0;
       }
 
-      this.rows = rows;
-
-      if(table != null) {
-         // notify waiting consumers
-         notifyAll();
-      }
-
-      completed = false;
-      validated = false;
-      stallFailure = null;
-      scannedRows = 0;
+      // fire after releasing the monitor: a downstream lens's invalidate() takes its own
+      // monitor, which a reader of that lens may hold while it waits for this monitor to read
+      // the next row (bug #77432)
       fireChangeEvent();
    }
 
@@ -268,7 +294,7 @@ public class DistinctTableLens extends AbstractTableLens
          : JavaScriptEngine.holdsScriptLock();
 
       if(inExec) {
-         validate0(target);
+         validate0(target, false);
       }
       // concurrent process
       else {
@@ -283,7 +309,15 @@ public class DistinctTableLens extends AbstractTableLens
                borrower.begin();
 
                try {
-                  validate0(target);
+                  validate0(target, true);
+               }
+               catch(RuntimeException ex) {
+                  // a load failure of the base was logged where it happened and the readers
+                  // rethrow it, the pool needn't log it again (bug #77966), nor a stopped
+                  // script of the base the readers rethrow (bug #78134)
+                  if(TableLoadException.find(ex) == null && !ScriptTimeoutGuard.isStop(ex)) {
+                     throw ex;
+                  }
                }
                finally {
                   borrower.end();
@@ -294,12 +328,16 @@ public class DistinctTableLens extends AbstractTableLens
       }
    }
 
-   private void validate0(XSwappableIntList target) {
+   /**
+    * @param background {@code true} if on the worker, which passes its user messages, e.g. the
+    *                   warning of a base that failed to load, to the readers (bug #77966).
+    */
+   private void validate0(XSwappableIntList target, boolean background) {
       if(cols.length == 1 || stable) {
-         hashDistinct(target);
+         hashDistinct(target, background);
       }
       else {
-         sortDistinct(target);
+         sortDistinct(target, background);
       }
    }
 
@@ -315,8 +353,9 @@ public class DistinctTableLens extends AbstractTableLens
     * Find distinct rows through a hash map.
     * @param target the rows of this pass.
     */
-   private void hashDistinct(XSwappableIntList target) {
+   private void hashDistinct(XSwappableIntList target, boolean background) {
       LockStallException stall = null;
+      RuntimeException baseFailure = null;
 
       try {
          Set map = new ObjectOpenHashSet();
@@ -355,10 +394,19 @@ public class DistinctTableLens extends AbstractTableLens
       catch(RuntimeException ex) {
          // a stall may reach the worker wrapped by the base table (bug #76967)
          stall = LockStallException.find(ex);
+
+         if(stall == null) {
+            // a swap file read failure must not look like a complete (silently
+            // empty/partial) distinct table either (bug #77651), nor a base that failed to
+            // load for a reader that has to fail, e.g. a scheduled run (bug #77966), nor a
+            // stopped script of the base (bug #78134)
+            baseFailure = findBaseFailure(ex);
+         }
+
          throw ex;
       }
       finally {
-         complete(target, stall);
+         complete(target, stall, baseFailure, background);
       }
    }
 
@@ -367,16 +415,44 @@ public class DistinctTableLens extends AbstractTableLens
     * next pass finds the rows of the table (bug #77333).
     * @param target the rows of the pass.
     * @param stall the stall the pass failed with, if any.
+    * @param baseFailure the lost swap file, the load failure or the script stop of the base
+    *                    the pass failed with, if any.
+    * @param background {@code true} if on the worker: its user messages, e.g. the warning of
+    *                   a base that failed to load, are kept for the readers before they are
+    *                   woken, they are lost with the worker thread otherwise (bug #77966).
     */
-   private synchronized void complete(XSwappableIntList target, LockStallException stall) {
+   private synchronized void complete(XSwappableIntList target, LockStallException stall,
+                                       RuntimeException baseFailure, boolean background)
+   {
+      UserMessage msg = null;
+
+      if(background) {
+         try {
+            msg = Tool.getUserMessage();
+         }
+         catch(RuntimeException ex) {
+            LOG.warn("Failed to collect the distinct table user messages", ex);
+            Tool.clearUserMessage();
+         }
+      }
+
       // a disposed table still ends the waits of its readers
       if(rows != target && rows != null) {
          return;
       }
 
+      // copies are kept, which are never thrown: the pass throws the failure on, maybe
+      // through a script, which adds a suppressed stack trace element that cannot be
+      // serialized to it (bug #78084)
       if(stall != null) {
-         stallFailure = stall;
+         stallFailure = stall.copy();
       }
+
+      if(baseFailure != null) {
+         this.baseFailure = copyFailure(baseFailure);
+      }
+
+      userMsg = msg;
 
       completed = true;
 
@@ -398,13 +474,13 @@ public class DistinctTableLens extends AbstractTableLens
    /**
     * Find distinct rows through sorting.
     */
-   private void sortDistinct(XSwappableIntList target) {
+   private void sortDistinct(XSwappableIntList target, boolean background) {
       try {
          // for Feature #26586, add ui processing time record.
 
          ProfileUtils.addExecutionBreakDownRecord(getReportName(),
             ExecutionBreakDownRecord.POST_PROCESSING_CYCLE, args -> {
-               sortDistinct0(target);
+               sortDistinct0(target, background);
             });
 
          //sortDistinct0();
@@ -412,8 +488,17 @@ public class DistinctTableLens extends AbstractTableLens
       catch(LockStallException ex) {
          // logged by the wait site, sortDistinct0() kept it for the readers (bug #76967)
       }
+      catch(SwapFileReadException ex) {
+         // the fragment already logged the read failure, sortDistinct0() kept it for the
+         // readers instead of letting the distinct table look silently complete and
+         // empty/partial (bug #77651)
+      }
       catch(Exception ex) {
-         LOG.error("Failed to process sort distinct", ex);
+         // a load failure of the base was logged where it happened, sortDistinct0() kept it
+         // for the readers (bug #77966), as it kept a stopped script (bug #78134)
+         if(TableLoadException.find(ex) == null && !ScriptTimeoutGuard.isStop(ex)) {
+            LOG.error("Failed to process sort distinct", ex);
+         }
       }
    }
 
@@ -421,8 +506,9 @@ public class DistinctTableLens extends AbstractTableLens
     * Find distinct rows through sorting.
     * @param target the rows of this pass.
     */
-   private void sortDistinct0(XSwappableIntList target) {
+   private void sortDistinct0(XSwappableIntList target, boolean background) {
       LockStallException stall = null;
+      RuntimeException baseFailure = null;
 
       try {
          TableFilter sorted = createSortedTable();
@@ -479,10 +565,19 @@ public class DistinctTableLens extends AbstractTableLens
       catch(RuntimeException ex) {
          // a stall may reach the worker wrapped by the base table (bug #76967)
          stall = LockStallException.find(ex);
+
+         if(stall == null) {
+            // a swap file read failure must not look like a complete (silently
+            // empty/partial) distinct table either (bug #77651), nor a base that failed to
+            // load for a reader that has to fail, e.g. a scheduled run (bug #77966), nor a
+            // stopped script of the base (bug #78134)
+            baseFailure = findBaseFailure(ex);
+         }
+
          throw ex;
       }
       finally {
-         complete(target, stall);
+         complete(target, stall, baseFailure, background);
       }
    }
 
@@ -578,6 +673,7 @@ public class DistinctTableLens extends AbstractTableLens
 
    private boolean moreRows0(int row) {
       WaitRecord record = null;
+      boolean interrupted = false;
 
       try {
          while(true) {
@@ -596,6 +692,7 @@ public class DistinctTableLens extends AbstractTableLens
 
                if(completed) {
                   throwStallFailure();
+                  addUserMessage();
                   return false;
                }
 
@@ -613,7 +710,8 @@ public class DistinctTableLens extends AbstractTableLens
                      wait(record.waitMillis(JavaScriptEngine.getScriptLockWaitMillis(500)));
                   }
                   catch(InterruptedException ex) {
-                     // ignore it
+                     // keep waiting for the rows, the interrupt is restored on exit (bug #78135)
+                     interrupted = true;
                   }
 
                   continue;
@@ -639,7 +737,7 @@ public class DistinctTableLens extends AbstractTableLens
                         wait(record.waitMillis(JavaScriptEngine.getScriptLockWaitMillis(500)));
                      }
                      catch(InterruptedException ex) {
-                        // ignore it
+                        interrupted = true;
                      }
                   }
                }
@@ -650,6 +748,11 @@ public class DistinctTableLens extends AbstractTableLens
          // a stall fails the query, it is never the end of the table (bug #76967)
          throw ex;
       }
+      catch(SwapFileReadException ex) {
+         // thrown directly by throwStallFailure() above; it must not look like the end of
+         // the table either (bug #77651)
+         throw ex;
+      }
       catch(Exception ex) {
          // a stall may reach this thread wrapped, it is never the end of the table either
          // (bug #76967)
@@ -658,6 +761,16 @@ public class DistinctTableLens extends AbstractTableLens
          if(stall != null) {
             throw new LockStallException(stall);
          }
+
+         // nor is a base that failed to load, for a reader that has to fail (bug #77966)
+         TableLoadException loadFailure = TableLoadException.find(ex);
+
+         if(loadFailure != null) {
+            throw loadFailure;
+         }
+
+         // nor a stopped script of the base (bug #78134)
+         ScriptTimeoutGuard.rethrowStop(ex);
 
          synchronized(this) {
             completed = true;
@@ -671,6 +784,11 @@ public class DistinctTableLens extends AbstractTableLens
          if(record != null) {
             record.close();
          }
+
+         // restored once on exit: restoring it in the loop would make each wait throw at once
+         if(interrupted) {
+            Thread.currentThread().interrupt();
+         }
       }
    }
 
@@ -683,14 +801,69 @@ public class DistinctTableLens extends AbstractTableLens
    }
 
    /**
-    * Rethrow the stall the worker failed with, called when the table is complete. A stall
-    * must never look like the end of the table (bug #76967).
+    * Rethrow the stall, swap file read failure or base load failure the worker failed with,
+    * called when the table is complete. A stall must never look like the end of the table
+    * (bug #76967), and neither must a swap file read failure (bug #77651) or a base that
+    * failed to load (bug #77966).
     */
    private void throwStallFailure() {
       LockStallException failure = stallFailure;
 
       if(failure != null) {
          throw new LockStallException(failure);
+      }
+
+      RuntimeException baseFailure = this.baseFailure;
+
+      if(baseFailure != null) {
+         // a new instance for each reader (bug #78084)
+         throw copyFailure(baseFailure);
+      }
+   }
+
+   /**
+    * Find the lost swap file (bug #77651) or the load failure of the base (bug #77966) in the
+    * cause chain of a failure of the worker, or copy the script stop (bug #78134).
+    */
+   private static RuntimeException findBaseFailure(Throwable ex) {
+      RuntimeException baseFailure = SwapFileReadException.find(ex);
+
+      if(baseFailure == null) {
+         baseFailure = TableLoadException.find(ex);
+      }
+
+      // a stopped script of the base, which fails every read as a stopped cell of a formula
+      // table does (bug #78134)
+      return baseFailure != null ? baseFailure : ScriptTimeoutGuard.copyStop(ex);
+   }
+
+   /**
+    * A copy of a kept failure of the base, a new instance that is never thrown itself, or is
+    * thrown to one reader only (bug #78084).
+    */
+   private static RuntimeException copyFailure(RuntimeException failure) {
+      RuntimeException copy = DataUnavailable.copy(failure);
+
+      if(copy == failure) {
+         RuntimeException stop = ScriptTimeoutGuard.copyStop(failure);
+
+         if(stop != null) {
+            return stop;
+         }
+      }
+
+      return copy;
+   }
+
+   /**
+    * Add the user messages of the worker, e.g. the warning of a base that failed to load, on
+    * the reader's thread once the table is complete (bug #77966).
+    */
+   private void addUserMessage() {
+      UserMessage msg = userMsg;
+
+      if(msg != null) {
+         Tool.addUserMessage(msg);
       }
    }
 
@@ -721,11 +894,17 @@ public class DistinctTableLens extends AbstractTableLens
          if(completed) {
             // the rows so far of a stalled worker are not the whole table (bug #76967)
             throwStallFailure();
+            addUserMessage();
          }
 
          return completed ? rows.size() : - rows.size() - 1;
       }
       catch(LockStallException ex) {
+         throw ex;
+      }
+      catch(SwapFileReadException ex) {
+         // thrown directly by throwStallFailure() above; it must not look like the end of
+         // the table either (bug #77651)
          throw ex;
       }
       catch(Exception ex) {
@@ -736,6 +915,16 @@ public class DistinctTableLens extends AbstractTableLens
          if(stall != null) {
             throw new LockStallException(stall);
          }
+
+         // nor is a base that failed to load, for a reader that has to fail (bug #77966)
+         TableLoadException loadFailure = TableLoadException.find(ex);
+
+         if(loadFailure != null) {
+            throw loadFailure;
+         }
+
+         // nor a stopped script of the base (bug #78134)
+         ScriptTimeoutGuard.rethrowStop(ex);
 
          completed = true;
          LOG.error("Failed to validate table rows when getting row count", ex);
@@ -1298,6 +1487,11 @@ public class DistinctTableLens extends AbstractTableLens
    // the base row the worker has reached, and the stall it failed with (bug #76967)
    private transient volatile int scannedRows;
    private transient volatile LockStallException stallFailure;
+   // the swap file read failure (bug #77651) or the base load failure (bug #77966) the worker
+   // failed with, if any
+   private transient volatile RuntimeException baseFailure;
+   // the user messages of the worker, for the readers (bug #77966)
+   private transient volatile UserMessage userMsg;
 
    // the reads of a row that invalidate() keeps replacing the rows under, after which the
    // current rows are read as they are (bug #77333)

@@ -22,9 +22,7 @@ import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.schedule.Scheduler;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.IdentityID;
-import inetsoft.sree.security.SecurityEngine;
 import inetsoft.uql.XPrincipal;
-import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
@@ -133,7 +131,6 @@ public class JobCompletionListener extends JobListenerSupport {
          String objectType = ActionRecord.OBJECT_TYPE_TASK;
          ScheduleTask taskValue = (ScheduleTask)
             context.getJobDetail().getJobDataMap().get(ScheduleTask.class.getName());
-         Identity identity = taskValue != null ? taskValue.getIdentity() : null;
          IdentityID owner = taskValue != null ? taskValue.getOwner() : null;
          String addr = Tool.getIP();
          Principal contextPrincipal = ThreadContext.getContextPrincipal();
@@ -152,12 +149,7 @@ public class JobCompletionListener extends JobListenerSupport {
             // placeholder can never be resolved to a real principal, so fall back to the
             // owner instead of building a principal (used for both the audit record below and,
             // via removeTask(), the permission context for deleteIfNoMoreRun cleanup).
-            if(identity == null || !isSecurityEnabled()) {
-               principal = SUtil.getScheduleTaskOwnerPrincipal(owner, addr, true);
-            }
-            else {
-               principal = SUtil.getPrincipal(identity, addr, true);
-            }
+            principal = SUtil.getScheduleTaskRunPrincipal(taskValue, addr, true);
          }
 
          ActionRecord finishActionRecord = SUtil.getActionRecord(
@@ -190,7 +182,6 @@ public class JobCompletionListener extends JobListenerSupport {
          }
 
          ScheduleStatusDao dao = ScheduleStatusDao.getInstance();
-         ScheduleStatusDao.Status previousStatus = dao.getStatus(taskName);
          ScheduleStatusDao.Status newStatus =
             dao.setStatus(taskName, status, lastRunTime, lastRunEndTime, error, runNow);
 
@@ -238,6 +229,10 @@ public class JobCompletionListener extends JobListenerSupport {
             }
 
             if(isDependant) {
+               // Bug #77582, compare the parents against the dependent's last start. The status
+               // of the just-finished task is its current run (the STARTED record is written in
+               // jobToBeExecuted), so it can't tell whether the other parents finished since.
+               ScheduleStatusDao.Status dependantStatus = dao.getStatus(task.getTaskId());
                boolean triggerDependant = task.getConditionStream()
                   .filter(cond -> cond instanceof CompletionCondition)
                   .map(cond -> ((CompletionCondition) cond).getTaskName())
@@ -259,9 +254,20 @@ public class JobCompletionListener extends JobListenerSupport {
                         statusCache.put(parentTaskName, parentEndTime);
                      }
 
-                     // failed or hasn't run since the previous execution
-                     return parentEndTime == null || previousStatus != null &&
-                        previousStatus.getStartTime() > parentEndTime;
+                     if(parentEndTime == null) {
+                        // failed or not finished
+                        return true;
+                     }
+
+                     // the task that just finished has obviously finished since the dependent's
+                     // last run, don't compare the times (which may come from different nodes)
+                     if(parentTaskName.equals(taskName)) {
+                        return false;
+                     }
+
+                     // hasn't run since the previous execution of the dependent
+                     return dependantStatus != null &&
+                        dependantStatus.getStartTime() > parentEndTime;
                   });
 
                if(triggerDependant) {
@@ -396,21 +402,6 @@ public class JobCompletionListener extends JobListenerSupport {
 
       private final String taskName;
       private final Principal principal;
-   }
-
-   /**
-    * Bug #77168, inline copy of ScheduleTask's own isSecurityEnabled() check (that method is
-    * private to a different package). Kept minimal/local instead of introducing a new shared
-    * utility.
-    */
-   private static boolean isSecurityEnabled() {
-      try {
-         return SecurityEngine.getSecurity().isSecurityEnabled();
-      }
-      catch(Exception ex) {
-         LOG.debug("Failed to check whether security is enabled", ex);
-         return false;
-      }
    }
 
    private final String name;

@@ -26,6 +26,7 @@ import inetsoft.sree.internal.cluster.MessageListener;
 import inetsoft.sree.security.*;
 import inetsoft.storage.BlobStorage;
 import inetsoft.storage.BlobStorageManager;
+import inetsoft.uql.asset.AbstractAssetEngine;
 import inetsoft.uql.asset.sync.RenameInfo;
 import inetsoft.uql.asset.sync.RenameTransformHandler;
 import inetsoft.util.*;
@@ -435,9 +436,11 @@ public class LibManager implements AutoCloseable {
       SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
       Permission permission = provider.getPermission(ResourceType.TABLE_STYLE, oldName);
 
+      // Bug #78217, the folder is already renamed, a failed permission write must not stop the
+      // rename of its subfolders
       if(permission != null) {
-         provider.setPermission(ResourceType.TABLE_STYLE, newName, permission);
-         provider.removePermission(ResourceType.TABLE_STYLE, oldName);
+         AbstractAssetEngine.movePermissionBestEffort(
+            provider, ResourceType.TABLE_STYLE, oldName, newName, permission);
       }
 
       fireActionEvent(newName, STYLE_MODIFIED);

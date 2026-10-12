@@ -63,7 +63,7 @@ public class XDomainWrapper implements XMLSerializable {
       String cls = Tool.getAttribute(elem, "class");
 
       try {
-         domain = (XDomain) Class.forName(cls).newInstance();
+         domain = (XDomain) Tool.loadSubclass(cls, XDomain.class).newInstance();
          domain.parseXML(elem);
          setDomain(domain);
       }

@@ -32,7 +32,9 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.sync.*;
 import inetsoft.uql.service.DataSourceRegistry;
+import inetsoft.uql.tabular.ServerFilePathPolicy;
 import inetsoft.uql.tabular.TabularDataSource;
+import inetsoft.uql.util.Config;
 import inetsoft.uql.util.Identity;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -49,7 +51,6 @@ import inetsoft.web.admin.deploy.*;
 import inetsoft.web.admin.schedule.ScheduleSecretIdChecker;
 import inetsoft.web.admin.schedule.ScheduleTaskIdentityChecker;
 import inetsoft.web.portal.data.SecretIdAuthorizer;
-import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,11 +60,11 @@ import org.springframework.stereotype.Service;
 import org.w3c.dom.*;
 
 import java.io.*;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.security.Principal;
 import java.sql.Timestamp;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -106,332 +107,6 @@ public class DeployManagerService {
       this.dataSpace = dataSpace;
       this.embeddedTableStorage = embeddedTableStorage;
       this.repletRegistryManager = repletRegistryManager;
-   }
-
-   /**
-    * Import assets. WARNING: this method should not be called directly as it
-    * may cause a deadlock. Instead, call RepletEngine.importAssets().
-    *
-    * @param data the jar file is provided as a byte array.
-    * @param replace indicates if existing assets should be overwritten.
-    * @param actionRecord the record to be inserted in the auditing database.
-    */
-   public void importAssets(byte[] data, boolean replace,
-                            ActionRecord actionRecord) throws Exception
-   {
-      JarInputStream jarIn = null;
-      InputStream in = null;
-      OutputStream out = null;
-
-      try {
-         in = new ByteArrayInputStream(data);
-         jarIn = new JarInputStream(in);
-         JarEntry jentry;
-         String cacheDirectory = this.fileSystemService.getCacheDirectory();
-         String cacheFolder = cacheDirectory + File.separator +
-            "partialDeploymentJarUnzip2";
-
-         Tool.deleteFile(this.fileSystemService.getFile(cacheFolder));
-         final ArrayList<String> fileOrders = new ArrayList<>();
-         Map<String, String> names = new HashMap<>();
-
-         while((jentry = (JarEntry) jarIn.getNextEntry()) != null) {
-            String ename = jentry.getName();
-            String fname = "JarFileInfo.xml".equals(ename) ? ename :
-               "f" + Math.abs(ename.hashCode());
-            String outFileName = cacheFolder + File.separator + fname;
-            names.put(fname, ename);
-            File outFile = this.fileSystemService.getFile(outFileName);
-
-            if(jentry.isDirectory()) {
-               if(!outFile.mkdirs()) {
-                  LOG.warn("Failed to create import directory: " + outFile);
-               }
-            }
-            else {
-               if(!outFile.getParentFile().exists()) {
-                  if(!outFile.getParentFile().mkdirs()) {
-                     LOG.warn(
-                        "Failed to create import directory: " + outFile);
-                  }
-               }
-
-               if(!outFile.exists()) {
-                  if(!outFile.createNewFile()) {
-                     LOG.warn(
-                        "Failed to create import temp file: " + outFile);
-                  }
-
-                  // wait 100 minutes for user to import files
-                  this.fileSystemService.remove(outFile, 6000000);
-                  fileOrders.add(outFile.getName());
-               }
-
-               out = new FileOutputStream(outFile);
-               Tool.copyTo(jarIn, out);
-               out.close();
-            }
-         }
-
-         jarIn.close();
-         File file = this.fileSystemService.getFile(cacheFolder, "JarFileInfo.xml");
-         Document infoDom = Tool.parseXML(new FileInputStream(file));
-         Element root = infoDom.getDocumentElement();
-         final PartialDeploymentJarInfo info = new PartialDeploymentJarInfo();
-         final DeploymentInfo deploymentInfo = new DeploymentInfo(info, names, cacheFolder);
-         names = deploymentInfo.getNames();
-         info.parseXML(root);
-         Tool.deleteFile(file);
-
-         XAssetConfig config = new XAssetConfig();
-         config.setOverwriting(replace);
-         File[] files = deploymentInfo.getFiles();
-         assert files != null;
-
-         if(files.length > 0) {
-            Arrays.sort(files, (f1, f2) -> {
-               int result = fileOrders.indexOf(f1.getName()) - fileOrders.indexOf(f2.getName());
-
-               if(result == 0) {
-                  Long lastModified1 = f1.lastModified();
-                  Long lastModified2 = f2.lastModified();
-                  result = lastModified1.compareTo(lastModified2);
-               }
-
-               return result;
-            });
-         }
-
-         for(File file1 : files) {
-            if(file1.isDirectory()) {
-               continue;
-            }
-
-            String filename = file1.getName();
-            filename = names.get(filename);
-
-            if(filename == null) {
-               continue;
-            }
-
-            filename = Tool.replaceAll(filename, "^_^", "/");
-
-            // templates or sub-reports or report files
-            if(filename != null && filename.startsWith("__")) {
-               String folder = null;
-               String fname = null;
-
-               if(filename.startsWith("__SUBREPORT_")) {
-                  fname = filename.substring(12);
-                  folder = "templates" + File.separator + "subreports";
-               }
-               else if(filename.startsWith("__TEMPLATE_MYREPORTS_'")) {
-                  fname = filename.substring("__TEMPLATE_MYREPORTS_'".length());
-                  int idx = fname.indexOf("'");
-
-                  if(idx < 0) {
-                     LOG.error(
-                        "The template path for users is incorrect: " + filename);
-                     continue;
-                  }
-
-                  String user = fname.substring(0, idx);
-                  fname = fname.substring(idx + 1);
-                  IdentityID userID = IdentityID.getIdentityIDFromKey(user);
-                  folder = "portal/" + userID.orgID + "/" + userID.name + "/my dashboard";
-               }
-               else if(filename.startsWith("__TEMPLATE_")) {
-                  fname = filename.substring(11);
-                  folder = "templates";
-               }
-               else if(filename.startsWith("__REPORTFILE_")) {
-                  fname = filename.substring(13);
-                  folder = "ReportFiles";
-               }
-
-               if(folder == null || fname == null) {
-                  continue;
-               }
-
-               if(dataSpace.exists(folder, fname)) {
-                  if(!replace) {
-                     continue;
-                  }
-               }
-
-               if(actionRecord != null) {
-                  actionRecord.setObjectName(fname);
-                  actionRecord.setObjectType(ActionRecord.OBJECT_TYPE_REPORT);
-                  Timestamp actionTimestamp = new Timestamp(System.currentTimeMillis());
-                  actionRecord.setActionTimestamp(actionTimestamp);
-                  //declare the asset tyle further
-                  actionRecord.setActionError(ActionRecord.OBJECT_TYPE_REPORT);
-               }
-
-               try(InputStream inp = new FileInputStream(file1)) {
-                  dataSpace.withOutputStream(folder, fname, os -> IOUtils.copy(inp, os));
-               }
-               catch(Throwable e) {
-                  LOG.error(
-                     "Failed to write deployed asset file {} in folder {}", fname, folder, e);
-
-                  if(actionRecord != null) {
-                     actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_FAILURE);
-                     actionRecord.setActionError(e.getMessage());
-                  }
-               }
-               finally {
-                  if(actionRecord != null) {
-                     Audit.getInstance()
-                        .auditAction(actionRecord, ThreadContext.getContextPrincipal());
-                  }
-               }
-            }
-            // normal xasset
-            else if(filename != null) {
-               int idx = filename.indexOf("_");
-
-               if(idx < 0) {
-                  continue;
-               }
-
-               String type = filename.substring(0, idx);
-               List<?> types = XAssetUtil.getXAssetTypes(true);
-
-               if(!types.contains(type)) {
-                  continue;
-               }
-
-               String identifier = filename.substring(idx + 1);
-               XAsset asset = XAssetUtil.createXAsset(identifier);
-
-               if(asset == null || !type.equals(asset.getType())) {
-                  continue;
-               }
-
-               in = new FileInputStream(file1);
-
-               if(ViewsheetAsset.VIEWSHEET.equals(type)) {
-                  TransformerManager xform = TransformerManager.getManager(
-                     TransformerManager.VIEWSHEET);
-
-                  // @by ChrisS bug1402502061808 2014-6-18
-                  // Set the "sourceName" parameter property in TransformerManager.
-                  Properties propsOut = new Properties();
-                  propsOut.setProperty("sourceName", filename);
-                  xform.setProperties(propsOut);
-
-                  Document doc = Tool.parseXML(in);
-                  doc = (Document) xform.transform(doc);
-
-                  in.close();
-                  ByteArrayOutputStream output = new ByteArrayOutputStream();
-                  PrintWriter writer = new PrintWriter(
-                     new OutputStreamWriter(output, StandardCharsets.UTF_8));
-
-                  writer.println(
-                     "<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
-                  writeNode(writer, doc.getDocumentElement());
-                  writer.flush();
-
-                  in = new ByteArrayInputStream(output.toByteArray());
-               }
-
-               if(ViewsheetAsset.VIEWSHEET.equals(type) && asset.getPath().contains("/")) {
-                  String folder = asset.getPath().substring(0, asset.getPath().lastIndexOf("/"));
-
-                  setFolderProperty(folder, info);
-               }
-
-               asset.parseContent(in, config, true, false);
-            }
-         }
-
-         Tool.deleteFile(this.fileSystemService.getFile(cacheFolder));
-      }
-      finally {
-         IOUtils.closeQuietly(jarIn);
-         IOUtils.closeQuietly(in);
-         IOUtils.closeQuietly(out);
-
-         // @by stephenwebster, Save the manager once to prevent unnecessary save and reloads
-         // which can feel slow on the GUI.
-         LibManager manager = libManagerProvider.getManager();
-
-         if(manager.isDirty()) {
-            manager.save();
-         }
-      }
-   }
-
-   /**
-    * Write node.
-    */
-   private void writeNode(PrintWriter writer, Node node) {
-      switch(node.getNodeType()) {
-         case Node.CDATA_SECTION_NODE:
-            writer.print("<![CDATA[");
-            writer.print(node.getNodeValue());
-            writer.print("]]>");
-            break;
-
-         case Node.ELEMENT_NODE:
-            writer.print("<");
-            writer.print(node.getNodeName());
-            Element elem = (Element) node;
-            NamedNodeMap attrs = elem.getAttributes();
-
-            for(int i = 0; i < attrs.getLength(); i++) {
-               Node attr = attrs.item(i);
-               writer.print(" ");
-               writer.print(attr.getNodeName());
-               writer.print("=\"");
-               writer.print(Tool.encodeHTMLAttribute(attr.getNodeValue()));
-               writer.print("\"");
-            }
-
-            writer.print(">");
-            NodeList elems = elem.getChildNodes();
-
-            for(int i = 0; i < elems.getLength(); i++) {
-               writeNode(writer, elems.item(i));
-            }
-
-            writer.print("</");
-            writer.print(node.getNodeName());
-            writer.print(">");
-            break;
-
-         case Node.TEXT_NODE:
-            writer.print(Tool.encodeHTMLAttribute(node.getNodeValue()));
-            break;
-      }
-   }
-
-   /**
-    * Set the property of folders.
-    */
-   private void setFolderProperty(String folder, PartialDeploymentJarInfo info)
-      throws Exception
-   {
-      RepletRegistry registry = repletRegistryManager.getRegistry();
-      String[] values = Tool.split(folder, '/');
-      String newFolder = "";
-
-      for(int i = 0; i < values.length; i++) {
-         newFolder = i > 0 ? newFolder + "/" + values[i] : values[i];
-
-         if(registry.isFolder(newFolder)) {
-            continue;
-         }
-
-         registry.addFolder(newFolder);
-         registry.setFolderAlias(newFolder, info.getFolderAlias().get(newFolder));
-         registry.setFolderDescription(
-            newFolder, info.getFolderDescription().get(newFolder));
-
-         registry.save();
-      }
    }
 
    /**
@@ -657,10 +332,16 @@ public class DeployManagerService {
       throws Exception
    {
       PasswordEncryption.setDecryptForceLocal(true);
+      // Bug #77628, count the secrets that could not be decrypted with this server's master
+      // password, they are imported as their encrypted value and must be re-entered
+      AtomicInteger decryptFailures = new AtomicInteger();
+      PasswordEncryption.setMasterDecryptFailures(decryptFailures);
+      Set<String> undecryptableAssets = new LinkedHashSet<>();
 
       try {
          importAssets0(overwriting, order, info, desktop, principal, ignoreList, actionRecord,
-            failedList, targetFolderInfo, ignoreUserAssets, bookmarkResolutions);
+            failedList, targetFolderInfo, ignoreUserAssets, bookmarkResolutions,
+            undecryptableAssets);
          Set<String> ignoredQueries = info.getIgnoredQueries();
 
          if(!ignoredQueries.isEmpty()) {
@@ -669,9 +350,20 @@ public class DeployManagerService {
             String msg = ignoredQueries.size() > 1 ? "em.import.ignoredQueries" : "em.import.ignoredQuery";
             failedList.add(catalog.getString(msg, queries));
          }
+
+         if(decryptFailures.get() > 0) {
+            // a warning, not a failure, the assets are imported
+            Catalog catalog = Catalog.getCatalog();
+            String msg = undecryptableAssets.isEmpty() ?
+               catalog.getString("em.import.undecryptableSecrets") :
+               catalog.getString("em.import.undecryptableSecrets.assets",
+                                 String.join(", ", undecryptableAssets));
+            info.getImportWarnings().add(msg);
+         }
       }
       finally {
          PasswordEncryption.setDecryptForceLocal(false);
+         PasswordEncryption.setMasterDecryptFailures(null);
       }
    }
 
@@ -684,7 +376,8 @@ public class DeployManagerService {
                               List<String> failedList,
                               ImportTargetFolderInfo targetFolderInfo,
                               List<String> ignoreUserAssets,
-                              Map<String, Boolean> bookmarkResolutions)
+                              Map<String, Boolean> bookmarkResolutions,
+                              Set<String> undecryptableAssets)
       throws Exception
    {
       List<AssetEntry> vss = new ArrayList<>();
@@ -932,6 +625,9 @@ public class DeployManagerService {
                   changeAssetMap.put(entry, getAssetObjectByAsset(nAsset));
                }
 
+               AtomicInteger decryptFailures = PasswordEncryption.getMasterDecryptFailures();
+               int decryptFailuresBefore = decryptFailures == null ? 0 : decryptFailures.get();
+
                try {
                   IS_IMPORTING.set(true);
                   importAsset(file, nAsset, ignoreSub, failedList, embeddedTables,
@@ -940,6 +636,10 @@ public class DeployManagerService {
                }
                finally {
                   IS_IMPORTING.remove();
+               }
+
+               if(decryptFailures != null && decryptFailures.get() > decryptFailuresBefore) {
+                  undecryptableAssets.add((nAsset != null ? nAsset : asset).getPath());
                }
             }
 
@@ -970,7 +670,14 @@ public class DeployManagerService {
                AssetContent.ALL);
             ViewsheetSandbox box = new ViewsheetSandbox(vs,
                Viewsheet.SHEET_DESIGN_MODE, null, false, entry);
-            box.updateAssemblies();
+
+            // Bug #77609: the sandbox is only needed for updateAssemblies()
+            try {
+               box.updateAssemblies();
+            }
+            finally {
+               box.dispose();
+            }
          }
       }
       catch(Throwable e) {
@@ -1768,6 +1475,19 @@ public class DeployManagerService {
                return false;
             }
 
+            // Bug #64331, the server paths of the data source xml are not trusted. An existing
+            // data source that isn't overwritten is kept as it is, so nothing is checked
+            if(asset instanceof XDataSourceAsset dataSourceAsset && principal != null &&
+               !isKeptDataSource(dataSourceAsset, config) &&
+               !isImportedServerPathsAllowed(file, principal))
+            {
+               String msg = catalog.getString("em.import.file.failed.serverPathNotAllowed",
+                  asset.getType() + " " + path);
+               failedList.add(msg);
+               LOG.warn(msg);
+               return false;
+            }
+
             if(asset instanceof ScheduleTaskAsset && principal != null &&
                !isImportedScheduleSecretIdsAllowed(file, principal))
             {
@@ -1889,6 +1609,12 @@ public class DeployManagerService {
 
                if(asset instanceof ScheduleTaskAsset) {
                   dependencyHandler.updateTaskDependencies((ScheduleTaskAsset) asset);
+
+                  // Bug #77936, a warning, not a failure, the task is imported
+                  if(!((ScheduleTaskAsset) asset).getClearedPasswordPaths().isEmpty()) {
+                     info.getImportWarnings().add(Catalog.getCatalog().getString(
+                        "em.import.schedulePasswordsCleared", asset.getPath()));
+                  }
                }
 
                if(asset instanceof XDataSourceAsset) {
@@ -2016,6 +1742,95 @@ public class DeployManagerService {
    }
 
    /**
+    * Bug #64331, determines if the importer may save the server paths, such as the root folder
+    * of a Text/Excel Directory data source, that the data sources of an imported data source
+    * asset set. A path is allowed when the importer may use any path, when it is under an
+    * allowed root, or when it is the same as the path of the data source that it overwrites.
+    */
+   boolean isImportedServerPathsAllowed(File file, Principal principal) throws Exception {
+      ServerFilePathPolicy policy = ServerFilePathPolicy.create(securityEngine);
+
+      if(policy.isUnrestricted(principal)) {
+         return true;
+      }
+
+      try(InputStream input = new FileInputStream(file)) {
+         Document doc = input.available() > 0 ? Tool.parseXML(input) : null;
+
+         if(doc == null) {
+            return true;
+         }
+
+         NodeList nodes = doc.getDocumentElement().getElementsByTagName("datasource");
+
+         for(int i = 0; i < nodes.getLength(); i++) {
+            Element elem = (Element) nodes.item(i);
+
+            // only the types with a server path are parsed, such as Text/Excel Directory, so
+            // the other data sources of the file, JDBC and REST included, are not parsed here
+            if(!hasServerPaths(Tool.getAttribute(elem, "type"))) {
+               continue;
+            }
+
+            // a credential is never fetched while the paths are checked, the secret ids were
+            // already checked and are fetched when the data source is imported
+            XDataSource source = TabularDataSource.withCredentialFetchGate(id -> false, () -> {
+               try {
+                  XDataSourceWrapper wrapper = new XDataSourceWrapper();
+                  wrapper.parseXML(elem);
+                  return wrapper.getSource();
+               }
+               catch(Exception e) {
+                  LOG.warn("Failed to parse the imported data source {}",
+                           Tool.getAttribute(elem, "name"), e);
+                  return null;
+               }
+            });
+
+            // a data source with a server path that can't be parsed is refused
+            if(source == null) {
+               return false;
+            }
+
+            XDataSource stored = dataSourceRegistry.getDataSource(source.getFullName());
+
+            if(policy.getRefusedPath(source, stored, principal) != null) {
+               return false;
+            }
+         }
+      }
+
+      return true;
+   }
+
+   /**
+    * Determines if an imported data source type has a server path, such as the root folder of
+    * a Text/Excel Directory data source.
+    */
+   private static boolean hasServerPaths(String type) {
+      try {
+         String cls = type == null ? null : Config.getConfig().getDataSourceClass(type);
+         Class<?> dxClass = cls == null ? null : Config.getConfig().getClass(type, cls);
+         return dxClass != null && TabularDataSource.class.isAssignableFrom(dxClass) &&
+            ServerFilePathPolicy.hasServerPaths(dxClass);
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to get the class of the data source type {}", type, e);
+         return false;
+      }
+   }
+
+   /**
+    * Determines if the import keeps an existing data source as it is, that is when it is not
+    * overwritten (see XDataSourceAsset.parseContent).
+    */
+   private static boolean isKeptDataSource(XDataSourceAsset asset, XAssetConfig config) {
+      // an additional connection is not visible, and is written by a different branch
+      return asset.isVisible() &&
+         (config == null || !config.isOverwriting()) && asset.exists();
+   }
+
+   /**
     * Determines if the importer may use the cloud secret ids that an imported schedule task
     * references. Parsing a task does not resolve its secret ids.
     */
@@ -2053,15 +1868,23 @@ public class DeployManagerService {
     */
    boolean isImportedScheduleTaskAllowed(File file, Principal principal) throws Exception {
       Element taskElem;
+      boolean hasContent;
 
       try(InputStream input = new FileInputStream(file)) {
          Document doc = input.available() > 0 ? Tool.parseXML(input) : null;
+         hasContent = doc != null;
          taskElem = doc == null ? null :
             Tool.getChildNodeByTagName(doc.getDocumentElement(), "Task");
       }
 
+      // an empty file is not parsed at all. Bug #77454, a file without a task (e.g. only
+      // folders) is refused before anything of it is written
       if(taskElem == null) {
-         return true;
+         if(hasContent) {
+            LOG.warn("Schedule task file is not imported, it contains no task");
+         }
+
+         return !hasContent;
       }
 
       if(!securityEngine.checkPermission(principal, ResourceType.SCHEDULER, "*",

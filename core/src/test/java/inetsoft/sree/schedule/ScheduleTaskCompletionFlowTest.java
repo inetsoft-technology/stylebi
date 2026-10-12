@@ -82,8 +82,9 @@ class ScheduleTaskCompletionFlowTest {
 
       harness.waitForStatus(taskA.getTaskId(), FAILED, Duration.ofSeconds(5));
 
-      // Poll for 800ms: if the chain mechanism incorrectly triggers Task B the assertion fails fast
-      await().during(Duration.ofMillis(800)).atMost(Duration.ofSeconds(1))
+      // Task B must stay unrun for 800ms. The 9 polls that confirm this take about 900ms, so
+      // atMost leaves room for slow polls; if task B is triggered the hold never completes.
+      await().during(Duration.ofMillis(800)).atMost(Duration.ofSeconds(5))
              .until(() -> harness.getDao().getStatus(taskB.getTaskId()) == null);
    }
 
@@ -133,8 +134,9 @@ class ScheduleTaskCompletionFlowTest {
 
       harness.waitForStatus(taskA.getTaskId(), FINISHED, Duration.ofSeconds(5));
 
-      // Poll for 800ms: if the chain mechanism incorrectly triggers task B the assertion fails fast
-      await().during(Duration.ofMillis(800)).atMost(Duration.ofSeconds(1))
+      // Task B must stay unrun for 800ms. The 9 polls that confirm this take about 900ms, so
+      // atMost leaves room for slow polls; if task B is triggered the hold never completes.
+      await().during(Duration.ofMillis(800)).atMost(Duration.ofSeconds(5))
              .until(() -> harness.getDao().getStatus(taskB.getTaskId()) == null);
    }
 

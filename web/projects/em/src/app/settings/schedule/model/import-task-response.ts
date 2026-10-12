@@ -18,4 +18,6 @@
 export interface ImportTaskResponse {
    failedTasks: string[];
    failed: boolean;
+   // warnings about imported tasks, e.g. cleared stored passwords, absent in older responses
+   warnings?: string[];
 }

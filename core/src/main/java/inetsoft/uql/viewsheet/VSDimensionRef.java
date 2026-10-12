@@ -1086,7 +1086,8 @@ public class VSDimensionRef extends AbstractDataRef implements ContentObject, XD
 
       if(node != null) {
          ItemList mlist = new ItemList();
-         mlist.parseXML(node);
+         // manual order values are written as string items only
+         mlist.parseStringItems(node);
          manualOrder = new ArrayList(Arrays.asList(mlist.toArray()));
       }
 
@@ -1094,9 +1095,31 @@ public class VSDimensionRef extends AbstractDataRef implements ContentObject, XD
 
       if(node != null) {
          String cls = Tool.getAttribute(node, "class");
-         groupInfo = cls != null ? (XNamedGroupInfo) Class.forName(cls).newInstance() :
+         groupInfo = cls != null ?
+            Tool.loadSubclass(cls, XNamedGroupInfo.class).newInstance() :
             new SNamedGroupInfo();
          ((XMLSerializable) groupInfo).parseXML(node);
+      }
+
+      // a manual order saved before #77605 may have a Buddhist or Japanese year; only
+      // convert date-typed manual order values, computed the same way as createComparator()
+      // does, so named groups (string values) and non-date dimensions are left untouched
+      if(manualOrder != null && !isNameGroup()) {
+         String mtype = getDataType();
+
+         if(isDateRange()) {
+            mtype = DateRangeRef.getDataType(getDateLevel(), mtype);
+         }
+
+         if(XSchema.isDateType(mtype)) {
+            for(int i = 0; i < manualOrder.size(); i++) {
+               Object val = manualOrder.get(i);
+
+               if(val instanceof String) {
+                  manualOrder.set(i, Tool.toGregorianPersistentDate((String) val));
+               }
+            }
+         }
       }
 
       String comboTypeString = Tool.getChildValueByTagName(elem, "comboType");
@@ -1132,13 +1155,14 @@ public class VSDimensionRef extends AbstractDataRef implements ContentObject, XD
 
       if(groupValue.getDValue() != null) {
          writer.print("<groupValue>");
-         writer.print("<![CDATA[" + groupValue.getDValue() + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(groupValue.getDValue()) + "]]>");
          writer.println("</groupValue>");
       }
 
       if(groupValue.getRuntimeValue(true) != null) {
          writer.print("<groupRValue>");
-         writer.print("<![CDATA[" + groupValue.getRuntimeValue(true) + "]]>");
+         writer.print("<![CDATA[" +
+                      Tool.cdataText(String.valueOf(groupValue.getRuntimeValue(true))) + "]]>");
          writer.println("</groupRValue>");
       }
 
@@ -1240,7 +1264,7 @@ public class VSDimensionRef extends AbstractDataRef implements ContentObject, XD
 
       if(caption != null) {
          writer.print("<caption>");
-         writer.print("<![CDATA[" + caption + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(caption) + "]]>");
          writer.println("</caption>");
       }
 
@@ -1266,7 +1290,7 @@ public class VSDimensionRef extends AbstractDataRef implements ContentObject, XD
 
       if(fullName != null && !fullName.equals("")) {
          writer.print("<fullName>");
-         writer.print("<![CDATA[" + fullName + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(fullName) + "]]>");
          writer.println("</fullName>");
       }
 

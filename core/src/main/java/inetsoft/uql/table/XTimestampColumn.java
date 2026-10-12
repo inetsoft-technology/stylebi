@@ -18,6 +18,7 @@
 package inetsoft.uql.table;
 
 import inetsoft.uql.schema.XSchema;
+import inetsoft.util.Tool;
 import inetsoft.util.swap.*;
 import org.joda.time.DateTime;
 import org.slf4j.Logger;
@@ -133,7 +134,13 @@ public final class XTimestampColumn extends AbstractTableColumn {
          if(!StringUtils.isEmpty(str)) {
             try {
                if(str.endsWith("Z")) {
-                  SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
+                  // Bug #77566: this string is always a Gregorian ISO-8601 digit string from an
+                  // external data source/tabular connector, never a persisted round trip of this
+                  // formatter's own output -- a locale-less SimpleDateFormat would otherwise
+                  // misparse the Gregorian year under a non-Gregorian JVM default locale (e.g.
+                  // Buddhist for th_TH, Japanese imperial for ja_JP_JP).
+                  SimpleDateFormat format =
+                     Tool.createGregorianDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
                   obj = format.parse(str);
                }
             }
@@ -146,9 +153,10 @@ public final class XTimestampColumn extends AbstractTableColumn {
                   obj = DateTime.parse(str).toDate();
                }
                catch(Exception ex2) {
-                  // joda time has trouble parsing dd-MM-yyyy (47216).
+                  // joda time has trouble parsing dd-MM-yyyy (47216). Same Gregorian-ingestion
+                  // reasoning as above (Bug #77566) applies to this fallback parse.
                   try {
-                     SimpleDateFormat format = new SimpleDateFormat("dd-MM-yyyy");
+                     SimpleDateFormat format = Tool.createGregorianDateFormat("dd-MM-yyyy");
                      obj = format.parse(str);
                   }
                   catch(Exception ex3) {

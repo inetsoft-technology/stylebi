@@ -43,7 +43,7 @@ public abstract class AssemblyInfo implements AssetObject, DataSerializable {
       assert cls != null;
       int idx = cls.indexOf(".");
       cls = idx < 0 ? "inetsoft.uql.asset.internal." + cls : cls;
-      AssemblyInfo info = (AssemblyInfo) Class.forName(cls).newInstance();
+      AssemblyInfo info = (AssemblyInfo) Tool.loadSubclass(cls, AssemblyInfo.class).newInstance();
       info.parseXML(elem);
       return info;
    }

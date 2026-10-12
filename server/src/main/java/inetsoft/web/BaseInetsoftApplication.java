@@ -90,6 +90,18 @@ public abstract class BaseInetsoftApplication {
          SreeEnv.reloadLoggingFramework();
          SUtil.initScheduleListener();
 
+         // done here rather than when the data space is created so that it runs only on the
+         // server and can't delay or fail the startup (Bug #77387)
+         ThreadPool.addOnDemand(() -> {
+            try {
+               DataSpace.getDataSpace().repairMissingFolders();
+            }
+            catch(Throwable e) {
+               LoggerFactory.getLogger(InetsoftApplication.class)
+                  .warn("Failed to repair the data space folders", e);
+            }
+         });
+
          if(isSchedulerServerAutoStart()) {
             ThreadPool.addOnDemand(() -> {
                try {

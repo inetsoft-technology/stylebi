@@ -798,7 +798,8 @@ public final class MV implements Cloneable {
          types = new Class[dcnt + mcnt];
 
          for(int i = 0; i < list.getLength(); i++) {
-            types[i] = Class.forName(Tool.getAttribute((Element) list.item(i), "classname"));
+            types[i] = Tool.loadSubclass(
+               Tool.getAttribute((Element) list.item(i), "classname"), Object.class);
          }
       }
       catch(Exception ex) {

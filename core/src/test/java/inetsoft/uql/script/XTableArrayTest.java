@@ -22,6 +22,8 @@ import inetsoft.test.*;
 import inetsoft.uql.XTable;
 import inetsoft.util.script.graal.ScriptScope;
 import inetsoft.util.stall.LockStallException;
+import inetsoft.util.swap.LostSwapFile;
+import inetsoft.util.swap.SwapFileReadException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -194,5 +196,22 @@ class XTableArrayTest {
 
       assertNull(arr.getMember("col1"));
       assertFalse(arr.hasMember("col1"));
+   }
+
+   @Test
+   void lostSwapFileColumnReadThrowsFromGetMemberAndHasMember() {
+      // #77910: a table whose swap file is lost has no value, and the column is not absent
+      try(LostSwapFile lost = new LostSwapFile()) {
+         XTableArray arr = new XTableArray(new LostSwapFile.Table(new Object[][] {
+            { "col1", "col2" },
+            { "a", 1 },
+            { "b", 3 }
+         }, 1, true, lost));
+
+         assertEquals(lost.getFile(),
+            assertThrows(SwapFileReadException.class, () -> arr.getMember("col1")).getFile());
+         assertEquals(lost.getFile(),
+            assertThrows(SwapFileReadException.class, () -> arr.hasMember("col1")).getFile());
+      }
    }
 }

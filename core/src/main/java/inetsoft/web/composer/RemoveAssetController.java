@@ -77,6 +77,9 @@ public class RemoveAssetController {
    public MessageCommand removeAsset(
       @RequestBody RemoveAssetEvent event, Principal principal) throws Exception
    {
+      // the user messages are thread-local, drop anything left by an earlier request on this
+      // pooled thread so that only the messages of this delete are returned
+      Tool.clearUserMessage();
       AssetEntry entry = event.entry();
 
       // log action
@@ -102,7 +105,10 @@ public class RemoveAssetController {
 
             manager.removeScript(entry.getName());
             manager.save();
-            securityProvider.removePermission(ResourceType.SCRIPT, entry.getName());
+            // Bug #78217, the script is already removed, a failed permission write must not skip
+            // the dependency cleanup
+            AbstractAssetEngine.removePermissionBestEffort(
+               securityProvider, ResourceType.SCRIPT, entry.getName());
             AssetEntry scriptEntry = new AssetEntry(AssetRepository.COMPONENT_SCOPE,
                                                     AssetEntry.Type.SCRIPT, entry.getName(), null);
             dependencyHandler.deleteDependenciesKey(scriptEntry);
@@ -112,7 +118,10 @@ public class RemoveAssetController {
             String styleID = entry.getProperty("styleID");
             manager.removeTableStyle(styleID);
             manager.save();
-            securityProvider.removePermission(ResourceType.TABLE_STYLE, entry.getProperty("styleName"));
+            // Bug #78217, the style is already removed, a failed permission write must not skip
+            // the dependency cleanup
+            AbstractAssetEngine.removePermissionBestEffort(
+               securityProvider, ResourceType.TABLE_STYLE, entry.getProperty("styleName"));
             //Because the tableStyle Dependenc is stored by id, the entry needs to be recreated based on the id
             AssetEntry style = new AssetEntry(AssetRepository.COMPONENT_SCOPE,
                AssetEntry.Type.TABLE_STYLE, styleID, null);
@@ -122,7 +131,9 @@ public class RemoveAssetController {
             LibManager manager = libManagerProvider.getManager(principal);
             AssetEventUtil.removeStyleFolder(entry.getProperty("folder"), manager);
             manager.save();
-            securityProvider.removePermission(ResourceType.TABLE_STYLE, entry.getProperty("folder"));
+            // Bug #78217, the folder is already removed
+            AbstractAssetEngine.removePermissionBestEffort(
+               securityProvider, ResourceType.TABLE_STYLE, entry.getProperty("folder"));
          }
          else if(isWizManagedFolder(entry)) {
             // Wiz visualization/chat folders are created directly via
@@ -147,7 +158,8 @@ public class RemoveAssetController {
             RepositoryEntry rentry = new RepositoryEntry(rpath,
                                                          RepositoryEntry.FOLDER, entry.getUser());
 
-            RecycleUtils.moveRepositoryToRecycleBin(rentry, principal, recycleBin);
+            RecycleUtils.moveRepositoryToRecycleBin(rentry, principal, recycleBin,
+                                                    event.confirmed());
          }
          else if(entry.isFolder()) {
             RecycleUtils.moveAssetFolderToRecycleBin(entry, principal, recycleBin, event.confirmed());
@@ -208,6 +220,14 @@ public class RemoveAssetController {
          if(actionRecord != null) {
             Audit.getInstance().auditAction(actionRecord, principal);
          }
+      }
+
+      // Bug #77939, the delete is done, report what it could not finish, e.g. a permission it
+      // may not have removed
+      UserMessage userMessage = Tool.getUserMessage();
+
+      if(userMessage != null && userMessage.getMessage() != null) {
+         return MessageCommand.fromUserMessage(userMessage);
       }
 
       return null;

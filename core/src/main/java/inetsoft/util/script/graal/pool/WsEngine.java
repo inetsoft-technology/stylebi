@@ -31,6 +31,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * The engine of one pooled worksheet context (bug #76960): built from its env's init snapshot,
@@ -163,6 +164,12 @@ final class WsEngine extends GraalJavaScriptEngine {
             failed.put(args[0].asInt(), args[1].asString());
          }
 
+         Set<Integer> hides = OwnedValueCodec.HIDES.get();
+
+         if(hides != null && args.length > 2 && args[2].isBoolean() && args[2].asBoolean()) {
+            hides.add(args[0].asInt());
+         }
+
          return null;
       };
       ProxyExecutable dropped = args -> {
@@ -174,7 +181,16 @@ final class WsEngine extends GraalJavaScriptEngine {
 
          return null;
       };
-      Value api = context.eval(CLONER).execute(host, keep, kept, fail, dropped);
+      ProxyExecutable copied = args -> {
+         Set<Integer> copies = OwnedValueCodec.COPIES.get();
+
+         if(copies != null) {
+            copies.add(args[0].asInt());
+         }
+
+         return null;
+      };
+      Value api = context.eval(CLONER).execute(host, keep, kept, fail, dropped, copied);
       proxyMeta = api.getMember("proxy").getMetaObject();
       clonerSnap = api.getMember("snap");
       clonerBuild = api.getMember("build");

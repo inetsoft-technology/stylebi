@@ -28,6 +28,7 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.schema.XTypeNode;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.service.XHandler;
+import inetsoft.uql.util.XUtil;
 import inetsoft.uql.util.rgraph.TableNode;
 import inetsoft.util.*;
 import inetsoft.util.xml.XMLStorage.XMLFragment;
@@ -99,6 +100,11 @@ public class XPartition implements Cloneable, Serializable, XMLSerializable, XML
     * Add a child XPartition.
     */
    public void addPartition(XPartition child, boolean isImport) {
+      // Bug #77918: as XDataModel.addLogicalModel
+      if(XUtil.isDirectScriptCall(XPartition.class)) {
+         throw new java.lang.SecurityException("A script may not add a partition");
+      }
+
       String path = getDataModel().getDataSource() + "/" + getName() +
               "/" + child.getName();
       AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
@@ -140,9 +146,10 @@ public class XPartition implements Cloneable, Serializable, XMLSerializable, XML
                  AssetEntry.Type.EXTENDED_PARTITION, path, null);
          result = (XPartition) getRegistry().getObject(entry, true);
 
+         // Bug #77943: don't cache the returned copy, or a caller's unsaved change to it is
+         // seen by every later reader on the node
          if(result != null) {
             result.setBaseParitition(this);
-            getRegistry().setCache(entry, result);
          }
       }
 
@@ -178,6 +185,11 @@ public class XPartition implements Cloneable, Serializable, XMLSerializable, XML
     * Rename child partition
     */
    public void renamePartition(String oname, XPartition partition) {
+      // Bug #77918: as XDataModel.addLogicalModel
+      if(XUtil.isDirectScriptCall(XPartition.class)) {
+         throw new java.lang.SecurityException("A script may not rename a partition");
+      }
+
       String oldPath = getDataModel().getDataSource() + "/" + getName() +
               "/" + oname;
       String newPath = getDataModel().getDataSource() + "/" + getName() +
@@ -194,8 +206,11 @@ public class XPartition implements Cloneable, Serializable, XMLSerializable, XML
 
       try {
          String path = getDataModel().getDataSource() + "/" + getName() + "/";
-         AssetEntry[] entries =
-                 getRegistry().getEntries(path, AssetEntry.Type.EXTENDED_PARTITION);
+         // Bug #77820, not the views of a data source of a folder at the path of the data
+         // source. Bug #77842, not the ones of a view "<name>/..."
+         AssetEntry[] entries = getRegistry().getExtendedModelEntries(
+                 getDataModel().getDataSource(), getDataModel().getDataSource() + "/" + getName(),
+                 AssetEntry.Type.EXTENDED_PARTITION, false);
          result = new String[entries.length];
 
          for(int i = 0; i < entries.length; i++) {
@@ -215,6 +230,11 @@ public class XPartition implements Cloneable, Serializable, XMLSerializable, XML
     * remove a child XPartition.
     */
    public void removePartition(String name) {
+      // Bug #77918: as XDataModel.addLogicalModel
+      if(XUtil.isDirectScriptCall(XPartition.class)) {
+         throw new java.lang.SecurityException("A script may not remove a partition");
+      }
+
       AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
               AssetEntry.Type.EXTENDED_PARTITION,
               getDataModel().getDataSource() + "/" + getName() + "/" + name,
@@ -226,6 +246,11 @@ public class XPartition implements Cloneable, Serializable, XMLSerializable, XML
     * rename a child XPartition.
     */
    public void renamePartition(String oname, String nname) {
+      // Bug #77918: as XDataModel.addLogicalModel
+      if(XUtil.isDirectScriptCall(XPartition.class)) {
+         throw new java.lang.SecurityException("A script may not rename a partition");
+      }
+
       XPartition p = getPartition(oname);
 
       if(p != null) {
@@ -2221,19 +2246,11 @@ public class XPartition implements Cloneable, Serializable, XMLSerializable, XML
       writer.println(">");
 
       if(createdBy != null) {
-         writer.print("<createdBy>");
-         writer.print("<![CDATA[");
-         writer.print(createdBy);
-         writer.print("]]>");
-         writer.println("</createdBy>");
+         writeCDataElement(writer, "createdBy", createdBy);
       }
 
       if(modifiedBy != null) {
-         writer.print("<modifiedBy>");
-         writer.print("<![CDATA[");
-         writer.print(modifiedBy);
-         writer.print("]]>");
-         writer.println("</modifiedBy>");
+         writeCDataElement(writer, "modifiedBy", modifiedBy);
       }
 
       if(created != 0) {
@@ -2253,11 +2270,7 @@ public class XPartition implements Cloneable, Serializable, XMLSerializable, XML
       }
 
       if(description != null) {
-         writer.print("<description>");
-         writer.print("<![CDATA[");
-         writer.print(description);
-         writer.print("]]>");
-         writer.println("</description>");
+         writeCDataElement(writer, "description", description);
       }
 
       Enumeration e = getTables(true);
@@ -2291,7 +2304,13 @@ public class XPartition implements Cloneable, Serializable, XMLSerializable, XML
                   "\" height=\"" + h + "\">");
 
             if(sql != null) {
-               writer.println("<sql><![CDATA[" + Tool.encodeCDATA(sql) + "]]></sql>");
+               if(Tool.hasXMLIllegalChars(sql)) {
+                  // marked, the legacy encodeCDATA mapping is not applied (Bug #78327)
+                  writeCDataElement(writer, "sql", sql);
+               }
+               else {
+                  writer.println("<sql><![CDATA[" + Tool.encodeCDATA(sql) + "]]></sql>");
+               }
             }
          }
 
@@ -2299,16 +2318,15 @@ public class XPartition implements Cloneable, Serializable, XMLSerializable, XML
             autoalias.writeXML(writer);
          }
          else if(aliasTbl != null) {
-            writer.println("<aliasTable><![CDATA[" + aliasTbl +
-                           "]]></aliasTable>");
+            writeCDataElement(writer, "aliasTable", aliasTbl);
          }
 
          if(catalog != null) {
-            writer.println("<catalog><![CDATA[" + catalog + "]]></catalog>");
+            writeCDataElement(writer, "catalog", String.valueOf(catalog));
          }
 
          if(schema != null) {
-            writer.println("<schema><![CDATA[" + schema + "]]></schema>");
+            writeCDataElement(writer, "schema", String.valueOf(schema));
          }
 
          writer.println("</table>");
@@ -2378,19 +2396,19 @@ public class XPartition implements Cloneable, Serializable, XMLSerializable, XML
       nl = Tool.getChildNodesByTagName(tag, "description");
 
       if(nl != null && nl.getLength() > 0) {
-         setDescription(Tool.getValue(nl.item(0)));
+         setDescription(Tool.getCDATAData(nl.item(0)));
       }
 
       nl = Tool.getChildNodesByTagName(tag, "createdBy");
 
       if(nl != null && nl.getLength() > 0) {
-         setCreatedBy(Tool.getValue(nl.item(0)));
+         setCreatedBy(Tool.getCDATAData(nl.item(0)));
       }
 
       nl = Tool.getChildNodesByTagName(tag, "modifiedBy");
 
       if(nl != null && nl.getLength() > 0) {
-         setLastModifiedBy(Tool.getValue(nl.item(0)));
+         setLastModifiedBy(Tool.getCDATAData(nl.item(0)));
       }
 
       nl = Tool.getChildNodesByTagName(tag, "created");
@@ -2426,15 +2444,19 @@ public class XPartition implements Cloneable, Serializable, XMLSerializable, XML
             Element autoalias = Tool.getChildNodeByTagName(elem, "autoAlias");
             Element aliasTbl = Tool.getChildNodeByTagName(elem, "aliasTable");
             Element catalogElem = Tool.getChildNodeByTagName(elem, "catalog");
-            Object catalog = catalogElem == null ? null : Tool.getValue(catalogElem);
+            Object catalog = catalogElem == null ? null : Tool.getCDATAData(catalogElem);
             Element schemaElem = Tool.getChildNodeByTagName(elem, "schema");
-            Object schema = schemaElem == null ? null : Tool.getValue(schemaElem);
+            Object schema = schemaElem == null ? null : Tool.getCDATAData(schemaElem);
             Element tableCatalogElem = Tool.getChildNodeByTagName(elem, "tableCatalog");
             Object tableCatalog = tableCatalogElem == null ? null : Tool.getValue(tableCatalogElem);
             Element tableSchemaElem = Tool.getChildNodeByTagName(elem, "schema");
-            Object tableSchema = tableSchemaElem == null ? null : Tool.getValue(tableSchemaElem);
+            Object tableSchema = tableSchemaElem == null ? null : Tool.getCDATAData(tableSchemaElem);
             Element sqlElem = Tool.getChildNodeByTagName(elem, "sql");
-            sql = sqlElem == null ? sql : Tool.decodeCDATA(Tool.getValue(sqlElem));
+            if(sqlElem != null) {
+               // the marked text never went through encodeCDATA (Bug #78327)
+               sql = "true".equals(Tool.getAttribute(sqlElem, Tool.XML_ILLEGAL_CHARS_ATTR)) ?
+                  Tool.getCDATAData(sqlElem) : Tool.decodeCDATA(Tool.getValue(sqlElem));
+            }
 
             if(type == inetsoft.uql.erm.PartitionTable.PHYSICAL) {
                addTable(table, inetsoft.uql.erm.PartitionTable.PHYSICAL, "", box, catalog, schema);
@@ -2450,7 +2472,7 @@ public class XPartition implements Cloneable, Serializable, XMLSerializable, XML
                setAutoAlias(table, alias);
             }
             else if(aliasTbl != null) {
-               setAliasTable(table, Tool.getValue(aliasTbl));
+               setAliasTable(table, Tool.getCDATAData(aliasTbl));
             }
          }
       }
@@ -3169,6 +3191,19 @@ public class XPartition implements Cloneable, Serializable, XMLSerializable, XML
    private String connection;
    private boolean includeAllJoin = false;
    private Map<String, TableNode> metaDataCache = new HashMap<>();
+
+   /**
+    * Write a free-text element, marking it when it holds characters XML 1.0 can't carry
+    * and splitting any CDATA terminator.
+    */
+   private static void writeCDataElement(PrintWriter writer, String tag, String value) {
+      writer.print("<" + tag + Tool.cdataDataAttr(value) + ">");
+      writer.print("<![CDATA[");
+      writer.print(Tool.cdataData(value));
+      writer.print("]]>");
+      writer.println("</" + tag + ">");
+   }
+
    private static final Logger LOG =
       LoggerFactory.getLogger(XPartition.class);
 }

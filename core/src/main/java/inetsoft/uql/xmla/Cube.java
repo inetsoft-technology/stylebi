@@ -276,7 +276,7 @@ public class Cube implements XCube, XMLSerializable {
       for(int i = 0; i < dimsList.getLength(); i++) {
          Element elem = (Element) dimsList.item(i);
          String classname = Tool.getAttribute(elem, "classname");
-         Dimension dim = (Dimension) Class.forName(classname).newInstance();
+         Dimension dim = (Dimension) Tool.loadSubclass(classname, Dimension.class).newInstance();
          dim.parseXML(elem);
          dimensions.add(dim);
       }

@@ -63,6 +63,7 @@ public class ReorderColumnsDialogService extends WorksheetControllerService {
    {
       RuntimeWorksheet rws = super.getWorksheetEngine().getWorksheet(runtimeId, principal);
       AssetQuerySandbox box = rws.getAssetQuerySandbox();
+      checkCubeTableReadPermission(principal, tableName);
       AbstractTableAssembly table =
          (AbstractTableAssembly) rws.getWorksheet().getAssembly(tableName);
 
@@ -107,6 +108,7 @@ public class ReorderColumnsDialogService extends WorksheetControllerService {
    {
       RuntimeWorksheet rws = super.getRuntimeWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
+      checkCubeTableReadPermission(principal, tableName);
       TableAssembly table = (TableAssembly) ws.getAssembly(tableName);
 
       if(table == null || model.indexes() == null) {

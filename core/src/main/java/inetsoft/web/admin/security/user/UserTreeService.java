@@ -19,14 +19,17 @@ package inetsoft.web.admin.security.user;
 
 import inetsoft.mv.MVManager;
 import inetsoft.report.internal.license.LicenseManager;
+import inetsoft.sree.PropertiesEngine;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.CustomTheme;
 import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.security.*;
+import inetsoft.sree.web.dashboard.DashboardManager;
 import inetsoft.sree.web.dashboard.DashboardRegistryManager;
 import inetsoft.uql.XRepository;
+import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.sync.DependencyStorageService;
 import inetsoft.uql.asset.sync.DependencyTool;
 import inetsoft.uql.erm.HiddenColumns;
@@ -35,6 +38,7 @@ import inetsoft.uql.erm.vpm.VirtualPrivateModel;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
 import inetsoft.util.audit.*;
+import inetsoft.util.log.LogLevel;
 import inetsoft.web.RecycleBin;
 import inetsoft.web.admin.favorites.FavoritesService;
 import inetsoft.web.admin.general.LocalizationSettingsService;
@@ -42,6 +46,7 @@ import inetsoft.web.admin.general.model.LocalizationModel;
 import inetsoft.web.admin.security.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.annotation.SubscribeMapping;
@@ -93,6 +98,15 @@ public class UserTreeService {
       this.xRepository = xRepository;
       this.dependencyStorageService = dependencyStorageService;
       this.recycleBin = recycleBin;
+   }
+
+   /**
+    * Sets the dashboard manager, which removes the viewsheets of the dashboard creates refused
+    * while a user is renamed (Bug #78101). It is resolved when it is used.
+    */
+   @Autowired
+   public void setDashboardManager(ObjectProvider<DashboardManager> dashboardManager) {
+      this.dashboardManager = dashboardManager;
    }
 
    public List<String> getOrganizationTree(String providerName, Principal principal) {
@@ -482,6 +496,7 @@ public class UserTreeService {
 
          identityService.checkSystemAdminParentGroup(parentGroup, currOrgID, principal);
          FSGroup identity = null;
+         String warning = null;
 
          for(int i = 0; identity == null; i++) {
             String name = "group" + i;
@@ -496,8 +511,9 @@ public class UserTreeService {
                }
 
                ((EditableAuthenticationProvider) provider).addGroup(identity);
-               identityService.createIdentityPermissions(id, ResourceType.SECURITY_GROUP,
-                                                         principal);
+               // Bug #78217, the group is already created, a failed grant is shown as a warning
+               warning = identityService.createIdentityPermissions(
+                  id, ResourceType.SECURITY_GROUP, principal);
             }
          }
 
@@ -515,6 +531,7 @@ public class UserTreeService {
             .members(new ArrayList<>())
             .roles(new ArrayList<>())
             .permittedIdentities(new ArrayList<>())
+            .warning(warning)
             .build();
       }
       catch(Exception e) {
@@ -711,11 +728,33 @@ public class UserTreeService {
       // scope by the permission-checked group from the path, not the organization in the body
       themeService.updateIdentityTheme(group.name, model.name(), group.orgID, model.theme(),
                                        CustomTheme::getGroups, principal);
-      identityService.setIdentityPermissions(oldID, newID, ResourceType.SECURITY_GROUP,
-                                             principal, permittedIdentities, groupOrgID);
+      // the rename is already saved, so a failed permission write must not skip the migration;
+      // the failure is reported after it
+      RuntimeException permissionFailure = null;
 
-      if(!oldID.equals(newID)) {
-         migrateGroupRename(oldID, newID);
+      try {
+         identityService.setIdentityPermissions(oldID, newID, ResourceType.SECURITY_GROUP,
+                                                principal, permittedIdentities, groupOrgID);
+      }
+      catch(RuntimeException e) {
+         permissionFailure = e;
+      }
+
+      try {
+         if(!oldID.equals(newID)) {
+            migrateGroupRename(oldID, newID);
+         }
+      }
+      catch(Exception e) {
+         if(permissionFailure == null) {
+            throw e;
+         }
+
+         permissionFailure.addSuppressed(e);
+      }
+
+      if(permissionFailure != null) {
+         throw permissionFailure;
       }
    }
 
@@ -807,8 +846,9 @@ public class UserTreeService {
                                                           IdentityInfoRecord.ACTION_TYPE_CREATE,
                                                           null, state);
 
-         identityService.createIdentityPermissions(identity.getIdentityID(), ResourceType.SECURITY_USER,
-                                                   principal);
+         // Bug #78217, the user is already created, a failed grant is shown as a warning
+         String warning = identityService.createIdentityPermissions(
+            identity.getIdentityID(), ResourceType.SECURITY_USER, principal);
 
          List<String> localesList = localizationSettingsService.getModel().locales()
             .stream().map(LocalizationModel::label).collect(Collectors.toList());
@@ -826,6 +866,7 @@ public class UserTreeService {
             .theme(themeService.getTheme(identity.getIdentityID(), CustomTheme::getUsers))
             .newUser(true)
             .supportChangePassword(true)
+            .warning(warning)
             .build();
       }
       catch(Exception e) {
@@ -1119,30 +1160,33 @@ public class UserTreeService {
 
       List<PropertyModel> properties = new ArrayList<>();
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
-      String orgPrefix = "inetsoft.org." + orgID.getOrgID().toLowerCase() + ".";
+      Set<Object> keyset = SreeEnv.getProperties().keySet();
+      String orgPrefix = PropertiesEngine.getOrgPropertyPrefix(orgID.getOrgID());
 
-      try {
-         OrganizationManager.runInOrgScope(orgID.getOrgID(), () -> {
-            for(Object key : SreeEnv.getProperties().keySet()) {
-               String propName = (String) key;
+      for(Object key : keyset) {
+         String qualifiedName = (String) key;
 
-               if(!propName.startsWith(orgPrefix)) {
-                  continue;
-               }
+         if(!qualifiedName.startsWith(orgPrefix)) {
+            continue;
+         }
 
-               propName = propName.substring(orgPrefix.length());
-               String value = SreeEnv.getProperty(propName, false, true);
+         // a global-only setting stored as an org override is never used, so don't show it as
+         // an org setting or post it back on save. It stays in EM All Properties, where it can be
+         // deleted (Bug #77885).
+         if(PropertiesEngine.isExcludedOrgProperty(qualifiedName)) {
+            continue;
+         }
 
-               if(value != null) {
-                  properties.add(PropertyModel.builder().name(propName).value(value).build());
-               }
-            }
+         String propName = qualifiedName.substring(orgPrefix.length());
 
-            return null;
-         });
-      }
-      catch(Exception e) {
-         throw new RuntimeException(e);
+         // read by the already-org-qualified key (orgScope=false) instead of re-resolving the
+         // bare name against the CALLER's current org (orgScope=true), which silently drops
+         // every property whenever the caller is viewing an org other than their own
+         String propValue = SreeEnv.getProperty(qualifiedName, false, false);
+
+         if(propValue != null) {
+            properties.add(PropertyModel.builder().name(propName).value(propValue).build());
+         }
       }
 
       List<IdentityModel> grantedOrganizations =
@@ -1317,10 +1361,33 @@ public class UserTreeService {
       // if the user has admin permission on themselves, rename the user in the grant
       List<IdentityModel> permittedIdentities = getRenamedPermittedIdentities(
          model.permittedIdentities(), Identity.USER, oldID, newID);
-      identityService.setIdentityPermissions(
-         oldID, newID, ResourceType.SECURITY_USER, principal, permittedIdentities,
-         model.organization());
-      migrateUserRename(oldID, newID);
+      // the rename is already saved, so a failed permission write must not skip the migration;
+      // the failure is reported after it
+      RuntimeException permissionFailure = null;
+
+      try {
+         identityService.setIdentityPermissions(
+            oldID, newID, ResourceType.SECURITY_USER, principal, permittedIdentities,
+            model.organization());
+      }
+      catch(RuntimeException e) {
+         permissionFailure = e;
+      }
+
+      try {
+         migrateUserRename(oldID, newID);
+      }
+      catch(Exception e) {
+         if(permissionFailure == null) {
+            throw e;
+         }
+
+         permissionFailure.addSuppressed(e);
+      }
+
+      if(permissionFailure != null) {
+         throw permissionFailure;
+      }
    }
 
 
@@ -1390,6 +1457,24 @@ public class UserTreeService {
       // before any org property is saved, so a rejected rename or theme leaves nothing behind
       OrganizationIdRules.checkRename(oldOrg.getId(), model.id());
       identityService.checkOrganizationTheme(oldOrg, model, principal);
+
+      // a JVM-wide setting is always read globally, so an organization override of it is never
+      // used. Refuse it, as EM All Properties does (Bug #77694), before anything is written so a
+      // refused save leaves nothing behind (Bug #77885). Only names that would be written are
+      // checked, so a non-site admin's save is never newly refused. getOrganizationModel hides an
+      // already-stored override, so an unchanged save does not post it back.
+      String orgPrefix = PropertiesEngine.getOrgPropertyPrefix(oldOrg.getId());
+
+      for(PropertyModel property : model.properties()) {
+         if((siteAdmin || propertyNames.contains(property.name())) &&
+            PropertiesEngine.isExcludedOrgProperty(orgPrefix + property.name()))
+         {
+            throw new MessageException(
+               Catalog.getCatalog(principal).getString(
+                  "em.properties.orgOverrideNotAllowed", property.name()),
+               LogLevel.INFO, false);
+         }
+      }
 
       OrganizationManager.runInOrgScope(oldOrg.getId(), () -> {
          boolean saveProperties = false;
@@ -2063,20 +2148,64 @@ public class UserTreeService {
 
       // the storage, MV and data cycle migrations resolve the current org, which is not the
       // user's org when a site admin edits a user of another org
-      OrganizationManager.runInOrgScope(oldID.getOrgID(), () -> {
-         if(oldID != null && newID != null) {
-            // Move em favorites to the renamed user
-            favoritesService.moveFavorites(oldID.convertToKey(), newID.convertToKey());
+      try {
+         OrganizationManager.runInOrgScope(oldID.getOrgID(), () -> {
+            if(oldID != null && newID != null) {
+               // Move em favorites to the renamed user
+               favoritesService.moveFavorites(oldID.convertToKey(), newID.convertToKey());
+            }
+
+            storage.migrateStorageData(oldID, newID, Identity.USER);
+            mvManager.migrateUserAssetsMV(oldID, newID);
+            mvManager.updateMVUser(oldID, newID);
+            cycleManager.updateCycleInfoNotify(oldID.getName(), newID.getName(), true);
+            this.dependencyStorageService.migrateStorageData(oldID, newID);
+            recycleBin.renameUser(oldID, newID);
+            return null;
+         });
+      }
+      finally {
+         removeRefusedDashboardViewsheets(oldID, newID);
+      }
+   }
+
+   /**
+    * Removes the viewsheets of the dashboard creates of the old name that were refused while
+    * the user was renamed, once the user's assets are moved, so that the removal doesn't race the
+    * move (Bug #78101, see DashboardManager.addRefusedViewsheet()). A create refused after this
+    * removes its viewsheet itself.
+    */
+   private void removeRefusedDashboardViewsheets(IdentityID oldID, IdentityID newID) {
+      try {
+         // the injected manager, or the Spring bean if the setter wasn't applied: a stale Spring
+         // AOT bean definition of this class (another jar's copy comes first on the classpath)
+         // skips it, and the refused creates' viewsheets were then left under the new name
+         DashboardManager manager = dashboardManager != null ?
+            dashboardManager.getIfAvailable() : DashboardManager.getManager();
+
+         if(manager == null) {
+            LOG.warn("No dashboard manager, the viewsheets of the dashboards refused while " +
+                        "renaming user {} are not removed", oldID);
+            return;
          }
 
-         storage.migrateStorageData(oldID, newID, Identity.USER);
-         mvManager.migrateUserAssetsMV(oldID, newID);
-         mvManager.updateMVUser(oldID, newID);
-         cycleManager.updateCycleInfoNotify(oldID.getName(), newID.getName(), true);
-         this.dependencyStorageService.migrateStorageData(oldID, newID);
-         recycleBin.renameUser(oldID, newID);
-         return null;
-      });
+         // the dashboard lock and the record of the user's org, as the rename and the create use
+         OrganizationManager.runInOrgScope(oldID.getOrgID(), () -> {
+            List<String> refused = new ArrayList<>();
+            manager.runLocked(() -> refused.addAll(manager.takeRefusedViewsheets(oldID)));
+
+            for(String identifier : refused) {
+               manager.removeRefusedViewsheet(AssetEntry.createAssetEntry(identifier), newID,
+                                              ThreadContext.getContextPrincipal());
+            }
+
+            return null;
+         });
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to remove the viewsheets of the dashboards refused while renaming " +
+                     "user {}", oldID, ex);
+      }
    }
 
    private SecurityProvider getSecurityProvider() {
@@ -2191,5 +2320,6 @@ public class UserTreeService {
    private final DependencyStorageService dependencyStorageService;
    private final RecycleBin recycleBin;
    private final Set<String> propertyNames = Set.of("max.row.count", "max.col.count", "max.cell.size", "max.user.count");
+   private ObjectProvider<DashboardManager> dashboardManager;
    private static final Logger LOG = LoggerFactory.getLogger(UserTreeService.class);
 }

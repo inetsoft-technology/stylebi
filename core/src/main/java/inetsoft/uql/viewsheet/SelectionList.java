@@ -34,6 +34,8 @@ import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
 import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.text.Format;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -70,7 +72,15 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
     */
    public synchronized SelectionValue[] getAllSelectionValues() {
       ArrayList<SelectionValue> vals = new ArrayList<>();
-      getAllSelectionValues0(this, vals, new HashSet<>());
+      getList();
+      int[] nested = enterNested();
+
+      try {
+         getAllSelectionValues0(this, vals, new HashSet<>());
+      }
+      finally {
+         nested[0]--;
+      }
 
       return vals.toArray(new SelectionValue[0]);
    }
@@ -159,6 +169,17 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
    }
 
    /**
+    * Correct the years of the values of a selection list read from a persisted asset (e.g. a
+    * viewsheet or bookmark selection state), which may have been written in the Buddhist or
+    * Japanese calendar before #77605. Call it only for a list of date values.
+    */
+   public synchronized void toGregorianPersistentDates() {
+      for(SelectionValue val : list) {
+         val.setValue(Tool.toGregorianPersistentDate(val.getValue()));
+      }
+   }
+
+   /**
     * Get the selection value count.
     * @return the selection value count.
     */
@@ -211,11 +232,17 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
       Comparator<SelectionValue> comp = createComparator(sortType);
       List<SelectionValue> list = getList();
       list.sort(comp);
+      int[] nested = enterNested();
 
-      for(SelectionValue selectionValue : list) {
-         if(selectionValue instanceof CompositeSelectionValue) {
-            ((CompositeSelectionValue) selectionValue).getSelectionList().sort(sortType);
+      try {
+         for(SelectionValue selectionValue : list) {
+            if(selectionValue instanceof CompositeSelectionValue) {
+               ((CompositeSelectionValue) selectionValue).getSelectionList().sort(sortType);
+            }
          }
+      }
+      finally {
+         nested[0]--;
       }
    }
 
@@ -280,19 +307,27 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
     * Merge the selection list into this list.
     */
    public synchronized void mergeSelectionList(SelectionList olist) {
-      for(int i = 0; i < olist.getSelectionValueCount(); i++) {
-         SelectionValue value = olist.getSelectionValue(i);
-         SelectionValue value0 = findValue(value.getValue());
+      getList();
+      int[] nested = enterNested();
 
-         if(value0 == null) {
-            addSelectionValue(value);
+      try {
+         for(int i = 0; i < olist.getSelectionValueCount(); i++) {
+            SelectionValue value = olist.getSelectionValue(i);
+            SelectionValue value0 = findValue(value.getValue());
+
+            if(value0 == null) {
+               addSelectionValue(value);
+            }
+            else if(value0 instanceof CompositeSelectionValue &&
+                    value instanceof CompositeSelectionValue)
+            {
+               ((CompositeSelectionValue) value0).mergeSelectionValue(
+                  (CompositeSelectionValue) value);
+            }
          }
-         else if(value0 instanceof CompositeSelectionValue &&
-                 value instanceof CompositeSelectionValue)
-         {
-            ((CompositeSelectionValue) value0).mergeSelectionValue(
-               (CompositeSelectionValue) value);
-         }
+      }
+      finally {
+         nested[0]--;
       }
    }
 
@@ -330,7 +365,13 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
     * @return the string representaion.
     */
    public String toString() {
-      return "SelectionList[" + getList() + "]";
+      try {
+         return "SelectionList[" + getList() + "]";
+      }
+      catch(SwapFileReadException ex) {
+         // the values could not be read back, the error is reported where they are accessed
+         return "SelectionList[swap file not available: " + ex.getFile() + "]";
+      }
    }
 
    /**
@@ -339,25 +380,106 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
     */
    @Override
    public synchronized Object clone() {
+      return clone0(false);
+   }
+
+   /**
+    * Clone the list like clone(), but copy a list whose values can't be read back from its swap
+    * file in the same unreadable state instead of failing. Reading the values of the copy fails
+    * too, rather than finding an empty list. Used for a state selection, where a missing list
+    * means that nothing is selected (bug #77864).
+    * @return the cloned object.
+    */
+   public synchronized SelectionList cloneKeepingLost() {
+      return (SelectionList) clone0(true);
+   }
+
+   private Object clone0(boolean keepLost) {
       try {
-         getList();
+         try {
+            getList();
+         }
+         catch(SwapFileReadException ex) {
+            if(keepLost) {
+               return copyLost(ex);
+            }
+
+            throw ex;
+         }
+
          SelectionList slist = (SelectionList) super.clone();
          slist.list = new ArrayList<>();
          slist.swapFile = null;
+         int[] nested = enterNested();
 
-         for(int i = 0; i < getSelectionValueCount(); i++) {
-            SelectionValue sv = (SelectionValue) getSelectionValue(i).clone();
-            slist.addSelectionValue(sv);
+         try {
+            for(int i = 0; i < getSelectionValueCount(); i++) {
+               SelectionValue val = getSelectionValue(i);
+               SelectionValue sv = keepLost && val instanceof CompositeSelectionValue ?
+                  ((CompositeSelectionValue) val).cloneKeepingLost() :
+                  (SelectionValue) val.clone();
+               slist.addSelectionValue(sv);
+            }
+         }
+         finally {
+            nested[0]--;
          }
 
          slist.complete();
          return slist;
       }
       catch(Exception ex) {
+         // a clone without the values that could not be read back would silently lose them
+         // (bug #77864)
+         SwapFileReadException swapFailure = SwapFileReadException.find(ex);
+
+         if(swapFailure != null) {
+            throw swapFailure;
+         }
+
          LOG.error("Failed to clone SelectionList", ex);
       }
 
       return null;
+   }
+
+   /**
+    * Copy this list, whose values can't be read back, in the same state. The copy has its own
+    * swap file (a copy of the file if it's still there, e.g. if it's only unreadable for now), so
+    * neither list deletes or overwrites the file of the other.
+    */
+   private SelectionList copyLost(SwapFileReadException ex) {
+      SelectionList slist = (SelectionList) super.clone();
+      slist.list = new ArrayList<>();
+      slist.swapFile = slist.getFile(slist.prefix + "_slist.swap");
+      int[] nested = enterNested();
+
+      try {
+         // the null placeholders of the swapped values and the composite values kept in memory
+         for(SelectionValue val : list) {
+            slist.list.add(val instanceof CompositeSelectionValue ?
+               ((CompositeSelectionValue) val).cloneKeepingLost() :
+               val == null ? null : (SelectionValue) val.clone());
+         }
+      }
+      finally {
+         nested[0]--;
+      }
+
+      if(swapFile != null && swapFile.exists()) {
+         try {
+            Files.copy(swapFile.toPath(), slist.swapFile.toPath(),
+                       StandardCopyOption.REPLACE_EXISTING);
+         }
+         catch(IOException ioex) {
+            LOG.debug("Failed to copy swap file: " + swapFile, ioex);
+         }
+      }
+
+      slist.complete();
+      LOG.warn("Selection list copied without its values, its swap file is lost: " +
+               ex.getFile());
+      return slist;
    }
 
    /**
@@ -687,7 +809,7 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
          for(int i = 0; i < valuesList.getLength(); i++) {
             Element vnode = (Element) valuesList.item(i);
             String cls = Tool.getAttribute(vnode, "class");
-            SelectionValue value = (SelectionValue) Class.forName(cls).newInstance();
+            SelectionValue value = (SelectionValue) Tool.loadSubclass(cls, SelectionValue.class).newInstance();
             value.parseXML(vnode);
             list.add(value);
          }
@@ -724,12 +846,24 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
     * Check if equals another object.
     */
    public boolean equals(Object obj) {
+      if(this == obj) {
+         return true;
+      }
+
       if(!(obj instanceof SelectionList)) {
          return false;
       }
 
       SelectionList slist = (SelectionList) obj;
-      return getList().equals(slist.getList());
+
+      try {
+         return getList().equals(slist.getList());
+      }
+      catch(SwapFileReadException ex) {
+         // a list whose values can't be read back doesn't equal any other list, so a caller
+         // replaces it instead of keeping it (bug #77864)
+         return false;
+      }
    }
 
    /**
@@ -889,11 +1023,29 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
       return true;
    }
 
+   /**
+    * Mark that this thread is accessing the child lists while holding the lock of this list.
+    * The caller must decrement the returned counter when done.
+    */
+   private static int[] enterNested() {
+      int[] nested = NESTED.get();
+      nested[0]++;
+      return nested;
+   }
+
    private List<SelectionValue> getList() {
       ArrayList<SelectionValue> list = this.list;
       lastAccess = getSwapper().cur;
 
       if(!valid) {
+         // wait before reading the list back into memory. this list is not swappable while it
+         // is swapped out, so waiting with its own lock held doesn't block the swapper. don't
+         // wait when another list (e.g. the parent of this list) is locked by this thread,
+         // the swapper may need to swap that list while it is locked.
+         if(NESTED.get()[0] == 0) {
+            getSwapper().waitForMemory();
+         }
+
          synchronized(this) {
             if(!valid) {
                ArrayList<SelectionValue> list2 = new ArrayList<>();
@@ -920,7 +1072,11 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
                   valid = true;
                }
                catch(Exception ex) {
-                  LOG.warn("Restore failed for selection list: " + swapFile, ex);
+                  // don't return the null placeholders as the values. the list stays invalid
+                  // so a later access tries the file again, fail loudly instead of silently
+                  // substituting wrong data (bug #77864)
+                  LOG.error("Restore failed for selection list: " + swapFile, ex);
+                  throw new SwapFileReadException(swapFile, ex);
                }
                finally {
                   XSwapUtil.releaseKryo(kryo);
@@ -954,24 +1110,31 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
     */
    public synchronized SelectionList findAll(String str, boolean not) {
       SelectionList list = new SelectionList();
+      List<SelectionValue> values = getList();
+      int[] nested = enterNested();
 
-      for(SelectionValue value : getList()) {
-         boolean rc = value.match(str, true);
+      try {
+         for(SelectionValue value : values) {
+            boolean rc = value.match(str, true);
 
-         if(not) {
-            rc = !rc && value.isSelected();
-         }
-
-         if(rc) {
-            if(value instanceof CompositeSelectionValue &&
-               // if find the match in a node, show all children
-               !value.match(str, false))
-            {
-               value = ((CompositeSelectionValue) value).findAll(str, not);
+            if(not) {
+               rc = !rc && value.isSelected();
             }
 
-            list.addSelectionValue(value);
+            if(rc) {
+               if(value instanceof CompositeSelectionValue &&
+                  // if find the match in a node, show all children
+                  !value.match(str, false))
+               {
+                  value = ((CompositeSelectionValue) value).findAll(str, not);
+               }
+
+               list.addSelectionValue(value);
+            }
          }
+      }
+      finally {
+         nested[0]--;
       }
 
       return list;
@@ -1191,5 +1354,7 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
    private List<VSCompositeFormat> fmtDict;
    private boolean writeAllValues = true;
 
+   // number of lists whose child lists this thread is accessing while holding their lock
+   private static final ThreadLocal<int[]> NESTED = ThreadLocal.withInitial(() -> new int[1]);
    private static final Logger LOG = LoggerFactory.getLogger(SelectionList.class);
 }

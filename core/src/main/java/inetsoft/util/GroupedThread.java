@@ -76,13 +76,13 @@ public class GroupedThread extends Thread {
       // an empty list. The intended behavior is to record the stack trace when
       // the thread is created, so using the current thread's stack trace is
       // correct anyway
-      this.stackTrace = Thread.currentThread().getStackTrace();
+      setCreatedStackTrace(captureStackTrace());
       this.records = new LinkedHashSet<>();
       this.user = user;
 
       if(Thread.currentThread() instanceof GroupedThread) {
          GroupedThread pthread = (GroupedThread) Thread.currentThread();
-         parentStackTrace = pthread.stackTrace;
+         setParentStackTrace(pthread.stackTrace);
       }
    }
 
@@ -129,13 +129,13 @@ public class GroupedThread extends Thread {
       // an empty list. The intended behavior is to record the stack trace when
       // the thread is created, so using the current thread's stack trace is
       // correct anyway
-      this.stackTrace = Thread.currentThread().getStackTrace();
+      setCreatedStackTrace(captureStackTrace());
       this.records = new LinkedHashSet<>();
       this.user = user;
 
       if(Thread.currentThread() instanceof GroupedThread) {
          GroupedThread pthread = (GroupedThread) Thread.currentThread();
-         parentStackTrace = pthread.stackTrace;
+         setParentStackTrace(pthread.stackTrace);
       }
    }
 
@@ -196,7 +196,7 @@ public class GroupedThread extends Thread {
     * @param stackTrace the stack trace.
     */
    void setCreatedStackTrace(StackTraceElement[] stackTrace) {
-      this.stackTrace = stackTrace;
+      this.stackTrace = capStackTrace(stackTrace);
    }
 
    /**
@@ -216,7 +216,38 @@ public class GroupedThread extends Thread {
     * @param parentStackTrace the stack trace.
     */
    void setParentStackTrace(StackTraceElement[] parentStackTrace) {
-      this.parentStackTrace = parentStackTrace;
+      this.parentStackTrace = capStackTrace(parentStackTrace);
+   }
+
+   /**
+    * Captures the real stack trace frames of the current call site.
+    *
+    * <p>Unlike {@code Thread.currentThread().getStackTrace()}, this is never affected by any
+    * subclass's override of {@link Thread#getStackTrace()} -- notably {@link #getStackTrace()}
+    * itself, which concatenates the real trace of the calling thread with the already-recorded
+    * created/parent traces. Calling {@code Thread.currentThread().getStackTrace()} from a
+    * constructor running on a {@code GroupedThread} (true for every {@code ThreadPool} worker)
+    * dispatches to that override and feeds its already-concatenated result back in as if it
+    * were just this call's own frames, duplicating ancestor history at every level of nested
+    * thread/runnable creation (bug #78236). {@link Throwable#getStackTrace()} always reflects
+    * only the real frames of the thread that created the throwable, regardless of any
+    * {@code Thread} subclass.</p>
+    */
+   private static StackTraceElement[] captureStackTrace() {
+      return new Throwable().getStackTrace();
+   }
+
+   /**
+    * Caps a stack trace to {@link #STACK_TRACE_LENGTH_LIMIT} frames, as a defense-in-depth
+    * backstop in case some other path still produces an excessively large trace (bug #78236).
+    */
+   private static StackTraceElement[] capStackTrace(StackTraceElement[] trace) {
+      if(trace != null && trace.length > STACK_TRACE_LENGTH_LIMIT) {
+         LOG.warn("Excessively large stack trace.", new Exception("stack trace"));
+         trace = Arrays.copyOf(trace, STACK_TRACE_LENGTH_LIMIT);
+      }
+
+      return trace;
    }
 
    /**
@@ -278,8 +309,12 @@ public class GroupedThread extends Thread {
          currentStackTrace = (new Exception()).getStackTrace();
       }
 
-      int len = (parentStackTrace == null ? 0 : parentStackTrace.length) +
-         (stackTrace == null ? 0 : stackTrace.length) +
+      // ThreadPool sets and restores these fields for every task while another
+      // thread may call this method, so read each one only once
+      StackTraceElement[] createdTrace = stackTrace;
+      StackTraceElement[] parentTrace = parentStackTrace;
+      int len = (parentTrace == null ? 0 : parentTrace.length) +
+         (createdTrace == null ? 0 : createdTrace.length) +
          currentStackTrace.length;
       int offset = 0;
 
@@ -289,14 +324,14 @@ public class GroupedThread extends Thread {
          currentStackTrace, 0, result, 0, currentStackTrace.length);
       offset += currentStackTrace.length;
 
-      if(stackTrace != null) {
-         System.arraycopy(stackTrace, 0, result, offset, stackTrace.length);
-         offset += stackTrace.length;
+      if(createdTrace != null) {
+         System.arraycopy(createdTrace, 0, result, offset, createdTrace.length);
+         offset += createdTrace.length;
       }
 
-      if(parentStackTrace != null) {
+      if(parentTrace != null) {
          System.arraycopy(
-            parentStackTrace, 0, result, offset, parentStackTrace.length);
+            parentTrace, 0, result, offset, parentTrace.length);
       }
 
       return result;
@@ -583,6 +618,7 @@ public class GroupedThread extends Thread {
    private static final Map<GroupedThread, Object> liveThreads = new WeakHashMap<>();
    private static boolean shutdown = false;
    private static boolean affinityErrorLogged = false;
+   private static final int STACK_TRACE_LENGTH_LIMIT = (int) 1e5;
 
    private static final Logger LOG = LoggerFactory.getLogger(GroupedThread.class);
 

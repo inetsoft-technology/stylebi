@@ -128,15 +128,56 @@ public class XExpression implements Cloneable, Serializable, XMLSerializable {
 
          return value;
       }
-      else if(quote == QUOTE_DOUBLE) {
-         return '\"' + toString() + '\"';
-      }
-      else if(quote == QUOTE_SINGLE) {
-         return '`' + toString() + '`';
+      else if(quote == QUOTE_DOUBLE || quote == QUOTE_SINGLE) {
+         String q = quote == QUOTE_DOUBLE ? "\"" : "`";
+         String value = toString();
+
+         // a qualified quoted column (t."MixedCase"), only the column segment is quoted
+         if(quotedColumn != null && value.endsWith("." + quotedColumn)) {
+            // escape an embedded quote char by doubling it (#77661)
+            return value.substring(0, value.length() - quotedColumn.length()) + q +
+               quotedColumn.replace(q, q + q) + q;
+         }
+
+         // escape an embedded quote char by doubling it (#77661)
+         return q + value.replace(q, q + q) + q;
       }
       else {
          throw new RuntimeException("Unsupported quote type found: " + quote);
       }
+   }
+
+   /**
+    * Set the column segment, as written, of a qualified quoted identifier (t."MixedCase"),
+    * which is stored without its quotes (t.MixedCase).
+    * @param column the segment, or <tt>null</tt> for a bare quoted identifier.
+    */
+   public void setQuotedColumn(String column) {
+      this.quotedColumn = column;
+   }
+
+   /**
+    * Get the column segment, as written, of a qualified quoted identifier (t."MixedCase").
+    * @return the segment, or <tt>null</tt> for a bare quoted identifier.
+    */
+   public String getQuotedColumn() {
+      return quotedColumn;
+   }
+
+   /**
+    * Check if this is a quoted identifier (e.g. "x y" or t."MixedCase"), which is stored
+    * without its quotes.
+    */
+   public boolean isQuotedField() {
+      return FIELD.equals(type) && quote != QUOTE_NONE;
+   }
+
+   /**
+    * Get the text of this expression to build the text of an enclosing expression. The
+    * quotes of a quoted identifier are restored.
+    */
+   public String toQuotedString() {
+      return isQuotedField() ? getQuotedValue() : toString();
    }
 
    public void setValue(Object value) {
@@ -248,7 +289,7 @@ public class XExpression implements Cloneable, Serializable, XMLSerializable {
       // @by vincentx, 2004-08-17
       // handles backward compatibility of xexpression types
       if(type.equalsIgnoreCase("OTHER")) {
-          String val = Tool.getValue(node);
+          String val = getValue(node);
 
           if(XUtil.parseDate(val) != null) {
              type = VALUE;
@@ -272,9 +313,29 @@ public class XExpression implements Cloneable, Serializable, XMLSerializable {
       else if(type.equals(FIELD)) {
          String nval = Tool.getValue(node);
          value = nval != null ? nval.trim() : nval;
+         String quoteAttr = Tool.getAttribute(node, "quote");
+         String column = Tool.getAttribute(node, "quotedColumn");
+         quotedColumn = null;
+
+         // a qualified quoted identifier, see writeXML
+         if(quoteAttr == null && column != null && !column.isEmpty()) {
+            quoteAttr = Tool.getAttribute(node, "columnQuote");
+            quotedColumn = column;
+         }
+
+         // a missing or malformed value is unquoted
+         if(String.valueOf(QUOTE_DOUBLE).equals(quoteAttr)) {
+            quote = QUOTE_DOUBLE;
+         }
+         else if(String.valueOf(QUOTE_SINGLE).equals(quoteAttr)) {
+            quote = QUOTE_SINGLE;
+         }
+         else {
+            quotedColumn = null;
+         }
       }
       else {
-         String nval = Tool.getValue(node);
+         String nval = getValue(node);
 
          if(nval != null) {
             if(nval.indexOf(",") > 0) {
@@ -288,12 +349,67 @@ public class XExpression implements Cloneable, Serializable, XMLSerializable {
    }
 
    /**
+    * Get the text of a non-field expression element, decoded if writeXML encoded it.
+    */
+   private static String getValue(Element node) {
+      String val = Tool.getValue(node);
+
+      if("true".equals(Tool.getAttribute(node, UniformSQL.XML_ILLEGAL_CHARS_ATTR))) {
+         val = Tool.decodeXMLIllegalChars(val);
+      }
+
+      return val;
+   }
+
+   /**
     * Generate the XML segment to represent this expression.
     */
    @Override
    public void writeXML(PrintWriter writer) {
       writer.print("<" + XML_TAG + " ");
       writer.print("type=\"" + type + "\"");
+
+      if(isQuotedField()) {
+         // a qualified quoted identifier (t."MixedCase") is not written with the quote
+         // attribute, which older versions read as quoting the whole name ("t.MixedCase").
+         // They ignore columnQuote and generate the name unquoted, as before
+         if(quotedColumn != null) {
+            writer.print(" columnQuote=\"" + quote + "\" quotedColumn=\"" +
+               Tool.escape(quotedColumn) + "\"");
+         }
+         else {
+            writer.print(" quote=\"" + quote + "\"");
+         }
+      }
+
+      String exp = null;
+
+      if(!type.equals(SUBQUERY) && value != null) {
+         exp = "";
+
+         if(value instanceof Object[]) {
+            Object[] tmp = (Object[]) value;
+
+            for(int i = 0; i < tmp.length; i++) {
+               exp += (i > 0 ? "," : "") + tmp[i].toString();
+            }
+         }
+         else if(type.equals(FIELD)) {
+            exp = value.toString().trim();
+         }
+         else {
+            exp = value.toString();
+         }
+
+         // a character XML 1.0 can't carry is encoded, and marked so the reader decodes
+         // it. Other text is written as before. A field is a column name, not user text,
+         // and is not encoded (Bug #77795)
+         if(!type.equals(FIELD) && Tool.hasXMLIllegalChars(exp)) {
+            exp = Tool.encodeXMLIllegalChars(exp);
+            writer.print(" " + UniformSQL.XML_ILLEGAL_CHARS_ATTR + "=\"true\"");
+         }
+      }
+
       writer.println(">");
 
       if(type.equals(SUBQUERY)) {
@@ -302,24 +418,8 @@ public class XExpression implements Cloneable, Serializable, XMLSerializable {
       else {
          writer.print("<![CDATA[");
 
-         if(value != null) {
-            String exp = "";
-
-            if(value instanceof Object[]) {
-               Object[] tmp = (Object[]) value;
-
-               for(int i = 0; i < tmp.length; i++) {
-                  exp += (i > 0 ? "," : "") + tmp[i].toString();
-               }
-            }
-            else if(type.equals(FIELD)) {
-               exp = value.toString().trim();
-            }
-            else {
-               exp = value.toString();
-            }
-
-            writer.print(exp);
+         if(exp != null) {
+            writer.print(Tool.splitCDATAEnd(exp));
          }
 
          writer.println("]]>");
@@ -386,6 +486,7 @@ public class XExpression implements Cloneable, Serializable, XMLSerializable {
    }
 
    private int quote = QUOTE_NONE;
+   private String quotedColumn; // column segment of a qualified quoted identifier
    private Object value = "";
    private String type = FIELD;
    private int sqlType = -1;

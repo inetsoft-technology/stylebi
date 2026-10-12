@@ -46,7 +46,7 @@ import static org.junit.jupiter.api.Assertions.*;
                       initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
-@Tag("core")
+@Tag("slow")
 class WsLoopInterruptTest {
    @BeforeEach
    void shortTimeout() throws Exception {

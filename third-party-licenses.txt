@@ -1414,7 +1414,9 @@ interchange format, which can be obtained at:
   * HOMEPAGE:
     * http://code.google.com/p/protobuf/
 
-This product optionally depends on 'org.pojava.datetime', which can be obtained at:
+This product includes a modified copy of 'org.pojava.datetime' 3.0.0 (package
+inetsoft.util.pojava.datetime; its calendar arithmetic is changed to always use the Gregorian
+calendar), which can be obtained at:
 
   * LICENSE:
     * http://www.apache.org/licenses/LICENSE-2.0.txt (Apache License 2.0)

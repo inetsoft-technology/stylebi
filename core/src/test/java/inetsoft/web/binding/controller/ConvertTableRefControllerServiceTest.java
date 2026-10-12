@@ -93,7 +93,7 @@ class ConvertTableRefControllerServiceTest {
       VSAssemblyInfoHandler assemblyInfoHandler = mock(VSAssemblyInfoHandler.class);
       // source unchanged, so the method runs through to the binding-tree refresh
       when(assemblyInfoHandler.handleSourceChanged(any(), anyString(), anyString(), any(), any(),
-                                                   any())).thenReturn(false);
+                                                   any(), any())).thenReturn(false);
 
       VSBindingTreeControllerServiceProxy vsBindingTreeService =
          mock(VSBindingTreeControllerServiceProxy.class);

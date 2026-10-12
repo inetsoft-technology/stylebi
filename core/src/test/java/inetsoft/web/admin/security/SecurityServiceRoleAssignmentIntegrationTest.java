@@ -200,7 +200,10 @@ class SecurityServiceRoleAssignmentIntegrationTest {
    void delegate_putAddingOrgAdminRole_isRefused() throws Exception {
       assertSetIdentityRefused(() -> updateUser(delegate, userBody(List.of(OA), null)));
       assertSetIdentityRefused(() -> updateUser(delegate, userBody(List.of(BOSS_ROLE), null)));
-      assertSetIdentityRefused(() -> updateUser(delegate, userBody(null, List.of(BOSSES.name))));
+      // Bug #77498, the delegate has no permission over a group that grants organization
+      // administrator, even with an explicit ADMIN grant on it, so updateUser() drops the group
+      // from the requested parent groups (filterPermittedIds) before setIdentity() is reached
+      updateUser(delegate, userBody(null, List.of(BOSSES.name)));
       assertEquals(Set.of(), roles(VICTIM), "the victim's roles must be unchanged");
       assertEquals(0, fileProvider.getUser(VICTIM).getGroups().length,
                    "the victim's groups must be unchanged");
@@ -214,10 +217,12 @@ class SecurityServiceRoleAssignmentIntegrationTest {
       updateUser(delegate, userBody(List.of(PLAIN), null));
       assertEquals(Set.of(PLAIN), roles(VICTIM), "a role the delegate may assign is saved");
 
-      // an unchanged re-save keeps a stored role the delegate could not assign
-      setRoles(VICTIM, PLAIN, OA);
-      updateUser(delegate, userBody(List.of(PLAIN, OA), null));
-      assertEquals(Set.of(PLAIN, OA), roles(VICTIM));
+      // an unchanged re-save keeps a stored role the delegate could not assign. Bug #77498, the
+      // role is not an organization administrator role: a user holding one is an organization
+      // administrator, which a delegate has no permission over at all
+      setRoles(VICTIM, PLAIN, OTHER);
+      updateUser(delegate, userBody(List.of(PLAIN, OTHER), null));
+      assertEquals(Set.of(PLAIN, OTHER), roles(VICTIM));
    }
 
    @Test

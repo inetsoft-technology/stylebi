@@ -21,6 +21,7 @@ import { Injectable } from "@angular/core";
 import { ScheduleConditionModel } from "./model/schedule-condition-model";
 import { TimeConditionModel } from "./model/time-condition-model";
 import { TimeZoneModel } from "./model/time-zone-model";
+import { getTimeZoneOffset } from "./time-zone-offset";
 
 @Injectable({
    providedIn: "root"
@@ -78,17 +79,24 @@ export class TimeZoneService {
          // the same task in another time zone, making the time zone option no longer available.
          // These synthetic entries do not accumulate: timeZoneOptions is rebuilt from a fresh
          // server response on each page load.
-         const missingTimeZone = <TimeZoneModel>{
-            timeZoneId: condTimeZoneId,
-            label: condLabel ?? this.getTimeZoneName(condTimeZoneId),
-            hourOffset: this.getUTCOffset(condTimeZoneId),
-            minuteOffset: this.calculateTimezoneOffset(condTimeZoneId) / 60000
-         };
-
-         timeZoneOptions.push(missingTimeZone);
+         timeZoneOptions.push(this.createTimeZoneOption(condTimeZoneId, condLabel));
       }
 
       return timeZoneOptions;
+   }
+
+   /**
+    * Creates the option for a time zone that is missing from the list of choices.
+    * @param timeZoneId the time zone id
+    * @param label the stored label of the time zone, or null to use its name
+    */
+   public createTimeZoneOption(timeZoneId: string, label: string): TimeZoneModel {
+      return <TimeZoneModel>{
+         timeZoneId: timeZoneId,
+         label: label ?? this.getTimeZoneName(timeZoneId),
+         hourOffset: this.getUTCOffset(timeZoneId),
+         minuteOffset: this.calculateTimezoneOffset(timeZoneId) / 60000
+      };
    }
 
    /**
@@ -96,19 +104,7 @@ export class TimeZoneService {
     * @param tzId time zone id
     */
    public calculateTimezoneOffset(tzId: string): number {
-      let offset = 0;
-      let date = new Date();
-
-      if(!!tzId) {
-         const UTC = new Date(date.toLocaleString([], { timeZone: "UTC" }));
-         const selectedTZ = new Date(date.toLocaleString([], { timeZone: tzId }));
-         offset = (selectedTZ.getTime() - UTC.getTime());
-      }
-      else {
-         offset = -new Date().getTimezoneOffset() * 60000;
-      }
-
-      return offset;
+      return getTimeZoneOffset(tzId);
    }
 
    private getUTCOffset(timeZoneId: string): string {

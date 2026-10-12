@@ -30,7 +30,10 @@ import inetsoft.uql.asset.ExpressionValue;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.util.script.ExpressionFailedException;
 import inetsoft.util.script.ScriptSpan;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
+import inetsoft.util.script.graal.pool.SlotClaim;
 import inetsoft.util.script.graal.pool.WorksheetScriptEnv;
 
 import org.graalvm.polyglot.Value;
@@ -64,7 +67,8 @@ public final class RelPipeline {
     * Run one formula over the standard base table (1200 rows, columns id:int, value:double,
     * name:string, day:date, flag:boolean, a null every 17th row) and return one string per
     * cell, "E:"+exception class when a cell/row throws. The configuration is applied before
-    * the sandbox is built and cleared afterwards.
+    * the sandbox is built and cleared afterwards. With {@link RelConfig#queryBuild()} the whole
+    * run is one query build, as AssetQuery.getTableLens opens it.
     */
    public static List<String> run(String formula, Shape shape, RelConfig cfg, ReadPattern read)
       throws Exception
@@ -72,6 +76,12 @@ public final class RelPipeline {
       AssetQuerySandbox box = sandbox(cfg);
 
       try {
+         if(cfg.queryBuild()) {
+            try(SlotClaim.Build ignored = SlotClaim.openBuild()) {
+               return run(formula, shape, box, read);
+            }
+         }
+
          return run(formula, shape, box, read);
       }
       finally {
@@ -86,11 +96,18 @@ public final class RelPipeline {
     * sandboxes under other configurations.
     */
    public static AssetQuerySandbox sandbox(RelConfig cfg) {
+      return sandbox(cfg, new Worksheet());
+   }
+
+   /**
+    * Build a sandbox of a worksheet under a configuration, as {@link #sandbox(RelConfig)}.
+    */
+   public static AssetQuerySandbox sandbox(RelConfig cfg, Worksheet ws) {
       synchronized(CONFIG_LOCK) {
          cfg.apply();
 
          try {
-            AssetQuerySandbox box = new AssetQuerySandbox(new Worksheet());
+            AssetQuerySandbox box = new AssetQuerySandbox(ws);
 
             if(box.isScriptPoolMode() != cfg.pool() ||
                (box.getScriptEnv() instanceof WorksheetScriptEnv) != cfg.pool())
@@ -344,8 +361,14 @@ public final class RelPipeline {
 
    /**
     * Make row {@code r} of {@code table} available. A formula error thrown on the way is
-    * recorded against the failed row of the formula lens (the last row it added) and the
-    * read resumed, as a reader that skips a failed row would.
+    * recorded against every failed row of the formula lens it reports, and the read resumed,
+    * as a reader that skips a failed row would. Since O2 (Testing #77123, #6355) a batch
+    * reports all its failed rows in one exception, thrown once the batch is computed: an
+    * exception that names no failed row, or (formula lens read directly) a batch that ended
+    * at an ordinary script error before row {@code r}, is the old one-batch-per-failing-row
+    * behaviour and fails the test with an AssertionError, which no run records as a result.
+    * Only a timeout or cancel still ends a batch at its error. Any other exception (no
+    * formula failure in its cause chain) fails the run.
     */
    private static void probe(TableLens table, FormulaTableLens lens, int r,
                              Map<Integer, String> errors) throws Exception
@@ -356,15 +379,53 @@ public final class RelPipeline {
             return;
          }
          catch(RuntimeException ex) {
-            int failed = processedRows(lens);
+            int[] failed = failedRows(ex);
 
-            if(attempt > ROWS || errors.containsKey(failed) && attempt > 0) {
-               throw new IllegalStateException("no progress past row " + failed, ex);
+            if(failed == null) {
+               throw ex;
             }
 
-            errors.put(failed, error(ex));
+            if(failed.length == 0) {
+               throw new AssertionError("O2: a formula failure that names no failed row, " +
+                                        "reading row " + r, ex);
+            }
+
+            boolean stop = ScriptTimeoutGuard.isStop(ex) ||
+               Thread.currentThread().isInterrupted();
+
+            if(!stop && table == lens && processedRows(lens) < r) {
+               throw new AssertionError("O2: the batch ended at a script error of row " +
+                  failed[failed.length - 1] + " (computed to row " + processedRows(lens) +
+                  ") before row " + r + ", failed rows " + Arrays.toString(failed), ex);
+            }
+
+            if(attempt > ROWS || errors.containsKey(failed[0]) && attempt > 0) {
+               throw new IllegalStateException("no progress past row " + failed[0], ex);
+            }
+
+            String error = error(ex);
+
+            for(int row : failed) {
+               errors.put(row, error);
+            }
          }
       }
+   }
+
+   /**
+    * The formula lens rows an exception reports as failed, from the expression failure in its
+    * cause chain; the lens rows are the ids of the standard table.
+    *
+    * @return the rows, or {@code null} if no expression failure is in the cause chain.
+    */
+   private static int[] failedRows(Throwable ex) {
+      for(int depth = 0; ex != null && depth < 16; ex = ex.getCause(), depth++) {
+         if(ex instanceof ExpressionFailedException failure) {
+            return failure.getFailedRows();
+         }
+      }
+
+      return null;
    }
 
    private static List<String> condition(String formula, AssetQuerySandbox box,

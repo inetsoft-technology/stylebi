@@ -21,6 +21,7 @@ import inetsoft.util.MessageException;
 import inetsoft.util.log.LogLevel;
 import inetsoft.util.log.LogManager;
 import inetsoft.web.admin.security.SecurityService.PreMutationRefusalException;
+import inetsoft.web.admin.GenericError;
 import inetsoft.web.security.auth.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
@@ -47,12 +48,15 @@ class AdminExceptionHandlerTest {
    }
 
    @Test
-   void unauthorizedCauseMapsTo401() {
+   void unauthorizedCauseMapsToSanitized403() {
       ResponseEntity<Object> response =
-         handler.handlePreMutationRefusal(wrap(new UnauthorizedAccessException("denied")));
+         handler.handlePreMutationRefusal(wrap(new UnauthorizedAccessException("secret detail")));
 
-      assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
-      assertInstanceOf(UnauthorizedAccessError.class, response.getBody());
+      // the same sanitized 403 as the unwrapped exception, never its message (Bug #77375)
+      assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
+      assertInstanceOf(GenericError.class, response.getBody());
+      assertFalse(String.valueOf(((GenericError) response.getBody()).getMessage())
+                     .contains("secret detail"));
    }
 
    @Test

@@ -318,7 +318,7 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
          }
       }
 
-      Calendar cal1 = Calendar.getInstance(getTimeZone());
+      Calendar cal1 = getGregorianInstance(getTimeZone());
 
       if(getInterval() > 1 && lastRun > 0) {
          cal1.setTimeInMillis(lastRun);
@@ -399,7 +399,7 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
          long start = cal1.getTimeInMillis();
 
          if(containsIn(days_of_week,  cal1.get(Calendar.DAY_OF_WEEK))) {
-            Calendar calEnd = Calendar.getInstance(getTimeZone());
+            Calendar calEnd = getGregorianInstance(getTimeZone());
             calEnd.setTime(new Date(curr));
             calEnd.set(Calendar.HOUR_OF_DAY, hour_end);
             calEnd.set(Calendar.MINUTE, minute_end);
@@ -1534,4 +1534,20 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
    private boolean weekdayOnly = false;
    private boolean ajax;
    private TimeRange timeRange;
+
+   /**
+    * Get Calendar.getInstance(tz) in the Gregorian calendar. The default locale may give a
+    * Japanese calendar, whose WEEK_OF_YEAR differs in an era transition year (#77605).
+    */
+   private static Calendar getGregorianInstance(TimeZone tz) {
+      Calendar cal = Calendar.getInstance(tz);
+
+      if(!"gregory".equals(cal.getCalendarType())) {
+         Calendar gcal = new GregorianCalendar(tz);
+         gcal.setTimeInMillis(cal.getTimeInMillis());
+         cal = gcal;
+      }
+
+      return cal;
+   }
 }

@@ -24,6 +24,7 @@ import org.graalvm.polyglot.Value;
 import java.security.Principal;
 import java.time.Instant;
 import java.util.*;
+import java.util.function.Predicate;
 
 /**
  * Converts GraalJS guest values to host (Java) values and vice-versa.
@@ -85,7 +86,34 @@ public final class ScriptValueConverter {
          return WsValueCopier.markForeign(v);
       }
 
+      // a class value gives a script the class's statics and constructors, so it is
+      // handed out only for a class the script could look up by name (Bug #77521)
+      if(value instanceof Class<?> || value instanceof Class<?>[]) {
+         checkClassValue(value);
+      }
+
       return value;
+   }
+
+   private static void checkClassValue(Object value) {
+      Class<?>[] types = value instanceof Class<?>[] array ?
+         array : new Class<?>[] { (Class<?>) value };
+      Predicate<String> filter = null;
+
+      for(Class<?> type : types) {
+         if(type == null) {
+            continue;
+         }
+
+         if(filter == null) {
+            filter = ScriptHostAccess.classFilter();
+         }
+
+         if(!ScriptHostAccess.isClassValueVisible(type, filter)) {
+            throw new SecurityException(
+               "Access to host class " + type.getName() + " is not allowed.");
+         }
+      }
    }
 
    /** Convert a guest Value to its host (Java) representation. */

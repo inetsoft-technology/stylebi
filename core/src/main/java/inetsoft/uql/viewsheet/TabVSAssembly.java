@@ -25,6 +25,9 @@ import org.w3c.dom.Element;
 
 import java.awt.*;
 import java.io.PrintWriter;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 
 /**
  * TabVSAssembly represents one tab assembly contained in a
@@ -111,6 +114,47 @@ public class TabVSAssembly extends AbstractContainerVSAssembly {
       int index = selected == null ? -1 : selected.lastIndexOf(".");
       selected = index == -1 ? selected : selected.substring(index + 1);
       getTabInfo().setSelectedValue(selected);
+   }
+
+   /**
+    * Renumber the tab's children to zIndex + 1, zIndex + 2, ... in their current z order.
+    * Without this, the container z-index that the initing refresh adds to every child is never
+    * taken back out, and it builds up again on every open and save (Bug #77451). The children
+    * are spaced 1 apart instead of using VSUtil.calcChildZIndex, whose container gap would push
+    * a child container above the next top-level object (Bug #72999). Child containers are
+    * renumbered with the tab's z-index, as before.
+    */
+   @Override
+   public void calcChildZIndex(int zIndex) {
+      Viewsheet vs = getViewsheet();
+      String[] arr = getAssemblies();
+
+      if(vs == null || arr == null) {
+         return;
+      }
+
+      List<VSAssembly> children = new ArrayList<>();
+
+      for(String name : arr) {
+         VSAssembly child = name == null ? null : vs.getAssembly(name);
+
+         if(child != null) {
+            children.add(child);
+         }
+      }
+
+      // List.sort is stable, so children with the same z-index keep their tab order
+      children.sort(Comparator.comparingInt(VSAssembly::getZIndex));
+
+      for(int i = 0; i < children.size(); i++) {
+         children.get(i).setZIndex(zIndex + 1 + i);
+      }
+
+      for(VSAssembly child : children) {
+         if(child instanceof ContainerVSAssembly) {
+            ((ContainerVSAssembly) child).calcChildZIndex(zIndex);
+         }
+      }
    }
 
    /**

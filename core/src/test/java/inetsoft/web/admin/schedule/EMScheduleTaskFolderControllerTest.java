@@ -23,15 +23,18 @@ package inetsoft.web.admin.schedule;
  * EMScheduleTaskFolderController has real in-controller logic in three methods:
  *   addFolder     — path construction: prepends parent path unless parent is root or empty
  *   getFolder     — org validity guard before recursive tree build
- *   moveFolder    — per-task permission loop; silently returns without moving on first denial
+ *   moveFolder    — per-task permission loop; throws MessageException without moving on first denial
  *
  * Coverage scope:
  *   [addFolder: nested parent]          non-root path prepended → "Monthly/Q1"
  *   [addFolder: root parent]            "/" or "" parent → folder name used verbatim → "Q1"
  *   [getFolder: invalid org]            org null → InvalidOrgException; service never called
- *   [moveFolder: task permission denied] first task fails → moveScheduleItems never called
+ *   [moveFolder: task permission denied] first task fails → MessageException; moveScheduleItems never called
+ *   [moveFolder: middle task denied]     [allowed, denied, allowed] + folder → MessageException; nothing
+ *                                        moved, the third task never checked
  *   [moveFolder: task permission granted] all tasks pass → moveScheduleItems called
  *   [moveFolder: null task models]       no task models → permission loop skipped → moveScheduleItems called
+ *   [moveFolder: task not movable]       getMovableTask null → task skipped → moveScheduleItems called
  *
  * Static singletons (OrganizationManager, Catalog) are intercepted with
  * Mockito.mockStatic() using lenient() to suppress UnnecessaryStubbingException.
@@ -42,6 +45,7 @@ import inetsoft.sree.schedule.ScheduleTask;
 import inetsoft.sree.security.*;
 import inetsoft.util.Catalog;
 import inetsoft.util.InvalidOrgException;
+import inetsoft.util.MessageException;
 import inetsoft.web.admin.content.repository.ContentRepositoryTreeNode;
 import inetsoft.web.admin.schedule.model.*;
 import org.junit.jupiter.api.*;
@@ -152,24 +156,63 @@ class EMScheduleTaskFolderControllerTest {
    // moveFolder()
    // -------------------------------------------------------------------------
 
-   // [task permission denied] first task fails both checks → moveScheduleItems never called
+   // [task permission denied] first task fails both checks → MessageException; moveScheduleItems never called
    @Test
    void moveFolder_taskPermissionDenied_skipsMove() throws Exception {
       ScheduleTaskModel taskModel = mock(ScheduleTaskModel.class);
-      when(taskModel.name()).thenReturn("myTask");
 
       MoveTaskFolderRequest request = mock(MoveTaskFolderRequest.class);
       when(request.getTasks()).thenReturn(new ScheduleTaskModel[]{ taskModel });
-      // getTarget() not stubbed: controller returns early before reaching it
+      // getTarget() not stubbed: controller throws before reaching it
 
-      when(scheduleManager.getScheduleTask("myTask")).thenReturn(scheduleTask);
+      // Bug #77503, the stored task that the move resolves is checked
+      when(scheduleTaskFolderService.getMovableTask(taskModel)).thenReturn(scheduleTask);
+      when(scheduleTask.getTaskId()).thenReturn("myTask");
+      when(scheduleTask.getName()).thenReturn("myTask");
       when(securityEngine.checkPermission(
          principal, ResourceType.SCHEDULE_TASK, "myTask", ResourceAction.WRITE))
          .thenReturn(false);
       // canDeleteTask not stubbed: default false return satisfies the denial condition
+      when(catalog.getString(eq("common.writeAuthority"), eq("myTask")))
+         .thenReturn("Write access denied: myTask");
 
-      controller.moveFolder(request, principal);
+      // Bug #77813, the refusal is an error the EM shows, not a 200 as if the move had worked
+      MessageException ex = assertThrows(MessageException.class,
+         () -> controller.moveFolder(request, principal));
 
+      assertEquals("Write access denied: myTask", ex.getMessage());
+      verify(scheduleTaskFolderService, never()).moveScheduleItems(any(), any(), any(), any());
+   }
+
+   // [middle task denied] [allowed, denied, allowed] + folder → MessageException; nothing moved,
+   // neither the earlier allowed task nor the folder, and the third task is never checked
+   @Test
+   void moveFolder_middleTaskDenied_movesNothing() throws Exception {
+      ScheduleTaskModel firstModel = mock(ScheduleTaskModel.class);
+      ScheduleTaskModel deniedModel = mock(ScheduleTaskModel.class);
+      ScheduleTaskModel lastModel = mock(ScheduleTaskModel.class);
+      ScheduleTask firstTask = mock(ScheduleTask.class);
+      ScheduleTask deniedTask = mock(ScheduleTask.class);
+
+      MoveTaskFolderRequest request = mock(MoveTaskFolderRequest.class);
+      when(request.getTasks()).thenReturn(new ScheduleTaskModel[]{ firstModel, deniedModel, lastModel });
+      lenient().when(request.getFolders()).thenReturn(new String[]{"Monthly"});
+
+      when(scheduleTaskFolderService.getMovableTask(firstModel)).thenReturn(firstTask);
+      when(scheduleTaskFolderService.getMovableTask(deniedModel)).thenReturn(deniedTask);
+      when(firstTask.getTaskId()).thenReturn("firstTask");
+      when(deniedTask.getTaskId()).thenReturn("deniedTask");
+      when(deniedTask.getName()).thenReturn("deniedTask");
+      when(securityEngine.checkPermission(
+         principal, ResourceType.SCHEDULE_TASK, "firstTask", ResourceAction.WRITE))
+         .thenReturn(true);
+      when(securityEngine.checkPermission(
+         principal, ResourceType.SCHEDULE_TASK, "deniedTask", ResourceAction.WRITE))
+         .thenReturn(false);
+
+      assertThrows(MessageException.class, () -> controller.moveFolder(request, principal));
+
+      verify(scheduleTaskFolderService, never()).getMovableTask(lastModel);
       verify(scheduleTaskFolderService, never()).moveScheduleItems(any(), any(), any(), any());
    }
 
@@ -177,7 +220,6 @@ class EMScheduleTaskFolderControllerTest {
    @Test
    void moveFolder_taskPermissionGranted_movesItems() throws Exception {
       ScheduleTaskModel taskModel = mock(ScheduleTaskModel.class);
-      when(taskModel.name()).thenReturn("myTask");
 
       ContentRepositoryTreeNode target = ContentRepositoryTreeNode.builder()
          .label("Target").path("Target").type(0).build();
@@ -186,13 +228,37 @@ class EMScheduleTaskFolderControllerTest {
       when(request.getFolders()).thenReturn(new String[]{"Monthly"});
       when(request.getTarget()).thenReturn(target);
 
-      when(scheduleManager.getScheduleTask("myTask")).thenReturn(scheduleTask);
+      when(scheduleTaskFolderService.getMovableTask(taskModel)).thenReturn(scheduleTask);
+      when(scheduleTask.getTaskId()).thenReturn("myTask");
       when(securityEngine.checkPermission(
          principal, ResourceType.SCHEDULE_TASK, "myTask", ResourceAction.WRITE))
          .thenReturn(true);
 
       controller.moveFolder(request, principal);
 
+      verify(scheduleTaskFolderService).moveScheduleItems(
+         any(), eq(new String[]{"Monthly"}), argThat(e -> "Target".equals(e.getPath())), eq(principal));
+   }
+
+   // [task not movable] getMovableTask null → the move skips the task too, so it isn't checked
+   // and the folders of the request are still moved
+   @Test
+   void moveFolder_taskNotMovable_skipsCheckAndMovesFolders() throws Exception {
+      ScheduleTaskModel taskModel = mock(ScheduleTaskModel.class);
+
+      ContentRepositoryTreeNode target = ContentRepositoryTreeNode.builder()
+         .label("Target").path("Target").type(0).build();
+      MoveTaskFolderRequest request = mock(MoveTaskFolderRequest.class);
+      when(request.getTasks()).thenReturn(new ScheduleTaskModel[]{ taskModel });
+      when(request.getFolders()).thenReturn(new String[]{"Monthly"});
+      when(request.getTarget()).thenReturn(target);
+
+      when(scheduleTaskFolderService.getMovableTask(taskModel)).thenReturn(null);
+
+      controller.moveFolder(request, principal);
+
+      verify(securityEngine, never()).checkPermission(
+         any(), eq(ResourceType.SCHEDULE_TASK), anyString(), any(ResourceAction.class));
       verify(scheduleTaskFolderService).moveScheduleItems(
          any(), eq(new String[]{"Monthly"}), argThat(e -> "Target".equals(e.getPath())), eq(principal));
    }

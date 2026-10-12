@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.schedule;
 
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
@@ -28,13 +29,16 @@ import org.w3c.dom.Element;
 
 import java.security.Principal;
 import java.util.*;
+import java.util.function.BiPredicate;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 /**
  * Decides which owner and execute-as identity a caller may store in a schedule task. A task
- * whose owner doesn't exist runs with the roles of a site admin of the same name in another
- * organization (SUtil.getScheduleTaskOwnerPrincipal, Bug #73978), so every path that stores
+ * whose owner doesn't exist and has the name of a site admin in another organization runs with
+ * elevated roles (SUtil.getScheduleTaskOwnerPrincipal, Epic 70095): the organization
+ * administrator roles of its organization since Bug #77452, the site admin's roles before
+ * that. So every path that stores
  * an owner or execute-as identity sent by the client (the task editor, the schedule task
  * import, the deploy import and the public schedule API) uses this check. A site admin, or any
  * caller when security is disabled, may store any identity. Any other caller may only store:
@@ -42,7 +46,9 @@ import java.util.function.Supplier;
  *    <li>an owner that is the caller, or an existing user of the caller's current
  *    organization the caller has SECURITY_USER ADMIN on. The system and anonymous users are
  *    refused. A user that doesn't exist is refused even though the ADMIN check allows it
- *    (Bug #66393, an SSO user that isn't in the provider);</li>
+ *    (Bug #66393, an SSO user that isn't in the provider). The caller itself is refused when
+ *    it doesn't exist and has the name of a site admin of another organization (Bug #77309,
+ *    {@link #isNewTaskOwnerAllowed});</li>
  *    <li>an execute-as user or group the task editor offers the caller
  *    (ScheduleTaskService.getExecuteAsUsers/getExecuteAsGroups): the caller, the owner, or an
  *    existing user or group of the current organization the caller administers. A role is
@@ -94,8 +100,24 @@ public class ScheduleTaskIdentityChecker {
       return owner != null && owner.getOrgID() != null && owner.getOrgID().equals(orgID) &&
          !XPrincipal.SYSTEM.equals(owner.getName()) &&
          !XPrincipal.ANONYMOUS.equals(owner.getName()) &&
-         (owner.equals(caller) ||
+         (owner.equals(caller) && !runsAsSiteAdmin(owner) ||
             getProvider().getUser(owner) != null && isAdmin(principal, owner));
+   }
+
+   /**
+    * Bug #77309, determines if the caller may create a task owned by a user. A task whose owner
+    * doesn't exist and has the name of a site admin in another organization runs with elevated
+    * roles, the org admin roles of its organization since Bug #77452
+    * (SUtil.getScheduleTaskOwnerPrincipal), so only a site admin, or any caller when security is
+    * disabled, may create a task with such an owner (a site admin creating a task in an
+    * organization without an admin, SUtil.getOwnerForNewTask). Any other caller is refused, e.g.
+    * an SSO user that isn't in the provider and has the name of a site admin.
+    *
+    * @param owner     the owner of the new task.
+    * @param principal the caller.
+    */
+   public boolean isNewTaskOwnerAllowed(IdentityID owner, Principal principal) {
+      return isUnrestricted(principal) || !runsAsSiteAdmin(owner);
    }
 
    /**
@@ -152,8 +174,9 @@ public class ScheduleTaskIdentityChecker {
 
    /**
     * Determines if a task runs as its owner with an execute-as identity. A task with no
-    * execute-as identity runs as its owner (SUtil.getScheduleTaskOwnerPrincipal), with the roles
-    * of a site admin of the same name when the owner doesn't exist (Bug #73978).
+    * execute-as identity runs as its owner (SUtil.getScheduleTaskOwnerPrincipal), with elevated
+    * roles when the owner doesn't exist and has the name of a site admin (Epic 70095; the org
+    * admin roles of its organization since Bug #77452).
     *
     * @param identity the execute-as identity, may be null.
     * @param owner    the owner of the task.
@@ -198,6 +221,74 @@ public class ScheduleTaskIdentityChecker {
 
       // isOwnerAllowed allows any owner for a site admin or when security is disabled
       return isOwnerAllowed(newOwner, principal);
+   }
+
+   /**
+    * Bug #77405, determines if a task with an owner and execute-as identity runs with the
+    * elevated roles given to an owner that doesn't exist and has the name of a site admin in
+    * another organization, the same check as the run path (SUtil.getScheduleTaskOwnerPrincipal
+    * is used when the task has no execute-as identity). Since Bug #77452 those are the
+    * organization administrator roles of the owner's organization, not the site admin's roles,
+    * but the check is kept so that a caller can't gain them by changing the task.
+    *
+    * @param owner    the owner of the task.
+    * @param identity the execute-as identity of the task, may be null.
+    */
+   public boolean runsWithSiteAdminRoles(IdentityID owner, Identity identity) {
+      return securityEnabled.getAsBoolean() && identity == null && runsAsSiteAdmin(owner);
+   }
+
+   /**
+    * Bug #77405, determines if the caller may add or change the actions or conditions of a
+    * task that is stored with an owner and execute-as identity. The actions of a task that runs
+    * with elevated roles ({@link #runsWithSiteAdminRoles}) run with those roles, so
+    * only a site admin, or any caller when security is disabled, may add or change them. Any
+    * other caller may still rename the task, change its other options and remove its actions
+    * and conditions, or add and change them in a save that gives the task an execute-as
+    * identity or an owner that exists, so it no longer runs with the elevated roles.
+    *
+    * @param owner     the owner the task is stored with.
+    * @param identity  the execute-as identity the task is stored with, may be null.
+    * @param principal the caller.
+    */
+   public boolean isContentChangeAllowed(IdentityID owner, Identity identity,
+                                         Principal principal)
+   {
+      return isUnrestricted(principal) || !runsWithSiteAdminRoles(owner, identity);
+   }
+
+   /**
+    * Bug #77405, determines if a save only keeps or removes items of a task, comparing each
+    * saved item with the stored items. Each stored item may match one saved item, the order is
+    * not compared.
+    *
+    * @param stored the stored items.
+    * @param saved  the items that are saved.
+    * @param same   determines if a saved item is the same as a stored item.
+    */
+   public static <T> boolean isKeptOrRemoved(List<T> stored, List<T> saved,
+                                             BiPredicate<T, T> same)
+   {
+      List<T> remaining = new ArrayList<>(stored);
+
+      for(T item : saved) {
+         Iterator<T> iterator = remaining.iterator();
+         boolean found = false;
+
+         while(iterator.hasNext()) {
+            if(same.test(iterator.next(), item)) {
+               iterator.remove();
+               found = true;
+               break;
+            }
+         }
+
+         if(!found) {
+            return false;
+         }
+      }
+
+      return true;
    }
 
    private static boolean isSameIdentity(Identity identity1, Identity identity2) {
@@ -347,6 +438,14 @@ public class ScheduleTaskIdentityChecker {
       }
 
       return names;
+   }
+
+   /**
+    * Determines if a task owned by a user runs with the elevated roles given because of a site
+    * admin of the same name (the org admin roles of its organization since Bug #77452).
+    */
+   private boolean runsAsSiteAdmin(IdentityID owner) {
+      return SUtil.getSameNameSiteAdmin(getProvider(), owner) != null;
    }
 
    private boolean isAdmin(Principal principal, IdentityID user) {

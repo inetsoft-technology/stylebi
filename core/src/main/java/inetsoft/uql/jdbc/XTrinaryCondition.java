@@ -179,6 +179,13 @@ public class XTrinaryCondition extends XFilterNode {
       if(nlist != null && nlist.getLength() == 1) {
          this.setOp(Tool.getValue(((Element) nlist.item(0))));
       }
+
+      // refuse a condition with a missing part, see XBinaryCondition.parseXML() (#77586)
+      XBinaryCondition.checkPresent(XML_TAG, expression1, "expression1");
+      XBinaryCondition.checkPresent(XML_TAG, expression2, "expression2");
+      XBinaryCondition.checkPresent(XML_TAG, expression3, "expression3");
+      XBinaryCondition.checkPresent(
+         XML_TAG, nlist != null && nlist.getLength() == 1 ? "" : null, "op");
    }
 
    /**
@@ -286,9 +293,20 @@ public class XTrinaryCondition extends XFilterNode {
       try {
          XTrinaryCondition node = (XTrinaryCondition) super.clone();
 
-         node.expression1 = (XExpression) expression1.clone();
-         node.expression2 = (XExpression) expression2.clone();
-         node.expression3 = (XExpression) expression3.clone();
+         // a null expression must not make the clone fail, a null clone drops the whole
+         // condition tree it is in (XNode.clone)
+         if(expression1 != null) {
+            node.expression1 = (XExpression) expression1.clone();
+         }
+
+         if(expression2 != null) {
+            node.expression2 = (XExpression) expression2.clone();
+         }
+
+         if(expression3 != null) {
+            node.expression3 = (XExpression) expression3.clone();
+         }
+
          return node;
       }
       catch(Exception e) {

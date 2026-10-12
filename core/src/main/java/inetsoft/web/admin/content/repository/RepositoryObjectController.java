@@ -130,8 +130,22 @@ public class RepositoryObjectController {
    public ConnectionStatus deleteRepositoryEntry(@RequestBody DeleteTreeNodesRequest deleteRequest,
                                                  Principal principal) throws MessageException
    {
-      return repositoryObjectService.deleteNodes(
+      // the user messages are thread-local, drop anything left by an earlier request on this
+      // pooled thread so that only the messages of this delete are returned
+      Tool.clearUserMessage();
+      ConnectionStatus status = repositoryObjectService.deleteNodes(
          deleteRequest.nodes(), principal, deleteRequest.force(), deleteRequest.permanent());
+
+      // Bug #77939, the delete is done, report what it could not finish, e.g. a permission it
+      // may not have removed. The prefix tells the client to show it, any other status asks to
+      // confirm the delete and sends it again
+      UserMessage userMessage = Tool.getUserMessage();
+
+      if(status == null && userMessage != null && userMessage.getMessage() != null) {
+         return new ConnectionStatus("warning:" + userMessage.getMessage());
+      }
+
+      return status;
    }
 
    /**

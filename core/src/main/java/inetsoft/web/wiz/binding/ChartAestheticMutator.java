@@ -532,8 +532,8 @@ public final class ChartAestheticMutator {
     * {@code GraphUtil.fixDuplicateColor} hands a fresh measure.
     */
    private static String defaultPaletteColor(int position) {
-      Color[] palette = CategoricalColorFrame.COLOR_PALETTE;
-      Color color = palette[Math.max(position, 0) % palette.length];
+      List<Color> palette = CategoricalColorFrame.COLOR_PALETTE;
+      Color color = palette.get(Math.max(position, 0) % palette.size());
       return "#" + String.format("%06X", color.getRGB() & 0xFFFFFF);
    }
 

@@ -27,7 +27,9 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
+import inetsoft.util.CancelledException;
 import inetsoft.web.binding.service.VSBindingService;
+import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.event.table.SortColumnEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
@@ -36,6 +38,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -106,6 +109,62 @@ class BaseTableSortColumnServiceTest {
       assertNotEquals(sortInfo, assembly.getSortInfo());
       // should only have one sort ref
       assertEquals(1, assembly.getSortInfo().getSortCount());
+   }
+
+   // Bug #78024: a query cancelled while the sort reloads the table (e.g. by a newer change of
+   // the viewsheet) is not a sort failure, so no "Failed to process sort filter" error is shown
+   @Test
+   void cancelledQueryIsNotReportedAsSortFailure() throws Exception {
+      SortColumnEvent event = mockSortableTable();
+      CancelledException cancel = new CancelledException("Query cancelled");
+      doThrow(cancel).when(coreLifecycleService)
+         .loadTableLens(any(), any(), any(), any(CommandDispatcher.class));
+      doThrow(cancel).when(coreLifecycleService)
+         .execute(any(), any(), any(), anyInt(), any(CommandDispatcher.class));
+
+      service.eventHandler(runtimeViewsheetRef.getRuntimeId(), event, principal, commandDispatcher, "");
+
+      verify(commandDispatcher, never()).sendCommand(any(MessageCommand.class));
+      verify(box).unlockRead();
+   }
+
+   // the control: any other failure still shows the sort error
+   @Test
+   void otherFailureIsReportedAsSortFailure() throws Exception {
+      SortColumnEvent event = mockSortableTable();
+      IllegalStateException failure = new IllegalStateException("boom");
+      doThrow(failure).when(coreLifecycleService)
+         .loadTableLens(any(), any(), any(), any(CommandDispatcher.class));
+      doThrow(failure).when(coreLifecycleService)
+         .execute(any(), any(), any(), anyInt(), any(CommandDispatcher.class));
+
+      service.eventHandler(runtimeViewsheetRef.getRuntimeId(), event, principal, commandDispatcher, "");
+
+      ArgumentCaptor<MessageCommand> command = ArgumentCaptor.forClass(MessageCommand.class);
+      verify(commandDispatcher).sendCommand(command.capture());
+      assertEquals("Failed to process sort filter", command.getValue().getMessage());
+      assertEquals(MessageCommand.Type.ERROR, command.getValue().getType());
+   }
+
+   private SortColumnEvent mockSortableTable() throws Exception {
+      when(viewsheetService.getViewsheet(any(), nullable(Principal.class))).thenReturn(rvs);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
+      TableVSAssembly assembly = spy(new TableVSAssembly());
+      when(viewsheet.getAssembly(anyString())).thenReturn(assembly);
+      when(viewsheet.getRuntimeEntry()).thenReturn(new AssetEntry());
+      TableVSAssemblyInfo info = (TableVSAssemblyInfo) assembly.getInfo();
+      ColumnSelection columnSelection = new ColumnSelection();
+      DimensionRef dimensionRef = new DimensionRef();
+      dimensionRef.setCube("foo1");
+      columnSelection.addAttribute(new ColumnRef(new ColumnRef(dimensionRef)));
+      info.setColumnSelection(columnSelection);
+
+      SortColumnEvent event = mock(SortColumnEvent.class);
+      when(event.getCol()).thenReturn(0);
+      when(event.getAssemblyName()).thenReturn("");
+      when(event.multi()).thenReturn(false);
+      return event;
    }
 
    @Mock RuntimeViewsheetRef runtimeViewsheetRef;

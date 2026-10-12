@@ -27,6 +27,7 @@ import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.objects.controller.GroupingService;
 import inetsoft.web.composer.vs.objects.controller.VSTableService;
 import inetsoft.web.composer.vs.objects.event.LockVSObjectEvent;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
@@ -56,7 +57,8 @@ class LayoutOptionDialogServiceTest {
    @BeforeEach
    void setup() throws Exception {
       service = new LayoutOptionDialogService(groupingService, vsObjectTreeService,
-                                              engine, vsTableService, coreLifecycleService);
+                                              engine, vsTableService, coreLifecycleService,
+                                              mock(QueryManagerService.class));
    }
 
    @Test

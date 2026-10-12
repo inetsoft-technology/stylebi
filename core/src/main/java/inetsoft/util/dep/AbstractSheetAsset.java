@@ -377,14 +377,8 @@ public abstract class AbstractSheetAsset extends AbstractXAsset {
    protected synchronized void writeContent0(AbstractSheet sheet0,
       PrintWriter writer) throws Exception
    {
-      Assembly[] assemblies = sheet0.getAssemblies();
-
-      if(assemblies != null) {
-         Arrays.stream(assemblies)
-            .filter(assembly -> assembly instanceof SnapshotEmbeddedTableAssembly)
-            .forEach(assembly -> ((SnapshotEmbeddedTableAssembly) assembly).setShouldDeleteOldFiles(false));
-      }
-
+      // a snapshot table never deletes its stored data files on a write outside a worksheet
+      // save, so the export does not change the original data files (bug #78012)
       sheet0.writeXML(writer);
    }
 

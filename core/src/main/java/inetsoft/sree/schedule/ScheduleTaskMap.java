@@ -185,6 +185,11 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
             "Failed to store schedule task: " + key, e);
       }
       finally {
+         // Bug #78027, the cached task is validated by the millisecond last-modified time only,
+         // which doesn't change when the new task is written in the same millisecond as the old
+         // one, so don't keep the old task cached. Also evicted after a failed write, since the
+         // task may or may not have been written.
+         cache.remove(key);
          indexedStorage.close();
       }
 

@@ -21,7 +21,11 @@ import inetsoft.report.*;
 import inetsoft.report.filter.*;
 import inetsoft.report.internal.table.CancellableTableLens;
 import inetsoft.util.Tool;
+import inetsoft.util.script.JavaScriptEngine;
+import inetsoft.util.script.LendableReentrantLock;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.stall.LockStallException;
+import inetsoft.util.swap.SwapFileReadException;
 import inetsoft.util.swap.XSwappableIntList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -224,14 +228,17 @@ public class RankingTableLens extends AbstractTableLens
     * perform filtering calculation to validate itself.
     */
    @Override
-   public synchronized void invalidate() {
-      if(rows != null) {
-         rows.dispose();
+   public void invalidate() {
+      synchronized(this) {
+         // don't dispose the rows, a lock-free reader may still hold them (bug #77397)
          rows = null;
+         hrows = table.getHeaderRowCount();
+         completed = false;
       }
 
-      hrows = table.getHeaderRowCount();
-      completed = false;
+      // fire after releasing the monitor: a downstream lens's invalidate() takes its own
+      // monitor, which a reader of that lens may hold while it waits for this monitor to read
+      // the next row (bug #77432)
       fireChangeEvent();
    }
 
@@ -294,11 +301,55 @@ public class RankingTableLens extends AbstractTableLens
    }
 
    /**
-    * Validate the ranking table lens.
+    * Get the ranked rows, ranking the table first if needed. Every read of data rows gets them
+    * here. Ranking reads the whole base under this lens's monitor, so it takes the engine lock
+    * the base needs before the monitor, like a condition filter (bug #76918): a thread holding
+    * that lock may be waiting for the monitor to read this lens, it would wait forever for a
+    * reader holding the monitor between two base rows (bug #77874).
     */
-   private synchronized void validate() {
+   private XSwappableIntList rows() {
+      XSwappableIntList rows = this.rows;
+
       if(rows != null) {
-         return;
+         return rows;
+      }
+
+      LendableReentrantLock execLock = getUnheldChainScriptLock();
+
+      if(execLock == null) {
+         return validate();
+      }
+
+      execLock.lock();
+      JavaScriptEngine.pushHeldScriptLock(execLock);
+
+      try {
+         return validate();
+      }
+      finally {
+         JavaScriptEngine.popHeldScriptLock();
+         execLock.unlock();
+      }
+   }
+
+   /**
+    * Get the engine lock reading the base may take if the current thread does not hold it
+    * (bug #77874).
+    */
+   private LendableReentrantLock getUnheldChainScriptLock() {
+      LendableReentrantLock execLock = ChainScriptLock.find(table);
+      return execLock != null && !execLock.isHeldByCurrentThread() ? execLock : null;
+   }
+
+   /**
+    * Validate the ranking table lens. Called by {@link #rows()}, or by a row count that takes
+    * no engine lock.
+    */
+   private synchronized XSwappableIntList validate() {
+      XSwappableIntList rows = this.rows;
+
+      if(rows != null) {
+         return rows;
       }
 
       List<Integer> list = new ArrayList<>();
@@ -336,10 +387,23 @@ public class RankingTableLens extends AbstractTableLens
             throw stall;
          }
 
+         // nor is a lost swap file of the base, the fragment already logged the read failure
+         // (bug #77651)
+         SwapFileReadException swapFailure = SwapFileReadException.find(ex);
+
+         if(swapFailure != null) {
+            throw swapFailure;
+         }
+
+         // nor is a stopped script of the base, a stopped cell has no value to rank on: the
+         // rows stay unset and every read fails with the stop (bug #78134)
+         ScriptTimeoutGuard.rethrowStop(ex);
+
          LOG.error("Failed to sort list", ex);
       }
 
-      // use swappable int list to save memory
+      // use swappable int list to save memory. build it locally and publish it only once
+      // filled, the readers read it without the monitor (bug #77397)
       rows = new XSwappableIntList();
 
       for(int i = 0; i < size; i++) {
@@ -347,10 +411,12 @@ public class RankingTableLens extends AbstractTableLens
       }
 
       rows.complete();
+      this.rows = rows;
       completed = true;
 
       // notify waiting consumers
       notifyAll();
+      return rows;
    }
 
    /**
@@ -365,11 +431,15 @@ public class RankingTableLens extends AbstractTableLens
     */
    @Override
    public boolean moreRows(int row) {
+      int hrows = this.hrows;
+
       if(row < hrows) {
          return true;
       }
 
-      validate();
+      // read the rows rows() returns, invalidate() may clear the field any time
+      // (bug #77397)
+      XSwappableIntList rows = rows();
 
       return rows != null && row - hrows < rows.size();
    }
@@ -382,9 +452,20 @@ public class RankingTableLens extends AbstractTableLens
     */
    @Override
    public int getRowCount() {
-      validate();
+      XSwappableIntList rows = this.rows;
 
-      return completed ? rows.size() + hrows : -rows.size() - hrows - 1;
+      // a row count probe (e.g. AssetQuery.validateDataTypes) ranks nothing if the base needs
+      // an engine lock this thread doesn't hold: it must not take the lock, it may be building
+      // a table inside that table's monitor (bug #77223). -1 is "loading", the first read of
+      // rows ranks them (bug #77874)
+      if(rows == null && getUnheldChainScriptLock() != null) {
+         return -1;
+      }
+
+      // the published rows are always complete (bug #77397)
+      rows = rows != null ? rows : validate();
+
+      return rows.size() + hrows;
    }
 
    /**
@@ -787,12 +868,18 @@ public class RankingTableLens extends AbstractTableLens
          return r;
       }
 
-      if(!moreRows(r)) {
-         return -1;
-      }
+      // read the header count and the rows once, invalidate() may reset both any time
+      // (bug #77397)
+      int hrows = this.hrows;
 
       if(r < hrows) {
          return r;
+      }
+
+      XSwappableIntList rows = rows();
+
+      if(rows == null || r - hrows >= rows.size()) {
+         return -1;
       }
 
       return rows.get(r - hrows);
@@ -886,8 +973,8 @@ public class RankingTableLens extends AbstractTableLens
    private boolean top;           // ranking top flag
    private boolean kept;          // keep equal flag
    private TableLens table;       // the base table
-   private int hrows;             // header row count
-   private XSwappableIntList rows;// rows
+   private volatile int hrows;             // header row count
+   private volatile XSwappableIntList rows;// rows
    private boolean completed;     // completed flag
    private volatile boolean cancelled;     // cancelled flag
    private Lock cancelLock = new ReentrantLock();

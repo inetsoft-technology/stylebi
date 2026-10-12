@@ -19,10 +19,12 @@ package inetsoft.report.lens;
 
 import inetsoft.mv.data.BitSet;
 import inetsoft.report.TableLens;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.util.GroupedThread;
 import inetsoft.util.ThreadContext;
 import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.stall.LockStallException;
+import inetsoft.util.swap.SwapFileReadException;
 import it.unimi.dsi.fastutil.objects.*;
 import org.roaringbitmap.IntIterator;
 import org.slf4j.Logger;
@@ -400,6 +402,25 @@ class HashJoinTable extends JoinTable {
             LockStallException stall = LockStallException.find(ex);
 
             if(stall == null) {
+               // nor a lost swap file of a base, recorded before the join completes
+               // (bug #77651)
+               SwapFileReadException swapFailure = SwapFileReadException.find(ex);
+
+               if(swapFailure != null) {
+                  joinTable.setSwapFailure(swapFailure);
+               }
+               else {
+                  // nor a base that failed to load, for a reader that has to fail, e.g. a
+                  // scheduled run (bug #77966)
+                  TableLoadException loadFailure = TableLoadException.find(ex);
+
+                  if(loadFailure != null) {
+                     joinTable.setLoadFailure(loadFailure);
+                     // the readers rethrow it, it was logged where it happened
+                     return;
+                  }
+               }
+
                throw ex;
             }
 
@@ -410,6 +431,13 @@ class HashJoinTable extends JoinTable {
             }
          }
          finally {
+            // the user messages of this thread, e.g. the warning of a base that failed to load,
+            // are kept for the readers before the join completes (bug #77966). a scan on the
+            // constructing thread leaves them to that thread
+            if(Thread.currentThread() == this) {
+               joinTable.keepWorkerMessages();
+            }
+
             synchronized(map) {
                if(scanLeft) {
                   if(map.isRightComplete()) {

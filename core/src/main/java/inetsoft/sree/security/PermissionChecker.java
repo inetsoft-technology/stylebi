@@ -274,7 +274,16 @@ public class PermissionChecker {
          return true;
       }
 
-      return identities == null || identities.isEmpty();
+      if(identities != null && !identities.isEmpty()) {
+         return false;
+      }
+
+      // a global role grant read back from JSON before Bug #77965 was fixed has the organization
+      // "null" until FileAuthorizationProvider repairs it. It matches no role, but it still
+      // restricts an AND condition, so a grant the repair had to keep doesn't fail open
+      return type != Identity.ROLE || "null".equals(orgId) ||
+         permission.getAllRoleGrants(action).stream()
+            .noneMatch(grant -> "null".equals(grant.getOrganizationID()));
    }
 
    private String getIdentityIdentifier(int type, String identityName, String orgId) {

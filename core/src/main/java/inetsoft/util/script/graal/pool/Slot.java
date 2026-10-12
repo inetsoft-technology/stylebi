@@ -52,6 +52,10 @@ final class Slot {
     * as on the plain engine. Any other throw during init (only a JVM error or a broken Context
     * in practice) fails the creation on purpose: the engine is closed, no slot is counted and
     * the throw reaches the caller, so a half-initialised context is never pooled.
+    * <p>
+    * A caller's cancel is kept (Testing #77123): the interrupt flag set before the creation is
+    * cleared while it runs, so Graal does not stop the creation on it, and set again after; a
+    * cancel that lands during the creation fails it and is re-asserted.
     *
     * @return the new slot, locked by the calling thread.
     */
@@ -59,6 +63,7 @@ final class Slot {
                       Map<Object, Integer> errorCounts, PoolMetrics metrics) throws Exception
    {
       WsEngine engine = new WsEngine(snapshot, errorCounts);
+      boolean cancelled = Thread.interrupted();
 
       try {
          engine.setSQL(sql);
@@ -76,7 +81,13 @@ final class Slot {
       }
       catch(Throwable ex) {
          closeQuietly(engine);
+         ScriptTimeoutGuard.keepCancel(ex, null);
          throw ex;
+      }
+      finally {
+         if(cancelled) {
+            Thread.currentThread().interrupt();
+         }
       }
    }
 
@@ -180,8 +191,31 @@ final class Slot {
 
    /**
     * Bring the context back to its baseline (spec §4.4). Owner only.
+    * <p>
+    * A caller's cancel is kept (Testing #77123): a cancel that landed during the batch after
+    * its last guest safepoint would otherwise stop the clean's JS, which clears the flag. The
+    * flag is cleared while the clean runs and set again after. A cancel that lands during the
+    * clean is re-asserted only if it surfaces outside a JS {@code try}: the clean then fails
+    * with it, and {@link ScriptTimeoutGuard#keepCancel} sets the flag again (unless the
+    * clean's own timeout interrupted it). One that surfaces inside a per-key {@code catch} of
+    * the clean script is swallowed there, after Graal cleared the flag: the clean reports
+    * {@code failed}, so {@link SlotPool#release} discards the slot, and the thread's flag
+    * stays clear. The query still stops at its own cancel flag.
     */
    CleanHelper.Result clean() {
+      boolean cancelled = Thread.interrupted();
+
+      try {
+         return clean0();
+      }
+      finally {
+         if(cancelled) {
+            Thread.currentThread().interrupt();
+         }
+      }
+   }
+
+   private CleanHelper.Result clean0() {
       metrics.cleaned();
       ScriptTimeoutGuard.Guard guard;
       CleanHelper.Result result;
@@ -204,6 +238,7 @@ final class Slot {
          }
       }
       catch(RuntimeException ex) {
+         ScriptTimeoutGuard.keepCancel(ex, guard);
          LOG.debug("Failed to clean a worksheet script context", ex);
          return CleanHelper.Result.FAILED;
       }
@@ -239,6 +274,29 @@ final class Slot {
 
    boolean isClosed() {
       return closed;
+   }
+
+   /**
+    * A pool thread is about to take this slot without a claim and without the locks of all
+    * its tenants (a take-over, the expiry, a retire): a tenant's batch that misses its home
+    * meanwhile waits a moment for it in its pull instead of losing its objects (Testing
+    * #77123, finding G1). Begun BEFORE the slot's tryLock, so a puller whose tryLock failed on
+    * the prober's hold sees it; ended once the prober holds every tenant's lock (no tenant's
+    * batch runs then) or gave the slot back. A count: probes of several threads may overlap.
+    */
+   void beginProbe() {
+      probes.incrementAndGet();
+   }
+
+   void endProbe() {
+      probes.decrementAndGet();
+   }
+
+   /**
+    * @return whether a pool thread probes this slot now, see {@link #beginProbe}.
+    */
+   boolean isProbed() {
+      return probes.get() > 0;
    }
 
    long epoch() {
@@ -387,6 +445,9 @@ final class Slot {
    private Cleaner.Cleanable nodeCount; // set at creation, before the slot is shared
    private long version; // owner only
    private int maxDeletes = PoolConfig.MAX_FOREIGN_DELETES; // owner only
+   // the pool threads probing this slot, see beginProbe
+   private final java.util.concurrent.atomic.AtomicInteger probes =
+      new java.util.concurrent.atomic.AtomicInteger();
    private volatile boolean doomed;
    private volatile boolean interruptLost;
    private volatile boolean closed;

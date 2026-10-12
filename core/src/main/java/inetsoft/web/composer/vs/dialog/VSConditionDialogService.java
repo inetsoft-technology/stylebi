@@ -51,6 +51,7 @@ import inetsoft.web.composer.model.condition.ConditionUtil;
 import inetsoft.web.composer.model.vs.VSConditionDialogModel;
 import inetsoft.web.composer.ws.assembly.ConditionTrapModel;
 import inetsoft.web.composer.ws.assembly.ConditionTrapValidator;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.springframework.stereotype.Service;
@@ -66,12 +67,14 @@ public class VSConditionDialogService {
       DataRefModelFactoryService dataRefModelFactoryService,
       VSAssemblyInfoHandler vsAssemblyInfoHandler,
       ViewsheetService viewsheetService,
-      DataSourceRegistry dataSourceRegistry)
+      DataSourceRegistry dataSourceRegistry,
+      QueryManagerService queryManagerService)
    {
       this.dataRefModelFactoryService = dataRefModelFactoryService;
       this.vsAssemblyInfoHandler = vsAssemblyInfoHandler;
       this.viewsheetService = viewsheetService;
       this.dataSourceRegistry = dataSourceRegistry;
+      this.queryManagerService = queryManagerService;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -274,6 +277,13 @@ public class VSConditionDialogService {
       }
 
       VSAssembly assembly = (VSAssembly) vs.getAssembly(assemblyName);
+      List<String> otables = assembly instanceof SelectionVSAssembly selection ?
+         selection.getTableNames() :
+         assembly == null ? null : Collections.singletonList(assembly.getTableName());
+      // a cube table is resolved from its data source without a permission check, so a cube
+      // other than the assembly's own is checked before its values are browsed (Bug #77427)
+      queryManagerService.checkNewCubeTablesReadPermission(
+         Collections.singletonList(tableName), otables, principal);
       RuntimeWorksheet rws = assembly != null && assembly.isEmbedded() ?
          VSUtil.getRuntimeWorksheet(assembly.getViewsheet(), box.get()) :
          rvs.getRuntimeWorksheet();
@@ -494,4 +504,5 @@ public class VSConditionDialogService {
    private final DataRefModelFactoryService dataRefModelFactoryService;
    private final VSAssemblyInfoHandler vsAssemblyInfoHandler;
    private final DataSourceRegistry dataSourceRegistry;
+   private final QueryManagerService queryManagerService;
 }

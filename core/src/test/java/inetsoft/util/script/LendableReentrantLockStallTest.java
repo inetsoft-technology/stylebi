@@ -19,6 +19,7 @@ package inetsoft.util.script;
 
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.stall.StallPolicy;
+import inetsoft.util.stall.StallTestSupport;
 import inetsoft.util.stall.WaitRecord;
 import inetsoft.util.stall.WaitRegistry;
 import org.junit.jupiter.api.*;
@@ -36,7 +37,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * changing who is let in (#5531). Every blocking step is bounded and helper threads are
  * daemons.
  */
-@Tag("core")
+@Tag("slow")
 public class LendableReentrantLockStallTest {
    @BeforeEach
    public void setUp() {
@@ -47,7 +48,7 @@ public class LendableReentrantLockStallTest {
    @AfterEach
    public void tearDown() {
       release.countDown();
-      StallPolicy.setOverride(null);
+      StallTestSupport.clearOverride();
    }
 
    @Test

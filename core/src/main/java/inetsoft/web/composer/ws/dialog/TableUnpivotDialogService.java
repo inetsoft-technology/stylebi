@@ -59,6 +59,7 @@ public class TableUnpivotDialogService extends WorksheetControllerService {
       RuntimeWorksheet rws = super.getRuntimeWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
       String name = event.getAssemblyName();
+      checkCubeTableReadPermission(principal, name);
       TableAssembly assembly = (TableAssembly) ws.getAssembly(name);
 
       if(assembly != null) {
@@ -98,6 +99,7 @@ public class TableUnpivotDialogService extends WorksheetControllerService {
       String tableName = event.getAssemblyName();
       RuntimeWorksheet rws = super.getRuntimeWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
+      checkCubeTableReadPermission(principal, tableName);
       Assembly assembly = ws.getAssembly(tableName);
 
       if(!(assembly instanceof UnpivotTableAssembly)) {

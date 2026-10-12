@@ -339,7 +339,8 @@ export class DatasourceBrowserService {
     */
    deleteDataSource(name: string, path: string, callback?: Function): void {
       let event = new CheckDependenciesEvent();
-      event.databaseName = name;
+      // the server checks the dependencies and the delete permission by the full path
+      event.databaseName = path;
 
       this.httpClient.post(DATASOURCE_CHECK_DEPENDENCIES, event).subscribe((result: any) => {
          if(!!result) {

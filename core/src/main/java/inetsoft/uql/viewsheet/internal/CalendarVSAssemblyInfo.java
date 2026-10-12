@@ -767,8 +767,10 @@ public class CalendarVSAssemblyInfo extends SelectionVSAssemblyInfo
       writer.print(" daySelectionValue=\"" +
          daySelectionValue.getDValue() + "\"");
       writer.print(" period=\"" + period + "\"");
-      writer.print(" weekFormat=\"" + getWeekFormat() + "\"");
-      writer.print(" weekFormatValue=\"" + weekFormatValue.getDValue() + "\"");
+      writer.print(" weekFormat=\"" +
+         Tool.encodeHTMLAttribute(String.valueOf(getWeekFormat())) + "\"");
+      writer.print(" weekFormatValue=\"" +
+         Tool.encodeHTMLAttribute(String.valueOf(weekFormatValue.getDValue())) + "\"");
 
       if(getSelectedDateFormat() != null) {
          writer.print(" selectedDateFormat=\"" + getSelectedDateFormat() + "\"");
@@ -1207,8 +1209,7 @@ public class CalendarVSAssemblyInfo extends SelectionVSAssemblyInfo
 
       StringBuilder sb = new StringBuilder();
       String[] dates = getDates();
-      boolean dual =
-         Integer.parseInt(modeValue.getRValue() + "") == DOUBLE_CALENDAR_MODE;
+      boolean dual = getViewMode() == DOUBLE_CALENDAR_MODE;
       boolean period = isPeriod() && dual;
       boolean range = dual && !period;
 

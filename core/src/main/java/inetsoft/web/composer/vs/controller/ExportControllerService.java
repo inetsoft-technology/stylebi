@@ -50,6 +50,8 @@ import org.springframework.stereotype.Service;
 
 import java.io.*;
 import java.security.Principal;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -233,140 +235,186 @@ public class ExportControllerService {
       exporter.setLogExecution(true);
       exporter.setLogExport(true);
 
-      if(current) {
-         // Bug #76576: the live ViewsheetSandbox is mutated in place below (setViewsheet()
-         // is not synchronized), so overlapping exports of the same runtime viewsheet can
-         // swap each other's cloned viewsheet mid-export, producing null table lenses (NPE
-         // in the exporters) and leaving in-flight queries waiting on stale assembly state
-         // (perceived as a hang). Serialize this swap/export/restore per runtime viewsheet.
-         synchronized(rvs) {
-            Viewsheet originalViewsheet = rvs.getViewsheet();
-            Viewsheet cviewsheet = originalViewsheet.clone();
-            rvs.setViewsheet(cviewsheet);
+      // Bug #77609: dispose every sandbox created here (each bookmark box and the design-mode
+      // export box), but only after write(). A print-layout PDF export renders its queued
+      // reports in write() from these sandboxes' own table lenses. Never dispose rbox.get(),
+      // which belongs to the runtime viewsheet.
+      List<ViewsheetSandbox> createdBoxes = new ArrayList<>();
+      // Bug #78131: a PDF decides whether to use an inherited print layout over all states,
+      // so it needs every bookmark's sandbox before the current view is exported. Other
+      // formats keep creating each bookmark's sandbox after the previous state is exported.
+      boolean prepareStates = exporter.isPrepareStatesRequired();
+      List<ViewsheetSandbox> bookmarkBoxes = new ArrayList<>();
 
-            try {
-               // don't use the scale-to-screen size for export
-               VSEventUtil.clearScale(cviewsheet);
-               Assembly[] assemblies = cviewsheet.getAssemblies(false);
+      try {
+         if(prepareStates) {
+            for(String bookmark : bookmarks) {
+               bookmarkBoxes.add(createBookmarkSandbox(rvs, bookmark, vmode, principal,
+                                                       rbox.get(), createdBoxes));
+            }
+         }
 
-               for(int i = 0; rbox != null && i < assemblies.length; i++) {
-                  VSAssembly assembly = (VSAssembly) assemblies[i];
+         if(current) {
+            // Bug #76576: the live ViewsheetSandbox is mutated in place below (setViewsheet()
+            // is not synchronized), so overlapping exports of the same runtime viewsheet can
+            // swap each other's cloned viewsheet mid-export, producing null table lenses (NPE
+            // in the exporters) and leaving in-flight queries waiting on stale assembly state
+            // (perceived as a hang). Serialize this swap/export/restore per runtime viewsheet.
+            synchronized(rvs) {
+               Viewsheet originalViewsheet = rvs.getViewsheet();
+               Viewsheet cviewsheet = originalViewsheet.clone();
+               rvs.setViewsheet(cviewsheet);
 
-                  if(assembly instanceof CalcTableVSAssembly) {
-                     continue;
-                  }
+               try {
+                  // don't use the scale-to-screen size for export
+                  VSEventUtil.clearScale(cviewsheet);
+                  Assembly[] assemblies = cviewsheet.getAssemblies(false);
 
-                  AnnotationVSUtil.refreshAllAnnotations(rvs, assembly, null, null);
-               }
-
-               ViewsheetSandbox exportBox = rbox.get();
-
-               if(previewPrintLayout && rbox.get().getMode() == AbstractSheet.SHEET_DESIGN_MODE) {
-                  exportBox =
-                     new ViewsheetSandbox(cviewsheet, vmode, rbox.get().getUser(), rbox.get().getAssetEntry());
-                  exportBox.prepareMVCreation();
-
-                  for(int i = 0; exportBox != null && i < assemblies.length; i++) {
+                  for(int i = 0; rbox != null && i < assemblies.length; i++) {
                      VSAssembly assembly = (VSAssembly) assemblies[i];
-                     exportBox.executeScript(assembly);
+
+                     if(assembly instanceof CalcTableVSAssembly) {
+                        continue;
+                     }
+
+                     AnnotationVSUtil.refreshAllAnnotations(rvs, assembly, null, null);
                   }
 
-                  final AssetQuerySandbox assetQuerySandbox = exportBox.getAssetQuerySandbox();
+                  ViewsheetSandbox exportBox = rbox.get();
 
-                  if(assetQuerySandbox != null) {
-                     assetQuerySandbox.refreshVariableTable(rbox.get().getVariableTable());
+                  if(previewPrintLayout && rbox.get().getMode() == AbstractSheet.SHEET_DESIGN_MODE) {
+                     exportBox =
+                        new ViewsheetSandbox(cviewsheet, vmode, rbox.get().getUser(), rbox.get().getAssetEntry());
+                     createdBoxes.add(exportBox);
+                     exportBox.prepareMVCreation();
+
+                     for(int i = 0; exportBox != null && i < assemblies.length; i++) {
+                        VSAssembly assembly = (VSAssembly) assemblies[i];
+                        exportBox.executeScript(assembly);
+                     }
+
+                     final AssetQuerySandbox assetQuerySandbox = exportBox.getAssetQuerySandbox();
+
+                     if(assetQuerySandbox != null) {
+                        assetQuerySandbox.refreshVariableTable(rbox.get().getVariableTable());
+                     }
                   }
-               }
-               else {
-                  exportBox.setViewsheet(cviewsheet, false);
-               }
-               Catalog catalog = Catalog.getCatalog(principal);
-               exporter.setSandbox(exportBox);
+                  else {
+                     exportBox.setViewsheet(cviewsheet, false);
+                  }
+                  Catalog catalog = Catalog.getCatalog(principal);
+                  exporter.setSandbox(exportBox);
 
-               if(exporter instanceof AbstractVSExporter) {
-                  ((AbstractVSExporter) exporter).setRuntimeViewsheet(rvs);
-               }
+                  if(exporter instanceof AbstractVSExporter) {
+                     ((AbstractVSExporter) exporter).setRuntimeViewsheet(rvs);
+                  }
 
-               exporter.export(exportBox, catalog.getString("Current View"), new VSPortalHelper());
-            }
-            finally {
-               rbox.get().setViewsheet(originalViewsheet, false);
-               // See VSExportService.writeViewsheetExport's identical fix (Redmine #76699
-               // VFO-017 mechanism 2): rvs.setViewsheet() unconditionally forces
-               // ViewsheetSandbox.resetRuntime(), clearing parametersApplied even though the
-               // sandbox-level setViewsheet() call directly above was deliberately passed
-               // resetRuntime=false. Left alone, the next input-assembly refresh would let
-               // applyParameterToInput() silently reapply a stale VariableTable snapshot over a
-               // selection change that already landed correctly -- same class of bug as #74220.
-               rvs.setViewsheet(originalViewsheet);
-               rbox.get().markParametersApplied();
+                  if(prepareStates) {
+                     List<ViewsheetSandbox> states = new ArrayList<>();
+                     states.add(exportBox);
+                     states.addAll(bookmarkBoxes);
+                     exporter.prepareStates(states);
+                  }
+
+                  exporter.export(exportBox, catalog.getString("Current View"), new VSPortalHelper());
+               }
+               finally {
+                  rbox.get().setViewsheet(originalViewsheet, false);
+                  // See VSExportService.writeViewsheetExport's identical fix (Redmine #76699
+                  // VFO-017 mechanism 2): rvs.setViewsheet() unconditionally forces
+                  // ViewsheetSandbox.resetRuntime(), clearing parametersApplied even though the
+                  // sandbox-level setViewsheet() call directly above was deliberately passed
+                  // resetRuntime=false. Left alone, the next input-assembly refresh would let
+                  // applyParameterToInput() silently reapply a stale VariableTable snapshot over
+                  // a selection change that already landed correctly -- same class of bug as
+                  // #74220.
+                  rvs.setViewsheet(originalViewsheet);
+                  rbox.get().markParametersApplied();
+               }
             }
          }
-      }
+         else if(prepareStates) {
+            exporter.prepareStates(bookmarkBoxes);
+         }
 
+         for(int i = 0; i < bookmarks.length; i++) {
+            ViewsheetSandbox sandbox = prepareStates ? bookmarkBoxes.get(i) :
+               createBookmarkSandbox(rvs, bookmarks[i], vmode, principal, rbox.get(),
+                                     createdBoxes);
+            bookmarks[i] = Tool.replaceAll(bookmarks[i], ":", "-");
+
+            if(exporter instanceof AbstractVSExporter) {
+               ((AbstractVSExporter) exporter).setRuntimeViewsheet(rvs);
+            }
+
+            exporter.export(sandbox, bookmarks[i], (i + 1), new VSPortalHelper());
+         }
+
+         exporter.setLogExecution(false);
+         exporter.write();
+      }
+      finally {
+         for(ViewsheetSandbox box : createdBoxes) {
+            box.dispose();
+         }
+      }
+   }
+
+   /**
+    * Create the sandbox of a bookmark to export and add it to createdBoxes.
+    */
+   private ViewsheetSandbox createBookmarkSandbox(RuntimeViewsheet rvs, String bookmark,
+                                                  int vmode, Principal principal,
+                                                  ViewsheetSandbox rbox,
+                                                  List<ViewsheetSandbox> createdBoxes)
+      throws Exception
+   {
       Catalog catalog = Catalog.getCatalog(principal);
-      ViewsheetSandbox sandbox = null;
 
-      for(int i = 0; i < bookmarks.length; i++) {
-         String bookmark = bookmarks[i];
+      if(catalog.getString("(Home)").equals(bookmark)) {
+         bookmark = "(Home)";
+      }
 
-         if(catalog.getString("(Home)").equals(bookmark)) {
-            bookmark = "(Home)";
-         }
+      rvs.getViewsheet().getRuntimeEntry().setProperty("keepAnnoVis", "true");
+      Viewsheet vs = rvs.getOriginalBookmark(bookmark, rvs.getEntry().getOrgID());
+      rvs.getViewsheet().getRuntimeEntry().setProperty("keepAnnoVis", null);
+      VSEventUtil.clearScale(vs);
+      ViewsheetSandbox sandbox = new ViewsheetSandbox(vs, vmode, principal, false, rvs.getEntry());
+      createdBoxes.add(sandbox);
+      AssetQuerySandbox abox = sandbox.getAssetQuerySandbox();
 
-         rvs.getViewsheet().getRuntimeEntry().setProperty("keepAnnoVis", "true");
-         Viewsheet vs = rvs.getOriginalBookmark(bookmark, rvs.getEntry().getOrgID());
-         rvs.getViewsheet().getRuntimeEntry().setProperty("keepAnnoVis", null);
-         VSEventUtil.clearScale(vs);
-         sandbox = new ViewsheetSandbox(vs, vmode, principal, false, rvs.getEntry());
-         AssetQuerySandbox abox = sandbox.getAssetQuerySandbox();
+      if(abox != null) {
+         abox.refreshVariableTable(rbox.getVariableTable());
+      }
 
-         if(abox != null) {
-            abox.refreshVariableTable(rbox.get().getVariableTable());
-         }
+      // Clear input assembly variables from the sandbox variable table before reset.
+      // During reset, applyParameterToInput() reads from this table and would otherwise
+      // overwrite bookmark-restored assembly selections (checkbox, radio button, etc.)
+      VariableTable sandboxVars = sandbox.getVariableTable();
 
-         // Clear input assembly variables from the sandbox variable table before reset.
-         // During reset, applyParameterToInput() reads from this table and would otherwise
-         // overwrite bookmark-restored assembly selections (checkbox, radio button, etc.)
-         VariableTable sandboxVars = sandbox.getVariableTable();
+      if(sandboxVars != null) {
+         for(Assembly assembly : vs.getAssemblies()) {
+            if(assembly instanceof InputVSAssembly inputAssembly) {
+               sandboxVars.remove(assembly.getName());
+               String varKey = inputAssembly.getVariableTableKey();
 
-         if(sandboxVars != null) {
-            for(Assembly assembly : vs.getAssemblies()) {
-               if(assembly instanceof InputVSAssembly inputAssembly) {
-                  sandboxVars.remove(assembly.getName());
-                  String varKey = inputAssembly.getVariableTableKey();
-
-                  if(varKey != null) {
-                     sandboxVars.remove(varKey);
-                  }
+               if(varKey != null) {
+                  sandboxVars.remove(varKey);
                }
             }
          }
-
-         try {
-            sandbox.processOnInit();
-            sandbox.reset(null, vs.getAssemblies(),
-                          new ChangedAssemblyList(), true, true, null);
-         }
-         catch(Exception ex) {
-            LOG.error("Failed to execute onInit() and onLoad() scripts", ex);
-         }
-
-         bookmarks[i] = Tool.replaceAll(bookmarks[i], ":", "-");
-
-         if(exporter instanceof AbstractVSExporter) {
-            ((AbstractVSExporter) exporter).setRuntimeViewsheet(rvs);
-         }
-
-         exporter.export(sandbox, bookmarks[i], (i + 1), new VSPortalHelper());
       }
 
-      exporter.setLogExecution(false);
-      exporter.write();
-
-      if(sandbox != null) {
-         sandbox.dispose();
+      try {
+         sandbox.processOnInit();
+         sandbox.reset(null, vs.getAssemblies(),
+                       new ChangedAssemblyList(), true, true, null);
       }
+      catch(Exception ex) {
+         LOG.error("Failed to execute onInit() and onLoad() scripts", ex);
+      }
+
+      return sandbox;
    }
 
    private void writeSnapshotExport(RuntimeViewsheet rvs, OutputStream out) throws Exception {

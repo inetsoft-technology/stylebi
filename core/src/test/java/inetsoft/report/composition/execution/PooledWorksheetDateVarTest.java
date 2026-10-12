@@ -32,6 +32,7 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.util.script.graal.GraalJavaScriptEngine;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.script.graal.pool.PoolConfig;
 import inetsoft.util.script.graal.pool.PoolTestSupport;
 import inetsoft.util.script.graal.pool.WorksheetScriptEnv;
@@ -247,11 +248,27 @@ class PooledWorksheetDateVarTest {
             assertTrue(failedAt > 0 && failedAt <= 2300, "the timeout ended a batch: " +
                failedAt);
             int from = failedAt;
-            PoolTestSupport.whileHeldElsewhere(env, () -> read(t, res, from, 2700));
+            PoolTestSupport.whileHeldElsewhere(env, () -> {
+               read(t, res, from, 2299);
+               // the timed-out row has no value: its read fails with the stop, every time,
+               // without running into the timeout again (bug #77949)
+               assertTrue(t.moreRows(2300));
+               assertEquals(2300, (int) num(t.getObject(2300, res.cid)));
+
+               for(int i = 0; i < 2; i++) {
+                  long start = System.currentTimeMillis();
+                  Throwable stop = assertThrows(Throwable.class, () -> t.getObject(2300, res.cout));
+                  assertTrue(ScriptTimeoutGuard.isStop(stop), "a stop: " + stop);
+                  assertTrue(System.currentTimeMillis() - start < 2000, "not run again");
+               }
+
+               res.out[2300] = Double.NaN;
+               read(t, res, 2301, 2700);
+            });
             read(t, res, 2701, ROWS);
 
-            // the timed-out row has no value; it stopped before its step, so the rows after it
-            // are one second behind their id, as with the pool off
+            // it stopped before its step, so the rows after it are one second behind their
+            // id, as with the pool off
             for(int id = 1; id <= ROWS; id++) {
                double expected = id < 2300 ? id : id == 2300 ? Double.NaN : id - 1;
                assertEquals(expected, res.out[id],

@@ -184,29 +184,42 @@ public final class XBigObjectColumn extends XSwappable implements XTableColumn {
     * @return the object value in the specified row.
     */
    @Override
-   public synchronized Object getObject(int r) {
-      if(arr == null) {
-         return null;
+   public Object getObject(int r) {
+      Object[] objs = arr;
+
+      // wait outside of synchronized block. this column stays swappable after a swap, so
+      // the swapper would block on swap() if we waited while holding the lock. wait at most
+      // once between swaps, not once for each row read back. record the count after the wait
+      // since the swapper may swap this column again while we wait.
+      if(objs != null && r < objs.length && objs[r] == Tool.NULL && waitedSwapCount != swapCount) {
+         getSwapper().waitForMemory();
+         waitedSwapCount = swapCount;
       }
 
-      mlist.removeElement(r);
+      synchronized(this) {
+         if(arr == null) {
+            return null;
+         }
 
-      if(mlist.size == mlist.arr.length) {
-         mlist.remove(0);
+         mlist.removeElement(r);
+
+         if(mlist.size == mlist.arr.length) {
+            mlist.remove(0);
+         }
+
+         mlist.add(r);
+
+         // XBigObject doesn't support serialization so the array is empty from vso.
+         if(r >= arr.length) {
+            return null;
+         }
+         else if(arr[r] == Tool.NULL) {
+            arr[r] = readObject(r);
+            scount--;
+         }
+
+         return arr[r];
       }
-
-      mlist.add(r);
-
-      // XBigObject doesn't support serialization so the array is empty from vso.
-      if(r >= arr.length) {
-         return null;
-      }
-      else if(arr[r] == Tool.NULL) {
-         arr[r] = readObject(r);
-         scount--;
-      }
-
-      return arr[r];
    }
 
    /**
@@ -310,12 +323,14 @@ public final class XBigObjectColumn extends XSwappable implements XTableColumn {
    @Override
    public double getSwapPriority() {
       if(disposed || mlist == null || pos == mlist.size || !isSwappable() ||
-         !completed)
+         !completed || lost)
       {
          return 0;
       }
 
-      return pos - mlist.size - scount != 0 ? 1 : 10;
+      // rows outside of mlist that are still in memory. 0 when there is nothing left to free,
+      // so the swapper doesn't count this column as swapped (and criticalNoSwap can advance)
+      return pos - mlist.size - scount > 0 ? 1 : 0;
    }
 
    /**
@@ -360,6 +375,17 @@ public final class XBigObjectColumn extends XSwappable implements XTableColumn {
       }
 
       File file = getFile(prefix + ".tdat");
+
+      // the swap file was removed or truncated (e.g. by a cleaner of the cache directory).
+      // appending would recreate it at offset 0, so the rows swapped out before would read back
+      // other rows' values, and the rows read back since would be freed without being written
+      // again. keep the rows left in memory instead (bug #77864)
+      if(isSwapFileLost(file)) {
+         return false;
+      }
+
+      swapCount++;
+      boolean freed = false;
       FileOutputStream fout = null;
       com.esotericsoftware.kryo.kryo5.Kryo kryo = XSwapUtil.getKryo();
 
@@ -373,12 +399,12 @@ public final class XBigObjectColumn extends XSwappable implements XTableColumn {
                return false;
             }
 
-            if(mlist.contains(i)) {
+            // already swapped, don't count it again
+            if(arr[i] == Tool.NULL || mlist.contains(i)) {
                continue;
             }
 
             if(parr[i] == -1) {
-               parr[i] = len;
                Output oout = new Output(bout);
                kryo.writeClassAndObject(
                   oout, image ? new ImageWrapper((Image) arr[i]) : arr[i]);
@@ -386,12 +412,17 @@ public final class XBigObjectColumn extends XSwappable implements XTableColumn {
 
                int len0 = bout.size();
                fout.write(bout.toBytes(), 0, len0);
+               // point at the data only once it is written, a failed write must not leave the
+               // row pointing at the bytes appended later for other rows
+               parr[i] = len;
                len += len0;
+               flen = len;
                bout.reset();
             }
 
             scount++;
             arr[i] = Tool.NULL;
+            freed = true;
          }
       }
       catch(Exception ex) {
@@ -412,7 +443,7 @@ public final class XBigObjectColumn extends XSwappable implements XTableColumn {
          }
       }
 
-      return true;
+      return freed;
    }
 
    /**
@@ -432,6 +463,11 @@ public final class XBigObjectColumn extends XSwappable implements XTableColumn {
       com.esotericsoftware.kryo.kryo5.Kryo kryo = XSwapUtil.getKryo();
 
       try {
+         if(isSwapFileLost(file)) {
+            throw new IOException("Swap file is missing or truncated, expected " + flen +
+                                  " bytes, found " + file.length());
+         }
+
          fin = new FileInputStream(file);
          long s = fin.skip(skip);
          BufferedInputStream in = new BufferedInputStream(fin, 4096);
@@ -448,7 +484,11 @@ public final class XBigObjectColumn extends XSwappable implements XTableColumn {
          kryoInput.close();
       }
       catch(Exception e) {
+         // don't return null, it would be cached as the value of the row. leave the row
+         // swapped out so a later access tries the file again, and fail loudly instead of
+         // silently substituting wrong data (bug #77864)
          LOG.error("Failed to read object [" + r + "]", e);
+         throw new SwapFileReadException(file, e);
       }
       finally {
          XSwapUtil.releaseKryo(kryo);
@@ -466,6 +506,20 @@ public final class XBigObjectColumn extends XSwappable implements XTableColumn {
       }
 
       return obj;
+   }
+
+   /**
+    * Check if the swap file lost the data written to it. The column is not swapped again once
+    * the file is lost.
+    */
+   private boolean isSwapFileLost(File file) {
+      if(!lost && flen > 0 && file.length() < flen) {
+         lost = true;
+         LOG.error("Swap file is missing or truncated, the rows in memory are not swapped " +
+                   "out any more: " + file);
+      }
+
+      return lost;
    }
 
    @Override
@@ -532,8 +586,12 @@ public final class XBigObjectColumn extends XSwappable implements XTableColumn {
    private boolean image; // image flag
    private XIntList mlist; // in-memory row indices
    private int scount; // swapped row count
+   private long flen; // number of bytes written to the swap file
+   private volatile boolean lost; // swap file lost, see isSwapFileLost()
    private boolean completed; // completed flag
    private boolean disposed; // disposed flag
+   private volatile int swapCount; // number of swaps
+   private volatile int waitedSwapCount; // swap count when last waited for memory
 
    private static final Logger LOG =
       LoggerFactory.getLogger(XBigObjectColumn.class);

@@ -72,7 +72,7 @@ class ViewsheetSandboxRealStallTest {
       }
 
       pool.shutdownNow();
-      StallPolicy.setOverride(null);
+      StallTestSupport.clearOverride();
    }
 
    @Test

@@ -70,7 +70,7 @@ public abstract class AbstractCalc implements Calculator {
       Calculator calc = null;
 
       try {
-         calc = (Calculator) Class.forName(cls).newInstance();
+         calc = (Calculator) Tool.loadSubclass(cls, Calculator.class).newInstance();
          calc.parseXML(element);
       }
       catch(Exception e) {

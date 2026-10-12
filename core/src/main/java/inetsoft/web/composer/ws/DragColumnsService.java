@@ -49,6 +49,7 @@ public class DragColumnsService extends WorksheetControllerService {
       RuntimeWorksheet rws = super.getRuntimeWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
       String tname = event.tableName();
+      checkCubeTableReadPermission(principal, tname);
       TableAssembly table = (TableAssembly) ws.getAssembly(tname);
 
       if(event.columnIndices().length == 0) {

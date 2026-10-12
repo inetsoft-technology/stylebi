@@ -32,6 +32,7 @@ import org.springframework.stereotype.Component;
 import java.security.Principal;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Component that ensures that open viewsheets are closed when the client that opened them
@@ -61,39 +62,52 @@ public class RuntimeViewsheetManager {
    public void sheetOpened(Principal user, String runtimeId) {
       String sessionId = getSessionId(user);
 
-      getOpenSheets().lock(sessionId);
-
+      // Bug #77879, a transaction lock instead of an explicit lock of the entry
       try {
-         Set<String> sheets = getOpenSheets().computeIfAbsent(sessionId, k -> new HashSet<>());
-         sheets.add(runtimeId);
-         getOpenSheets().put(sessionId, sheets);
+         cluster.runInTransaction(TX_TIMEOUT, TimeUnit.MILLISECONDS, () -> {
+            Set<String> sheets = getOpenSheets().getForUpdate(sessionId);
+
+            if(sheets == null) {
+               sheets = new HashSet<>();
+            }
+
+            sheets.add(runtimeId);
+            getOpenSheets().put(sessionId, sheets);
+            return null;
+         });
       }
-      finally {
-         getOpenSheets().unlock(sessionId);
+      catch(DistributedTransactionException ex) {
+         // the sheet is already open, so the request must not fail; the sheet is not closed when
+         // the session ends, but when it times out
+         LOG.warn("Failed to track sheet {} of session {}, it is closed when it times out",
+                  runtimeId, sessionId, ex);
       }
    }
 
    public void sheetClosed(Principal user, String runtimeId) {
       String sessionId = getSessionId(user);
 
-      getOpenSheets().lock(sessionId);
-
       try {
-         Set<String> sheets = getOpenSheets().get(sessionId);
+         cluster.runInTransaction(TX_TIMEOUT, TimeUnit.MILLISECONDS, () -> {
+            Set<String> sheets = getOpenSheets().getForUpdate(sessionId);
 
-         if(sheets != null) {
-            sheets.remove(runtimeId);
+            if(sheets != null) {
+               sheets.remove(runtimeId);
 
-            if(sheets.isEmpty()) {
-               getOpenSheets().remove(sessionId);
+               if(sheets.isEmpty()) {
+                  getOpenSheets().remove(sessionId);
+               }
+               else {
+                  getOpenSheets().put(sessionId, sheets);
+               }
             }
-            else {
-               getOpenSheets().put(sessionId, sheets);
-            }
-         }
+
+            return null;
+         });
       }
-      finally {
-         getOpenSheets().unlock(sessionId);
+      catch(DistributedTransactionException ex) {
+         // the sheet is already closed; closing it again when the session ends does nothing
+         LOG.warn("Failed to untrack sheet {} of session {}", runtimeId, sessionId, ex);
       }
    }
 
@@ -105,13 +119,16 @@ public class RuntimeViewsheetManager {
       String sessionId = getSessionId(user);
       Set<String> sheetsToClose;
 
-      getOpenSheets().lock(sessionId);
-
       try {
-         sheetsToClose = getOpenSheets().remove(sessionId);
+         sheetsToClose = cluster.runInTransaction(TX_TIMEOUT, TimeUnit.MILLISECONDS, () -> {
+            getOpenSheets().getForUpdate(sessionId);
+            return getOpenSheets().remove(sessionId);
+         });
       }
-      finally {
-         getOpenSheets().unlock(sessionId);
+      catch(DistributedTransactionException ex) {
+         LOG.warn("Failed to close the sheets of session {}, they are closed when they time out",
+                  sessionId, ex);
+         return;
       }
 
       if(sheetsToClose != null) {
@@ -129,6 +146,9 @@ public class RuntimeViewsheetManager {
    private final ViewsheetService viewsheetService;
    private final Cluster cluster;
    private static final String OPEN_SHEETS_MAP = RuntimeViewsheetManager.class.getName() + ".openSheetsMap";
+   // the timeout of a transaction that updates a session's sheets, which bounds waiting for its
+   // lock
+   private static final long TX_TIMEOUT = TimeUnit.MINUTES.toMillis(1);
    private static final Logger LOG = LoggerFactory.getLogger(RuntimeViewsheetManager.class);
 
    public static final class CloseViewsheetTask implements AffinityCallable<Void> {

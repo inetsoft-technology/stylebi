@@ -55,7 +55,39 @@ public class MessageFormat extends Format {
             String pattern = ((DecimalFormat) fmts[i]).toPattern();
 
             if(ExtendedDecimalFormat.isExtendedFormat(pattern)) {
-               fmt.setFormatByArgumentIndex(i, new ExtendedDecimalFormat(pattern));
+               // fmts is in element order, so replace by element index, not argument index
+               fmt.setFormat(i, new ExtendedDecimalFormat(pattern));
+            }
+         }
+      }
+
+      checkChoiceFormats(fmts, fmt.getLocale());
+   }
+
+   /**
+    * Reject choice formats that java.text.MessageFormat accepts but that fail every time they
+    * are used: a choice with no limits (e.g. {0,choice,}), and a choice string that contains
+    * '{' but is not a valid message pattern. The JDK parses such a choice string only when
+    * the value selects it at format time, so parse it here the same way.
+    */
+   private static void checkChoiceFormats(Format[] fmts, Locale locale) {
+      for(Format format : fmts) {
+         if(!(format instanceof ChoiceFormat)) {
+            continue;
+         }
+
+         ChoiceFormat choice = (ChoiceFormat) format;
+
+         if(choice.getLimits().length == 0) {
+            throw new IllegalArgumentException(
+               "Choice pattern has no choices: " + choice.toPattern());
+         }
+
+         for(Object text : choice.getFormats()) {
+            String str = (String) text;
+
+            if(str.indexOf('{') >= 0) {
+               checkChoiceFormats(new java.text.MessageFormat(str, locale).getFormats(), locale);
             }
          }
       }
@@ -94,7 +126,7 @@ public class MessageFormat extends Format {
    }
 
    /**
-    * Set the format to use for the format element with the format element index.
+    * Set the format to use for the format elements that use the given argument index.
     */
    public void setFormatByArgumentIndex(int idx, Format fmt) {
       this.fmt.setFormatByArgumentIndex(idx, fmt);

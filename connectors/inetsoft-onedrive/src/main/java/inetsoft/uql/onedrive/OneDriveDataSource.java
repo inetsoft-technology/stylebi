@@ -161,6 +161,8 @@ public class OneDriveDataSource extends TabularDataSource<OneDriveDataSource>  i
          return;
       }
 
+      Tokens tokens;
+
       try {
          String flags = getOauthFlags();
          Set<String> flagsSet = new HashSet<>();
@@ -169,7 +171,7 @@ public class OneDriveDataSource extends TabularDataSource<OneDriveDataSource>  i
             flagsSet.addAll(Arrays.asList(getOauthFlags().split(" ")));
          }
 
-         Tokens tokens = AuthorizationClient.refresh(
+         tokens = AuthorizationClient.refresh(
             getServiceName(), getRefreshToken(), getClientId(), getClientSecret(), getTokenUri(),
             flagsSet, false, null);
          updateTokens(tokens);
@@ -179,9 +181,11 @@ public class OneDriveDataSource extends TabularDataSource<OneDriveDataSource>  i
          return;
       }
 
+      // Bug #77699, save onto the stored definition, not this runtime instance whose variables
+      // may have been replaced with the values of the query
       if(this.getFullName() != null) {
          try {
-            XRepository.getRepository().updateDataSource(this, getFullName());
+            XRepository.getRepository().updateDataSourceTokens(this, tokens);
          }
          catch(Exception e) {
             LOG.warn("Failed to save data source after refreshing token", e);

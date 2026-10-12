@@ -45,9 +45,10 @@
  */
 
 import { UntypedFormControl, Validators } from "@angular/forms";
-import { waitFor } from "@testing-library/angular";
+import { screen, waitFor } from "@testing-library/angular";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Subject } from "rxjs";
+import { FormValidators } from "../../../../../../../shared/util/form-validators";
 
 import { MessageDialog } from "../../../../widget/dialog/message-dialog/message-dialog.component";
 import { GeneralActionModel } from "../../../../../../../shared/schedule/model/general-action-model";
@@ -406,6 +407,33 @@ describe("TaskActionPane (portal) — interaction tests", () => {
          // Add a required control without a value to make parentForm invalid.
          parentForm.addControl("required", new UntypedFormControl(null, Validators.required));
          expect(comp.isValid()).toBe(false);
+      });
+   });
+
+   // Bug #77856, the Save button of the multiple-actions list must not save a task whose name
+   // the editor marks invalid (e.g. a name made only of whitespace)
+   describe("list view Save", () => {
+      function listSaveButton(): HTMLButtonElement {
+         return screen.getByRole("button", { name: "_#(Save)" }) as HTMLButtonElement;
+      }
+
+      it("is disabled while the parent form is invalid", async () => {
+         const model = makeModel({ actions: [makeAction({ label: "A" }), makeAction({ label: "B" })] });
+         const { comp, fixture, parentForm } = await renderTaskActionPane(model);
+         expect(comp.listView).toBe(true);
+         parentForm.addControl("name", new UntypedFormControl(" ", FormValidators.required));
+         fixture.detectChanges();
+
+         expect(listSaveButton().disabled).toBe(true);
+      });
+
+      it("is enabled when the parent form is valid", async () => {
+         const model = makeModel({ actions: [makeAction({ label: "A" }), makeAction({ label: "B" })] });
+         const { fixture, parentForm } = await renderTaskActionPane(model);
+         parentForm.addControl("name", new UntypedFormControl("Task", FormValidators.required));
+         fixture.detectChanges();
+
+         expect(listSaveButton().disabled).toBe(false);
       });
    });
 });

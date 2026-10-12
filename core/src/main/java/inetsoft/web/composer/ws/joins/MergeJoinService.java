@@ -79,6 +79,7 @@ public class MergeJoinService extends WorksheetControllerService {
    {
       RuntimeWorksheet rws = super.getRuntimeWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
+      checkCubeTableReadPermission(principal, event.mergeTableName(), event.newTableName());
       MergeJoinTableAssembly mergeTable =
          (MergeJoinTableAssembly) ws.getAssembly(event.mergeTableName());
       TableAssembly newTable =
@@ -146,6 +147,7 @@ public class MergeJoinService extends WorksheetControllerService {
       RuntimeWorksheet rws, String[] assemblies,
       CommandDispatcher commandDispatcher, Principal principal) throws Exception
    {
+      checkCubeTableReadPermission(principal, assemblies);
       MergeJoinTableAssembly mergeTable = null;
 
       for(int i = 1; i < assemblies.length; i++) {

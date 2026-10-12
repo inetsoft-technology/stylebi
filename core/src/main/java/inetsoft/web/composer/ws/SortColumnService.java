@@ -50,6 +50,7 @@ public class SortColumnService extends WorksheetControllerService {
       RuntimeWorksheet rws = getRuntimeWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
       String tname = event.getTableName();
+      checkCubeTableReadPermission(principal, tname);
       TableAssembly table = (TableAssembly) ws.getAssembly(tname);
 
       if(table != null) {

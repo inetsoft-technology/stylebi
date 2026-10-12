@@ -27,4 +27,6 @@ export class FreeFormSqlPaneModel {
    parseSql: boolean;
    hasColumnInfo: boolean;
    parseResult: number;
+   // the parse cannot represent the whole sql string (e.g. TOP), the sql string is kept as is
+   lossy?: boolean;
 }

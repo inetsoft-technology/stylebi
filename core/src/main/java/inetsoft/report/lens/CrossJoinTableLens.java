@@ -27,11 +27,14 @@ import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.stall.WaitRecord;
 import inetsoft.util.stall.WaitRegistry;
+import inetsoft.util.swap.DataUnavailable;
+import inetsoft.util.swap.SwapFileReadException;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.*;
+import java.io.Serializable;
 import java.math.BigInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -175,29 +178,34 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
     * perform filtering calculation to validate itself.
     */
    @Override
-   public synchronized void invalidate() {
-      if(lthread != null) {
-         lthread.dispose();
-         lthread = null;
+   public void invalidate() {
+      synchronized(this) {
+         if(lthread != null) {
+            lthread.dispose();
+            lthread = null;
+         }
+
+         if(rthread != null) {
+            rthread.dispose();
+            rthread = null;
+         }
+
+         lcompleted = false;
+         rcompleted = false;
+         stallFailure = null;
+         workerFailure = null;
+
+         lrows = 0;
+         rrows = 0;
+
+         main = null;
+
+         mmap.clear();
       }
 
-      if(rthread != null) {
-         rthread.dispose();
-         rthread = null;
-      }
-
-      lcompleted = false;
-      rcompleted = false;
-      stallFailure = null;
-
-      lrows = 0;
-      rrows = 0;
-
-      mtable = null;
-      mrows = 0;
-
-      mmap.clear();
-
+      // fire after releasing the monitor: a downstream lens's invalidate() takes its own
+      // monitor, which a reader of that lens may hold while it waits for this monitor to read
+      // the next row (bug #77432)
       fireChangeEvent();
    }
 
@@ -227,12 +235,21 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
 
    /**
     * Update row count.
+    * @param thread the waiting thread loading the table, or <tt>null</tt> if it is
+    * loaded on the calling thread.
     * @param left <tt>true</tt> left table, <tt>false</tt> right table.
     * @param count the specified row count.
     * @param over <tt>true</tt> if over, <tt>false</tt> otherwise.
     */
-   private synchronized void updateRowCount(boolean left, int count,
+   private synchronized void updateRowCount(WaitingThread thread, boolean left, int count,
                                             boolean over) {
+      // a thread superseded by invalidate() must not update the next pass, e.g. complete
+      // it early with its own count (bug #77397). the calling thread (null) loads inside
+      // validate() under this monitor and cannot be superseded
+      if(thread != null && (thread.disposed || thread != (left ? lthread : rthread))) {
+         return;
+      }
+
       if(left) {
          lrows = count;
       }
@@ -244,17 +261,15 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
          if(left) {
             lcompleted = true;
 
-            if(mtable == null) {
-               mtable = ltable;
-               mrows = count;
+            if(main == null) {
+               main = new Main(true, count);
             }
          }
          else {
             rcompleted = true;
 
-            if(mtable == null) {
-               mtable = rtable;
-               mrows = count;
+            if(main == null) {
+               main = new Main(false, count);
             }
          }
       }
@@ -269,7 +284,7 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
     * @return the available row count.
     */
    private int getRowCount0() {
-      if(mtable == null) {
+      if(main == null) {
          return hrows;
       }
 
@@ -306,13 +321,20 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
          return row;
       }
 
+      // read the main table once, invalidate() may clear it at any time (bug #77397)
+      Main main = this.main;
+
+      if(main == null || main.rows() == 0) {
+         return NO_ROW;
+      }
+
       row -= hrows;
 
-      if(mtable == ltable) {
-         return (row % mrows) + lhrows;
+      if(main.left()) {
+         return (row % main.rows()) + lhrows;
       }
       else {
-         return (row / mrows) + lhrows;
+         return (row / main.rows()) + lhrows;
       }
    }
 
@@ -326,13 +348,20 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
          return row;
       }
 
+      // read the main table once, invalidate() may clear it at any time (bug #77397)
+      Main main = this.main;
+
+      if(main == null || main.rows() == 0) {
+         return NO_ROW;
+      }
+
       row -= hrows;
 
-      if(mtable == rtable) {
-         return (row % mrows) + rhrows;
+      if(!main.left()) {
+         return (row % main.rows()) + rhrows;
       }
       else {
-         return (row / mrows) + rhrows;
+         return (row / main.rows()) + rhrows;
       }
    }
 
@@ -358,7 +387,7 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
 
       try {
          while(row >= getRowCount0() && !isCompleted() && !disposed && !cancelled &&
-               stallFailure == null)
+               stallFailure == null && workerFailure == null)
          {
             // this lens lends nothing, and holds its own monitor for the whole method anyway;
             // a stall of the workers fails the reader (bug #76967)
@@ -393,14 +422,42 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
    }
 
    /**
-    * Rethrow the stall a worker failed with. A stall must never look like the end of the
-    * table (bug #76967).
+    * Rethrow the stall (bug #76967) or any other failure (bug #77907) a worker failed with.
+    * Neither must look like the end of the table.
     */
    private void throwStallFailure() {
       LockStallException failure = stallFailure;
 
       if(failure != null) {
          throw new LockStallException(failure);
+      }
+
+      Throwable workerFailure = this.workerFailure;
+
+      if(workerFailure != null) {
+         // a lost swap file is rethrown as a lost swap file, as JoinTable does (bug #77651)
+         SwapFileReadException swapFailure = SwapFileReadException.find(workerFailure);
+
+         if(swapFailure != null) {
+            // a new instance for each reader: one thrown through a script gets a suppressed
+            // stack trace element that cannot be serialized (bug #78084)
+            throw swapFailure.copy();
+         }
+
+         // nor the kept instance of a load failure in its chain (bug #78084)
+         throw new CrossJoinException(DataUnavailable.copyInChain(workerFailure));
+      }
+   }
+
+   /**
+    * Thrown by a read of a cross join whose worker failed, the rows so far are not the whole
+    * table (bug #77907). The message is shown to the user, so it never includes the cause
+    * (e.g. a cache file path), the cause is chained.
+    */
+   static final class CrossJoinException extends MessageException {
+      CrossJoinException(Throwable cause) {
+         super(Catalog.getCatalog().getString("common.table.getDataFailed"));
+         initCause(cause);
       }
    }
 
@@ -498,6 +555,10 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
       int col = c < lcols ? c : c - lcols;
       r = c < lcols ? getLeftBaseRow(r) : getRightBaseRow(r);
 
+      if(r == NO_ROW) {
+         return true;
+      }
+
       return table.isNull(r, col);
    }
 
@@ -512,6 +573,10 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
       TableLens table = c < lcols ? ltable : rtable;
       int col = c < lcols ? c : c - lcols;
       r = c < lcols ? getLeftBaseRow(r) : getRightBaseRow(r);
+
+      if(r == NO_ROW) {
+         return null;
+      }
 
       return table.getObject(r, col);
    }
@@ -528,6 +593,10 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
       int col = c < lcols ? c : c - lcols;
       r = c < lcols ? getLeftBaseRow(r) : getRightBaseRow(r);
 
+      if(r == NO_ROW) {
+         return 0;
+      }
+
       return table.getDouble(r, col);
    }
 
@@ -542,6 +611,10 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
       TableLens table = c < lcols ? ltable : rtable;
       int col = c < lcols ? c : c - lcols;
       r = c < lcols ? getLeftBaseRow(r) : getRightBaseRow(r);
+
+      if(r == NO_ROW) {
+         return 0;
+      }
 
       return table.getFloat(r, col);
    }
@@ -558,6 +631,10 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
       int col = c < lcols ? c : c - lcols;
       r = c < lcols ? getLeftBaseRow(r) : getRightBaseRow(r);
 
+      if(r == NO_ROW) {
+         return 0;
+      }
+
       return table.getLong(r, col);
    }
 
@@ -572,6 +649,10 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
       TableLens table = c < lcols ? ltable : rtable;
       int col = c < lcols ? c : c - lcols;
       r = c < lcols ? getLeftBaseRow(r) : getRightBaseRow(r);
+
+      if(r == NO_ROW) {
+         return 0;
+      }
 
       return table.getInt(r, col);
    }
@@ -588,6 +669,10 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
       int col = c < lcols ? c : c - lcols;
       r = c < lcols ? getLeftBaseRow(r) : getRightBaseRow(r);
 
+      if(r == NO_ROW) {
+         return 0;
+      }
+
       return table.getShort(r, col);
    }
 
@@ -603,6 +688,10 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
       int col = c < lcols ? c : c - lcols;
       r = c < lcols ? getLeftBaseRow(r) : getRightBaseRow(r);
 
+      if(r == NO_ROW) {
+         return 0;
+      }
+
       return table.getByte(r, col);
    }
 
@@ -617,6 +706,10 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
       TableLens table = c < lcols ? ltable : rtable;
       int col = c < lcols ? c : c - lcols;
       r = c < lcols ? getLeftBaseRow(r) : getRightBaseRow(r);
+
+      if(r == NO_ROW) {
+         return false;
+      }
 
       return table.getBoolean(r, col);
    }
@@ -653,6 +746,10 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
       int col = c < lcols ? c : c - lcols;
       r = c < lcols ? getLeftBaseRow(r) : getRightBaseRow(r);
 
+      if(r == NO_ROW) {
+         return;
+      }
+
       table.setObject(r, col, v);
    }
 
@@ -670,6 +767,10 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
       }
 
       r = getLeftBaseRow(r);
+
+      if(r == NO_ROW) {
+         return -1;
+      }
       return ltable.getRowHeight(r);
    }
 
@@ -708,6 +809,10 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
       int col = c < lcols ? c : c - lcols;
       r = c < lcols ? getLeftBaseRow(r) : getRightBaseRow(r);
 
+      if(r == NO_ROW) {
+         return null;
+      }
+
       return table.getRowBorderColor(r, col);
    }
 
@@ -726,6 +831,10 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
       TableLens table = c < lcols ? ltable : rtable;
       int col = c < lcols ? c : c - lcols;
       r = c < lcols ? getLeftBaseRow(r) : getRightBaseRow(r);
+
+      if(r == NO_ROW) {
+         return null;
+      }
 
       return table.getColBorderColor(r, col);
    }
@@ -749,6 +858,10 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
       int col = c < lcols ? c : c - lcols;
       r = c < lcols ? getLeftBaseRow(r) : getRightBaseRow(r);
 
+      if(r == NO_ROW) {
+         return -1;
+      }
+
       return table.getRowBorder(r, col);
    }
 
@@ -771,6 +884,10 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
       int col = c < lcols ? c : c - lcols;
       r = c < lcols ? getLeftBaseRow(r) : getRightBaseRow(r);
 
+      if(r == NO_ROW) {
+         return -1;
+      }
+
       return table.getColBorder(r, col);
    }
 
@@ -789,6 +906,10 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
       TableLens table = c < lcols ? ltable : rtable;
       int col = c < lcols ? c : c - lcols;
       r = c < lcols ? getLeftBaseRow(r) : getRightBaseRow(r);
+
+      if(r == NO_ROW) {
+         return null;
+      }
 
       return table.getInsets(r, col);
    }
@@ -813,6 +934,10 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
       int col = c < lcols ? c : c - lcols;
       r = c < lcols ? getLeftBaseRow(r) : getRightBaseRow(r);
 
+      if(r == NO_ROW) {
+         return null;
+      }
+
       return table.getSpan(r, col);
    }
 
@@ -832,6 +957,10 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
       int col = c < lcols ? c : c - lcols;
       r = c < lcols ? getLeftBaseRow(r) : getRightBaseRow(r);
 
+      if(r == NO_ROW) {
+         return -1;
+      }
+
       return table.getAlignment(r, col);
    }
 
@@ -850,6 +979,10 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
       TableLens table = c < lcols ? ltable : rtable;
       int col = c < lcols ? c : c - lcols;
       r = c < lcols ? getLeftBaseRow(r) : getRightBaseRow(r);
+
+      if(r == NO_ROW) {
+         return null;
+      }
 
       return table.getFont(r, col);
    }
@@ -872,6 +1005,10 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
       int col = c < lcols ? c : c - lcols;
       r = c < lcols ? getLeftBaseRow(r) : getRightBaseRow(r);
 
+      if(r == NO_ROW) {
+         return false;
+      }
+
       return table.isLineWrap(r, col);
    }
 
@@ -892,6 +1029,10 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
       int col = c < lcols ? c : c - lcols;
       r = c < lcols ? getLeftBaseRow(r) : getRightBaseRow(r);
 
+      if(r == NO_ROW) {
+         return null;
+      }
+
       return table.getForeground(r, col);
    }
 
@@ -911,6 +1052,10 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
       TableLens table = c < lcols ? ltable : rtable;
       int col = c < lcols ? c : c - lcols;
       r = c < lcols ? getLeftBaseRow(r) : getRightBaseRow(r);
+
+      if(r == NO_ROW) {
+         return null;
+      }
 
       return table.getBackground(r, col);
    }
@@ -956,14 +1101,14 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
             break;
          }
 
-         updateRowCount(left, i - hrows + 1, false);
+         updateRowCount(thread, left, i - hrows + 1, false);
       }
 
       if((thread == null || !thread.disposed) && !disposed && !cancelled) {
          int count = table.getRowCount() - hrows;
          count = count < 0 ? 0 : count;
 
-         updateRowCount(left, count, true);
+         updateRowCount(thread, left, count, true);
       }
    }
 
@@ -987,7 +1132,7 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
          try {
             loadTable(left, this);
          }
-         catch(RuntimeException ex) {
+         catch(RuntimeException | Error ex) {
             // the readers rethrow it at once rather than wait for a stall of their own
             // (bug #76967)
             LockStallException stall = LockStallException.find(ex);
@@ -995,7 +1140,25 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
             if(stall != null) {
                synchronized(CrossJoinTableLens.this) {
                   if(!this.disposed) {
-                     stallFailure = stall;
+                     // a copy, which is never thrown (bug #78084)
+                     stallFailure = stall.copy();
+                     CrossJoinTableLens.this.notifyAll();
+                  }
+               }
+            }
+            else {
+               // this thread never completes its table, so readers would wait for it
+               // forever; they rethrow the failure instead. a thread superseded by
+               // invalidate() must not fail the next pass, and a failure caused by
+               // dispose() or cancel() of this lens ends the reads as before (bug #77907)
+               synchronized(CrossJoinTableLens.this) {
+                  if(!this.disposed && this == (left ? lthread : rthread) &&
+                     !CrossJoinTableLens.this.disposed && !cancelled)
+                  {
+                     // a copy of a lost swap file or a load failure, which is never
+                     // thrown (bug #78084)
+                     workerFailure = ex instanceof RuntimeException rex ?
+                        DataUnavailable.copy(rex) : ex;
                      CrossJoinTableLens.this.notifyAll();
                   }
                }
@@ -1006,7 +1169,15 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
       }
 
       private boolean left;
-      private boolean disposed;
+      private volatile boolean disposed;
+   }
+
+   /**
+    * The table that completed loading first and its row count, published as one immutable
+    * snapshot so a lock-free reader never pairs the table of one pass with the count of
+    * another (bug #77397).
+    */
+   private record Main(boolean left, int rows) implements Serializable {
    }
 
    private TableLens ltable;       // left table
@@ -1016,8 +1187,7 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
    private int hrows;              // header rows
    private int lrows;              // left table rows
    private int rrows;              // right table rows
-   private int mrows;              // main table rows
-   private TableLens mtable;       // main table
+   private volatile Main main;     // main table and its rows
    private transient WaitingThread lthread;  // left table thread
    private transient WaitingThread rthread;  // right table thread
    private boolean lcompleted;     // left completed flag
@@ -1030,6 +1200,12 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
    private transient boolean maxAlerted = false;
    // the stall a worker failed with (bug #76967)
    private transient volatile LockStallException stallFailure;
+   // any other failure a worker failed with, e.g. a lost swap file (bug #77907)
+   private transient volatile Throwable workerFailure;
+
+   // the base row of a data row while the main table is not known, e.g. after invalidate()
+   // (bug #77397)
+   private static final int NO_ROW = Integer.MIN_VALUE;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(CrossJoinTableLens.class);

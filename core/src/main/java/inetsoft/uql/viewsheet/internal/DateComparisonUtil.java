@@ -162,6 +162,12 @@ public class DateComparisonUtil {
          // maybe nested share
          if(!Tool.isEmptyString(shareFrom)) {
             fromAssembly = vs.getAssembly(shareFrom);
+
+            if(fromAssembly == null ||
+               !(fromAssembly.getVSAssemblyInfo() instanceof DateCompareAbleAssemblyInfo))
+            {
+               return null;
+            }
          }
 
          DateComparisonInfo dateComparisonInfo =
@@ -298,6 +304,10 @@ public class DateComparisonUtil {
     * Get a text description of the date comparison definition.
     */
    public static String getDateComparisonDescription(VSAssemblyInfo info) {
+      return getDateComparisonDescription(info, 0);
+   }
+
+   private static String getDateComparisonDescription(VSAssemblyInfo info, int shareDepth) {
       if(info == null) {
          return "";
       }
@@ -308,17 +318,21 @@ public class DateComparisonUtil {
          DateComparisonInfo dcInfo = ((DateCompareAbleAssemblyInfo) info).getDateComparisonInfo();
          String shareFrom = ((DateCompareAbleAssemblyInfo) info).getComparisonShareFrom();
 
-         if(dcInfo != null) {
+         // a shared assembly's own dc is a stale snapshot, describe the share source instead
+         if(dcInfo != null && Tool.isEmptyString(shareFrom)) {
             desc = dcInfo.getDescription();
          }
          else if(!Tool.isEmptyString(shareFrom)) {
             Viewsheet vs = info.getViewsheet();
 
-            if(vs != null) {
+            // follow at most two share hops, the same as getDateComparison(), so a share
+            // cycle cannot recurse forever
+            if(vs != null && shareDepth < 2) {
                VSAssembly vsAssembly = vs.getAssembly(shareFrom);
 
                if(vsAssembly != null) {
-                  desc = DateComparisonUtil.getDateComparisonDescription(vsAssembly.getVSAssemblyInfo());
+                  desc = getDateComparisonDescription(vsAssembly.getVSAssemblyInfo(),
+                                                      shareDepth + 1);
                }
             }
          }
@@ -1864,10 +1878,10 @@ public class DateComparisonUtil {
       return false;
    }
 
-   public static void syncWeekGroupingLevels(CrosstabVSAssemblyInfo info) {
-      DateComparisonInfo dcInfo = info == null ? null : info.getDateComparisonInfo();
-
-      if(dcInfo == null || !dcInfo.alignWeek()) {
+   public static void syncWeekGroupingLevels(CrosstabVSAssemblyInfo info,
+                                             DateComparisonInfo dcInfo)
+   {
+      if(info == null || dcInfo == null || !dcInfo.alignWeek()) {
          return;
       }
 

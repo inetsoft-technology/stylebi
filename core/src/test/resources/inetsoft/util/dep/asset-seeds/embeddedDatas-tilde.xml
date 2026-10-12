@@ -1,0 +1,8 @@
+<worksheet><assemblies><oneAssembly>
+<assembly class="inetsoft.uql.asset.EmbeddedTableAssembly"><assemblyInfo>
+<normalColumnSelection></normalColumnSelection><crosstabColumnSelection></crosstabColumnSelection>
+</assemblyInfo>
+<embeddedDatas><![CDATA[
+AAAA~
+]]></embeddedDatas>
+</assembly></oneAssembly></assemblies></worksheet>

@@ -27,9 +27,11 @@ import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.report.script.TableArray;
 import inetsoft.uql.XTable;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.util.script.ScriptUtil;
-import inetsoft.util.stall.LockStallException;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
+import inetsoft.util.swap.DataUnavailable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -157,12 +159,14 @@ public class TableAssemblyScriptable extends TableArray {
             throw circular;
          }
 
-         // a lock stall is not a missing table, which TableArray reads as an empty one (#77123)
-         LockStallException stall = LockStallException.find(ex);
-
-         if(stall != null) {
-            throw stall;
-         }
+         // a lock stall or a lost swap file is not a missing table, which TableArray reads as
+         // an empty one (#77123, #77910)
+         DataUnavailable.rethrow(ex);
+         // nor has a table that failed to load for a reader that has to fail, e.g. a
+         // scheduled run (#78083)
+         TableLoadException.rethrow(ex);
+         // nor has a table whose script was stopped (#78134)
+         ScriptTimeoutGuard.rethrowStop(ex);
 
          // ignore if box has been disposed
          if(!box.isDisposed()) {

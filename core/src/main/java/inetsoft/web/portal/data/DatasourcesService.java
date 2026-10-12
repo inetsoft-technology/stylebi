@@ -61,8 +61,7 @@ public class DatasourcesService extends DatasourcesBaseService {
     * @return data source object for the new connection
     */
    private XDataSource createDataSource(DataSourceDefinition definition, XDataSource ds) {
-      checkDatasourceNameValid(ds == null ? null : ds.getName(), definition.getName(),
-         definition.getParentPath());
+      checkDatasourceNameValid(ds == null ? null : ds.getName(), definition);
 
       if(ds == null) {
          String dsClass = getUqlConfig().getDataSourceClass(definition.getType());

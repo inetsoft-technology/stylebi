@@ -180,7 +180,8 @@ public class VSCrosstabModel extends BaseTableModel<CrosstabVSAssembly> {
 
       setDateComparisonDefined(DateComparisonUtil.isDateComparisonDefined(cinfo));
       setDateComparisonEnabled(cinfo.isDateComparisonEnabled());
-      DateComparisonInfo dcInfo = cinfo.getDateComparisonInfo();
+      DateComparisonInfo dcInfo =
+         DateComparisonUtil.getDateComparison(cinfo, assembly.getViewsheet());
       setCustomPeriod(dcInfo != null && dcInfo.getPeriods() instanceof CustomPeriods);
       setHasHiddenColumn(assembly.getCrosstabInfo().hasHiddenColumn());
       setFilterFields(BaseDrillHandler.getDrillFiltersFields(rvs.getViewsheet()));

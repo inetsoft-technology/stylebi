@@ -365,7 +365,7 @@ public class RecycleBinChangesetApplyService {
       }
       else {
          RecycleUtils.moveRepositoryFolderToRecycleBin(entry.getOriginalPath(), entry.getName(),
-            entry.getOriginalUser(), user, recycleBin);
+            entry.getOriginalUser(), user, recycleBin, true);
          RepletRegistry registry = RecycleUtils.getRegistry(entry.getOriginalPath(),
             entry.getOriginalUser());
          verified = !registry.isFolder(entry.getOriginalPath());

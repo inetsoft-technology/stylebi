@@ -71,7 +71,8 @@ public abstract class AbstractDataRef implements DataRef {
          break;
       default:
          ref = (DataRef)
-            Class.forName(Tool.convertUserClassName(name)).getConstructor().newInstance();
+            Tool.loadSubclass(Tool.convertUserClassName(name), DataRef.class)
+               .getConstructor().newInstance();
       }
 
       ref.parseXML(elem);

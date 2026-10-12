@@ -430,7 +430,11 @@ public abstract class OutputVSAssemblyInfo extends VSAssemblyInfo
    protected void writeAttributes(PrintWriter writer) {
       super.writeAttributes(writer);
       writer.print(" shadow=\"" + isShadow() + "\"");
-      writer.print(" shadowValue=\"" + getShadowValue() + "\"");
+      // persist the stored design value, not getShadowValue(), so a $(var),
+      // =expr or truthy literal such as "yes" is not rewritten to false
+      String shadowValue = shadow.getDValue();
+      writer.print(" shadowValue=\"" +
+         Tool.escape(shadowValue == null ? "false" : shadowValue) + "\"");
 
       if(highlightFg != null) {
          writer.print(" highlightFg=\"" + highlightFg.getRGB() + "\"");
@@ -472,7 +476,7 @@ public abstract class OutputVSAssemblyInfo extends VSAssemblyInfo
       if(getValue() != null) {
          String str = Tool.toString(getValue());
          writer.print("<displayValue>");
-         writer.print("<![CDATA[" + str + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(str) + "]]>");
          writer.println("</displayValue>");
       }
 
@@ -525,7 +529,7 @@ public abstract class OutputVSAssemblyInfo extends VSAssemblyInfo
 
       if(customTooltipString != null) {
          writer.print("<customTooltipStr>");
-         writer.print("<![CDATA[" + getCustomTooltipString() + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(getCustomTooltipString()) + "]]>");
          writer.println("</customTooltipStr>");
       }
    }

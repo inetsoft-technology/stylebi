@@ -50,10 +50,11 @@ public abstract class VpmObject
       VpmObject obj;
 
       try {
-         obj = (VpmObject) Class.forName(cls).newInstance();
+         obj = (VpmObject) Tool.loadSubclass(cls, VpmObject.class).newInstance();
       }
       catch(ClassNotFoundException ex) {
-         obj = (VpmObject) Class.forName(cls.replace("uql.erm", "uql.erm.vpm")).newInstance();
+         obj = (VpmObject) Tool.loadSubclass(cls.replace("uql.erm", "uql.erm.vpm"), VpmObject.class)
+            .newInstance();
       }
 
       obj.parseXML(elem);

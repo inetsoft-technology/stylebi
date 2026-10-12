@@ -23,7 +23,6 @@ import inetsoft.uql.jdbc.util.SQLTypes;
 import inetsoft.uql.path.XSelection;
 import inetsoft.uql.table.XTableColumnCreator;
 import inetsoft.uql.util.QueryManager;
-import inetsoft.uql.util.XUtil;
 import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -77,8 +76,8 @@ public class JDBCTableNode extends XTableNode {
 
       // may be unsupported
       try {
-         int type = (Integer) XUtil.call(result, "java.sql.ResultSet", "getType", null, null);
-         Integer forward = (Integer) XUtil.field(ResultSet.class, "TYPE_FORWARD_ONLY");
+         int type = (Integer) Tool.call(result, "java.sql.ResultSet", "getType", null, null);
+         Integer forward = (Integer) Tool.field(ResultSet.class, "TYPE_FORWARD_ONLY");
          rewindable = forward != null && type != forward;
       }
       catch(Throwable ignore) {
@@ -254,6 +253,7 @@ public class JDBCTableNode extends XTableNode {
                rready = false;
 
                if(!more) {
+                  ended = true;
                   closeStmt = true;
                   // clear the static blobmap
                   sqlTypesHelper.clearBlobmap();
@@ -274,6 +274,10 @@ public class JDBCTableNode extends XTableNode {
          // user canceled while getting the rows, no need to report as error
          if(JDBCUtil.isCancelled(e, stmt)) {
             LOG.debug("Query cancelled", e);
+            // a driver that implements the cancel fails the read in progress, and the rows end
+            // here as at the end of the result: record it, or the rows read so far are taken
+            // for the whole result (bug #78200)
+            super.cancel();
             sqlTypesHelper.clearBlobmap();
             return false;
          }
@@ -283,7 +287,7 @@ public class JDBCTableNode extends XTableNode {
 
          // clear the static blobmap
          sqlTypesHelper.clearBlobmap();
-         throw new RuntimeException(e + "");
+         throw new RuntimeException(e + "", e);
       }
       finally {
          if(closeStmt) {
@@ -303,11 +307,11 @@ public class JDBCTableNode extends XTableNode {
    public synchronized boolean rewind() {
       try {
          if(result != null) {
-            Boolean first = (Boolean) XUtil.call(result, "java.sql.ResultSet",
+            Boolean first = (Boolean) Tool.call(result, "java.sql.ResultSet",
                "isBeforeFirst", null, null);
 
             if(!first) {
-               XUtil.call(result, "java.sql.ResultSet", "beforeFirst", null,
+               Tool.call(result, "java.sql.ResultSet", "beforeFirst", null,
                   null);
             }
 
@@ -460,6 +464,13 @@ public class JDBCTableNode extends XTableNode {
    @Override
    public synchronized void cancel() {
       try {
+         // a cancel of rows still being read ends them early: record it, so the rows read so far
+         // are not taken for the whole result (bug #78200). the cancelled field can't tell, it
+         // is also set when the rows are closed after the last one
+         if(!ended && stmt != null) {
+            super.cancel();
+         }
+
          cancelled = true;
 
          if(stmt != null) {
@@ -496,6 +507,8 @@ public class JDBCTableNode extends XTableNode {
    }
 
    private boolean cancelled = false;
+   // the rows ended (the last one was read, or max rows reached), a later cancel is no cancel
+   private boolean ended = false;
    private int ncol;
    private String[] names;
    private XTableColumnCreator[] creators;

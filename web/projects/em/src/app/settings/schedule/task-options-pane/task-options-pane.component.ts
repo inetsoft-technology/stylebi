@@ -108,7 +108,9 @@ export class TaskOptionsPane {
          this.optionsForm.get("timeZone").setValue({ timeZoneId: this.model.timeZone, timeZoneLabel: "" } as TimeZoneValue);
          this.optionsForm.get("locale").setValue(this.model.locale || TaskOptionsPane.DEFAULT_LOCALE);
          this.optionsForm.get("owner").setValue(this.model.owner);
-         const idName: string = this.model.idName || this._model.owner;
+         // the real execute-as identity; don't fall back to the owner, or the owner would be
+         // saved as an explicit execute-as identity
+         const idName: string = this.model.idName;
 
          if(this.adminName && !this.model.securityEnabled) {
             this._executeAs = null;
@@ -125,6 +127,20 @@ export class TaskOptionsPane {
       }
    }
 
+   /**
+    * The owner the task was loaded (or last saved) with. It is always accepted as the owner,
+    * even if it isn't in the list of users the editor can administer, e.g. a placeholder owner.
+    */
+   @Input()
+   get originalOwner(): string {
+      return this._originalOwner;
+   }
+
+   set originalOwner(value: string) {
+      this._originalOwner = value;
+      this.optionsForm.get("owner").updateValueAndValidity({ emitEvent: false });
+   }
+
    @Input() internal: boolean = false;
    @Output() modelChanged = new EventEmitter<TaskOptionChanges>();
 
@@ -136,7 +152,11 @@ export class TaskOptionsPane {
    public adminName: string = "";
    public ssoEnable: boolean = false;
    public isAdminNameLoading: boolean = true;
+   private _originalOwner: string;
+   // the real execute-as identity name, sent as model.idName
    private _executeAs: string;
+   // the text last written to the executeAs control, used to detect free-text input
+   private executeAsLabel: string;
    public groupErrorState = new GroupErrorState();
    public static DEFAULT_LOCALE: string = "Default";
 
@@ -207,6 +227,24 @@ export class TaskOptionsPane {
       return !!this.optionsForm.get("taskEnabled").value;
    }
 
+   /**
+    * Bug #78038, a task without an execute-as identity runs as its owner, so the Execute As
+    * field shows the owner as its placeholder. This is display only. The owner is never written
+    * to the executeAs control or to model.idName, or it would be saved as an explicit execute-as
+    * identity that no longer follows the owner (#77512). Computed on every change detection, so
+    * it follows owner changes (model.owner is updated in fireModelChanged) and the late arrival
+    * of the admin name.
+    */
+   get executeAsFallback(): string {
+      // no fallback for an explicit identity, for the anonymous rule ("") or when the
+      // execute-as identity is blank because security is disabled
+      if(!this.model || this._executeAs != null || this.adminName && !this.model.securityEnabled) {
+         return null;
+      }
+
+      return this.model.owner || null;
+   }
+
    fireModelChanged(): void {
       const tzValue = this.optionsForm.get("timeZone").value as TimeZoneValue;
       this.model.enabled = !!this.optionsForm.get("taskEnabled").value;
@@ -222,7 +260,8 @@ export class TaskOptionsPane {
       const locale = this.optionsForm.get("locale").value;
       this.model.locale = locale === TaskOptionsPane.DEFAULT_LOCALE ? null : locale;
       this.model.owner = this.optionsForm.get("owner").value;
-      this.model.idName = this.optionsForm.get("executeAs").value;
+      this.syncExecuteAsFromInput();
+      this.model.idName = this._executeAs;
 
       this.modelChanged.emit({
          valid: this.formValidIgnoreOwner(),
@@ -268,17 +307,21 @@ export class TaskOptionsPane {
    }
 
    public clearUser(): void {
-      this._executeAs = "";
+      this._executeAs = null;
+      this.model.idName = null;
+      this.model.idType = ExecuteAsType.USER;
       this.refreshExecuteAsLabel();
+      this.fireModelChanged();
    }
 
    public openExecuteAsDialog(): void {
+      this.syncExecuteAsFromInput();
       const dialogRef = this.dialog.open(ExecuteAsDialogComponent, {
          width: "40vw",
          height: "fit-content",
          data: {
             owner: this.optionsForm.get("owner").value,
-            idName: this.optionsForm.get("executeAs").value,
+            idName: this._executeAs,
             idType: this.model.idType
          }
       });
@@ -286,11 +329,25 @@ export class TaskOptionsPane {
       dialogRef.afterClosed().subscribe((data: any) => {
          if(data !== undefined) {
             this._executeAs = data.idName;
-            this.refreshExecuteAsLabel();
             this.model.idType = data.idType;
+            this.refreshExecuteAsLabel();
             this.fireModelChanged();
          }
       });
+   }
+
+   /**
+    * If the user typed into the executeAs field, the typed text is the execute-as identity.
+    * Otherwise the field holds a display label (e.g. a group name without its organization),
+    * so keep the real identity.
+    */
+   private syncExecuteAsFromInput(): void {
+      const shown = this.optionsForm.get("executeAs").value;
+
+      if(shown !== this.executeAsLabel) {
+         this._executeAs = shown;
+         this.executeAsLabel = shown;
+      }
    }
 
    refreshExecuteAsLabel(): void {
@@ -305,11 +362,17 @@ export class TaskOptionsPane {
          executeAsLabel = groupBaseName;
       }
 
+      this.executeAsLabel = executeAsLabel;
       this.optionsForm.get("executeAs").setValue(executeAsLabel);
    }
 
    private validUser = (control: AbstractControl): ValidationErrors | null => {
       if("INETSOFT_SYSTEM" == control.value) {
+         return null;
+      }
+
+      // the unchanged owner is always accepted; the server checks a changed owner
+      if(this._originalOwner != null && control.value === this._originalOwner) {
          return null;
       }
 

@@ -790,13 +790,28 @@ describe("EditIdentityViewComponent — identityEditable: org-save disable/re-en
 
 describe("EditIdentityViewComponent — isModelChanged() and structural guards", () => {
 
+   // init() subscribes form.valueChanges -> updateModel() inside a 200 ms setTimeout. A real
+   // user always edits after it fired, so these tests fake setTimeout and advance past the delay
+   // before acting; otherwise the result depends on how long render() and the MSW responses take.
+   // The model is shaped like the server's for an existing user: password null, theme null.
+   async function renderWithLiveFormSync(model: EditIdentityPaneModel,
+                                         type: IdentityType = IdentityType.USER)
+   {
+      vi.useFakeTimers({ toFake: ["setTimeout"] });
+      const result = await renderComponent({ model, type });
+      vi.advanceTimersByTime(200);
+      return result;
+   }
+
+   afterEach(() => {
+      vi.useRealTimers();
+   });
+
    // isModelChanged() false → true → false cycle validates that original-state bookkeeping
    // is correct across the full edit/reset lifecycle.
    it("should return false initially, true after a name edit, and false again after reset", async () => {
-      const { comp } = await renderComponent({
-         model: makeUserModel({ name: "original" }),
-         type: IdentityType.USER,
-      });
+      const { comp } = await renderWithLiveFormSync(
+         makeUserModel({ name: "original", password: null, theme: null }));
 
       expect(comp.isModelChanged()).toBe(false);
 
@@ -805,6 +820,61 @@ describe("EditIdentityViewComponent — isModelChanged() and structural guards",
       expect(comp.isModelChanged()).toBe(true);
 
       comp.reset();
+      expect(comp.isModelChanged()).toBe(false);
+   });
+
+   // Bug #77935: reset()'s setValue calls run updateModel(), which writes the form's "" theme over
+   // the server's null. An unassigned theme must not count as a change, or Apply stays enabled.
+   // Every identity type shares the theme field and isModelChanged(), so cover each of them.
+   it.each([
+      { name: "user", type: IdentityType.USER,
+        model: makeUserModel({ name: "original", password: null, theme: null }) },
+      { name: "group", type: IdentityType.GROUP, model: makeGroupModel({ name: "original", theme: null }) },
+      { name: "role", type: IdentityType.ROLE, model: makeRoleModel({ name: "original", theme: null }) },
+      { name: "organization", type: IdentityType.ORGANIZATION,
+        model: makeOrgModel({ name: "original", theme: null }) },
+   ] satisfies Array<{ name: string; type: IdentityType; model: EditIdentityPaneModel }>)(
+      "should return false after reset with no edit when the $name has no theme",
+      async ({ type, model }) => {
+         const { comp } = await renderWithLiveFormSync(model, type);
+
+         comp.reset();
+
+         expect(comp.model.theme).toBe("");
+         expect(comp.isModelChanged()).toBe(false);
+      });
+
+   // Bug #77935: the other direction of the unassigned-theme normalization. Assigning a theme to an
+   // identity that has none (null -> "theme1") is a real change, and reset undoes it.
+   it("should return true when a theme is assigned to an identity with no theme, and false after reset", async () => {
+      const { comp } = await renderWithLiveFormSync(
+         makeUserModel({ name: "original", password: null, theme: null }));
+
+      comp.form.controls["theme"].setValue("theme1");
+
+      expect(comp.model.theme).toBe("theme1");
+      expect(comp.isModelChanged()).toBe(true);
+
+      comp.reset();
+
+      expect(comp.model.theme).toBe("");
+      expect(comp.isModelChanged()).toBe(false);
+   });
+
+   // Bug #77935: only an unassigned theme (null vs "") is treated as unchanged. Switching an
+   // assigned theme to the default ("") is a real change that Apply must send, and reset undoes it.
+   it("should return true when an assigned theme is switched to the default, and false after reset", async () => {
+      const { comp } = await renderWithLiveFormSync(
+         makeUserModel({ name: "original", password: null, theme: "theme1" }));
+
+      comp.form.controls["theme"].setValue("");
+
+      expect(comp.model.theme).toBe("");
+      expect(comp.isModelChanged()).toBe(true);
+
+      comp.reset();
+
+      expect(comp.model.theme).toBe("theme1");
       expect(comp.isModelChanged()).toBe(false);
    });
 

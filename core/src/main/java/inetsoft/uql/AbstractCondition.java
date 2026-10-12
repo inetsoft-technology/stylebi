@@ -22,7 +22,7 @@ import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.*;
-import org.pojava.datetime.DateTime;
+import inetsoft.util.pojava.datetime.DateTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.util.StringUtils;
@@ -159,13 +159,13 @@ public abstract class AbstractCondition implements XCondition {
          return "";
       }
       else if(value instanceof java.sql.Date) {
-         return CoreTool.dateFmt.get().format(value);
+         return CoreTool.formatPersistentDate(CoreTool.dateFmt.get(), (Date) value);
       }
       else if(value instanceof java.sql.Time) {
          return CoreTool.timeFmt.get().format(value);
       }
       else if(value instanceof java.sql.Timestamp) {
-         return CoreTool.timeInstantFmt.get().format(value);
+         return CoreTool.formatPersistentDate(CoreTool.timeInstantFmt.get(), (Date) value);
       }
       else if(value instanceof UserVariable) {
          return "$(" + ((UserVariable) value).getName() + ")";
@@ -204,7 +204,7 @@ public abstract class AbstractCondition implements XCondition {
       DateFormat format = getDateFormat(type);
 
       if(format != null && (value instanceof Date)) {
-         return format.format(value);
+         return CoreTool.formatPersistentDate(format, (Date) value);
       }
 
       return getValueString(value);
@@ -638,7 +638,7 @@ public abstract class AbstractCondition implements XCondition {
     */
    public static XCondition createXCondition(Element elem) throws Exception {
       String cls = Tool.getAttribute(elem, "class");
-      XCondition condition = (XCondition) Class.forName(cls).newInstance();
+      XCondition condition = (XCondition) Tool.loadSubclass(cls, XCondition.class).newInstance();
       condition.parseXML(elem);
       return condition;
    }

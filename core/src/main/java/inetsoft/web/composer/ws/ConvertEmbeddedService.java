@@ -57,6 +57,7 @@ public class ConvertEmbeddedService extends WorksheetControllerService {
       RuntimeWorksheet rws = super.getRuntimeWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
       String name = event.getAssemblyName();
+      checkCubeTableReadPermission(principal, name);
       TableAssembly tabAssembly = (TableAssembly) ws.getAssembly(name);
 
       if(tabAssembly == null) {

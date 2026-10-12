@@ -660,7 +660,14 @@ public class TableLayout extends BaseLayout implements GroupableLayout {
       }
 
       if((val = Tool.getAttribute(tag, "columns")) != null) {
-         setColCount(Integer.parseInt(val));
+         int n = Integer.parseInt(val);
+
+         // checked before anything is sized by it
+         if(n < 0 || n > MAX_COLUMNS) {
+            throw new Exception("invalid layout columns: " + val);
+         }
+
+         setColCount(n);
       }
 
       if((val = Tool.getAttribute(tag, "backLayoutType")) != null) {
@@ -860,6 +867,14 @@ public class TableLayout extends BaseLayout implements GroupableLayout {
       @Override
       public void setRowCount(int nrow) {
          // do nothing
+      }
+
+      /**
+       * Set the number of rows of a region being parsed.
+       */
+      @Override
+      protected void initRowCount(int nrow) {
+         // do nothing, same as setRowCount
       }
 
       /**

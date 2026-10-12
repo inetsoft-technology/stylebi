@@ -17,6 +17,8 @@
  */
 package inetsoft.uql.util.filereader;
 
+import inetsoft.util.Tool;
+
 import java.text.*;
 import java.util.*;
 import java.util.regex.Matcher;
@@ -237,7 +239,7 @@ public class ExcelFormatCache {
       formatStr = sb.toString();
 
       try {
-         return new SimpleDateFormat(formatStr);
+         return Tool.createGregorianDateFormat(formatStr);
       }
       catch(IllegalArgumentException iae) {
          // the pattern could not be parsed correctly,

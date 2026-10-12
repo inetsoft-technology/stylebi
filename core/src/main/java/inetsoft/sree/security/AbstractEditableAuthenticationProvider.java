@@ -146,8 +146,15 @@ public abstract class AbstractEditableAuthenticationProvider
       copyDataSpace(fromOrganization, newOrg, replace);
       String newOrgThemeId = copyThemes(fromOrgId, newOrgID, replace);
 
+      // a rename that only changes the case of the org ID keeps the org's scoped property names,
+      // so they must not be removed as the old organization's
+      boolean sameScopedProperties = isSameOrgPropertyScope(fromOrgId, newOrgID);
+
       if(replace) {
-         clearScopedProperties(fromOrgId);
+         if(!sameScopedProperties) {
+            clearScopedProperties(fromOrgId);
+         }
+
          dashboardRegistryManager.clear(fromOrganization.getIdentityID());
          identityService.updateOrgProperties(fromOrgId, newOrgID);
          identityService.updateAutoSaveFiles(fromOrganization, newOrg, principal);
@@ -187,7 +194,8 @@ public abstract class AbstractEditableAuthenticationProvider
             }
 
             if(replace) {
-               removeRole(roleIdentity);
+               removeOldIdentity("role " + roleIdentity.getLabel(), () -> removeRole(roleIdentity),
+                                 fromOrgId, newOrgID);
             }
          }
       }
@@ -201,7 +209,8 @@ public abstract class AbstractEditableAuthenticationProvider
             }
 
             if(replace) {
-               removeUser(userID);
+               removeOldIdentity("user " + userID.getLabel(), () -> removeUser(userID),
+                                 fromOrgId, newOrgID);
             }
          }
       }
@@ -355,8 +364,25 @@ public abstract class AbstractEditableAuthenticationProvider
       }
 
       if(replace) {
-         removeOrganization(fromOrgId);
-         identityService.removeOrgProperties(fromOrgId);
+         // Bug #78118, move a session whose current organization is the renamed one to the new
+         // ID before the old organization is removed. Otherwise, until the caller sets the new ID
+         // after the rename, a concurrent request of the session resolves an organization that
+         // no longer exists. copyStorages() has initialized the new organization's storage by
+         // now, so setting it as the current organization does not initialize it from scratch.
+         OrganizationManager orgManager = OrganizationManager.getInstance();
+
+         if(Tool.equals(fromOrgId, orgManager.getCurrentOrgID(ThreadContext.getContextPrincipal()))) {
+            orgManager.setCurrentOrgID(newOrgID);
+         }
+
+         removeOldIdentity("organization " + fromOrgId, () -> removeOrganization(fromOrgId),
+                           fromOrgId, newOrgID);
+
+         // updateOrgProperties() has already moved the old org ID's log level properties
+         if(!sameScopedProperties) {
+            identityService.removeOrgProperties(fromOrgId);
+         }
+
          identityService.removeOrgScopedDataSpaceElements(fromOrganization);
          themeService.removeTheme(fromOrgId);
          FSService.clearServerNodeCache(fromOrgId);
@@ -388,6 +414,24 @@ public abstract class AbstractEditableAuthenticationProvider
       }
       else {
          identityService.copyDashboardRegistry(fromOrganization, newOrg);
+      }
+   }
+
+   /**
+    * Removes an identity of the old organization during an organization rename. This is
+    * best-effort: by now the new organization holds the migrated state (properties, permissions,
+    * auto-save and task files were already re-keyed), so aborting the rename here would leave the
+    * organization half-migrated. A failure leaves an extra identity behind, not lost data.
+    */
+   private void removeOldIdentity(String identity, Runnable remove, String fromOrgId,
+                                  String newOrgID)
+   {
+      try {
+         remove.run();
+      }
+      catch(RuntimeException e) {
+         LOG.warn("The {} could not be removed while renaming organization {} to {}. It was " +
+                  "left behind and must be deleted.", identity, fromOrgId, newOrgID, e);
       }
    }
 
@@ -637,15 +681,21 @@ public abstract class AbstractEditableAuthenticationProvider
       }
    }
 
+   private static boolean isSameOrgPropertyScope(String orgId1, String orgId2) {
+      return PropertiesEngine.getOrgPropertyPrefix(orgId1)
+         .equals(PropertiesEngine.getOrgPropertyPrefix(orgId2));
+   }
+
    protected void clearScopedProperties(String oldOrgId) {
       //loop through properties, delete any containing .thisOrg.
       Properties properties = SreeEnv.getProperties();
-      String oldOrgIdentifier = "inetsoft.org." + oldOrgId.toLowerCase(Locale.ROOT) + ".";
+      // the stored names have the org ID lower case, as the property engine writes them
+      String oldOrgIdentifier = PropertiesEngine.getOrgPropertyPrefix(oldOrgId);
 
       for(Enumeration<?> e = properties.propertyNames(); e.hasMoreElements();) {
          String pName = (String) e.nextElement();
 
-         if(pName.toLowerCase(Locale.ROOT).startsWith(oldOrgIdentifier)) {
+         if(pName.startsWith(oldOrgIdentifier)) {
             SreeEnv.remove(pName);
          }
       }
@@ -744,15 +794,22 @@ public abstract class AbstractEditableAuthenticationProvider
    }
 
    private void copyScopedProperties(String fromOrgId, String newOrgId, boolean replace) {
+      // org IDs that differ only in case have the same scoped property names, so copying each
+      // property onto itself and removing the original would lose it
+      if(isSameOrgPropertyScope(fromOrgId, newOrgId)) {
+         return;
+      }
+
       Properties properties = SreeEnv.getProperties();
-      String oldOrgIdentifier = "inetsoft.org." + fromOrgId.toLowerCase(Locale.ROOT) + ".";
-      String newOrgPrefix = "inetsoft.org." + newOrgId.toLowerCase(Locale.ROOT) + ".";
+      // the stored names have the org ID lower case, as the property engine writes them
+      String oldOrgIdentifier = PropertiesEngine.getOrgPropertyPrefix(fromOrgId);
+      String newOrgPrefix = PropertiesEngine.getOrgPropertyPrefix(newOrgId);
       Enumeration<?> enumeration = properties.propertyNames();
 
       while(enumeration.hasMoreElements()) {
          String pName = (String) enumeration.nextElement();
 
-         if(pName.toLowerCase(Locale.ROOT).startsWith(oldOrgIdentifier)) {
+         if(pName.startsWith(oldOrgIdentifier)) {
             String baseName = pName.substring(oldOrgIdentifier.length());
             String updatedName = newOrgPrefix + baseName;
             SreeEnv.setProperty(updatedName, properties.getProperty(pName));
@@ -780,42 +837,42 @@ public abstract class AbstractEditableAuthenticationProvider
       IdentityID toRootUserID = new IdentityID(rootUserName, newOrgID);
       List<IdentityModel> rootUserPIDs = identityService.getPermission(fromRootUserID, ResourceType.SECURITY_USER, fromOrgID, principal);
 
-      identityService.setIdentityPermissions(toRootUserID, toRootUserID, ResourceType.SECURITY_USER, principal,
-                                             copyPermittedIDs(rootUserPIDs, fromOrgID, newOrgID), newOrgID);
+      setIdentityPermissionsBestEffort(identityService, toRootUserID, toRootUserID, ResourceType.SECURITY_USER, principal,
+                                       copyPermittedIDs(rootUserPIDs, fromOrgID, newOrgID), newOrgID);
       //Groups
       String rootGroupName = "Groups";
       IdentityID fromRootGroupID = new IdentityID(rootGroupName, fromOrgID);
       IdentityID toRootGroupID = new IdentityID(rootGroupName, newOrgID);
       List<IdentityModel> rootGroupPIDs = identityService.getPermission(fromRootGroupID, ResourceType.SECURITY_GROUP, fromOrgID, principal);
 
-      identityService.setIdentityPermissions(toRootGroupID, toRootGroupID, ResourceType.SECURITY_GROUP, principal,
-                                             copyPermittedIDs(rootGroupPIDs, fromOrgID, newOrgID), newOrgID);
+      setIdentityPermissionsBestEffort(identityService, toRootGroupID, toRootGroupID, ResourceType.SECURITY_GROUP, principal,
+                                       copyPermittedIDs(rootGroupPIDs, fromOrgID, newOrgID), newOrgID);
       //Roles
       String rootRoleName = "Roles";
       IdentityID fromRootID = new IdentityID(rootRoleName, fromOrgID);
       IdentityID toRootID = new IdentityID(rootRoleName, newOrgID);
       List<IdentityModel> rootRolePIDs = identityService.getPermission(fromRootID, ResourceType.SECURITY_ROLE, fromOrgID, principal);
 
-      identityService.setIdentityPermissions(toRootID, toRootID, ResourceType.SECURITY_ROLE, principal,
-                                             copyPermittedIDs(rootRolePIDs, fromOrgID, newOrgID), newOrgID);
+      setIdentityPermissionsBestEffort(identityService, toRootID, toRootID, ResourceType.SECURITY_ROLE, principal,
+                                       copyPermittedIDs(rootRolePIDs, fromOrgID, newOrgID), newOrgID);
 
       String rootOrgRoleName = "Organization Roles";
       IdentityID fromRootOrgRoleID = new IdentityID(rootOrgRoleName, fromOrgID);
       IdentityID toRootOrgRoleID = new IdentityID(rootOrgRoleName, newOrgID);
       List<IdentityModel> rootOrgRolePIDs = identityService.getPermission(fromRootOrgRoleID, ResourceType.SECURITY_ROLE, fromOrgID, principal);
 
-      identityService.setIdentityPermissions(toRootOrgRoleID, toRootOrgRoleID, ResourceType.SECURITY_ROLE, principal,
-                                             copyPermittedIDs(rootOrgRolePIDs, fromOrgID, newOrgID), newOrgID);
+      setIdentityPermissionsBestEffort(identityService, toRootOrgRoleID, toRootOrgRoleID, ResourceType.SECURITY_ROLE, principal,
+                                       copyPermittedIDs(rootOrgRolePIDs, fromOrgID, newOrgID), newOrgID);
 
       if(replace) {
-         identityService.setIdentityPermissions(fromRootUserID, fromRootUserID, ResourceType.SECURITY_USER,
-                                                 principal, null, null);
-         identityService.setIdentityPermissions(fromRootGroupID, fromRootGroupID, ResourceType.SECURITY_GROUP,
-                                                 principal, null, null);
-         identityService.setIdentityPermissions(fromRootID, fromRootID, ResourceType.SECURITY_ROLE,
-                                                principal, null, null);
-         identityService.setIdentityPermissions(fromRootOrgRoleID, fromRootOrgRoleID, ResourceType.SECURITY_ROLE,
-                                                principal, null, null);
+         setIdentityPermissionsBestEffort(identityService, fromRootUserID, fromRootUserID, ResourceType.SECURITY_USER,
+                                           principal, null, null);
+         setIdentityPermissionsBestEffort(identityService, fromRootGroupID, fromRootGroupID, ResourceType.SECURITY_GROUP,
+                                           principal, null, null);
+         setIdentityPermissionsBestEffort(identityService, fromRootID, fromRootID, ResourceType.SECURITY_ROLE,
+                                          principal, null, null);
+         setIdentityPermissionsBestEffort(identityService, fromRootOrgRoleID, fromRootOrgRoleID, ResourceType.SECURITY_ROLE,
+                                          principal, null, null);
       }
    }
 
@@ -975,8 +1032,28 @@ public abstract class AbstractEditableAuthenticationProvider
       List<IdentityModel> updatedUPermIds = copyPermittedIDs(uPermIds, fromIdentity.orgID, toIdentity.orgID);
 
       if(!updatedUPermIds.isEmpty()) {
-         identityService.setIdentityPermissions(toIdentity, toIdentity,rType, principal,
-                                                updatedUPermIds, newOrgID);
+         setIdentityPermissionsBestEffort(identityService, toIdentity, toIdentity,rType, principal,
+                                          updatedUPermIds, newOrgID);
+      }
+   }
+
+   /**
+    * Copies the permissions on an identity during an organization copy. The copy has already
+    * changed other identities, so a failed permission write is logged and the copy continues.
+    */
+   private void setIdentityPermissionsBestEffort(IdentityService identityService, IdentityID oldID,
+                                                 IdentityID newID, ResourceType resourceType,
+                                                 Principal principal,
+                                                 List<IdentityModel> permittedIdentities,
+                                                 String newOrgId)
+   {
+      try {
+         identityService.setIdentityPermissions(oldID, newID, resourceType, principal,
+                                                permittedIdentities, newOrgId);
+      }
+      catch(RuntimeException e) {
+         LOG.error("Failed to copy the permissions of {} {} to {}, they may not have been saved",
+                   resourceType, oldID, newID, e);
       }
    }
 

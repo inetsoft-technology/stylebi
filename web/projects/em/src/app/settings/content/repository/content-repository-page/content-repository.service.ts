@@ -20,7 +20,7 @@ import { Injectable, OnDestroy } from "@angular/core";
 import { MatDialog, MatDialogConfig } from "@angular/material/dialog";
 import { MatSnackBar } from "@angular/material/snack-bar";
 import { BehaviorSubject, merge, Observable, ObservableInput, of, Subject } from "rxjs";
-import { catchError, map, share, switchMap } from "rxjs/operators";
+import { catchError, map, share, switchMap, tap } from "rxjs/operators";
 import { RepositoryEntryType } from "../../../../../../../shared/data/repository-entry-type.enum";
 import { DataSourceEditorModel } from "../../../../../../../shared/util/datasource/data-source-settings-page";
 import { DataSourceSettingsModel } from "../../../../../../../shared/util/model/data-source-settings-model";
@@ -100,8 +100,12 @@ import { NewRepositoryEntryRequest } from "./new-repository-entry-request";
    providedIn: "root"
 })
 export class ContentRepositoryService implements OnDestroy {
-   private readonly addDashboard$ = this.subFactory(
-      (parentInfo) => this.http.post("../api/em/settings/content/repository/dashboard/add", parentInfo)
+   private readonly addDashboard$ = <Subject<any>>this.subFactory(
+      (parentInfo) => this.http.post<RepositoryTreeNode>(
+         "../api/em/settings/content/repository/dashboard/add", parentInfo)
+         // Bug #78217, the dashboard is added but reports a warning, e.g. that the permission
+         // granted to its creator may not have been saved. It's only shown
+         .pipe(tap(node => this.showAddWarning(node)))
    );
    private readonly addFolder$ = <Subject<any>>this.subFactory(
       ([params, parentInfo]) =>
@@ -133,7 +137,20 @@ export class ContentRepositoryService implements OnDestroy {
       return this.deleteNodes$
          .pipe(catchError((() => this.getDeleteNodesObservable())))
          .subscribe((connectionStatus: ConnectionStatus) => {
-            if(!!connectionStatus && connectionStatus.status) {
+            // Bug #77939, the delete is done but reports a warning, e.g. a permission it may not
+            // have removed. It's only shown, not confirmed and sent again like the other statuses
+            if(!!connectionStatus && /^warning:/.test(connectionStatus.status)) {
+               this.dialog.open(MessageDialog, <MatDialogConfig>{
+                  data: {
+                     title: "_#(js:Warning)",
+                     content: connectionStatus.status.substring(8),
+                     type: MessageDialogType.WARNING
+                  }
+               });
+
+               this.refreshAfterDelete();
+            }
+            else if(!!connectionStatus && connectionStatus.status) {
                let prompt = connectionStatus.status;
                const corrupt = /^corrupt:.+$/.test(connectionStatus.status);
 
@@ -156,11 +173,15 @@ export class ContentRepositoryService implements OnDestroy {
                });
             }
             else {
-               if(!this.selectedNodes.some(node => !this.isLibraryNode(node.data))) {
-                  this._needRefreshAfterDelete.next();
-               }
+               this.refreshAfterDelete();
             }
          });
+   }
+
+   private refreshAfterDelete(): void {
+      if(!this.selectedNodes.some(node => !this.isLibraryNode(node.data))) {
+         this._needRefreshAfterDelete.next();
+      }
    }
 
    private isLibraryNode(node: RepositoryTreeNode): boolean {
@@ -607,6 +628,18 @@ export class ContentRepositoryService implements OnDestroy {
       }
    }
 
+   private showAddWarning(node: RepositoryTreeNode): void {
+      if(node?.warning) {
+         this.dialog.open(MessageDialog, <MatDialogConfig>{
+            data: {
+               title: "_#(js:Warning)",
+               content: node.warning,
+               type: MessageDialogType.WARNING
+            }
+         });
+      }
+   }
+
    public addDashboard(node: RepositoryTreeNode): void {
       const parentFolder = node.path;
       const owner = node.owner;
@@ -757,6 +790,11 @@ export class ContentRepositoryService implements OnDestroy {
          else if(curPath.startsWith(Tool.RECYCLE_BIN)) {
             warning = "_#(js:em.reports.drag.recycle.note)";
          }
+         // just additional source type is RepositoryEntryType.DATA_SOURCE, it belongs to its
+         // parent data source and can't be moved out of it. see ContentRepositoryTreeService
+         else if(curDataType === RepositoryEntryType.DATA_SOURCE) {
+            warning = "_#(js:common.datasource.additionalConnectionMove)";
+         }
          else if(((curDataType & RepositoryEntryType.DATA_SOURCE) === RepositoryEntryType.DATA_SOURCE ||
             (curDataType & RepositoryEntryType.DATA_SOURCE_FOLDER) === RepositoryEntryType.DATA_SOURCE_FOLDER) &&
             (toFolder.type & RepositoryEntryType.DATA_SOURCE_FOLDER) !== RepositoryEntryType.DATA_SOURCE_FOLDER) {
@@ -781,6 +819,23 @@ export class ContentRepositoryService implements OnDestroy {
 
             if(this.isDuplicatedName(curPath, npath, toFolder)) {
                warning = "_#(js:em.folder.exist)" + toFolder.path;
+            }
+         }
+         else if(!warning &&
+            ((curDataType & RepositoryEntryType.DATA_SOURCE) === RepositoryEntryType.DATA_SOURCE ||
+            (curDataType & RepositoryEntryType.DATA_SOURCE_FOLDER) === RepositoryEntryType.DATA_SOURCE_FOLDER))
+         {
+            const name = curPath.lastIndexOf("/") != -1 ?
+               curPath.substring(curPath.lastIndexOf("/") + 1) : curPath;
+            // the data source root folder path is "/"
+            const npath = toFolder.path === "/" ? name : toFolder.path + "/" + name;
+
+            // a drop on the node's own folder is a no-op, the node itself is not a duplicate
+            if(npath !== curPath && !(toFolder.children && toFolder.children.indexOf(fromNode) >= 0) &&
+               this.isDuplicatedName(curPath, npath, toFolder))
+            {
+               warning = Tool.formatCatalogString(
+                  "_#(js:common.datasource.moveTargetExists)", [npath]);
             }
          }
 

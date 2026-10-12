@@ -201,7 +201,7 @@ public class SelectionValue extends VSValue {
 
       if(mlabel != null) {
          writer.print("<mlabel>");
-         writer.print("<![CDATA[" + mlabel + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(mlabel) + "]]>");
          writer.println("</mlabel>");
       }
    }

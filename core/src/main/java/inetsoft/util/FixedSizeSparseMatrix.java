@@ -18,6 +18,8 @@
 package inetsoft.util;
 
 import java.io.Serializable;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.lang.ref.SoftReference;
 import java.util.Arrays;
 
@@ -81,17 +83,18 @@ public class FixedSizeSparseMatrix implements Cloneable, Serializable {
     * Set the value of a cell in the matrix.
     */
    public final void set(int row, int col, Object val) {
-      SoftReference<KeyVals> valReference = this.valReference;
-      KeyVals keyVals = valReference == null ? null : valReference.get();
+      SoftReference<Entry[]> valReference = this.valReference;
+      Entry[] entries = valReference == null ? null : valReference.get();
 
-      if(keyVals == null) {
-         this.valReference = new SoftReference<>(keyVals = new KeyVals(size));
+      if(entries == null) {
+         this.valReference = new SoftReference<>(entries = new Entry[size]);
       }
 
       long along = (((long) row) << 32) | col;
       int hash = (int) (along % size);
-      keyVals.keys[hash] = along;
-      keyVals.vals[hash] = val;
+      // the key and value are published as one immutable entry, so a concurrent reader never
+      // pairs this cell's key with the value of another cell sharing the slot
+      ENTRY.setRelease(entries, hash, new Entry(along, val));
    }
 
    /**
@@ -99,35 +102,27 @@ public class FixedSizeSparseMatrix implements Cloneable, Serializable {
     * set, return NULL.
     */
    public final Object get(int row, int col) {
-      SoftReference<KeyVals> valReference = this.valReference;
-      KeyVals keyVals = valReference == null ? null : valReference.get();
+      SoftReference<Entry[]> valReference = this.valReference;
+      Entry[] entries = valReference == null ? null : valReference.get();
 
-      if(keyVals == null) {
+      if(entries == null) {
          return NULL;
       }
 
       long along = (((long) row) << 32) | col;
       int hash = (int) (along % size);
-      return keyVals.keys[hash] == along ? keyVals.vals[hash] : NULL;
+      Entry entry = (Entry) ENTRY.getAcquire(entries, hash);
+      return entry != null && entry.key == along ? entry.val : NULL;
    }
 
-   private static class KeyVals {
-      public KeyVals(int size) {
-         this.keys = new long[size];
-         this.vals = new Object[size];
-
-         for(int i = 0; i < size; i++) {
-            keys[i] = -1;
-         }
-      }
-
-      private long[] keys;
-      private Object[] vals;
+   private record Entry(long key, Object val) {
    }
 
+   private static final long serialVersionUID = 7199357927496490854L;
+   private static final VarHandle ENTRY = MethodHandles.arrayElementVarHandle(Entry[].class);
    // default size
    private static final int DEFAULT_SIZE = 997;
 
    private final int size;
-   private transient SoftReference<KeyVals> valReference;
+   private transient volatile SoftReference<Entry[]> valReference;
 }

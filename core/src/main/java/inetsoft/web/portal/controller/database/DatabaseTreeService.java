@@ -20,6 +20,7 @@ package inetsoft.web.portal.controller.database;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.uql.XDataSource;
 import inetsoft.uql.XRepository;
+import inetsoft.uql.asset.AbstractAssetEngine;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.erm.XDataModel;
@@ -114,8 +115,8 @@ public class DatabaseTreeService {
       // use this flag to mark portal data model, to make sure portal data's meta data only
       // be shared to portal data, and should not effect other component like composer.
       parentEntry.setProperty(XUtil.PORTAL_DATA, "true");
-      AssetEntry[] entries = repository.getEntries(parentEntry, principal, ResourceAction.READ,
-         selector);
+      AssetEntry[] entries = AbstractAssetEngine.getPortalDataEntries(
+         repository, parentEntry, principal, ResourceAction.READ, selector);
 
       for(AssetEntry entry : entries) {
          // see PhysicalModelTreePane.updateComponents

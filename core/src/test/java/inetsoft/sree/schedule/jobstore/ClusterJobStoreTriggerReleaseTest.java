@@ -71,7 +71,7 @@ import static org.mockito.Mockito.*;
  * replicated maps keep and hand out serialized copies, like Ignite's. Timings are the production
  * ones scaled by 1/10 (acquire horizon 2 s, misfire threshold 0.5 s).
  */
-@Tag("core")
+@Tag("slow")
 class ClusterJobStoreTriggerReleaseTest {
    @BeforeEach
    void setUp() {
@@ -1128,18 +1128,8 @@ class ClusterJobStoreTriggerReleaseTest {
       }
 
       @Override
-      public void lock(K key) {
-         delegate.lock(key);
-      }
-
-      @Override
-      public void lock(K key, long leaseTime, TimeUnit timeUnit) {
-         delegate.lock(key, leaseTime, timeUnit);
-      }
-
-      @Override
-      public void unlock(K key) {
-         delegate.unlock(key);
+      public V getForUpdate(K key) {
+         return copy(delegate.getForUpdate(key));
       }
 
       @Override

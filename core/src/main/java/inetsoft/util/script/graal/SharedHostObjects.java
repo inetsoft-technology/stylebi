@@ -49,7 +49,9 @@ import java.util.concurrent.ConcurrentMap;
  *    {@code public static final} values (which are JVM-wide already) and the
  *    {@code MAP_TYPE_*} names of {@link MapData}, whose map list is loaded once per JVM in its
  *    static initializer, not per org. {@code putMember} is a no-op and {@code putConstant} is
- *    called only by that builder.</li>
+ *    called only by that builder. It holds immutable values only and hands out a copy of an
+ *    array or {@code Size} constant per read, so no member reads back a shared mutable
+ *    object.</li>
  * </ul>
  * A script's writes to them ({@code CALC.x = 1}, {@code delete CALC.sum},
  * {@code StyleConstant.Y = 4}) are therefore ignored exactly as with a per-Context instance, and

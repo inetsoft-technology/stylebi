@@ -26,6 +26,8 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.OrganizationContextHolder;
 import inetsoft.test.*;
 import inetsoft.uql.asset.AbstractSheet;
+import inetsoft.uql.asset.Worksheet;
+import inetsoft.util.swap.XSwappable;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.slf4j.LoggerFactory;
@@ -33,12 +35,15 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.io.File;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @Tag("core")
 @SreeHome()
@@ -295,6 +300,39 @@ class RuntimeSheetTest {
       RuntimeSheet sheet = newSheet();
       sheet.setAccessed(System.currentTimeMillis());
       assertFalse(sheet.isTimeout());
+   }
+
+   /**
+    * A swapped sheet whose swap file is missing is left silently invalid: {@code access()}
+    * returns having neither loaded the sheet nor said why (bug #77651).
+    */
+   @Test
+   void accessWarnsWhenTheSwapFileIsMissing() throws Exception {
+      RuntimeSheet.XSwappableSheet swappable =
+         new RuntimeSheet.XSwappableSheet(new Worksheet(), null);
+      swappable.complete();
+      assertTrue(swappable.swap(), "sheet was not swapped");
+
+      File file = swapFile(swappable);
+      assertTrue(file.delete(), "swap file was not deleted");
+
+      List<ILoggingEvent> events = captureWarnings(swappable::access);
+
+      assertEquals(1, events.size(), "the missing swap file must be reported exactly once");
+      ILoggingEvent event = events.get(0);
+      assertEquals(Level.WARN, event.getLevel(), "the missing swap file must be reported at WARN");
+      assertTrue(event.getFormattedMessage().contains(file.getName()),
+                 "the warning must name the missing swap file: " + event.getFormattedMessage());
+   }
+
+   private static File swapFile(RuntimeSheet.XSwappableSheet swappable) throws Exception {
+      Field prefixField = XSwappable.class.getDeclaredField("prefix");
+      prefixField.setAccessible(true);
+      String prefix = (String) prefixField.get(swappable);
+
+      Method getFileMethod = XSwappable.class.getDeclaredMethod("getFile", String.class);
+      getFileMethod.setAccessible(true);
+      return (File) getFileMethod.invoke(swappable, prefix + ".tdat");
    }
 
    /**

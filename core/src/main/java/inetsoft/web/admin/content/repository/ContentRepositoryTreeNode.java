@@ -87,6 +87,13 @@ public interface ContentRepositoryTreeNode {
    @Nullable
    List<ContentRepositoryTreeNode> children();
 
+   /**
+    * Bug #78217, a warning for the user about the item that was added, e.g. that the permission
+    * granted to its creator may not have been saved.
+    */
+   @Nullable
+   String warning();
+
    static Builder builder() {
       return new Builder();
    }

@@ -110,7 +110,6 @@ export class EditJoinDialog {
    }
 
    ok(): void {
-      this.joinModel.delete = false;
       this.onCommit.emit(this.joinModel);
    }
 

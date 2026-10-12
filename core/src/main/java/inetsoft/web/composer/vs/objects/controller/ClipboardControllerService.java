@@ -492,7 +492,12 @@ public class ClipboardControllerService {
 
       if(img != null && img.startsWith(ImageVSAssemblyInfo.UPLOADED_IMAGE)) {
          img = img.substring(ImageVSAssemblyInfo.UPLOADED_IMAGE.length());
-         vs.addUploadedImage(img, srcvs.getUploadedImageBytes(img));
+         byte[] buf = srcvs.getUploadedImageBytes(img);
+
+         // the uploaded image may have been deleted, don't copy a missing image
+         if(buf != null) {
+            vs.addUploadedImage(img, buf);
+         }
       }
    }
 

@@ -20,9 +20,11 @@ package inetsoft.report.script.formula;
 import inetsoft.report.script.TableRow;
 import inetsoft.report.script.TableRowScope;
 import inetsoft.sree.security.OrganizationManager;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.util.script.*;
 import inetsoft.util.script.graal.ScriptScope;
-import inetsoft.util.stall.LockStallException;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
+import inetsoft.util.swap.DataUnavailable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -159,23 +161,29 @@ public class FormulaEvaluator {
          }
 
          DEPTH.set(DEPTH.get() + 1);
+         // a table formula expression is written by end users, run it restricted (bug #77396)
+         boolean restricted = FormulaContext.isRestricted();
 
          try {
+            FormulaContext.setRestricted(true);
             Object rc = senv.exec(script, scope, scope, null);
             return JavaScriptEngine.unwrap(rc);
          }
          finally {
+            FormulaContext.setRestricted(restricted);
             DEPTH.set(DEPTH.get() - 1);
          }
       }
       catch(Exception ex) {
-         // a stalled table has no value to return: a stall under a rowValue[...] read must not
-         // turn into a null value or a false row condition (#77123)
-         LockStallException stall = LockStallException.find(ex);
-
-         if(stall != null) {
-            throw stall;
-         }
+         // a stalled table or one whose swap file is lost has no value to return: such a
+         // failure under a rowValue[...] read must not turn into a null value or a false row
+         // condition (#77123, #77910)
+         DataUnavailable.rethrow(ex);
+         // nor has a read or condition stopped by a script timeout or cancel (#78076)
+         ScriptTimeoutGuard.rethrowStop(ex);
+         // nor has a table that failed to load for a reader that has to fail, e.g. a
+         // scheduled run (#78083)
+         TableLoadException.rethrow(ex);
 
          LOG.error("Failed to execute formula script: " + expr, ex);
       }

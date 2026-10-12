@@ -155,7 +155,7 @@
           </systemPropertyVariables>
           <jvmArguments>
             -server -Xmx2g -Xmx2g -XX:InitialCodeCacheSize=100M -XX:ReservedCodeCacheSize=200m
-            -XX:+UseCodeCacheFlushing -XX:+AlwaysPreTouch -XX:+UseG1GC -XX:+ScavengeBeforeFullGC
+            -XX:+UseCodeCacheFlushing -XX:+AlwaysPreTouch -XX:+UseG1GC
             -XX:+DisableExplicitGC
             -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5006
             --add-opens=java.base/jdk.internal.access=ALL-UNNAMED

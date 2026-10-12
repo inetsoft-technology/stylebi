@@ -24,6 +24,8 @@ import inetsoft.report.script.TableArray;
 import inetsoft.test.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.util.stall.LockStallException;
+import inetsoft.util.swap.LostSwapFile;
+import inetsoft.util.swap.SwapFileReadException;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.annotation.DirtiesContext;
@@ -40,7 +42,7 @@ import static org.mockito.Mockito.*;
  * until its cache was cleared.
  */
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(classes = { BaseTestConfiguration.class },
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class },
                       initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
@@ -188,5 +190,58 @@ class TableDataVSAScriptableStallTest {
 
    private static DefaultTableLens lens() {
       return new DefaultTableLens(new Object[][] { { "a", "b" }, { 1, 2 }, { 3, 4 } });
+   }
+
+   /**
+    * #77910: a lost swap file while a view table is fetched must reach the script, and a
+    * cleared table must stay dirty so the next read fetches it again.
+    */
+   @Test
+   void lostSwapFileRefetchOfAClearedTableThrowsAndKeepsItDirty() throws Exception {
+      try(LostSwapFile lost = new LostSwapFile()) {
+         when(box.getVSTableLens("Table1", false))
+            .thenReturn(new VSTableLens(lens()))
+            .thenAnswer(inv -> {
+               lost.read();
+               return null;
+            })
+            .thenReturn(new VSTableLens(new DefaultTableLens(new Object[][] {
+               { "a", "b" }, { 1, 2 } })));
+         when(box.getTableData("Table1")).thenReturn(lens());
+         TableVSAScriptable table = new TableVSAScriptable(box);
+         table.setAssembly("Table1");
+
+         assertEquals(3, table.getMember("row"));
+         table.clearCache();
+
+         assertEquals(lost.getFile(), assertThrows(SwapFileReadException.class,
+            () -> table.getMember("row")).getFile());
+         assertEquals(2, table.getMember("row"));
+      }
+   }
+
+   /**
+    * #77910: a lost swap file while crosstab data is fetched must reach the script and not
+    * be cached as an empty data array.
+    */
+   @Test
+   void lostSwapFileCrosstabDataFetchThrowsAndIsNotCached() throws Exception {
+      try(LostSwapFile lost = new LostSwapFile()) {
+         when(box.getVSTableLens("Crosstab1", false)).thenReturn(new VSTableLens(lens()));
+         when(box.getTableData("Crosstab1"))
+            .thenAnswer(inv -> {
+               lost.read();
+               return null;
+            })
+            .thenReturn(lens());
+         CrosstabVSAScriptable crosstab = new CrosstabVSAScriptable(box);
+         crosstab.setAssembly("Crosstab1");
+
+         assertEquals(lost.getFile(), assertThrows(SwapFileReadException.class,
+            () -> crosstab.getMember("data")).getFile());
+
+         TableArray data = (TableArray) crosstab.getMember("data");
+         assertEquals(3, data.getMember("length"));
+      }
    }
 }

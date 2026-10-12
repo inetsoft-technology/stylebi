@@ -37,6 +37,14 @@ public class PostgreSQLHelper extends SQLHelper {
    }
 
    /**
+    * Postgresql folds an unquoted identifier to lower case.
+    */
+   @Override
+   public IdentifierCase getIdentifierCase() {
+      return IdentifierCase.LOWER;
+   }
+
+   /**
     * Get the sql helper type.
     * @return the sql helper type.
     */

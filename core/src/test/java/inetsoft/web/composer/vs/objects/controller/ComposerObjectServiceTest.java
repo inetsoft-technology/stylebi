@@ -21,9 +21,11 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.test.*;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TabVSAssemblyInfo;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.composer.vs.VSObjectTreeService;
+import inetsoft.web.composer.vs.event.CopyVSObjectsEvent;
 import inetsoft.web.composer.vs.objects.event.LockVSObjectEvent;
 import inetsoft.web.composer.vs.objects.event.ResizeVSObjectEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
@@ -38,9 +40,12 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.*;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.security.Principal;
+import java.util.Arrays;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(SpringExtension.class)
@@ -111,6 +116,47 @@ class ComposerObjectServiceTest {
       assertEquals(100, tabInfo.getPixelOffset().y);
       // Child must be at y=30 with its new height — move() placed it correctly
       assertEquals(30, child.getVSAssemblyInfo().getPixelOffset().y);
+   }
+
+   /**
+    * Bug #77865: ctrl-drag copy of an image whose uploaded image is missing must not put a
+    * null image into the viewsheet, which would make every later save fail.
+    */
+   @Test
+   void copyImageWithMissingUploadKeepsViewsheetSavable() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      ImageVSAssembly image = new ImageVSAssembly(vs, "Image1");
+      ((ImageVSAssemblyInfo) image.getInfo()).setImageValue(ImageVSAssemblyInfo.UPLOADED_IMAGE + "reg.png");
+      vs.addAssembly(image);
+      vs.addUploadedImage("reg.png", new byte[] { 1, 2, 3 });
+      // the image is deleted in the image dialog, Image1 still refers to it
+      vs.removeUploadedImage("reg.png");
+
+      when(engine.getViewsheet(any(), any())).thenReturn(rvs);
+      when(rvs.getViewsheet()).thenReturn(vs);
+
+      CopyVSObjectsEvent copyEvent = new CopyVSObjectsEvent();
+      copyEvent.setObjects(new String[] { "Image1" });
+      copyEvent.setxOffset(200);
+      copyEvent.setyOffset(200);
+
+      service.copyObject("vs1", copyEvent, principal, dispatcher, "/test");
+
+      assertEquals(2, Arrays.stream(vs.getAssemblies())
+         .filter(ImageVSAssembly.class::isInstance).count());
+      // saving the viewsheet (and its undo checkpoints) must still work
+      assertDoesNotThrow(() -> writeXml(vs));
+      assertDoesNotThrow(() -> writeXml(vs.clone()));
+      // no phantom entry for the missing image in the image dialog
+      assertArrayEquals(new String[0], vs.getUploadedImageNames());
+   }
+
+   private static String writeXml(Viewsheet vs) {
+      StringWriter buffer = new StringWriter();
+      PrintWriter writer = new PrintWriter(buffer);
+      vs.writeXML(writer);
+      writer.flush();
+      return buffer.toString();
    }
 
    @Mock RuntimeViewsheetRef runtimeViewsheetRef;

@@ -17,6 +17,9 @@
  */
 package inetsoft.web.admin.schedule;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.NullNode;
 import inetsoft.report.io.Builder;
 import inetsoft.report.io.ExportType;
 import inetsoft.sree.*;
@@ -36,6 +39,7 @@ import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.util.dep.ScheduleTaskAsset;
 import inetsoft.util.dep.XAsset;
+import inetsoft.util.log.LogLevel;
 import inetsoft.web.RecycleUtils;
 import inetsoft.web.admin.content.repository.model.ExportFormatModel;
 import inetsoft.web.admin.general.model.model.SMTPAuthType;
@@ -127,6 +131,13 @@ public class ScheduleTaskService {
       Catalog catalog = Catalog.getCatalog(principal);
       IdentityID currentUser = IdentityID.getIdentityIDFromKey(principal.getName());
       IdentityID owner = SUtil.getOwnerForNewTask(currentUser);
+
+      if(!identityChecker.isNewTaskOwnerAllowed(owner, principal)) {
+         throw new inetsoft.sree.security.SecurityException(String.format(
+            "Unauthorized creation of a task owned by \"%s\" by %s, the owner doesn't exist " +
+            "and has the name of a site admin", owner, principal));
+      }
+
       String taskId = (owner != null ? owner.convertToKey() : principal.getName()) + ":" +
          catalog.getString("newTaskName");
       ScheduleCondition condition;
@@ -351,9 +362,12 @@ public class ScheduleTaskService {
 
       TaskConditionPaneModel.Builder builder = TaskConditionPaneModel.builder();
 
-      task.getConditionStream()
-         .map(condition -> scheduleConditionService.getConditionModel(condition, principal))
-         .forEach(builder::addConditions);
+      // Bug #77973, the stored position identifies the condition when the editor saves it
+      for(int i = 0; i < task.getConditionCount(); i++) {
+         ScheduleConditionModel model =
+            scheduleConditionService.getConditionModel(task.getCondition(i), principal);
+         builder.addConditions(withOriginalIndex(model, i));
+      }
 
       String timeProp = SreeEnv.getProperty("format.time");
 
@@ -388,10 +402,16 @@ public class ScheduleTaskService {
 
       TaskActionPaneModel.Builder builder = TaskActionPaneModel.builder();
 
-      task.getActionStream()
-         .map(a -> scheduleService.getActionModel(a, principal, em))
-         .filter(Objects::nonNull)
-         .forEach(builder::addActions);
+      // Bug #77973, the stored position (before the actions without a model are skipped)
+      // identifies the action when the editor saves it
+      for(int i = 0; i < task.getActionCount(); i++) {
+         ScheduleActionModel model =
+            scheduleService.getActionModel(task.getAction(i), principal, em);
+
+         if(model != null) {
+            builder.addActions(withOriginalIndex(model, i));
+         }
+      }
 
       AssetEntry[] viewsheets = scheduleService.getViewsheets(principal);
       final Map<String, String> viewsheetMap = new HashMap<>();
@@ -543,7 +563,8 @@ public class ScheduleTaskService {
          }
       }
       else {
-         if("".equals(taskName)) {
+         // Bug #77856, a name made only of whitespace is as empty as no name
+         if(taskName == null || taskName.trim().isEmpty()) {
             throw new Exception(catalog.getString("em.scheduler.emptyTaskName"));
          }
 
@@ -565,6 +586,8 @@ public class ScheduleTaskService {
          }
 
          checkTaskIdentityPermission(model.options(), existingTask, principal);
+         checkContentChangeAllowed(model, existingTask, owner, taskName, linkURI, catalog,
+                                   principal, em);
          taskName = scheduleService.updateTaskName(oldTaskName, taskName, owner, principal);
          task = scheduleManager.getScheduleTask(taskName) == null ? null :
             scheduleManager.getScheduleTask(taskName).clone();
@@ -589,13 +612,67 @@ public class ScheduleTaskService {
       // Snapshot the server-side task before applying client changes so that sanitizeConditions
       // and sanitizeAction can restore any fields the principal is not permitted to change.
       ScheduleTask originalTask = task.clone();
+      Set<TimeRange> ranges = applyContent(model, task, originalTask, taskName, oldTaskName,
+                                           internalTask, linkURI, catalog, principal);
 
+      // Update Options
+      if(model.options() != null) {
+         setTaskOptions(model.options(), task, principal);
+      }
+
+      // Save task
+      scheduleService.saveTask(saveTaskId != null ? saveTaskId : taskName, task, principal);
+
+      // Balance tasks after saving
+      if(!ranges.isEmpty()) {
+         TaskBalancer balancer = new TaskBalancer();
+
+         for(TimeRange range : ranges) {
+            balancer.updateTask(task, range);
+         }
+      }
+
+      return getDialogModel(taskName, principal, em);
+      }
+      finally {
+         if(!Tool.isEmptyString(orgId)) {
+            OrganizationContextHolder.setCurrentOrgId(originalOrg);
+         }
+      }
+   }
+
+   /**
+    * Applies the conditions and actions of the editor model to a task.
+    *
+    * @param task         the task to change.
+    * @param originalTask the stored task, used to restore the fields the principal may not
+    *                     change.
+    * @param taskName     the name the task is saved with.
+    * @param oldTaskName  the name the task was stored with.
+    *
+    * @return the time ranges of the conditions, to balance the tasks after the save.
+    */
+   private Set<TimeRange> applyContent(ScheduleTaskEditorModel model, ScheduleTask task,
+                                       ScheduleTask originalTask, String taskName,
+                                       String oldTaskName, boolean internalTask, String linkURI,
+                                       Catalog catalog, Principal principal)
+      throws Exception
+   {
       Set<TimeRange> ranges = new HashSet<>();
+      boolean identified = Boolean.TRUE.equals(model.itemsIdentified());
+      List<ScheduleCondition> originalConditions = new ArrayList<>();
+      originalTask.getConditionStream().forEach(originalConditions::add);
+      List<StoredItem<ScheduleCondition>> conditionPairs = pairWithStored(
+         model.conditions().stream().map(ScheduleConditionModel::originalIndex).toList(),
+         identified, originalConditions);
+      List<ScheduleCondition> pairedConditions = new ArrayList<>();
 
       for(int i = 0; i < model.conditions().size(); i++) {
          int index = i >= task.getConditionCount() ? -1 : i;
+         ScheduleCondition pairedCondition = conditionPairs.get(i).paired();
          TimeRange range = scheduleService.setTaskCondition(
-            taskName, index, model.conditions().get(i), catalog, task);
+            taskName, index, model.conditions().get(i), catalog, task, pairedCondition);
+         pairedConditions.add(pairedCondition);
 
          if(range != null) {
             ranges.add(range);
@@ -606,22 +683,26 @@ public class ScheduleTaskService {
          task.removeCondition(i);
       }
 
-      sanitizeConditions(task, originalTask, principal);
+      sanitizeConditions(task, pairedConditions, principal);
 
       if(!internalTask) {
          List<ScheduleAction> originalActions = new ArrayList<>();
          originalTask.getActionStream().forEach(originalActions::add);
+         List<StoredItem<ScheduleAction>> actionPairs = pairWithStored(
+            model.actions().stream().map(ScheduleActionModel::originalIndex).toList(),
+            identified, originalActions);
 
          for(int i = 0; i < model.actions().size(); i++) {
-            ScheduleAction scheduleAction = originalTask.getActionCount() > i ? originalTask.getAction(i) : null;
+            StoredItem<ScheduleAction> pair = actionPairs.get(i);
             ScheduleAction action =
-               scheduleService.getActionFromModel(model.actions().get(i), scheduleAction, principal, linkURI);
+               scheduleService.getActionFromModel(model.actions().get(i), pair.secretSource(),
+                                                  originalActions, principal, linkURI);
 
             if(action == null) {
                continue;
             }
 
-            sanitizeAction(action, scheduleAction, principal, originalActions);
+            sanitizeAction(action, pair.paired(), principal, originalActions);
 
             if(action instanceof IndividualAssetBackupAction) {
                IndividualAssetBackupAction backupAction = (IndividualAssetBackupAction) action;
@@ -654,33 +735,141 @@ public class ScheduleTaskService {
          }
       }
 
-      // Update Options
-      if(model.options() != null) {
-         setTaskOptions(model.options(), task, principal);
+      return ranges;
+   }
+
+   /**
+    * Bug #77405, a task that still runs with elevated roles (given because of a site admin of
+    * the same name, the org admin roles of its org since Bug #77452) after the save (with the
+    * owner and execute-as identity that the save stores) runs its actions with those roles, so
+    * only a site admin may add or change them. This is decided before anything is written
+    * (updateTaskName saves a rename), on the conditions and actions the save would store,
+    * before the task options are applied (setTaskOptions drops the bookmarks the execute-as
+    * identity can't use, which the caller didn't change).
+    *
+    * @param existingTask the stored task.
+    * @param owner        the owner the client sent, null if it is not changed.
+    * @param taskName     the name the task is saved with.
+    */
+   private void checkContentChangeAllowed(ScheduleTaskEditorModel model,
+                                          ScheduleTask existingTask, IdentityID owner,
+                                          String taskName, String linkURI, Catalog catalog,
+                                          Principal principal, boolean em)
+      throws Exception
+   {
+      TaskOptionsPaneModel options = model.options();
+      IdentityID newOwner = owner != null ? owner : existingTask.getOwner();
+      Identity newIdentity = options == null ? existingTask.getIdentity() :
+         getNewIdentity(options, existingTask.getIdentity(), principal);
+
+      if(identityChecker.isContentChangeAllowed(newOwner, newIdentity, principal)) {
+         return;
       }
 
-      // Save task
-      scheduleService.saveTask(saveTaskId != null ? saveTaskId : taskName, task, principal);
+      ScheduleTask candidate = existingTask.clone();
+      // the rename of a backup action of the task itself is not a change by the caller
+      applyContent(model, candidate, existingTask.clone(), taskName, taskName, false, linkURI,
+                   catalog, principal);
 
-      // Balance tasks after saving
-      if(!ranges.isEmpty()) {
-         TaskBalancer balancer = new TaskBalancer();
-
-         for(TimeRange range : ranges) {
-            balancer.updateTask(task, range);
-         }
-      }
-
-      return getDialogModel(taskName, principal, em);
-      }
-      finally {
-         if(!Tool.isEmptyString(orgId)) {
-            OrganizationContextHolder.setCurrentOrgId(originalOrg);
-         }
+      if(addsOrChangesContent(existingTask, candidate, linkURI, principal, em)) {
+         // a message exception, the EM and portal show the message of the refusal
+         throw new MessageException(
+            catalog.getString("em.scheduler.siteAdminTaskContent"), LogLevel.WARN, false);
       }
    }
 
+   /**
+    * Bug #77405, determines if a save adds or changes an action or a condition of a task. The
+    * actions and conditions are compared on the models the task editor shows. A stored item is
+    * compared as it is saved when the editor sends its model back unchanged (a stored item may
+    * not have the defaults an item built from a model has), so an item that isn't edited is the
+    * same as the stored item.
+    *
+    * @param stored the stored task.
+    * @param task   the task that is saved.
+    */
+   private boolean addsOrChangesContent(ScheduleTask stored, ScheduleTask task, String linkURI,
+                                        Principal principal, boolean em)
+      throws Exception
+   {
+      List<JsonNode> storedConditions = new ArrayList<>();
+      List<JsonNode> storedActions = new ArrayList<>();
+
+      for(int i = 0; i < stored.getConditionCount(); i++) {
+         storedConditions.add(
+            toTree(getResavedConditionModel(stored.getCondition(i), principal)));
+      }
+
+      for(int i = 0; i < stored.getActionCount(); i++) {
+         storedActions.add(toTree(getResavedActionModel(stored.getAction(i), linkURI, principal,
+                                                        em)));
+      }
+
+      List<JsonNode> conditions = task.getConditionStream()
+         .map(c -> toTree(scheduleConditionService.getConditionModel(c, principal))).toList();
+      List<JsonNode> actions = task.getActionStream()
+         .map(a -> toTree(scheduleService.getActionModel(a, principal, em))).toList();
+
+      return !ScheduleTaskIdentityChecker.isKeptOrRemoved(storedConditions, conditions,
+                                                          Objects::equals) ||
+         !ScheduleTaskIdentityChecker.isKeptOrRemoved(storedActions, actions, Objects::equals);
+   }
+
+   /**
+    * Gets the JSON the editor gets for a model. The models are compared on it, the model
+    * classes don't all compare their contents (DynamicValueModel has no equals, the embedded
+    * parameters of a batch action are a two-dimensional array).
+    */
+   private static JsonNode toTree(Object model) {
+      return model == null ? NullNode.getInstance() : CONTENT_MAPPER.valueToTree(model);
+   }
+
+   /**
+    * Gets the model of a stored condition as it is saved when the editor sends it back.
+    */
+   private ScheduleConditionModel getResavedConditionModel(ScheduleCondition condition,
+                                                           Principal principal)
+      throws Exception
+   {
+      ScheduleConditionModel model =
+         scheduleConditionService.getConditionModel(condition, principal);
+      ScheduleCondition resaved =
+         model == null ? null : scheduleConditionService.getConditionFromModel(model);
+      return resaved == null ?
+         model : scheduleConditionService.getConditionModel(resaved, principal);
+   }
+
+   /**
+    * Gets the model of a stored action as it is saved when the editor sends it back.
+    */
+   private ScheduleActionModel getResavedActionModel(ScheduleAction action, String linkURI,
+                                                     Principal principal, boolean em)
+      throws Exception
+   {
+      ScheduleActionModel model = scheduleService.getActionModel(action, principal, em);
+      ScheduleAction resaved = model == null ?
+         null : scheduleService.getActionFromModel(model, action, principal, linkURI);
+      return resaved == null ? model : scheduleService.getActionModel(resaved, principal, em);
+   }
+
    public void sanitizeConditions(ScheduleTask task, ScheduleTask originalTask,
+                                  Principal principal)
+   {
+      List<ScheduleCondition> originalConditions = new ArrayList<>();
+      originalTask.getConditionStream().forEach(originalConditions::add);
+      sanitizeConditions(task, originalConditions, principal);
+   }
+
+   /**
+    * Restores the times of the conditions that the principal is not permitted to change.
+    *
+    * @param task               the task being saved.
+    * @param originalConditions the stored condition each condition of the task replaces, by the
+    *                           position of the condition in the task, a {@code null} item (or
+    *                           no item) if it replaces none.
+    * @param principal          the principal saving the task.
+    */
+   public void sanitizeConditions(ScheduleTask task, List<ScheduleCondition> originalConditions,
                                   Principal principal)
    {
       boolean canSetStartTime = scheduleService.checkPermission(
@@ -702,8 +891,8 @@ public class ScheduleTaskService {
             continue;
          }
 
-         TimeCondition origTc = i < originalTask.getConditionCount() &&
-            originalTask.getCondition(i) instanceof TimeCondition o ? o : null;
+         TimeCondition origTc = i < originalConditions.size() &&
+            originalConditions.get(i) instanceof TimeCondition o ? o : null;
          boolean sameType = origTc != null && origTc.getType() == tc.getType();
 
          if(!canSetStartTime) {
@@ -794,6 +983,7 @@ public class ScheduleTaskService {
             vsa.setNotifications(origVsa.getNotifications());
             vsa.setNotifyError(origVsa.isNotifyError());
             vsa.setLink(origVsa.isLink());
+            restoreLinkURI(vsa, origVsa);
          }
          else {
             vsa.setNotifications(null);
@@ -820,6 +1010,10 @@ public class ScheduleTaskService {
             vsa.setEmailCSVConfig(origVsa.getEmailCSVConfig());
             vsa.setAttachmentName(origVsa.getAttachmentName());
             vsa.setCompressFile(origVsa.isCompressFile());
+            vsa.setUseCredential(origVsa.isUseCredential());
+            vsa.setSecretId(origVsa.getSecretId());
+            vsa.setPassword(origVsa.getPassword());
+            restoreLinkURI(vsa, origVsa);
          }
          else {
             vsa.setEmails(null);
@@ -838,6 +1032,9 @@ public class ScheduleTaskService {
             vsa.setEmailCSVConfig(null);
             vsa.setAttachmentName(null);
             vsa.setCompressFile(false);
+            vsa.setUseCredential(false);
+            vsa.setSecretId(null);
+            vsa.setPassword(null);
          }
       }
 
@@ -863,6 +1060,18 @@ public class ScheduleTaskService {
             vsa.setSaveToServerOnlyDataComponents(origVsa.isSaveToServerOnlyDataComponents());
             vsa.setSaveExportAllTabbedTables(origVsa.isSaveExportAllTabbedTables());
          }
+      }
+   }
+
+   /**
+    * Keeps the link URI of a restored notification or email delivery. The link URI is the
+    * server's address, which the save sets from the request whenever notifications or email
+    * delivery are on in the request. It is restored from the stored action only when the request
+    * turned both off, so a restored link still has an address to point to.
+    */
+   private void restoreLinkURI(ViewsheetAction vsa, ViewsheetAction origVsa) {
+      if(vsa.getLinkURI() == null) {
+         vsa.setLinkURI(origVsa.getLinkURI());
       }
    }
 
@@ -1141,8 +1350,13 @@ public class ScheduleTaskService {
       task.setLocale(getTaskLocale(model.locale()));
       task.setDescription(model.description());
       task.setTimeZone(model.timeZone());
-      IdentityID modelID = getIdentityId(model.idName(), principal);
-      modelID = modelID == null ? task.getOwner() : modelID;
+      // Bug #78122, reuse the identity actually stored above (newIdentity) instead of
+      // independently re-deriving it from model.idName() here. That second, stale
+      // computation didn't carry the #77168 fix (getNewIdentity's early-return for a null
+      // idName with security disabled), so an unrelated Options-pane save made modelID fall
+      // back to the task owner even though the execute-as identity itself never changed,
+      // wrongly filtering out the real identity's bookmarks below.
+      IdentityID modelID = newIdentity != null ? newIdentity.getIdentityID() : task.getOwner();
 
       //handle vs bookmark when executer has changed.
       if((modelID == null && oldIdentity != null && oldIdentityID != null
@@ -1590,7 +1804,8 @@ public class ScheduleTaskService {
 
       // Bug #77281, clearing the execute-as identity, setting it to the owner or to a name that
       // doesn't resolve all store an identity that runs the task as its owner, which runs with
-      // the roles of a site admin of the same name when the owner doesn't exist. Check the
+      // elevated roles (the org admin roles of its org since Bug #77452) when the owner doesn't
+      // exist and has the name of a site admin. Check the
       // identity that is stored, before anything is saved (updateTaskName saves a rename).
       IdentityID newOwner = owner != null ? owner : task.getOwner();
       Identity newIdentity = getNewIdentity(options, task.getIdentity(), principal);
@@ -1637,6 +1852,20 @@ public class ScheduleTaskService {
    private Identity getNewIdentity(TaskOptionsPaneModel model, Identity oldIdentity,
                                    Principal principal)
    {
+      // Bug #77168, the EM Options-pane always posts a null idName when security is disabled
+      // (task-options-pane.component.ts nulls _executeAs whenever model.securityEnabled is
+      // false), even when the save didn't touch execute-as at all, so a null idName here
+      // doesn't mean the caller asked to clear it -- unlike the "Clear" action offered by the
+      // security-enabled UI, which must still fall through to null/owner below. Leave the
+      // stored identity alone in that case, so a kept placeholder for an unresolvable
+      // execute-as (ScheduleTask.parseXML, Bug #77120) survives an unrelated edit instead of
+      // being dropped. Use the server's own security state (the same check that produces
+      // model.securityEnabled() for the client in the first place), not the client-supplied
+      // model.securityEnabled(), which the save path has never trusted for anything else.
+      if(model.idName() == null && !isSecurityEnabled()) {
+         return oldIdentity;
+      }
+
       int type = model.idType();
       IdentityID newIdentityID = getIdentityId(model.idName(), principal);
       Identity newIdentity = SUtil.getIdentity(newIdentityID, type);
@@ -1670,6 +1899,74 @@ public class ScheduleTaskService {
    private final SecurityEngine securityEngine;
    private final ScheduleTaskIdentityChecker identityChecker;
 
+   /**
+    * Bug #77973, pairs the items the editor sends with the stored items they replace.
+    *
+    * @param originalIndexes the original index of each item the editor sends.
+    * @param identified      true if the items carry their original index. If not (an older
+    *                        client), an item is paired with the stored item at its position.
+    * @param stored          the stored items.
+    *
+    * @return the stored item each item replaces and takes its secrets from, by the position of
+    *         the item. An index that isn't a stored position is a new item. Only the first item
+    *         that claims a stored item replaces it, a later one is a copy of it, which takes the
+    *         secrets (the editors only send placeholders for them) but is a new item otherwise.
+    */
+   static <T> List<StoredItem<T>> pairWithStored(List<Integer> originalIndexes,
+                                                 boolean identified, List<T> stored)
+   {
+      List<StoredItem<T>> pairs = new ArrayList<>();
+      Set<Integer> claimed = new HashSet<>();
+
+      for(int i = 0; i < originalIndexes.size(); i++) {
+         Integer index = identified ? originalIndexes.get(i) : Integer.valueOf(i);
+
+         if(index == null || index < 0 || index >= stored.size()) {
+            pairs.add(new StoredItem<>(null, null));
+            continue;
+         }
+
+         T item = stored.get(index);
+         pairs.add(new StoredItem<>(claimed.add(index) ? item : null, item));
+      }
+
+      return pairs;
+   }
+
+   /**
+    * The stored item an item of the editor replaces, and the one it takes its secrets from.
+    */
+   record StoredItem<T>(T paired, T secretSource) {
+   }
+
+   private static ScheduleActionModel withOriginalIndex(ScheduleActionModel model, int index) {
+      if(model instanceof GeneralActionModel general) {
+         return GeneralActionModel.builder().from(general).originalIndex(index).build();
+      }
+      else if(model instanceof BackupActionModel backup) {
+         return BackupActionModel.builder().from(backup).originalIndex(index).build();
+      }
+      else if(model instanceof BatchActionModel batch) {
+         return BatchActionModel.builder().from(batch).originalIndex(index).build();
+      }
+
+      return model;
+   }
+
+   private static ScheduleConditionModel withOriginalIndex(ScheduleConditionModel model,
+                                                           int index)
+   {
+      if(model instanceof TimeConditionModel time) {
+         return TimeConditionModel.builder().from(time).originalIndex(index).build();
+      }
+      else if(model instanceof CompletionConditionModel completion) {
+         return CompletionConditionModel.builder().from(completion).originalIndex(index).build();
+      }
+
+      return model;
+   }
+
+   private static final ObjectMapper CONTENT_MAPPER = new ObjectMapper();
    private static final Logger LOG =
       LoggerFactory.getLogger(ScheduleTaskService.class);
 }

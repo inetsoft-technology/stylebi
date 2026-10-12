@@ -603,7 +603,12 @@ public final class VSEventUtil {
 
                Point bottomRight2 = new Point(pos2.x + size2.width, pos2.y + size2.height);
 
-               if(isOverlapping(upperLeft, upperLeft2, bottomRight, bottomRight2)) {
+               // pages of the same tab are never shown together, and an unselected page
+               // still reports visible here; treating it as an overlap rescaled the selected
+               // page's input past the tab bar (Bug #76407)
+               if(isOverlapping(upperLeft, upperLeft2, bottomRight, bottomRight2) &&
+                  !isExclusiveOrNested(vsassembly, vsassembly2))
+               {
                   applyAssemblyScale(vsassembly, scaleRatio, info, mobile,
                                      isFloat(vsassembly, viewsheet), width, box, true);
 
@@ -618,6 +623,34 @@ public final class VSEventUtil {
             }
          }
       }
+   }
+
+   /**
+    * True if the two assemblies can't overlap on screen: one contains the other (at any
+    * depth, e.g. a tab above a group page holding an input flush with the tab bar), or
+    * they sit in different pages of the same tab. The latter holds exactly when their
+    * lowest common ancestor is a tab -- if it's a container inside a page, both are in
+    * that page.
+    */
+   private static boolean isExclusiveOrNested(VSAssembly assembly, VSAssembly assembly2) {
+      List<VSAssembly> tree = new ArrayList<>();
+      List<VSAssembly> tree2 = new ArrayList<>();
+      buildTree(assembly, tree);
+      buildTree(assembly2, tree2);
+
+      int n = Math.min(tree.size(), tree2.size());
+      int depth = 0;
+
+      // root-to-self paths: shared ancestors form a common prefix
+      while(depth < n && tree.get(depth) == tree2.get(depth)) {
+         depth++;
+      }
+
+      if(depth == n) {
+         return true;
+      }
+
+      return depth > 0 && tree.get(depth - 1) instanceof TabVSAssembly;
    }
 
    private static boolean isOverlapping(Point upperLeft, Point upperLeft2,

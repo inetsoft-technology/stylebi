@@ -52,4 +52,22 @@ public class ScriptException extends RuntimeException {
    public ScriptException(String msg, Throwable cause) {
       super(msg, cause);
    }
+
+   /**
+    * Check if the script was stopped, by its timeout or a cancel, rather than failed. The
+    * engine drops the polyglot cause that says so (it is not serializable), so it marks the
+    * exception instead (Testing #77123).
+    */
+   public boolean isStopped() {
+      return stopped;
+   }
+
+   /**
+    * Mark the script as stopped, see {@link #isStopped()}.
+    */
+   public void setStopped(boolean stopped) {
+      this.stopped = stopped;
+   }
+
+   private boolean stopped;
 }

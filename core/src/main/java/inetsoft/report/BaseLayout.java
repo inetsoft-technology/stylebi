@@ -623,8 +623,18 @@ public abstract class BaseLayout implements Serializable, Cloneable, XMLSerializ
     */
    protected void parseRegions(Element tag) throws Exception {
       NodeList nlist = Tool.getChildNodesByTagName(tag, "layoutRegion");
+      int count = nlist == null ? 0 : nlist.getLength();
 
-      for(int i = 0; nlist != null && i < nlist.getLength(); i++) {
+      if(count > MAX_REGIONS) {
+         throw new Exception("too many layout regions: " + count);
+      }
+
+      // attach the parsed regions in one batch: calling addRegion per region
+      // re-allocates the whole spans matrix each time, which is quadratic
+      List<Region> kept = new ArrayList<>(Arrays.asList(regions));
+      long cells = 0;
+
+      for(int i = 0; i < count; i++) {
          if(nlist.item(i) instanceof Element) {
             Element tag2 = (Element) nlist.item(i);
             Element pathE = Tool.getChildNodeByTagName(tag2, "tableDataPath");
@@ -634,10 +644,34 @@ public abstract class BaseLayout implements Serializable, Cloneable, XMLSerializ
             path.parseXML(pathE);
             region.parseXML(regionE);
 
-            if(findRegionIndex(path) == -1) {
-               addRegion(path, region);
+            // count every parsed region, including dropped duplicates
+            cells += (long) region.getRowCount() * Math.max(getColCount(), 1);
+
+            if(cells > MAX_CELLS) {
+               throw new Exception("too many layout cells: " + cells);
+            }
+
+            // same path normalization and duplicate rule as addRegion/findRegionIndex
+            TableDataPath fixed = fixPathForRegion(path);
+            boolean found = false;
+
+            for(int j = kept.size() - 1; j >= 0; j--) {
+               if(fixed.equals(kept.get(j).getPath())) {
+                  found = true;
+                  break;
+               }
+            }
+
+            if(!found) {
+               region.setPath(fixed);
+               kept.add(region);
             }
          }
+      }
+
+      synchronized(this) {
+         regions = kept.toArray(new Region[0]);
+         spans = MatrixOperation.toSize(spans, getRowCount(), getColCount());
       }
    }
 
@@ -669,6 +703,11 @@ public abstract class BaseLayout implements Serializable, Cloneable, XMLSerializ
 
       if(root != null) {
          NodeList nodes = Tool.getChildNodesByTagName(root, "span");
+         // the grid is final here: spans is sized to all hregion rows x columns
+         int nrows = spans.length;
+         int ncols = getColCount();
+         long budget = (long) nrows * ncols;
+         long area = 0;
 
          for(int i = 0; i < nodes.getLength(); i++) {
             if(nodes.item(i) instanceof Element) {
@@ -679,6 +718,52 @@ public abstract class BaseLayout implements Serializable, Cloneable, XMLSerializ
                   int c = Integer.parseInt(Tool.getAttribute(s, "c"));
                   int w = Integer.parseInt(Tool.getAttribute(s, "w"));
                   int h = Integer.parseInt(Tool.getAttribute(s, "h"));
+
+                  if(r < 0 || r >= nrows || c < 0 || c >= ncols) {
+                     LOG.warn("Table span at " + r + "," + c + " is outside the layout grid " +
+                                 nrows + "x" + ncols + ", ignored");
+                     continue;
+                  }
+
+                  // clamp to the grid edge, compared without adding so it can't overflow
+                  boolean clamped = false;
+
+                  if(w > ncols - c) {
+                     w = ncols - c;
+                     clamped = true;
+                  }
+
+                  if(h > nrows - r) {
+                     h = nrows - r;
+                     clamped = true;
+                  }
+
+                  if(clamped) {
+                     // a 1x1 span is meaningless, MatrixOperation.setSpan drops it too
+                     if(w == 1 && h == 1) {
+                        LOG.warn("Table span at " + r + "," + c + " exceeds the layout grid " +
+                                    nrows + "x" + ncols + ", clamped to 1x1 and dropped");
+                        continue;
+                     }
+
+                     LOG.warn("Table span at " + r + "," + c + " exceeds the layout grid " +
+                                 nrows + "x" + ncols + ", clamped to " + w + "x" + h);
+                  }
+
+                  // product spans never overlap, so their total area is at most the grid
+                  if(w >= 1 && h >= 1) {
+                     long spanArea = (long) w * h;
+
+                     if(area + spanArea > budget) {
+                        LOG.warn("Table span at " + r + "," + c + " overlaps other spans " +
+                                    "beyond the layout grid " + nrows + "x" + ncols +
+                                    ", dropped");
+                        continue;
+                     }
+
+                     area += spanArea;
+                  }
+
                   spans[r][c] = new Dimension(w, h);
                }
                catch(Exception ex) {
@@ -1000,6 +1085,23 @@ public abstract class BaseLayout implements Serializable, Cloneable, XMLSerializ
       }
 
       /**
+       * Set the number of rows of a region being parsed. The region is fresh and not
+       * attached to the layout yet, so the arrays are sized once instead of growing
+       * one row at a time as setRowCount does.
+       */
+      protected void initRowCount(int nrow) {
+         synchronized(BaseLayout.this) {
+            if(this.nrow != 0) {
+               setRowCount(nrow);
+               return;
+            }
+
+            this.nrow = nrow;
+            BaseLayout.this.syncSize(this);
+         }
+      }
+
+      /**
        * Insert a row above the specified row.
        * @param row row index.
        */
@@ -1165,11 +1267,26 @@ public abstract class BaseLayout implements Serializable, Cloneable, XMLSerializ
          String val = Tool.getAttribute(tag, "rows");
 
          if(val != null) {
+            Integer n = null;
+
             try {
-               setRowCount(Integer.parseInt(val));
+               n = Integer.parseInt(val);
             }
             catch(Exception ex) {
                LOG.warn("Invalid row count value: " + val, ex);
+            }
+
+            // checked outside the catch so a corrupt size isn't swallowed into a 0-row region.
+            // the writer emits one <rowHeight> per row, and the size is checked before the
+            // single allocation in initRowCount
+            if(n != null) {
+               if(n < 0 || n > Tool.getChildNodesByTagName(tag, "rowHeight").getLength() ||
+                  (long) n * Math.max(getColCount(), 1) > MAX_CELLS)
+               {
+                  throw new Exception("invalid region rows: " + val);
+               }
+
+               initRowCount(n);
             }
          }
 
@@ -1505,6 +1622,11 @@ public abstract class BaseLayout implements Serializable, Cloneable, XMLSerializ
    protected int ncol = 0;
    protected Region[] regions = new Region[0];
    protected Dimension[][] spans = new Dimension[0][0];
+
+   // bounds on the file-supplied sizes checked when a layout is parsed from XML
+   protected static final int MAX_COLUMNS = 10_000;
+   protected static final int MAX_CELLS = 100_000; // all hregion rows x max(columns, 1)
+   protected static final int MAX_REGIONS = 1_000; // <layoutRegion> elements in <hregions>
 
    private static final Logger LOG = LoggerFactory.getLogger(BaseLayout.class);
 }

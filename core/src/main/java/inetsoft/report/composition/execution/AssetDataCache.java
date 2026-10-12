@@ -22,11 +22,18 @@ import inetsoft.mv.RuntimeMV;
 import inetsoft.report.TableFilter;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.WorksheetService;
+import inetsoft.report.composition.graph.VSDataSet;
 import inetsoft.report.filter.BinaryTableFilter;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.XNodeMetaTable;
 import inetsoft.report.internal.table.CancellableTableLens;
+import inetsoft.report.lens.CalcTableLens;
+import inetsoft.report.lens.DistinctTableLens;
+import inetsoft.report.lens.FormulaTableLens;
+import inetsoft.report.lens.JoinTableLens;
+import inetsoft.report.lens.SelfJoinTableLens;
 import inetsoft.report.lens.SetTableLens;
+import inetsoft.report.lens.xnode.XNodeTableLens;
 import inetsoft.report.script.formula.AssetQueryScope;
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.*;
@@ -35,6 +42,7 @@ import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.QueryManager;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.*;
+import inetsoft.util.script.FormulaContext;
 import inetsoft.util.script.ScriptEnv;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -101,6 +109,16 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
    }
 
    /**
+    * Check if data is a chart data set whose table chain a cancel cut short, by whichever
+    * query manager cancelled the shared table (bug #78342). A table with a load failure also
+    * reports cancelled, but it stays as it was cached: running its query again would not help.
+    */
+   public static boolean isDataSetCancelled(Object data) {
+      return data instanceof VSDataSet dataSet && isCancelled(dataSet.getTable()) &&
+         getLoadException(dataSet.getTable()) == null;
+   }
+
+   /**
     * Get the cached data.
     * @param key the data key in the cache.
     * @param ts if > 0, the creation timestamp of data. data older than the timestamp is discarded.
@@ -115,7 +133,9 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
 
       TableFilter2 filter = (TableFilter2) get(key, ts);
 
-      if(filter != null && (filter.isChanged() || isCancelled(filter) ||
+      // a table whose formula a script timeout stopped fails the reads of that cell: computed
+      // again, not handed to another reader (bug #77949)
+      if(filter != null && (filter.isChanged() || isCancelled(filter) || isStopped(filter) ||
          isFailedQueryDefaultMetaTable(filter)))
       {
          filter = null;
@@ -164,20 +184,117 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
    }
 
    /**
+    * Get the exception that stopped loading the rows of a query result under a lens, e.g. a
+    * database error raised while reading the result set. The lens holds only the rows read
+    * before the failure, so it must not be reused or materialized (Bug #77901). It looks
+    * through the same wrappers as {@link #isCancelled(TableLens)}.
+    *
+    * @param lens the lens to check.
+    *
+    * @return the load failure, or {@code null} if no query result under the lens has one.
+    */
+   public static Exception getLoadException(TableLens lens) {
+      if(lens instanceof XNodeTableLens) {
+         return ((XNodeTableLens) lens).getLoadException();
+      }
+
+      if(lens instanceof SetTableLens) {
+         for(int i = 0; i < ((SetTableLens) lens).getTableCount(); i++) {
+            Exception ex = getLoadException(((SetTableLens) lens).getTable(i));
+
+            if(ex != null) {
+               return ex;
+            }
+         }
+
+         return null;
+      }
+      else if(lens instanceof BinaryTableFilter) {
+         Exception ex = getLoadException(((BinaryTableFilter) lens).getLeftTable());
+         return ex != null ? ex : getLoadException(((BinaryTableFilter) lens).getRightTable());
+      }
+      else if(lens instanceof TableFilter) {
+         return getLoadException(((TableFilter) lens).getTable());
+      }
+
+      return null;
+   }
+
+   /**
+    * Check if a formula of the table or a sub-table was stopped by a script timeout or cancel,
+    * so its cell fails every read. A cache treats such a table as not cached, and the next
+    * reader computes it again with fresh formula vars (bug #77949). The same applies to a
+    * distinct or join table whose base read a script timeout or cancel interrupted
+    * (bug #78100).
+    */
+   public static boolean isStopped(TableLens lens) {
+      // check the table itself before its base tables: a join table hides its delegate
+      if(lens instanceof FormulaTableLens formula && formula.isStopped() ||
+         lens instanceof CalcTableLens calc && calc.isStopped() ||
+         lens instanceof DistinctTableLens distinct && distinct.isStopped() ||
+         lens instanceof SelfJoinTableLens selfJoin && selfJoin.isStopped() ||
+         lens instanceof JoinTableLens join && join.isStopped())
+      {
+         return true;
+      }
+
+      if(lens instanceof SetTableLens) {
+         for(int i = 0; i < ((SetTableLens) lens).getTableCount(); i++) {
+            if(isStopped(((SetTableLens) lens).getTable(i))) {
+               return true;
+            }
+         }
+
+         return false;
+      }
+      else if(lens instanceof BinaryTableFilter) {
+         return isStopped(((BinaryTableFilter) lens).getLeftTable()) ||
+            isStopped(((BinaryTableFilter) lens).getRightTable());
+      }
+      else if(lens instanceof TableFilter) {
+         return isStopped(((TableFilter) lens).getTable());
+      }
+
+      return false;
+   }
+
+   /**
     * Set the cached data.
     * @param key the data key in the cache.
     * @param data to add to the cache.
     * @param table the specified table assembly.
+    * @return the copy of the cached data for the caller. The cache keeps its own copy, as it
+    * hands every other reader one, so a reader's own state is never the cache's (bug #78200).
     */
    public TableLens setCachedData(DataKey key, TableLens data, TableAssembly table) {
       if(key == null || table instanceof DataTableAssembly) {
          return data;
       }
 
-      data = new TableFilter2(data);
-      resetMV(table, (TableFilter2) data);
-      addCache(key, data, table);
-      return data;
+      TableFilter2 filter = new TableFilter2(data);
+      resetMV(table, filter);
+      addCache(key, filter, table);
+      return filter.clone();
+   }
+
+   /**
+    * Check if the reader of a sandbox is a scheduled run, which must fail rather than use
+    * partial data.
+    */
+   static boolean isScheduler(AssetQuerySandbox box, VariableTable vars) {
+      try {
+         if(box != null && box.getViewsheetSandbox() != null &&
+            box.getViewsheetSandbox().isScheduleAction())
+         {
+            return true;
+         }
+
+         Object scheduler = vars == null ? null : vars.get("__is_scheduler__");
+         return Boolean.TRUE.equals(scheduler) || "true".equals(scheduler);
+      }
+      catch(Exception ex) {
+         return false;
+      }
    }
 
    /**
@@ -439,8 +556,12 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
          LOG.warn("failed to merge variable", ex);
       }
 
+      // a variable expression is written by end users, run it restricted (bug #77396)
+      boolean restricted = FormulaContext.isRestricted();
+
       // execute expression values
       try {
+         FormulaContext.setRestricted(true);
          Enumeration<String> keys = vtable.keys();
 
          while(keys.hasMoreElements()) {
@@ -463,6 +584,9 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
       }
       catch(Exception ex) {
          LOG.debug("Failed execute expression values", ex);
+      }
+      finally {
+         FormulaContext.setRestricted(restricted);
       }
 
       return vtable;
@@ -585,6 +709,11 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
 
                   if(data != null) {
                      put(key, data);
+
+                     // the caller gets a copy, as from the cache (bug #78200)
+                     if(data instanceof TableFilter2) {
+                        data = ((TableFilter2) data).clone();
+                     }
                   }
                }
                catch(Exception e) {
@@ -793,6 +922,10 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
       throws Exception
    {
       DataKey key = null;
+      // taken before the query runs or is waited for, a cancel of the caller since is its own
+      TableFilter2.Reader reader = new TableFilter2.Reader(
+         isScheduler(box, box == null ? null : box.getVariableTable()),
+         box == null ? null : box.getQueryManager(), qmgr);
 
       try {
          if(table != null) {
@@ -909,6 +1042,8 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
             if(key != null && data != null) {
                if(data instanceof TableFilter2) {
                   data = (TableLens) ((TableFilter2) data).clone();
+                  // the copy the cache keeps belongs to no reader
+                  ((TableFilter2) data).setReader(null);
                }
                else {
                   data = new TableFilter2(data);
@@ -931,8 +1066,9 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
       }
 
       if(key != null && (data instanceof TableFilter2)) {
-         TableFilter2 filter = (TableFilter2) data;
-         data = (TableFilter2) filter.clone();
+         TableFilter2 filter = ((TableFilter2) data).clone();
+         filter.setReader(reader);
+         data = filter;
       }
 
       return data;
@@ -1210,15 +1346,23 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
       }
 
       public void join() {
+         boolean interrupted = false;
+
          synchronized(lock) {
             while(!completed) {
                try {
                   lock.wait(10000);
                }
-               catch(Exception ex) {
-                  // ignore it
+               catch(InterruptedException ex) {
+                  // keep waiting for the data, but don't lose the caller's interrupt
+                  // (bug #78135)
+                  interrupted = true;
                }
             }
+         }
+
+         if(interrupted) {
+            Thread.currentThread().interrupt();
          }
       }
 

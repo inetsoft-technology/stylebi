@@ -31,6 +31,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.schema.UserVariable;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XNamedGroupInfo;
 import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.*;
@@ -1459,7 +1460,7 @@ public class LayoutTool {
          if(order.isSpecific() && order.getManualOrder() != null &&
             !order.getManualOrder().isEmpty())
          {
-            opt += "manualvalues=" + escapeOptionValue(order);
+            opt += "manualvalues=" + escapeOptionValue(order, fields[idx]);
 
             // bottom n
             if(asc && n > 0) {
@@ -1666,8 +1667,9 @@ public class LayoutTool {
       return exp;
    }
 
-   private static String escapeOptionValue(OrderInfo order) {
-      return Tool.escapeJavascript(Tool.encodeNL(getManualValuesString(order))).replace(",", "\\\\,");
+   private static String escapeOptionValue(OrderInfo order, CalcGroup group) {
+      return Tool.escapeJavascript(Tool.encodeNL(getManualValuesString(order, group)))
+         .replace(",", "\\\\,");
    }
 
    /**
@@ -2502,7 +2504,7 @@ public class LayoutTool {
             final OrderInfo orderInfo = bind.getOrderInfo(false);
 
             if(orderInfo != null && orderInfo.isSpecific() && orderInfo.getManualOrder() != null) {
-               exp += ",manualvalues=" + escapeOptionValue(orderInfo);
+               exp += ",manualvalues=" + escapeOptionValue(orderInfo, group);
 
                TopNInfo topn = bind.getTopN(true);
 
@@ -2525,9 +2527,12 @@ public class LayoutTool {
       return exp;
    }
 
-   private static String getManualValuesString(OrderInfo orderInfo) {
+   private static String getManualValuesString(OrderInfo orderInfo, CalcGroup group) {
       StringBuilder buffer = new StringBuilder();
-      List<String> values = orderInfo.getManualOrder();
+      // the manual order is compared with the group values, only date values are converted
+      boolean date = group != null && isDate(group) &&
+         (orderInfo.getOption() & DateRangeRef.PART_DATE_GROUP) == 0;
+      List<String> values = getGregorianManualOrder(orderInfo, date);
 
       if(values == null || values.size() == 0) {
          return null;
@@ -2544,6 +2549,79 @@ public class LayoutTool {
       }
 
       return buffer.toString();
+   }
+
+   /**
+    * Get the manual order of a Freehand table cell, with the Buddhist years of a date column
+    * converted, see getGregorianManualOrder(OrderInfo, boolean). A cell binding has no data
+    * type, so the type is taken from the column of the source table.
+    * @param columns the columns of the source table.
+    * @param name the column the cell is bound to.
+    * @param dateLevel the date level of the cell.
+    */
+   public static List<String> getGregorianManualOrder(OrderInfo orderInfo,
+                                                      ColumnSelection columns, String name,
+                                                      int dateLevel)
+   {
+      DataRef column = columns == null || name == null ? null : columns.getAttribute(name);
+
+      if(column == null && columns != null && name != null) {
+         column = columns.getAttribute(VSLayoutTool.getOriginalColumn(name));
+      }
+
+      boolean date = column != null && XSchema.isDateType(column.getDataType()) &&
+         (dateLevel & DateRangeRef.PART_DATE_GROUP) == 0;
+      return getGregorianManualOrder(orderInfo, date);
+   }
+
+   /**
+    * Get the manual order of a group. A manual order of dates saved before #77605 on a th_TH
+    * server holds Buddhist years, which are converted to Gregorian years (see
+    * Tool.toGregorianPersistentDate) if the group values are dates. Named group names and the
+    * others label are never converted. The order info itself is not changed.
+    * @param date true if the group values are dates (date column, not a date part level).
+    * @return the converted copy of the manual order, or the manual order if nothing changed.
+    */
+   public static List<String> getGregorianManualOrder(OrderInfo orderInfo, boolean date) {
+      List<String> values = orderInfo.getManualOrder();
+
+      if(!date || values == null || values.isEmpty()) {
+         return values;
+      }
+
+      Set<String> names = new HashSet<>();
+
+      for(XNamedGroupInfo info : new XNamedGroupInfo[] {
+         orderInfo.getRealNamedGroupInfo(), orderInfo.getCustomerNamedGroupInfo() })
+      {
+         if(info != null && info.getGroups() != null) {
+            names.addAll(Arrays.asList(info.getGroups()));
+         }
+      }
+
+      List<String> result = null;
+
+      for(int i = 0; i < values.size(); i++) {
+         String value = values.get(i);
+
+         if(value == null || names.contains(value) ||
+            Tool.equals(value, orderInfo.getOtherLabel()))
+         {
+            continue;
+         }
+
+         String value2 = Tool.toGregorianPersistentDate(value);
+
+         if(!value2.equals(value)) {
+            if(result == null) {
+               result = new ArrayList<>(values);
+            }
+
+            result.set(i, value2);
+         }
+      }
+
+      return result == null ? values : result;
    }
 
    /**

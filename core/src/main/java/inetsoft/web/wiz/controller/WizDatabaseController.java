@@ -894,7 +894,7 @@ public class WizDatabaseController {
             }
 
             if(item.folder()) {
-               FolderDeleteResult folderResult = dataSourceBrowserService.deleteDataSourceFolder(
+               FolderDeleteResult folderResult = dataSourceBrowserService.deleteDataSourceFolderResult(
                   item.path(),
                   Util.getObjectFullPath(RepositoryEntry.DATA_SOURCE_FOLDER, item.path(), principal),
                   force, principal);
@@ -1044,14 +1044,16 @@ public class WizDatabaseController {
     * shown up front instead of only being discovered from a refused {@code force=false} delete
     * attempt. Calling this first is optional: the delete endpoint enforces the same rule itself.</p>
     *
-    * @param request the data sources and/or folders to check.
+    * @param request   the data sources and/or folders to check.
+    * @param principal the current user, whose permissions decide which data sources of a folder
+    *                  are reported.
     *
     * @return one message per item that has a conflict, keyed by path. An item with no conflict has
     *         no entry.
     */
    @PostMapping(value = "/datasources/checkOuterDependencies", produces = MediaType.APPLICATION_JSON_VALUE)
    public WizDependencyCheckResult checkOuterDependencies(
-      @RequestBody WizCheckDependenciesRequest request)
+      @RequestBody WizCheckDependenciesRequest request, Principal principal)
    {
       Map<String, String> messagesByPath = new LinkedHashMap<>();
       List<WizDatasourceRef> items = request == null || request.items() == null
@@ -1064,7 +1066,7 @@ public class WizDatabaseController {
 
          try {
             if(item.folder()) {
-               datasourcesService.checkDataSourceFolderOuterDependencies(item.path());
+               datasourcesService.checkDataSourceFolderOuterDependencies(item.path(), principal);
             }
             else {
                datasourcesService.checkDataSourceOuterDependencies(item.path());

@@ -25,10 +25,12 @@ import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.binding.handler.VSColumnHandler;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
@@ -39,11 +41,13 @@ import java.util.*;
 public class SelectionListService {
 
    public SelectionListService(VSColumnHandler vsColumnHandler, ViewsheetService viewsheetService,
-                               VSAssemblyInfoHandler infoHandler)
+                               VSAssemblyInfoHandler infoHandler,
+                               QueryManagerService queryManagerService)
    {
       this.vsColumnHandler = vsColumnHandler;
       this.viewsheetService = viewsheetService;
       this.infoHandler = infoHandler;
+      this.queryManagerService = queryManagerService;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -52,6 +56,11 @@ public class SelectionListService {
    {
 
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
+      // a cube table is resolved from its data source without a permission check, so a cube
+      // that no assembly of the viewsheet is bound to is checked before its columns are
+      // listed (Bug #77462)
+      queryManagerService.checkNewCubeTablesReadPermission(
+         Collections.singletonList(table), VSUtil.getBoundTables(rvs.getViewsheet()), principal);
       ColumnSelection selection = vsColumnHandler.getTableColumns(rvs, table, principal);
       String[] columns = selection.stream().map(DataRef::getName).toArray(String[]::new);
       String[] tooltips = new String[selection.getAttributeCount()];
@@ -101,4 +110,5 @@ public class SelectionListService {
    private ViewsheetService viewsheetService;
    private final VSColumnHandler vsColumnHandler;
    private final VSAssemblyInfoHandler infoHandler;
+   private final QueryManagerService queryManagerService;
 }

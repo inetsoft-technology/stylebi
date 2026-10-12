@@ -58,10 +58,13 @@ public abstract class AbstractTableColumn implements XTableColumn, XSerializable
    public abstract void copyFromBuffer(ByteBuffer buf);
 
    /**
-    * Called to swap data to a file.
+    * Called to write data to a swap file. The data is kept in memory, the caller invalidates
+    * the column once the whole file is written (bug #77948).
     */
    @Override
    public synchronized void swap(File file, FileChannel fc) throws Exception {
+      // no swap data until the write below has succeeded
+      this.swapsize = 0;
       this.swapfile = file;
       this.swappos = fc.position();
       ByteBuffer buf0 = copyToBuffer();
@@ -77,11 +80,17 @@ public abstract class AbstractTableColumn implements XTableColumn, XSerializable
          fc.write(buf);
          swapsize = size;
          ByteBufferPool.releaseByteBuffer(buf0);
-         invalidate();
       }
-      else {
-         swapsize = 0;
-      }
+   }
+
+   /**
+    * Check if the data of this column is in its swap file. It is not when the column could
+    * not be copied to a buffer (copyToBuffer() returned null) or the write failed, and the
+    * column must then stay in memory (bug #77948).
+    */
+   @Override
+   public synchronized boolean hasSwapData() {
+      return swapsize > 0;
    }
 
    /**
@@ -115,19 +124,27 @@ public abstract class AbstractTableColumn implements XTableColumn, XSerializable
          copyFromBuffer(buf);
       }
       catch(Exception ex) {
+         // a timeout or cancel closed the channel, the swap file is not lost. the data array
+         // is left null so a later access reads the file again (bug #77916)
+         if(SwapReadInterruptedException.isInterrupt(ex)) {
+            LOG.debug("Read of swap file interrupted: " + swapInfo, ex);
+            throw new SwapReadInterruptedException(swapfile, ex);
+         }
+
          if(!swapfile.exists()) {
             Tool.addUserMessage(Catalog.getCatalog().getString("common.worksheet.swap.missing"));
-
-            if(LOG.isDebugEnabled()) {
-               LOG.debug("Failed to read swap file: " + swapInfo + " " +
-                            (swapfile.exists() ? "size: " + swapfile.length() : " missing"), ex);
-            }
+            LOG.error("Failed to read swap file: " + swapInfo + " missing", ex);
          }
          else {
             LOG.error("Failed to read swap file: " + swapInfo + " size: " + swapfile.length() +
                " uncompressed: " + uncompressedSize + " ts: " + new Date(swapfile.lastModified()),
                       ex);
          }
+
+         // the data array is left null so a later access tries the file again. fail loudly
+         // instead of returning, which would end in a plain NullPointerException in the
+         // getter, or in silent nulls for an XObjectColumn (bug #77895)
+         throw new SwapFileReadException(swapfile, ex);
       }
       finally {
          if(buf0 != null) {

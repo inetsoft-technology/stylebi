@@ -448,7 +448,7 @@ public class CrossBaseVSAssemblyInfo extends TableDataVSAssemblyInfo implements
          }
 
          if(this instanceof CrosstabVSAssemblyInfo) {
-            DateComparisonUtil.syncWeekGroupingLevels((CrosstabVSAssemblyInfo) this);
+            DateComparisonUtil.syncWeekGroupingLevels((CrosstabVSAssemblyInfo) this, dcInfo);
          }
 
          // @by billh, as column value is dynamic, here we need to sync

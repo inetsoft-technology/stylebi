@@ -31,6 +31,7 @@ import inetsoft.web.composer.model.vs.OutputColumnRefModel;
 import inetsoft.web.composer.model.vs.VSDimensionMemberModel;
 import inetsoft.web.composer.model.vs.VSDimensionModel;
 import inetsoft.web.composer.vs.VSObjectTreeService;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.service.*;
 import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
@@ -66,7 +67,8 @@ class VSObjectPropertyServiceTest {
                                                temporaryInfoService,
                                                vsCompositionService,
                                                sharedFilterService,
-                                               dataSourceRegistry);
+                                               dataSourceRegistry,
+                                               mock(QueryManagerService.class));
    }
 
    @Test

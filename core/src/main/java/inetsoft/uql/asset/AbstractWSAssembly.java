@@ -45,7 +45,7 @@ public abstract class AbstractWSAssembly extends AbstractAssembly implements WSA
       String cls = Tool.getAttribute(elem, "class");
       int idx = cls.indexOf(".");
       cls = idx < 0 ? "inetsoft.uql.asset." + cls : cls;
-      WSAssembly assembly = (WSAssembly) Class.forName(cls).newInstance();
+      WSAssembly assembly = (WSAssembly) Tool.loadSubclass(cls, WSAssembly.class).newInstance();
       assembly.parseXML(elem);
       assembly.setWorksheet(ws);
 

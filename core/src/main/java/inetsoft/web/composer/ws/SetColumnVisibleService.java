@@ -62,6 +62,7 @@ public class SetColumnVisibleService extends WorksheetControllerService {
       final String tname = event.getAssemblyName();
       final String[] columnName = event.getColumnName();
       final boolean showAll = event.getShowAll();
+      checkCubeTableReadPermission(principal, tname);
       final TableAssembly table = (TableAssembly) ws.getAssembly(tname);
 
       if(table == null) {
@@ -125,6 +126,7 @@ public class SetColumnVisibleService extends WorksheetControllerService {
    {
       RuntimeWorksheet rws = super.getWorksheetEngine().getWorksheet(runtimeId, principal);
       AssetQuerySandbox box = rws.getAssetQuerySandbox();
+      checkCubeTableReadPermission(principal, tableName);
       AbstractTableAssembly table =
          (AbstractTableAssembly) rws.getWorksheet().getAssembly(tableName);
 

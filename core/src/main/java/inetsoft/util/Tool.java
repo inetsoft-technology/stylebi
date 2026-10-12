@@ -50,7 +50,7 @@ import net.jpountz.lz4.LZ4BlockOutputStream;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.SystemUtils;
-import org.pojava.datetime.DateTime;
+import inetsoft.util.pojava.datetime.DateTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.util.UriUtils;
@@ -1047,6 +1047,236 @@ public final class Tool extends CoreTool {
     */
    public static String decodeCDATA(String str) {
       return encodeString(str, decodingCDATA);
+   }
+
+   /**
+    * Make a string safe to write between {@code <![CDATA[} and {@code ]]>}. Every
+    * {@code ]]>} in the string is split over two adjacent CDATA sections
+    * ({@code ]]]]><![CDATA[>}). A reader that joins adjacent CDATA sections, such as
+    * {@link #getValue(Node)}, gets the original string back, so no reader change is
+    * needed. A string without {@code ]]>} is returned unchanged.
+    *
+    * @param str the string to write in a CDATA section.
+    *
+    * @return the CDATA-safe string, or null if str is null.
+    */
+   public static String splitCDATAEnd(String str) {
+      return str == null || !str.contains("]]>") ? str : str.replace("]]>", "]]]]><![CDATA[>");
+   }
+
+   /**
+    * Check whether a string contains a character that XML 1.0 can't carry in any form,
+    * not even as a character reference: a C0 control character other than TAB, LF and
+    * CR, or U+FFFE/U+FFFF.
+    *
+    * @param str the string to check.
+    *
+    * @return true if the string contains such a character.
+    */
+   public static boolean hasXMLIllegalChars(String str) {
+      if(str == null) {
+         return false;
+      }
+
+      for(int i = 0; i < str.length(); i++) {
+         if(isXMLIllegalChar(str.charAt(i))) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   private static boolean isXMLIllegalChar(char c) {
+      return c < 0x20 && c != '\t' && c != '\n' && c != '\r' || c == '￾' || c == '￿';
+   }
+
+   /**
+    * Make free user text (a script, expression, label, title, description, tooltip,
+    * alias or name) safe to write between {@code <![CDATA[} and {@code ]]>}. This is
+    * lossy: each character XML 1.0 can't carry (see {@link #hasXMLIllegalChars}) becomes
+    * one space, then {@code ]]>} is split as in {@link #splitCDATAEnd}. TAB, LF, CR, C1
+    * controls and DEL are kept. A string with neither is returned unchanged. No reader
+    * change is needed. Use {@link #cdataDataAttr} and {@link #cdataData} instead for a
+    * value that must be restored exactly.
+    *
+    * @param str the string to write in a CDATA section.
+    *
+    * @return the CDATA-safe string, or null if str is null.
+    */
+   public static String cdataText(String str) {
+      return splitCDATAEnd(replaceXMLIllegalChars(str));
+   }
+
+   /**
+    * Replace each character XML 1.0 can't carry (see {@link #hasXMLIllegalChars}) with
+    * one space. TAB, LF, CR, C1 controls and DEL are kept.
+    *
+    * @param str the string.
+    *
+    * @return the string with the characters replaced, the same string if it has none,
+    *         or null if str is null.
+    */
+   public static String replaceXMLIllegalChars(String str) {
+      if(!hasXMLIllegalChars(str)) {
+         return str;
+      }
+
+      StringBuilder buf = new StringBuilder(str);
+
+      for(int i = 0; i < buf.length(); i++) {
+         if(isXMLIllegalChar(buf.charAt(i))) {
+            buf.setCharAt(i, ' ');
+         }
+      }
+
+      return buf.toString();
+   }
+
+   /**
+    * The marker attribute to put inside the start tag of the element that holds
+    * {@link #cdataData cdataData(str)}: {@code ctrlEncoded="true"} (with a leading space)
+    * when the value holds a character XML 1.0 can't carry, otherwise an empty string.
+    *
+    * @param str the value written by {@link #cdataData}.
+    *
+    * @return the attribute text, or an empty string.
+    */
+   public static String cdataDataAttr(String str) {
+      return hasXMLIllegalChars(str) ? " " + XML_ILLEGAL_CHARS_ATTR + "=\"true\"" : "";
+   }
+
+   /**
+    * Make a data value (a selected value, list value or alias key that is matched with
+    * data) safe to write between {@code <![CDATA[} and {@code ]]>}, losslessly. If the
+    * value holds a character XML 1.0 can't carry, it is encoded with
+    * {@link #encodeXMLIllegalChars}; the element must then carry
+    * {@link #cdataDataAttr cdataDataAttr(str)} and be read with {@link #getCDATAData}.
+    * {@code ]]>} is split as in {@link #splitCDATAEnd}. Other text is returned unchanged.
+    *
+    * @param str the value to write in a CDATA section.
+    *
+    * @return the CDATA-safe string, or null if str is null.
+    */
+   public static String cdataData(String str) {
+      return splitCDATAEnd(hasXMLIllegalChars(str) ? encodeXMLIllegalChars(str) : str);
+   }
+
+   /**
+    * Read a value written with {@link #cdataDataAttr} and {@link #cdataData}. The text is
+    * read with {@link #getValue(Node)} and decoded with {@link #decodeXMLIllegalChars}
+    * only when the element carries the marker attribute, so unmarked (older) values are
+    * returned exactly as stored.
+    *
+    * @param node the element holding the value.
+    *
+    * @return the value, or null if there is none.
+    */
+   public static String getCDATAData(Node node) {
+      String value = getValue(node);
+
+      if(value != null && node instanceof Element &&
+         "true".equals(((Element) node).getAttribute(XML_ILLEGAL_CHARS_ATTR)))
+      {
+         value = decodeXMLIllegalChars(value);
+      }
+
+      return value;
+   }
+
+   /**
+    * The marker attribute on an element whose CDATA text was encoded by
+    * {@link #cdataData}.
+    */
+   public static final String XML_ILLEGAL_CHARS_ATTR = "ctrlEncoded";
+
+   /**
+    * Encode the characters that XML 1.0 can't carry (see {@link #hasXMLIllegalChars})
+    * so the string can be written to XML. Each such character becomes a backslash, 'u'
+    * and four hex digits, and each backslash is doubled, so
+    * {@link #decodeXMLIllegalChars} restores the string exactly. The decoder changes
+    * backslashes, so encoded text must be marked by the writer (for example with a
+    * marker attribute) and decoded only when marked. Writers should encode only when
+    * {@link #hasXMLIllegalChars} is true, so ordinary text is written unchanged.
+    *
+    * @param str the string to encode.
+    *
+    * @return the encoded string, or null if str is null.
+    */
+   public static String encodeXMLIllegalChars(String str) {
+      if(str == null) {
+         return null;
+      }
+
+      StringBuilder buf = new StringBuilder(str.length() + 16);
+
+      for(int i = 0; i < str.length(); i++) {
+         char c = str.charAt(i);
+
+         if(c == '\\') {
+            buf.append("\\\\");
+         }
+         else if(isXMLIllegalChar(c)) {
+            buf.append(String.format("\\u%04X", (int) c));
+         }
+         else {
+            buf.append(c);
+         }
+      }
+
+      return buf.toString();
+   }
+
+   /**
+    * Decode a string encoded by {@link #encodeXMLIllegalChars}. A backslash that
+    * starts neither a doubled backslash nor a backslash, 'u' and four hex digits is kept
+    * as is.
+    *
+    * @param str the encoded string.
+    *
+    * @return the decoded string, or null if str is null.
+    */
+   public static String decodeXMLIllegalChars(String str) {
+      if(str == null || str.indexOf('\\') < 0) {
+         return str;
+      }
+
+      StringBuilder buf = new StringBuilder(str.length());
+
+      for(int i = 0; i < str.length(); i++) {
+         char c = str.charAt(i);
+
+         if(c == '\\' && i + 1 < str.length()) {
+            char next = str.charAt(i + 1);
+
+            if(next == '\\') {
+               buf.append('\\');
+               i++;
+               continue;
+            }
+
+            if(next == 'u' && i + 6 <= str.length()) {
+               int code = 0;
+               boolean hex = true;
+
+               for(int j = i + 2; j < i + 6 && hex; j++) {
+                  int digit = Character.digit(str.charAt(j), 16);
+                  hex = digit >= 0;
+                  code = code * 16 + digit;
+               }
+
+               if(hex) {
+                  buf.append((char) code);
+                  i += 5;
+                  continue;
+               }
+            }
+         }
+
+         buf.append(c);
+      }
+
+      return buf.toString();
    }
 
    /**
@@ -2185,34 +2415,7 @@ public final class Tool extends CoreTool {
     * Create a temporary file in the cache directory.
     */
    public static File getCacheTempFile(String prefix, String suffix) {
-      String cdir = getCacheDirectory();
-      long findex = System.currentTimeMillis();
-      prefix = Tool.toFileName(prefix);
-      File file = new File(cdir, prefix + findex++ + "." + suffix);
-
-      while(true) {
-         try {
-            if(file.createNewFile()) {
-               break;
-            }
-         }
-         catch(IOException ex) {
-            // this should not happen and we should terminate here
-            // otherwise it may stuck in an infinite loop
-            LOG.error(
-                        "Creating temp file caused IO Error: " + file, ex);
-            return null;
-         }
-         catch(Exception ex) {
-            LOG.error(
-                        "Failed to create temp file: " + file, ex);
-            return null;
-         }
-
-         file = new File(cdir, prefix + findex++ + "." + suffix);
-      }
-
-      return file;
+      return FileSystemService.getInstance().getCacheTempFile(prefix, suffix);
    }
 
    public static boolean isMyReport(String path) {
@@ -2221,6 +2424,92 @@ public final class Tool extends CoreTool {
       }
 
       return Tool.MY_DASHBOARD.equals(path) || path.startsWith(Tool.MY_DASHBOARD + "/");
+   }
+
+   /**
+    * Checks if a "/"-separated folder path is the same as another path or lies under it, e.g.
+    * "F", "F/G" or "F/G/H" for "F", but not "Fx". A folder must not be moved or renamed into
+    * itself or one of its subfolders.
+    *
+    * @param path    the folder path, e.g. "F".
+    * @param newPath the path to check, e.g. "F/G".
+    *
+    * @return {@code true} if the new path is the path or one of its descendants.
+    */
+   public static boolean isSameOrDescendantPath(String path, String newPath) {
+      return path != null && newPath != null &&
+         (newPath.equals(path) || isDescendantPath(path, newPath));
+   }
+
+   /**
+    * Checks if a "/"-separated folder path lies strictly under another path, e.g. "F/G" or
+    * "F/G/H" for "F", but not "F" itself or "Fx".
+    *
+    * @param path    the folder path, e.g. "F".
+    * @param newPath the path to check, e.g. "F/G".
+    *
+    * @return {@code true} if the new path is one of the descendants of the path.
+    */
+   public static boolean isDescendantPath(String path, String newPath) {
+      return path != null && newPath != null && newPath.startsWith(path + "/");
+   }
+
+   /**
+    * Checks if a folder name contains a path separator. A rename or create request sends only
+    * the folder name and the server joins it to the parent path, so a name such as "T/S" would
+    * build a path under another parent, and the folder would be moved or created there without
+    * the checks of the move endpoint (Bug #77733). A '\\' is not a separator in these stores and
+    * isn't refused here.
+    *
+    * @param name       the folder name.
+    * @param separators the separators the store of the folder uses besides '/', e.g. '~' for a
+    *                   table style folder.
+    *
+    * @return {@code true} if the name contains '/' or one of the separators.
+    */
+   public static boolean containsPathSeparator(String name, char... separators) {
+      if(name == null) {
+         return false;
+      }
+
+      if(name.indexOf('/') >= 0) {
+         return true;
+      }
+
+      for(char separator : separators) {
+         if(name.indexOf(separator) >= 0) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Refuses a folder name that contains a path separator, see
+    * {@link #containsPathSeparator(String, char...)}.
+    *
+    * @param name       the folder name.
+    * @param separators the separators the store of the folder uses besides '/'.
+    *
+    * @throws MessageException if the name contains a path separator.
+    */
+   public static void checkFolderNameSeparator(String name, char... separators)
+      throws MessageException
+   {
+      if(containsPathSeparator(name, separators)) {
+         throw new MessageException(getInvalidFolderNameMessage());
+      }
+   }
+
+   /**
+    * Gets the message for a folder name refused by
+    * {@link #checkFolderNameSeparator(String, char...)}.
+    *
+    * @return the localized message.
+    */
+   public static String getInvalidFolderNameMessage() {
+      return Catalog.getCatalog().getString("common.sree.internal.invalidCharInName");
    }
 
    /**
@@ -4049,6 +4338,44 @@ public final class Tool extends CoreTool {
     */
    public static String convertUserClassName(String cls) {
       return cls == null || Pattern.matches(ALL_PATTERN, cls) ? cls : null;
+   }
+
+   /**
+    * Load a class named in stored or imported data, such as an asset XML
+    * <tt>class</tt> attribute, and check that it is the expected type before
+    * it is initialized or constructed. The class is loaded by the core class
+    * loader without running its static initializer, and it is not instantiated.
+    *
+    * @param name     the class name.
+    * @param expected the type the named class must extend or implement.
+    *
+    * @return the loaded class.
+    *
+    * @throws ClassNotFoundException if the class could not be found.
+    * @throws ClassCastException     if the class is not a subtype of the expected type.
+    */
+   public static <T> Class<? extends T> loadSubclass(String name, Class<T> expected)
+      throws ClassNotFoundException
+   {
+      return checkSubclass(Class.forName(name, false, Tool.class.getClassLoader()), expected);
+   }
+
+   /**
+    * Check that a loaded class is a subtype of the expected type.
+    *
+    * @param cls      the loaded class.
+    * @param expected the type the class must extend or implement.
+    *
+    * @return the class as a subclass of the expected type.
+    *
+    * @throws ClassCastException if the class is not a subtype of the expected type.
+    */
+   public static <T> Class<? extends T> checkSubclass(Class<?> cls, Class<T> expected) {
+      if(!expected.isAssignableFrom(cls)) {
+         throw new ClassCastException(cls.getName() + " is not a " + expected.getName());
+      }
+
+      return cls.asSubclass(expected);
    }
 
    /**

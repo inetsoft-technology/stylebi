@@ -151,6 +151,16 @@ export class ImportTaskDialogComponent {
          content = "_#(js:em.import.success) _#(js:em.import.task.restart)";
       }
 
+      // Bug #77950, the tasks were imported but need attention, e.g. stored passwords that were
+      // cleared, show them as a warning without reporting the import as failed
+      const warnings = response.warnings || [];
+
+      if(warnings.length > 0) {
+         type = MessageDialogType.WARNING;
+         title = "_#(js:Warning)";
+         content = content + "\n\n" + warnings.join("\n");
+      }
+
       this.dialog.open(MessageDialog, { data: { title, content, type } })
           .afterClosed().subscribe(() => this.dialogRef.close(true));
    }

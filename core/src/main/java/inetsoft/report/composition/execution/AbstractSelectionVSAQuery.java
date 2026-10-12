@@ -473,7 +473,7 @@ public class AbstractSelectionVSAQuery extends VSAQuery implements SelectionVSAQ
 
       if(!objfmt.getUserDefinedFormat().isForegroundValueDefined()) {
          format.getDefaultFormat().setForegroundValue(
-            CategoricalColorFrame.COLOR_PALETTE[0].getRGB() + "");
+            CategoricalColorFrame.COLOR_PALETTE.get(0).getRGB() + "");
       }
    }
 

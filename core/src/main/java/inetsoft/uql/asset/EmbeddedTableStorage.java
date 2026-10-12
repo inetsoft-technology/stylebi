@@ -22,6 +22,7 @@ import inetsoft.storage.BlobStorage;
 import inetsoft.storage.BlobStorageManager;
 import inetsoft.storage.BlobTransaction;
 import inetsoft.util.ConfigurationContext;
+import inetsoft.util.FileSystemService;
 import jakarta.annotation.PreDestroy;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
@@ -30,6 +31,8 @@ import org.slf4j.LoggerFactory;
 import java.io.*;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
+import java.util.stream.Collectors;
 
 public class EmbeddedTableStorage implements AutoCloseable {
    public EmbeddedTableStorage(BlobStorageManager blobStorageManager) {
@@ -134,6 +137,66 @@ public class EmbeddedTableStorage implements AutoCloseable {
       }
    }
 
+   /**
+    * Mark a temporary table as not temporary, so that {@link #removeExpiredTempTables()} keeps
+    * it. The stored data is copied through a local temp file, never from the in-memory table.
+    *
+    * @param path the table path.
+    *
+    * @return {@code true} if the table was temporary and is now marked as not temporary.
+    *
+    * @throws IOException if the table is missing or could not be written.
+    */
+   public boolean clearTempFlag(String path) throws IOException {
+      if(!isTempTable(path)) {
+         return false;
+      }
+
+      File file = FileSystemService.getInstance().getCacheTempFile("tdat", "tmp");
+
+      try {
+         // read it fully before the write, the write replaces the blob being read
+         try(InputStream input = readTable(path)) {
+            if(input == null) {
+               throw new FileNotFoundException(path);
+            }
+
+            try(OutputStream output = new FileOutputStream(file)) {
+               IOUtils.copy(input, output);
+            }
+         }
+
+         try(InputStream input = new FileInputStream(file)) {
+            writeTable(path, input, false);
+         }
+      }
+      finally {
+         if(!file.delete() && file.exists()) {
+            LOG.debug("Failed to delete temp file: {}", file);
+         }
+      }
+
+      return true;
+   }
+
+   /**
+    * List the paths of every permanent (non-temp) table in an organization's store. Used by the
+    * orphaned permanent snapshot file cleanup (bug #78035) to enumerate deletion candidates; the
+    * temporary ones are already covered by {@link #removeExpiredTempTables()}.
+    *
+    * @param orgId the organization id.
+    *
+    * @return the data paths of the organization's permanent tables, without the {@code _s.tdat}
+    * suffix.
+    */
+   public List<String> listPermanentTablePaths(String orgId) {
+      return getStorage(orgId).paths()
+         .filter(path -> !isTempTable(path, orgId))
+         .map(path -> path.endsWith(DATA_SUFFIX) ?
+            path.substring(0, path.length() - DATA_SUFFIX.length()) : path)
+         .collect(Collectors.toList());
+   }
+
    public void removeExpiredTempTables() {
       Instant twoWeeksAgo = Instant.now().minus(14, ChronoUnit.DAYS);
       SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
@@ -188,5 +251,6 @@ public class EmbeddedTableStorage implements AutoCloseable {
    }
 
    private final BlobStorageManager blobStorageManager;
+   private static final String DATA_SUFFIX = "_s.tdat";
    private static final Logger LOG = LoggerFactory.getLogger(EmbeddedTableStorage.class);
 }

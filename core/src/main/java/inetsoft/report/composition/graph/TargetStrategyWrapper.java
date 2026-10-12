@@ -317,7 +317,7 @@ public abstract class TargetStrategyWrapper implements Serializable {
    public static TargetStrategyWrapper fromClassName(String stratClassStr)
       throws Exception
    {
-      Class stratClass = Class.forName(stratClassStr);
+      Class stratClass = Tool.loadSubclass(stratClassStr, TargetStrategyWrapper.class);
       return (TargetStrategyWrapper)stratClass.newInstance();
    }
 

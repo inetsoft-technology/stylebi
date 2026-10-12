@@ -24,8 +24,13 @@ import inetsoft.report.internal.table.BinaryTableDataPath;
 import inetsoft.report.internal.table.CancellableTableLens;
 import inetsoft.uql.XMetaInfo;
 import inetsoft.uql.XTable;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.util.Tool;
+import inetsoft.util.UserMessage;
 import inetsoft.util.stall.LockStallException;
+import inetsoft.util.swap.DataUnavailable;
+import inetsoft.util.swap.SwapFileReadException;
+import inetsoft.util.swap.SwapReadInterruptedException;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -164,16 +169,28 @@ abstract class JoinTable extends PagedTableLens {
     * Cancel the lens and running queries if supported
     */
    public void cancel() {
-      cancelled = cancelJoin();
+      // cancelJoin() completes a running join with the rows so far, so it is cancelled
+      // whatever its bases report: a complete base is not cancelled, and must not make the
+      // partial join look whole to a cache (bug #78135). a complete join stays not cancelled
+      boolean running = !delegate.isCompleted();
+
+      if(running) {
+         // set before cancelJoin() stops the workers, which wakes the readers: a reader that
+         // finds no more rows sees the cancel (bug #78200). if no worker was running the
+         // flag goes back, a reader may see it set in between: a very short window
+         boolean wasCancelled = cancelled;
+         cancelled = true;
+         cancelled = cancelJoin() || wasCancelled;
+      }
 
       if(leftTable instanceof CancellableTableLens) {
          ((CancellableTableLens) leftTable).cancel();
-         cancelled = ((CancellableTableLens) leftTable).isCancelled();
+         cancelled = cancelled || ((CancellableTableLens) leftTable).isCancelled();
       }
 
       if(rightTable instanceof CancellableTableLens) {
          ((CancellableTableLens) rightTable).cancel();
-         cancelled = ((CancellableTableLens) rightTable).isCancelled();
+         cancelled = cancelled || ((CancellableTableLens) rightTable).isCancelled();
       }
 
       if(cancelled) {
@@ -186,6 +203,14 @@ abstract class JoinTable extends PagedTableLens {
     */
    public boolean isCancelled() {
       return cancelled;
+   }
+
+   /**
+    * Check if a script timeout or cancel interrupted a swap read of a base table as the
+    * tables were joined, so every read fails (bug #78100).
+    */
+   boolean isStopped() {
+      return baseFailure instanceof SwapReadInterruptedException;
    }
 
    protected abstract boolean cancelJoin();
@@ -203,6 +228,7 @@ abstract class JoinTable extends PagedTableLens {
       }
 
       throwStallFailure();
+      addUserMessage();
       return false;
    }
 
@@ -244,6 +270,7 @@ abstract class JoinTable extends PagedTableLens {
 
       if(count >= 0) {
          throwStallFailure();
+         addUserMessage();
       }
 
       return count;
@@ -255,7 +282,7 @@ abstract class JoinTable extends PagedTableLens {
     */
    @Override
    public Object getObject(int r, int c) {
-      if(stallFailure != null) {
+      if(stallFailure != null || baseFailure != null) {
          throwStallFailurePastEnd(r);
       }
 
@@ -274,13 +301,36 @@ abstract class JoinTable extends PagedTableLens {
    }
 
    /**
-    * Rethrow the stall a worker thread failed with, if any (bug #76967).
+    * Rethrow the stall (bug #76967), the lost swap file (bug #77651) or the load failure of a
+    * base (bug #77966) a worker thread failed with, if any.
     */
    private void throwStallFailure() {
       LockStallException failure = stallFailure;
 
       if(failure != null) {
          throw new LockStallException(failure);
+      }
+
+      // nor are the rows so far of a worker that lost a swap file of a base (bug #77651), or
+      // of a base that failed to load, for a reader that has to fail (bug #77966)
+      RuntimeException baseFailure = this.baseFailure;
+
+      if(baseFailure != null) {
+         // a new instance for each reader: one thrown through a script cannot be serialized
+         // once it is thrown again (bug #78084)
+         throw DataUnavailable.copy(baseFailure);
+      }
+   }
+
+   /**
+    * Add the user messages of the worker threads, e.g. the warning of a base that failed to
+    * load, on the reader's thread at the end of the join (bug #77966).
+    */
+   private void addUserMessage() {
+      UserMessage msg = userMsg;
+
+      if(msg != null) {
+         Tool.addUserMessage(msg);
       }
    }
 
@@ -290,10 +340,58 @@ abstract class JoinTable extends PagedTableLens {
    protected abstract Thread[] getWorkerThreads();
 
    /**
-    * Record the stall a worker thread failed with (bug #76967).
+    * Record the stall a worker thread failed with (bug #76967). A copy is kept, which is never
+    * thrown: the failure may be thrown on through a script, which adds a suppressed stack
+    * trace element that cannot be serialized to it (bug #78084).
     */
    void setStallFailure(LockStallException failure) {
-      stallFailure = failure;
+      stallFailure = failure.copy();
+   }
+
+   /**
+    * Record the lost swap file a worker thread failed with, before it completes the join
+    * (bug #77651).
+    */
+   void setSwapFailure(SwapFileReadException failure) {
+      // a copy, as for a stall (bug #78084)
+      baseFailure = failure.copy();
+   }
+
+   /**
+    * Record the load failure of a base a worker thread failed with, before it completes the
+    * join (bug #77966).
+    */
+   void setLoadFailure(TableLoadException failure) {
+      // a copy, as for a stall (bug #78084)
+      baseFailure = DataUnavailable.copy(failure);
+   }
+
+   /**
+    * Keep the user messages of a worker thread for the readers, before it completes the join:
+    * they are lost with the worker thread otherwise (bug #77966).
+    */
+   synchronized void addWorkerMessage(UserMessage msg) {
+      UserMessage userMsg = this.userMsg;
+      this.userMsg = userMsg == null ? msg : userMsg.merge(msg);
+   }
+
+   /**
+    * Keep the user messages of the calling worker thread, e.g. the warning of a base that failed
+    * to load, for the readers. Called by a worker before it completes the join (bugs #77966,
+    * #78071).
+    */
+   void keepWorkerMessages() {
+      try {
+         UserMessage msg = Tool.getUserMessage();
+
+         if(msg != null) {
+            addWorkerMessage(msg);
+         }
+      }
+      catch(RuntimeException ex) {
+         LOG.warn("Failed to collect the join user messages", ex);
+         Tool.clearUserMessage();
+      }
    }
 
    /**
@@ -342,7 +440,7 @@ abstract class JoinTable extends PagedTableLens {
     * Get the base table to delegate calls.
     */
    public TableRef getTableRef(int row, int col) {
-      if(stallFailure != null) {
+      if(stallFailure != null || baseFailure != null) {
          throwStallFailurePastEnd(row);
       }
 
@@ -618,7 +716,8 @@ abstract class JoinTable extends PagedTableLens {
    private int joinType;
    private boolean includeRightJoinCols;
    private int[] rightCols;
-   private boolean cancelled = false;
+   // volatile: set before cancelJoin() wakes the readers on other threads (bug #78200)
+   private volatile boolean cancelled = false;
    private int headerRowCount = 0;
    // map from right table col index (in join table) to base right table col
    private int[] rightColMap;
@@ -633,6 +732,10 @@ abstract class JoinTable extends PagedTableLens {
    // base rows read by the workers, joined or not (bug #76967)
    private transient volatile long scannedRows;
    private transient volatile LockStallException stallFailure;
+   // the lost swap file (bug #77651) or the base load failure (bug #77966) a worker failed with
+   private transient volatile RuntimeException baseFailure;
+   // the user messages of the worker threads, for the readers (bug #77966)
+   private transient volatile UserMessage userMsg;
    // the watchdog suppliers of moreRows, see getStallProgress()
    private transient LongSupplier stallProgress;
    private transient Supplier<Thread[]> stallBlockers;

@@ -574,8 +574,7 @@ public class FormulaFunctions {
             func = CalcDateTime.class.getMethod("month", params);
          }
          else if("week".equals(date)) {
-            func = CalcDateTime.class.getMethod("weeknum", params2);
-            args = arg2;
+            func = FormulaFunctions.class.getDeclaredMethod("weekOfYear", params);
          }
          else if("day".equals(date)) {
             func = CalcDateTime.class.getMethod("day", params);
@@ -615,6 +614,23 @@ public class FormulaFunctions {
             ", using interval " + intervalstr + " from " +
             Arrays.toString(arr), ex);
       }
+   }
+
+   /**
+    * Get the week of year for the date=week option. This matches the Week of Year date
+    * group of a crosstab under the default week.start (both force minimalDaysInFirstWeek
+    * to 1, the week containing January 1 is week 1), instead of the Excel numbering of
+    * CALC.weeknum(). A bare GregorianCalendar otherwise inherits minimalDaysInFirstWeek
+    * from the JVM default locale (1 for en_US/zh_CN, 4 for en_GB/de_DE), which would make
+    * this disagree with the crosstab level on any server whose default locale isn't 1-based
+    * (bug #78112) -- this is a new Calendar on every call, so no save/restore is needed.
+    */
+   private static int weekOfYear(Object date) {
+      Calendar cal = new GregorianCalendar();
+      cal.setMinimalDaysInFirstWeek(1);
+      cal.setTime((Date) date);
+      cal.setFirstDayOfWeek(Calendar.SUNDAY);
+      return cal.get(Calendar.WEEK_OF_YEAR);
    }
 
    /**

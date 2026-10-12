@@ -72,6 +72,8 @@ public class XSwappableIntList implements Serializable {
     * Make a copy of the list.
     */
    public XSwappableIntList(XSwappableIntList list) {
+      this();
+
       int n = list.size();
 
       for(int i = 0; i < n; i++) {
@@ -121,6 +123,15 @@ public class XSwappableIntList implements Serializable {
       else {
          int tidx = (size - 1) >> BLOCK_BITS;
          int ridx = (size - 1) & BLOCK_SIZE;
+         // the tail fragment may be swapped out, and its swap file is reused as is by the
+         // next swap, so it can't be cut in place. Read the kept values back (outside the
+         // lock, getArray() waits for memory) and put them in a new fragment instead
+         int[] arr = fragments[tidx].getArray();
+         XIntFragment nfragment = new XIntFragment((char) 128, (char) (BLOCK_SIZE + 1));
+
+         for(int i = 0; i <= ridx; i++) {
+            nfragment.add(arr == null ? 0 : arr[i]);
+         }
 
          try {
             rlock.lock();
@@ -130,8 +141,9 @@ public class XSwappableIntList implements Serializable {
                fragments[i] = null;
             }
 
-            fragment = fragments[tidx];
-            fragment.size((char) (ridx + 1));
+            fragments[tidx].dispose();
+            fragments[tidx] = nfragment;
+            fragment = nfragment;
             pos = (char) (tidx + 1);
          }
          finally {
@@ -140,6 +152,8 @@ public class XSwappableIntList implements Serializable {
       }
 
       count = size;
+      // the new tail is open for add(), complete() must complete it again
+      completed = false;
    }
 
    /**
@@ -211,8 +225,22 @@ public class XSwappableIntList implements Serializable {
    /**
     * Add a new object to the list.
     * @param val the specified int value.
+    * @return the index of the value, or -1 if the list is disposed (the value is ignored).
+    * @throws IllegalStateException if the list is completed.
     */
    public final int add(int val) {
+      // a disposed list ignores the add, it has no fragments to add to
+      if(disposed) {
+         return -1;
+      }
+
+      // check the list, not only the tail fragment. At a fragment boundary (and on an empty
+      // list) the add below would open a new tail fragment that is never completed
+      if(completed) {
+         throw new IllegalStateException(
+            "Cannot add a value to a completed swappable list: size=" + count);
+      }
+
       if((count & BLOCK_SIZE) == 0) {
          getSwapper().waitForMemory();
 

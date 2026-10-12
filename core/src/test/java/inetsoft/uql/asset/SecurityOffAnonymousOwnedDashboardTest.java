@@ -79,6 +79,10 @@ class SecurityOffAnonymousOwnedDashboardTest {
       admin = new SRPrincipal(new IdentityID("admin", orgId),
                               new IdentityID[] { new IdentityID("Administrator", null) },
                               new String[0], orgId, 1L);
+      // a real admin session is in SecurityEngine's logged-in map; admin-of-owner checks on
+      // another user's private asset now ask SecurityEngine, which refuses a principal that is
+      // not (Bug #78075)
+      admin.setIgnoreLogin(true);
       // the security-off anonymous principal has no roles (SecurityEngine.authenticate)
       anonymous = new SRPrincipal(new IdentityID(XPrincipal.ANONYMOUS, orgId), new IdentityID[0],
                                   new String[0], orgId, 1L);

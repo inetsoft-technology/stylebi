@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 
@@ -98,6 +99,32 @@ class DistributedLockProxyTest {
 
       assertTrue(calls.get() > MAX_TRY_COUNT,
                  "lock() gave up after " + calls.get() + " attempts; it must block until acquired");
+   }
+
+   // [Scenario: interrupted unlock] Bug #78096, IgniteLock.unlock() throws on an interrupted
+   // thread and keeps the lock held, so the proxy unlocks with the interrupt flag cleared and sets
+   // it again afterwards.
+   @Test
+   void unlock_onInterruptedThread_unlocksWithFlagClearedAndKeepsInterrupt() {
+      Lock realLock = mock(Lock.class);
+      AtomicBoolean interruptedInUnlock = new AtomicBoolean(true);
+      doAnswer(inv -> {
+         interruptedInUnlock.set(Thread.currentThread().isInterrupted());
+         return null;
+      }).when(realLock).unlock();
+
+      Thread.currentThread().interrupt();
+
+      try {
+         new DistributedLockProxy("test", realLock).unlock();
+         assertTrue(Thread.currentThread().isInterrupted(), "interrupt was lost");
+      }
+      finally {
+         Thread.interrupted();
+      }
+
+      verify(realLock, times(1)).unlock();
+      assertFalse(interruptedInUnlock.get(), "the lock was unlocked on an interrupted thread");
    }
 
    private static final int MAX_TRY_COUNT = 10;

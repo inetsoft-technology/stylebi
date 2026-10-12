@@ -33,6 +33,7 @@ import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.service.DataSourceRegistry;
+import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
@@ -47,7 +48,6 @@ import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.springframework.stereotype.Service;
-import java.io.StringReader;
 import java.security.Principal;
 import java.util.*;
 
@@ -73,6 +73,7 @@ public class ExpressionDialogService extends WorksheetControllerService {
       RuntimeWorksheet rws = super.getWorksheetEngine()
          .getWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
+      checkCubeTableReadPermission(principal, tableName);
       TableAssembly table = (TableAssembly) ws.getAssembly(tableName);
 
       if(table == null) {
@@ -181,6 +182,7 @@ public class ExpressionDialogService extends WorksheetControllerService {
       RuntimeWorksheet rws = super.getWorksheetEngine().getWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
       String tname = model.tableName();
+      checkCubeTableReadPermission(principal, tname);
       TableAssembly table = (TableAssembly) ws.getAssembly(tname);
 
       if(table == null || model.newName() == null) {
@@ -294,6 +296,7 @@ public class ExpressionDialogService extends WorksheetControllerService {
       RuntimeWorksheet rws = super.getRuntimeWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
       String tname = model.tableName();
+      checkCubeTableReadPermission(principal, tname);
       TableAssembly table = (TableAssembly) ws.getAssembly(tname);
 
       if(table == null || model.newName() == null) {
@@ -460,11 +463,7 @@ public class ExpressionDialogService extends WorksheetControllerService {
          }
          // sql expression
          else {
-            inetsoft.uql.util.sqlparser.SQLLexer lexer =
-               new inetsoft.uql.util.sqlparser.SQLLexer(new StringReader(text));
-            inetsoft.uql.util.sqlparser.SQLParser parser =
-               new inetsoft.uql.util.sqlparser.SQLParser(lexer);
-            Object obj = parser.value_exp();
+            inetsoft.uql.util.sqlparser.SQLLexer lexer = XUtil.parseSQLExpressionSyntax(text);
             String token = null;
 
             try {

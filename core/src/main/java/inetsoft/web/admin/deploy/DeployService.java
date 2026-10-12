@@ -35,6 +35,7 @@ import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.dep.*;
 import inetsoft.web.admin.content.repository.ContentRepositoryTreeService;
 import inetsoft.web.admin.content.repository.RepletRegistryService;
+import inetsoft.web.admin.content.repository.RepositoryOwnerOrgCheck;
 import inetsoft.web.admin.content.repository.model.*;
 import inetsoft.web.security.auth.MissingResourceException;
 import inetsoft.web.viewsheet.DatasourceIgnoreGlobalShare;
@@ -478,7 +479,8 @@ public class DeployService {
          return ImportAssetResponse.builder()
             .failed(!failedAssets.isEmpty())
             .ignoreUserAssets(ignoreUserAssets)
-            .failedAssets(failedAssets).build();
+            .failedAssets(failedAssets)
+            .warnings(info.getImportWarnings()).build();
       }
 
       return ImportAssetResponse.builder()
@@ -497,16 +499,36 @@ public class DeployService {
       }
    }
 
-   public void importAssets(File zipFile, List<String> excluded, boolean overwrite,
-                            Principal principal)
+   /**
+    * Imports the assets in an exported JAR file.
+    *
+    * @return the import response. Its {@link ImportAssetResponse#warnings() warnings} and
+    *         {@link ImportAssetResponse#ignoreUserAssets() ignored user assets} must be reported to
+    *         the caller. They do not mean that the import failed, a failed import throws instead.
+    *
+    * @see #importAssets(File, List, boolean, String, boolean, Principal)
+    */
+   public ImportAssetResponse importAssets(File zipFile, List<String> excluded, boolean overwrite,
+                                           Principal principal)
       throws Exception
    {
-      importAssets(zipFile, excluded, overwrite, null, true, principal);
+      return importAssets(zipFile, excluded, overwrite, null, true, principal);
    }
 
-   public void importAssets(File zipFile, List<String> excluded, boolean overwrite,
-                            String targetFolder, boolean applyTargetToDependencies,
-                            Principal principal)
+   /**
+    * Imports the assets in an exported JAR file.
+    *
+    * @return the import response. Its {@link ImportAssetResponse#warnings() warnings} (e.g.
+    *         secrets that could not be decrypted, or schedule task passwords that were cleared)
+    *         and {@link ImportAssetResponse#ignoreUserAssets() ignored user assets} (user-scoped
+    *         assets of other organizations that were not imported) must be reported to the
+    *         caller. They do not mean that the import failed, a failed import throws instead.
+    *
+    * @throws Exception if the import failed.
+    */
+   public ImportAssetResponse importAssets(File zipFile, List<String> excluded, boolean overwrite,
+                                           String targetFolder, boolean applyTargetToDependencies,
+                                           Principal principal)
       throws Exception
    {
       boolean isImportAsSiteAdmin = OrganizationManager.getInstance().isSiteAdmin(principal);
@@ -577,6 +599,15 @@ public class DeployService {
             "Failed to import the following assets: " +
             String.join(", ", response.failedAssets()));
       }
+
+      // Bug #77628, the assets are imported, log the warnings
+      for(String warning : response.warnings()) {
+         LOG.warn("Import of {}: {}", zipFile.getName(), warning);
+      }
+
+      // Bug #78221, return the warnings and the ignored user assets so that the file-based import
+      // callers (public REST API, shell, setup) can report them like the EM does
+      return response;
    }
 
    /**
@@ -719,25 +750,6 @@ public class DeployService {
    }
 
    /**
-    * Import assets by DeployManagerService.
-    *
-    * @param data    the jar file is provided as a btye array.
-    * @param replace indicates if existing assets should be overwritten.
-    */
-   public void importAssets(byte[] data, boolean replace) throws Exception {
-      try {
-         AnalyticRepository repository = SUtil.getRepletRepository();
-
-         if(repository.isWrapperFor(RepletEngine.class)) {
-            repository.unwrap(RepletEngine.class).importAssets(data, replace);
-         }
-      }
-      catch(Exception e) {
-         throw new Exception(e.getMessage());
-      }
-   }
-
-   /**
     * Get the export path array, it has merged the includes and excludes.
     */
    private List<String> getExportPaths(List<String> includePatterns, List<String> excludePatterns) {
@@ -854,15 +866,133 @@ public class DeployService {
    public List<XAsset> getEntryAssets(List<SelectedAssetModel> selectedEntities,
                                       Principal principal)
    {
+      return getEntryAssets(selectedEntities, Collections.emptySet(), principal);
+   }
+
+   /**
+    * Get assets. Only for replet, viewhsheet and
+    * snapshot type.
+    * @param selectedEntities the specified entry array.
+    * @param keptAssets       the identifiers of the assets the caller may keep without a
+    *                         permission check, the assets already stored in a schedule backup
+    *                         action.
+    * @return xasset.
+    *
+    * @throws MessageException if the caller may not export one of the other assets.
+    */
+   public List<XAsset> getEntryAssets(List<SelectedAssetModel> selectedEntities,
+                                      Set<String> keptAssets, Principal principal)
+   {
       if(selectedEntities == null) {
          return Collections.emptyList();
       }
 
-      return selectedEntities.stream()
-         .map(m -> getEntryAsset(m, principal))
-         .filter(Objects::nonNull)
-         .distinct()
-         .collect(Collectors.toList());
+      List<XAsset> assets = new ArrayList<>();
+
+      for(SelectedAssetModel model : selectedEntities) {
+         XAsset asset = getEntryAsset(model, principal);
+
+         if(asset == null) {
+            continue;
+         }
+
+         // Bug #77862, the owner comes from the client and the asset is read from the owner's
+         // storage, so check the asset as the export/check-permission preflight does
+         if(!keptAssets.contains(asset.toIdentifier())) {
+            checkEntityPermitted(model, asset, principal);
+         }
+
+         if(!assets.contains(asset)) {
+            assets.add(asset);
+         }
+      }
+
+      return assets;
+   }
+
+   private void checkEntityPermitted(SelectedAssetModel model, XAsset asset,
+                                     Principal principal)
+   {
+      String type = repositoryEntryTypeToAssetType(model.type());
+      IdentityID user = getEntryAssetUser(model);
+      RepositoryOwnerOrgCheck.checkOwnerOrg(user, principal);
+      // Bug #77923, #77924, check the task or auto-save asset that is written
+      boolean permitted = isOwnerDerivedAsset(asset) ?
+         XAssetExportPermission.isPermitted(asset, asset.getPath(), true, principal) :
+         isEntityPermitted(model.path(), user, type, principal);
+
+      if(principal == null || !permitted) {
+         throw new MessageException(noPermissionMessage(model.path(), principal));
+      }
+   }
+
+   /**
+    * Checks if the caller may export a dependent asset of an export. The owner of a schedule task
+    * or an auto-save asset is resolved from the stored task or the file name, the client-supplied
+    * owner is ignored. The other assets are checked by {@link #checkAssetOwner}.
+    *
+    * @param required the dependent asset as it is written to the export.
+    *
+    * @throws MessageException if the caller may not export the asset.
+    */
+   public void checkDependentAsset(PartialDeploymentJarInfo.RequiredAsset required,
+                                   Principal principal)
+   {
+      // Bug #77923, #77924, the writers of these assets ignore the owner of the model. Check the
+      // asset the writer builds, which may take its path from the detail description.
+      XAsset asset = DeployUtil.getAsset(required);
+
+      if(isOwnerDerivedAsset(asset)) {
+         if(!XAssetExportPermission.isPermitted(asset, asset.getPath(), false, principal)) {
+            throw new MessageException(noPermissionMessage(asset.getPath(), principal));
+         }
+
+         return;
+      }
+
+      checkAssetOwner(required.getUser(), required.getPath(), principal);
+   }
+
+   /**
+    * Whether the writer of an asset ignores {@link XAsset#getUser()}, the owner is resolved from
+    * the stored task or the auto-save file name.
+    */
+   private static boolean isOwnerDerivedAsset(XAsset asset) {
+      return asset instanceof ScheduleTaskAsset || asset instanceof VSAutoSaveAsset ||
+         asset instanceof WSAutoSaveAsset;
+   }
+
+   /**
+    * Checks if the caller may export an asset owned by a client-supplied user, a dependent asset
+    * of an export. A {@code __NULL__} owner has no owner.
+    *
+    * @throws MessageException if the owner belongs to another organization or the caller is
+    *                          neither the owner nor an administrator of the owner.
+    */
+   public void checkAssetOwner(IdentityID owner, String path, Principal principal) {
+      if(owner == null) {
+         return;
+      }
+
+      // the asset is still built with the organization of a __NULL__ owner
+      RepositoryOwnerOrgCheck.checkOwnerOrg(owner, principal);
+
+      if(XAsset.NULL.equals(owner.name)) {
+         return;
+      }
+
+      if(!XAssetExportPermission.isOwnerPermitted(owner, principal)) {
+         throw new MessageException(noPermissionMessage(path, principal));
+      }
+   }
+
+   private static String noPermissionMessage(String path, Principal principal) {
+      return Catalog.getCatalog(principal).getString("em.common.security.no.permission", path);
+   }
+
+   private static IdentityID getEntryAssetUser(SelectedAssetModel model) {
+      IdentityID entityUser = model.user();
+      return entityUser == null || XAsset.NULL.equals(entityUser.name) ? null : entityUser;
    }
 
    private XAsset getEntryAsset(SelectedAssetModel model, Principal principal) {
@@ -876,11 +1006,8 @@ public class DeployService {
          type.equals(ViewsheetAsset.VIEWSHEET) || type.equals(DashboardAsset.DASHBOARD) ?
          this.contentRepositoryTreeService.getUnscopedPath(model.path()) :
          model.path();
-      IdentityID entityUser = model.user();
-
-
       // @by arlinex, only global assets are supported
-      IdentityID user = entityUser == null || "__NULL__".equals(entityUser.name) ? null : entityUser;
+      IdentityID user = getEntryAssetUser(model);
       XAsset asset = SUtil.getXAsset(type, entityName, user);
 
       if(asset instanceof TableStyleAsset style) {
@@ -1032,30 +1159,21 @@ public class DeployService {
    }
 
    private boolean isEntityPermitted(SelectedAssetModel entity, String assetType,
-                                     Principal principal) throws SecurityException
+                                     Principal principal)
    {
-      String unscopedPath = contentRepositoryTreeService.getUnscopedPath(entity.path());
+      return isEntityPermitted(entity.path(), entity.user(), assetType, principal);
+   }
 
-      XAsset xasset = SUtil.getXAsset(assetType, unscopedPath, entity.user());
+   private boolean isEntityPermitted(String path, IdentityID user, String assetType,
+                                     Principal principal)
+   {
+      String unscopedPath = contentRepositoryTreeService.getUnscopedPath(path);
 
-      if(xasset instanceof VSAutoSaveAsset || xasset instanceof WSAutoSaveAsset) {
-         return true;
-      }
+      XAsset xasset = SUtil.getXAsset(assetType, unscopedPath, user);
 
-      Resource resource = xasset.getSecurityResource();
-
-      if(resource == null) {
-         return securityEngine.checkPermission(
-            principal, ResourceType.ASSET, unscopedPath, ResourceAction.ADMIN);
-      }
-      else if(xasset.getUser() != null) {
-         return principal.getName().equals(xasset.getUser().convertToKey()) || securityEngine.checkPermission(
-            principal, ResourceType.SECURITY_USER, xasset.getUser(), ResourceAction.ADMIN);
-      }
-      else {
-         return securityEngine.checkPermission(
-            principal, resource.getType(), resource.getPath(), ResourceAction.ADMIN);
-      }
+      // Bug #77923, #77924, the owner of a schedule task or an auto-save asset is resolved from
+      // the stored task or the file name, not from the client-supplied user
+      return XAssetExportPermission.isPermitted(xasset, unscopedPath, true, principal);
    }
 
    /**

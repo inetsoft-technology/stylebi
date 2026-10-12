@@ -52,7 +52,7 @@ public abstract class AbstractLayout implements AssetObject {
    {
       String cls = Tool.getAttribute(elem, "class");
       VSAssemblyLayout alayout =
-         (VSAssemblyLayout) Class.forName(cls).newInstance();
+         (VSAssemblyLayout) Tool.loadSubclass(cls, VSAssemblyLayout.class).newInstance();
       alayout.parseXML(elem);
 
       return alayout;

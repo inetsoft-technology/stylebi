@@ -282,7 +282,7 @@ public class StaticColorFrame extends ColorFrame {
       return super.toString() + "[" + userColor + "]";
    }
 
-   static final Color DEFAULT_COLOR = CategoricalColorFrame.COLOR_PALETTE[0];
+   static final Color DEFAULT_COLOR = CategoricalColorFrame.COLOR_PALETTE.get(0);
 
    private Color defaultColor = DEFAULT_COLOR;
    private Color cssColor;

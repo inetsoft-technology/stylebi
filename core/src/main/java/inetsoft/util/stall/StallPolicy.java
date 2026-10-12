@@ -98,27 +98,10 @@ public final class StallPolicy {
    }
 
    /**
-    * Settings that, in {@code fail} mode, fail a stall on the timeout alone
-    * ({@code failOnTimeout}), as {@code fail} did before Feature #77123. For tests of what a
-    * failed wait leaves behind; the server reads the properties, see {@link #get()}.
-    */
-   public StallPolicy(Mode mode, long noProgressMillis, long scanMillis, File dumpDir) {
-      this(mode, noProgressMillis, scanMillis, dumpDir, DEFAULT_MAX_DUMPS);
-   }
-
-   /**
-    * Same as {@link #StallPolicy(Mode, long, long, File)}, failing on the timeout alone.
+    * Fixed settings, for tests; the server reads the properties, see {@link #get()}. There is
+    * no shorter form: a test states {@code failOnTimeout}, so it never tests the opt-in rule
+    * without saying so.
     *
-    * @param maxDumps how many {@code stall-dump-*.txt} files to keep in the dump directory,
-    *                 the oldest are deleted when a new one is written.
-    */
-   public StallPolicy(Mode mode, long noProgressMillis, long scanMillis, File dumpDir,
-                      int maxDumps)
-   {
-      this(mode, noProgressMillis, scanMillis, dumpDir, maxDumps, true);
-   }
-
-   /**
     * @param maxDumps      how many {@code stall-dump-*.txt} files to keep in the dump
     *                      directory, the oldest are deleted when a new one is written.
     * @param failOnTimeout in {@code fail} mode, fail a stall on the timeout alone, instead of

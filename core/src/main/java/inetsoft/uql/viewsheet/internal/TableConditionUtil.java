@@ -602,7 +602,7 @@ public class TableConditionUtil {
             Condition cond = new Condition(drr.getDataType());
             cond.setConvertingType(false);
             int dgroup = grp.getDateGroup();
-            Calendar cal = Calendar.getInstance();
+            Calendar cal = new GregorianCalendar();
             cal.setTime(getSQLDate(val));
 
             if(dgroup == XConstants.MONTH_OF_YEAR_DATE_GROUP) {
@@ -615,6 +615,13 @@ public class TableConditionUtil {
             }
             else if(dgroup == XConstants.WEEK_OF_YEAR_DATE_GROUP) {
                drr.setDateOption(DateRangeRef.WEEK_INTERVAL);
+               // Bug #78123, force a locale-independent week numbering convention
+               // (same convention as Bug #78112) instead of inheriting the server
+               // JVM default locale's minimalDaysInFirstWeek/firstDayOfWeek, which
+               // can put the same date in a different week than the one shown in
+               // the UI.
+               cal.setFirstDayOfWeek(Tool.getFirstDayOfWeek());
+               cal.setMinimalDaysInFirstWeek(1);
                cond.addValue(cal.get(Calendar.WEEK_OF_YEAR));
             }
             else if(dgroup == XConstants.DAY_OF_WEEK_DATE_GROUP) {
@@ -633,14 +640,14 @@ public class TableConditionUtil {
             boolean dateGroup = grp != null && val != null;
 
             if(dateGroup && grp.getDateGroup() == XConstants.QUARTER_DATE_GROUP) {
-               Calendar cal = Calendar.getInstance();
+               Calendar cal = new GregorianCalendar();
                cal.setTime(getSQLDate(val));
                cal.add(Calendar.MONTH, 3);
                cond.addValue(cal.getTime());
                cond.setOperation(Condition.BETWEEN);
             }
             else if(dateGroup && grp.getDateGroup() == XConstants.YEAR_DATE_GROUP) {
-               Calendar cal = Calendar.getInstance();
+               Calendar cal = new GregorianCalendar();
                cal.setTime(getSQLDate(val));
                cal.add(Calendar.YEAR, 1);
                cal.add(Calendar.DATE, -1);
@@ -648,14 +655,14 @@ public class TableConditionUtil {
                cond.setOperation(Condition.BETWEEN);
             }
             else if(dateGroup && grp.getDateGroup() == XConstants.MONTH_DATE_GROUP) {
-               Calendar cal = Calendar.getInstance();
+               Calendar cal = new GregorianCalendar();
                cal.setTime(getSQLDate(val));
                cal.add(Calendar.MONTH, 1);
                cond.addValue(cal.getTime());
                cond.setOperation(Condition.BETWEEN);
             }
             else if(dateGroup && grp.getDateGroup() == XConstants.WEEK_DATE_GROUP) {
-               Calendar cal = Calendar.getInstance();
+               Calendar cal = new GregorianCalendar();
                cal.setTime(getSQLDate(val));
                cal.add(Calendar.DATE, 7);
                cond.addValue(cal.getTime());

@@ -21,6 +21,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
+import inetsoft.uql.asset.AbstractAssetEngine;
 import inetsoft.uql.util.DefaultIdentity;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
@@ -147,30 +148,41 @@ public class DashboardRegistry {
    public boolean updateDashboard(String name, Predicate<Dashboard> change) throws Exception {
       return update(map -> {
          Dashboard dashboard = map.get(name);
-         return dashboard != null && change.test(dashboard);
+         return isUsable(dashboard) && change.test(dashboard);
       });
    }
 
    /**
-    * Get dashboard with the specified name.
+    * Get dashboard with the specified name. An entry whose {@code <dashboard>} node could not be
+    * parsed (see {@link #parseXML}) is kept in the map so that it round-trips unchanged, but is
+    * not a usable dashboard, so it is never returned here (Bug #78103).
+    *
     * @return a dashboard with the specified name.
     */
    public synchronized Dashboard getDashboard(String name) {
-      return dashboardsMap.get(name);
+      Dashboard dashboard = dashboardsMap.get(name);
+      return isUsable(dashboard) ? dashboard : null;
    }
 
    /**
-    * Get all dashboard names.
+    * Get all dashboard names. An entry whose {@code <dashboard>} node could not be parsed (see
+    * {@link #parseXML}) is kept in the map so that it round-trips unchanged, but is not a usable
+    * dashboard, so its name is never returned here (Bug #78103).
     */
    public synchronized String[] getDashboardNames() {
-      Object[] objs = dashboardsMap.keySet().toArray();
-      String[] arr = new String[objs.length];
+      return dashboardsMap.entrySet().stream()
+         .filter(e -> isUsable(e.getValue()))
+         .map(Map.Entry::getKey)
+         .toArray(String[]::new);
+   }
 
-      for(int i = 0; i < objs.length; i++) {
-         arr[i] = objs[i].toString();
-      }
-
-      return arr;
+   /**
+    * Checks if a dashboard from {@link #dashboardsMap} is a usable dashboard, as opposed to a
+    * placeholder kept only so that an unparseable entry round-trips through the file unchanged
+    * (Bug #78103).
+    */
+   private static boolean isUsable(Dashboard dashboard) {
+      return dashboard != null && !(dashboard instanceof UnparsableDashboardEntry);
    }
 
    /**
@@ -207,7 +219,8 @@ public class DashboardRegistry {
       for(Map.Entry<String, Dashboard> entry : new ArrayList<>(dashboardsMap.entrySet())) {
          String name = entry.getKey();
          writer.println("<node>");
-         writer.println("<name><![CDATA[" + name + "]]></name>");
+         writer.println("<name" + Tool.cdataDataAttr(name) + "><![CDATA[" + Tool.cdataData(name) +
+                        "]]></name>");
          Dashboard dashboard = entry.getValue();
          dashboard.writeXML(writer);
          writer.println("</node>");
@@ -233,7 +246,7 @@ public class DashboardRegistry {
       for(int i = 0; i < nlist.getLength(); i++) {
          Element node = (Element) nlist.item(i);
          Element keyNode = Tool.getChildNodeByTagName(node, "name");
-         String name = Tool.getValue(keyNode);
+         String name = Tool.getCDATAData(keyNode);
          Element dashboardNode = Tool.getChildNodeByTagName(node, "dashboard");
          String className = Tool.getAttribute(Objects.requireNonNull(dashboardNode), "class");
 
@@ -246,7 +259,21 @@ public class DashboardRegistry {
          Class<?> c = Class.forName(className);
 
          Dashboard dashboard = (Dashboard) c.getConstructor().newInstance();
-         dashboard.parseXML(dashboardNode);
+
+         // a dashboard that fails to parse (e.g. a viewsheet entry without <path>, Bug #77603,
+         // or a non-numeric <created>/<modified>) is replaced with a placeholder that keeps its
+         // raw node, so that it round-trips unchanged through every rewrite of this file instead
+         // of being silently dropped (Bug #78103). It still goes through the naming/port logic
+         // below and is put into the map under its name, same as a successfully parsed dashboard,
+         // so it keeps its position in the file; it is excluded from getDashboard()/
+         // getDashboardNames() so it is never shown to an ordinary caller.
+         try {
+            dashboard.parseXML(dashboardNode);
+         }
+         catch(Exception ex) {
+            LOG.warn("Dashboard {} in registry {} skipped: {}", name, getPath(), ex.getMessage());
+            dashboard = new UnparsableDashboardEntry(dashboardNode);
+         }
 
          if(needsPort && !isGlobal()) {
             if(globalRegistry != null && globalRegistry.getDashboard(name + "__GLOBAL") != null) {
@@ -479,17 +506,62 @@ public class DashboardRegistry {
    /**
     * Re-load the dashboards after a change of the file. The path is read under the lock, because
     * the registry may have been moved to another org (modifyOrgId) while the event waited for it.
+    *
+    * @return true if the cached dashboards are now the ones of the file, false if the file could
+    *         not be read or parsed, or this registry has been detached by clear().
     */
-   private void reload(DashboardRegistry globalRegistry) {
+   private boolean reload(DashboardRegistry globalRegistry) {
       boolean ported;
+      boolean synced;
 
       synchronized(this) {
          ported = loadDashboard(getPath(), globalRegistry, true);
+         synced = ported || !detached && syncedDigest != null;
       }
 
       if(ported) {
          savePorted(globalRegistry);
       }
+
+      return synced;
+   }
+
+   /**
+    * Re-loads the dashboards from the registry file now, if the file has changed since this
+    * registry last saved or loaded it, instead of waiting for the change notification, which
+    * reaches this node some time after another node wrote the file (Bug #77299). The dashboard
+    * manager calls it, holding its store lock, when a selected dashboard is not in this node's
+    * cached copy. It must not be called while holding a registry's monitor or the cluster lock
+    * of a registry file (see the lock order in the class comment).
+    *
+    * <p>After a failed read or parse the file is not read again for a few seconds, so that a
+    * broken file doesn't make every read of the selections read it again and log the error.
+    *
+    * @return true if the cached dashboards are now the ones of the file.
+    */
+   boolean syncWithFile() {
+      long failedAt = syncFailedAt;
+
+      if(failedAt != 0L && System.currentTimeMillis() - failedAt < SYNC_RETRY_DELAY) {
+         return false;
+      }
+
+      // resolved before this registry is locked, since it may lock the registry manager
+      DashboardRegistry globalRegistry = isGlobal() ? null :
+         DashboardRegistryManager.getInstance().getGlobalForPort(getOrgID());
+      boolean synced = reload(globalRegistry);
+      syncFailedAt = synced || detached ? 0L : System.currentTimeMillis();
+      return synced;
+   }
+
+   /**
+    * Checks if the cached dashboards were loaded from, or saved to, a registry file that exists.
+    * A registry whose file doesn't exist may be one whose file is still to be written, e.g. by a
+    * user rename or an organization copy, which change the stored selections first, so a name
+    * missing from it is not known to be gone (Bug #77299).
+    */
+   synchronized boolean isFileLoaded() {
+      return syncedDigest != null && !ABSENT_DIGEST.equals(syncedDigest);
    }
 
    /**
@@ -641,9 +713,26 @@ public class DashboardRegistry {
                if(!provider.isVirtual()) {
                   Permission permission = provider.getPermission(ResourceType.DASHBOARD, oname);
 
+                  // Bug #78217, the permission is written at the new name before it is removed
+                  // from the old one, so a failed write doesn't delete the only copy of it
                   if(permission != null) {
-                     provider.removePermission(ResourceType.DASHBOARD, oname);
-                     provider.setPermission(ResourceType.DASHBOARD, name, permission);
+                     if(!Tool.equals(oname, name)) {
+                        try {
+                           provider.setPermission(ResourceType.DASHBOARD, name, permission);
+                           removePermissionBestEffort(oname);
+                        }
+                        catch(Exception ex) {
+                           LOG.error("Failed to move the permission of dashboard {} to {}",
+                                     oname, name, ex);
+                           AbstractAssetEngine.reportPermissionMayRemain(
+                              securityEngine, ResourceType.DASHBOARD, oname);
+                        }
+                     }
+                  }
+                  else {
+                     // Bug #78138, a permission stored at the new name was left by a deleted
+                     // dashboard, the renamed dashboard must not receive its grants
+                     removePermissionBestEffort(name);
                   }
                }
             }
@@ -666,12 +755,49 @@ public class DashboardRegistry {
          try {
             manager.removeDashboard(name);
             removeEntry(name);
+
+            // Bug #78138, a dashboard created later with the same name, e.g. by an import,
+            // would otherwise receive the grants of the deleted one
+            if(isGlobal()) {
+               removePermissionBestEffort(name);
+            }
+
             fireChangeEvent(this, DashboardChangeEvent.Type.REMOVED, name, null);
          }
          catch (Exception ex) {
             LOG.error(ex.getMessage(), ex);
          }
       });
+   }
+
+   /**
+    * Removes the permission stored at the name of a global dashboard that doesn't exist anymore
+    * or that is being created, so that it doesn't receive the grants of a deleted dashboard with
+    * the same name (Bug #78138). The permission of a user dashboard is not removed, because it's
+    * stored at the bare name, which is shared by the dashboards of that name of all users. It's
+    * best-effort: a failure is logged and reported to the user and never thrown.
+    *
+    * @param name the dashboard name.
+    */
+   public void removePermissionBestEffort(String name) {
+      if(!isGlobal()) {
+         return;
+      }
+
+      try {
+         SecurityProvider provider = securityEngine.getSecurityProvider();
+
+         if(provider == null || provider.isVirtual()) {
+            return;
+         }
+
+         provider.removePermission(ResourceType.DASHBOARD, name);
+      }
+      catch(Exception ex) {
+         LOG.error("Failed to remove the permission of dashboard {}, it may still be stored",
+                   name, ex);
+         AbstractAssetEngine.reportPermissionMayRemain(securityEngine, ResourceType.DASHBOARD, name);
+      }
    }
 
    protected SecurityEngine getSecurityEngine() {
@@ -778,6 +904,8 @@ public class DashboardRegistry {
     * or parse failure). Guarded by this instance's monitor.
     */
    private String syncedDigest;
+   // the time of the last failed syncWithFile(), or 0
+   private volatile long syncFailedAt;
 
    /**
     * Reloads the registry when its file changes (Bug #77103).
@@ -829,6 +957,8 @@ public class DashboardRegistry {
     * Digest sentinel for "the registry file does not exist".
     */
    private static final String ABSENT_DIGEST = "<absent>";
+   // the time a failed syncWithFile() is not retried for, in milliseconds
+   private static final long SYNC_RETRY_DELAY = 5000L;
 
    private static final String FILE_NAME = "dashboard-registry.xml";
    // the prefix of the cluster lock name of a registry file, see update()

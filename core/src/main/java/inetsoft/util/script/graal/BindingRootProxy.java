@@ -40,6 +40,7 @@ public class BindingRootProxy implements ProxyObject {
    private LegacyJavaShim.ImportScope imports;
    private ScriptScope builtinScope;
    private Map<String, Object> assigned;
+   private LocalsSource locals;
 
    public BindingRootProxy(ScriptScope global, Supplier<ScriptScope> execScopeSupplier) {
       this(global, execScopeSupplier, null, null);
@@ -122,6 +123,32 @@ public class BindingRootProxy implements ProxyObject {
       }
 
       return assigned;
+   }
+
+   /**
+    * The members a script reads its var stores from (Bug #77595, see
+    * GraalJavaScriptEngine.localsFor), supplied per exec by the engine:
+    * {@code __scope__.__inetsoft_locals__} is the store the script reads (its scope's,
+    * else its nearest ancestor scope's), {@code __scope__.__inetsoft_own_locals__} the
+    * store of its own scope, made on first read, for a script that declares vars.
+    */
+   public static final String LOCALS_MEMBER = "__inetsoft_locals__";
+   public static final String OWN_LOCALS_MEMBER = "__inetsoft_own_locals__";
+
+   /** The var stores of the current exec (Bug #77595). */
+   public interface LocalsSource {
+      /** The store the script reads. */
+      Object view();
+
+      /** The store of the script's own scope, made on first read. */
+      Object own();
+   }
+
+   /** Swap the var stores of the current exec (Bug #77595). */
+   public LocalsSource swapLocals(LocalsSource newLocals) {
+      LocalsSource prev = locals;
+      locals = newLocals;
+      return prev;
    }
 
    /** Swap the per-exec script-local shadow state (reset to null for a fresh exec). */
@@ -300,7 +327,10 @@ public class BindingRootProxy implements ProxyObject {
    }
 
    private boolean resolves(String name) {
-      return findInChain(name) != NOT_FOUND;
+      // an owned var always resolves (its owner reports it), so it is not read: a read of
+      // one whose object is on another pooled context rebuilds it, or loses it with a
+      // warning, though the script only assigns it (Testing #77123, B1 residual)
+      return ownsVar(name) || findInChain(name) != NOT_FOUND;
    }
 
    private Set<String> enumerate() {
@@ -340,6 +370,56 @@ public class BindingRootProxy implements ProxyObject {
    private final ProxyExecutable ownedVarProbe =
       args -> args.length > 0 && args[0].isString() && ownsVar(args[0].asString());
 
+   /**
+    * The member the compiled form of a script that declares top-level vars opens its
+    * scope {@code with} on instead of {@code __scope__} itself (Bug #78247),
+    * {@code with(__scope__.__inetsoft_declared_vars__("a,b")){ body }}: on a
+    * {@link DeclaredVarScope} root it returns a view of this proxy that does not have the
+    * declared names, so they resolve to the script's own var (its var store, or a local of
+    * the eval wrapper) instead of a same-named member of the scope chain; on any other root
+    * it returns this proxy, unchanged. Being in the script's own source, the view never
+    * hides a name from a function declared elsewhere that the script calls.
+    */
+   public static final String DECLARED_VARS_MEMBER = "__inetsoft_declared_vars__";
+   // one view per declared-name list, i.e. per compiled script; single-threaded per engine
+   private final Map<String, DeclaredVarView> declaredViews = new HashMap<>();
+   private final ProxyExecutable declaredVars = args -> {
+      if(!(global instanceof DeclaredVarScope) || args.length == 0 || !args[0].isString()) {
+         return this;
+      }
+
+      return declaredViews.computeIfAbsent(args[0].asString(), DeclaredVarView::new);
+   };
+
+   /** This proxy without the names a script declares (Bug #78247). */
+   private final class DeclaredVarView implements ProxyObject {
+      DeclaredVarView(String names) {
+         this.names = Set.of(names.split(","));
+      }
+
+      @Override
+      public Object getMember(String key) {
+         return BindingRootProxy.this.getMember(key);
+      }
+
+      @Override
+      public Object getMemberKeys() {
+         return BindingRootProxy.this.getMemberKeys();
+      }
+
+      @Override
+      public boolean hasMember(String key) {
+         return !names.contains(key) && BindingRootProxy.this.hasMember(key);
+      }
+
+      @Override
+      public void putMember(String key, Value value) {
+         BindingRootProxy.this.putMember(key, value);
+      }
+
+      private final Set<String> names;
+   }
+
    private boolean ownsVar(String name) {
       for(ScriptScope s = global; s != null; s = s.getParentScope()) {
          if(s instanceof OwnedVarScope o && o.ownsVar(name)) {
@@ -355,12 +435,28 @@ public class BindingRootProxy implements ProxyObject {
          return ownedVarProbe;
       }
 
+      if(DECLARED_VARS_MEMBER.equals(key)) {
+         return declaredVars;
+      }
+
+      if(locals != null) {
+         if(LOCALS_MEMBER.equals(key)) {
+            return locals.view();
+         }
+
+         if(OWN_LOCALS_MEMBER.equals(key)) {
+            return locals.own();
+         }
+      }
+
       Object result = findInChain(key);
       // an owned var's OwnedVarScope.UNDEFINED reads as the context's undefined (Testing #77123)
       return ScriptValueConverter.toGuest(result == NOT_FOUND ? null : result);
    }
    @Override public boolean hasMember(String key) {
-      return OWNED_VAR_PROBE.equals(key) || resolves(key);
+      return OWNED_VAR_PROBE.equals(key) || DECLARED_VARS_MEMBER.equals(key) ||
+         locals != null && (LOCALS_MEMBER.equals(key) || OWN_LOCALS_MEMBER.equals(key)) ||
+         resolves(key);
    }
    @Override public Object getMemberKeys() { return enumerate().toArray(new String[0]); }
    @Override public void putMember(String key, Value value) {

@@ -140,6 +140,11 @@ public class RuntimeCalcTableLens extends CalcTableLens implements MappedTableLe
       eventEnabled = true;
    }
 
+   @Override
+   protected boolean keepsValuesInPlace() {
+      return true;
+   }
+
    /**
     * Put the formula back in place of the cached value, so it is evaluated again.
     */

@@ -54,7 +54,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class, LibManagerTestConfiguration.class, PluginsTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
-@Tag("core")
+@Tag("slow")
 class FormulaTableLensVarTest {
    // the three compile paths of GraalJavaScriptEngine.compile
    static final String PLAIN = "var acc = (acc || 0) + field['value']; acc";

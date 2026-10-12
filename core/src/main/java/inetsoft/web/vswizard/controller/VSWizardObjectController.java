@@ -80,6 +80,7 @@ public class VSWizardObjectController {
 
 
    @HandleWizardExceptions
+   // listed in SheetEventOrderInterceptor, which does not queue it behind the sheet's events
    @MessageMapping("/vs/wizard/use-meta")
    public void switchToMeta(@Payload SwitchToMetaModeEvent event, Principal principal,
                             CommandDispatcher dispatcher, @LinkUri String linkUri)

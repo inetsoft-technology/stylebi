@@ -112,7 +112,7 @@ class VSInputServiceSocketSessionTest {
       when(vsObjectService.getRuntimeViewsheet(eq("vs-1"), eq(principal))).thenReturn(rvs);
 
       VSInputService service = new VSInputService(vsObjectService, null, null, null, null, null,
-                                                    null, null, null);
+                                                    null, null, null, null);
 
       Method method = VSInputService.class.getDeclaredMethod(
          "applySelection", String.class, String.class, Object.class, Principal.class,

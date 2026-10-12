@@ -31,6 +31,7 @@ import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.binding.model.AbstractBDRefModel;
 import inetsoft.web.binding.model.BindingModel;
 import inetsoft.web.binding.model.table.CrosstabBindingModel;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,11 +44,13 @@ import java.util.List;
 public class ConvertTableRefService {
    public ConvertTableRefService(VSBindingService bindingFactory,
                                  VSAssemblyInfoHandler assemblyInfoHandler,
-                                 ViewsheetService viewsheetService)
+                                 ViewsheetService viewsheetService,
+                                 QueryManagerService queryManagerService)
    {
       this.bindingFactory = bindingFactory;
       this.assemblyInfoHandler = assemblyInfoHandler;
       this.viewsheetService = viewsheetService;
+      this.queryManagerService = queryManagerService;
    }
 
    public void convertTableRef(String[] refNames, int convertType,
@@ -71,6 +74,13 @@ public class ConvertTableRefService {
       Viewsheet vs = rvs.getViewsheet();
       TableDataVSAssembly assembly = (TableDataVSAssembly) vs.getAssembly(name);
       SourceInfo sinfo = source.toSourceAttr(assembly.getSourceInfo());
+
+      // a cube table is resolved from its data source without a permission check, so check
+      // a newly bound one before its aggregates are created (Bug #77427)
+      if(sinfo != assembly.getSourceInfo()) {
+         queryManagerService.checkCubeTableReadPermission(sinfo.getSource(), principal);
+      }
+
       AggregateInfo ainfo = null;
 
       if(assembly instanceof CrosstabVSAssembly) {
@@ -140,7 +150,7 @@ public class ConvertTableRefService {
          return;
       }
 
-      VSAssembly clone = bindingFactory.updateAssembly(binding, assembly);
+      VSAssembly clone = bindingFactory.updateAssembly(binding, assembly, principal);
       VSAssemblyInfo ninfo = (VSAssemblyInfo) clone.getInfo();
       assemblyInfoHandler.apply(rvs, ninfo, engine, false, false, true, true, dispatcher);
 
@@ -202,6 +212,7 @@ public class ConvertTableRefService {
 
    private final VSBindingService bindingFactory;
    private final VSAssemblyInfoHandler assemblyInfoHandler;
+   private final QueryManagerService queryManagerService;
    public final ViewsheetService viewsheetService;
    private static final Logger LOG =
       LoggerFactory.getLogger(ConvertTableRefController.class);

@@ -172,11 +172,11 @@ public class CellBinding implements Serializable, Cloneable, XMLSerializable  {
 
    protected void writeContents(PrintWriter writer) {
       if(value != null) {
-         writer.println("<value><![CDATA[" + value + "]]></value>");
+         writer.println("<value><![CDATA[" + Tool.cdataText(value) + "]]></value>");
       }
 
       if(formula != null) {
-         writer.println("<formula><![CDATA[" + formula + "]]></formula>");
+         writer.println("<formula><![CDATA[" + Tool.cdataText(formula) + "]]></formula>");
       }
    }
 

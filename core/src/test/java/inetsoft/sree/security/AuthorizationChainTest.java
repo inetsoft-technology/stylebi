@@ -43,6 +43,8 @@ package inetsoft.sree.security;
  * [Set: identity-save-failure]  saveConfiguration I/O failure for identity update         -> wrapped in RuntimeException
  * [Remove: resource-config-save] resource removal on contentInConfig provider             -> saveConfiguration is called
  * [Remove: identity-config-save] identity removal on contentInConfig provider             -> saveConfiguration is called
+ * [Remove: resource-failure]    first provider's remove throws (Bug #77798)               -> later providers still tried, config saved, first failure rethrown
+ * [Remove: identity-failure]    every provider's remove throws (Bug #77798)               -> all tried, first failure rethrown with the rest suppressed
  */
 
 import inetsoft.uql.util.Identity;
@@ -448,6 +450,49 @@ class AuthorizationChainTest {
       chain.removePermission(ResourceType.SECURITY_USER, identity, ORG_A);
 
       assertEquals(1, chain.saveCalls);
+   }
+
+   // [Remove: resource-failure] Bug #77798: a failed revoke in one provider must not leave the
+   // grant in force in the others, skip the configuration save, or be swallowed
+   @Test
+   void removePermission_resourceFailureStillTriesOtherProvidersThenRethrows() {
+      AuthorizationProvider first = mockProvider();
+      AuthorizationProvider second = mockProvider();
+      TestAuthorizationChain chain = newChain(first, second);
+      RuntimeException failure = new RuntimeException("first failed");
+
+      doThrow(failure).when(first)
+         .removePermission(ResourceType.VIEWSHEET, "/viewsheets/sales", ORG_A);
+      when(second.contentInConfig()).thenReturn(true);
+
+      RuntimeException thrown = assertThrows(RuntimeException.class,
+         () -> chain.removePermission(ResourceType.VIEWSHEET, "/viewsheets/sales", ORG_A));
+
+      assertSame(failure, thrown);
+      verify(second).removePermission(ResourceType.VIEWSHEET, "/viewsheets/sales", ORG_A);
+      assertEquals(1, chain.saveCalls);
+   }
+
+   // [Remove: identity-failure] Bug #77798: every provider is tried, the first failure is
+   // rethrown and the later ones are attached to it
+   @Test
+   void removePermission_identityFailuresAreAllTriedAndReported() {
+      AuthorizationProvider first = mockProvider();
+      AuthorizationProvider second = mockProvider();
+      IdentityID identity = new IdentityID("alice", ORG_A);
+      TestAuthorizationChain chain = newChain(first, second);
+      RuntimeException failure1 = new RuntimeException("first failed");
+      RuntimeException failure2 = new RuntimeException("second failed");
+
+      doThrow(failure1).when(first).removePermission(ResourceType.SECURITY_USER, identity, ORG_A);
+      doThrow(failure2).when(second).removePermission(ResourceType.SECURITY_USER, identity, ORG_A);
+
+      RuntimeException thrown = assertThrows(RuntimeException.class,
+         () -> chain.removePermission(ResourceType.SECURITY_USER, identity, ORG_A));
+
+      assertSame(failure1, thrown);
+      assertArrayEquals(new Throwable[] { failure2 }, thrown.getSuppressed());
+      verify(second).removePermission(ResourceType.SECURITY_USER, identity, ORG_A);
    }
 
    private static AuthorizationProvider mockProvider() {

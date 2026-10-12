@@ -55,6 +55,7 @@ import inetsoft.web.composer.model.vs.RadioButtonPropertyDialogModel;
 import inetsoft.web.composer.model.vs.VSAssemblyScriptPaneModel;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.composer.vs.objects.controller.VSTrapService;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.wiz.pairing.WizAgentTestSupport;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -245,7 +246,8 @@ class CheckBoxRadioButtonTableBindingSetterTest {
          mock(VSTrapService.class),
          mock(DataRefModelFactoryService.class),
          mock(VSAssemblyInfoHandler.class),
-         mock(VSColumnHandler.class));
+         mock(VSColumnHandler.class),
+         mock(QueryManagerService.class));
 
       return new Harness(service, propertyService);
    }

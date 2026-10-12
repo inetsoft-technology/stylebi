@@ -185,14 +185,15 @@ public class ListData implements AssetObject {
 
       for(int i = 0; i < labels.length; i++) {
          writer.print("<label>");
-         writer.print("<![CDATA[" + Tool.getPersistentDataString(labels[i]) + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(Tool.getPersistentDataString(labels[i])) +
+                      "]]>");
          writer.print("</label>");
       }
 
       for(int i = 0; i < values.length; i++) {
-         writer.print("<value>");
-         writer.print("<![CDATA[" + Tool.getPersistentDataString(values[i], dtype) +
-                      "]]>");
+         String str = Tool.getPersistentDataString(values[i], dtype);
+         writer.print("<value" + Tool.cdataDataAttr(str) + ">");
+         writer.print("<![CDATA[" + Tool.cdataData(str) + "]]>");
          writer.print("</value>");
       }
    }
@@ -222,13 +223,13 @@ public class ListData implements AssetObject {
 
       for(int i = 0; i < vnodes.getLength(); i++) {
          Element vnode = (Element) vnodes.item(i);
-         String val = Tool.getValue(vnode);
+         String val = Tool.getCDATAData(vnode);
          values[i] = getPersistentData(dtype, val);
       }
    }
 
    public Object getPersistentData(String type, String val) {
-      return strictNull ? Tool.getPersistentData(type, val) : Tool.getData(type, val);
+      return Tool.getPersistentData(type, val, strictNull);
    }
 
    /**

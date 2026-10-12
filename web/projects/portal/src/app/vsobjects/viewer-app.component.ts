@@ -3713,7 +3713,10 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
             if(con != null) {
                this.deleteBookMarks(con);
             }
-      });
+         },
+         () => {
+            // dismissed (cancel, x or escape), nothing to delete
+         });
    }
 
    changeMaxMode($event: {assembly: string, maxMode: boolean}) {

@@ -30,6 +30,7 @@ import inetsoft.uql.jdbc.util.*;
 import inetsoft.uql.path.XSelection;
 import inetsoft.uql.schema.*;
 import inetsoft.uql.service.DataSourceRegistry;
+import inetsoft.uql.service.XEngine;
 import inetsoft.uql.service.XHandler;
 import inetsoft.uql.table.XObjectColumn;
 import inetsoft.uql.table.XTableColumnCreator;
@@ -261,6 +262,74 @@ public class JDBCHandler extends XHandler {
    }
 
    /**
+    * A parsed query that still holds its sql string (e.g. a sql-edited worksheet table that
+    * can't be merged) runs the string as written, XUtil.validateConditions returns early for
+    * it, so a sentinel parameter (NULL_VALUE, EMPTY_STRING, NULL_STRING) would be bound as its
+    * text. If a sentinel is bound, rewrite it on a copy without the sql string, and replace
+    * the query's definition with the copy only if that changes the generated sql. Every other
+    * run sends the user's exact sql. (Bug #77708)
+    * <p>
+    * The sql string is kept, as before, when it isn't parsed (parse off or not PARSE_SUCCESS)
+    * or is lossy, since the structure doesn't describe all of it, when it embeds a parameter
+    * (<tt>$(@name)</tt> anywhere in the string, which also excludes a quoted
+    * <tt>'$(@name)'</tt>), and when it has an optimizer hint or a MySQL/MariaDB executable
+    * comment ({@link XUtil#hasExecutableComment}),
+    * which the generated sql would drop. Other comments are dropped from the rewritten sql.
+    * @param xquery the private clone of the query being executed.
+    * @return <tt>true</tt> if the definition was replaced by the rewritten copy.
+    */
+   private static boolean rewriteKeptSqlSentinels(JDBCQuery xquery, VariableTable params) {
+      if(params == null || !(xquery.getSQLDefinition() instanceof UniformSQL)) {
+         return false;
+      }
+
+      UniformSQL usql = (UniformSQL) xquery.getSQLDefinition();
+
+      if(!usql.hasSQLString() || !usql.isParseSQL()) {
+         return false;
+      }
+
+      String sql = usql.getSQLString();
+
+      // a parameter with several values, one of them a sentinel, is never rewritten, but the
+      // condition walk of the rewrite logs a warning for it (Bug #78386). The sql generated
+      // is the same, so the kept sql string is sent.
+      if(sql.contains("$(@") || !XUtil.hasSentinelParameter(sql, params) &&
+         !XUtil.hasMultiValueSentinelParameter(sql, params))
+      {
+         return false;
+      }
+
+      if(XUtil.hasExecutableComment(sql)) {
+         LOG.debug("Sentinel parameters are bound as text in sql with an executable comment: {}",
+                   sql);
+         return false;
+      }
+
+      // isLossy() may parse, check it last
+      if(!XUtil.isParsedSQL(usql) || usql.isLossy()) {
+         return false;
+      }
+
+      try {
+         UniformSQL copy = (UniformSQL) usql.clone();
+         copy.clearSQLString();
+
+         if(!XUtil.rewriteSentinels(copy, params)) {
+            return false;
+         }
+
+         xquery.setSQLDefinition(copy);
+         return true;
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to rewrite the sentinel parameters, the sql is sent as written: {}",
+                   sql, ex);
+         return false;
+      }
+   }
+
+   /**
     * Execute the query.
     * @param params parameters for query.
     * @return the result as a hierarchical tree.
@@ -314,6 +383,32 @@ public class JDBCHandler extends XHandler {
          }
       }
 
+      JDBCQueryCacheNormalizer cacheNormalizer =
+         visitor instanceof XSessionManager.DataCacheResult ?
+            ((XSessionManager.DataCacheResult) visitor).getCacheNormalizer() : null;
+      int[] sortedColumnMap = cacheNormalizer != null ? cacheNormalizer.getSortedColumnMap() : null;
+      boolean hasSortedColumnMap = sortedColumnMap != null && sortedColumnMap.length > 0;
+      // the sorted hint on the caller's query may be left by an earlier generation, it is
+      // only used for the existing regeneration checks below
+      boolean sortedHint = asql instanceof UniformSQL && Boolean.TRUE.equals(
+         ((UniformSQL) asql).getHint(UniformSQL.HINT_SQL_STRING_SORTED_COLUMN, false));
+
+      // Bug #77485, execute on a private clone so the sorted hint reflects only the sql
+      // generated in this method (VPM conditions, XUtil.clearComments and the final sql
+      // string). Without a column map nothing can restore the original order, so no sql
+      // generated here may be sorted.
+      if(asql instanceof UniformSQL) {
+         xquery = (JDBCQuery) xquery.clone();
+         UniformSQL usql = (UniformSQL) xquery.getSQLDefinition();
+         usql.setHint(UniformSQL.HINT_SQL_STRING_SORTED_COLUMN, false);
+
+         if(!hasSortedColumnMap) {
+            usql.setHint(UniformSQL.HINT_WITHOUT_SORTED_SQL, true);
+         }
+
+         usql.clearCachedString();
+      }
+
       String[] groups = XUtil.getUserGroups(user);
       String[] roleNames = XUtil.getUserRoleNames(user);
 
@@ -347,31 +442,46 @@ public class JDBCHandler extends XHandler {
          xquery = (JDBCQuery) VpmProcessor.getInstance().applyHiddenColumns(xquery, params, user);
       }
 
-      xquery = (JDBCQuery) XUtil.clearComments(xquery);
-      // @by haiqiangy, set condition item to true condition if
-      // user does not input parameter
-      xquery.validateConditions(params);
+      // Bug #77788, a -- line that ends a slash-star comment fails the query
+      xquery = (JDBCQuery) XUtil.clearCommentsToExecute(xquery);
+      // a parsed query that keeps its sql string isn't validated, rewrite its sentinel
+      // parameters on a copy generated from the structure (Bug #77708)
+      final boolean keptSqlRewritten = rewriteKeptSqlSentinels(xquery, params);
+
+      // the rewritten copy has been validated for sentinels only, the conditions with an unset
+      // parameter are kept as for the sql string. The tables of the user's sql are kept too.
+      if(!keptSqlRewritten) {
+         // @by haiqiangy, set condition item to true condition if
+         // user does not input parameter
+         xquery.validateConditions(params);
+      }
+
       xquery.applyVariableTable(params);
-      xquery.removeTable(params);
+
+      if(!keptSqlRewritten) {
+         xquery.removeTable(params);
+      }
 
       // set the query variables
       prepareVariableTable(query, params);
 
-      JDBCQueryCacheNormalizer cacheNormalizer =
-         visitor instanceof XSessionManager.DataCacheResult ?
-            ((XSessionManager.DataCacheResult) visitor).getCacheNormalizer() : null;
       UniformSQL uniformSQL = xquery.getSQLDefinition() instanceof UniformSQL ?
          (UniformSQL) xquery.getSQLDefinition() : null;
+      sortedHint = sortedHint || uniformSQL != null && Boolean.TRUE.equals(
+         uniformSQL.getHint(UniformSQL.HINT_SQL_STRING_SORTED_COLUMN, false));
 
       // since we try to sort selection columns as much as possible when generate sql string,
       // may appear sql string was sorted but there's no cacheNormalizer available, fix by
       // regenerating a non-sorted sql string when cacheNormalizer is null.
-      if(cacheNormalizer == null && uniformSQL != null && Boolean.TRUE.equals(
-         uniformSQL.getHint(UniformSQL.HINT_SQL_STRING_SORTED_COLUMN, false)))
-      {
+      if(cacheNormalizer == null && uniformSQL != null && sortedHint) {
          JDBCQueryCacheNormalizer cacheTest = new JDBCQueryCacheNormalizer((JDBCQuery) query.clone());
 
-         if(cacheTest.getSortedColumnMap() != null && cacheTest.isClearedSqlString()) {
+         // the cleared hint may be copied from an earlier generation, only regenerate sql
+         // whose structure is the whole query, e.g. not vpm conditions written into an
+         // unparsed sql string (Bug #77543)
+         if(cacheTest.getSortedColumnMap() != null && cacheTest.isClearedSqlString() &&
+            XUtil.isParsedSQL(uniformSQL) && !uniformSQL.isLossy())
+         {
             uniformSQL.setHint(UniformSQL.HINT_WITHOUT_SORTED_SQL, true);
             uniformSQL.clearSQLString();
          }
@@ -379,22 +489,37 @@ public class JDBCHandler extends XHandler {
       // if the cacheNormalizer created base on query clone, which means the current query
       // sql string may havn't applied the sorted column, need regenerate sql string to fix
       // issue like 59595.
-      else if(cacheNormalizer != null && uniformSQL != null &&
-         !Boolean.TRUE.equals(uniformSQL.getHint(UniformSQL.HINT_SQL_STRING_SORTED_COLUMN, false)))
-      {
+      else if(cacheNormalizer != null && uniformSQL != null && !sortedHint) {
          uniformSQL.clearCachedString();
 
-         if(cacheNormalizer.isClearedSqlString()) {
+         // same as above, don't drop a sql string the structure doesn't describe because of a
+         // copied cleared hint. isLossy() may parse, so it is checked last. (Bug #77543)
+         if(cacheNormalizer.isClearedSqlString() && XUtil.isParsedSQL(uniformSQL) &&
+            !uniformSQL.isLossy())
+         {
             uniformSQL.sqlstring = null;
          }
       }
 
-      String sql = replaceEscCharacter(xquery.getSQLAsString(), JDBCUtil.getAllTableAliases(xquery));
+      if(uniformSQL != null) {
+         uniformSQL.clearCachedString();
+      }
 
-      if(cacheNormalizer != null && uniformSQL != null &&
-         !Boolean.TRUE.equals(uniformSQL.getHint(UniformSQL.HINT_SQL_STRING_SORTED_COLUMN, false)))
-      {
+      String sql = replaceEscCharacter(xquery.getSQLAsString(), JDBCUtil.getAllTableAliases(xquery));
+      // the hint was reset on the private clone above, so it is true only if sql generated in
+      // this method was sorted, whether it is generated now or was saved as the sql string
+      // earlier (VPM conditions, XUtil.clearComments). (Bug #77485)
+      boolean sortedSqlExecuted = hasSortedColumnMap && uniformSQL != null &&
+         Boolean.TRUE.equals(uniformSQL.getHint(UniformSQL.HINT_SQL_STRING_SORTED_COLUMN, false));
+
+      if(!sortedSqlExecuted) {
          cacheNormalizer = null;
+      }
+
+      // the result is restored to the original column order only if the executed sql was
+      // sorted. A sql string that is kept (e.g. lossy) runs as written. (Bug #77485)
+      if(visitor instanceof XSessionManager.DataCacheResult) {
+         ((XSessionManager.DataCacheResult) visitor).setSortedSqlExecuted(sortedSqlExecuted);
       }
 
       SQLDefinition def = xquery.getSQLDefinition();
@@ -499,7 +624,10 @@ public class JDBCHandler extends XHandler {
          sql = applyQueryFilter(conn, sql, params, user);
          VarSQL varsql = new VarSQL();
          varsql.setSQLType(isproc ? VarSQL.SQLType.PROC : VarSQL.SQLType.STATEMENT);
-         varsql.setBackslashIsEscapeChar(SQLHelper.getSQLHelper(xds).isBackslashEscapeChar());
+         // the flag depends only on the dialect, so look the helper up by product name
+         // instead of getSQLHelper(xds), which may query DB metadata through XRepository
+         varsql.setBackslashIsEscapeChar(
+            SQLHelper.getSQLHelper(SQLHelper.getProductName(xds)).isBackslashEscapeChar());
          sql = varsql.replaceVariables(sql, params);
          List<Object> vars = varsql.getParameterValues();
          List<String> names = varsql.getParameterNames();
@@ -695,7 +823,7 @@ public class JDBCHandler extends XHandler {
 
                // find the cursor type code
                if(isproc && xds.checkDatabaseType(JDBCDataSource.JDBC_ORACLE)) {
-                  cursorType = (Integer) XUtil.field(
+                  cursorType = (Integer) Tool.field(
                      "oracle.jdbc.driver.OracleTypes", "CURSOR");
                }
 
@@ -1683,6 +1811,41 @@ public class JDBCHandler extends XHandler {
    }
 
    /**
+    * Gets the cached database properties that other meta data of this data source is
+    * built on.
+    *
+    * @param additional the additional connection name.
+    *
+    * @return the database properties.
+    *
+    * @throws Exception if the properties could not be loaded.
+    */
+   private XNode getDBProperties(String additional) throws Exception {
+      return checkDBProperties(getRootMetaData(getDataSource(), "DBPROPERTIES", additional));
+   }
+
+   /**
+    * Checks that cached database properties aren't a cached failure. A failure node has
+    * none of the properties, so meta data built on it, which is cached permanently, would
+    * be missing schemas or schema qualification. Failing here instead lets the derived
+    * meta data be cached as a failure that is retried later (Bug #77801).
+    *
+    * @param root the database properties.
+    *
+    * @return the database properties.
+    *
+    * @throws Exception if the database properties are a cached failure.
+    */
+   private XNode checkDBProperties(XNode root) throws Exception {
+      if(XEngine.isMetaDataFailure(root)) {
+         throw new SQLException(
+            "Database properties are unavailable for data source: " + xds.getFullName());
+      }
+
+      return root;
+   }
+
+   /**
     * Determines if the database is MySQL version 5 or greater.
     *
     * @param meta the database meta-data.
@@ -2021,7 +2184,7 @@ public class JDBCHandler extends XHandler {
     * @throws Exception if the table types could not be loaded.
     */
    private XNode getTableTypeList(DatabaseMetaData meta, String additional) throws Exception {
-      XNode root = getRootMetaData(getDataSource(), "DBPROPERTIES", additional);
+      XNode root = getDBProperties(additional);
 
       for(String type : getTableTypes(meta)) {
          root.addChild(new XMetaDataNode(type), false, false);
@@ -2042,7 +2205,7 @@ public class JDBCHandler extends XHandler {
    private XNode getSchemaList(final DatabaseMetaData meta, String additional)
       throws Exception
    {
-      XNode root = getRootMetaData(getDataSource(), "DBPROPERTIES", additional);
+      XNode root = getDBProperties(additional);
 
       // @by stephenwebster, Fix bug1405624532928
       // When using remote repository, the state of these variables is lost
@@ -2285,7 +2448,7 @@ public class JDBCHandler extends XHandler {
          additional = (String) mtype.getAttribute("additional");
       }
 
-      XNode root = getRootMetaData(getDataSource(), "DBPROPERTIES", additional);
+      XNode root = getDBProperties(additional);
       schema = "true".equals(root.getAttribute("hasSchema"));
 
       String catalogName = null;
@@ -2386,7 +2549,8 @@ public class JDBCHandler extends XHandler {
          additional = (String) mtype.getAttribute("additional");
       }
 
-      XNode root = getRootMetaData(getDataSource(), "DBPROPERTIES", additional);
+      XNode root = getDBProperties(additional);
+      schema = "true".equals(root.getAttribute("hasSchema"));
       String catalogName = null;
       String escapedCatalogName = null;
       String schemaName = (String) mtype.getAttribute("schema");
@@ -2632,29 +2796,36 @@ public class JDBCHandler extends XHandler {
    private String getUser(DatabaseMetaData meta, XNode mtype) throws Exception {
       String user = (String) mtype.getAttribute("schema");
 
-      if(user == null && schema) {
-         XNode query = new XNode();
-         query.setAttribute("type", "DBPROPERTIES");
-         // get child meta-data through repository so that cache is used/updated
-         XNode root = repository.getMetaData(session, getDataSource(), query, true, null);
+      // the user name is only a guess of the default schema
+      boolean loginUser = false;
 
-         if(xds.getDatabaseType() == JDBCDataSource.JDBC_SYBASE) {
-            user = "dbo";
-         }
-         else if(xds.getDatabaseType() == JDBCDataSource.JDBC_POSTGRESQL) {
-            // @by davidd v11.4, Postgres' default schema is "public"
-            user = "public";
-         }
-         else if(root.getAttribute("defaultSchema") != null) {
-            user = (String) root.getAttribute("defaultSchema");
-         }
-         else if(meta.supportsSchemasInTableDefinitions() &&
-                 meta.getUserName() != null)
-         {
-            user = meta.getUserName();
-         }
-         else if(xds.getUser() != null && !xds.getUser().trim().equals("")) {
-            user = xds.getUser();
+      if(user == null) {
+         // read hasSchema from the cached database properties, the schema field is only
+         // set if this handler loaded the properties itself (Bug #77938)
+         XNode root = getDBProperties((String) mtype.getAttribute("additional"));
+         schema = "true".equals(root.getAttribute("hasSchema"));
+
+         if(schema) {
+            if(xds.getDatabaseType() == JDBCDataSource.JDBC_SYBASE) {
+               user = "dbo";
+            }
+            else if(xds.getDatabaseType() == JDBCDataSource.JDBC_POSTGRESQL) {
+               // @by davidd v11.4, Postgres' default schema is "public"
+               user = "public";
+            }
+            else if(root.getAttribute("defaultSchema") != null) {
+               user = (String) root.getAttribute("defaultSchema");
+            }
+            else if(meta.supportsSchemasInTableDefinitions() &&
+                    meta.getUserName() != null)
+            {
+               user = meta.getUserName();
+               loginUser = true;
+            }
+            else if(xds.getUser() != null && !xds.getUser().trim().equals("")) {
+               user = xds.getUser();
+               loginUser = true;
+            }
          }
       }
 
@@ -2668,14 +2839,23 @@ public class JDBCHandler extends XHandler {
             user = user.toUpperCase();
          }
          else {
+            boolean found = false;
+
             try(ResultSet schemas = meta.getSchemas()) {
                // correct case
                while(schemas.next()) {
                   if(user.equalsIgnoreCase(schemas.getString(1))) {
                      user = schemas.getString(1);
+                     found = true;
                      break;
                   }
                }
+            }
+
+            // a user name that is not a schema would match no table, don't qualify the
+            // name with it (Bug #77938)
+            if(!found && loginUser) {
+               user = null;
             }
          }
       }
@@ -2989,13 +3169,13 @@ public class JDBCHandler extends XHandler {
             if(sqlTypes instanceof inetsoft.uql.jdbc.util.OracleSQLTypes &&
                "REF CURSOR".equals(typename))
             {
-               xnode = sqlTypes.createTypeNode(col, (Integer) XUtil.field(
+               xnode = sqlTypes.createTypeNode(col, (Integer) Tool.field(
                   "oracle.jdbc.driver.OracleTypes", "CURSOR"), null);
             }
             // @by marblew, 2005-01-01, fix bug1106711509486
             else if(sqlTypes instanceof inetsoft.uql.jdbc.util.OracleSQLTypes &&
                     "BLOB".equals(typename)) {
-               xnode = sqlTypes.createTypeNode(col, (Integer) XUtil.field(
+               xnode = sqlTypes.createTypeNode(col, (Integer) Tool.field(
                   "oracle.jdbc.driver.OracleTypes", "BLOB"), null);
             }
             else {

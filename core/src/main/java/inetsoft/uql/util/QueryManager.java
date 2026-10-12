@@ -120,6 +120,18 @@ public class QueryManager {
       synchronized(this) {
          queries = new ArrayList<>(this.queries);
          ts = System.currentTimeMillis();
+         cancelCount++;
+
+         // counted with the cancel, so a reader never sees one without the other
+         Object kind = CANCEL_FOR.get();
+         CANCEL_FOR.remove();
+
+         if(kind == FOR_QUERY) {
+            queryCancelCount++;
+         }
+         else if(kind == FOR_CHANGE) {
+            changeCancelCount++;
+         }
       }
 
       int cnt = 0;
@@ -137,6 +149,73 @@ public class QueryManager {
       }
 
       return cnt;
+   }
+
+   /**
+    * Cancel all pending queries for a new query of the same source, which cancels the
+    * queries it replaces when it starts.
+    * @return the cancelled query count.
+    */
+   public int cancelForQuery() {
+      return cancelFor(FOR_QUERY);
+   }
+
+   /**
+    * Cancel all pending queries for a newer change of the viewsheet, which cancels the
+    * queries of the request it supersedes.
+    * @return the cancelled query count.
+    */
+   public int cancelForChange() {
+      return cancelFor(FOR_CHANGE);
+   }
+
+   // cancel() counted as a cancel of the kind, in the same block as the cancel count. It goes
+   // through cancel() so a subclass that overrides it sees every cancel
+   private int cancelFor(Object kind) {
+      CANCEL_FOR.set(kind);
+
+      try {
+         return cancel();
+      }
+      finally {
+         CANCEL_FOR.remove();
+      }
+   }
+
+   /**
+    * Get the cancel count, the change cancel count (see {@link #cancelForChange()}) and the
+    * query cancel count (see {@link #cancelForQuery()}) as one snapshot, to pass to
+    * {@link #isCancelledForNewerOnly(long[])} later.
+    */
+   public synchronized long[] getCancelCounts() {
+      return new long[] { cancelCount, changeCancelCount, queryCancelCount };
+   }
+
+   /**
+    * Check if the pending queries were cancelled since the snapshot, and only by newer changes
+    * of the viewsheet or newer queries of the same source, i.e. not by the user, a drill or
+    * a dispose.
+    * @param counts a snapshot from {@link #getCancelCounts()}.
+    */
+   public synchronized boolean isCancelledForNewerOnly(long[] counts) {
+      long cancels = cancelCount - counts[0];
+      return cancels > 0 &&
+         cancels == changeCancelCount - counts[1] + queryCancelCount - counts[2];
+   }
+
+   /**
+    * Get the number of times the pending queries were cancelled.
+    */
+   public synchronized long getCancelCount() {
+      return cancelCount;
+   }
+
+   /**
+    * Get the number of times the pending queries were cancelled for a new query, see
+    * {@link #cancelForQuery()}.
+    */
+   public synchronized long getQueryCancelCount() {
+      return queryCancelCount;
    }
 
    /**
@@ -161,6 +240,13 @@ public class QueryManager {
    private static Map cancelled = Collections.synchronizedMap(new WeakHashMap());
    private List<WeakReference> queries = new ArrayList<>();
    private long ts = 0L;
+   private long cancelCount = 0L;
+   private long queryCancelCount = 0L;
+   private long changeCancelCount = 0L;
+   // the kind of the cancel cancelFor() runs on this thread
+   private static final ThreadLocal<Object> CANCEL_FOR = new ThreadLocal<>();
+   private static final Object FOR_QUERY = "query";
+   private static final Object FOR_CHANGE = "change";
 
    private static final Logger LOG =
       LoggerFactory.getLogger(QueryManager.class);

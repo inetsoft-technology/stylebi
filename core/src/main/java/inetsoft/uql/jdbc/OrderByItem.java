@@ -63,6 +63,61 @@ public class OrderByItem implements Serializable, Cloneable {
    }
 
    /**
+    * Check if the quoting of the field is recorded on this item. An item added without it
+    * (e.g. by UniformSQL.setOrderBy), or whose field was replaced by another text since, is
+    * quoted if a group by or order by field of the same text was written as a quoted
+    * identifier (UniformSQL.isQuotedField).
+    */
+   public boolean isQuoteSet() {
+      return quoteSet && Objects.equals(quotedFor, field);
+   }
+
+   /**
+    * Replace the field with a name of the same column, under a renamed table or qualifier,
+    * keeping its quoting. setField drops it.
+    */
+   public void renameField(Object field) {
+      boolean set = isQuoteSet();
+      boolean quoted = isQuoted();
+      String segment = getQuotedColumn();
+      setField(field);
+
+      if(set) {
+         setQuoted(quoted, segment);
+      }
+   }
+
+   /**
+    * Check if the field was written as a quoted identifier (e.g. "x y"). Only meaningful if
+    * isQuoteSet() is true.
+    */
+   public boolean isQuoted() {
+      return quotedColumn != null;
+   }
+
+   /**
+    * Get the column segment, as written, of a field written as a qualified quoted identifier
+    * (t."MixedCase").
+    * @return the segment, or <tt>null</tt> for a bare quoted identifier or an unquoted field.
+    */
+   public String getQuotedColumn() {
+      return quotedColumn == null || quotedColumn.isEmpty() ? null : quotedColumn;
+   }
+
+   /**
+    * Record whether the field was written as a quoted identifier. It is kept on the item, two
+    * items may have the same text ("MixedCase" and MixedCase, Bug #77573).
+    * @param quoted <tt>true</tt> if quoted.
+    * @param segment the column segment of a qualified quoted identifier as written, or
+    *                <tt>null</tt> for a bare identifier.
+    */
+   public void setQuoted(boolean quoted, String segment) {
+      this.quoteSet = true;
+      this.quotedFor = field;
+      this.quotedColumn = !quoted ? null : segment == null ? "" : segment;
+   }
+
+   /**
     * Get the string representation.
     */
    public String toString() {
@@ -74,12 +129,14 @@ public class OrderByItem implements Serializable, Cloneable {
       if(this == o) return true;
       if(o == null || getClass() != o.getClass()) return false;
       OrderByItem that = (OrderByItem) o;
-      return Objects.equals(field, that.field) && Objects.equals(order, that.order);
+      return Objects.equals(field, that.field) && Objects.equals(order, that.order) &&
+         quoteSet == that.quoteSet && Objects.equals(quotedColumn, that.quotedColumn) &&
+         Objects.equals(quotedFor, that.quotedFor);
    }
 
    @Override
    public int hashCode() {
-      return Objects.hash(field, order);
+      return Objects.hash(field, order, quoteSet, quotedColumn, quotedFor);
    }
 
    @Override
@@ -96,5 +153,10 @@ public class OrderByItem implements Serializable, Cloneable {
 
    private Object field;
    private String order;
+   private boolean quoteSet;
+   // the field the quoting was recorded for
+   private Object quotedFor;
+   // the quoted column segment ("" if bare) if written as a quoted identifier, else null
+   private String quotedColumn;
 }
 

@@ -36,7 +36,6 @@ import java.lang.reflect.*;
 import java.security.Principal;
 import java.sql.Timestamp;
 import java.text.DateFormat;
-import java.text.SimpleDateFormat;
 import java.util.List;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
@@ -188,7 +187,12 @@ public class TabularUtil {
     */
    private static String replaceJSDateVariables(String val, VariableTable vars) {
       TimeZone tz = TimeZone.getTimeZone("UTC");
-      DateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
+      // Bug #77566: this ISO-8601 string is sent to an external REST/tabular connector endpoint
+      // that expects Gregorian digits, and is never parsed back locally -- a locale-less
+      // SimpleDateFormat would otherwise emit the wrong calendar system's year under a
+      // non-Gregorian JVM default locale (e.g. Buddhist for th_TH, Japanese imperial for
+      // ja_JP_JP).
+      DateFormat df = Tool.createGregorianDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
       df.setTimeZone(tz);
 
       try {
@@ -574,7 +578,8 @@ public class TabularUtil {
       Class cls;
 
       try {
-         cls = Class.forName(className);
+         // the class is only classified, so don't run its static initializer
+         cls = Class.forName(className, false, TabularUtil.class.getClassLoader());
       }
       catch(ClassNotFoundException e) {
          return TabularEditor.Type.TEXT;

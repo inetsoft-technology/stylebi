@@ -102,6 +102,9 @@ export class DatasourcesDatasourceComponent implements OnInit, OnDestroy{
                   DATASOURCES_URI + "/listing/" + listingName)
                   .subscribe(data => {
                      this.datasource = data;
+                     // Bug #78243, the folder of the new data source, which an OAuth password
+                     // grant is checked against before the data source is saved
+                     this.datasource.parentPath = this.parentPath || "";
                      this.defaultDataSource = Tool.clone(this.datasource);
                      this.originalDatasource = Tool.clone(this.datasource);
                   });
@@ -115,6 +118,9 @@ export class DatasourcesDatasourceComponent implements OnInit, OnDestroy{
                            // Run change detection to set the datasource
                            this.zone.run(() => {
                               this.datasource = data;
+                              // Bug #78243, the folder of the new data source, which an OAuth
+                              // password grant is checked against before the data source is saved
+                              this.datasource.parentPath = this.parentPath || "";
                               this.defaultDataSource = Tool.clone(this.datasource);
                               this.originalDatasource = Tool.clone(this.datasource);
                            });
@@ -316,10 +322,16 @@ export class DatasourcesDatasourceComponent implements OnInit, OnDestroy{
          const ds = dss[0];
 
          const dialog = ComponentTool.showDialog(this.modalService, InputNameDescDialog, (result) => {
-            this.datasource.additionalConnections[this.selectedAdditionalIndex[0]].name =
-               result.name;
-            this.datasource.additionalConnections[this.selectedAdditionalIndex[0]].description =
-               result.description;
+            const additional = this.datasource.additionalConnections[this.selectedAdditionalIndex[0]];
+
+            // Bug #77843, the old name tells the server that the connection is renamed, not
+            // replaced, so that it keeps its permission
+            if(!additional.oldName && additional.name !== result.name) {
+               additional.oldName = additional.name;
+            }
+
+            additional.name = result.name;
+            additional.description = result.description;
             this.updateAdditionalList();
          });
 

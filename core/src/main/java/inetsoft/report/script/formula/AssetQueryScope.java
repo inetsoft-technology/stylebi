@@ -24,6 +24,7 @@ import inetsoft.uql.asset.TableAssembly;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.script.VariableScriptable;
 import inetsoft.util.script.DynamicScope;
+import inetsoft.util.script.graal.ScopeLocals;
 import inetsoft.util.script.graal.ScriptScope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -300,6 +301,16 @@ public class AssetQueryScope implements DynamicScope, Cloneable {
    }
 
    /**
+    * Bug #77866: this scope holds the var stores of its scripts, since a view or a condition
+    * scope is made per evaluation and an engine outlives it, and a view's {@code worksheet}
+    * is the view itself.
+    */
+   @Override
+   public ScopeLocals getScopeLocals() {
+      return scopeLocals;
+   }
+
+   /**
     * Get the name of this scriptable.
     */
    public String getClassName() {
@@ -313,6 +324,7 @@ public class AssetQueryScope implements DynamicScope, Cloneable {
    public Object clone() {
       try {
          AssetQueryScope obj = (AssetQueryScope) super.clone();
+         obj.scopeLocals = new ScopeLocals(); // a copy has its own vars
          return obj;
       }
       catch(Exception ex) {
@@ -336,6 +348,7 @@ public class AssetQueryScope implements DynamicScope, Cloneable {
    private final Map<String, Object> members = new ConcurrentHashMap<>();
    // volatile for safe publication (see ViewsheetScope.parentScope)
    private volatile ScriptScope parentScope;
+   private ScopeLocals scopeLocals = new ScopeLocals();
 
    private static final Logger LOG =
       LoggerFactory.getLogger(AssetQueryScope.class);

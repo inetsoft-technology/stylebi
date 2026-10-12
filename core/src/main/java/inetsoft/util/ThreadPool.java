@@ -172,15 +172,6 @@ public class ThreadPool {
 
    // dispose threads over the soft limit if there is no job waiting
    private void cleanUp() {
-      if(claimedLicenseListener != null) {
-         try {
-            LicenseManager.getInstance().removeClaimedLicenseListener(claimedLicenseListener);
-         }
-         catch(ShutdownException ignore) {
-            // server is shutting down, ignore -- nothing left to unregister from.
-         }
-      }
-
       if(queue.size() > 0 || busy.get() > 0) {
          return;
       }
@@ -323,6 +314,16 @@ public class ThreadPool {
             disposed = true;
             notifyAll();
          }
+
+         if(claimedLicenseListener != null) {
+            try {
+               LicenseManager.getInstance().removeClaimedLicenseListener(claimedLicenseListener);
+            }
+            catch(RuntimeException ex) {
+               // may be called from finalize() or after the spring context has been closed
+               LOG.debug("Failed to remove claimed license listener from thread pool: {}", name, ex);
+            }
+         }
       }
    }
 
@@ -426,7 +427,14 @@ public class ThreadPool {
        * Creates a new instance of <tt>AbstractContextRunnable</tt>.
        */
       public AbstractContextRunnable() {
-         StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
+         // @by bug78236, capture the real frames of this call site via a Throwable, not
+         // Thread.currentThread().getStackTrace() -- when the current thread is a
+         // GroupedThread (true for every ThreadPool worker), that call dispatches to
+         // GroupedThread's override of getStackTrace(), which returns an array already
+         // concatenated from the real trace plus the current thread's own created/parent
+         // traces. Storing that already-concatenated array here as "this runnable's own
+         // frames" duplicates ancestor history on every level of nested task creation.
+         StackTraceElement[] stackTrace = new Throwable().getStackTrace();
 
          if(stackTrace.length > STACK_TRACE_LENGTH_LIMIT) {
             LOG.warn("Excessively large stack trace.", new Exception("stack trace"));

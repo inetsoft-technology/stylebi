@@ -70,17 +70,24 @@ public class FormulaFunctions2Test {
    @Test
    void testRowListWithCondition() throws Exception {
       Object data = XUtil.runQuery("ws:global:FormulaContext", null, org_admin, null);
+      // popped in finally: the scope stack is a thread local, and a mock left on it is the
+      // exec scope of every later script on this thread (it made a script test hang)
       FormulaContext.pushScope(mock(CalcTableScope.class));
 
-      // test sort=desc options
-      TableValueList res1 = (TableValueList)FormulaFunctions.rowList(data, "Employee?Total>20000",
-                                                                     "sort=desc,distinct=true");
-      assertArrayEquals(new Object[]{"Sue", "Eric"}, res1.getValues());
+      try {
+         // test sort=desc options
+         TableValueList res1 = (TableValueList)FormulaFunctions.rowList(data, "Employee?Total>20000",
+                                                                        "sort=desc,distinct=true");
+         assertArrayEquals(new Object[]{"Sue", "Eric"}, res1.getValues());
 
-      //test maxrow and sortColumn options
-      TableValueList res2 = (TableValueList)FormulaFunctions.rowList(data, "Employee?Total>10000",
-                                                                     "sort=desc,sortcolumn=Total,maxrows=3");
-      assertArrayEquals(new Object[]{"Sue", "Eric", "Eric"}, res2.getValues());
+         //test maxrow and sortColumn options
+         TableValueList res2 = (TableValueList)FormulaFunctions.rowList(data, "Employee?Total>10000",
+                                                                        "sort=desc,sortcolumn=Total,maxrows=3");
+         assertArrayEquals(new Object[]{"Sue", "Eric", "Eric"}, res2.getValues());
+      }
+      finally {
+         FormulaContext.popScope();
+      }
    }
 
    /**
@@ -94,11 +101,17 @@ public class FormulaFunctions2Test {
       FormulaContext.pushScope(mock(CalcTableScope.class));
       FormulaContext.pushCellLocation(new Point(0,1));
 
-      TableValueList res1 = (TableValueList)FormulaFunctions.rowList(data1, "Company@Employee:$Employee",
-                                                                     "sort=desc,distinct=true");
-      // no row group, so didn't get any value
-      assertEquals(0,  res1.getValues().length);
-      //assertArrayEquals(new Object[]{"Sue", "Eric"}, res1.getValues());
+      try {
+         TableValueList res1 = (TableValueList)FormulaFunctions.rowList(data1, "Company@Employee:$Employee",
+                                                                        "sort=desc,distinct=true");
+         // no row group, so didn't get any value
+         assertEquals(0,  res1.getValues().length);
+         //assertArrayEquals(new Object[]{"Sue", "Eric"}, res1.getValues());
+      }
+      finally {
+         FormulaContext.popCellLocation();
+         FormulaContext.popScope();
+      }
    }
 
    private static Stream<Arguments> provideToArrayTestCases() {
@@ -165,9 +178,15 @@ public class FormulaFunctions2Test {
    void testInGroupWithInvalidObject() {
       Object data1 = new Object[]{"name", "a"};
       FormulaContext.pushTable(objData);
-      boolean res = FormulaFunctions.inGroups(data1, "Others");
 
-      assertFalse(res);
+      try {
+         boolean res = FormulaFunctions.inGroups(data1, "Others");
+
+         assertFalse(res);
+      }
+      finally {
+         FormulaContext.popTable();
+      }
    }
 
    /**
@@ -202,10 +221,16 @@ public class FormulaFunctions2Test {
       when(mockCalcTableLens.getExpansion(0,0)).thenReturn(CalcTableLens.EXPAND_HORIZONTAL);
 
       FormulaContext.pushTable(mockRuntimeCalcTableLens);
-      Object param = new Object[] { "group1", "value1", "group2", "value2" };
 
-      boolean result1 = FormulaFunctions.inGroups(param, "Others");
-      assertFalse(result1);
+      try {
+         Object param = new Object[] { "group1", "value1", "group2", "value2" };
+
+         boolean result1 = FormulaFunctions.inGroups(param, "Others");
+         assertFalse(result1);
+      }
+      finally {
+         FormulaContext.popTable();
+      }
    }
    Object[][] objData = new Object[][]{
       {"name", "id", "date"},

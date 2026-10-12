@@ -35,6 +35,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * afterwards. The script does not see Java's writes (C1, a documented limitation).
  */
 @Tag("core")
+// a separate thread, so a script that never ends (a guest loop may not see the interrupt of
+// a same-thread timeout) fails this test instead of hanging the whole test run
+@Timeout(value = 120, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
 class WsArgumentCopyCrossThreadTest {
    public final class H {
       public Object keep(Object v) {
@@ -106,7 +109,7 @@ class WsArgumentCopyCrossThreadTest {
          started.countDown();
          long seq = 0;
 
-         while(go.get()) {
+         while(go.get() && !Thread.currentThread().isInterrupted()) {
             List<Object> snapshot;
 
             synchronized(h.kept) {
@@ -128,15 +131,27 @@ class WsArgumentCopyCrossThreadTest {
             Thread.onSpinWait();
          }
       });
-      started.await();
-      run(env, "for (var i = 0; i < " + views + "; i++) { var a = []; " +
-         "for (var j = 0; j < 2000; j++) a.push(j); h.keep(a); } 1");
-      // let the writer fill every list, also the one made last, then stop it
-      while(perList.get(views - 1) < cap && !writer.isDone()) {
-         Thread.onSpinWait();
+
+      try {
+         assertTrue(started.await(10, TimeUnit.SECONDS), "the writer did not start");
+         run(env, "for (var i = 0; i < " + views + "; i++) { var a = []; " +
+            "for (var j = 0; j < 2000; j++) a.push(j); h.keep(a); } 1");
+         // let the writer fill every list, also the one made last, then stop it
+         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+
+         while(perList.get(views - 1) < cap && !writer.isDone()) {
+            if(System.nanoTime() > deadline) {
+               fail("the writer did not fill every list in 30 s; lists kept: " + h.kept.size());
+            }
+
+            Thread.onSpinWait();
+         }
+      }
+      finally {
+         // also when the script or the wait fails, or the writer spins on after the test
+         go.set(false);
       }
 
-      go.set(false);
       writer.get(30, TimeUnit.SECONDS);
       int lost = 0;
 

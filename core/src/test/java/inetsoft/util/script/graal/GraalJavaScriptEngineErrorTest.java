@@ -29,6 +29,7 @@ import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Stream;
+import static inetsoft.util.stall.StallTestSupport.assertStallOf;
 import static org.junit.jupiter.api.Assertions.*;
 
 @Tag("core")
@@ -80,7 +81,7 @@ class GraalJavaScriptEngineErrorTest {
       engine.put("stalledHost", new StalledHost(stall));
       Object src = engine.compile("stalledHost.value()");
 
-      assertSame(stall, assertThrows(LockStallException.class,
+      assertStallOf(stall, assertThrows(LockStallException.class,
          () -> engine.exec(src, null, null)));
 
       Field errorCountsField = GraalJavaScriptEngine.class.getDeclaredField("errorCounts");

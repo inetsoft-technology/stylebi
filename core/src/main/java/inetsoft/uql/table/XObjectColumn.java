@@ -524,6 +524,7 @@ public final class XObjectColumn extends AbstractTableColumn {
          return null;
       }
 
+      partial = false;
       final Kryo kryo = XSwapUtil.getKryo();
 
       try {
@@ -543,13 +544,67 @@ public final class XObjectColumn extends AbstractTableColumn {
          return ByteBuffer.wrap(bout.toByteArray());
       }
       catch(Exception ex) {
-         LOG.error("Failed to write data", ex);
+         // a value Kryo can't write must not drop the whole column from a snapshot (bug #77963)
+         return copyToBufferByValue(kryo, ex);
       }
       finally {
          XSwapUtil.releaseKryo(kryo);
       }
+   }
+
+   /**
+    * Copy the values to a buffer one by one, writing a value that can't be written as null.
+    * The buffer then doesn't hold all the data, so the column is kept in memory (see
+    * hasSwapData()), but a snapshot saved from it keeps every other value (bug #77963).
+    */
+   private ByteBuffer copyToBufferByValue(Kryo kryo, Exception cause) {
+      try {
+         ByteArrayOutputStream2 bout = new ByteArrayOutputStream2();
+         Output oout = new Output(bout);
+         // each top-level write resets the kryo state, so the values can be written apart
+         Output vout = new Output(256, -1);
+         int failed = 0;
+
+         for(int i = 0; i < pos; i++) {
+            Object obj = image ? new ImageWrapper((Image) arr[i]) : arr[i];
+            vout.reset();
+
+            try {
+               kryo.writeClassAndObject(vout, obj);
+            }
+            catch(Exception ex) {
+               failed++;
+               vout.reset();
+               kryo.writeClassAndObject(vout, null);
+            }
+
+            oout.writeBytes(vout.getBuffer(), 0, vout.position());
+         }
+
+         oout.close();
+         partial = failed > 0;
+
+         if(partial) {
+            LOG.error("Failed to write " + failed + " of " + (int) pos +
+                      " values, they are written as null", cause);
+         }
+
+         return ByteBuffer.wrap(bout.toByteArray());
+      }
+      catch(Exception ex) {
+         LOG.error("Failed to write data", ex);
+      }
 
       return null;
+   }
+
+   /**
+    * Check if the data of this column is in its swap file. A column some values of which
+    * could not be written is not, and must stay in memory (bug #77963).
+    */
+   @Override
+   public synchronized boolean hasSwapData() {
+      return !partial && super.hasSwapData();
    }
 
    /**
@@ -614,6 +669,7 @@ public final class XObjectColumn extends AbstractTableColumn {
    private char size; // max size
    private byte serial; // serializable flag
    private boolean image; // image flag
+   private boolean partial; // some values could not be written by copyToBuffer()
    private XObjectCache<Object> cache; // object cache
    private XTableColumnCreator creator; // column creator
    private static final Logger LOG = LoggerFactory.getLogger(XObjectColumn.class);

@@ -26,4 +26,6 @@ export interface QueryFieldModel {
    dataType: string;
    drillInfo: AutoDrillInfoModel;
    format: AttributeFormatInfoModel;
+   // the column as written when it was a quoted identifier (t."MixedCase"), else absent
+   quotedName?: string;
 }

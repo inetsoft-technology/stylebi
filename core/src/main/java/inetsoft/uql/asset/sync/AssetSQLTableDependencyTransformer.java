@@ -269,6 +269,12 @@ public class AssetSQLTableDependencyTransformer extends AssetDependencyTransform
       String otableName = Tool.getValue(node);
       String ntableName = getQualifiedTableName(oname, otableName);
       replaceCDATANode(node, ntableName);
+
+      // the quoted segments describe the old name (#77569)
+      if(!Tool.equals(otableName, ntableName)) {
+         node.removeAttribute("quotedSegments");
+      }
+
       RenameInfo renameInfo = new RenameInfo(otableName, ntableName, RenameInfo.SQL_TABLE);
       rinfos.add(renameInfo);
       node = Tool.getChildNodeByTagName(table, "alias");

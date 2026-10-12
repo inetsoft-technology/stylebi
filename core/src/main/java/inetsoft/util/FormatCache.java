@@ -18,8 +18,10 @@
 package inetsoft.util;
 
 import java.io.Serializable;
+import java.text.DateFormat;
 import java.text.Format;
 import java.text.ParseException;
+import java.util.TimeZone;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -43,6 +45,15 @@ public final class FormatCache implements Serializable, Cloneable {
       for(int i = 0; i < fmts.length; i++) {
          fmts[i] = (Format) fmt.clone();
       }
+
+      this.timeZone = fmt instanceof DateFormat ? ((DateFormat) fmt).getTimeZone() : null;
+   }
+
+   /**
+    * Get the time zone of the cached date formats, or null if they are not date formats.
+    */
+   public TimeZone getTimeZone() {
+      return timeZone;
    }
 
    /**
@@ -71,5 +82,6 @@ public final class FormatCache implements Serializable, Cloneable {
 
    private static final int N = 0xff;
    private final Format[] fmts;
+   private final TimeZone timeZone;
    private final AtomicInteger idx = new AtomicInteger(0);
 }

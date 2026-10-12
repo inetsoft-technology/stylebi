@@ -20,6 +20,7 @@ package inetsoft.util.script.graal.pool;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import java.lang.ref.Reference;
 import java.util.concurrent.TimeUnit;
 
 import static inetsoft.util.script.graal.pool.PoolTestSupport.*;
@@ -37,18 +38,19 @@ class PoolMetricsTest {
     */
    @Test
    void nodeSlotsDropWhenAnUnretiredEnvIsCollected() throws Exception {
-      int before = PoolMetrics.nodeSlots();
-      openAndDropAnEnv();
-      assertTrue(PoolMetrics.nodeSlots() > before, "the env's primary was not counted");
+      // Bug #77529: other envs of this JVM change the node count at any time (their slots are
+      // collected or evicted), so a node-wide before/after delta is racy; watch the node
+      // count this env's own slots hold instead.
+      PoolMetrics metrics = openAndDropAnEnv();
       long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
 
-      while(PoolMetrics.nodeSlots() > before && System.nanoTime() < deadline) {
+      while(metrics.getNodeReleases() < metrics.getCreations() && System.nanoTime() < deadline) {
          System.gc();
          Thread.sleep(50);
       }
 
-      assertTrue(PoolMetrics.nodeSlots() <= before,
-                 "node slots " + PoolMetrics.nodeSlots() + ", before " + before);
+      assertEquals(metrics.getCreations(), metrics.getNodeReleases(),
+                   "the collected env's slots still count toward the node's slots");
    }
 
    /**
@@ -118,8 +120,22 @@ class PoolMetricsTest {
       }
    }
 
-   private static void openAndDropAnEnv() throws Exception {
+   /**
+    * @return the metrics of an env that ran a script and was dropped without a retire.
+    */
+   private static PoolMetrics openAndDropAnEnv() throws Exception {
       WorksheetScriptEnv env = env();
-      run(env, "1");
+
+      try {
+         run(env, "1");
+         PoolMetrics metrics = env.getMetrics();
+         assertTrue(metrics.getNodeReleases() < metrics.getCreations(),
+                    "the env's primary was not counted");
+         return metrics;
+      }
+      finally {
+         // the env must not be collected before its primary is seen counted
+         Reference.reachabilityFence(env);
+      }
    }
 }

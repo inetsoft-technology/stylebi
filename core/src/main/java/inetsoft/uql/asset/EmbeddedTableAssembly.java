@@ -294,7 +294,15 @@ public class EmbeddedTableAssembly extends AbstractTableAssembly {
                String fragment = encodedFragments.get(i);
 
                if(fragment != null) {
-                  parseFragment(data, fragment, !fullFragment, last);
+                  try {
+                     parseFragment(data, fragment, !fullFragment, last);
+                  }
+                  catch(IllegalArgumentException ex) {
+                     // corrupt base64, skip the fragment as for a missing one
+                     LOG.error("Failed to decode embedded data fragment {} / {}, it is " +
+                               "skipped. Assembly name: {}, cause: {}", i,
+                               encodedFragments.size(), getAbsoluteName(), ex.getMessage());
+                  }
                }
                else {
                   LOG.debug("Failed to load fragment {} / {}, disposed: {}. Assembly name: {}", i,
@@ -306,6 +314,13 @@ public class EmbeddedTableAssembly extends AbstractTableAssembly {
                if(metadata) {
                   break;
                }
+            }
+
+            // the last fragment completes the table, so complete it here in case that fragment
+            // was skipped. XEmbeddedTable.complete() would do nothing, it is already completed
+            // for the default table the first fragment replaces
+            if(data.getDataTable() != null) {
+               data.getDataTable().complete();
             }
 
             sharedDatas.put(isForMetadata(), data.clone());

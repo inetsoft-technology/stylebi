@@ -291,6 +291,28 @@ describe("TaskActionPane (portal) — risk tests", () => {
          await fixture.whenStable();
       });
 
+      // Bug #77973, the indexes are sorted as numbers, sorted as strings [2, 10] became
+      // [10, 2] and the reverse splice removed the original index 11 instead of 10
+      it("removes exactly the selected actions when an index has two digits", async () => {
+         const labels = Array.from({ length: 12 }, (_, i) => "A" + i);
+         const model = makeModel({ actions: labels.map(l => makeAction({ label: l })) });
+         const { comp, fixture } = await renderTaskActionPane(model);
+         comp.selectedActions = [2, 10];
+
+         MODAL_MOCK.open.mockImplementationOnce(() => ({
+            result: Promise.resolve("ok"),
+            componentInstance: { onCommit: new Subject<string>() },
+            close: vi.fn(),
+            dismiss: vi.fn(),
+         }));
+         comp.deleteAction();
+
+         await waitFor(() => expect(comp.model.actions).toHaveLength(10));
+         expect(comp.model.actions.map(a => a.label))
+            .toEqual(labels.filter((_, i) => i !== 2 && i !== 10));
+         await fixture.whenStable();
+      });
+
       it("clears selectedActions after successful multi-delete", async () => {
          const model = makeModel({
             actions: [makeAction({ label: "A" }), makeAction({ label: "B" })],

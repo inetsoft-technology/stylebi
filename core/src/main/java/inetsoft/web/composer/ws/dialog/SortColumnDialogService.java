@@ -58,6 +58,7 @@ public class SortColumnDialogService extends WorksheetControllerService {
       RuntimeWorksheet rws = super.getWorksheetEngine()
          .getWorksheet(Tool.byteDecode(runtimeId), principal);
       Worksheet ws = rws.getWorksheet();
+      checkCubeTableReadPermission(principal, tname);
       TableAssembly table = (TableAssembly) ws.getAssembly(tname);
 
       AssetQuerySandbox box = rws.getAssetQuerySandbox();
@@ -165,6 +166,7 @@ public class SortColumnDialogService extends WorksheetControllerService {
       Worksheet ws = rws.getWorksheet();
       String name = model.getName();
       SortInfo sortInfo = new SortInfo();
+      checkCubeTableReadPermission(principal, name);
       TableAssembly assembly = (TableAssembly) ws.getAssembly(name);
 
       // may remove assembly by undo/redo.

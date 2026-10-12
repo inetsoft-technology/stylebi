@@ -321,9 +321,17 @@ public class TextVSAssemblyInfo extends ClickableOutputVSAssemblyInfo
       writer.print(" popLocationValue=\"" + getPopLocationValue() + "\"");
       writer.print(" popLocation=\"" + getPopLocation() + "\"");
       writer.print(" autoSize=\"" + isAutoSize() + "\"");
-      writer.print(" scaleVerticalValue=\"" + getScaleVerticalValue() + "\"");
-      writer.print(" urlValue=\"" + getUrlValue() + "\"");
-      writer.print(" autoSizeValue=\"" + getAutoSizeValue() + "\"");
+      // persist the stored design values, not their boolean views, so a
+      // $(var), =expr or truthy literal such as "yes" is not rewritten to
+      // false; null falls back to the default parseAttributes uses
+      String scaleVerticalValue = scaleVertical.getDValue();
+      String urlDValue = urlValue.getDValue();
+      String autoSizeValue = autoSize.getDValue();
+      writer.print(" scaleVerticalValue=\"" +
+         Tool.escape(scaleVerticalValue == null ? "true" : scaleVerticalValue) + "\"");
+      writer.print(" urlValue=\"" + Tool.escape(urlDValue == null ? "false" : urlDValue) + "\"");
+      writer.print(" autoSizeValue=\"" +
+         Tool.escape(autoSizeValue == null ? "false" : autoSizeValue) + "\"");
       writer.print(" keepSpace=\"" + isKeepSpace() + "\"");
    }
 
@@ -340,13 +348,13 @@ public class TextVSAssemblyInfo extends ClickableOutputVSAssemblyInfo
 
       if(val != null) {
          writer.print("<text>");
-         writer.print("<![CDATA[" + val + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(String.valueOf(val)) + "]]>");
          writer.println("</text>");
       }
 
       if(textValue.getDValue() != null) {
          writer.print("<textValue>");
-         writer.print("<![CDATA[" + textValue.getDValue() + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(textValue.getDValue()) + "]]>");
          writer.println("</textValue>");
       }
 

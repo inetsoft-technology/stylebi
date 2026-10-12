@@ -21,12 +21,18 @@ import inetsoft.report.TableFilter;
 import inetsoft.report.event.TableChangeEvent;
 import inetsoft.report.event.TableChangeListener;
 
-import java.io.Serializable;
+import java.io.*;
+import java.lang.ref.WeakReference;
 
 /**
  * Define a default object which listens for TableChangeEvents. When it is
  * notified that the source table changes, it will invalidate the specified
  * table filter for the table filter to recalculate.
+ * <p>
+ * The listener holds its table filter weakly, so a base table that keeps this
+ * listener does not keep the filter alive. The base table (see
+ * AbstractTableLens.addChangeListener) keeps the listener itself strongly, so
+ * the filter receives change events for as long as the filter is alive.
  *
  * @version 6.1
  * @author InetSoft Technology Corp
@@ -38,7 +44,7 @@ public class DefaultTableChangeListener implements TableChangeListener, Serializ
     * @param filter the specified table filter
     */
    public DefaultTableChangeListener(TableFilter filter) {
-      this.filter = filter;
+      this.target = new WeakReference<>(filter);
    }
 
    /**
@@ -47,7 +53,17 @@ public class DefaultTableChangeListener implements TableChangeListener, Serializ
     * @param filter the specified table filter
     */
    public DefaultTableChangeListener(BinaryTableFilter filter) {
-      this.bfilter = filter;
+      this.target = new WeakReference<>(filter);
+   }
+
+   /**
+    * Get the table filter this listener invalidates.
+    *
+    * @return the TableFilter or BinaryTableFilter, or null if it has been
+    * garbage collected.
+    */
+   public Object getTarget() {
+      return target.get();
    }
 
    /**
@@ -57,14 +73,29 @@ public class DefaultTableChangeListener implements TableChangeListener, Serializ
     */
    @Override
    public void tableChanged(TableChangeEvent event) {
-      if(filter != null) {
-         filter.invalidate();
+      Object filter = target.get();
+
+      if(filter instanceof TableFilter) {
+         ((TableFilter) filter).invalidate();
       }
-      else if(bfilter != null) {
-         bfilter.invalidate();
+      else if(filter instanceof BinaryTableFilter) {
+         ((BinaryTableFilter) filter).invalidate();
       }
    }
 
-   private TableFilter filter;
-   private BinaryTableFilter bfilter;
+   // write the filter strongly, so a serialized table that holds this listener
+   // (SetTableLens) keeps notifying the filter after it is read back
+   @Serial
+   private void writeObject(ObjectOutputStream out) throws IOException {
+      out.defaultWriteObject();
+      out.writeObject(target.get());
+   }
+
+   @Serial
+   private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
+      in.defaultReadObject();
+      target = new WeakReference<>(in.readObject());
+   }
+
+   private transient WeakReference<Object> target;
 }

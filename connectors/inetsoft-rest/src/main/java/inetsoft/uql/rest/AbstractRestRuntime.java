@@ -19,11 +19,16 @@ package inetsoft.uql.rest;
 
 import inetsoft.uql.*;
 import inetsoft.uql.asset.ConfirmException;
+import inetsoft.uql.rest.auth.ClientCredentialsAuthenticator;
+import inetsoft.uql.rest.auth.RestAuthenticator;
+import inetsoft.uql.rest.auth.RestAuthenticatorFactory;
 import inetsoft.uql.rest.json.EndpointJsonQuery;
 import inetsoft.uql.rest.json.RestJsonQuery;
 import inetsoft.uql.tabular.*;
 import inetsoft.uql.util.QueryManager;
 import inetsoft.util.*;
+import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
+import org.apache.http.impl.nio.client.HttpAsyncClients;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -186,6 +191,27 @@ public abstract class AbstractRestRuntime extends TabularRuntime {
          }
          catch(Exception ex) {
             LOG.debug("Error closing test connection: " + url, ex);
+         }
+      }
+
+      if(restDS.isOauthClientCredentials()) {
+         testClientCredentials(restDS);
+      }
+   }
+
+   /**
+    * Requests an access token so that invalid client credentials are reported by the connection
+    * test instead of by the first query. A new token is always requested, because a cached token
+    * doesn't show that the credentials still work, but the cached token isn't replaced, because
+    * this is also called by the data source status refresh while queries may be using it.
+    */
+   private void testClientCredentials(AbstractRestDataSource restDS) throws Exception {
+      try(CloseableHttpAsyncClient client = HttpAsyncClients.createDefault()) {
+         client.start();
+         final RestAuthenticator authenticator = RestAuthenticatorFactory.createFrom(restDS, client);
+
+         if(authenticator instanceof ClientCredentialsAuthenticator ccAuthenticator) {
+            ccAuthenticator.verifyCredentials();
          }
       }
    }

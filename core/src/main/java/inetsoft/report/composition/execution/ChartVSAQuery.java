@@ -243,6 +243,17 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
       return dataset;
    }
 
+   /**
+    * The chart data set reads all rows of the table before it is returned, so a cancel of
+    * the query manager after the fetch started may have cut it short. A show details
+    * table is read later and checked when it is read.
+    */
+   @Override
+   public boolean isDataCancelled(Object data) {
+      return !(data instanceof TableLens) &&
+         (isFetchCancelled() || AssetDataCache.isDataSetCancelled(data));
+   }
+
    @Override
    public TableAssembly createBindableTable() {
       for_bindable = true;
@@ -2408,11 +2419,11 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
                // @by jasonshobe, bug1411032367385. Try the JDBC timestamp
                // escape format.
                try {
-                  d = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.S")
+                  d = Tool.createGregorianDateFormat("yyyy-MM-dd HH:mm:ss.S")
                      .parse((String) obj);
                }
                catch(Exception ignore) {
-                  d = new SimpleDateFormat("yyyy-MM-dd").parse((String) obj);
+                  d = Tool.createGregorianDateFormat("yyyy-MM-dd").parse((String) obj);
                }
             }
 

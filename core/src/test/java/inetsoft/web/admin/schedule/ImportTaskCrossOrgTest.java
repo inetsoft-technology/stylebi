@@ -657,10 +657,11 @@ class ImportTaskCrossOrgTest {
                                                        any(Principal.class));
    }
 
-   // an older export stores userName:taskName, the row carries the rewritten id
+   // an older (13.x) export stores userName:taskName with a plain user name owner (Bug #73029,
+   // e.g. <Task name="user0:Task1" owner="user0">), the row carries the rewritten id
    @Test
    void legacyUserTaskName_selectedFromRows_isImported() throws Exception {
-      List<TaskDependencyModel> rows = parse(task("admin:Old", "admin~;~orga", null, null,
+      List<TaskDependencyModel> rows = parse(task("admin:Old", "admin", null, null,
                                                   NEVER_RUN)).tasks();
 
       assertEquals("admin:Old", rows.get(0).task());
@@ -671,6 +672,24 @@ class ImportTaskCrossOrgTest {
       assertTrue(response.failedTasks().isEmpty(), response.failedTasks().toString());
       verify(scheduleManager, times(1)).setScheduleTask(eq("admin~;~" + ORG_A + ":Old"),
                                                         any(ScheduleTask.class), eq(caller));
+   }
+
+   // Bug #77883, a current export writes the owner key and the bare name, a ':' in the name
+   // (even one that starts with the owner's name) is kept
+   @Test
+   void currentColonTaskName_selectedFromRows_isImportedUnchanged() throws Exception {
+      List<TaskDependencyModel> rows = parse(task("admin:Old", "admin~;~orga", null, null,
+                                                  NEVER_RUN)).tasks();
+      String id = "admin~;~" + ORG_A + ":admin:Old";
+
+      assertEquals("admin:Old", rows.get(0).task());
+      assertEquals(id, rows.get(0).taskId());
+
+      ImportTaskResponse response = importRows(rows, false);
+
+      assertTrue(response.failedTasks().isEmpty(), response.failedTasks().toString());
+      verify(scheduleManager, times(1)).setScheduleTask(eq(id), any(ScheduleTask.class),
+                                                        eq(caller));
    }
 
    // an older export stores owner="null", which is the system user of the host org

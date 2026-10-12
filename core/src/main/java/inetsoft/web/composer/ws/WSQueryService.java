@@ -52,6 +52,7 @@ public class WSQueryService extends WorksheetControllerService {
                         CommandDispatcher commandDispatcher) throws Exception
    {
       final RuntimeWorksheet rws = getRuntimeWorksheet(runtimeId, principal);
+      checkCubeTableReadPermission(principal, event.getAssemblyName());
       final TableAssembly table = (TableAssembly) rws.getWorksheet().getAssembly(
          event.getAssemblyName());
 
@@ -106,6 +107,7 @@ public class WSQueryService extends WorksheetControllerService {
                          Principal principal, CommandDispatcher commandDispatcher) throws Exception
    {
       final RuntimeWorksheet rws = getRuntimeWorksheet(runtimeId, principal);
+      checkCubeTableReadPermission(principal, event.getAssemblyName());
       final TableAssembly table = (TableAssembly) rws.getWorksheet().getAssembly(
          event.getAssemblyName());
 

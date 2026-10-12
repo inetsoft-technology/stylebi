@@ -47,14 +47,20 @@ public class IntersectTableLens extends SetTableLens {
     * @return the merged table visitor.
     */
    @Override
-   protected MergedTable.Visitor getVisitor() {
-      return new Visitor();
+   protected MergedTable.Visitor getVisitor(Pass pass) {
+      return new Visitor(pass);
    }
 
    /**
     * Merged row visitor.
     */
    private class Visitor implements MergedTable.Visitor {
+      Visitor(Pass pass) {
+         this.pass = pass;
+      }
+
+      private final Pass pass;
+
       @Override
       public void visit(MergedRow val) throws Exception {
          // @by cehnw, count must equal to final count for multiple table merge.
@@ -74,13 +80,9 @@ public class IntersectTableLens extends SetTableLens {
          if(add) {
             Row row = new Row(0, val.getRows(0)[0]);
 
-            if(!isSetRowsInitialized()) {
-               throw new InterruptedException("I am interrupted!");
-            }
+            pass.add(row);
 
-            addSetRow(row);
-
-            if(getSetRowCount() % 20 == 0) {
+            if(pass.size() % 20 == 0) {
                synchronized(IntersectTableLens.this) {
                   // notify waiting consumers
                   IntersectTableLens.this.notifyAll();

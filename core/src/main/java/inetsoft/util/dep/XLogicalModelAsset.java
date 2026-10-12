@@ -408,7 +408,8 @@ public class XLogicalModelAsset extends AbstractXAsset implements
 
    @Override
    public Resource getSecurityResource() {
-      return new Resource(ResourceType.QUERY, getModelName() + "::" + getDataSource());
+      return new Resource(ResourceType.QUERY, XUtil.getLogicalModelResourceName(
+         getDataSource(), getModelFolder(), getModelName()));
    }
 
    /**

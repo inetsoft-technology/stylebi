@@ -24,13 +24,18 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
 import inetsoft.uql.*;
+import inetsoft.uql.asset.AbstractAssetEngine;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.ConfirmException;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.asset.sync.*;
 import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.service.DataSourceRegistry;
+import inetsoft.uql.service.DataSourceRenameException;
 import inetsoft.uql.tabular.TabularDataSource;
 import inetsoft.uql.util.Config;
+import inetsoft.uql.util.XUtil;
 import inetsoft.uql.xmla.XMLADataSource;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
@@ -341,7 +346,7 @@ public class DataSourceBrowserService {
 
       long cdate = dataSource.getCreated();
       String fmt = SreeEnv.getProperty("format.date.time");
-      String dateLabel = cdate == 0 ? "" : new SimpleDateFormat(fmt).format(cdate);
+      String dateLabel = cdate == 0 ? "" : Tool.createGregorianDateFormat(fmt).format(cdate);
 
       return DataSourceInfo.builder()
          .name(dataSource.getName())
@@ -401,12 +406,39 @@ public class DataSourceBrowserService {
       Principal principal) throws Exception
    {
       String newPath;
-      securityEngine.checkPermission(
-         principal, ResourceType.DATA_SOURCE_FOLDER, path, ResourceAction.ADMIN);
+
+      // Bug #77840, a rename is a move within the parent: it needs WRITE and DELETE on the
+      // folder, the same as the move and the Rename action of the portal
+      if(!securityEngine.checkPermission(
+         principal, ResourceType.DATA_SOURCE_FOLDER, path, ResourceAction.WRITE))
+      {
+         throw new MessageException(Catalog.getCatalog(principal).getString(
+            "common.writeAuthority", path));
+      }
+
+      if(!securityEngine.checkPermission(
+         principal, ResourceType.DATA_SOURCE_FOLDER, path, ResourceAction.DELETE))
+      {
+         throw new MessageException(Catalog.getCatalog(principal).getString(
+            "common.deleteAuthority", path));
+      }
+
       DataSourceFolder folder = repository.getDataSourceFolder(path, true);
 
       if(folder == null) {
          throw new RuntimeException("Data space folder does not exist: " + path);
+      }
+
+      // Bug #77733, a name with a slash would move the folder under another parent without the
+      // checks of the move
+      Tool.checkFolderNameSeparator(newName);
+
+      // Bug #77926, an empty name would rename the folder to its parent path ("" for a root level
+      // folder). The same rule as a new folder of the portal.
+      String nameValid = XUtil.isNameValid(newName);
+
+      if(!"Valid".equals(nameValid)) {
+         throw new MessageException(nameValid);
       }
 
       String parent = DataSourceFolder.getParentName(path);
@@ -419,19 +451,49 @@ public class DataSourceBrowserService {
       }
 
       if(!Objects.requireNonNull(newPath).equals(path)) {
+         // a name with a slash is refused above (Bug #77733), kept in case the path is built
+         // otherwise: the folder must not be put into itself, with no parent left
+         if(DataSourceRegistry.isSameOrDescendantPath(path, newPath)) {
+            throw new MessageException(Catalog.getCatalog(principal).getString(
+               "common.datasource.moveIntoItself", path));
+         }
+
+         // renaming onto a path used by a data source or another folder would merge with it
+         if(dataSourceRegistry.isDataSourcePathInUse(newPath)) {
+            throw new MessageException(Catalog.getCatalog(principal).getString(
+               "common.datasource.moveTargetExists", newPath));
+         }
+
+         // a name with a slash is refused above (Bug #77733), kept in case the path is built
+         // otherwise: the folder must not be put under a data source
+         String dataSource = dataSourceRegistry.getDataSourceAncestor(newPath);
+
+         if(dataSource != null) {
+            throw new MessageException(Catalog.getCatalog(principal).getString(
+               "common.datasource.moveUnderDataSource", dataSource));
+         }
+
+         // Bug #77725, a data source at the path of the folder or of a subfolder
+         dataSourceRegistry.checkDataSourceFolderPathClash(path);
+
          List<String> childrenSources = new ArrayList<>();
          DependencyTransformer.prepareChildrenSources(path, childrenSources, repository);
          RenameDependencyInfo dinfo = DependencyTransformer.createDependencyInfo(
             path, newPath, childrenSources);
-         renameTransformHandler.addTransformTask(dinfo);
 
          folder.setName(newPath);
          Permission permission =
                securityEngine.getPermission(ResourceType.DATA_SOURCE_FOLDER, path);
+         // Bug #77704, added once the folder is moved. A failed move renames the dependencies of
+         // each data source it moved, in updateDataSourceFolder.
          repository.updateDataSourceFolder(folder, path);
+         renameTransformHandler.addTransformTask(dinfo);
 
+         // Bug #78217, the folder is already renamed, a failed permission write is logged and
+         // does not fail the rename
          if(permission != null) {
-            securityEngine.setPermission(ResourceType.DATA_SOURCE_FOLDER, newPath, permission);
+            AbstractAssetEngine.setPermissionBestEffort(securityEngine,
+               ResourceType.DATA_SOURCE_FOLDER, newPath, permission);
          }
       }
 
@@ -501,15 +563,91 @@ public class DataSourceBrowserService {
     * @param auditPath audit path(fullPath).
     * @param principal user
     */
-   @Audited(
-         actionName = ActionRecord.ACTION_NAME_DELETE,
-         objectType = ActionRecord.OBJECT_TYPE_FOLDER
-   )
-   public FolderDeleteResult deleteDataSourceFolder(
-      String path, @SuppressWarnings("unused") @AuditObjectName String auditPath, boolean force,
-      Principal principal)
+   public ConnectionStatus deleteDataSourceFolder(String path, String auditPath, boolean force,
+                                                  Principal principal)
    {
-      return repositoryObjectService.removeDataSourceFolder(path, force, principal);
+      return deleteDataSourceFolder(path, auditPath, force, false, principal);
+   }
+
+   /**
+    * delete datasource folder.
+    * @param path folder path.
+    * @param auditPath audit path(fullPath).
+    * @param withDataSource {@code true} to also delete a data source at the path of the folder
+    *                       (older data, Bug #77691), see
+    *                       {@link RepositoryObjectService#removeDataSourceFolder(String, boolean, Principal, boolean)}.
+    * @param principal user
+    */
+   public ConnectionStatus deleteDataSourceFolder(String path, String auditPath, boolean force,
+                                                  boolean withDataSource, Principal principal)
+   {
+      return deleteDataSourceFolderResult(path, auditPath, force, withDataSource, principal)
+         .status();
+   }
+
+   /**
+    * delete datasource folder, and report the data sources deleted with it, for callers that
+    * clean up by what was deleted.
+    * @param path folder path.
+    * @param auditPath audit path(fullPath).
+    * @param principal user
+    */
+   public FolderDeleteResult deleteDataSourceFolderResult(String path, String auditPath,
+                                                          boolean force, Principal principal)
+   {
+      return deleteDataSourceFolderResult(path, auditPath, force, false, principal);
+   }
+
+   /**
+    * delete datasource folder, and report the data sources deleted with it.
+    * @param path folder path.
+    * @param auditPath audit path(fullPath).
+    * @param withDataSource see
+    *                       {@link #deleteDataSourceFolder(String, String, boolean, boolean, Principal)}.
+    * @param principal user
+    */
+   public FolderDeleteResult deleteDataSourceFolderResult(String path, String auditPath,
+                                                          boolean force, boolean withDataSource,
+                                                          Principal principal)
+   {
+      // Bug #77819, audited here, not with @Audited, as a returned status is a refusal or a
+      // prompt to confirm the delete, not a success
+      ActionRecord actionRecord = SUtil.getActionRecord(
+         principal, ActionRecord.ACTION_NAME_DELETE, auditPath, ActionRecord.OBJECT_TYPE_FOLDER);
+      // the data source at the path of the folder is deleted with it, so it is audited with the
+      // outcome of the folder delete
+      ActionRecord dataSourceRecord = withDataSource ? SUtil.getActionRecord(
+         principal, ActionRecord.ACTION_NAME_DELETE,
+         Util.getObjectFullPath(RepositoryEntry.DATA_SOURCE, path, principal),
+         ActionRecord.OBJECT_TYPE_DATASOURCE) : null;
+
+      try {
+         FolderDeleteResult result = repositoryObjectService.removeDataSourceFolderResult(
+            path, force, principal, withDataSource);
+
+         if(result.status() != null) {
+            actionRecord = RepositoryObjectService.getDeleteStatusRecord(
+               actionRecord, result.status());
+         }
+
+         return result;
+      }
+      catch(Exception ex) {
+         actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_FAILURE);
+         actionRecord.setActionError(ex.getMessage());
+         throw ex;
+      }
+      finally {
+         if(actionRecord != null) {
+            Audit.getInstance().auditAction(actionRecord, principal);
+
+            if(dataSourceRecord != null) {
+               dataSourceRecord.setActionStatus(actionRecord.getActionStatus());
+               dataSourceRecord.setActionError(actionRecord.getActionError());
+               Audit.getInstance().auditAction(dataSourceRecord, principal);
+            }
+         }
+      }
    }
 
    private Locale getLocale(Principal principal) {
@@ -577,6 +715,26 @@ public class DataSourceBrowserService {
                                    Principal principal, boolean userScope)
       throws Exception
    {
+      // a folder must not share its path with a data source or another folder, or be created
+      // under a data source, its data sources would be taken for additional connections
+      String nameValid = XUtil.isNameValid(path.substring(path.lastIndexOf('/') + 1));
+
+      if(!"Valid".equals(nameValid)) {
+         throw new MessageException(nameValid);
+      }
+
+      if(dataSourceRegistry.isDataSourcePathInUse(path)) {
+         throw new MessageException(Catalog.getCatalog(principal).getString(
+            "common.datasource.moveTargetExists", path));
+      }
+
+      String ancestor = dataSourceRegistry.getDataSourceAncestor(path);
+
+      if(ancestor != null) {
+         throw new MessageException(Catalog.getCatalog(principal).getString(
+            "common.datasource.createUnderDataSource", path, ancestor));
+      }
+
       LocalDateTime time = LocalDateTime.now();
       IdentityID user = IdentityID.getIdentityIDFromKey(principal.getName());
       String userName = user != null ? user.getName() : null;
@@ -639,6 +797,8 @@ public class DataSourceBrowserService {
          null, actionTimestamp, ActionRecord.ACTION_STATUS_FAILURE,
          null);
 
+      checkMoveTargets(items, principal);
+
       for(MoveCommand item : items) {
          try {
             if(!securityEngine.checkPermission(principal, ResourceType.DATA_SOURCE_FOLDER,
@@ -667,12 +827,25 @@ public class DataSourceBrowserService {
                      "common.deleteAuthority", oname));
                }
 
-               List<RenameDependencyInfo> renameDependencyInfos =
-                  DependencyTransformer.createDatasourceFolderDependencyInfo(getDSRegistry(),
+               Map<String, RenameDependencyInfo> renameDependencyInfos =
+                  DependencyTransformer.createDatasourceFolderDependencyInfoMap(getDSRegistry(),
                      oname, nname);
-               registry.renameDataSourceFolder(oname, nname);
 
-               for(RenameDependencyInfo renameDependencyInfo : renameDependencyInfos) {
+               // Bug #77704, a failed move renames the dependencies of the data sources it moved
+               try {
+                  registry.renameDataSourceFolder(oname, nname);
+               }
+               catch(DataSourceRenameException e) {
+                  renameDependencyInfos.forEach((source, renameDependencyInfo) -> {
+                     if(e.isMoved(source)) {
+                        this.renameTransformHandler.addTransformTask(renameDependencyInfo);
+                     }
+                  });
+
+                  throw e;
+               }
+
+               for(RenameDependencyInfo renameDependencyInfo : renameDependencyInfos.values()) {
                   this.renameTransformHandler.addTransformTask(renameDependencyInfo);
                }
 
@@ -690,6 +863,13 @@ public class DataSourceBrowserService {
                String oname = item.getOldPath();
                String nname = item.getPath();
 
+               // an additional connection belongs to its parent data source, moving it by its
+               // path would turn it into a standalone data source
+               if(registry.isAdditionalConnectionPath(oname)) {
+                  throw new MessageException(Catalog.getCatalog(principal).getString(
+                     "common.datasource.additionalConnectionMove"));
+               }
+
                if(!securityEngine.checkPermission(principal, ResourceType.DATA_SOURCE,
                   oname, ResourceAction.DELETE))
                {
@@ -698,26 +878,46 @@ public class DataSourceBrowserService {
                }
 
                XDataSource ds = repository.getDataSource(oname);
+
+               // Bug #77727, it could be loaded when the items were checked
+               if(ds == null) {
+                  throw new MessageException(getUnloadableMoveMessage(oname, principal));
+               }
+
                removeDefaultMetaDataProviderCache(ds);
                ds.setName(nname);
+
+               RenameDependencyInfo dinfo = null;
 
                // Bug #60289, rename transform task is submitted in updateDataSource() for REST
                if(!((ds instanceof ListedDataSource) || ds instanceof TabularDataSource ||
                   ds.getType().startsWith(SourceInfo.REST_PREFIX)))
                {
                   if(ds instanceof XMLADataSource) {
-                     RenameDependencyInfo dinfo = DependencyTransformer.createCubeDependencyInfo(
+                     dinfo = DependencyTransformer.createCubeDependencyInfo(
                         oname, ds.getFullName());
-                     renameTransformHandler.addTransformTask(dinfo);
                   }
                   else {
-                     RenameDependencyInfo dinfo = DependencyTransformer.createDependencyInfo(
+                     dinfo = DependencyTransformer.createDependencyInfo(
                         oname, ds.getFullName());
-                     renameTransformHandler.addTransformTask(dinfo);
                   }
                }
 
-               repository.updateDataSource(ds, oname, false);
+               // Bug #77704, the dependencies are renamed once the data source is moved
+               try {
+                  repository.updateDataSource(ds, oname, false);
+               }
+               catch(DataSourceRenameException e) {
+                  if(dinfo != null && e.isMoved(oname)) {
+                     renameTransformHandler.addTransformTask(dinfo);
+                  }
+
+                  throw e;
+               }
+
+               if(dinfo != null) {
+                  renameTransformHandler.addTransformTask(dinfo);
+               }
 
                objectName = Util.getObjectFullPath(RepositoryEntry.DATA_SOURCE,
                   item.getOldPath(), principal);
@@ -755,6 +955,97 @@ public class DataSourceBrowserService {
             }
          }
       }
+   }
+
+   /**
+    * Checks the targets of a data source move before any item is moved. A data source or data
+    * source folder moved onto a path that is already used by a data source or a data source
+    * folder would overwrite or merge with it.
+    */
+   private void checkMoveTargets(MoveCommand[] items, Principal principal) {
+      final DataSourceRegistry registry = dataSourceRegistry;
+
+      // an additional connection belongs to its parent data source, moving it by its path would
+      // turn it into a standalone data source. Checked first so that this message is reported.
+      for(MoveCommand item : items) {
+         if(!PortalDataType.DATA_SOURCE_FOLDER.name().equals(item.getType()) &&
+            registry.isAdditionalConnectionPath(item.getOldPath()))
+         {
+            throw new MessageException(Catalog.getCatalog(principal).getString(
+               "common.datasource.additionalConnectionMove"));
+         }
+      }
+
+      // Bug #77727, a data source that can't be loaded (its connector isn't installed or its
+      // definition is damaged) is moved only with its folder
+      for(MoveCommand item : items) {
+         if(!PortalDataType.DATA_SOURCE_FOLDER.name().equals(item.getType()) &&
+            registry.getDataSource(item.getOldPath()) == null)
+         {
+            throw new MessageException(getUnloadableMoveMessage(item.getOldPath(), principal));
+         }
+      }
+
+      Set<String> targets = new HashSet<>();
+
+      for(MoveCommand item : items) {
+         String oname = item.getOldPath();
+         String nname = item.getPath();
+
+         if(Objects.equals(nname, oname)) {
+            continue;
+         }
+
+         // a folder moved into itself or one of its subfolders would be left with no parent
+         if(PortalDataType.DATA_SOURCE_FOLDER.name().equals(item.getType()) &&
+            oname != null && nname != null && nname.startsWith(oname + "/"))
+         {
+            throw new MessageException(Catalog.getCatalog(principal).getString(
+               "common.datasource.moveIntoItself", oname));
+         }
+
+         if(!targets.add(nname) || registry.isDataSourcePathInUse(nname)) {
+            throw new MessageException(Catalog.getCatalog(principal).getString(
+               "common.datasource.moveTargetExists", nname));
+         }
+
+         // moved under a data source, it would become an additional connection of it
+         String dataSource = registry.getDataSourceAncestor(nname);
+
+         if(dataSource != null) {
+            throw new MessageException(Catalog.getCatalog(principal).getString(
+               "common.datasource.moveUnderDataSource", dataSource));
+         }
+      }
+
+      // Bug #77725, a data source or folder whose path is shared by the other one
+      for(MoveCommand item : items) {
+         if(Objects.equals(item.getPath(), item.getOldPath())) {
+            continue;
+         }
+
+         if(PortalDataType.DATA_SOURCE_FOLDER.name().equals(item.getType())) {
+            registry.checkDataSourceFolderPathClash(item.getOldPath());
+         }
+         else {
+            // Bug #77820, before the first of the moved data sources is moved
+            registry.checkDataSourceMovePathClash(item.getOldPath());
+         }
+      }
+   }
+
+   /**
+    * Gets the message that refuses the move of a data source that can't be loaded on its own, or
+    * that is no longer stored.
+    */
+   private String getUnloadableMoveMessage(String path, Principal principal) {
+      if(!dataSourceRegistry.containObject(new AssetEntry(
+         AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE, path, null)))
+      {
+         return Catalog.getCatalog(principal).getString("data.datasources.findDataSourceError");
+      }
+
+      return Catalog.getCatalog(principal).getString("common.datasource.moveUnloadable", path);
    }
 
    private void removeDefaultMetaDataProviderCache(XDataSource ds) throws Exception {

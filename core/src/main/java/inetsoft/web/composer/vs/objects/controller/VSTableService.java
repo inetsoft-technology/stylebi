@@ -33,6 +33,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Catalog;
 import inetsoft.util.CoreTool;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -43,6 +44,10 @@ import java.util.List;
 
 @Component
 public class VSTableService {
+   public VSTableService(QueryManagerService queryManagerService) {
+      this.queryManagerService = queryManagerService;
+   }
+
    public static DataRef getCrosstabCellDataRef(VSCrosstabInfo cinfo, TableDataPath tpath,
                                                 int row, int col, boolean rtRef)
    {
@@ -384,7 +389,8 @@ public class VSTableService {
     * Get dimension name from data ref.
     */
    public VSAssembly createTable(
-      RuntimeViewsheet rvs, ViewsheetService viewsheetService, AssetEntry entry, int x, int y)
+      RuntimeViewsheet rvs, ViewsheetService viewsheetService, AssetEntry entry, int x, int y,
+      Principal principal)
    {
       Viewsheet viewsheet = rvs.getViewsheet();
       Worksheet ws = viewsheet.getBaseWorksheet();
@@ -400,6 +406,9 @@ public class VSTableService {
       }
 
       tableName = VSUtil.getTableName(tableName);
+      // the table of a new assembly is newly bound, and a cube table is resolved from its
+      // data source without a permission check (Bug #77427)
+      queryManagerService.checkCubeTableReadPermission(tableName, principal);
       viewsheet.convertToEmbeddedTable(ws, tableName);
       TableAssembly tassembly = (TableAssembly) ws.getAssembly(tableName);
 
@@ -546,4 +555,6 @@ public class VSTableService {
       String type = entry.getProperty("originType");
       return type != null && Integer.parseInt(type) == XSourceInfo.MODEL;
    }
+
+   private final QueryManagerService queryManagerService;
 }

@@ -52,6 +52,7 @@ import inetsoft.web.binding.event.ConvertChartRefEvent;
 import inetsoft.web.binding.event.ConvertTableRefEvent;
 import inetsoft.web.binding.model.BindingModel;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.controller.table.BaseTableDrillService;
 import inetsoft.web.viewsheet.event.ViewsheetEvent;
@@ -61,6 +62,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.awt.*;
+import java.security.Principal;
 import java.util.*;
 import java.util.List;
 import java.util.function.BiConsumer;
@@ -73,12 +75,14 @@ public class VSAssemblyInfoHandler {
    public VSAssemblyInfoHandler(CoreLifecycleService coreLifecycleService,
                                 DataRefModelFactoryService dataRefService,
                                 ParameterService parameterService,
-                                DataSourceRegistry dataSourceRegistry)
+                                DataSourceRegistry dataSourceRegistry,
+                                QueryManagerService queryManagerService)
    {
       this.coreLifecycleService = coreLifecycleService;
       this.dataRefService = dataRefService;
       this.parameterService = parameterService;
       this.dataSourceRegistry = dataSourceRegistry;
+      this.queryManagerService = queryManagerService;
    }
 
    public void apply(RuntimeViewsheet rvs, VSAssemblyInfo info, ViewsheetService engine)
@@ -461,7 +465,8 @@ public class VSAssemblyInfoHandler {
 
    public boolean handleSourceChanged(VSAssembly assembly, String newSource, String url,
                                       ViewsheetEvent event, CommandDispatcher dispatcher,
-                                      ViewsheetSandbox box) throws Exception
+                                      ViewsheetSandbox box, Principal principal)
+      throws Exception
    {
       if(!event.confirmed() && sourceChanged(newSource, assembly)) {
          MessageCommand command = new MessageCommand();
@@ -484,7 +489,7 @@ public class VSAssemblyInfoHandler {
             sourceType = ((ConvertChartRefEvent) event).binding().getSource().getType();
          }
 
-         changeSource(assembly, newSource, sourceType);
+         changeSource(assembly, newSource, sourceType, principal);
          validateBinding(assembly);
 
          // need to generate the base table assembly
@@ -542,10 +547,22 @@ public class VSAssemblyInfoHandler {
     * not found exception.
     * @param assembly the assembly which need to handle source changed.
     * @param table    the new source table name.
+    * @param principal the current user, who must be able to read a newly bound cube.
     */
-   public void changeSource(VSAssembly assembly, String table, int sourceType) {
-      SourceInfo sinfo = new SourceInfo(sourceType, null, VSUtil.getTableName(table));
+   public void changeSource(VSAssembly assembly, String table, int sourceType,
+                            Principal principal)
+   {
+      String tableName = VSUtil.getTableName(table);
       VSAssemblyInfo info = (VSAssemblyInfo) assembly.getInfo();
+      SourceInfo osinfo = ((DataVSAssemblyInfo) info).getSourceInfo();
+
+      // a cube table is resolved from its data source without a permission check, so check
+      // a newly bound one before the assembly is changed (Bug #77427)
+      if(osinfo == null || !Tool.equals(tableName, osinfo.getSource())) {
+         queryManagerService.checkCubeTableReadPermission(tableName, principal);
+      }
+
+      SourceInfo sinfo = new SourceInfo(sourceType, null, tableName);
       ((DataVSAssemblyInfo) info).setSourceInfo(sinfo);
    }
 
@@ -1460,4 +1477,5 @@ public class VSAssemblyInfoHandler {
    private final DataRefModelFactoryService dataRefService;
    private final ParameterService parameterService;
    private final DataSourceRegistry dataSourceRegistry;
+   private final QueryManagerService queryManagerService;
 }

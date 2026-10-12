@@ -56,6 +56,7 @@ import inetsoft.util.css.CSSParameter;
 import inetsoft.util.graphics.SVGSupport;
 import inetsoft.util.log.LogLevel;
 import inetsoft.util.profile.ProfileUtils;
+import inetsoft.util.swap.DataUnavailable;
 import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -158,6 +159,33 @@ public class VGraphPair {
    }
 
    /**
+    * Check if the initialization failed with an exception. A failed pair is also completed
+    * (see {@link #isCompleted()}), but it holds no graph and must not be reused. (78220)
+    */
+   public boolean isFailed() {
+      return failure != null;
+   }
+
+   /**
+    * Get the exception the initialization failed with, or <tt>null</tt> if it did not fail.
+    */
+   public Throwable getFailure() {
+      return failure;
+   }
+
+   /**
+    * Check whether any data this pair was built from may have been cut short by a cancel of the
+    * chart assembly's own QueryManager (#78033) -- e.g. a sibling query of the same brushed chart
+    * cancelling the fetch or its one retry. A pair for which this is {@code true} still finishes
+    * and is marked {@link #isCompleted()}, but should not be trusted as a reusable, correctly
+    * rendered result; {@link ViewsheetSandbox#getVGraphPair} rebuilds such a pair instead of
+    * reusing it.
+    */
+   public boolean isDataCut() {
+      return dataCut;
+   }
+
+   /**
     * Check if graph was plotted. The graph may not be plotted if data is null (for whatever
     * reason), or if the graph definition is empty.
     */
@@ -190,9 +218,11 @@ public class VGraphPair {
                initGraph0(box, cname, maxsize, export, scaleFont, forceExpand);
             }
             catch(MessageException messageException) {
+               failure = messageException;
                throw messageException;
             }
             catch(DynamicColumnNotFoundException de) {
+               failure = de;
                throw de;
             }
             catch(Exception e) {
@@ -203,6 +233,11 @@ public class VGraphPair {
                   LOG.warn("init graph error: cancel={}, {}", this.cancelled, e.getMessage());
                }
 
+               failure = e;
+               throw e;
+            }
+            catch(Error e) {
+               failure = e;
                throw e;
             }
             finally {
@@ -236,7 +271,9 @@ public class VGraphPair {
                            boolean export, double scaleFont, boolean forceExpand)
       throws Exception
    {
-      DataSet data = (DataSet) box.getData(cname);
+      boolean[] cut = { false };
+      DataSet data = (DataSet) box.getData(cname, true, DataMap.NORMAL, cut);
+      dataCut = dataCut || cut[0];
 
       if(data != null) {
          LOG.debug("Chart {} finished processing: {} row(s)", cname, data.getRowCount() + 1);
@@ -248,7 +285,9 @@ public class VGraphPair {
          return;
       }
 
-      DataSet adata = (DataSet) box.getData(cname, true, DataMap.ZOOM);
+      cut[0] = false;
+      DataSet adata = (DataSet) box.getData(cname, true, DataMap.ZOOM, cut);
+      dataCut = dataCut || cut[0];
 
       if(cancelled) {
          return;
@@ -419,8 +458,12 @@ public class VGraphPair {
             try {
                if(!cscript && isChanged) {
                   box.resetDataMap(cname);
-                  data = (DataSet) box.getData(cname);
-                  adata = (DataSet) box.getData(cname, true, DataMap.ZOOM);
+                  boolean[] rcut = { false };
+                  data = (DataSet) box.getData(cname, true, DataMap.NORMAL, rcut);
+                  dataCut = dataCut || rcut[0];
+                  rcut[0] = false;
+                  adata = (DataSet) box.getData(cname, true, DataMap.ZOOM, rcut);
+                  dataCut = dataCut || rcut[0];
                   vdata = getVisualDataSet(box, ainfo);
                   VSChartInfo tinfo = ainfo.getVSChartInfo();
 
@@ -910,6 +953,11 @@ public class VGraphPair {
          scope.execute(script, cname);
       }
       catch(Throwable ex) {
+         // a lock stall or a lost swap file is not a script failure to swallow and render
+         // past: rethrow it so the chart fails with the swap error instead of rendering
+         // silently wrong/empty data, regardless of ignoreError (#77123, #77910, #78099)
+         DataUnavailable.rethrow(ex);
+
          if(!ignoreError) {
             LOG.debug("Script failed", ex);
 
@@ -2790,7 +2838,14 @@ public class VGraphPair {
    private Dimension size; // content size
    private DataSet data; // data set
    private boolean cancelled = false;
+   // Bug #78033: true if any box.getData(...) call this pair's initGraph0() made was flagged by
+   // ViewsheetSandbox as possibly cut short by a cancel of the chart assembly's own QueryManager
+   // (its own retry included). A pair built from such data still reaches initGraph()'s finally
+   // and is marked completed, so getVGraphPair() needs this flag to know not to reuse it as-is.
+   private boolean dataCut = false;
    private final AtomicBoolean completed = new AtomicBoolean(false);
+   // set before completed, so a thread that sees completed also sees the failure
+   private volatile Throwable failure;
    private boolean cscript = false;
    private boolean isStructureChanged = false;
    private ViewsheetSandbox vbox;

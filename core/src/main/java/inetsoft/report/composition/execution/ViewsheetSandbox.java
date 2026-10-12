@@ -50,7 +50,9 @@ import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.log.LogContext;
 import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.*;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.stall.LockStallException;
+import inetsoft.util.swap.SwapFileReadException;
 import inetsoft.web.viewsheet.service.SharedFilterService;
 import inetsoft.web.vswizard.model.VSWizardConstants;
 import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
@@ -735,13 +737,13 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     * Cancels all queries managed by this sandbox.
     */
    public void cancelAllQueries() {
-      cancelAllQueries(false);
+      cancelAllQueries(false, false);
    }
 
    /**
     * Cancels all queries managed by this sandbox.
     */
-   private void cancelAllQueries(boolean wizard) {
+   private void cancelAllQueries(boolean wizard, boolean forChange) {
       Iterator it = qmgrs.keySet().iterator();
       QueryManager queryManager = null;
 
@@ -755,12 +757,12 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          queryManager = qmgrs.get(key + "");
 
          if(queryManager != null) {
-            queryManager.cancel();
+            cancel(queryManager, forChange);
          }
       }
 
       if(queryMgr != null) {
-         queryMgr.cancel();
+         cancel(queryMgr, forChange);
       }
 
       resetScriptable();
@@ -769,6 +771,15 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
       if(scope != null) {
          scope.resetStartTime();
+      }
+   }
+
+   private static void cancel(QueryManager qmgr, boolean forChange) {
+      if(forChange) {
+         qmgr.cancelForChange();
+      }
+      else {
+         qmgr.cancel();
       }
    }
 
@@ -848,6 +859,15 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     * Cancel this viewsheet sandbox.
     */
    public void cancel(boolean wizard) {
+      cancel(wizard, false);
+   }
+
+   /**
+    * Cancel this viewsheet sandbox.
+    * @param forChange <tt>true</tt> if a newer change of the viewsheet cancels it, see
+    *                  QueryManager.cancelForChange().
+    */
+   private void cancel(boolean wizard, boolean forChange) {
       Assembly[] arr = vs == null ? new Assembly[0] : vs.getAssemblies(false, false, true);
 
       // cancel graph pair
@@ -865,7 +885,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       }
 
       // cancel executing queries
-      cancelAllQueries();
+      cancelAllQueries(false, forChange);
       // cancel pending queries
       AssetDataCache.getCache().cancel(rid, !wizard);
    }
@@ -1073,6 +1093,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                         String key = (String) iter.nextElement();
                         Object val = vars.get(key);
                         vtable.put(key, val);
+                        box.inheritedVars.put(key, val);
                      }
                   }
 
@@ -1205,7 +1226,9 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          }
       }
 
-      TableAssembly ntable = (TableAssembly) assembly.copyAssembly(nname);
+      TableAssembly ntable = copyBoundTable(assembly, nname);
+      // keep Viewsheet.resetWS() off the copy the query runs on (77915)
+      ntable.setProperty(Viewsheet.VS_BOUND_TABLE, "true");
       ws.addAssembly(ntable);
       MVManager mgr = MVManager.getManager();
 
@@ -1240,6 +1263,25 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       }
 
       return ntable;
+   }
+
+   /**
+    * Copy the viewsheet table a query binds to.
+    * @param assembly the viewsheet table in the worksheet.
+    * @param name the name of the copy.
+    */
+   static TableAssembly copyBoundTable(TableAssembly assembly, String name) {
+      Worksheet ws = assembly.getWorksheet();
+
+      if(ws == null) {
+         return (TableAssembly) assembly.copyAssembly(name);
+      }
+
+      // the copy reads the base table, which concurrent queries change in place under the
+      // worksheet lock (VSAQuery.getVSTableAssembly, 77867)
+      synchronized(ws) {
+         return (TableAssembly) assembly.copyAssembly(name);
+      }
    }
 
    /**
@@ -1296,17 +1338,15 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       // getDateComparison() may return null if DC hasn't been applied to the runtime chart
       // state yet (the initial worksheet-table setup call happens before ChartDcProcessor
       // runs). Fall back to the assembly's raw DC info only when DC is genuinely enabled
-      // and the share-from assembly reference is valid — preserving all other null semantics.
+      // and the assembly does not share another assembly's DC. A sharer's own DC is a stale
+      // snapshot of the source, so a sharer whose share doesn't resolve gets no DC conditions,
+      // matching the chart render which also resolves to no DC.
       if(dateComparisonInfo == null) {
          boolean dcEnabled = !(info instanceof DataVSAssemblyInfo) ||
             ((DataVSAssemblyInfo) info).isDateComparisonEnabled();
-         VSAssembly shareAssembly = (vs != null && !Tool.isEmptyString(info.getComparisonShareFrom()))
-            ? vs.getAssembly(info.getComparisonShareFrom()) : null;
-         boolean validShare = Tool.isEmptyString(info.getComparisonShareFrom()) ||
-            (shareAssembly != null &&
-               shareAssembly.getVSAssemblyInfo() instanceof DateCompareAbleAssemblyInfo);
+         boolean shared = !Tool.isEmptyString(info.getComparisonShareFrom());
 
-         if(dcEnabled && validShare) {
+         if(dcEnabled && !shared) {
             dateComparisonInfo = info.getDateComparisonInfo();
          }
       }
@@ -2233,8 +2273,11 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          }
       }
 
+      // a newer change cancels the queries of the requests it supersedes. getData() runs a
+      // query again if only such a cancel stopped it and the change didn't reset its assembly,
+      // i.e. the change won't load it again (#78024)
       if((hint & VSAssembly.OUTPUT_DATA_CHANGED) == VSAssembly.OUTPUT_DATA_CHANGED) {
-         cancel();
+         cancel(false, true);
       }
 
       if((hint & VSAssembly.BINDING_CHANGED) != 0) {
@@ -2538,6 +2581,13 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    /**
     * After changing for Bug #45263, each thread can only used the variable execute result of itself, so need
     * process onload script for export thread.
+    *
+    * <p>The onLoad scripts of the embedded viewsheets (at any depth) are re-run here as well, after
+    * this sheet's own, parent before child, so a failure of any of them is recorded in this box's
+    * {@link #getExportScriptError()}, the only flag the exporters read. Their open-time runs (host
+    * reset) swallow script errors, and remembering those would report a failure of another request
+    * (the current-view export reuses the live viewer box). Like the existing re-run of this sheet's
+    * own onLoad, re-running an embedded onLoad changes the live embedded box's variables. (#78255)
     */
    public void prepareForExport() {
       exportScriptError = null;
@@ -2560,6 +2610,47 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          // so the exporter can say so on the document. (#76780)
          recordExportScriptError(ex);
       }
+
+      prepareEmbeddedForExport(vs);
+   }
+
+   /**
+    * Re-run the onLoad script of each embedded viewsheet of the specified sheet, then of the
+    * viewsheets embedded in it, recording a failure into this box's export flag. All embedded
+    * sandboxes live in the root's {@code bmap}, keyed by absolute name; the walk follows the
+    * assembly tree so a parent always runs before its children and sees the variables it sets.
+    * Only existing sandboxes are run: one that was never created never ran its onLoad. (#78255)
+    */
+   private void prepareEmbeddedForExport(Viewsheet sheet) {
+      if(sheet == null) {
+         return;
+      }
+
+      for(Assembly assembly : sheet.getAssemblies()) {
+         if(!(assembly instanceof Viewsheet embedded)) {
+            continue;
+         }
+
+         String name = embedded.getAbsoluteName();
+         ViewsheetSandbox box = root.bmap.get(name);
+
+         if(box != null) {
+            Consumer<Exception> handler = ex -> recordExportScriptError(ex, name);
+
+            try {
+               box.processOnLoad(new ChangedAssemblyList(), false, handler);
+            }
+            catch(Exception ex) {
+               handler.accept(ex);
+            }
+         }
+
+         prepareEmbeddedForExport(embedded);
+      }
+   }
+
+   private void recordExportScriptError(Exception ex) {
+      recordExportScriptError(ex, getSheetName());
    }
 
    /**
@@ -2569,15 +2660,16 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     * captured via {@link #executeVSScript} (through {@link #processOnLoad}'s
     * handler) and when some other exception escapes {@link #processOnLoad} back
     * up to {@link #prepareForExport}'s own catch.
+    * @param sheetName the name of the sheet whose onLoad failed, this sheet or an embedded one.
     */
-   private void recordExportScriptError(Exception ex) {
+   private void recordExportScriptError(Exception ex, String sheetName) {
       if(exportScriptError == null) {
          exportScriptError = ex;
       }
 
       LOG.error("Failed to process the onLoad script for export of \"{}\"; the exported " +
                    "content will not reflect anything that script sets, including any " +
-                   "query parameters it computes", getSheetName(), ex);
+                   "query parameters it computes", sheetName, ex);
    }
 
    /**
@@ -2603,6 +2695,82 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          throws Exception
    {
       processOnLoad(clist, processDependency, null);
+   }
+
+   /**
+    * Push the variables an onLoad script added, changed or removed into the existing embedded
+    * viewsheet sandboxes. An embedded sandbox copies the root variable table once, when it is
+    * created, which for a direct child is before the root onLoad runs. A variable is only
+    * updated if the embedded sandbox still holds the value it inherited, so a value the
+    * embedded viewsheet wrote itself (onInit, input assembly) is kept.
+    * @param ovars the root variables before the onLoad script.
+    * @param vars the root variables after the onLoad script.
+    */
+   private void pushVariablesToEmbedded(VariableTable ovars, VariableTable vars) {
+      if(bmap.isEmpty()) {
+         return;
+      }
+
+      Set<String> keys = new HashSet<>();
+      Enumeration<String> iter = ovars.keys();
+
+      while(iter.hasMoreElements()) {
+         keys.add(iter.nextElement());
+      }
+
+      iter = vars.keys();
+
+      while(iter.hasMoreElements()) {
+         keys.add(iter.nextElement());
+      }
+
+      for(String key : keys) {
+         boolean added = vars.contains(key);
+         Object nval;
+
+         try {
+            Object oval = ovars.get(key);
+            nval = vars.get(key);
+
+            if(ovars.contains(key) == added && Tool.equals(oval, nval)) {
+               continue;
+            }
+         }
+         catch(Exception ex) {
+            LOG.debug("Failed to read variable: {}", key, ex);
+            continue;
+         }
+
+         for(ViewsheetSandbox box : bmap.values()) {
+            VariableTable vtable = box.getVariableTable();
+
+            if(vtable == null) {
+               continue;
+            }
+
+            try {
+               boolean has = box.inheritedVars.containsKey(key) || vtable.contains(key);
+               Object inherited = box.inheritedVars.get(key);
+
+               // the embedded viewsheet changed the value itself
+               if(has && !Tool.equals(inherited, vtable.get(key))) {
+                  continue;
+               }
+
+               if(added) {
+                  vtable.put(key, nval);
+                  box.inheritedVars.put(key, nval);
+               }
+               else {
+                  vtable.remove(key);
+                  box.inheritedVars.remove(key);
+               }
+            }
+            catch(Exception ex) {
+               LOG.debug("Failed to update variable {} of embedded viewsheet", key, ex);
+            }
+         }
+      }
    }
 
    /**
@@ -2668,6 +2836,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       // variable changed, clear cached data
       if(!vars.equals(ovars)) {
          metarep.clear();
+         pushVariablesToEmbedded(ovars, vars);
          reset(clist);
       }
 
@@ -2990,7 +3159,14 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             ListInputVSAssembly lassembly = (ListInputVSAssembly) assembly;
 
             if(data != null) {
-               ListData ldata = (ListData) data;
+               // Sort and format a copy the same way executeView() does, so that the
+               // automatic value (first value) picked by validate() and written to the
+               // variable table by refreshVariable() is the first displayed value, not
+               // the first unsorted one. Inputs sharing a variable then start in sync
+               // on that value (Bug #78081).
+               ListData ldata = (ListData) ((ListData) data).clone();
+               VSAQuery query = VSAQuery.createVSAQuery(this, lassembly, DataMap.NORMAL);
+               ((InputVSAQuery) query).refreshView(ldata);
                lassembly.setLabels(ldata.getLabels());
                lassembly.setValues(ldata.getValues());
                lassembly.setFormats(ldata.getFormats());
@@ -3351,12 +3527,18 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          }
       }
 
+      // the applied selections each assembly was last evaluated against, see
+      // reevaluateStaleAssociations()
+      final List<Map<String, Map<String, Set<Object>>>> evaluatedInputs =
+         new ArrayList<>(Collections.nCopies(sarr.length, null));
+
       for(int i = 0; i < sarr.length; i++) {
          if(isCancelled(myTS)) {
             return;
          }
 
          final SelectionVSAssembly selectionVSAssembly = sarr[i];
+         evaluatedInputs.set(i, getAssociationInput(selectionVSAssembly, appliedSelections));
          refreshSelectionValue(selectionVSAssembly, appliedSelections, allSelections, clist);
 
          // table is ready to execute now
@@ -3414,6 +3596,17 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          }
       }
 
+      if(selectionTS == myTS) {
+         boolean addReady = clist.isBreakable() && !singleSelectionReset &&
+            autoSelectFirstMaxIndex < 0;
+
+         if(!reevaluateStaleAssociations(sarr, evaluatedInputs, appliedSelections,
+                                         allSelections, clist, myTS, addReady, pos))
+         {
+            return;
+         }
+      }
+
       if(selectionTS == myTS && (singleSelectionReset || autoSelectFirstMaxIndex >= 0)) {
          int refreshSelectionUpToIndex = -1;
 
@@ -3456,6 +3649,105 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             clist.addReady(sarr[0].getAssemblyEntry(), true);
          }
       }
+   }
+
+   /**
+    * Re-evaluate the selection assemblies whose association input changed after they were
+    * evaluated in the pass of {@link #processAssociation}. An assembly evaluated later in the
+    * pass removes its selected but excluded values from {@code appliedSelections}, so an
+    * assembly evaluated before it computed its association states from selections that are no
+    * longer applied (Bug #78080). Only the assemblies whose input actually changed are
+    * evaluated again, against the same maps, until nothing changes. The number of rounds is
+    * bounded because evaluating an assembly can also add selections back (single selection
+    * auto-select, select first item).
+    *
+    * @param evaluatedInputs the input each assembly in {@code sarr} was last evaluated against.
+    *
+    * @return {@code false} if the processing was cancelled.
+    */
+   private boolean reevaluateStaleAssociations(
+      SelectionVSAssembly[] sarr,
+      List<Map<String, Map<String, Set<Object>>>> evaluatedInputs,
+      Map<String, Map<String, Collection<Object>>> appliedSelections,
+      Map<String, Map<String, Collection<Object>>> allSelections,
+      ChangedAssemblyList clist, long myTS, boolean addReady, int pos) throws Exception
+   {
+      for(int round = 0; round < sarr.length; round++) {
+         boolean changed = false;
+
+         for(int i = 0; i < sarr.length; i++) {
+            if(isCancelled(myTS)) {
+               return false;
+            }
+
+            final Map<String, Map<String, Set<Object>>> input =
+               getAssociationInput(sarr[i], appliedSelections);
+
+            if(input.equals(evaluatedInputs.get(i))) {
+               continue;
+            }
+
+            evaluatedInputs.set(i, input);
+            refreshSelectionValue(sarr[i], appliedSelections, allSelections, clist);
+            changed = true;
+
+            if(selectionTS != myTS) {
+               return true;
+            }
+
+            // the first assembly is added to the ready list at the end of processAssociation
+            if(addReady && i > 0) {
+               clist.addReady(sarr[i].getAssemblyEntry(), i >= pos);
+            }
+         }
+
+         if(!changed) {
+            return true;
+         }
+      }
+
+      LOG.debug("Selection association did not converge in {} rounds", sarr.length);
+      return true;
+   }
+
+   /**
+    * Get the applied selections that the association values of a selection assembly are
+    * computed from in {@link #getAssociatedValues}, by table and selection key.
+    */
+   private Map<String, Map<String, Set<Object>>> getAssociationInput(
+      SelectionVSAssembly sassembly,
+      Map<String, Map<String, Collection<Object>>> appliedSelections)
+   {
+      final Map<String, Map<String, Set<Object>>> input = new HashMap<>();
+
+      if(!(sassembly instanceof AssociatedSelectionVSAssembly)) {
+         return input;
+      }
+
+      final boolean idMode = sassembly instanceof SelectionTreeVSAssembly &&
+         ((SelectionTreeVSAssembly) sassembly).isIDMode();
+
+      for(String tableName : sassembly.getTableNames()) {
+         final Map<String, Collection<Object>> tableSelections = appliedSelections.get(tableName);
+         final Map<String, Collection<Object>> tmap =
+            tableSelections == null ? new HashMap<>() : new HashMap<>(tableSelections);
+
+         if(!idMode) {
+            removeNeighborSelections(sassembly, tmap);
+         }
+
+         final Map<String, Set<Object>> tableInput = new HashMap<>();
+
+         for(Map.Entry<String, Collection<Object>> entry : tmap.entrySet()) {
+            if(entry.getValue() != null && !entry.getValue().isEmpty()) {
+               tableInput.put(entry.getKey(), new HashSet<>(entry.getValue()));
+            }
+         }
+
+         input.put(tableName, tableInput);
+      }
+
+      return input;
    }
 
    /**
@@ -4390,6 +4682,18 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          return;
       }
 
+      // refreshVariable() runs more than once for the same assembly in one init cycle
+      // (inputDataChanged and resetAssembly both reach it), and after the first call the
+      // variable table holds the value the assembly wrote itself. Only the table as it was
+      // at the first lookup can hold a passed parameter, so mark the assembly here, before
+      // the lookup, whether or not an entry is found. Otherwise the second call reads back
+      // the assembly's own automatic value and fixes it as the selection (Bug #78081).
+      // Use the absolute name as the dedup key so that same-named assemblies in parent and
+      // embedded viewsheets are tracked independently.
+      if(!parametersAppliedAssemblies.add(iassembly.getAbsoluteName())) {
+         return;
+      }
+
       VariableTable vt = wbox.getVariableTable();
       // Hyperlink parameters are keyed by the assembly's local name.
       String name = iassembly.getName();
@@ -4413,14 +4717,6 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          else {
             return;
          }
-      }
-
-      // Dependency chains can cause refreshVariable() to be called more than once for
-      // the same assembly before parametersApplied is set. Use the absolute name as the
-      // dedup key so that same-named assemblies in parent and embedded viewsheets are
-      // tracked independently.
-      if(!parametersAppliedAssemblies.add(iassembly.getAbsoluteName())) {
-         return;
       }
 
       Object val;
@@ -4620,6 +4916,48 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       MVSession session = getAssetQuerySandbox().getMVSession();
 
       if(tassembly != null) {
+         setRuntimeConditionList(ws, tassembly, table, conds, session);
+      }
+
+      if(dependedSelections.size() != 0) {
+         SelectionVSAssembly selectionVSAssembly = dependedSelections.get(0);
+
+         if(!isRootVSAssembly(selectionVSAssembly)) {
+            Assembly[] dependedAssemblies =
+               AssetUtil.getDependedAssemblies(vs, selectionVSAssembly, false, false, true);
+            processed.add(table);
+
+            for(Assembly assembly : dependedAssemblies) {
+               if(assembly instanceof VSAssembly) {
+                  String tableName = ((VSAssembly) assembly).getTableName();
+
+                  if(tableName != null) {
+                     refreshRuntimeConditionList(((VSAssembly) assembly).getTableName(), ignore,
+                                                 processed);
+                  }
+               }
+            }
+         }
+      }
+
+      return dependedSelections;
+   }
+
+   /**
+    * Apply the merged condition list of the selections to a worksheet table.
+    * @param ws the worksheet of the table.
+    * @param tassembly the table.
+    * @param table the name of the table.
+    * @param conds the merged condition list.
+    * @param session the mv session.
+    */
+   void setRuntimeConditionList(Worksheet ws, AbstractTableAssembly tassembly, String table,
+                                ConditionList conds, MVSession session)
+   {
+      // the worksheet table is shared by the queries of all the requests on the viewsheet,
+      // which fetch their data without the sandbox lock (74001) and copy it under the
+      // worksheet lock (VSAQuery.getVSTableAssembly, 77867), so change it under that lock
+      synchronized(ws) {
          // mark table as having selection. used by jdbc pushdown for caching
          tassembly.setProperty("vs.selection.bound", "true");
 
@@ -4690,29 +5028,6 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             }
          }
       }
-
-      if(dependedSelections.size() != 0) {
-         SelectionVSAssembly selectionVSAssembly = dependedSelections.get(0);
-
-         if(!isRootVSAssembly(selectionVSAssembly)) {
-            Assembly[] dependedAssemblies =
-               AssetUtil.getDependedAssemblies(vs, selectionVSAssembly, false, false, true);
-            processed.add(table);
-
-            for(Assembly assembly : dependedAssemblies) {
-               if(assembly instanceof VSAssembly) {
-                  String tableName = ((VSAssembly) assembly).getTableName();
-
-                  if(tableName != null) {
-                     refreshRuntimeConditionList(((VSAssembly) assembly).getTableName(), ignore,
-                                                 processed);
-                  }
-               }
-            }
-         }
-      }
-
-      return dependedSelections;
    }
 
    private ConditionList getMergedCubeConditionList0(DataRef column, List<Object> values) {
@@ -5513,7 +5828,10 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       Object obj = dmap.get(name, DataMap.VSTABLE);
       final VSAssembly assembly = vs.getAssembly(name);
 
-      if(AssetDataCache.isDebugData()) {
+      // a view table whose formula a script timeout stopped is built again (bug #77949)
+      if(AssetDataCache.isDebugData() || obj instanceof TableLens lens &&
+         AssetDataCache.isStopped(lens))
+      {
          obj = null;
       }
 
@@ -5524,7 +5842,9 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          try {
             obj = dmap.get(name, DataMap.VSTABLE);
 
-            if(AssetDataCache.isDebugData()) {
+            if(AssetDataCache.isDebugData() || obj instanceof TableLens lens &&
+               AssetDataCache.isStopped(lens))
+            {
                obj = null;
             }
 
@@ -5623,7 +5943,17 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                catch(Exception ex) {
                   // a table whose query failed with a lock stall must not leave a cached NULL,
                   // the next read would take it for no table instead of building it again (#77123)
-                  if(LockStallException.find(ex) != null) {
+                  // A lost swap file must fail the read, not turn into "no table" on the next
+                  // read (it often appears mid-session on a table that rendered fine), and a
+                  // retry only re-reads the missing file, so don't cache it either (#77908)
+                  // Nor a script stopped by its timeout or a cancel, e.g. a freehand table's
+                  // formula: the next read would take it for no table (#77949)
+                  // Nor a table that failed to load in a scheduled run: a reader that swallowed
+                  // it, e.g. an export precheck, would leave the export no table (#78071)
+                  if(LockStallException.find(ex) != null ||
+                     SwapFileReadException.find(ex) != null || ScriptTimeoutGuard.isStop(ex) ||
+                     TableLoadException.find(ex) != null)
+                  {
                      cache = false;
                   }
 
@@ -5809,6 +6139,23 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     * @return the data of the assembly.
     */
    public Object getData(String name, boolean initial, int type) throws Exception {
+      return getData(name, initial, type, null);
+   }
+
+   /**
+    * Get the data of an assembly, and optionally report whether the fetch that produced it may
+    * have been cut short by a cancel of the assembly's own QueryManager (#78033).
+    * @param name the name of the specified assembly.
+    * @param initial <tt>true</tt> if initialize data when data not available,
+    * <tt>false</tt> otherwise.
+    * @param cutFlag when non-null, {@code cutFlag[0]} is set to {@code true} if this call's own
+    * fetch (not a cache hit -- a cut result is never cached, so a cache hit always leaves this
+    * {@code false}) was flagged as possibly cut short by such a cancel, {@code false} otherwise.
+    * Callers that care must pass a fresh single-element array and read it only after this method
+    * returns normally.
+    * @return the data of the assembly.
+    */
+   public Object getData(String name, boolean initial, int type, boolean[] cutFlag) throws Exception {
       int index = name.lastIndexOf('.');
 
       if(index >= 0) {
@@ -5825,7 +6172,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          // is safe to release outer locks here. This mirrors the pattern in doExecuteData(). (74129)
          try {
             unlockAll();
-            return box.getData(name, initial, type);
+            return box.getData(name, initial, type, cutFlag);
          }
          finally {
             restoreLocks();
@@ -5846,8 +6193,15 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
       Object obj = dmap.get(name, type);
 
+      // a table whose formula a script timeout stopped is computed again, like a cancelled
+      // one (bug #77949), and so is the chart data set of such a table (bug #78134), or of a
+      // table another assembly's query manager cancelled (bug #78342)
       if(AssetDataCache.isDebugData() || isDataExpired(name, type) ||
-         obj instanceof TableLens lens && AssetDataCache.isCancelled(lens))
+         obj instanceof TableLens lens &&
+         (AssetDataCache.isCancelled(lens) || AssetDataCache.isStopped(lens)) ||
+         obj instanceof VSDataSet dataSet &&
+         (AssetDataCache.isStopped(dataSet.getTable()) ||
+          AssetDataCache.isDataSetCancelled(dataSet)))
       {
          obj = null;
       }
@@ -5867,9 +6221,31 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
          try {
             long ts1 = System.currentTimeMillis();
+            boolean[] cancelled = { false, false };
 
-            obj = executeData(name, type);
+            obj = executeDataAfterChangeCancel(name, type, cancelled);
             Long ts = tmap.get(name);
+
+            // a cancel of the assembly's query manager while the data was fetched or read,
+            // e.g. by the next query of a brushed chart, cuts the data short or leaves none,
+            // so it's not the data. Don't cache it, and run the query again once if only
+            // other queries of the assembly cancelled it and it wasn't reset since (#78033)
+            if(cancelled[0] && cancelled[1] && (ts == null || ts1 >= ts)) {
+               obj = executeDataAfterChangeCancel(name, type, cancelled);
+               ts = tmap.get(name);
+            }
+
+            if(cancelled[0]) {
+               cache = false;
+            }
+
+            // report this call's own final cut status to a caller that asked for it (#78033),
+            // e.g. VGraphPair.initGraph0() deciding whether to trust the VGraphPair it is about
+            // to bake this result into -- even after the one retry above, the result may still
+            // be cut, and cache=false alone doesn't reach a caller that isn't the dmap cache.
+            if(cutFlag != null) {
+               cutFlag[0] = cancelled[0];
+            }
 
             // do not cache executing result if query should be discarded
             // when executing the query
@@ -5895,6 +6271,16 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             else {
                LOG.warn("Failed to query materialized view: {}", name, ex);
                CoreTool.addUserMessage(ex.getMessage());
+
+               // the MV query wraps any failure, a lost swap file must not be cached as no
+               // data either, see catch(Exception) below (#77908), nor a stopped script (#77949)
+               // nor a scheduled load failure (#78071)
+               if(SwapFileReadException.find(ex) != null || ScriptTimeoutGuard.isStop(ex) ||
+                  TableLoadException.find(ex) != null)
+               {
+                  cache = false;
+               }
+
                // error should be shown to user
                throw ex;
             }
@@ -5902,7 +6288,19 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          catch(Exception ex) {
             // a query that failed with a lock stall must not leave a cached NULL, the next
             // read would take it for no data instead of running the query again (#77123)
-            if(LockStallException.find(ex) != null) {
+            // A lost swap file must fail every read until it is rebuilt, never substitute no
+            // data (it often appears mid-session on an assembly that rendered fine), and a
+            // retry only re-reads the missing file, so don't cache it either. Other failures
+            // are still cached as NULL, so e.g. a slow failing SQL query is not re-run on
+            // every read (#77908). A script stopped by its timeout or a cancel is not cached
+            // either, e.g. a freehand table's formula, or it would read as no data (#77949)
+            // Nor a load failure of a scheduled run, which only a reader that must fail gets:
+            // a reader that swallowed it, e.g. an export precheck, would leave the next one
+            // no data (#78071)
+            if(LockStallException.find(ex) != null || SwapFileReadException.find(ex) != null ||
+               ScriptTimeoutGuard.isStop(ex) ||
+               TableLoadException.find(ex) != null)
+            {
                cache = false;
             }
 
@@ -5943,10 +6341,6 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     * Remove and recreate the MV for this viewsheet.
     */
    private void recreateMVOnDemand() {
-      // make sure the mapped buffers are collected since it's probably
-      // already open when the recreating mv is triggered
-      System.gc();
-
       MVManager mgr = MVManager.getManager();
       String vsId = entry.toIdentifier();
       MVDef[] marr = mgr.list(false, def -> !def.isWSMV());
@@ -6439,15 +6833,111 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    /**
     * Execute the data of an assembly.
     * @param name the name of the specified assembly.
+    * @param cancelled set to whether the data may have been cut short by a cancel of the
+    *                  assembly's query manager, and whether only other queries of the
+    *                  assembly cancelled it, see VSAQuery.isDataCancelled().
     * @return execution result.
     */
-   private Object executeData(String name, int type) throws Exception {
+   private Object executeData(String name, int type, boolean[] cancelled) throws Exception {
+      cancelled[0] = cancelled[1] = false;
+
       if(disposed) {
          return null;
       }
 
       return GroupedThread.runWithRecordContext(
-         () -> getLogRecords(name), () -> doExecuteData(name, type));
+         () -> getLogRecords(name), () -> doExecuteData(name, type, cancelled));
+   }
+
+   /**
+    * Execute the data of an assembly, see executeData(), and handle a cancel by newer work
+    * (#78024):
+    * - When only newer changes of the viewsheet or newer queries of the assembly (e.g. an
+    *   export) cancelled it and a change reset the assembly, the newer request loads it, so a
+    *   ChangeCancelledException tells this request to skip it and load its other assemblies.
+    * - When they cancelled it without a reset, nothing else is known to load it to the client,
+    *   so it runs again. The run again doesn't cancel the other queries of the assembly, so it
+    *   can't cancel the newer query back and the two can't keep cancelling each other.
+    * - Any other cancel (the user's, a drill's, a dispose) is thrown as is and stops the
+    *   request.
+    */
+   private Object executeDataAfterChangeCancel(String name, int type, boolean[] cancelled)
+      throws Exception
+   {
+      if(name.contains(FORM_OPTION)) {
+         return executeData(name, type, cancelled);
+      }
+
+      QueryManager qmgr = getQueryManager(name);
+      CancelledException cancel = null;
+      Boolean qcancel = VSAQuery.Q_CANCEL.get();
+
+      for(int attempt = 1; ; attempt++) {
+         long[] counts = qmgr.getCancelCounts();
+         long start = System.currentTimeMillis();
+         Object data;
+
+         // a run again leaves the queries of the assembly that cancelled it alone
+         if(attempt > 1) {
+            VSAQuery.Q_CANCEL.set(Boolean.FALSE);
+         }
+
+         try {
+            data = executeData(name, type, cancelled);
+         }
+         catch(CancelledException ex) {
+            if(disposed || !qmgr.isCancelledForNewerOnly(counts)) {
+               throw ex;
+            }
+
+            // a reset in the same millisecond as the start may be this request's own, so only
+            // a later one counts. A change whose cancel lands before its reset is run again,
+            // which only costs a query, see below
+            if(isResetAfter(name, start)) {
+               throw new ChangeCancelledException(ex);
+            }
+
+            // every run again needs another newer change or query, i.e. one more event. Give
+            // up on an assembly that they keep cancelling, e.g. a refresh timer faster than its
+            // query, with a warning, not silently
+            if(attempt >= MAX_CHANGE_CANCEL_ATTEMPTS) {
+               LOG.warn("Query of {} cancelled by {} changes in a row, not run again",
+                        name, attempt);
+               CoreTool.addUserWarning(Catalog.getCatalog().getString(
+                  "viewer.viewsheet.data.cancelledByChanges", name));
+               throw new ChangeCancelledException(ex);
+            }
+
+            LOG.debug("Query of {} cancelled by newer work that doesn't reload it, run it again",
+                      name);
+            cancel = ex;
+            continue;
+         }
+         finally {
+            if(attempt > 1 && qcancel == null) {
+               VSAQuery.Q_CANCEL.remove();
+            }
+            else if(attempt > 1) {
+               VSAQuery.Q_CANCEL.set(qcancel);
+            }
+         }
+
+         // the change reset the assembly while it ran again, e.g. its cancel landed before
+         // its reset, so the change loads it and this run's data may be older
+         if(cancel != null && isResetAfter(name, start)) {
+            throw new ChangeCancelledException(cancel);
+         }
+
+         return data;
+      }
+   }
+
+   /**
+    * Check if the assembly was reset after the time, see reset().
+    */
+   private boolean isResetAfter(String name, long time) {
+      Long ts = tmap.get(name);
+      return ts != null && ts > time;
    }
 
    private Collection<?> getLogRecords(String name) {
@@ -6461,7 +6951,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       return records;
    }
 
-   private Object doExecuteData(String name, int type) throws Exception {
+   private Object doExecuteData(String name, int type, boolean[] cancelled) throws Exception {
       // execute combobox column option data
       if(name.contains(FORM_OPTION)) {
          String[] params = name.split("\\^");
@@ -6517,6 +7007,8 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          }
 
          result = query.getData();
+         cancelled[0] = query.isDataCancelled(result);
+         cancelled[1] = cancelled[0] && query.isFetchCancelledByQuery();
 
          if(result instanceof TableLens) {
             result = new TextSizeLimitTableLens((TableLens) result, Util.getOrganizationMaxCellSize());
@@ -7179,7 +7671,14 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          Principal principal = ThreadContext.getContextPrincipal();
          XPrincipal xprincipal = principal == null ? null : (XPrincipal) principal;
 
-         if(pair == null || !pair.isCompleted() && pair.isCancelled() ||
+         // a pair whose init failed holds no graph, build a new one instead of returning it
+         // (its init thread may not have removed it yet). (78220)
+         if(pair == null || !pair.isCompleted() && pair.isCancelled() || pair.isFailed() ||
+            // a pair that finished building from data a sibling query's cancel may have cut
+            // short (#78033, Mechanism A/B) is never a trustworthy reusable result -- rebuild
+            // it on this call instead of reusing a possibly-empty graph until the chart's next,
+            // unrelated data change clears it.
+            pair.isCompleted() && pair.isDataCut() ||
             // init to throw CheckMissingMVEvent to make sure client display progress bar to
             // wait for mv insteadof always loading becauseof an empty graph.
             init && MVManager.getManager().isPending(getAssetEntry(), xprincipal))
@@ -7218,6 +7717,18 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                   // ignore exception if cancelled so we can check for cancelled status
                   // instead of causing an error in VSChartAreasController. (51339)
                   if(!pair.isCancelled()) {
+                     // don't keep the failed pair, or every later request would get its
+                     // empty graph ("No data") after the cause is gone. Only remove this
+                     // pair, not a newer one another request has put. (78220)
+                     graphLock.lock();
+
+                     try {
+                        pairs.remove(name, pair);
+                     }
+                     finally {
+                        graphLock.unlock();
+                     }
+
                      throw ex;
                   }
                }
@@ -7234,6 +7745,13 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                finally {
                   thisLock.restoreLocks();
                }
+
+               // the init this request waited for failed: report its failure instead of
+               // returning the empty pair. A request that doesn't need the graph (init is
+               // false, e.g. an image tile) gets the pair and treats it as not plotted. (78220)
+               if(init && pair.isFailed() && !pair.isCancelled()) {
+                  rethrowGraphFailure(pair.getFailure());
+               }
             }
          }
 
@@ -7242,11 +7760,34 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          }
       }
 
-      if(!pair.isCompleted() && pair.isCancelled()) {
+      // a pair this very call just finished building (or found already built) from data that
+      // was itself flagged as possibly cut short by a sibling query's cancel (#78033, Mechanism
+      // A/B) must not be handed back as-is -- that is the exact "no data" pair the reused-
+      // completed-pair sink would otherwise leave permanently stuck if no later, unrelated change
+      // ever reaches this chart again. Rebuild once more now, mirroring the existing
+      // cancelled-before-completing retry just below.
+      if(!pair.isCompleted() && pair.isCancelled() ||
+         pair.isCompleted() && pair.isDataCut())
+      {
          return getVGraphPair(name, init, maxsize, export, scaleFont);
       }
 
       return pair;
+   }
+
+   /**
+    * Rethrow the failure of a graph pair init that another request ran.
+    */
+   private static void rethrowGraphFailure(Throwable failure) throws Exception {
+      if(failure instanceof Exception ex) {
+         throw ex;
+      }
+
+      if(failure instanceof Error err) {
+         throw err;
+      }
+
+      throw new Exception(failure);
    }
 
    /**
@@ -7548,13 +8089,120 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             }
          }
 
-         flens = new FormTableLens((TableLens) getData(name));
+         flens = new FormTableLens(getFormData(name));
          flens.setEdit(info.isEdit());
          flens.setColumnSelection(cols);
          fmap.put(name, flens);
       }
 
       return flens;
+   }
+
+   /**
+    * Get the FormTableLens of a form table if it was built, without building it. Edits are
+    * only made on the built one, so a form table without it has no edits (#78244).
+    * @param name the specified table data assembly name.
+    * @return the FormTableLens, or <tt>null</tt> if it isn't built.
+    */
+   public FormTableLens getCachedFormTableLens(String name) {
+      int index = name.lastIndexOf('.');
+
+      if(index >= 0) {
+         ViewsheetSandbox box = getSandbox(name.substring(0, index));
+         return box == null ? null : box.getCachedFormTableLens(name.substring(index + 1));
+      }
+
+      VSAssembly assembly = disposed ? null : vs.getAssembly(name);
+
+      // the same checks as getFormTableLens(), e.g. a script may make a built table no form
+      if(!isRuntime() || !(assembly instanceof TableVSAssembly) ||
+         !((TableVSAssemblyInfo) assembly.getInfo()).isForm())
+      {
+         return null;
+      }
+
+      return fmap.get(name);
+   }
+
+   /**
+    * Get the fully loaded data of a form table. The data is a lazy table, and a cancel of the
+    * assembly's query manager after it is returned and before it is read, e.g. by a selection's
+    * change or a newer query of the table, cuts it short: it keeps only the rows read before the
+    * cancel and a negative row count. Such data is never made the form data, the table is
+    * fetched again, a bounded number of times like executeDataAfterChangeCancel() (#78244).
+    * A cancel by the user, a drill or a dispose is thrown as is.
+    */
+   private TableLens getFormData(String name) throws Exception {
+      QueryManager qmgr = getQueryManager(name);
+      Boolean qcancel = VSAQuery.Q_CANCEL.get();
+
+      try {
+         for(int attempt = 1; ; attempt++) {
+            long[] counts = qmgr.getCancelCounts();
+            TableLens data = (TableLens) getData(name);
+
+            if(data == null) {
+               return null;
+            }
+
+            try {
+               data.moreRows(Integer.MAX_VALUE);
+            }
+            catch(TableLoadException ex) {
+               // a reader that must not use partial rows is told that another reader of the
+               // shared cached table cancelled it (#78200), the table is cut like the others.
+               // A load failure is thrown as is (#77901)
+               if(AssetDataCache.getLoadException(data) != null ||
+                  !AssetDataCache.isCancelled(data))
+               {
+                  throw ex;
+               }
+            }
+
+            // a table with a load failure also reads as cancelled, it's kept with the rows that
+            // loaded and its warning, running its query again would not help (#77901)
+            if(data.getRowCount() >= 0 && (!AssetDataCache.isCancelled(data) ||
+               AssetDataCache.getLoadException(data) != null))
+            {
+               return data;
+            }
+
+            if(disposed || qmgr.getCancelCount() != counts[0] &&
+               !qmgr.isCancelledForNewerOnly(counts))
+            {
+               throw new CancelledException("Form data of " + name + " cancelled");
+            }
+
+            if(attempt >= MAX_CHANGE_CANCEL_ATTEMPTS) {
+               LOG.warn("Form data of {} cancelled {} times in a row, not fetched again",
+                        name, attempt);
+               CoreTool.addUserWarning(Catalog.getCatalog().getString(
+                  "viewer.viewsheet.data.cancelledByChanges", name));
+               throw new ChangeCancelledException(
+                  new CancelledException("Form data of " + name + " cancelled"));
+            }
+
+            LOG.debug("Form data of {} cut short by a cancel, fetch it again", name);
+
+            // a cut table that was cached is fetched again by getData() if it reads as
+            // cancelled, drop one that doesn't so the next getData() doesn't return it again
+            if(dmap.get(name, DataMap.NORMAL) == data) {
+               dmap.remove(name, DataMap.NORMAL);
+            }
+
+            // fetching it again leaves the other queries of the assembly alone, e.g. another
+            // thread's fetch of this form table, so the two can't keep cancelling each other
+            VSAQuery.Q_CANCEL.set(Boolean.FALSE);
+         }
+      }
+      finally {
+         if(qcancel == null) {
+            VSAQuery.Q_CANCEL.remove();
+         }
+         else {
+            VSAQuery.Q_CANCEL.set(qcancel);
+         }
+      }
    }
 
    /**
@@ -8663,8 +9311,14 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    private final Map<String, FormTableLens> fmap; // form table map
    private final Set<String> scriptChangedFormSet; // form table updated by script.
    private final Map<String, Long> tmap; // clear timestamp map
+   // the times a query cancelled by newer changes is run at most, see
+   // executeDataAfterChangeCancel()
+   private static final int MAX_CHANGE_CANCEL_ATTEMPTS = 20;
    private final Set<String> vset; // view set
    private final Map<String, ViewsheetSandbox> bmap; // viewsheet sandbox map
+   // the root variables this embedded sandbox inherited, at creation or the last push
+   private final Map<String, Object> inheritedVars =
+      Collections.synchronizedMap(new HashMap<>());
    private final Map<String, Image> images; // image map
    private final Map<String, Painter> painters; // painter map
    private final Map<String, VGraphPair> pairs; // graph pairs map

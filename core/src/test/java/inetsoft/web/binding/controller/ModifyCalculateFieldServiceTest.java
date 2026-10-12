@@ -52,6 +52,7 @@ import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.controller.VSRefreshController;
 import inetsoft.web.viewsheet.event.VSRefreshEvent;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.vswizard.handler.VSWizardBindingHandler;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -136,7 +137,7 @@ class ModifyCalculateFieldServiceTest {
          mock(VSBindingService.class), vsBindingTreeService, mock(VSChartHandler.class),
          mock(XRepository.class), mock(VSWizardBindingHandler.class),
          mock(VSRefreshController.class), viewsheetService, mock(VSAssemblyInfoHandler.class),
-         mock(DataSourceRegistry.class));
+         mock(DataSourceRegistry.class), mock(QueryManagerService.class));
 
       service.modifyCalculateField(id, event, principal, dispatcher, "");
 
@@ -203,7 +204,7 @@ class ModifyCalculateFieldServiceTest {
          mock(VSBindingService.class), mock(VSBindingTreeControllerServiceProxy.class),
          mock(VSChartHandler.class), mock(XRepository.class), mock(VSWizardBindingHandler.class),
          mock(VSRefreshController.class), viewsheetService, mock(VSAssemblyInfoHandler.class),
-         mock(DataSourceRegistry.class));
+         mock(DataSourceRegistry.class), mock(QueryManagerService.class));
 
       service.modifyCalculateField(id, event, principal, mock(CommandDispatcher.class), "");
 
@@ -268,9 +269,11 @@ class ModifyCalculateFieldServiceTest {
 
       CrosstabVSAssembly cross = mock(CrosstabVSAssembly.class);
       when(cross.getVSCrosstabInfo()).thenReturn(mock(VSCrosstabInfo.class));
-      // 1st call (initial-setup check) succeeds; the 2nd call, in the post-write refresh block
-      // this fix guards, is where the join/duplicate-column-shaped table throws.
+      // the 1st call (the new-source permission check, Bug #77427) and the 2nd (initial-setup
+      // check) succeed; the 3rd call, in the post-write refresh block this fix guards, is where
+      // the join/duplicate-column-shaped table throws.
       when(cross.getSourceInfo())
+         .thenReturn(mock(SourceInfo.class))
          .thenReturn(mock(SourceInfo.class))
          .thenThrow(new NullPointerException("simulated join-table aggregate-info refresh NPE"));
 
@@ -289,7 +292,7 @@ class ModifyCalculateFieldServiceTest {
          mock(VSBindingService.class), mock(VSBindingTreeControllerServiceProxy.class),
          mock(VSChartHandler.class), mock(XRepository.class), mock(VSWizardBindingHandler.class),
          mock(VSRefreshController.class), viewsheetService, mock(VSAssemblyInfoHandler.class),
-         mock(DataSourceRegistry.class));
+         mock(DataSourceRegistry.class), mock(QueryManagerService.class));
 
       assertDoesNotThrow(
          () -> service.modifyCalculateField(id, event, principal, dispatcher, ""));
@@ -369,7 +372,7 @@ class ModifyCalculateFieldServiceTest {
          mock(VSBindingService.class), mock(VSBindingTreeControllerServiceProxy.class),
          mock(VSChartHandler.class), mock(XRepository.class), mock(VSWizardBindingHandler.class),
          refreshController, viewsheetService, mock(VSAssemblyInfoHandler.class),
-         mock(DataSourceRegistry.class));
+         mock(DataSourceRegistry.class), mock(QueryManagerService.class));
 
       assertDoesNotThrow(
          () -> service.modifyCalculateField(id, event, principal, dispatcher, ""));
@@ -457,7 +460,7 @@ class ModifyCalculateFieldServiceTest {
          mock(VSBindingService.class), mock(VSBindingTreeControllerServiceProxy.class),
          mock(VSChartHandler.class), mock(XRepository.class), mock(VSWizardBindingHandler.class),
          refreshController, viewsheetService, mock(VSAssemblyInfoHandler.class),
-         mock(DataSourceRegistry.class));
+         mock(DataSourceRegistry.class), mock(QueryManagerService.class));
 
       assertDoesNotThrow(
          () -> service.modifyCalculateField(id, event, principal, dispatcher, ""));
@@ -533,7 +536,7 @@ class ModifyCalculateFieldServiceTest {
          mock(VSBindingService.class), mock(VSBindingTreeControllerServiceProxy.class),
          mock(VSChartHandler.class), mock(XRepository.class), mock(VSWizardBindingHandler.class),
          mock(VSRefreshController.class), viewsheetService, mock(VSAssemblyInfoHandler.class),
-         mock(DataSourceRegistry.class));
+         mock(DataSourceRegistry.class), mock(QueryManagerService.class));
 
       service.modifyCalculateField(id, event, principal, mock(CommandDispatcher.class), "");
 

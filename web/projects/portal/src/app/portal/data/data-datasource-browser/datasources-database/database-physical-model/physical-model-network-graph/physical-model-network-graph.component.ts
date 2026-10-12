@@ -26,6 +26,7 @@ import {
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { ConnectionMadeEventInfo } from "jsplumb";
 import { Observable } from "rxjs";
+import { finalize } from "rxjs/operators";
 import { AssemblyActionGroup } from "../../../../../../common/action/assembly-action-group";
 import { Point } from "../../../../../../common/data/point";
 import { Rectangle } from "../../../../../../common/data/rectangle";
@@ -91,6 +92,8 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
    @Output() onModified: EventEmitter<boolean> = new EventEmitter<boolean>();
    @Output() onNodeSelected: EventEmitter<string[]> = new EventEmitter<string[]>();
    @Output() onRemoveTable: EventEmitter<GraphModel[]> = new EventEmitter<GraphModel[]>();
+   // emitted when a move of a node is sent to the server, and again when it is saved or fails
+   @Output() onNodeMove = new EventEmitter<GraphNodeMove>();
 
    @ViewChild("jspContainerMain") jspContainerMain: ElementRef<HTMLDivElement>;
    @ViewChild("graphPane") graphPane: ElementRef<HTMLDivElement>;
@@ -116,6 +119,9 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
 
    private nodes: {[sourceIds: string]: GraphModel} = {}; // element id --> node model
    private sourceIds: {[nodeId: string]: string} = {}; // node id --> element id
+   // "sourceId>targetId" element ids --> the join info each connection was built from,
+   // so a highlight change can restyle the connection without rebuilding the graph
+   private connectionJoins: {[connectionKey: string]: ConnectionJoin} = {};
 
    @Input() set scale(scale: number) {
       this._scale = scale;
@@ -270,6 +276,7 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
       if(changes.hasOwnProperty("graphViewModel")) {
          this.sourceIds = {};
          this.nodes = {};
+         this.connectionJoins = {};
          this.jsp.deleteEveryConnection();
          this.jsp.deleteEveryEndpoint();
       }
@@ -293,6 +300,20 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
          // any pending self-selection is now either consumed by its echo above, or
          // superseded by an unrelated selection change -- either way it's no longer pending
          this.pendingSelfSelectionIds = null;
+      }
+
+      // a refresh rebuilds every connection with the current highlight in connectNode;
+      // otherwise restyle the existing connections in place
+      if(changes.hasOwnProperty("highlightConnections") &&
+         !changes.hasOwnProperty("graphViewModel"))
+      {
+         this.updateConnectionHighlight();
+      }
+
+      // last, so a selection that arrives in the same pass as a refresh is also resolved
+      // against the current model
+      if(changes.hasOwnProperty("graphViewModel") || changes["selectedGraphModels"]) {
+         this.remapDragNodes();
       }
    }
 
@@ -506,23 +527,52 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
       return PHYSICAL_ENDPOINTS;
    }
 
+   /**
+    * A graph refresh replaces every GraphModel object, so re-resolve the selection by node
+    * id against the new model (keeping a drag in progress, or a pending move, on its tables)
+    * and drop the tables the new model no longer has. Builds a new array because dragNodes
+    * may be the old model's own graphs array (selectAll()).
+    */
+   private remapDragNodes(): void {
+      if(!this.dragNodes?.length) {
+         return;
+      }
+
+      const graphs = new Map<string, GraphModel>();
+      (this.graphViewModel?.graphs ?? [])
+         .filter(graph => !!graph?.node)
+         .forEach(graph => graphs.set(graph.node.id, graph));
+
+      this.dragNodes = this.dragNodes
+         .map(graph => graphs.get(graph.node.id))
+         .filter(graph => !!graph);
+   }
+
    private refreshDragSelection(): void {
       this.jsp.clearDragSelection();
       const elements: string[] = [];
+      let changed = false;
 
-      this.dragNodes
-         .forEach((graph, index) => {
-            const id = graph.node.id;
-            const elemId = this.sourceIds[id];
-            const g = this.nodes[elemId];
+      // Match registered nodes by id, not object identity. Nodes register one at a time
+      // after a refresh, so a selected node that is not registered yet is kept (tables
+      // removed by the refresh were already dropped in remapDragNodes()). Never modify
+      // dragNodes in place: it may be the model's own graphs array.
+      const selection = this.dragNodes.map(graph => {
+         const elemId = this.sourceIds[graph.node.id];
+         const registered = elemId != null ? this.nodes[elemId] : null;
 
-            if(g === graph) {
-               elements.push(elemId);
-            }
-            else {
-               this.dragNodes.splice(index, 1);
-            }
-         });
+         if(!registered) {
+            return graph;
+         }
+
+         elements.push(elemId);
+         changed = changed || registered !== graph;
+         return registered;
+      });
+
+      if(changed) {
+         this.dragNodes = selection;
+      }
 
       this.jsp.addToDragSelection(elements);
    }
@@ -614,10 +664,24 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
                const alias = this.physicalModelService.getAutoAliasName(graph) ?? "";
 
                let event = new MoveGraphEvent(this.runtimeId, table, alias, graph.bounds);
+               const move: GraphNodeMove = {
+                  nodeId: graph.node.id,
+                  bounds: new Rectangle(left, top, graph.bounds.width, graph.bounds.height)
+               };
+               this.onNodeMove.emit(move);
+
                // save position to server
-               this.http.put(MOVE_GRAPH_NODE_URI, event).subscribe(() => {
-                  this.onModified.emit(true);
-               });
+               this.http.put(MOVE_GRAPH_NODE_URI, event)
+                  .pipe(finalize(() => {
+                     // the same object is emitted again: the pane matches it by identity
+                     // to tell whether it is still the node's latest move
+                     move.saved = !!move.saved;
+                     this.onNodeMove.emit(move);
+                  }))
+                  .subscribe(() => {
+                     move.saved = true;
+                     this.onModified.emit(true);
+                  });
 
                this.renderer.setStyle(el, "left", left + "px");
                this.renderer.setStyle(el, "top", top + "px");
@@ -866,6 +930,14 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
       }
    }
 
+   /**
+    * Whether the node is being dragged now, as the dragged node or as part of the drag
+    * selection that moves with it.
+    */
+   isNodeDragging(graph: GraphModel): boolean {
+      return this.nodeMoving && this.dragNodes.some(n => n.node.id === graph.node.id);
+   }
+
    getThumbnailClasses(graph: GraphModel): {[className: string]: boolean} {
       const containsNode = this.dragNodes.some(n => n.node.id === graph.node.id);
 
@@ -912,11 +984,62 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
          }
       ]];
 
+      const join: ConnectionJoin = { sourceTableName, targetTableName, joinInfos };
+      const style = this.getConnectionStyle(sourceId, targetId, join);
+      join.styleKey = JSON.stringify(style);
       const connection = {
          source: sourceId,
          target: targetId,
-         type: TYPE_PHYSICAL_GRAPH_CONNECTION,
-         overlays
+         overlays,
+         ...style
+      };
+
+      this.connectionJoins[this.getConnectionKey(sourceId, targetId)] = join;
+      this.jsp.connect(connection);
+   }
+
+   /**
+    * Restyle the existing connections for the current highlightConnections, giving each
+    * one the same type and data connectNode would build for it.
+    */
+   private updateConnectionHighlight(): void {
+      if(!this.jsp) {
+         return;
+      }
+
+      this.jsp.getAllConnections().forEach((conn: any) => {
+         const join = this.connectionJoins[this.getConnectionKey(conn.sourceId, conn.targetId)];
+
+         if(!join || !this.nodes[conn.sourceId] || !this.nodes[conn.targetId]) {
+            return;
+         }
+
+         const style = this.getConnectionStyle(conn.sourceId, conn.targetId, join);
+         const styleKey = JSON.stringify(style);
+
+         // setType repaints the connection, so skip the ones whose style is unchanged
+         if(styleKey !== join.styleKey) {
+            join.styleKey = styleKey;
+            conn.setType(style.type, style.data);
+         }
+      });
+   }
+
+   private getConnectionKey(sourceId: string, targetId: string): string {
+      return sourceId + ">" + targetId;
+   }
+
+   /**
+    * The jsPlumb connection type and data for a join connection. The type order matters:
+    * jsPlumb merges the types in order, so e.g. a weak join's stroke overrides the
+    * highlight color, and a cycle join's red overrides the highlight color.
+    */
+   private getConnectionStyle(sourceId: string, targetId: string,
+                              join: ConnectionJoin): {type: string, data?: any}
+   {
+      const { sourceTableName, targetTableName, joinInfos } = join;
+      const connection: {type: string, data?: any} = {
+         type: TYPE_PHYSICAL_GRAPH_CONNECTION
       };
 
       const sourceNode = this.nodes[sourceId];
@@ -954,7 +1077,7 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
          connection.type += ` ${TYPE_PHYSICAL_GRAPH_REVERSE_ARROW}`;
       }
 
-      this.jsp.connect(connection);
+      return connection;
    }
 
    private isColumnExist(tableName: string, column: string): boolean {
@@ -1072,4 +1195,21 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
 
       return false;
    }
+}
+
+interface ConnectionJoin {
+   sourceTableName: string;
+   targetTableName: string;
+   joinInfos: NodeConnectionInfo[];
+   styleKey?: string; // the style the connection has now, see getConnectionStyle
+}
+
+/**
+ * A node move sent to the server: saved is unset while the request is in flight, then true
+ * or false when it completes.
+ */
+export interface GraphNodeMove {
+   nodeId: string;
+   bounds: Rectangle;
+   saved?: boolean;
 }

@@ -138,6 +138,15 @@ public class GroupContainerVSAssembly extends AbstractContainerVSAssembly {
       }
 
       VSUtil.calcChildZIndex(assemblies, zIndex);
+
+      // renumber nested containers too, or the z-index the initing refresh adds to their
+      // children is never taken back out (Bug #77451)
+      for(Assembly assembly : assemblies) {
+         if(assembly instanceof ContainerVSAssembly) {
+            ContainerVSAssembly container = (ContainerVSAssembly) assembly;
+            container.calcChildZIndex(container.getZIndex());
+         }
+      }
    }
 
    /**

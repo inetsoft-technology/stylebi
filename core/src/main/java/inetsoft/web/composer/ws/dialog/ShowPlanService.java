@@ -25,6 +25,7 @@ import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.uql.asset.TableAssembly;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.util.Tool;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import org.springframework.stereotype.Service;
 import java.security.Principal;
 
@@ -32,8 +33,11 @@ import java.security.Principal;
 @ClusterProxy
 public class ShowPlanService {
 
-   public ShowPlanService(WorksheetService worksheetService) {
+   public ShowPlanService(WorksheetService worksheetService,
+                          QueryManagerService queryManagerService)
+   {
       this.worksheetService = worksheetService;
+      this.queryManagerService = queryManagerService;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -42,6 +46,9 @@ public class ShowPlanService {
    {
       RuntimeWorksheet rws = worksheetService.getWorksheet(runtimeId, principal);
       tname = Tool.byteDecode(tname);
+      // a cube table name is resolved from its data source without a permission check
+      // (Bug #77462)
+      queryManagerService.checkCubeTableReadPermission(tname, principal);
       Worksheet ws = rws.getWorksheet();
       TableAssembly table = (TableAssembly) ws.getAssembly(tname);
 
@@ -61,4 +68,5 @@ public class ShowPlanService {
    }
 
    private WorksheetService worksheetService;
+   private final QueryManagerService queryManagerService;
 }

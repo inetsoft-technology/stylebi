@@ -29,6 +29,7 @@
  *   Group 7   okDisabled — all condition branches
  *   Group 8   search — email history autocomplete filtering
  *   Group 9   updateOnlyDataComponents — clears onlyDataComponents when matchLayout=true
+ *   Group 10  convertTimeZone — zone change uses the real offset in any browser locale (Bug #78045)
  */
 
 import { of } from "rxjs";
@@ -357,4 +358,56 @@ describe("Group 9 — updateOnlyDataComponents: clears onlyDataComponents when m
 
       expect(comp.model.actionModel.emailInfoModel.onlyDataComponents).toBe(true);
    });
+});
+
+// ---------------------------------------------------------------------------
+// Group 10 — convertTimeZone: zone offsets do not depend on the browser's display language
+// (Bug #78045)
+// ---------------------------------------------------------------------------
+
+describe("Group 10 — convertTimeZone: zone change shifts the time by the real offset in any locale (Bug #78045)", () => {
+   function forceDefaultLocale(locale: string): void {
+      const nativeToLocaleString = Date.prototype.toLocaleString;
+
+      vi.spyOn(Date.prototype, "toLocaleString").mockImplementation(
+         function(this: Date, locales?: Intl.LocalesArgument, options?: Intl.DateTimeFormatOptions) {
+            const useDefault = locales == null || (Array.isArray(locales) && locales.length === 0);
+            return nativeToLocaleString.call(this, useDefault ? locale : locales, options);
+         });
+   }
+
+   afterEach(() => vi.useRealTimers());
+
+   const cases: [string, string, number][] = [
+      ["en-US (control)", "en-US", Date.UTC(2026, 9, 20, 3, 0)],
+      ["en-GB on day 20", "en-GB", Date.UTC(2026, 9, 20, 3, 0)],
+      ["en-GB, 5th in UTC but 6th in Bangkok", "en-GB", Date.UTC(2026, 9, 5, 23, 30)],
+      ["ko-KR on day 5", "ko-KR", Date.UTC(2026, 9, 5, 3, 0)],
+   ];
+
+   for(const [name, locale, now] of cases) {
+      it(`converts 09:30 UTC to 16:30 Asia/Bangkok and back: ${name}`, () => {
+         forceDefaultLocale(locale);
+         vi.useFakeTimers({ toFake: ["Date"] });
+         vi.setSystemTime(now);
+
+         const model = makeModel({
+            timeConditionModel: makeTimeCondition({ timeZone: "UTC" }),
+            timeZoneOptions: [
+               { timeZoneId: "UTC", label: "UTC", hourOffset: "+00", minuteOffset: 0 },
+               { timeZoneId: "Asia/Bangkok", label: "(UTC+07:00) Bangkok", hourOffset: "+07", minuteOffset: 420 },
+            ],
+         });
+         const { comp } = makeComponent({ model });
+
+         comp.timeZoneId = "Asia/Bangkok";
+         expect(comp.convertTimeZone(new Date(2026, 9, 20, 9, 30, 0)))
+            .toEqual({ hour: 16, minute: 30, second: 0 });
+
+         comp.model.timeConditionModel.timeZone = "Asia/Bangkok";
+         comp.timeZoneId = "UTC";
+         expect(comp.convertTimeZone(new Date(2026, 9, 20, 9, 30, 0)))
+            .toEqual({ hour: 2, minute: 30, second: 0 });
+      });
+   }
 });

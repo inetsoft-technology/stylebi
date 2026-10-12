@@ -32,4 +32,16 @@ public class RestXMLDataSource extends AbstractRestDataSource<RestXMLDataSource>
    public String getURL() {
       return super.getURL();
    }
+
+   @Property(label = "Token URI", required = true)
+   @Override
+   public String getTokenUri() {
+      return super.getTokenUri();
+   }
+
+   @Property(label = "Scope")
+   @Override
+   public String getScope() {
+      return super.getScope();
+   }
 }

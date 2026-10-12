@@ -28,6 +28,7 @@ import inetsoft.util.*;
 import inetsoft.web.composer.vs.event.CloseSheetEvent;
 import inetsoft.web.composer.vs.event.NewViewsheetEvent;
 import inetsoft.web.composer.ws.event.SaveSheetEvent;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.command.*;
 import inetsoft.web.viewsheet.event.*;
@@ -56,12 +57,14 @@ public class ComposerViewsheetController {
    public ComposerViewsheetController(RuntimeViewsheetRef runtimeViewsheetRef,
                                       ViewsheetService viewsheetService,
                                       ComposerViewsheetServiceProxy composerViewsheetService,
-                                      SecurityEngine securityEngine)
+                                      SecurityEngine securityEngine,
+                                      QueryManagerService queryManagerService)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.viewsheetService = viewsheetService;
       this.composerViewsheetService = composerViewsheetService;
       this.securityEngine = securityEngine;
+      this.queryManagerService = queryManagerService;
    }
 
    /**
@@ -99,6 +102,18 @@ public class ComposerViewsheetController {
       }
       else if(event.getDataSources() != null && !event.getDataSources().isEmpty()) {
          datasource = event.getDataSources().get(0);
+      }
+
+      // the sources of the new viewsheet are newly bound, whether it is a base source or the
+      // sources of a wiz visualization (Bug #77400)
+      queryManagerService.checkViewsheetBaseEntryPermission(
+         datasource, viewsheetService.getAssetRepository(), principal);
+
+      if(wizInfo != null && wizInfo.getSources() != null) {
+         for(AssetEntry source : wizInfo.getSources()) {
+            queryManagerService.checkViewsheetBaseEntryPermission(
+               source, viewsheetService.getAssetRepository(), principal);
+         }
       }
 
       String runtimeId = viewsheetService.openTemporaryViewsheet(null, datasource, principal, wizInfo);
@@ -166,6 +181,7 @@ public class ComposerViewsheetController {
     *
     * @throws Exception if unable to get/edit runtime viewsheet
     */
+   // listed in SheetEventOrderInterceptor, which does not queue it behind the sheet's running event
    @MessageMapping("composer/viewsheet/close")
    public void closeViewsheet(@Payload CloseSheetEvent event, Principal principal) throws Exception {
       if(runtimeViewsheetRef.getRuntimeId() == null) {
@@ -318,5 +334,6 @@ public class ComposerViewsheetController {
    private final ViewsheetService viewsheetService;
    private final ComposerViewsheetServiceProxy composerViewsheetService;
    private final SecurityEngine securityEngine;
+   private final QueryManagerService queryManagerService;
    private static final Logger LOG = LoggerFactory.getLogger(ComposerViewsheetController.class);
 }

@@ -115,16 +115,36 @@ public class ServerPathInfo implements Cloneable, Serializable, HttpXMLSerializa
       return sftp;
    }
 
+   /**
+    * Checks if the path is uploaded to an FTP or SFTP server. Bug #77957, a password in the user
+    * info of such a path is moved to the password field, where it is masked and encrypted like
+    * any other stored password and bound to the server of the path. The path keeps the user. The
+    * password in the path wins over the fields set before it or in the same call, as it does when
+    * the file is uploaded, so a secret is replaced by the moved user and password. A field set
+    * after it replaces the moved value.
+    */
    private void checkFTP() {
+      String lowerPath = path == null ? "" : path.toLowerCase();
+
       if((useCredential && secretId != null && !secretId.isEmpty()) ||
-         (username != null && !username.isEmpty()) || path.toLowerCase().startsWith("ftp://"))
+         (username != null && !username.isEmpty()) || lowerPath.startsWith("ftp://"))
       {
          ftp = true;
       }
 
-      if(path.toLowerCase().startsWith("sftp://")) {
+      if(lowerPath.startsWith("sftp://")) {
          ftp = true;
          sftp = true;
+      }
+
+      FTPUtil.PathPassword pathPassword = ftp ? FTPUtil.splitPassword(path, sftp) : null;
+
+      if(pathPassword != null) {
+         path = pathPassword.path();
+         username = pathPassword.user();
+         password = pathPassword.password();
+         useCredential = false;
+         secretId = null;
       }
    }
 

@@ -301,6 +301,12 @@ public class XDimDictionary extends XSwappable implements Cloneable {
 
       // raw value not used if the regular index is not overflown
       if(!overflow) {
+         // Bug #78368, delete the fragment files now instead of waiting for finalization, the
+         // cache sweeps keep them while the swapper seed is alive
+         if(rawValues != null) {
+            rawValues.dispose();
+         }
+
          rawValues = null;
       }
 
@@ -831,16 +837,34 @@ public class XDimDictionary extends XSwappable implements Cloneable {
       }
 
       if(newbuf) {
-         channelProvider = ChannelProvider.file(getFile(prefix + "_dict.tdat"));
+         ChannelProvider oprovider = channelProvider;
+         File file = getFile(prefix + "_dict.tdat");
+         channelProvider = ChannelProvider.file(file);
 
-         if(!channelProvider.exists()) {
+         // a stub left by a failed write must be rewritten, not taken as a swapped copy
+         if(rewriteRequired || !channelProvider.exists()) {
+            // set before the file is created, so a stub is rewritten whatever is thrown
+            rewriteRequired = true;
+
             try(SeekableByteChannel channel = channelProvider.newWriteChannel()) {
+               channel.truncate(0);
+
+               if(testBeforeWrite != null) {
+                  testBeforeWrite.run();
+               }
+
                write(channel, false);
             }
             catch(Exception ex) {
                LOG.error(ex.getMessage(), ex);
+               // keep the values in memory, the swap file is not usable
+               file.delete();
+               channelProvider = oprovider;
+               return false;
             }
          }
+
+         rewriteRequired = false;
       }
 
       newbuf = false;
@@ -1208,4 +1232,9 @@ public class XDimDictionary extends XSwappable implements Cloneable {
    // the starting row index in the original data of the corresponding block
    private transient int baseRow = 0;
    private boolean newbuf = false;
+   // true if the swap file may be a stub left by a failed write
+   private boolean rewriteRequired = false;
+   // test-only hook: when set, invoked after the swap file is created and before it is
+   // written, so tests can force a write failure. No-op in production.
+   transient Runnable testBeforeWrite;
 }

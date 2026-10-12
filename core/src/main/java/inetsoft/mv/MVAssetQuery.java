@@ -43,6 +43,7 @@ import inetsoft.uql.viewsheet.CalculateRef;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Tool;
 import inetsoft.util.script.ScriptEnv;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.swap.XIntList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -716,6 +717,9 @@ public class MVAssetQuery extends AssetQuery {
          data = (TableLens) executor.getData();
       }
       catch(Exception ex) {
+         // a stopped script must not read as a broken MV: ViewsheetSandbox.getData recreates
+         // the MV on demand for an MVExecutionException and caches NULL (#78331)
+         ScriptTimeoutGuard.rethrowStop(ex);
          throw new MVExecutionException(ex);
       }
 
@@ -1056,7 +1060,8 @@ public class MVAssetQuery extends AssetQuery {
 
             BiFunction<String, String, Boolean> hcolumns = VpmProcessor.getInstance()
                .getHiddenColumnsSelector(
-                  tableNames, new String[0], sourceInfo.getPrefix(), null, null, box.getUser());
+                  tableNames, new String[0], sourceInfo.getPrefix(), null, box.getVariableTable(),
+                  box.getUser());
 
             int ccnt = columnSelection.getAttributeCount();
 
@@ -1071,7 +1076,8 @@ public class MVAssetQuery extends AssetQuery {
             }
          }
          catch(Exception e) {
-            LOG.warn("Failed to get vpm hidden columns: ", e);
+            // fail closed, the MV may hold columns the vpm hides from this user
+            throw new RuntimeException("Failed to get vpm hidden columns: " + e.getMessage(), e);
          }
       }
 

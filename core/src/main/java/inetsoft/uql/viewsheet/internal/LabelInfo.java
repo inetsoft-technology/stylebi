@@ -315,7 +315,11 @@ public class LabelInfo implements AssetObject {
     */
    protected void writeAttributes(PrintWriter writer) {
       writer.print(" labelVisible=\"" + getLabelVisibleValue() + "\"");
-      writer.print(" labelVisibleValue=\"" + getLabelVisibleValue() + "\"");
+      // persist the stored design value, not getLabelVisibleValue(), so a $(var),
+      // =expr or truthy literal such as "yes" is not rewritten to false
+      String labelVisibleValue = labelVisible.getDValue();
+      writer.print(" labelVisibleValue=\"" +
+         Tool.escape(labelVisibleValue == null ? "false" : labelVisibleValue) + "\"");
       writer.print(" labelPosition=\"" + getLabelPositionValue() + "\"");
       writer.print(" labelPositionValue=\"" + getLabelPositionValue() + "\"");
       writer.print(" labelGap=\"" + getLabelGapValue() + "\"");
@@ -370,7 +374,7 @@ public class LabelInfo implements AssetObject {
 
       if(textValue != null && !textValue.isEmpty()) {
          writer.print("<labelTextValue>");
-         writer.print("<![CDATA[" + textValue + "]]>");
+         writer.print("<![CDATA[" + Tool.cdataText(textValue) + "]]>");
          writer.println("</labelTextValue>");
       }
 

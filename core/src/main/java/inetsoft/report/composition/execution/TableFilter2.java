@@ -26,13 +26,19 @@ import inetsoft.report.internal.table.CancellableTableLens;
 import inetsoft.report.internal.table.XTableLens;
 import inetsoft.report.lens.AbstractTableLens;
 import inetsoft.uql.table.XSwappableTable;
+import inetsoft.uql.util.QueryManager;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.uql.util.XEmbeddedTable;
+import inetsoft.util.Catalog;
 import inetsoft.util.SparseMatrix;
+import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.*;
 import java.io.*;
+import java.lang.ref.WeakReference;
+import java.util.Arrays;
 
 /**
  * Another table filter for shared usage.
@@ -438,7 +444,57 @@ public class TableFilter2 extends AbstractTableLens
     */
    @Override
    public boolean moreRows(int row) {
-      return table.moreRows(row);
+      boolean more = table.moreRows(row);
+
+      if(!more) {
+         checkCancelledByOther();
+      }
+
+      return more;
+   }
+
+   /**
+    * Set the reader a cache handed this copy of a cached table to. The copies of a cache entry
+    * share the tables under it, so a cancel by one reader (its query manager, or Stop) ends
+    * the rows of every reader that is still reading them. A reader that did not cancel them is
+    * told when it reaches the end of the rows, instead of taking the rows read so far for the
+    * whole table (bug #78200).
+    *
+    * @param reader the reader, or {@code null} for the copy the cache keeps.
+    */
+   void setReader(Reader reader) {
+      this.reader = reader;
+
+      if(reader != null && readers != null) {
+         readers.add(reader.id);
+      }
+   }
+
+   /**
+    * Report that the rows ended because the table was cancelled by another reader, as a
+    * failure to load the rows is reported (Bug #77901): an interactive reader gets a warning,
+    * and a reader that must not use partial data (a scheduled run) gets an exception.
+    */
+   private void checkCancelledByOther() {
+      Reader reader = this.reader;
+
+      // a table no other reader got was cancelled by its reader, which stays silent. a failure
+      // to load the rows is reported by the table that failed
+      if(reader == null || cancelled || readers == null || !readers.isShared() ||
+         reader.isCancelled() || !AssetDataCache.isCancelled(table) ||
+         AssetDataCache.getLoadException(table) != null)
+      {
+         return;
+      }
+
+      String message = Catalog.getCatalog().getString("common.table.queryCancelled");
+
+      if(reader.failOnCancel) {
+         throw new TableLoadException(message, null);
+      }
+
+      // addUserWarning keeps one copy of a message
+      Tool.addUserWarning(message);
    }
 
    /**
@@ -800,6 +856,7 @@ public class TableFilter2 extends AbstractTableLens
    @Serial
    private void readObject(ObjectInputStream in) throws ClassNotFoundException, IOException {
       in.defaultReadObject();
+      readers = new Readers();
       setTable(table);
    }
 
@@ -812,4 +869,78 @@ public class TableFilter2 extends AbstractTableLens
    private long ts = System.currentTimeMillis();
    private transient boolean embedded = false;
    private boolean cancelled = false;
+   private transient Reader reader;
+   // the readers of this table and its copies, which share it
+   private transient Readers readers = new Readers();
+
+   /**
+    * The reader of a copy of a cached table: its query managers, whose cancels are its own.
+    */
+   static final class Reader {
+      /**
+       * Create a reader. Take it before the reader runs or waits for the query, so a cancel of
+       * the reader while it does counts as its own.
+       *
+       * @param failOnCancel {@code true} if the reader must fail rather than use the rows read
+       *                     before another reader cancelled them (a scheduled run).
+       * @param qmgrs        the query managers that cancel the reader, may contain nulls.
+       */
+      Reader(boolean failOnCancel, QueryManager... qmgrs) {
+         this.failOnCancel = failOnCancel;
+         this.qmgrs = qmgrs;
+         this.cancelCounts = new long[qmgrs.length];
+         boolean managed = false;
+
+         for(int i = 0; i < qmgrs.length; i++) {
+            cancelCounts[i] = qmgrs[i] == null ? 0 : qmgrs[i].getCancelCount();
+            managed = managed || qmgrs[i] != null;
+         }
+
+         // the query managers are the reader (they cancel it), which may get several copies,
+         // e.g. AssetDataCache.getData() and the query it runs
+         this.id = managed ? Arrays.asList(qmgrs.clone()) : this;
+      }
+
+      /**
+       * Check if a query manager of the reader cancelled its queries since it was created.
+       */
+      private boolean isCancelled() {
+         for(int i = 0; i < qmgrs.length; i++) {
+            if(qmgrs[i] != null && qmgrs[i].getCancelCount() != cancelCounts[i]) {
+               return true;
+            }
+         }
+
+         return false;
+      }
+
+      private final boolean failOnCancel;
+      private final QueryManager[] qmgrs;
+      private final long[] cancelCounts;
+      private final Object id;
+   }
+
+   /**
+    * The readers of a table and its copies: shared once a second reader gets a copy while the
+    * first one is still there.
+    */
+   private static final class Readers {
+      synchronized void add(Object id) {
+         Object first = this.first == null ? null : this.first.get();
+
+         if(first == null) {
+            this.first = new WeakReference<>(id);
+         }
+         else if(!first.equals(id)) {
+            shared = true;
+         }
+      }
+
+      synchronized boolean isShared() {
+         return shared;
+      }
+
+      private WeakReference<Object> first;
+      private boolean shared;
+   }
 }

@@ -1,0 +1,7 @@
+<ScheduleTask><Task>
+<Condition type="Completion"/>
+<Action type="Backup">
+<ServerPath/>
+<XAsset type="NOPE" path="x" user=""></XAsset>
+</Action>
+</Task></ScheduleTask>

@@ -34,9 +34,14 @@ import inetsoft.web.composer.ws.assembly.VariableAssemblyModelInfo;
 import inetsoft.web.portal.model.database.*;
 import inetsoft.web.portal.model.database.events.AddQueryColumnEvent;
 import inetsoft.web.portal.model.database.events.RemoveQueryColumnEvent;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.nio.charset.StandardCharsets;
 import java.rmi.RemoteException;
 import java.security.Principal;
 import java.util.ArrayList;
@@ -251,12 +256,28 @@ public class QueryController extends WorksheetController {
    }
 
    @GetMapping("/api/data/datasource/query/load/data")
-   public String[][] loadQueryData(@RequestParam("runtimeId") String runtimeId,
-                                               @RequestParam(value = "sqlString", required = false) String sqlString,
-                                               Principal principal)
+   public ResponseEntity<?> loadQueryData(@RequestParam("runtimeId") String runtimeId,
+                                          @RequestParam(value = "sqlString", required = false) String sqlString,
+                                          Principal principal)
       throws Exception
    {
-      return queryManager.loadQueryData(runtimeId, sqlString, principal);
+      try {
+         return ResponseEntity.ok(queryManager.loadQueryData(runtimeId, sqlString, principal));
+      }
+      catch(Exception ex) {
+         // only the database rejecting the user's SQL is a bad request, anything else (connection
+         // failure, timeout, cancel...) is passed on unchanged
+         if(!PhysicalModelService.isUserSqlError(ex)) {
+            throw ex;
+         }
+
+         LOG.debug("Query preview SQL rejected by the database: {}", sqlString, ex);
+         // the preview pane shows the plain message and checks its prefix, so keep it a String.
+         // UTF-8, since text/plain otherwise defaults to ISO-8859-1 and loses non-Latin-1 text
+         return ResponseEntity.badRequest()
+            .contentType(new MediaType(MediaType.TEXT_PLAIN, StandardCharsets.UTF_8))
+            .body(ex.getMessage());
+      }
    }
 
    @DeleteMapping("/api/data/datasource/query/runtime-query/destroy")
@@ -274,4 +295,5 @@ public class QueryController extends WorksheetController {
    private final RuntimeQueryService runtimeQueryService;
    private final QueryManagerService queryManager;
    private final SecurityEngine securityEngine;
+   private static final Logger LOG = LoggerFactory.getLogger(QueryController.class);
 }

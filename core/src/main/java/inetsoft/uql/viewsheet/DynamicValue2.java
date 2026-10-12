@@ -18,6 +18,8 @@
 package inetsoft.uql.viewsheet;
 
 import inetsoft.util.Tool;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.awt.*;
 
@@ -79,22 +81,54 @@ public class DynamicValue2 extends DynamicValue {
     * Get int value.
     * @param design <tt>true</tt> if get design time value, <tt>false</tt>
     * if get run time value.
-    * @param def the default value should be returned.
+    * @param def the default value should be returned. It is also returned when the
+    * value is not an integer, e.g. an unevaluated variable or script, or junk.
     * @return the int value.
     */
    public int getIntValue(boolean design, int def) {
-      return Integer.valueOf(getStringRepresentation(design, def));
+      String str = getStringRepresentation(design, def);
+
+      try {
+         return Integer.parseInt(str);
+      }
+      catch(NumberFormatException ex) {
+         // accept an integral double within int range, e.g. "50.0" from a script result
+         try {
+            double dval = Double.parseDouble(str);
+
+            if(dval == Math.rint(dval) && dval >= Integer.MIN_VALUE &&
+               dval <= Integer.MAX_VALUE)
+            {
+               return (int) dval;
+            }
+         }
+         catch(NumberFormatException ignore) {
+            // not a number, fall back to the default below
+         }
+
+         LOG.debug("Invalid int value \"{}\", using default {}", str, def);
+         return def;
+      }
    }
 
    /**
     * Get double value.
     * @param design <tt>true</tt> if get design time value, <tt>false</tt>
     * if get run time value.
-    * @param def the default value should be returned.
+    * @param def the default value should be returned. It is also returned when the
+    * value is not a number, e.g. an unevaluated variable or script, or junk.
     * @return the double value.
     */
    public double getDoubleValue(boolean design, double def) {
-      return Double.valueOf(getStringRepresentation(design, def));
+      String str = getStringRepresentation(design, def);
+
+      try {
+         return Double.parseDouble(str);
+      }
+      catch(NumberFormatException ex) {
+         LOG.debug("Invalid double value \"{}\", using default {}", str, def);
+         return def;
+      }
    }
 
    /**
@@ -142,4 +176,6 @@ public class DynamicValue2 extends DynamicValue {
 
       return valueStr.length() > 0 ? valueStr : def + "";
    }
+
+   private static final Logger LOG = LoggerFactory.getLogger(DynamicValue2.class);
 }

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, HostListener, Inject, OnInit } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { MAT_DIALOG_DATA, MatDialogRef, MatDialogContent, MatDialogActions } from "@angular/material/dialog";
 import { Tool } from "../../../../../../shared/util/tool";
 import { EditTaskFolderDialogModel } from "../model/edit-task-folder-dialog-model";
@@ -55,7 +55,7 @@ export class EditTaskFolderDialogComponent implements OnInit{
 
    ngOnInit() {
       this.form = new UntypedFormGroup({
-         "folderName": new UntypedFormControl(this.model.folderName, [Validators.required,
+         "folderName": new UntypedFormControl(this.model.folderName, [FormValidators.required,
             FormValidators.invalidTaskName])
       });
 
@@ -66,6 +66,12 @@ export class EditTaskFolderDialogComponent implements OnInit{
    }
 
    submit(): void {
+      // the Enter key calls this too, the OK button is disabled when the form is invalid
+      if(this.form.invalid) {
+         this.form.markAllAsTouched();
+         return;
+      }
+
       this.model.folderName = this.form.get("folderName").value;
 
       if(this.model.folderName == this.oldModel.folderName) {

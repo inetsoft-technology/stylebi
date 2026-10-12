@@ -349,11 +349,14 @@ public class RepletRegistryService {
       Permission permission = securityEngine.getPermission(type, pathFrom);
 
       if(permission != null) {
-         securityEngine.removePermission(type, pathFrom);
          int pindex = pathFrom.lastIndexOf("/");
          String entryName = pindex < 0 ? pathFrom : pathFrom.substring(pindex + 1);
-         String newPath = pathTo + "/" + entryName;
-         securityEngine.setPermission(type, newPath, permission);
+         String newPath = ("".equals(pathTo) || "/".equals(pathTo) ? "" : pathTo + "/") + entryName;
+         // Bug #78217, the folder is already copied, a failed permission write must not stop the
+         // removal of the source folder of a move. The permission is written at the new path
+         // before it is removed from the old one, so a failed write doesn't delete the only copy
+         AbstractAssetEngine.movePermissionBestEffort(securityEngine, type, pathFrom, newPath,
+                                                      permission);
       }
    }
 
@@ -563,6 +566,14 @@ public class RepletRegistryService {
       RepletRegistry registryTo = repletRegistryManager.getRegistry(userTo);
       pathTo = "".equals(pathTo) || "/".equals(pathTo) ? "" : pathTo + "/";
       pathTo += entryName;
+
+      // Bug #77721, a folder copied into itself or one of its subfolders of the same owner
+      // would list its own copy as a subfolder and be copied without end.
+      if(Tool.equals(userFrom, userTo) && Tool.isDescendantPath(pathFrom, pathTo)) {
+         throw new MessageException(Catalog.getCatalog(principal).getString(
+            "common.folder.moveIntoItself", pathFrom));
+      }
+
       String identifier = null;
 
       if(isWSFolder) {
@@ -624,7 +635,15 @@ public class RepletRegistryService {
       if(securityEngine != null) {
          Permission perm = securityEngine.getPermission(ResourceType.REPORT, pathFrom);
          if(perm != null) {
-            securityEngine.setPermission(ResourceType.REPORT, pathTo, perm);
+            // best-effort: a failed permission copy must not skip the registry save or the copy
+            // of the children
+            try {
+               securityEngine.setPermission(ResourceType.REPORT, pathTo, perm);
+            }
+            catch(RuntimeException e) {
+               LOG.error("Failed to copy the permission of {} to {}, it may not have been saved",
+                         pathFrom, pathTo, e);
+            }
          }
       }
 

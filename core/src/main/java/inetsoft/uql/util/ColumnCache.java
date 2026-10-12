@@ -19,9 +19,13 @@ package inetsoft.uql.util;
 
 import inetsoft.report.internal.Util;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.security.OrganizationManager;
+import inetsoft.sree.security.ResourceAction;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.XDataModel;
+import inetsoft.uql.erm.vpm.VpmProcessor;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
 import inetsoft.util.*;
@@ -326,6 +330,10 @@ public class ColumnCache {
    {
       column = validateColumn(column);
 
+      if(!canBrowseWorksheet(entry, user)) {
+         return BrowseDataModel.builder().values(new Object[0]).build();
+      }
+
       BrowseDataModel val = null;
       String key = getKey(wsproc, entry.toIdentifier(), column, user, vars);
       String ekey = getKey(null, entry.toIdentifier(), column, null, null);
@@ -351,6 +359,45 @@ public class ColumnCache {
       }
 
       return val;
+   }
+
+   /**
+    * Checks that a worksheet named by a browse or choice query identifier may be browsed by the
+    * user. The worksheet processor loads the sheet without a permission check and from the org
+    * in the identifier, so refuse another user's private worksheet (unless a site admin) and
+    * another org's worksheet (unless a site admin). The ACL of a global worksheet in the user's
+    * own org is not checked, because viewsheet viewers don't need READ on the base worksheet.
+    */
+   private static boolean canBrowseWorksheet(AssetEntry entry, Principal user) {
+      if(user == null) {
+         user = ThreadContext.getContextPrincipal();
+      }
+
+      boolean noPermission = "".equals(SreeEnv.getProperty("security.provider")) &&
+         !VpmProcessor.useVpmSecurity();
+
+      if(noPermission || !(user instanceof XPrincipal)) {
+         return true;
+      }
+
+      try {
+         if(entry.getScope() == AssetRepository.USER_SCOPE) {
+            AssetUtil.getAssetRepository(false).checkAssetPermission(
+               user, entry, ResourceAction.READ, true);
+         }
+         else if(entry.getOrgID() != null &&
+            !entry.getOrgID().equalsIgnoreCase(((XPrincipal) user).getOrgId()) &&
+            !OrganizationManager.getInstance().isSiteAdmin(user))
+         {
+            throw new SecurityException("Worksheet is in another organization");
+         }
+
+         return true;
+      }
+      catch(Exception ex) {
+         LOG.debug("Permission denied to browse worksheet: {}", entry, ex);
+         return false;
+      }
    }
 
    /**

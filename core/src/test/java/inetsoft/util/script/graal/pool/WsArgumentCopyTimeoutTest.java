@@ -48,7 +48,7 @@ import static org.junit.jupiter.api.Assertions.*;
                       initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
-@Tag("core")
+@Tag("slow")
 class WsArgumentCopyTimeoutTest {
    public static final class Ctr {
       public void hit(double n) {

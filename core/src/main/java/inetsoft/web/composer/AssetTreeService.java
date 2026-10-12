@@ -38,9 +38,11 @@ import inetsoft.uql.xmla.XMLADataSource;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.RecycleUtils;
+import inetsoft.web.admin.content.repository.ResourcePermissionService;
 import inetsoft.web.composer.model.*;
-import inetsoft.web.wiz.service.*;
 import inetsoft.web.composer.ws.assembly.VariableAssemblyModelInfo;
+import inetsoft.web.portal.controller.database.QueryManagerService;
+import inetsoft.web.wiz.service.*;
 import org.springframework.stereotype.Service;
 
 import java.rmi.RemoteException;
@@ -54,11 +56,14 @@ import java.util.stream.Collectors;
 public class AssetTreeService {
 
    public AssetTreeService(ViewsheetService viewsheetService, AssetRepository assetRepository,
-                           XRepository xRepository)
+                           XRepository xRepository, SecurityEngine securityEngine,
+                           QueryManagerService queryManagerService)
    {
       this.viewsheetService = viewsheetService;
       this.assetRepository = assetRepository;
       this.xRepository = xRepository;
+      this.securityEngine = securityEngine;
+      this.queryManagerService = queryManagerService;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -98,6 +103,9 @@ public class AssetTreeService {
             return result;
          }
 
+         // Bug #77401, the lookup and connect below check nothing, so the source must be
+         // readable. This is the same READ the cube listing requires to show the node.
+         queryManagerService.checkDataSourceReadPermission(source, principal);
          XDataSource ds = xRepository.getDataSource(source);
 
          if(!(ds instanceof JDBCDataSource) && !(ds instanceof XMLADataSource))
@@ -110,6 +118,13 @@ public class AssetTreeService {
 
          if(vtbl.contains(XUtil.DB_USER_PREFIX + source)) {
             xRepository.connect(assetRepository.getSession(), ":" + source, vtbl);
+            return result;
+         }
+
+         // Bug #77401, the parameters are looked up by name. For a server-built cube entry the
+         // name is the cube, not a data source, so skip an unreadable name (the same result as a
+         // miss) instead of denying.
+         if(!isDataSourceReadable(name, principal)) {
             return result;
          }
 
@@ -176,7 +191,7 @@ public class AssetTreeService {
                        reportRepositoryEnabled, readOnly, physical, event, principal,
                        readOnly || assetRepository.checkPermission(
                           principal, ResourceType.WORKSHEET, "*", EnumSet.of(ResourceAction.ACCESS)),
-                       SecurityEngine.getSecurity().checkPermission(
+                       securityEngine.checkPermission(
                           principal, ResourceType.PHYSICAL_TABLE, "*", ResourceAction.ACCESS),
                        readOnly || assetRepository.checkPermission(
                           principal, ResourceType.VIEWSHEET, "*", EnumSet.of(ResourceAction.ACCESS)));
@@ -187,7 +202,7 @@ public class AssetTreeService {
     *
     * @return the child nodes.
     */
-   private LoadAssetTreeNodesValidator getNodes0(
+   LoadAssetTreeNodesValidator getNodes0(
       boolean includeDatasources,
       boolean includeColumns,
       boolean includeWorksheets,
@@ -207,6 +222,10 @@ public class AssetTreeService {
       Catalog catalog = Catalog.getCatalog(principal);
       IdentityID user = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
       AssetEntry expandedEntry = event.targetEntry();
+      // Bug #77189, the asset engine resolves the children of a query-scope entry from its
+      // client-supplied prefix without checking it. This runs for every recursive expansion too,
+      // since the expanded descendants are the client's entries.
+      queryManagerService.checkAssetTreeEntryPermission(expandedEntry, principal);
       AssetEntry.Selector assetSelector = physical ?
          new AssetEntry.Selector(AssetEntry.Type.FOLDER, AssetEntry.Type.WORKSHEET,
                                  AssetEntry.Type.VIEWSHEET, AssetEntry.Type.DATA,
@@ -278,8 +297,13 @@ public class AssetTreeService {
          if(!"cubeRoot".equals(expandedEntry.getProperty("entryName"))) {
             Set<UserVariable> list = new HashSet<>();
 
-            if("true".equals(expandedEntry.getProperty("CUBE_TABLE")) ||
-               expandedEntry.isDataSource())
+            // Bug #77401, only look up the connection parameters of a readable data source. A
+            // server-built cube table path (ds/cube) is not a data source; it is checked as
+            // ds::cube (Bug #78249) and so inherits READ from ds. Skip the lookup instead of
+            // denying when it is not readable and expand the node as on a miss.
+            if(("true".equals(expandedEntry.getProperty("CUBE_TABLE")) ||
+               expandedEntry.isDataSource()) &&
+               isDataSourceReadable(expandedEntry.getPath(), principal))
             {
                UserVariable[] vars = null;
 
@@ -300,6 +324,8 @@ public class AssetTreeService {
                UserVariable[] vars = list.toArray(new UserVariable[0]);
                AssetUtil.validateAlias(vars);
                List<VariableAssemblyModelInfo> parameters = Arrays.stream(vars)
+                  // Bug #77423, the identity variables are set from the user, never prompted
+                  .filter(v -> !VariableTable.isContextVariable(v.getName()))
                   .filter(v -> SUtil.isNeedPrompt(principal, v))
                   .map(VariableAssemblyModelInfo::new)
                   .collect(Collectors.toList());
@@ -1098,9 +1124,32 @@ public class AssetTreeService {
       }
    }
 
+   /**
+    * Checks READ on a data source name without throwing, for lookups that are skipped (not
+    * denied) when the name is not a readable data source (Bug #77401).
+    */
+   private boolean isDataSourceReadable(String dataSource, Principal principal) {
+      if(dataSource == null || dataSource.isBlank()) {
+         return false;
+      }
+
+      try {
+         // Bug #78249, an additional connection path P/add is checked as P::add
+         return securityEngine.checkPermission(
+            principal, ResourceType.DATA_SOURCE,
+            ResourcePermissionService.getDataSourcePermissionName(dataSource),
+            ResourceAction.READ);
+      }
+      catch(Exception e) {
+         return false;
+      }
+   }
+
    private final ViewsheetService viewsheetService;
    private final AssetRepository assetRepository;
    private final XRepository xRepository;
+   private final SecurityEngine securityEngine;
+   private final QueryManagerService queryManagerService;
    private static final String TABLE_STYLE = "Table Style";
    private static final String SCRIPT = "Script Function";
    private static final Catalog catalog = Catalog.getCatalog();

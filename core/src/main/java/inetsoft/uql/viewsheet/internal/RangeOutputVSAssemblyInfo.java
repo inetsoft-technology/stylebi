@@ -423,6 +423,37 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
    }
 
    /**
+    * Get the range colors the renderers paint the range bands with. This is the same as
+    * getRangeColors(), except when a script shortened the ranges below the design row count
+    * and did not set the colors: the colors of the design rows the script dropped are not
+    * used, and the design "Gradient" blend color (colors[design range count]) follows the
+    * last scripted band, so the last band's gradient ends at the blend color (#78086).
+    * Colors set by a script keep their positional meaning. The script-visible rangeColors
+    * (getRangeColors()) is not changed.
+    * @return the range colors to render with.
+    */
+   public Color[] getRangeRenderColors() {
+      Color[] colors = getRangeColors();
+
+      if(colors == null || rangeValues == null || rangeColorsScripted) {
+         return colors;
+      }
+
+      int count = Math.min(rangeCount, rangeValues.length);
+      // the blend slot of the design colors follows the last design row
+      int blend = rangeDesignCount;
+
+      if(count >= blend || blend >= colors.length) {
+         return colors;
+      }
+
+      Color[] arr = new Color[count + 1];
+      System.arraycopy(colors, 0, arr, 0, count);
+      arr[count] = colors[blend];
+      return arr;
+   }
+
+   /**
     * Get the design time range colors.
     * @return the range colors of the assembly.
     */
@@ -469,6 +500,7 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
       }
 
       rangeColorCount = colors.length;
+      rangeColorsScripted = true;
    }
 
    /**
@@ -483,6 +515,7 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
       rangeColorsValue = new DynamicValue2[Math.max(colors.length, 4)];
       rangeColorCount = rangeColorsValue.length;
       rangeColorDesignCount = rangeColorCount;
+      rangeColorsScripted = false;
 
       // populate every padded slot (not just colors.length) with a real DynamicValue2 --
       // leaving a raw null gap at the padded indices caused an NPE in setRangeColors() when a
@@ -701,6 +734,27 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
    }
 
    /**
+    * Get the text persisted for a range color design value. A value in integer/hex syntax is
+    * normalized to its RGB int as before; any other value (a color name, a {@code $(var)} or
+    * {@code =expr} dynamic value, ...) is written as-is, since parseContents() accepts any text
+    * and the read path resolves it leniently (#77585). The result is safe inside CDATA.
+    */
+   private static String getRangeColorDesignText(String dvalue) {
+      if(dvalue == null || dvalue.isEmpty()) {
+         return "null";
+      }
+
+      try {
+         return Integer.toString(Color.decode(dvalue).getRGB());
+      }
+      catch(NumberFormatException ignore) {
+         // not a numeric color, keep the design value as-is
+      }
+
+      return dvalue.replace("]]>", "]]]]><![CDATA[>");
+   }
+
+   /**
     * Write contents.
     * @param writer the specified writer.
     */
@@ -775,33 +829,16 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
          writer.println("</ranges>");
       }
 
-      Color[] color;
-
       if(rangeColorsValue != null) {
          int cnDesign = Math.min(rangeColorDesignCount, rangeColorsValue.length);
-         color = new Color[cnDesign];
 
-         for(int i = 0; i < cnDesign; i++) {
-            if(rangeColorsValue[i].getDValue() != null &&
-               !"".equals(rangeColorsValue[i].getDValue()))
-            {
-               color[i] = Color.decode(rangeColorsValue[i].getDValue());
-            }
-         }
-
-         if(color != null && color.length > 0) {
+         if(cnDesign > 0) {
             writer.print("<rangeColorsValue>");
 
-            for(int i = 0; i < color.length; i++) {
+            for(int i = 0; i < cnDesign; i++) {
                writer.print("<rangeColor>");
-
-               if(color[i] != null) {
-                  writer.print("<![CDATA[" + color[i].getRGB() + "]]>");
-               }
-               else {
-                  writer.print("<![CDATA[null]]>");
-               }
-
+               writer.print("<![CDATA[" +
+                  getRangeColorDesignText(rangeColorsValue[i].getDValue()) + "]]>");
                writer.print("</rangeColor>");
             }
 
@@ -809,7 +846,7 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
          }
       }
 
-      color = getRangeColors();
+      Color[] color = getRangeColors();
 
       if(color != null && color.length > 0) {
          writer.print("<rangeColors>");
@@ -978,10 +1015,14 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
          result = true;
       }
 
+      // also compare whether the colors were set by a script, which the colors alone can't
+      // tell apart when a script sets the design colors (#78086)
       if(!Tool.equals(rangeColorsValue, cinfo.rangeColorsValue) ||
-         !Tool.equals(getRangeColors(), cinfo.getRangeColors()))
+         !Tool.equals(getRangeColors(), cinfo.getRangeColors()) ||
+         rangeColorsScripted != cinfo.rangeColorsScripted)
       {
          rangeColorsValue = cinfo.rangeColorsValue;
+         rangeColorsScripted = cinfo.rangeColorsScripted;
          // keep the logical length in sync with the array reference it now describes (#76909)
          rangeColorCount = cinfo.rangeColorCount;
          // keep the design-time length in sync too, or a Composer Advanced-tab edit
@@ -1186,6 +1227,7 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
       // truncated at the script's last-set (now-stale) length (#76968)
       rangeCount = rangeDesignCount;
       rangeColorCount = rangeColorDesignCount;
+      rangeColorsScripted = false;
    }
 
    private DynamicValue targetValue = new DynamicValue("80", XSchema.DOUBLE);
@@ -1219,6 +1261,9 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
    // tail that must not be resurrected as if they were designed (#76968)
    private int rangeDesignCount = rangeValues.length;
    private int rangeColorDesignCount = rangeColorsValue.length;
+   // true when the runtime colors were set by a script (setRangeColors()), whose colors keep
+   // their positional meaning; see getRangeRenderColors() (#78086)
+   private boolean rangeColorsScripted;
    private DynamicValue gradientValue =
       new DynamicValue("true", XSchema.BOOLEAN);
    private double defMax = 100;

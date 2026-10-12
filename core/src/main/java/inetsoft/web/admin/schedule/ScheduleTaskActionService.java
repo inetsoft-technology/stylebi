@@ -87,10 +87,11 @@ public class ScheduleTaskActionService {
          return new ArrayList<>();
       }
 
-      // the id is client supplied and its orgID is kept, so check READ (including the
-      // cross-org check) and list no bookmarks for a viewsheet the caller cannot read
+      // the id is client supplied and its orgID is kept, so check READ as opening
+      // the viewsheet does (including the cross-org and the other user's private viewsheet
+      // checks) and list no bookmarks for a viewsheet the caller cannot open
       try {
-         assetRepository.checkAssetPermission(principal, entry, ResourceAction.READ);
+         assetRepository.checkAssetPermission(principal, entry, ResourceAction.READ, true);
       }
       catch(MessageException ex) {
          return new ArrayList<>();

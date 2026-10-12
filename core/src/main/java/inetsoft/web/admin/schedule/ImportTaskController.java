@@ -24,6 +24,7 @@ import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
+import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.admin.model.FileData;
 import inetsoft.web.admin.schedule.model.*;
@@ -38,6 +39,7 @@ import org.springframework.web.bind.annotation.*;
 import org.w3c.dom.*;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.security.Principal;
 import java.util.*;
@@ -138,6 +140,7 @@ public class ImportTaskController {
    {
       HttpSession session = request.getSession(true);
       List<String> failedList = new ArrayList<>();
+      List<String> warnings = new ArrayList<>();
 
       List<ScheduleTask> tasklist = (ArrayList<ScheduleTask>)session.getAttribute(INFO_ATTR);
       session.removeAttribute(INFO_ATTR);
@@ -187,14 +190,62 @@ public class ImportTaskController {
          }
 
          if(selectedTasks.contains(taskId) && (!taskExists || overwriting)) {
+            // Bug #77350, only a task imported here is moved from the root folder, where
+            // setScheduleTask put it, to its folder in the xml
+            boolean movable = isMovableToFolder(task, path);
+
+            // Bug #77503, the move is refused without write permission on the folder, check it
+            // before the task is saved so the task is reported as failed instead of the refusal
+            // aborting the rest of the import. Bug #78136, the write permission is checked on the
+            // folder path in the xml before the folder is looked up, so a folder that exists and
+            // one that doesn't are refused the same way and the result doesn't tell them apart
+            if(movable && !scheduleTaskFolderService.checkFolderPermission(
+               path, principal, ResourceAction.WRITE))
+            {
+               LOG.warn("Task {} is not imported, the user doesn't have the write permission " +
+                        "on its folder {}", taskId, path);
+               failedList.add(taskId);
+               continue;
+            }
+
+            // a folder that doesn't exist on this server leaves the task in the root folder
+            boolean move = movable && scheduleTaskFolderService.checkFolderExists(path);
+
+            // Bug #77549, #77972, every refusal of setScheduleTask (e.g. a batch action query in
+            // another organization or a batch action target task the caller may not see) is
+            // checked first so the refusal doesn't abort the rest of the import
+            try {
+               scheduleManager.checkScheduleTaskSave(taskId, task, principal);
+            }
+            catch(inetsoft.sree.security.SecurityException | IOException e) {
+               LOG.warn("Task {} is not imported: {}", taskId, e.getMessage());
+               failedList.add(taskId);
+               continue;
+            }
+
+            // Bug #77936, a stored password in the file is only kept for the server and user
+            // that the replaced task already uses it for, the same as the task editor
+            List<String> clearedPaths = identityChecker.isUnrestricted(principal) ?
+               Collections.emptyList() :
+               ScheduleImportPasswordChecker.clearUnboundPasswords(task, oldTask);
+
             updateTaskInfo(task, linkURI);
             scheduleManager.setScheduleTask(taskId, task, principal);
 
-            // Bug #77350, only a task imported here is moved from the root folder, where
-            // setScheduleTask put it, to its folder in the xml
-            if(path != null &&
-               scheduleTaskFolderService.checkFolderExists(path))
-            {
+            // Bug #77950, tell the user that the saved task needs its passwords re-entered
+            if(!clearedPaths.isEmpty()) {
+               warnings.add(Catalog.getCatalog(principal).getString(
+                  "em.import.task.passwordsCleared", task.getName()));
+            }
+
+            // Bug #78140, the task is imported even if the owner's permission couldn't be saved,
+            // tell the user, the owner may be unable to delete or rename the task
+            if(scheduleManager.isOwnerPermissionMissing(task)) {
+               warnings.add(Catalog.getCatalog(principal).getString(
+                  "em.import.task.ownerPermissionNotSaved", task.getName()));
+            }
+
+            if(move) {
                moveTask(task, path, principal);
             }
          }
@@ -202,6 +253,7 @@ public class ImportTaskController {
 
       return ImportTaskResponse.builder()
               .failedTasks(failedList)
+              .warnings(warnings)
               .build();
    }
 
@@ -292,12 +344,27 @@ public class ImportTaskController {
       TimeRange.setTimeRanges(ranges);
    }
 
+   /**
+    * Checks if an imported task is moved into its folder in the xml if the folder exists, the
+    * same tasks that ScheduleTaskFolderService.getMovableTask() lets the move change. Bug #78136,
+    * this doesn't look the folder up, so the folder write check can be done before the lookup.
+    */
+   private static boolean isMovableToFolder(ScheduleTask task, String path) {
+      return path != null && !path.isEmpty() && !"/".equals(path) &&
+         task.isRemovable() && !isInternal(task) &&
+         task.getType() != ScheduleTask.Type.CYCLE_TASK;
+   }
+
+   // Bug #77350, internal tasks are never moved into a folder, and the removable flag of
+   // the xml isn't trusted for them
+   private static boolean isInternal(ScheduleTask task) {
+      return task.getType() == ScheduleTask.Type.INTERNAL_TASK ||
+         ScheduleManager.isInternalTask(task.getTaskId());
+   }
+
    private void moveTask(ScheduleTask task, String path, Principal principal) throws Exception {
       String taskId = task.getTaskId();
-      // Bug #77350, internal tasks are never moved into a folder, and the removable flag of
-      // the xml isn't trusted for them
-      boolean internal = task.getType() == ScheduleTask.Type.INTERNAL_TASK ||
-         ScheduleManager.isInternalTask(taskId);
+      boolean internal = isInternal(task);
       ScheduleTaskModel model = ScheduleTaskModel.builder()
          .name(taskId)
          .owner(task.getOwner())

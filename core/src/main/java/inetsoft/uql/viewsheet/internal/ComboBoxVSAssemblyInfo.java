@@ -208,7 +208,7 @@ public class ComboBoxVSAssemblyInfo extends ListInputVSAssemblyInfo {
          writer.print(" defaultValue=\"" + Tool.NULL_PARAMETER_VALUE + "\"");
       }
       else {
-         writer.print(" defaultValue=\"" + getDefaultValue() + "\"");
+         writer.print(" defaultValue=\"" + Tool.encodeHTMLAttribute(getDefaultValue()) + "\"");
       }
 
    }
@@ -233,6 +233,10 @@ public class ComboBoxVSAssemblyInfo extends ListInputVSAssemblyInfo {
       if(defaultValue.equals(Tool.NULL_PARAMETER_VALUE)) {
          defaultValue = null;
       }
+      // a default value saved before #77605 may have a Buddhist or Japanese year
+      else if(XSchema.isDateType(getDataType())) {
+         defaultValue = Tool.toGregorianPersistentDate(defaultValue);
+      }
    }
 
    /**
@@ -243,9 +247,9 @@ public class ComboBoxVSAssemblyInfo extends ListInputVSAssemblyInfo {
    protected void writeContents(PrintWriter writer) {
       super.writeContents(writer);
 
-      writer.print("<selectedObject>");
-      writer.print("<![CDATA[" + Tool.getPersistentDataString(selectedObject,
-         getDataType()) + "]]>");
+      String str = Tool.getPersistentDataString(selectedObject, getDataType());
+      writer.print("<selectedObject" + Tool.cdataDataAttr(str) + ">");
+      writer.print("<![CDATA[" + Tool.cdataData(str) + "]]>");
       writer.print("</selectedObject>");
 
       if(minDate.getDValue() != null) {
@@ -271,7 +275,7 @@ public class ComboBoxVSAssemblyInfo extends ListInputVSAssemblyInfo {
       super.parseContents(elem, isSiteAdminImport);
 
       Element snode = Tool.getChildNodeByTagName(elem, "selectedObject");
-      selectedObject = getPersistentData(getDataType(), Tool.getValue(snode));
+      selectedObject = getPersistentData(getDataType(), Tool.getCDATAData(snode));
 
       minDate.setDValue(getContentsStr(elem, "minDate", ""));
       maxDate.setDValue(getContentsStr(elem, "maxDate", ""));

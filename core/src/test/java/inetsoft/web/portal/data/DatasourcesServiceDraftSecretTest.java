@@ -20,12 +20,16 @@ package inetsoft.web.portal.data;
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.*;
+import inetsoft.uql.XPrincipal;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.tabular.*;
 import inetsoft.uql.util.Config;
 import inetsoft.util.AbstractSecretsManager;
+import inetsoft.util.Catalog;
+import inetsoft.util.CoreTool;
 import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
+import inetsoft.util.UserMessage;
 import inetsoft.util.credential.*;
 import inetsoft.web.composer.model.ws.TabularOAuthParams;
 import org.junit.jupiter.api.*;
@@ -78,6 +82,7 @@ class DatasourcesServiceDraftSecretTest {
       when(registry.getDataSourceFullNames()).thenReturn(new String[0]);
       principal = mock(Principal.class);
       ThreadContext.setContextPrincipal(principal);
+      CoreTool.clearUserMessage();
 
       service = new DatasourcesService(null, securityEngine, null, registry, config);
    }
@@ -85,6 +90,7 @@ class DatasourcesServiceDraftSecretTest {
    @AfterEach
    void tearDown() {
       ThreadContext.setContextPrincipal(null);
+      CoreTool.clearUserMessage();
       SECRETS.remove();
       uqlConfig.close();
       sreeEnv.close();
@@ -220,6 +226,7 @@ class DatasourcesServiceDraftSecretTest {
 
       // getClientId() and getClientSecret() are not @Property getters, they are only read through
       // the names declared by the OAuth button
+      assertNull(params.error());
       assertEquals(STORED_SECRET, params.clientSecret());
       assertEquals(STORED_CLIENT_ID, params.clientId());
    }
@@ -454,14 +461,134 @@ class DatasourcesServiceDraftSecretTest {
    void oauthParamsForUnsavedDraftWithUnmanagedSecretIdReturnNoClientCredentials()
       throws Exception
    {
-      // behavior change: the draft must be saved first, the client reports the missing parameters
-      // as an authorization error
+      // Bug #77172: the draft must be saved first, and the caller is told so. Security is
+      // disabled, so saving the new secret id succeeds.
       TabularOAuthParams params = service.getOAuthParams(oauthRequest(CLOUD, "clientSecret"));
 
-      assertNull(params.error());
+      assertEquals(catalog("data.datasources.saveBeforeAuthorize"), params.error());
       assertNull(params.clientId());
       assertNull(params.clientSecret());
       assertNull(params.tokenUri());
+   }
+
+   @Test
+   void oauthParamsTellSiteAdminToSaveTheDraftFirst() throws Exception {
+      when(securityEngine.isSecurityEnabled()).thenReturn(true);
+      XPrincipal admin = mock(XPrincipal.class);
+      ThreadContext.setContextPrincipal(admin);
+      OrganizationManager organizationManager = mock(OrganizationManager.class);
+      when(organizationManager.isSiteAdmin(admin)).thenReturn(true);
+
+      try(MockedStatic<OrganizationManager> organizations = mockStatic(OrganizationManager.class)) {
+         organizations.when(OrganizationManager::getInstance).thenReturn(organizationManager);
+
+         TabularOAuthParams params = service.getOAuthParams(oauthRequest(CLOUD, "clientSecret"));
+
+         assertEquals(catalog("data.datasources.saveBeforeAuthorize"), params.error());
+         assertNull(params.clientSecret());
+      }
+   }
+
+   @Test
+   void oauthParamsTellCallerWhoCannotIntroduceSecretIdsThatTheIdIsNotAllowed() throws Exception {
+      // saving would be rejected too, so the caller is not asked to save first
+      when(securityEngine.isSecurityEnabled()).thenReturn(true);
+
+      TabularOAuthParams params = service.getOAuthParams(oauthRequest(CLOUD, "clientSecret"));
+
+      assertEquals(catalog("data.datasources.secretIdNotAllowed"), params.error());
+      assertNull(params.clientSecret());
+   }
+
+   @Test
+   void oauthParamsReportMissingCommunityLicenseBeforeWithheldSecretId() throws Exception {
+      sreeEnv.when(() -> SreeEnv.getProperty("license.key")).thenReturn("");
+      licenseManager.when(LicenseManager::isEnterprise).thenReturn(false);
+
+      TabularOAuthParams params = service.getOAuthParams(oauthRequest(CLOUD, "clientSecret"));
+
+      assertEquals(catalog("em.license.communityAPIKeyMissing"), params.error());
+   }
+
+   @Test
+   void oauthParamsIgnoreWithheldSecretIdOfAdditionalConnection() throws Exception {
+      when(registry.getDataSourceFullNames()).thenReturn(new String[] { "other" });
+      when(registry.getDataSource("other")).thenReturn(savedSource(SECRET_ID));
+      grantWrite("other", true);
+      DataSourceDefinition additional = draft(CLOUD, "another-secret");
+      additional.setName("conn");
+      DataSourceOAuthParamsRequest request = oauthRequest(CLOUD, "clientSecret");
+      request.dataSource().setAdditionalConnections(
+         new java.util.ArrayList<>(java.util.List.of(additional)));
+
+      TabularOAuthParams params = service.getOAuthParams(request);
+
+      assertNull(params.error());
+      assertEquals(STORED_SECRET, params.clientSecret());
+   }
+
+   @Test
+   void oauthParamsIgnoreWithheldSecretIdForHostedOAuthService() throws Exception {
+      // a hosted OAuth service authorizes without the data source's client credentials
+      DataSourceOAuthParamsRequest request = oauthRequest(CLOUD, "clientSecret");
+      oauthButton(request.dataSource().getTabularView()).setOauthServiceName("hosted-service");
+
+      TabularOAuthParams params = service.getOAuthParams(request);
+
+      assertNull(params.error());
+      assertNull(params.clientSecret());
+   }
+
+   @Test
+   void refreshViewTellsCallerToSaveBeforeAuthorizingWithWithheldSecretId() throws Exception {
+      service.refreshTabularView(draft(CLOUD, SECRET_ID));
+
+      UserMessage message = CoreTool.getUserMessage();
+      assertNotNull(message);
+      assertEquals(catalog("data.datasources.saveBeforeAuthorize"), message.getMessage());
+   }
+
+   @Test
+   void refreshViewDoesNotMentionAuthorizingWithoutVisibleOAuthButton() throws Exception {
+      // e.g. a REST data source that does not use OAuth
+      DataSourceDefinition definition = draft(CLOUD, SECRET_ID);
+
+      for(TabularView view : definition.getTabularView().getViews()) {
+         if(view.getType() == ViewType.PANEL) {
+            view.setVisible(false);
+         }
+      }
+
+      service.refreshTabularView(definition);
+
+      assertNull(CoreTool.getUserMessage());
+   }
+
+   @Test
+   void refreshViewSendsNoMessageWhenSecretIdIsResolved() throws Exception {
+      when(registry.getDataSourceFullNames()).thenReturn(new String[] { "other" });
+      when(registry.getDataSource("other")).thenReturn(savedSource(SECRET_ID));
+      grantWrite("other", true);
+
+      service.refreshTabularView(draft(CLOUD, SECRET_ID));
+
+      assertNull(CoreTool.getUserMessage());
+   }
+
+   private static String catalog(String key) {
+      return Catalog.getCatalog().getString(key);
+   }
+
+   private static TabularButton oauthButton(TabularView root) {
+      for(TabularView view : root.getViews()) {
+         for(TabularView child : view.getViews()) {
+            if(child.getButton() != null) {
+               return child.getButton();
+            }
+         }
+      }
+
+      return null;
    }
 
    private void grantWrite(String path, boolean granted) throws Exception {
@@ -504,8 +631,25 @@ class DatasourcesServiceDraftSecretTest {
       root.addTabularView(view("credentialId", secretId, true));
       root.addTabularView(view("testClientId", null, false));
       root.addTabularView(view("testClientSecret", null, false));
+      root.addTabularView(oauthPanel());
       root.addTabularView(view("accessToken", null, true));
       return definition(type, root);
+   }
+
+   private static TabularView oauthPanel() {
+      TabularButton button = new TabularButton();
+      button.setType(ButtonType.OAUTH);
+      button.setMethod("updateTokens");
+      button.setEnabledMethod("");
+      TabularView buttonView = new TabularView();
+      buttonView.setType(ViewType.BUTTON);
+      buttonView.setVisible(true);
+      buttonView.setButton(button);
+      TabularView panel = new TabularView();
+      panel.setType(ViewType.PANEL);
+      panel.setVisible(true);
+      panel.addTabularView(buttonView);
+      return panel;
    }
 
    private static DataSourceDefinition definition(String type, TabularView root) {

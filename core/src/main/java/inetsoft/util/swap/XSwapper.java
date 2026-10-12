@@ -17,8 +17,12 @@
  */
 package inetsoft.util.swap;
 
+import com.sun.management.HotSpotDiagnosticMXBean;
+import com.sun.management.VMOption;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.internal.cluster.DistributedMap;
+import inetsoft.uql.asset.SnapshotEmbeddedTableAssembly;
 import inetsoft.util.*;
 import inetsoft.util.ConfigurationContext;
 import jakarta.annotation.PostConstruct;
@@ -28,17 +32,29 @@ import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
+import javax.management.ObjectName;
 import java.io.File;
 import java.io.IOException;
-import java.security.Principal;
+import java.lang.management.GarbageCollectorMXBean;
+import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryPoolMXBean;
+import java.lang.management.MemoryType;
+import java.lang.management.MemoryUsage;
+import java.lang.management.PlatformManagedObject;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
+import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 /**
  * XSwapper swapps the swappables.
@@ -154,8 +170,13 @@ public final class XSwapper {
     * Get the memory state.
     */
    private int getMemoryState0() {
-      double ratio = getFreeRatio();
+      return getMemoryState(getFreeRatio());
+   }
 
+   /**
+    * Get the memory state of a free memory ratio.
+    */
+   static int getMemoryState(double ratio) {
       // > 40%
       if(ratio >= RATIOS[GOOD_MEM]) {
          return GOOD_MEM;
@@ -175,6 +196,187 @@ public final class XSwapper {
       // below 15%
       else {
          return CRITICAL_MEM;
+      }
+   }
+
+   /**
+    * Get the memory state without the G1 eden pool, for the cache swap memory scaling metric.
+    * Eden holds the objects allocated since the last young collection, mostly garbage, and G1
+    * lets it take most of the free heap, so with eden a node with a moderate live set reads as
+    * critical much of the time. Everything else, the swapping and the waits for memory
+    * included, uses {@link #getMemoryState()}: that reading's margin is what keeps a burst of
+    * allocations from running out of memory. Returns {@link #getMemoryState()} if the JVM
+    * doesn't use G1, the young generation size is set, eden can't be read, or
+    * <tt>swapper.scalingMetric.excludeEden</tt> is <tt>false</tt>.
+    */
+   public int getMemoryStateExcludingEden() {
+      final MemoryPoolMXBean eden;
+
+      try {
+         eden = isScalingMetricExcludeEden() ? G1Eden.POOL : null;
+      }
+      catch(Exception | LinkageError ex) {
+         return getMemoryState();
+      }
+
+      return getMemoryStateExcludingEden(
+         Runtime.getRuntime().maxMemory(), eden,
+         () -> ManagementFactory.getMemoryMXBean().getHeapMemoryUsage());
+   }
+
+   /**
+    * Get the memory state without the G1 eden pool at no more than a certain interval. It has
+    * its own cache, so it never changes the state that {@link #getMemoryState()} returns.
+    *
+    * @param max  the maximum heap size.
+    * @param eden the G1 eden pool, or <tt>null</tt> to return {@link #getMemoryState()}.
+    * @param heap supplies the heap memory usage.
+    */
+   int getMemoryStateExcludingEden(long max, MemoryPoolMXBean eden, Supplier<MemoryUsage> heap) {
+      if(eden == null) {
+         return getMemoryState();
+      }
+
+      long now = System.currentTimeMillis();
+
+      if(now - edenStateTS > 200) {
+         final long used = getUsedExcludingEden(eden, heap);
+
+         if(used < 0) {
+            return getMemoryState();
+         }
+
+         edenCachedState = getMemoryState(((double) (max - used)) / max);
+         edenStateTS = now;
+      }
+
+      return edenCachedState;
+   }
+
+   /**
+    * Get the heap used memory without the G1 eden pool.
+    *
+    * @param eden the G1 eden pool.
+    * @param heap supplies the heap memory usage.
+    *
+    * @return the used memory, or <tt>-1</tt> if it can't be read.
+    */
+   static long getUsedExcludingEden(MemoryPoolMXBean eden, Supplier<MemoryUsage> heap) {
+      try {
+         // read the heap before eden: a young collection between the two reads then makes
+         // the used memory too high, the other order could make it too low
+         final long heapUsed = heap.get().getUsed();
+         final MemoryUsage edenUsage = eden.getUsage();
+
+         if(edenUsage == null) {
+            return -1L;
+         }
+
+         return Math.max(heapUsed - edenUsage.getUsed(), 0L);
+      }
+      catch(Exception | LinkageError ex) {
+         return -1L;
+      }
+   }
+
+   /**
+    * Check if the cache swap memory scaling metric excludes the G1 eden pool, from
+    * <tt>swapper.scalingMetric.excludeEden</tt>. Only <tt>false</tt> turns it off.
+    */
+   static boolean isScalingMetricExcludeEden() {
+      // read every time so a property change takes effect without a restart. the setting is
+      // JVM-wide, so don't let the principal of the calling thread pick an organization's value
+      try {
+         final String value = SreeEnv.getProperty(SCALING_METRIC_EXCLUDE_EDEN, false, false);
+         return value == null || !"false".equalsIgnoreCase(value.trim());
+      }
+      catch(Exception ex) {
+         // property engine unavailable (e.g. during test teardown)
+         return true;
+      }
+   }
+
+   /**
+    * Resolves the G1 eden pool on first use. The heap pools don't change for the life of the
+    * JVM, and neither does the young generation sizing.
+    */
+   static final class G1Eden {
+      static final MemoryPoolMXBean POOL = resolve();
+
+      private static MemoryPoolMXBean resolve() {
+         // linking DiagnosticBean::get loads com.sun.management, which a runtime without the
+         // jdk.management module doesn't have. this initializer must never throw, or every
+         // later use of POOL would throw NoClassDefFoundError
+         try {
+            return find(ManagementFactory::getMemoryPoolMXBeans, DiagnosticBean::get);
+         }
+         catch(Exception | LinkageError ex) {
+            LOG.debug("Failed to find the G1 eden pool, the scaling metric includes eden", ex);
+            return null;
+         }
+      }
+
+      /**
+       * Find the G1 eden pool, or <tt>null</tt> if the scaling metric should use the memory
+       * state with eden.
+       *
+       * @param pools supplies the memory pools.
+       * @param bean  supplies the HotSpot diagnostic MXBean, typed as a PlatformManagedObject,
+       *              see {@link DiagnosticBean}.
+       */
+      static MemoryPoolMXBean find(Supplier<List<MemoryPoolMXBean>> pools,
+                                   Supplier<? extends PlatformManagedObject> bean)
+      {
+         try {
+            // the exact name limits this to G1. Parallel and Serial size the young generation
+            // as a fixed share of the heap, so near OOM their live objects stay in eden and a
+            // reading without eden would never get critical
+            final MemoryPoolMXBean eden = pools.get().stream()
+               .filter(pool -> pool.getType() == MemoryType.HEAP)
+               .filter(pool -> EDEN_POOL.equals(pool.getName()))
+               .findFirst()
+               .orElse(null);
+
+            if(eden == null) {
+               LOG.debug("No {} pool, the scaling metric includes eden", EDEN_POOL);
+               return null;
+            }
+
+            if(fixedYoungSize(bean)) {
+               LOG.info("The young generation size is set, or can't be checked, so the " +
+                           "cache swap memory scaling metric includes eden");
+               return null;
+            }
+
+            LOG.debug("The cache swap memory scaling metric excludes the {} pool", EDEN_POOL);
+            return eden;
+         }
+         catch(Exception | LinkageError ex) {
+            LOG.debug("Failed to find the G1 eden pool, the scaling metric includes eden", ex);
+            return null;
+         }
+      }
+
+      /**
+       * Check if the young generation may have a fixed minimum size (-Xmn or -XX:NewSize). G1
+       * then can't shrink eden as the old generation fills, so a reading without eden could
+       * never get critical. Returns <tt>true</tt> if it can't be checked.
+       */
+      static boolean fixedYoungSize(Supplier<? extends PlatformManagedObject> bean) {
+         try {
+            final HotSpotDiagnosticMXBean diagnostic = (HotSpotDiagnosticMXBean) bean.get();
+
+            if(diagnostic == null) {
+               return true;
+            }
+
+            final VMOption.Origin origin = diagnostic.getVMOption("NewSize").getOrigin();
+            return origin != VMOption.Origin.DEFAULT && origin != VMOption.Origin.ERGONOMIC;
+         }
+         catch(Exception | LinkageError ex) {
+            LOG.debug("Failed to check the NewSize option", ex);
+            return true;
+         }
       }
    }
 
@@ -241,55 +443,117 @@ public final class XSwapper {
 
       DEBUG_LOG.debug("Swap dir is {}", cdir);
       final File file = fileSystemService.getFile(cdir);
+      // Bug #78044, before any swap file with this seed can be registered
+      registerSeed();
 
       if(file.isDirectory()) {
          // the cache directory could be very large so do it in background
          // to avoid holding up the server startup
-         (new Thread(() -> {
-            Cluster cluster;
-            Lock lock;
-
-            try {
-               cluster = Cluster.getInstance();
-               lock = cluster.getLock(SWAP_FILE_MAP_LOCK);
-               lock.lock();
-            }
-            catch(Exception e) {
-               DEBUG_LOG.debug(
-                  "Unable to acquire swap file map lock for cache cleanup, " +
-                  "cluster may be stopped", e);
-               return;
-            }
-
-            try {
-               Map<String, Integer> map = cluster.getMap(SWAP_FILE_MAP);
-               File[] files = file.listFiles();
-
-               for(int i = 0; files != null && i < files.length; i++) {
-                  if(!files[i].isDirectory() && files[i].getName().endsWith(".tdat") &&
-                     !map.containsKey(files[i].getAbsolutePath()))
-                  {
-                     files[i].delete();
-                  }
-               }
-            }
-            finally {
-               try {
-                  lock.unlock();
-               }
-               catch(Exception e) {
-                  DEBUG_LOG.debug("Unable to release swap file map lock", e);
-               }
-            }
-         })).start();
+         (new Thread(() -> sweepDeadSeedSwapFiles(file), CACHE_SWEEP_THREAD)).start();
       }
 
-      Principal principal = ThreadContext.getContextPrincipal();
+      // Bug #77649, the swapper threads are JVM-wide and swap the data of every user and
+      // organization, so don't give them the principal of the thread that created the swapper
       threads = new XSwapperThread[getThreadCount()];
 
       for(int i = 0; i < threads.length; i++) {
-         threads[i] = new XSwapperThread(principal);
+         threads[i] = new XSwapperThread();
          threads[i].start();
+      }
+
+      // the flag is JVM-wide, so check it once even if there are several swappers
+      if(periodicGCChecked.compareAndSet(false, true)) {
+         // linking DiagnosticBean::get loads com.sun.management, which a runtime without the
+         // jdk.management module doesn't have, so it must not escape the constructor either
+         try {
+            enablePeriodicGC(XSwapper::getPeriodicGCInterval,
+                             () -> isG1GC(ManagementFactory.getGarbageCollectorMXBeans()),
+                             DiagnosticBean::get);
+         }
+         catch(Exception | LinkageError ex) {
+            LOG.debug("Failed to set {}", PERIODIC_GC_OPTION, ex);
+         }
+      }
+   }
+
+   /**
+    * Deletes the swap files of this cache directory that are not in use by a JVM that may still
+    * be running (see {@link RegisteredSwapFiles#contains}). A <tt>*.tdat</tt> file past
+    * {@link #SWAP_FILE_GRACE_PERIOD} that is not this JVM's own and not a snapshot copy in use is
+    * deleted when either the seed in its name is registered in {@link #SWAP_SEED_MAP} and none of
+    * its owner nodes is in the current cluster topology (whether or not the file is in the swap
+    * file map), or the file is not in the swap file map and its name has no seed or its seed is
+    * not registered in {@link #SWAP_SEED_MAP}. Unregistered files named with the seed of a
+    * running JVM (<tt>s&lt;seed&gt;_...</tt>), e.g. the MV dictionary files of a running local
+    * scheduler, are kept (Bug #78322), so a live swap or scratch <tt>*.tdat</tt> file that is not
+    * in the swap file map must carry the swapper prefix (Bug #78368). This is
+    * the same, unmodified check the constructor's one-shot startup sweep above runs; it is
+    * factored out here, unchanged, so it can also be re-run by a short recurring task
+    * (Bug #78245) instead of only once per JVM. A swap file written in the last seconds of a
+    * JVM that then left the cluster during a rolling restart can still be inside its grace
+    * period the only time the one-shot startup sweep evaluates it; without a second look, it
+    * was never swept again until a manual EM Clean Up or another restart. Re-running this exact
+    * check on a short interval closes that gap without weakening the grace period itself: a
+    * file still being written by a merely-misclassified, still-alive JVM (e.g. a cluster split,
+    * see {@code claude/cluster.md}) keeps exactly the same protection it has today.
+    *
+    * @param dir the swap cache directory.
+    */
+   void sweepDeadSeedSwapFiles(File dir) {
+      Cluster cluster;
+      Lock lock;
+
+      try {
+         cluster = Cluster.getInstance();
+         lock = cluster.getLock(SWAP_FILE_MAP_LOCK);
+         lock.lock();
+      }
+      catch(Exception e) {
+         DEBUG_LOG.debug(
+            "Unable to acquire swap file map lock for cache cleanup, " +
+            "cluster may be stopped", e);
+         return;
+      }
+
+      try {
+         RegisteredSwapFiles registered = new RegisteredSwapFiles(cluster);
+         // Bug #78082, e.g. of the JVM this one replaced in a rolling restart, so that
+         // the copies this JVM makes of the same snapshots are deleted when closed
+         // Bug #78095, before the snapshot counts are read below, so that the copies of
+         // a node that is gone are deleted
+         SnapshotEmbeddedTableAssembly.removeStaleFileReferences(cluster);
+         Map<String, Integer> snapshotMap =
+            cluster.getMap(SnapshotEmbeddedTableAssembly.FILE_REFERENCES_MAP);
+         File[] files = dir.listFiles();
+
+         for(int i = 0; files != null && i < files.length; i++) {
+            // Bug #77600, this JVM may already have written live swap files
+            // Bug #77627, another JVM's file may still be inside its own
+            // registration window (see SWAP_FILE_GRACE_PERIOD)
+            // Bug #78095, a snapshot copy is never in the swap file map, a live table of
+            // another JVM on the same cache directory (e.g. the server and the local
+            // scheduler) or of this one may read it, whatever its age
+            if(!files[i].isDirectory() && files[i].getName().endsWith(".tdat") &&
+               !registered.contains(files[i]) &&
+               !snapshotMap.containsKey(files[i].getAbsolutePath()) &&
+               !SnapshotEmbeddedTableAssembly.isFileInUseLocally(
+                  files[i].getAbsolutePath()) &&
+               !isOwnSwapFile(files[i].getName()) &&
+               System.currentTimeMillis() - files[i].lastModified() >= SWAP_FILE_GRACE_PERIOD)
+            {
+               files[i].delete();
+            }
+         }
+
+         registered.removeStaleEntries();
+      }
+      finally {
+         try {
+            lock.unlock();
+         }
+         catch(Exception e) {
+            DEBUG_LOG.debug("Unable to release swap file map lock", e);
+         }
       }
    }
 
@@ -396,6 +660,14 @@ public final class XSwapper {
                   break;
                }
 
+               // memory freed by swapping, or by sheets that were closed, only shows up in the
+               // memory state after a collection, and the swapper only collects when it swaps
+               // something. doGC() is throttled, so a waiter collects on its first pass and then
+               // only as often as the throttle allows. stop waiting if it freed enough.
+               if(!deadlock && doGC(true) && getMemoryState() > CRITICAL_MEM) {
+                  break;
+               }
+
                synchronized(swapLock) {
                   swapLock.notifyAll();
                }
@@ -456,11 +728,231 @@ public final class XSwapper {
    }
 
    /**
-    * Perform GC and clear cached state.
+    * Run a throttled garbage collection for the swapper sweep, honoring the back-off. See
+    * {@link #doGC(boolean)}.
     */
    private void doGC() {
+      doGC(false);
+   }
+
+   /**
+    * Request a garbage collection for a background task, for example after memory was freed
+    * by dropping cached data. It shares the swapper sweep's throttle and back-off, so it is
+    * often a no-op. See {@link #doGC(boolean)}.
+    *
+    * @return <tt>true</tt> if a garbage collection was run.
+    */
+   public boolean requestGC() {
+      return doGC(false);
+   }
+
+   /**
+    * Run a full garbage collection, if the throttle allows it, and clear the cached memory
+    * state if one ran. Two collections are always spaced at least
+    * <tt>max(swapper.gc.min.interval, GC_PAUSE_FACTOR * last pause)</tt> apart, for every
+    * caller, so the swapper's collections never take more than about 1/GC_PAUSE_FACTOR (5%)
+    * of wall time, however large the heap. In addition, while memory stays critical after a
+    * collection, which means the heap is really full of live data, the sweep backs off up to
+    * MAX_GC_BACKOFF.
+    *
+    * @param waiting <tt>true</tt> if called for a thread waiting in waitForMemory(). Such a
+    *                call honors the spacing but not the sweep back-off, so that an earlier
+    *                period of real memory pressure can't hold off the collection that a waiter
+    *                needs to see memory that has since become garbage. With the default
+    *                interval and pauses up to 500ms the waiter gets one within 10s.
+    *
+    *                A collection whose pause exceeds the swapper.gc.safe.pause threshold also
+    *                logs a WARN for operator visibility, since a pause that long is a danger
+    *                signal for a cluster's failure-detection timeout (Bug #78106). It does not
+    *                additionally throttle future collections: for any pause large enough to
+    *                cross the default threshold, the pre-existing spacing formula above (20x
+    *                the last pause) already pushes the next collection out further than the
+    *                back-off below ever could, so no separate escalation is needed.
+    *
+    * @return <tt>true</tt> if a garbage collection was run.
+    */
+   boolean doGC(boolean waiting) {
+      try {
+         final long base = getGCMinInterval();
+         final long spacing = Math.max(base, GC_PAUSE_FACTOR * lastGCPause.get());
+         final long interval = waiting ? spacing : Math.max(spacing, gcBackoff.get());
+         final long now = clock.getAsLong();
+         final long last = lastGC.get();
+
+         // claim the slot before collecting so that concurrent callers don't stack collections
+         if(now - last < interval || !lastGC.compareAndSet(last, now)) {
+            return false;
+         }
+
+         final long count = getGCCount();
+         final long free = getFreeSpace();
+         runGC();
+         final long pause = Math.max(clock.getAsLong() - now, 0L);
+         lastGCPause.set(pause);
+         final long freed = getFreeSpace() - free;
+         final boolean collected = getGCCount() != count;
+         stateTS = 0;
+         final boolean critical = getMemoryState() == CRITICAL_MEM;
+         final long safePause = getGCSafePause();
+         final boolean dangerousPause = pause > safePause;
+
+         if(dangerousPause) {
+            LOG.warn("A garbage collection requested by the swapper paused the JVM for {}ms, " +
+                        "which is above the {}ms safety threshold (swapper.gc.safe.pause) for " +
+                        "a cluster's failure detection timeout. This is for operator visibility " +
+                        "only: the next forced collection is already spaced out at least 20x " +
+                        "this pause (see the class doc on doGC(boolean)), which throttles it " +
+                        "more than any additional back-off could for a pause this long.",
+                     pause, safePause);
+         }
+
+         // the non-waiting back-off still escalates only on a genuinely critical memory state
+         // (Bug #78106 originally also escalated it on a merely dangerous pause, but that is
+         // mathematically inert: any pause large enough to be "dangerous" already makes the
+         // spacing formula above exceed MAX_GC_BACKOFF on its own, so the escalation could never
+         // be the value that actually governs scheduling -- see the WARN above instead).
+         gcBackoff.set(critical ? Math.min(Math.max(base, gcBackoff.get()) * 2, MAX_GC_BACKOFF) : 0);
+
+         if(!collected) {
+            if(gcNotRunWarned.compareAndSet(false, true)) {
+               LOG.warn("A garbage collection requested by the swapper did not run. Garbage is " +
+                           "not reclaimed, so the memory state can stay critical and requests " +
+                           "can wait up to swapper.critical.max.wait. Explicit garbage " +
+                           "collection is probably disabled in this JVM, for example " +
+                           "-XX:+DisableExplicitGC with the Shenandoah collector.");
+            }
+         }
+         // this is also what a heap that is really full of live data looks like, so it's only a hint
+         else if(critical && freed < Runtime.getRuntime().maxMemory() / 20) {
+            if(gcFreedLittleLogged.compareAndSet(false, true)) {
+               LOG.info("A garbage collection requested by the swapper freed only {}MB and " +
+                           "memory is still critical. If the heap is not really full of live " +
+                           "data, the collection is probably concurrent and can't reclaim " +
+                           "garbage mixed with live objects, for example " +
+                           "-XX:+ExplicitGCInvokesConcurrent with the G1 collector.",
+                        Math.max(freed, 0) / (1024 * 1024));
+            }
+         }
+
+         return true;
+      }
+      catch(Exception | LinkageError ex) {
+         LOG.debug("Failed to run garbage collection", ex);
+         return false;
+      }
+   }
+
+   /**
+    * Run a full garbage collection. This invokes the DiagnosticCommand MBean, which runs the
+    * same command as <tt>jcmd GC.run</tt> and is not blocked by -XX:+DisableExplicitGC, and
+    * falls back to System.gc() if the MBean is unavailable.
+    */
+   void runGC() {
+      if(!dcmdUnavailable) {
+         try {
+            ManagementFactory.getPlatformMBeanServer().invoke(
+               new ObjectName("com.sun.management:type=DiagnosticCommand"), "gcRun", null, null);
+            lastGCDiagnostic = true;
+            return;
+         }
+         catch(Exception | LinkageError ex) {
+            dcmdUnavailable = true;
+            LOG.debug("DiagnosticCommand MBean is not available, using System.gc()", ex);
+         }
+      }
+
+      lastGCDiagnostic = false;
       System.gc();
-      stateTS = 0;
+   }
+
+   /**
+    * Check if the last runGC() went through the DiagnosticCommand MBean, not the System.gc()
+    * fallback. For tests.
+    */
+   boolean isLastGCDiagnostic() {
+      return lastGCDiagnostic;
+   }
+
+   /**
+    * Get the total number of collections run by all collectors.
+    */
+   private static long getGCCount() {
+      long count = 0;
+
+      for(GarbageCollectorMXBean bean : ManagementFactory.getGarbageCollectorMXBeans()) {
+         count += Math.max(bean.getCollectionCount(), 0);
+      }
+
+      return count;
+   }
+
+   /**
+    * Get the minimum time, in milliseconds, between two garbage collections run by the
+    * swapper. Values below MIN_GC_INTERVAL, including 0, are raised to MIN_GC_INTERVAL, so
+    * the throttle can't be turned off.
+    */
+   long getGCMinInterval() {
+      // test override
+      if(gcMinInterval >= 0) {
+         return gcMinInterval;
+      }
+
+      // read every time so a property change takes effect without a restart
+      try {
+         return Math.max(MIN_GC_INTERVAL, Long.parseLong(
+            SreeEnv.getProperty("swapper.gc.min.interval",
+                                Long.toString(DEFAULT_GC_MIN_INTERVAL))));
+      }
+      catch(NumberFormatException ex) {
+         if(gcIntervalWarned.compareAndSet(false, true)) {
+            LOG.warn("Invalid swapper.gc.min.interval value, using {}ms",
+                     DEFAULT_GC_MIN_INTERVAL, ex);
+         }
+
+         return DEFAULT_GC_MIN_INTERVAL;
+      }
+   }
+
+   /**
+    * Set the minimum garbage collection interval. For tests.
+    */
+   void setGCMinInterval(long gcMinInterval) {
+      this.gcMinInterval = gcMinInterval;
+   }
+
+   /**
+    * Get the pause duration, in milliseconds, above which a forced collection is a danger
+    * signal for cluster stability rather than just a cost to amortize (Bug #78106). A
+    * cluster's failure detection timeout defaults to 10s, and a forced GC that runs a true
+    * stop-the-world collection freezes every thread in the JVM, including the threads that
+    * answer failure-detection heartbeats, for the pause's entire duration. The default is
+    * kept meaningfully below that 10s so there is margin before a pause even approaches it.
+    */
+   long getGCSafePause() {
+      // test override
+      if(gcSafePause >= 0) {
+         return gcSafePause;
+      }
+
+      // read every time so a property change takes effect without a restart
+      try {
+         return Long.parseLong(
+            SreeEnv.getProperty("swapper.gc.safe.pause", Long.toString(DEFAULT_GC_SAFE_PAUSE)));
+      }
+      catch(NumberFormatException ex) {
+         if(gcSafePauseWarned.compareAndSet(false, true)) {
+            LOG.warn("Invalid swapper.gc.safe.pause value, using {}ms", DEFAULT_GC_SAFE_PAUSE, ex);
+         }
+
+         return DEFAULT_GC_SAFE_PAUSE;
+      }
+   }
+
+   /**
+    * Set the GC safety pause threshold. For tests.
+    */
+   void setGCSafePause(long gcSafePause) {
+      this.gcSafePause = gcSafePause;
    }
 
    /**
@@ -524,6 +1016,88 @@ public final class XSwapper {
    }
 
    /**
+    * Turn on G1's periodic collection, which runs a concurrent cycle when no collection of
+    * any kind has run for the interval. The memory state counts garbage until a collection
+    * reclaims it, and a node that allocates little can go hours without one, so without
+    * this an idle node keeps reading a stale, low memory state. Under load collections run
+    * anyway and the periodic collection never fires. ZGC and Shenandoah already collect an
+    * idle heap by default. A value set on the command line or by other means is kept.
+    *
+    * @param interval supplies the interval in milliseconds, 0 to leave the option alone.
+    * @param g1       supplies <tt>true</tt> if the JVM uses the G1 collector.
+    * @param bean     supplies the HotSpot diagnostic MXBean. It's typed as a
+    *                 PlatformManagedObject so that this signature doesn't name
+    *                 com.sun.management, see {@link DiagnosticBean}.
+    *
+    * @return <tt>true</tt> if the option was set.
+    */
+   static boolean enablePeriodicGC(LongSupplier interval, BooleanSupplier g1,
+                                   Supplier<? extends PlatformManagedObject> bean)
+   {
+      // everything runs inside the try so that a failure can't stop the swapper from starting
+      try {
+         final long millis = interval.getAsLong();
+
+         if(millis <= 0 || !g1.getAsBoolean()) {
+            return false;
+         }
+
+         final HotSpotDiagnosticMXBean diagnostic = (HotSpotDiagnosticMXBean) bean.get();
+
+         if(diagnostic == null) {
+            return false;
+         }
+
+         final VMOption option = diagnostic.getVMOption(PERIODIC_GC_OPTION);
+
+         // MANAGEMENT is normally an earlier swapper in this JVM; any other origin was set
+         // by the user
+         if(option.getOrigin() != VMOption.Origin.DEFAULT || !option.isWriteable()) {
+            LOG.debug("Not changing {}, it is {} ({})", PERIODIC_GC_OPTION, option.getValue(),
+                      option.getOrigin());
+            return false;
+         }
+
+         diagnostic.setVMOption(PERIODIC_GC_OPTION, Long.toString(millis));
+         LOG.info("Enabled G1 periodic garbage collection after {}ms without a collection, " +
+                     "so that the memory of an idle server is reclaimed. To disable it, set " +
+                     "swapper.idle.gc.interval to 0 and restart; a change takes effect only " +
+                     "after a restart.", millis);
+         return true;
+      }
+      catch(Exception | LinkageError ex) {
+         LOG.debug("Failed to set {}", PERIODIC_GC_OPTION, ex);
+         return false;
+      }
+   }
+
+   /**
+    * Check if the JVM uses the G1 collector.
+    */
+   static boolean isG1GC(Collection<GarbageCollectorMXBean> beans) {
+      return beans.stream().anyMatch(bean -> bean.getName().startsWith("G1 "));
+   }
+
+   /**
+    * Get the G1 periodic collection interval, in milliseconds, from
+    * <tt>swapper.idle.gc.interval</tt>. 0 or less turns it off, and values below
+    * MIN_PERIODIC_GC_INTERVAL are raised to it.
+    */
+   static long getPeriodicGCInterval() {
+      try {
+         final long interval = Long.parseLong(
+            SreeEnv.getProperty("swapper.idle.gc.interval",
+                                Long.toString(DEFAULT_PERIODIC_GC_INTERVAL)).trim());
+         return interval <= 0 ? 0 : Math.max(interval, MIN_PERIODIC_GC_INTERVAL);
+      }
+      catch(NumberFormatException ex) {
+         LOG.warn("Invalid swapper.idle.gc.interval value, using {}ms",
+                  DEFAULT_PERIODIC_GC_INTERVAL, ex);
+         return DEFAULT_PERIODIC_GC_INTERVAL;
+      }
+   }
+
+   /**
     * Get the thread count.
     * @return the thread count.
     */
@@ -542,6 +1116,80 @@ public final class XSwapper {
     */
    public String getPrefix() {
       return "s" + seed + "_" + counter.incrementAndGet();
+   }
+
+   /**
+    * Check if a file carries the prefix of this swapper. Such a file belongs to a
+    * swappable of this JVM, which deletes it itself, so cache clean-up must not
+    * remove it even if it is not registered in the swap file map.
+    * @param name the file name.
+    * @return <tt>true</tt> if the file was created by this swapper.
+    */
+   public boolean isOwnSwapFile(String name) {
+      return name != null && name.startsWith("s" + seed + "_");
+   }
+
+   /**
+    * Bug #78044, records in {@link #SWAP_SEED_MAP} that this swapper's seed belongs to the
+    * local node, so that the cache sweeps of other JVMs can tell when the JVM that registered
+    * a swap file in {@link #SWAP_FILE_MAP} is gone.
+    */
+   private void registerSeed() {
+      try {
+         Cluster cluster = Cluster.getInstance();
+
+         if(!registerSeed(cluster.getMap(SWAP_SEED_MAP), seed, cluster.getLocalNodeId())) {
+            LOG.debug("Unable to register swapper seed {}", seed);
+         }
+      }
+      catch(Exception e) {
+         // the files of an unregistered seed stay protected by their swap file map entries
+         LOG.debug("Unable to register swapper seed, cluster may be stopped", e);
+      }
+   }
+
+   /**
+    * Adds a node to the owners of a seed in {@link #SWAP_SEED_MAP}.
+    * @return <tt>true</tt> if the node is registered.
+    */
+   static boolean registerSeed(Map<Long, String> seeds, long seed, String nodeId) {
+      // several JVMs get the same seed if they start in the same millisecond, so the value
+      // lists every node that uses the seed
+      for(int i = 0; i < 100; i++) {
+         String owners = seeds.putIfAbsent(seed, nodeId);
+
+         if(owners == null || Arrays.asList(owners.split(",")).contains(nodeId) ||
+            seeds.replace(seed, owners, owners + "," + nodeId))
+         {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Gets the seed of the swapper that created a swap file.
+    * @param name the file name.
+    * @return the seed or <tt>null</tt> if the name does not have a swapper prefix.
+    */
+   static Long getSwapFileSeed(String name) {
+      if(name == null || !name.startsWith("s")) {
+         return null;
+      }
+
+      int index = name.indexOf('_', 1);
+
+      if(index < 2) {
+         return null;
+      }
+
+      try {
+         return Long.parseLong(name.substring(1, index));
+      }
+      catch(NumberFormatException e) {
+         return null;
+      }
    }
 
    /**
@@ -595,9 +1243,8 @@ public final class XSwapper {
     * XSwapper thread.
     */
    private final class XSwapperThread extends GroupedThread {
-      public XSwapperThread(Principal contextPrincipal) {
+      public XSwapperThread() {
          super();
-         this.principal = contextPrincipal;
          setDaemon(true);
       }
 
@@ -615,12 +1262,10 @@ public final class XSwapper {
 
       @Override
       protected void doRun() {
-         Principal oldPrincipal = ThreadContext.getContextPrincipal();
-         ThreadContext.setContextPrincipal(principal);
-
          try {
             int state = GOOD_MEM;
-            long waitTime = 0;
+            // Bug #77682, wait(0) never times out, so every wait must have a timeout
+            long waitTime = 5000;
             swapping.set(true);
 
             outer:
@@ -673,6 +1318,7 @@ public final class XSwapper {
                      }
                   }
 
+                  waitTime = 5000;
                   continue;
                }
 
@@ -752,8 +1398,10 @@ public final class XSwapper {
                      criticalNoSwap.incrementAndGet();
                   }
 
-                  // get an acurate memory state after swapping
-                  if(swapCnt > 0 && state <= BAD_MEM) {
+                  // get an acurate memory state after swapping. only force a collection when
+                  // memory is genuinely critical, not merely BAD_MEM, so idle/lightly-loaded
+                  // nodes don't pay for a forced full GC they don't need (Bug #78106).
+                  if(swapCnt > 0 && state == CRITICAL_MEM) {
                      doGC();
                   }
                }
@@ -779,9 +1427,6 @@ public final class XSwapper {
          }
          catch(ShutdownException ignore) {
             // server is shutting down, ignore
-         }
-         finally {
-            ThreadContext.setContextPrincipal(oldPrincipal);
          }
       }
 
@@ -854,7 +1499,6 @@ public final class XSwapper {
       }
 
       private long lcheck = cur;
-      private final Principal principal;
       private final XWeakList list = new XWeakList();
       private XObjectList swaplist = new XObjectList();
       private final AtomicInteger swapIdx = new AtomicInteger(-1); // the current swappable being swapped
@@ -867,6 +1511,35 @@ public final class XSwapper {
 
    // default cap on how long waitForMemory() blocks while the memory state stays critical
    private static final long DEFAULT_CRITICAL_WAIT = 30000L;
+   // default minimum time between two garbage collections run by the swapper
+   private static final long DEFAULT_GC_MIN_INTERVAL = 10000L;
+   // cap on the garbage collection interval while memory stays critical after a collection
+   private static final long MAX_GC_BACKOFF = 60000L;
+   // default pause, in ms, above which a forced collection is logged as a WARN for operator
+   // visibility only (Bug #78106); see the doc on doGC(boolean). It has no effect on
+   // gcBackoff or scheduling -- the pre-existing spacing formula (20x the last pause) already
+   // pushes the next collection out further than any additional back-off could for a pause
+   // this long. Kept well under a cluster's 10s failure-detection timeout default so repeated
+   // forced collections don't compound into (or recur soon after) a pause long enough to risk
+   // a false node-failure declaration and a cluster split.
+   private static final long DEFAULT_GC_SAFE_PAUSE = 5000L;
+   // lowest accepted swapper.gc.min.interval
+   private static final long MIN_GC_INTERVAL = 1000L;
+   // minimum spacing between two garbage collections, as a multiple of the last pause
+   private static final long GC_PAUSE_FACTOR = 20L;
+   // G1 option for a concurrent collection after an interval without any collection
+   private static final String PERIODIC_GC_OPTION = "G1PeriodicGCInterval";
+   // default G1 periodic collection interval
+   private static final long DEFAULT_PERIODIC_GC_INTERVAL = 300000L;
+   // lowest accepted swapper.idle.gc.interval other than 0; garbage mixed with live objects
+   // takes about 9 periodic collections to reclaim, so shorter intervals only add cycles
+   private static final long MIN_PERIODIC_GC_INTERVAL = 60000L;
+   // name of the G1 eden memory pool
+   private static final String EDEN_POOL = "G1 Eden Space";
+   // turns off the eden-excluded memory state of the cache swap memory scaling metric
+   private static final String SCALING_METRIC_EXCLUDE_EDEN = "swapper.scalingMetric.excludeEden";
+   // set when the first swapper in this JVM has checked G1PeriodicGCInterval
+   private static final AtomicBoolean periodicGCChecked = new AtomicBoolean(false);
    // swapping thresholds for [critical, bad, low, norm, good]
    private static final int[] PRIORITY = {1, 5, 20, 50, 200};
    // swapping percentage for [critical, bad, low, norm, good]
@@ -916,11 +1589,27 @@ public final class XSwapper {
    private long scount = 0L;
    private volatile int cachedState = GOOD_MEM;
    private volatile long stateTS = 0;
+   // cache of getMemoryStateExcludingEden(), separate from the state everything else reads
+   private volatile int edenCachedState = GOOD_MEM;
+   private volatile long edenStateTS = 0;
 
    private boolean stopped = false;
    private XSwapperThread[] threads = null;
    private final AtomicInteger criticalNoSwap = new AtomicInteger(0);
    private volatile long maxCriticalWait = -1L;
+   private volatile long gcMinInterval = -1L;
+   private volatile long gcSafePause = -1L;
+   private final AtomicBoolean gcSafePauseWarned = new AtomicBoolean(false);
+   private volatile boolean dcmdUnavailable = false;
+   private volatile boolean lastGCDiagnostic = false;
+   private final AtomicLong lastGC = new AtomicLong(0L);
+   private final AtomicLong gcBackoff = new AtomicLong(0L);
+   private final AtomicLong lastGCPause = new AtomicLong(0L);
+   private final AtomicBoolean gcNotRunWarned = new AtomicBoolean(false);
+   private final AtomicBoolean gcFreedLittleLogged = new AtomicBoolean(false);
+   // clock for the garbage collection throttle, replaced by tests
+   volatile LongSupplier clock = System::currentTimeMillis;
+   private final AtomicBoolean gcIntervalWarned = new AtomicBoolean(false);
    private int circle = 0;
    private int tcount = 0;
    private final long seed = Math.abs(System.currentTimeMillis());
@@ -930,45 +1619,50 @@ public final class XSwapper {
 
    private final Lock waitLock = new ReentrantLock();
    private final Condition waitCondition = waitLock.newCondition();
-   private final Object swapLock = "swapLock";
+   // Bug #77682, not a string literal, which is interned and shared by every instance
+   private final Object swapLock = new Object();
 
    private final AtomicLong counter = new AtomicLong(0);
    private final ThreadLocal<Boolean> swapping = ThreadLocal.withInitial(() -> false);
 
    private static final Logger DEBUG_LOG = LoggerFactory.getLogger("inetsoft.swap_data");
 
+   /**
+    * Looks up the HotSpot diagnostic MXBean. This is a separate class, and not a lambda in
+    * XSwapper, so that no method declared by XSwapper has com.sun.management in its
+    * signature: Spring and Mockito reflect on XSwapper's declared methods, which fails if a
+    * signature names a class that the runtime doesn't have (no jdk.management module).
+    */
+   private static final class DiagnosticBean {
+      static HotSpotDiagnosticMXBean get() {
+         return ManagementFactory.getPlatformMXBean(HotSpotDiagnosticMXBean.class);
+      }
+   }
+
    private static final class MonitorMulticaster implements XSwappableMonitor {
       @Override
       public void countHits(int type, int hits) {
-         monitors.stream()
-            .filter(m -> m.isLevelQualified(HITS))
-            .forEach(m -> m.countHits(type, hits));
+         forEachQualified(HITS, m -> m.countHits(type, hits));
       }
 
       @Override
       public void countMisses(int type, int misses) {
-         monitors.stream()
-            .filter(m -> m.isLevelQualified(HITS))
-            .forEach(m -> m.countHits(type, misses));
+         forEachQualified(MISSES, m -> m.countMisses(type, misses));
       }
 
       @Override
       public void countRead(long num, int type) {
-         monitors.stream()
-            .filter(m -> m.isLevelQualified(READ))
-            .forEach(m -> m.countRead(num, type));
+         forEachQualified(READ, m -> m.countRead(num, type));
       }
 
       @Override
       public void countWrite(long num, int type) {
-         monitors.stream()
-            .filter(m -> m.isLevelQualified(READ))
-            .forEach(m -> m.countWrite(num, type));
+         forEachQualified(WRITTEN, m -> m.countWrite(num, type));
       }
 
       @Override
       public boolean isLevelQualified(String attr) {
-         return monitors.stream().anyMatch(m -> m.isLevelQualified(attr));
+         return monitors.stream().anyMatch(m -> isQualified(m, attr));
       }
 
       void addMonitor(XSwappableMonitor monitor) {
@@ -977,13 +1671,188 @@ public final class XSwapper {
 
       void removeMonitor(XSwappableMonitor monitor) {
          monitors.remove(monitor);
+         failedMonitors.remove(monitor);
+      }
+
+      // Bug #77684, a monitor only observes the swapper. A monitor that throws, from its
+      // level check or from the count itself, must not keep the count from the monitors
+      // after it, or fail the swap, read or access that is being counted.
+      private void forEachQualified(String attr, Consumer<XSwappableMonitor> count) {
+         for(XSwappableMonitor monitor : monitors) {
+            try {
+               if(monitor.isLevelQualified(attr)) {
+                  count.accept(monitor);
+               }
+            }
+            catch(RuntimeException ex) {
+               logFailure(monitor, ex);
+            }
+         }
+      }
+
+      private boolean isQualified(XSwappableMonitor monitor, String attr) {
+         try {
+            return monitor.isLevelQualified(attr);
+         }
+         catch(RuntimeException ex) {
+            logFailure(monitor, ex);
+            return false;
+         }
+      }
+
+      // counts are on hot paths, so a monitor that keeps failing is warned about only once
+      private void logFailure(XSwappableMonitor monitor, RuntimeException ex) {
+         if(failedMonitors.add(monitor)) {
+            LOG.warn("Swappable monitor {} failed, later failures are logged at debug level",
+                     monitor.getClass().getName(), ex);
+         }
+         else {
+            LOG.debug("Swappable monitor {} failed", monitor.getClass().getName(), ex);
+         }
       }
 
       private final List<XSwappableMonitor> monitors = new CopyOnWriteArrayList<>();
+      private final Set<XSwappableMonitor> failedMonitors = ConcurrentHashMap.newKeySet();
    }
 
    public static final String SWAP_FILE_MAP = "inetsoft.swap.file.map";
    public static final String SWAP_FILE_MAP_LOCK = "inetsoft.swap.file.map.lock";
+   // Bug #78044, swapper seed -> comma-separated ids of the nodes whose swapper uses it
+   public static final String SWAP_SEED_MAP = "inetsoft.swap.seed.map";
+   // name of the thread of the cache sweep that runs when a swapper is created
+   public static final String CACHE_SWEEP_THREAD = "XSwapper cache sweep";
+
+   // Bug #77627, swapRemaining() writes a whole batch of swap files to disk before
+   // registering any of them in SWAP_FILE_MAP (one lock acquisition for the batch). A file
+   // can therefore sit on disk, live, but not yet registered and not matching this JVM's own
+   // prefix, for as long as the rest of its batch takes to finish. Cache sweeps that have no
+   // age gate of their own must wait at least this long after a file's last modification
+   // before treating it as orphaned, so they don't land inside that window.
+   public static final long SWAP_FILE_GRACE_PERIOD = 60000L; // 1 min
+
+   /**
+    * Bug #78044, the view of {@link #SWAP_FILE_MAP} that a cache sweep uses to decide if a file
+    * is still in use. Entries are removed only by {@link XSwappableReference#close()} in the JVM
+    * that added them, and the map lives as long as the cluster, so the entries of a JVM that
+    * stopped while other nodes stayed up (e.g. in a rolling restart) would protect its files
+    * forever. An entry protects its file unless the seed in the file name is registered in
+    * {@link #SWAP_SEED_MAP} and none of the nodes that use the seed is in the cluster anymore. A
+    * seed that is not registered (e.g. of a JVM of an older version) is assumed to be alive for
+    * entries in the map. A file that is not in the map is protected when its seed is registered
+    * and at least one of its owner nodes is in the cluster (Bug #78322).
+    * An instance is meant for a single sweep.
+    */
+   public static final class RegisteredSwapFiles {
+      public RegisteredSwapFiles(Cluster cluster) {
+         this.cluster = cluster;
+         this.map = cluster.getMap(SWAP_FILE_MAP);
+         this.seeds = cluster.getMap(SWAP_SEED_MAP);
+      }
+
+      /**
+       * Checks if a file is in use by a JVM that may still be running: it is registered in the
+       * swap file map by such a JVM, or its seed is registered in {@link #SWAP_SEED_MAP} and one
+       * of the nodes that use the seed is in the cluster. The second case protects the files
+       * that are not (yet) registered, e.g. of a swappable that does not register its files or
+       * is still inside the batch window of Bug #77627. A seed that is not registered is not
+       * treated as live here, so that the files of a JVM that is gone and whose seed was already
+       * removed are still deleted.
+       * @param file the file.
+       * @return <tt>true</tt> if the file is in use.
+       */
+      public boolean contains(File file) {
+         if(map.containsKey(file.getAbsolutePath()) && !isStale(file.getName())) {
+            return true;
+         }
+
+         Long seed = getSwapFileSeed(file.getName());
+         return seed != null && isLive(seed);
+      }
+
+      // one distributed read per seed, not per file, a cache directory can hold many files
+      private boolean isLive(Long seed) {
+         return live.computeIfAbsent(seed, s -> {
+            String owners = seeds.get(s);
+            return owners != null && !owners.isEmpty() && !dead.computeIfAbsent(s, this::isDead);
+         });
+      }
+
+      /**
+       * Removes the swap file map entries and the seeds of the JVMs that are gone, so that the
+       * maps don't grow with every restart. The caller must hold {@link #SWAP_FILE_MAP_LOCK}.
+       */
+      public void removeStaleEntries() {
+         try {
+            Set<String> stale = new HashSet<>();
+
+            for(String path : map.keySet()) {
+               if(isStale(new File(path).getName())) {
+                  stale.add(path);
+               }
+            }
+
+            if(!stale.isEmpty()) {
+               map.removeAll(stale);
+            }
+
+            // only after the entries are gone, a seed that is not registered protects its files.
+            // A dead seed without entries is removed too, e.g. of a JVM that had closed all its
+            // swap files
+            for(Long seed : seeds.keySet()) {
+               if(dead.computeIfAbsent(seed, this::isDead)) {
+                  // not if a node was added to the seed since
+                  seeds.remove(seed, deadOwners.get(seed));
+               }
+            }
+         }
+         catch(Exception e) {
+            LOG.debug("Failed to remove stale swap file map entries", e);
+         }
+      }
+
+      private boolean isStale(String name) {
+         Long seed = getSwapFileSeed(name);
+         return seed != null && dead.computeIfAbsent(seed, this::isDead);
+      }
+
+      private boolean isDead(Long seed) {
+         try {
+            String owners = seeds.get(seed);
+
+            if(owners == null || owners.isEmpty()) {
+               return false;
+            }
+
+            List<String> ids = Arrays.asList(owners.split(","));
+
+            if(nodes != null && ids.stream().anyMatch(nodes::contains)) {
+               return false;
+            }
+
+            // read the topology again, the owner may have joined after it was last read
+            nodes = cluster.getClusterNodeIds();
+
+            if(ids.stream().anyMatch(nodes::contains)) {
+               return false;
+            }
+
+            deadOwners.put(seed, owners);
+            return true;
+         }
+         catch(Exception e) {
+            LOG.debug("Unable to check if swapper seed {} is alive", seed, e);
+            return false;
+         }
+      }
+
+      private final Cluster cluster;
+      private final DistributedMap<String, Integer> map;
+      private final Map<Long, String> seeds;
+      private final Map<Long, Boolean> dead = new HashMap<>();
+      private final Map<Long, Boolean> live = new HashMap<>();
+      private final Map<Long, String> deadOwners = new HashMap<>();
+      private Set<String> nodes;
+   }
 
    public static final class XSwappableReference extends Cleaner.Reference<XSwappable> {
       public XSwappableReference(XSwappable referent, File[] files) {

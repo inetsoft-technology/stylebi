@@ -26,18 +26,24 @@ import inetsoft.report.internal.Util;
 import inetsoft.report.internal.binding.CrosstabSortInfo;
 import inetsoft.report.internal.table.TableFormat;
 import inetsoft.report.lens.AbstractTableLens;
+import inetsoft.report.lens.ChainScriptLock;
 import inetsoft.report.lens.HeaderRowTableLens;
 import inetsoft.report.style.TableStyle;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.AggregateFormula;
 import inetsoft.uql.asset.internal.ColumnIndexMap;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.*;
 import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.profile.ProfileUtils;
+import inetsoft.util.script.JavaScriptEngine;
+import inetsoft.util.script.LendableReentrantLock;
 import inetsoft.util.script.ScriptSpan;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import inetsoft.util.stall.LockStallException;
+import inetsoft.util.swap.SwapFileReadException;
 import inetsoft.util.swap.XIntList;
 
 import java.awt.*;
@@ -47,6 +53,7 @@ import java.text.SimpleDateFormat;
 import java.util.List;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.stream.Collectors;
 
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
@@ -441,8 +448,7 @@ public class CrossTabFilter extends AbstractTableLens
     */
    @Override
    public int getRowCount() {
-      checkInit();
-      return data.length;
+      return getData().length;
    }
 
    /**
@@ -452,8 +458,7 @@ public class CrossTabFilter extends AbstractTableLens
     */
    @Override
    public int getColCount() {
-      checkInit();
-      return data[0].length;
+      return getData()[0].length;
    }
 
    /**
@@ -898,7 +903,8 @@ public class CrossTabFilter extends AbstractTableLens
     */
    @Override
    public Object getObject(int r, int c) {
-      checkInit();
+      // read once, invalidate() may clear it at any time (bug #77365)
+      Object[][] data = getData();
 
       if(r == 0 && c >= getHeaderColCount() && c < data[r].length && data[r][c] == null ||
          c == 0 && r >= getHeaderRowCount() && r < data.length && data[r][c] == null)
@@ -976,7 +982,8 @@ public class CrossTabFilter extends AbstractTableLens
     */
    @Override
    public void setObject(int r, int c, Object v) {
-      checkInit();
+      // write into the published data, read once (bug #77365)
+      Object[][] data = getData();
 
       if(r == 0 && c >= getHeaderColCount() && data[r][c] == null ||
          c == 0 && r >= getHeaderRowCount() && data[r][c] == null)
@@ -2230,11 +2237,15 @@ public class CrossTabFilter extends AbstractTableLens
          style.setTrailerRowCount(isSuppressRowGrandTotal() ? 0 : 1);
       }
 
-      data = null;
-      spanmap.clear();
+      // don't take the lock or clear the scratch of the pass here: a pass may be running, it
+      // clears its scratch when it starts, and it sees the new generation and runs again
+      // rather than publish data that misses the change (bug #77365)
+      // atomic, a lost increment of two concurrent invalidate() calls could let a pass
+      // publish data that misses a change (bug #77397)
+      GENERATION.incrementAndGet(this);
+      published = null;
+      // the descriptor's meta info cache, not scratch of the pass
       mmap.clear();
-      rnumMap.clear();
-      totalPos.clear();
       formulas.clear();
 
       fireChangeEvent();
@@ -2263,6 +2274,27 @@ public class CrossTabFilter extends AbstractTableLens
          if(stall != null) {
             throw stall;
          }
+
+         // nor a lost swap file of the base, the fragment already logged the read failure
+         // (bug #77651)
+         SwapFileReadException swapFailure = SwapFileReadException.find(ex);
+
+         if(swapFailure != null) {
+            throw swapFailure;
+         }
+
+         // nor a base that failed to load, for a reader that has to fail, e.g. a scheduled
+         // run; the failure was logged where it happened (bug #77901)
+         TableLoadException loadFailure = TableLoadException.find(ex);
+
+         if(loadFailure != null) {
+            throw loadFailure;
+         }
+
+         // nor a stopped script, of the base or of a calc field: nothing is published, the
+         // reader gets the stop rather than no data, and the next one generates it again
+         // (bug #78134)
+         ScriptTimeoutGuard.rethrowStop(ex);
 
          LOG.error("Failed to process crosstab filter", ex);
       }
@@ -5855,11 +5887,120 @@ public class CrossTabFilter extends AbstractTableLens
     */
    @Override
    public void checkInit() {
-      if(data == null) {
-         synchronized(this) {
-            if(data == null) {
+      getData();
+   }
+
+   /**
+    * Clone the crosstab. The copy never takes the working data of a pass running on another
+    * thread, it uses the published data or generates its own (bug #77397).
+    */
+   @Override
+   public CrossTabFilter clone() {
+      CrossTabFilter copy = (CrossTabFilter) super.clone();
+
+      if(copy != null) {
+         copy.data = null;
+      }
+
+      return copy;
+   }
+
+   /**
+    * Get the crosstab data, generating it first if it is not published. The data is published
+    * only once it is filled, and only if the crosstab was not invalidated while it was
+    * generated (bug #77365).
+    */
+   private Object[][] getData() {
+      Object[][] published = this.published;
+
+      if(published != null) {
+         return published;
+      }
+
+      // the crosstab reads the whole base under this filter's monitor, so it takes the engine
+      // lock the base needs before the monitor, like a condition filter (bug #76918): a thread
+      // holding that lock may be waiting for the monitor to read this filter, it would wait
+      // forever for a reader holding the monitor between two base rows (bug #77874). the row
+      // count is the crosstab's own result, so a count takes the lock as well
+      LendableReentrantLock execLock = getUnheldChainScriptLock();
+
+      if(execLock == null) {
+         return generateData();
+      }
+
+      execLock.lock();
+      JavaScriptEngine.pushHeldScriptLock(execLock);
+
+      try {
+         return generateData();
+      }
+      finally {
+         JavaScriptEngine.popHeldScriptLock();
+         execLock.unlock();
+      }
+   }
+
+   /**
+    * Get the engine lock reading the base may take if the current thread does not hold it
+    * (bug #77874).
+    */
+   private LendableReentrantLock getUnheldChainScriptLock() {
+      LendableReentrantLock execLock = ChainScriptLock.find(table);
+      return execLock != null && !execLock.isHeldByCurrentThread() ? execLock : null;
+   }
+
+   /**
+    * Get the published crosstab data, generating it under this filter's monitor if it is not
+    * published.
+    */
+   private Object[][] generateData() {
+      Object[][] published;
+
+      synchronized(this) {
+         published = this.published;
+
+         if(published != null) {
+            return published;
+         }
+
+         // called from the pass on this thread, e.g. for a cell's default format
+         if(data != null) {
+            return data;
+         }
+
+         for(int retry = 0; ; retry++) {
+            int generation = this.generation;
+            spanmap.clear();
+            mmap.clear();
+            rnumMap.clear();
+            totalPos.clear();
+
+            try {
                process();
+               published = data;
             }
+            finally {
+               data = null;
+            }
+
+            this.published = published;
+
+            // invalidate() bumps the generation before it clears the published data, so an
+            // invalidate that raced this publish is seen here or clears it afterwards
+            if(generation == this.generation) {
+               return published;
+            }
+
+            if(retry >= MAX_PROCESS_RETRIES) {
+               LOG.warn("Crosstab published after it was invalidated {} times while it was " +
+                        "generated", MAX_PROCESS_RETRIES);
+               // this caller takes the data, but it may miss a change, so don't keep it
+               // published: the next reader generates it again (bug #77397)
+               this.published = null;
+               return published;
+            }
+
+            this.published = null;
          }
       }
    }
@@ -7172,7 +7313,13 @@ public class CrossTabFilter extends AbstractTableLens
    private final Hashtable<Object, Object> i18n2headers = new Hashtable<>();
    private final Hashtable<Object, Object> headers2i18n = new Hashtable<>();
    private TableLens table;
-   private Object[][] data;
+   // the data of the running pass, only used while holding the lock. transient and not
+   // cloned, a copy taken during a pass must not keep the working array (bug #77397)
+   private transient Object[][] data;
+   // the filled data, read without the lock (bug #77365)
+   private volatile Object[][] published;
+   // bumped by invalidate(), a pass that sees it change doesn't keep its data (bug #77365)
+   private volatile int generation;
    private final Formula[] sum;
    private Formula[] oldFormula;
    private FormulaAgent[] fagents;
@@ -7264,5 +7411,10 @@ public class CrossTabFilter extends AbstractTableLens
    private Map<String, String> calcMeasureMap = new HashMap<>();
    private transient Map<Integer, CalcColumn> aggCalcMap = new HashMap<>();
 
+   private static final int MAX_PROCESS_RETRIES = 10;
+   // a field updater, not an AtomicInteger: the shallow clone would share an AtomicInteger
+   // between a crosstab and its copies (bug #77397)
+   private static final AtomicIntegerFieldUpdater<CrossTabFilter> GENERATION =
+      AtomicIntegerFieldUpdater.newUpdater(CrossTabFilter.class, "generation");
    private static final Logger LOG = LoggerFactory.getLogger(CrossTabFilter.class);
 }

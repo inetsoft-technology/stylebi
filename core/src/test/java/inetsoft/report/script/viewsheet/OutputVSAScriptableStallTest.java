@@ -23,6 +23,9 @@ import inetsoft.uql.viewsheet.GaugeVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.script.ScriptException;
 import inetsoft.util.stall.LockStallException;
+import inetsoft.util.swap.LostSwapFile;
+import inetsoft.util.swap.SwapFileReadException;
+import org.graalvm.polyglot.proxy.ProxyExecutable;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.annotation.DirtiesContext;
@@ -39,7 +42,7 @@ import static org.mockito.Mockito.*;
  * ({@code Gauge1.value * 2} gave 0).
  */
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(classes = { BaseTestConfiguration.class },
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class },
                       initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
@@ -91,6 +94,21 @@ class OutputVSAScriptableStallTest {
    }
 
    /**
+    * #78000: the gauge used as a scalar reads its value the same way as .value, so a stall
+    * under that read reaches the script too.
+    */
+   @Test
+   void stalledScalarCoercionThrowsTheStall() throws Exception {
+      LockStallException stall = new LockStallException("test.site", "worker", 1234, null);
+      when(box.getData("Gauge1")).thenThrow(stall);
+
+      for(String member : new String[] { "valueOf", "toString" }) {
+         ProxyExecutable coerce = (ProxyExecutable) gauge.getMember(member);
+         assertSame(stall, assertThrows(LockStallException.class, coerce::execute));
+      }
+   }
+
+   /**
     * A failure that is not a stall still reads as a null value, as before.
     */
    @Test
@@ -106,5 +124,35 @@ class OutputVSAScriptableStallTest {
    void valueReadReturnsTheData() throws Exception {
       when(box.getData("Gauge1")).thenReturn(5);
       assertEquals(5, gauge.getMember("value"));
+   }
+
+   /**
+    * #77910: a lost swap file under the output query, as such or wrapped in the script
+    * error of the query, must reach the script instead of reading as a null value.
+    */
+   @Test
+   void lostSwapFileValueReadThrowsTheSwapFailure() throws Exception {
+      try(LostSwapFile lost = new LostSwapFile()) {
+         when(box.getData("Gauge1"))
+            .thenAnswer(inv -> {
+               lost.read();
+               return null;
+            })
+            .thenAnswer(inv -> {
+               try {
+                  lost.read();
+               }
+               catch(SwapFileReadException ex) {
+                  throw new ScriptException("output failed", ex);
+               }
+
+               return null;
+            });
+
+         assertEquals(lost.getFile(), assertThrows(SwapFileReadException.class,
+            () -> gauge.getMember("value")).getFile());
+         assertEquals(lost.getFile(), assertThrows(SwapFileReadException.class,
+            () -> gauge.getMember("value")).getFile());
+      }
    }
 }

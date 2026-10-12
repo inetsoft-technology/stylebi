@@ -50,6 +50,7 @@ public class WSMoveAssembliesService extends WorksheetControllerService {
       RuntimeWorksheet rws = super.getRuntimeWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
       String[] names = event.getAssemblyNames();
+      checkCubeTableReadPermission(principal, names);
       int x = event.getOffsetLeft();
       int y = event.getOffsetTop();
 
@@ -77,6 +78,7 @@ public class WSMoveAssembliesService extends WorksheetControllerService {
    {
       RuntimeWorksheet rws = super.getRuntimeWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
+      checkCubeTableReadPermission(principal, event.assemblyNames());
       String[] names = event.assemblyNames();
 
       for(int i = 0; i < names.length; i++) {

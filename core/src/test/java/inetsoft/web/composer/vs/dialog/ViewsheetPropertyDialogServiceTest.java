@@ -34,6 +34,7 @@ import inetsoft.uql.viewsheet.vslayout.*;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.junit.jupiter.api.BeforeEach;
@@ -73,7 +74,7 @@ public class ViewsheetPropertyDialogServiceTest {
       service = new ViewsheetPropertyDialogService(coreLifecycleService, viewsheetService,
                                                    layoutService, viewsheetSettingsService,
                                                    vsAssemblyInfoHandler, null,
-                                                   null, null);
+                                                   null, null, null);
    }
 
    // Bug #16756 Update layout info if it has same id as incoming layout
@@ -254,7 +255,8 @@ public class ViewsheetPropertyDialogServiceTest {
    public void readSideAttachesTheCurrentWriteRevision() throws Exception {
       ViewsheetPropertyDialogService readService = new ViewsheetPropertyDialogService(
          coreLifecycleService, viewsheetService, layoutService, viewsheetSettingsService,
-         vsAssemblyInfoHandler, securityEngine, null, deviceRegistry);
+         vsAssemblyInfoHandler, securityEngine, null, deviceRegistry,
+         mock(QueryManagerService.class));
 
       when(viewsheetService.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
       when(rvs.getViewsheet()).thenReturn(viewsheet);
@@ -281,7 +283,8 @@ public class ViewsheetPropertyDialogServiceTest {
    public void readSideToleratesAPrintLayoutWithNoStoredSize() throws Exception {
       ViewsheetPropertyDialogService readService = new ViewsheetPropertyDialogService(
          coreLifecycleService, viewsheetService, layoutService, viewsheetSettingsService,
-         vsAssemblyInfoHandler, securityEngine, null, deviceRegistry);
+         vsAssemblyInfoHandler, securityEngine, null, deviceRegistry,
+         mock(QueryManagerService.class));
 
       when(viewsheetService.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
       when(rvs.getViewsheet()).thenReturn(viewsheet);
@@ -384,7 +387,7 @@ public class ViewsheetPropertyDialogServiceTest {
 
       ViewsheetPropertyDialogService service = new ViewsheetPropertyDialogService(
          coreLifecycleService, viewsheetService, layoutService, viewsheetSettingsService,
-         vsAssemblyInfoHandler, securityEngine, null, deviceRegistry);
+         vsAssemblyInfoHandler, securityEngine, null, deviceRegistry, null);
 
       when(viewsheetService.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
       when(viewsheetService.getAssetRepository()).thenReturn(assetRepository);

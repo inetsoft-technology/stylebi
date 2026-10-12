@@ -190,7 +190,7 @@ public class VSBindingModelService {
       BindingModel obinding = bfactory.createModel(assembly);
       VSAssemblyInfo oinfo = (VSAssemblyInfo) assembly.getInfo().clone();
       VSAssembly clone = (VSAssembly) assembly.clone();
-      clone = bfactory.updateAssembly(binding, clone);
+      clone = bfactory.updateAssembly(binding, clone, principal);
       VSAssemblyInfo ninfo = (VSAssemblyInfo) clone.getInfo();
       assemblyInfoHandler.apply(rvs, ninfo, engine, false, false, false, false, dispatcher);
 

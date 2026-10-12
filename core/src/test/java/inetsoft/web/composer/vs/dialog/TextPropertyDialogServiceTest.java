@@ -28,6 +28,7 @@ import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.composer.model.vs.TextPropertyDialogModel;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.composer.vs.objects.controller.VSTrapService;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.service.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -61,7 +62,8 @@ public class TextPropertyDialogServiceTest {
                                               engine,
                                               dialogService,
                                               trapService,
-                                              infoHandler);
+                                              infoHandler,
+                                              mock(QueryManagerService.class));
 
       when(engine.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
       when(rvs.getViewsheet()).thenReturn(viewsheet);

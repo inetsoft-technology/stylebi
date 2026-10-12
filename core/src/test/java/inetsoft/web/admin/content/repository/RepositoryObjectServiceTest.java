@@ -25,10 +25,13 @@ package inetsoft.web.admin.content.repository;
  */
 
 import inetsoft.report.LibManagerProvider;
+import inetsoft.sree.RepletRegistry;
 import inetsoft.sree.RepletRegistryManager;
 import inetsoft.sree.RepositoryEntry;
+import inetsoft.sree.security.AuthorizationProvider;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.OrganizationContextHolder;
+import inetsoft.sree.security.Permission;
 import inetsoft.sree.security.Resource;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
@@ -52,9 +55,11 @@ import inetsoft.uql.erm.XLogicalModel;
 import inetsoft.uql.erm.XPartition;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.XUtil;
+import inetsoft.util.MessageException;
 import inetsoft.util.ThreadContext;
 import inetsoft.web.RecycleBin;
 import inetsoft.web.admin.content.database.model.DataModelFolderManagerService;
+import inetsoft.web.admin.content.repository.model.MoveCopyTreeNodesRequest;
 import inetsoft.web.admin.content.repository.model.TreeNodeInfo;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -75,8 +80,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -108,7 +115,7 @@ class RepositoryObjectServiceTest {
    }
 
    @BeforeEach
-   void setUp() {
+   void setUp() throws Exception {
       // the context is cached across test methods, so drop the previous method's stubbing
       reset(dependencyStorageService);
       dataSourceRegistry = mock(DataSourceRegistry.class);
@@ -116,22 +123,28 @@ class RepositoryObjectServiceTest {
       dependencyHandler = mock(DependencyHandler.class);
       dataModel = mock(XDataModel.class);
       securityProvider = mock(SecurityProvider.class);
-      // most scenarios only care about a specific source's permission outcome -- default to
-      // allowed so a test only has to stub the source(s) it wants to deny.
-      when(securityProvider.checkPermission(any(), any(), anyString(), any())).thenReturn(true);
+      xRepository = mock(XRepository.class);
+      renameTransformHandler = mock(RenameTransformHandler.class);
+      repletRegistryManager = mock(RepletRegistryManager.class);
+      authorizationProvider = mock(AuthorizationProvider.class);
 
       when(dataModel.getDataSource()).thenReturn(DATA_SOURCE);
       when(dataSourceRegistry.getDataModel(DATA_SOURCE)).thenReturn(dataModel);
+      // moveDataModel() looks the data model up through XRepository, not DataSourceRegistry
+      when(xRepository.getDataModel(DATA_SOURCE)).thenReturn(dataModel);
       // the base logical model/physical view branch of checkPermission() dereferences the resource
       when(resourcePermissionService.getRepositoryResourceType(anyInt(), anyString()))
          .thenReturn(new Resource(ResourceType.DATA_SOURCE, DATA_SOURCE));
+      // moveFiles()'s data-model branch renames the permission through the authorization provider,
+      // not through SecurityProvider's own setPermission()/removePermission() (unlike deleteNodes())
+      when(securityProvider.getAuthorizationProvider()).thenReturn(authorizationProvider);
 
       service = new RepositoryObjectService(
          mock(RepletRegistryService.class), mock(ContentRepositoryTreeService.class),
-         securityProvider, resourcePermissionService, mock(XRepository.class),
+         securityProvider, resourcePermissionService, xRepository,
          mock(RepositoryDashboardService.class), mock(DataModelFolderManagerService.class),
          dataSourceRegistry, mock(LibManagerProvider.class), mock(RecycleBin.class),
-         dependencyHandler, mock(RenameTransformHandler.class), mock(RepletRegistryManager.class),
+         dependencyHandler, renameTransformHandler, repletRegistryManager,
          mock(DashboardRegistryManager.class));
 
       principal = new SRPrincipal(new IdentityID("admin", ORG_ID), new IdentityID[0],
@@ -244,6 +257,57 @@ class RepositoryObjectServiceTest {
       verify(dataModel, never()).removeLogicalModel(anyString());
       verify(dependencyHandler, never()).deleteDependencies(any());
       verify(dependencyHandler, never()).deleteDependenciesKey(any());
+      verify(securityProvider, never()).removePermission(eq(ResourceType.QUERY), anyString());
+   }
+
+   /*
+    * Bug #77459: deleting a base logical model from the EM content tree left its explicit QUERY
+    * permission behind (the registry's removeObject() never removes one), so a model re-created
+    * with the same name in the same place inherited the old grants/denies. The permission is
+    * stored as XUtil.getLogicalModelResourceName(ds, folder, name), so the folder must be read
+    * from the stored model before it is removed, as the portal delete does.
+    */
+   @Test
+   void deleteLogicalModelRemovesItsPermission() throws Exception {
+      XLogicalModel logicalModel = mock(XLogicalModel.class);
+      when(logicalModel.getLogicalModelNames()).thenReturn(new String[0]);
+      when(dataModel.getLogicalModel(LOGICAL_MODEL_NAME)).thenReturn(logicalModel);
+
+      TreeNodeInfo node = TreeNodeInfo.builder()
+         .label(LOGICAL_MODEL_NAME)
+         .path(DATA_SOURCE + "^" + LOGICAL_MODEL_NAME)
+         .type(RepositoryEntry.LOGIC_MODEL | RepositoryEntry.FOLDER)
+         .build();
+
+      service.deleteNodes(new TreeNodeInfo[]{ node }, principal, false, false);
+
+      verify(dataModel).removeLogicalModel(LOGICAL_MODEL_NAME);
+      verify(securityProvider).removePermission(
+         ResourceType.QUERY, LOGICAL_MODEL_NAME + "::" + DATA_SOURCE);
+   }
+
+   @Test
+   void deleteLogicalModelInFolderRemovesItsFolderQualifiedPermission() throws Exception {
+      XLogicalModel logicalModel = mock(XLogicalModel.class);
+      when(logicalModel.getLogicalModelNames()).thenReturn(new String[0]);
+      when(logicalModel.getFolder()).thenReturn(MODEL_FOLDER);
+      when(dataModel.getLogicalModel(LOGICAL_MODEL_NAME)).thenReturn(logicalModel);
+
+      TreeNodeInfo node = TreeNodeInfo.builder()
+         .label(LOGICAL_MODEL_NAME)
+         .path(DATA_SOURCE + XUtil.DATAMODEL_FOLDER_SPLITER + MODEL_FOLDER + "^" +
+                  LOGICAL_MODEL_NAME)
+         .type(RepositoryEntry.LOGIC_MODEL | RepositoryEntry.FOLDER)
+         .build();
+
+      service.deleteNodes(new TreeNodeInfo[]{ node }, principal, false, false);
+
+      verify(dataModel).removeLogicalModel(LOGICAL_MODEL_NAME);
+      verify(securityProvider).removePermission(
+         ResourceType.QUERY,
+         LOGICAL_MODEL_NAME + "::" + DATA_SOURCE + XUtil.DATAMODEL_FOLDER_SPLITER + MODEL_FOLDER);
+      verify(securityProvider, never()).removePermission(
+         ResourceType.QUERY, LOGICAL_MODEL_NAME + "::" + DATA_SOURCE);
    }
 
    /*
@@ -275,6 +339,8 @@ class RepositoryObjectServiceTest {
          AssetEntry.Type.LOGIC_MODEL, LOGICAL_MODEL_NAME + "/" + EXTENDED_NAME);
       assertEquals(expected, capturedDeletedDependency());
       assertEquals(expected, capturedDeletedDependencyKey());
+      // an extended model has no QUERY permission of its own (Bug #77459)
+      verify(securityProvider, never()).removePermission(eq(ResourceType.QUERY), anyString());
    }
 
    @Test
@@ -343,7 +409,7 @@ class RepositoryObjectServiceTest {
       when(dataSourceRegistry.getDataSource(DIRECT_CHILD)).thenReturn(directDs);
       when(dataSourceRegistry.getDataSource(NESTED_CHILD)).thenReturn(nestedDs);
 
-      FolderDeleteResult result = service.removeDataSourceFolder(FOLDER, false, principal);
+      FolderDeleteResult result = service.removeDataSourceFolderResult(FOLDER, false, principal, false);
 
       assertNull(result.status());
       assertEquals(
@@ -352,7 +418,7 @@ class RepositoryObjectServiceTest {
          result.deletedDataSources());
       verify(dataSourceRegistry).removeDataSource(DIRECT_CHILD);
       verify(dataSourceRegistry).removeDataSource(NESTED_CHILD);
-      verify(dataSourceRegistry).removeDataSourceFolder(FOLDER);
+      verify(dataSourceRegistry).removeDataSourceFolder(FOLDER, false);
    }
 
    /*
@@ -369,12 +435,12 @@ class RepositoryObjectServiceTest {
          eq(principal), eq(ResourceType.DATA_SOURCE), eq(NESTED_CHILD), eq(ResourceAction.DELETE)))
          .thenReturn(false);
 
-      FolderDeleteResult result = service.removeDataSourceFolder(FOLDER, false, principal);
+      FolderDeleteResult result = service.removeDataSourceFolderResult(FOLDER, false, principal, false);
 
       assertNotNull(result.status());
       assertTrue(result.deletedDataSources().isEmpty());
       verify(dataSourceRegistry, never()).removeDataSource(any());
-      verify(dataSourceRegistry, never()).removeDataSourceFolder(any());
+      verify(dataSourceRegistry, never()).removeDataSourceFolder(any(), anyBoolean());
    }
 
    /*
@@ -389,12 +455,12 @@ class RepositoryObjectServiceTest {
       stubNestedDataSources(FOLDER, DIRECT_CHILD, NESTED_CHILD);
       stubDependencyConflict(NESTED_CHILD);
 
-      FolderDeleteResult result = service.removeDataSourceFolder(FOLDER, false, principal);
+      FolderDeleteResult result = service.removeDataSourceFolderResult(FOLDER, false, principal, false);
 
       assertNotNull(result.status());
       assertTrue(result.deletedDataSources().isEmpty());
       verify(dataSourceRegistry, never()).removeDataSource(any());
-      verify(dataSourceRegistry, never()).removeDataSourceFolder(any());
+      verify(dataSourceRegistry, never()).removeDataSourceFolder(any(), anyBoolean());
    }
 
    @Test
@@ -402,12 +468,12 @@ class RepositoryObjectServiceTest {
       stubNestedDataSources(FOLDER, DIRECT_CHILD, NESTED_CHILD);
       stubDependencyConflict(NESTED_CHILD);
 
-      FolderDeleteResult result = service.removeDataSourceFolder(FOLDER, true, principal);
+      FolderDeleteResult result = service.removeDataSourceFolderResult(FOLDER, true, principal, false);
 
       assertNull(result.status());
       verify(dataSourceRegistry).removeDataSource(DIRECT_CHILD);
       verify(dataSourceRegistry).removeDataSource(NESTED_CHILD);
-      verify(dataSourceRegistry).removeDataSourceFolder(FOLDER);
+      verify(dataSourceRegistry).removeDataSourceFolder(FOLDER, false);
    }
 
    /*
@@ -420,7 +486,7 @@ class RepositoryObjectServiceTest {
       stubNestedDataSources(FOLDER, DIRECT_CHILD);
       when(dataSourceRegistry.getDataSource(DIRECT_CHILD)).thenThrow(new RuntimeException("boom"));
 
-      FolderDeleteResult result = service.removeDataSourceFolder(FOLDER, false, principal);
+      FolderDeleteResult result = service.removeDataSourceFolderResult(FOLDER, false, principal, false);
 
       assertNull(result.status());
       assertEquals(List.of(new DeletedDataSource(DIRECT_CHILD, null)), result.deletedDataSources());
@@ -447,7 +513,7 @@ class RepositoryObjectServiceTest {
          .build();
 
       assertNull(service.deleteNodes(new TreeNodeInfo[]{ node }, principal, false, false));
-      verify(dataSourceRegistry).removeDataSourceFolder(FOLDER);
+      verify(dataSourceRegistry).removeDataSourceFolder(FOLDER, false);
    }
 
    @Test
@@ -464,19 +530,15 @@ class RepositoryObjectServiceTest {
          .build();
 
       assertNotNull(service.deleteNodes(new TreeNodeInfo[]{ node }, principal, false, false));
-      verify(dataSourceRegistry, never()).removeDataSourceFolder(any());
+      verify(dataSourceRegistry, never()).removeDataSourceFolder(any(), anyBoolean());
    }
 
    private void stubNestedDataSources(String folder, String... sources) {
-      AssetEntry[] entries = new AssetEntry[sources.length];
-
-      for(int i = 0; i < sources.length; i++) {
-         entries[i] = new AssetEntry(
-            AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE, sources[i], null);
-      }
-
-      when(dataSourceRegistry.getEntries(eq(folder + "/"), eq(AssetEntry.Type.DATA_SOURCE)))
-         .thenReturn(entries);
+      when(dataSourceRegistry.getFolderTreeDataSourceNames(folder))
+         .thenReturn(List.of(sources));
+      // these scenarios only care about a specific source's permission outcome -- default to
+      // allowed so a test only has to stub the source(s) it wants to deny.
+      when(securityProvider.checkPermission(any(), any(), anyString(), any())).thenReturn(true);
    }
 
    private void stubDependencyConflict(String dataSourcePath) throws Exception {
@@ -487,6 +549,113 @@ class RepositoryObjectServiceTest {
          AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE, dataSourcePath, null)
          .toIdentifier();
       when(dependencyStorageService.getWithOrg(eq(entryId), any())).thenReturn(dependencies);
+   }
+
+   /*
+    * Bug #78204: moveFiles()'s LOGIC_MODEL/PARTITION branch guards a cross-data-source drag-and-drop
+    * with moveDataModel()'s dsName/pathTo check, then (if that check accepted the move)
+    * unconditionally renamed the moved model's permission.
+    *
+    * Two independent defects there let a logical model dropped onto an unrelated data source
+    * corrupt state instead of being refused:
+    *
+    * 1. The dsName/pathTo check was a bare String.startsWith(), which wrongly accepts a destination
+    *    whose name merely begins with the same characters as the source data source's name (e.g.
+    *    "Derby EmbeddedX/g" against "Derby Embedded"). isSameOrDescendantPath() requires pathTo to
+    *    equal dsName or be dsName + "/" + <folder>, so it tells "Derby Embedded's own folder" apart
+    *    from "a different data source whose name happens to start the same way".
+    * 2. The permission rename ran even when moveDataModel() had just recorded a refusal in the
+    *    "error" list, and handleDataModelToContainsFolder()'s unguarded pathTo.substring(dsName
+    *    .length()) then threw StringIndexOutOfBoundsException for any pathTo shorter than dsName --
+    *    turning a should-be-refused move into an HTTP 500 instead of the refusal message. Gating the
+    *    rename on info.get("error").isEmpty() fixes this for every refusal path inside
+    *    moveDataModel(), not just this one.
+    *
+    * These three tests exercise moveFiles() through its public entry point (not the private
+    * moveDataModel()/renameDataModelPermission() directly) so a regression in either defect's fix
+    * is caught the same way the real EM drag-and-drop would trigger it.
+    */
+   @Test
+   void moveOntoDifferentDataSourceWithSharedNamePrefixIsRefused() throws Exception {
+      XLogicalModel logicalModel = mock(XLogicalModel.class);
+      when(dataModel.getLogicalModel(LOGICAL_MODEL_NAME)).thenReturn(logicalModel);
+
+      MessageException ex = assertThrows(MessageException.class,
+         () -> moveLogicalModel(DATA_SOURCE + "X/g"),
+         "a destination data source whose name merely starts with the source's name must be " +
+            "refused, not silently accepted");
+
+      assertNotNull(ex.getMessage());
+      // the model's folder/permission must be left completely alone
+      verify(logicalModel, never()).setFolder(any());
+      verify(dataModel, never()).addLogicalModel(any());
+      verify(authorizationProvider, never()).setPermission(any(), anyString(), any());
+      verify(authorizationProvider, never()).removePermission(any(), anyString());
+   }
+
+   @Test
+   void moveOntoUnrelatedDataSourceIsRefusedCleanlyNotWithAnException() throws Exception {
+      XLogicalModel logicalModel = mock(XLogicalModel.class);
+      when(dataModel.getLogicalModel(LOGICAL_MODEL_NAME)).thenReturn(logicalModel);
+
+      // "Qz/g" shares no prefix with DATA_SOURCE and is shorter than it -- the exact shape that
+      // made handleDataModelToContainsFolder()'s unguarded substring() throw
+      // StringIndexOutOfBoundsException before the fix (Bug #78204, defect 2).
+      MessageException ex = assertThrows(MessageException.class,
+         () -> moveLogicalModel("Qz/g"),
+         "a move to a completely unrelated data source must be refused with the normal " +
+            "MessageException refusal, never an uncaught StringIndexOutOfBoundsException");
+
+      assertNotNull(ex.getMessage());
+      verify(logicalModel, never()).setFolder(any());
+      verify(dataModel, never()).addLogicalModel(any());
+      verify(authorizationProvider, never()).setPermission(any(), anyString(), any());
+      verify(authorizationProvider, never()).removePermission(any(), anyString());
+   }
+
+   @Test
+   void moveToSameDataSourceSubfolderStillSucceeds() throws Exception {
+      XLogicalModel logicalModel = mock(XLogicalModel.class);
+      when(logicalModel.getFolder()).thenReturn(null);
+      when(logicalModel.getDataSource()).thenReturn(DATA_SOURCE);
+      when(dataModel.getLogicalModel(LOGICAL_MODEL_NAME)).thenReturn(logicalModel);
+      Permission permission = new Permission();
+      when(authorizationProvider.getPermission(eq(ResourceType.QUERY), anyString()))
+         .thenReturn(permission);
+      // the destination node's owner() is null in this test, same as the real tree node for a
+      // plain data-model folder target -- stub the exact (null) IdentityID overload moveFiles()
+      // calls at the very end to save the destination registry
+      when(repletRegistryManager.getRegistry((IdentityID) null))
+         .thenReturn(mock(RepletRegistry.class));
+
+      moveLogicalModel(DATA_SOURCE + "/sub");
+
+      ArgumentCaptor<String> folder = ArgumentCaptor.forClass(String.class);
+      verify(logicalModel).setFolder(folder.capture());
+      assertEquals("sub", folder.getValue());
+      verify(dataModel).addLogicalModel(logicalModel);
+      verify(xRepository).updateDataModel(dataModel);
+      verify(authorizationProvider).setPermission(eq(ResourceType.QUERY), anyString(), eq(permission));
+      verify(authorizationProvider).removePermission(eq(ResourceType.QUERY), anyString());
+   }
+
+   private void moveLogicalModel(String pathTo) throws Exception {
+      ContentRepositoryTreeNode source = ContentRepositoryTreeNode.builder()
+         .label(LOGICAL_MODEL_NAME)
+         .path(DATA_SOURCE + "^" + LOGICAL_MODEL_NAME)
+         .type(RepositoryEntry.LOGIC_MODEL | RepositoryEntry.FOLDER)
+         .build();
+      ContentRepositoryTreeNode destination = ContentRepositoryTreeNode.builder()
+         .label("destination")
+         .path(pathTo)
+         .type(RepositoryEntry.DATA_MODEL | RepositoryEntry.FOLDER)
+         .build();
+      MoveCopyTreeNodesRequest request = MoveCopyTreeNodesRequest.builder()
+         .source(List.of(source))
+         .destination(destination)
+         .build();
+
+      service.moveFiles(request, true, principal);
    }
 
    private String identifier(AssetEntry.Type type, String name) {
@@ -514,6 +683,10 @@ class RepositoryObjectServiceTest {
    @Autowired private DependencyStorageService dependencyStorageService;
    private XDataModel dataModel;
    private Principal principal;
+   private XRepository xRepository;
+   private RenameTransformHandler renameTransformHandler;
+   private RepletRegistryManager repletRegistryManager;
+   private AuthorizationProvider authorizationProvider;
 
    private static final String ORG_ID = "bug75783_org";
    private static final String DATA_SOURCE = "Derby Embedded";

@@ -18,10 +18,17 @@
 package inetsoft.sree.web.dashboard;
 
 import inetsoft.sree.ClientInfo;
+import inetsoft.sree.ViewsheetEntry;
 import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.internal.cluster.DistributedMap;
 import inetsoft.sree.security.*;
 import inetsoft.storage.*;
+import inetsoft.uql.asset.AssetContent;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.util.DefaultIdentity;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.ConfigurationContext;
 import inetsoft.util.Tool;
@@ -36,6 +43,7 @@ import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.Lock;
+import java.util.function.BiConsumer;
 import java.util.function.UnaryOperator;
 
 /**
@@ -80,15 +88,209 @@ public class DashboardManager implements AutoCloseable {
    }
 
    /**
-    * Runs an action while holding this manager's lock. A dashboard registry renames or removes
-    * a dashboard through this, so that the change to the stored selections and the change to the
-    * registry are atomic with respect to getDashboards(), which prunes the selected names that are
-    * not in the registries. The lock order is this manager, then the store lock (getStoreLock()),
-    * then DashboardRegistryManager, then the user registry, then the global registry (see
-    * DashboardRegistry for the registry file locks).
+    * Runs an action while holding this manager's lock and the store lock of the cluster
+    * (getStoreLock()). A dashboard registry renames or removes a dashboard through this, so that
+    * the change to the stored selections and the change to the registry file are atomic with
+    * respect to getDashboards(), which leaves out the selected names that are not in the
+    * registries, and which re-reads both under the store lock before it removes such a name
+    * (Bug #77299). A dashboard create adds the dashboard to the user registry and to the
+    * selection through this, and a user rename moves both, so that a create either completes
+    * before the move or runs after it (Bug #78101). The lock order is this manager, then the
+    * store lock, then DashboardRegistryManager, then the user registry, then the global registry
+    * (see DashboardRegistry for the registry file locks).
     */
-   synchronized void runLocked(Runnable action) {
-      action.run();
+   public synchronized void runLocked(Runnable action) {
+      Lock storeLock = getStoreLock();
+      storeLock.lock();
+
+      try {
+         action.run();
+      }
+      finally {
+         storeLock.unlock();
+      }
+   }
+
+   /**
+    * Records that a user has been renamed. A user rename calls this in runLocked(), and a
+    * dashboard create checks it in runLocked() with isRenamedUser(). A request of the old name
+    * may still be running, or may even start, on another cluster node until the logout of the old
+    * name reaches that node. Once the user is renamed the old name is not in the security
+    * provider any more, so such a create can't be told apart from an SSO user who isn't in the
+    * provider by the provider alone (Bug #78101). The record is kept in a replicated map, which a
+    * put updates on every node before it returns, for RENAMED_USER_TIMEOUT.
+    *
+    * @param user    the old name of the user.
+    * @param newUser the new name of the user.
+    */
+   public void addRenamedUser(IdentityID user, IdentityID newUser) {
+      DistributedMap<String, RenamedUser> renamed = getRenamedUsers();
+      long now = System.currentTimeMillis();
+      Set<String> expired = new HashSet<>();
+
+      for(Map.Entry<String, RenamedUser> entry : new ArrayList<>(renamed.entrySet())) {
+         if(entry.getValue() == null || now - entry.getValue().time > RENAMED_USER_TIMEOUT) {
+            expired.add(entry.getKey());
+         }
+      }
+
+      if(!expired.isEmpty()) {
+         renamed.removeAll(expired);
+      }
+
+      renamed.put(getRenamedUserKey(user), new RenamedUser(now, newUser, false, List.of()));
+   }
+
+   /**
+    * Records the composed viewsheet of a dashboard create that was refused because its user has
+    * been renamed, so that the rename removes it once it has moved the user's assets, see
+    * takeRefusedViewsheets(). The viewsheet is created before the create is refused, and the
+    * rename's asset move (UserTreeService.migrateUserRename()) runs on its own node, after the
+    * dashboards are moved. A viewsheet removed while the move runs may still be moved to the new
+    * name, or leave an entry there, which the create's own removal then doesn't see (Bug #78101).
+    * It is called in runLocked(), like takeRefusedViewsheets().
+    *
+    * @param user       the old name of the user.
+    * @param identifier the identifier of the viewsheet.
+    *
+    * @return true if it is recorded, false if the user's assets have already been moved, or the
+    *         user was not renamed, so that the create removes the viewsheet itself.
+    */
+   public boolean addRefusedViewsheet(IdentityID user, String identifier) {
+      String key = getRenamedUserKey(user);
+      DistributedMap<String, RenamedUser> renamed = getRenamedUsers();
+      RenamedUser record = renamed.get(key);
+
+      if(record == null || record.migrated ||
+         System.currentTimeMillis() - record.time > RENAMED_USER_TIMEOUT)
+      {
+         return false;
+      }
+
+      List<String> refused = new ArrayList<>(record.refused);
+      refused.add(identifier);
+      renamed.put(key, new RenamedUser(record.time, record.newUser, false, refused));
+      return true;
+   }
+
+   /**
+    * Marks a renamed user's assets as moved and takes the refused viewsheets recorded until now,
+    * see addRefusedViewsheet(). It is called in runLocked() once the user's assets are moved.
+    *
+    * @param user the old name of the user.
+    *
+    * @return the identifiers of the recorded viewsheets, owned by the old name.
+    */
+   public List<String> takeRefusedViewsheets(IdentityID user) {
+      String key = getRenamedUserKey(user);
+      DistributedMap<String, RenamedUser> renamed = getRenamedUsers();
+      RenamedUser record = renamed.get(key);
+
+      if(record == null) {
+         return List.of();
+      }
+
+      renamed.put(key, new RenamedUser(record.time, record.newUser, true, List.of()));
+      return record.refused;
+   }
+
+   /**
+    * Removes the composed viewsheet that a dashboard create refused because its user has been
+    * renamed or removed has created (Bug #78101). The user is logged out and no longer exists,
+    * so the user's permissions are not checked: the entry is the one the create made. The same
+    * entry of the new name is removed too, since the rename moves the user's assets to it,
+    * unless a dashboard of the new name uses it. Only a composed dashboard viewsheet is removed.
+    *
+    * @param entry     the viewsheet entry the create made, owned by the old name.
+    * @param newUser   the new name, or null if the user was not renamed.
+    * @param principal the principal to remove the viewsheet as.
+    */
+   public void removeRefusedViewsheet(AssetEntry entry, IdentityID newUser, Principal principal) {
+      AssetRepository engine = AssetUtil.getAssetRepository(false);
+      List<AssetEntry> entries = new ArrayList<>();
+      entries.add(entry);
+
+      if(newUser != null && !isUsedByDashboard(newUser, entry.getPath())) {
+         entries.add(new AssetEntry(entry.getScope(), entry.getType(), entry.getPath(), newUser));
+      }
+
+      AssetRepository.IGNORE_PERM.set(true);
+
+      try {
+         for(AssetEntry sheet : entries) {
+            try {
+               // only a composed dashboard viewsheet, never one the user saved under the same
+               // path, e.g. a viewsheet of the new name, or of a new user of the old name
+               if(engine.containsEntry(sheet) &&
+                  engine.getSheet(sheet, principal, false, AssetContent.ALL) instanceof Viewsheet vs &&
+                  vs.getViewsheetInfo().isComposedDashboard())
+               {
+                  engine.removeSheet(sheet, principal, true);
+               }
+            }
+            catch(Exception ex) {
+               LOG.warn("Failed to remove the viewsheet of a refused dashboard: {}", sheet, ex);
+            }
+         }
+      }
+      finally {
+         AssetRepository.IGNORE_PERM.remove();
+      }
+   }
+
+   /**
+    * Checks if a dashboard of a user uses the user's viewsheet of a path.
+    */
+   private boolean isUsedByDashboard(IdentityID user, String path) {
+      DashboardRegistry registry = dashboardRegistryManager.getRegistry(user);
+
+      for(String name : registry.getDashboardNames()) {
+         Dashboard dashboard = registry.getDashboard(name);
+         ViewsheetEntry viewsheet = dashboard instanceof VSDashboard ?
+            ((VSDashboard) dashboard).getViewsheet() : null;
+
+         if(viewsheet != null && Tool.equals(viewsheet.getPath(), path) &&
+            Tool.equals(viewsheet.getOwner(), user))
+         {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Checks if a user name has been renamed recently, see addRenamedUser().
+    *
+    * @param user the user name.
+    *
+    * @return true if a user of this name was renamed within RENAMED_USER_TIMEOUT.
+    */
+   public boolean isRenamedUser(IdentityID user) {
+      return getRenamedUser(user) != null;
+   }
+
+   /**
+    * Gets the new name of a user who has been renamed recently, see addRenamedUser().
+    *
+    * @param user the old name of the user.
+    *
+    * @return the new name, or null if no user of this name was renamed within
+    *         RENAMED_USER_TIMEOUT.
+    */
+   public IdentityID getRenamedUser(IdentityID user) {
+      RenamedUser renamed = user == null ? null : getRenamedUsers().get(getRenamedUserKey(user));
+      return renamed != null && System.currentTimeMillis() - renamed.time <= RENAMED_USER_TIMEOUT ?
+         renamed.newUser : null;
+   }
+
+   private static DistributedMap<String, RenamedUser> getRenamedUsers() {
+      return Cluster.getInstance().getReplicatedMap(RENAMED_USERS_MAP);
+   }
+
+   private static String getRenamedUserKey(IdentityID user) {
+      String org = user.orgID == null ? "" : user.orgID.toLowerCase();
+      return new IdentityID(user.name, org).convertToKey();
    }
 
    /**
@@ -145,7 +347,6 @@ public class DashboardManager implements AutoCloseable {
       }
 
       List<String> values = data.getDashboards();
-      List<String> list = new ArrayList<>();
       DashboardRegistry uregistry = null;
       DashboardRegistry gregistry = dashboardRegistryManager.getRegistry();
 
@@ -153,10 +354,29 @@ public class DashboardManager implements AutoCloseable {
          uregistry = dashboardRegistryManager.getRegistry(identity.getIdentityID());
       }
 
-      // The names that are not in the registries are left out, but not removed from the stored
-      // record. The registries are this node's cached copies, which may not have loaded a
-      // dashboard that another node has just created and selected (Bug #77272). A dashboard
-      // that is really removed is removed from the records by removeDashboard(String).
+      // The names that are not in the registries are left out. The registries are this node's
+      // cached copies, which may not have loaded a dashboard that another node has just created
+      // and selected (Bug #77272), or renamed (Bug #77299), so the stored record and the
+      // registry files are then read again, see getRegisteredFromFiles().
+      List<String> list = getRegistered(identity, values, uregistry, gregistry);
+
+      if(list.size() < values.size()) {
+         list = getRegisteredFromFiles(identity, sync, uregistry, gregistry);
+      }
+
+      return list.toArray(new String[0]);
+   }
+
+   /**
+    * Gets the selected names that are in the cached registries. The names of an identity that
+    * is not a user are all kept.
+    */
+   private static List<String> getRegistered(Identity identity, List<String> values,
+                                             DashboardRegistry uregistry,
+                                             DashboardRegistry gregistry)
+   {
+      List<String> list = new ArrayList<>();
+
       for(String dashboard : values) {
          if((uregistry != null && uregistry.getDashboard(dashboard) != null) ||
             identity.getType() != Identity.USER || gregistry.getDashboard(dashboard) != null)
@@ -165,7 +385,95 @@ public class DashboardManager implements AutoCloseable {
          }
       }
 
-      return list.toArray(new String[0]);
+      return list;
+   }
+
+   /**
+    * Gets the selected names of an identity that are in the registries, after a selected name was
+    * not found in this node's cached registries (Bug #77299). Holding the store lock, it reads the
+    * stored record again and loads the registries from their files, and then leaves out the names
+    * that are still not in them. A registry renames or removes a dashboard holding the store lock
+    * across the change of the records and of its file (runLocked()), and a dashboard is created
+    * in the registry file before it is selected, so a name that is still missing from an existing
+    * registry file is really gone. It is then removed from the stored record if <i>prune</i> is
+    * set, so that the next read doesn't read the files again. The stored record isn't changed if
+    * a registry file couldn't be read, and a name isn't removed if the file of the registry it
+    * belongs to doesn't exist: a user rename and an organization copy store the selections before
+    * they write the registry files (see isGone()).
+    *
+    * @param prune true to remove the names that are really gone from the stored record. It must
+    *              be false when the caller changes the record after this call from a copy that
+    *              it read before.
+    */
+   private List<String> getRegisteredFromFiles(Identity identity, boolean prune,
+                                               DashboardRegistry uregistry,
+                                               DashboardRegistry gregistry)
+   {
+      Lock storeLock = getStoreLock();
+      storeLock.lock();
+
+      try {
+         DashboardData data = getDashboardStorage().get(getIdentityKey(identity));
+
+         if(data == null) {
+            return new ArrayList<>();
+         }
+
+         List<String> values = data.getDashboards();
+         boolean synced = syncRegistries(uregistry, gregistry);
+         List<String> list = getRegistered(identity, values, uregistry, gregistry);
+
+         if(prune && synced && list.size() < values.size()) {
+            List<String> kept = new ArrayList<>();
+
+            for(String dashboard : values) {
+               if(list.contains(dashboard) || !isGone(dashboard, uregistry, gregistry)) {
+                  kept.add(dashboard);
+               }
+            }
+
+            if(kept.size() < values.size()) {
+               setDashboards(identity, kept.toArray(new String[0]));
+            }
+         }
+
+         return list;
+      }
+      finally {
+         storeLock.unlock();
+      }
+   }
+
+   /**
+    * Checks if a selected name that is not in the registries, which have just been loaded from
+    * their files, is really gone: the file of the registry it belongs to (the global registry for
+    * a global dashboard, else the user registry) exists. A file that doesn't exist may be one
+    * that is still to be written (Bug #77299).
+    */
+   private static boolean isGone(String dashboard, DashboardRegistry uregistry,
+                                 DashboardRegistry gregistry)
+   {
+      DashboardRegistry owner = dashboard.contains("__GLOBAL") ? gregistry : uregistry;
+      return owner != null && owner.isFileLoaded();
+   }
+
+   /**
+    * Loads registries from their files if they have changed since the registries last loaded
+    * them (Bug #77299). It is called holding the store lock, which is taken before the registry
+    * locks.
+    *
+    * @return true if all the registries now hold what their files hold.
+    */
+   private static boolean syncRegistries(DashboardRegistry... registries) {
+      boolean synced = true;
+
+      for(DashboardRegistry registry : registries) {
+         if(registry != null && !registry.syncWithFile()) {
+            synced = false;
+         }
+      }
+
+      return synced;
    }
 
    /**
@@ -187,14 +495,24 @@ public class DashboardManager implements AutoCloseable {
 
          List<String> list = new ArrayList<>();
          List<String> added = new ArrayList<>();
+         List<String> stored = values == null ? new ArrayList<>() : new ArrayList<>(values);
+         boolean pruned = false;
          DashboardRegistry registry = dashboardRegistryManager.getRegistry();
 
-         // the names that are not in this node's cached registry are left out, but not removed
-         // from the stored record, see getDashboards(Identity, boolean)
+         // the names that are not in this node's cached registry are left out. The registry is
+         // then loaded from its file, and the names that are still not in an existing file are
+         // really gone and are removed from the stored record, see getRegisteredFromFiles()
+         // (Bug #77299)
          if(values != null) {
-            for(String dashboard : values) {
-               if(registry.getDashboard(dashboard) != null) {
-                  list.add(dashboard);
+            list = getDeselectedRegistered(values, registry);
+
+            if(list.size() < values.size()) {
+               boolean synced = syncRegistries(registry);
+               list = getDeselectedRegistered(values, registry);
+
+               if(synced && registry.isFileLoaded() && list.size() < values.size()) {
+                  stored = new ArrayList<>(list);
+                  pruned = true;
                }
             }
          }
@@ -217,11 +535,12 @@ public class DashboardManager implements AutoCloseable {
             }
          }
 
-         if(!added.isEmpty()) {
-            // only the added names are stored, on top of the stored record
-            List<String> stored = values == null ? new ArrayList<>() : new ArrayList<>(values);
-            added.stream().filter(d -> !stored.contains(d)).forEach(stored::add);
-            setDeselectedDashboards(identity, stored.toArray(new String[0]));
+         if(!added.isEmpty() || pruned) {
+            // only the added names are stored, on top of the stored record without the names
+            // that are really gone
+            List<String> nstored = stored;
+            added.stream().filter(d -> !nstored.contains(d)).forEach(nstored::add);
+            setDeselectedDashboards(identity, nstored.toArray(new String[0]));
          }
 
          return list.toArray(new String[0]);
@@ -229,6 +548,23 @@ public class DashboardManager implements AutoCloseable {
       finally {
          storeLock.unlock();
       }
+   }
+
+   /**
+    * Gets the deselected names that are in the cached global registry.
+    */
+   private static List<String> getDeselectedRegistered(List<String> values,
+                                                       DashboardRegistry registry)
+   {
+      List<String> list = new ArrayList<>();
+
+      for(String dashboard : values) {
+         if(registry.getDashboard(dashboard) != null) {
+            list.add(dashboard);
+         }
+      }
+
+      return list;
    }
 
    /**
@@ -754,15 +1090,52 @@ public class DashboardManager implements AutoCloseable {
    }
 
    /**
+    * Gets the stored selected dashboards of an identity, as they are stored, read from the
+    * cluster's replicated record under the store lock. Unlike getDashboards(Identity), the
+    * stored names are neither synchronized with the identity's groups and roles nor checked
+    * against the registries. A user rename moves these names, so it keeps every stored name
+    * (Bug #78101).
+    *
+    * @param identity the identity.
+    *
+    * @return the stored names, empty if there is no record.
+    */
+   public synchronized String[] getStoredDashboards(Identity identity) {
+      if(identity == null) {
+         return new String[0];
+      }
+
+      init();
+      Lock storeLock = getStoreLock();
+      storeLock.lock();
+
+      try {
+         DashboardData data = getDashboardStorage().get(getIdentityKey(identity));
+         return data == null ? new String[0] : data.getDashboards().toArray(new String[0]);
+      }
+      finally {
+         storeLock.unlock();
+      }
+   }
+
+   /**
     * Changes the stored selected dashboards of an identity, holding the store lock for the whole
     * read-modify-write. The stored names are changed, including the names that are not in this
     * node's cached registries, which getDashboards(Identity) leaves out, so that a dashboard
     * that another node has just created and selected is kept (Bug #77272).
     *
-    * @param identity the identity.
+    * A caller that reorders or adds to a selection uses this instead of getDashboards() and then
+    * setDashboards(), which would overwrite a dashboard created or renamed in between, and drop
+    * the names that getDashboards() leaves out (Bug #77872).
+    *
+    * @param identity the identity, nothing is changed if it is {@code null}.
     * @param change   returns the new names from the stored names.
     */
-   synchronized void updateDashboards(Identity identity, UnaryOperator<String[]> change) {
+   public synchronized void updateDashboards(Identity identity, UnaryOperator<String[]> change) {
+      if(identity == null) {
+         return;
+      }
+
       init();
       Lock storeLock = getStoreLock();
       storeLock.lock();
@@ -775,6 +1148,50 @@ public class DashboardManager implements AutoCloseable {
 
          if(!Arrays.equals(dashboards, ndashboards)) {
             setDashboards(identity, ndashboards);
+         }
+      }
+      finally {
+         storeLock.unlock();
+      }
+   }
+
+   /**
+    * Changes the stored selected and deselected dashboards of an identity together, holding the
+    * store lock for the whole read-modify-write, like updateDashboards(Identity, UnaryOperator)
+    * (Bug #77872). The change is given modifiable copies of the stored lists, including the names
+    * that getDashboards(Identity) and getDeselectedDashboards(Identity) leave out, and only a list
+    * it changed is written back. The user-changed flag of the record is kept.
+    *
+    * @param identity the identity, nothing is changed if it is {@code null}.
+    * @param change   changes the selected (first) and deselected (second) names in place.
+    */
+   public synchronized void updateDashboardLists(Identity identity,
+                                                 BiConsumer<List<String>, List<String>> change)
+   {
+      if(identity == null) {
+         return;
+      }
+
+      init();
+      Lock storeLock = getStoreLock();
+      storeLock.lock();
+
+      try {
+         DashboardData data = getDashboardStorage().get(getIdentityKey(identity));
+         List<String> dashboards = data == null ?
+            new ArrayList<>() : new ArrayList<>(data.getDashboards());
+         List<String> deselected = data == null ?
+            new ArrayList<>() : new ArrayList<>(data.getDeselected());
+         List<String> ndashboards = new ArrayList<>(dashboards);
+         List<String> ndeselected = new ArrayList<>(deselected);
+         change.accept(ndashboards, ndeselected);
+
+         if(!dashboards.equals(ndashboards)) {
+            setDashboards(identity, ndashboards.toArray(new String[0]));
+         }
+
+         if(!deselected.equals(ndeselected)) {
+            setDeselectedDashboards(identity, ndeselected.toArray(new String[0]));
          }
       }
       finally {
@@ -852,10 +1269,13 @@ public class DashboardManager implements AutoCloseable {
             List<String> selected = syncUserDashboards(identity, pair.getValue().getDashboards());
 
             if(selected != null) {
+               // read again, the sync may have stored the deselected names (Bug #77299)
+               DashboardData current = getDashboardStorage().get(pair.getKey());
+               current = current == null ? pair.getValue() : current;
                DashboardData changed = new DashboardData();
                changed.setDashboards(selected);
-               changed.setDeselected(pair.getValue().getDeselected());
-               changed.setUserChanged(pair.getValue().isUserChanged());
+               changed.setDeselected(current.getDeselected());
+               changed.setUserChanged(current.isUserChanged());
                map.put(pair.getKey(), changed);
             }
          }
@@ -884,9 +1304,11 @@ public class DashboardManager implements AutoCloseable {
             nselected = new ArrayList<>();
          }
 
-         data.setDashboards(nselected);
-
          if(!Tool.equals(selected, nselected)) {
+            // read again, the sync may have stored the deselected names (Bug #77299)
+            DashboardData current = dashboardStorage.get(getIdentityKey(user));
+            data = current == null ? data : current;
+            data.setDashboards(nselected);
             dashboardStorage.put(getIdentityKey(user), data).get(10L, TimeUnit.SECONDS);
          }
       }
@@ -924,6 +1346,23 @@ public class DashboardManager implements AutoCloseable {
 
          if(!found) {
             removed.add(name);
+         }
+      }
+
+      // A global dashboard that another node has just renamed is not in this node's cached
+      // global registry yet. The removed names are stored, so a name is only removed if it is
+      // still not in the registries once they are loaded from their files, and none is removed
+      // if a file couldn't be read or the global registry file doesn't exist, see
+      // getRegisteredFromFiles() (Bug #77299).
+      if(!removed.isEmpty()) {
+         DashboardRegistry greg = dashboardRegistryManager.getRegistry();
+
+         if(syncRegistries(reg, greg) && greg.isFileLoaded()) {
+            removed.removeIf(name -> reg != null && reg.getDashboard(name) != null ||
+               greg.getDashboard(name) != null);
+         }
+         else {
+            removed.clear();
          }
       }
 
@@ -993,7 +1432,29 @@ public class DashboardManager implements AutoCloseable {
    private String orgID = null;
    // the prefix of the cluster lock name of a dashboards store, see getStoreLock()
    private static final String STORE_LOCK_PREFIX = DashboardManager.class.getName() + ".lock:";
+   // the replicated map of the recently renamed users, see addRenamedUser()
+   private static final String RENAMED_USERS_MAP = DashboardManager.class.getName() + ".renamedUsers";
+   // how long a renamed user's old name is kept, longer than a request of the old name can run
+   // or a logout can take to reach every node
+   private static final long RENAMED_USER_TIMEOUT = TimeUnit.MINUTES.toMillis(30);
    private static final Logger LOG = LoggerFactory.getLogger(DashboardManager.class);
+
+   // a record of the replicated map of the recently renamed users, see addRenamedUser()
+   static final class RenamedUser implements Serializable {
+      RenamedUser(long time, IdentityID newUser, boolean migrated, List<String> refused) {
+         this.time = time;
+         this.newUser = newUser;
+         this.migrated = migrated;
+         this.refused = new ArrayList<>(refused);
+      }
+
+      final long time;
+      final IdentityID newUser;
+      // true once the user's assets are moved, see takeRefusedViewsheets()
+      final boolean migrated;
+      // the refused creates' viewsheets to remove once the assets are moved
+      final List<String> refused;
+   }
 
    public static final class DashboardData implements Serializable {
       public List<String> getDashboards() {
@@ -1057,7 +1518,14 @@ public class DashboardManager implements AutoCloseable {
                   permission.setGrants(ResourceAction.ACCESS, type, grants);
                }
 
-               security.setPermission(ResourceType.DASHBOARD, name, permission);
+               // Bug #78217, a failed permission write must not stop the load of the dashboards
+               try {
+                  security.setPermission(ResourceType.DASHBOARD, name, permission);
+               }
+               catch(RuntimeException ex) {
+                  LOG.error("Failed to update the permission of dashboard {} for {}",
+                            name, identity, ex);
+               }
             }
          }
       }

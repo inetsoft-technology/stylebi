@@ -48,6 +48,7 @@
  *   Group 19 [baseline] — timeConditions getter Set membership
  *   Group 20 [baseline] — convertTime: UTC-offset arithmetic
  *   Group 21 [baseline] — ngOnChanges: listView false flip → addCondition
+ *   Group 22 [Risk 3] — init keeps a stored time zone outside the option list (Bug #77511)
  *
  * Out of scope (Pass 2 / Pass 3):
  *   deleteCondition — destructive + async modal
@@ -57,15 +58,20 @@
  */
 
 import { SimpleChange } from "@angular/core";
-import { waitFor } from "@testing-library/angular";
+import { screen, waitFor } from "@testing-library/angular";
+import { UntypedFormControl, UntypedFormGroup } from "@angular/forms";
+import { FormValidators } from "../../../../../../../shared/util/form-validators";
 import { of } from "rxjs";
 import { vi } from "vitest";
 import { TimeConditionModel, TimeConditionType, TimeRange } from "../../../../../../../shared/schedule/model/time-condition-model";
 import { TimeZoneModel } from "../../../../../../../shared/schedule/model/time-zone-model";
+import { TimeZoneService } from "../../../../../../../shared/schedule/time-zone.service";
 import {
    makeDailyCondition,
    makeWeeklyCondition,
    makeMonthlyCondition,
+   makeHourlyCondition,
+   makeRunOnceCondition,
    makeModel,
    modalMock,
    taskNamesMock,
@@ -496,39 +502,81 @@ describe("Group 11 — changeServerTimeZone: no-op on same value, localStorage",
       expect(localStorage.getItem(TZ_LS_KEY)).toBe("false");
    });
 
-   // Bug #75325: toggling "Show Server Time Zone" while editing one condition must also convert
-   // all sibling conditions so that when the user later edits them they already show server time.
-   it("converts ALL conditions (including siblings) when switching timezone in both directions (Bug #75325)", async () => {
-      const utcOffset = 0;
-      const easternOffset = -4 * 60 * 60 * 1000; // EDT = UTC-4
+   // Shared setup for the server time zone tests: conditions stored in New York (EDT, UTC-4)
+   // and a server in UTC. The convertTime stub shifts the hour by (newTz - oldTz).
+   async function renderEasternConditions(...conditions: TimeConditionModel[]) {
+      const easternOffset = -4 * 60 * 60 * 1000;
+      const timeZoneOptions: TimeZoneModel[] = [
+         { timeZoneId: "UTC", label: "UTC (Local)", hourOffset: "+00:00", minuteOffset: 0 },
+         { timeZoneId: "America/New_York", label: "Eastern Time", hourOffset: "-04:00", minuteOffset: -240 },
+      ];
+      const result = await renderTaskConditionPane({ model: makeModel({ conditions }), timeZoneOptions });
+      const comp = result.comp;
 
-      const cond1 = makeDailyCondition({ timeZone: "America/New_York", hour: 2, minute: 30, second: 0 });
-      const cond2 = makeDailyCondition({ timeZone: "America/New_York", hour: 2, minute: 30, second: 0 });
-      const { comp } = await renderTaskConditionPane({ model: makeModel({ conditions: [cond1, cond2] }) });
-
-      // Deterministic stub: shift hour by (newTz − oldTz) expressed in ms
       comp.convertTime = vi.fn().mockImplementation((value, oldTz, newTz) => {
          const shifted = value.hour + (newTz - oldTz) / (60 * 60 * 1000);
          return { hour: ((shifted % 24) + 24) % 24, minute: value.minute, second: value.second };
       });
 
-      (comp as any).conditionIndex = 0;
-      comp.serverTimeZone = false;
-      (comp as any).serverTimeZoneOffset = utcOffset;
+      (comp as any).serverTimeZoneOffset = 0;
       (comp as any).localTimeZoneOffset = easternOffset;
       comp["timeZoneService"].calculateTimezoneOffset = vi.fn(() => easternOffset);
+      return result;
+   }
 
-      // Switch to server timezone: 02:30 EDT → 06:30 UTC — both conditions must convert
+   // Bug #75325: toggling "Show Server Time Zone" while editing one condition must also show
+   // the sibling conditions in server time when the user later edits them.
+   it("shows ALL conditions (including siblings) in the toggled time zone without changing them (Bug #75325)", async () => {
+      const cond1 = makeDailyCondition({ timeZone: "America/New_York", hour: 2, minute: 30, second: 0 });
+      const cond2 = makeDailyCondition({ timeZone: "America/New_York", hour: 4, minute: 0, second: 0 });
+      const { comp } = await renderEasternConditions(cond1, cond2);
+
+      // Switch to server timezone: 02:30 EDT is displayed as 06:30 UTC
       comp.changeServerTimeZone(true);
-      expect(cond1.hour).toBe(6);
-      expect(cond1.minute).toBe(30);
-      expect(cond2.hour).toBe(6);
-      expect(cond2.minute).toBe(30);
+      expect(comp.startTime).toEqual({ hour: 6, minute: 30, second: 0 });
 
-      // Switch back to local: 06:30 UTC → 02:30 EDT — both conditions must restore
+      // the sibling is displayed in server time when it is edited: 04:00 EDT → 08:00 UTC
+      comp.selectedConditions = [1];
+      comp.editCondition();
+      expect(comp.startTime).toEqual({ hour: 8, minute: 0, second: 0 });
+
+      // Switch back to local: displayed in EDT again
       comp.changeServerTimeZone(false);
-      expect(cond1.hour).toBe(2);
-      expect(cond2.hour).toBe(2);
+      expect(comp.startTime).toEqual({ hour: 4, minute: 0, second: 0 });
+
+      // the conditions themselves keep their times in their own time zone
+      expect([cond1.hour, cond1.minute, cond1.timeZone]).toEqual([2, 30, "America/New_York"]);
+      expect([cond2.hour, cond2.minute, cond2.timeZone]).toEqual([4, 0, "America/New_York"]);
+   });
+
+   it("saves an unedited condition unchanged while the server time zone is shown", async () => {
+      const cond = makeDailyCondition({
+         timeZone: "America/New_York", hour: 1, minute: 30, second: 0, hourEnd: 2, minuteEnd: 30
+      });
+      const { comp, saveTask } = await renderEasternConditions(cond);
+
+      comp.changeServerTimeZone(true);
+      expect(comp.startTime).toEqual({ hour: 5, minute: 30, second: 0 });
+      comp.save(true);
+
+      expect(saveTask).toHaveBeenCalled();
+      expect([cond.hour, cond.minute, cond.second]).toEqual([1, 30, 0]);
+      expect([cond.hourEnd, cond.minuteEnd]).toEqual([2, 30]);
+      expect(cond.timeZone).toBe("America/New_York");
+   });
+
+   it("stores a time entered in server time in the condition's own time zone", async () => {
+      const cond = makeHourlyCondition({ timeZone: "America/New_York", hour: 1, minute: 0, second: 0 });
+      const { comp } = await renderEasternConditions(cond);
+
+      comp.changeServerTimeZone(true);
+      comp.formStartTime = { hour: 14, minute: 15, second: 0 };
+      comp.formEndTime = { hour: 20, minute: 0, second: 0 };
+
+      // 14:15 / 20:00 UTC → 10:15 / 16:00 EDT
+      expect([cond.hour, cond.minute, cond.second]).toEqual([10, 15, 0]);
+      expect([cond.hourEnd, cond.minuteEnd, cond.secondEnd]).toEqual([16, 0, 0]);
+      expect(cond.timeZone).toBe("America/New_York");
    });
 });
 
@@ -829,5 +877,136 @@ describe("Group 21 — ngOnChanges: listView false flip triggers addCondition", 
       } finally {
          spy.mockRestore();
       }
+   });
+
+   // Bug #77856, the Save button of the multiple-conditions list must not save a task whose
+   // name the editor marks invalid (e.g. a name made only of whitespace)
+   describe("list view Save", () => {
+      async function renderListView(name: string) {
+         const { comp, fixture, saveTask } = await renderTaskConditionPane();
+         comp.parentForm = new UntypedFormGroup({
+            name: new UntypedFormControl(name, FormValidators.required)
+         });
+         comp.listView = true;
+         fixture.detectChanges();
+         const button = screen.getByRole("button", { name: "_#(Save)" }) as HTMLButtonElement;
+         return { button, saveTask };
+      }
+
+      it("is disabled while the task name is whitespace only", async () => {
+         const { button, saveTask } = await renderListView(" ");
+
+         expect(button.disabled).toBe(true);
+         button.click();
+         expect(saveTask).not.toHaveBeenCalled();
+      });
+
+      it("is enabled when the task name is valid", async () => {
+         const { button } = await renderListView("Task");
+
+         expect(button.disabled).toBe(false);
+      });
+   });
+});
+
+// ===========================================================================
+// Group 22 — init keeps a stored time zone outside the option list (Bug #77511)
+// ===========================================================================
+// The server sends TimeZoneModel's fixed list, with the server zone first. Most canonical IANA ids
+// (America/New_York, Europe/Paris) aren't in it. These tests don't add the stored id to the
+// options by hand, which is how the #6108 tests above missed the bug.
+describe("Group 22 — init keeps a stored time zone outside the option list (Bug #77511)", () => {
+   const serverOptions = (): TimeZoneModel[] => [
+      { timeZoneId: "Etc/UTC", label: "Coordinated Universal Time (Server)", hourOffset: "(UTC+00:00)", minuteOffset: 0 },
+      { timeZoneId: "US/Pacific", label: "Pacific Time", hourOffset: "(UTC-08:00)", minuteOffset: -480 },
+      { timeZoneId: "US/Eastern", label: "Eastern Time", hourOffset: "(UTC-05:00)", minuteOffset: -300 },
+   ];
+
+   const conditionTypes: [string, (o: Partial<TimeConditionModel>) => TimeConditionModel][] = [
+      ["daily", makeDailyCondition],
+      ["weekly", makeWeeklyCondition],
+      ["monthly", makeMonthlyCondition],
+      ["run-once", makeRunOnceCondition],
+   ];
+
+   async function renderStored(cond: TimeConditionModel, serverDisplay: boolean,
+                               timeZoneOptions: TimeZoneModel[] = serverOptions())
+   {
+      if(serverDisplay) {
+         localStorage.setItem(TZ_LS_KEY, "true");
+      }
+
+      let saved: TimeConditionModel = null;
+      const saveTask = vi.fn().mockImplementation(() => {
+         saved = JSON.parse(JSON.stringify(cond));
+         return Promise.resolve();
+      });
+      const result = await renderTaskConditionPane({
+         model: makeModel({ conditions: [cond], serverTimeZoneId: "Etc/UTC" }),
+         timeZoneOptions,
+         saveTask,
+      });
+      return { ...result, saved: () => saved };
+   }
+
+   for(const serverDisplay of [false, true]) {
+      const mode = serverDisplay ? "server" : "local";
+
+      for(const [type, make] of conditionTypes) {
+         for(const [zone, label] of [["America/New_York", null], ["Europe/Paris", "Central European Time"]]) {
+            it(`keeps ${zone} (label ${label}) on a ${type} condition through init and save, ${mode} display`, async () => {
+               const cond = make({ timeZone: zone, timeZoneLabel: label });
+               const { hour, minute } = cond;
+               const { comp, saved } = await renderStored(cond, serverDisplay);
+
+               expect(comp.serverTimeZone).toBe(serverDisplay);
+               expect([cond.timeZone, cond.timeZoneLabel]).toEqual([zone, label]);
+               // the pane shows the zone it saves
+               expect(comp.localTimeZoneId).toBe(zone);
+               expect(comp.timeZoneOptions.some(o => o.timeZoneId == zone)).toBe(true);
+
+               comp.save(true);
+               await waitFor(() => expect(saved()).not.toBeNull());
+
+               expect([saved().timeZone, saved().timeZoneLabel]).toEqual([zone, label]);
+               expect([saved().hour, saved().minute]).toEqual([hour, minute]);
+            });
+         }
+      }
+
+      it(`keeps an unlisted zone when the list was already repaired by TimeZoneService, ${mode} display`, async () => {
+         const cond = makeDailyCondition({ timeZone: "Europe/Paris", timeZoneLabel: null });
+         const options = new TimeZoneService().updateTimeZoneOptions(serverOptions(), [cond]);
+         const { comp, saved } = await renderStored(cond, serverDisplay, options);
+
+         comp.save(true);
+         await waitFor(() => expect(saved()).not.toBeNull());
+
+         expect([saved().timeZone, saved().timeZoneLabel]).toEqual(["Europe/Paris", null]);
+      });
+   }
+
+   it("keeps a listed zone and its stored label", async () => {
+      const cond = makeDailyCondition({ timeZone: "US/Eastern", timeZoneLabel: "EST" });
+      const { comp } = await renderStored(cond, false);
+
+      expect([cond.timeZone, cond.timeZoneLabel]).toEqual(["US/Eastern", "EST"]);
+      expect(comp.timeZoneOptions.map(o => o.timeZoneId)).toEqual(["Etc/UTC", "US/Pacific", "US/Eastern"]);
+   });
+
+   it("still fills a null zone from the first option in local display (new-task default)", async () => {
+      const cond = makeDailyCondition({ timeZone: null });
+      await renderStored(cond, false);
+
+      expect(cond.timeZone).toBe("Etc/UTC");
+   });
+
+   it("still changes the zone and label when the user selects one", async () => {
+      const cond = makeDailyCondition({ timeZone: "America/New_York", timeZoneLabel: null });
+      const { comp } = await renderStored(cond, false);
+
+      comp.setLocalTimeZone("US/Pacific");
+
+      expect([cond.timeZone, cond.timeZoneLabel]).toEqual(["US/Pacific", "Pacific Time"]);
    });
 });

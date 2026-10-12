@@ -32,6 +32,7 @@ import java.io.IOException;
 import java.nio.file.*;
 import java.nio.file.attribute.FileTime;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -260,11 +261,13 @@ public class FileSystemService {
       }
 
       // optimization
-      if(CACHE != null && Tool.equals(SREE_CACHE, cdir)) {
-         return CACHE;
+      CacheDirectory cache = this.cache;
+
+      if(cache != null && Tool.equals(cache.property, cdir)) {
+         return cache.directory;
       }
 
-      SREE_CACHE = cdir;
+      String property = cdir;
 
       if(cdir == null) {
          String server = SreeEnv.getProperty("server.type");
@@ -311,7 +314,9 @@ public class FileSystemService {
       }
 
       LOG.info("Cache directory for temporary files: {}", cdir);
-      CACHE = cdir;
+      // publish the property and directory together so a reader never pairs the new
+      // property with the old directory
+      this.cache = new CacheDirectory(property, cdir);
       return cdir;
    }
 
@@ -349,20 +354,33 @@ public class FileSystemService {
    public File getCacheTempFile(String prefix, String suffix) {
       try {
          String cdir = getCacheDirectory();
-         long findex = System.currentTimeMillis();
          prefix = Tool.toFileName(prefix);
-         Path tempFile = getPath(cdir).resolve(prefix + findex++ + "." + suffix);
+         int deniedCount = 0;
 
          while(true) {
+            // the index is never reused in this jvm, so a thread can't try to create a name
+            // that another thread is still deleting, which fails with access denied on windows
+            Path tempFile = getPath(cdir).resolve(
+               prefix + TEMP_FILE_INDEX.getAndIncrement() + "." + suffix);
+
             try {
                Files.createFile(tempFile);
 
                if(Files.exists(tempFile)) {
-                  break;
+                  return tempFile.toFile();
                }
             }
             catch(FileAlreadyExistsException aeException) {
-               //If file already exists, retry with modified suffix.
+               //If file already exists, retry with the next index.
+            }
+            catch(AccessDeniedException deniedException) {
+               // another jvm sharing the cache directory may be deleting a file with this
+               // name, retry with the next index but stop if the directory is not writable
+               if(++deniedCount >= MAX_TEMP_FILE_DENIED) {
+                  LOG.error("Creating temp file caused IO Error: " + tempFile.getFileName(),
+                            deniedException);
+                  return null;
+               }
             }
             catch(IOException ex) {
                // this should not happen and we should terminate here
@@ -374,11 +392,7 @@ public class FileSystemService {
                LOG.error("Failed to create temp file: " + tempFile.getFileName(), ex);
                return null;
             }
-
-            tempFile = getPath(cdir).resolve(prefix + findex++ + "." + suffix);
          }
-
-         return tempFile.toFile();
       }
       catch (IOException ioException) {
          LOG.error("Creating temp file caused IO Error ", ioException);
@@ -566,6 +580,7 @@ public class FileSystemService {
          (new Thread() {
             {
                setPriority(Thread.MIN_PRIORITY);
+               setName(CLEAR_CACHE_FILES_THREAD);
             }
 
             @Override
@@ -576,15 +591,35 @@ public class FileSystemService {
                lock.lock();
 
                try {
-                  Map<String, Integer> map = FileSystemService.this.cluster.getMap(XSwapper.SWAP_FILE_MAP);
+                  XSwapper.RegisteredSwapFiles registered =
+                     new XSwapper.RegisteredSwapFiles(FileSystemService.this.cluster);
+                  // Bug #78082, the snapshot copies of a node that is gone are not in use
+                  SnapshotEmbeddedTableAssembly.removeStaleFileReferences(
+                     FileSystemService.this.cluster);
                   Map<String, Integer> snapshotMap = FileSystemService.this.cluster.getMap(SnapshotEmbeddedTableAssembly.FILE_REFERENCES_MAP);
+                  XSwapper swapper = XSwapper.getSwapper();
 
                   for(int i = 0; files != null && i < files.length; i++) {
+                     // Bug #77600, files of this JVM's swapper are live and not all of
+                     // them are registered in the swap file map
+                     // Bug #77627, a swap file of another, still-running JVM may be on disk
+                     // but not yet registered in the swap file map (see
+                     // XSwapper.SWAP_FILE_GRACE_PERIOD); give it time before treating it as
+                     // orphaned
+                     // Bug #78044, a file registered in the swap file map by a JVM that is
+                     // gone is orphaned too
                      if(!files[i].isDirectory() &&
                         !files[i].getName().startsWith(Tool.PERSISTENT_PREFIX) &&
                         !files[i].getName().startsWith(DriverCache.DRIVER_CACHE_FILE_NAME) &&
-                        !map.containsKey(files[i].getAbsolutePath()) &&
-                        !snapshotMap.containsKey(files[i].getAbsolutePath()))
+                        !registered.contains(files[i]) &&
+                        !snapshotMap.containsKey(files[i].getAbsolutePath()) &&
+                        // Bug #78082, the count of a copy that this JVM reads may be gone
+                        !SnapshotEmbeddedTableAssembly.isFileInUseLocally(
+                           files[i].getAbsolutePath()) &&
+                        !swapper.isOwnSwapFile(files[i].getName()) &&
+                        (!files[i].getName().endsWith(".tdat") ||
+                         System.currentTimeMillis() - files[i].lastModified() >=
+                            XSwapper.SWAP_FILE_GRACE_PERIOD))
                      {
                         Path path = files[i].toPath();
 
@@ -611,9 +646,16 @@ public class FileSystemService {
                         }
                      }
                   }
+
+                  registered.removeStaleEntries();
                }
                finally {
-                  lock.unlock();
+                  try {
+                     lock.unlock();
+                  }
+                  catch(Exception e) {
+                     LOG.debug("Unable to release swap file map lock", e);
+                  }
                }
             }
          }).start();
@@ -745,10 +787,16 @@ public class FileSystemService {
       };
 
    private List<FileEntry> list = new ArrayList<>();
-   private String SREE_CACHE = null;
-   private String CACHE = null;
+   private volatile CacheDirectory cache = null;
    private final Cluster cluster;
    private final ApplicationEventPublisher eventPublisher;
 
+   // name of the thread of clearCacheFiles()
+   public static final String CLEAR_CACHE_FILES_THREAD = "Clear cache files";
+   private static final AtomicLong TEMP_FILE_INDEX = new AtomicLong(System.currentTimeMillis());
+   private static final int MAX_TEMP_FILE_DENIED = 20;
    private static final Logger LOG = LoggerFactory.getLogger(FileSystemService.class);
+
+   private record CacheDirectory(String property, String directory) {
+   }
 }

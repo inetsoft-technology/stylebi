@@ -581,7 +581,7 @@ public class AggregateField extends BaseField implements DataRefWrapper,
          throw new Exception("No class found in Field tag");
       }
       else {
-         field = (Field) Class.forName(cls).newInstance();
+         field = (Field) Tool.loadSubclass(cls, Field.class).newInstance();
          field.parseXML(fld);
       }
 

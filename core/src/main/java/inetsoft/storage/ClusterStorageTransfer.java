@@ -21,7 +21,11 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.security.AuthorizationChain;
+import inetsoft.sree.security.SecurityEngine;
 import org.apache.commons.io.FileUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.nio.file.Files;
@@ -107,6 +111,23 @@ public class ClusterStorageTransfer extends AbstractStorageTransfer {
       }
    }
 
+   /**
+    * The values were put into the live storage, so the global role grants of a backup that was
+    * written with the organization "null" are repaired now (Bug #77965). A backup taken from
+    * MapDB before the fix has them in this form.
+    */
+   @Override
+   protected void afterImport() {
+      try {
+         SecurityEngine.getSecurity().getAuthorizationChain()
+            .ifPresent(AuthorizationChain::repairGlobalRoleGrants);
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to repair the global role grants of the restored permissions, they " +
+                  "are repaired at the next start", e);
+      }
+   }
+
    @Override
    protected void saveBlob(String id, String digest, Path file) throws IOException {
       BlobEngine.getInstance().write(id, digest, file);
@@ -120,4 +141,5 @@ public class ClusterStorageTransfer extends AbstractStorageTransfer {
 
 
    private final ObjectMapper objectMapper = KeyValueEngine.createObjectMapper();
+   private static final Logger LOG = LoggerFactory.getLogger(ClusterStorageTransfer.class);
 }

@@ -34,6 +34,7 @@ import inetsoft.uql.XConstants;
 import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.util.Catalog;
+import inetsoft.util.Tool;
 import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.graphics.SVGSupport;
 import inetsoft.util.log.LogContext;
@@ -270,7 +271,7 @@ public class PortalProfileController {
          .sorted()
          .toList();
 
-      SimpleDateFormat formatter = new SimpleDateFormat("HH:mm:ss:SSS");
+      SimpleDateFormat formatter = Tool.createGregorianDateFormat("HH:mm:ss:SSS");
       formatter.setTimeZone(TimeZone.getTimeZone(timeZone));
       Object[][] data = new Object[records.size() + 1][contexts.size() + 4];
       data[0][0] = catalog.getString("Cycle Name");

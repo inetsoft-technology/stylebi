@@ -23,6 +23,7 @@ import inetsoft.analytic.web.adhoc.AdHocQueryHandler;
 import inetsoft.report.LibManagerProvider;
 import inetsoft.sree.schedule.ScheduleParameterScope;
 import inetsoft.util.*;
+import inetsoft.util.script.FormulaContext;
 import inetsoft.util.script.ScriptEnv;
 import inetsoft.web.binding.model.ScriptTreeNodeData;
 import inetsoft.web.composer.model.TreeNodeModel;
@@ -115,15 +116,21 @@ public class ScheduleTaskFormulaService {
     */
    public String testScheduleParameterExpression(String script) {
       Catalog catalog = Catalog.getCatalog();
+      // test the expression as restricted as it runs at schedule time (bug #77396)
+      boolean restricted = FormulaContext.isRestricted();
 
       try {
          ScheduleParameterScope scope = new ScheduleParameterScope();
          ScriptEnv scriptEnv = scope.getScriptEnv();
          scriptEnv.addTopLevelParentScope(scope);
+         FormulaContext.setRestricted(true);
          scriptEnv.exec(scriptEnv.compile(script), scope, null, null);
       }
       catch(Exception ex) {
          return catalog.getString("schedule.task.action.scriptTestFailed", ex.getMessage());
+      }
+      finally {
+         FormulaContext.setRestricted(restricted);
       }
 
       return null;

@@ -224,7 +224,7 @@ public class DashboardRegistryManager {
                continue;
             }
 
-            String name = Tool.getValue(Tool.getChildNodeByTagName(node, "name"));
+            String name = Tool.getCDATAData(Tool.getChildNodeByTagName(node, "name"));
 
             if(oname.equals(name) || needsPort && oname.equals(name + "__GLOBAL")) {
                return true;

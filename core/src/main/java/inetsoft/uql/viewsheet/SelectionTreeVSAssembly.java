@@ -1057,6 +1057,13 @@ public class SelectionTreeVSAssembly extends AbstractSelectionVSAssembly
          snode = Tool.getFirstChildNode(snode);
          CompositeSelectionValue cval = new CompositeSelectionValue();
          cval.parseXML(snode);
+
+         // a date saved before #77605 may have a Buddhist or Japanese year. the levels of an
+         // id mode tree are not columns, and its values are ids
+         if(!isIDMode()) {
+            cval.toGregorianPersistentDates(getDataRefs());
+         }
+
          this.cval = cval;
       }
       else {
@@ -1094,7 +1101,9 @@ public class SelectionTreeVSAssembly extends AbstractSelectionVSAssembly
          SelectionTreeVSAssembly assembly2 = (SelectionTreeVSAssembly) super.clone();
 
          if(cval != null) {
-            assembly2.cval = (CompositeSelectionValue) cval.clone();
+            // keep a state selection that can't be read back unreadable in the clone, an
+            // empty state would silently select nothing, e.g. after an undo (bug #77864)
+            assembly2.cval = cval.cloneKeepingLost();
          }
 
          if(expandedValues != null) {

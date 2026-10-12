@@ -39,4 +39,12 @@ public abstract class ScheduleConditionModel {
    public abstract String label();
    @Nullable
    public abstract String conditionType();
+
+   /**
+    * The position of the stored condition in the task when the editor got it, {@code null} for
+    * a condition added in the editor. Bug #77973, a save pairs a condition with the stored
+    * condition it replaces by this index, not by its position in the list.
+    */
+   @Nullable
+   public abstract Integer originalIndex();
 }

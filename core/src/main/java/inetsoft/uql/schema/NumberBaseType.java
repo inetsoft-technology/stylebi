@@ -17,6 +17,8 @@
  */
 package inetsoft.uql.schema;
 
+import inetsoft.util.DecimalPatternUtil;
+
 import java.text.DecimalFormat;
 
 /**
@@ -72,7 +74,7 @@ public class NumberBaseType extends XTypeNode {
    protected void applyFormat(XValueNode node) {
       if(fmt != null) {
          if(fmtObj == null) {
-            fmtObj = new DecimalFormat(fmt);
+            fmtObj = new DecimalFormat(DecimalPatternUtil.normalizeEmptyPattern(fmt));
          }
 
          node.setFormat(fmtObj);
@@ -89,7 +91,8 @@ public class NumberBaseType extends XTypeNode {
    public void setFormat(String fmt) {
       // @by jamshedd to reinstantiate the date format object
       // with the new format
-      fmtObj = fmt == null ? null : new DecimalFormat(fmt);
+      fmtObj = fmt == null ? null :
+         new DecimalFormat(DecimalPatternUtil.normalizeEmptyPattern(fmt));
       this.fmt = fmt;
    }
 

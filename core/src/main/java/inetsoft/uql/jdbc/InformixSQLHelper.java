@@ -38,6 +38,15 @@ public class InformixSQLHelper extends DB2SQLHelper {
    }
 
    /**
+    * Informix folds an unquoted name to lower case, see SQLHelper.isAliasCaseInsensitive
+    * (Bug #77644).
+    */
+   @Override
+   public boolean isAliasCaseInsensitive() {
+      return false;
+   }
+
+   /**
     * Get the function used for converting to lower case.
     */
    public String getDbLowerCaseFunction() {

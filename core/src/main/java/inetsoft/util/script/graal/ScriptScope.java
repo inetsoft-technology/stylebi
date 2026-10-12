@@ -44,4 +44,14 @@ public interface ScriptScope {
    default ScriptScope getParentScope() {
       return null;
    }
+
+   /**
+    * Bug #77866: the holder of the top-level var stores of the scripts run on this scope,
+    * which this scope keeps for as long as it lives, or null to let each engine keep them
+    * (until the engine is re-initialized, closed or dropped). A scope made for one
+    * evaluation should return one of its own: see {@link ScopeLocals}.
+    */
+   default ScopeLocals getScopeLocals() {
+      return null;
+   }
 }

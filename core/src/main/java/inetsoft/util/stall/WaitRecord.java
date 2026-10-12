@@ -127,7 +127,9 @@ public final class WaitRecord implements AutoCloseable {
       LockStallException failure = this.failure;
 
       if(failure != null) {
-         throw failure;
+         // a new instance on a re-entry: the first one may have been thrown through a script,
+         // which adds a suppressed stack trace element that cannot be serialized (bug #78084)
+         throw failure.copy();
       }
 
       long now = registry.nanoTime();

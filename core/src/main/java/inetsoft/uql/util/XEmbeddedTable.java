@@ -1196,6 +1196,7 @@ public class XEmbeddedTable
       try {
          int row = input.readInt();
          int col = input.readInt();
+         checkCounts(row, col, true, input);
          types = new String[col];
          xtable = createTable();
 
@@ -1250,11 +1251,49 @@ public class XEmbeddedTable
       return true;
    }
 
+   /**
+    * Check that the row and column counts read from the data are consistent with the
+    * number of bytes remaining, so corrupt data is rejected before any arrays are
+    * allocated from the counts.
+    * @param hasTypes true if the column types follow the counts.
+    */
+   private static void checkCounts(int row, int col, boolean hasTypes, DataInputStream input)
+      throws IOException
+   {
+      if(row < 0 || col < 0) {
+         throw invalidCounts(row, col);
+      }
+
+      // each column type needs at least 2 bytes (readUTF length prefix)
+      long remaining = input.available() - (hasTypes ? col * 2L : 0L);
+
+      if(remaining < 0) {
+         throw invalidCounts(row, col);
+      }
+
+      if(col == 0) {
+         // rows without columns take no bytes, so bound them by the rows per block
+         if(row > MAX_COUNT) {
+            throw invalidCounts(row, col);
+         }
+      }
+      // each cell needs at least 4 bytes (Tool.readUTF int length prefix), divide so
+      // that row * col cannot overflow
+      else if(row > remaining / (col * 4L)) {
+         throw invalidCounts(row, col);
+      }
+   }
+
+   private static IOException invalidCounts(int row, int col) {
+      return new IOException("Invalid embedded table data, rows: " + row + ", columns: " + col);
+   }
+
    private boolean parsePieceData(DataInputStream input, boolean last) {
       try {
          boolean begin = input.readBoolean();
          int row = input.readInt();
          int col = input.readInt();
+         checkCounts(row, col, begin, input);
 
          if(begin) {
             types = new String[col];
@@ -1340,7 +1379,7 @@ public class XEmbeddedTable
       }
 
       writer.print(" row=\"" + xtable.getRowCount() +
-                   "\" col=\"" + types.length + "\"" +
+                   "\" col=\"" + types.length +
                    "\" strictNull=\"true\"");
    }
 
@@ -1500,13 +1539,15 @@ public class XEmbeddedTable
    protected void parseContents(Element elem) throws Exception {
       int row = Integer.parseInt(Tool.getAttribute(elem, "row"));
       int col = Integer.parseInt(Tool.getAttribute(elem, "col"));
-      types = new String[col];
       Element tsnode = Tool.getChildNodeByTagName(elem, "types");
       NodeList tnodes = Tool.getChildNodesByTagName(tsnode, "type");
 
+      // validate col against the actual <type> nodes before allocating anything sized by it
       if(tnodes.getLength() != col) {
          throw new Exception("invalid types node found: " + tsnode);
       }
+
+      types = new String[col];
 
       for(int i = 0; i < tnodes.getLength(); i++) {
          Element tnode = (Element) tnodes.item(i);
@@ -1557,7 +1598,7 @@ public class XEmbeddedTable
    }
 
    public Object getPersistentData(String type, String val) {
-      return strictNull ? Tool.getPersistentData(type, val) : Tool.getData(type, val);
+      return Tool.getPersistentData(type, val, strictNull);
    }
 
    @Override

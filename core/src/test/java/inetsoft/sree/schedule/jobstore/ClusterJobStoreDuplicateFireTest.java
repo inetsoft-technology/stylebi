@@ -59,7 +59,7 @@ import static org.mockito.Mockito.*;
  * production ones scaled by 1/10: acquire horizon (idleWaitTime) 20 s -> 2 s, misfire threshold
  * 5 s -> 0.5 s, gap between the AT conditions 60 s -> 6 s.
  */
-@Tag("core")
+@Tag("slow")
 class ClusterJobStoreDuplicateFireTest {
    @BeforeEach
    void setUp() {
@@ -361,18 +361,8 @@ class ClusterJobStoreDuplicateFireTest {
       }
 
       @Override
-      public void lock(K key) {
-         delegate.lock(key);
-      }
-
-      @Override
-      public void lock(K key, long leaseTime, TimeUnit timeUnit) {
-         delegate.lock(key, leaseTime, timeUnit);
-      }
-
-      @Override
-      public void unlock(K key) {
-         delegate.unlock(key);
+      public V getForUpdate(K key) {
+         return copy(delegate.getForUpdate(key));
       }
 
       @Override

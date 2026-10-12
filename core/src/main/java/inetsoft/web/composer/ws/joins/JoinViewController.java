@@ -41,6 +41,7 @@ public class JoinViewController extends WorksheetController {
    }
 
    @LoadingMask
+   // listed in SheetEventOrderInterceptor, which does not queue it behind the sheet's events
    @MessageMapping("/composer/ws/join/cancel-ws-join/")
    @HandleAssetExceptions
    public void cancelJoin(Principal principal, CommandDispatcher dispatcher) throws Exception {

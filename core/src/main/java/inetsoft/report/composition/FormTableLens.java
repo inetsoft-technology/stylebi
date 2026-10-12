@@ -25,6 +25,7 @@ import inetsoft.uql.*;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.util.CancelledException;
 import inetsoft.util.Tool;
 
 import java.awt.*;
@@ -98,6 +99,12 @@ public class FormTableLens implements TableLens, TableFilter {
       base.moreRows(Integer.MAX_VALUE);
       int baseRowCount = base.getRowCount();
       int baseColCount = base.getColCount();
+
+      // a lazy base that a cancel cut short is never fully loaded, its row count stays
+      // negative (#78244)
+      if(baseRowCount < 0) {
+         throw new CancelledException("Form table data cancelled before it was loaded");
+      }
 
       rows = new FormTableRow[baseRowCount];
       rowMap = new int[baseRowCount];

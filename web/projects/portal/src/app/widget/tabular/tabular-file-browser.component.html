@@ -26,6 +26,9 @@
       <tree [root]="root" [showRoot]="false" [iconFunction]="iconFunction"
         (dblclickNode)="ok()"
       (nodeExpanded)="nodeExpanded($event)" (nodesSelected)="nodeSelected($event[0])"></tree>
+      @if (!root.children?.length) {
+        <div class="p-1 text-muted">_#(common.tabular.noFoldersToBrowse)</div>
+      }
     }
   </div>
   <div class="form-check mt-1">

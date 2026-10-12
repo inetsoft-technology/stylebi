@@ -40,7 +40,7 @@
             <select class="form-control"
               [(ngModel)]="joinModel.type" defaultFocus [autoSelect]="false">
               @for (option of joinTypes; track option.value) {
-                <option [value]="option.value">
+                <option [ngValue]="option.value">
                   {{option.label}}
                 </option>
               }

@@ -59,7 +59,53 @@ public class MVDispatcher {
 
    public boolean isCanceled() {
       return canceled || (data instanceof XNodeTableLens &&
-         ((XNodeTableLens) data).isCancelled()) || Thread.currentThread().isInterrupted();
+         ((XNodeTableLens) data).isCancelled()) || isLoadFailed() ||
+         Thread.currentThread().isInterrupted();
+   }
+
+   /**
+    * Check if the dispatch has been canceled, throwing the appropriate exception if so.
+    * A failed row fetch (e.g. a database error while reading the result set, see
+    * {@link #getLoadException()}) is thrown as a {@link MVLoadFailedException} carrying
+    * the original cause, so it is reported as a failure rather than collapsed into a
+    * real user cancel/interrupt (Bug #78117).
+    */
+   protected void checkCanceled() {
+      Exception loadException = getLoadException();
+
+      if(loadException != null) {
+         throw new MVLoadFailedException(name, loadException);
+      }
+
+      if(isCanceled()) {
+         throw new CancelledException("The MV creation was interrupted.");
+      }
+   }
+
+   /**
+    * Check if the rows of the query result under the data failed to load, e.g. a database
+    * error while reading the result set. The data then holds only the rows read before the
+    * failure, and an MV must not be built from it (Bug #77901).
+    */
+   private boolean isLoadFailed() {
+      return getLoadException() != null;
+   }
+
+   /**
+    * Get the exception that caused the query's row fetch to fail, or null if it hasn't
+    * (logging it, once, the first time it's observed).
+    */
+   private Exception getLoadException() {
+      Exception loadException = data instanceof TableLens ?
+         AssetDataCache.getLoadException((TableLens) data) : null;
+
+      if(loadException != null && !loadFailureLogged) {
+         loadFailureLogged = true;
+         LOG.warn("Materialized view {} is not created, the query failed while reading " +
+                  "its rows: {}", name, loadException.getMessage(), loadException);
+      }
+
+      return loadException;
    }
 
    public void cancel() {
@@ -161,7 +207,7 @@ public class MVDispatcher {
 
          try {
             dispatchers = new MVDispatcher[threads];
-            Calendar calendar = Calendar.getInstance();
+            Calendar calendar = new GregorianCalendar();
             // assuming 12 months data
             int dinterval = Math.max(1, 12 / threads);
             int nrange = 1000000;
@@ -198,7 +244,7 @@ public class MVDispatcher {
                // all the way to the future
                if(i == 0) {
                   if(isDate) {
-                     Calendar calendar0 = Calendar.getInstance();
+                     Calendar calendar0 = new GregorianCalendar();
                      // add 100 years instead of using MAX_VALUE, which
                      // causes year out of range error in oracle
                      calendar0.add(Calendar.YEAR, 100);
@@ -517,9 +563,7 @@ public class MVDispatcher {
          }
          catch(Throwable ex) {
             if(assembly.getRuntimeMV() != null && def.isAssociationMV()) {
-               throw new CancelledException(
-                  "Association MV canceled due to problem generating data, " +
-                  "possibly caused by hidden columns defined in VPM");
+               throw getAssociationDataException(ex);
             }
             else {
                throw new RuntimeException("Error executing query for MV data", ex);
@@ -538,6 +582,54 @@ public class MVDispatcher {
       }
 
       return data;
+   }
+
+   /**
+    * Get the exception to throw when generating the data of an association MV failed. Only a
+    * real cancel/interrupt is reported as a cancel. Any other failure keeps its cause and is
+    * reported as a failure instead of being collapsed into a cause-less cancel (Bug #78227).
+    */
+   private RuntimeException getAssociationDataException(Throwable ex) {
+      Exception loadException = getLoadException();
+
+      if(loadException != null) {
+         MVLoadFailedException failure = new MVLoadFailedException(name, loadException);
+
+         if(ex != loadException) {
+            failure.addSuppressed(ex);
+         }
+
+         return failure;
+      }
+
+      CancelledException cancel = CancelledException.find(ex);
+
+      if(cancel != null) {
+         return cancel;
+      }
+
+      // don't use isCanceled(), it would also treat a failed row fetch as a cancel
+      if(canceled || isInterrupted(ex) || Thread.currentThread().isInterrupted()) {
+         cancel = new CancelledException("The MV creation was interrupted.");
+         cancel.initCause(ex);
+         return cancel;
+      }
+
+      LOG.warn("Association materialized view {} is not created, the query for its data " +
+               "failed: {}", name, ex.getMessage(), ex);
+      return new MVLoadFailedException(name, ex);
+   }
+
+   private static boolean isInterrupted(Throwable ex) {
+      Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+
+      for(Throwable t = ex; t != null && seen.add(t); t = t.getCause()) {
+         if(t instanceof InterruptedException) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    private void refreshColumnIdentifiers(TableLens data, TableAssembly assembly) {
@@ -814,11 +906,11 @@ public class MVDispatcher {
 
    private static Number getMin(Number min1, Number min2) {
       if(min1 == null) {
-         return min1;
+         return min2;
       }
 
       if(min2 == null) {
-         return min2;
+         return min1;
       }
 
       return min1.doubleValue() < min2.doubleValue() ? min1 : min2;
@@ -836,6 +928,7 @@ public class MVDispatcher {
    // all its dispatchers, null to always reset (see MVBuilder)
    protected Set<MVColumn> resetColumns = null;
    private transient XTable data;
+   private transient boolean loadFailureLogged;
    private transient int[] dims;
    private transient int[] measures;
 

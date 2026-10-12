@@ -338,14 +338,9 @@ public class VSCalendar extends VSFloatable {
       else if(values.length == 1) {
          if(!isSecond) {
             start = week;
-            Calendar calendar = Calendar.getInstance();
-            calendar.set(Calendar.YEAR, year);
-
-            if(!info.isDaySelection()) {
-               calendar.set(Calendar.DATE, 1);
-            }
-
-            calendar.set(Calendar.MONTH, month);
+            // the year comes from the Gregorian selection value, and the date starts at 1 so
+            // today's day of month can't roll a short month over into the next one
+            Calendar calendar = new GregorianCalendar(year, month, 1);
             calendar.setFirstDayOfWeek(firstDayOfWeek);
             end = calendar.getActualMaximum(Calendar.WEEK_OF_MONTH);
 
@@ -752,7 +747,7 @@ public class VSCalendar extends VSFloatable {
       {
          String pattern = CalendarUtil.getCalendarFormat(format.getFormatExtent(),
             CalendarUtil.DAY_FORMAT_INDEX);
-         sdf = new SimpleDateFormat(pattern);
+         sdf = Tool.createGregorianDateFormat(pattern);
       }
 
       // previous month days
@@ -907,7 +902,7 @@ public class VSCalendar extends VSFloatable {
 
          try {
             Date date = sdf.parse(str);
-            sdf = new SimpleDateFormat(fmt);
+            sdf = Tool.createGregorianDateFormat(fmt);
             weekNames[i] = sdf.format(date);
          }
          catch(Exception ignored) {
@@ -1016,8 +1011,8 @@ public class VSCalendar extends VSFloatable {
       }
 
       String pattern = CalendarUtil.getCalendarFormat(fmtExtent, CalendarUtil.MONTH_FORMAT_INDEX);
-      SimpleDateFormat dateFormat0 = new SimpleDateFormat("M");
-      SimpleDateFormat dateFormat1 = new SimpleDateFormat(pattern);
+      SimpleDateFormat dateFormat0 = Tool.createGregorianDateFormat("M");
+      SimpleDateFormat dateFormat1 = Tool.createGregorianDateFormat(pattern);
 
       for(int i = 1; i <= 12; i++) {
          try {

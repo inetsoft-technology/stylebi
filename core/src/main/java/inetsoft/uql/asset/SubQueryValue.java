@@ -25,7 +25,8 @@ import inetsoft.uql.erm.AbstractDataRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.util.*;
-import inetsoft.util.stall.LockStallException;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
+import inetsoft.util.swap.DataUnavailable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
@@ -315,7 +316,7 @@ public class SubQueryValue implements AssetObject {
                   }
                }
                catch(RuntimeException ex) {
-                  forgetValuesOnStall(ex);
+                  forgetValuesOnUnavailable(ex);
                   throw ex;
                }
             }
@@ -363,7 +364,7 @@ public class SubQueryValue implements AssetObject {
             }
          }
          catch(RuntimeException ex) {
-            forgetValuesOnStall(ex);
+            forgetValuesOnUnavailable(ex);
             throw ex;
          }
 
@@ -372,11 +373,12 @@ public class SubQueryValue implements AssetObject {
    }
 
    /**
-    * If {@code ex} is a lock stall, forget the values read so far: they are not the values of
-    * the sub-query, and the next evaluation reads the sub table again (bug #76967).
+    * If {@code ex} is a lock stall, a lost swap file or a stopped script, forget the values read
+    * so far: they are not the values of the sub-query, and the next evaluation reads the sub
+    * table again (bugs #76967, #77910, #78134).
     */
-   private void forgetValuesOnStall(RuntimeException ex) {
-      if(LockStallException.find(ex) != null) {
+   private void forgetValuesOnUnavailable(RuntimeException ex) {
+      if(DataUnavailable.find(ex) != null || ScriptTimeoutGuard.isStop(ex)) {
          values = null;
          lmobj = null;
       }

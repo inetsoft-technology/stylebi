@@ -24,6 +24,7 @@ import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.*;
 import inetsoft.util.profile.ProfileUtils;
+import inetsoft.util.swap.SwapFileReadException;
 import inetsoft.util.swap.XSwapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -508,11 +509,19 @@ public class ReportCache implements Serializable {
 
             cancelled = procState == ProcState.CANCELLED || page == null;
          }
+         catch(SwapFileReadException ex) {
+            // the pages could not be read back from the swap file. returning no page would end
+            // the output at this page without an error (bug #77984)
+            throw ex;
+         }
          catch(Exception ex) {
             LOG.error("An error occurred while waiting for page to be available: {}", id, ex);
          }
 
          return new StylePageResult(page, cancelled);
+      }
+      catch(SwapFileReadException ex) {
+         throw ex;
       }
       catch(Exception ex) {
          LOG.error("Failed to get style page", ex);

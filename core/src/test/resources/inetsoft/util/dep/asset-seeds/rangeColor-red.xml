@@ -1,0 +1,12 @@
+<viewsheet>
+<assembly>
+<assemblies>
+<oneAssembly>
+<assembly class="inetsoft.uql.viewsheet.GaugeVSAssembly">
+<assemblyInfo>
+<name><![CDATA[Gauge1]]></name>
+<rangeColorsValue><rangeColor><![CDATA[red]]></rangeColor></rangeColorsValue>
+</assemblyInfo></assembly></oneAssembly>
+</assemblies>
+</assembly>
+</viewsheet>

@@ -25,7 +25,7 @@ import org.junit.jupiter.api.Tag;
  * Feature #77123. The alert-mode and slow-pipeline cases do not depend on the rule and run
  * in the parent class only.
  */
-@Tag("core")
+@Tag("slow")
 public class StallWatchdogCycleFailOnTimeoutTest extends StallWatchdogCycleTest {
    @Override
    protected boolean failOnTimeout() {

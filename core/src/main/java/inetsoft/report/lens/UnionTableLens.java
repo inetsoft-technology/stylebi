@@ -69,11 +69,9 @@ public class UnionTableLens extends SetTableLens {
          return super.getRow(row);
       }
       else {
-         if(rowCounts == null) {
-            rowCounts = new int[getTableCount()];
-            Arrays.fill(rowCounts, -1);
-         }
-
+         // read once and published only once filled: isNull() calls this without the lock,
+         // and invalidate() may clear it at any time (bug #77365)
+         int[] rowCounts = getRowCounts();
          Row result = null;
          int r = row;
 
@@ -118,18 +116,19 @@ public class UnionTableLens extends SetTableLens {
          return super.moreRows(row);
       }
 
-      synchronized(this) {
-         return moreRows0(row);
+      // the bases are read without this lens's monitor: a base read may take a script
+      // engine lock (e.g. a condition filter over a formula lens, pool off), and a thread
+      // holding that lock may be waiting for the monitor to read this lens (bug #77874).
+      // the monitor guards only the published row count
+      if(row != EOT && row < rowCnt) {
+         return true;
       }
-   }
 
-   private boolean moreRows0(int row) {
+      // captured before reading, getRow() reads the same array. invalidate() replaces it, so
+      // a count read from the bases before an invalidate() is never published (bug #77397)
+      int[] rowCounts = getRowCounts();
+
       if(row == EOT) {
-         if(rowCounts == null) {
-            rowCounts = new int[getTableCount()];
-            Arrays.fill(rowCounts, -1);
-         }
-
          for(int i = 0; i < getTableCount(); i++) {
             TableLens table = getTable(i);
             table.moreRows(EOT);
@@ -145,28 +144,49 @@ public class UnionTableLens extends SetTableLens {
 
          return false;
       }
-      else {
-         if(row < rowCnt) {
-            return true;
-         }
 
-         try {
-            getRow(row);
-            rowCnt = row + 1;
-            return true;
-         }
-         catch(ArrayIndexOutOfBoundsException exc) {
-            return false;
+      try {
+         getRow(row);
+      }
+      catch(ArrayIndexOutOfBoundsException exc) {
+         return false;
+      }
+
+      synchronized(this) {
+         // a mismatch is an invalidate() since the read (or another reader's lazy create of
+         // the array), leave the count to the next read
+         if(this.rowCounts == rowCounts) {
+            rowCnt = Math.max(rowCnt, row + 1);
          }
       }
+
+      return true;
+   }
+
+   /**
+    * Get the row count of each table, -1 if not known yet.
+    */
+   private int[] getRowCounts() {
+      int[] rowCounts = this.rowCounts;
+
+      if(rowCounts == null) {
+         rowCounts = new int[getTableCount()];
+         Arrays.fill(rowCounts, -1);
+         this.rowCounts = rowCounts;
+      }
+
+      return rowCounts;
    }
 
    @Override
-   public synchronized int getRowCount() {
+   public int getRowCount() {
       if(distinct) {
          return super.getRowCount();
       }
       else {
+         // reads no state of this lens, so the bases are asked without its monitor: a base's
+         // count may take a script engine lock (e.g. a crosstab computes it), and a thread
+         // holding that lock may be waiting for the monitor (bug #77874)
          int rcount = 0;
 
          for(int i = 0; i < getTableCount(); i++) {
@@ -199,7 +219,13 @@ public class UnionTableLens extends SetTableLens {
 
    @Override
    public void invalidate() {
-      rowCounts = null;
+      // reset both under the monitor moreRows() publishes rowCnt with, a stale
+      // rowCnt reports rows past the end of a shrunk base (bug #77397)
+      synchronized(this) {
+         rowCounts = null;
+         rowCnt = 0;
+      }
+
       super.invalidate();
    }
 
@@ -222,7 +248,7 @@ public class UnionTableLens extends SetTableLens {
     * @return the merged table visitor.
     */
    @Override
-   protected MergedTable.Visitor getVisitor() {
+   protected MergedTable.Visitor getVisitor(Pass pass) {
       return null;
    }
 
@@ -264,8 +290,9 @@ public class UnionTableLens extends SetTableLens {
    }
 
    private boolean distinct = true;  // distinct flag
-   private int[] rowCounts = null;
-   private transient int rowCnt = 0;
+   private volatile int[] rowCounts = null;
+   // read without the monitor by moreRows(), written under it (bug #77874)
+   private transient volatile int rowCnt = 0;
 
    private static final Logger LOG = LoggerFactory.getLogger(UnionTableLens.class);
 }
