@@ -2495,4 +2495,19 @@ class TableBindingServiceTest {
    private static Principal principal() {
       return () -> "admin";
    }
+
+   /** Bug 78378: the warnings mutate returns (e.g. a script failure) reach the caller. */
+   @Test
+   void relaysTheSessionWarningsFromAFieldWrite() throws Exception {
+      CrosstabBindingModel existing = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(existing, "rows", List.of(dim("Region"), dim("Year")));
+      ViewsheetSessionService sessions = sessionsFor(mock(CrosstabVSAssembly.class));
+      doReturn(List.of("Script execution error in assembly: Crosstab1"))
+         .when(sessions).mutate(anyString(), any(Principal.class), any());
+
+      List<String> warnings = serviceWith(sessions, existing, mock(VSBindingModelService.class))
+         .moveField("tok", principal(), "Crosstab1", "rows", "cols", "Year", null);
+
+      assertEquals(List.of("Script execution error in assembly: Crosstab1"), warnings);
+   }
 }

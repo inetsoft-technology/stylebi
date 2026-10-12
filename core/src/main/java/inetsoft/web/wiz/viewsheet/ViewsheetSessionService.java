@@ -30,6 +30,7 @@ import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Resolves a pairing session to a live viewsheet runtime and runs mutations against it.
@@ -142,7 +143,8 @@ public class ViewsheetSessionService {
     * human's Ctrl+Z steps back through agent edits one at a time.
     *
     * @return the messages of any {@code MessageCommand}s of {@code Type.WARNING} the mutation
-    *         dispatched -- e.g. a best-effort post-write refresh step that was contained rather
+    *         dispatched, plus any script-execution failure it reported as an INFO (see
+    *         {@link CapturingCommandDispatcher#getScriptFailures()}) -- e.g. a best-effort post-write refresh step that was contained rather
     *         than allowed to fail the whole call. Empty when nothing warned. Unlike an ERROR
     *         (which fails the call via {@link CommandErrorException}), a WARNING does not stop
     *         the write from being reported as a success; the caller decides whether/how to
@@ -203,6 +205,29 @@ public class ViewsheetSessionService {
       }
 
       return warnings;
+   }
+
+   /**
+    * Adds the messages {@link #mutate} returned to a response under {@code "warnings"}, the
+    * field every warning-relaying wiz endpoint uses. Leaves the response untouched when there
+    * are none, so an unwarned call reads exactly as it did before.
+    */
+   public static void relayWarnings(Map<String, Object> response, List<String> warnings) {
+      if(warnings != null && !warnings.isEmpty()) {
+         response.put("warnings", warnings);
+      }
+   }
+
+   /**
+    * The body for an endpoint with no payload of its own: {@code null} (an empty 200, as before)
+    * when nothing warned, else {@code {"warnings": [...]}}.
+    */
+   public static Map<String, Object> warningsBody(List<String> warnings) {
+      if(warnings == null || warnings.isEmpty()) {
+         return null;
+      }
+
+      return Map.of("warnings", warnings);
    }
 
    /**

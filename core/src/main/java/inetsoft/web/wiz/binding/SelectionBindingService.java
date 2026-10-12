@@ -151,7 +151,7 @@ public class SelectionBindingService {
       boolean replaceAdditional = additionalTables != null;
       Map<String, Object> result = new LinkedHashMap<>();
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          SelectionVSAssembly assembly = SelectionRuntimeService.requireSelection(rvs, assemblyName);
 
          // Unscoped, not scoped to assemblyName: VSBindingTreeService.getBinding only builds a
@@ -357,6 +357,7 @@ public class SelectionBindingService {
 
          result.put("columns", columnNames);
       });
+      ViewsheetSessionService.relayWarnings(result, warnings);
 
       return result;
    }

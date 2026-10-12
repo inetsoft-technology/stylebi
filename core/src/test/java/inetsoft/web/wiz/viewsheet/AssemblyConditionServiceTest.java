@@ -25,6 +25,7 @@ import inetsoft.web.composer.model.condition.ConditionModel;
 import inetsoft.web.composer.model.condition.JunctionOperatorModel;
 import inetsoft.web.composer.model.vs.VSConditionDialogModel;
 import inetsoft.web.composer.vs.dialog.VSConditionDialogService;
+import inetsoft.web.viewsheet.controller.table.BaseTableService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -299,6 +300,25 @@ class AssemblyConditionServiceTest {
       return captor.getValue();
    }
 
+   /** A script-failure message in the format BaseTableService emits: prefix + name + newline. */
+   private static String failure(String assembly) {
+      return BaseTableService.SCRIPT_FAILURE_PREFIX + assembly + '\n' + "Script failed:";
+   }
+
+   /** Runs the mutation (so the pre-check happens) and returns the given session warnings. */
+   private static void runMutationThenReturn(ViewsheetSessionService sessions,
+                                             List<String> warnings) throws Exception
+   {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(mock(ViewsheetSandbox.class)));
+      when(rvs.getViewsheet()).thenReturn(mock(Viewsheet.class));
+      doAnswer(invocation -> {
+         ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
+         mutation.run(rvs, "rt1", null);
+         return warnings;
+      }).when(sessions).mutate(anyString(), any(Principal.class), any());
+   }
+
    private static Harness harness(VSConditionDialogModel model) {
       return harness(model, null);
    }
@@ -336,5 +356,57 @@ class AssemblyConditionServiceTest {
 
    private static Principal principal() {
       return () -> "admin";
+   }
+
+   /**
+    * Bug 78378: the refresh now reports a script failure on the assembly too, which would repeat
+    * the pre-check's own warning for the same expression.
+    */
+   @Test
+   void doesNotReportTheSameExpressionFailureTwice() throws Exception {
+      Harness h = harness(model(), (exp, box) -> "ReferenceError: undefinedFn is not defined");
+      runMutationThenReturn(h.sessions, List.of(failure("Table1")));
+
+      AssemblyConditionService.SetResult result = h.service.setWithWarnings(
+         "tok", principal(), "Table1", List.of(expression("undefinedFn(1)", "js")), "");
+
+      assertEquals(1, result.warnings().size(), result.warnings().toString());
+      assertTrue(result.warnings().get(0).startsWith("The expression 'undefinedFn(1)' threw"));
+   }
+
+   /** Another assembly's script failure is not the pre-check's, so it is kept. */
+   @Test
+   void keepsAScriptFailureOnAnotherAssembly() throws Exception {
+      Harness h = harness(model(), (exp, box) -> "ReferenceError: undefinedFn is not defined");
+      runMutationThenReturn(h.sessions, List.of(failure("Table10")));
+
+      AssemblyConditionService.SetResult result = h.service.setWithWarnings(
+         "tok", principal(), "Table1", List.of(expression("undefinedFn(1)", "js")), "");
+
+      assertEquals(2, result.warnings().size(), result.warnings().toString());
+   }
+
+   /** A failure the pre-check did not see (no expression thrown) is relayed as is. */
+   @Test
+   void relaysAScriptFailureWhenThePreCheckFoundNothing() throws Exception {
+      Harness h = harness(model(), (exp, box) -> null);
+      runMutationThenReturn(h.sessions, List.of(failure("Table1")));
+
+      AssemblyConditionService.SetResult result = h.service.setWithWarnings(
+         "tok", principal(), "Table1", List.of(), "");
+
+      assertEquals(1, result.warnings().size());
+   }
+
+   /** An earlier warning must not make the guard drop this assembly's own failure. */
+   @Test
+   void keepsTheOwnFailureAfterAnEarlierWarningWhenThePreCheckFoundNothing() throws Exception {
+      Harness h = harness(model(), (exp, box) -> null);
+      runMutationThenReturn(h.sessions, List.of("plain warning", failure("Table1")));
+
+      AssemblyConditionService.SetResult result = h.service.setWithWarnings(
+         "tok", principal(), "Table1", List.of(), "");
+
+      assertEquals(List.of("plain warning", failure("Table1")), result.warnings());
    }
 }

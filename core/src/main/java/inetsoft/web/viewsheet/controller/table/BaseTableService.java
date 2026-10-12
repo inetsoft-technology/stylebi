@@ -65,6 +65,13 @@ import java.util.List;
 import java.util.function.Supplier;
 
 public abstract class BaseTableService<T extends BaseTableEvent> {
+   /**
+    * Start of the INFO message {@link #loadTableData} dispatches when a script throws while the
+    * table is being built. Shared with the wiz capturing dispatcher, which recognises the
+    * failure by this prefix; the text is not translated, so it is stable.
+    */
+   public static final String SCRIPT_FAILURE_PREFIX = "Script execution error in assembly: ";
+
 
    /**
     * Creates a new instance of <tt>BaseTableService</tt>.
@@ -362,8 +369,7 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
             ViewsheetScope scope = box.get().getScope();
             ScriptEnv senv = scope.getScriptEnv();
             String suggestion = senv.getSuggestion((ScriptException)ex, null, scope);
-            String updateMessage = "Script execution error in assembly: " +
-               name + (suggestion != null ? "\nTo fix: " + suggestion : "") +
+            String updateMessage = SCRIPT_FAILURE_PREFIX + name + (suggestion != null ? "\nTo fix: " + suggestion : "") +
                "\nScript failed:\n" + ex.getMessage();
             MessageCommand cmd = new MessageCommand();
             cmd.setMessage(updateMessage);

@@ -102,10 +102,10 @@ public class TableBindingService {
     *                    this establishes it the same way {@code ChartBindingService.setShelf} does
     *                    for a chart, one call rather than two.
     */
-   public void setShelf(String sessionToken, Principal user, String assemblyName, String shelf,
+   public List<String> setShelf(String sessionToken, Principal user, String assemblyName, String shelf,
                         List<FieldRef> fields, String sourceTable) throws Exception
    {
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          BaseTableBindingModel model = requireTableBinding(rvs, assemblyName);
          applySource(model, sourceTable);
          Viewsheet vs = rvs.getViewsheet();
@@ -205,7 +205,7 @@ public class TableBindingService {
     * belong to the old source. That is refused unless {@code force} is set, rather than done
     * silently on one call.
     */
-   public void setSource(String sessionToken, Principal user, String assemblyName,
+   public List<String> setSource(String sessionToken, Principal user, String assemblyName,
                          String table, boolean force) throws Exception
    {
       if(table == null || table.isBlank()) {
@@ -214,7 +214,7 @@ public class TableBindingService {
             "list_bindable_fields reports what this assembly can bind to.");
       }
 
-      apply(sessionToken, user, assemblyName, model -> {
+      return apply(sessionToken, user, assemblyName, model -> {
          String resolved = resolveTable(model, table, assemblyName);
 
          if(!force) {
@@ -404,10 +404,10 @@ public class TableBindingService {
    }
 
    /** @param sourceTable see {@link #setShelf}. */
-   public void addField(String sessionToken, Principal user, String assemblyName, String shelf,
+   public List<String> addField(String sessionToken, Principal user, String assemblyName, String shelf,
                         FieldRef field, Integer position, String sourceTable) throws Exception
    {
-      applyWithContext(sessionToken, user, assemblyName, shelf,
+      return applyWithContext(sessionToken, user, assemblyName, shelf,
          (model, rvs, source) -> {
             applySource(model, sourceTable);
             requireSourceForFieldWrite(assemblyName, shelf, model.getSource(),
@@ -443,19 +443,19 @@ public class TableBindingService {
       }
    }
 
-   public void removeField(String sessionToken, Principal user, String assemblyName,
+   public List<String> removeField(String sessionToken, Principal user, String assemblyName,
                            String shelf, String column) throws Exception
    {
-      applyWithContext(sessionToken, user, assemblyName, shelf,
+      return applyWithContext(sessionToken, user, assemblyName, shelf,
          (model, rvs, source) ->
             TableBindingMutator.removeField(model, shelf, column, rvs, source, refModelService));
    }
 
-   public void moveField(String sessionToken, Principal user, String assemblyName,
+   public List<String> moveField(String sessionToken, Principal user, String assemblyName,
                          String fromShelf, String toShelf, String column, Integer position)
       throws Exception
    {
-      applyWithContext(sessionToken, user, assemblyName, toShelf,
+      return applyWithContext(sessionToken, user, assemblyName, toShelf,
          (model, rvs, source) ->
             TableBindingMutator.moveField(model, fromShelf, toShelf, column, position, rvs,
                                           source, refModelService));
@@ -480,10 +480,10 @@ public class TableBindingService {
     * below is the Crosstab-shaped sibling, addressed the same name-first way but resolved down to
     * that occurrence server-side.
     */
-   public void setFieldVisibility(String sessionToken, Principal user, String assemblyName,
+   public List<String> setFieldVisibility(String sessionToken, Principal user, String assemblyName,
                                   String column, boolean visible, String linkUri) throws Exception
    {
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          VSAssembly liveAssembly = rvs.getViewsheet().getAssembly(assemblyName);
 
          if(!(liveAssembly instanceof TableVSAssembly)) {
@@ -724,12 +724,12 @@ public class TableBindingService {
     * ({@code box.sortFormTableLens} plus an {@code UpdateSortInfoCommand}) needs a live
     * {@code ViewsheetSandbox} form-lens refresh this call does not drive.
     */
-   public void setColumnSort(String sessionToken, Principal user, String assemblyName,
+   public List<String> setColumnSort(String sessionToken, Principal user, String assemblyName,
                              String column, String direction, String linkUri) throws Exception
    {
       int order = parseColumnSortDirection(direction);
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          VSAssembly liveAssembly = rvs.getViewsheet().getAssembly(assemblyName);
 
          if(!(liveAssembly instanceof TableVSAssembly table)) {
@@ -854,19 +854,19 @@ public class TableBindingService {
       return names;
    }
 
-   public void setSort(String sessionToken, Principal user, String assemblyName, String shelf,
+   public List<String> setSort(String sessionToken, Principal user, String assemblyName, String shelf,
                        String column, Integer index, DimensionSortRanking.Sort sort)
       throws Exception
    {
-      apply(sessionToken, user, assemblyName,
+      return apply(sessionToken, user, assemblyName,
             model -> TableBindingMutator.setSort(model, shelf, column, index, sort));
    }
 
-   public void setRanking(String sessionToken, Principal user, String assemblyName, String shelf,
+   public List<String> setRanking(String sessionToken, Principal user, String assemblyName, String shelf,
                           String column, Integer index, DimensionSortRanking.Ranking ranking)
       throws Exception
    {
-      apply(sessionToken, user, assemblyName,
+      return apply(sessionToken, user, assemblyName,
             model -> TableBindingMutator.setRanking(model, shelf, column, index, ranking));
    }
 
@@ -1304,7 +1304,7 @@ public class TableBindingService {
       return names;
    }
 
-   public void setOptions(String sessionToken, Principal user, String assemblyName,
+   public List<String> setOptions(String sessionToken, Principal user, String assemblyName,
                           Map<String, Object> options) throws Exception
    {
       // Unlike every other mutator below, this one is allowed to actually change percentageBy
@@ -1314,7 +1314,7 @@ public class TableBindingService {
       // still have the manufactured default reset, or it reopens this same bug through a
       // narrower trigger.
       boolean changesPercentageBy = options != null && options.containsKey("percentageBy");
-      apply(sessionToken, user, assemblyName,
+      return apply(sessionToken, user, assemblyName,
             model -> TableBindingMutator.setOptions(model, options), false, !changesPercentageBy);
    }
 
@@ -1689,10 +1689,10 @@ public class TableBindingService {
       return out;
    }
 
-   private void apply(String sessionToken, Principal user, String assemblyName,
+   private List<String> apply(String sessionToken, Principal user, String assemblyName,
                       Consumer<BaseTableBindingModel> mutation) throws Exception
    {
-      apply(sessionToken, user, assemblyName, mutation, false, true);
+      return apply(sessionToken, user, assemblyName, mutation, false, true);
    }
 
    /**
@@ -1707,10 +1707,10 @@ public class TableBindingService {
                   inetsoft.uql.asset.SourceInfo source) throws Exception;
    }
 
-   private void applyWithContext(String sessionToken, Principal user, String assemblyName,
+   private List<String> applyWithContext(String sessionToken, Principal user, String assemblyName,
                                  String shelf, ContextualShelfMutation mutation) throws Exception
    {
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          BaseTableBindingModel model = requireTableBinding(rvs, assemblyName);
          VSAssembly assembly = rvs.getViewsheet().getAssembly(assemblyName);
          inetsoft.uql.asset.SourceInfo source = assembly instanceof DataVSAssembly data
@@ -1732,11 +1732,11 @@ public class TableBindingService {
       });
    }
 
-   private void apply(String sessionToken, Principal user, String assemblyName,
+   private List<String> apply(String sessionToken, Principal user, String assemblyName,
                       Consumer<BaseTableBindingModel> mutation, boolean allowCalcTable)
       throws Exception
    {
-      apply(sessionToken, user, assemblyName, mutation, allowCalcTable, true);
+      return apply(sessionToken, user, assemblyName, mutation, allowCalcTable, true);
    }
 
    /**
@@ -1744,12 +1744,12 @@ public class TableBindingService {
     *                             {@code false} only for {@link #setOptions}, the one wiz call
     *                             allowed to actually change {@code percentageBy}.
     */
-   private void apply(String sessionToken, Principal user, String assemblyName,
+   private List<String> apply(String sessionToken, Principal user, String assemblyName,
                       Consumer<BaseTableBindingModel> mutation, boolean allowCalcTable,
                       boolean preservePercentageBy)
       throws Exception
    {
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          BaseTableBindingModel model = requireTableBinding(rvs, assemblyName, allowCalcTable);
          VSAssembly assembly = rvs.getViewsheet().getAssembly(assemblyName);
          String livePercentageBy = preservePercentageBy ? livePercentageByValue(assembly) : null;
