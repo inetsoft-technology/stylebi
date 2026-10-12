@@ -2134,19 +2134,19 @@ public class VSTableLens extends DefaultTableFilter implements XMLSerializable, 
 
    /**
     * How much taller a row is for its padding: the inset the row actually draws, floored by the
-    * seed that the row's stored height had taken out of it.
+    * padding the row's stored height left out.
     *
     * The floor is what keeps a row on its density tier. VSDensityDefaults.rowHeight stores the
-    * tier less the DEFAULT-tier cell padding on the promise that render puts it back, so a row
-    * growing by the stylesheet's smaller amount alone would land below the tier, and below what
-    * the same table rendered before it was marked.
+    * tier less that padding on the promise that render puts it back, so a row growing by the
+    * stylesheet's smaller amount alone would land below the tier, and below what the same table
+    * rendered before it was marked.
     *
-    * The floor is the seed and not the resolved padding, because the seed is what was subtracted.
-    * An author padding above it is additive and arrives through the inset instead; an unmarked
-    * table has no seed, so nothing was subtracted from its height and nothing is owed back.
+    * The floor is what was left out and not the resolved padding: the seed, or the tier in force
+    * once an author padding exists. An author padding above it is additive and arrives through
+    * the inset instead; an unmarked table left nothing out, so nothing is owed back.
     *
     * It is skipped entirely where a stylesheet sets the row height, since that replaces the
-    * density height outright rather than shrinking it - adding the seed there would grow a row
+    * density height outright rather than shrinking it - adding the floor there would grow a row
     * neither the stylesheet nor the tier asked for.
     *
     * Which inset the text sits at is a separate question, and getCellInsets answers it.
@@ -2154,12 +2154,12 @@ public class VSTableLens extends DefaultTableFilter implements XMLSerializable, 
    public int getRowPadding(int row, TableDataVSAssemblyInfo info) {
       int inset = getEffectiveRowInset(row, info);
 
-      // the seed is lost only where a stylesheet displaces the assembly's padding on every
-      // column of the row. Under partial or no coverage the assembly's own value is already in
-      // the inset, so flooring there would stop an author padding below the seed from shortening
+      // what the stored height left out is lost only where a stylesheet displaces the assembly's
+      // padding on every column of the row. Under partial or no coverage the assembly's own value is already in
+      // the inset, so flooring there would stop an author padding below it from shortening
       // the row at all - the pane's vertical half could then only grow one
       if(isCSSRowFullyPadded(row) && !isCSSRowHeightDefined(row)) {
-         return Math.max(inset, getSeededInsetHeight(info));
+         return Math.max(inset, VSDensityDefaults.excludedCellPaddingHeight(info));
       }
 
       return inset;
@@ -2179,21 +2179,6 @@ public class VSTableLens extends DefaultTableFilter implements XMLSerializable, 
 
       Insets cell = info == null ? null : info.getCellPadding();
       return cell == null ? css : Math.max(css, cell.top + cell.bottom);
-   }
-
-   /**
-    * The seed the stored row height was reduced by: the DEFAULT tier, and only on a marked
-    * table, which is the same pair of conditions
-    * VSDensityDefaults.rowHeight(VizContext, TableDataVSAssemblyInfo) subtracts under.
-    *
-    * The mark is load-bearing rather than belt-and-braces. Revert leaves the DEFAULT tier in
-    * place whenever an author padding exists, because the re-seed is skipped for an author
-    * value, so a reverted table still carries a seed that its height no longer reflects.
-    */
-   private int getSeededInsetHeight(TableDataVSAssemblyInfo info) {
-      Insets seeded = info == null || info.getVizMark() == null ?
-         null : info.getDefaultCellPadding();
-      return seeded == null ? 0 : seeded.top + seeded.bottom;
    }
 
    /**

@@ -23,6 +23,7 @@ import inetsoft.uql.viewsheet.ViewsheetInfo;
 
 import java.awt.Dimension;
 import java.awt.Insets;
+import java.util.function.Supplier;
 
 /**
  * Resolves the default row/header/control height for viewsheet assemblies from the org-scoped
@@ -31,8 +32,8 @@ import java.awt.Insets;
  *
  * The height matrix matches the browser-DOM density tokens in _viz-tokens.scss so the live
  * model, export, and non-assembly DOM surfaces agree. The row and header matrices are RENDERED
- * heights; a table stores them less its seeded cell padding, which is added back at render (see
- * rowHeight(VizContext, TableDataVSAssemblyInfo)). Dense equals AssetUtil.defh for row and title
+ * heights; a table stores them less the cell padding render adds back (see
+ * excludedCellPaddingHeight). Dense equals AssetUtil.defh for row and title
  * height, so enabling modern at the default mode reflows nothing for a data-surface type whose
  * legacy default is AssetUtil.defh. A marked calendar is the exception - its legacy title lane
  * has always been taller, so it shrinks to the dense height. Control height is the one exception
@@ -118,11 +119,11 @@ public final class VSDensityDefaults {
    }
 
    /**
-    * The data-row height a table stores: the rendered height less its DEFAULT-tier cell padding,
-    * which render adds back - so a padding seeded under another tier still renders this one.
+    * The data-row height a table stores: the rendered height less the cell padding render adds
+    * back (see excludedCellPaddingHeight), so the sum lands on this tier.
     */
    public static int rowHeight(VizContext ctx, TableDataVSAssemblyInfo info) {
-      return rowHeight(ctx) - defaultCellPaddingHeight(ctx, info);
+      return rowHeight(ctx) - excludedCellPaddingHeight(ctx, info);
    }
 
    /**
@@ -130,11 +131,36 @@ public final class VSDensityDefaults {
     * rowHeight(VizContext, TableDataVSAssemblyInfo).
     */
    public static int headerRowHeight(VizContext ctx, TableDataVSAssemblyInfo info) {
-      return headerRowHeight(ctx) - defaultCellPaddingHeight(ctx, info);
+      return headerRowHeight(ctx) - excludedCellPaddingHeight(ctx, info);
    }
 
-   private static int defaultCellPaddingHeight(VizContext ctx, TableDataVSAssemblyInfo info) {
-      Insets padding = !ctx.modern || info == null ? null : info.getDefaultCellPadding();
+   /**
+    * The vertical cell padding a table's stored row height leaves out, for render to add back:
+    * the DEFAULT tier while the density owns the padding, since that is what the cell draws;
+    * under an author padding the DEFAULT tier stops following the density, so the tier in force.
+    * Zero when not modern.
+    */
+   public static int excludedCellPaddingHeight(VizContext ctx, TableDataVSAssemblyInfo info) {
+      return ctx.modern ? excludedHeight(info, () -> ctx) : 0;
+   }
+
+   /**
+    * The same, for a table lens, which holds no context and asks once per cell. The mark stands in
+    * for ctx.modern: Revert leaves a DEFAULT tier under an author padding that a reverted row never
+    * took out. The context is built only for an author padding.
+    */
+   public static int excludedCellPaddingHeight(TableDataVSAssemblyInfo info) {
+      return info != null && info.getVizMark() != null ?
+         excludedHeight(info, () -> VizContext.of(info)) : 0;
+   }
+
+   private static int excludedHeight(TableDataVSAssemblyInfo info, Supplier<VizContext> ctx) {
+      if(info == null) {
+         return 0;
+      }
+
+      Insets padding = info.isUserCellPadding() ?
+         cellPadding(ctx.get()) : info.getDefaultCellPadding();
       return padding == null ? 0 : padding.top + padding.bottom;
    }
 
