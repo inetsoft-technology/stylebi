@@ -219,6 +219,164 @@ public class JDBCUtil {
    }
 
    /**
+    * Bug #78383, re-parse a stored sql whose selection still holds a wildcard of a table (e.g.
+    * saved before #77617), from its sql string, the way the sql dialog parses it, and run the
+    * metadata step on it, so the wildcard is expanded to the columns of its table. A wildcard
+    * that still can't be expanded fails the parse (see fixUniformSQLInfo).
+    * <p>
+    * The parse runs on a copy, which the caller puts in place of the stored sql. The stored sql
+    * isn't changed, as it may be shared (e.g. cloned for an execution meanwhile), and a parse in
+    * place leaves it without its sql string until the parser thread is done.
+    * @return the re-parsed sql, or <tt>null</tt> if the sql is not a parsed sql with a sql string
+    * and a wildcard in its selection, or the parse didn't end.
+    */
+   public static UniformSQL reparseStoredWildcard(UniformSQL sql, XRepository repository,
+                                                  Object session, JDBCDataSource xds)
+   {
+      return reparseStoredWildcard(sql, repository, session, xds, REPARSE_TIMEOUT);
+   }
+
+   /**
+    * Re-parse a stored sql whose selection still holds a wildcard of a table, waiting at most
+    * the given time for the parser thread.
+    * @param timeout the longest wait for the parse, in milliseconds.
+    * @see #reparseStoredWildcard(UniformSQL, XRepository, Object, JDBCDataSource)
+    */
+   public static UniformSQL reparseStoredWildcard(UniformSQL sql, XRepository repository,
+                                                  Object session, JDBCDataSource xds,
+                                                  long timeout)
+   {
+      if(xds == null || !hasStoredWildcard(sql)) {
+         return null;
+      }
+
+      UniformSQL nsql = sql.clone();
+
+      if(nsql == null) {
+         return null;
+      }
+
+      String text = nsql.getSQLString();
+      nsql.setDataSource(xds);
+
+      try {
+         // the parser thread sets the sql string and notifies the sql when it's done
+         synchronized(nsql) {
+            nsql.setSQLString(text, true);
+            long end = System.currentTimeMillis() + timeout;
+
+            while(!nsql.hasSQLString()) {
+               long wait = end - System.currentTimeMillis();
+
+               if(wait <= 0) {
+                  LOG.warn("The sql with a wildcard is not parsed again in time: {}", text);
+                  return null;
+               }
+
+               nsql.wait(wait);
+            }
+         }
+
+         // a wildcard of a derived table is expanded to the qualified names of the columns of
+         // the derived table (e.g. d.c.CITY), which are written as one identifier. The stored
+         // sql of such a wildcard ran as written, it's failed instead of parsed again
+         if(hasDerivedTableWildcard(nsql)) {
+            LOG.debug("The wildcard of a derived table is not parsed again: {}", text);
+            return failStoredWildcard(sql);
+         }
+
+         fixUniformSQLInfo(nsql, repository, session, xds);
+         // keep the meta info of the columns selected explicitly
+         fixUniformSQLSelection(sql, nsql);
+      }
+      catch(InterruptedException ex) {
+         Thread.currentThread().interrupt();
+         return null;
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to parse the sql with a wildcard again: {}", text, ex);
+         return null;
+      }
+
+      return nsql;
+   }
+
+   /**
+    * Check if a wildcard of the selection of a sql, or of a derived table, selects the columns
+    * of a derived table: its qualifier is the alias of a derived table, or it's a bare wildcard
+    * and a derived table is in the from clause.
+    */
+   private static boolean hasDerivedTableWildcard(UniformSQL sql) {
+      Set<String> derived = new HashSet<>();
+
+      for(int i = 0; i < sql.getTableCount(); i++) {
+         SelectTable table = sql.getSelectTable(i);
+
+         if(table.getName() instanceof UniformSQL) {
+            if(hasDerivedTableWildcard((UniformSQL) table.getName())) {
+               return true;
+            }
+
+            derived.add(unquoteIdentifier(table.getAlias()));
+         }
+      }
+
+      if(derived.isEmpty()) {
+         return false;
+      }
+
+      XSelection selection = sql.getSelection();
+
+      for(int i = 0; i < selection.getColumnCount(); i++) {
+         String path = selection.getColumn(i);
+
+         if("*".equals(path) || path != null && path.endsWith(".*") &&
+            derived.contains(unquoteIdentifier(path.substring(0, path.length() - 2))))
+         {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   // the identifier without its quotes, in lower case, to compare a qualifier with an alias
+   private static String unquoteIdentifier(String name) {
+      return name == null ? "" : name.replaceAll("[\"`\\[\\]]", "").toLowerCase();
+   }
+
+   /**
+    * Bug #78383, a copy of a stored sql whose selection still holds a wildcard of a table, with
+    * its parse failed and the wildcard removed, as the metadata step does with a wildcard it
+    * can't expand (#77617). It's used in place of the stored sql when the sql can't be parsed
+    * again, so the sql runs as written and vpm refuses it instead of regenerating the wildcard.
+    * @return the failed copy, or <tt>null</tt> if the sql doesn't hold such a wildcard.
+    */
+   public static UniformSQL failStoredWildcard(UniformSQL sql) {
+      if(!hasStoredWildcard(sql)) {
+         return null;
+      }
+
+      UniformSQL nsql = sql.clone();
+
+      if(nsql != null) {
+         nsql.setParseResult(UniformSQL.PARSE_FAILED);
+         removeWildcards(nsql);
+      }
+
+      return nsql;
+   }
+
+   /**
+    * Check if a parsed sql with a sql string still holds a wildcard of a table in its selection,
+    * or in the selection of a derived table, so reparseStoredWildcard parses it again.
+    */
+   public static boolean hasStoredWildcard(UniformSQL sql) {
+      return sql != null && sql.isParseSQL() && sql.hasSQLString() &&
+         sql.getParseResult() == UniformSQL.PARSE_SUCCESS && hasWildcard(sql);
+   }
+
+   /**
     * Check if a wildcard is left in the selection of a sql or of its derived tables.
     */
    public static boolean hasWildcard(UniformSQL sql) {
@@ -2065,5 +2223,10 @@ public class JDBCUtil {
       databaseTypes.add(new CustomDatabaseType());
    }
 
+   // the longest wait for the parse of reparseStoredWildcard. The parse queues on the single
+   // parser thread (UniformSQL.parserPool) behind the other parses, and a parse itself may take
+   // up to two PARSE_PERIODs (8s) with its fallbacks, so the wait allows a few queued parses.
+   // When it runs out, the sql isn't parsed again, and the caller keeps or fails the stored sql
+   private static final long REPARSE_TIMEOUT = 30000L;
    private static final Logger LOG = LoggerFactory.getLogger(JDBCUtil.class);
 }
