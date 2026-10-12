@@ -307,6 +307,29 @@ public final class ConditionVocabulary {
          }
       }
 
+      boolean numericField = XSchema.isNumericType(fieldType) || XSchema.DECIMAL.equals(fieldType);
+      boolean textField = XSchema.STRING.equals(fieldType) || XSchema.CHAR.equals(fieldType);
+
+      // ConditionUtil converts only String literals, so a raw JSON boolean/number that doesn't
+      // fit a numeric/boolean field's type reaches the condition unconverted and silently
+      // matches nothing.
+      if(raw instanceof Boolean && numericField ||
+         raw instanceof Number && XSchema.BOOLEAN.equals(fieldType))
+      {
+         String kind = raw instanceof Boolean ? "boolean" : "number";
+         String hint = XSchema.BOOLEAN.equals(fieldType) ? "Use true or false." :
+            "Pass a JSON number or a numeric string.";
+         throw new IllegalArgumentException(
+            "Condition " + index + "'s value " + raw + " is a " + kind + " but field '" +
+            targetField.getName() + "' is a " + fieldType + ". " + hint);
+      }
+
+      // On a text field the intent of a raw number/boolean (e.g. a numeric code) is
+      // unambiguous, so it is stored in its string form.
+      if(textField && (raw instanceof Number || raw instanceof Boolean)) {
+         raw = rawToString(raw);
+      }
+
       // ConditionUtil later force-coerces a literal VALUE against the target field's declared
       // type (Tool.getData(dataType, value)) and silently keeps null on failure -- checking here,
       // one hop earlier, catches a bare string that can't become the field's type (e.g. a column
@@ -341,6 +364,22 @@ public final class ConditionVocabulary {
       value.setValue(raw);
       value.setType(ConditionValueModel.VALUE);
       return value;
+   }
+
+   private static String rawToString(Object raw) {
+      if(raw instanceof Number number) {
+         double d = number.doubleValue();
+
+         if(d == Math.rint(d) && !Double.isInfinite(d) && Math.abs(d) < 1e15) {
+            return Long.toString((long) d);
+         }
+
+         if(raw instanceof Double || raw instanceof Float || raw instanceof java.math.BigDecimal) {
+            return new java.math.BigDecimal(raw.toString()).stripTrailingZeros().toPlainString();
+         }
+      }
+
+      return raw.toString();
    }
 
    /**

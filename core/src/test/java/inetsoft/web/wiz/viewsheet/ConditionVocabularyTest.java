@@ -912,6 +912,64 @@ class ConditionVocabularyTest {
       }
    }
 
+   @Test
+   void refusesARawBooleanForANumericField() {
+      for(String type : List.of("integer", "double", "long", "float", "decimal")) {
+         DataRefModel[] fields = { field("Budget", type) };
+
+         Exception thrown = assertThrows(IllegalArgumentException.class,
+            () -> ConditionVocabulary.toConditionList(
+               List.of(clause("Budget", "greater_than", List.of(true), null)), fields), type);
+
+         assertTrue(thrown.getMessage().contains("Budget"), type);
+         assertTrue(thrown.getMessage().contains("boolean"), type);
+      }
+   }
+
+   @Test
+   void refusesARawNumberForABooleanField() {
+      DataRefModel[] fields = { field("Paid", "boolean") };
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> ConditionVocabulary.toConditionList(
+            List.of(clause("Paid", "equals", List.of(5), null)), fields));
+
+      assertTrue(thrown.getMessage().contains("Paid"));
+      assertTrue(thrown.getMessage().contains("number"));
+   }
+
+   @Test
+   void normalizesARawNumberOrBooleanForAStringOrCharField() {
+      Object[][] cases = {
+         { 5, "5" }, { 5.0, "5" }, { 5.5, "5.5" }, { 1e-4, "0.0001" }, { -2.5, "-2.5" }, { 1e20, "100000000000000000000" },
+         { -0.0, "0" }, { 5L, "5" }, { true, "true" }
+      };
+
+      for(String type : List.of("string", "char")) {
+         for(Object[] c : cases) {
+            DataRefModel[] fields = { field("Code", type) };
+            Object[] list = ConditionVocabulary.toConditionList(
+               List.of(clause("Code", "equals", List.of(c[0]), null)), fields);
+            ConditionModel model = (ConditionModel) list[0];
+
+            assertEquals(c[1], model.getValues()[0].getValue(), type + " " + c[0]);
+         }
+      }
+   }
+
+   @Test
+   void stillAcceptsMatchingRawNumbersAndBooleans() {
+      assertDoesNotThrow(() -> ConditionVocabulary.toConditionList(
+         List.of(clause("Budget", "greater_than", List.of(5), null)),
+         new DataRefModel[] { field("Budget", "integer") }));
+      assertDoesNotThrow(() -> ConditionVocabulary.toConditionList(
+         List.of(clause("Budget", "greater_than", List.of(5.5), null)),
+         new DataRefModel[] { field("Budget", "double") }));
+      assertDoesNotThrow(() -> ConditionVocabulary.toConditionList(
+         List.of(clause("Paid", "equals", List.of(true), null)),
+         new DataRefModel[] { field("Paid", "boolean") }));
+   }
+
    private static int operationOf(String operator) {
       Object[] list = ConditionVocabulary.toConditionList(
          List.of(clause("Region", operator, List.of("x"), null)), FIELDS);
