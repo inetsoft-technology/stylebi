@@ -33,6 +33,8 @@ import inetsoft.uql.service.*;
 import inetsoft.uql.util.*;
 import inetsoft.util.*;
 import inetsoft.util.script.ExpressionFailedException;
+import inetsoft.util.script.graal.ScriptTimeoutGuard;
+import inetsoft.util.swap.DataUnavailable;
 import inetsoft.web.admin.monitoring.MonitorLevelService;
 import inetsoft.web.composer.model.BrowseDataModel;
 import jakarta.annotation.PostConstruct;
@@ -527,6 +529,13 @@ public class XSessionManager {
 
             Tool.addUserWarning(Catalog.getCatalog().getString("common.table.getDataFailed") +
                                    ": " + sqlExpressionException.getMessage());
+
+            // AssetQuery swallows this in a runtime query, so a scheduled run would read an
+            // empty table (Bug #78411)
+            if(isScheduler(qvars)) {
+               throw scheduledLoadFailure(sqlExpressionException);
+            }
+
             throw sqlExpressionException;
          }
          catch(ExpressionFailedException | MessageException esEx) {
@@ -546,7 +555,7 @@ public class XSessionManager {
                                 ": " + ex.getMessage());
 
             if(isScheduler(qvars)) {
-               throw ex;
+               throw scheduledLoadFailure(ex);
             }
          }
 
@@ -556,6 +565,28 @@ public class XSessionManager {
          removeQueryInfo(queryId);
          qvars.remove(XQuery.HINT_TOUCH_TIMESTAMP);
       }
+   }
+
+   /**
+    * The failure to throw to the reader of a scheduled run for a query that failed before its
+    * table was returned, e.g. a database error at statement execute or connect, a tabular
+    * handler error, or a row fetch error without streaming. It is typed as a load failure, as a
+    * row fetch error found at the end of the rows is, so that a reader that turns its other
+    * failures into a null value (a script read, a calc table) or caches the null value
+    * (ViewsheetSandbox) fails instead of computing or sending a wrong result (Bug #78411).
+    * <p>
+    * A lock stall, a lost swap file, a stopped script or interrupt, and a load failure already
+    * keep their own type, because readers handle them by type. A cancel, a query timeout and
+    * other {@code MessageException}s never get here, they are caught before.
+    */
+   private static Exception scheduledLoadFailure(Exception ex) {
+      if(DataUnavailable.find(ex) != null || ScriptTimeoutGuard.isStop(ex) ||
+         TableLoadException.find(ex) != null)
+      {
+         return ex;
+      }
+
+      return new TableLoadException(XNodeTableLens.getRootCauseMessage(ex), ex);
    }
 
    private static boolean isScheduler(VariableTable qvars) {

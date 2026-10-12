@@ -215,7 +215,11 @@ public class XNodeTableLens extends AbstractTableLens
       Tool.addUserWarning(message);
    }
 
-   private static String getRootCauseMessage(Throwable ex) {
+   /**
+    * The message of the innermost cause of {@code ex}, e.g. the database error of a wrapped
+    * driver exception, or its {@code toString()} if it has no message.
+    */
+   public static String getRootCauseMessage(Throwable ex) {
       Throwable cause = ex;
 
       while(cause.getCause() != null && cause.getCause() != cause) {
