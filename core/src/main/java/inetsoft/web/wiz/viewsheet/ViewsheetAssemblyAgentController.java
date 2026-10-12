@@ -81,6 +81,7 @@ import java.security.Principal;
 import java.util.Base64;
 import java.util.List;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -1604,9 +1605,24 @@ public class ViewsheetAssemblyAgentController {
       throws Exception
    {
       requireEnabled();
-      boolean append = "append".equalsIgnoreCase(request.mode());
+      boolean append = isFormTableAppendMode(request.mode());
       return formTableRowService.insertRow(sessionToken, user, request.assembly(), request.index(),
                                            append, linkUri);
+   }
+
+   /**
+    * {@code mode} is the closed set insert/append, case-insensitive; omitted or blank means
+    * insert. Anything else is refused rather than silently treated as insert.
+    */
+   private static boolean isFormTableAppendMode(String mode) {
+      String normalized = mode == null ? "" : mode.trim().toLowerCase(Locale.ROOT);
+
+      return switch(normalized) {
+         case "", "insert" -> false;
+         case "append" -> true;
+         default -> throw new IllegalArgumentException(
+            "'mode' must be one of insert, append, got '" + mode + "'.");
+      };
    }
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/form-table/delete-rows")

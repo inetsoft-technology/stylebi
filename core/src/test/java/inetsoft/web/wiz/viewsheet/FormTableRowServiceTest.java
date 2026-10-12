@@ -112,7 +112,7 @@ class FormTableRowServiceTest {
       verify(h.forms).addRow(eq("rt1"), captor.capture(), eq(""), any(), any());
       assertEquals("Table1", captor.getValue().getAssemblyName());
       assertTrue(captor.getValue().insert());
-      assertEquals(3, captor.getValue().row());
+      assertEquals(4, captor.getValue().row()); // + the default lens's one header row
    }
 
    @Test
@@ -187,7 +187,7 @@ class FormTableRowServiceTest {
 
       ArgumentCaptor<DeleteTableRowsEvent> captor = ArgumentCaptor.forClass(DeleteTableRowsEvent.class);
       verify(h.forms).deleteRows(eq("rt1"), captor.capture(), eq(""), any(), any());
-      assertEquals(List.of(2, 0), captor.getValue().rows());
+      assertEquals(List.of(3, 1), captor.getValue().rows()); // + one header row, order kept
    }
 
    /**
@@ -219,7 +219,7 @@ class FormTableRowServiceTest {
       ArgumentCaptor<ChangeFormTableCellInputEvent> captor =
          ArgumentCaptor.forClass(ChangeFormTableCellInputEvent.class);
       verify(h.forms).changeFormInput(eq("rt1"), captor.capture(), eq(""), any(), any());
-      assertEquals(0, captor.getValue().row());
+      assertEquals(1, captor.getValue().row()); // + one header row
       assertEquals(1, captor.getValue().col());
       assertEquals("hello", captor.getValue().data());
    }
@@ -689,6 +689,88 @@ class FormTableRowServiceTest {
       verify(h.forms).changeFormInput(eq("rt1"), any(), eq(""), any(), any());
    }
 
+   // ── no runtime form state (Bug #78395) ─────────────────────────────────────
+
+   /**
+    * Bug #78395: a Composer Design-tab pairing is a design-mode viewsheet, whose sandbox
+    * returns a null {@link FormTableLens}. Every entry point must refuse that by name, pointing at
+    * a Preview/viewer pairing, before the native service dereferences the null lens (a generic
+    * 500) -- in range or not, and for apply before {@code applyChanges} gets to check the source.
+    */
+   @Test
+   void designModePairingIsRefusedByEveryEntryPointNamingPreview() {
+      Harness h = harness(tableWith(true, true, true, true), false,
+                          Optional.of(sandboxWith(null)), List.of());
+
+      for(org.junit.jupiter.api.function.Executable call : allEntryPoints(h)) {
+         assertRefused(h, call, "Design tab", "Preview", "Table1");
+      }
+   }
+
+   /** Design mode with no sandbox at all still gets the actionable design-mode message. */
+   @Test
+   void designModeWithoutASandboxIsRefusedAsDesignMode() {
+      Harness h = harness(tableWith(true, true, true, true), false, Optional.empty(), List.of());
+
+      for(org.junit.jupiter.api.function.Executable call : allEntryPoints(h)) {
+         assertRefused(h, call, "Design tab", "Preview");
+      }
+   }
+
+   /**
+    * A runtime viewsheet with no sandbox used to be a silent ok:true no-op (every native method
+    * returns early); it is refused with its own message now, not the design-mode one.
+    */
+   @Test
+   void runtimeWithoutASandboxIsRefusedWithItsOwnMessage() {
+      Harness h = harness(tableWith(true, true, true, true), true, Optional.empty(), List.of());
+
+      for(org.junit.jupiter.api.function.Executable call : allEntryPoints(h)) {
+         Exception e = assertThrows(IllegalArgumentException.class, call);
+         assertTrue(e.getMessage().contains("no runtime sandbox"), e.getMessage());
+         assertFalse(e.getMessage().contains("Design tab"), e.getMessage());
+      }
+
+      verifyNoInteractions(h.forms);
+   }
+
+   /** Runtime but still no lens (disposed sandbox, missing embedded-viewsheet box). */
+   @Test
+   void runtimeWithANullLensIsRefusedWithItsOwnMessage() {
+      Harness h = harness(tableWith(true, true, true, true), true,
+                          Optional.of(sandboxWith(null)), List.of());
+
+      for(org.junit.jupiter.api.function.Executable call : allEntryPoints(h)) {
+         Exception e = assertThrows(IllegalArgumentException.class, call);
+         assertTrue(e.getMessage().contains("no runtime form table data"), e.getMessage());
+         assertFalse(e.getMessage().contains("Design tab"), e.getMessage());
+      }
+
+      verifyNoInteractions(h.forms);
+   }
+
+   /** The Form-option refusals still come first, so their reason is not masked. */
+   @Test
+   void designModeStillReportsAMissingFormOptionFirst() {
+      Harness h = harness(tableWith(true, false, true, true), false,
+                          Optional.of(sandboxWith(null)), List.of());
+
+      assertRefused(h, () -> h.service.insertRow("tok", principal(), "Table1", 0, false, ""),
+                    "Insert enabled");
+   }
+
+   private static List<org.junit.jupiter.api.function.Executable> allEntryPoints(Harness h) {
+      return List.of(
+         () -> h.service.insertRow("tok", principal(), "Table1", 0, false, ""),
+         () -> h.service.insertRow("tok", principal(), "Table1", 99, false, ""),
+         () -> h.service.insertRow("tok", principal(), "Table1", 0, true, ""),
+         () -> h.service.deleteRows("tok", principal(), "Table1", List.of(0), ""),
+         () -> h.service.deleteRows("tok", principal(), "Table1", List.of(99), ""),
+         () -> h.service.setCell("tok", principal(), "Table1", 0, 0, "x", ""),
+         () -> h.service.setCell("tok", principal(), "Table1", 99, 0, "x", ""),
+         () -> h.service.apply("tok", principal(), "Table1", ""));
+   }
+
    // ── fixtures ──────────────────────────────────────────────────────────────
 
    private record Harness(FormTableRowService service, VSFormTableService forms,
@@ -707,29 +789,13 @@ class FormTableRowServiceTest {
       return assembly;
    }
 
+   /**
+    * A runtime-mode pairing (the only kind that has form state) whose sandbox resolves a lens
+    * with one header row and five editable data rows, enough for every pass-through test's
+    * indices.
+    */
    private static Harness harnessWith(VSAssembly assembly) {
-      Viewsheet vs = mock(Viewsheet.class);
-      when(vs.getAssembly(anyString())).thenReturn(assembly);
-
-      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
-      when(rvs.getViewsheet()).thenReturn(vs);
-
-      VSFormTableService forms = mock(VSFormTableService.class);
-      CapturingCommandDispatcher dispatcher = mock(CapturingCommandDispatcher.class);
-      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
-
-      try {
-         doAnswer(invocation -> {
-            ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
-            mutation.run(rvs, "rt1", dispatcher);
-            return List.of();
-         }).when(sessions).mutate(anyString(), any(Principal.class), any());
-      }
-      catch(Exception e) {
-         throw new IllegalStateException(e);
-      }
-
-      return new Harness(new FormTableRowService(sessions, forms), forms, dispatcher);
+      return harnessWithLens(assembly, defaultLens());
    }
 
    /**
@@ -738,40 +804,29 @@ class FormTableRowServiceTest {
     * returns from {@code CapturingCommandDispatcher.getWarnings()}.
     */
    private static Harness harnessWithWarnings(VSAssembly assembly, List<String> warnings) {
-      Viewsheet vs = mock(Viewsheet.class);
-      when(vs.getAssembly(anyString())).thenReturn(assembly);
-
-      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
-      when(rvs.getViewsheet()).thenReturn(vs);
-
-      VSFormTableService forms = mock(VSFormTableService.class);
-      CapturingCommandDispatcher dispatcher = mock(CapturingCommandDispatcher.class);
-      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
-
-      try {
-         doAnswer(invocation -> {
-            ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
-            mutation.run(rvs, "rt1", dispatcher);
-            return warnings;
-         }).when(sessions).mutate(anyString(), any(Principal.class), any());
-      }
-      catch(Exception e) {
-         throw new IllegalStateException(e);
-      }
-
-      return new Harness(new FormTableRowService(sessions, forms), forms, dispatcher);
+      FormTableLens lens = defaultLens();
+      return growOnAddRow(harnessWithLens(assembly, lens, warnings), lens);
    }
 
    /**
-    * Like {@link #harnessWith}, but {@code rvs.getViewsheetSandbox()} resolves to a lens that
-    * reports {@code headerRowCount} -- for the row-index-offset and editable-cell tests, which
-    * need a real {@link FormTableLens} to read {@code getHeaderRowCount()}/{@code rows()}/
-    * {@code isEdit()}/{@code getVisibleColumnOption(col)} from.
+    * Like {@link #harnessWith}, but {@code rvs.getViewsheetSandbox()} resolves to the given lens
+    * -- for the row-index-offset and editable-cell tests, which need a {@link FormTableLens} to
+    * read {@code getHeaderRowCount()}/{@code rows()}/{@code isEdit()}/
+    * {@code getVisibleColumnOption(col)} from.
     */
    private static Harness harnessWithLens(VSAssembly assembly, FormTableLens lens) {
-      Harness h = harnessWithLens(assembly, lens, List.of());
+      return growOnAddRow(harnessWithLens(assembly, lens, List.of()), lens);
+   }
+
+   private static Harness harnessWithLens(VSAssembly assembly, FormTableLens lens,
+                                          List<String> warnings)
+   {
+      return harness(assembly, true, Optional.of(sandboxWith(lens)), warnings);
+   }
+
+   /** A real addRow grows the lens; without this the Bug #78211 no-op guard would reject it. */
+   private static Harness growOnAddRow(Harness h, FormTableLens lens) {
       int rowsBefore = lens.getRowCount();
-      // a real addRow grows the lens; without this the Bug #78211 no-op guard would reject it
 
       try {
          doAnswer(inv -> {
@@ -786,25 +841,16 @@ class FormTableRowServiceTest {
       return h;
    }
 
-   private static Harness harnessWithLens(VSAssembly assembly, FormTableLens lens,
-                                          List<String> warnings)
+   private static Harness harness(VSAssembly assembly, boolean runtime,
+                                  Optional<ViewsheetSandbox> box, List<String> warnings)
    {
       Viewsheet vs = mock(Viewsheet.class);
       when(vs.getAssembly(anyString())).thenReturn(assembly);
 
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
       when(rvs.getViewsheet()).thenReturn(vs);
-
-      ViewsheetSandbox box = mock(ViewsheetSandbox.class);
-
-      try {
-         when(box.getFormTableLens(anyString())).thenReturn(lens);
-      }
-      catch(Exception e) {
-         throw new IllegalStateException(e);
-      }
-
-      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
+      when(rvs.isRuntime()).thenReturn(runtime);
+      when(rvs.getViewsheetSandbox()).thenReturn(box);
 
       VSFormTableService forms = mock(VSFormTableService.class);
       CapturingCommandDispatcher dispatcher = mock(CapturingCommandDispatcher.class);
@@ -822,6 +868,29 @@ class FormTableRowServiceTest {
       }
 
       return new Harness(new FormTableRowService(sessions, forms), forms, dispatcher);
+   }
+
+   private static ViewsheetSandbox sandboxWith(FormTableLens lens) {
+      ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+
+      try {
+         when(box.getFormTableLens(anyString())).thenReturn(lens);
+      }
+      catch(Exception e) {
+         throw new IllegalStateException(e);
+      }
+
+      return box;
+   }
+
+   /** One header row + five OLD data rows, Edit on, every visible column form-optioned. */
+   private static FormTableLens defaultLens() {
+      FormTableLens lens = lensWith(1, true, rowWith(FormTableRow.OLD), rowWith(FormTableRow.OLD),
+         rowWith(FormTableRow.OLD), rowWith(FormTableRow.OLD), rowWith(FormTableRow.OLD),
+         rowWith(FormTableRow.OLD));
+      ColumnOption option = optionWith(true);
+      when(lens.getVisibleColumnOption(anyInt())).thenReturn(option);
+      return lens;
    }
 
    private static FormTableLens lensWith(int headerRowCount, boolean edit, FormTableRow... rows) {

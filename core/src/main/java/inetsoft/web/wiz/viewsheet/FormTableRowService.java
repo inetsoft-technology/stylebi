@@ -91,6 +91,7 @@ public class FormTableRowService {
 
       List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          requireInsertable(rvs, assemblyName);
+         requireFormLens(rvs, assemblyName);
          requireInsertIndexInRange(rvs, assemblyName, index, append);
 
          InsertTableRowEvent event = InsertTableRowEvent.builder()
@@ -161,6 +162,7 @@ public class FormTableRowService {
 
       List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          requireDeletable(rvs, assemblyName);
+         requireFormLens(rvs, assemblyName);
          requireDeleteRowsInRange(rvs, assemblyName, rows);
 
          int offset = headerRowOffset(rvs, assemblyName);
@@ -196,6 +198,7 @@ public class FormTableRowService {
 
       List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          requireForm(rvs, assemblyName);
+         requireFormLens(rvs, assemblyName);
          requireCellInRange(rvs, assemblyName, row, col);
 
          int nativeRow = row + headerRowOffset(rvs, assemblyName);
@@ -231,6 +234,9 @@ public class FormTableRowService {
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          requireWriteBack(rvs, assemblyName);
+         // before applyChanges: writeBackFormData checks the source table first, so a design-mode
+         // apply would otherwise be refused with the wrong reason (or NPE on the null lens)
+         requireFormLens(rvs, assemblyName);
 
          ApplyFormChangesEvent event = ApplyFormChangesEvent.builder()
             .assemblyName(assemblyName)
@@ -322,14 +328,54 @@ public class FormTableRowService {
     * resolved lens's own {@code getHeaderRowCount()} (ordinarily 1, never hardcoded to that in
     * case a future table type has more than one header row).
     *
-    * <p>Returns 0 -- i.e. no translation -- when the lens cannot be resolved at all (sandbox not
-    * runtime-mode, disposed, ...): the native call is going to fail downstream regardless of
-    * what offset is applied here, since {@code VSFormTableService} needs the identical lens to
-    * do anything.
+    * <p>Returns 0 -- i.e. no translation -- when the lens cannot be resolved at all. Every entry
+    * point calls {@link #requireFormLens} first, so that is only defensive.
     */
    private static int headerRowOffset(RuntimeViewsheet rvs, String assemblyName) throws Exception {
       FormTableLens lens = resolveLens(rvs, assemblyName);
       return lens == null ? 0 : lens.getHeaderRowCount();
+   }
+
+   /**
+    * Refuses, by name, a pairing that has no {@link FormTableLens} for the assembly.
+    * {@code ViewsheetSandbox.getFormTableLens} returns null whenever the viewsheet is not in
+    * runtime mode -- always the case for the Composer's Design tab -- and when the sandbox is
+    * disposed or an embedded viewsheet's box is missing. {@code VSFormTableService} dereferences
+    * that null lens (an unmapped NPE, i.e. a generic 500), and silently does nothing when there is
+    * no sandbox at all. A runtime table that has no data still gets a non-null, 0-row lens, so it
+    * is not refused here; the range checks handle it.
+    */
+   private static FormTableLens requireFormLens(RuntimeViewsheet rvs, String assemblyName)
+      throws Exception
+   {
+      if(!rvs.isRuntime()) {
+         throw new IllegalArgumentException(
+            "form_table_* edits the runtime form state of '" + assemblyName + "', which exists " +
+            "only in a Preview or viewer pairing; this pairing is the Composer's Design tab, " +
+            "where a form table has no row data. Click Preview in the Composer toolbar, connect " +
+            "the pairing code the preview shows with connect_sheet {code, additive: true}, and " +
+            "retry there.");
+      }
+
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "' cannot be edited: this pairing's viewsheet has no runtime " +
+            "sandbox (it was closed or has not finished loading). Reconnect the Preview or " +
+            "viewer pairing and retry.");
+      }
+
+      FormTableLens lens = box.get().getFormTableLens(assemblyName);
+
+      if(lens == null) {
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "' has no runtime form table data in this pairing (its " +
+            "viewsheet sandbox was disposed, or the embedded viewsheet that contains it is not " +
+            "loaded). Reconnect the Preview or viewer pairing and retry.");
+      }
+
+      return lens;
    }
 
    private static FormTableLens resolveLens(RuntimeViewsheet rvs, String assemblyName)
