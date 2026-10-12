@@ -54,9 +54,12 @@ import java.util.function.Supplier;
  * node is a confirmed minority island, regardless of {@code cluster.minorityIslandHalt} — that
  * flag only gates whether {@code MinorityIslandDetector} itself halts the node, not whether the
  * health status reflects the condition. To keep the two opt-in knobs functionally independent as
- * documented, this watchdog excludes any tick where the cluster is currently a confirmed minority
- * island from its not-ready timer entirely: such a tick neither starts, advances, nor resets the
- * timer. So a node that is a minority island for longer than {@code
+ * documented, this watchdog never counts a tick's elapsed time toward the threshold while the
+ * cluster is a confirmed minority island — such a tick cannot advance the counted not-ready
+ * duration, though, like any other not-ready tick, it can still mark the start of a new not-ready
+ * stretch if none was already open (that has no practical effect, since a stretch's first tick
+ * never has any elapsed time to count anyway). So a node that is a minority island for longer
+ * than {@code
  * cluster.stuckExchangeHaltMinutes} is never halted by this watchdog on that basis alone — only
  * {@code cluster.minorityIslandHalt} can do that. If the island condition later clears while the
  * node is still not-ready for an unrelated reason (e.g. a genuinely stuck exchange), timing

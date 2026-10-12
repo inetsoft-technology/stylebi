@@ -23,7 +23,6 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.AuthenticationService;
 import inetsoft.sree.security.OrganizationContextHolder;
-import inetsoft.storage.KeyValueStorageManager;
 import inetsoft.uql.asset.ConfirmException;
 import inetsoft.util.*;
 import inetsoft.util.config.*;
@@ -171,22 +170,17 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
             InetsoftConfig.getInstance().getCluster().getStuckExchangeHaltMinutes();
 
          if(stuckExchangeHaltMinutes != null && stuckExchangeHaltMinutes > 0) {
-            // only constructed when the watchdog is actually enabled, so the common case (the
-            // property unset) doesn't start an extra probe thread for nothing
-            healthService = new ClusterHealthService(this, KeyValueStorageManager.getInstance());
             healthWatchdog = new ClusterHealthWatchdog(ignite, this::sampleHealthStatus,
                () -> getMinorityIslandMessage() != null, -1L,
                TimeUnit.MINUTES.toMillis(stuckExchangeHaltMinutes));
             healthWatchdog.start();
          }
          else {
-            healthService = null;
             healthWatchdog = null;
          }
       }
       else {
          islandDetector = null;
-         healthService = null;
          healthWatchdog = null;
       }
 
@@ -198,12 +192,24 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    }
 
    /**
-    * Samples the current cluster health status for {@link #healthWatchdog} (Bug #78141). Only
-    * called when {@code cluster.stuckExchangeHaltMinutes} is set, in which case
-    * {@link #healthService} is guaranteed to be non-null.
+    * Samples the current cluster health status for {@link #healthWatchdog} (Bug #78141).
+    * <p>
+    * Looks the Spring-managed {@link ClusterHealthService} singleton up lazily, on the watchdog's
+    * own thread, instead of resolving it once in the constructor: this constructor runs inside
+    * the {@code Cluster} bean's own {@code @Bean} factory method
+    * ({@code EngineConfiguration.cluster(InetsoftConfig)}), so the {@code Cluster} bean is not
+    * registered yet, and {@code ClusterHealthService}'s {@code @Autowired} constructor needs a
+    * {@code Cluster} — resolving it here would be a circular bean dependency. {@link #start} only
+    * schedules the watchdog's first tick after its sampling interval, well after this constructor
+    * (and the {@code @Bean} method it runs inside) has returned, so by the time this method is
+    * actually invoked the {@code Cluster} bean is safely registered. If the application context
+    * is not yet set at all, {@link ConfigurationContext#getSpringBean} throws
+    * {@link ShutdownException}, which {@link ClusterHealthWatchdog#check()} already treats as an
+    * inconclusive tick that neither starts nor clears the not-ready timer — so a lookup this early
+    * cannot be mistaken for a genuinely stuck exchange.
     */
    private ClusterHealthStatus sampleHealthStatus() {
-      return healthService.getStatus();
+      return ConfigurationContext.getContext().getSpringBean(ClusterHealthService.class).getStatus();
    }
 
    public static IgniteConfiguration getDefaultConfig(Path workDir) {
@@ -2074,8 +2080,9 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       }
 
       if(healthWatchdog != null) {
+         // not healthService.close(): sampleHealthStatus() looks up the Spring-managed
+         // ClusterHealthService singleton lazily, it does not own an instance of its own
          healthWatchdog.close();
-         healthService.close();
       }
 
       clusterFileTransfer.close();
@@ -2426,7 +2433,6 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    private final ExecutorService listenerExecutor;
    private final ClientMessageSender clientMessageSender;
    private final MinorityIslandDetector islandDetector;
-   private final ClusterHealthService healthService;
    private final ClusterHealthWatchdog healthWatchdog;
 
    private static final int DEFAULT_BACKUP_COUNT = 2;

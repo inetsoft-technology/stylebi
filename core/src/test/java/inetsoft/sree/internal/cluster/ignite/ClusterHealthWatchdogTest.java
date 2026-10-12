@@ -18,6 +18,7 @@
 package inetsoft.sree.internal.cluster.ignite;
 
 import inetsoft.util.health.ClusterHealthStatus;
+import org.apache.ignite.IgniteException;
 import org.apache.ignite.failure.FailureContext;
 import org.apache.ignite.failure.FailureType;
 import org.apache.ignite.internal.GridKernalContext;
@@ -175,6 +176,61 @@ class ClusterHealthWatchdogTest {
    }
 
    /**
+    * Review finding (external review, community PR #6777): a transient failure sampling the
+    * cluster health status (e.g. {@code sampleHealthStatus()} looking up the Spring-managed
+    * {@code ClusterHealthService} bean before the application context is fully up) must be an
+    * inconclusive tick — it must not be mistaken for a genuine not-ready observation, and must
+    * not disturb a not-ready stretch already in progress.
+    */
+   @Test
+   void aThrowingStatusSupplierIsInconclusiveAndDoesNotDisturbAnInProgressStretch()
+      throws InterruptedException
+   {
+      Fixture fx = new Fixture(200L);
+
+      // a throwing tick before any not-ready stretch has started: must not itself start one
+      fx.throwOnStatus = true;
+      fx.watchdog.check();
+      fx.throwOnStatus = false;
+      fx.ready = false;
+      fx.watchdog.check();
+      Thread.sleep(250L);
+
+      // a throwing tick in the middle of an already-started not-ready stretch: must not reset it
+      fx.throwOnStatus = true;
+      fx.watchdog.check();
+      fx.throwOnStatus = false;
+
+      fx.watchdog.check();
+      assertEquals(1, fx.failures.size(),
+                   "a transient status-sampling failure must not reset an in-progress not-ready " +
+                      "stretch, nor itself count as having started one");
+   }
+
+   /**
+    * Review finding (external review, community PR #6777): if raising the segmentation failure
+    * itself throws (e.g. a transient issue reaching the failure processor), the watchdog must
+    * retry on a later check rather than giving up or crashing the periodic task.
+    */
+   @Test
+   void raisingTheFailureIsRetriedIfItThrows() throws InterruptedException {
+      Fixture fx = new Fixture(200L);
+      fx.ready = false;
+      fx.failProcessOnce = true;
+
+      fx.watchdog.check();
+      Thread.sleep(250L);
+      fx.watchdog.check();
+      assertTrue(fx.failures.isEmpty(),
+                 "the halt attempt that threw must not be recorded as a successful failure");
+
+      fx.watchdog.check();
+      assertEquals(1, fx.failures.size(),
+                   "a halt that failed to raise must be retried on the next check and succeed " +
+                      "once the transient problem clears");
+   }
+
+   /**
     * Wires a {@link ClusterHealthWatchdog} to a mocked {@link IgniteEx} whose
     * {@link FailureProcessor#process(FailureContext)} just records the context instead of
     * raising a real failure (which would halt this test JVM, per
@@ -184,6 +240,8 @@ class ClusterHealthWatchdogTest {
    private static final class Fixture {
       volatile boolean ready = true;
       volatile boolean minorityIsland = false;
+      volatile boolean throwOnStatus = false;
+      volatile boolean failProcessOnce = false;
       final List<FailureContext> failures = new CopyOnWriteArrayList<>();
       final ClusterHealthWatchdog watchdog;
 
@@ -194,6 +252,11 @@ class ClusterHealthWatchdogTest {
          when(ignite.context()).thenReturn(context);
          when(context.failure()).thenReturn(failureProcessor);
          when(failureProcessor.process(any(FailureContext.class))).thenAnswer(invocation -> {
+            if(failProcessOnce) {
+               failProcessOnce = false;
+               throw new IgniteException("transient failure raising the segmentation failure");
+            }
+
             failures.add(invocation.getArgument(0));
             return true;
          });
@@ -205,6 +268,10 @@ class ClusterHealthWatchdogTest {
       }
 
       private ClusterHealthStatus status() {
+         if(throwOnStatus) {
+            throw new RuntimeException("transient failure sampling the cluster health status");
+         }
+
          return new ClusterHealthStatus(ready, ready ? "ready" : "not ready");
       }
    }
