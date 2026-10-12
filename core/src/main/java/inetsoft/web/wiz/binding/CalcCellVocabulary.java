@@ -392,8 +392,13 @@ public final class CalcCellVocabulary {
          }
       }
 
-      if(cell.get("timeSeries") != null && !(cell.get("timeSeries") instanceof Boolean)) {
-         throw new IllegalArgumentException("'timeSeries' must be true or false.");
+      // The binding is an untyped map, so Jackson never coerces these: CalcTableService reads them
+      // with instanceof Boolean, and a string such as "true" was silently dropped (bug #78400).
+      for(String key : List.of("mergeCells", "timeSeries")) {
+         if(cell.get(key) != null && !(cell.get(key) instanceof Boolean)) {
+            throw new IllegalArgumentException(
+               "'" + key + "' must be true or false, got '" + cell.get(key) + "'.");
+         }
       }
    }
 
@@ -535,6 +540,18 @@ public final class CalcCellVocabulary {
                   "'field.namedGroup.groups[" + i + "].conditions[" + c + "]' names field '" +
                   conditionField + "', but a named group only conditions on the column it is " +
                   "grouping ('" + column + "'). Omit 'field' or set it to '" + column + "'.");
+            }
+
+            // Read by CalcTableService.clausesOf with Boolean.TRUE.equals, so a string "true"
+            // was silently read as false (bug #78400).
+            for(String key : List.of("negated", "equal")) {
+               Object value = clause.get(key);
+
+               if(value != null && !(value instanceof Boolean)) {
+                  throw new IllegalArgumentException(
+                     "'field.namedGroup.groups[" + i + "].conditions[" + c + "]." + key +
+                     "' must be true or false, got '" + value + "'.");
+               }
             }
          }
       }

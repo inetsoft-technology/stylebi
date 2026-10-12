@@ -30,6 +30,7 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.CrosstabVSAssembly;
+import inetsoft.uql.viewsheet.EmbeddedTableVSAssembly;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -1490,6 +1491,93 @@ class AssemblyHyperlinkServiceTest {
                     link("linkType", "web", "webLink", "https://example.com"), "");
 
       assertEquals("https://example.com", capture(h.links).getWebLink());
+   }
+
+   // ── bug #78400: the refusal must not advise what the next check refuses ─────
+
+   /** A row-linked table whose rendered lens has {@code headerRows} header rows. */
+   private static Harness rowLinkedHarness(TableVSAssembly assembly, int headerRows)
+      throws Exception
+   {
+      HyperlinkDialogModel model = new HyperlinkDialogModel();
+      model.setShowRow(false);
+      Harness h = harness(model);
+      TableVSAssemblyInfo info = mock(TableVSAssemblyInfo.class);
+      when(info.getRowHyperlink()).thenReturn(mock(Hyperlink.class));
+      when(assembly.getVSAssemblyInfo()).thenReturn(info);
+      ViewsheetSandbox sandbox = wireRuntimeData(h, "Table1", assembly);
+      VSTableLens lens = mock(VSTableLens.class);
+      when(lens.getHeaderRowCount()).thenReturn(headerRows);
+      when(sandbox.getVSTableLens("Table1", false)).thenReturn(lens);
+      return h;
+   }
+
+   private static AssemblyHyperlinkService.Region cell(int row) {
+      return new AssemblyHyperlinkService.Region(row, 0, null, false, false, false, false);
+   }
+
+   @Test
+   void aHeaderCellRefusalPointsAtADataCellInsteadOfAdvisingApplyToRowTrueHere()
+      throws Exception
+   {
+      Harness h = rowLinkedHarness(mock(TableVSAssembly.class), 2);
+
+      Exception omitted = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Table1", cell(1),
+                             link("linkType", "web", "webLink", "https://example.com"), ""));
+
+      String message = omitted.getMessage();
+      assertFalse(message.contains("Pass link.applyToRow:true"), message);
+      assertTrue(message.contains("header row"), message);
+      assertTrue(message.contains("row >= 2"), message);
+      assertTrue(message.contains("link.applyToRow:false"), message);
+      verify(h.links, never()).setHyperlinkDialogModel(anyString(), anyString(), any(),
+                                                       anyString(), any(Principal.class), any());
+   }
+
+   @Test
+   void applyToRowTrueOnAHeaderCellIsRefusedPointingAtADataCell() throws Exception {
+      Harness h = rowLinkedHarness(mock(TableVSAssembly.class), 1);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Table1", cell(0),
+                             link("linkType", "web", "webLink", "https://example.com",
+                                  "applyToRow", true), ""));
+
+      assertTrue(thrown.getMessage().contains("row >= 1"), thrown.getMessage());
+   }
+
+   @Test
+   void anEmbeddedTableRefusalOffersOnlyApplyToRowFalse() throws Exception {
+      Harness h = rowLinkedHarness(mock(EmbeddedTableVSAssembly.class), 1);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Table1", cell(3),
+                             link("linkType", "web", "webLink", "https://example.com"), ""));
+
+      String message = thrown.getMessage();
+      assertFalse(message.contains("Pass link.applyToRow:true"), message);
+      assertFalse(message.contains("data cell (row"), message);
+      assertTrue(message.contains("embedded"), message);
+      assertTrue(message.contains("link.applyToRow:false"), message);
+   }
+
+   @Test
+   void aDataCellRefusalStillOffersApplyToRowTrue() throws Exception {
+      HyperlinkDialogModel model = new HyperlinkDialogModel();
+      model.setApplyToRow(true);
+      model.setShowRow(true);
+      Harness h = harness(model);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Table1", cell(1),
+                             link("linkType", "web", "webLink", "https://example.com"), ""));
+
+      assertTrue(thrown.getMessage().contains("Pass link.applyToRow:true"), thrown.getMessage());
    }
 
    @Test

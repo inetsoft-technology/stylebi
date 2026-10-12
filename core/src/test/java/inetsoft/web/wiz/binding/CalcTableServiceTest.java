@@ -614,6 +614,74 @@ class CalcTableServiceTest {
       assertTrue(captor.getValue().getBinding().getOrder().isOthers());
    }
 
+   // ── bug #78400: booleans in the untyped set_cell_binding map ────────────────
+
+   private static Map<String, Object> namedGroupCell(Map<String, Object> condition) {
+      return spec("content", "column", "grouping", "group", "expand", "vertical",
+                  "field", spec("column", "REGION", "type", "dimension",
+                                "namedGroup", spec(
+                                   "groups", List.of(spec("name", "Small",
+                                      "conditions", List.of(condition))))));
+   }
+
+   private static inetsoft.web.composer.model.condition.ConditionModel firstCondition(Harness h)
+      throws Exception
+   {
+      ArgumentCaptor<SetCellBindingEvent> captor = ArgumentCaptor.forClass(SetCellBindingEvent.class);
+      verify(h.layoutService).setCellBinding(eq("rt1"), captor.capture(), any(Principal.class), any());
+      return (inetsoft.web.composer.model.condition.ConditionModel) captor.getValue().getBinding()
+         .getOrder().getInfo().getConditions().get(0).getList()[0];
+   }
+
+   /** less_than + equal:true is <=; clausesOf used to hard-code equal=false. */
+   @Test
+   void inlineNamedGroupConditionCarriesEqual() throws Exception {
+      Harness h = harness(3, 3);
+
+      h.service.setCellBinding("tok", principal(), "Calc1", 0, 0, namedGroupCell(
+         spec("operator", "less_than", "values", List.of(10), "equal", true)));
+
+      assertTrue(firstCondition(h).isEqual());
+   }
+
+   @Test
+   void inlineNamedGroupConditionCarriesNegated() throws Exception {
+      Harness h = harness(3, 3);
+
+      h.service.setCellBinding("tok", principal(), "Calc1", 0, 0, namedGroupCell(
+         spec("operator", "one_of", "values", List.of("CA"), "negated", true)));
+
+      assertTrue(firstCondition(h).isNegated());
+   }
+
+   @Test
+   void refusesAStringNegatedOrEqualOnAnInlineNamedGroupConditionByName() throws Exception {
+      for(String key : List.of("negated", "equal")) {
+         Harness h = harness(3, 3);
+
+         Exception thrown = assertThrows(IllegalArgumentException.class, () ->
+            h.service.setCellBinding("tok", principal(), "Calc1", 0, 0, namedGroupCell(
+               spec("operator", "less_than", "values", List.of(10), key, "true"))));
+
+         assertTrue(thrown.getMessage().contains(
+            "'field.namedGroup.groups[0].conditions[0]." + key + "'"), thrown.getMessage());
+      }
+   }
+
+   @Test
+   void refusesAStringMergeCellsInsteadOfSilentlyDroppingIt() throws Exception {
+      Harness h = harness(3, 3);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () ->
+         h.service.setCellBinding("tok", principal(), "Calc1", 0, 0,
+            spec("content", "column", "grouping", "group", "expand", "vertical",
+                 "field", spec("column", "REGION", "type", "dimension"),
+                 "mergeCells", "true")));
+
+      assertTrue(thrown.getMessage().contains("'mergeCells'"), thrown.getMessage());
+      verify(h.layoutService, never()).setCellBinding(anyString(), any(), any(Principal.class), any());
+   }
+
    // ── field.dateLevel (applyDateGroup) ──────────────────────────────────────────
 
    @Test

@@ -32,6 +32,7 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
+import inetsoft.uql.viewsheet.EmbeddedTableVSAssembly;
 import inetsoft.uql.viewsheet.TableDataVSAssembly;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
@@ -174,7 +175,7 @@ public class AssemblyHyperlinkService {
             runtimeId, assemblyName, target.row(), col, target.colName(),
             target.axis(), target.text(), target.titleLink(), target.emptyPlotLink(), user);
 
-         applyRowScope(assemblyName, model, link, hasRowLink(rvs, assemblyName));
+         applyRowScope(assemblyName, model, link, rowLinkTarget(rvs, assemblyName, target.row()));
          apply(rvs, assemblyName, model, type, link, assetId);
          hyperlinkService.setHyperlinkDialogModel(runtimeId, assemblyName, model, linkUri, user,
                                                  dispatcher);
@@ -270,8 +271,10 @@ public class AssemblyHyperlinkService {
     * data cells only).
     */
    private static void applyRowScope(String assemblyName, HyperlinkDialogModel model,
-                                     Map<String, Object> link, boolean hasRowLink)
+                                     Map<String, Object> link, RowLinkTarget target)
    {
+      boolean hasRowLink = target.hasRowLink();
+
       Object raw = link == null ? null : link.get("applyToRow");
 
       if(raw != null && !(raw instanceof Boolean)) {
@@ -283,11 +286,20 @@ public class AssemblyHyperlinkService {
          // A header cell never reads the row link (applyToRow reads false there), yet writing it
          // still clears the row link, so the persisted link is what decides, not the model.
          if(model.isApplyToRow() || hasRowLink) {
-            throw new IllegalArgumentException(
-               "'" + assemblyName + "' has a row hyperlink, which every data cell of the " +
-               "table fires, and setting a link on this cell would remove it. Pass link.applyToRow:true to change that " +
-               "row link, or link.applyToRow:false to put a link on this cell only -- which " +
-               "removes the row link, since a table holds one or the other.");
+            String prefix = "'" + assemblyName + "' has a row hyperlink, which every data cell " +
+               "of the table fires, and setting a link on this cell would remove it. ";
+            String cellOnly = "link.applyToRow:false to put a link on this cell only -- which " +
+               "removes the row link, since a table holds one or the other.";
+
+            // Advise only what the showRow check below accepts (bug #78400): applyToRow:true is
+            // refused on a header row and on an embedded table, so it isn't offered there.
+            if(model.isShowRow()) {
+               throw new IllegalArgumentException(
+                  prefix + "Pass link.applyToRow:true to change that row link, or " + cellOnly);
+            }
+
+            throw new IllegalArgumentException(prefix + notARowLinkCell(target) +
+               " Pass " + cellOnly);
          }
 
          return;
@@ -296,21 +308,64 @@ public class AssemblyHyperlinkService {
       boolean applyToRow = (Boolean) raw;
 
       if(applyToRow && !model.isShowRow()) {
+         String why = target.tableCell() ? " " + notARowLinkCell(target) : "";
+
          throw new IllegalArgumentException(
             "'applyToRow' only applies to a data cell of a plain (non-embedded) Table -- the " +
-            "same cells the Composer's hyperlink dialog offers 'Apply to Row' on.");
+            "same cells the Composer's hyperlink dialog offers 'Apply to Row' on." + why);
       }
 
       model.setApplyToRow(applyToRow);
    }
 
-   private static boolean hasRowLink(RuntimeViewsheet rvs, String assemblyName) {
+   /**
+    * Why this table cell can't carry the row link, and where one that can is. Called only when
+    * {@code showRow} is false: an embedded table (no cell can), or a header row of a plain Table.
+    */
+   private static String notARowLinkCell(RowLinkTarget target) {
+      if(target.embedded()) {
+         return "This is an embedded table, which can't take a row link on any cell " +
+            "(link.applyToRow:true is refused here).";
+      }
+
+      String dataRows = target.headerRows() > 0
+         ? "a data cell (row >= " + target.headerRows() + ")"
+         : "a data cell (a row below the header rows)";
+
+      return "Row " + target.row() + " is a header row (an omitted 'row' is 0, the header), " +
+         "which the row link doesn't cover. To change the row link, call set_hyperlink on " +
+         dataRows + " with link.applyToRow:true.";
+   }
+
+   /**
+    * What {@code applyRowScope} needs to know about the addressed table cell: whether the table
+    * has a persisted row link, whether it is embedded, and its header row count (-1 if unknown).
+    */
+   private record RowLinkTarget(boolean hasRowLink, boolean tableCell, boolean embedded,
+                                int headerRows, int row)
+   {
+   }
+
+   private static RowLinkTarget rowLinkTarget(RuntimeViewsheet rvs, String assemblyName, int row)
+      throws Exception
+   {
       Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
       VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
-
-      return assembly != null &&
+      boolean hasRowLink = assembly != null &&
          assembly.getVSAssemblyInfo() instanceof TableDataVSAssemblyInfo info &&
          info.getRowHyperlink() != null;
+      boolean tableCell = assembly instanceof TableVSAssembly;
+      int headerRows = -1;
+
+      if(tableCell) {
+         Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+         VSTableLens lens = box == null || box.isEmpty()
+            ? null : box.get().getVSTableLens(assemblyName, false);
+         headerRows = lens == null ? -1 : lens.getHeaderRowCount();
+      }
+
+      return new RowLinkTarget(hasRowLink, tableCell,
+                               assembly instanceof EmbeddedTableVSAssembly, headerRows, row);
    }
 
    private static final String[] BOOLEAN_KEYS = {
