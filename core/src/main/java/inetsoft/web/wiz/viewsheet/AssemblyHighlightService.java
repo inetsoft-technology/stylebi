@@ -18,8 +18,11 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.VSAssembly;
+import inetsoft.uql.viewsheet.VSDimensionRef;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.OutputVSAssemblyInfo;
@@ -133,7 +136,7 @@ public class AssemblyHighlightService {
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          requireHighlightRenderable(rvs, assemblyName);
-         requireAxisColName(rvs, assemblyName, region);
+         requireChartRegionDrawn(rvs, assemblyName, region);
          HighlightDialogModel model = read(runtimeId, assemblyName, region, user);
 
          if(model == null) {
@@ -473,33 +476,260 @@ public class AssemblyHighlightService {
    }
 
    /**
-    * Refuses {@code axis:true} on a chart with no {@code colName}.
+    * Refuses a chart {@code axis}/{@code text} region whose write would land on a highlight
+    * group the chart never reads for that region. Accepts exactly what the Composer can create.
     *
-    * <p>{@code axis} only chooses which field's axis {@code HighlightDialogService.getMeasure}
-    * looks up, and that lookup returns null before reading it when there is no name. The flag was
-    * silently dropped and the highlight stored on the whole-chart group, which is not an axis
-    * highlight. The Composer always sends the axis field's name for an axis highlight. Only
-    * {@code set} calls it, so one already stored that way can still be listed and deleted.
+    * <p>{@code axis} and {@code text} only choose which field
+    * {@code HighlightDialogService.getMeasure} looks up. When that lookup finds no field, the
+    * write falls to the whole-chart group (or the chart-level text group) and the call reported
+    * success for a highlight that renders nothing, or renders as a mark highlight on every mark.
+    * The field is therefore resolved with the same lookup the write uses
+    * ({@link HighlightDialogService#resolveChartHighlightRef}) and then checked against what
+    * {@code GraphGenerator} draws:
+    * <ul>
+    *   <li>{@code axis:true}: an x/y (including outer/facet) dimension, a string-typed measure
+    *   drawn on the axis, or a radar spoke measure (the Composer offers this from a spoke
+    *   label). A numeric x/y measure on any other chart is never drawn on the axis
+    *   ({@code GraphGenerator.findHighlightRef}), date comparison period and custom-merged axes
+    *   are refused by the Composer, and aesthetic-only or unknown names resolve to no axis.</li>
+    *   <li>{@code text:true}: a colName is always required (the chart-level text group is only
+    *   read when the element var resolves to no field, which the Composer never creates), and it
+    *   must resolve to a field whose value labels are drawn: the bound text field, an x/y
+    *   measure, a radar/treemap/relation dimension, a map geo field, or a candle/stock/gantt
+    *   field.</li>
+    * </ul>
+    *
+    * <p>Only {@code set} calls it, so a stray highlight already stored that way can still be
+    * listed and deleted.
     */
-   private static void requireAxisColName(RuntimeViewsheet rvs, String assemblyName,
-                                          Region region)
+   private static void requireChartRegionDrawn(RuntimeViewsheet rvs, String assemblyName,
+                                               Region region)
    {
-      if(region == null || !region.axis() ||
-         (region.colName() != null && !region.colName().isBlank()))
-      {
+      if(region == null || !region.axis() && !region.text()) {
          return;
       }
 
       Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
       VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
 
-      if(assembly != null && assembly.getVSAssemblyInfo() instanceof ChartVSAssemblyInfo) {
+      if(assembly == null ||
+         !(assembly.getVSAssemblyInfo() instanceof ChartVSAssemblyInfo chart))
+      {
+         return;
+      }
+
+      String colName = region.colName() == null || region.colName().isBlank()
+         ? null : region.colName();
+
+      if(region.axis() && colName == null) {
          throw new IllegalArgumentException(
             "'" + assemblyName + "': axis:true needs a 'colName'. 'axis' only chooses which " +
             "field's axis the highlight attaches to; without a colName it is ignored and the " +
             "highlight lands on the whole chart instead. Pass 'colName' naming the axis field, " +
             "as get_binding reports it.");
       }
+
+      VSChartInfo info = chart.getVSChartInfo();
+
+      if(region.text() && colName == null) {
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "': text:true needs a 'colName' naming the field whose value " +
+            "labels to highlight" + fieldList(textFields(info)) + ". Without one the " +
+            "highlight lands on the chart-level text group, which the chart does not read for " +
+            "its labels, so it would be stored and never render.");
+      }
+
+      if(info == null) {
+         return;
+      }
+
+      ChartRef ref = HighlightDialogService.resolveChartHighlightRef(
+         info, colName, region.axis(), region.text());
+
+      if(region.axis()) {
+         requireAxisField(info, assemblyName, colName, ref);
+      }
+
+      if(region.text()) {
+         Set<String> drawn = textFields(info);
+
+         if(ref == null || !drawn.contains(ref.getFullName())) {
+            throw new IllegalArgumentException(
+               "'" + assemblyName + "': text:true colName '" + colName + "' is not a field " +
+               "whose value labels this chart draws, so the highlight would be stored and " +
+               "never render" + fieldList(drawn) + ". Name the measure (or the bound text " +
+               "field), or drop text:true for a mark highlight.");
+         }
+      }
+   }
+
+   private static void requireAxisField(VSChartInfo info, String assemblyName, String colName,
+                                        ChartRef ref)
+   {
+      boolean radar = isRadar(info);
+      Set<String> axisFields = new LinkedHashSet<>();
+      Set<String> drawnOnAxis = new LinkedHashSet<>();
+
+      for(ChartRef field : axisCandidates(info)) {
+         axisFields.add(field.getFullName());
+
+         if(!field.isMeasure() || radar || XSchema.STRING.equals(field.getDataType())) {
+            drawnOnAxis.add(field.getFullName());
+         }
+      }
+
+      if(ref == null || !axisFields.contains(ref.getFullName())) {
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "': axis:true colName '" + colName + "' is not a field this " +
+            "chart draws an axis for" + fieldList(drawnOnAxis) + ". An axis highlight colors " +
+            "the labels of an x/y dimension; for a field on a color/shape/size/text shelf, " +
+            "drop axis:true (a mark highlight) or use text:true for its value labels.");
+      }
+
+      if(isPeriodAxis(info, ref)) {
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "': axis:true colName '" + colName + "' is a date " +
+            "comparison period axis, which the Composer does not highlight. Highlight the " +
+            "marks instead (drop axis:true).");
+      }
+
+      if(ref.isMeasure() && !radar && !XSchema.STRING.equals(ref.getDataType())) {
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "': axis:true colName '" + colName + "' is a numeric " +
+            "measure. Its axis shows a value scale, not labels, so an axis highlight on it is " +
+            "never drawn on the axis and would only act as a mark highlight. Drop axis:true " +
+            "for a plain (mark) highlight on '" + colName + "', or name an x/y dimension" +
+            fieldList(drawnOnAxis) + ".");
+      }
+   }
+
+   /** The x/y fields an axis is drawn for (design and runtime), plus radar-one's group axis. */
+   private static List<ChartRef> axisCandidates(VSChartInfo info) {
+      List<ChartRef> fields = new ArrayList<>();
+      addAll(fields, info.getXFields());
+      addAll(fields, info.getYFields());
+      addAll(fields, info.getRTXFields());
+      addAll(fields, info.getRTYFields());
+
+      // GraphGenerator.findHighlightRef reads the group field on radar-one's outer axis (57035).
+      if(GraphTypes.isRadarOne(info)) {
+         addAll(fields, info.getGroupFields());
+         addAll(fields, info.getRTGroupFields());
+      }
+
+      return fields;
+   }
+
+   /** The Composer refuses axis highlights on period regions and custom-merged DC refs. */
+   private static boolean isPeriodAxis(VSChartInfo info, ChartRef ref) {
+      String name = ref.getFullName();
+
+      if(info.isPeriodRef(name) || info.isPeriodPartRef(name)) {
+         return true;
+      }
+
+      for(Object candidate : new Object[]{ ref, info.getRTFieldByFullName(name) }) {
+         if(candidate instanceof VSDimensionRef dim &&
+            (dim.getDates() != null && dim.getDates().length >= 2 ||
+               dim.getDcMergeGroup() != null))
+         {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Full names of the fields whose text highlight group {@code GraphGenerator} reads for value
+    * labels: the bound text field(s), x/y measures, and the per-type element fields.
+    */
+   private static Set<String> textFields(VSChartInfo info) {
+      Set<String> names = new LinkedHashSet<>();
+
+      if(info == null) {
+         return names;
+      }
+
+      List<ChartRef> fields = new ArrayList<>();
+      addText(fields, info.getTextField());
+
+      if(info.isMultiAesthetic()) {
+         for(ChartRef field : axisCandidates(info)) {
+            if(field instanceof ChartBindable bindable) {
+               addText(fields, bindable.getTextField());
+            }
+         }
+      }
+
+      boolean radar = isRadar(info);
+
+      for(ChartRef field : axisCandidates(info)) {
+         if(field.isMeasure() || radar) {
+            fields.add(field);
+         }
+      }
+
+      if(radar || GraphTypes.isTreemap(info.getRTChartType()) ||
+         GraphTypes.isTreemap(info.getChartType()))
+      {
+         addAll(fields, info.getGroupFields());
+         addAll(fields, info.getRTGroupFields());
+      }
+
+      if(info instanceof RelationChartInfo relation) {
+         addAll(fields, relation.getSourceField(), relation.getTargetField(),
+                relation.getRTSourceField(), relation.getRTTargetField());
+      }
+
+      if(info instanceof MapInfo map) {
+         addAll(fields, map.getGeoFields());
+         addAll(fields, map.getRTGeoFields());
+      }
+
+      if(info instanceof CandleChartInfo candle) {
+         addAll(fields, candle.getHighField(), candle.getLowField(), candle.getOpenField(),
+                candle.getCloseField(), candle.getRTHighField(), candle.getRTLowField(),
+                candle.getRTOpenField(), candle.getRTCloseField());
+      }
+
+      if(info instanceof GanttChartInfo gantt) {
+         addAll(fields, gantt.getStartField(), gantt.getEndField(), gantt.getMilestoneField(),
+                gantt.getRTStartField(), gantt.getRTEndField(), gantt.getRTMilestoneField());
+      }
+
+      for(ChartRef field : fields) {
+         if(field.getFullName() != null) {
+            names.add(field.getFullName());
+         }
+      }
+
+      return names;
+   }
+
+   private static boolean isRadar(ChartInfo info) {
+      return GraphTypes.isRadar(info.getRTChartType()) || GraphTypes.isRadar(info.getChartType());
+   }
+
+   private static void addText(List<ChartRef> fields, AestheticRef text) {
+      if(text != null && text.getDataRef() instanceof ChartRef ref) {
+         fields.add(ref);
+      }
+   }
+
+   private static void addAll(List<ChartRef> fields, ChartRef... refs) {
+      if(refs != null) {
+         for(ChartRef ref : refs) {
+            if(ref != null) {
+               fields.add(ref);
+            }
+         }
+      }
+   }
+
+   private static String fieldList(Set<String> names) {
+      return names.isEmpty() ? " (this chart has none)" :
+         " (this chart's are: " + String.join(", ", names) + ")";
    }
 
    /**

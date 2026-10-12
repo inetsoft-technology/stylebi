@@ -756,6 +756,17 @@ public class HighlightDialogService {
       Highlight convert(HighlightModel model) throws Exception;
    }
 
+   /**
+    * The chart field a highlight write for this region lands on, resolved exactly as
+    * {@link #applyChartHighlights} resolves it. {@code null} means the write goes to the
+    * whole-chart highlight group (or, for {@code isText}, the chart-level text group).
+    */
+   public static ChartRef resolveChartHighlightRef(VSChartInfo chartInfo, String colName,
+                                                   boolean isAxis, boolean isText)
+   {
+      return getMeasure(chartInfo, colName, false, isAxis, isText, true);
+   }
+
    private static ChartRef getMeasure(ChartInfo chartInfo, String colName, boolean getPeriodRef,
                                       boolean isAxis, boolean isText)
    {
