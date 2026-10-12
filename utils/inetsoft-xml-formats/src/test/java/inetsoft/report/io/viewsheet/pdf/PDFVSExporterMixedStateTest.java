@@ -185,12 +185,31 @@ class PDFVSExporterMixedStateTest {
       }
    }
 
+   // Bug #78132: nestedmode is wrappermode embedding wrapper (as Thin) instead of child, so a
+   // "summary" state inherits child's layout through a two-level thin chain. A mixed export
+   // still draws every state on the canvas.
+   @Test
+   void nestedChainInheritedThenCanvasExportsBothCanvasPages() throws Exception {
+      assertCanvas(export(nested, Caller.EXPORT_DIALOG, SUMMARY, DETAIL), 2, 1);
+   }
+
+   @Test
+   void nestedChainAllInheritedStatesUsePrintLayout() throws Exception {
+      assertPrintLayout(export(nested, Caller.EXPORT_DIALOG, SUMMARY, SUMMARY), 2);
+   }
+
    /**
     * Export the states of wrappermode. The first mode is the current view, the others are
     * bookmarks; the scheduler exports bookmarks only, so there the first one is a bookmark too.
     */
    private Pdf export(Caller caller, String... modes) throws Exception {
-      RuntimeViewsheet rvs = wrapper.getRuntimeViewsheet();
+      return export(wrapper, caller, modes);
+   }
+
+   private Pdf export(RuntimeViewsheetExtension sheet, Caller caller, String... modes)
+      throws Exception
+   {
+      RuntimeViewsheet rvs = sheet.getRuntimeViewsheet();
       int bookmarkCount = caller.current ? modes.length - 1 : modes.length;
       String[] bookmarks = new String[bookmarkCount];
 
@@ -493,6 +512,10 @@ class PDFVSExporterMixedStateTest {
    @RegisterExtension
    RuntimeViewsheetExtension wrapper =
       new RuntimeViewsheetExtension(createOpenViewsheetEvent("wrappermode"));
+
+   @RegisterExtension
+   RuntimeViewsheetExtension nested =
+      new RuntimeViewsheetExtension(createOpenViewsheetEvent("nestedmode"));
 
    @RegisterExtension
    RuntimeViewsheetExtension own =
