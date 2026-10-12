@@ -159,7 +159,10 @@ public class QueryManagerService {
       // drop part of the user's sql. Keep the sql string. The editor disables the graphical
       // tabs for such a query, so the only callers reaching here are save and the switch to
       // simple mode, and their pane models are echoes of the structure, not user edits.
-      if(isSqlOnly(sql)) {
+      // Bug #78387, a saved where or having tree the condition pane can't show is sql only
+      // too, also without a sql string. The pane posted back is empty, applying it would drop
+      // the saved conditions.
+      if(isSqlOnly(sql) || !isConditionPaneSupported(sql, query.getDataSource())) {
          LOG.debug("Keep the sql string of a sql-only query, skip updating it from the {} pane",
                    all ? "all" : tab);
          saveRuntimeQuery(runtimeQuery);
@@ -297,6 +300,25 @@ public class QueryManagerService {
    static boolean isSqlOnly(UniformSQL sql) {
       return sql.hasSQLString() &&
          (!sql.isParseSQL() || sql.getParseResult() != UniformSQL.PARSE_SUCCESS || sql.isLossy());
+   }
+
+   /**
+    * Check if the condition pane can show the where and having trees of the query. A query
+    * saved before 1.2.0 keeps its parsed tree (#77477), which may hold a condition the pane
+    * has no operator for, such as the truth value of x IS [NOT] TRUE/FALSE/UNKNOWN. The parser
+    * refuses a truth test now (#77735), so a new query never has one in its tree (Bug #78387).
+    */
+   private boolean isConditionPaneSupported(UniformSQL sql, XDataSource dataSource) {
+      try {
+         createConditions(sql, dataSource, CONDITION_WHERE);
+         createConditions(sql, dataSource, CONDITION_HAVING);
+         return true;
+      }
+      catch(RuntimeException ex) {
+         LOG.debug("The condition pane can't show the conditions of the query, it is sql only",
+                   ex);
+         return false;
+      }
    }
 
    /**
@@ -510,7 +532,11 @@ public class QueryManagerService {
          fields.add(column);
       }
 
-      List<DataConditionItem> conditions = createConditions(sql, query.getDataSource(), CONDITION_WHERE);
+      // Bug #78387, a saved tree the condition pane can't show is shown as sql only, with
+      // empty condition panes (the editor disables them for a sql-only query)
+      boolean conditionPaneSupported = isConditionPaneSupported(sql, query.getDataSource());
+      List<DataConditionItem> conditions = conditionPaneSupported ?
+         createConditions(sql, query.getDataSource(), CONDITION_WHERE) : new ArrayList<>();
       conditionPaneModel.setFields(fields);
       conditionPaneModel.setConditions(conditions);
       model.setConditionPaneModel(conditionPaneModel);
@@ -528,6 +554,18 @@ public class QueryManagerService {
       // Bug #77487, without the hint the sorted column map of the cache normalizer clears the
       // sql string the user typed, so every model fetch would make a save regenerate it
       freeFormSQLPaneModel.setGeneratedSqlString(withoutSortedSql(sql, helper::generateSentence));
+
+      // a tree saved without its sql string shows the generated sql, and the lossy flag
+      // makes the editor treat the query as sql only (database-query.component isSqlOnly())
+      if(!conditionPaneSupported) {
+         if(!sql.hasSQLString()) {
+            freeFormSQLPaneModel.setSqlString(freeFormSQLPaneModel.getGeneratedSqlString());
+         }
+
+         freeFormSQLPaneModel.setHasSqlString(true);
+         freeFormSQLPaneModel.setLossy(true);
+      }
+
       model.setFreeFormSQLPaneModel(freeFormSQLPaneModel);
 
       QuerySortPaneModel sortPaneModel = new QuerySortPaneModel();
@@ -559,8 +597,8 @@ public class QueryManagerService {
       }
 
       QueryConditionPaneModel havingConditionsPaneModel = new QueryConditionPaneModel();
-      List<DataConditionItem> havingConditions =
-         createConditions(sql, query.getDataSource(), CONDITION_HAVING);
+      List<DataConditionItem> havingConditions = conditionPaneSupported ?
+         createConditions(sql, query.getDataSource(), CONDITION_HAVING) : new ArrayList<>();
       havingConditionsPaneModel.setFields(havingFields);
       havingConditionsPaneModel.setConditions(havingConditions);
 
