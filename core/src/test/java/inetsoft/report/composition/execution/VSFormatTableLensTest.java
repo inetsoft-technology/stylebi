@@ -99,68 +99,117 @@ public class VSFormatTableLensTest {
       Assertions.assertEquals(Color.RED, table.getForeground(1, 0));
    }
 
-   // Bug #76831 regression guard: when the table style DOES define an explicit color for a
-   // region (e.g. Colorful1's white header text), the object-level foreground must still be
-   // discarded so the style's own color wins, per mergeColor's cellf-first priority.
+   // Bug #76831: a user-defined object-level foreground wins over the table style's own
+   // foreground on every cell region, even when the style defines a color for each cell.
    @Test
-   public void testObjectForegroundStaysStrippedWhenStyleDefinesItsOwnColor() throws Exception {
+   public void testUserObjectForegroundWinsOverStyleForeground() throws Exception {
+      VSFormatTableLens table = createTable(userObjectFormat(Color.RED), whiteStyleLens());
+
+      Assertions.assertEquals(Color.RED, table.getForeground(0, 0));
+      Assertions.assertEquals(Color.RED, table.getForeground(1, 0));
+      Assertions.assertEquals(Color.RED, table.getForeground(4, 2));
+   }
+
+   // Bug #76831 regression guard: when the object format carries no user-defined foreground
+   // (only the default format's), the table style's own color (e.g. Colorful1's white header
+   // text, which Style.getForeground returns for every cell) must still win.
+   @Test
+   public void testDefaultObjectForegroundYieldsToStyleForeground() throws Exception {
       VSCompositeFormat objFormat = new VSCompositeFormat();
-      VSFormat userFormat = new VSFormat();
-      userFormat.setForeground(Color.RED);
-      objFormat.setUserDefinedFormat(userFormat);
+      VSFormat defaultFormat = new VSFormat();
+      defaultFormat.setForeground(Color.BLACK);
+      objFormat.setDefaultFormat(defaultFormat);
 
-      Viewsheet vs = new Viewsheet();
-      TableVSAssembly assembly = new TableVSAssembly(vs, "table1");
-      assembly.setTableStyleValue("Normal");
-      assembly.getFormatInfo().setFormat(VSAssemblyInfo.OBJECTPATH, objFormat);
-      vs.addAssembly(assembly);
+      VSFormatTableLens table = createTable(objFormat, whiteStyleLens());
 
-      ViewsheetSandbox box = new ViewsheetSandbox(vs, RuntimeViewsheet.VIEWSHEET_RUNTIME_MODE,
-                                                  null, testEntry());
-      TableLens styledLens = new DefaultTableLens(XTableUtil.getDefaultData()) {
-         @Override
-         public Color getForeground(int r, int c) {
-            return Color.WHITE;
-         }
-      };
-      VSFormatTableLens table = new VSFormatTableLens(box, "table1", styledLens, false);
-
+      Assertions.assertEquals(Color.WHITE, table.getForeground(0, 0));
       Assertions.assertEquals(Color.WHITE, table.getForeground(1, 0));
    }
 
-   // Bug #76831 tester follow-up: the fixer's two tests each use a table style that behaves
-   // uniformly across every cell (always null, or always white). Real styles like Colorful1
-   // define a color for the HEADER region only and leave DETAIL unset -- verify the fix's
-   // per-(row,col) check actually discriminates within a single table/style, not just across
-   // two separately-configured tables, and that there is no cross-call state leakage between
-   // a HEADER cell and a DETAIL cell resolved from the same VSFormatTableLens instance.
+   // Bug #76831: the style defines a color for the header row only; the user-defined object
+   // foreground applies to both the header and the body.
    @Test
-   public void testObjectForegroundMixedAcrossHeaderAndDetailInSameTable() throws Exception {
-      VSCompositeFormat objFormat = new VSCompositeFormat();
-      VSFormat userFormat = new VSFormat();
-      userFormat.setForeground(Color.RED);
-      objFormat.setUserDefinedFormat(userFormat);
-
-      Viewsheet vs = new Viewsheet();
-      TableVSAssembly assembly = new TableVSAssembly(vs, "table1");
-      assembly.setTableStyleValue("Normal");
-      assembly.getFormatInfo().setFormat(VSAssemblyInfo.OBJECTPATH, objFormat);
-      vs.addAssembly(assembly);
-
-      ViewsheetSandbox box = new ViewsheetSandbox(vs, RuntimeViewsheet.VIEWSHEET_RUNTIME_MODE,
-                                                  null, testEntry());
-      // Mimics Colorful1: the style defines a color for the header row only (row 0) and
-      // leaves every other row (the DETAIL region) unset.
+   public void testUserObjectForegroundWithHeaderOnlyStyleColor() throws Exception {
       TableLens styledLens = new DefaultTableLens(XTableUtil.getDefaultData()) {
          @Override
          public Color getForeground(int r, int c) {
             return r == 0 ? Color.WHITE : null;
          }
       };
+      VSFormatTableLens table = createTable(userObjectFormat(Color.RED), styledLens);
+
+      Assertions.assertEquals(Color.RED, table.getForeground(0, 0));
+      Assertions.assertEquals(Color.RED, table.getForeground(1, 0));
+   }
+
+   // Bug #76831: a per-cell user foreground still beats the object-level one.
+   @Test
+   public void testPerCellForegroundBeatsUserObjectForeground() throws Exception {
+      VSCompositeFormat objFormat = userObjectFormat(Color.RED);
+      Viewsheet vs = new Viewsheet();
+      TableVSAssembly assembly = new TableVSAssembly(vs, "table1");
+      assembly.setTableStyleValue("Normal");
+      assembly.getFormatInfo().setFormat(VSAssemblyInfo.OBJECTPATH, objFormat);
+      vs.addAssembly(assembly);
+
+      TableLens styledLens = whiteStyleLens();
+      TableDataPath cellPath = styledLens.getDescriptor().getCellDataPath(1, 0);
+      VSCompositeFormat cellFormat = userObjectFormat(Color.BLUE);
+      cellFormat.getUserDefinedFormat().setForegroundValue("#0000ff");
+      assembly.getFormatInfo().setFormat(cellPath, cellFormat);
+
+      ViewsheetSandbox box = new ViewsheetSandbox(vs, RuntimeViewsheet.VIEWSHEET_RUNTIME_MODE,
+                                                  null, testEntry());
       VSFormatTableLens table = new VSFormatTableLens(box, "table1", styledLens, false);
 
-      Assertions.assertEquals(Color.WHITE, table.getForeground(0, 0));
+      Assertions.assertEquals(Color.BLUE, table.getForeground(1, 0));
+   }
+
+   // Bug #76831: a dynamic (script) object foreground, once resolved, also wins over the style.
+   @Test
+   public void testDynamicUserObjectForegroundWinsOverStyleForeground() throws Exception {
+      VSCompositeFormat objFormat = new VSCompositeFormat();
+      VSFormat userFormat = new VSFormat();
+      userFormat.setForegroundValue("=\"red\"");
+      userFormat.setForeground(Color.RED);
+      objFormat.setUserDefinedFormat(userFormat);
+
+      VSFormatTableLens table = createTable(objFormat, whiteStyleLens());
+
+      Assertions.assertEquals(Color.RED, table.getForeground(0, 0));
       Assertions.assertEquals(Color.RED, table.getForeground(1, 0));
+   }
+
+   private static VSCompositeFormat userObjectFormat(Color color) {
+      VSCompositeFormat objFormat = new VSCompositeFormat();
+      VSFormat userFormat = new VSFormat();
+      userFormat.setForeground(color);
+      objFormat.setUserDefinedFormat(userFormat);
+      return objFormat;
+   }
+
+   // Mimics Colorful1, whose Style.getForeground returns white for every cell.
+   private static TableLens whiteStyleLens() {
+      return new DefaultTableLens(XTableUtil.getDefaultData()) {
+         @Override
+         public Color getForeground(int r, int c) {
+            return Color.WHITE;
+         }
+      };
+   }
+
+   private static VSFormatTableLens createTable(VSCompositeFormat objFormat, TableLens styledLens)
+      throws Exception
+   {
+      Viewsheet vs = new Viewsheet();
+      TableVSAssembly assembly = new TableVSAssembly(vs, "table1");
+      assembly.setTableStyleValue("Normal");
+      assembly.getFormatInfo().setFormat(VSAssemblyInfo.OBJECTPATH, objFormat);
+      vs.addAssembly(assembly);
+
+      ViewsheetSandbox box = new ViewsheetSandbox(vs, RuntimeViewsheet.VIEWSHEET_RUNTIME_MODE,
+                                                  null, testEntry());
+      return new VSFormatTableLens(box, "table1", styledLens, false);
    }
 
    private static AssetEntry testEntry() {

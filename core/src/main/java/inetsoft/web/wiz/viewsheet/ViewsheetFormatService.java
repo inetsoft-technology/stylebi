@@ -698,9 +698,9 @@ public class ViewsheetFormatService {
             else if("data".equals(target)) {
                // Same event.getData() per-path mechanism as "title" above, but computed per
                // assembly instead of a single shared constant: a Crosstab/Table's per-cell
-               // rendering discards an OBJECT-level format write whenever any table style
-               // applies (VSFormatTableLens's "styled" gate) -- true for essentially every
-               // realistic Crosstab/Table -- so "object" can never reach body text. Writing
+               // rendering discards an OBJECT-level non-foreground format write (e.g.
+               // background) whenever any table style applies (VSFormatTableLens's "styled"
+               // gate); a user-defined OBJECT foreground does win over the style. Writing
                // directly to each cell's own TableDataPath bypasses that gate entirely, the
                // same way a human dragging over data cells in the native UI already does
                // (FormatPainterService's paths != null branch, below).
@@ -717,8 +717,8 @@ public class ViewsheetFormatService {
                // Same event.getData() per-path mechanism as "data" above, but computed over the
                // header-family paths that method deliberately excludes -- bug 76917: a Crosstab/
                // Table's HEADER/GROUP_HEADER/SUMMARY_HEADER cells had no route to a format write
-               // that beats an active table style (VSFormatTableLens's per-cell styleForeground
-               // gate strips "object"; computeDataRegionPaths excludes header paths by design).
+               // that beats an active table style for every attribute but foreground
+               // (computeDataRegionPaths excludes header paths by design).
                ArrayList<TableDataPath[]> data = new ArrayList<>();
 
                for(String name : request.assemblies()) {
