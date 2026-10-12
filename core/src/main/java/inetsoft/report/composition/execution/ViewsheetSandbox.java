@@ -8084,7 +8084,16 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          return box == null ? null : box.getCachedFormTableLens(name.substring(index + 1));
       }
 
-      return disposed ? null : fmap.get(name);
+      VSAssembly assembly = disposed ? null : vs.getAssembly(name);
+
+      // the same checks as getFormTableLens(), e.g. a script may make a built table no form
+      if(!isRuntime() || !(assembly instanceof TableVSAssembly) ||
+         !((TableVSAssemblyInfo) assembly.getInfo()).isForm())
+      {
+         return null;
+      }
+
+      return fmap.get(name);
    }
 
    /**
@@ -8110,7 +8119,11 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
             data.moreRows(Integer.MAX_VALUE);
 
-            if(data.getRowCount() >= 0 && !AssetDataCache.isCancelled(data)) {
+            // a table with a load failure also reads as cancelled, it's kept with the rows that
+            // loaded and its warning, running its query again would not help (#77901)
+            if(data.getRowCount() >= 0 && (!AssetDataCache.isCancelled(data) ||
+               AssetDataCache.getLoadException(data) != null))
+            {
                return data;
             }
 

@@ -20,6 +20,7 @@ package inetsoft.report.composition.execution;
 import inetsoft.report.composition.FormTableLens;
 import inetsoft.report.filter.ConditionFilter;
 import inetsoft.report.filter.ConditionGroup;
+import inetsoft.report.lens.xnode.XNodeTableLens;
 import inetsoft.test.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.util.QueryManager;
@@ -96,6 +97,39 @@ class FormTableLensCancelTest {
 
          FormTableLens form = box.getFormTableLens("Table1");
          assertSame(form, box.getCachedFormTableLens("Table1"));
+
+         // a table a script made no form has no form data
+         ((TableVSAssemblyInfo) box.getViewsheet().getAssembly("Table1").getInfo())
+            .setForm(false);
+         assertNull(box.getCachedFormTableLens("Table1"));
+      }
+   }
+
+   // a table whose rows failed to load also reads as cancelled, but running its query again
+   // would not help, the form table keeps the rows that loaded like before (#77901)
+   @Test
+   void loadFailedFormDataIsNotFetchedAgain() throws Exception {
+      ViewsheetSandbox box = formTableBox(new AtomicInteger(), n -> false, false);
+      AtomicInteger fetches = new AtomicInteger();
+      Mockito.doAnswer(inv -> {
+         fetches.incrementAndGet();
+         XNodeTableLens data = Mockito.mock(XNodeTableLens.class);
+         Mockito.when(data.isCancelled()).thenReturn(true);
+         Mockito.when(data.getLoadException()).thenReturn(new Exception("read failed"));
+         Mockito.when(data.getRowCount()).thenReturn(3);
+         Mockito.when(data.getColCount()).thenReturn(2);
+         return data;
+      }).when(query).getData();
+
+      try(MockedStatic<VSAQuery> st =
+             Mockito.mockStatic(VSAQuery.class, Mockito.CALLS_REAL_METHODS))
+      {
+         st.when(() -> VSAQuery.createVSAQuery(Mockito.any(), Mockito.any(),
+                                               Mockito.anyInt())).thenReturn(query);
+         FormTableLens form = box.getFormTableLens("Table1");
+
+         assertEquals(1, fetches.get(), "a load failure must not be fetched again");
+         assertEquals(3, form.getRowCount());
       }
    }
 
