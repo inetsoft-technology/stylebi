@@ -25,6 +25,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -166,5 +167,40 @@ class ParameterValueServiceTest {
          typed("integer"), "v", Arrays.asList((Object) null)));
       assertDoesNotThrow(() -> ParameterValueService.validate(
          typed("integer"), "v", List.of("__null__")));
+   }
+
+   private static void refusesShape(AssetVariable var, List<Object> list, String index) {
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> ParameterValueService.validate(var, "p", list), String.valueOf(list));
+      assertTrue(e.getMessage().contains("'p'") && e.getMessage().contains(index) &&
+                 e.getMessage().contains("string, number or boolean"), e.getMessage());
+   }
+
+   /** Bug 78397 D3: a container used to pass as the text String.valueOf made of it. */
+   @Test
+   void refusesNonScalarElementsOnEveryTypeAndPath() throws Exception {
+      Map<String, Object> map = Map.of("a", 1);
+      List<Object> nested = List.of("a", "b");
+
+      for(String type : new String[]{"string", "integer", "double", "boolean", "date"}) {
+         AssetVariable var = typed(type);
+         refusesShape(var, List.of(map), "value[0]");
+         refusesShape(var, List.of(nested), "value[0]");
+      }
+
+      AssetVariable multi = typed("string");
+      refusesShape(multi, List.of("1", map), "value[1]");
+      refusesShape(multi, List.of(nested, "1"), "value[0]");
+      refusesShape(variable(UserVariable.COMBOBOX), List.of(map), "value[0]");
+   }
+
+   @Test
+   void jsonNumbersAndBooleansStayAcceptedOnTheirTypes() throws Exception {
+      assertDoesNotThrow(() -> ParameterValueService.validate(typed("integer"), "p", List.of(3)));
+      assertDoesNotThrow(() -> ParameterValueService.validate(typed("integer"), "p", List.of(3.0)));
+      assertDoesNotThrow(() -> ParameterValueService.validate(typed("double"), "p", List.of(1.0E10)));
+      assertDoesNotThrow(() -> ParameterValueService.validate(typed("boolean"), "p", List.of(true)));
+      assertDoesNotThrow(() -> ParameterValueService.validate(typed("integer"), "p", List.of(1, 2)));
+      assertDoesNotThrow(() -> ParameterValueService.validate(typed("string"), "p", List.of("x")));
    }
 }
