@@ -69,6 +69,8 @@ class CalcTableVSAQueryLayoutWriteBackTest {
       Viewsheet vs = new Viewsheet();
       CalcTableVSAssembly cassembly = new CalcTableVSAssembly(vs, "Calc1");
       vs.addAssembly(cassembly);
+      // a detail column cell makes the query fetch the base table (#78405: not for static cells)
+      cassembly.getTableLayout().setCellBinding(1, 1, TableCellBinding.getDetailBinding("col"));
 
       CalcTableVSAQuery query = createQuery(vs, () -> {
          // what VSTableLayoutService.setCellBinding() does: edit a clone, then apply it
@@ -91,6 +93,7 @@ class CalcTableVSAQueryLayoutWriteBackTest {
       Viewsheet vs = new Viewsheet();
       CalcTableVSAssembly cassembly = new CalcTableVSAssembly(vs, "Calc1");
       vs.addAssembly(cassembly);
+      cassembly.getTableLayout().setCellBinding(1, 1, TableCellBinding.getDetailBinding("col"));
 
       // what the column resize in VSTableLayoutService does: change the live layout in place
       CalcTableVSAQuery query =

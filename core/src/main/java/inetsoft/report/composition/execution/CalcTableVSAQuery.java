@@ -147,7 +147,9 @@ public class CalcTableVSAQuery extends DataVSAQuery {
          if(crosstabs == null || crosstabs.size() == 0) {
             TableAssembly table = getTableAssembly();
 
-            if(table == null) {
+            // a layout with no column/formula cell never reads the base table, so do not run the
+            // (possibly very expensive) raw detail query just to render static cells (#78405)
+            if(table == null || !isDetail() && !needsBaseData(cassemblyCopy.getTableLayout())) {
                CalcTableLens clens;
                boolean hasFormula;
 
@@ -2039,6 +2041,37 @@ public class CalcTableVSAQuery extends DataVSAQuery {
       }
 
       return perBy;
+   }
+
+   /**
+    * Check if any cell of the layout reads the base table data, i.e. is bound to a column or a
+    * formula. Anything unexpected is treated as needing data.
+    */
+   static boolean needsBaseData(TableLayout layout) {
+      if(layout == null) {
+         return true;
+      }
+
+      for(BaseLayout.Region region : layout.getRegions()) {
+         for(int r = 0; r < region.getRowCount(); r++) {
+            for(int c = 0; c < region.getColCount(); c++) {
+               CellBinding bind = region.getCellBinding(r, c);
+
+               if(bind == null) {
+                  continue;
+               }
+
+               if(!(bind instanceof TableCellBinding) ||
+                  bind.getType() == CellBinding.BIND_COLUMN ||
+                  bind.getType() == CellBinding.BIND_FORMULA)
+               {
+                  return true;
+               }
+            }
+         }
+      }
+
+      return false;
    }
 
    /**
