@@ -91,6 +91,12 @@ public class EmbeddedOnLoadFixture {
       return this;
    }
 
+   /** Sets the onLoad of Viewsheet2, the viewsheet {@link #nested()} embeds in Viewsheet1. */
+   public EmbeddedOnLoadFixture grandOnLoad(String script) {
+      ((Viewsheet) child.getAssembly("Viewsheet2")).getViewsheetInfo().setOnLoad(script);
+      return this;
+   }
+
    public ViewsheetSandbox sandbox() {
       ViewsheetSandbox box = new ViewsheetSandbox(
          wrapper, AbstractSheet.SHEET_RUNTIME_MODE, null, false, wrapper.getEntry());
