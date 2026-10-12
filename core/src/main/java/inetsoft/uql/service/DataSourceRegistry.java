@@ -1967,7 +1967,8 @@ public class DataSourceRegistry implements MessageListener {
     * get their grants: {@link ResourceType#QUERY} "model::dxname" and "model::dxname^__^folder"
     * of each logical model, and {@link ResourceType#DATA_MODEL_FOLDER} "dxname/folder" of each
     * data model folder and "dxname::add/folder" of each additional connection and folder (the
-    * folder grant of the connection's extended models). For a removed additional connection
+    * folder grant of the connection's extended models), and (Bug #78335) {@link ResourceType#CUBE}
+    * "dxname::cube" of each cube of the XMLA domain. For a removed additional connection
     * "P/add" it is "P::add/folder" for each folder of P's data model only, P's models stay. Must
     * be called before the entries are removed. Exact keys of the data source only, never a prefix
     * match, so the grants of a data source "dxname2" stay. A key with no grant is harmless.
@@ -1978,6 +1979,8 @@ public class DataSourceRegistry implements MessageListener {
       Map<ResourceType, List<String>> resources = new EnumMap<>(ResourceType.class);
       resources.put(ResourceType.QUERY, queries);
       resources.put(ResourceType.DATA_MODEL_FOLDER, folders);
+      // Bug #78335, CUBE "dxname::cube" of each cube of the XMLA domain of the data source
+      resources.put(ResourceType.CUBE, new ArrayList<>());
 
       List<PermissionMove> moves = new ArrayList<>();
 
@@ -1990,7 +1993,7 @@ public class DataSourceRegistry implements MessageListener {
       }
 
       for(PermissionMove move : moves) {
-         (move.type() == ResourceType.QUERY ? queries : folders).add(move.oldKey());
+         resources.computeIfAbsent(move.type(), type -> new ArrayList<>()).add(move.oldKey());
       }
 
       return resources;
@@ -2065,6 +2068,56 @@ public class DataSourceRegistry implements MessageListener {
       for(String name : readAdditionalConnectionNames(dxname)) {
          addFolderMoves(moves, dxname, name, nxname, name, strict);
       }
+
+      // Bug #78335, the grant of each cube of an XMLA data source, "dxname::cube"
+      for(String cube : getCubeNames(dxname)) {
+         moves.add(new PermissionMove(ResourceType.CUBE, dxname + "::" + cube,
+                                      nxname + "::" + cube));
+      }
+   }
+
+   /**
+    * Bug #78335, gets the names of the cubes of the stored XMLA domain of a data source, read
+    * without a permission check and without loading the data source, or none if it has no
+    * domain. The domain is stored at the path of the data source itself, not under it.
+    * <p>
+    * A domain that is listed but can't be read is logged and taken as having no cubes, also for
+    * a rename: unlike an unreadable data model, it doesn't stop a rename or a folder move, which
+    * moves such a domain with its stored content (Bug #77732). Its cube grants stay at the old
+    * name, as its cubes can't be known.
+    */
+   private List<String> getCubeNames(String datasource) {
+      AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
+                                        AssetEntry.Type.DOMAIN, datasource, null);
+      List<String> names = new ArrayList<>();
+
+      if(!containObject(entry)) {
+         return names;
+      }
+
+      Object object = getObject(entry, false);
+      XDomain domain = object instanceof XDomainWrapper wrapper ?
+         wrapper.getDomain() : object instanceof XDomain xdomain ? xdomain : null;
+
+      if(domain == null) {
+         LOG.warn("Failed to read the domain of data source {}, the permissions of its cubes " +
+                     "are not removed or moved", datasource);
+         return names;
+      }
+
+      if(domain instanceof Domain xmla) {
+         Enumeration<?> cubes = xmla.getCubes();
+
+         while(cubes.hasMoreElements()) {
+            if(cubes.nextElement() instanceof inetsoft.uql.xmla.Cube cube &&
+               cube.getName() != null)
+            {
+               names.add(cube.getName());
+            }
+         }
+      }
+
+      return names;
    }
 
    // "parent::name/folder" for each folder of the data model of the parent
@@ -2937,6 +2990,9 @@ public class DataSourceRegistry implements MessageListener {
          // Bug #78203, the portal and the public API remove the data model before the data
          // source, so the grants of its models and folders are read here, before they are gone
          Map<ResourceType, List<String>> modelResources = getDataModelResources(datasource);
+         // Bug #78335, the domain isn't removed here, its cube grants are removed with the data
+         // source, which reads them from the domain
+         modelResources.remove(ResourceType.CUBE);
          //Remove all children. Because of the appended "/", the domain (if
          //present) won't be affected.
          removeObjects(children);
