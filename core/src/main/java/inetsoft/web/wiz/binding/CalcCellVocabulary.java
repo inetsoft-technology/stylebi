@@ -112,6 +112,36 @@ public final class CalcCellVocabulary {
       "weightedaverage", "WeightedAverage", "first", "First", "last", "Last");
 
    /**
+    * Formulas whose parenthesized argument is an integer operand (the N of NthLargest and
+    * friends, the P of PthPercentile), keyed like {@link #TWO_COLUMN_FORMULAS}.
+    */
+   private static final Map<String, String> OPERAND_FORMULAS = Map.of(
+      "nthlargest", "NthLargest", "nthsmallest", "NthSmallest",
+      "nthmostfrequent", "NthMostFrequent", "pthpercentile", "PthPercentile");
+
+   /**
+    * The spelling the script path needs for each summary formula, keyed by normalized name.
+    * {@code LayoutTool.parseFormula} only lower-cases the first letter and the result is emitted
+    * as a call into {@code CalcTableScope}, so "SUM" would become the undefined "sUM".
+    */
+   private static final Map<String, String> CANONICAL_FORMULAS = Map.ofEntries(
+      Map.entry("none", "None"), Map.entry("sum", "Sum"), Map.entry("average", "Average"),
+      Map.entry("count", "Count"), Map.entry("distinctcount", "DistinctCount"),
+      Map.entry("max", "Max"), Map.entry("min", "Min"), Map.entry("product", "Product"),
+      Map.entry("concat", "Concat"), Map.entry("median", "Median"), Map.entry("mode", "Mode"),
+      Map.entry("variance", "Variance"), Map.entry("standarddeviation", "StandardDeviation"),
+      Map.entry("populationvariance", "PopulationVariance"),
+      Map.entry("populationstandarddeviation", "PopulationStandardDeviation"),
+      Map.entry("sumsq", "SumSQFormula"), Map.entry("sumsqformula", "SumSQFormula"),
+      Map.entry("correlation", "Correlation"), Map.entry("covariance", "Covariance"),
+      Map.entry("weightedaverage", "WeightedAverage"), Map.entry("first", "First"),
+      Map.entry("last", "Last"), Map.entry("nthlargest", "NthLargest"),
+      Map.entry("nthsmallest", "NthSmallest"), Map.entry("nthmostfrequent", "NthMostFrequent"),
+      Map.entry("pthpercentile", "PthPercentile"));
+
+   private static final Pattern INTEGER = Pattern.compile("-?\\d+");
+
+   /**
     * The plugin's AGGREGATE_FORMULAS aliases (normalized key -> normalized canonical key) whose
     * key differs from the canonical formula name: "AVG", "COUNT ALL", "COUNT DISTINCT", "SUMSQ"
     * and "WEIGHTED AVG". Must stay in step with the plugin's normalizeFormulaKey rule.
@@ -126,7 +156,8 @@ public final class CalcCellVocabulary {
     * script ReferenceError, or silently renders blank), and Aggregate is not a runnable
     * crosstab formula. One list drives both the refusal in {@link #validate} and what
     * {@link #advertisedFormulas} leaves out of {@code list_cell_vocabulary}. SumSQFormula is
-    * deliberately not here: it renders on the crosstab path (layout-dependent on the script path).
+    * deliberately not here: it works on both evaluators ({@code CalcTableScope} registers
+    * {@code sumSQFormula} for layouts with a formula cell).
     */
    private static final Set<String> UNSUPPORTED_CALC_FORMULAS = Set.of(
       "sumwt", "sum2", "aggregate");
@@ -194,6 +225,65 @@ public final class CalcCellVocabulary {
             "formula '" + formula + "' needs a second column; use " + display +
             "(<column>), e.g. " + display + "(Order:Date). Nothing was changed.");
       }
+
+      display = OPERAND_FORMULAS.get(normalized);
+
+      if(display != null && !arg.isEmpty() && !INTEGER.matcher(arg).matches()) {
+         throw new IllegalArgumentException(
+            "formula '" + formula + "': the argument '" + arg + "' of " + display +
+            " must be an integer (" + ("PthPercentile".equals(display) ? "P" : "N") +
+            "), e.g. " + display + "(3). Nothing was changed.");
+      }
+   }
+
+   /**
+    * The second column of a two-column summary formula ({@code First(Order:Date)}), or null when
+    * the formula is not one or carries none. Same parse as {@link #validateSummaryFormula}.
+    */
+   public static String secondaryColumn(String formula) {
+      if(formula == null) {
+         return null;
+      }
+
+      String text = PERCENT_SEGMENT.matcher(formula).replaceAll("").trim();
+      int open = text.indexOf('(');
+      int close = text.lastIndexOf(')');
+      String name = open >= 0 ? text.substring(0, open) : text;
+      String arg = open >= 0 && close > open ? text.substring(open + 1, close).trim() : "";
+
+      if(!TWO_COLUMN_FORMULAS.containsKey(normalizeFormulaName(name)) || arg.isEmpty() ||
+         arg.chars().allMatch(Character::isDigit))
+      {
+         return null;
+      }
+
+      return arg;
+   }
+
+   /**
+    * The formula with its name respelled to the canonical form the script path emits as a
+    * function call; the {@code (argument)} and {@code <n>} suffixes are kept as typed. An unknown
+    * name is returned unchanged.
+    */
+   public static String canonicalFormula(String formula) {
+      if(formula == null) {
+         return null;
+      }
+
+      String trimmed = formula.trim();
+      int end = trimmed.length();
+
+      for(int i = 0; i < trimmed.length(); i++) {
+         char c = trimmed.charAt(i);
+
+         if(c == '(' || c == '<') {
+            end = i;
+            break;
+         }
+      }
+
+      String canonical = CANONICAL_FORMULAS.get(normalizeFormulaName(trimmed.substring(0, end)));
+      return canonical == null ? formula : canonical + trimmed.substring(end);
    }
 
    public static int content(String token) {

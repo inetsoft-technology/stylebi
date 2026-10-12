@@ -26,6 +26,7 @@ import inetsoft.web.binding.model.table.CellBindingInfo;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.LinkedHashMap;
@@ -492,5 +493,44 @@ class CalcCellVocabularyTest {
          "Sum", "SumWTFormula", "Sum2Formula", "Aggregate", "SumSQFormula", "First"));
 
       assertEquals(List.of("Sum", "SumSQFormula", "First"), out);
+   }
+
+   @ParameterizedTest
+   @CsvSource(delimiter = '|', value = {
+      "NthLargest(abc)|abc", "NthLargest(2.5)|2.5", "NthSmallest(abc)|abc", "PthPercentile(xyz)|xyz",
+      "NthMostFrequent(1.5)|1.5", "nth_largest(x)|x", "PthPercentileFormula(9e)|9e",
+      "NthLargest(2.5)<-1>|2.5"})
+   void refusesANonIntegerNthOrPercentileOperandNamingIt(String formula, String arg) {
+      IllegalArgumentException e = assertThrows(
+         IllegalArgumentException.class, () -> CalcCellVocabulary.validate(summary(formula)));
+      assertTrue(e.getMessage().contains("must be an integer"), e.getMessage());
+      assertTrue(e.getMessage().contains("'" + arg + "'"), e.getMessage());
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = {
+      "NthLargest(3)", "NthSmallest( 2 )", "NthMostFrequent(1)", "PthPercentile(90)",
+      "PthPercentile(-5)", "NthLargest", "NthLargest()", "NthLargest(3)<-1>"})
+   void acceptsIntegerOrAbsentNthAndPercentileOperands(String formula) {
+      assertDoesNotThrow(() -> CalcCellVocabulary.validate(summary(formula)));
+   }
+
+   @ParameterizedTest
+   @CsvSource(delimiter = '|', value = {
+      "SUM|Sum", "sum|Sum", "SumSQ|SumSQFormula", "SUMSQFORMULA|SumSQFormula",
+      "AVG|Average", "Count All|Count", "count_distinct|DistinctCount", "DistinctCount|DistinctCount",
+      "Weighted Avg(Order:Qty)|WeightedAverage(Order:Qty)", "first(Order:Date)<-1>|First(Order:Date)<-1>",
+      "nthlargest(3)|NthLargest(3)", "Sum<-1>|Sum<-1>", "Mystery|Mystery"})
+   void canonicalFormulaRespellsTheNameAndKeepsSuffixes(String in, String expected) {
+      assertEquals(expected, CalcCellVocabulary.canonicalFormula(in));
+   }
+
+   @Test
+   void secondaryColumnOnlyForTwoColumnFormulasWithAColumn() {
+      assertEquals("Order:Date", CalcCellVocabulary.secondaryColumn("First(Order:Date)"));
+      assertEquals("NoSuchCol", CalcCellVocabulary.secondaryColumn("first(NoSuchCol)<-1>"));
+      assertNull(CalcCellVocabulary.secondaryColumn("Sum"));
+      assertNull(CalcCellVocabulary.secondaryColumn("NthLargest(3)"));
+      assertNull(CalcCellVocabulary.secondaryColumn("First(3)"));
    }
 }
