@@ -45,6 +45,8 @@ const MOVE = "../api/em/content/repository/tree/move";
 const VS = "../api/em/content/repository/viewsheet";
 const FOLDER = "../api/em/content/repository/folder/";
 const DATA_SOURCE = "../api/data/databases";
+const DS_FOLDER = "../api/em/settings/content/repository/dataSourceFolder";
+const TASK_FOLDER = "../api/em/settings/content/repository/scheduleTaskFolder";
 
 const NOT_FOUND = { status: 404, statusText: "Not Found" };
 const SERVER_ERROR = { status: 500, statusText: "Server Error" };
@@ -259,6 +261,34 @@ describe("ContentRepositoryPageComponent reloads by node type", () => {
       http.expectOne(r => r.url === DATA_SOURCE).flush({ message: "Datasource does not exist!" }, SERVER_ERROR);
       expect(snack.open).toHaveBeenCalledTimes(1);
       expect(snack.open.mock.calls[0][0]).toContain("findDataSourceError");
+      expect(comp.editorModel.value).toBeNull();
+   });
+
+   // J ordering for a data source folder: the stale tree returns before the delete response and its
+   // editor request fails (the folder is already gone) before the delete response arrives
+   it("data source folder J ordering: a stale editor failure before the delete response is quiet", () => {
+      flushTree(oneTreeRequest(), [node("dsf", RepositoryEntryType.DATA_SOURCE_FOLDER, [])]);
+      select("dsf");
+      http.expectOne(r => r.url === DS_FOLDER).flush({ name: "dsf" });
+      contentChanged();
+      flushTree(oneTreeRequest(), [node("dsf", RepositoryEntryType.DATA_SOURCE_FOLDER, [])]);
+      comp.deleteNodes();
+      http.expectOne(r => r.url === DS_FOLDER).flush({ type: "MessageException",
+         message: "Cannot find dsf. It may have been moved or deleted. Please refresh the tree." }, SERVER_ERROR);
+      http.expectOne(DELETE).flush({ status: null, connected: true });
+      flushTree(oneTreeRequest(), []);
+      expect(snack.open).not.toHaveBeenCalled();
+      expect(comp.editorModel.value).toBeNull();
+   });
+
+   it("schedule task folder: a permission error on a reload is still reported", () => {
+      flushTree(oneTreeRequest(), [node("tf", RepositoryEntryType.SCHEDULE_TASK_FOLDER, [])]);
+      select("tf");
+      http.expectOne(r => r.url === TASK_FOLDER).flush({});
+      contentChanged();
+      flushTree(oneTreeRequest(), [node("tf", RepositoryEntryType.SCHEDULE_TASK_FOLDER, [])]);
+      http.expectOne(r => r.url === TASK_FOLDER).flush({ type: "MessageException", message: "denied" }, SERVER_ERROR);
+      expect(snack.open).toHaveBeenCalledWith("denied", null, expect.anything());
       expect(comp.editorModel.value).toBeNull();
    });
 
