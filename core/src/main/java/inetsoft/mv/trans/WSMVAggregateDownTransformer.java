@@ -97,49 +97,17 @@ public class WSMVAggregateDownTransformer extends AbstractTransformer {
       String tname = table.getName();
       ColumnSelection pcolumns = ptable.getColumnSelection();
       ColumnSelection columns = table.getColumnSelection();
-      GroupRef[] groups = pinfo.getGroups();
-      AggregateRef[] aggregates = pinfo.getAggregates();
       Map<DataRef, DataRef> parentChildRefMap = new HashMap<>();
 
-      for(int i = 0; i < groups.length; i++) {
-         GroupRef group = groups[i];
-         DataRef pcol = group.getDataRef();
-
-         // avoid too quick click
-         if(pcol == null) {
-            return;
-         }
-
-         // child ref must be found
-         ColumnRef[] arr = getChildColumn(pcolumns, columns, tname, pcol);
-
-         // avoid too quick click
-         if(arr == null || arr[0] == null) {
-            return;
-         }
-
-         parentChildRefMap.put((DataRef) group.clone(), arr[0]);
-         group.setDataRef(arr[0]);
-
-         // replace parent column with new column
-         int index = pcolumns.indexOfAttribute(pcol);
-         ColumnRef npcol = AbstractTransformer.getParentColumn(pcolumns, tname, group);
-         pcolumns.setAttribute(index, npcol);
+      // resolve the columns on copies first, so nothing is changed when one of them can't be
+      // moved down, e.g. an aliased crosstab aggregate whose base column has no entity
+      if(!moveColumnsDown(pcolumns.clone(), columns.clone(), tname,
+                          (AggregateInfo) pinfo.clone(), new HashMap<>()))
+      {
+         return;
       }
 
-      for(int i = 0; i < aggregates.length; i++) {
-         AggregateRef aggregate = aggregates[i];
-         DataRef pcol = aggregate.getDataRef();
-         // child ref must be found
-         ColumnRef[] arr = getChildColumn(pcolumns, columns, tname, pcol);
-         parentChildRefMap.put((DataRef) aggregate.clone(), arr[0]);
-         aggregate.setDataRef(arr[0]);
-
-         // replace parent column with new column
-         int index = pcolumns.indexOfAttribute(pcol);
-         ColumnRef npcol = AbstractTransformer.getParentColumn(pcolumns, tname, aggregate);
-         pcolumns.setAttribute(index, npcol);
-      }
+      moveColumnsDown(pcolumns, columns, tname, pinfo, parentChildRefMap);
 
       ConditionListWrapper postCondWrapper1 = ptable.getPostConditionList();
       ConditionListWrapper postCondWrapper2 = ptable.getPostRuntimeConditionList();
@@ -189,6 +157,84 @@ public class WSMVAggregateDownTransformer extends AbstractTransformer {
       table.setProperty("aggregate.down", "true");
       ptable.setProperty("aggregate.down", "true");
       desc.addInfo(getInfo(tname));
+   }
+
+   /**
+    * Point the groups and aggregates of the parent at the child columns and replace the parent
+    * columns with the columns of the child.
+    * @return <tt>false</tt> if a column isn't found in the child, in which case the columns
+    * may have been changed partly.
+    */
+   private boolean moveColumnsDown(ColumnSelection pcolumns, ColumnSelection columns,
+                                   String tname, AggregateInfo pinfo,
+                                   Map<DataRef, DataRef> parentChildRefMap)
+   {
+      GroupRef[] groups = pinfo.getGroups();
+      AggregateRef[] aggregates = pinfo.getAggregates();
+
+      for(int i = 0; i < groups.length; i++) {
+         GroupRef group = groups[i];
+         DataRef pcol = group.getDataRef();
+
+         // avoid too quick click
+         if(pcol == null) {
+            return false;
+         }
+
+         // child ref must be found
+         ColumnRef[] arr = getChildColumn(pcolumns, columns, tname, pcol);
+
+         // avoid too quick click
+         if(arr == null || arr[0] == null) {
+            return false;
+         }
+
+         parentChildRefMap.put((DataRef) group.clone(), arr[0]);
+         group.setDataRef(arr[0]);
+
+         // replace parent column with new column
+         int index = pcolumns.indexOfAttribute(pcol);
+         ColumnRef npcol = AbstractTransformer.getParentColumn(pcolumns, tname, group);
+         pcolumns.setAttribute(index, npcol);
+      }
+
+      for(int i = 0; i < aggregates.length; i++) {
+         AggregateRef aggregate = aggregates[i];
+         DataRef pcol = aggregate.getDataRef();
+
+         if(pcol == null) {
+            return false;
+         }
+
+         // child ref must be found
+         ColumnRef[] arr = getChildColumn(pcolumns, columns, tname, pcol);
+
+         if(arr == null || arr[0] == null) {
+            return false;
+         }
+
+         DataRef pcol2 = aggregate.getSecondaryColumn();
+
+         // the secondary column is kept, so it must be a column of the child as well. Look it
+         // up on a copy, getColumnRef adds the alias columns it finds to the child
+         if(pcol2 != null) {
+            ColumnRef[] arr2 = getColumnRef(columns.clone(), tname, pcol2);
+
+            if(arr2 == null || arr2[0] == null) {
+               return false;
+            }
+         }
+
+         parentChildRefMap.put((DataRef) aggregate.clone(), arr[0]);
+         aggregate.setDataRef(arr[0]);
+
+         // replace parent column with new column
+         int index = pcolumns.indexOfAttribute(pcol);
+         ColumnRef npcol = AbstractTransformer.getParentColumn(pcolumns, tname, aggregate);
+         pcolumns.setAttribute(index, npcol);
+      }
+
+      return true;
    }
 
    /**
