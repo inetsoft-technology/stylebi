@@ -380,6 +380,12 @@ public class SelectionListPropertyDialogService {
          selectionListAssemblyInfo.setCellPadding(editedCellPadding, CompositeValue.Type.USER);
       }
 
+      // a box put back on its density size holds that size's rows; last, after the title, cell
+      // height, inset and show type above
+      if(Boolean.TRUE.equals(sizePositionPaneModel.getSizeFollowsDensity())) {
+         selectionListAssemblyInfo.fitListHeightToBox();
+      }
+
       setAssemblyInfoTables(selectionListAssemblyInfo, selectionListPaneModel, principal);
       setAssemblyInfoDataRefs(selectionListAssemblyInfo, selectionListPaneModel);
       setAssemblyInfoMeasure(selectionListAssemblyInfo, selectionMeasurePaneModel);

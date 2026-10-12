@@ -245,6 +245,39 @@ class SelectionPaddingDialogTest {
       return write(info, model);
    }
 
+   // dragged to 230 (six rows), then Follow the default density ticked: the box goes back to 202
+   // and the rows go with it, or a Dropdown to List rebuilds 230
+   @Test
+   void followingTheDensitySizeFitsTheRowsToTheBox() throws Exception {
+      SelectionListVSAssemblyInfo info = seededList("comfortable");
+      info.setPixelSize(new Dimension(132, 230));
+      info.setUserSize(true);
+      info.setListHeight(6);
+
+      SelectionListPropertyDialogModel model = load(info);
+      model.getSelectionGeneralPaneModel().getSizePositionPaneModel().setSizeFollowsDensity(true);
+      SelectionListVSAssemblyInfo saved = write(info, model);
+
+      assertEquals(new Dimension(132, 202), saved.getPixelSize());
+      assertEquals(5, saved.getListHeight());
+   }
+
+   // an untouched list arrives with the size box ticked; made a dropdown with a Height of 10 in
+   // the same visit, the Height is the author's
+   @Test
+   void aListMadeADropdownKeepsItsHeightWhileTheSizeBoxIsTicked() throws Exception {
+      SelectionListVSAssemblyInfo info = seededList("comfortable");
+
+      SelectionListPropertyDialogModel model = load(info);
+      SelectionGeneralPaneModel pane = model.getSelectionGeneralPaneModel();
+      assertEquals(Boolean.TRUE, pane.getSizePositionPaneModel().getSizeFollowsDensity());
+      pane.setShowType(SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
+      pane.setListHeight(10);
+      SelectionListVSAssemblyInfo saved = write(info, model);
+
+      assertEquals(10, saved.getListHeight());
+   }
+
    @Mock VSOutputService vsOutputService;
    @Mock CommandDispatcher commandDispatcher;
    @Mock RuntimeViewsheet rvs;

@@ -22,17 +22,23 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.test.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.SelectionListVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.SelectionVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TabVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VizMark;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.event.CopyVSObjectsEvent;
 import inetsoft.web.composer.vs.objects.event.LockVSObjectEvent;
 import inetsoft.web.composer.vs.objects.event.ResizeVSObjectEvent;
+import inetsoft.web.composer.vs.objects.event.ResizeVSObjectTitleEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
 import inetsoft.web.viewsheet.service.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.annotation.DirtiesContext;
@@ -277,6 +283,138 @@ class ComposerObjectServiceTest {
       resize(vs, "Text1", 200, 40);
 
       assertFalse(text.getVSAssemblyInfo().isUserSize(), "a type without a density size stays clean");
+   }
+
+   // a 30/26/20 lane over 28/24/20 rows inside 16/12/8 of inset on each edge: six whole rows
+   @ParameterizedTest
+   @CsvSource({ "comfortable, 230", "compact, 194", "dense, 160" })
+   void aDraggedMarkedListStoresTheRowsItsBoxHolds(String density, int height) throws Exception {
+      Viewsheet vs = tierViewsheet(density);
+      SelectionListVSAssembly list = markedList(vs);
+
+      resize(vs, "SelectionList1", list.getPixelSize().width, height);
+
+      assertEquals(6, list.getSelectionListInfo().getListHeight());
+   }
+
+   @Test
+   void aDraggedMarkedListRebuildsTheBoxItWasDraggedTo() throws Exception {
+      Viewsheet vs = tierViewsheet("comfortable");
+      SelectionListVSAssembly list = markedList(vs);
+
+      resize(vs, "SelectionList1", 132, 230);
+
+      assertEquals(230, list.getSelectionListInfo().getContainedListHeight(),
+                   "what a container expand and a switch back from Dropdown rebuild");
+   }
+
+   @Test
+   void aMarkedListDraggedBelowOneRowKeepsOne() throws Exception {
+      Viewsheet vs = tierViewsheet("comfortable");
+      SelectionListVSAssembly list = markedList(vs);
+
+      resize(vs, "SelectionList1", 132, 70);
+
+      assertEquals(1, list.getSelectionListInfo().getListHeight(), "70 - 30 - 32 leaves 8px");
+   }
+
+   // Align and Distribute resend the height unchanged, and a width drag changes no row
+   @Test
+   void aMarkedListWhoseHeightIsUnchangedKeepsItsRows() throws Exception {
+      Viewsheet vs = tierViewsheet("comfortable");
+      SelectionListVSAssembly list = markedList(vs);
+      list.getSelectionListInfo().setListHeight(9);
+
+      resize(vs, "SelectionList1", 300, 202);
+
+      assertEquals(9, list.getSelectionListInfo().getListHeight());
+   }
+
+   // a dropdown's box is its title lane and its rows are the author's Height; Arrange can still
+   // stretch the box
+   @Test
+   void aStretchedMarkedDropdownKeepsTheAuthorsRows() throws Exception {
+      Viewsheet vs = tierViewsheet("comfortable");
+      SelectionListVSAssembly list = markedList(vs);
+      SelectionListVSAssemblyInfo info = list.getSelectionListInfo();
+      info.setShowTypeValue(SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
+      info.setListHeight(10);
+      info.setPixelSize(new Dimension(132, 30));
+
+      resize(vs, "SelectionList1", 132, 400);
+
+      assertEquals(10, info.getListHeight());
+   }
+
+   // the lane grows by 10 and the box with it: 212 - 40 - 32 still holds five 28px rows
+   @Test
+   void aTitleLaneDragKeepsAMarkedListsRows() throws Exception {
+      Viewsheet vs = tierViewsheet("comfortable");
+      SelectionListVSAssembly list = markedList(vs);
+      when(engine.getViewsheet(any(), any())).thenReturn(rvs);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      ResizeVSObjectTitleEvent event = new ResizeVSObjectTitleEvent();
+      event.setName("SelectionList1");
+      event.setxOffset(0);
+      event.setyOffset(0);
+      event.setWidth(132);
+      event.setHeight(212);
+      event.setTitleHeight(40);
+
+      service.resizeObjectTitle(runtimeViewsheetRef.getRuntimeId(), event, principal, dispatcher,
+                                "/test");
+
+      assertEquals(5, list.getSelectionListInfo().getListHeight());
+   }
+
+   // the list's own mark decides, not the dashboard's density: (230 - 20) / 20, written even for
+   // an unchanged size, exactly as before
+   @Test
+   void anUnmarkedListKeepsTheLegacyRowCount() throws Exception {
+      Viewsheet vs = tierViewsheet("comfortable");
+      SelectionListVSAssembly list = unmarkedList(vs);
+      list.getVSAssemblyInfo().setPixelSize(new Dimension(100, 230));
+
+      resize(vs, "SelectionList1", 100, 230);
+
+      assertEquals(10, list.getSelectionListInfo().getListHeight());
+   }
+
+   @Test
+   void anUnmarkedListNoTallerThanItsTitleIsNotWritten() throws Exception {
+      Viewsheet vs = tierViewsheet("comfortable");
+      SelectionListVSAssembly list = unmarkedList(vs);
+
+      resize(vs, "SelectionList1", 100, 20);
+
+      assertEquals(6, list.getSelectionListInfo().getListHeight());
+   }
+
+   private static Viewsheet tierViewsheet(String density) {
+      Viewsheet vs = new Viewsheet();
+      vs.getVSAssemblyInfo().setName("vs1");
+      vs.getViewsheetInfo().setVizDensity(density);
+      return vs;
+   }
+
+   // the composer's creation order: the mark, then the default format, which runs the seed
+   private static SelectionListVSAssembly markedList(Viewsheet vs) {
+      SelectionListVSAssembly list = new SelectionListVSAssembly(vs, "SelectionList1");
+      list.getSelectionListInfo().setVizMark(VizMark.MODERN_LIGHT);
+      list.getSelectionListInfo().initDefaultFormat();
+      list.getVSAssemblyInfo().setPixelOffset(new Point(0, 0));
+      vs.addAssembly(list);
+      return list;
+   }
+
+   // pinned, because construction takes the host's mark
+   private static SelectionListVSAssembly unmarkedList(Viewsheet vs) {
+      SelectionListVSAssembly list = new SelectionListVSAssembly(vs, "SelectionList1");
+      list.getSelectionListInfo().setVizMark(null);
+      list.getSelectionListInfo().initDefaultFormat();
+      list.getVSAssemblyInfo().setPixelOffset(new Point(0, 0));
+      vs.addAssembly(list);
+      return list;
    }
 
    private void resize(Viewsheet vs, String name, int width, int height) throws Exception {

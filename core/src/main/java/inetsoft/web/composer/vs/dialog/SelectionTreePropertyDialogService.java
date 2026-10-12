@@ -421,6 +421,12 @@ public class SelectionTreePropertyDialogService {
          streeInfo.setCellPadding(editedCellPadding, CompositeValue.Type.USER);
       }
 
+      // a box put back on its density size holds that size's rows; last, after the title, cell
+      // height, inset and show type above
+      if(Boolean.TRUE.equals(sizePositionPaneModel.getSizeFollowsDensity())) {
+         streeInfo.fitListHeightToBox();
+      }
+
       setAssemblyInfoTables(streeInfo, selectionTreePaneModel, principal);
       setAssemblyInfoDataRefs(streeInfo, selectionTreePaneModel);
       setAssemblyInfoMeasure(streeInfo, selectionMeasurePaneModel);

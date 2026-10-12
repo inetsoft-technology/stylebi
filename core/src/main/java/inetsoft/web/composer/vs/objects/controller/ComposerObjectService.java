@@ -193,7 +193,13 @@ public class ComposerObjectService {
             SelectionListVSAssemblyInfo selectionListInfo =
                (SelectionListVSAssemblyInfo) selectionList.getInfo();
 
-            if(event.getHeight() > selectionListInfo.getTitleHeight()) {
+            if(selectionListInfo.getVizMark() != null) {
+               // only a new height changes the rows; Align and a width drag resend it unchanged
+               if(size.height != originalSize.height) {
+                  selectionListInfo.fitListHeightToBox();
+               }
+            }
+            else if(event.getHeight() > selectionListInfo.getTitleHeight()) {
                selectionListInfo.setListHeight((event.getHeight() -
                   selectionListInfo.getTitleHeight()) / defh);
             }

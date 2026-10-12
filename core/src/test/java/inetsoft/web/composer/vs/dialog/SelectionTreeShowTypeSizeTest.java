@@ -93,6 +93,37 @@ class SelectionTreeShowTypeSizeTest {
       assertEquals(6 * 20 + 20, switchedToList(info).getPixelSize().height);
    }
 
+   // dragged to 342 (ten rows), then Follow the default density ticked: the box goes back to 202
+   // and the rows go with it
+   @Test
+   void followingTheDensitySizeFitsATreesRowsToTheBox() throws Exception {
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      SelectionTreeVSAssemblyInfo info = new SelectionTreeVSAssemblyInfo();
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      VizModernizeUtil.reseedAfterRestore(info);
+      info.setPixelSize(new Dimension(132, 342));
+      info.setUserSize(true);
+      info.setListHeight(10);
+      wire(info);
+
+      SelectionTreePropertyDialogModel model =
+         service.getSelectionTreePropertyModel("Viewsheet1", "SelectionTree1", null);
+      model.getSelectionGeneralPaneModel().getSizePositionPaneModel().setSizeFollowsDensity(true);
+      model.getSelectionGeneralPaneModel().getGeneralPropPaneModel().getBasicGeneralPaneModel()
+         .setName("SelectionTree1");
+      service.setSelectionTreePropertyModel("Viewsheet1", "SelectionTree1", model, "", null,
+                                            commandDispatcher);
+      ArgumentCaptor<SelectionTreeVSAssemblyInfo> captor =
+         ArgumentCaptor.forClass(SelectionTreeVSAssemblyInfo.class);
+      verify(vsObjectPropertyService).editObjectProperty(
+         any(RuntimeViewsheet.class), captor.capture(), any(), any(), any(),
+         nullable(Principal.class), any(CommandDispatcher.class));
+      SelectionTreeVSAssemblyInfo saved = captor.getValue();
+
+      assertEquals(new Dimension(132, 202), saved.getPixelSize());
+      assertEquals(5, saved.getListHeight());
+   }
+
    // a dropdown with six list rows switched to a list. The real getPixelSize hands back the info's
    // own size, which is what the show-type transition resizes in place
    private SelectionTreeVSAssemblyInfo switchedToList(SelectionTreeVSAssemblyInfo info)
