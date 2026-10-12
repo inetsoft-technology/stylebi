@@ -112,16 +112,16 @@ class MVManagerVPMIdentityTest {
    @Test
    void systemMVIsRejectedWhenTheViewerPlanDiffers() throws Exception {
       MVDef system = wsDef(false, systemUser());
-      doReturn(false).when(system).isPlanEqual(viewer);
+      doReturn(false).when(system).isPlanEqual(eq(viewer), any());
 
       assertNull(findWSMV(viewer, system));
-      verify(system).isPlanEqual(viewer);
+      verify(system).isPlanEqual(eq(viewer), any());
    }
 
    @Test
    void systemMVIsUsedWhenTheViewerPlanIsEqual() throws Exception {
       MVDef system = wsDef(false, systemUser());
-      doReturn(true).when(system).isPlanEqual(viewer);
+      doReturn(true).when(system).isPlanEqual(eq(viewer), any());
 
       assertSame(system, findWSMV(viewer, system));
    }
@@ -129,12 +129,12 @@ class MVManagerVPMIdentityTest {
    @Test
    void userMVWinsOverASystemMVListedFirst() throws Exception {
       MVDef system = wsDef(false, systemUser());
-      doReturn(true).when(system).isPlanEqual(any());
+      doReturn(true).when(system).isPlanEqual(any(), any());
       MVDef own = wsDef(false, user(viewer));
 
       assertSame(own, findWSMV(viewer, system, own));
-      verify(system, never()).isPlanEqual(any());
-      verify(own, never()).isPlanEqual(any());
+      verify(system, never()).isPlanEqual(any(), any());
+      verify(own, never()).isPlanEqual(any(), any());
    }
 
    @Test
@@ -143,9 +143,9 @@ class MVManagerVPMIdentityTest {
       xutilStatic.when(() -> XUtil.getUserRoles(any(), anyBoolean()))
          .thenReturn(new IdentityID[] { role });
       MVDef system = wsDef(false, systemUser());
-      doReturn(false).when(system).isPlanEqual(viewer);
+      doReturn(false).when(system).isPlanEqual(eq(viewer), any());
       MVDef roleMV = wsDef(false, new DefaultIdentity(role, Identity.ROLE));
-      doReturn(true).when(roleMV).isPlanEqual(viewer);
+      doReturn(true).when(roleMV).isPlanEqual(eq(viewer), any());
 
       assertSame(roleMV, findWSMV(viewer, system, roleMV));
    }
@@ -156,7 +156,7 @@ class MVManagerVPMIdentityTest {
       xutilStatic.when(() -> XUtil.getUserRoles(any(), anyBoolean()))
          .thenReturn(new IdentityID[] { role });
       MVDef roleMV = wsDef(false, new DefaultIdentity(role, Identity.ROLE));
-      doReturn(false).when(roleMV).isPlanEqual(viewer);
+      doReturn(false).when(roleMV).isPlanEqual(eq(viewer), any());
 
       assertNull(findWSMV(viewer, roleMV));
    }
@@ -166,19 +166,19 @@ class MVManagerVPMIdentityTest {
       xutilStatic.when(() -> XUtil.getUserGroups(any(), anyBoolean()))
          .thenReturn(new String[] { "g1" });
       MVDef group = wsDef(false, new DefaultIdentity("g1", Identity.GROUP));
-      doReturn(false).when(group).isPlanEqual(viewer);
+      doReturn(false).when(group).isPlanEqual(eq(viewer), any());
 
       assertNull(findWSMV(viewer, group));
-      verify(group).isPlanEqual(viewer);
+      verify(group).isPlanEqual(eq(viewer), any());
    }
 
    @Test
    void mvWithoutUsersIsCheckedLikeASystemMV() throws Exception {
       MVDef anyUser = wsDef(false, (Identity[]) null);
-      doReturn(false).when(anyUser).isPlanEqual(viewer);
+      doReturn(false).when(anyUser).isPlanEqual(eq(viewer), any());
 
       assertNull(findWSMV(viewer, anyUser));
-      verify(anyUser).isPlanEqual(viewer);
+      verify(anyUser).isPlanEqual(eq(viewer), any());
    }
 
    @Test
@@ -186,7 +186,7 @@ class MVManagerVPMIdentityTest {
       MVDef system = wsDef(true, systemUser());
 
       assertSame(system, findWSMV(viewer, system));
-      verify(system, never()).isPlanEqual(any());
+      verify(system, never()).isPlanEqual(any(), any());
    }
 
    @Test
@@ -194,13 +194,13 @@ class MVManagerVPMIdentityTest {
       sutilStatic.when(() -> SUtil.isDefaultVSGloballyVisible(any())).thenReturn(true);
       XPrincipal other = new XPrincipal(new IdentityID("u2", "orgB"));
       MVDef first = wsDef(false, systemUser());
-      doReturn(false).when(first).isPlanEqual(other);
+      doReturn(false).when(first).isPlanEqual(eq(other), any());
       MVDef second = wsDef(false, systemUser());
-      doReturn(true).when(second).isPlanEqual(other);
+      doReturn(true).when(second).isPlanEqual(eq(other), any());
 
       assertSame(second, findWSMV(other, first, second));
 
-      doReturn(false).when(second).isPlanEqual(other);
+      doReturn(false).when(second).isPlanEqual(eq(other), any());
       // the cached verdicts are keyed on the mv update time
       when(second.getLastUpdateTime()).thenReturn(2L);
       assertNull(findWSMV(other, first, second));
@@ -209,93 +209,159 @@ class MVManagerVPMIdentityTest {
    @Test
    void subMVIsCheckedTheSameWay() throws Exception {
       MVDef system = vsSubDef(systemUser());
-      doReturn(false).when(system).isPlanEqual(viewer);
+      doReturn(false).when(system).isPlanEqual(eq(viewer), any());
 
       assertNull(getSubMV(viewer, system));
 
       MVDef own = vsSubDef(user(viewer));
       assertSame(own, getSubMV(viewer, system, own));
-      verify(own, never()).isPlanEqual(any());
+      verify(own, never()).isPlanEqual(any(), any());
    }
 
    @Test
    void verdictIsCachedUntilADataSourceOrModelChanges() throws Exception {
       MVDef system = wsDef(false, systemUser());
-      doReturn(true).when(system).isPlanEqual(viewer);
+      doReturn(true).when(system).isPlanEqual(eq(viewer), any());
 
       // the first check registers the listeners and is not cached
       assertSame(system, findWSMV(viewer, system));
       assertSame(system, findWSMV(viewer, system));
       assertSame(system, findWSMV(viewer, system));
-      verify(system, times(2)).isPlanEqual(viewer);
+      verify(system, times(2)).isPlanEqual(eq(viewer), any());
 
       // a VPM is changed: the cached "equal" must not be served any more
       ArgumentCaptor<PropertyChangeListener> listener =
          ArgumentCaptor.forClass(PropertyChangeListener.class);
       verify(registry).addModifiedListener(listener.capture());
       verify(registry).addRefreshedListener(any());
-      doReturn(false).when(system).isPlanEqual(viewer);
+      doReturn(false).when(system).isPlanEqual(eq(viewer), any());
       listener.getValue().propertyChange(
          new PropertyChangeEvent(registry, "DataSourceRegistry", null, null));
 
       assertNull(findWSMV(viewer, system));
-      verify(system, times(3)).isPlanEqual(viewer);
+      verify(system, times(3)).isPlanEqual(eq(viewer), any());
    }
 
    @Test
    void verdictIsNotSharedBetweenUsersWithDifferentRoles() throws Exception {
       MVDef system = wsDef(false, systemUser());
-      doReturn(true).when(system).isPlanEqual(any());
+      doReturn(true).when(system).isPlanEqual(any(), any());
       findWSMV(viewer, system);
       findWSMV(viewer, system);
 
       xutilStatic.when(() -> XUtil.getUserRoles(any(), anyBoolean()))
          .thenReturn(new IdentityID[] { new IdentityID("r2", ORG) });
-      doReturn(false).when(system).isPlanEqual(any());
+      doReturn(false).when(system).isPlanEqual(any(), any());
 
       assertNull(findWSMV(viewer, system));
    }
 
    @Test
+   void buildPlanIsComputedOncePerMV() throws Exception {
+      MVDef system = wsDef(false, systemUser());
+      doReturn(true).when(system).isPlanEqual(any(), any());
+      XPrincipal other = new XPrincipal(new IdentityID("u2", ORG));
+
+      // the first check registers the listeners and is not cached
+      findWSMV(viewer, system);
+      findWSMV(viewer, system);
+      findWSMV(other, system);
+      verify(system, times(2)).getBuildPlan();
+      verify(system).isPlanEqual(other, "plan");
+
+      ArgumentCaptor<PropertyChangeListener> listener =
+         ArgumentCaptor.forClass(PropertyChangeListener.class);
+      verify(registry).addModifiedListener(listener.capture());
+      listener.getValue().propertyChange(
+         new PropertyChangeEvent(registry, "DataSourceRegistry", null, null));
+
+      findWSMV(other, system);
+      verify(system, times(3)).getBuildPlan();
+   }
+
+   @Test
+   void buildPlanFailureRejectsTheMV() throws Exception {
+      MVDef system = wsDef(false, systemUser());
+      doReturn(planWorksheet(mock(TableAssembly.class))).when(system).getWorksheet();
+      doThrow(new java.lang.SecurityException("vpm")).when(system).getBuildPlan();
+
+      assertNull(findWSMV(viewer, system));
+      verify(system, never()).getUserPlan(any());
+   }
+
+   @Test
+   void listenersAreMovedToANewRegistry() throws Exception {
+      MVDef system = wsDef(false, systemUser());
+      doReturn(true).when(system).isPlanEqual(any(), any());
+      findWSMV(viewer, system);
+
+      DataSourceRegistry registry2 = mock(DataSourceRegistry.class);
+      registryStatic.when(DataSourceRegistry::getRegistry).thenReturn(registry2);
+      findWSMV(viewer, system);
+
+      ArgumentCaptor<PropertyChangeListener> listener =
+         ArgumentCaptor.forClass(PropertyChangeListener.class);
+      verify(registry).addModifiedListener(listener.capture());
+      verify(registry).removeModifiedListener(listener.getValue());
+      verify(registry).removeRefreshedListener(listener.getValue());
+      verify(registry2).addModifiedListener(listener.getValue());
+      verify(registry2).addRefreshedListener(listener.getValue());
+   }
+
+   @Test
    void planCheckFailsClosed() throws Exception {
       XPrincipal user = viewer;
-      assertFalse(planEqual(null, "plan", user), "no stored plan");
-      assertFalse(planEqual("", "", user), "empty stored plan");
+      assertFalse(planEqual(null, "plan", user), "no build plan");
+      assertFalse(planEqual("", "", user), "empty build plan");
       assertFalse(planEqual("plan", "", user), "empty user plan");
       assertFalse(planEqual("plan", null, user), "failed user plan");
       assertFalse(planEqual("plan", "other plan", user), "different plan");
       assertTrue(planEqual("plan", "plan", user), "same plan");
 
-      MVDef def = planDef("plan");
-      doThrow(new java.lang.SecurityException("vpm")).when(def).getPlan(user);
-      assertFalse(def.isPlanEqual(user), "error");
+      MVDef def = planDef();
+      doThrow(new java.lang.SecurityException("vpm")).when(def).getUserPlan(user);
+      assertFalse(def.isPlanEqual(user, "plan"), "error");
    }
 
    @Test
    void cubeTableHasNoPlanToCheck() throws Exception {
-      MVDef def = planDef("");
+      MVDef def = planDef();
+      doReturn(planWorksheet(mock(CubeTableAssembly.class))).when(def).getWorksheet();
+
+      assertTrue(def.isPlanEqual(viewer, null));
+      verify(def, never()).getUserPlan(any());
+   }
+
+   @Test
+   void userPlanIsBuiltForACopyOfTheUser() throws Exception {
+      MVDef def = planDef();
+      doReturn("plan").when(def).getVPMPlan(any());
+
+      assertEquals("plan", def.getUserPlan(viewer));
+
+      ArgumentCaptor<XPrincipal> user = ArgumentCaptor.forClass(XPrincipal.class);
+      verify(def).getVPMPlan(user.capture());
+      assertNotSame(viewer, user.getValue());
+      assertEquals(viewer.getName(), user.getValue().getName());
+   }
+
+   private boolean planEqual(String build, String user, XPrincipal principal) throws Exception {
+      MVDef def = planDef();
+      doReturn(user).when(def).getUserPlan(principal);
+      return def.isPlanEqual(principal, build);
+   }
+
+   private static Worksheet planWorksheet(Assembly table) {
       Worksheet ws = mock(Worksheet.class);
-      when(ws.getAssembly(nullable(String.class))).thenReturn(mock(CubeTableAssembly.class));
-      doReturn(ws).when(def).getWorksheet();
-
-      assertTrue(def.isPlanEqual(viewer));
-      verify(def, never()).getPlan(any());
+      when(ws.getAssembly(nullable(String.class))).thenReturn(table);
+      return ws;
    }
 
-   private boolean planEqual(String stored, String user, XPrincipal principal) throws Exception {
-      MVDef def = planDef(stored);
-      doReturn(user).when(def).getPlan(principal);
-      return def.isPlanEqual(principal);
-   }
-
-   private MVDef planDef(String stored) {
+   private MVDef planDef() {
       MVDef def = spy(new MVDef());
       MVMetaData data = mock(MVMetaData.class);
-      when(data.getPlan()).thenReturn(stored);
       doReturn(data).when(def).getMetaData();
-      Worksheet ws = mock(Worksheet.class);
-      when(ws.getAssembly(nullable(String.class))).thenReturn(mock(TableAssembly.class));
-      doReturn(ws).when(def).getWorksheet();
+      doReturn(planWorksheet(mock(TableAssembly.class))).when(def).getWorksheet();
       return def;
    }
 
@@ -308,14 +374,14 @@ class MVManagerVPMIdentityTest {
                                  Identity.USER);
    }
 
-   private MVDef wsDef(boolean bypass, Identity... users) {
+   private MVDef wsDef(boolean bypass, Identity... users) throws Exception {
       MVDef def = def(bypass, users);
       doReturn(true).when(def).isWSMV();
       when(def.getMetaData().isRegistered(WS_ID, TABLE)).thenReturn(true);
       return def;
    }
 
-   private MVDef vsSubDef(Identity... users) {
+   private MVDef vsSubDef(Identity... users) throws Exception {
       MVDef def = def(false, users);
       doReturn(false).when(def).isWSMV();
       doReturn(true).when(def).isSub();
@@ -325,14 +391,14 @@ class MVManagerVPMIdentityTest {
       return def;
    }
 
-   private MVDef def(boolean bypass, Identity... users) {
+   private MVDef def(boolean bypass, Identity... users) throws Exception {
       // real containsUser/getUsers, mocked everything that needs storage
       MVDef def = mock(MVDef.class, CALLS_REAL_METHODS);
       def.setUsers(users);
       MVMetaData data = mock(MVMetaData.class);
       when(data.isBypassVPM()).thenReturn(bypass);
-      when(data.getPlan()).thenReturn("plan");
       doReturn(data).when(def).getMetaData();
+      doReturn("plan").when(def).getBuildPlan();
       doReturn(true).when(def).isValidMV();
       doReturn(null).when(def).getVsId();
       doReturn("mv" + (++defCount) + "-" + System.nanoTime()).when(def).getName();

@@ -2149,17 +2149,17 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
    }
 
    /**
-    * Check if the VPM gives the specified user the same query as the identity this MV was
-    * built for, i.e. if the user's query plan equals the plan stored when the MV was defined.
-    * The MV data is filtered by the VPM of that identity, so it may only be served to a user
-    * whose VPM result is the same (Bug #78390). Fails closed: a missing or empty plan on
-    * either side, or an error, is not equal. A VPM keyed on a parameter rather than on the
-    * user, roles or groups can't be told apart, since the plans are built without variables.
+    * Check if the VPM gives the specified user the same query as the identity this MV is
+    * built for. The MV data is filtered by the VPM of that identity, so it may only be served
+    * to a user whose VPM result is the same (Bug #78390). Fails closed: a missing or empty
+    * plan on either side, or an error, is not equal. A VPM keyed on a parameter rather than
+    * on the user, roles or groups can't be told apart, since the plans are built without
+    * variables.
+    *
+    * @param user the user to check.
+    * @param buildPlan the plan of the identity this MV is built for, from getBuildPlan().
     */
-   public boolean isPlanEqual(XPrincipal user) {
-      MVMetaData meta = getMetaData();
-      String plan0 = meta == null ? null : meta.getPlan();
-
+   public boolean isPlanEqual(XPrincipal user, String buildPlan) {
       try {
          Worksheet ws = getWorksheet();
          Assembly table = ws == null ? null : ws.getAssembly(tname);
@@ -2169,12 +2169,12 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
             return true;
          }
 
-         if(plan0 == null || plan0.isEmpty()) {
+         if(buildPlan == null || buildPlan.isEmpty()) {
             return false;
          }
 
-         String plan1 = getPlan(user);
-         return plan1 != null && !plan1.isEmpty() && plan0.equals(plan1);
+         String plan1 = getUserPlan(user);
+         return plan1 != null && !plan1.isEmpty() && buildPlan.equals(plan1);
       }
       catch(Throwable ex) {
          LOG.debug("Failed to create sql plan for table {} and user {}", tname, user, ex);
@@ -2183,10 +2183,43 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
    }
 
    /**
-    * Get the execution plan as stored in the MV meta data, for the specified user.
+    * Get the VPM-aware query plan of the identity this MV is built for, computed with the
+    * current data model and code rather than the plan stored when the MV was defined, which
+    * also changes with the locale, an upgrade, or a model change.
     */
-   String getPlan(XPrincipal user) throws Exception {
-      return getPlan(true, user);
+   public String getBuildPlan() throws Exception {
+      return getVPMPlan(users == null || users.length == 0 ? null : users[0].create());
+   }
+
+   /**
+    * Get the VPM-aware query plan of the specified user. The user is copied since the
+    * query sandbox modifies its VPM user.
+    */
+   String getUserPlan(XPrincipal user) throws Exception {
+      XPrincipal user0 = user == null ? null : (XPrincipal) user.clone();
+
+      if(user != null && user0 == null) {
+         throw new Exception("Failed to copy user " + user);
+      }
+
+      return getVPMPlan(user0);
+   }
+
+   /**
+    * Get the query plan for the specified user, the same flavour as stored in the MV meta
+    * data. The plan contains localized text, so it's always built in the same locale to
+    * compare the plans of different users.
+    */
+   String getVPMPlan(XPrincipal user) throws Exception {
+      Locale locale = ThreadContext.getLocale();
+      ThreadContext.setLocale(Locale.ROOT);
+
+      try {
+         return getPlan(true, user);
+      }
+      finally {
+         ThreadContext.setLocale(locale);
+      }
    }
 
    private String getPlan(boolean shrink) throws Exception {

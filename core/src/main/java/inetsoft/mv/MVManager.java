@@ -850,9 +850,9 @@ public final class MVManager implements MessageListener {
     * Check if an mv that is not built for the user itself (system user, no user, group,
     * role, or a default org mv seen from another org) can be used by the user. The mv data
     * is filtered by the VPM of the identity it's built for, so the VPM must give the user
-    * the same query (Bug #78390). The result is cached until the mv, a data source or a
-    * data model (including its VPMs) changes, the user's roles or groups change, or it
-    * expires.
+    * the same query as that identity (Bug #78390). The result is cached until the mv, a data
+    * source or a data model (including its VPMs) changes, the user's roles or groups change,
+    * or it expires.
     */
    private static boolean isVPMCompatible(MVDef def, XPrincipal user) {
       MVMetaData data = def.getMetaData();
@@ -862,29 +862,65 @@ public final class MVManager implements MessageListener {
          return true;
       }
 
-      String plan = data == null ? null : data.getPlan();
-      String key = def.getName() + "\n" + def.getLastUpdateTime() + "\n" + getVPMUserKey(user);
+      // the build plan depends on the org the data sources and models are read from
+      String mvKey = def.getName() + "\n" + def.getLastUpdateTime() + "\n" +
+         Arrays.toString(def.getUsers()) + "\n" +
+         OrganizationManager.getInstance().getCurrentOrgID();
+      String key = mvKey + "\n" + getVPMUserKey(user);
       VPMCheck check = VPM_CHECKS.get(key);
 
-      if(check != null && check.isValid(plan)) {
+      if(check != null && check.isValid()) {
          return check.compatible;
       }
 
       long generation = VPM_GENERATION.get();
-      boolean compatible = def.isPlanEqual(user);
+      boolean cacheable = listenDataSourceRegistry();
+      String buildPlan = getBuildPlan(def, mvKey, cacheable);
+      boolean compatible = def.isPlanEqual(user, buildPlan);
 
       if(!compatible) {
-         LOG.debug("Materialized view {} is not used for user {}, the VPM gives the user " +
-                      "a different query than the identity the view is built for",
-                   def.getName(), user);
+         LOG.info("Materialized view {} is not used for user {}, the VPM gives the user " +
+                     "a different query than the identity the view is built for",
+                  def.getName(), user == null ? null : user.getName());
       }
 
       // don't cache a result computed while a data source or data model changed
-      if(listenDataSourceRegistry() && generation == VPM_GENERATION.get()) {
-         VPM_CHECKS.put(key, new VPMCheck(plan, compatible));
+      if(cacheable && generation == VPM_GENERATION.get()) {
+         VPM_CHECKS.put(key, new VPMCheck(compatible));
       }
 
       return compatible;
+   }
+
+   /**
+    * Get the plan of the identity the mv is built for, computed once per mv until the
+    * cached VPM checks are cleared or it expires.
+    *
+    * @return the plan or <tt>null</tt> if it can't be created.
+    */
+   private static String getBuildPlan(MVDef def, String mvKey, boolean cacheable) {
+      BuildPlan plan = BUILD_PLANS.get(mvKey);
+
+      if(plan != null && plan.isValid()) {
+         return plan.plan;
+      }
+
+      long generation = VPM_GENERATION.get();
+      String plan0;
+
+      try {
+         plan0 = def.getBuildPlan();
+      }
+      catch(Throwable ex) {
+         LOG.debug("Failed to create sql plan for materialized view {}", def.getName(), ex);
+         return null;
+      }
+
+      if(cacheable && generation == VPM_GENERATION.get()) {
+         BUILD_PLANS.put(mvKey, new BuildPlan(plan0));
+      }
+
+      return plan0;
    }
 
    /**
@@ -917,6 +953,11 @@ public final class MVManager implements MessageListener {
 
          synchronized(VPM_CHECKS) {
             if(registry != vpmRegistry) {
+               if(vpmRegistry != null) {
+                  vpmRegistry.removeRefreshedListener(VPM_CHECK_CLEANER);
+                  vpmRegistry.removeModifiedListener(VPM_CHECK_CLEANER);
+               }
+
                registry.addRefreshedListener(VPM_CHECK_CLEANER);
                registry.addModifiedListener(VPM_CHECK_CLEANER);
                vpmRegistry = registry;
@@ -936,25 +977,40 @@ public final class MVManager implements MessageListener {
    private static void clearVPMChecks() {
       VPM_GENERATION.incrementAndGet();
       VPM_CHECKS.clear();
+      BUILD_PLANS.clear();
    }
 
    /**
     * A cached result of isVPMCompatible.
     */
    private static final class VPMCheck {
-      VPMCheck(String plan, boolean compatible) {
-         this.plan = plan;
+      VPMCheck(boolean compatible) {
          this.compatible = compatible;
          this.time = System.currentTimeMillis();
       }
 
-      boolean isValid(String plan) {
-         return Objects.equals(this.plan, plan) &&
-            System.currentTimeMillis() - time < VPM_CHECK_TIMEOUT;
+      boolean isValid() {
+         return System.currentTimeMillis() - time < VPM_CHECK_TIMEOUT;
+      }
+
+      private final boolean compatible;
+      private final long time;
+   }
+
+   /**
+    * A cached plan of the identity an mv is built for.
+    */
+   private static final class BuildPlan {
+      BuildPlan(String plan) {
+         this.plan = plan;
+         this.time = System.currentTimeMillis();
+      }
+
+      boolean isValid() {
+         return System.currentTimeMillis() - time < VPM_CHECK_TIMEOUT;
       }
 
       private final String plan;
-      private final boolean compatible;
       private final long time;
    }
 
@@ -1818,12 +1874,20 @@ public final class MVManager implements MessageListener {
 
    private static final Logger LOG = LoggerFactory.getLogger(MVManager.class);
    private static final long VPM_CHECK_TIMEOUT = 300000L;
-   private static final int VPM_CHECK_MAX = 2000;
+   private static final int VPM_CHECK_MAX = 10000;
+   private static final int BUILD_PLAN_MAX = 1000;
    private static final Map<String, VPMCheck> VPM_CHECKS = Collections.synchronizedMap(
       new LinkedHashMap<>(16, 0.75f, true) {
          @Override
          protected boolean removeEldestEntry(Map.Entry<String, VPMCheck> eldest) {
             return size() > VPM_CHECK_MAX;
+         }
+      });
+   private static final Map<String, BuildPlan> BUILD_PLANS = Collections.synchronizedMap(
+      new LinkedHashMap<>(16, 0.75f, true) {
+         @Override
+         protected boolean removeEldestEntry(Map.Entry<String, BuildPlan> eldest) {
+            return size() > BUILD_PLAN_MAX;
          }
       });
    private static final AtomicLong VPM_GENERATION = new AtomicLong();
