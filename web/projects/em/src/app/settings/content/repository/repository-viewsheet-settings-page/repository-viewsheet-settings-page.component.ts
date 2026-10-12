@@ -56,8 +56,12 @@ export class RepositoryViewsheetSettingsPageComponent implements OnChanges {
 
    ngOnChanges(changes: SimpleChanges): void {
       if(changes.model) {
-         this.sheetModel = this.model.viewsheetSettings;
-         this.sheetModel.oname = this.sheetModel.name;
+         // Bug #78414, there are no settings when the viewsheet failed to load
+         this.sheetModel = this.model?.viewsheetSettings;
+
+         if(this.sheetModel) {
+            this.sheetModel.oname = this.sheetModel.name;
+         }
       }
    }
 
