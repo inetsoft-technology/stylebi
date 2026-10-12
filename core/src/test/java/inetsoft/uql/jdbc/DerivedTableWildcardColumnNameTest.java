@@ -137,6 +137,39 @@ class DerivedTableWildcardColumnNameTest {
             stmt.executeUpdate("create table " + table + " (CUSTOMER_ID INT, CITY VARCHAR(20))");
             stmt.executeUpdate("insert into " + table + " values (1, 'Paris'), (2, 'Oslo')");
          }
+
+         stmt.executeUpdate("create table MIX (\"City\" VARCHAR(20), \"A.B\" INT, ID INT)");
+         stmt.executeUpdate("insert into MIX values ('Rome', 7, 1), ('Bern', 8, 2)");
+      }
+   }
+
+   /**
+    * A quoted inner column keeps its quotes: a mixed-case name, and a name with a dot in it,
+    * which must not be split at the dot.
+    */
+   @Test
+   void quotedInnerColumnKeepsItsName() throws Exception {
+      for(boolean meta : new boolean[] { true, false }) {
+         assertExpanded("postgresql", meta,
+            "select d.* from (select c.\"City\", c.ID from MIX c) d",
+            "[d.\"ID\", d.City]",
+            "select d.\"ID\", d.\"City\" from");
+         assertExpanded("postgresql", meta,
+            "select d.* from (select c.\"A.B\", c.ID from MIX c) d",
+            "[d.\"A.B\", d.\"ID\"]",
+            "select d.\"A.B\", d.\"ID\" from");
+
+         for(String sql : new String[] {
+            "select D.* from (select C.\"City\", C.ID from MIX C) D",
+            "select D.* from (select C.\"A.B\", C.ID from MIX C) D" })
+         {
+            assertSameRows(sql, fixed(sql, "postgresql", meta));
+         }
+
+         // the default helper writes the mixed-case name unquoted (d.City), before and after
+         // the fix, so only the dotted name is compared
+         String sql = "select d.* from (select c.\"A.B\", c.ID from MIX c) d";
+         assertSameRows(sql, fixed(sql, "derby", meta));
       }
    }
 
