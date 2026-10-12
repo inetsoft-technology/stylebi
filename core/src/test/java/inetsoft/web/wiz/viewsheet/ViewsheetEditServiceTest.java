@@ -1905,16 +1905,17 @@ class ViewsheetEditServiceTest {
    }
 
    @Test
-   void anEditThatCannotReRunATableCarriesNoWarnings() throws Exception {
+   void everyOpReturnsTheWarningsMutateReturned() throws Exception {
       ViewsheetEditService service = serviceWarning(
          List.of("W1"), mock(ComposerObjectService.class), mock(ClipboardControllerService.class),
          readerReturning(new AssemblyNode("Gauge1", "Gauge", 340, 440, 140, 140, 0, null, true)),
          mock(VSRefreshService.class));
 
-      ViewsheetEditService.EditResult result =
-         service.apply("tok", principal(), edit("move", "Gauge1", 120, 240), "");
-
-      assertEquals(List.of(), result.warnings());
+      assertEquals(List.of("W1"),
+                   service.apply("tok", principal(), edit("move", "Gauge1", 120, 240), "")
+                      .warnings());
+      assertEquals(List.of("W1"),
+                   service.apply("tok", principal(), request("remove", "Gauge1"), "").warnings());
    }
 
    @Test

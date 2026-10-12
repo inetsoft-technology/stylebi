@@ -110,9 +110,8 @@ public class ViewsheetEditService {
     *
     * @param assembly the final name of the assembly created by op {@code add}, {@code null} for
     *                 every other op.
-    * @param warnings the warnings {@link ViewsheetSessionService#mutate} returned for the ops that
-    *                 can re-run a table (add, paste, refresh, refresh_viewsheet); empty for every
-    *                 other op, never null.
+    * @param warnings the warnings {@link ViewsheetSessionService#mutate} returned, for every op;
+    *                 empty when the op re-ran no table or nothing failed, never null.
     */
    public record EditResult(String assembly, List<String> warnings) {
       public EditResult {
@@ -122,7 +121,7 @@ public class ViewsheetEditService {
 
    /**
     * @return the final name of the assembly created by op {@code add} (the generated name when no
-    *         {@code assembly} was requested), and the warnings of the ops that can re-run a table.
+    *         {@code assembly} was requested), and the warnings the edit produced.
     */
    public EditResult apply(String sessionToken, Principal user, EditRequest request, String linkUri)
       throws Exception
@@ -133,16 +132,14 @@ public class ViewsheetEditService {
          return add(sessionToken, user, request, linkUri);
       }
 
-      List<String> warnings = List.of();
-
-      switch(op) {
+      List<String> warnings = switch(op) {
       case "move" -> move(sessionToken, user, request, linkUri);
       case "resize" -> resize(sessionToken, user, request, linkUri);
       case "resize_title" -> resizeTitle(sessionToken, user, request, linkUri);
       case "remove" -> remove(sessionToken, user, request, linkUri);
       case "rename" -> rename(sessionToken, user, request, linkUri);
       case "copy", "cut" -> copyOrCut(sessionToken, user, request, linkUri, "cut".equals(op));
-      case "paste" -> warnings = paste(sessionToken, user, request, linkUri);
+      case "paste" -> paste(sessionToken, user, request, linkUri);
       case "set_z_index" -> setZIndex(sessionToken, user, request);
       case "set_lock" -> setLock(sessionToken, user, request);
       case "set_title" -> setTitle(sessionToken, user, request);
@@ -153,16 +150,16 @@ public class ViewsheetEditService {
       case "ungroup" -> ungroup(sessionToken, user, request, linkUri);
       case "move_from_container" -> moveFromContainer(sessionToken, user, request, linkUri);
       case "align", "distribute" -> arrange(sessionToken, user, request, linkUri, op);
-      case "refresh" -> warnings = refresh(sessionToken, user, request, linkUri);
-      case "refresh_viewsheet" -> warnings = refreshWholeSheet(sessionToken, user, linkUri);
+      case "refresh" -> refresh(sessionToken, user, request, linkUri);
+      case "refresh_viewsheet" -> refreshWholeSheet(sessionToken, user, linkUri);
       default -> throw new IllegalArgumentException(
          "Unknown edit op '" + request.op() + "'. Supported ops: " + String.join(", ", OPS) + ".");
-      }
+      };
 
       return new EditResult(null, warnings);
    }
 
-   private void move(String sessionToken, Principal user, EditRequest request, String linkUri)
+   private List<String> move(String sessionToken, Principal user, EditRequest request, String linkUri)
       throws Exception
    {
       requireAssembly(request);
@@ -171,7 +168,7 @@ public class ViewsheetEditService {
       // nor select it to put it back.
       requireNonNegative(request.op(), "x", request.x(), "y", request.y());
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          requireExisting(rvs, request.assembly());
          requireUnlocked(rvs, request);
 
@@ -192,14 +189,14 @@ public class ViewsheetEditService {
       });
    }
 
-   private void resize(String sessionToken, Principal user, EditRequest request, String linkUri)
+   private List<String> resize(String sessionToken, Principal user, EditRequest request, String linkUri)
       throws Exception
    {
       requireAssembly(request);
       requireValues(request.op(), "width", request.width(), "height", request.height());
       requirePositive(request.op(), "width", request.width(), "height", request.height());
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          AssemblyNode current = requireExisting(rvs, request.assembly());
          requireUnlocked(rvs, request);
          ensureTableDataReady(rvs, request.assembly());
@@ -256,7 +253,7 @@ public class ViewsheetEditService {
     * Resizes an assembly's title bar. {@code ResizeVSObjectTitleEvent} carries a title height
     * rather than a width/height pair, so this op reads {@code height} alone.
     */
-   private void resizeTitle(String sessionToken, Principal user, EditRequest request,
+   private List<String> resizeTitle(String sessionToken, Principal user, EditRequest request,
                             String linkUri) throws Exception
    {
       requireAssembly(request);
@@ -268,7 +265,7 @@ public class ViewsheetEditService {
 
       requirePositive(request.op(), "height", request.height());
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          AssemblyNode current = requireExisting(rvs, request.assembly());
          requireTitled(rvs, request.assembly(), request.op());
          requireUnlocked(rvs, request);
@@ -462,12 +459,12 @@ public class ViewsheetEditService {
       return entry;
    }
 
-   private void remove(String sessionToken, Principal user, EditRequest request, String linkUri)
+   private List<String> remove(String sessionToken, Principal user, EditRequest request, String linkUri)
       throws Exception
    {
       requireAssembly(request);
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          requireExisting(rvs, request.assembly());
 
          // An annotation is three linked assemblies. Removing one leaves the survivors
@@ -489,7 +486,7 @@ public class ViewsheetEditService {
     * refuses — a dependency cycle, say — is reported as an ERROR command and a normal return,
     * so without capture it would look like success.
     */
-   private void rename(String sessionToken, Principal user, EditRequest request, String linkUri)
+   private List<String> rename(String sessionToken, Principal user, EditRequest request, String linkUri)
       throws Exception
    {
       requireAssembly(request);
@@ -499,7 +496,7 @@ public class ViewsheetEditService {
             "Edit op 'rename' requires 'newName' — the new assembly name.");
       }
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          // Through the shared guard, so the message lists the names that do exist and every op
          // reports a bad name the same way.
          requireExisting(rvs, request.assembly());
@@ -526,7 +523,7 @@ public class ViewsheetEditService {
       });
    }
 
-   private void copyOrCut(String sessionToken, Principal user, EditRequest request,
+   private List<String> copyOrCut(String sessionToken, Principal user, EditRequest request,
                           String linkUri, boolean cut) throws Exception
    {
       List<String> names = request.assemblies();
@@ -536,7 +533,7 @@ public class ViewsheetEditService {
             "Edit op '" + request.op() + "' requires 'assemblies' with at least one name.");
       }
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          CopyVSObjectsEvent event = new CopyVSObjectsEvent();
          event.setObjects(names.toArray(new String[0]));
          event.setCut(cut);
@@ -554,7 +551,7 @@ public class ViewsheetEditService {
          clipboard.pasteObject(runtimeId, request.x(), request.y(), user, dispatcher, linkUri));
    }
 
-   private void setZIndex(String sessionToken, Principal user, EditRequest request)
+   private List<String> setZIndex(String sessionToken, Principal user, EditRequest request)
       throws Exception
    {
       requireAssembly(request);
@@ -563,7 +560,7 @@ public class ViewsheetEditService {
          throw new IllegalArgumentException("Edit op 'set_z_index' requires 'zIndex'.");
       }
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          requireExisting(rvs, request.assembly());
 
          ChangeVSObjectLayerEvent event = new ChangeVSObjectLayerEvent();
@@ -573,7 +570,7 @@ public class ViewsheetEditService {
       });
    }
 
-   private void setLock(String sessionToken, Principal user, EditRequest request)
+   private List<String> setLock(String sessionToken, Principal user, EditRequest request)
       throws Exception
    {
       requireAssembly(request);
@@ -583,7 +580,7 @@ public class ViewsheetEditService {
             "Edit op 'set_lock' requires 'locked' (true to lock, false to unlock).");
       }
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          requireExisting(rvs, request.assembly());
          requireLockable(rvs, request.assembly());
 
@@ -594,7 +591,7 @@ public class ViewsheetEditService {
       });
    }
 
-   private void setTitle(String sessionToken, Principal user, EditRequest request)
+   private List<String> setTitle(String sessionToken, Principal user, EditRequest request)
       throws Exception
    {
       requireAssembly(request);
@@ -603,7 +600,7 @@ public class ViewsheetEditService {
          throw new IllegalArgumentException("Edit op 'set_title' requires 'title'.");
       }
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          requireExisting(rvs, request.assembly());
          requireTitled(rvs, request.assembly(), request.op());
 
@@ -614,7 +611,7 @@ public class ViewsheetEditService {
       });
    }
 
-   private void group(String sessionToken, Principal user, EditRequest request, String linkUri)
+   private List<String> group(String sessionToken, Principal user, EditRequest request, String linkUri)
       throws Exception
    {
       List<String> names = request.assemblies();
@@ -624,7 +621,7 @@ public class ViewsheetEditService {
             "Edit op 'group' requires 'assemblies' with at least two assembly names.");
       }
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) ->
+      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) ->
          groups.groupComponents(runtimeId,
                                 GroupVSObjectsEvent.builder().objects(names).build(),
                                 linkUri, user, dispatcher));
@@ -639,7 +636,7 @@ public class ViewsheetEditService {
     * calling it again against the first assembly, which by then already resolves to a member of
     * the tab.
     */
-   private void groupAsTab(String sessionToken, Principal user, EditRequest request,
+   private List<String> groupAsTab(String sessionToken, Principal user, EditRequest request,
                            String linkUri) throws Exception
    {
       List<String> names = request.assemblies();
@@ -649,7 +646,7 @@ public class ViewsheetEditService {
             "Edit op 'group_as_tab' requires 'assemblies' with at least two assembly names.");
       }
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          Viewsheet vs = rvs.getViewsheet();
          VSAssembly first = requireVSAssembly(rvs, vs, names.get(0));
 
@@ -670,7 +667,7 @@ public class ViewsheetEditService {
     * {@code VSBindingService.addAssembly} uses for "drag a new filter onto an existing Selection
     * Container".
     */
-   private void groupAsSelectionContainer(String sessionToken, Principal user,
+   private List<String> groupAsSelectionContainer(String sessionToken, Principal user,
                                           EditRequest request, String linkUri) throws Exception
    {
       List<String> names = request.assemblies();
@@ -681,7 +678,7 @@ public class ViewsheetEditService {
             "assembly names.");
       }
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          Viewsheet vs = rvs.getViewsheet();
          List<VSAssembly> members = new ArrayList<>();
 
@@ -724,12 +721,12 @@ public class ViewsheetEditService {
       return assembly;
    }
 
-   private void ungroup(String sessionToken, Principal user, EditRequest request, String linkUri)
+   private List<String> ungroup(String sessionToken, Principal user, EditRequest request, String linkUri)
       throws Exception
    {
       requireAssembly(request);
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          requireExisting(rvs, request.assembly());
 
          Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
@@ -804,13 +801,13 @@ public class ViewsheetEditService {
                                          user, dispatcher, linkUri));
    }
 
-   private void moveFromContainer(String sessionToken, Principal user, EditRequest request,
+   private List<String> moveFromContainer(String sessionToken, Principal user, EditRequest request,
                                   String linkUri) throws Exception
    {
       requireAssembly(request);
       requireValues(request.op(), "x", request.x(), "y", request.y());
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          AssemblyNode current = requireExisting(rvs, request.assembly());
          requireUnlocked(rvs, request);
 
@@ -840,7 +837,7 @@ public class ViewsheetEditService {
     * targets from the current layout, then issue ONE move event so the whole arrangement is a
     * single undo checkpoint rather than one per assembly.
     */
-   private void arrange(String sessionToken, Principal user, EditRequest request,
+   private List<String> arrange(String sessionToken, Principal user, EditRequest request,
                         String linkUri, String op) throws Exception
    {
       List<String> names = request.assemblies();
@@ -861,7 +858,7 @@ public class ViewsheetEditService {
             ". Got '" + request.axis() + "'.");
       }
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          Map<String, AssemblyNode> byName = new LinkedHashMap<>();
 
          for(AssemblyNode node : reader.read(rvs).assemblies()) {

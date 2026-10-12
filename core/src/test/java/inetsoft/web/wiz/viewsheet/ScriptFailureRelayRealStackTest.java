@@ -43,6 +43,14 @@ import inetsoft.uql.viewsheet.vslayout.DeviceRegistry;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.binding.handler.VSColumnHandler;
 import inetsoft.web.composer.vs.VSObjectTreeService;
+import inetsoft.web.composer.vs.objects.controller.ClipboardControllerService;
+import inetsoft.web.composer.vs.objects.controller.ComposerObjectService;
+import inetsoft.web.composer.vs.objects.controller.ComposerGroupService;
+import inetsoft.web.composer.vs.objects.controller.GroupingService;
+import inetsoft.web.viewsheet.controller.VSRefreshService;
+import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
+import inetsoft.web.wiz.viewsheet.model.AssemblyNode;
+import inetsoft.web.wiz.viewsheet.model.ViewsheetModel;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.composer.vs.dialog.*;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
@@ -205,6 +213,55 @@ class ScriptFailureRelayRealStackTest {
          warningsOf(calendarService(rvs).clear("tok", principal(), CALENDAR, "")));
    }
 
+   @Test
+   void calendarDatesReturnsTheScriptFailure() throws Exception {
+      RuntimeViewsheet rvs = open();
+      addFailingExpressionCondition(rvs);
+      addCalendar(rvs);
+
+      // "y2000" is the encoded whole-year token the calendar's own widget sends.
+      Map<String, Object> result = calendarService(rvs).setDates(
+         "tok", principal(), CALENDAR, List.of("y2000"), "");
+
+      assertFailureRelayed(warningsOf(result));
+   }
+
+   /** Removing the selection list re-runs the table that was filtered by it. */
+   @Test
+   void editRemoveReturnsTheScriptFailure() throws Exception {
+      RuntimeViewsheet rvs = open();
+      addFailingExpressionCondition(rvs);
+      addSelectionList(rvs);
+
+      List<String> warnings = editService(rvs).apply(
+         "tok", principal(), editRequest("remove", SELECTION), "").warnings();
+
+      assertFailureRelayed(warnings);
+   }
+
+   @Test
+   void editRemoveIsSilentWhenTheScriptIsFine() throws Exception {
+      RuntimeViewsheet rvs = open();
+      addSelectionList(rvs);
+
+      assertEquals(List.of(), editService(rvs).apply(
+         "tok", principal(), editRequest("remove", SELECTION), "").warnings());
+   }
+
+   @Test
+   void editCutReturnsTheScriptFailure() throws Exception {
+      RuntimeViewsheet rvs = open();
+      addFailingExpressionCondition(rvs);
+      addSelectionList(rvs);
+
+      List<String> warnings = editService(rvs).apply(
+         "tok", principal(),
+         new EditRequest("cut", null, null, null, null, null, null, null, null, null,
+                         List.of(SELECTION), null, null, null), "").warnings();
+
+      assertFailureRelayed(warnings);
+   }
+
    @SuppressWarnings("unchecked")
    private static List<String> warningsOf(Map<String, Object> result) {
       Object warnings = result.get("warnings");
@@ -295,6 +352,39 @@ class ScriptFailureRelayRealStackTest {
          mock(SubmitPropertyDialogService.class), mock(VSOutputService.class));
    }
 
+   private ViewsheetEditService editService(RuntimeViewsheet rvs) throws Exception {
+      ViewsheetReadService reader = mock(ViewsheetReadService.class);
+      when(reader.read(any())).thenReturn(new ViewsheetModel("vs", List.of(
+         new AssemblyNode(SELECTION, "SelectionList", 0, 0, 100, 100, 0, null, true))));
+      VSObjectPropertyService properties = objectPropertyService();
+      ComposerObjectService objects = new ComposerObjectService(
+         treeService, coreLifecycleService, viewsheetService, mock(VSAssemblyInfoHandler.class),
+         objectModelFactoryService, objectService, compositionService);
+      ClipboardControllerService clipboard = new ClipboardControllerService(
+         coreLifecycleService, treeService, viewsheetService, mock(VSAssemblyInfoHandler.class),
+         properties);
+
+      return new ViewsheetEditService(
+         seam(rvs), objects, clipboard, properties, reader, mock(ComposerGroupService.class),
+         mock(GroupingService.class), mock(VSRefreshService.class), coreLifecycleService);
+   }
+
+   private static EditRequest editRequest(String op, String assembly) {
+      return new EditRequest(op, assembly, null, null, null, null, null, null, null, null, null,
+                             null, null, null);
+   }
+
+   /** A selection list on the same worksheet table the failing TableView1 reads. */
+   private static void addSelectionList(RuntimeViewsheet rvs) {
+      ViewsheetSandbox box = rvs.getViewsheetSandbox().orElseThrow();
+      Viewsheet vs = box.getViewsheet();
+      TableVSAssembly table = (TableVSAssembly) vs.getAssembly(TABLE);
+      SelectionListVSAssembly list = new SelectionListVSAssembly(vs, SELECTION);
+      list.setTableName(table.getTableName());
+      list.setDataRef(table.getColumnSelection().getAttribute("type"));
+      vs.addAssembly(list);
+   }
+
    private CalendarDisplayService calendarService(RuntimeViewsheet rvs) throws Exception {
       return new CalendarDisplayService(
          seam(rvs),
@@ -306,12 +396,10 @@ class ScriptFailureRelayRealStackTest {
       ViewsheetSandbox box = rvs.getViewsheetSandbox().orElseThrow();
       Viewsheet vs = box.getViewsheet();
       TableVSAssembly table = (TableVSAssembly) vs.getAssembly(TABLE);
-      DataRef date = null;
 
-      // The table has no date column; re-type one numeric column so the calendar can bind to it.
-      ColumnRef column = (ColumnRef) table.getColumnSelection().getAttribute("datetime").clone();
-      column.setDataType(XSchema.DATE);
-      date = column;
+      // The table has no date column; re-type its double "datetime" column so a calendar can bind.
+      ColumnRef date = (ColumnRef) table.getColumnSelection().getAttribute("datetime").clone();
+      date.setDataType(XSchema.DATE);
 
       CalendarVSAssembly calendar = new CalendarVSAssembly(vs, CALENDAR);
       calendar.setTableName(table.getTableName());
@@ -369,9 +457,11 @@ class ScriptFailureRelayRealStackTest {
    @Autowired VSCompositionService compositionService;
    @Autowired SharedFilterService sharedFilterService;
    @Autowired DataSourceRegistry dataSourceRegistry;
+   @Autowired VSObjectModelFactoryService objectModelFactoryService;
 
    private Principal user;
    private static final String TABLE = "TableView1";
    private static final String CALENDAR = "Calendar1";
+   private static final String SELECTION = "SelectionList1";
    private static final String BOOKMARK = "relay78406";
 }
