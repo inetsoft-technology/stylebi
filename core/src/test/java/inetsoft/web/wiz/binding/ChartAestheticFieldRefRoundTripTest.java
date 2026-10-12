@@ -26,6 +26,8 @@ import inetsoft.uql.viewsheet.graph.VSChartDimensionRef;
 import inetsoft.uql.viewsheet.graph.DefaultVSChartInfo;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
+import inetsoft.web.binding.drm.AttributeRefModel;
+import inetsoft.web.binding.drm.ColumnRefModel;
 import inetsoft.web.binding.model.ChartBindingModel;
 import inetsoft.web.binding.model.graph.AestheticInfo;
 import inetsoft.web.binding.model.graph.calc.PercentCalcInfo;
@@ -119,13 +121,12 @@ class ChartAestheticFieldRefRoundTripTest {
    }
 
    /**
-    * Documents a known gap, not a goal: the read model promotes an inline group to an EXPERT group
-    * named "Custom", and {@code FieldRefFactory.from} cannot tell that from a condition-based or
-    * worksheet group, so it reports the placeholder name and no values. Follow-up: lossless
-    * inline named-group read-back (shelf + aesthetic). Update this test when that lands.
+    * Bug #78359: the read model promotes an inline group to an EXPERT group of per-member
+    * conditions; {@code FieldRefFactory.from} recognizes that shape and reports the members.
+    * (Re-paste durability is covered in {@link InlineNamedGroupReadTest}.)
     */
    @Test
-   void anInlineNamedGroupCurrentlyReadsBackAsThePlaceholderCustom() {
+   void anInlineNamedGroupReadsBackAsNamedGroupValues() {
       FieldRef.NamedGroupValues groups = new FieldRef.NamedGroupValues(List.of(
          new FieldRef.NamedGroupValues.Clause("West", List.of("CA", "OR"))), null);
 
@@ -134,8 +135,9 @@ class ChartAestheticFieldRefRoundTripTest {
 
       FieldRef ref = assertInstanceOf(FieldRef.class, view.get("fieldRef"));
       assertEquals("State", ref.column());
-      assertEquals("Custom", ref.namedGroup());
-      assertNull(ref.namedGroupValues());
+      assertNull(ref.namedGroup());
+      assertEquals("West", ref.namedGroupValues().groups().get(0).name());
+      assertEquals(List.of("CA", "OR"), ref.namedGroupValues().groups().get(0).values());
    }
 
    @Test
@@ -170,7 +172,9 @@ class ChartAestheticFieldRefRoundTripTest {
    static class Beans {
       @Bean
       DataRefModelFactoryService dataRefModelFactoryService() {
-         return new DataRefModelFactoryService(List.of());
+         return new DataRefModelFactoryService(List.of(
+            new AttributeRefModel.AttributeRefModelFactory(),
+            new ColumnRefModel.ColumnRefModelFactory()));
       }
 
       @Bean
