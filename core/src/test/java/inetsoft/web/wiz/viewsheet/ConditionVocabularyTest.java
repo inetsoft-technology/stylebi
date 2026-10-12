@@ -941,7 +941,8 @@ class ConditionVocabularyTest {
    @Test
    void normalizesARawNumberOrBooleanForAStringOrCharField() {
       Object[][] cases = {
-         { 5, "5" }, { 5.0, "5" }, { 5.5, "5.5" }, { 5L, "5" }, { true, "true" }
+         { 5, "5" }, { 5.0, "5" }, { 5.5, "5.5" }, { 1e-4, "0.0001" }, { -2.5, "-2.5" }, { 1e20, "100000000000000000000" },
+         { -0.0, "0" }, { 5L, "5" }, { true, "true" }
       };
 
       for(String type : List.of("string", "char")) {

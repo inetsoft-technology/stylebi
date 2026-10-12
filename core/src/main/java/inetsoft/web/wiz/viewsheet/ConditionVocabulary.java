@@ -374,8 +374,8 @@ public final class ConditionVocabulary {
             return Long.toString((long) d);
          }
 
-         if(raw instanceof Double || raw instanceof Float) {
-            return new java.math.BigDecimal(raw.toString()).toPlainString();
+         if(raw instanceof Double || raw instanceof Float || raw instanceof java.math.BigDecimal) {
+            return new java.math.BigDecimal(raw.toString()).stripTrailingZeros().toPlainString();
          }
       }
 
