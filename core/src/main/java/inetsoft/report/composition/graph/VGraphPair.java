@@ -45,6 +45,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.uql.ConditionList;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
@@ -957,6 +958,10 @@ public class VGraphPair {
          // past: rethrow it so the chart fails with the swap error instead of rendering
          // silently wrong/empty data, regardless of ignoreError (#77123, #77910, #78099)
          DataUnavailable.rethrow(ex);
+         // nor is a table the script read that failed to load for a reader that has to fail,
+         // e.g. a scheduled run: rendering past it would export the chart without what the
+         // script sets (#78083)
+         TableLoadException.rethrow(ex);
 
          if(!ignoreError) {
             LOG.debug("Script failed", ex);

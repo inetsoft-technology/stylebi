@@ -27,6 +27,7 @@ import inetsoft.graph.element.GraphtDataSelector;
 import inetsoft.graph.internal.ManualOrderComparer;
 import inetsoft.graph.scale.*;
 import inetsoft.report.*;
+import inetsoft.report.composition.execution.AssetDataCache;
 import inetsoft.report.composition.graph.data.ScaleRouter;
 import inetsoft.report.filter.*;
 import inetsoft.report.internal.*;
@@ -40,6 +41,7 @@ import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.internal.ColumnIndexMap;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.uql.util.XNamedGroupInfo;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.*;
@@ -117,8 +119,9 @@ public class VSDataSet extends AbstractDataSet implements AttributeDataSet {
    /**
     * Initialization.
     * @param rethrowStop {@code true} to fail with a stopped script of the table (a script
-    *                    timeout or cancel) rather than be an empty or partial data set
-    *                    (bug #78134). A change event of the table does not, its listeners
+    *                    timeout or cancel), or with a table that failed to load in a
+    *                    scheduled run (bug #78083), rather than be an empty or partial data
+    *                    set (bug #78134). A change event of the table does not, its listeners
     *                    must all be called; a cache drops a data set whose table is stopped.
     */
    private void process(boolean rethrowStop) {
@@ -137,6 +140,14 @@ public class VSDataSet extends AbstractDataSet implements AttributeDataSet {
       catch(Exception ex) {
          if(rethrowStop) {
             ScriptTimeoutGuard.rethrowStop(ex);
+
+            // a table that failed to load for a reader that has to fail (a scheduled run) is
+            // not an empty data set, which the chart would plot as no data (#78083). Rows that
+            // another reader's cancel cut are not a load failure: the cache drops this data
+            // set and computes it again (#78200)
+            if(!AssetDataCache.isDataSetCancelled(this)) {
+               TableLoadException.rethrow(ex);
+            }
          }
          // a change event of a table whose script was stopped: no error, the cache drops
          // the data set and the next reader gets the stop (bug #78134)

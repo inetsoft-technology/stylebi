@@ -35,6 +35,7 @@ import inetsoft.report.TableLens;
 import inetsoft.report.XSessionManager;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.event.AssetEventUtil;
+import inetsoft.report.composition.graph.VGraphPair;
 import inetsoft.report.composition.graph.VSDataSet;
 import inetsoft.report.filter.CrossTabFilter;
 import inetsoft.report.filter.Formula;
@@ -65,6 +66,9 @@ import inetsoft.uql.util.TableLoadException;
 import inetsoft.uql.util.XSessionService;
 import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.IdentityID;
 import inetsoft.util.*;
 import inetsoft.util.credential.CredentialService;
 import inetsoft.util.script.JavaScriptEngine;
@@ -87,6 +91,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.lang.reflect.*;
 import java.nio.charset.StandardCharsets;
+import java.security.Principal;
 import java.sql.Connection;
 import java.sql.Statement;
 import java.util.Optional;
@@ -1045,6 +1050,204 @@ class RowFetchFailureTest {
       }
 
       return false;
+   }
+
+   // Bug #78083 (follow-up of #6558): a chart script that reads a hidden table which failed to
+   // load in a scheduled run fails the export of the chart, instead of VGraphPair swallowing
+   // the script failure and rendering the chart without the script's effect. An interactive
+   // plot renders past the script error, and a scheduled plot over good tables is unchanged
+   @Test
+   void scheduledChartScriptOverAHiddenFailedTable() throws Exception {
+      String script = "parameter.probe_reached = 'start'; var n = TableV.table.length; " +
+         "parameter.probe_reached = 'len ' + n;";
+      Principal oprincipal = ThreadContext.getPrincipal();
+      ThreadContext.setPrincipal(SUtil.getPrincipal(
+         new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getInstance().getCurrentOrgID()),
+         null, false));
+
+      try {
+         assertLoadFailure(() -> chartScriptSandbox(true, true, script)
+            .getVGraphPair("Chart1", true, null, true, 1));
+
+         for(boolean fail : new boolean[] { true, false }) {
+            CoreTool.clearUserMessage();
+            // interactive over the failed table, scheduled over the good one
+            ViewsheetSandbox box = chartScriptSandbox(fail, !fail, script);
+            VGraphPair pair = box.getVGraphPair("Chart1", true, null, true, 1);
+
+            assertNotNull(pair, "fail " + fail);
+            assertTrue(pair.isCompleted() && pair.getEGraph() != null, "fail " + fail);
+            // the header row and the rows read (before the failure)
+            assertEquals("len " + (fail ? FAIL_ROW : ROWS + 1),
+                         box.getVariableTable().get("probe_reached"), "fail " + fail);
+         }
+      }
+      finally {
+         ThreadContext.setPrincipal(oprincipal);
+      }
+   }
+
+   // Bug #78083 (follow-up of #6558): an onLoad script that reads the data of a chart bound to
+   // a table which failed to load in a scheduled run stops at that read, as for a calc table,
+   // instead of going on with an empty chart table or a null dataset. Not merged into the
+   // chart's SQL, the row fetch fails; merged, the query fails at execute, which a scheduled
+   // run reports as a load failure too (Bug #78411). Interactive and successful reads get the
+   // chart data, as before
+   @Test
+   void scriptReadOfChartDataOverAFailedTable() throws Exception {
+      String[] scripts = {
+         "var t = Chart1.table; throw new Error(t == null ? 'null' : 'len ' + t.length);",
+         "var d = Chart1.dataset; throw new Error(d == null ? 'null' : 'rows ' + d.getRowCount());" };
+      Principal oprincipal = ThreadContext.getPrincipal();
+      ThreadContext.setPrincipal(SUtil.getPrincipal(
+         new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getInstance().getCurrentOrgID()),
+         null, false));
+
+      try {
+         assertAll(IntStream.range(0, scripts.length).mapToObj(i -> (Executable) () -> {
+            String script = scripts[i];
+            Exception error = chartOnLoadError(true, true, script);
+            assertNotNull(error, script);
+            assertNotNull(TableLoadException.find(error), script + ": " + error);
+            assertTrue(error.getMessage().contains(DB_MESSAGE), script + ": " + error);
+
+            // merged into the chart's SQL, the query fails at execute (Bug #78411)
+            error = chartOnLoadError(true, true, script, true);
+            assertNotNull(error, script);
+            assertNotNull(TableLoadException.find(error), "merged " + script + ": " + error);
+            assertTrue(error.getMessage().contains(DB_MESSAGE), "merged " + script + ": " + error);
+
+            // interactive: the chart of the rows read before the failure, with the warning
+            CoreTool.clearUserMessage();
+            error = chartOnLoadError(true, false, script);
+            assertNotNull(error, script);
+            assertNull(TableLoadException.find(error), script + ": " + error);
+            assertTrue(error.getMessage().contains(i == 0 ? "len 11" : "rows 10"),
+                       script + ": " + error);
+
+            // successful scheduled read
+            error = chartOnLoadError(false, true, script);
+            assertNotNull(error, script);
+            assertNull(TableLoadException.find(error), script + ": " + error);
+            assertTrue(error.getMessage().contains(i == 0 ? "len 11" : "rows 10"),
+                       script + ": " + error);
+         }));
+      }
+      finally {
+         ThreadContext.setPrincipal(oprincipal);
+      }
+   }
+
+   // Bug #78083 (follow-up of #6558): the scheduled export of a chart bound to a table which
+   // failed to load fails, instead of VSDataSet taking the load failure for an empty data set
+   // and the chart plotting no data. Interactive and successful plots are unchanged
+   @Test
+   void scheduledChartOverAFailedTable() throws Exception {
+      Principal oprincipal = ThreadContext.getPrincipal();
+      ThreadContext.setPrincipal(SUtil.getPrincipal(
+         new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getInstance().getCurrentOrgID()),
+         null, false));
+
+      try {
+         assertLoadFailure(() -> chartSandbox(true, true)
+            .getVGraphPair("Chart1", true, null, true, 1));
+
+         for(boolean fail : new boolean[] { true, false }) {
+            CoreTool.clearUserMessage();
+            VGraphPair pair = chartSandbox(fail, !fail)
+               .getVGraphPair("Chart1", true, null, true, 1);
+
+            assertNotNull(pair, "fail " + fail);
+            assertTrue(pair.isCompleted() && pair.getEGraph() != null, "fail " + fail);
+            assertEquals(10, pair.getData().getRowCount(), "fail " + fail);
+         }
+      }
+      finally {
+         ThreadContext.setPrincipal(oprincipal);
+      }
+   }
+
+   // a viewsheet with the chart Chart1 bound to T1, which fails if fail; T1 is not merged
+   // into the chart's SQL, so the chart's group and sort are done in memory over the fetched
+   // rows (merged, the query fails at execute; see scriptReadOfChartDataOverAFailedTable)
+   private static ViewsheetSandbox chartSandbox(boolean fail, boolean scheduler)
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      sqlTable(ws, "T1", fail).setSQLMergeable(false);
+      Viewsheet vs = viewsheet(ws);
+      vs.addAssembly(chart(vs, "T1", "Sum"));
+      return viewsheetSandbox(vs, querySandbox(ws, scheduler));
+   }
+
+   // a viewsheet with the hidden table TableV bound to T1, which fails if fail, and the bar
+   // chart Chart1 (x g, y Sum(id)) bound to the good table T2 with the chart script
+   private static ViewsheetSandbox chartScriptSandbox(boolean fail, boolean scheduler,
+                                                      String script)
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      sqlTable(ws, "T1", fail);
+      sqlTable(ws, "T2", false);
+      Viewsheet vs = viewsheet(ws);
+      TableVSAssembly table = new TableVSAssembly(vs, "TableV");
+      table.setSourceInfo(new SourceInfo(XSourceInfo.ASSET, null, "T1"));
+      ColumnSelection cols = new ColumnSelection();
+
+      for(String name : new String[] { "id", "g", "x" }) {
+         cols.addAttribute(new ColumnRef(new AttributeRef(null, name)));
+      }
+
+      table.setColumnSelection(cols);
+      table.getVSAssemblyInfo().setVisibleValue(String.valueOf(VSAssembly.ALWAYS_HIDE));
+      vs.addAssembly(table);
+      ChartVSAssembly chart = chart(vs, "T2", "Sum");
+      chart.getVSAssemblyInfo().setScriptEnabled(true);
+      chart.getVSAssemblyInfo().setScript(script);
+      vs.addAssembly(chart);
+      return viewsheetSandbox(vs, querySandbox(ws, scheduler));
+   }
+
+   // the error of an onLoad script of a viewsheet with the chart Chart1 bound to T1
+   private static Exception chartOnLoadError(boolean fail, boolean scheduler, String script)
+      throws Exception
+   {
+      return chartOnLoadError(fail, scheduler, script, false);
+   }
+
+   // the error of an onLoad script of a viewsheet with the chart Chart1 bound to T1. Not
+   // merged, the chart's group and sort are done in memory, so its rows are fetched and the
+   // fetch fails; merged into the SQL (Sum(id) group by g), the query fails at execute
+   private static Exception chartOnLoadError(boolean fail, boolean scheduler, String script,
+                                             boolean merged)
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      sqlTable(ws, "T1", fail).setSQLMergeable(merged);
+      Viewsheet vs = viewsheet(ws);
+      vs.addAssembly(chart(vs, "T1", "Sum"));
+      vs.getViewsheetInfo().setOnLoad(script);
+      ViewsheetSandbox vbox = viewsheetSandbox(vs, querySandbox(ws, scheduler));
+      vbox.prepareForExport();
+      return vbox.getExportScriptError();
+   }
+
+   // a bar chart Chart1, x g, y formula(id), over the worksheet table
+   private static ChartVSAssembly chart(Viewsheet vs, String source, String formula) {
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "Chart1");
+      chart.setSourceInfo(new SourceInfo(XSourceInfo.ASSET, null, source));
+      VSChartInfo info = chart.getVSChartInfo();
+      VSChartDimensionRef dim =
+         new VSChartDimensionRef(new ColumnRef(new AttributeRef(null, "g")));
+      dim.setGroupColumnValue("g");
+      info.addXField(dim);
+      VSChartAggregateRef agg = new VSChartAggregateRef();
+      agg.setColumnValue("id");
+      agg.setFormulaValue(formula);
+      info.addYField(agg);
+      info.setChartType(GraphTypes.CHART_BAR);
+      info.setRTChartType(GraphTypes.CHART_BAR);
+      return chart;
    }
 
    // the error of an onLoad script of a viewsheet with the calc table Calc1 (sum of id) and
