@@ -8117,7 +8117,19 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                return null;
             }
 
-            data.moreRows(Integer.MAX_VALUE);
+            try {
+               data.moreRows(Integer.MAX_VALUE);
+            }
+            catch(TableLoadException ex) {
+               // a reader that must not use partial rows is told that another reader of the
+               // shared cached table cancelled it (#78200), the table is cut like the others.
+               // A load failure is thrown as is (#77901)
+               if(AssetDataCache.getLoadException(data) != null ||
+                  !AssetDataCache.isCancelled(data))
+               {
+                  throw ex;
+               }
+            }
 
             // a table with a load failure also reads as cancelled, it's kept with the rows that
             // loaded and its warning, running its query again would not help (#77901)

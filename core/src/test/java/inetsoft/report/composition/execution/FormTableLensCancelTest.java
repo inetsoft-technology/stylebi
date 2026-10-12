@@ -24,6 +24,7 @@ import inetsoft.report.lens.xnode.XNodeTableLens;
 import inetsoft.test.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.util.QueryManager;
+import inetsoft.uql.util.TableLoadException;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
 import inetsoft.util.CancelledException;
@@ -130,6 +131,65 @@ class FormTableLensCancelTest {
 
          assertEquals(1, fetches.get(), "a load failure must not be fetched again");
          assertEquals(3, form.getRowCount());
+      }
+   }
+
+   // a reader that must not use partial rows is told by moreRows() that another reader of the
+   // shared cached table cancelled it (#78200), it's fetched again like a cut table
+   @Test
+   void dataCancelledByOtherReaderIsFetchedAgain() throws Exception {
+      ViewsheetSandbox box = formTableBox(new AtomicInteger(), n -> false, false);
+      AtomicInteger fetches = new AtomicInteger();
+      Mockito.doAnswer(inv -> {
+         if(fetches.incrementAndGet() > 1) {
+            return new ConditionFilter(XTableUtil.getDefaultTableLens(), new ConditionGroup());
+         }
+
+         XNodeTableLens data = Mockito.mock(XNodeTableLens.class);
+         Mockito.when(data.isCancelled()).thenReturn(true);
+         Mockito.when(data.moreRows(Mockito.anyInt())).thenThrow(
+            new TableLoadException("Query was cancelled.", null));
+         return data;
+      }).when(query).getData();
+
+      try(MockedStatic<VSAQuery> st =
+             Mockito.mockStatic(VSAQuery.class, Mockito.CALLS_REAL_METHODS))
+      {
+         st.when(() -> VSAQuery.createVSAQuery(Mockito.any(), Mockito.any(),
+                                               Mockito.anyInt())).thenReturn(query);
+         FormTableLens form = box.getFormTableLens("Table1");
+
+         assertEquals(2, fetches.get(), "the cancelled data must be fetched again");
+         assertEquals(XTableUtil.getDefaultTableLens().getRowCount(), form.getRowCount());
+      }
+   }
+
+   // a reader that must not use partial rows fails on a load failure, it's not fetched again
+   @Test
+   void loadFailureOfReaderIsThrown() throws Exception {
+      ViewsheetSandbox box = formTableBox(new AtomicInteger(), n -> false, false);
+      AtomicInteger fetches = new AtomicInteger();
+      Exception cause = new Exception("read failed");
+      Mockito.doAnswer(inv -> {
+         fetches.incrementAndGet();
+         XNodeTableLens data = Mockito.mock(XNodeTableLens.class);
+         Mockito.when(data.isCancelled()).thenReturn(true);
+         Mockito.when(data.getLoadException()).thenReturn(cause);
+         Mockito.when(data.moreRows(Mockito.anyInt())).thenThrow(
+            new TableLoadException("read failed", cause));
+         return data;
+      }).when(query).getData();
+
+      try(MockedStatic<VSAQuery> st =
+             Mockito.mockStatic(VSAQuery.class, Mockito.CALLS_REAL_METHODS))
+      {
+         st.when(() -> VSAQuery.createVSAQuery(Mockito.any(), Mockito.any(),
+                                               Mockito.anyInt())).thenReturn(query);
+         TableLoadException ex = assertThrows(TableLoadException.class,
+                                              () -> box.getFormTableLens("Table1"));
+
+         assertSame(cause, ex.getCause());
+         assertEquals(1, fetches.get(), "a load failure must not be fetched again");
       }
    }
 
