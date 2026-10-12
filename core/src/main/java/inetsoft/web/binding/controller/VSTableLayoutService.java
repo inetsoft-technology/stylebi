@@ -384,11 +384,20 @@ public class VSTableLayoutService {
       String cellName = layout.getRuntimeCellName(bind);
       cinfo.setRuntimeName(cellName);
       OrderInfo cellOrderInfo = bind.getOrderInfo(true);
+      // the manual order dialog values are sorted by this list on the client, so the
+      // Buddhist years of a date column are converted as in the dialog values
+      List<String> manualOrder = bind.getType() == CellBinding.BIND_COLUMN ?
+         LayoutTool.getGregorianManualOrder(cellOrderInfo, selection, bind.getValue(),
+                                            cellOrderInfo.getOption()) :
+         cellOrderInfo.getManualOrder();
 
       if(cellOrderInfo.isSpecific()) {
          final OrderModel order = cinfo.getOrder();
          order.setType(OrderInfo.SORT_SPECIFIC);
-         order.setManualOrder(cellOrderInfo.getManualOrder());
+         order.setManualOrder(manualOrder);
+      }
+      else if(manualOrder != cellOrderInfo.getManualOrder()) {
+         cinfo.getOrder().setManualOrder(manualOrder);
       }
 
       GetCellBindingCommand cmd = new GetCellBindingCommand(cinfo);
