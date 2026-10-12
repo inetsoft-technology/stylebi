@@ -20,6 +20,9 @@ package inetsoft.web.wiz.viewsheet;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.viewsheet.AnnotationLineVSAssembly;
+import inetsoft.uql.viewsheet.AnnotationRectangleVSAssembly;
+import inetsoft.uql.viewsheet.AnnotationVSAssembly;
 import inetsoft.uql.viewsheet.GroupContainerVSAssembly;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.TextVSAssembly;
@@ -492,6 +495,141 @@ class LayoutMutationServiceTest {
       assertTrue(thrown.getMessage().contains("Group1"), thrown.getMessage());
       assertFalse(fx.printLayoutObjectNames().contains("ChildText"),
                   "a refused add must not place the child in the layout");
+   }
+
+   // ── Bug 78210: annotations, embedded-viewsheet children, cross-region duplicates ──
+
+   private static void assertAddRefused(Fixture fx, String layoutName, int region, String name,
+                                        String expectedFragment)
+   {
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> fx.service.editObjects("tok1", AGENT, layoutName, "add", region,
+            List.of(Map.of("name", name, "x", 0, "y", 0)), false));
+
+      assertTrue(thrown.getMessage().startsWith("edit_layout_objects add:"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains(name), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains(expectedFragment), thrown.getMessage());
+   }
+
+   @Test
+   void addRefusesEveryAnnotationPartOnPrintAndDeviceLayouts() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      fx.installDeviceLayout();
+      fx.masterVs.addAssembly(new AnnotationVSAssembly(fx.masterVs, "Annotation1"));
+      fx.masterVs.addAssembly(new AnnotationLineVSAssembly(fx.masterVs, "AnnotationLine1"));
+      fx.masterVs.addAssembly(
+         new AnnotationRectangleVSAssembly(fx.masterVs, "AnnotationRect1"));
+
+      for(String part : List.of("Annotation1", "AnnotationLine1", "AnnotationRect1")) {
+         assertAddRefused(fx, PRINT_LAYOUT, VSLayoutService.CONTENT, part, "annotation");
+         assertAddRefused(fx, DEVICE_LAYOUT, VSLayoutService.CONTENT, part, "annotation");
+      }
+
+      assertEquals(List.of("Text1", "Table1"), fx.printLayoutObjectNames());
+      assertTrue(fx.deviceLayoutObjects().isEmpty());
+   }
+
+   @Test
+   void addRefusesAnAssemblyAlreadyPlacedInAnotherPrintRegion() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+
+      // Table1 starts in CONTENT.
+      assertAddRefused(fx, PRINT_LAYOUT, VSLayoutService.HEADER, "Table1", "CONTENT");
+      assertAddRefused(fx, PRINT_LAYOUT, VSLayoutService.FOOTER, "Table1", "CONTENT");
+
+      // Reverse: placed in HEADER first, then refused in CONTENT and FOOTER.
+      fx.masterVs.addAssembly(new TableVSAssembly(fx.masterVs, "Table2"));
+      fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "add", VSLayoutService.HEADER,
+         List.of(Map.of("name", "Table2", "x", 0, "y", 0)), false);
+      assertAddRefused(fx, PRINT_LAYOUT, VSLayoutService.CONTENT, "Table2", "HEADER");
+      assertAddRefused(fx, PRINT_LAYOUT, VSLayoutService.FOOTER, "Table2", "HEADER");
+
+      assertEquals(1, fx.masterVs.getLayoutInfo().getPrintLayout().getHeaderLayouts().size());
+      assertTrue(fx.masterVs.getLayoutInfo().getPrintLayout().getFooterLayouts().isEmpty());
+   }
+
+   @Test
+   void addRefusesALayoutOnlyNameAlreadyUsedInAnotherPrintRegion() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "add", VSLayoutService.HEADER,
+         List.of(Map.of("name", "Note", "type", "text", "x", 0, "y", 0)), false);
+
+      for(int region : new int[] { VSLayoutService.FOOTER, VSLayoutService.CONTENT }) {
+         IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+            () -> fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "add", region,
+               List.of(Map.of("name", "Note", "type", "text", "x", 0, "y", 0)), false));
+         assertTrue(thrown.getMessage().contains("HEADER"), thrown.getMessage());
+      }
+
+      assertFalse(fx.printLayoutObjectNames().contains("Note"));
+   }
+
+   @Test
+   void addStillRefusesASameBatchDuplicateInOneRegion() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+
+      assertThrows(IllegalArgumentException.class,
+         () -> fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "add", VSLayoutService.HEADER,
+            List.of(Map.of("name", "Note", "type", "text", "x", 0, "y", 0),
+                    Map.of("name", "Note", "type", "text", "x", 5, "y", 5)), false));
+
+      assertTrue(fx.masterVs.getLayoutInfo().getPrintLayout().getHeaderLayouts().isEmpty());
+   }
+
+   @Test
+   void addAllowsTheSameAssemblyInTwoDeviceLayouts() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installDeviceLayout();
+      ViewsheetLayout tablet = new ViewsheetLayout();
+      tablet.setName("Tablet");
+      tablet.setID("dev-2");
+      tablet.setVSAssemblyLayouts(new ArrayList<>());
+      fx.masterVs.getLayoutInfo().getViewsheetLayouts().add(tablet);
+
+      fx.service.editObjects("tok1", AGENT, DEVICE_LAYOUT, "add", VSLayoutService.CONTENT,
+         List.of(Map.of("name", "Table1", "x", 0, "y", 0)), false);
+      fx.service.editObjects("tok1", AGENT, "Tablet", "add", VSLayoutService.CONTENT,
+         List.of(Map.of("name", "Table1", "x", 0, "y", 0)), false);
+
+      assertEquals(1, fx.deviceLayoutObjects().size());
+      assertEquals(1, tablet.getVSAssemblyLayouts().size());
+   }
+
+   @Test
+   void addRefusesAnEmbeddedViewsheetChildButAllowsTheEmbeddedViewsheetItself() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      Viewsheet embedded = new Viewsheet();
+      embedded.getVSAssemblyInfo().setName("Viewsheet1");
+      fx.masterVs.addAssembly(embedded);
+      embedded.addAssembly(new TextVSAssembly(embedded, "Inner"));
+      assertNotNull(fx.masterVs.getAssembly("Viewsheet1.Inner"), "fixture must resolve the child");
+
+      assertAddRefused(fx, PRINT_LAYOUT, VSLayoutService.CONTENT, "Viewsheet1.Inner",
+                       "Viewsheet1");
+      assertAddRefused(fx, PRINT_LAYOUT, VSLayoutService.HEADER, "Viewsheet1.Inner",
+                       "Viewsheet1");
+      assertFalse(fx.printLayoutObjectNames().contains("Viewsheet1.Inner"));
+
+      fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "add", VSLayoutService.CONTENT,
+         List.of(Map.of("name", "Viewsheet1", "x", 0, "y", 0)), false);
+      assertTrue(fx.printLayoutObjectNames().contains("Viewsheet1"));
+   }
+
+   @Test
+   void addStillPlacesAPlainTopLevelAssemblyInAnotherRegion() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      fx.masterVs.addAssembly(new TableVSAssembly(fx.masterVs, "Table2"));
+
+      fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "add", VSLayoutService.FOOTER,
+         List.of(Map.of("name", "Table2", "x", 0, "y", 0)), false);
+
+      assertEquals(1, fx.masterVs.getLayoutInfo().getPrintLayout().getFooterLayouts().size());
    }
 
    // ── fixture ───────────────────────────────────────────────────────────────

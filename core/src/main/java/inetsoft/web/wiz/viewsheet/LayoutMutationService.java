@@ -25,6 +25,7 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.uql.viewsheet.vslayout.AbstractLayout;
+import inetsoft.uql.viewsheet.vslayout.PrintLayout;
 import inetsoft.uql.viewsheet.vslayout.VSAssemblyLayout;
 import inetsoft.uql.viewsheet.vslayout.VSEditableAssemblyLayout;
 import inetsoft.uql.viewsheet.vslayout.ViewsheetLayout;
@@ -296,18 +297,6 @@ public class LayoutMutationService {
             for(Map<String, Object> object : objects) {
                String name = requireName(object);
 
-               // Bug 77045 #7: no existing-entry check before layouts.add(...) below (contrast
-               // removeObjects, whose own removeIf already dedups by name) -- re-adding an
-               // already-placed object, or a brand-new layout-only object under an
-               // already-used new name, silently created a second, duplicate entry.
-               if(layouts.stream().anyMatch(l -> name.equals(l.getName()))) {
-                  throw new IllegalArgumentException(
-                     "edit_layout_objects add: \"" + name + "\" is already placed in layout \"" +
-                     layoutName + "\" -- re-adding it would create a duplicate entry. Use op " +
-                     "\"move_resize\" to reposition it instead, or \"remove\" it first if you " +
-                     "mean to place it again.");
-               }
-
                AddVSLayoutObjectEvent event = new AddVSLayoutObjectEvent();
                int xOffset = toInt(object.getOrDefault("x", 0));
                int yOffset = toInt(object.getOrDefault("y", 0));
@@ -336,6 +325,59 @@ public class LayoutMutationService {
                      "adding it independently would create an entry the render logic never " +
                      "consults. Add \"" + assembly.getContainer().getAbsoluteName() +
                      "\" itself instead.");
+               }
+
+               // Bug 78210: an annotation (root, line or rectangle) is never placed by a layout
+               // entry -- AbstractLayout.apply skips it -- and the interactive Composer's own
+               // object tree omits it, so an entry here would read back as placed yet do nothing.
+               if(existAssembly && AnnotationFamily.isPart(assembly)) {
+                  throw new IllegalArgumentException(
+                     "edit_layout_objects add: \"" + name + "\" is an annotation -- annotations " +
+                     "cannot be placed in a layout.");
+               }
+
+               // Bug 78210: a child of an embedded viewsheet resolves by its dotted name, but the
+               // interactive Composer's object tree lists only the embedded viewsheet itself.
+               // Compare against the master (not isEmbedded(), which is also true for the
+               // embedded viewsheet itself, which must stay addable).
+               if(existAssembly && assembly.getViewsheet() != masterVs) {
+                  String owner = assembly.getViewsheet().getAbsoluteName();
+                  throw new IllegalArgumentException(
+                     "edit_layout_objects add: \"" + name + "\" is a child of embedded " +
+                     "viewsheet \"" + owner + "\" and cannot be placed on its own. Add \"" +
+                     owner + "\" itself instead.");
+               }
+
+               // Bug 77045 #7: no existing-entry check before layouts.add(...) below (contrast
+               // removeObjects, whose own removeIf already dedups by name) -- re-adding an
+               // already-placed object, or a brand-new layout-only object under an
+               // already-used new name, silently created a second, duplicate entry.
+               // Bug 78210: a print layout's header, footer and content share one object namespace
+               // (the interactive Composer checks all three), so look in the other two regions as
+               // well; "layouts" is the working list for the target region and still catches a
+               // duplicate within one batch. A device layout has only its own list.
+               String heldIn = layouts.stream().anyMatch(l -> name.equals(l.getName()))
+                  ? regionName(region) : null;
+
+               if(heldIn == null && layout instanceof PrintLayout print) {
+                  for(int other : new int[] { VSLayoutService.HEADER, VSLayoutService.FOOTER,
+                                              VSLayoutService.CONTENT })
+                  {
+                     if(other != region && vsLayoutService.getVSAssemblyLayouts(print, other)
+                        .stream().anyMatch(l -> name.equals(l.getName())))
+                     {
+                        heldIn = regionName(other);
+                        break;
+                     }
+                  }
+               }
+
+               if(heldIn != null) {
+                  throw new IllegalArgumentException(
+                     "edit_layout_objects add: \"" + name + "\" is already placed in layout \"" +
+                     layoutName + "\" (" + heldIn + ") -- re-adding it would create a duplicate " +
+                     "entry. Use op \"move_resize\" to reposition it instead, or \"remove\" it " +
+                     "first if you mean to place it again.");
                }
 
                if(!existAssembly) {
@@ -383,6 +425,11 @@ public class LayoutMutationService {
 
             vsLayoutService.setVSAssemblyLayouts(layout, layouts, region);
          });
+   }
+
+   private static String regionName(int region) {
+      return region == VSLayoutService.HEADER ? "region HEADER" :
+         region == VSLayoutService.FOOTER ? "region FOOTER" : "region CONTENT";
    }
 
    private static int parseAssetType(Object type, String name) {
