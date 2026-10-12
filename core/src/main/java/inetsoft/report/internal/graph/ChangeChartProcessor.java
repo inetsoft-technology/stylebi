@@ -1593,8 +1593,47 @@ public class ChangeChartProcessor {
          !Tool.equals(AbstractCalc.COLUMN_INNER, columnName) &&
          !findDimRef(columnName, info))
       {
-         ccalc.setColumnName(null);
+         VSDataRef bare = findDimByBareName(columnName, info);
+         ccalc.setColumnName(bare == null ? null : bare.getFullName());
       }
+   }
+
+   /**
+    * The only visible dimension designated by {@code columnName}, ignoring case: first by its
+    * full name / view name (e.g. {@code month(Order Date)}), then by its bare column. Null if
+    * there is none or several (the name then does not designate one dimension).
+    */
+   private VSDataRef findDimByBareName(String columnName, ChartInfo info) {
+      if(columnName == null) {
+         return null;
+      }
+
+      VSDataRef[] dims = getChartDimensionRef(info, false);
+      VSDataRef byFull = findUniqueDim(dims, columnName, true);
+
+      return byFull != null ? byFull : findUniqueDim(dims, columnName, false);
+   }
+
+   private VSDataRef findUniqueDim(VSDataRef[] dims, String columnName, boolean full) {
+      VSDataRef found = null;
+
+      for(VSDataRef dim : dims) {
+         boolean visible = !(dim instanceof VSChartDimensionRef) ||
+            ((VSChartDimensionRef) dim).isDrillVisible();
+         boolean match = full
+            ? columnName.equalsIgnoreCase(dim.getFullName()) || columnName.equalsIgnoreCase(dim.toView())
+            : columnName.equalsIgnoreCase(dim.getName());
+
+         if(visible && match) {
+            if(found != null && !Tool.equals(found.getFullName(), dim.getFullName())) {
+               return null;
+            }
+
+            found = dim;
+         }
+      }
+
+      return found;
    }
 
    private boolean findDimRef(String columnName, ChartInfo info) {

@@ -1979,6 +1979,23 @@ public class RuntimeViewsheet extends RuntimeSheet {
    }
 
    /**
+    * Restores the current checkpoint, i.e. the state undo/redo is positioned at. Unlike
+    * {@link #rollback()} (newest checkpoint) this does not re-apply undone edits after an undo.
+    *
+    * @return true if a checkpoint was restored.
+    */
+   public boolean restoreCurrentCheckpoint() {
+      int current = getCurrent();
+
+      if(current >= 0 && current < points.size()) {
+         restoreCheckpoint0(current, false);
+         return true;
+      }
+
+      return false;
+   }
+
+   /**
     * Undo in master pane will not influence all other layout pane.
     */
    public void updateLayoutInfo(Viewsheet vs) {

@@ -18,13 +18,23 @@
 package inetsoft.web.wiz.binding;
 
 import inetsoft.report.composition.graph.GraphUtil;
+import inetsoft.report.composition.graph.calc.ChangeCalc;
+import inetsoft.report.composition.graph.calc.ValueOfCalc;
+import inetsoft.uql.viewsheet.graph.AbstractCalc;
+import inetsoft.web.binding.model.graph.calc.ChangeCalcInfo;
+import inetsoft.web.wiz.binding.model.FieldRef;
 import inetsoft.report.internal.graph.ChangeChartDataProcessor;
 import inetsoft.report.internal.graph.ChangeChartProcessor;
+import inetsoft.uql.XConstants;
+import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.DefaultVSChartInfo;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
+import inetsoft.uql.viewsheet.graph.VSChartDimensionRef;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.web.binding.model.ChartBindingModel;
 import inetsoft.web.binding.model.graph.ChartAggregateRefModel;
@@ -115,6 +125,119 @@ class SecondaryYPostProcessingPipelineTest {
       assertTrue(sales.isSecondaryY(),
                  "none of the seven post-processing steps changeChartRef runs after " +
                  "updateAssembly may reset secondaryY back to false");
+   }
+
+   /**
+    * Bug #78403: a CHANGE calculator written with the bare column of a date-grouped dimension was
+    * nulled by {@code fixAggregateRefs} because only the full name ({@code Month(Order Date)})
+    * matched. It must resolve to that dimension's runtime full name instead.
+    */
+   @Test
+   void changeCalculatorBareDateColumnResolvesToTheDimensionFullName() {
+      assertEquals("Month(Order Date)", changeCalcColumnAfterFix("Order Date"));
+      assertEquals("Month(Order Date)", changeCalcColumnAfterFix("Month(Order Date)"));
+      assertEquals("Month(Order Date)", changeCalcColumnAfterFix("month(order date)"));
+      assertNull(changeCalcColumnAfterFix("Nope"));
+   }
+
+   /**
+    * The post-write read-back: a bare column bound at several levels is nulled by the processor
+    * (it designates no single dimension), and the service refuses it listing the full names.
+    */
+   @Test
+   void readBackRefusesABareColumnBoundAtSeveralLevelsListingFullNames() {
+      VSChartInfo info = twoLevelDateChart("Order Date");
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> ChartBindingService.requireCalculatorsResolved(info, "y", List.of(changeField("Order Date"))));
+      assertTrue(e.getMessage().contains("calculateInfo.columnName") &&
+                 e.getMessage().contains("Year(Order Date)") &&
+                 e.getMessage().contains("Month(Order Date)"), e.getMessage());
+   }
+
+   @Test
+   void readBackAcceptsAFullNameAtSeveralLevelsAndSentinels() {
+      VSChartInfo info = twoLevelDateChart("Month(Order Date)");
+      assertDoesNotThrow(() -> ChartBindingService.requireCalculatorsResolved(
+         info, "y", List.of(changeField("Month(Order Date)"))));
+      assertDoesNotThrow(() -> ChartBindingService.requireCalculatorsResolved(
+         info, "y", List.of(changeField(AbstractCalc.ROW_INNER))));
+   }
+
+   @Test
+   void refusalSaysRolledBackOnlyWhenTheRestoreSucceeded() {
+      assertTrue(ChartBindingService.refusalMessage("reason.", true).endsWith("The write was rolled back."));
+
+      String failed = ChartBindingService.refusalMessage("reason.", false);
+      assertTrue(failed.contains("may be applied"), failed);
+      assertFalse(failed.contains("rolled back"), failed);
+   }
+
+   @Test
+   void readBackMessageDoesNotClaimTheWriteWasUndone() {
+      VSChartInfo info = twoLevelDateChart("Order Date");
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> ChartBindingService.requireCalculatorsResolved(info, "y", List.of(changeField("Order Date"))));
+      assertFalse(e.getMessage().contains("not applied"), e.getMessage());
+   }
+
+   private static FieldRef changeField(String columnName) {
+      ChangeCalcInfo calc = new ChangeCalcInfo();
+      calc.setColumnName(columnName);
+      return new FieldRef("Sales", "measure", "Sum", null, null, null, null, null, calc);
+   }
+
+   private static VSChartInfo twoLevelDateChart(String columnName) {
+      VSChartInfo info = new DefaultVSChartInfo();
+      info.setChartType(GraphTypes.CHART_LINE);
+
+      for(int level : new int[] {XConstants.YEAR_DATE_GROUP, XConstants.MONTH_DATE_GROUP}) {
+         AttributeRef attribute = new AttributeRef(null, "Order Date");
+         attribute.setDataType(XSchema.DATE);
+         VSChartDimensionRef date = new VSChartDimensionRef();
+         date.setDataRef(new ColumnRef(attribute));
+         date.setDateLevelValue(String.valueOf(level));
+         info.addXField(date);
+      }
+
+      AttributeRef salesAttribute = new AttributeRef(null, "Sales");
+      salesAttribute.setDataType(XSchema.DOUBLE);
+      VSChartAggregateRef sales = new VSChartAggregateRef();
+      sales.setDataRef(new ColumnRef(salesAttribute));
+      sales.setFormulaValue("Sum");
+      ChangeCalc calc = new ChangeCalc();
+      calc.setColumnName(columnName);
+      sales.setCalculator(calc);
+      info.addYField(sales);
+      new ChangeChartProcessor().fixAggregateRefs(info);
+      return info;
+   }
+
+   private static String changeCalcColumnAfterFix(String columnName) {
+      VSChartInfo info = new DefaultVSChartInfo();
+      info.setChartType(GraphTypes.CHART_LINE);
+
+      AttributeRef attribute = new AttributeRef(null, "Order Date");
+      attribute.setDataType(XSchema.DATE);
+      VSChartDimensionRef date = new VSChartDimensionRef();
+      date.setDataRef(new ColumnRef(attribute));
+      date.setDateLevelValue(String.valueOf(XConstants.MONTH_DATE_GROUP));
+      info.addXField(date);
+
+      AttributeRef salesAttribute = new AttributeRef(null, "Sales");
+      salesAttribute.setDataType(XSchema.DOUBLE);
+      VSChartAggregateRef sales = new VSChartAggregateRef();
+      sales.setDataRef(new ColumnRef(salesAttribute));
+      sales.setFormulaValue("Sum");
+      ChangeCalc calc = new ChangeCalc();
+      calc.setColumnName(columnName);
+      sales.setCalculator(calc);
+      info.addYField(sales);
+
+      assertEquals("Month(Order Date)", date.getFullName());
+      new ChangeChartProcessor().fixAggregateRefs(info);
+
+      return ((ValueOfCalc) sales.getCalculator()).getColumnName();
    }
 
    /**

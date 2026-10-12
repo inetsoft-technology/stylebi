@@ -22,6 +22,7 @@ import inetsoft.report.internal.Util;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.viewsheet.graph.AbstractCalc;
 import inetsoft.uql.viewsheet.graph.CandleChartInfo;
 import inetsoft.uql.viewsheet.graph.GanttChartInfo;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
@@ -30,9 +31,11 @@ import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.graph.VSMapInfo;
 import inetsoft.web.binding.model.BDimensionRefModel;
 import inetsoft.web.binding.model.ChartBindingModel;
+import inetsoft.web.binding.model.graph.AestheticInfo;
 import inetsoft.web.binding.model.graph.ChartAggregateRefModel;
 import inetsoft.web.binding.model.graph.ChartDimensionRefModel;
 import inetsoft.web.binding.model.graph.ChartRefModel;
+import inetsoft.web.binding.model.graph.calc.ValueOfCalcInfo;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.wiz.binding.model.FieldRef;
 
@@ -126,16 +129,21 @@ public final class ChartBindingMutator {
       List<ChartRefModel> refs = new ArrayList<>();
       List<FieldRef> fieldList = fields == null ? List.<FieldRef>of() : fields;
 
-      // Unconsumed-search pool for preserveAggregateState -- unlike the dimension branch below
-      // (which still matches by position, a pre-existing #76881 weakness left as-is here), this
-      // must survive an ordinary field *insertion* ahead of an existing measure. Mirrors
+      // Unconsumed-search pool for preserveAggregateState -- like the dimension branch below,
+      // this must survive an ordinary field *insertion* ahead of an existing measure. Mirrors
       // preserveChartTypes's own consume-based search (minus its secondaryY tiebreak, which would
       // be circular here -- secondaryY is one of the fields this fix itself restores).
       List<ChartAggregateRefModel> unconsumedAggregates = new ArrayList<>();
 
+      // Same pool for dimensions, matched by identity (column + date level), not by index.
+      List<ChartDimensionRefModel> unconsumedDimensions = new ArrayList<>();
+
       for(ChartRefModel old : oldRefs) {
          if(old instanceof ChartAggregateRefModel aggregate) {
             unconsumedAggregates.add(aggregate);
+         }
+         else if(old instanceof ChartDimensionRefModel dimension) {
+            unconsumedDimensions.add(dimension);
          }
       }
 
@@ -143,10 +151,23 @@ public final class ChartBindingMutator {
          FieldRef field = fieldList.get(i);
          ChartRefModel ref = FieldRefFactory.toChartRef(field, model, rvs, source, refModelService);
 
-         if(ref instanceof ChartDimensionRefModel dimension && i < oldRefs.size() &&
-            oldRefs.get(i) instanceof ChartDimensionRefModel previous && matches(previous, field))
-         {
-            preserveDimensionState(previous, dimension, field);
+         if(ref instanceof ChartDimensionRefModel dimension) {
+            ChartDimensionRefModel previous = null;
+
+            // First unconsumed match in order, so a field inserted ahead of (or removed before)
+            // an existing dimension does not strip its state; identical duplicates stay paired
+            // in encounter order.
+            for(ChartDimensionRefModel candidate : unconsumedDimensions) {
+               if(matches(candidate, field)) {
+                  previous = candidate;
+                  break;
+               }
+            }
+
+            if(previous != null) {
+               unconsumedDimensions.remove(previous);
+               preserveDimensionState(previous, dimension, field);
+            }
          }
 
          if(ref instanceof ChartAggregateRefModel aggregate) {
@@ -188,15 +209,108 @@ public final class ChartBindingMutator {
 
          for(int i = 0; i < refs.size(); i++) {
             if(refs.get(i) instanceof ChartDimensionRefModel dimension) {
+               // A stored true carried by a keyless resend is kept even where the dimension
+               // became outer (#78214's tolerance); only a new explicit true is refused here.
                ChartTimeSeriesGuard.require(model, place, name, i, dimension, fieldList.get(i),
                                             oldRefs);
             }
          }
+
+         requireCalculatorDimensions(model, refs, fieldList);
       }
       catch(RuntimeException e) {
          assignShelf(model, name, oldRefs);
          throw e;
       }
+   }
+
+   /**
+    * Cheap pre-check for a CHANGE/VALUE calculator written in this shelf write: some bound
+    * dimension's column must appear in {@code columnName}. Deliberately not a full-name match --
+    * the runtime decides the spelling (date level, named group, period...), so the authoritative
+    * refusal is {@code ChartBindingService}'s post-write read-back; this only catches a write
+    * that can never resolve (nothing bound, or a column that is not a bound dimension) before
+    * anything is committed.
+    */
+   private static void requireCalculatorDimensions(ChartBindingModel model,
+                                                    List<ChartRefModel> refs,
+                                                    List<FieldRef> fieldList)
+   {
+      List<ChartDimensionRefModel> dims = null;
+
+      for(int i = 0; i < refs.size() && i < fieldList.size(); i++) {
+         if(!(fieldList.get(i).calculateInfo() instanceof ValueOfCalcInfo calc) ||
+            !(refs.get(i) instanceof ChartAggregateRefModel))
+         {
+            continue;
+         }
+
+         String columnName = calc.getColumnName();
+
+         if(columnName == null || columnName.isBlank() ||
+            AbstractCalc.ROW_INNER.equals(columnName) ||
+            AbstractCalc.COLUMN_INNER.equals(columnName))
+         {
+            continue;
+         }
+
+         if(dims == null) {
+            dims = boundDimensions(model);
+         }
+
+         List<String> columns = new ArrayList<>();
+
+         for(ChartDimensionRefModel dim : dims) {
+            String column = dim.getColumnValue() == null ? dim.getName() : dim.getColumnValue();
+
+            if(column != null) {
+               columns.add(column);
+
+               if(columnName.toLowerCase().contains(column.toLowerCase())) {
+                  columns = null;
+                  break;
+               }
+            }
+         }
+
+         if(columns == null) {
+            continue;
+         }
+
+         throw new IllegalArgumentException(
+            "calculateInfo.columnName '" + columnName + "' does not name a dimension bound on " +
+            "this chart" + (columns.isEmpty()
+               ? " (no dimension is bound yet -- bind the dimension to x, y, group or an " +
+                 "aesthetic channel first)"
+               : ". Bound dimension columns: " + String.join(", ", columns)) +
+            ". Use the dimension's full name, e.g. Month(Order Date) for a date dimension.");
+      }
+   }
+
+   private static List<ChartDimensionRefModel> boundDimensions(ChartBindingModel model) {
+      List<ChartDimensionRefModel> dims = new ArrayList<>();
+
+      for(List<ChartRefModel> shelf : List.of(model.getXFields(), model.getYFields(),
+                                              model.getGroupFields()))
+      {
+         if(shelf != null) {
+            for(ChartRefModel ref : shelf) {
+               if(ref instanceof ChartDimensionRefModel dim) {
+                  dims.add(dim);
+               }
+            }
+         }
+      }
+
+      for(AestheticInfo info : new AestheticInfo[] {
+         model.getColorField(), model.getShapeField(), model.getSizeField(), model.getTextField()})
+      {
+         if(info != null && info.getDataInfo() instanceof ChartDimensionRefModel dim) {
+            dims.add(dim);
+         }
+      }
+
+      return dims;
    }
 
    private static void assignShelf(ChartBindingModel model, String name, List<ChartRefModel> refs) {

@@ -19,6 +19,7 @@ package inetsoft.web.wiz.binding;
 
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.XConstants;
+import inetsoft.uql.viewsheet.graph.AbstractCalc;
 import inetsoft.uql.viewsheet.graph.CandleVSChartInfo;
 import inetsoft.uql.viewsheet.graph.GanttVSChartInfo;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
@@ -36,6 +37,7 @@ import inetsoft.web.binding.model.graph.aesthetic.StaticLineModel;
 import inetsoft.web.binding.model.graph.aesthetic.StaticShapeModel;
 import inetsoft.web.binding.model.graph.aesthetic.StaticSizeModel;
 import inetsoft.web.binding.model.graph.aesthetic.StaticTextureModel;
+import inetsoft.web.binding.model.graph.calc.ChangeCalcInfo;
 import inetsoft.web.binding.model.graph.calc.RunningTotalCalcInfo;
 import inetsoft.web.wiz.binding.model.FieldRef;
 import inetsoft.web.wiz.pairing.WizAgentTestSupport;
@@ -2041,5 +2043,187 @@ class ChartBindingMutatorTest {
       ChartBindingMutator.setSort(model, "x", "Order Date", null, sortOf("desc"));
 
       assertEquals(XConstants.SORT_DESC, dimAt(model.getXFields(), 0).getOrder());
+   }
+
+   // ── dimension state across a shelf rewrite, identity-matched (bug #78403) ───────────────
+
+   private static ChartDimensionRefModel xDim(ChartBindingModel model, int i) {
+      return (ChartDimensionRefModel) model.getXFields().get(i);
+   }
+
+   private static ChartBindingModel xWithYearTimeSeries() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(dimensionWithTimeSeries("Order Date", "year", true)));
+      return model;
+   }
+
+   @Test
+   void insertingADimensionAheadKeepsAStoredTimeSeries() {
+      ChartBindingModel model = xWithYearTimeSeries();
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(dimensionWithTimeSeries("Region", null, null),
+                 dimensionWithTimeSeries("Order Date", "year", null)));
+
+      assertTrue(xDim(model, 1).isTimeSeries(), "year is still the innermost x dimension");
+      assertFalse(xDim(model, 0).isTimeSeries());
+   }
+
+   @Test
+   void appendingADimensionAfterKeepsACarriedTimeSeriesPerIssue78214Tolerance() {
+      ChartBindingModel model = xWithYearTimeSeries();
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(dimensionWithTimeSeries("Order Date", "year", null),
+                 dimensionWithTimeSeries("Region", null, null)));
+
+      assertTrue(xDim(model, 0).isTimeSeries(), "a carried true is kept even though year is now outer");
+   }
+
+   @Test
+   void swappingOrderKeepsACarriedTimeSeriesPerIssue78214Tolerance() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(dimensionWithTimeSeries("Region", null, null),
+                 dimensionWithTimeSeries("Order Date", "year", true)));
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(dimensionWithTimeSeries("Order Date", "year", null),
+                 dimensionWithTimeSeries("Region", null, null)));
+
+      assertTrue(xDim(model, 0).isTimeSeries());
+   }
+
+   @Test
+   void sameFieldAtTwoLevelsKeepsEachOwnState() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(dimensionWithTimeSeries("Order Date", "year", false),
+                 dimensionWithTimeSeries("Order Date", "month", true)));
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(dimensionWithTimeSeries("Region", null, null),
+                 dimensionWithTimeSeries("Order Date", "year", null),
+                 dimensionWithTimeSeries("Order Date", "month", null)));
+
+      assertFalse(xDim(model, 1).isTimeSeries());
+      assertTrue(xDim(model, 2).isTimeSeries());
+   }
+
+   @Test
+   void sameFieldAndLevelTwiceIsPairedInOrder() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(dimensionWithTimeSeries("Region", null, null),
+                 dimensionWithTimeSeries("Region", null, null)));
+      xDim(model, 0).setSortByCol("A");
+      xDim(model, 1).setSortByCol("B");
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(dimensionWithTimeSeries("Customer", null, null),
+                 dimensionWithTimeSeries("Region", null, null),
+                 dimensionWithTimeSeries("Region", null, null)));
+
+      assertEquals("A", xDim(model, 1).getSortByCol());
+      assertEquals("B", xDim(model, 2).getSortByCol());
+   }
+
+   @Test
+   void insertingAheadKeepsSortOfTheShiftedDimension() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(dimensionWithTimeSeries("Region", null, null)));
+      xDim(model, 0).setSortByCol("Total");
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(dimensionWithTimeSeries("Customer", null, null),
+                 dimensionWithTimeSeries("Region", null, null)));
+
+      assertEquals("Total", xDim(model, 1).getSortByCol());
+   }
+
+   @Test
+   void explicitTimeSeriesFalseWinsOverTheStoredFlagWhenInserting() {
+      ChartBindingModel model = xWithYearTimeSeries();
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(dimensionWithTimeSeries("Region", null, null),
+                 dimensionWithTimeSeries("Order Date", "year", false)));
+
+      assertFalse(xDim(model, 1).isTimeSeries());
+   }
+
+   @Test
+   void unchangedResendKeepsTimeSeries() {
+      ChartBindingModel model = xWithYearTimeSeries();
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(dimensionWithTimeSeries("Order Date", "year", null)));
+
+      assertTrue(xDim(model, 0).isTimeSeries());
+   }
+
+   // ── CHANGE/VALUE calculator columnName must name a bound dimension (bug #78403) ─────────
+
+   private static FieldRef changeMeasure(String columnName) {
+      ChangeCalcInfo calc = new ChangeCalcInfo();
+      calc.setColumnName(columnName);
+      return new FieldRef("Total", "measure", "Sum", null, null, null, null, null, calc);
+   }
+
+   private static ChartBindingModel monthOnX() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(dimensionWithTimeSeries("Order Date", "month", null)));
+      return model;
+   }
+
+   @Test
+   void changeCalculatorBareColumnOfOneBoundDimensionIsAccepted() {
+      ChartBindingModel model = monthOnX();
+      assertDoesNotThrow(() -> ChartBindingMutator.setShelf(model, "y",
+         List.of(changeMeasure("Order Date"))));
+   }
+
+   @Test
+   void changeCalculatorFullNameIsAccepted() {
+      ChartBindingModel model = monthOnX();
+      assertDoesNotThrow(() -> ChartBindingMutator.setShelf(model, "y",
+         List.of(changeMeasure("Month(Order Date)"))));
+   }
+
+   @Test
+   void changeCalculatorUnknownColumnIsRefusedNamingColumnName() {
+      ChartBindingModel model = monthOnX();
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> ChartBindingMutator.setShelf(model, "y", List.of(changeMeasure("Nope"))));
+      assertTrue(e.getMessage().contains("columnName"));
+      assertTrue(model.getYFields().isEmpty(), "the refused write must not be left in the model");
+   }
+
+   @Test
+   void changeCalculatorBeforeItsDimensionIsBoundIsRefused() {
+      ChartBindingModel model = new ChartBindingModel();
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> ChartBindingMutator.setShelf(model, "y", List.of(changeMeasure("Order Date"))));
+      assertTrue(e.getMessage().contains("bind the dimension"));
+   }
+
+   @Test
+   void changeCalculatorNamingANamedGroupDimensionByItsRuntimeFullNameIsAccepted() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(dimensionWithTimeSeries("Region", null, null)));
+      assertDoesNotThrow(() -> ChartBindingMutator.setShelf(model, "y",
+         List.of(changeMeasure("DataGroup(Region)"))));
+   }
+
+   @Test
+   void changeCalculatorKeepsTheInnerSentinels() {
+      ChartBindingModel model = new ChartBindingModel();
+      assertDoesNotThrow(() -> ChartBindingMutator.setShelf(model, "y",
+         List.of(changeMeasure(AbstractCalc.ROW_INNER))));
+   }
+
+   @Test
+   void changeCalculatorOnNonDateDimensionAcceptsItsName() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(dimensionWithTimeSeries("Region", null, null)));
+      assertDoesNotThrow(() -> ChartBindingMutator.setShelf(model, "y",
+         List.of(changeMeasure("Region"))));
    }
 }
