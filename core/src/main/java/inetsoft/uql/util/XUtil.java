@@ -4009,7 +4009,177 @@ public final class XUtil {
          }
       }
 
+      if(filterNode == null) {
+         warnKeptSentinels(bin, params);
+      }
+
       return filterNode;
+   }
+
+   /**
+    * Log a warning for a sentinel parameter that is kept as written in a condition, so that
+    * its text (e.g. 'NULL_VALUE') is compared: an item of an IN list with other items, e.g.
+    * a.name IN ($(p), 'x'), and an operand or IN list item that is exactly a parameter with
+    * several values, one of them a sentinel. Rewriting them, e.g. to OR a.name IS NULL,
+    * would return more rows (#78139), so they are only logged, as Condition logs a ONE_OF
+    * condition with a sentinel among its values (Bug #78386). Nothing is logged unless an
+    * item or value is a sentinel.
+    */
+   private static void warnKeptSentinels(XBinaryCondition bin, VariableTable params) {
+      try {
+         XExpression right = bin.getExpression2();
+         String rightText = right == null ? "" : right.toString().trim();
+         String leftText = bin.getExpression1() == null ? "" :
+            bin.getExpression1().toString().trim();
+
+         if(params == null || !rightText.contains("$(") && !leftText.contains("$(")) {
+            return;
+         }
+
+         List<String> operands = new ArrayList<>();
+         List<String> items = right == null || right.getValue() instanceof UniformSQL ?
+            null : getListItems(rightText);
+
+         if(items != null) {
+            operands.addAll(items);
+         }
+         else if(right != null) {
+            operands.add(rightText);
+         }
+
+         operands.add(leftText);
+
+         Set<String> warned = new HashSet<>();
+
+         for(int i = 0; i < operands.size(); i++) {
+            String operand = operands.get(i);
+            Matcher matcher = SPECIFIC_RIGHT_OPERAND.matcher(operand);
+
+            if(!matcher.matches()) {
+               continue;
+            }
+
+            String name = getParameterName(matcher);
+            boolean listItem = items != null && i < items.size();
+            String sentinel = listItem && items.size() > 1 ?
+               getSpecificValue(params, name) : null;
+
+            if(sentinel != null && warned.add(name)) {
+               LOG.warn("The {} value of parameter {} is in an IN list with other items " +
+                           "and is not rewritten, its text is compared: {}",
+                        sentinel, name, bin);
+               continue;
+            }
+
+            sentinel = getMultiValueSentinel(params, name);
+
+            if(sentinel != null && warned.add(name)) {
+               LOG.warn("Parameter {} has several values, one of them {}, which is not " +
+                           "rewritten, its text is compared: {}", name, sentinel, bin);
+            }
+         }
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to check the kept sentinel parameters of: {}", bin, ex);
+      }
+   }
+
+   /**
+    * Get the items of a parenthesized list, e.g. ($(p), 'x'), split at the commas outside
+    * string literals and nested parentheses.
+    * @return the trimmed items, or null if the text isn't one parenthesized list.
+    */
+   private static List<String> getListItems(String text) {
+      if(text.length() < 2 || text.charAt(0) != '(' || text.charAt(text.length() - 1) != ')') {
+         return null;
+      }
+
+      List<String> items = new ArrayList<>();
+      boolean quoted = false;
+      int depth = 0;
+      int start = 1;
+
+      for(int i = 0; i < text.length(); i++) {
+         char c = text.charAt(i);
+
+         if(c == '\'') {
+            quoted = !quoted;
+         }
+         else if(quoted) {
+            continue;
+         }
+         else if(c == '(') {
+            depth++;
+         }
+         else if(c == ')') {
+            depth--;
+
+            // the first parenthesis closes before the end, e.g. (a) + (b)
+            if(depth == 0 && i != text.length() - 1) {
+               return null;
+            }
+         }
+         else if(c == ',' && depth == 1) {
+            items.add(text.substring(start, i).trim());
+            start = i + 1;
+         }
+      }
+
+      if(quoted || depth != 0) {
+         return null;
+      }
+
+      items.add(text.substring(start, text.length() - 1).trim());
+      return items;
+   }
+
+   /**
+    * Check if the sql refers to a parameter, as <tt>$(name)</tt> anywhere in the text, that
+    * has several values, one of them a sentinel (NULL_VALUE, EMPTY_STRING or NULL_STRING).
+    * Such a parameter is never rewritten, the check only tells whether a warning may be
+    * logged for it (Bug #78386).
+    */
+   public static boolean hasMultiValueSentinelParameter(String sql, VariableTable params) {
+      if(sql == null || params == null || !sql.contains("$(")) {
+         return false;
+      }
+
+      Matcher matcher = SQL_PARAMETER.matcher(sql);
+
+      while(matcher.find()) {
+         if(getMultiValueSentinel(params, matcher.group(1)) != null) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Get the sentinel among the values of a parameter with several values. Unlike
+    * getSpecificValue, which is what the rewrite uses, it only serves to log a warning.
+    * @return the first sentinel value, or null if the parameter doesn't have several values
+    * or none of them is a sentinel.
+    */
+   private static String getMultiValueSentinel(VariableTable params, String name) {
+      try {
+         Object val = params.get(name);
+
+         if(val instanceof Object[] && ((Object[]) val).length > 1) {
+            for(Object item : (Object[]) val) {
+               if(Tool.equals(item, XConstants.CONDITION_NULL_VALUE) ||
+                  Tool.equals(item, XConstants.CONDITION_EMPTY_STRING) ||
+                  Tool.equals(item, XConstants.CONDITION_NULL_STRING))
+               {
+                  return (String) item;
+               }
+            }
+         }
+      }
+      catch(Exception e) {
+      }
+
+      return null;
    }
 
    /**
