@@ -2115,18 +2115,21 @@ public class ViewsheetAssemblyAgentController {
                               request.name(), linkUri);
    }
 
-   public record DateComparisonRequest(String assembly, Integer periods, String level,
+   public record DateComparisonRequest(String assembly, String periods, String level,
                                        String endDate, Boolean endToday, String interval,
                                        Boolean useFacet, Boolean onlyShowMostRecentDate,
                                        String comparisonOption, String shareAssembly,
                                        Boolean toDate, Boolean inclusive,
                                        List<DateComparisonService.CustomPeriod> customPeriods,
-                                       String intervalEndDate, Boolean intervalEndToday) {
+                                       String intervalEndDate, Boolean intervalEndToday,
+                                       String intervalGranularity,
+                                       String intervalContextLevel) {
       DateComparisonService.Comparison comparison() {
          return new DateComparisonService.Comparison(
             periods, level, endDate, Boolean.TRUE.equals(endToday), interval, useFacet,
             onlyShowMostRecentDate, comparisonOption, shareAssembly, toDate, inclusive,
-            customPeriods, intervalEndDate, intervalEndToday);
+            customPeriods, intervalEndDate, intervalEndToday, intervalGranularity,
+            intervalContextLevel);
       }
    }
 

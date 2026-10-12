@@ -38,6 +38,7 @@ import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.dialog.DateComparisonDialogService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -75,7 +76,7 @@ class DateComparisonServiceTest {
    }
 
    private static DateComparisonService.Comparison comparison(String endDate, boolean endToday) {
-      return new DateComparisonService.Comparison(4, "year", endDate, endToday, null, null, null,
+      return new DateComparisonService.Comparison("4", "year", endDate, endToday, null, null, null,
                                                   null, null, null, null);
    }
 
@@ -194,7 +195,7 @@ class DateComparisonServiceTest {
    void refusesAPeriodCountBelowOne() {
       assertThrows(IllegalArgumentException.class,
                    () -> DateComparisonService.requireEndAnchor(
-                      new DateComparisonService.Comparison(0, "year", null, true, null, null,
+                      new DateComparisonService.Comparison("0", "year", null, true, null, null,
                                                            null, null, null, null, null)));
    }
 
@@ -245,7 +246,7 @@ class DateComparisonServiceTest {
    {
       DateComparisonPaneModel model = model();
       DateComparisonService.Comparison comparison =
-         new DateComparisonService.Comparison(4, word, "2026-03-31", false, null, null, null,
+         new DateComparisonService.Comparison("4", word, "2026-03-31", false, null, null, null,
                                               null, null, null, null);
 
       harness(model).service.set("tok", principal(), "Chart1", comparison, "");
@@ -260,7 +261,7 @@ class DateComparisonServiceTest {
    void refusesAnUnrecognizedPeriodLevel(String word) {
       DateComparisonPaneModel model = model();
       DateComparisonService.Comparison comparison =
-         new DateComparisonService.Comparison(4, word, "2026-03-31", false, null, null, null,
+         new DateComparisonService.Comparison("4", word, "2026-03-31", false, null, null, null,
                                               null, null, null, null);
 
       Exception thrown = assertThrows(
@@ -362,7 +363,7 @@ class DateComparisonServiceTest {
          case "useFacet" -> new DateComparisonService.Comparison(
             null, null, null, false, null, true, null, null, "Chart1", null, null);
          case "period" -> new DateComparisonService.Comparison(
-            4, "year", "2026-03-31", false, null, null, null, null, "Chart1", null, null);
+            "4", "year", "2026-03-31", false, null, null, null, null, "Chart1", null, null);
          case "interval" -> new DateComparisonService.Comparison(
             null, null, null, true, "yearToDate", null, null, null, "Chart1", null, null);
          default -> new DateComparisonService.Comparison(
@@ -780,7 +781,7 @@ class DateComparisonServiceTest {
    void setsToDateAndInclusiveOnTheStandardPeriod() throws Exception {
       DateComparisonPaneModel model = model();
       DateComparisonService.Comparison comparison = new DateComparisonService.Comparison(
-         4, "year", "2026-03-31", false, null, null, null, null, null, true, false);
+         "4", "year", "2026-03-31", false, null, null, null, null, null, true, false);
 
       harness(model).service.set("tok", principal(), "Chart1", comparison, "");
 
@@ -838,7 +839,7 @@ class DateComparisonServiceTest {
    void doesNotDiscloseToDateDefaultedWhenPassedExplicitlyTrue() throws Exception {
       DateComparisonPaneModel model = model();
       DateComparisonService.Comparison comparison = new DateComparisonService.Comparison(
-         4, "year", "2026-03-31", false, null, null, null, null, null, true, null);
+         "4", "year", "2026-03-31", false, null, null, null, null, null, true, null);
 
       Map<String, Object> result =
          harness(model).service.set("tok", principal(), "Chart1", comparison, "");
@@ -850,7 +851,7 @@ class DateComparisonServiceTest {
    void doesNotDiscloseToDateDefaultedWhenPassedExplicitlyFalse() throws Exception {
       DateComparisonPaneModel model = model();
       DateComparisonService.Comparison comparison = new DateComparisonService.Comparison(
-         4, "year", "2026-03-31", false, null, null, null, null, null, false, null);
+         "4", "year", "2026-03-31", false, null, null, null, null, null, false, null);
 
       Map<String, Object> result =
          harness(model).service.set("tok", principal(), "Chart1", comparison, "");
@@ -891,7 +892,7 @@ class DateComparisonServiceTest {
    void discloseInclusiveDefaultedWhenOmittedOnAStandardPeriodCall() throws Exception {
       DateComparisonPaneModel model = model();
       DateComparisonService.Comparison comparison = new DateComparisonService.Comparison(
-         4, "year", "2026-03-31", false, null, null, null, null, null, true, null);
+         "4", "year", "2026-03-31", false, null, null, null, null, null, true, null);
 
       Map<String, Object> result =
          harness(model).service.set("tok", principal(), "Chart1", comparison, "");
@@ -904,7 +905,7 @@ class DateComparisonServiceTest {
    void doesNotDiscloseInclusiveDefaultedWhenPassedExplicitlyTrue() throws Exception {
       DateComparisonPaneModel model = model();
       DateComparisonService.Comparison comparison = new DateComparisonService.Comparison(
-         4, "year", "2026-03-31", false, null, null, null, null, null, true, true);
+         "4", "year", "2026-03-31", false, null, null, null, null, null, true, true);
 
       Map<String, Object> result =
          harness(model).service.set("tok", principal(), "Chart1", comparison, "");
@@ -916,7 +917,7 @@ class DateComparisonServiceTest {
    void doesNotDiscloseInclusiveDefaultedWhenPassedExplicitlyFalse() throws Exception {
       DateComparisonPaneModel model = model();
       DateComparisonService.Comparison comparison = new DateComparisonService.Comparison(
-         4, "year", "2026-03-31", false, null, null, null, null, null, true, false);
+         "4", "year", "2026-03-31", false, null, null, null, null, null, true, false);
 
       Map<String, Object> result =
          harness(model).service.set("tok", principal(), "Chart1", comparison, "");
@@ -1007,7 +1008,7 @@ class DateComparisonServiceTest {
       Harness h = harness(model);
 
       h.service.set("tok", principal(), "Chart1", new DateComparisonService.Comparison(
-         4, "quarter", null, true, "quarterToDate", null, null, null, null, null, null, null,
+         "4", "quarter", null, true, "quarterToDate", null, null, null, null, null, null, null,
          "2026-01-10", false), "");
 
       StandardPeriodPaneModel standard =
@@ -1045,7 +1046,7 @@ class DateComparisonServiceTest {
       Harness h = harness(model);
 
       h.service.set("tok", principal(), "Chart1", new DateComparisonService.Comparison(
-         4, "quarter", "2026-03-31", false, "quarterToDate", null, null, null, null, null, null,
+         "4", "quarter", "2026-03-31", false, "quarterToDate", null, null, null, null, null, null,
          null, null, null), "");
 
       assertFalse(model.getIntervalPaneModel().isEndDayAsToDate(),
@@ -1123,7 +1124,7 @@ class DateComparisonServiceTest {
    @Test
    void refusesIntervalEndTodayFalseWithoutAnIntervalEndDate() {
       DateComparisonService.Comparison comparison = new DateComparisonService.Comparison(
-         4, "quarter", null, true, "quarterToDate", null, null, null, null, null, null, null,
+         "4", "quarter", null, true, "quarterToDate", null, null, null, null, null, null, null,
          null, false);
 
       Exception thrown = assertThrows(
@@ -1207,7 +1208,7 @@ class DateComparisonServiceTest {
    @Test
    void refusesCustomPeriodsCombinedWithAStandardPeriodField() {
       DateComparisonService.Comparison comparison = new DateComparisonService.Comparison(
-         4, "year", null, false, null, null, null, null, null, null, null,
+         "4", "year", null, false, null, null, null, null, null, null, null,
          java.util.List.of(new DateComparisonService.CustomPeriod("2026-03-01", "2026-03-15")));
 
       Exception thrown = assertThrows(
@@ -1298,7 +1299,7 @@ class DateComparisonServiceTest {
 
       // Call 1: standard period with an interval.
       h.service.set("tok", principal(), "Chart1", new DateComparisonService.Comparison(
-         4, "quarter", null, true, "monthToDate", null, null, null, null, null, null), "");
+         "4", "quarter", null, true, "monthToDate", null, null, null, null, null, null), "");
       assertEquals(String.valueOf(DateComparisonInfo.MONTH_TO_DATE),
                    model.getIntervalPaneModel().getLevel().getValue());
 
@@ -1317,7 +1318,7 @@ class DateComparisonServiceTest {
       // Call 3: a standard period with no 'interval' field at all. The stale monthToDate value
       // from call 1 must not silently reactivate.
       h.service.set("tok", principal(), "Chart1", new DateComparisonService.Comparison(
-         2, "year", null, true, null, null, null, null, null, null, null), "");
+         "2", "year", null, true, null, null, null, null, null, null, null), "");
       assertEquals(String.valueOf(DateComparisonInfo.ALL),
                   model.getIntervalPaneModel().getLevel().getValue(),
                   "a call with no 'interval' field must not reactivate a stale earlier value");
@@ -2131,7 +2132,7 @@ class DateComparisonServiceTest {
    void refusesAnIntervalCoarserThanThePeriodLevel() {
       Harness h = harness(model());
       DateComparisonService.Comparison comparison = new DateComparisonService.Comparison(
-         1, "month", null, true, "yearToDate", null, null, null, null, true, true, null, null, null);
+         "1", "month", null, true, "yearToDate", null, null, null, null, true, true, null, null, null);
 
       Exception thrown = assertThrows(
          IllegalArgumentException.class,
@@ -2160,7 +2161,7 @@ class DateComparisonServiceTest {
       DateComparisonPaneModel model = model();
       Harness h = harness(model);
       h.service.set("tok", principal(), "Chart1", new DateComparisonService.Comparison(
-         1, "year", null, true, "quarterToDate", null, null, null, null, true, true, null, null,
+         "1", "year", null, true, "quarterToDate", null, null, null, null, true, true, null, null,
          null), "");
 
       DateComparisonService.Comparison levelOnly = new DateComparisonService.Comparison(
@@ -2199,12 +2200,12 @@ class DateComparisonServiceTest {
       DateComparisonPaneModel model = model();
       Harness h = harness(model);
       DateComparisonService.Comparison base = new DateComparisonService.Comparison(
-         4, "quarter", null, true, "quarterToDate", null, null, null, null, true, true, null,
+         "4", "quarter", null, true, "quarterToDate", null, null, null, null, true, true, null,
          "2026-01-10", null);
       h.service.set("tok", principal(), "Chart1", base, "");
 
       DateComparisonService.Comparison badEndDate = new DateComparisonService.Comparison(
-         4, "quarter", null, true, "quarterToDate", null, null, null, null, true, true, null,
+         "4", "quarter", null, true, "quarterToDate", null, null, null, null, true, true, null,
          "not-a-date", null);
 
       Exception thrown = assertThrows(
@@ -2219,7 +2220,7 @@ class DateComparisonServiceTest {
    void appliesAValidIntervalAndLevelCombination() throws Exception {
       Harness h = harness(model());
       DateComparisonService.Comparison comparison = new DateComparisonService.Comparison(
-         1, "year", null, true, "quarterToDate", null, null, null, null, true, true, null, null,
+         "1", "year", null, true, "quarterToDate", null, null, null, null, true, true, null, null,
          null);
 
       h.service.set("tok", principal(), "Chart1", comparison, "");
@@ -2341,7 +2342,7 @@ class DateComparisonServiceTest {
    void disclosesLevelDefaultedWhenOmittedOnAStandardPeriodCall() throws Exception {
       DateComparisonPaneModel model = modelWithRealPeriodDefaults();
       DateComparisonService.Comparison comparison = new DateComparisonService.Comparison(
-         4, null, "2026-03-31", false, null, null, null, null, null, null, null);
+         "4", null, "2026-03-31", false, null, null, null, null, null, null, null);
 
       Map<String, Object> result =
          harness(model).service.set("tok", principal(), "Chart1", comparison, "");
@@ -2396,7 +2397,7 @@ class DateComparisonServiceTest {
    @Test
    void doesNotDiscloseOnlyShowMostRecentDateDefaultedWhenPassedExplicitly() throws Exception {
       DateComparisonService.Comparison comparison = new DateComparisonService.Comparison(
-         4, "year", "2026-03-31", false, null, null, false, null, null, null, null);
+         "4", "year", "2026-03-31", false, null, null, false, null, null, null, null);
 
       Map<String, Object> result =
          harness(model()).service.set("tok", principal(), "Chart1", comparison, "");
@@ -2445,6 +2446,431 @@ class DateComparisonServiceTest {
       Map<String, Object> interval = (Map<String, Object>) read.get("interval");
       assertEquals(word, interval.get("granularity"));
       assertEquals(true, interval.get("inclusive"));
+   }
+
+   // ── dynamic values (#78391) ───────────────────────────────────────────────
+
+   private static DateComparisonService.Comparison dyn(String periods, String level,
+                                                       String interval, String granularity,
+                                                       String contextLevel)
+   {
+      return new DateComparisonService.Comparison(
+         periods, level, null, true, interval, null, null, null, null, null, null, null, null,
+         null, granularity, contextLevel);
+   }
+
+   private static DateComparisonService.Comparison custom(
+      String granularity, DateComparisonService.CustomPeriod... periods)
+   {
+      return new DateComparisonService.Comparison(
+         null, null, null, false, null, null, null, null, null, null, null,
+         java.util.List.of(periods), null, null, granularity, null);
+   }
+
+   private static void assertDynamic(DynamicValueModel model, String value, String type) {
+      assertEquals(value, model.getValue());
+      assertEquals(type, model.getType());
+   }
+
+   @Test
+   void storesDynamicPeriodsLevelAndIntervalVerbatimWithTheirType() throws Exception {
+      DateComparisonPaneModel model = model();
+
+      harness(model).service.set("tok", principal(), "Chart1",
+                                 dyn("$(Box)", "=Combo1.selectedObject", "$(Iv)", null, null), "");
+
+      StandardPeriodPaneModel standard = model.getPeriodPaneModel().getStandardPeriodPaneModel();
+      assertDynamic(standard.getPreCount(), "$(Box)", DynamicValueModel.VARIABLE);
+      assertDynamic(standard.getDateLevel(), "=Combo1.selectedObject",
+                    DynamicValueModel.EXPRESSION);
+      assertDynamic(model.getIntervalPaneModel().getLevel(), "$(Iv)", DynamicValueModel.VARIABLE);
+   }
+
+   @Test
+   void aLiteralStillGetsTheValueType() throws Exception {
+      DateComparisonPaneModel model = model();
+
+      harness(model).service.set("tok", principal(), "Chart1", comparison("2026-03-31", false), "");
+
+      StandardPeriodPaneModel standard = model.getPeriodPaneModel().getStandardPeriodPaneModel();
+      assertDynamic(standard.getPreCount(), "4", DynamicValueModel.VALUE);
+      assertDynamic(standard.getEndDay(), "2026-03-31", DynamicValueModel.VALUE);
+   }
+
+   /** The runtime does not trim, so " $(x)" would be a literal there. */
+   @Test
+   void storesADynamicValueTrimmed() throws Exception {
+      DateComparisonPaneModel model = model();
+
+      harness(model).service.set("tok", principal(), "Chart1",
+                                 dyn(" $(n) ", " $(Lv)", "  =x ", null, null), "");
+
+      StandardPeriodPaneModel standard = model.getPeriodPaneModel().getStandardPeriodPaneModel();
+      assertDynamic(standard.getPreCount(), "$(n)", DynamicValueModel.VARIABLE);
+      assertDynamic(standard.getDateLevel(), "$(Lv)", DynamicValueModel.VARIABLE);
+      assertDynamic(model.getIntervalPaneModel().getLevel(), "=x", DynamicValueModel.EXPRESSION);
+   }
+
+   @Test
+   void readsADynamicLevelBackAsItsRawString() throws Exception {
+      DateComparisonPaneModel model = model();
+      Harness h = harness(model);
+
+      h.service.set("tok", principal(), "Chart1", dyn("2", "$(Box)", "=x", null, null), "");
+      Map<String, Object> read = h.service.read("tok", principal(), "Chart1");
+
+      @SuppressWarnings("unchecked")
+      Map<String, Object> period = (Map<String, Object>) read.get("period");
+      @SuppressWarnings("unchecked")
+      Map<String, Object> interval = (Map<String, Object>) read.get("interval");
+      assertEquals("$(Box)", period.get("level"));
+      assertEquals("2", period.get("periods"));
+      assertEquals("=x", interval.get("level"));
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = {"0", "-1", "abc", "", "  ", "2.5", "true"})
+   void refusesAnInvalidLiteralPeriodCountNamingTheField(String periods) {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> DateComparisonService.requireEndAnchor(dyn(periods, "year", null, null, null)));
+
+      assertTrue(thrown.getMessage().contains("'periods'"), thrown.getMessage());
+   }
+
+   @Test
+   void acceptsAnIntegerPeriodCountAndNormalizesIt() throws Exception {
+      DateComparisonPaneModel model = model();
+
+      harness(model).service.set("tok", principal(), "Chart1",
+                                 dyn(" 3 ", "year", null, null, null), "");
+
+      assertEquals("3", model.getPeriodPaneModel().getStandardPeriodPaneModel().getPreCount()
+         .getValue());
+   }
+
+   @ParameterizedTest
+   @CsvSource({"$(S), 2026-03-15", "=x, =y", "2026-03-01, $(E)"})
+   void acceptsADynamicCustomPeriodStartOrEnd(String start, String end) throws Exception {
+      DateComparisonPaneModel model = model();
+
+      harness(model).service.set("tok", principal(), "Chart1", customPeriods(
+         new DateComparisonService.CustomPeriod(start, end)), "");
+
+      DatePeriodModel period = model.getPeriodPaneModel().getCustomPeriodPaneModel()
+         .getDatePeriods().get(0);
+      assertEquals(start, period.getStart().getValue());
+      assertEquals(end, period.getEnd().getValue());
+      assertEquals(start.startsWith("$") ? DynamicValueModel.VARIABLE :
+                      start.startsWith("=") ? DynamicValueModel.EXPRESSION :
+                         DynamicValueModel.VALUE, period.getStart().getType());
+   }
+
+   @ParameterizedTest
+   @CsvSource({"2026-03-15, 2026-03-01", "garbage, $(E)", "$(S), garbage", "2026-03-01, garbage"})
+   void stillRefusesALiteralBadCustomPeriod(String start, String end) {
+      assertThrows(IllegalArgumentException.class,
+                   () -> harness(model()).service.set(
+                      "tok", principal(), "Chart1", customPeriods(
+                         new DateComparisonService.CustomPeriod(start, end)), ""));
+   }
+
+   @Test
+   void acceptsADynamicIntervalEndDateAsTheEndAnchor() throws Exception {
+      DateComparisonPaneModel model = model();
+
+      harness(model).service.set("tok", principal(), "Chart1",
+                                 new DateComparisonService.Comparison(
+                                    "4", "quarter", null, true, "monthToDate", null, null, null,
+                                    null, null, null, null, "$(X)", null), "");
+
+      assertFalse(model.getIntervalPaneModel().isEndDayAsToDate());
+      assertDynamic(model.getIntervalPaneModel().getIntervalEndDate(), "$(X)",
+                    DynamicValueModel.VARIABLE);
+   }
+
+   @Test
+   void stillRefusesAnUnparseableLiteralIntervalEndDate() {
+      assertThrows(IllegalArgumentException.class,
+                   () -> harness(model()).service.set(
+                      "tok", principal(), "Chart1", new DateComparisonService.Comparison(
+                         "4", "quarter", null, true, "monthToDate", null, null, null, null, null,
+                         null, null, "not-a-date", null), ""));
+   }
+
+   // ── intervalGranularity / intervalContextLevel ────────────────────────────
+
+   /** setsPeriod() must include the new fields, or apply() drops the call without a word. */
+   @Test
+   void aGranularityOnlyCallIsAppliedNotDropped() throws Exception {
+      DateComparisonPaneModel model = model();
+
+      harness(model).service.set("tok", principal(), "Chart1",
+                                 dyn(null, null, null, "day", null), "");
+
+      assertDynamic(model.getIntervalPaneModel().getGranularity(), "1", DynamicValueModel.VALUE);
+   }
+
+   @Test
+   void aContextLevelOnlyCallIsAppliedNotDropped() throws Exception {
+      DateComparisonPaneModel model = model();
+
+      harness(model).service.set("tok", principal(), "Chart1",
+                                 dyn(null, null, null, null, "week"), "");
+
+      assertDynamic(model.getIntervalPaneModel().getContextLevel(), "2", DynamicValueModel.VALUE);
+   }
+
+   @Test
+   void aGranularityOrContextLevelStillNeedsAnEndAnchor() {
+      for(DateComparisonService.Comparison comparison : java.util.List.of(
+         new DateComparisonService.Comparison(null, null, null, false, null, null, null, null,
+                                              null, null, null, null, null, null, "day", null),
+         new DateComparisonService.Comparison(null, null, null, false, null, null, null, null,
+                                              null, null, null, null, null, null, null, "week")))
+      {
+         Exception thrown = assertThrows(
+            IllegalArgumentException.class,
+            () -> DateComparisonService.requireEndAnchor(comparison));
+
+         assertTrue(thrown.getMessage().contains("endDate"), thrown.getMessage());
+      }
+   }
+
+   @ParameterizedTest
+   @CsvSource({"year, 16", "quarter, 8", "month, 4", "week, 2", "day, 1", "Month, 4"})
+   void translatesTheGranularityWordAndReadsItBackAsTheSameWord(String word, String code)
+      throws Exception
+   {
+      DateComparisonPaneModel model = model();
+      Harness h = harness(model);
+
+      h.service.set("tok", principal(), "Chart1", dyn("4", "year", null, word, null), "");
+
+      assertDynamic(model.getIntervalPaneModel().getGranularity(), code, DynamicValueModel.VALUE);
+      @SuppressWarnings("unchecked")
+      Map<String, Object> interval =
+         (Map<String, Object>) h.service.read("tok", principal(), "Chart1").get("interval");
+      assertEquals(word.toLowerCase(), interval.get("granularity"));
+   }
+
+   @Test
+   void storesADynamicGranularityAndContextLevelAndReadsThemBackRaw() throws Exception {
+      DateComparisonPaneModel model = model();
+      Harness h = harness(model);
+
+      h.service.set("tok", principal(), "Chart1", dyn("4", "year", null, "$(G)", "=c"), "");
+
+      assertDynamic(model.getIntervalPaneModel().getGranularity(), "$(G)",
+                    DynamicValueModel.VARIABLE);
+      assertDynamic(model.getIntervalPaneModel().getContextLevel(), "=c",
+                    DynamicValueModel.EXPRESSION);
+      @SuppressWarnings("unchecked")
+      Map<String, Object> interval =
+         (Map<String, Object>) h.service.read("tok", principal(), "Chart1").get("interval");
+      assertEquals("$(G)", interval.get("granularity"));
+      assertEquals("=c", interval.get("contextLevel"));
+   }
+
+   @ParameterizedTest
+   @CsvSource({"year, 5", "quarter, 4", "month, 3", "week, 2", "Week, 2"})
+   void translatesTheContextLevelWordAndReadsItBackAsTheSameWord(String word, String code)
+      throws Exception
+   {
+      DateComparisonPaneModel model = model();
+      Harness h = harness(model);
+
+      h.service.set("tok", principal(), "Chart1", dyn("4", "year", null, null, word), "");
+
+      assertDynamic(model.getIntervalPaneModel().getContextLevel(), code,
+                    DynamicValueModel.VALUE);
+      @SuppressWarnings("unchecked")
+      Map<String, Object> interval =
+         (Map<String, Object>) h.service.read("tok", principal(), "Chart1").get("interval");
+      assertEquals(word.toLowerCase(), interval.get("contextLevel"));
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = {"day", "all", "", "decade"})
+   void refusesAnUnrecognizedContextLevel(String word) {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> harness(model()).service.set("tok", principal(), "Chart1",
+                                            dyn("4", "year", null, null, word), ""));
+
+      assertTrue(thrown.getMessage().contains("intervalContextLevel"), thrown.getMessage());
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = {"all", "", "decade"})
+   void refusesAnUnrecognizedStandardGranularity(String word) {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> harness(model()).service.set("tok", principal(), "Chart1",
+                                            dyn("4", "year", null, word, null), ""));
+
+      assertTrue(thrown.getMessage().contains("intervalGranularity"), thrown.getMessage());
+   }
+
+   @Test
+   void refusesAGranularityTheDialogWouldNotOfferForTheInterval() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> harness(model()).service.set("tok", principal(), "Chart1",
+                                            dyn("4", "quarter", "monthToDate", "year", null), ""));
+
+      assertTrue(thrown.getMessage().contains("intervalGranularity"), thrown.getMessage());
+   }
+
+   @Test
+   void refusesAGranularityCoarserThanThePeriodWhenTheIntervalIsAll() {
+      assertThrows(IllegalArgumentException.class,
+                   () -> harness(model()).service.set(
+                      "tok", principal(), "Chart1", dyn("4", "month", "all", "year", null), ""));
+   }
+
+   @Test
+   void acceptsAGranularityTheDialogOffers() throws Exception {
+      DateComparisonPaneModel model = model();
+
+      harness(model).service.set("tok", principal(), "Chart1",
+                                 dyn("4", "quarter", "monthToDate", "week", null), "");
+
+      assertDynamic(model.getIntervalPaneModel().getGranularity(), "2", DynamicValueModel.VALUE);
+   }
+
+   @Test
+   void skipsTheGranularityRuleWhenARelatedValueIsDynamic() throws Exception {
+      harness(model()).service.set("tok", principal(), "Chart1",
+                                   dyn("4", "quarter", "$(I)", "year", null), "");
+      harness(model()).service.set("tok", principal(), "Chart1",
+                                   dyn("4", "$(L)", "all", "year", null), "");
+   }
+
+   /** The stored default granularity (year) must not break the pre-existing monthToDate calls. */
+   @Test
+   void doesNotRecheckAGranularityTheCallDidNotSet() throws Exception {
+      harness(model()).service.set("tok", principal(), "Chart1",
+                                   dyn("4", "quarter", "monthToDate", null, null), "");
+   }
+
+   @ParameterizedTest
+   @CsvSource({
+      "month, year, all, true",
+      "year, month, all, false",
+      "month, year, sameMonth, false",
+      "quarter, year, sameMonth, true",
+      "month, year, monthToDate, true",
+      "week, year, monthToDate, false",
+      "year, year, monthToDate, true",
+      "week, day, all, false"
+   })
+   void appliesTheDialogsContextLevelRule(String context, String level, String interval,
+                                          boolean accepted)
+   {
+      Executable call = () -> harness(model()).service.set(
+         "tok", principal(), "Chart1", dyn("4", level, interval, null, context), "");
+
+      if(accepted) {
+         assertDoesNotThrow(call);
+      }
+      else {
+         Exception thrown = assertThrows(IllegalArgumentException.class, call);
+         assertTrue(thrown.getMessage().contains("intervalContextLevel"), thrown.getMessage());
+      }
+   }
+
+   @Test
+   void skipsTheContextLevelRuleWhenThePeriodAndIntervalAreDynamic() throws Exception {
+      harness(model()).service.set("tok", principal(), "Chart1",
+                                   dyn("4", "$(L)", "$(I)", null, "week"), "");
+   }
+
+   @Test
+   void allowsGranularityWithCustomPeriodsIncludingAll() throws Exception {
+      DateComparisonPaneModel model = model();
+
+      harness(model).service.set("tok", principal(), "Chart1", custom(
+         "all", new DateComparisonService.CustomPeriod("2026-03-01", "2026-03-15")), "");
+
+      assertTrue(model.getPeriodPaneModel().isCustom());
+      assertDynamic(model.getIntervalPaneModel().getGranularity(), "0", DynamicValueModel.VALUE);
+   }
+
+   @Test
+   void stillRefusesIntervalAndContextLevelWithCustomPeriods() {
+      DateComparisonService.CustomPeriod period =
+         new DateComparisonService.CustomPeriod("2026-03-01", "2026-03-15");
+      java.util.List<DateComparisonService.CustomPeriod> periods = java.util.List.of(period);
+
+      Exception interval = assertThrows(
+         IllegalArgumentException.class,
+         () -> DateComparisonService.requireEndAnchor(new DateComparisonService.Comparison(
+            null, null, null, false, "monthToDate", null, null, null, null, null, null, periods,
+            null, null, "day", null)));
+      Exception context = assertThrows(
+         IllegalArgumentException.class,
+         () -> DateComparisonService.requireEndAnchor(new DateComparisonService.Comparison(
+            null, null, null, false, null, null, null, null, null, null, null, periods, null,
+            null, null, "week")));
+
+      assertTrue(interval.getMessage().contains("interval"), interval.getMessage());
+      assertTrue(context.getMessage().contains("intervalContextLevel"), context.getMessage());
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = {"intervalGranularity", "intervalContextLevel"})
+   void refusesTheNewIntervalFieldsSentWithAShareSource(String field) {
+      DateComparisonService.Comparison comparison = new DateComparisonService.Comparison(
+         null, null, null, false, null, null, null, null, "Chart1", null, null, null, null, null,
+         field.equals("intervalGranularity") ? "day" : null,
+         field.equals("intervalContextLevel") ? "week" : null);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> DateComparisonService.requireEndAnchor(comparison));
+
+      assertTrue(thrown.getMessage().contains(field), thrown.getMessage());
+   }
+
+   // ── the controller's JSON ─────────────────────────────────────────────────
+
+   private static DateComparisonService.Comparison fromJson(String json) throws Exception {
+      return new com.fasterxml.jackson.databind.ObjectMapper()
+         .readValue(json, ViewsheetAssemblyAgentController.DateComparisonRequest.class)
+         .comparison();
+   }
+
+   @Test
+   void bindsPeriodsGivenAsAJsonNumberOrADynamicString() throws Exception {
+      assertEquals("2", fromJson("{\"assembly\":\"C\",\"periods\":2,\"endToday\":true}").periods());
+      assertEquals("$(n)",
+                   fromJson("{\"assembly\":\"C\",\"periods\":\"$(n)\",\"endToday\":true}")
+                      .periods());
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = {"2.5", "\"\"", "\"abc\"", "true"})
+   void aMalformedJsonPeriodsBindsButIsRefusedNamingTheField(String periods) throws Exception {
+      DateComparisonService.Comparison comparison =
+         fromJson("{\"assembly\":\"C\",\"periods\":" + periods + ",\"level\":\"year\"," +
+                  "\"endToday\":true}");
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> DateComparisonService.requireEndAnchor(comparison));
+
+      assertTrue(thrown.getMessage().contains("'periods'"), thrown.getMessage());
+   }
+
+   @Test
+   void bindsTheNewIntervalFieldsFromJson() throws Exception {
+      DateComparisonService.Comparison comparison = fromJson(
+         "{\"assembly\":\"C\",\"endToday\":true,\"intervalGranularity\":\"day\"," +
+         "\"intervalContextLevel\":\"$(c)\"}");
+
+      assertEquals("day", comparison.intervalGranularity());
+      assertEquals("$(c)", comparison.intervalContextLevel());
    }
 
    // ── harness ───────────────────────────────────────────────────────────────
