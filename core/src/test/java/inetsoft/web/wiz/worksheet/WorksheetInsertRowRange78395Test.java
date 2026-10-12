@@ -108,6 +108,26 @@ class WorksheetInsertRowRange78395Test {
       assertTrue(ex.getMessage().contains(">= 0"), ex.getMessage());
    }
 
+   /** The controls insert_row now matches: delete_row/edit_cell past the end were already refused. */
+   @Test
+   void deleteRowAndEditCellPastTheEndAreStillRefused() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = table(ws);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(ws, agent);
+
+      PairingException delete = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.deleteRow("T", 99)));
+      PairingException edit = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.editCell("T", 99, 0, "z")));
+
+      assertTrue(delete.getMessage().startsWith("Row index out of range: 99"), delete.getMessage());
+      assertTrue(edit.getMessage().startsWith("Row index out of range: 99"), edit.getMessage());
+      XEmbeddedTable data = t.getEmbeddedData();
+      assertEquals(3, data.getRowCount());
+      assertEquals("x2", data.getObject(2, 0));
+   }
+
    /** header + 2 data rows */
    private static EmbeddedTableAssembly table(Worksheet ws) {
       EmbeddedTableAssembly t = new EmbeddedTableAssembly(ws, "T");
