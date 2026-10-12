@@ -351,7 +351,7 @@ public class RepletRegistryService {
       if(permission != null) {
          int pindex = pathFrom.lastIndexOf("/");
          String entryName = pindex < 0 ? pathFrom : pathFrom.substring(pindex + 1);
-         String newPath = pathTo + "/" + entryName;
+         String newPath = ("".equals(pathTo) || "/".equals(pathTo) ? "" : pathTo + "/") + entryName;
          // Bug #78217, the folder is already copied, a failed permission write must not stop the
          // removal of the source folder of a move. The permission is written at the new path
          // before it is removed from the old one, so a failed write doesn't delete the only copy
