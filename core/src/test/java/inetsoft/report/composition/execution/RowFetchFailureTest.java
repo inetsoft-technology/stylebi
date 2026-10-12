@@ -1167,6 +1167,59 @@ class RowFetchFailureTest {
       }
    }
 
+   // Bug #78083: a chart script that sets its dataset from a hidden table which failed to load
+   // (a script-created dataset, #75580) fails the scheduled export as well; interactive plots
+   @Test
+   void scheduledChartScriptDatasetFromAFailedTable() throws Exception {
+      String script = "dataset = TableV.table; parameter.probe_reached = 'set';";
+      Principal oprincipal = ThreadContext.getPrincipal();
+      ThreadContext.setPrincipal(SUtil.getPrincipal(
+         new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getInstance().getCurrentOrgID()),
+         null, false));
+
+      try {
+         assertLoadFailure(() -> chartScriptSandbox(true, true, script)
+            .getVGraphPair("Chart1", true, null, true, 1));
+
+         CoreTool.clearUserMessage();
+         ViewsheetSandbox box = chartScriptSandbox(true, false, script);
+         VGraphPair pair = box.getVGraphPair("Chart1", true, null, true, 1);
+
+         assertNotNull(pair);
+         assertTrue(pair.isCompleted() && pair.getEGraph() != null);
+         assertEquals("set", box.getVariableTable().get("probe_reached"));
+      }
+      finally {
+         ThreadContext.setPrincipal(oprincipal);
+      }
+   }
+
+   // Bug #78083: a chart script error that is not a load failure is still rendered past, also
+   // in a scheduled export (only DataUnavailable and TableLoadException are rethrown)
+   @Test
+   void chartScriptErrorOverGoodTablesStillPlots() throws Exception {
+      String script = "parameter.probe_reached = 'start'; throw new Error('plain');";
+      Principal oprincipal = ThreadContext.getPrincipal();
+      ThreadContext.setPrincipal(SUtil.getPrincipal(
+         new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getInstance().getCurrentOrgID()),
+         null, false));
+
+      try {
+         for(boolean scheduler : new boolean[] { true, false }) {
+            ViewsheetSandbox box = chartScriptSandbox(false, scheduler, script);
+            VGraphPair pair = box.getVGraphPair("Chart1", true, null, true, 1);
+
+            assertNotNull(pair, "scheduler " + scheduler);
+            assertTrue(pair.isCompleted() && pair.getEGraph() != null, "scheduler " + scheduler);
+            assertEquals("start", box.getVariableTable().get("probe_reached"),
+                         "scheduler " + scheduler);
+         }
+      }
+      finally {
+         ThreadContext.setPrincipal(oprincipal);
+      }
+   }
+
    // a viewsheet with the chart Chart1 bound to T1, which fails if fail; T1 is not merged
    // into the chart's SQL, so the chart's group and sort are done in memory over the fetched
    // rows (merged, the query fails at execute; see scriptReadOfChartDataOverAFailedTable)
