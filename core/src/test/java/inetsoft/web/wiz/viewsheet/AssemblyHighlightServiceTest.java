@@ -18,12 +18,18 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.test.*;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.CylinderVSAssembly;
 import inetsoft.uql.viewsheet.ImageVSAssembly;
 import inetsoft.uql.viewsheet.SubmitVSAssembly;
 import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.asset.AggregateFormula;
+import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.CylinderVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
@@ -35,9 +41,13 @@ import inetsoft.web.composer.model.vs.HighlightModel;
 import inetsoft.web.composer.vs.dialog.HighlightDialogService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.security.Principal;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -45,6 +55,10 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = BaseTestConfiguration.class,
+   initializers = ConfigurationContextInitializer.class)
+@SreeHome
 @Tag("core")
 class AssemblyHighlightServiceTest {
    private static DataRefModel field(String name) {
@@ -234,41 +248,298 @@ class AssemblyHighlightServiceTest {
    }
 
    private static Harness chartHarness(HighlightModel... existing) {
+      return chartHarness(barChart(), existing);
+   }
+
+   /** A real chart info behind the mocked assembly, so the region check reads real fields. */
+   private static Harness chartHarness(VSChartInfo info, HighlightModel... existing) {
       Harness h = harness(model(existing));
       ChartVSAssembly chart = mock(ChartVSAssembly.class);
-      when(chart.getVSAssemblyInfo()).thenReturn(mock(ChartVSAssemblyInfo.class));
+      ChartVSAssemblyInfo assemblyInfo = mock(ChartVSAssemblyInfo.class);
+      when(assemblyInfo.getVSChartInfo()).thenReturn(info);
+      when(chart.getVSAssemblyInfo()).thenReturn(assemblyInfo);
       when(h.rvs.getViewsheet().getAssembly("Chart1")).thenReturn(chart);
       return h;
+   }
+
+   private static ColumnRef column(String name, String type) {
+      AttributeRef attr = new AttributeRef(name);
+      attr.setDataType(type);
+      ColumnRef column = new ColumnRef(attr);
+      column.setDataType(type);
+      return column;
+   }
+
+   private static VSChartDimensionRef dimension(String name) {
+      VSChartDimensionRef dim = new VSChartDimensionRef(column(name, XSchema.STRING));
+      dim.setDataType(XSchema.STRING);
+      dim.setGroupColumnValue(name);
+      return dim;
+   }
+
+   private static VSChartAggregateRef measure(String name, AggregateFormula formula,
+                                              String type)
+   {
+      VSChartAggregateRef measure = new VSChartAggregateRef();
+      measure.setDataRef(column(name, type));
+      measure.setColumnValue(name);
+      measure.setFormula(formula);
+      return measure;
+   }
+
+   private static VSChartAggregateRef sum(String name) {
+      return measure(name, AggregateFormula.SUM, XSchema.DOUBLE);
+   }
+
+   private static VSAestheticRef aesthetic(ChartRef ref) {
+      VSAestheticRef aesthetic = new VSAestheticRef();
+      aesthetic.setDataRef(ref);
+      return aesthetic;
+   }
+
+   /** Copies the design x/y onto the runtime fields, as a refreshed chart has them. */
+   private static <T extends VSChartInfo> T withRuntime(T info) {
+      info.setRTXFields(Arrays.stream(info.getXFields())
+                           .map(r -> (ChartRef) r.clone()).toArray(ChartRef[]::new));
+      info.setRTYFields(Arrays.stream(info.getYFields())
+                           .map(r -> (ChartRef) r.clone()).toArray(ChartRef[]::new));
+      return info;
+   }
+
+   /** Bar: x Region, y Sum(Revenue), color Sum(Discount), group Segment. */
+   private static VSChartInfo barChart() {
+      VSChartInfo info = new DefaultVSChartInfo();
+      info.setChartDescriptor(new ChartDescriptor());
+      info.setChartType(GraphTypes.CHART_BAR);
+      info.addXField(dimension("Region"));
+      info.addYField(sum("Revenue"));
+      info.setColorField(aesthetic(sum("Discount")));
+      info.addGroupField(dimension("Segment"));
+      return withRuntime(info);
+   }
+
+   private static void assertSetRefused(Harness h, AssemblyHighlightService.Region region,
+                                        String... fragments) throws Exception
+   {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", region, highlight("X"), false, ""));
+
+      for(String fragment : fragments) {
+         assertTrue(thrown.getMessage().contains(fragment), thrown.getMessage());
+      }
+
+      verify(h.highlights, never()).setHighlightDialogModel(anyString(), anyString(), any(),
+                                                             anyString(), any(Principal.class),
+                                                             any());
+   }
+
+   private static void assertSetAccepted(Harness h, AssemblyHighlightService.Region region)
+      throws Exception
+   {
+      h.service.set("tok", principal(), "Chart1", region, highlight("X"), false, "");
+      assertEquals(1, capture(h.highlights).getHighlights().length);
+   }
+
+   private static AssemblyHighlightService.Region axis(String colName) {
+      return new AssemblyHighlightService.Region(0, 0, colName, true, false);
+   }
+
+   private static AssemblyHighlightService.Region text(String colName) {
+      return new AssemblyHighlightService.Region(0, 0, colName, false, true);
    }
 
    /** axis is only a field selector; without a name it is silently dropped and the write lands on the whole chart. */
    @Test
    void refusesAnAxisHighlightWithNoColName() throws Exception {
       for(String blank : new String[]{ null, "", "  " }) {
-         Harness h = chartHarness();
-
-         Exception thrown = assertThrows(
-            Exception.class,
-            () -> h.service.set("tok", principal(), "Chart1",
-                                new AssemblyHighlightService.Region(0, 0, blank, true, false),
-                                highlight("X"), false, ""));
-
-         assertTrue(thrown.getMessage().contains("colName"), thrown.getMessage());
-         verify(h.highlights, never()).setHighlightDialogModel(anyString(), anyString(), any(),
-                                                                anyString(), any(Principal.class),
-                                                                any());
+         assertSetRefused(chartHarness(), axis(blank), "colName");
       }
    }
 
    @Test
-   void stillAcceptsAnAxisHighlightWithAColName() throws Exception {
-      Harness h = chartHarness();
+   void stillAcceptsAnAxisHighlightOnAnXDimension() throws Exception {
+      assertSetAccepted(chartHarness(), axis("Region"));
+   }
 
-      h.service.set("tok", principal(), "Chart1",
-                    new AssemblyHighlightService.Region(0, 0, "Sum(Revenue)", true, false),
-                    highlight("X"), false, "");
+   /** #78401 S6: a color-shelf field has no axis; the write fell to the whole-chart group. */
+   @Test
+   void refusesAnAxisHighlightOnAnAestheticOnlyField() throws Exception {
+      assertSetRefused(chartHarness(), axis("Sum(Discount)"), "Sum(Discount)", "Region");
+   }
 
-      assertEquals(1, capture(h.highlights).getHighlights().length);
+   @Test
+   void refusesAnAxisHighlightOnAnUnknownName() throws Exception {
+      assertSetRefused(chartHarness(), axis("NOPE"), "NOPE", "axis");
+   }
+
+   /** A group (breakdown) field resolves to a ref, but no axis is drawn for it on a bar. */
+   @Test
+   void refusesAnAxisHighlightOnANonRadarGroupField() throws Exception {
+      assertSetRefused(chartHarness(), axis("Segment"), "Segment");
+   }
+
+   /** A numeric measure's axis is a value scale: findHighlightRef never draws it there. */
+   @Test
+   void refusesAnAxisHighlightOnANumericMeasureAndPointsToAMarkHighlight() throws Exception {
+      assertSetRefused(chartHarness(), axis("Sum(Revenue)"), "Sum(Revenue)", "mark");
+   }
+
+   /** findHighlightRef draws an axis highlight for a string-typed measure. */
+   @Test
+   void acceptsAnAxisHighlightOnAStringTypedMeasure() throws Exception {
+      VSChartInfo info = new DefaultVSChartInfo();
+      info.setChartDescriptor(new ChartDescriptor());
+      info.setChartType(GraphTypes.CHART_BAR);
+      VSChartAggregateRef name = measure("Name", AggregateFormula.MAX, XSchema.STRING);
+      assertEquals(XSchema.STRING, name.getDataType());
+      info.addXField(name);
+      info.addYField(sum("Revenue"));
+
+      assertSetAccepted(chartHarness(withRuntime(info)), axis(name.getFullName()));
+   }
+
+   /** The Composer creates an axis highlight on a radar spoke label, which names a measure. */
+   @Test
+   void acceptsAnAxisHighlightOnARadarSpokeMeasure() throws Exception {
+      RadarVSChartInfo info = new RadarVSChartInfo();
+      info.setChartDescriptor(new ChartDescriptor());
+      info.setChartType(GraphTypes.CHART_RADAR);
+      info.addXField(dimension("Region"));
+      info.addYField(sum("A"));
+      info.addYField(sum("B"));
+
+      assertSetAccepted(chartHarness(withRuntime(info)), axis("Sum(A)"));
+   }
+
+   /** The Composer refuses an axis highlight on a date comparison period region. */
+   @Test
+   void refusesAnAxisHighlightOnADateComparisonPeriodAxis() throws Exception {
+      VSChartInfo info = barChart();
+      ((VSChartDimensionRef) info.getXFields()[0]).setDates(new String[]{ "2020", "2021" });
+      ((VSChartDimensionRef) info.getRTXFields()[0]).setDates(new String[]{ "2020", "2021" });
+
+      assertSetRefused(chartHarness(info), axis("Region"), "period");
+   }
+
+   /** #78401 S7: the chart-level text group is never read for a measured chart's labels. */
+   @Test
+   void refusesATextHighlightWithNoColName() throws Exception {
+      for(String blank : new String[]{ null, "", "  " }) {
+         assertSetRefused(chartHarness(), text(blank), "colName", "Sum(Revenue)");
+      }
+   }
+
+   /** No exemption: a map reads its geo field's text group, never the chart-level one. */
+   @Test
+   void refusesATextHighlightWithNoColNameOnAMapToo() throws Exception {
+      assertSetRefused(chartHarness(mapChart()), text(null), "colName", "State");
+   }
+
+   @Test
+   void acceptsATextHighlightOnAnXYMeasure() throws Exception {
+      assertSetAccepted(chartHarness(), text("Sum(Revenue)"));
+   }
+
+   /** A bar reads no dimension text group, so this was stored and never rendered. */
+   @Test
+   void refusesATextHighlightOnADimensionOfAnOrdinaryChart() throws Exception {
+      assertSetRefused(chartHarness(), text("Region"), "Region", "Sum(Revenue)");
+   }
+
+   @Test
+   void refusesATextHighlightOnAnAestheticOnlyFieldWithNoTextField() throws Exception {
+      assertSetRefused(chartHarness(), text("Sum(Discount)"), "Sum(Discount)");
+   }
+
+   /** With a text field bound, the write is redirected to it, which the renderer reads. */
+   @Test
+   void acceptsATextHighlightRedirectedToTheBoundTextField() throws Exception {
+      VSChartInfo info = barChart();
+      info.setTextField(aesthetic(sum("Price")));
+
+      assertSetAccepted(chartHarness(info), text("Sum(Discount)"));
+   }
+
+   private static VSMapInfo mapChart() {
+      VSMapInfo info = new VSMapInfo();
+      info.setChartDescriptor(new ChartDescriptor());
+      info.setChartType(GraphTypes.CHART_MAP);
+      VSChartGeoRef state = new VSChartGeoRef(column("State", XSchema.STRING));
+      state.setGroupColumnValue("State");
+      info.addGeoField(state);
+      return info;
+   }
+
+   /** MapGenerator labels read the geo dimension's own text group; the Composer creates this. */
+   @Test
+   void acceptsATextHighlightOnAMapGeoField() throws Exception {
+      assertSetAccepted(chartHarness(mapChart()), text("State"));
+   }
+
+   /** Gantt: y Task, start Sum(Start) (optionally labelled by a per-field text field Lbl). */
+   private static GanttVSChartInfo ganttChart(boolean labelled) {
+      GanttVSChartInfo info = new GanttVSChartInfo();
+      info.setChartDescriptor(new ChartDescriptor());
+      info.setChartType(GraphTypes.CHART_GANTT);
+      info.addYField(dimension("Task"));
+      VSChartAggregateRef start = sum("Start");
+
+      if(labelled) {
+         start.setTextField(aesthetic(dimension("Lbl")));
+      }
+
+      info.setStartField(start);
+      return withRuntime(info);
+   }
+
+   /**
+    * A gantt draws labels only from a text field bound on its start/end/milestone shelf, and
+    * reads the highlight from that text field -- where a write naming either field lands.
+    */
+   @Test
+   void acceptsATextHighlightOnAGanttFieldLabelledByItsTextField() throws Exception {
+      GanttVSChartInfo info = ganttChart(true);
+      ChartRef label = (ChartRef) ((VSChartAggregateRef) info.getStartField())
+         .getTextField().getDataRef();
+
+      for(String colName : new String[]{ "Sum(Start)", "Lbl" }) {
+         assertSame(label, HighlightDialogService.resolveChartHighlightRef(
+            info, colName, false, true), colName);
+         assertSetAccepted(chartHarness(info), text(colName));
+      }
+   }
+
+   /** Candle/gantt (MergedGraphGenerator) draw no value labels without a text field. */
+   @Test
+   void refusesATextHighlightOnAnUnlabelledGanttOrCandleField() throws Exception {
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> chartHarness(ganttChart(false)).service.set(
+            "tok", principal(), "Chart1", text("Sum(Start)"), highlight("X"), false, ""));
+      assertTrue(thrown.getMessage().contains("Sum(Start)"), thrown.getMessage());
+      // The list of valid names must not offer what was just refused.
+      assertFalse(thrown.getMessage().contains("are: Sum(Start)"), thrown.getMessage());
+
+      assertSetRefused(chartHarness(candleChart(false)), text("Sum(High)"), "Sum(High)");
+   }
+
+   @Test
+   void acceptsATextHighlightOnACandleFieldWhenATextFieldLabelsIt() throws Exception {
+      assertSetAccepted(chartHarness(candleChart(true)), text("Sum(High)"));
+   }
+
+   private static CandleVSChartInfo candleChart(boolean labelled) {
+      CandleVSChartInfo info = new CandleVSChartInfo();
+      info.setChartDescriptor(new ChartDescriptor());
+      info.setChartType(GraphTypes.CHART_CANDLE);
+      info.addXField(dimension("Day"));
+      info.setHighField(sum("High"));
+
+      if(labelled) {
+         info.setTextField(aesthetic(sum("Price")));
+      }
+
+      return withRuntime(info);
    }
 
    @Test
