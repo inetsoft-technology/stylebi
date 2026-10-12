@@ -6319,6 +6319,8 @@ public final class XUtil {
    // for portal data model, ignore additional connection.
    public static final String OUTER_MOSE_LAYER_DATABASE = "^default^";
    public static final String PORTAL_DATA = "portal_data";
+   // a meta data request that replaces the cached result of its key with a fresh one
+   public static final String REFRESH_META_DATA = "refresh_meta_data";
    public static final String DATASOURCE_ADDITIONAL = "additional";
    public static final String DATAMODEL_FOLDER_SPLITER = "^__^";
    public static final String DATAMODEL_PATH_SPLITER = "^";

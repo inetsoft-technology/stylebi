@@ -2452,7 +2452,9 @@ public class QueryManagerService {
             }
          }
 
-         JDBCUtil.fixUniformSQLInfo(sql, repository, principal.getName(), xds);
+         // a re-parse of the same text may follow the creation of a table its wildcard
+         // selects, an empty column list cached for it is fetched again (Bug #78384)
+         JDBCUtil.fixUniformSQLInfo(sql, repository, principal.getName(), xds, null, true);
          JDBCUtil.fixUniformSQLSelection(osql, sql);
          JDBCUtil.fixTableLocation(sql);
          initQuerySelectedTables(runtimeQuery);
@@ -2463,6 +2465,94 @@ public class QueryManagerService {
       }
 
       return null;
+   }
+
+   /**
+    * Bug #78384, re-derive the parse of a sql that was refused only because the columns of
+    * its wildcard (t.*) were unknown (Bug #77617), e.g. its table didn't exist yet. The
+    * refusal is saved with the query and not re-derived on load, so the query stayed unparsed,
+    * and refused by vpm, after the table was created. The sql string is parsed again on a
+    * clone, which replaces the sql of the runtime query only when the grammar parses the sql,
+    * its selection has a wildcard, and the wildcard now expands. Any other refusal (grammar,
+    * joins, a wildcard whose table is still unknown) is kept as it is.
+    *
+    * @return <tt>true</tt> if the sql of the runtime query was replaced.
+    */
+   public boolean reparseUnexpandedWildcard(String runtimeId, Principal principal) {
+      RuntimeQueryService.RuntimeXQuery runtimeQuery =
+         runtimeQueryService.getRuntimeQuery(runtimeId);
+      JDBCQuery query = runtimeQuery == null ? null : runtimeQuery.getQuery();
+
+      if(query == null || !(query.getSQLDefinition() instanceof UniformSQL) ||
+         !(query.getDataSource() instanceof JDBCDataSource))
+      {
+         return false;
+      }
+
+      UniformSQL sql = (UniformSQL) query.getSQLDefinition();
+
+      // a sql without a '*' has no wildcard, it isn't parsed again
+      if(!sql.isParseSQL() || !sql.hasSQLString() ||
+         sql.getParseResult() != UniformSQL.PARSE_FAILED || !sql.getSQLString().contains("*"))
+      {
+         return false;
+      }
+
+      JDBCDataSource xds = (JDBCDataSource) query.getDataSource();
+      String session = principal == null ? null : principal.getName();
+      String sqlString = sql.getSQLString();
+      UniformSQL nsql = sql.clone();
+
+      try {
+         XNode node = new XNode();
+         node.setAttribute("type", "DBPROPERTIES");
+         nsql.setMetaDataNode(repository.getMetaData(session, xds, node, true, null));
+      }
+      catch(Exception ex) {
+         LOG.error(ex.getMessage(), ex);
+      }
+
+      nsql.setDataSource(xds);
+
+      synchronized(nsql) {
+         nsql.setSQLString(sqlString);
+
+         // it is waiting for the parser finish parsing the sql string.
+         try {
+            nsql.wait();
+         }
+         catch(InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+         }
+      }
+
+      if(nsql.getParseResult() != UniformSQL.PARSE_SUCCESS || !JDBCUtil.hasWildcard(nsql)) {
+         return false;
+      }
+
+      try {
+         // the selection is expanded without vpm, as when the sql is parsed in the editor
+         nsql.removeAllFields();
+         JDBCUtil.fixUniformSQLInfo(nsql, repository, session, xds, null, true);
+
+         if(nsql.getParseResult() != UniformSQL.PARSE_SUCCESS || JDBCUtil.hasWildcard(nsql)) {
+            return false;
+         }
+
+         JDBCUtil.fixUniformSQLSelection(sql, nsql);
+         JDBCUtil.fixTableLocation(nsql);
+         query.setSQLDefinition(nsql);
+         initQuerySelectedTables(runtimeQuery);
+      }
+      catch(Exception ex) {
+         LOG.error(ex.getMessage(), ex);
+      }
+      finally {
+         runtimeQueryService.saveRuntimeQuery(runtimeQuery);
+      }
+
+      return query.getSQLDefinition() == nsql;
    }
 
    /**
