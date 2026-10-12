@@ -45,6 +45,10 @@ const WS = "../api/em/content/repository/worksheet";
 const FOLDER = "../api/em/content/repository/folder/";
 const SCRIPT = "../api/em/settings/content/repository/script";
 const DATA_SOURCE = "../api/data/databases";
+const DATA_SOURCE_FOLDER = "../api/em/settings/content/repository/dataSourceFolder";
+const MISSING_DS_FOLDER = { type: "MessageException",
+   message: "Cannot find dsf. It may have been moved or deleted" };
+const SERVER_ERROR = { status: 500, statusText: "Server Error" };
 
 const MISSING_VS = { type: "MissingResourceException", message: "missing" };
 const NOT_FOUND = { status: 404, statusText: "Not Found" };
@@ -387,6 +391,29 @@ describe("ContentRepositoryPageComponent tree reloads", () => {
          { status: 500, statusText: "Server Error" });
 
       expect(snack.open).not.toHaveBeenCalled();
+      expect(comp.editorModel.value).toBeNull();
+   });
+
+   it("should not report a missing data source folder re-selected by a reload", () => {
+      flushTree(oneTreeRequest(), [node("dsf", RepositoryEntryType.DATA_SOURCE_FOLDER, [])]);
+      select("dsf");
+      http.expectOne(r => r.url === DATA_SOURCE_FOLDER).flush({ name: "dsf" });
+
+      // the stale tree still lists the folder deleted on the server
+      contentChanged();
+      flushTree(oneTreeRequest(), [node("dsf", RepositoryEntryType.DATA_SOURCE_FOLDER, [])]);
+      http.expectOne(r => r.url === DATA_SOURCE_FOLDER).flush(MISSING_DS_FOLDER, SERVER_ERROR);
+
+      expect(snack.open).not.toHaveBeenCalled();
+      expect(comp.editorModel.value).toBeNull();
+   });
+
+   it("should still report a missing data source folder when the user clicks it", () => {
+      flushTree(oneTreeRequest(), [node("dsf", RepositoryEntryType.DATA_SOURCE_FOLDER, [])]);
+      select("dsf");
+      http.expectOne(r => r.url === DATA_SOURCE_FOLDER).flush(MISSING_DS_FOLDER, SERVER_ERROR);
+
+      expect(snack.open).toHaveBeenCalledWith(MISSING_DS_FOLDER.message, null, expect.anything());
       expect(comp.editorModel.value).toBeNull();
    });
 

@@ -508,7 +508,8 @@ export class ContentRepositoryService implements OnDestroy {
          return this.http.get<DataSourceFolderSettingsModel>(uri, { params })
             .pipe(
                catchError((error) => {
-                  if(!!error.error && error.error.type === "MessageException") {
+                  // a MessageException here means the folder is missing (em.common.invalidTreeNode)
+                  if(!quiet && !!error.error && error.error.type === "MessageException") {
                      this.showMessage(error.error.message);
                   }
 
