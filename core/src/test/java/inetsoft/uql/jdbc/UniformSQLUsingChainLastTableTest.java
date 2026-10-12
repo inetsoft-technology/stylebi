@@ -340,6 +340,51 @@ class UniformSQLUsingChainLastTableTest {
    }
 
    /**
+    * The reporter's exact sql, with the table metadata a worksheet adds
+    * (JDBCUtil.fixUniformSQLInfo), which qualifies the merged "PRODUCT_ID" with the first
+    * table that has it. With the VPM row condition added to the structure, the regenerated
+    * chain returns the original's Hardware rows, merged column included.
+    */
+   @ParameterizedTest
+   @ValueSource(strings = { "postgresql", "postgresql-ansi", "h2", "h2-ansi" })
+   void reportedChainWithMetadataReturnsOnlyConditionRows(String type) throws Exception {
+      String where = " where \"CATEGORIES\".\"CATEGORY_NAME\" = 'Hardware'";
+      UniformSQL sql = process(REPORTED, dataSource(type));
+      assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult());
+      Map<String, String[]> columns = Map.of(
+         "CATEGORIES", new String[] { "CATEGORY_ID", "CATEGORY_NAME" },
+         "PRODUCTS", new String[] { "PRODUCT_ID", "CATEGORY_ID", "PRODUCT_NAME" },
+         "ORDER_DETAILS", new String[] { "ORDER_ID", "PRODUCT_ID", "QUANTITY" });
+
+      for(int i = 0; i < sql.getTableCount(); i++) {
+         String alias = sql.getTableAlias(i);
+
+         for(String column : columns.get(alias.replace("\"", ""))) {
+            String fieldType = column.endsWith("_NAME") ? "string" : "integer";
+            sql.addField(new XField(column, column, alias, fieldType));
+         }
+      }
+
+      inetsoft.uql.jdbc.util.JDBCUtil.fixSelectionInfo(sql);
+      inetsoft.uql.jdbc.util.JDBCUtil.fixWhereInfo(sql);
+
+      List<XFilterNode> conditions = new ArrayList<>();
+      collectConditions(process(REPORTED + where, dataSource(type)).getWhere(), conditions);
+      sql.combineWhereByAnd((XFilterNode) conditions.stream()
+         .filter(c -> !(c instanceof XJoin)).findFirst().orElseThrow().clone());
+
+      String generated = regenerate(sql);
+      String expected = rows(derby, REPORTED + where);
+      assertTrue(expected.contains("PRODUCT_ID=10") && expected.contains("Hardware") &&
+                 !expected.contains("Software"), expected);
+      assertEquals(expected, rows(derby, generated), generated);
+
+      if(h2Postgres != null && type.startsWith("postgresql")) {
+         assertEquals(expected, rows(h2Postgres, generated), generated);
+      }
+   }
+
+   /**
     * A USING chain records the same structure as its ON twin, which main already parses
     * and regenerates, so it reaches no other regeneration path.
     */
