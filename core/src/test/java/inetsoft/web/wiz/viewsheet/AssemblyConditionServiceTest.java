@@ -25,12 +25,12 @@ import inetsoft.web.composer.model.condition.ConditionModel;
 import inetsoft.web.composer.model.condition.JunctionOperatorModel;
 import inetsoft.web.composer.model.vs.VSConditionDialogModel;
 import inetsoft.web.composer.vs.dialog.VSConditionDialogService;
+import inetsoft.web.viewsheet.controller.table.BaseTableService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.security.Principal;
-import inetsoft.web.viewsheet.controller.table.BaseTableService;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;

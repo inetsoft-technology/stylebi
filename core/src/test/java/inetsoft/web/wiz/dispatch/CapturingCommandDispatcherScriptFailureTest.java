@@ -104,6 +104,20 @@ class CapturingCommandDispatcherScriptFailureTest {
    }
 
    @Test
+   void twoDifferentFailuresAreBothKept() throws Exception {
+      List<String> warnings =
+         CapturingCommandDispatcher.withCapturingDispatcher(principal(), dispatcher -> {
+            dispatcher.sendCommand(info(FAILURE));
+            dispatcher.sendCommand(info(BaseTableService.SCRIPT_FAILURE_PREFIX + "T2 other"));
+            return dispatcher.getWarnings();
+         });
+
+      assertEquals(2, warnings.size(), warnings.toString());
+      assertTrue(warnings.get(0).startsWith(FAILURE));
+      assertTrue(warnings.get(1).startsWith(BaseTableService.SCRIPT_FAILURE_PREFIX + "T2"));
+   }
+
+   @Test
    void theWarningSaysTheTableMayShowNoData() throws Exception {
       List<String> warnings =
          CapturingCommandDispatcher.withCapturingDispatcher(principal(), dispatcher -> {
