@@ -192,7 +192,11 @@ public class VSDataService {
       }
 
       dim.setGroupColumnValue(columnName);
-      dim.setManualOrderList(VSDataController.fixNull(manualOrder));
+      // only the manual order of date values is converted, named groups are kept
+      boolean date = XSchema.isDateType(dataRef.getDataType()) &&
+         XSchema.isDateType(DateRangeRef.getDataType(dateLevel, dataRef.getDataType()));
+      dim.setManualOrderList(VSDataController.fixNull(
+         LayoutTool.getGregorianManualOrder(orderInfo, date)));
       dim.setDateLevel(dateLevel);
       final List<String> values = new ArrayList<>();
       List<ValueLabelModel> dimensionData =
