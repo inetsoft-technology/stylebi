@@ -104,7 +104,7 @@ class CapturingCommandDispatcherScriptFailureTest {
    }
 
    @Test
-   void theWarningSaysTheEditWasAppliedButTheScriptFailed() throws Exception {
+   void theWarningSaysTheTableMayShowNoData() throws Exception {
       List<String> warnings =
          CapturingCommandDispatcher.withCapturingDispatcher(principal(), dispatcher -> {
             dispatcher.sendCommand(info(FAILURE));
@@ -112,7 +112,9 @@ class CapturingCommandDispatcherScriptFailureTest {
          });
 
       assertTrue(warnings.get(0).startsWith(FAILURE));
-      assertTrue(warnings.get(0).contains("edit was applied"), warnings.get(0));
+      assertTrue(warnings.get(0).endsWith("The table may show no data; the failure can predate this call."),
+                 warnings.get(0));
+      assertFalse(warnings.get(0).contains("applied"), warnings.get(0));
    }
 
    @Test

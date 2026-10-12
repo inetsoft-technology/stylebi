@@ -229,8 +229,7 @@ public final class CapturingCommandDispatcher extends CommandDispatcher {
    }
 
    private static final String SCRIPT_FAILURE_NOTE =
-      " The edit was applied, but this script failed, so the table may show no data. " +
-      "The failure can predate this call.";
+      "\nThe table may show no data; the failure can predate this call.";
 
    private List<String> messagesOfType(MessageCommand.Type type) {
       List<String> messages = new ArrayList<>();
