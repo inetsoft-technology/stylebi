@@ -378,9 +378,9 @@ public class CrosstabPropertyDialogService {
          }
       }
       else if(cellPaddingFollowsDefault) {
-         // clear the opinion and let the density decide, the same shape Revert uses. Writing the
-         // current density value into the USER tier here would pin this tier
-         assemblyInfo.resetUserCellPadding();
+         // clear the opinion and re-seed from the tier in force: the seed stood still while the
+         // author value held. Writing the density value into the USER tier would pin this tier
+         assemblyInfo.resetCellPadding(VizContext.of(assemblyInfo));
       }
       else {
          assemblyInfo.setCellPadding(editedCellPadding, CompositeValue.Type.USER);

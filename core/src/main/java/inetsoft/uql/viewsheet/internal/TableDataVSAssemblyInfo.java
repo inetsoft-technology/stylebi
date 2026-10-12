@@ -920,7 +920,8 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
    }
 
    /**
-    * The density seed alone, ignoring any author value: what the stored row height is reduced by.
+    * The density seed alone, ignoring any author value. What the stored row height leaves out
+    * while no author value exists (see VSDensityDefaults.excludedCellPaddingHeight).
     */
    public Insets getDefaultCellPadding() {
       return cellPadding.get(CompositeValue.Type.DEFAULT);
@@ -942,12 +943,21 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
    }
 
    /**
-    * Drop the author's cell padding and let the density decide again. What the follow-the-default
-    * checkbox calls when it is checked - writing the density value into the USER tier instead
-    * would pin the current tier.
+    * Drop the author's cell padding, leaving the density seed as it stands. The unmarked pane's
+    * clear, where there is no tier to re-seed from.
     */
    public void resetUserCellPadding() {
       cellPadding.resetUserValue();
+   }
+
+   /**
+    * Drop the author's cell padding and re-seed the density's from the tier in force. The seed
+    * stands still while an author value holds, so clearing that alone would hand the cells a tier
+    * the dashboard has left. Writing the density value into the USER tier would pin this tier.
+    */
+   public void resetCellPadding(VizContext ctx) {
+      cellPadding.resetUserValue();
+      setCellPadding(VSDensityDefaults.cellPadding(ctx), CompositeValue.Type.DEFAULT);
    }
 
    /**

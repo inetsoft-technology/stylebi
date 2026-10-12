@@ -19,17 +19,20 @@ package inetsoft.web.composer.vs.dialog;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
 import inetsoft.uql.CompositeValue;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VizMark;
 import inetsoft.web.composer.model.vs.PaddingPaneModel;
 import inetsoft.web.composer.model.vs.TableViewPropertyDialogModel;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.VSDialogService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -125,6 +128,40 @@ public class TableViewPropertyDialogServiceTest {
    // protected and only reachable from TableVSAssemblyInfo's own package, but its precondition -
    // an unmarked table left with no user opinion - is exactly what this case proves the apply
    // guard produces.
+
+   // the re-tick: a marked table whose seed stood still under an author padding
+   @Test
+   public void followingTheDensityAgainReseedsTheCurrentTier() throws Exception {
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      tableVSAssemblyInfoSpy.setVizMark(VizMark.MODERN_LIGHT);
+      tableVSAssemblyInfoSpy.setCellPadding(new Insets(4, 6, 4, 6), CompositeValue.Type.DEFAULT);
+      tableVSAssemblyInfoSpy.setCellPadding(new Insets(10, 6, 10, 6), CompositeValue.Type.USER);
+
+      TableViewPropertyDialogModel model = modelWithCellPadding(10, 6, 10, 6, true);
+      service.setTablePropertyModel("Viewsheet1", "Table1", model, "", null, commandDispatcher);
+
+      TableVSAssemblyInfo applied = captureAppliedInfo();
+      assertFalse(applied.isUserCellPadding());
+      assertEquals(new Insets(6, 8, 6, 8), applied.getCellPadding());
+   }
+
+   // OK on a table already following re-seeds it too, as the card inset does
+   @Test
+   public void followingTableIsReseededOnOk() throws Exception {
+      SreeEnv.setProperty("viewsheet.density", "dense");
+      tableVSAssemblyInfoSpy.setVizMark(VizMark.MODERN_LIGHT);
+      tableVSAssemblyInfoSpy.setCellPadding(new Insets(6, 8, 6, 8), CompositeValue.Type.DEFAULT);
+
+      TableViewPropertyDialogModel model = modelWithCellPadding(6, 8, 6, 8, true);
+      service.setTablePropertyModel("Viewsheet1", "Table1", model, "", null, commandDispatcher);
+
+      assertEquals(new Insets(3, 4, 3, 4), captureAppliedInfo().getCellPadding());
+   }
+
+   @AfterEach
+   public void reset() {
+      SreeEnv.setProperty("viewsheet.density", null);
+   }
 
    private static TableViewPropertyDialogModel modelWithCellPadding(
       int top, int left, int bottom, int right, Boolean followsDefault)
