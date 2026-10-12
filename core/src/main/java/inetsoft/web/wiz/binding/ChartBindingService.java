@@ -101,7 +101,6 @@ public class ChartBindingService {
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
-         ChartBindingModel previous = (ChartBindingModel) binding.createModel(chart);
          applySource(model, sourceTable);
          ChartBindingMutator.setShelf(
             model, shelf, fields, rvs, chart.getSourceInfo(), refModelService,
@@ -118,21 +117,31 @@ public class ChartBindingService {
                                        fields);
          }
          catch(IllegalArgumentException e) {
-            // The write is already committed here (the session does not roll a thrown mutation
-            // back), so put the shelf back before refusing.
+            // The write is already committed here and mutate() does not undo a thrown mutation.
+            // mutate() checkpoints after every agent write, so the last checkpoint is the state
+            // before this call; nothing inside changeChartRef adds one.
+            boolean restored = false;
+
             try {
-               ChangeChartRefEvent restore = new ChangeChartRefEvent();
-               restore.setName(assemblyName);
-               restore.setFieldType(shelf);
-               restore.setModel(previous);
-               refService.changeChartRef(runtimeId, restore, user, dispatcher, linkUri);
+               if(rvs.size() > 0) {
+                  rvs.rollback();
+                  restored = true;
+               }
             }
-            catch(Exception ignore) {
+            catch(RuntimeException ignore) {
             }
 
-            throw e;
+            throw new IllegalArgumentException(refusalMessage(e.getMessage(), restored), e);
          }
       });
+   }
+
+   /** Appends whether the refused write was undone -- "not applied" only when it really was. */
+   static String refusalMessage(String reason, boolean restored) {
+      return reason + (restored
+         ? " The write was rolled back."
+         : " The write may be applied (the runtime could not be restored to its previous " +
+           "state); re-read the binding and undo if needed.");
    }
 
    /**
@@ -157,6 +166,8 @@ public class ChartBindingService {
          return;
       }
 
+      // Positional: fixChartBindingModel/updateAssembly keep the shelf order and count, so
+      // fields[i] is the stored ref at the same index.
       for(int i = 0; i < fields.size() && i < stored.length; i++) {
          if(!(fields.get(i).calculateInfo() instanceof ValueOfCalcInfo sent)) {
             continue;
@@ -194,7 +205,7 @@ public class ChartBindingService {
                "calculator would store no dimension. " + (names.isEmpty()
                   ? "No dimension is bound; bind the dimension first."
                   : "Use one of the bound dimensions' full names: " + String.join(", ", names) +
-                    ".") + " The write was not applied.");
+                    ".") + "");
          }
       }
    }

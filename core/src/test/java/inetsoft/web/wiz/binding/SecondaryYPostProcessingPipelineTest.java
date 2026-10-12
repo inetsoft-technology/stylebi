@@ -164,6 +164,23 @@ class SecondaryYPostProcessingPipelineTest {
          info, "y", List.of(changeField(AbstractCalc.ROW_INNER))));
    }
 
+   @Test
+   void refusalSaysRolledBackOnlyWhenTheRestoreSucceeded() {
+      assertTrue(ChartBindingService.refusalMessage("reason.", true).endsWith("The write was rolled back."));
+
+      String failed = ChartBindingService.refusalMessage("reason.", false);
+      assertTrue(failed.contains("may be applied"), failed);
+      assertFalse(failed.contains("rolled back"), failed);
+   }
+
+   @Test
+   void readBackMessageDoesNotClaimTheWriteWasUndone() {
+      VSChartInfo info = twoLevelDateChart("Order Date");
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> ChartBindingService.requireCalculatorsResolved(info, "y", List.of(changeField("Order Date"))));
+      assertFalse(e.getMessage().contains("not applied"), e.getMessage());
+   }
+
    private static FieldRef changeField(String columnName) {
       ChangeCalcInfo calc = new ChangeCalcInfo();
       calc.setColumnName(columnName);
