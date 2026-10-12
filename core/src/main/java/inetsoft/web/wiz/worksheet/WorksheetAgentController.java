@@ -82,6 +82,7 @@ import inetsoft.web.composer.ws.event.WSLayoutGraphEvent;
 import inetsoft.web.composer.ws.service.SaveWorksheetService;
 import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.wiz.WizUtil;
+import inetsoft.web.wiz.viewsheet.WizStrictValueParser;
 import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.service.RawDataService;
 import inetsoft.web.wiz.service.RenderNotReadyException;
@@ -3620,7 +3621,7 @@ public class WorksheetAgentController {
 
                   if(list.size() == 1) {
                      vtable.put(vname, convertAndValidateSingleValue(
-                        vname, declared, requireStringElement(vname, 0, list.get(0))));
+                        vname, -1, declared, requireStringElement(vname, 0, list.get(0))));
                      continue;
                   }
 
@@ -3640,7 +3641,7 @@ public class WorksheetAgentController {
 
                   for(int i = 0; i < list.size(); i++) {
                      values[i] = convertAndValidateSingleValue(
-                        vname, declared, requireStringElement(vname, i, list.get(i)));
+                        vname, i, declared, requireStringElement(vname, i, list.get(i)));
                   }
 
                   vtable.setAsIs(vname, true);
@@ -3649,7 +3650,7 @@ public class WorksheetAgentController {
                }
 
                String stringValue = requireStringElement(vname, -1, rawValue);
-               vtable.put(vname, convertAndValidateSingleValue(vname, declared, stringValue));
+               vtable.put(vname, convertAndValidateSingleValue(vname, -1, declared, stringValue));
             }
          }
 
@@ -3699,7 +3700,7 @@ public class WorksheetAgentController {
     * 1-element-list case, and once per element of a 2+-element list.
     */
    private static Object convertAndValidateSingleValue(
-      String vname, AssetVariable declared, String rawValue)
+      String vname, int index, AssetVariable declared, String rawValue)
       throws PairingException
    {
       if(rawValue == null) {
@@ -3708,6 +3709,16 @@ public class WorksheetAgentController {
 
       String declaredType = declared.getTypeNode() != null
          ? declared.getTypeNode().getType() : null;
+
+      try {
+         WizStrictValueParser.parse(rawValue, declaredType);
+      }
+      catch(IllegalArgumentException ex) {
+         throw new PairingException(
+            "variableValues['" + vname + "']" + (index >= 0 ? "[" + index + "]" : "") +
+            ": " + ex.getMessage());
+      }
+
       Object value = CoreTool.getData(declaredType, rawValue, true);
 
       if(value != null && declared.getDisplayStyle() != UserVariable.NONE
@@ -4795,6 +4806,7 @@ public class WorksheetAgentController {
 
          if(valueNode != null) {
             try {
+               WizStrictValueParser.parse(defaultValue, effectiveType);
                valueNode.parse0(defaultValue);
             }
             catch(Exception e) {

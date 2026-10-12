@@ -2253,6 +2253,90 @@ class WorksheetEditServiceMutatorsTest {
          null, null, table, labelColumn, valueColumn, displayStyle);
    }
 
+   // ---- Bug #78397: strict validation of embedded choices and default values ----
+
+   @ParameterizedTest
+   @CsvSource({
+      "integer, 3000000000",
+      "short, 40000",
+      "byte, 300",
+      "long, 9223372036854775808",
+      "date, 2026-02-30",
+      "date, 2026-13-45",
+      "timeInstant, 2026-02-30 10:00:00",
+      "time, 25:61:00",
+      "double, 0x10",
+      "float, 1e50",
+      "boolean, maybe",
+      "integer, ''",
+      "date, ''",
+      "double, __null__"
+   })
+   void editVariableRefusesChoiceTheStrictParserRejects(String type, String bad) throws Exception {
+      Worksheet ws = new Worksheet();
+      variableAssembly(ws, "v", type);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.editVariable("v", null, null, null,
+               embeddedChoices(List.of(bad), null, null))));
+      assertTrue(ex.getMessage().contains("'v'") || ex.getMessage().contains("\"v\""),
+         ex.getMessage());
+      if(!bad.isEmpty() && !"__null__".equals(bad)) {
+         assertTrue(ex.getMessage().contains(bad), ex.getMessage());
+      }
+
+      AssetVariable unchanged = ((DefaultVariableAssembly) ws.getAssembly("v")).getVariable();
+      assertNull(unchanged.getValues());
+   }
+
+   @Test
+   void editVariableAcceptsStringChoiceNullLiteral() throws Exception {
+      Worksheet ws = new Worksheet();
+      variableAssembly(ws, "v", XSchema.STRING);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.editVariable("v", null, null, null,
+            embeddedChoices(List.of("null", "x"), null, null)));
+
+      AssetVariable updated = ((DefaultVariableAssembly) ws.getAssembly("v")).getVariable();
+      assertArrayEquals(new Object[] {"null", "x"}, updated.getValues());
+   }
+
+   @Test
+   void editVariableAcceptsValidTypedDateChoices() throws Exception {
+      Worksheet ws = new Worksheet();
+      variableAssembly(ws, "v", XSchema.DATE);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.editVariable("v", null, null, null,
+            embeddedChoices(List.of("2026-03-01"), null, null)));
+
+      AssetVariable updated = ((DefaultVariableAssembly) ws.getAssembly("v")).getVariable();
+      assertTrue(updated.getValues()[0] instanceof java.util.Date);
+   }
+
+   @ParameterizedTest
+   @CsvSource({"date, 2026-02-30", "boolean, maybe", "time, 25:61:00"})
+   void editVariableRefusesDefaultValueTheStrictParserRejects(String type, String bad)
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      variableAssembly(ws, "v", type);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      Exception ex = assertThrows(Exception.class, () ->
+         svc.apply("TOK", agent, ed -> ed.editVariable("v", null, null, bad, null)));
+      assertTrue(ex.getMessage().contains(bad), ex.getMessage());
+   }
+
    @Test
    void editVariableSetsTypedChoicesAndValues() throws Exception {
       Worksheet ws = new Worksheet();
