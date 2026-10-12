@@ -24,7 +24,9 @@ import inetsoft.web.binding.drm.ColumnRefModel;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.binding.model.BAggregateRefModel;
 import inetsoft.web.binding.model.BDimensionRefModel;
+import inetsoft.uql.util.XNamedGroupInfo;
 import inetsoft.uql.XConstants;
+import inetsoft.web.binding.model.NamedGroupInfoModel;
 import inetsoft.web.binding.model.table.BaseTableBindingModel;
 import inetsoft.web.binding.model.table.CrosstabOptionInfo;
 import inetsoft.web.binding.model.table.CrosstabBindingModel;
@@ -130,6 +132,22 @@ public final class TableBindingMutator {
                                DataRefModelFactoryService refModelService)
       throws Exception
    {
+      setShelf(model, shelf, fields, null, rvs, source, refModelService);
+   }
+
+   /**
+    * @param carried for a dimension shelf, parallel to {@code fields}: the shelf's own existing
+    *                model for an entry this write leaves untouched, {@code null} for the entry
+    *                it adds. Used by add/remove/move, which know exactly which field is new, so
+    *                an untouched entry keeps its group as stored instead of being re-resolved
+    *                from the placeholder name the read reported for it (bug #78362). {@code null}
+    *                for an explicit replace, where an echo is inferred in {@link #dimensions}.
+    */
+   private static void setShelf(BaseTableBindingModel model, String shelf, List<FieldRef> fields,
+                                List<BDimensionRefModel> carried, RuntimeViewsheet rvs,
+                                SourceInfo source, DataRefModelFactoryService refModelService)
+      throws Exception
+   {
       String name = requireShelf(model, shelf);
       List<FieldRef> refs = fields == null ? List.of() : fields;
 
@@ -143,7 +161,8 @@ public final class TableBindingMutator {
             // keeps its sort/ranking instead of dimensions() building it a fresh default one --
             // see dimensions()'s own note on why this is matched by position, not just column.
             List<BDimensionRefModel> previous = dimensionsOf(model, name);
-            List<BDimensionRefModel> next = dimensions(refs, previous, rvs, source, refModelService);
+            List<BDimensionRefModel> next =
+               dimensions(refs, previous, carried, rvs, source, refModelService);
             rekeySuppression(model, name, previous, refs);
 
             switch(name) {
@@ -205,7 +224,13 @@ public final class TableBindingMutator {
       }
 
       current.add(index, field);
-      setShelf(model, name, current, rvs, sourceInfo, refModelService);
+      List<BDimensionRefModel> carried = carriedModels(model, name);
+
+      if(carried != null) {
+         carried.add(index, null);
+      }
+
+      setShelf(model, name, current, carried, rvs, sourceInfo, refModelService);
    }
 
    public static void removeField(BaseTableBindingModel model, String shelf, String column) {
@@ -228,8 +253,22 @@ public final class TableBindingMutator {
    {
       String name = requireShelf(model, shelf);
       List<FieldRef> current = new ArrayList<>(read(model, name));
-      boolean removed = current.removeIf(
-         field -> field.column() != null && field.column().equalsIgnoreCase(column));
+      List<BDimensionRefModel> carried = carriedModels(model, name);
+      boolean removed = false;
+
+      for(int i = current.size() - 1; i >= 0; i--) {
+         FieldRef field = current.get(i);
+
+         if(field.column() != null && field.column().equalsIgnoreCase(column)) {
+            current.remove(i);
+
+            if(carried != null) {
+               carried.remove(i);
+            }
+
+            removed = true;
+         }
+      }
 
       if(!removed) {
          throw new IllegalArgumentException(
@@ -237,7 +276,7 @@ public final class TableBindingMutator {
             (current.isEmpty() ? "(nothing)" : columns(current)) + ".");
       }
 
-      setShelf(model, name, current, rvs, sourceInfo, refModelService);
+      setShelf(model, name, current, carried, rvs, sourceInfo, refModelService);
    }
 
    /**
@@ -281,12 +320,30 @@ public final class TableBindingMutator {
          .orElseThrow(() -> new IllegalArgumentException(
             "'" + column + "' is not on the " + from + " shelf."));
 
+      FieldRef original = field;
       field = convertForShelf(model, to, field);
       requireCompatible(to, field);
 
       List<FieldRef> source = new ArrayList<>(read(model, from));
-      source.removeIf(ref -> ref.column() != null && ref.column().equalsIgnoreCase(column));
+      List<BDimensionRefModel> sourceCarried = carriedModels(model, from);
+      BDimensionRefModel moved = null;
+
+      for(int i = source.size() - 1; i >= 0; i--) {
+         FieldRef ref = source.get(i);
+
+         if(ref.column() != null && ref.column().equalsIgnoreCase(column)) {
+            source.remove(i);
+
+            if(sourceCarried != null) {
+               // the lowest index wins: it is the first same-named entry, which is the field
+               // found above
+               moved = sourceCarried.remove(i);
+            }
+         }
+      }
+
       List<FieldRef> target = new ArrayList<>(read(model, to));
+      List<BDimensionRefModel> targetCarried = carriedModels(model, to);
       int index = position == null ? target.size() : position;
 
       if(index < 0 || index > target.size()) {
@@ -296,8 +353,29 @@ public final class TableBindingMutator {
       }
 
       target.add(index, field);
-      setShelf(model, from, source, rvs, sourceInfo, refModelService);
-      setShelf(model, to, target, rvs, sourceInfo, refModelService);
+
+      if(targetCarried != null) {
+         // A dimension that stays a dimension carries its own model to the target shelf, with its
+         // completed conditions, order and sort/ranking. Converting it to a measure, or a measure
+         // to a dimension, leaves nothing to carry.
+         targetCarried.add(index, field == original ? moved : null);
+      }
+
+      setShelf(model, from, source, sourceCarried, rvs, sourceInfo, refModelService);
+      setShelf(model, to, target, targetCarried, rvs, sourceInfo, refModelService);
+   }
+
+   /**
+    * A mutable copy of a dimension shelf's own models, for {@link #setShelf}'s {@code carried}
+    * parameter; {@code null} for a shelf that holds no dimensions.
+    */
+   private static List<BDimensionRefModel> carriedModels(BaseTableBindingModel model,
+                                                         String shelf)
+   {
+      return switch(shelf) {
+         case "rows", "cols", "groups" -> new ArrayList<>(dimensionsOf(model, shelf));
+         default -> null;
+      };
    }
 
    /** What a shelf currently holds, in the shared vocabulary. */
@@ -396,7 +474,7 @@ public final class TableBindingMutator {
     * overload too.
     */
    private static List<BDimensionRefModel> dimensions(List<FieldRef> fields) {
-      return dimensions(fields, List.of(), null, null, null);
+      return dimensions(fields, List.of(), null, null, null, null);
    }
 
    /**
@@ -409,21 +487,76 @@ public final class TableBindingMutator {
     *                 bound twice on one shelf, not a content-only key. This deliberately does
     *                 NOT survive an insert/remove of a different field earlier on the shelf
     *                 shifting a later, untouched field's index -- that field's sort/ranking is
-    *                 not preserved in that case, which is accepted as this strategy's known
-    *                 boundary rather than a defect (see the regression test that documents it).
+    *                 not preserved in that case when the caller replaces the shelf wholesale
+    *                 ({@code set_table_fields}); add/remove/move pass {@code carried} instead.
+    *
+    *                 <p>The one exception to "a write that names no group clears it" is an
+    *                 <b>echo</b>: an {@code ExpertNamedGroupInfo} is read as the placeholder
+    *                 name {@code "Custom"} (see {@code NamedGroupInfoModel}), which no
+    *                 worksheet or repository group answers to. An incoming field whose
+    *                 {@code namedGroup} equals a previous EXPERT group's placeholder name on
+    *                 the same column is matched to that previous entry first (so a duplicate
+    *                 same-column entry cannot consume it), is resolved as usual, and only when
+    *                 that resolution fails does it keep the previous group as stored (bug
+    *                 #78362). A real group that happens to be named "Custom" therefore wins.
+    * @param carried  see {@link #setShelf(BaseTableBindingModel, String, List, List,
+    *                 RuntimeViewsheet, SourceInfo, DataRefModelFactoryService)}. When given, an
+    *                 entry with a non-null carried model is copied from it whole -- group
+    *                 included, never re-resolved -- and an entry with null carried is a new field,
+    *                 which is matched against nothing in {@code previous}.
     */
    private static List<BDimensionRefModel> dimensions(List<FieldRef> fields,
                                                        List<BDimensionRefModel> previous,
+                                                       List<BDimensionRefModel> carried,
                                                        RuntimeViewsheet rvs,
                                                        SourceInfo source,
                                                        DataRefModelFactoryService refModelService)
    {
       List<BDimensionRefModel> out = new ArrayList<>();
+      boolean[] consumed = new boolean[previous.size()];
+      int[] echoOf = new int[fields.size()];
+      Arrays.fill(echoOf, -1);
+
+      if(carried == null) {
+         for(int i = 0; i < fields.size(); i++) {
+            FieldRef field = fields.get(i);
+
+            if(field.namedGroup() == null || field.namedGroupValues() != null) {
+               continue;
+            }
+
+            for(int j = 0; j < previous.size(); j++) {
+               if(!consumed[j] && isExpertPlaceholder(previous.get(j), field.namedGroup()) &&
+                  matches(previous.get(j), field))
+               {
+                  consumed[j] = true;
+                  echoOf[i] = j;
+                  break;
+               }
+            }
+         }
+      }
 
       for(int i = 0; i < fields.size(); i++) {
          FieldRef field = fields.get(i);
-         BDimensionRefModel match = i < previous.size() ? previous.get(i) : null;
-         BDimensionRefModel ref = matches(match, field) ? copyOf(match) : new BDimensionRefModel();
+         BDimensionRefModel ref;
+         boolean untouched = false;
+         BDimensionRefModel echoed = echoOf[i] >= 0 ? previous.get(echoOf[i]) : null;
+
+         if(carried != null) {
+            BDimensionRefModel carry = i < carried.size() ? carried.get(i) : null;
+            untouched = carry != null;
+            ref = untouched ? copyOf(carry, true) : new BDimensionRefModel();
+         }
+         else if(echoed != null) {
+            ref = copyOf(echoed, false);
+         }
+         else {
+            BDimensionRefModel match =
+               i < previous.size() && !consumed[i] ? previous.get(i) : null;
+            ref = matches(match, field) ? copyOf(match, false) : new BDimensionRefModel();
+         }
+
          ref.setName(field.column());
          ref.setColumnValue(field.column());
 
@@ -435,19 +568,39 @@ public final class TableBindingMutator {
             ref.setTimeSeries(field.timeSeries());
          }
 
+         if(untouched) {
+            out.add(ref);
+            continue;
+         }
+
+         boolean resolved = false;
+
          if(field.namedGroupValues() != null || (field.namedGroup() != null && rvs != null)) {
             try {
                ref.setNamedGroupInfo(
                   FieldRefFactory.resolveNamedGroupInfo(field, rvs, source, refModelService));
+               resolved = true;
+            }
+            catch(IllegalArgumentException e) {
+               if(echoed == null) {
+                  throw e; // preserve the loud, field-named message as-is
+               }
             }
             catch(RuntimeException e) {
-               throw e; // preserve IllegalArgumentException's loud, field-named message as-is
+               throw e;
             }
             catch(Exception e) {
                throw new RuntimeException(e);
             }
+         }
 
+         if(resolved) {
             ref.setOrder(XConstants.SORT_SPECIFIC);
+         }
+         else if(echoed != null) {
+            ref.setNamedGroupInfo(echoed.getNamedGroupInfo());
+            ref.setCustomNamedGroupInfo(echoed.getCustomNamedGroupInfo());
+            ref.setDataRefModel(echoed.getDataRefModel());
          }
          else if((ref.getOrder() & XConstants.SORT_SPECIFIC) != 0 &&
             (ref.getNamedGroupInfo() == null || ref.getNamedGroupInfo().getType() == 0) &&
@@ -464,6 +617,13 @@ public final class TableBindingMutator {
       }
 
       return out;
+   }
+
+   /** Whether {@code previous} holds an expert group that the read reports as {@code name}. */
+   private static boolean isExpertPlaceholder(BDimensionRefModel previous, String name) {
+      NamedGroupInfoModel group = previous.getNamedGroupInfo();
+      return group != null && group.getType() == XNamedGroupInfo.EXPERT_NAMEDGROUP_INFO &&
+         name.equals(group.getName());
    }
 
    /** Whether {@code previous} is the same occurrence of the same column as {@code field}. */
@@ -489,7 +649,9 @@ public final class TableBindingMutator {
    }
 
    /**
-    * A copy of {@code previous}'s sort/ranking, for a field matched at the same position.
+    * A copy of {@code previous}'s sort/ranking, for a field matched at the same position -- and
+    * its named group too when {@code withGroup}, which is only right for an entry the write
+    * leaves untouched.
     *
     * <p>{@code timeSeries} is carried forward here too, not just applied in {@link
     * #dimensions} when the incoming field names it -- a fresh {@code BDimensionRefModel}
@@ -499,8 +661,15 @@ public final class TableBindingMutator {
     * apply-if-present branch runs after this and overwrites it when the incoming field does
     * carry a value, so an explicit write still wins.
     */
-   private static BDimensionRefModel copyOf(BDimensionRefModel previous) {
+   private static BDimensionRefModel copyOf(BDimensionRefModel previous, boolean withGroup) {
       BDimensionRefModel ref = new BDimensionRefModel();
+
+      if(withGroup) {
+         ref.setNamedGroupInfo(previous.getNamedGroupInfo());
+         ref.setCustomNamedGroupInfo(previous.getCustomNamedGroupInfo());
+         ref.setDataRefModel(previous.getDataRefModel());
+      }
+
       ref.setOrder(previous.getOrder());
       ref.setSortByCol(previous.getSortByCol());
       ref.setManualOrder(previous.getManualOrder() == null
