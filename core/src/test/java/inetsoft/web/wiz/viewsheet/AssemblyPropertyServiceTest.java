@@ -2928,6 +2928,166 @@ class AssemblyPropertyServiceTest {
          .getTable());
    }
 
+   // ── #78393 verification: the VCO-003 spellings, every list type, and round trips ──
+
+   /** VCO-003 D1 spells only the first segment capitalised; Float must be refused too. */
+   @Test
+   void refusesInvertedTextInputFloatBoundsUnderACapitalizedFirstSegment() {
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("TextInputColumnOptionPaneModel.type", "Float");
+      patch.put("TextInputColumnOptionPaneModel.floatEditorModel.minimum", 9.5);
+      patch.put("TextInputColumnOptionPaneModel.floatEditorModel.maximum", 0.5);
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> setTextInputColumnOption(new TextInputPropertyDialogModel(), patch));
+
+      assertTrue(e.getMessage().contains("floatEditorModel.minimum"), e.getMessage());
+      assertTrue(e.getMessage().contains("must not be greater than"), e.getMessage());
+   }
+
+   @Test
+   void refusesInvertedTextInputIntegerBoundsUnderACapitalizedFirstSegment() {
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("TextInputColumnOptionPaneModel.type", "Integer");
+      patch.put("TextInputColumnOptionPaneModel.integerEditorModel.minimum", 10);
+      patch.put("TextInputColumnOptionPaneModel.integerEditorModel.maximum", 1);
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> setTextInputColumnOption(new TextInputPropertyDialogModel(), patch));
+
+      assertTrue(e.getMessage().contains("integerEditorModel.minimum"), e.getMessage());
+   }
+
+   /** A capitalised path to an ordinary field still writes that field. */
+   @Test
+   void writesOrdinaryFieldsUnderCapitalizedSegments() {
+      TextInputPropertyDialogModel model = new TextInputPropertyDialogModel();
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("TextInputGeneralPaneModel.ToolTip", "Pick a value");
+      patch.put("TextInputGeneralPaneModel.GeneralPropPaneModel.BasicGeneralPaneModel.Visible",
+                "hide");
+
+      setTextInputColumnOption(model, patch);
+
+      assertEquals("Pick a value", model.getTextInputGeneralPaneModel().getToolTip());
+      assertEquals("hide", model.getTextInputGeneralPaneModel().getGeneralPropPaneModel()
+         .getBasicGeneralPaneModel().getVisible());
+   }
+
+   @Test
+   void storesValidEmbeddedIntegerValuesExactlyOnEveryListInputType() {
+      CheckboxPropertyDialogModel checkbox = new CheckboxPropertyDialogModel();
+      setList(serviceWithCheckbox(mock(CheckBoxVSAssembly.class), checkbox, new Worksheet()),
+              embeddedInteger(CHECKBOX_EDITOR, "1", "2"));
+      assertArrayEquals(new String[] { "1", "2" },
+                        checkbox.getCheckboxGeneralPaneModel().getListValuesPaneModel()
+                           .getComboBoxEditorModel().getVariableListDialogModel().getValues());
+
+      ComboboxPropertyDialogModel combobox = new ComboboxPropertyDialogModel();
+      setList(serviceWithCombobox(mock(ComboBoxVSAssembly.class), combobox, new Worksheet()),
+              embeddedInteger(COMBOBOX_EDITOR, "1", "2"));
+      assertArrayEquals(new String[] { "1", "2" },
+                        combobox.getComboboxGeneralPaneModel().getListValuesPaneModel()
+                           .getComboBoxEditorModel().getVariableListDialogModel().getValues());
+
+      RadioButtonPropertyDialogModel radio = new RadioButtonPropertyDialogModel();
+      setList(serviceWithRadioButton(mock(RadioButtonVSAssembly.class), radio, new Worksheet()),
+              embeddedInteger(RADIO_EDITOR, "1", "2"));
+      assertArrayEquals(new String[] { "1", "2" },
+                        radio.getRadioButtonGeneralPaneModel().getListValuesPaneModel()
+                           .getComboBoxEditorModel().getVariableListDialogModel().getValues());
+   }
+
+   /** The patch the plugin posts for VCO-003's control: column mirrored into the raw value. */
+   @Test
+   void bindsTheQuerySourceThePluginPostsForTableAndColumn() {
+      ComboboxPropertyDialogModel model = new ComboboxPropertyDialogModel();
+      AssemblyPropertyService service =
+         listInputServiceWithColumns(mock(ComboBoxVSAssembly.class), model);
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("query", true);
+      patch.put("table", "CUSTOMERS");
+      patch.put("column", "COMPANY_NAME");
+      patch.put(COMBOBOX_EDITOR + ".selectionListDialogModel.selectionListEditorModel.value",
+                "COMPANY_NAME");
+
+      setList(service, patch);
+
+      var source = model.getComboboxGeneralPaneModel().getListValuesPaneModel()
+         .getComboBoxEditorModel().getSelectionListDialogModel().getSelectionListEditorModel();
+      assertEquals("CUSTOMERS", source.getTable());
+      assertEquals("COMPANY_NAME", source.getColumn());
+      assertEquals("COMPANY_NAME", source.getValue());
+   }
+
+   @Test
+   void acceptsQueryAloneOnEveryListInputType() {
+      Map<String, Object> patch = Map.of("query", true);
+
+      CheckboxPropertyDialogModel checkbox = new CheckboxPropertyDialogModel();
+      setList(listInputServiceWithColumns(mock(CheckBoxVSAssembly.class), checkbox), patch);
+      assertTrue(checkbox.getCheckboxGeneralPaneModel().getListValuesPaneModel()
+                    .getComboBoxEditorModel().isQuery());
+
+      ComboboxPropertyDialogModel combobox = new ComboboxPropertyDialogModel();
+      setList(listInputServiceWithColumns(mock(ComboBoxVSAssembly.class), combobox), patch);
+      assertTrue(combobox.getComboboxGeneralPaneModel().getListValuesPaneModel()
+                    .getComboBoxEditorModel().isQuery());
+
+      RadioButtonPropertyDialogModel radio = new RadioButtonPropertyDialogModel();
+      setList(listInputServiceWithColumns(mock(RadioButtonVSAssembly.class), radio), patch);
+      assertTrue(radio.getRadioButtonGeneralPaneModel().getListValuesPaneModel()
+                    .getComboBoxEditorModel().isQuery());
+   }
+
+   /**
+    * The label/value count check must not break a get -> set round trip: writing back the list
+    * as read, replacing values with the same count, or replacing both with a new count.
+    */
+   @Test
+   void acceptsListRoundTripsThatKeepLabelsAndValuesAligned() {
+      CheckboxPropertyDialogModel model = new CheckboxPropertyDialogModel();
+      VariableListDialogModel list = model.getCheckboxGeneralPaneModel().getListValuesPaneModel()
+         .getComboBoxEditorModel().getVariableListDialogModel();
+      list.setDataType("integer");
+      list.setLabels(new String[] { "One", "Two" });
+      list.setValues(new String[] { "1", "2" });
+      AssemblyPropertyService service =
+         serviceWithCheckbox(mock(CheckBoxVSAssembly.class), model, new Worksheet());
+      String listPath = CHECKBOX_EDITOR + ".variableListDialogModel";
+
+      Map<String, Object> asRead = new LinkedHashMap<>();
+      asRead.put(listPath + ".dataType", list.getDataType());
+      asRead.put(listPath + ".labels", java.util.List.of(list.getLabels()));
+      asRead.put(listPath + ".values", java.util.List.of(list.getValues()));
+      setList(service, asRead);
+
+      setList(service, Map.of(listPath + ".values", java.util.List.of("3", "4")));
+      assertArrayEquals(new String[] { "3", "4" }, list.getValues());
+
+      Map<String, Object> grown = new LinkedHashMap<>();
+      grown.put(listPath + ".labels", java.util.List.of("A", "B", "C"));
+      grown.put(listPath + ".values", java.util.List.of("5", "6", "7"));
+      setList(service, grown);
+      assertArrayEquals(new String[] { "A", "B", "C" }, list.getLabels());
+      assertArrayEquals(new String[] { "5", "6", "7" }, list.getValues());
+   }
+
+   /** With no stored labels, a values-only write of any length is still accepted. */
+   @Test
+   void acceptsAValuesOnlyWriteWhenNoLabelsAreStored() {
+      RadioButtonPropertyDialogModel model = new RadioButtonPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithRadioButton(mock(RadioButtonVSAssembly.class), model, new Worksheet());
+
+      setList(service, Map.of(RADIO_EDITOR + ".variableListDialogModel.values",
+                              java.util.List.of("a", "b", "c")));
+
+      assertArrayEquals(new String[] { "a", "b", "c" },
+                        model.getRadioButtonGeneralPaneModel().getListValuesPaneModel()
+                           .getComboBoxEditorModel().getVariableListDialogModel().getValues());
+   }
+
    private static AssemblyPropertyService serviceWithTextInput(
       VSAssembly assembly, TextInputPropertyDialogModel model, Worksheet baseWorksheet)
    {
