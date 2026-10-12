@@ -233,6 +233,10 @@ public class ComboBoxVSAssemblyInfo extends ListInputVSAssemblyInfo {
       if(defaultValue.equals(Tool.NULL_PARAMETER_VALUE)) {
          defaultValue = null;
       }
+      // a default value saved before #77605 may have a Buddhist or Japanese year
+      else if(XSchema.isDateType(getDataType())) {
+         defaultValue = Tool.toGregorianPersistentDate(defaultValue);
+      }
    }
 
    /**

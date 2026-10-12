@@ -1087,6 +1087,27 @@ public class VSDimensionRef extends AbstractDataRef implements ContentObject, XD
          groupInfo.parseXML(node);
       }
 
+      // a manual order saved before #77605 may have a Buddhist or Japanese year; only
+      // convert date-typed manual order values, computed the same way as createComparator()
+      // does, so named groups (string values) and non-date dimensions are left untouched
+      if(manualOrder != null && !isNameGroup()) {
+         String mtype = getDataType();
+
+         if(isDateRange()) {
+            mtype = DateRangeRef.getDataType(getDateLevel(), mtype);
+         }
+
+         if(XSchema.isDateType(mtype)) {
+            for(int i = 0; i < manualOrder.size(); i++) {
+               Object val = manualOrder.get(i);
+
+               if(val instanceof String) {
+                  manualOrder.set(i, Tool.toGregorianPersistentDate((String) val));
+               }
+            }
+         }
+      }
+
       String comboTypeString = Tool.getChildValueByTagName(elem, "comboType");
 
       if(comboTypeString != null) {
