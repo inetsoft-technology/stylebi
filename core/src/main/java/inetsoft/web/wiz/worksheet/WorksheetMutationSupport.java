@@ -37,6 +37,7 @@ import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.ws.WorksheetControllerService;
+import inetsoft.web.wiz.viewsheet.WizStrictValueParser;
 import inetsoft.web.wiz.pairing.PairingException;
 
 import java.util.*;
@@ -3499,18 +3500,28 @@ public final class WorksheetMutationSupport {
 
       for(int i = 0; i < values.size(); i++) {
          String v = values.get(i);
-         Object typed = Tool.getData(type, v);
 
-         // Tool.getData silently returns null for an entry that doesn't parse as 'type' (e.g.
-         // "abc" for an integer variable) instead of throwing -- fail loud here instead,
-         // matching every other validation in this method, rather than writing a value whose
-         // label ('v') and underlying null value end up silently out of sync.
-         if(typed == null && v != null && !v.isEmpty()) {
+         // Tool.getData wraps/clamps/rolls over out-of-range input and returns null for the
+         // unparseable, leaving the label ('v') and stored value silently out of sync -- parse
+         // strictly first and fail loud, matching every other validation in this method.
+         Object parsed;
+
+         try {
+            parsed = WizStrictValueParser.parse(v, type);
+         }
+         catch(IllegalArgumentException ex) {
             throw new IllegalArgumentException(
-               "'values' entry \"" + v + "\" is not a valid " + type + " value.");
+               "Variable '" + var.getName() + "': 'values' entry \"" + v +
+               "\" is not a valid " + type + " value.");
          }
 
-         typedValues[i] = typed;
+         if(parsed == null && v != null && !v.isEmpty()) {
+            throw new IllegalArgumentException(
+               "Variable '" + var.getName() + "': 'values' entry \"" + v +
+               "\" is not a valid " + type + " value.");
+         }
+
+         typedValues[i] = XSchema.STRING.equals(type) ? v : Tool.getData(type, v);
       }
 
       // Switching to embedded mode must clear any leftover query-mode source -- otherwise

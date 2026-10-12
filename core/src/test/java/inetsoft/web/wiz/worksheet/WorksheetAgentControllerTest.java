@@ -5190,6 +5190,166 @@ class WorksheetAgentControllerTest {
       assertTrue(ex.getMessage().contains("TotallyNonexistentVar"), ex.getMessage());
    }
 
+   // ---------------------------------------------------------------------------
+   // Bug #78397: strict value validation for worksheet variables (D1/D2/defaultValue)
+   // ---------------------------------------------------------------------------
+
+   private WorksheetAgentController strictVariableController(
+      Worksheet ws, AssetQuerySandbox box, String token) throws Exception
+   {
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq(token), any())).thenReturn(session(token));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class),
+         mock(InnerJoinService.class));
+
+      return controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+   }
+
+   @ParameterizedTest
+   @CsvSource({
+      "integer, 3000000000",
+      "integer, 1.5",
+      "short, 40000",
+      "byte, 300",
+      "long, 9223372036854775808",
+      "date, 2026-02-30",
+      "date, 2026-13-45",
+      "timeInstant, 2026-02-30 10:00:00",
+      "time, 25:61:00",
+      "double, 0x10",
+      "float, 1e50",
+      "boolean, maybe",
+      "integer, abc"
+   })
+   void setVariableValuesRefusesValueTheStrictParserRejects(String type, String bad)
+      throws Exception
+   {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      variableAssemblyForValues(ws, "wVar", type);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      WorksheetAgentController ctrl = strictVariableController(ws, box, "TOK-SVS1");
+
+      PairingException ex = assertThrows(PairingException.class, () -> ctrl.edit(
+         "TOK-SVS1", setVariableValuesRequest(Map.of("wVar", bad)), agent));
+      assertTrue(ex.getMessage().contains("wVar"), ex.getMessage());
+      assertTrue(ex.getMessage().contains(bad), ex.getMessage());
+      verify(box, never()).refreshVariableTable(any());
+   }
+
+   @ParameterizedTest
+   @CsvSource({"integer", "double", "date"})
+   void setVariableValuesRefusesBlankForNonStringType(String type) throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      variableAssemblyForValues(ws, "wVar", type);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      WorksheetAgentController ctrl = strictVariableController(ws, box, "TOK-SVS1B");
+
+      PairingException ex = assertThrows(PairingException.class, () -> ctrl.edit(
+         "TOK-SVS1B", setVariableValuesRequest(Map.of("wVar", "")), agent));
+      assertTrue(ex.getMessage().contains("wVar"), ex.getMessage());
+      verify(box, never()).refreshVariableTable(any());
+   }
+
+   @Test
+   void setVariableValuesListElementIsValidatedAndNamedWithItsIndex() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      boundedChoiceVariable(ws, "wMDbl", XSchema.DOUBLE,
+         new Object[] {1.0, 2.0}, UserVariable.CHECKBOXES);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      WorksheetAgentController ctrl = strictVariableController(ws, box, "TOK-SVS2");
+
+      PairingException ex = assertThrows(PairingException.class, () -> ctrl.edit(
+         "TOK-SVS2", setVariableValuesRequest(Map.of("wMDbl", List.of("1", "0x10"))), agent));
+      assertTrue(ex.getMessage().contains("wMDbl"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("[1]"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("0x10"), ex.getMessage());
+      verify(box, never()).refreshVariableTable(any());
+   }
+
+   @Test
+   void setVariableValuesStillAcceptsValidTypedValuesAndNullClear() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      variableAssemblyForValues(ws, "wDate", XSchema.DATE);
+      variableAssemblyForValues(ws, "wDbl", XSchema.DOUBLE);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      WorksheetAgentController ctrl = strictVariableController(ws, box, "TOK-SVS3");
+
+      java.util.Map<String, Object> req = new java.util.HashMap<>();
+      req.put("wDate", "2026-03-01");
+      req.put("wDbl", "1.5");
+      ctrl.edit("TOK-SVS3", setVariableValuesRequest(req), agent);
+
+      ArgumentCaptor<VariableTable> captor = ArgumentCaptor.forClass(VariableTable.class);
+      verify(box).refreshVariableTable(captor.capture());
+      assertEquals(1.5, captor.getValue().get("wDbl"));
+      assertTrue(captor.getValue().get("wDate") instanceof java.util.Date);
+
+      java.util.Map<String, Object> clear = new java.util.HashMap<>();
+      clear.put("wDbl", null);
+      ctrl.edit("TOK-SVS3", setVariableValuesRequest(clear), agent);
+      verify(box, times(2)).refreshVariableTable(any());
+   }
+
+   @ParameterizedTest
+   @CsvSource({
+      "date, 2026-02-30",
+      "date, 2026-13-45",
+      "time, 25:61:00",
+      "boolean, maybe",
+      "float, 1e50",
+      "character, ab"
+   })
+   void addVariableRefusesDefaultValueTheStrictParserRejects(String type, String bad)
+      throws Exception
+   {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = strictVariableController(
+         ws, mock(AssetQuerySandbox.class), "TOK-SVS4");
+
+      PairingException ex = assertThrows(PairingException.class, () -> ctrl.edit(
+         "TOK-SVS4", addVariableRequest("dVar", type, bad), agent));
+      assertTrue(ex.getMessage().contains(bad), ex.getMessage());
+      assertNull(ws.getAssembly("dVar"));
+   }
+
+   @Test
+   void addVariableRefusesBlankDefaultOnNumericVariable() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = strictVariableController(
+         ws, mock(AssetQuerySandbox.class), "TOK-SVS4B");
+
+      assertThrows(PairingException.class, () -> ctrl.edit(
+         "TOK-SVS4B", addVariableRequest("dVar", "integer", ""), agent));
+      assertNull(ws.getAssembly("dVar"));
+   }
+
+   @Test
+   void addVariableAcceptsValidDefaultValue() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = strictVariableController(
+         ws, mock(AssetQuerySandbox.class), "TOK-SVS5");
+
+      ctrl.edit("TOK-SVS5", addVariableRequest("dVar", "date", "2026-03-01"), agent);
+      assertNotNull(ws.getAssembly("dVar"));
+   }
+
    private static DefaultVariableAssembly variableAssemblyForValues(
       Worksheet ws, String name, String type)
    {

@@ -51,6 +51,7 @@ import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.dialog.ExpressionDialogService;
 import inetsoft.web.composer.ws.joins.InnerJoinService;
 import inetsoft.web.composer.ws.joins.JoinUtil;
+import inetsoft.web.wiz.viewsheet.WizStrictValueParser;
 import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.service.RenderWaitSupport;
 import org.slf4j.Logger;
@@ -3762,6 +3763,7 @@ public class WorksheetEditService {
 
             if(valueNode != null) {
                try {
+                  WizStrictValueParser.parse(defaultValue, effectiveType);
                   valueNode.parse0(defaultValue);
                }
                catch(Exception e) {
