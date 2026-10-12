@@ -1593,8 +1593,36 @@ public class ChangeChartProcessor {
          !Tool.equals(AbstractCalc.COLUMN_INNER, columnName) &&
          !findDimRef(columnName, info))
       {
-         ccalc.setColumnName(null);
+         VSDataRef bare = findDimByBareName(columnName, info);
+         ccalc.setColumnName(bare == null ? null : bare.getFullName());
       }
+   }
+
+   /**
+    * The only visible dimension whose bare column is {@code columnName}, or null if there is
+    * none or several (a bare name then does not designate one dimension).
+    */
+   private VSDataRef findDimByBareName(String columnName, ChartInfo info) {
+      VSDataRef found = null;
+
+      if(columnName == null) {
+         return null;
+      }
+
+      for(VSDataRef dim : getChartDimensionRef(info, false)) {
+         boolean visible = !(dim instanceof VSChartDimensionRef) ||
+            ((VSChartDimensionRef) dim).isDrillVisible();
+
+         if(visible && columnName.equalsIgnoreCase(dim.getName())) {
+            if(found != null) {
+               return null;
+            }
+
+            found = dim;
+         }
+      }
+
+      return found;
    }
 
    private boolean findDimRef(String columnName, ChartInfo info) {

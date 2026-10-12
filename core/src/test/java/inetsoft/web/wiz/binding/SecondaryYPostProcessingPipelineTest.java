@@ -18,13 +18,20 @@
 package inetsoft.web.wiz.binding;
 
 import inetsoft.report.composition.graph.GraphUtil;
+import inetsoft.report.composition.graph.calc.ChangeCalc;
+import inetsoft.report.composition.graph.calc.ValueOfCalc;
 import inetsoft.report.internal.graph.ChangeChartDataProcessor;
 import inetsoft.report.internal.graph.ChangeChartProcessor;
+import inetsoft.uql.XConstants;
+import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.DefaultVSChartInfo;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
+import inetsoft.uql.viewsheet.graph.VSChartDimensionRef;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.web.binding.model.ChartBindingModel;
 import inetsoft.web.binding.model.graph.ChartAggregateRefModel;
@@ -115,6 +122,45 @@ class SecondaryYPostProcessingPipelineTest {
       assertTrue(sales.isSecondaryY(),
                  "none of the seven post-processing steps changeChartRef runs after " +
                  "updateAssembly may reset secondaryY back to false");
+   }
+
+   /**
+    * Bug #78403: a CHANGE calculator written with the bare column of a date-grouped dimension was
+    * nulled by {@code fixAggregateRefs} because only the full name ({@code Month(Order Date)})
+    * matched. It must resolve to that dimension's runtime full name instead.
+    */
+   @Test
+   void changeCalculatorBareDateColumnResolvesToTheDimensionFullName() {
+      assertEquals("Month(Order Date)", changeCalcColumnAfterFix("Order Date"));
+      assertEquals("Month(Order Date)", changeCalcColumnAfterFix("Month(Order Date)"));
+      assertNull(changeCalcColumnAfterFix("Nope"));
+   }
+
+   private static String changeCalcColumnAfterFix(String columnName) {
+      VSChartInfo info = new DefaultVSChartInfo();
+      info.setChartType(GraphTypes.CHART_LINE);
+
+      AttributeRef attribute = new AttributeRef(null, "Order Date");
+      attribute.setDataType(XSchema.DATE);
+      VSChartDimensionRef date = new VSChartDimensionRef();
+      date.setDataRef(new ColumnRef(attribute));
+      date.setDateLevelValue(String.valueOf(XConstants.MONTH_DATE_GROUP));
+      info.addXField(date);
+
+      AttributeRef salesAttribute = new AttributeRef(null, "Sales");
+      salesAttribute.setDataType(XSchema.DOUBLE);
+      VSChartAggregateRef sales = new VSChartAggregateRef();
+      sales.setDataRef(new ColumnRef(salesAttribute));
+      sales.setFormulaValue("Sum");
+      ChangeCalc calc = new ChangeCalc();
+      calc.setColumnName(columnName);
+      sales.setCalculator(calc);
+      info.addYField(sales);
+
+      assertEquals("Month(Order Date)", date.getFullName());
+      new ChangeChartProcessor().fixAggregateRefs(info);
+
+      return ((ValueOfCalc) sales.getCalculator()).getColumnName();
    }
 
    /**
