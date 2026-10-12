@@ -48,8 +48,12 @@ import static org.mockito.Mockito.*;
  * When several tables have the column the original is ambiguous, but the regenerated sql
  * ran. The parser has no column metadata, so the table of the column is only known for a
  * left operand of one table, or for a column of an earlier inner or RIGHT USING join of
- * the same left operand. Any other USING join of a multi-table left operand fails the
- * parse, and the original sql runs.
+ * the same left operand. Any other USING join of a multi-table left operand failed the
+ * parse, and so was rejected by VPM. Bug #78381 takes the column from the last table of
+ * the left operand again, which a chain usually joins: the regenerated sql returns the
+ * original rows when the column is in the last table, fails on the database when it's
+ * only in an earlier table, and the original is ambiguous (an error) when several tables
+ * have it.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -110,63 +114,126 @@ class UniformSQLUsingJoinLeftOperandTest {
       }
    }
 
+   // what the regenerated sql of a query with a column of an unknown table does on Derby
+   enum Rows {
+      // the column is in the last table, the original rows
+      SAME,
+      // the column is only in an earlier table, a database error (last.x is not in any table)
+      MISSING,
+      // the column is in several tables, the original is ambiguous, a database error
+      AMBIGUOUS,
+      // not run, Derby has no FULL join, or the tables aren't in the database
+      NOT_RUN
+   }
+
    static Stream<Arguments> unknownTableQueries() {
       String[] queries = {
-         // reporter's example and the other join types, x is only in a
-         "select a.x, b.y, c.z from a join b using (id) join c using (x)",
-         "select a.x, b.y, c.z from a join b using (id) inner join c using (x)",
-         "select a.x, b.y, c.z from a join b using (id) left join c using (x)",
-         "select a.x, b.y, c.z from a join b using (id) left outer join c using (x)",
-         "select a.x, b.y, c.z from a join b using (id) right join c using (x)",
-         "select a.x, b.y, c.z from a join b using (id) full join c using (x)",
+         // #77490's example and the other join types, x is only in a
+         "select a.x, b.y, c.z from a join b using (id) join c using (x) | " +
+            "a.id = b.id, b.x = c.x | MISSING",
+         "select a.x, b.y, c.z from a join b using (id) inner join c using (x) | " +
+            "a.id = b.id, b.x = c.x | MISSING",
+         "select a.x, b.y, c.z from a join b using (id) left join c using (x) | " +
+            "a.id = b.id, b.x *= c.x | MISSING",
+         "select a.x, b.y, c.z from a join b using (id) left outer join c using (x) | " +
+            "a.id = b.id, b.x *= c.x | MISSING",
+         "select a.x, b.y, c.z from a join b using (id) right join c using (x) | " +
+            "a.id = b.id, b.x =* c.x | MISSING",
+         "select a.x, b.y, c.z from a join b using (id) full join c using (x) | " +
+            "a.id = b.id, b.x *=* c.x | NOT_RUN",
          // after an ON join and a parenthesized left operand
-         "select a.x, b.y, c.z from a join b on a.id = b.id join c using (x)",
-         "select a.x, b.y, c.z from a left join b on a.id = b.id join c using (x)",
-         "select a.x, b.y, c.z from (a join b on a.id = b.id) join c using (x)",
-         // the column is in the last table, the parser can't tell it from the shape above
-         "select a.x, b.y, e.v from a join b using (id) join e using (y)",
-         "select a.x, b.y, e.v from a left join b on a.id = b.id left join e using (y)",
+         "select a.x, b.y, c.z from a join b on a.id = b.id join c using (x) | " +
+            "a.id = b.id, b.x = c.x | MISSING",
+         "select a.x, b.y, c.z from a left join b on a.id = b.id join c using (x) | " +
+            "a.id *= b.id, b.x = c.x | MISSING",
+         "select a.x, b.y, c.z from (a join b on a.id = b.id) join c using (x) | " +
+            "a.id = b.id, b.x = c.x | MISSING",
+         // the column is in the last table (Bug #78381)
+         "select a.x, b.y, e.v from a join b using (id) join e using (y) | " +
+            "a.id = b.id, b.y = e.y | SAME",
+         "select a.x, b.y, e.v from a left join b on a.id = b.id left join e using (y) | " +
+            "a.id *= b.id, b.y *= e.y | SAME",
          // the column is in several tables of the left operand, the original is ambiguous
-         "select a.x, f.u, c.z from a join f on a.id = f.id join c using (x)",
+         "select a.x, f.u, c.z from a join f on a.id = f.id join c using (x) | " +
+            "a.id = f.id, f.x = c.x | AMBIGUOUS",
          // one column of several is unknown
-         "select a.x, b.y, f.u from a join b using (id) join f using (id, x)",
-         // the earlier USING join of id is in a nested join, its left operand is only a
-         "select b.y, c.z, d.w from c join (a join b using (id)) on c.x = a.x join d using (id)",
+         "select a.x, b.y, f.u from a join b using (id) join f using (id, x) | " +
+            "a.id = b.id, b.id = f.id, b.x = f.x | MISSING",
+         // the earlier USING join of id is in a nested join, its left operand is only a.
+         // The merged id of the nested join is b's
+         "select b.y, c.z, d.w from c join (a join b using (id)) on c.x = a.x join d using (id) | " +
+            "a.id = b.id, c.x = a.x, b.id = d.id | SAME",
          // a comma-listed earlier table, a subquery and a derived table
-         "select a.x, c.z, d.w from d, a join b using (id) join c using (x)",
+         "select a.x, c.z, d.w from d, a join b using (id) join c using (x) | " +
+            "a.id = b.id, b.x = c.x | MISSING",
          "select d.w from d where exists " +
-            "(select 1 from a join b using (id) join c using (x) where a.id = d.id)",
-         "select t.z from (select c.z from a join b using (id) join c using (x)) t",
+            "(select 1 from a join b using (id) join c using (x) where a.id = d.id) |  | MISSING",
+         "select t.z from (select c.z from a join b using (id) join c using (x)) t |  | MISSING",
          // an inner join filter between outer joined tables before a RIGHT USING join (#77478)
          "select a.x, b.y, c.z, d.w from a left join b on a.id = b.id " +
-            "join c on c.x = a.x and b.y = c.z right join d using (id)",
+            "join c on c.x = a.x and b.y = c.z right join d using (id) | " +
+            "a.id *= b.id, c.x = a.x, b.y = c.z, c.id =* d.id | AMBIGUOUS",
          // a column of another table than an earlier USING join's
-         "select a.x from a left join b using (id) join c using (k)",
-         "select a.x from a left join b on a.id = b.id left join c using (k)",
-         "select a.x from z join a on z.k = a.k left join b using (id)"
+         "select a.x from a left join b using (id) join c using (k) | " +
+            "a.id *= b.id, b.k = c.k | NOT_RUN",
+         "select a.x from a left join b on a.id = b.id left join c using (k) | " +
+            "a.id *= b.id, b.k *= c.k | NOT_RUN",
+         "select a.x from z join a on z.k = a.k left join b using (id) | " +
+            "z.k = a.k, a.id *= b.id | NOT_RUN"
       };
       return withDataSources(queries);
    }
 
    /**
-    * The table of the column is unknown, the parse fails and the original sql runs.
+    * The table of the column is unknown, the column is taken from the last table of the
+    * left operand (Bug #78381). The parse is lossy, so only VPM regenerates the sql. A
+    * RIGHT or FULL join mixed with an inner join is still refused without a data source
+    * (#77434).
     */
    @ParameterizedTest
    @MethodSource("unknownTableQueries")
-   void usingJoinOfUnknownTableFailsParse(String text, String source) {
+   void usingJoinOfUnknownTableUsesLastTable(String text, String joins, String rows,
+                                            String source)
+      throws Exception
+   {
       JDBCDataSource ds = dataSource(source);
-      RecognitionException ex = assertThrows(RecognitionException.class, () -> parse(text, ds));
-      assertTrue(ex.getMessage().contains("Unsupported USING join, the left operand table " +
-                                          "of the column is unknown"), ex.getMessage());
-
       UniformSQL sql = process(text, ds);
-      assertEquals(UniformSQL.PARSE_FAILED, sql.getParseResult());
-      assertEquals(text, sql.getSQLString());
-      assertFalse(XUtil.isQueryMergeable(query(sql)));
+
+      if(ds == null && text.matches(".* (right|full) join .*")) {
+         RecognitionException ex = assertThrows(RecognitionException.class, () -> parse(text, ds));
+         assertTrue(ex.getMessage().contains("mixed with an inner"), ex.getMessage());
+         assertEquals(UniformSQL.PARSE_FAILED, sql.getParseResult());
+         return;
+      }
+
+      assertEquals(UniformSQL.PARSE_SUCCESS, sql.getParseResult(), text);
+      assertEquals(sorted(joins), sorted(joins(sql)));
+      // on a copy, the query sets its data source to the sql
+      assertFalse(XUtil.isQueryMergeable(query((UniformSQL) sql.clone())));
 
       UniformSQL fresh = new UniformSQL();
       fresh.setSQLString(text, false);
       assertTrue(fresh.isLossy());
+
+      String generated = regenerate(sql);
+
+      switch(Rows.valueOf(rows)) {
+      case SAME -> {
+         assertEquals(rows(text), rows(generated), generated);
+         UniformSQL sql2 = process(generated, ds);
+         assertEquals(UniformSQL.PARSE_SUCCESS, sql2.getParseResult(), generated);
+         assertEquals(generated, regenerate(sql2));
+      }
+      case MISSING -> {
+         assertDoesNotThrow(() -> rows(text), "original: " + text);
+         SQLException ex = assertThrows(SQLException.class, () -> rows(generated), generated);
+         assertTrue(ex.getMessage().contains("is not in any table") ||
+                    ex.getMessage().contains("either not in any table"), ex.getMessage());
+      }
+      case AMBIGUOUS -> assertThrows(SQLException.class, () -> rows(text), text);
+      case NOT_RUN -> {
+      }
+      }
    }
 
    static Stream<Arguments> knownTableQueries() {
@@ -255,8 +322,11 @@ class UniformSQLUsingJoinLeftOperandTest {
    private static Stream<Arguments> withDataSources(String[] queries) {
       return Arrays.stream(queries).flatMap(q -> {
          String[] parts = q.split(" \\| ", -1);
-         return Stream.of("none", "generic", "ansi").map(source -> parts.length == 1 ?
-            Arguments.of(parts[0], source) : Arguments.of(parts[0], parts[1], source));
+         return Stream.of("none", "generic", "ansi").map(source -> {
+            Object[] args = Arrays.copyOf(parts, parts.length + 1, Object[].class);
+            args[parts.length] = source;
+            return Arguments.of(args);
+         });
       });
    }
 
@@ -335,4 +405,5 @@ class UniformSQLUsingJoinLeftOperandTest {
          return count + " columns " + rows;
       }
    }
+
 }
