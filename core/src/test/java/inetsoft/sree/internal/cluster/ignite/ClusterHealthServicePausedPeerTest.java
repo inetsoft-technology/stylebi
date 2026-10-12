@@ -42,6 +42,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.function.ToIntFunction;
 
 import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.*;
@@ -66,6 +67,33 @@ class ClusterHealthServicePausedPeerTest {
 
    @Test
    void healthyNodesStayReadyWhilePeerIsPaused() throws Exception {
+      runPausedPeer(nodes -> 2);
+   }
+
+   /**
+    * The probe reads the {@code __health_check__} key. Pause the node that is that key's primary,
+    * so the healthy nodes can only answer the read from their own REPLICATED copy: if the read
+    * ever went to the primary, it would wait on the paused node.
+    */
+   @Test
+   void healthyNodesStayReadyWhileHealthCheckKeyPrimaryIsPaused() throws Exception {
+      runPausedPeer(nodes -> {
+         Object primary = nodes.get(0).getIgniteInstance().affinity(SREE_PROPERTIES_MAP)
+            .mapKeyToNode(HEALTH_CHECK_KEY).consistentId();
+
+         for(int i = 0; i < nodes.size(); i++) {
+            if(("n" + (i + 1)).equals(primary)) {
+               return i;
+            }
+         }
+
+         throw new AssertionError("no primary node for " + HEALTH_CHECK_KEY + ": " + primary);
+      });
+   }
+
+   private void runPausedPeer(ToIntFunction<List<IgniteCluster>> pausedNode)
+      throws Exception
+   {
       int[] discoveryPorts = { freePort(), freePort(), freePort() };
       List<String> addresses = new ArrayList<>();
 
@@ -74,14 +102,15 @@ class ClusterHealthServicePausedPeerTest {
       }
 
       List<IgniteCluster> nodes = new ArrayList<>();
-      List<ClusterHealthService> health = new ArrayList<>();
+      List<MutableCommunicationSpi> comms = new ArrayList<>();
+      Map<String, ClusterHealthService> health = new LinkedHashMap<>();
       MutableCommunicationSpi pausedComm = null;
 
       try {
          for(int i = 0; i < 3; i++) {
             MutableCommunicationSpi comm = new MutableCommunicationSpi();
             nodes.add(start("n" + (i + 1), discoveryPorts[i], addresses, comm));
-            pausedComm = comm;
+            comms.add(comm);
          }
 
          await().atMost(Duration.ofSeconds(60)).until(() ->
@@ -90,16 +119,24 @@ class ClusterHealthServicePausedPeerTest {
          DistributedMap<String, String> map = nodes.get(0).getReplicatedMap(SREE_PROPERTIES_MAP);
          map.put("key", "value");
 
-         for(int i = 0; i < 2; i++) {
-            health.add(new ClusterHealthService(nodes.get(i), loadedStorage()));
-            assertReady(health.get(i), "n" + (i + 1) + " before the pause");
+         int paused = pausedNode.applyAsInt(nodes);
+         String pausedName = "n" + (paused + 1);
+
+         for(int i = 0; i < 3; i++) {
+            if(i != paused) {
+               String name = "n" + (i + 1);
+               health.put(name, new ClusterHealthService(nodes.get(i), loadedStorage()));
+               assertReady(health.get(name), name + " before the pause");
+            }
          }
 
-         // pause n3: it stays in the topology but answers no communication message
+         // pause one node: it stays in the topology but answers no communication message
+         pausedComm = comms.get(paused);
          pausedComm.pause();
 
-         // the cluster-wide size() now waits on n3, which shows the pause is effective
-         IgniteFuture<Integer> size = nodes.get(0).getIgniteInstance()
+         // the cluster-wide size() now waits on the paused node, which shows the pause is effective
+         IgniteCluster healthy = nodes.get(paused == 0 ? 1 : 0);
+         IgniteFuture<Integer> size = healthy.getIgniteInstance()
             .cache(SREE_PROPERTIES_MAP).sizeAsync();
          Thread.sleep(2000L);
          assertFalse(size.isDone(), "a cluster-wide size() waits for the paused peer");
@@ -108,24 +145,29 @@ class ClusterHealthServicePausedPeerTest {
          long end = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(PAUSE_MILLIS);
 
          while(System.nanoTime() - end < 0) {
-            assertReady(health.get(0), "n1 while n3 is paused");
-            assertReady(health.get(1), "n2 while n3 is paused");
+            for(Map.Entry<String, ClusterHealthService> e : health.entrySet()) {
+               assertReady(e.getValue(), e.getKey() + " while " + pausedName + " is paused");
+            }
+
             Thread.sleep(500L);
          }
 
-         assertEquals(3, servers(nodes.get(0)), "n3 stayed in the topology during the pause");
+         assertEquals(3, servers(healthy),
+                      pausedName + " stayed in the topology during the pause");
 
          pausedComm.resume();
          size.get(30, TimeUnit.SECONDS);
-         assertReady(health.get(0), "n1 after the pause");
-         assertReady(health.get(1), "n2 after the pause");
+
+         for(Map.Entry<String, ClusterHealthService> e : health.entrySet()) {
+            assertReady(e.getValue(), e.getKey() + " after the pause");
+         }
       }
       finally {
          if(pausedComm != null) {
             pausedComm.resume();
          }
 
-         health.forEach(ClusterHealthService::close);
+         health.values().forEach(ClusterHealthService::close);
 
          for(int i = nodes.size() - 1; i >= 0; i--) {
             nodes.get(i).close();
@@ -187,6 +229,7 @@ class ClusterHealthServicePausedPeerTest {
    }
 
    private static final String SREE_PROPERTIES_MAP = "inetsoft.storage.kv.sreeProperties";
+   private static final String HEALTH_CHECK_KEY = "__health_check__";
    private static final long PAUSE_MILLIS = 8000L;
 
    /**
