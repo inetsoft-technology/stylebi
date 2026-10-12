@@ -164,7 +164,7 @@ public class VSTableLayoutService {
                                 "/events/vs/calctable/tablelayout/changeColumnValue",
                                 event, linkUri, null);
       dispatcher.sendCommand(name, createCellBindingCommand(rvs, assembly, row, col));
-      dispatcher.sendCommand(name, createTableLayoutCommand(rvs, assembly));
+      sendTableLayout(dispatcher, name, rvs, assembly);
       assemblyInfoHandler.getGrayedOutFields(rvs, dispatcher);
       return null;
    }
@@ -208,7 +208,7 @@ public class VSTableLayoutService {
                                 false, false, dispatcher, null, null, null, null);
 
       dispatcher.sendCommand(name, createCellBindingCommand(rvs, assembly, row, col));
-      dispatcher.sendCommand(name, createTableLayoutCommand(rvs, assembly));
+      sendTableLayout(dispatcher, name, rvs, assembly);
       assemblyInfoHandler.getGrayedOutFields(rvs, dispatcher);
       return null;
    }
@@ -258,7 +258,7 @@ public class VSTableLayoutService {
       CalcTableVSAssemblyInfo ninfo = (CalcTableVSAssemblyInfo) info.clone();
       layoutHandler.doOperation(ninfo, event.getOp(), event.getSelection(), event.getNum());
       assemblyInfoHandler.apply(rvs, ninfo, engine, false, false, false, false, dispatcher);
-      dispatcher.sendCommand(name, createTableLayoutCommand(rvs, assembly));
+      sendTableLayout(dispatcher, name, rvs, assembly);
       return null;
    }
 
@@ -288,7 +288,7 @@ public class VSTableLayoutService {
       layoutHandler.copyOperation(ninfo, event.getOp(), selections[0], selections[1]);
       assemblyInfoHandler.apply(rvs, ninfo, engine, false, false, false, false, dispatcher);
       dispatcher.sendCommand(name, createCellBindingCommand(rvs, assembly, row, col));
-      dispatcher.sendCommand(name, createTableLayoutCommand(rvs, assembly));
+      sendTableLayout(dispatcher, name, rvs, assembly);
       return null;
    }
 
@@ -369,7 +369,7 @@ public class VSTableLayoutService {
          break;
       }
 
-      dispatcher.sendCommand(tableName, createTableLayoutCommand(rvs, table));
+      sendTableLayout(dispatcher, tableName, rvs, table);
       return null;
    }
 
@@ -446,6 +446,21 @@ public class VSTableLayoutService {
       cinfo.setRuntimeName(layout.getRuntimeCellName(bind));
 
       return cinfo;
+   }
+
+   /**
+    * Sends the layout command unless there is none. {@code createTableLayoutCommand} returns null
+    * when the table has no lens, which is the state after a failed execute; sending that null
+    * would throw an NPE inside the dispatcher and hide the real error.
+    */
+   public void sendTableLayout(CommandDispatcher dispatcher, String name, RuntimeViewsheet rvs,
+                               CalcTableVSAssembly assembly) throws Exception
+   {
+      GetTableLayoutCommand cmd = createTableLayoutCommand(rvs, assembly);
+
+      if(cmd != null) {
+         dispatcher.sendCommand(name, cmd);
+      }
    }
 
    public GetTableLayoutCommand createTableLayoutCommand(RuntimeViewsheet rvs,

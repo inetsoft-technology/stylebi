@@ -43,6 +43,14 @@ public class CommandErrorException extends Exception {
       this.errors = List.copyOf(errors);
    }
 
+   /**
+    * A non-null message for an error: a failed execute often dispatches {@code ex.getMessage()},
+    * which is null for an NPE, and {@code List.copyOf} rejects null elements.
+    */
+   static String messageOf(String message) {
+      return message == null || message.isBlank() ? "unknown error (no message)" : message;
+   }
+
    /** The individual error messages, in the order the service reported them. */
    public List<String> getErrors() {
       return Collections.unmodifiableList(errors);

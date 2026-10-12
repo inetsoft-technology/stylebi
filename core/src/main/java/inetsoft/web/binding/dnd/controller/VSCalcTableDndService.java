@@ -175,7 +175,7 @@ public class VSCalcTableDndService {
       CalcTableVSAssembly calc = (CalcTableVSAssembly) assembly;
       dispatcher.sendCommand(name,
                              tableLayoutService.createCellBindingCommand(rvs, calc, rect.y, rect.x));
-      dispatcher.sendCommand(name, tableLayoutService.createTableLayoutCommand(rvs, calc));
+      tableLayoutService.sendTableLayout(dispatcher, name, rvs, calc);
    }
 
    protected void applyAssemblyInfo(RuntimeViewsheet rvs, VSAssembly oassembly,
