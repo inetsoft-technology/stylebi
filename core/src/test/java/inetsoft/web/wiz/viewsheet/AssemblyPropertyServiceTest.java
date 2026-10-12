@@ -45,10 +45,10 @@ import inetsoft.web.composer.model.vs.ImageGeneralPaneModel;
 import inetsoft.web.composer.model.vs.ImagePreviewPaneModel;
 import inetsoft.web.composer.model.vs.ImagePropertyDialogModel;
 import inetsoft.web.composer.model.vs.StaticImagePaneModel;
+import inetsoft.web.composer.model.vs.OutputColumnRefModel;
 import inetsoft.web.composer.model.vs.RadioButtonPropertyDialogModel;
 import inetsoft.web.composer.model.vs.RangeSliderPropertyDialogModel;
 import inetsoft.web.composer.model.vs.SelectionContainerPropertyDialogModel;
-import inetsoft.web.composer.model.vs.OutputColumnRefModel;
 import inetsoft.web.composer.model.vs.SelectionListPropertyDialogModel;
 import inetsoft.web.composer.model.vs.SelectionTreePropertyDialogModel;
 import inetsoft.web.composer.model.vs.TableViewPropertyDialogModel;
@@ -60,7 +60,6 @@ import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.SelectionTreeVSAssemblyInfo;
 import inetsoft.web.viewsheet.service.VSOutputService;
 import org.mockito.ArgumentCaptor;
-import inetsoft.web.composer.vs.dialog.DataOutputService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -1654,6 +1653,15 @@ class AssemblyPropertyServiceTest {
    // ── #78396: selection measure written through set_assembly_properties ──────
 
    private static DataOutputService lastDataOutput;
+   private static SelectionListPropertyDialogService lastSelectionList;
+   private static SelectionTreePropertyDialogService lastSelectionTree;
+
+   private static void verifyNothingWritten() throws Exception {
+      verify(lastSelectionList, never())
+         .setSelectionListPropertyModel(any(), any(), any(), any(), any(), any());
+      verify(lastSelectionTree, never())
+         .setSelectionTreePropertyModel(any(), any(), any(), any(), any(), any());
+   }
 
    private static void offerMeasures(String... names) throws Exception {
       List<OutputColumnRefModel> columns = new ArrayList<>();
@@ -1701,13 +1709,14 @@ class AssemblyPropertyServiceTest {
    }
 
    @Test
-   void refusesAnUnknownSelectionListMeasureAndLeavesItUnchanged() throws Exception {
+   void refusesAnUnknownSelectionListMeasureAndWritesNothing() throws Exception {
       for(String bad : new String[] {"$Foo", "Foo"}) {
          SelectionListPropertyDialogModel model = boundList();
          Exception thrown = assertThrows(IllegalArgumentException.class,
             () -> setList(model, Map.of("measure", bad)));
 
          assertTrue(thrown.getMessage().contains(bad));
+         verifyNothingWritten();
       }
    }
 
@@ -1723,6 +1732,7 @@ class AssemblyPropertyServiceTest {
             Map.of("selectionTreePaneModel.selectionMeasurePaneModel.measure", "$Foo"), ""));
 
       assertTrue(thrown.getMessage().contains("$Foo"));
+      verifyNothingWritten();
    }
 
    @Test
@@ -1731,6 +1741,7 @@ class AssemblyPropertyServiceTest {
 
       assertThrows(IllegalArgumentException.class, () -> setList(model, Map.of(
          "SelectionListPaneModel.SelectionMeasurePaneModel.Measure", "$Foo")));
+      verifyNothingWritten();
    }
 
    @Test
@@ -1741,6 +1752,7 @@ class AssemblyPropertyServiceTest {
          () -> setList(model, Map.of("measure", "=")));
 
       assertTrue(thrown.getMessage().contains("measure"));
+      verifyNothingWritten();
    }
 
    @Test
@@ -1751,6 +1763,11 @@ class AssemblyPropertyServiceTest {
       setList(model, Map.of("measure", "amount"));
 
       assertEquals("AMOUNT", listMeasure(model));
+      ArgumentCaptor<SelectionListPropertyDialogModel> written =
+         ArgumentCaptor.forClass(SelectionListPropertyDialogModel.class);
+      verify(lastSelectionList).setSelectionListPropertyModel(
+         any(), any(), written.capture(), any(), any(), any());
+      assertEquals("AMOUNT", listMeasure(written.getValue()));
    }
 
    @Test
@@ -1782,6 +1799,7 @@ class AssemblyPropertyServiceTest {
          () -> setList(model, Map.of("measure", "AMOUNT")));
 
       assertTrue(thrown.getMessage().contains("set_selection_source"));
+      verifyNothingWritten();
       verify(lastDataOutput, never()).getOutputSelectionColumns(any(), any(), any());
    }
 
@@ -3415,6 +3433,7 @@ class AssemblyPropertyServiceTest {
 
       SelectionListPropertyDialogService selectionList =
          mock(SelectionListPropertyDialogService.class);
+      lastSelectionList = selectionList;
 
       if(model instanceof SelectionListPropertyDialogModel selectionListModel) {
          try {
@@ -3429,6 +3448,7 @@ class AssemblyPropertyServiceTest {
 
       SelectionTreePropertyDialogService selectionTree =
          mock(SelectionTreePropertyDialogService.class);
+      lastSelectionTree = selectionTree;
 
       if(model instanceof SelectionTreePropertyDialogModel selectionTreeModel) {
          try {
