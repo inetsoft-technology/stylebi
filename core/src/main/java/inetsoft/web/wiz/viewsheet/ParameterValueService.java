@@ -27,6 +27,7 @@ import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -116,6 +117,12 @@ public class ParameterValueService {
 
       String type = var.getTypeNode() != null ? var.getTypeNode().getType() : null;
 
+      // Before anything stringifies an element: String.valueOf turns a map or list into plain text
+      // ("{a=1}", "[a, b]") that a string parameter then accepts and stores.
+      for(int i = 0; i < list.size(); i++) {
+         requireScalar(name, i, list.get(i));
+      }
+
       if(list.size() == 1) {
          validateTyped(name, type, 0, list.get(0));
          return;
@@ -141,6 +148,18 @@ public class ParameterValueService {
 
       for(int i = 0; i < list.size(); i++) {
          validateTyped(name, type, i, list.get(i));
+      }
+   }
+
+   private static void requireScalar(String name, int index, Object element) {
+      if(element != null && !(element instanceof String) && !(element instanceof Number) &&
+         !(element instanceof Boolean))
+      {
+         throw new IllegalArgumentException(
+            "Parameter '" + name + "' value[" + index + "] must be a string, number or boolean; " +
+            "got " + (element instanceof Map ? "an object" :
+                      element instanceof Collection ? "an array" :
+                      element.getClass().getSimpleName()) + ".");
       }
    }
 

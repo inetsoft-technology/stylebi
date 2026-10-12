@@ -135,6 +135,58 @@ public class InputValueService {
    }
 
    /**
+    * A free-entry text input holds what its Input Editor's type can represent. The shared
+    * {@code option.validate} saturates an out-of-range integer and rolls an impossible date over
+    * (both then count as valid), and the browser path stores the raw text either way, so the raw
+    * value is parsed strictly here and only then handed to the editor for its min/max.
+    */
+   private static void checkTextInput(TextInputVSAssemblyInfo info, List<Object> values,
+                                      String assemblyName, String what)
+   {
+      if(values.isEmpty() || values.get(0) == null) {
+         return;
+      }
+
+      Object value = values.get(0);
+
+      if(!(value instanceof String || value instanceof Number || value instanceof Boolean)) {
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "' is " + what + ", which holds a string, number or boolean " +
+            "value; got " + (value instanceof Map ? "an object" :
+                             value instanceof Collection ? "an array" :
+                             value.getClass().getSimpleName()) + ".");
+      }
+
+      ColumnOption option = info.getColumnOption();
+      String type = option == null ? null : option.getType();
+      String parseType = ColumnOption.INTEGER.equals(type) ? "integer" :
+         ColumnOption.FLOAT.equals(type) ? "double" :
+         ColumnOption.DATE.equals(type) ? "date" : null;
+      String text = String.valueOf(value);
+
+      if(parseType == null || text.isBlank()) {
+         return;
+      }
+
+      Object parsed;
+
+      try {
+         parsed = WizStrictValueParser.parse(text, parseType);
+      }
+      catch(IllegalArgumentException ex) {
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "' is " + what + " with a " + type + " Input Editor; " +
+            quote(value) + " is invalid: " + ex.getMessage(), ex);
+      }
+
+      if(!option.validate(parsed)) {
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "' is " + what + " with a " + type + " Input Editor, and " +
+            quote(value) + " is outside the range it allows.");
+      }
+   }
+
+   /**
     * Refuses a value the assembly's own setter would silently ignore, clamp, drop or replace. Only
     * checks what the assembly's info makes unambiguous: a list input whose list has not been
     * computed yet (no values) is passed through, as is an editable or calendar combo box, which
@@ -169,6 +221,11 @@ public class InputValueService {
                "be clamped to the nearest end rather than stored as given.");
          }
 
+         return;
+      }
+
+      if(info instanceof TextInputVSAssemblyInfo text) {
+         checkTextInput(text, values, assemblyName, what);
          return;
       }
 
