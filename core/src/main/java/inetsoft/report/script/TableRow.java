@@ -279,6 +279,27 @@ public class TableRow implements ArrayObject, ScriptArrayScope {
       return "TableRow";
    }
 
+   /**
+    * Set whether a read of a member that does not resolve to a column should throw
+    * instead of reading as undefined. Default is off.
+    */
+   public void setStrictMissing(boolean strictMissing) {
+      this.strictMissing = strictMissing;
+   }
+
+   public boolean isStrictMissing() {
+      return strictMissing;
+   }
+
+   private static boolean isIntrinsic(String id) {
+      if(INTRINSICS.contains(id)) {
+         return true;
+      }
+
+      // array index
+      return !id.isEmpty() && id.chars().allMatch(Character::isDigit);
+   }
+
    @Override
    public boolean hasMember(String id) {
       if(id == null) {
@@ -286,6 +307,15 @@ public class TableRow implements ArrayObject, ScriptArrayScope {
       }
 
       if("length".equals(id) || members.containsKey(id)) {
+         return true;
+      }
+
+      // GraalJS only calls getMember when hasMember reports the member present, so a
+      // missing column read as undefined and getMember's throw was never reached.
+      // Report every non-intrinsic id present so getMember can throw the named
+      // error. Must precede the notfound/colmap checks: those cache a miss, which
+      // would let every instance after the first read as undefined again.
+      if(strictMissing && !isIntrinsic(id)) {
          return true;
       }
 
@@ -329,10 +359,29 @@ public class TableRow implements ArrayObject, ScriptArrayScope {
       return false;
    }
 
+   private boolean resolvesToColumn(String id) {
+      Object col = getColFromColMap(id, getColMap());
+
+      if(col != null) {
+         return !"not found".equals(col);
+      }
+
+      return !"field".equals(id) && findColumn(id) != null;
+   }
+
    @Override
    public Object getMember(String id) {
       if(id.equals("length")) {
          return length;
+      }
+      else if(strictMissing && !isIntrinsic(id) && !members.containsKey(id) &&
+         !resolvesToColumn(id))
+      {
+         throw new ScriptException("Field \"" + id + "\" not found in table " +
+            table.getClass().getName() + ". In a freehand table formula cell, " +
+            "field is the calc table's own row, not the source table, unless the " +
+            "group is built with rowList(...). Use a summary cell with a row " +
+            "group, or data['" + id + "'] / sum(data['" + id + "']).");
       }
       else if(!notfound.contains(id)) {
          Map colmap = getColMap();
@@ -760,6 +809,19 @@ public class TableRow implements ArrayObject, ScriptArrayScope {
    private static final Map<MethodKey, Object> methodCache = new ConcurrentHashMap<>();
 
    private final Map<String, Object> members = new LinkedHashMap<>();
+   private boolean strictMissing = false;
+   // property names GraalJS probes on a proxy array/object (coercion, promise and JSON
+   // checks, method lookup), none of which is ever a column reference
+   static final Set<String> INTRINSICS = Set.of(
+      "constructor", "hasOwnProperty", "isPrototypeOf", "propertyIsEnumerable",
+      "toLocaleString", "toString", "valueOf", "__proto__", "__defineGetter__",
+      "__defineSetter__", "__lookupGetter__", "__lookupSetter__",
+      "at", "concat", "copyWithin", "entries", "every", "fill", "filter", "find",
+      "findIndex", "findLast", "findLastIndex", "flat", "flatMap", "forEach",
+      "includes", "indexOf", "join", "keys", "lastIndexOf", "length", "map", "pop",
+      "push", "reduce", "reduceRight", "reverse", "shift", "slice", "some", "sort",
+      "splice", "toReversed", "toSorted", "toSpliced", "unshift", "values", "with",
+      "then", "toJSON");
    private XTable table;
    private ColumnIndexMap colIndexMap;
    private Method setMethod = null;

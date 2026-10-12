@@ -17,6 +17,7 @@
  */
 package inetsoft.util.script.graal;
 
+import inetsoft.report.script.formula.CalcTableScope;
 import inetsoft.report.script.viewsheet.ViewsheetScope;
 import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.profile.ProfileUtils;
@@ -311,7 +312,15 @@ public class GraalJavaScriptEnv implements ScriptEnv {
       else if(msg.contains("is not defined")) {
          String str = "Check if the variable is defined, or use 'var' to declare the variable.";
 
-         if(fieldName != null) {
+         if(fieldName != null && scope instanceof CalcTableScope) {
+            // in a calc-table formula cell, field is the calc table's own row, not
+            // the source table, so field['columnName'] only works under rowList()
+            str += " In a freehand table, reference a source column with a summary" +
+               " cell (set its row group) or data['columnName'], e.g." +
+               " sum(data['columnName']); field['columnName'] only resolves" +
+               " inside a rowList(...) group.";
+         }
+         else if(fieldName != null) {
             str += " Field/row values are referenced using field['columnName'].";
          }
          else if(scope instanceof ViewsheetScope) {

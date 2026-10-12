@@ -18,6 +18,7 @@
 
 package inetsoft.report.lens;
 
+import inetsoft.report.internal.table.RuntimeCalcTableLens;
 import inetsoft.report.script.formula.CalcRef;
 import inetsoft.test.*;
 import inetsoft.uql.XTable;
@@ -156,7 +157,84 @@ public class CalcTableLensTest {
       Assertions.assertTrue(
          firstLine.contains("ReferenceError") && firstLine.contains("is not defined"),
          "first line should be the actual JS error, not the Assembly label: " + message);
-      Assertions.assertTrue(message.contains("field['columnName']"),
+      Assertions.assertTrue(message.contains("data['columnName']"),
          "message should include the getSuggestion() fix-it hint: " + message);
+      Assertions.assertFalse(message.contains("referenced using field['columnName']"),
+         "calc-table hint must not teach the silent-0 field['columnName'] form: " + message);
+   }
+
+   private RuntimeCalcTableLens boundGroupLens(String formula) {
+      return groupLens("toList(data['id'])", formula);
+   }
+
+   private RuntimeCalcTableLens groupLens(String groupFormula, String formula) {
+      DefaultTableLens data = new DefaultTableLens(new Object[][] {
+         { "id", "amt" },
+         { 1, 10 },
+         { 2, 20 },
+         { 3, 30 }
+      });
+
+      CalcTableVSAssembly assembly = new CalcTableVSAssembly();
+      assembly.setScriptTable(data);
+      assembly.setScriptEnv(new GraalJavaScriptEnv());
+
+      // column 0 is a bound-column style group (a plain list, no source row scope),
+      // column 1 is the formula under test
+      CalcTableLens calc = new CalcTableLens(2, 2);
+      calc.setElement(assembly);
+      calc.setFormula(1, 0, groupFormula);
+      calc.setExpansion(1, 0, CalcTableLens.EXPAND_VERTICAL);
+      calc.setFormula(1, 1, formula);
+      return calc.process0();
+   }
+
+   /**
+    * Bug #76665 (mode 3): Sum(field["X"]) in a calc-table cell whose group is not a
+    * rowList reads field as the calc table's own row. A column that is not in that
+    * scope (nonexistent, or a real source column) previously read as undefined and
+    * summed to a silent 0; every instance must now be a named error.
+    */
+   @Test
+   public void testFieldMissColumnFailsLoudOnEveryInstance() {
+      for(String col : new String[] { "NOPE", "amt" }) {
+         RuntimeCalcTableLens calc = boundGroupLens("Sum(field[\"" + col + "\"])");
+         Assertions.assertTrue(calc.getRowCount() >= 4, "rows: " + calc.getRowCount());
+
+         for(int r = 1; r <= 3; r++) {
+            Object value = calc.getObject(r, 1);
+            Assertions.assertTrue(value instanceof String && ((String) value).startsWith("ERROR"),
+               "row " + r + " col " + col + " should be an error, got: " + value);
+            Assertions.assertTrue(((String) value).contains("\"" + col + "\" not found"),
+               "error should name the column: " + value);
+            Assertions.assertTrue(((String) value).contains("rowList"),
+               "error should explain field scope: " + value);
+         }
+      }
+   }
+
+   /**
+    * String coercion of the strict field probes valueOf/toString/join; it must not
+    * throw, so only a real column read is an error.
+    */
+   @Test
+   public void testStrictFieldStringCoercionDoesNotThrow() {
+      for(String f : new String[] { "'' + field", "String(field)", "`${field}`" }) {
+         RuntimeCalcTableLens calc = boundGroupLens(f);
+         Object value = calc.getObject(1, 1);
+         Assertions.assertFalse(value instanceof String && ((String) value).startsWith("ERROR"),
+            f + " should not error, got: " + value);
+      }
+   }
+
+   /**
+    * rowList-driven groups install a source-row field scope that is not strict and
+    * must keep resolving columns.
+    */
+   @Test
+   public void testRowListFieldStillResolves() {
+      RuntimeCalcTableLens calc = groupLens("rowList(data, 'id')", "field[\"amt\"]");
+      Object value = calc.getObject(1, 1);
+      Assertions.assertEquals(10.0, ((Number) value).doubleValue(), "got: " + value);
    }
 }

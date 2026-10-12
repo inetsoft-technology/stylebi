@@ -261,6 +261,51 @@ public class TableRowTest {
       return new ColumnMapFilter(base, new int[]{ 0 });
    }
 
+   /**
+    * Bug #76665: the intrinsic-name exclusion set must cover every property of
+    * Object.prototype and Array.prototype as the JS engine itself reports them.
+    */
+   @Test
+   void testStrictIntrinsicsCoverEnginePrototypes() {
+      try(org.graalvm.polyglot.Context cx = org.graalvm.polyglot.Context.create("js")) {
+         org.graalvm.polyglot.Value names = cx.eval("js",
+            "Object.getOwnPropertyNames(Object.prototype)" +
+            ".concat(Object.getOwnPropertyNames(Array.prototype))");
+
+         for(long i = 0; i < names.getArraySize(); i++) {
+            String name = names.getArrayElement(i).asString();
+            assertTrue(TableRow.INTRINSICS.contains(name), name);
+         }
+      }
+   }
+
+   /**
+    * Bug #76665: in strict mode every non-intrinsic miss is reported present (so
+    * GraalJS calls getMember) and getMember throws, on every call, while ids that
+    * resolve, and intrinsic probes, behave as before.
+    */
+   @Test
+   void testStrictMissing() {
+      tableRow = new TableRow(defaultTableLens, 1);
+      tableRow.setStrictMissing(true);
+
+      assertTrue(tableRow.hasMember("id"));
+      assertEquals(1, tableRow.getMember("id"));
+      assertFalse(tableRow.hasMember("join"));
+      assertFalse(tableRow.hasMember("toString"));
+      assertFalse(tableRow.hasMember("7"));
+
+      for(int i = 0; i < 3; i++) {
+         assertTrue(tableRow.hasMember("NOPE"));
+         ScriptException ex = assertThrows(ScriptException.class, () -> tableRow.getMember("NOPE"));
+         assertTrue(ex.getMessage().contains("\"NOPE\" not found"));
+         assertTrue(ex.getMessage().contains("rowList"));
+      }
+
+      TableRow lenient = new TableRow(defaultTableLens, 1);
+      assertFalse(lenient.hasMember("NOPE"));
+   }
+
    Object[][] objData = new Object[][]{
       {"name", "id", "date"},
       {"a", 1, new Date(2021 - 1900, 0, 1)},
