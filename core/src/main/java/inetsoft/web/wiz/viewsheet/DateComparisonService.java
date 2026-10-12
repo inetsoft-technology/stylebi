@@ -1970,7 +1970,8 @@ public class DateComparisonService {
       out.put("granularity",
               describeCode(interval.getGranularity(), DateComparisonService::granularityWord));
       out.put("contextLevel",
-              describeCode(interval.getContextLevel(), DateComparisonService::contextLevelWord));
+              describeCode(interval.getContextLevel(),
+                          code -> code == DateComparisonInfo.ALL ? null : contextLevelWord(code)));
       out.put("endDayAsToDate", interval.isEndDayAsToDate());
       out.put("intervalEndDate",
               interval.isEndDayAsToDate() ? null : value(interval.getIntervalEndDate()));

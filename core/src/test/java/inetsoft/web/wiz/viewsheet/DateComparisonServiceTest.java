@@ -2672,6 +2672,19 @@ class DateComparisonServiceTest {
       assertEquals("=c", interval.get("contextLevel"));
    }
 
+   @Test
+   void readsAnUnsetContextLevelAsNullNotZero() throws Exception {
+      DateComparisonPaneModel model = model();
+      Harness h = harness(model);
+
+      h.service.set("tok", principal(), "Chart1", dyn("4", "year", null, null, null), "");
+
+      @SuppressWarnings("unchecked")
+      Map<String, Object> interval =
+         (Map<String, Object>) h.service.read("tok", principal(), "Chart1").get("interval");
+      assertNull(interval.get("contextLevel"));
+   }
+
    @ParameterizedTest
    @CsvSource({"year, 5", "quarter, 4", "month, 3", "week, 2", "Week, 2"})
    void translatesTheContextLevelWordAndReadsItBackAsTheSameWord(String word, String code)
