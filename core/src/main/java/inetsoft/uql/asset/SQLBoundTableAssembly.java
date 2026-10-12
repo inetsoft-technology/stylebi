@@ -164,12 +164,17 @@ public class SQLBoundTableAssembly extends BoundTableAssembly {
     */
    private UniformSQL fixUniformSQLInfo(UniformSQL uniformSQL, String orgID) throws Exception {
       if(uniformSQL.getTableCount() > 0) {
+         JDBCQuery query = getJDBCQuery();
+
          // Bug #78383, a wildcard of a stored sql is expanded on the sql parsed again, before
-         // the metadata step below could fail its parse without trying
-         if(JDBCUtil.hasStoredWildcard(uniformSQL)) {
+         // the metadata step below could fail its parse without trying. Only the sql of the
+         // query is replaced, not a sub-query of a condition, which is part of that sql
+         if(query != null && uniformSQL == query.getSQLDefinition() &&
+            JDBCUtil.hasStoredWildcard(uniformSQL))
+         {
             JDBCDataSource ds = getJDBCDataSource(orgID);
             UniformSQL nsql = ds == null ? null :
-               reparseStoredWildcard(getJDBCQuery(), uniformSQL, ds);
+               reparseStoredWildcard(query, uniformSQL, ds);
 
             if(nsql != null) {
                return nsql;
@@ -187,9 +192,7 @@ public class SQLBoundTableAssembly extends BoundTableAssembly {
                return uniformSQL;
             }
 
-            Principal principal = ThreadContext.getContextPrincipal();
-            String userName = principal == null ? null : principal.getName();
-            JDBCUtil.fixUniformSQLInfo(uniformSQL, XRepository.getRepository(), userName, ds);
+            JDBCUtil.fixUniformSQLInfo(uniformSQL, XRepository.getRepository(), getUserName(), ds);
          }
       }
 
@@ -201,6 +204,11 @@ public class SQLBoundTableAssembly extends BoundTableAssembly {
     * wildcard of a table (e.g. saved by an older version), and expand the wildcard to the
     * columns of the table. The stored sql is replaced, not changed, so a copy of the query
     * taken meanwhile is never half parsed. A wildcard that can't be expanded fails the parse.
+    * <p>
+    * It's called before the query is copied for an execution, which has no metadata step of
+    * its own. If the sql can't be parsed again (no data source, the parse doesn't end in time,
+    * an error), the parse of the sql is failed, the way the metadata step fails a wildcard it
+    * can't expand, so a parsed wildcard never reaches vpm, which can't narrow it.
     */
    public void fixStoredWildcard() {
       JDBCQuery query = getJDBCQuery();
@@ -209,9 +217,16 @@ public class SQLBoundTableAssembly extends BoundTableAssembly {
       // checked first, the data source isn't looked up for every execution
       if(sql instanceof UniformSQL && JDBCUtil.hasStoredWildcard((UniformSQL) sql)) {
          JDBCDataSource ds = getJDBCDataSource(query.getOrganizationId());
+         UniformSQL nsql = ds == null ? null : reparseStoredWildcard(query, (UniformSQL) sql, ds);
 
-         if(ds != null) {
-            reparseStoredWildcard(query, (UniformSQL) sql, ds);
+         if(nsql == null) {
+            UniformSQL failed = JDBCUtil.failStoredWildcard((UniformSQL) sql);
+
+            if(failed != null) {
+               LOG.debug("The sql with a wildcard is not parsed again, the sql is not parsed: {}",
+                         failed.getSQLString());
+               query.setSQLDefinition(failed);
+            }
          }
       }
    }

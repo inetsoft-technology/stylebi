@@ -25,6 +25,7 @@ import inetsoft.test.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.SQLBoundTableAssemblyInfo;
+import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.jdbc.util.JDBCUtil;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.schema.XTypeNode;
@@ -312,9 +313,170 @@ class StoredWildcardReparseTest {
          .getSQLDefinition());
    }
 
+   /**
+    * Review B1: a sub-query of a condition of a graphical query, entered as sql, is parsed with
+    * its sql string. Its wildcard must not replace the sql of the table with the sub-query.
+    */
+   @Test
+   void subqueryOfConditionDoesNotReplaceTheSql() throws Exception {
+      JDBCDataSource ds = dataSource();
+      UniformSQL outer = parsed("select \"CUSTOMERS\".\"CITY\" from \"public\".\"CUSTOMERS\"", ds);
+      // built by the graphical builder, no sql string
+      outer.clearSQLString();
+      // as JDBCUtil.createXExpression parses a sub-query entered as sql
+      UniformSQL sub = parsed("select * from \"public\".\"CUSTOMERS\"", ds);
+      sub.setParseSQL(true);
+      assertTrue(JDBCUtil.hasStoredWildcard(sub));
+      XBinaryCondition where = new XBinaryCondition(
+         new XExpression("\"CUSTOMERS\".\"CUSTOMER_ID\"", XExpression.FIELD),
+         new XExpression(sub, XExpression.SUBQUERY), "IN");
+      outer.setWhere(where);
+
+      SQLBoundTableAssembly table = newTable(ds, outer);
+      table.setSQLEdited(false);
+      JDBCQuery query = ((SQLBoundTableAssemblyInfo) table.getTableInfo()).getQuery();
+      strict(true);
+      // the table has a variable, so the sub-query of the condition is visited
+      AssetCondition cond = new AssetCondition();
+      cond.setOperation(XCondition.EQUAL_TO);
+      cond.addValue("$(p)");
+      ConditionList conds = new ConditionList();
+      conds.append(new ConditionItem(new AttributeRef(null, "CITY"), cond, 0));
+      table.setPreConditionList(conds);
+
+      assertTrue(Arrays.stream(table.getAllVariables()).anyMatch(v -> "p".equals(v.getName())));
+
+      UniformSQL nsql = (UniformSQL) query.getSQLDefinition();
+      assertSame(outer, nsql);
+      assertSame(where, nsql.getWhere());
+      assertEquals(List.of("CITY"), columnNames(nsql));
+      assertEquals(1, nsql.getTableCount());
+
+      // and the execution of the table doesn't replace it either
+      new SQLBoundQuery(AssetQuerySandbox.RUNTIME_MODE,
+         new AssetQuerySandbox(table.getWorksheet()), table, false, false);
+      assertSame(outer, query.getSQLDefinition());
+      assertSame(where, outer.getWhere());
+   }
+
+   /**
+    * Review I1: when the stored sql can't be parsed again where the table is executed (no
+    * data source, an error, an interrupted wait), the executed sql must not keep the parsed
+    * wildcard, which vpm regenerates without narrowing it. Its parse is failed instead, so vpm
+    * refuses it, and the sql runs as written otherwise.
+    */
+   @Test
+   void sqlBoundQueryFailsTheSqlWithoutDataSource() throws Exception {
+      JDBCDataSource ds = dataSource();
+      SQLBoundTableAssembly table = newTable(ds, shapes().get("1.1 with data source"));
+      strict(true);
+      reset(registry);
+      when(registry.getDataSource(any(), any())).thenReturn(null);
+      when(registry.getDataSource(any())).thenReturn(null);
+
+      assertFailedExecution(table);
+      verify(repository, never()).getMetaData(any(), any(), any(), anyBoolean(), any());
+   }
+
+   @Test
+   void sqlBoundQueryFailsTheSqlOnMetadataError() throws Exception {
+      JDBCDataSource ds = dataSource();
+      SQLBoundTableAssembly table = newTable(ds, shapes().get("1.1 with data source"));
+      reset(repository);
+      when(repository.getMetaData(any(), any(), any(), anyBoolean(), any()))
+         .thenThrow(new RuntimeException("metadata"));
+
+      assertFailedExecution(table);
+   }
+
+   @Test
+   void sqlBoundQueryFailsTheSqlOnInterrupt() throws Exception {
+      JDBCDataSource ds = dataSource();
+      SQLBoundTableAssembly table = newTable(ds, shapes().get("1.1 with data source"));
+      strict(true);
+      boolean interrupted;
+
+      // the wait for the parser thread is interrupted
+      Thread.currentThread().interrupt();
+
+      try {
+         assertFailedExecution(table);
+      }
+      finally {
+         interrupted = Thread.interrupted();
+      }
+
+      assertTrue(interrupted, "the interrupt is kept");
+   }
+
+   // a stored sql the parser fails is not parsed and runs as written
+   @Test
+   void sqlBoundQueryFailsUnparsableSql() throws Exception {
+      JDBCDataSource ds = dataSource();
+      String xml = shapes().get("1.1 with data source")
+         .replace(SQL, SQL + " where ((");
+      SQLBoundTableAssembly table = newTable(ds, xml);
+      strict(true);
+
+      SQLBoundQuery query = new SQLBoundQuery(AssetQuerySandbox.RUNTIME_MODE,
+         new AssetQuerySandbox(table.getWorksheet()), table, false, false);
+
+      UniformSQL nsql = (UniformSQL) query.getQuery().getSQLDefinition();
+      assertFalse(XUtil.isParsedSQL(nsql) && UniformSQL.hasWildcard(nsql.getSelection()),
+                  nsql.getSQLString());
+      assertFalse(JDBCUtil.hasStoredWildcard(nsql));
+      assertEquals(SQL + " where ((", nsql.getSQLString());
+   }
+
+   // the parse doesn't end in time (the parser thread is busy): the sql isn't parsed again
+   @Test
+   void reparseTimesOut() throws Exception {
+      UniformSQL stored = load(shapes().get("1.1 with data source"));
+      String before = toXML(stored);
+      Field field = UniformSQL.class.getDeclaredField("parserPool");
+      field.setAccessible(true);
+      Object pool = field.get(null);
+      pool.getClass().getMethod("add", Runnable.class).invoke(pool, (Runnable) () -> {
+         try {
+            Thread.sleep(1500);
+         }
+         catch(InterruptedException ignore) {
+            // done
+         }
+      });
+
+      assertNull(JDBCUtil.reparseStoredWildcard(stored, strict(true), null, dataSource(), 200));
+      assertEquals(before, toXML(stored));
+
+      UniformSQL failed = JDBCUtil.failStoredWildcard(stored);
+      assertNotNull(failed);
+      assertNotSame(stored, failed);
+      assertEquals(UniformSQL.PARSE_FAILED, failed.getParseResult());
+      assertFalse(XUtil.isParsedSQL(failed));
+      assertFalse(UniformSQL.hasWildcard(failed.getSelection()));
+      assertEquals(SQL, failed.getSQLString());
+      assertEquals(before, toXML(stored));
+      assertNull(JDBCUtil.failStoredWildcard(failed));
+   }
+
    // ---- helpers ----
 
+   private void assertFailedExecution(SQLBoundTableAssembly table) throws Exception {
+      SQLBoundQuery query = new SQLBoundQuery(AssetQuerySandbox.RUNTIME_MODE,
+         new AssetQuerySandbox(table.getWorksheet()), table, false, false);
+
+      UniformSQL nsql = (UniformSQL) query.getQuery().getSQLDefinition();
+      assertEquals(UniformSQL.PARSE_FAILED, nsql.getParseResult());
+      assertFalse(XUtil.isParsedSQL(nsql));
+      assertFalse(UniformSQL.hasWildcard(nsql.getSelection()));
+      assertEquals(SQL, nsql.getSQLString());
+   }
+
    private SQLBoundTableAssembly newTable(JDBCDataSource ds, String xml) throws Exception {
+      return newTable(ds, load(xml));
+   }
+
+   private SQLBoundTableAssembly newTable(JDBCDataSource ds, UniformSQL sql) throws Exception {
       when(registry.getDataSource(eq(ds.getName()), any())).thenReturn(ds);
       when(registry.getDataSource(eq(ds.getName()))).thenReturn(ds);
 
@@ -322,7 +484,7 @@ class StoredWildcardReparseTest {
       query.setName("bug78383");
       query.setUserQuery(true);
       query.setDataSource(ds);
-      query.setSQLDefinition(load(xml));
+      query.setSQLDefinition(sql);
 
       Worksheet ws = new Worksheet();
       SQLBoundTableAssembly table = new SQLBoundTableAssembly(ws, "T1");

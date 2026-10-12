@@ -219,6 +219,19 @@ public class JDBCUtil {
    public static UniformSQL reparseStoredWildcard(UniformSQL sql, XRepository repository,
                                                   Object session, JDBCDataSource xds)
    {
+      return reparseStoredWildcard(sql, repository, session, xds, REPARSE_TIMEOUT);
+   }
+
+   /**
+    * Re-parse a stored sql whose selection still holds a wildcard of a table, waiting at most
+    * the given time for the parser thread.
+    * @param timeout the longest wait for the parse, in milliseconds.
+    * @see #reparseStoredWildcard(UniformSQL, XRepository, Object, JDBCDataSource)
+    */
+   public static UniformSQL reparseStoredWildcard(UniformSQL sql, XRepository repository,
+                                                  Object session, JDBCDataSource xds,
+                                                  long timeout)
+   {
       if(xds == null || !hasStoredWildcard(sql)) {
          return null;
       }
@@ -236,7 +249,7 @@ public class JDBCUtil {
          // the parser thread sets the sql string and notifies the sql when it's done
          synchronized(nsql) {
             nsql.setSQLString(text, true);
-            long end = System.currentTimeMillis() + REPARSE_TIMEOUT;
+            long end = System.currentTimeMillis() + timeout;
 
             while(!nsql.hasSQLString()) {
                long wait = end - System.currentTimeMillis();
@@ -261,6 +274,28 @@ public class JDBCUtil {
       catch(Exception ex) {
          LOG.debug("Failed to parse the sql with a wildcard again: {}", text, ex);
          return null;
+      }
+
+      return nsql;
+   }
+
+   /**
+    * Bug #78383, a copy of a stored sql whose selection still holds a wildcard of a table, with
+    * its parse failed and the wildcard removed, as the metadata step does with a wildcard it
+    * can't expand (#77617). It's used in place of the stored sql when the sql can't be parsed
+    * again, so the sql runs as written and vpm refuses it instead of regenerating the wildcard.
+    * @return the failed copy, or <tt>null</tt> if the sql doesn't hold such a wildcard.
+    */
+   public static UniformSQL failStoredWildcard(UniformSQL sql) {
+      if(!hasStoredWildcard(sql)) {
+         return null;
+      }
+
+      UniformSQL nsql = sql.clone();
+
+      if(nsql != null) {
+         nsql.setParseResult(UniformSQL.PARSE_FAILED);
+         removeWildcards(nsql);
       }
 
       return nsql;
@@ -2086,7 +2121,10 @@ public class JDBCUtil {
       databaseTypes.add(new CustomDatabaseType());
    }
 
-   // the longest wait for the parse of reparseStoredWildcard, which queues on the parser thread
+   // the longest wait for the parse of reparseStoredWildcard. The parse queues on the single
+   // parser thread (UniformSQL.parserPool) behind the other parses, and a parse itself may take
+   // up to two PARSE_PERIODs (8s) with its fallbacks, so the wait allows a few queued parses.
+   // When it runs out, the sql isn't parsed again, and the caller keeps or fails the stored sql
    private static final long REPARSE_TIMEOUT = 30000L;
    private static final Logger LOG = LoggerFactory.getLogger(JDBCUtil.class);
 }
