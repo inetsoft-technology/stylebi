@@ -142,6 +142,8 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          r -> new GroupedThread(r, "IgniteAffinity"));
       listenerExecutor = Executors.newSingleThreadExecutor(
          r -> new GroupedThread(r, "IgniteMapEvents"));
+      clientMessageSender = new ClientMessageSender(
+         ignite, MESSAGE_TOPIC, config.getClientFailureDetectionTimeout());
 
       if(!config.isClientMode()) {
          try {
@@ -1865,7 +1867,17 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
    @Override
    public void sendMessage(Serializable message) {
-      ignite.message().sendOrdered(MESSAGE_TOPIC, message, 0);
+      // Bug #78364: a send to the whole topology fails, after it has reached every other node, if
+      // any one member cannot be reached, and a client started with
+      // forceClientToServerConnections (a cloud-runner task container) that died without a
+      // graceful Ignite stop also blocks the send for failureDetectionTimeout until discovery
+      // drops it. So the remote clients get the message through their own queues, which never
+      // block or fail this call, and the servers plus this node (exactly once, whether it is a
+      // server or a client) get it as one ordered group send on the caller's thread, as before.
+      // The clients are queued first so that they still get the message if a server send fails.
+      clientMessageSender.send(message);
+      ignite.message(ignite.cluster().forPredicate(SERVER_OR_LOCAL_NODE_FILTER))
+         .sendOrdered(MESSAGE_TOPIC, message, 0);
    }
 
    @Override
@@ -2063,6 +2075,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       messageExecutor.shutdownNow();
       affinityExecutor.shutdownNow();
       listenerExecutor.shutdownNow();
+      clientMessageSender.close();
    }
 
    public void setClosed(boolean closed) {
@@ -2375,6 +2388,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    private final ExecutorService messageExecutor;
    private final ExecutorService affinityExecutor;
    private final ExecutorService listenerExecutor;
+   private final ClientMessageSender clientMessageSender;
    private final MinorityIslandDetector islandDetector;
 
    private static final int DEFAULT_BACKUP_COUNT = 2;
@@ -2396,6 +2410,8 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
       return Boolean.TRUE.equals(node.attribute("scheduler"));
    };
+   private static final IgnitePredicate<ClusterNode> SERVER_OR_LOCAL_NODE_FILTER =
+      node -> !node.isClient() || node.isLocal();
    private static final IgnitePredicate<ClusterNode> WEB_SERVER_NODE_FILTER =
       node -> !Boolean.TRUE.equals(node.attribute("scheduler"));
    private static final IgnitePredicate<ClusterNode> SPRING_PROXY_NODE_FILTER = new SpringProxyNodeFilter();
