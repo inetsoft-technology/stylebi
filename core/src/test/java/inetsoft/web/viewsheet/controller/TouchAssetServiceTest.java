@@ -121,6 +121,18 @@ class TouchAssetServiceTest {
       verifyAutoRefresh();
    }
 
+   // the check must not build a form table that isn't built, it would run its query on every
+   // tick and race the refresh and selection requests (#78244)
+   @Test
+   void updateTickDoesNotBuildFormTable() throws Exception {
+      ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+      box.needRefresh = new AtomicBoolean();
+      touch(true, true, 0L, box);
+
+      verify(box, never()).getFormTableLens(anyString());
+      verifyAutoRefresh();
+   }
+
    // a sandbox holding one form table "Table1" with the given number of changed rows
    private ViewsheetSandbox formTableBox(int changedRows) throws Exception {
       FormTableLens lens = mock(FormTableLens.class);
@@ -129,7 +141,7 @@ class TouchAssetServiceTest {
 
       ViewsheetSandbox box = mock(ViewsheetSandbox.class);
       box.needRefresh = new AtomicBoolean();
-      when(box.getFormTableLens("Table1")).thenReturn(lens);
+      when(box.getCachedFormTableLens("Table1")).thenReturn(lens);
       return box;
    }
 

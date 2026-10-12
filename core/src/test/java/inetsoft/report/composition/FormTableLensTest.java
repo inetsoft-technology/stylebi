@@ -18,9 +18,12 @@
 
 package inetsoft.report.composition;
 
+import inetsoft.report.filter.ConditionFilter;
+import inetsoft.report.filter.ConditionGroup;
 import inetsoft.test.*;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.XTable;
+import inetsoft.util.CancelledException;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -42,5 +45,19 @@ public class FormTableLensTest {
       originalTable.appendRow(1);
       XTable deserializedTable = TestSerializeUtils.serializeAndDeserialize(originalTable);
       Assertions.assertEquals(FormTableLens.class, deserializedTable.getClass());
+   }
+
+   /**
+    * Bug #78244: a lazy base that a cancel cut short before its first row keeps a negative row
+    * count (-2 with only the header). It must fail as a cancel, not with a
+    * NegativeArraySizeException.
+    */
+   @Test
+   public void cancelledBaseThrowsCancelledException() {
+      ConditionFilter base =
+         new ConditionFilter(XTableUtil.getDefaultTableLens(), new ConditionGroup());
+      base.cancel();
+
+      Assertions.assertThrows(CancelledException.class, () -> new FormTableLens(base));
    }
 }

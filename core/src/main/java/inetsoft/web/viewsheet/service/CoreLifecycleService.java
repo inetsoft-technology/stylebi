@@ -1043,8 +1043,19 @@ public class CoreLifecycleService {
                      rvs.isPopComponent(assembly.getAbsoluteName()))))
          {
             int nrows = Math.max(assembly.getPixelSize().height / 16, 100);
-            BaseTableService.loadTableData(rvs, assembly.getAbsoluteName(), 0, 0, nrows,
-                                           uri, dispatcher);
+
+            try {
+               BaseTableService.loadTableData(rvs, assembly.getAbsoluteName(), 0, 0, nrows,
+                                              uri, dispatcher);
+            }
+            catch(ChangeCancelledException e) {
+               // only newer changes or queries kept cancelling it, skip it but go on with the
+               // other tables, like loadTableLens(). Any other cancel stops the request (#78244)
+               LOG.debug("Loading {} skipped, cancelled by a newer request",
+                         assembly.getAbsoluteName(), e);
+               continue;
+            }
+
             // Bug #17514 Initing a table can cause the info to have changes, like its
             // script being executed. 12.2 LoadTableLensEvent was called here which
             // not only loads data but also sends an updated assembly info to front end.
