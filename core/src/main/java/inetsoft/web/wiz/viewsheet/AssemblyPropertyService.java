@@ -241,8 +241,13 @@ public class AssemblyPropertyService {
       return values;
    }
 
-   /** Applies a patch of aliases and/or raw paths. One {@code mutate}, so one checkpoint. */
-   public void set(String sessionToken, Principal user, String assemblyName,
+   /**
+    * Applies a patch of aliases and/or raw paths. One {@code mutate}, so one checkpoint.
+    *
+    * @return the warnings the write produced (a table script failure raised by re-running the
+    *         table the patch touched), empty when none.
+    */
+   public List<String> set(String sessionToken, Principal user, String assemblyName,
                    Map<String, Object> patch, String linkUri) throws Exception
    {
       if(patch == null || patch.isEmpty()) {
@@ -250,7 +255,7 @@ public class AssemblyPropertyService {
             "set_assembly_properties needs at least one property to set.");
       }
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          String type = typeOf(rvs, assemblyName);
          Object model = readModel(rvs, type, assemblyName, user);
 

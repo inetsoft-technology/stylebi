@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.internal.PaperSize;
 import inetsoft.util.Catalog;
@@ -83,8 +84,11 @@ public class PrintDeviceLayoutPropertyService {
     * header/footer-from-edge, numbering start, custom size, units, {@code scaleFont}) --
     * read-merge-write, exactly like {@link SheetPropertyService#set}: every field not named in
     * {@code patch} survives exactly as read.
+    *
+    * @return the warnings the write produced (a table script failure surfaced by the sheet
+    *         refresh), empty when none.
     */
-   public void setPrintLayout(String sessionToken, Principal user, Map<String, Object> patch,
+   public List<String> setPrintLayout(String sessionToken, Principal user, Map<String, Object> patch,
                                String linkUri) throws Exception
    {
       if(patch == null || patch.isEmpty()) {
@@ -116,7 +120,7 @@ public class PrintDeviceLayoutPropertyService {
 
       Map<String, Object> resolvedPatch = new LinkedHashMap<>(patch);
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          ViewsheetPropertyDialogModel model = dialogService.getViewsheetInfo(runtimeId, user);
          ScreensPaneModel screensPane = model.screensPane();
          VSPrintLayoutDialogModel printLayout = screensPane.getPrintLayout();
@@ -174,8 +178,16 @@ public class PrintDeviceLayoutPropertyService {
     *
     * @param cleared          whether a print layout existed and was removed.
     * @param discardedObjects the header, footer and assembly placements that went with it.
+    * @param warnings         the warnings the write produced (a table script failure surfaced by
+    *                         the sheet refresh); omitted from the JSON when empty.
     */
-   public record ClearPrintLayoutResult(boolean cleared, int discardedObjects) {
+   public record ClearPrintLayoutResult(
+      boolean cleared, int discardedObjects,
+      @JsonInclude(JsonInclude.Include.NON_EMPTY) List<String> warnings)
+   {
+      public ClearPrintLayoutResult(boolean cleared, int discardedObjects) {
+         this(cleared, discardedObjects, List.of());
+      }
    }
 
    /**
@@ -208,13 +220,13 @@ public class PrintDeviceLayoutPropertyService {
             "Pass confirmed:true to clear it anyway.");
       }
 
-      sessions.mutate(sessionToken, user, (r, runtimeId, dispatcher) -> {
+      List<String> warnings = sessions.mutate(sessionToken, user, (r, runtimeId, dispatcher) -> {
          ViewsheetPropertyDialogModel model = dialogService.getViewsheetInfo(runtimeId, user);
          model.screensPane().setPrintLayout(null);
          dialogService.setViewsheetInfo(runtimeId, model, user, dispatcher, linkUri, null);
       });
 
-      return new ClearPrintLayoutResult(true, discarded);
+      return new ClearPrintLayoutResult(true, discarded, warnings);
    }
 
    private static int countPrintPlacements(RuntimeViewsheet rvs) {
@@ -242,8 +254,9 @@ public class PrintDeviceLayoutPropertyService {
     *
     * @param action one of {@code create}, {@code update}, {@code delete} (case-insensitive).
     */
-   public void manageDeviceLayout(String sessionToken, Principal user, String action,
-                                   Map<String, Object> patch, String linkUri) throws Exception
+   public List<String> manageDeviceLayout(String sessionToken, Principal user, String action,
+                                          Map<String, Object> patch, String linkUri)
+      throws Exception
    {
       if(action == null || action.isBlank()) {
          throw new IllegalArgumentException(
@@ -382,7 +395,7 @@ public class PrintDeviceLayoutPropertyService {
       Boolean mobileOnly = safePatch.containsKey("mobileOnly")
          ? toNullableBoolean("mobileOnly", safePatch.get("mobileOnly")) : null;
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          ViewsheetPropertyDialogModel model = dialogService.getViewsheetInfo(runtimeId, user);
          ScreensPaneModel screensPane = model.screensPane();
          List<VSDeviceLayoutDialogModel> layouts = screensPane.getDeviceLayouts();

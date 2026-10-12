@@ -106,10 +106,25 @@ public class ViewsheetEditService {
       "refresh", "refresh_viewsheet");
 
    /**
-    * @return the final name of the assembly created by op {@code add} (the generated name when no
-    *         {@code assembly} was requested), {@code null} for every other op.
+    * What an edit produced.
+    *
+    * @param assembly the final name of the assembly created by op {@code add}, {@code null} for
+    *                 every other op.
+    * @param warnings the warnings {@link ViewsheetSessionService#mutate} returned for the ops that
+    *                 can re-run a table (add, paste, refresh, refresh_viewsheet); empty for every
+    *                 other op, never null.
     */
-   public String apply(String sessionToken, Principal user, EditRequest request, String linkUri)
+   public record EditResult(String assembly, List<String> warnings) {
+      public EditResult {
+         warnings = warnings == null ? List.of() : warnings;
+      }
+   }
+
+   /**
+    * @return the final name of the assembly created by op {@code add} (the generated name when no
+    *         {@code assembly} was requested), and the warnings of the ops that can re-run a table.
+    */
+   public EditResult apply(String sessionToken, Principal user, EditRequest request, String linkUri)
       throws Exception
    {
       String op = request.op() == null ? "" : request.op().trim().toLowerCase();
@@ -118,6 +133,8 @@ public class ViewsheetEditService {
          return add(sessionToken, user, request, linkUri);
       }
 
+      List<String> warnings = List.of();
+
       switch(op) {
       case "move" -> move(sessionToken, user, request, linkUri);
       case "resize" -> resize(sessionToken, user, request, linkUri);
@@ -125,7 +142,7 @@ public class ViewsheetEditService {
       case "remove" -> remove(sessionToken, user, request, linkUri);
       case "rename" -> rename(sessionToken, user, request, linkUri);
       case "copy", "cut" -> copyOrCut(sessionToken, user, request, linkUri, "cut".equals(op));
-      case "paste" -> paste(sessionToken, user, request, linkUri);
+      case "paste" -> warnings = paste(sessionToken, user, request, linkUri);
       case "set_z_index" -> setZIndex(sessionToken, user, request);
       case "set_lock" -> setLock(sessionToken, user, request);
       case "set_title" -> setTitle(sessionToken, user, request);
@@ -136,13 +153,13 @@ public class ViewsheetEditService {
       case "ungroup" -> ungroup(sessionToken, user, request, linkUri);
       case "move_from_container" -> moveFromContainer(sessionToken, user, request, linkUri);
       case "align", "distribute" -> arrange(sessionToken, user, request, linkUri, op);
-      case "refresh" -> refresh(sessionToken, user, request, linkUri);
-      case "refresh_viewsheet" -> refreshWholeSheet(sessionToken, user, linkUri);
+      case "refresh" -> warnings = refresh(sessionToken, user, request, linkUri);
+      case "refresh_viewsheet" -> warnings = refreshWholeSheet(sessionToken, user, linkUri);
       default -> throw new IllegalArgumentException(
          "Unknown edit op '" + request.op() + "'. Supported ops: " + String.join(", ", OPS) + ".");
       }
 
-      return null;
+      return new EditResult(null, warnings);
    }
 
    private void move(String sessionToken, Principal user, EditRequest request, String linkUri)
@@ -270,7 +287,8 @@ public class ViewsheetEditService {
       });
    }
 
-   private String add(String sessionToken, Principal user, EditRequest request, String linkUri)
+   private EditResult add(String sessionToken, Principal user, EditRequest request,
+                          String linkUri)
       throws Exception
    {
       if(request.type() == null) {
@@ -290,7 +308,7 @@ public class ViewsheetEditService {
 
       AtomicReference<String> created = new AtomicReference<>();
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          // Checked before addNewObject: a colliding name would otherwise leave an orphan
          // auto-named assembly and resize the pre-existing one.
          if(request.assembly() != null && !request.assembly().isBlank() &&
@@ -369,7 +387,7 @@ public class ViewsheetEditService {
          }
       });
 
-      return created.get();
+      return new EditResult(created.get(), warnings);
    }
 
    /**
@@ -526,12 +544,13 @@ public class ViewsheetEditService {
       });
    }
 
-   private void paste(String sessionToken, Principal user, EditRequest request, String linkUri)
+   private List<String> paste(String sessionToken, Principal user, EditRequest request,
+                              String linkUri)
       throws Exception
    {
       requireValues(request.op(), "x", request.x(), "y", request.y());
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) ->
+      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) ->
          clipboard.pasteObject(runtimeId, request.x(), request.y(), user, dispatcher, linkUri));
    }
 
@@ -752,12 +771,13 @@ public class ViewsheetEditService {
     * pane changes an assembly's binding, including resetting the sandbox and re-executing the
     * assembly's query, not merely re-rendering it.
     */
-   private void refresh(String sessionToken, Principal user, EditRequest request, String linkUri)
+   private List<String> refresh(String sessionToken, Principal user, EditRequest request,
+                                String linkUri)
       throws Exception
    {
       requireAssembly(request);
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          requireExisting(rvs, request.assembly());
          RefreshVSAssemblyEvent event = RefreshVSAssemblyEvent.builder()
             .vsRuntimeId(runtimeId)
@@ -776,10 +796,10 @@ public class ViewsheetEditService {
     * recovery path from a wedged runtime (e.g. a failed whole-sheet
     * {@code get_viewsheet_image()}) that does not require a human at the browser UI.
     */
-   private void refreshWholeSheet(String sessionToken, Principal user, String linkUri)
+   private List<String> refreshWholeSheet(String sessionToken, Principal user, String linkUri)
       throws Exception
    {
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) ->
+      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) ->
          refreshService.refreshViewsheet(runtimeId, VSRefreshEvent.builder().confirmed(false).build(),
                                          user, dispatcher, linkUri));
    }

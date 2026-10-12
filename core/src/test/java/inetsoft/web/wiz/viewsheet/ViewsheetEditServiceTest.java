@@ -506,7 +506,7 @@ class ViewsheetEditServiceTest {
       EditRequest request = new EditRequest("add", "MyEmbed", 40, 60, 400, 300, null, null,
                                             null, null, null, null, 200, null,
                                             "Sample Dashboards/Sales Summary", null);
-      assertEquals("MyEmbed", service.apply("tok", principal(), request, ""));
+      assertEquals("MyEmbed", service.apply("tok", principal(), request, "").assembly());
 
       verify(propertyService).editObjectProperty(eq(rvs), eq(info), eq("Viewsheet1"),
                                                  eq("MyEmbed"), anyString(), any(Principal.class),
@@ -548,7 +548,7 @@ class ViewsheetEditServiceTest {
                                             null, null, null, null, 200, null,
                                             "Sample Dashboards/Sales Summary", null);
 
-      assertEquals("Viewsheet1", service.apply("tok", principal(), request, ""));
+      assertEquals("Viewsheet1", service.apply("tok", principal(), request, "").assembly());
    }
 
    @Test
@@ -1849,6 +1849,84 @@ class ViewsheetEditServiceTest {
                          mock(ComposerGroupService.class));
    }
 
+   // Bug #78406: the ops that can re-run a table hand back the warnings mutate() returned.
+
+   @Test
+   void refreshReturnsTheWarningsMutateReturned() throws Exception {
+      ViewsheetEditService service = serviceWarning(
+         List.of("W1"), mock(ComposerObjectService.class), mock(ClipboardControllerService.class),
+         readerReturning(new AssemblyNode("Table1", "Table", 0, 0, 400, 300, 0, null, true)),
+         mock(VSRefreshService.class));
+
+      ViewsheetEditService.EditResult result =
+         service.apply("tok", principal(), request("refresh", "Table1"), "");
+
+      assertEquals(List.of("W1"), result.warnings());
+      assertNull(result.assembly());
+   }
+
+   @Test
+   void refreshViewsheetReturnsTheWarningsMutateReturned() throws Exception {
+      ViewsheetEditService service = serviceWarning(
+         List.of("W1"), mock(ComposerObjectService.class), mock(ClipboardControllerService.class),
+         mock(ViewsheetReadService.class), mock(VSRefreshService.class));
+
+      assertEquals(List.of("W1"),
+                   service.apply("tok", principal(), request("refresh_viewsheet", null), "")
+                      .warnings());
+   }
+
+   @Test
+   void pasteReturnsTheWarningsMutateReturned() throws Exception {
+      ViewsheetEditService service = serviceWarning(
+         List.of("W1"), mock(ComposerObjectService.class), mock(ClipboardControllerService.class),
+         mock(ViewsheetReadService.class), mock(VSRefreshService.class));
+
+      assertEquals(List.of("W1"),
+                   service.apply("tok", principal(), edit("paste", null, 15, 25), "").warnings());
+   }
+
+   @Test
+   void addReturnsTheNewNameAndTheWarnings() throws Exception {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      when(objects.addNewObject(any(), any(), any(Principal.class), any(), any()))
+         .thenReturn("Text1");
+      ViewsheetEditService service = serviceWarning(
+         List.of("W1"), objects, mock(ClipboardControllerService.class),
+         mock(ViewsheetReadService.class), mock(VSRefreshService.class));
+      EditRequest request = new EditRequest("add", null, 10, 20, null, null, null, null,
+                                            null, null, null, null, 111, null);
+
+      ViewsheetEditService.EditResult result =
+         service.apply("tok", principal(), request, "");
+
+      assertEquals("Text1", result.assembly());
+      assertEquals(List.of("W1"), result.warnings());
+   }
+
+   @Test
+   void anEditThatCannotReRunATableCarriesNoWarnings() throws Exception {
+      ViewsheetEditService service = serviceWarning(
+         List.of("W1"), mock(ComposerObjectService.class), mock(ClipboardControllerService.class),
+         readerReturning(new AssemblyNode("Gauge1", "Gauge", 340, 440, 140, 140, 0, null, true)),
+         mock(VSRefreshService.class));
+
+      ViewsheetEditService.EditResult result =
+         service.apply("tok", principal(), edit("move", "Gauge1", 120, 240), "");
+
+      assertEquals(List.of(), result.warnings());
+   }
+
+   @Test
+   void aCleanRefreshCarriesNoWarnings() throws Exception {
+      ViewsheetEditService service = serviceWithRefresh(mock(ViewsheetReadService.class),
+                                                        mock(VSRefreshService.class));
+
+      assertEquals(List.of(),
+                   service.apply("tok", principal(), request("refresh_viewsheet", null), "")
+                      .warnings());
+   }
+
    /** Exposes {@code refreshService} -- for the refresh op tests. */
    private static ViewsheetEditService serviceWithRefresh(ViewsheetReadService reader,
                                                           VSRefreshService refreshService)
@@ -1982,5 +2060,32 @@ class ViewsheetEditServiceTest {
                                      mock(VSObjectPropertyService.class), reader, groups,
                                      grouping, mock(VSRefreshService.class),
                                      mock(CoreLifecycleService.class));
+   }
+
+   /** mutate() runs the mutation, then answers with the given warnings (Bug #78406). */
+   private static ViewsheetEditService serviceWarning(List<String> warnings,
+                                                      ComposerObjectService objects,
+                                                      ClipboardControllerService clipboard,
+                                                      ViewsheetReadService reader,
+                                                      VSRefreshService refreshService)
+   {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+
+      try {
+         doAnswer(invocation -> {
+            ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
+            mutation.run(null, "rt1", null);
+            return warnings;
+         }).when(sessions).mutate(anyString(), any(Principal.class), any());
+      }
+      catch(Exception e) {
+         throw new IllegalStateException(e);
+      }
+
+      return new ViewsheetEditService(sessions, objects, clipboard,
+                                      mock(VSObjectPropertyService.class), reader,
+                                      mock(ComposerGroupService.class),
+                                      mock(GroupingService.class), refreshService,
+                                      mock(CoreLifecycleService.class));
    }
 }
