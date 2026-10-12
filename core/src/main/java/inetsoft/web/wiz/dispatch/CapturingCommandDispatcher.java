@@ -17,6 +17,8 @@
  */
 package inetsoft.web.wiz.dispatch;
 
+import inetsoft.uql.viewsheet.ColumnNotFoundException;
+import inetsoft.util.MessageException;
 import inetsoft.web.messaging.MessageAttributes;
 import inetsoft.web.messaging.MessageContextHolder;
 import inetsoft.web.viewsheet.command.MessageCommand;
@@ -120,9 +122,66 @@ public final class CapturingCommandDispatcher extends CommandDispatcher {
 
          return result;
       }
+      catch(Exception e) {
+         CommandErrorException replacement = toCommandError(dispatcher, e);
+
+         if(replacement != null) {
+            throw replacement;
+         }
+
+         throw e;
+      }
       finally {
          MessageContextHolder.setMessageAttributes(previousAttributes);
       }
+   }
+
+   /**
+    * Decides whether a thrown exception should be reported as the ERROR(s) the service dispatched
+    * (or its own user-facing message) rather than escape as an opaque 500.
+    *
+    * <p>A composer service reports a failed execute by dispatching an ERROR and carrying on, so
+    * a follow-on exception thrown afterwards ({@code NullPointerException},
+    * {@code IllegalStateException}) is a symptom and would hide the real message. Likewise
+    * {@code ColumnNotFoundException} and a plain {@code MessageException} are rethrown by the
+    * execute path with no ERROR dispatched, and carry text meant for the user.
+    *
+    * <p>Anything with its own handler or control-flow meaning (security, bad request, stale
+    * session, confirm/cancel/expired, render-not-ready, ...) is left alone, so it keeps its status.
+    * The original exception is kept as the cause.
+    *
+    * @return the exception to throw instead, or null to rethrow {@code e} unchanged.
+    */
+   private static CommandErrorException toCommandError(CapturingCommandDispatcher dispatcher,
+                                                       Exception e)
+   {
+      if(e instanceof CommandErrorException) {
+         return null;
+      }
+
+      List<String> errors = dispatcher.getErrors();
+      boolean followOn = e.getClass() == NullPointerException.class ||
+         e.getClass() == IllegalStateException.class ||
+         e.getClass() == ClassCastException.class ||
+         e.getClass() == IndexOutOfBoundsException.class;
+      boolean userFacing = e instanceof ColumnNotFoundException ||
+         e.getClass() == MessageException.class;
+
+      if(!followOn && !userFacing) {
+         return null;
+      }
+
+      if(errors.isEmpty()) {
+         if(!userFacing) {
+            return null;
+         }
+
+         errors = List.of(CommandErrorException.messageOf(e.getMessage()));
+      }
+
+      CommandErrorException replacement = new CommandErrorException(errors);
+      replacement.initCause(e);
+      return replacement;
    }
 
    /**
@@ -145,7 +204,7 @@ public final class CapturingCommandDispatcher extends CommandDispatcher {
 
       for(Command command : captured) {
          if(command.getCommand() instanceof MessageCommand message && message.getType() == type) {
-            messages.add(message.getMessage());
+            messages.add(CommandErrorException.messageOf(message.getMessage()));
          }
       }
 

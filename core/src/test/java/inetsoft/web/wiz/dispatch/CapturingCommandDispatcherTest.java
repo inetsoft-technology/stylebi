@@ -17,6 +17,11 @@
  */
 package inetsoft.web.wiz.dispatch;
 
+import inetsoft.report.composition.ExpiredSheetException;
+import inetsoft.uql.asset.ConfirmException;
+import inetsoft.uql.viewsheet.ColumnNotFoundException;
+import inetsoft.util.InvalidUserException;
+import inetsoft.util.MessageException;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.junit.jupiter.api.Tag;
@@ -125,6 +130,103 @@ class CapturingCommandDispatcherTest {
          });
 
       assertEquals(List.of("ranking is global"), warnings);
+   }
+
+   /** Bug #78306: a follow-on NPE must not hide the ERROR the service already dispatched. */
+   @Test
+   void capturedErrorWinsOverAFollowOnNullPointerException() {
+      CommandErrorException thrown = assertThrows(CommandErrorException.class, () ->
+         CapturingCommandDispatcher.withCapturingDispatcher(principal(), dispatcher -> {
+            dispatcher.sendCommand(message(MessageCommand.Type.ERROR, "real execute failure"));
+            throw new NullPointerException("follow-on");
+         }));
+
+      assertTrue(thrown.getMessage().contains("real execute failure"), thrown.getMessage());
+      assertInstanceOf(NullPointerException.class, thrown.getCause());
+   }
+
+   @Test
+   void capturedErrorWinsOverAFollowOnIllegalState() {
+      assertThrows(CommandErrorException.class, () ->
+         CapturingCommandDispatcher.withCapturingDispatcher(principal(), dispatcher -> {
+            dispatcher.sendCommand(message(MessageCommand.Type.ERROR, "real execute failure"));
+            throw new IllegalStateException("follow-on");
+         }));
+   }
+
+   /** Exceptions with their own handler (403, 400, ...) keep their type after an ERROR. */
+   @Test
+   void typedExceptionsStillPropagateAfterAnError() {
+      assertThrows(SecurityException.class, () ->
+         CapturingCommandDispatcher.withCapturingDispatcher(principal(), dispatcher -> {
+            dispatcher.sendCommand(message(MessageCommand.Type.ERROR, "e"));
+            throw new SecurityException("denied");
+         }));
+      assertThrows(IllegalArgumentException.class, () ->
+         CapturingCommandDispatcher.withCapturingDispatcher(principal(), dispatcher -> {
+            dispatcher.sendCommand(message(MessageCommand.Type.ERROR, "e"));
+            throw new IllegalArgumentException("bad input");
+         }));
+      assertThrows(InvalidUserException.class, () ->
+         CapturingCommandDispatcher.withCapturingDispatcher(principal(), dispatcher -> {
+            dispatcher.sendCommand(message(MessageCommand.Type.ERROR, "e"));
+            throw new InvalidUserException("stale", (java.security.Principal) null);
+         }));
+   }
+
+   @Test
+   void controlFlowExceptionsPropagateUnchanged() {
+      assertThrows(ExpiredSheetException.class, () ->
+         CapturingCommandDispatcher.withCapturingDispatcher(principal(), dispatcher -> {
+            dispatcher.sendCommand(message(MessageCommand.Type.ERROR, "e"));
+            throw new ExpiredSheetException("id", null);
+         }));
+      assertThrows(ConfirmException.class, () ->
+         CapturingCommandDispatcher.withCapturingDispatcher(principal(), dispatcher -> {
+            throw new ConfirmException("confirm");
+         }));
+   }
+
+   @Test
+   void columnNotFoundBecomesACommandErrorWhenNoErrorWasCaptured() {
+      CommandErrorException thrown = assertThrows(CommandErrorException.class, () ->
+         CapturingCommandDispatcher.withCapturingDispatcher(principal(), dispatcher -> {
+            throw new ColumnNotFoundException("col X");
+         }));
+
+      assertTrue(thrown.getMessage().contains("col X"), thrown.getMessage());
+      assertInstanceOf(ColumnNotFoundException.class, thrown.getCause());
+   }
+
+   @Test
+   void messageExceptionBecomesACommandErrorWhenNoErrorWasCaptured() {
+      CommandErrorException thrown = assertThrows(CommandErrorException.class, () ->
+         CapturingCommandDispatcher.withCapturingDispatcher(principal(), dispatcher -> {
+            throw new MessageException("user facing");
+         }));
+
+      assertTrue(thrown.getMessage().contains("user facing"), thrown.getMessage());
+   }
+
+   @Test
+   void unrelatedExceptionWithoutCapturedErrorsIsUnchanged() {
+      assertThrows(IndexOutOfBoundsException.class, () ->
+         CapturingCommandDispatcher.withCapturingDispatcher(principal(), dispatcher -> {
+            throw new IndexOutOfBoundsException("plain");
+         }));
+   }
+
+   /** An ERROR whose message is null (e.g. from an NPE's getMessage()) must not NPE the wrapper. */
+   @Test
+   void nullErrorMessageStillYieldsACommandError() {
+      CommandErrorException thrown = assertThrows(CommandErrorException.class, () ->
+         CapturingCommandDispatcher.withCapturingDispatcher(principal(), dispatcher -> {
+            dispatcher.sendCommand(message(MessageCommand.Type.ERROR, null));
+            return null;
+         }));
+
+      assertFalse(thrown.getErrors().isEmpty());
+      assertTrue(thrown.getErrors().stream().allMatch(m -> m != null && !m.isBlank()));
    }
 
    private static MessageCommand message(MessageCommand.Type type, String text) {

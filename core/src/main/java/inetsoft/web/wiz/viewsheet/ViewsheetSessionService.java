@@ -172,10 +172,12 @@ public class ViewsheetSessionService {
          });
       }
       catch(CommandErrorException e) {
-         throw new CommandErrorException(
+         CommandErrorException noted = new CommandErrorException(
             e.getErrors(),
             "the edit may be partially applied; the runtime and your Composer have been " +
             "refreshed to match, and one undo step covers whatever was applied");
+         noted.initCause(e.getCause());
+         throw noted;
       }
       finally {
          Viewsheet vs = rvs.getViewsheet();

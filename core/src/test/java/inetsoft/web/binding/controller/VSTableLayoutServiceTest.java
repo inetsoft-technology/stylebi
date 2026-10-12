@@ -18,6 +18,8 @@
 package inetsoft.web.binding.controller;
 
 import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.BaseLayout;
 import inetsoft.report.CellBinding;
 import inetsoft.report.TableCellBinding;
@@ -25,19 +27,32 @@ import inetsoft.report.TableDataPath;
 import inetsoft.report.TableLayout;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.viewsheet.CalcTableVSAssembly;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.CalcTableVSAssemblyInfo;
 import inetsoft.web.binding.handler.TableLayoutHandler;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.binding.handler.VSCalcCellScriptHandler;
 import inetsoft.web.binding.handler.VSColumnHandler;
 import inetsoft.web.binding.handler.VSRowColGroupHandler;
+import inetsoft.web.binding.event.ModifyTableLayoutEvent;
+import inetsoft.web.binding.event.SetCellBindingEvent;
 import inetsoft.web.binding.model.table.CellBindingInfo;
+import inetsoft.web.binding.model.table.TableCell;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
+import inetsoft.web.viewsheet.command.MessageCommand;
+import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
+import inetsoft.web.wiz.dispatch.CommandErrorException;
+import java.util.Optional;
+import inetsoft.test.*;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -50,6 +65,11 @@ import static org.mockito.Mockito.when;
  * method against a real {@link TableLayout}/{@link TableCellBinding} -- {@code CalcTableServiceTest}
  * mocks {@code VSTableLayoutService} entirely.
  */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class,
+                                  LibManagerTestConfiguration.class },
+                      initializers = ConfigurationContextInitializer.class)
+@SreeHome
 @Tag("core")
 class VSTableLayoutServiceTest {
    @Test
@@ -130,5 +150,122 @@ class VSTableLayoutServiceTest {
          mock(ViewsheetService.class), mock(DataSourceRegistry.class));
 
       return service.getCellBindingInfo(assembly, row, col);
+   }
+
+   /**
+    * Bug #78306: when the edit's execute fails, the lens is null and
+    * {@code createTableLayoutCommand} returns null. The native {@code getLayout} guards that
+    * ({@code if(cmd != null)}); {@code setCellBinding} did not, so a null command reached the
+    * dispatcher and threw a bare NPE that hid the ERROR the failed execute had already dispatched.
+    */
+   @Test
+   void setCellBindingWithNullLensSendsNoNullCommand() throws Exception {
+      Fixture f = new Fixture(false);
+
+      var commands = CapturingCommandDispatcher.withCapturingDispatcher(
+         () -> "admin", d -> {
+            f.service.setCellBinding("id", f.cellBindingEvent(), () -> "admin", d);
+            return d.getCapturedCommands();
+         });
+
+      assertTrue(commands.stream().noneMatch(c -> c.getCommand() == null), commands.toString());
+   }
+
+   @Test
+   void setCellBindingSurfacesTheRealExecuteErrorWhenTheLensIsNull() throws Exception {
+      Fixture f = new Fixture(true);
+
+      CommandErrorException thrown = assertThrows(CommandErrorException.class, () ->
+         CapturingCommandDispatcher.withCapturingDispatcher(() -> "admin", d -> {
+            f.service.setCellBinding("id", f.cellBindingEvent(), () -> "admin", d);
+            return null;
+         }));
+
+      assertTrue(thrown.getMessage().contains("Formula requires two columns"),
+                 thrown.getMessage());
+   }
+
+   @Test
+   void modifyLayoutWithNullLensSendsNoNullCommand() throws Exception {
+      Fixture f = new Fixture(false);
+      ModifyTableLayoutEvent event = new ModifyTableLayoutEvent();
+      event.setName("Calc1");
+      event.setOp("insertRow");
+
+      var commands = CapturingCommandDispatcher.withCapturingDispatcher(
+         () -> "admin", d -> {
+            f.service.modifyLayout("id", event, () -> "admin", d);
+            return d.getCapturedCommands();
+         });
+
+      assertTrue(commands.stream().noneMatch(c -> c.getCommand() == null), commands.toString());
+   }
+
+   /**
+    * A real calc table + layout whose execute (the mocked {@code apply}) fails the way
+    * {@code BaseTableService.loadTableData0} does, leaving no lens.
+    */
+   private static final class Fixture {
+      Fixture(boolean dispatchError) throws Exception {
+         Viewsheet vs = new Viewsheet();
+         CalcTableVSAssembly assembly = new CalcTableVSAssembly(vs, "Calc1");
+         assembly.initDefaultFormat();
+         vs.addAssembly(assembly);
+         TableLayout layout = new TableLayout();
+         layout.setColCount(1);
+         BaseLayout.Region region = layout.new Region();
+         region.setRowCount(1);
+         layout.addRegion(new TableDataPath(-1, TableDataPath.DETAIL), region);
+         ((CalcTableVSAssemblyInfo) assembly.getInfo()).setTableLayout(layout);
+
+         ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+         when(box.getVSTableLens(anyString(), anyBoolean())).thenReturn(null);
+         RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+         when(rvs.getViewsheet()).thenReturn(vs);
+         when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
+         ViewsheetService engine = mock(ViewsheetService.class);
+         when(engine.getViewsheet(anyString(), any())).thenReturn(rvs);
+
+         VSAssemblyInfoHandler handler = mock(VSAssemblyInfoHandler.class);
+
+         if(dispatchError) {
+            doAnswer(inv -> {
+               CapturingCommandDispatcher d = inv.getArgument(8);
+               MessageCommand error = new MessageCommand();
+               error.setType(MessageCommand.Type.ERROR);
+               error.setMessage("Failed to load table data: Formula requires two columns: SumWT");
+               d.sendCommand(error);
+               return null;
+            }).when(handler).apply(any(), any(), any(), anyBoolean(), anyBoolean(),
+                                   anyBoolean(), anyBoolean(), anyBoolean(), any(), any(), any(),
+                                   any(), any());
+         }
+
+         TableLayoutHandler layoutHandler = mock(TableLayoutHandler.class);
+         when(layoutHandler.getCalcAggregateFields(any(), any()))
+            .thenReturn(new inetsoft.uql.erm.CalcAggregate[0]);
+
+         service = new VSTableLayoutService(
+            mock(VSRowColGroupHandler.class), mock(DataRefModelFactoryService.class),
+            handler, layoutHandler, mock(VSCalcCellScriptHandler.class),
+            mock(VSColumnHandler.class), engine, mock(DataSourceRegistry.class));
+      }
+
+      SetCellBindingEvent cellBindingEvent() {
+         SetCellBindingEvent event = new SetCellBindingEvent();
+         event.setName("Calc1");
+         TableCell cell = new TableCell();
+         cell.setRow(0);
+         cell.setCol(0);
+         event.setSelectCells(new TableCell[] { cell });
+         CellBindingInfo binding = new CellBindingInfo();
+         binding.setType(CellBinding.BIND_COLUMN);
+         binding.setBtype(TableCellBinding.SUMMARY);
+         binding.setValue("SumWT");
+         event.setBinding(binding);
+         return event;
+      }
+
+      final VSTableLayoutService service;
    }
 }
