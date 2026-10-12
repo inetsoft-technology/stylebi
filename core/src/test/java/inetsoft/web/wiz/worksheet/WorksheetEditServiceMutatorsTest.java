@@ -4216,6 +4216,22 @@ class WorksheetEditServiceMutatorsTest {
          "a column the join doesn't key on must still be removable");
    }
 
+   /** Bug #76480: a column that does not resolve is refused, not silently ignored. */
+   @Test
+   void removeColumnRefusesAColumnTheTableDoesNotHave() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly left = TestWorksheets.tableWithColumns(ws, "L", "id", "name");
+      ws.addAssembly(left);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.removeColumn("L", "nope")));
+
+      assertEquals("Column not found: nope", ex.getMessage());
+      assertEquals(2, left.getColumnSelection(false).getAttributeCount());
+   }
+
    @Test
    void setColumnVisibilityRefusesHidingAJoinKeyStillUsedByADependentJoin() throws Exception {
       Worksheet ws = new Worksheet();

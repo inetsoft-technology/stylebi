@@ -21,6 +21,7 @@ import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.security.SecurityException;
+import inetsoft.uql.asset.AggregateFormula;
 import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.viewsheet.CalculateRef;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -42,6 +43,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -162,6 +165,7 @@ public class CalcFieldAgentService {
       String newName = req.newName() != null && !req.newName().isBlank()
          ? req.newName() : req.name();
       List<String> rewrittenDependents = new ArrayList<>();
+      List<String> aggregateWarnings = new ArrayList<>();
 
       List<String> warnings = sessions.mutate(sessionToken, agent, (rvs, runtimeId, dispatcher) -> {
          BindableTable bindable = requireBindableTable(runtimeId, req.table(), agent);
@@ -218,6 +222,17 @@ public class CalcFieldAgentService {
             boolean sql = req.sql() != null ? req.sql()
                : existing != null && existing.isSQL();
 
+            // Bug #76480 (VBS-004): an aggregate calc field's script only sees the field['…']
+            // references StyleBI rewrote from a detected aggregate tag; any other reference throws
+            // at render time, and the engine swallows that into a crosstab with no data rows.
+            // Refuse the shapes that can never be detected, and warn about well-formed ones that
+            // are not detected yet (binding the aggregate later is a legitimate order).
+            if(!baseOnDetail && !sql) {
+               checkAggregateReferences(newName, req.expression());
+               aggregateWarnings.addAll(undetectedAggregateWarnings(
+                  rvs.getViewsheet(), tableName, newName, req.expression()));
+            }
+
             ExpressionRefModel exprModel = new ExpressionRefModel();
             exprModel.setName(newName);
             exprModel.setExp(req.expression());
@@ -251,8 +266,131 @@ public class CalcFieldAgentService {
             runtimeId, event, agent, dispatcher, linkUri);
       });
 
+      if(!aggregateWarnings.isEmpty()) {
+         List<String> merged = new ArrayList<>(aggregateWarnings);
+
+         if(warnings != null) {
+            merged.addAll(warnings);
+         }
+
+         warnings = merged;
+      }
+
       return new CalcFieldResult(warnings, rewrittenDependents);
    }
+
+   /**
+    * Refuses an aggregate (baseOnDetail:false, non-SQL) expression containing any {@code field}
+    * access other than a detectable aggregate tag. {@link VSUtil#findAggregate} only ever detects
+    * the literal text {@code field['<FormulaName>(<args>)']} (single quotes, no whitespace in the
+    * wrapper or before the parenthesis; see {@link VSUtil#getAggregateString} and the alias forms),
+    * and {@code CalcFieldFormula} rewrites exactly that text. Every other access -- an outer call
+    * such as {@code sum(field['X'])}, a bare {@code field['X']} (including another calc field's
+    * name), the mixed {@code field['Sum(A)']/field['B']}, {@code field["Sum(X)"]},
+    * {@code field[ 'Sum(X)' ]}, {@code field.X} or {@code field[expr]} -- is left raw and throws,
+    * since no {@code field} object exists in an aggregate calc field's script scope.
+    */
+   static void checkAggregateReferences(String name, String expression) {
+      String text = expression == null ? "" : expression;
+      StringBuilder rest = new StringBuilder();
+      Matcher tag = AGGREGATE_TAG_REFERENCE.matcher(text);
+      int last = 0;
+
+      // Blank out the legal tags; whatever field access remains is refused.
+      while(tag.find()) {
+         rest.append(text, last, tag.start());
+         rest.append(isFormulaName(tag.group(2)) ? " " : tag.group());
+         last = tag.end();
+      }
+
+      rest.append(text.substring(last));
+      List<String> bad = new ArrayList<>();
+      Matcher access = FIELD_ACCESS.matcher(rest);
+
+      while(access.find()) {
+         bad.add(access.group());
+      }
+
+      if(!bad.isEmpty()) {
+         throw new IllegalArgumentException(
+            "Calc field '" + name + "' is an aggregate calc field (baseOnDetail:false), so every " +
+            "field reference in its expression must name an aggregate, spelled exactly like " +
+            "field['Sum(Order:Discount)']: single quotes, no spaces between field, [, the " +
+            "quote and the formula name, the formula name directly followed by '(', and ')' " +
+            "directly followed by the closing ']. These references are not: " +
+            String.join(", ", bad) + ". An outer call such as sum(field['X']), a bare " +
+            "field['X'], field.X, field[expr], or a double-quoted or spaced variant is never " +
+            "computed in aggregate mode. Rewrite each as field['Sum(X)'] (or another aggregate, " +
+            "e.g. field['Average(X)']), or set baseOnDetail:true for a per-row calculation.");
+      }
+   }
+
+   /**
+    * One warning per well-formed aggregate reference that {@link VSUtil#findAggregate} does not
+    * currently detect on {@code table}. Such a field renders nothing until the aggregate is bound
+    * on some assembly of the table; binding it afterwards is legitimate, so this does not refuse.
+    * A reference only counts as detected when a matched tag is the whole {@code field['…']}
+    * reference, since {@code CalcFieldFormula} rewrites exactly the matched tag text.
+    */
+   static List<String> undetectedAggregateWarnings(Viewsheet vs, String table, String name,
+                                                   String expression)
+   {
+      List<String> warnings = new ArrayList<>();
+      List<String[]> refs = fieldReferences(expression);
+
+      if(refs.isEmpty()) {
+         return warnings;
+      }
+
+      List<String> matched = new ArrayList<>();
+      VSUtil.findAggregate(vs, table, matched, expression);
+      Set<String> detected = matched.stream()
+         .map(tag -> tag.toUpperCase())
+         .collect(Collectors.toSet());
+      Set<String> reported = new HashSet<>();
+
+      for(String[] ref : refs) {
+         if(!detected.contains(ref[0].toUpperCase()) && reported.add(ref[0])) {
+            warnings.add(
+               "Calc field '" + name + "' references " + ref[0] + ", which StyleBI does not " +
+               "currently detect as an aggregate bound on '" + table + "', so it cannot compute " +
+               "it yet. Bind " + ref[1].trim() + " on an assembly of '" + table + "' (e.g. on a " +
+               "chart's or crosstab's aggregates); until then an assembly that binds '" + name +
+               "' shows no data.");
+         }
+      }
+
+      return warnings;
+   }
+
+   /**
+    * Every detectable aggregate tag reference in {@code expression} (see
+    * {@link #checkAggregateReferences}): {whole reference, inner text}.
+    */
+   private static List<String[]> fieldReferences(String expression) {
+      List<String[]> refs = new ArrayList<>();
+      Matcher matcher = AGGREGATE_TAG_REFERENCE.matcher(expression == null ? "" : expression);
+
+      while(matcher.find()) {
+         if(isFormulaName(matcher.group(2))) {
+            refs.add(new String[] { matcher.group(), matcher.group(1) });
+         }
+      }
+
+      return refs;
+   }
+
+   private static boolean isFormulaName(String formula) {
+      return Arrays.stream(AggregateFormula.getFormulas())
+         .anyMatch(f -> formula.equalsIgnoreCase(f.getFormulaName()));
+   }
+
+   /** The only spelling detection can match: field['<Name>(<args>)']. */
+   private static final Pattern AGGREGATE_TAG_REFERENCE =
+      Pattern.compile("field\\['(([A-Za-z][A-Za-z0-9]*)\\([^']*\\))'\\]");
+   /** Any field access: field[...] (any key) or field.name. */
+   private static final Pattern FIELD_ACCESS =
+      Pattern.compile("\\bfield\\s*(?:\\[[^\\]]*\\]?|\\.\\s*[\\w$]*)");
 
    /**
     * Refuses a create/rename whose target name (case-insensitively) is held by another calc field

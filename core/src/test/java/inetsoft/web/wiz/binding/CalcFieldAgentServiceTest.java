@@ -23,6 +23,9 @@ import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.test.*;
+import inetsoft.uql.asset.AggregateFormula;
+import inetsoft.uql.asset.AggregateRef;
+import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.viewsheet.CalculateRef;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -528,11 +531,14 @@ class CalcFieldAgentServiceTest {
    void baseOnDetailFalseIsPreserved() throws Exception {
       ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
       CalcFieldAgentService service = new CalcFieldAgentService(
-         sessionsRunningAgainstRt1(), fieldsServiceWithOrdersTable(), proxy, allowingSecurityEngine());
+         sessionsOver(realVsWithAggregates("Discount", "Total")), fieldsServiceWithOrdersTable(),
+         proxy, allowingSecurityEngine());
       Principal agent = principal();
 
+      // The documented aggregate form: the outer-call sum(field['Discount']) this test used to
+      // send is refused since Bug #76480 (see refusesTheOuterCallFormWhenBaseOnDetailIsFalse).
       CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "AvgDiscountPct", null,
-         "sum(field['Discount'])/sum(field['Total'])", "double", false, false, false, true);
+         "field['Sum(Discount)']/field['Sum(Total)']", "double", false, false, false, true);
 
       service.modify("tok", agent, req, "");
 
@@ -844,5 +850,238 @@ class CalcFieldAgentServiceTest {
          "ORDERS", null, "DupCalc", "DUPCALC", "1", null, null, true, false, false);
 
       assertDoesNotThrow(() -> service.modify("tok", principal(), req, ""));
+   }
+
+   // =========================================================================
+   // Bug #76480 (VBS-004): an aggregate calc field (baseOnDetail:false, non-SQL) whose
+   // field['...'] references are not detected aggregate tags throws at render time, and the
+   // engine swallows that into a crosstab with no data rows, after the write reported ok:true.
+   // =========================================================================
+
+   /** A real viewsheet whose "ORDERS" table has a Sum(col) user aggregate field per column. */
+   private static Viewsheet realVsWithAggregates(String... columns) {
+      Viewsheet vs = new Viewsheet();
+
+      for(String column : columns) {
+         vs.addAggrField("ORDERS", new AggregateRef(
+            new AttributeRef(null, column), AggregateFormula.SUM));
+      }
+
+      return vs;
+   }
+
+   /** A JavaScript (non-SQL) calc field; a bare ColumnRef defaults to sql:true. */
+   private static CalculateRef scriptCalc(String name, String expression, boolean baseOnDetail) {
+      CalculateRef calc = calc(name, expression, baseOnDetail);
+      calc.setSQL(false);
+      return calc;
+   }
+
+   private static IllegalArgumentException assertRefusedBeforeWrite(
+      Viewsheet vs, CalcFieldRequest req) throws Exception
+   {
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      CalcFieldAgentService service = new CalcFieldAgentService(
+         sessionsOver(vs), fieldsServiceWithOrdersTable(), proxy, allowingSecurityEngine());
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.modify("tok", principal(), req, ""));
+      assertTrue(thrown.getMessage().contains("field['Sum("), thrown.getMessage());
+      verifyNoInteractions(proxy);
+      return thrown;
+   }
+
+   private static List<String> modifyAndCaptureWarnings(
+      Viewsheet vs, CalcFieldRequest req, ModifyCalculateFieldServiceProxy proxy) throws Exception
+   {
+      CalcFieldAgentService service = new CalcFieldAgentService(
+         sessionsOver(vs), fieldsServiceWithOrdersTable(), proxy, allowingSecurityEngine());
+      return service.modify("tok", principal(), req, "").warnings();
+   }
+
+   /** The reported input: the outer-call form, refused even with both Sums detected. */
+   @Test
+   void refusesTheOuterCallFormWhenBaseOnDetailIsFalse() throws Exception {
+      CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "RateBad", null,
+         "sum(field['Discount'])/sum(field['Total'])", "double", false, false, false, true);
+
+      IllegalArgumentException thrown =
+         assertRefusedBeforeWrite(realVsWithAggregates("Discount", "Total"), req);
+      assertTrue(thrown.getMessage().contains("'RateBad'"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("field['Discount'], field['Total']"),
+         thrown.getMessage());
+   }
+
+   /** A bare reference, including another calc field's name (03-repro v4p-O6: never legal). */
+   @Test
+   void refusesABareReferenceWhenBaseOnDetailIsFalse() throws Exception {
+      CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "RateRef", null,
+         "field['RateBase']", "double", false, false, false, true);
+
+      assertRefusedBeforeWrite(realVsWithAggregates("Discount", "Total"), req);
+   }
+
+   /** The mixed form: one detected tag does not make the bare reference beside it computable. */
+   @Test
+   void refusesTheMixedFormWhenBaseOnDetailIsFalse() throws Exception {
+      CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "RateMixed", null,
+         "field['Sum(Discount)']/field['Total']", "double", false, false, false, true);
+
+      IllegalArgumentException thrown =
+         assertRefusedBeforeWrite(realVsWithAggregates("Discount", "Total"), req);
+      assertTrue(thrown.getMessage().contains("not: field['Total']."), thrown.getMessage());
+   }
+
+   /** An edit that only flips an existing detail field to baseOnDetail:false is checked too. */
+   @Test
+   void editThatOnlyFlipsBaseOnDetailToFalseIsChecked() throws Exception {
+      Viewsheet vs = realVsWithAggregates("Discount", "Total");
+      vs.addCalcField("ORDERS",
+         scriptCalc("Rate", "sum(field['Discount'])/sum(field['Total'])", true));
+
+      CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "Rate", null,
+         "sum(field['Discount'])/sum(field['Total'])", null, null, false, false, false);
+
+      assertRefusedBeforeWrite(vs, req);
+   }
+
+   /** An expression-only edit of an aggregate field (baseOnDetail omitted) inherits its mode. */
+   @Test
+   void expressionOnlyEditOfAnAggregateFieldIsChecked() throws Exception {
+      Viewsheet vs = realVsWithAggregates("Discount", "Total");
+      vs.addCalcField("ORDERS",
+         scriptCalc("Rate", "field['Sum(Discount)']/field['Sum(Total)']", false));
+
+      CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "Rate", null,
+         "sum(field['Discount'])/sum(field['Total'])", null, null, null, false, false);
+
+      assertRefusedBeforeWrite(vs, req);
+   }
+
+   /** Detail mode is untouched: the outer-call form is valid there (03-repro v4p-O3). */
+   @Test
+   void theOuterCallFormIsAcceptedInDetailMode() throws Exception {
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "RateDetail", null,
+         "sum(field['Discount'])/sum(field['Total'])", "double", false, true, false, true);
+
+      List<String> warnings = modifyAndCaptureWarnings(new Viewsheet(), req, proxy);
+
+      assertTrue(warnings.isEmpty(), warnings.toString());
+      verify(proxy).modifyCalculateField(eq("rt1"), any(), any(), any(), eq(""));
+   }
+
+   /** A SQL expression is not a script, so the field['...'] rule does not apply to it. */
+   @Test
+   void aSqlAggregateExpressionIsNotShapeChecked() throws Exception {
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "RateSql", null,
+         "field['Discount']", "double", true, false, false, true);
+
+      List<String> warnings = modifyAndCaptureWarnings(new Viewsheet(), req, proxy);
+
+      assertTrue(warnings.isEmpty(), warnings.toString());
+      verify(proxy).modifyCalculateField(eq("rt1"), any(), any(), any(), eq(""));
+   }
+
+   /**
+    * The documented form with nothing detected renders no data (03-repro v4p-O2) but becomes
+    * valid once the Sums are bound (O2b), so it is written and warned about, not refused.
+    */
+   @Test
+   void warnsButWritesWhenAWellFormedAggregateIsNotDetected() throws Exception {
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "RateDoc", null,
+         "field['Sum(Discount)']/field['Sum(Total)']", "double", false, false, false, true);
+
+      List<String> warnings = modifyAndCaptureWarnings(realVsWithAggregates("Discount"), req, proxy);
+
+      verify(proxy).modifyCalculateField(eq("rt1"), any(), any(), any(), eq(""));
+      assertEquals(1, warnings.size(), warnings.toString());
+      assertTrue(warnings.get(0).contains("field['Sum(Total)']"), warnings.get(0));
+      assertTrue(warnings.get(0).contains("Bind Sum(Total)"), warnings.get(0));
+      assertTrue(warnings.get(0).contains("'RateDoc'"), warnings.get(0));
+   }
+
+   @Test
+   void noWarningWhenEveryAggregateReferenceIsDetected() throws Exception {
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "RateOk", null,
+         "field['sum(Discount)']/field['Sum([Total])']", "double", false, false, false, true);
+
+      List<String> warnings =
+         modifyAndCaptureWarnings(realVsWithAggregates("Discount", "Total"), req, proxy);
+
+      assertTrue(warnings.isEmpty(), warnings.toString());
+   }
+
+   /** Every tag form VSUtil.addUsedAggregateRef can match has the <FormulaName>(<args>) shape. */
+   @Test
+   void theShapeRuleAcceptsEveryAggregateTagForm() {
+      for(String expression : List.of(
+         "field['Sum(X)']", "field['Sum([X])']", "field['Correlation([X], [Y])']",
+         "field['Correlation(X, Y)']", "field['NthLargest([X], 3)']", "field['DistinctCount(X)']",
+         "field['sum(X)'] * 100", "1 + 2"))
+      {
+         assertDoesNotThrow(
+            () -> CalcFieldAgentService.checkAggregateReferences("C", expression), expression);
+      }
+   }
+
+   /** A name that is no formula's can never be a detected tag (tags use getFormulaName()). */
+   @Test
+   void theShapeRuleRefusesAnUnknownFormulaName() {
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> CalcFieldAgentService.checkAggregateReferences("C", "field['Avg(X)']"));
+      assertTrue(thrown.getMessage().contains("field['Avg(X)']"), thrown.getMessage());
+   }
+
+   /**
+    * Review r1 (R1-1): detection only matches the literal field['Name(...)'] text, so a
+    * double-quoted or spaced variant can never be detected, whatever is bound. It is refused, not
+    * warned "bind Sum(X)" (binding would never help).
+    */
+   @Test
+   void refusesUndetectableSpellingsOfAWellFormedTagInsteadOfWarning() throws Exception {
+      for(String ref : List.of(
+         "field[\"Sum(Discount)\"]", "field[ 'Sum(Discount)' ]", "field['Sum (Discount)']",
+         "field['Sum(Discount) ']", "field ['Sum(Discount)']"))
+      {
+         CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "RateSpelled", null,
+            ref + "/field['Sum(Total)']", "double", false, false, false, true);
+
+         IllegalArgumentException thrown =
+            assertRefusedBeforeWrite(realVsWithAggregates("Discount", "Total"), req);
+         assertTrue(thrown.getMessage().contains("spelled exactly like"), thrown.getMessage());
+         assertFalse(thrown.getMessage().contains("not: field['Sum(Total)']"), thrown.getMessage());
+      }
+   }
+
+   /**
+    * Review r1 (R1-2): no field object exists in an aggregate calc field's script scope, so a dot
+    * or computed-key access throws just like a bare field['X'] and must be refused too.
+    */
+   @Test
+   void refusesDotAndComputedKeyFieldAccess() throws Exception {
+      for(String[] expressionAndBad : new String[][] {
+         { "sum(field.Discount)/sum(field.Total)", "field.Discount, field.Total" },
+         { "field[col] * 2", "field[col]" },
+         { "field['Sum(Discount)'] + field[0]", "field[0]" } })
+      {
+         CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "RateDot", null,
+            expressionAndBad[0], "double", false, false, false, true);
+
+         IllegalArgumentException thrown =
+            assertRefusedBeforeWrite(realVsWithAggregates("Discount", "Total"), req);
+         assertTrue(thrown.getMessage().contains("not: " + expressionAndBad[1] + "."),
+            thrown.getMessage());
+      }
+   }
+
+   /** A word boundary: an identifier that merely ends in "field" is not a field access. */
+   @Test
+   void anIdentifierEndingInFieldIsNotAFieldAccess() {
+      assertDoesNotThrow(() -> CalcFieldAgentService.checkAggregateReferences(
+         "C", "subfield['X'] + field['Sum(X)']"));
    }
 }
