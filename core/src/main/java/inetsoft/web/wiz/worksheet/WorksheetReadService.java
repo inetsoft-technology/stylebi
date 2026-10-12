@@ -623,7 +623,20 @@ public class WorksheetReadService {
 
                   XCondition xc = item.getXCondition();
 
-                  if(xc instanceof Condition c) {
+                  // Bug #78394: a DATE_IN group's DateCondition is a sibling of Condition, so it
+                  // read back as values:[] with no operation and could not be edited from its
+                  // readback. add_named_group never negates one; a negated one has no operation
+                  // string, as in groupMappingOperation.
+                  if(xc instanceof DateCondition dc) {
+                     if(operation == null && !dc.isNegated()) {
+                        operation = "DATE_IN";
+                     }
+
+                     if(dc.getName() != null) {
+                        values.add(dc.getName());
+                     }
+                  }
+                  else if(xc instanceof Condition c) {
                      if(operation == null) {
                         operation = groupMappingOperation(c);
                      }
