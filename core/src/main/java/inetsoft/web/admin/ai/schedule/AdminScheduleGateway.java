@@ -105,6 +105,7 @@ public class AdminScheduleGateway {
       this.scheduleService = scheduleService;
       this.scheduleConditionService = scheduleConditionService;
       this.scheduleTaskService = scheduleTaskService;
+      this.securityEngine = securityEngine;
       this.identityChecker = new ScheduleTaskIdentityChecker(securityEngine);
    }
 
@@ -379,6 +380,25 @@ public class AdminScheduleGateway {
     */
    public boolean hasDeletePermission(String taskId, Principal user) throws Exception {
       return repository.checkPermission(user, ResourceType.SCHEDULE_TASK, taskId, ResourceAction.DELETE);
+   }
+
+   /**
+    * Gets a copy of the permission set on a stored task, or {@code null} if none is set. Bug
+    * #78420, {@code ScheduleManager.removeScheduleTask} clears the whole permission of a task, so
+    * the rollback of a delete reads it before the delete and writes it back with
+    * {@link #restoreTaskPermission} after the task is re-created.
+    */
+   public Permission getTaskPermission(String taskId) {
+      Permission permission = securityEngine.getPermission(ResourceType.SCHEDULE_TASK, taskId);
+      return permission == null ? null : (Permission) permission.clone();
+   }
+
+   /**
+    * Writes back the permission {@link #getTaskPermission} read from a task before it was
+    * deleted, replacing the owner grant the re-create of the task made.
+    */
+   public void restoreTaskPermission(String taskId, Permission permission) {
+      securityEngine.setPermission(ResourceType.SCHEDULE_TASK, taskId, permission);
    }
 
    /**
@@ -1069,5 +1089,6 @@ public class AdminScheduleGateway {
    private final ScheduleService scheduleService;
    private final ScheduleConditionService scheduleConditionService;
    private final ScheduleTaskService scheduleTaskService;
+   private final SecurityEngine securityEngine;
    private final ScheduleTaskIdentityChecker identityChecker;
 }

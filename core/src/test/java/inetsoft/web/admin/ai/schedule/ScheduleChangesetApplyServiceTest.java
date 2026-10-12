@@ -141,12 +141,6 @@ class ScheduleChangesetApplyServiceTest {
          .thenReturn(existing)   // apply: capture before-state
          .thenReturn(null);      // apply: verify gone
       when(scheduleGateway.hasOwnerAdminPermission(any(), any(), eq(user))).thenReturn(true);
-      when(scheduleGateway.getScheduleTask(eq("t1"), any(), eq(user)))
-         .thenReturn(dtoTask("t1", "admin"));
-      when(scheduleGateway.getTaskConditions(eq("t1"), any(), eq(user)))
-         .thenReturn(new ScheduleConditionList());
-      when(scheduleGateway.getTaskActions(eq("t1"), any(), eq(user)))
-         .thenReturn(new ScheduleActionList());
       when(backupService.backup(anyString())).thenReturn("snap-ref");
 
       ScheduleApplyRequest req = applyRequest("delete a task", deleteChange("t1"));
@@ -191,12 +185,6 @@ class ScheduleChangesetApplyServiceTest {
          .thenReturn(existing)
          .thenReturn(null);
       when(scheduleGateway.hasOwnerAdminPermission(any(), any(), eq(user))).thenReturn(true);
-      when(scheduleGateway.getScheduleTask(eq("t1"), any(), eq(user)))
-         .thenReturn(dtoTask("t1", "admin"));
-      when(scheduleGateway.getTaskConditions(eq("t1"), any(), eq(user)))
-         .thenReturn(new ScheduleConditionList());
-      when(scheduleGateway.getTaskActions(eq("t1"), any(), eq(user)))
-         .thenReturn(new ScheduleActionList());
       when(backupService.backup(anyString())).thenReturn("snap-ref");
 
       ScheduleApplyRequest req = requestWithDivergentApplyTask(
@@ -325,8 +313,9 @@ class ScheduleChangesetApplyServiceTest {
       assertEquals(taskId, result.rollbackFailures().get(0).property());
    }
 
-   // captureSpec is read-only and runs strictly BEFORE the mutating removeScheduleTask call --
-   // a throw there proves nothing was mutated, unlike throwMidApplyIsReportedAsUnknownStateAndRollbackFailed
+   // The before-state capture (the deep copy of the stored task and its permission, bug #78420)
+   // is read-only and runs strictly BEFORE the mutating removeScheduleTask call -- a throw there
+   // proves nothing was mutated, unlike throwMidApplyIsReportedAsUnknownStateAndRollbackFailed
    // above (whose throw comes FROM the mutating call itself). Must not be folded into the same
    // STATUS_ROLLBACK_FAILED/unknown-state bucket as that case.
    @Test void deletePreflightCaptureFailureIsReportedAsRolledBackNotRollbackFailed() throws Exception {
@@ -336,10 +325,7 @@ class ScheduleChangesetApplyServiceTest {
          .thenReturn(existing)   // re-resolve inside apply()
          .thenReturn(existing);  // apply: capture before-state
       when(scheduleGateway.hasOwnerAdminPermission(any(), any(), eq(user))).thenReturn(true);
-      when(scheduleGateway.getScheduleTask(eq("t1"), any(), eq(user)))
-         .thenReturn(dtoTask("t1", "admin"));
-      when(scheduleGateway.getTaskConditions(eq("t1"), any(), eq(user)))
-         .thenThrow(new NullPointerException("boom"));
+      when(scheduleGateway.getTaskPermission("t1")).thenThrow(new NullPointerException("boom"));
       when(backupService.backup(anyString())).thenReturn("snap-ref");
 
       ScheduleApplyRequest req = applyRequest("delete a task", deleteChange("t1"));
@@ -352,7 +338,7 @@ class ScheduleChangesetApplyServiceTest {
    }
 
    // applyDelete's OWN before-state read (scheduleManager.getScheduleTask), one statement before
-   // captureSpec even runs, is not covered by captureSpec's own try/catch -- a throw there must
+   // the deep copy of the stored task (formerly captureSpec) even runs -- a throw there must
    // still be reported as rolled back, not rollback-failed, since removeScheduleTask was never
    // reached (bug 76856).
    @Test void deleteBeforeStateReadFailurePriorToCaptureSpecIsRolledBackNotRollbackFailed()
@@ -424,12 +410,6 @@ class ScheduleChangesetApplyServiceTest {
 
       when(scheduleGateway.hasDeletePermission(createdId, user)).thenReturn(true);
       when(scheduleGateway.hasOwnerAdminPermission(any(), any(), eq(user))).thenReturn(true);
-      when(scheduleGateway.getScheduleTask(eq("t2"), any(), eq(user)))
-         .thenReturn(dtoTask("t2", "admin"));
-      when(scheduleGateway.getTaskConditions(eq("t2"), any(), eq(user)))
-         .thenReturn(new ScheduleConditionList());
-      when(scheduleGateway.getTaskActions(eq("t2"), any(), eq(user)))
-         .thenReturn(new ScheduleActionList());
       when(backupService.backup(anyString())).thenReturn("snap-ref");
 
       ScheduleApplyRequest req = requestWithDivergentApplyTask(
@@ -469,14 +449,6 @@ class ScheduleChangesetApplyServiceTest {
 
       when(scheduleGateway.hasDeletePermission(createdId, user)).thenReturn(true);
       when(scheduleGateway.hasOwnerAdminPermission(any(), any(), eq(user))).thenReturn(true);
-      // captureSpec's three round trips, so the delete's own attempt reaches (and fails) its
-      // existence verify rather than NPE-ing on an unstubbed read.
-      when(scheduleGateway.getScheduleTask(eq("t2"), any(), eq(user)))
-         .thenReturn(dtoTask("t2", "admin"));
-      when(scheduleGateway.getTaskConditions(eq("t2"), any(), eq(user)))
-         .thenReturn(new ScheduleConditionList());
-      when(scheduleGateway.getTaskActions(eq("t2"), any(), eq(user)))
-         .thenReturn(new ScheduleActionList());
       when(backupService.backup(anyString())).thenReturn("snap-ref");
 
       ScheduleApplyRequest req = applyRequest("two changes", createChange(spec), deleteChange("t2"));
@@ -498,12 +470,6 @@ class ScheduleChangesetApplyServiceTest {
       when(scheduleManager.getScheduleTask("t2")).thenReturn(other, other, other, other);
       when(scheduleGateway.hasDeletePermission(createdId, user)).thenReturn(true);
       when(scheduleGateway.hasOwnerAdminPermission(any(), any(), eq(user))).thenReturn(true);
-      when(scheduleGateway.getScheduleTask(eq("t2"), any(), eq(user)))
-         .thenReturn(dtoTask("t2", "admin"));
-      when(scheduleGateway.getTaskConditions(eq("t2"), any(), eq(user)))
-         .thenReturn(new ScheduleConditionList());
-      when(scheduleGateway.getTaskActions(eq("t2"), any(), eq(user)))
-         .thenReturn(new ScheduleActionList());
       when(backupService.backup(anyString())).thenReturn("snap-ref");
       // t2's own delete attempt (forward pass) succeeds mechanically but fails to verify (still
       // "exists" per the getScheduleTask stub above) -- only createdId's ROLLBACK throws.
@@ -593,14 +559,6 @@ class ScheduleChangesetApplyServiceTest {
 
    private static inetsoft.sree.schedule.ScheduleTask sreeTask(String name, String owner) {
       inetsoft.sree.schedule.ScheduleTask task = new inetsoft.sree.schedule.ScheduleTask();
-      task.setName(name);
-      task.setOwner(new IdentityID(owner, "host-org"));
-      task.setEnabled(true);
-      return task;
-   }
-
-   private static ScheduleTask dtoTask(String name, String owner) {
-      ScheduleTask task = new ScheduleTask();
       task.setName(name);
       task.setOwner(new IdentityID(owner, "host-org"));
       task.setEnabled(true);

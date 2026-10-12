@@ -20,6 +20,9 @@ package inetsoft.web.admin.ai.schedule;
 import inetsoft.web.api.schedule.*;
 import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.schedule.ScheduleTaskMetaData;
+import inetsoft.sree.security.Permission;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.*;
 import inetsoft.web.admin.ai.*;
@@ -27,7 +30,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import org.w3c.dom.Document;
 
+import java.io.PrintWriter;
+import java.io.StringReader;
+import java.io.StringWriter;
 import java.security.Principal;
 import java.security.SecureRandom;
 import java.sql.Timestamp;
@@ -45,9 +52,9 @@ import java.util.stream.Collectors;
  * scalar (spec §6):
  * <ul>
  *   <li>The inverse of a {@code create} is a {@code delete}; the inverse of a {@code delete} is a
- *       re-create from a snapshot captured <b>during this apply</b>, via three round trips through
- *       {@link AdminScheduleGateway} (its DTO carries no conditions/actions on its own -- Track
- *       C.0 finding), not from anything the caller supplied. This mirrors {@code
+ *       re-create from a deep copy of the stored task captured <b>during this apply</b>, not from
+ *       anything the caller supplied, and not from the public-API DTOs, which mask every stored
+ *       password and leave out other stored fields (bug #78420). This mirrors {@code
  *       AdminChangesetApplyService}'s own rule that the before-value used for rollback is the one
  *       "the server recorded during the apply", not the preview-time one.</li>
  *   <li>Verification is existence-based ("does the task now exist / no longer exist"), not a
@@ -213,7 +220,7 @@ public class ScheduleChangesetApplyService {
 
       if(verified) {
          undoable.add(new Undo(ScheduleChangeRequest.VERB_CREATE, taskId,
-                               spec.getOwner().getOrgID(), null));
+                               spec.getOwner().getOrgID(), null, null, null));
       }
    }
 
@@ -230,7 +237,12 @@ public class ScheduleChangesetApplyService {
       // Read-only, runs strictly before removeScheduleTask below -- a throw here (or from the
       // before-state read above) proves nothing was mutated yet, distinct from a throw
       // during/after the mutating call, which mutationEntered below distinguishes.
-      CreateScheduleTaskRequest recreateSpec = captureSpec(taskId, orgId, user);
+      // Bug #78420, the rollback re-creates the task from a deep copy of the stored task, not
+      // from the public-API DTOs, which mask the stored FTP/SFTP passwords and don't carry the
+      // email zip password, its secret id, the linkURI or the folder. removeScheduleTask clears
+      // the permission of the task, so it's kept too.
+      inetsoft.sree.schedule.ScheduleTask recreateTask = deepCopy(beforeTask);
+      Permission permission = scheduleGateway.getTaskPermission(taskId);
 
       mutationEntered.set(true);
       scheduleGateway.removeScheduleTask(taskId, orgId, user);
@@ -243,7 +255,8 @@ public class ScheduleChangesetApplyService {
                 before, null, status, backupRef, reviewOutcome, user);
 
       if(verified) {
-         undoable.add(new Undo(ScheduleChangeRequest.VERB_DELETE, taskId, orgId, recreateSpec));
+         undoable.add(new Undo(ScheduleChangeRequest.VERB_DELETE, taskId, orgId, beforeTask,
+                               recreateTask, permission));
       }
    }
 
@@ -272,14 +285,20 @@ public class ScheduleChangesetApplyService {
                }
             }
             else {
-               // Undo a delete: re-create the task from the snapshot captured during apply.
-               CreateScheduleTaskRequest spec = undo.recreateSpec;
-               ScheduleTaskMetaData meta =
-                  new ScheduleTaskMetaData(spec.getName(), spec.getOwner().convertToKey());
-               scheduleGateway.addScheduleTask(meta, spec.isEnabled(),
-                  spec.isDeleteIfNotScheduledToRun(), spec.getStartDate(), spec.getEndDate(),
-                  spec.getDescription(), spec.getLocale(), spec.getExecuteAsID(),
-                  spec.getConditions(), spec.getActions(), spec.getOwner().getOrgID(), null, user);
+               // Undo a delete: re-create the task from the copy of the stored task captured
+               // during apply, in its folder. The save is checked as any untrusted save of the
+               // caller (scheduler permission, owner organization), and its batch action targets
+               // against the stored task, which the caller just deleted. The ADMIN over the owner
+               // the re-create needs was checked when the delete was planned.
+               scheduleManager.setScheduleTask(undo.taskId, undo.recreateTask,
+                                               getFolderEntry(undo.storedTask, undo.orgId), user,
+                                               undo.storedTask);
+
+               // the re-create grants only the owner, give the task back the permission it had
+               if(undo.permission != null) {
+                  scheduleGateway.restoreTaskPermission(undo.taskId, undo.permission);
+               }
+
                boolean verified = scheduleManager.getScheduleTask(undo.taskId) != null;
                writeAudit(txId, task, undo.taskId, ActionRecord.ACTION_NAME_CREATE,
                          AdminChangeRecord.ACTION_ROLLBACK, null, null,
@@ -300,29 +319,42 @@ public class ScheduleChangesetApplyService {
       return failures;
    }
 
-   /** Builds a total create-request from a live task, via three round trips (Track C.0 finding:
-    * the enterprise DTO alone carries no conditions/actions) -- used only to reconstruct a deleted
-    * task on rollback, never as the record admin-chat reports back to the caller. */
-   private CreateScheduleTaskRequest captureSpec(String taskId, String orgId, Principal user)
-      throws Exception
+   /**
+    * Deep-copies a stored task, every condition and action included, through the same
+    * {@code writeXML}/{@code parseXML} pair the task is stored and loaded with, so the copy keeps
+    * every stored field (passwords are encrypted on write and decrypted on parse). A
+    * {@code clone()} shares the conditions and actions with the stored task. Same as
+    * {@code ScheduleTaskImportChangesetApplyService.deepCopy}.
+    */
+   private static inetsoft.sree.schedule.ScheduleTask deepCopy(
+      inetsoft.sree.schedule.ScheduleTask task) throws Exception
    {
-      ScheduleTask dto = scheduleGateway.getScheduleTask(taskId, orgId, user);
-      ScheduleConditionList conditions = scheduleGateway.getTaskConditions(taskId, orgId, user);
-      ScheduleActionList actions = scheduleGateway.getTaskActions(taskId, orgId, user);
+      StringWriter buffer = new StringWriter();
 
-      CreateScheduleTaskRequest spec = new CreateScheduleTaskRequest();
-      spec.setName(dto.getName());
-      spec.setOwner(dto.getOwner());
-      spec.setEnabled(dto.isEnabled());
-      spec.setDeleteIfNotScheduledToRun(dto.isDeleteIfNotScheduledToRun());
-      spec.setStartDate(dto.getStartDate());
-      spec.setEndDate(dto.getEndDate());
-      spec.setDescription(dto.getDescription());
-      spec.setLocale(dto.getLocale());
-      spec.setExecuteAsID(dto.getExecuteAsID());
-      spec.setConditions(conditions.getConditions());
-      spec.setActions(actions.getActions());
-      return spec;
+      try(PrintWriter writer = new PrintWriter(buffer)) {
+         task.writeXML(writer);
+      }
+
+      Document document = Tool.parseXML(new StringReader(buffer.toString()));
+      inetsoft.sree.schedule.ScheduleTask copy = new inetsoft.sree.schedule.ScheduleTask();
+      copy.parseXML(document.getDocumentElement());
+      return copy;
+   }
+
+   /**
+    * Gets the entry of the folder a stored task is in, or {@code null} for the root folder.
+    * {@code ScheduleManager.setScheduleTask} puts a task saved without a folder entry in the root
+    * folder, whatever its own path is.
+    */
+   private static AssetEntry getFolderEntry(inetsoft.sree.schedule.ScheduleTask task, String orgId) {
+      String path = task.getPath();
+
+      if(path == null || path.isEmpty() || "/".equals(path)) {
+         return null;
+      }
+
+      return new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER,
+                            path, null, orgId);
    }
 
    private void writeAudit(String txId, String task, String taskId, String actionRecordName,
@@ -370,18 +402,28 @@ public class ScheduleChangesetApplyService {
 
    /** One undo descriptor built during apply, replayed in reverse by {@link #rollback}. */
    private static final class Undo {
-      Undo(String originalVerb, String taskId, String orgId, CreateScheduleTaskRequest recreateSpec) {
+      Undo(String originalVerb, String taskId, String orgId,
+           inetsoft.sree.schedule.ScheduleTask storedTask,
+           inetsoft.sree.schedule.ScheduleTask recreateTask, Permission permission)
+      {
          this.originalVerb = originalVerb;
          this.taskId = taskId;
          this.orgId = orgId;
-         this.recreateSpec = recreateSpec;
+         this.storedTask = storedTask;
+         this.recreateTask = recreateTask;
+         this.permission = permission;
       }
 
       final String originalVerb;
       final String taskId;
       final String orgId;
-      /** Only set when {@code originalVerb} is {@code delete} -- the snapshot to re-create from. */
-      final CreateScheduleTaskRequest recreateSpec;
+      // The fields below are only set when originalVerb is delete.
+      /** The task as it was stored before the delete. */
+      final inetsoft.sree.schedule.ScheduleTask storedTask;
+      /** A deep copy of {@link #storedTask}, the task to re-create. */
+      final inetsoft.sree.schedule.ScheduleTask recreateTask;
+      /** The permission of the task before the delete, or {@code null} if it had none. */
+      final Permission permission;
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(ScheduleChangesetApplyService.class);
