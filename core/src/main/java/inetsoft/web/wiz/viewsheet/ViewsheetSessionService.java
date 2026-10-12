@@ -143,7 +143,8 @@ public class ViewsheetSessionService {
     * human's Ctrl+Z steps back through agent edits one at a time.
     *
     * @return the messages of any {@code MessageCommand}s of {@code Type.WARNING} the mutation
-    *         dispatched -- e.g. a best-effort post-write refresh step that was contained rather
+    *         dispatched, plus any script-execution failure it reported as an INFO (see
+    *         {@link CapturingCommandDispatcher#getScriptFailures()}) -- e.g. a best-effort post-write refresh step that was contained rather
     *         than allowed to fail the whole call. Empty when nothing warned. Unlike an ERROR
     *         (which fails the call via {@link CommandErrorException}), a WARNING does not stop
     *         the write from being reported as a success; the caller decides whether/how to

@@ -176,8 +176,10 @@ public class AssemblyConditionService {
       // failure again as a script-failure message on this assembly, so drop that duplicate.
       String ownFailure = BaseTableService.SCRIPT_FAILURE_PREFIX + assemblyName + '\n';
 
+      boolean preCheckWarned = !warnings.isEmpty();
+
       for(String warning : sessionWarnings == null ? List.<String>of() : sessionWarnings) {
-         if(warnings.isEmpty() || !warning.startsWith(ownFailure)) {
+         if(!preCheckWarned || !warning.startsWith(ownFailure)) {
             warnings.add(warning);
          }
       }

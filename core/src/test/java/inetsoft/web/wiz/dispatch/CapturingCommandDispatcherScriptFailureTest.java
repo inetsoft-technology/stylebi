@@ -78,20 +78,41 @@ class CapturingCommandDispatcherScriptFailureTest {
    }
 
    @Test
-   void theWarningSurvivesTheMutateBodyAndIsNotAnError() throws Exception {
+   void warningsBodyWrapsTheCapturedWarning() throws Exception {
       RuntimeViewsheet rvs = vsResource.getRuntimeViewsheet();
       addFailingExpressionCondition(rvs);
 
-      ViewsheetSessionService.Mutation body = (r, id, dispatcher) ->
-         BaseTableService.loadTableData(r, TABLE, 0, 0, 100, null, dispatcher);
       List<String> warnings =
          CapturingCommandDispatcher.withCapturingDispatcher(principal(), dispatcher -> {
-            body.run(rvs, "rt", dispatcher);
+            BaseTableService.loadTableData(rvs, TABLE, 0, 0, 100, null, dispatcher);
             return dispatcher.getWarnings();
          });
 
-      assertEquals(1, warnings.size());
       assertEquals(Map.of("warnings", warnings), ViewsheetSessionService.warningsBody(warnings));
+   }
+
+   @Test
+   void aRepeatedFailureIsReportedOnce() throws Exception {
+      List<String> warnings =
+         CapturingCommandDispatcher.withCapturingDispatcher(principal(), dispatcher -> {
+            dispatcher.sendCommand(info(FAILURE));
+            dispatcher.sendCommand(info(FAILURE));
+            return dispatcher.getWarnings();
+         });
+
+      assertEquals(1, warnings.size(), warnings.toString());
+   }
+
+   @Test
+   void theWarningSaysTheEditWasAppliedButTheScriptFailed() throws Exception {
+      List<String> warnings =
+         CapturingCommandDispatcher.withCapturingDispatcher(principal(), dispatcher -> {
+            dispatcher.sendCommand(info(FAILURE));
+            return dispatcher.getWarnings();
+         });
+
+      assertTrue(warnings.get(0).startsWith(FAILURE));
+      assertTrue(warnings.get(0).contains("edit was applied"), warnings.get(0));
    }
 
    @Test
@@ -117,12 +138,13 @@ class CapturingCommandDispatcherScriptFailureTest {
             w.setType(MessageCommand.Type.WARNING);
             w.setMessage("plain warning");
             dispatcher.sendCommand(w);
-            dispatcher.sendCommand(info(BaseTableService.SCRIPT_FAILURE_PREFIX + "T1 boom"));
+            dispatcher.sendCommand(info(FAILURE));
             return dispatcher.getWarnings();
          });
 
-      assertEquals(List.of("plain warning",
-                           BaseTableService.SCRIPT_FAILURE_PREFIX + "T1 boom"), warnings);
+      assertEquals(2, warnings.size(), warnings.toString());
+      assertEquals("plain warning", warnings.get(0));
+      assertTrue(warnings.get(1).startsWith(FAILURE));
    }
 
    @Test
@@ -172,4 +194,5 @@ class CapturingCommandDispatcherScriptFailureTest {
    RuntimeViewsheetExtension vsResource = new RuntimeViewsheetExtension(openViewsheetEvent());
 
    private static final String TABLE = "TableView1";
+   private static final String FAILURE = BaseTableService.SCRIPT_FAILURE_PREFIX + "T1 boom";
 }

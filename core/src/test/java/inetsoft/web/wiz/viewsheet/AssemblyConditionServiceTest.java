@@ -30,6 +30,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.security.Principal;
+import inetsoft.web.viewsheet.controller.table.BaseTableService;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -299,6 +300,11 @@ class AssemblyConditionServiceTest {
       return captor.getValue();
    }
 
+   /** A script-failure message in the format BaseTableService emits: prefix + name + newline. */
+   private static String failure(String assembly) {
+      return BaseTableService.SCRIPT_FAILURE_PREFIX + assembly + '\n' + "Script failed:";
+   }
+
    /** Runs the mutation (so the pre-check happens) and returns the given session warnings. */
    private static void runMutationThenReturn(ViewsheetSessionService sessions,
                                              List<String> warnings) throws Exception
@@ -359,7 +365,7 @@ class AssemblyConditionServiceTest {
    @Test
    void doesNotReportTheSameExpressionFailureTwice() throws Exception {
       Harness h = harness(model(), (exp, box) -> "ReferenceError: undefinedFn is not defined");
-      runMutationThenReturn(h.sessions, List.of("Script execution error in assembly: Table1\nScript failed:\nundefinedFn"));
+      runMutationThenReturn(h.sessions, List.of(failure("Table1")));
 
       AssemblyConditionService.SetResult result = h.service.setWithWarnings(
          "tok", principal(), "Table1", List.of(expression("undefinedFn(1)", "js")), "");
@@ -372,7 +378,7 @@ class AssemblyConditionServiceTest {
    @Test
    void keepsAScriptFailureOnAnotherAssembly() throws Exception {
       Harness h = harness(model(), (exp, box) -> "ReferenceError: undefinedFn is not defined");
-      runMutationThenReturn(h.sessions, List.of("Script execution error in assembly: Table10\nScript failed:\nx"));
+      runMutationThenReturn(h.sessions, List.of(failure("Table10")));
 
       AssemblyConditionService.SetResult result = h.service.setWithWarnings(
          "tok", principal(), "Table1", List.of(expression("undefinedFn(1)", "js")), "");
@@ -384,11 +390,23 @@ class AssemblyConditionServiceTest {
    @Test
    void relaysAScriptFailureWhenThePreCheckFoundNothing() throws Exception {
       Harness h = harness(model(), (exp, box) -> null);
-      runMutationThenReturn(h.sessions, List.of("Script execution error in assembly: Table1\nScript failed:\nx"));
+      runMutationThenReturn(h.sessions, List.of(failure("Table1")));
 
       AssemblyConditionService.SetResult result = h.service.setWithWarnings(
          "tok", principal(), "Table1", List.of(), "");
 
       assertEquals(1, result.warnings().size());
+   }
+
+   /** An earlier warning must not make the guard drop this assembly's own failure. */
+   @Test
+   void keepsTheOwnFailureAfterAnEarlierWarningWhenThePreCheckFoundNothing() throws Exception {
+      Harness h = harness(model(), (exp, box) -> null);
+      runMutationThenReturn(h.sessions, List.of("plain warning", failure("Table1")));
+
+      AssemblyConditionService.SetResult result = h.service.setWithWarnings(
+         "tok", principal(), "Table1", List.of(), "");
+
+      assertEquals(List.of("plain warning", failure("Table1")), result.warnings());
    }
 }

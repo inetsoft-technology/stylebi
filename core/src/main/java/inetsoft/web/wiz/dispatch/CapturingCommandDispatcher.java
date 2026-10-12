@@ -217,12 +217,20 @@ public final class CapturingCommandDispatcher extends CommandDispatcher {
             message.getType() == MessageCommand.Type.INFO && message.getMessage() != null &&
             message.getMessage().startsWith(BaseTableService.SCRIPT_FAILURE_PREFIX))
          {
-            messages.add(CommandErrorException.messageOf(message.getMessage()));
+            String text = CommandErrorException.messageOf(message.getMessage()) + SCRIPT_FAILURE_NOTE;
+
+            if(!messages.contains(text)) {
+               messages.add(text);
+            }
          }
       }
 
       return messages;
    }
+
+   private static final String SCRIPT_FAILURE_NOTE =
+      " The edit was applied, but this script failed, so the table may show no data. " +
+      "The failure can predate this call.";
 
    private List<String> messagesOfType(MessageCommand.Type type) {
       List<String> messages = new ArrayList<>();
