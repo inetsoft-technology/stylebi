@@ -422,6 +422,25 @@ class SheetPropertyServiceTest {
                                                any());
    }
 
+   /** Bug #78393: a capitalised raw spelling of the same path must not skip the check. */
+   @Test
+   void refusesAnUndeclaredParameterNameUnderACapitalizedRawPath() throws Exception {
+      ViewsheetPropertyDialogService dialog = mock(ViewsheetPropertyDialogService.class);
+      ViewsheetPropertyDialogModel model = modelWithKnownParameters(List.of("Region"), List.of());
+      when(dialog.getViewsheetInfo(anyString(), any(Principal.class))).thenReturn(model);
+
+      SheetPropertyService service = new SheetPropertyService(sessionsMock(), dialog);
+
+      Exception thrown = assertThrows(Exception.class, () -> service.set(
+         "tok", principal(),
+         Map.of("vsOptionsPane.viewsheetParametersDialogModel.EnabledParameters",
+                List.of("State")), ""));
+
+      assertTrue(thrown.getMessage().contains("State"), thrown.getMessage());
+      verify(dialog, never()).setViewsheetInfo(anyString(), any(), any(), any(), anyString(),
+                                               any());
+   }
+
    /** Same refusal, reached through disabledParameters instead of enabledParameters -- both
     *  resolved paths must be checked, not just one. */
    @Test

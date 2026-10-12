@@ -1328,4 +1328,30 @@ class PropertyAliasesTest {
       assertEquals("#FF0000", gradientColor.getColors()[0].getColor());
       assertEquals(100, gradientColor.getColors()[1].getOffset());
    }
+
+   // ── #78393: raw dotted paths resolve to one canonical spelling ──
+
+   @Test
+   void resolveLowersEverySegmentInitialOfARawPath() {
+      assertEquals("textInputColumnOptionPaneModel.dateEditorModel.minimum",
+                   PropertyAliases.resolve("textinput",
+                                           "TextInputColumnOptionPaneModel.DateEditorModel.minimum"));
+      assertEquals("vsOptionsPane.alias", PropertyAliases.resolve(PropertyAliases.SHEET, "alias"));
+   }
+
+   /** A capitalised first segment must reach the same refusal as the canonical spelling. */
+   @Test
+   void refusesSheetScriptAndReadOnlyPanesUnderACapitalizedFirstSegment() {
+      Exception script = assertThrows(IllegalArgumentException.class,
+         () -> PropertyAliases.resolveForWrite(PropertyAliases.SHEET, "VsScriptPane.onInit"));
+      assertTrue(script.getMessage().contains("'vsScriptPane' is not settable"),
+                 script.getMessage());
+
+      for(String pane : new String[] { "FiltersPane", "LocalizationPane", "ScreensPane" }) {
+         String canonical = Character.toLowerCase(pane.charAt(0)) + pane.substring(1);
+         Exception e = assertThrows(IllegalArgumentException.class,
+            () -> PropertyAliases.resolveForWrite(PropertyAliases.SHEET, pane + ".x"));
+         assertTrue(e.getMessage().contains("'" + canonical + "'"), e.getMessage());
+      }
+   }
 }

@@ -27,7 +27,6 @@ import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
 import inetsoft.web.binding.handler.VSColumnHandler;
 import inetsoft.web.composer.model.vs.ColumnOptionDialogModel;
 import inetsoft.web.composer.model.vs.ComboBoxEditorModel;
-import inetsoft.web.composer.model.vs.SelectionListEditorModel;
 import inetsoft.web.composer.model.vs.EditorModel;
 import inetsoft.web.composer.model.vs.VariableListDialogModel;
 import inetsoft.web.viewsheet.service.VSInputService;
@@ -211,15 +210,6 @@ public class ColumnOptionService {
    private static void requireValidEmbeddedList(ComboBoxEditorModel editor) {
       String prefix = "set_column_options: 'editor.variableListDialogModel.";
       VariableListDialogModel list = editor.getVariableListDialogModel();
-      String[] values = list.getValues();
-      String[] labels = list.getLabels();
-
-      if(labels.length != 0 && labels.length != values.length) {
-         throw new IllegalArgumentException(
-            prefix + "labels' has " + labels.length + " entries but 'values' has " +
-            values.length + " -- they must match.");
-      }
-
       String listType = list.getDataType();
       String editorType = editor.getDataType();
 
@@ -231,85 +221,22 @@ public class ColumnOptionService {
             editorType + "') -- use the same data type for both.");
       }
 
-      for(int i = 0; i < values.length; i++) {
-         try {
-            WizStrictValueParser.parse(values[i], listType);
-         }
-         catch(IllegalArgumentException ex) {
-            throw new IllegalArgumentException(
-               prefix + "values[" + i + "]': " + ex.getMessage(), ex);
-         }
-      }
+      WizColumnOptionValidator.requireStrictListValues(list, prefix);
    }
 
    /**
     * {@code VSInputService.updateBindingInfo} silently leaves a ComboBox query source's
-    * {@code labelColumn}/{@code valueColumn} unset when the named table isn't a sibling assembly
-    * of this viewsheet's base worksheet, or when the named column/value isn't one of that
-    * table's columns -- no exception, {@code ok:true}, an editor with no options. Resolving the
-    * SAME way here, via the SAME {@code vsColumnHandler.getTableColumns} call, before ever
-    * persisting the editor, turns that into a named refusal instead.
+    * {@code labelColumn}/{@code valueColumn} unset when the source doesn't resolve -- see
+    * {@link WizColumnOptionValidator#requireResolvableListSource}.
     */
    private void requireResolvableComboSource(RuntimeViewsheet rvs, Principal user,
                                              ComboBoxEditorModel comboEditor) throws Exception
    {
-      SelectionListEditorModel source =
-         comboEditor.getSelectionListDialogModel().getSelectionListEditorModel();
-      String table = source.getTable();
-      String column = source.getColumn();
-      String value = source.getValue();
-
-      if(table == null || table.isBlank()) {
-         throw new IllegalArgumentException(
-            "set_column_options: inputControl:\"ComboBox\" with query:true requires " +
-            "'editor.selectionListDialogModel.selectionListEditorModel.table'.");
-      }
-
-      ColumnSelection selection = vsColumnHandler.getTableColumns(rvs, table, user);
-
-      if(selection.getAttributeCount() == 0) {
-         throw new IllegalArgumentException(
-            "set_column_options: '" + table + "' does not resolve to a table assembly in this " +
-            "viewsheet's base worksheet -- inputControl:\"ComboBox\" query source must name an " +
-            "existing worksheet table.");
-      }
-
-      if(column == null || column.isBlank()) {
-         throw new IllegalArgumentException(
-            "set_column_options: inputControl:\"ComboBox\" with query:true requires " +
-            "'editor.selectionListDialogModel.selectionListEditorModel.column' (the label " +
-            "column) -- a table alone binds nothing.");
-      }
-
-      if(value == null || value.isBlank()) {
-         // Same default as set_assembly_properties' list values: one column serves as both.
-         source.setValue(column);
-         value = column;
-      }
-
-      if(findAttribute(selection, column) == null) {
-         throw new IllegalArgumentException(
-            "set_column_options: '" + table + "' has no column named '" + column + "' -- " +
-            "valid columns are " + columnNames(selection) + ".");
-      }
-
-      if(findAttribute(selection, value) == null) {
-         throw new IllegalArgumentException(
-            "set_column_options: '" + table + "' has no column named '" + value + "' -- " +
-            "valid columns are " + columnNames(selection) + ".");
-      }
-   }
-
-   private static DataRef findAttribute(ColumnSelection selection, String name) {
-      for(int i = 0; i < selection.getAttributeCount(); i++) {
-         DataRef ref = selection.getAttribute(i);
-
-         if(name.equals(ref.getName())) {
-            return ref;
-         }
-      }
-
-      return null;
+      WizColumnOptionValidator.requireResolvableListSource(
+         vsColumnHandler, rvs, user,
+         comboEditor.getSelectionListDialogModel().getSelectionListEditorModel(),
+         "set_column_options", "inputControl:\"ComboBox\"",
+         "editor.selectionListDialogModel.selectionListEditorModel.");
    }
 
    /**

@@ -17,13 +17,22 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
+import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.erm.DataRef;
 import inetsoft.util.Tool;
+import inetsoft.web.binding.handler.VSColumnHandler;
 import inetsoft.web.composer.model.vs.DateEditorModel;
 import inetsoft.web.composer.model.vs.EditorModel;
 import inetsoft.web.composer.model.vs.FloatEditorModel;
 import inetsoft.web.composer.model.vs.IntegerEditorModel;
+import inetsoft.web.composer.model.vs.SelectionListEditorModel;
+import inetsoft.web.composer.model.vs.VariableListDialogModel;
 
+import java.security.Principal;
 import java.util.Date;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  * Value checks for a Date/Integer/Float column-option editor, shared by both setter paths that
@@ -35,6 +44,11 @@ import java.util.Date;
  * <p>Ordering policy: {@code minimum > maximum} is refused; {@code minimum == maximum} is
  * allowed (an exact-value range). The Composer dialog is stricter and also refuses equal
  * bounds -- this is a deliberate choice, the defect being inverted bounds.
+ *
+ * <p>The embedded-list and query-source checks are shared the same way: both setters end in
+ * {@code VSInputService}'s lenient list sinks ({@code Tool.getData}, {@code updateBindingInfo}),
+ * reached by {@link ColumnOptionService} for a column's ComboBox editor and by
+ * {@link AssemblyPropertyService} for a CheckBox/ComboBox/RadioButton assembly (bug #78393).
  */
 final class WizColumnOptionValidator {
    private WizColumnOptionValidator() {
@@ -69,6 +83,109 @@ final class WizColumnOptionValidator {
             throw inverted(tool, base, min, max);
          }
       }
+   }
+
+   /**
+    * The native list sinks convert each embedded value with {@code Tool.getData}, which turns
+    * unparseable text into {@code null}/{@code false}/a truncated number without complaint.
+    * Parsing each value strictly first turns that into a named refusal. {@code __null__} stays a
+    * legal deliberate null.
+    *
+    * @param prefix the error prefix up to the list's own field names, e.g.
+    *               {@code "set_column_options: 'editor.variableListDialogModel."}.
+    */
+   static void requireStrictListValues(VariableListDialogModel list, String prefix) {
+      String[] values = list.getValues();
+      String[] labels = list.getLabels();
+
+      if(labels.length != 0 && labels.length != values.length) {
+         throw new IllegalArgumentException(
+            prefix + "labels' has " + labels.length + " entries but 'values' has " +
+            values.length + " -- they must match.");
+      }
+
+      for(int i = 0; i < values.length; i++) {
+         try {
+            WizStrictValueParser.parse(values[i], list.getDataType());
+         }
+         catch(IllegalArgumentException ex) {
+            throw new IllegalArgumentException(
+               prefix + "values[" + i + "]': " + ex.getMessage(), ex);
+         }
+      }
+   }
+
+   /**
+    * {@code VSInputService.updateBindingInfo} silently leaves a query source's
+    * {@code labelColumn}/{@code valueColumn} unset when the named table isn't a sibling assembly
+    * of this viewsheet's base worksheet, or when the named column/value isn't one of that
+    * table's columns -- no exception, {@code ok:true}, an input with no options. Resolving the
+    * SAME way here, via the SAME {@code vsColumnHandler.getTableColumns} call, before ever
+    * persisting the source, turns that into a named refusal instead. A missing {@code value}
+    * defaults to {@code column} (one column serves as both).
+    *
+    * @param control the input named in errors, e.g. {@code "inputControl:\"ComboBox\""}.
+    * @param base    the field path prefix of {@code source}, ending in {@code '.'}.
+    */
+   static void requireResolvableListSource(VSColumnHandler columnHandler, RuntimeViewsheet rvs,
+                                           Principal user, SelectionListEditorModel source,
+                                           String tool, String control, String base)
+      throws Exception
+   {
+      String table = source.getTable();
+      String column = source.getColumn();
+      String value = source.getValue();
+
+      if(table == null || table.isBlank()) {
+         throw new IllegalArgumentException(
+            tool + ": " + control + " with query:true requires '" + base + "table'.");
+      }
+
+      ColumnSelection selection = columnHandler.getTableColumns(rvs, table, user);
+
+      if(selection == null || selection.getAttributeCount() == 0) {
+         throw new IllegalArgumentException(
+            tool + ": '" + table + "' does not resolve to a table assembly in this " +
+            "viewsheet's base worksheet -- " + control + " query source must name an " +
+            "existing worksheet table.");
+      }
+
+      if(column == null || column.isBlank()) {
+         throw new IllegalArgumentException(
+            tool + ": " + control + " with query:true requires '" + base + "column' (the " +
+            "label column) -- a table alone binds nothing.");
+      }
+
+      if(value == null || value.isBlank()) {
+         source.setValue(column);
+         value = column;
+      }
+
+      for(String name : new String[] { column, value }) {
+         if(findAttribute(selection, name) == null) {
+            throw new IllegalArgumentException(
+               tool + ": '" + table + "' has no column named '" + name + "' -- valid columns " +
+               "are " + columnNames(selection) + ".");
+         }
+      }
+   }
+
+   private static DataRef findAttribute(ColumnSelection selection, String name) {
+      for(int i = 0; i < selection.getAttributeCount(); i++) {
+         DataRef ref = selection.getAttribute(i);
+
+         if(name.equals(ref.getName())) {
+            return ref;
+         }
+      }
+
+      return null;
+   }
+
+   private static String columnNames(ColumnSelection selection) {
+      return IntStream.range(0, selection.getAttributeCount())
+         .mapToObj(i -> selection.getAttribute(i).getName())
+         .collect(Collectors.joining(", "));
    }
 
    /**
