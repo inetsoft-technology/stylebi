@@ -291,7 +291,12 @@ public class JDBCHandler extends XHandler {
 
       String sql = usql.getSQLString();
 
-      if(sql.contains("$(@") || !XUtil.hasSentinelParameter(sql, params)) {
+      // a parameter with several values, one of them a sentinel, is never rewritten, but the
+      // condition walk of the rewrite logs a warning for it (Bug #78386). The sql generated
+      // is the same, so the kept sql string is sent.
+      if(sql.contains("$(@") || !XUtil.hasSentinelParameter(sql, params) &&
+         !XUtil.hasMultiValueSentinelParameter(sql, params))
+      {
          return false;
       }
 
