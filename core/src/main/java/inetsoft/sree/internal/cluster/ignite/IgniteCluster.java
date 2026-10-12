@@ -23,9 +23,12 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.AuthenticationService;
 import inetsoft.sree.security.OrganizationContextHolder;
+import inetsoft.storage.KeyValueStorageManager;
 import inetsoft.uql.asset.ConfirmException;
 import inetsoft.util.*;
 import inetsoft.util.config.*;
+import inetsoft.util.health.ClusterHealthService;
+import inetsoft.util.health.ClusterHealthStatus;
 import inetsoft.web.messaging.MessageContextHolder;
 import org.apache.ignite.*;
 import org.apache.ignite.binary.BinaryObject;
@@ -163,9 +166,27 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          islandDetector =
             new MinorityIslandDetector(ignite, islandCheckMillis, islandConfirmMillis);
          islandDetector.start();
+
+         Long stuckExchangeHaltMinutes =
+            InetsoftConfig.getInstance().getCluster().getStuckExchangeHaltMinutes();
+
+         if(stuckExchangeHaltMinutes != null && stuckExchangeHaltMinutes > 0) {
+            // only constructed when the watchdog is actually enabled, so the common case (the
+            // property unset) doesn't start an extra probe thread for nothing
+            healthService = new ClusterHealthService(this, KeyValueStorageManager.getInstance());
+            healthWatchdog = new ClusterHealthWatchdog(ignite, this::sampleHealthStatus, -1L,
+               TimeUnit.MINUTES.toMillis(stuckExchangeHaltMinutes));
+            healthWatchdog.start();
+         }
+         else {
+            healthService = null;
+            healthWatchdog = null;
+         }
       }
       else {
          islandDetector = null;
+         healthService = null;
+         healthWatchdog = null;
       }
 
       if("reportServer".equals(System.getProperty("inetsoft.cluster.node.type"))) {
@@ -173,6 +194,15 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       }
 
       registerSpringProxyPartitionedCache(WorksheetEngine.CACHE_NAME);
+   }
+
+   /**
+    * Samples the current cluster health status for {@link #healthWatchdog} (Bug #78141). Only
+    * called when {@code cluster.stuckExchangeHaltMinutes} is set, in which case
+    * {@link #healthService} is guaranteed to be non-null.
+    */
+   private ClusterHealthStatus sampleHealthStatus() {
+      return healthService.getStatus();
    }
 
    public static IgniteConfiguration getDefaultConfig(Path workDir) {
@@ -2042,6 +2072,11 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          islandDetector.close();
       }
 
+      if(healthWatchdog != null) {
+         healthWatchdog.close();
+         healthService.close();
+      }
+
       clusterFileTransfer.close();
       ignite.close();
       closed = true;
@@ -2390,6 +2425,8 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    private final ExecutorService listenerExecutor;
    private final ClientMessageSender clientMessageSender;
    private final MinorityIslandDetector islandDetector;
+   private final ClusterHealthService healthService;
+   private final ClusterHealthWatchdog healthWatchdog;
 
    private static final int DEFAULT_BACKUP_COUNT = 2;
    private static final int DEFAULT_AFFINITY_POOL_MAX_SIZE = 64;

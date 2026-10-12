@@ -251,6 +251,25 @@ public class ClusterConfig implements Serializable {
    }
 
    /**
+    * The number of minutes a server node's cluster health check must continuously report the
+    * cluster not ready before the node raises a segmentation failure on itself, so that Ignite
+    * halts it and the container orchestrator restarts it into a fresh join of the cluster. This
+    * recovers a node that is stuck mid partition map exchange rather than cleanly segmented or
+    * in a minority island, which {@code cluster.minorityIslandHalt} does not cover. Unset (the
+    * default) disables this watchdog entirely, so existing deployments see no behavior change
+    * until an operator opts in.
+    *
+    * @return the threshold in minutes, or {@code null} if disabled.
+    */
+   public Long getStuckExchangeHaltMinutes() {
+      return stuckExchangeHaltMinutes;
+   }
+
+   public void setStuckExchangeHaltMinutes(Long stuckExchangeHaltMinutes) {
+      this.stuckExchangeHaltMinutes = stuckExchangeHaltMinutes;
+   }
+
+   /**
     * The minimum number of seconds that the last instance should be kept up before scaling to zero.
     *
     * @return the minimum uptime in seconds.
@@ -327,4 +346,5 @@ public class ClusterConfig implements Serializable {
    private long minSingleInstanceUptime = -1;
    private Long failureDetectionTimeout;
    private boolean minorityIslandHalt = false;
+   private Long stuckExchangeHaltMinutes;
 }
