@@ -676,10 +676,11 @@ private void addUsingTables(UniformSQL sql, List columns, int lstart, int rstart
  * Refuse a derived column list (t(p, q)) of a from clause table. UniformSQL
  * has no place for the column list, so it would be kept as part of the alias
  * and regenerated as one quoted alias ("t(p,q)") without the column names.
- * A SQL Server table hint of an unaliased table (from a with (nolock)) parses
+ * A table hint after AS or on a derived table (from a as with (nolock)) parses
  * as an unquoted alias with and a column list. It is refused too: the
  * regenerated alias "with(nolock)" hides the table name, so a qualified column
- * fails or binds to an outer query's table (Bug #77492).
+ * fails or binds to an outer query's table (Bug #77492). The hint of a table
+ * (from a with (nolock)) is read by table_hint instead (Bug #78382).
  */
 private void checkDerivedColumnList(UniformSQL sql, String alias, String columns,
                                     Token aliasTok, Token tok)
@@ -707,6 +708,48 @@ private void checkEscapeTable(UniformSQL sql, Token esc) throws SemanticExceptio
       throw new SemanticException("Unsupported JDBC escape as a table: " + esc.getText(),
                                   getFilename(), esc.getLine(), esc.getColumn());
    }
+}
+
+/**
+ * Check if the next tokens start a table hint, with (...). With is not a keyword, so
+ * without this check it's read as the alias with and a derived column list (Bug #78382).
+ */
+private boolean isTableHintStart() throws TokenStreamException {
+   return LA(1) == IDENT && "with".equalsIgnoreCase(LT(1).getText()) && LA(2) == OPEN_PAREN;
+}
+
+/**
+ * Refuse a table hint, with (...), on a dialect that has no table hints, or when the
+ * dialect is unknown (see isTableHintDialect). The hint is kept on the SelectTable and
+ * written back after the alias only on SQL Server and Sybase (Bug #78382). It must never
+ * be kept as the alias, which gave wrong rows (Bug #77492).
+ */
+private void checkTableHint(UniformSQL sql, String hint, Token tok) throws SemanticException {
+   if(sql != null && !isTableHintDialect()) {
+      throw new SemanticException(
+         "Unsupported table hint: " + tok.getText() + "(" + hint + ")",
+         getFilename(), tok.getLine(), tok.getColumn());
+   }
+}
+
+/**
+ * Keep the table hint of a from clause table. A table that has another hint already (the
+ * same table listed twice) refuses the hint rather than drop one of them.
+ */
+private void setTableHint(UniformSQL sql, SelectTable stable, String hint, Token tok)
+   throws SemanticException
+{
+   if(sql == null || hint == null) {
+      return;
+   }
+
+   if(stable == null || stable.getHint() != null && !stable.getHint().equals(hint)) {
+      throw new SemanticException(
+         "Unsupported table hint: " + tok.getText() + "(" + hint + ")",
+         getFilename(), tok.getLine(), tok.getColumn());
+   }
+
+   stable.setHint(hint);
 }
 
 private boolean collectOuterJoins(XFilterNode node, List joins) {
@@ -2285,6 +2328,15 @@ boolean isAliasAssignDialect() {
    SQLHelper helper = SQLHelper.getSQLHelper(dx, (Principal) null);
    String type = helper != null ? helper.getSQLHelperType() : null;
    return "sql server".equals(type) || "sybase".equals(type);
+}
+
+// true if a table hint (from t with (nolock)) is kept on the table. Only SQL Server and
+// Sybase have the WITH (...) table hint, and the same rule as isAliasAssignDialect applies:
+// the dialect comes from the statement's uniSql, without a uniSql (validity checks, which
+// never regenerate) the hint is accepted, and with a uniSql but no data source it's
+// refused, so the statement runs as written (Bug #78382)
+boolean isTableHintDialect() {
+   return isAliasAssignDialect();
 }
 }
 
@@ -4598,7 +4650,7 @@ ansi_joins [UniformSQL sql] returns [String str = ""]
 ;
 
 table_ref [UniformSQL sql] returns [String tbref = ""]
-        {Object name; String alias = "", tmp,as = ""; Token atok = null; XExpression exp; int[] quoted = null; {checkStatus();}}
+        {Object name; String alias = "", tmp,as = "", hint = null; Token atok = null, htok = null; XExpression exp; int[] quoted = null; {checkStatus();}}
         :
      (ansi_joins[null])=> tbref = ansi_joins[sql]
         | name = derived_table
@@ -4626,6 +4678,8 @@ table_ref [UniformSQL sql] returns [String tbref = ""]
         |
         name = table_name {quoted = qnameQuoted; checkEscapeTable(sql, qnameEscape);}
         (
+         // an unaliased with (...) is a table hint, not the alias with (Bug #78382)
+         {!isTableHintStart()}?
          ( a:AS {as = a.getText();})?
          {atok = LT(1);} alias = correlation_name
 
@@ -4637,8 +4691,9 @@ table_ref [UniformSQL sql] returns [String tbref = ""]
 
          ( dc2:OPEN_PAREN tmp = derived_column_list CLOSE_PAREN {checkDerivedColumnList(sql, alias, tmp, atok, dc2); alias += "(" + tmp + ")";})?
         )?
+        ( {isTableHintStart()}? {htok = LT(1);} hint = table_hint[sql] )?
         {
-         tbref = name + " " + as + " " + alias;
+         tbref = name + " " + as + " " + alias + (hint != null ? " with (" + hint + ")" : "");
 
          if(sql != null) {
                  SelectTable stable;
@@ -4654,22 +4709,27 @@ table_ref [UniformSQL sql] returns [String tbref = ""]
                  if(stable != null) {
                         stable.setQuotedSegments(quoted);
                  }
+
+                 setTableHint(sql, stable, hint, htok);
          }
          }
         ;
 
 table_ref_nojoin [UniformSQL sql, String op] returns [String tbref = ""]
-        {Object name; String alias = "", tmp,as = ""; Token atok = null; int[] quoted = null; SelectTable stable; {checkStatus();}}
+        {Object name; String alias = "", tmp,as = "", hint = null; Token atok = null, htok = null; int[] quoted = null; SelectTable stable; {checkStatus();}}
         :
         name = table_name {quoted = qnameQuoted; checkEscapeTable(sql, qnameEscape);}
         (
+         // an unaliased with (...) is a table hint, not the alias with (Bug #78382)
+         {!isTableHintStart()}?
          ( a:AS {as = a.getText();})?
          {atok = LT(1);} alias = correlation_name
          ( (OPEN_PAREN derived_column_list)=>
          dc1:OPEN_PAREN tmp = derived_column_list CLOSE_PAREN {checkDerivedColumnList(sql, alias, tmp, atok, dc1); alias += "(" + tmp + ")";})?
         )?
+        ( {isTableHintStart()}? {htok = LT(1);} hint = table_hint[sql] )?
         {
-         tbref = name + " " + as + " " + alias;
+         tbref = name + " " + as + " " + alias + (hint != null ? " with (" + hint + ")" : "");
 
          if(sql != null) {
                  if(!alias.equals("")) {
@@ -4694,6 +4754,8 @@ table_ref_nojoin [UniformSQL sql, String op] returns [String tbref = ""]
                  if(stable != null) {
                         stable.setQuotedSegments(quoted);
                  }
+
+                 setTableHint(sql, stable, hint, htok);
          }
          }
         | name = derived_table
@@ -4724,6 +4786,57 @@ table_ref_nojoin [UniformSQL sql, String op] returns [String tbref = ""]
                 }
         }
         }
+        ;
+
+// a SQL Server/Sybase table hint, with (nolock, index(ix)). Only identifiers ([..] and ".."
+// quoted too), unsigned numbers, commas, = and parentheses are read, so a hint can't carry
+// a string, a keyword such as select, or a comment (the lexer drops comments). The hint is
+// rebuilt from the tokens as written, quoted names with their escapes (Bug #78382)
+table_hint [UniformSQL sql] returns [String hint = ""]
+        {String tmp, sep = " "; Token start = LT(1); {checkStatus();}}
+        :
+        IDENT OPEN_PAREN tmp = table_hint_item {hint = tmp;}
+        ( (COMMA {sep = ", ";})? tmp = table_hint_item {hint += sep + tmp; sep = " ";} )*
+        CLOSE_PAREN
+        {checkTableHint(sql, hint, start);}
+        ;
+
+table_hint_item returns [String item = ""]
+        {String tmp, sep = " "; {checkStatus();}}
+        :
+        item = table_hint_name
+        (
+          OPEN_PAREN tmp = table_hint_arg {item += "(" + tmp;}
+          ( (COMMA {sep = ", ";})? tmp = table_hint_arg {item += sep + tmp; sep = " ";} )*
+          CLOSE_PAREN {item += ")";}
+        | EQ {item += " = ";}
+          ( tmp = table_hint_name {item += tmp;}
+          | n:UNSIGNED_NUM_LIT {item += n.getText();}
+          )
+        )?
+        ;
+
+// an argument of a table hint: an index or a number, or an index with its columns
+// (forceseek(ix(c1, c2)))
+table_hint_arg returns [String arg = ""]
+        {String tmp; {checkStatus();}}
+        :
+        arg = table_hint_name
+        ( OPEN_PAREN tmp = table_hint_name {arg += "(" + tmp;}
+          ( COMMA tmp = table_hint_name {arg += ", " + tmp;} )*
+          CLOSE_PAREN {arg += ")";}
+        )?
+        | n:UNSIGNED_NUM_LIT {arg = n.getText();}
+        ;
+
+// a name in a table hint, as written: quoted names keep their quotes and escapes ("a""b",
+// [a]]b])
+table_hint_name returns [String name = ""]
+        {checkStatus();}
+        :
+        a:IDENT {name = a.getText();}
+        | b:SPIDENT {name = b.getText();}
+        | c:SPIDENT_SQUARE {name = c.getText();}
         ;
 
 derived_column_list returns [String dcl = ""]

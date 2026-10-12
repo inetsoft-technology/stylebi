@@ -115,10 +115,9 @@ class UniformSQLDerivedColumnListRefuseTest {
       "select t.id from a t (nolock)",
       "select id, k from a t (nolock)",
       "select x.id, y.k from a x (nolock) join b y (nolock) on x.id = y.id",
-      // the hint of an aliased table is a syntax error, as before
+      // a table hint, aliased or not, is refused without a SQL Server or Sybase data source
+      // (Bug #77492, UniformSQLTableHintRefuseTest). On those it's kept (Bug #78382)
       "select t.id from a t with (nolock)",
-      // the SQL Server table hint of an unaliased table matches the alias with and a
-      // column list. it is refused too (Bug #77492, UniformSQLTableHintRefuseTest)
       "select id, k from a with (nolock)",
       "select id, k from a with(nolock)",
       "select id, k from a WITH (NOLOCK)",
