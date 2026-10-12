@@ -293,9 +293,11 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * {@link #localsFor}): {@link #NO_LOCALS_VAR}, a frozen empty object, which a script
     * reads as its store when its vars stay globals, and {@link #DECLARE_FN}, which
     * declares a script's top-level var names in its store as Rhino declared them on the
-    * scope the script ran in (a name the store already has keeps its value) and returns
-    * the store. Run before the host globals snapshot, so the names are host globals.
-    * Idempotent, as the snapshot may be retried. Caller holds {@code lock}.
+    * scope the script ran in (a name the store already has keeps its value), sets the
+    * names of its optional third argument to undefined in the store (Bug #78247, see
+    * {@link #localsOpen(Set, Set)}) and returns the store; without a store it does
+    * nothing, so a reset never writes a global. Run before the host globals snapshot, so
+    * the names are host globals. Idempotent, as the snapshot may be retried. Caller holds {@code lock}.
     */
    private void installLocals() {
       if(noLocals != null) {
@@ -307,8 +309,9 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          "var own=Object.prototype.hasOwnProperty;" +
          "Object.defineProperty(g,'" + NO_LOCALS_VAR +
          "',{value:none,writable:false,enumerable:false,configurable:false});" +
-         "Object.defineProperty(g,'" + DECLARE_FN + "',{value:function(o,n){" +
-         "if(o!==none){for(var i=0;i<n.length;i++){if(!own.call(o,n[i])){o[n[i]]=void 0;}}}" +
+         "Object.defineProperty(g,'" + DECLARE_FN + "',{value:function(o,n,r){" +
+         "if(o!==none){for(var i=0;i<n.length;i++){if(!own.call(o,n[i])){o[n[i]]=void 0;}}" +
+         "if(r){for(var j=0;j<r.length;j++){o[r[j]]=void 0;}}}" +
          "return o;}," +
          "writable:false,enumerable:false,configurable:false});" +
          "var sp=Object.setPrototypeOf;" +
@@ -1073,7 +1076,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          // Bug #77595: the vars are declared in the store of the exec scope, so the
          // reset (inside its with) resets the store, or the global if there is none
          Set<String> localNames = localNames(body);
-         Source plain = Source.newBuilder("js", localsOpen(localNames) +
+         Source plain = Source.newBuilder("js",
+            localsOpen(localNames, varResetNames(lexicalBody, localNames, declaredVars)) +
             buildLexicalReset(resetNames) + scopeWith(localNames, declaredVars) + body + "\n}}", "<cmd>")
             .buildLiteral();
 
@@ -1173,7 +1177,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       // a kept let must not shadow the engine global for the other scripts of the scope
       String kept = keepInitializerlessLexicalDeclarations(lexicalBody);
       Set<String> localNames = localNames(kept);
-      Source colliding = Source.newBuilder("js", localsOpen(localNames) +
+      Source colliding = Source.newBuilder("js",
+         localsOpen(localNames, varResetNames(kept, localNames, declaredVars)) +
          scopeWith(localNames, declaredVars) + kept + "\n}}", "<cmd>").buildLiteral();
 
       if(!sourcesAllParse(new Source[] { colliding })) {
@@ -2021,6 +2026,17 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * variable. No line break, so error line numbers do not move. Closed by {@code "}"}.
     */
    private static String localsOpen(Set<String> names) {
+      return localsOpen(names, Set.of());
+   }
+
+   /**
+    * {@link #localsOpen(Set)} that also sets {@code resetNames} (a subset of
+    * {@code names}) to undefined in the store at the start of every run (Bug #78247, see
+    * {@link #varResetNames}). Without a store nothing is reset, so a name such as the
+    * CALC {@code max} is never cleared as a global. With no reset names the source is
+    * that of {@link #localsOpen(Set)}.
+    */
+   private static String localsOpen(Set<String> names, Set<String> resetNames) {
       if(names.isEmpty()) {
          return localsReopen(names);
       }
@@ -2033,7 +2049,46 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          sb.append(i++ > 0 ? "," : "").append(toJsStringLiteral(name));
       }
 
-      return sb.append("])){").toString();
+      sb.append(']');
+
+      if(!resetNames.isEmpty()) {
+         sb.append(",[");
+         i = 0;
+
+         for(String name : resetNames) {
+            sb.append(i++ > 0 ? "," : "").append(toJsStringLiteral(name));
+         }
+
+         sb.append(']');
+      }
+
+      return sb.append(")){").toString();
+   }
+
+   /**
+    * Bug #78247: the names of {@code localNames} that {@code body} declares with a
+    * {@code var} outside a function without an initializer ({@code var a, b = 1;} yields
+    * {@code a}), for a script compiled by {@link #compileDeclaredVars}
+    * ({@code declaredVars}), else none. A freehand table shares one var store between all
+    * its cells and rows, so on the plain single-piece path such a var would start with
+    * whatever another cell (or the cell itself on the previous row) left in the store; the
+    * other paths already start it undefined (the piece path resets it, the eval wrapper's
+    * var is a fresh local). A var with an initializer is not reset, so an accumulator
+    * {@code var c = (c || 0) + 1} still counts across cells and rows. {@code body} is the
+    * body before the let/const rewrite (which keeps offsets), so only a real {@code var}
+    * counts; an initializer-less {@code let} has its own #77181 reset.
+    */
+   private static Set<String> varResetNames(String body, Set<String> localNames,
+                                            boolean declaredVars)
+   {
+      if(!declaredVars || localNames.isEmpty()) {
+         return Set.of();
+      }
+
+      Set<String> names = new LinkedHashSet<>();
+      collectOwnedVarNames(body, new LinkedHashSet<>(), names);
+      names.retainAll(localNames);
+      return names;
    }
 
    /**
@@ -3231,6 +3286,17 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * Add the names {@code script} declares with {@code var} outside any function body.
     */
    private static void collectOwnedVarNames(String script, Set<String> names) {
+      collectOwnedVarNames(script, names, null);
+   }
+
+   /**
+    * {@link #collectOwnedVarNames(String, Set)} that also adds to {@code initializerless},
+    * if not null, the names those declarations declare without an initializer (see
+    * {@link #collectDeclaratorNames}).
+    */
+   private static void collectOwnedVarNames(String script, Set<String> names,
+                                            Set<String> initializerless)
+   {
       String src = stripStringsAndComments(script);
       // per open brace, whether it opens a function body
       Deque<Boolean> braces = new ArrayDeque<>();
@@ -3256,6 +3322,11 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             // ignore keywords used as member names (obj.var / obj.function)
             if(prev != '.') {
                if(word.equals("var") && fdepth == 0) {
+                  if(initializerless != null) {
+                     // the stripped source keeps the offsets of the script
+                     collectDeclaratorNames(script, i, initializerless);
+                  }
+
                   i = collectVarNames(src, i, names);
                }
                else if(word.equals("function")) {
