@@ -336,9 +336,11 @@ public class RenameColumnController extends WorksheetController {
                   // Bug #78234 / WBS-103: a composed table with more than one source (concat,
                   // join, merge join, cross join) can hold several columns with the same bare
                   // name, from different sources -- so the propagated column is identified by
-                  // its SOURCE (entity) there, never by bare name. A single-source table (mirror,
-                  // rotate, unpivot) keeps the original bare-name path below unchanged.
-                  if(isMultiSource(composedTable)) {
+                  // its SOURCE (entity) there, never by bare name. A mirror is routed the same way
+                  // (Bug #77005 / WBS-102): its column may carry its OWN alias, which is its
+                  // output name and which the bare-name lookup below can neither find nor keep.
+                  // Rotate and unpivot keep the original bare-name path below unchanged.
+                  if(isMultiSource(composedTable) || composedTable instanceof MirrorTableAssembly) {
                      ColumnRef sourceColumn = findSourceColumn(ocolumn, table, composedTable);
 
                      if(sourceColumn != null) {
