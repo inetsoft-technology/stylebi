@@ -348,7 +348,7 @@ public class CalcTableService {
    }
 
    /** Binds one cell. One {@code sessions.mutate}, so one undo checkpoint. */
-   public void setCellBinding(String sessionToken, Principal user, String assemblyName,
+   public List<String> setCellBinding(String sessionToken, Principal user, String assemblyName,
                               int row, int col, Map<String, Object> binding)
       throws Exception
    {
@@ -356,7 +356,7 @@ public class CalcTableService {
       // reject here, and opens no checkpoint the caller then has to undo.
       CalcCellVocabulary.validate(binding);
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      return sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          CalcTableVSAssembly assembly = requireCalcTable(rvs, assemblyName);
          requireInGrid(layoutOf(assembly), row, col);
          requireNotMerged(layoutOf(assembly), row, col);
@@ -846,7 +846,7 @@ public class CalcTableService {
             "'cols'. Merging a single cell does nothing and would report success.");
       }
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          CalcTableVSAssembly assembly = requireCalcTable(rvs, assemblyName);
          TableLayout layout = layoutOf(assembly);
          requireInGrid(layout, row, col);
@@ -872,6 +872,7 @@ public class CalcTableService {
       // Returned rather than left to the caller: coordinates read before this call are stale.
       Map<String, Object> updated = readLayout(sessionToken, user, assemblyName);
       updated.put("note", "Coordinates read before this operation are stale — use this layout.");
+      ViewsheetSessionService.relayWarnings(updated, warnings);
       return updated;
    }
 
@@ -898,7 +899,7 @@ public class CalcTableService {
             "is nowhere to paste and the operation would do nothing.");
       }
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          CalcTableVSAssembly assembly = requireCalcTable(rvs, assemblyName);
          TableLayout layout = layoutOf(assembly);
          requireInGrid(layout, source.y, source.x);
@@ -918,6 +919,7 @@ public class CalcTableService {
 
       Map<String, Object> updated = readLayout(sessionToken, user, assemblyName);
       updated.put("note", "Coordinates read before this operation are stale — use this layout.");
+      ViewsheetSessionService.relayWarnings(updated, warnings);
       return updated;
    }
 

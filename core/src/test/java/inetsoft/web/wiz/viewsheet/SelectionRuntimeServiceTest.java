@@ -2090,4 +2090,27 @@ class SelectionRuntimeServiceTest {
    static Principal principal() {
       return mock(Principal.class);
    }
+
+   /** Bug 78378: the warnings mutate returns (e.g. a script failure) reach the response. */
+   @Test
+   void relaysTheSessionWarningsInTheResponse() throws Exception {
+      Harness h = harness(list(XConstants.SORT_ASC, false, null));
+      doReturn(List.of("Script execution error in assembly: Table1"))
+         .when(h.sessions).mutate(anyString(), any(Principal.class), any());
+
+      Map<String, Object> result = h.service.setSelection(
+         "tok", principal(), "Filter1", null, null, "specific", null, null, "");
+
+      assertEquals(List.of("Script execution error in assembly: Table1"), result.get("warnings"));
+   }
+
+   @Test
+   void leavesNoWarningsFieldWhenNothingWarned() throws Exception {
+      Harness h = harness(list(XConstants.SORT_ASC, false, null));
+
+      Map<String, Object> result = h.service.setSelection(
+         "tok", principal(), "Filter1", null, null, "specific", null, null, "");
+
+      assertFalse(result.containsKey("warnings"));
+   }
 }

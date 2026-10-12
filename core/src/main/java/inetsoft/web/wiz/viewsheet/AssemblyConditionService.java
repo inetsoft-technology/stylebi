@@ -26,6 +26,7 @@ import inetsoft.web.composer.model.condition.ConditionValueModel;
 import inetsoft.web.composer.model.condition.ExpressionValueModel;
 import inetsoft.web.composer.model.vs.VSConditionDialogModel;
 import inetsoft.web.composer.vs.dialog.VSConditionDialogService;
+import inetsoft.web.viewsheet.controller.table.BaseTableService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -170,7 +171,17 @@ public class AssemblyConditionService {
          }
       });
 
-      warnings.addAll(sessionWarnings == null ? List.of() : sessionWarnings);
+
+      // The pre-check already reported a throwing expression; the refresh then reports the same
+      // failure again as a script-failure message on this assembly, so drop that duplicate.
+      String ownFailure = BaseTableService.SCRIPT_FAILURE_PREFIX + assemblyName + '\n';
+
+      for(String warning : sessionWarnings == null ? List.<String>of() : sessionWarnings) {
+         if(warnings.isEmpty() || !warning.startsWith(ownFailure)) {
+            warnings.add(warning);
+         }
+      }
+
       return new SetResult(applied[0], warnings);
    }
 

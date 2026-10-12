@@ -90,7 +90,7 @@ public class InputValueService {
 
       final Map<String, Object> result = new LinkedHashMap<>();
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          InputVSAssembly assembly = requireInput(rvs, assemblyName);
          boolean multi = assembly instanceof CheckBoxVSAssembly;
 
@@ -128,6 +128,7 @@ public class InputValueService {
                Arrays.stream(stored).filter(Objects::nonNull).toList());
          }
       });
+      ViewsheetSessionService.relayWarnings(result, warnings);
 
       result.put("persistsOnSave", true);
       return result;

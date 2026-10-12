@@ -23,6 +23,7 @@ import inetsoft.web.messaging.MessageAttributes;
 import inetsoft.web.messaging.MessageContextHolder;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.command.ViewsheetCommand;
+import inetsoft.web.viewsheet.controller.table.BaseTableService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CommandDispatcherService;
 import org.springframework.messaging.Message;
@@ -192,11 +193,35 @@ public final class CapturingCommandDispatcher extends CommandDispatcher {
    }
 
    /**
-    * Messages from captured {@code MessageCommand}s of {@code Type.WARNING}, in dispatch order.
-    * Warnings do not fail the call — the caller decides whether to relay them.
+    * Messages from captured {@code MessageCommand}s of {@code Type.WARNING}, in dispatch order,
+    * followed by any script-execution failure (see {@link #getScriptFailures}). Warnings do not
+    * fail the call -- the caller decides whether to relay them.
     */
    public List<String> getWarnings() {
-      return messagesOfType(MessageCommand.Type.WARNING);
+      List<String> warnings = messagesOfType(MessageCommand.Type.WARNING);
+      warnings.addAll(getScriptFailures());
+      return warnings;
+   }
+
+   /**
+    * Messages from captured {@code Type.INFO} {@code MessageCommand}s that report a script
+    * throwing while a table was built. The table path swallows that failure into an INFO toast
+    * and leaves the table empty, so without this a write that ran the failing script reads as a
+    * plain success. Every other INFO (toasts, binding confirms, {@code alert()}) is ignored.
+    */
+   public List<String> getScriptFailures() {
+      List<String> messages = new ArrayList<>();
+
+      for(Command command : captured) {
+         if(command.getCommand() instanceof MessageCommand message &&
+            message.getType() == MessageCommand.Type.INFO && message.getMessage() != null &&
+            message.getMessage().startsWith(BaseTableService.SCRIPT_FAILURE_PREFIX))
+         {
+            messages.add(CommandErrorException.messageOf(message.getMessage()));
+         }
+      }
+
+      return messages;
    }
 
    private List<String> messagesOfType(MessageCommand.Type type) {

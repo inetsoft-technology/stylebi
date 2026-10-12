@@ -195,7 +195,7 @@ public class SelectionRuntimeService {
       final Integer targetSort = sortOrder == null ? null : requireSortOrder(sortOrder);
       final Map<String, Object> result = new LinkedHashMap<>();
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          SelectionVSAssembly assembly = requireSelection(rvs, assemblyName);
 
          if(assembly instanceof CalendarVSAssembly && (values != null || hasDeselect)) {
@@ -464,6 +464,7 @@ public class SelectionRuntimeService {
             }
          }
       });
+      ViewsheetSessionService.relayWarnings(result, warnings);
 
       result.put("persistsOnSave", true);
       return result;
@@ -486,7 +487,7 @@ public class SelectionRuntimeService {
       requireName(assemblyName);
       final Map<String, Object> result = new LinkedHashMap<>();
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          SelectionVSAssembly assembly = requireSelection(rvs, assemblyName);
          requireBoundColumn(assembly, assemblyName);
 
@@ -572,6 +573,7 @@ public class SelectionRuntimeService {
             }
          }
       });
+      ViewsheetSessionService.relayWarnings(result, warnings);
 
       result.put("persistsOnSave", true);
       return result;
@@ -689,7 +691,7 @@ public class SelectionRuntimeService {
       final boolean select = requireSubtreeMode(mode);
       final Map<String, Object> result = new LinkedHashMap<>();
 
-      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      List<String> warnings = sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          SelectionVSAssembly assembly = requireSelection(rvs, assemblyName);
 
          if(!(assembly instanceof SelectionTreeVSAssembly)) {
@@ -753,6 +755,7 @@ public class SelectionRuntimeService {
             reportSubtreeClear(result, assembly, path, before, tree.isIDMode());
          }
       });
+      ViewsheetSessionService.relayWarnings(result, warnings);
 
       result.put("persistsOnSave", true);
       return result;

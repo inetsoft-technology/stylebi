@@ -417,7 +417,7 @@ public class BindingAgentController {
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/fields")
-   public void setTableFields(@PathVariable String sessionToken,
+   public Map<String, Object> setTableFields(@PathVariable String sessionToken,
                               @RequestBody TableShelfRequest request,
                               Principal user)
       throws Exception
@@ -425,8 +425,9 @@ public class BindingAgentController {
       requireEnabled();
       String source = resolveSourceTable(sessionToken, user, request.assembly(), request.table(),
                                          request.fields());
-      tableService.setShelf(sessionToken, user, request.assembly(), request.shelf(),
-                            request.fields(), source);
+      return ViewsheetSessionService.warningsBody(
+         tableService.setShelf(sessionToken, user, request.assembly(), request.shelf(),
+                            request.fields(), source));
    }
 
    public record SelectionSourceRequest(String assembly, String table, List<String> columns,
@@ -474,18 +475,19 @@ public class BindingAgentController {
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/source")
-   public void setTableSource(@PathVariable String sessionToken,
+   public Map<String, Object> setTableSource(@PathVariable String sessionToken,
                               @RequestBody TableSourceRequest request,
                               Principal user)
       throws Exception
    {
       requireEnabled();
-      tableService.setSource(sessionToken, user, request.assembly(), request.table(),
-                             Boolean.TRUE.equals(request.force()));
+      return ViewsheetSessionService.warningsBody(
+         tableService.setSource(sessionToken, user, request.assembly(), request.table(),
+                             Boolean.TRUE.equals(request.force())));
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/field/add")
-   public void addTableField(@PathVariable String sessionToken,
+   public Map<String, Object> addTableField(@PathVariable String sessionToken,
                              @RequestBody TableFieldRequest request,
                              Principal user)
       throws Exception
@@ -493,42 +495,46 @@ public class BindingAgentController {
       requireEnabled();
       String source = resolveSourceTable(sessionToken, user, request.assembly(), request.table(),
                                          List.of(request.field()));
-      tableService.addField(sessionToken, user, request.assembly(), request.shelf(),
-                            request.field(), request.position(), source);
+      return ViewsheetSessionService.warningsBody(
+         tableService.addField(sessionToken, user, request.assembly(), request.shelf(),
+                            request.field(), request.position(), source));
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/field/remove")
-   public void removeTableField(@PathVariable String sessionToken,
+   public Map<String, Object> removeTableField(@PathVariable String sessionToken,
                                 @RequestBody TableRemoveRequest request,
                                 Principal user)
       throws Exception
    {
       requireEnabled();
-      tableService.removeField(sessionToken, user, request.assembly(), request.shelf(),
-                               request.column());
+      return ViewsheetSessionService.warningsBody(
+         tableService.removeField(sessionToken, user, request.assembly(), request.shelf(),
+                               request.column()));
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/field/move")
-   public void moveTableField(@PathVariable String sessionToken,
+   public Map<String, Object> moveTableField(@PathVariable String sessionToken,
                               @RequestBody TableMoveRequest request,
                               Principal user)
       throws Exception
    {
       requireEnabled();
-      tableService.moveField(sessionToken, user, request.assembly(), request.fromShelf(),
-                             request.toShelf(), request.column(), request.position());
+      return ViewsheetSessionService.warningsBody(
+         tableService.moveField(sessionToken, user, request.assembly(), request.fromShelf(),
+                             request.toShelf(), request.column(), request.position()));
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/field/visibility")
-   public void setTableFieldVisibility(@PathVariable String sessionToken,
+   public Map<String, Object> setTableFieldVisibility(@PathVariable String sessionToken,
                                        @RequestBody TableFieldVisibilityRequest request,
                                        @RequestParam(required = false, defaultValue = "") String linkUri,
                                        Principal user)
       throws Exception
    {
       requireEnabled();
-      tableService.setFieldVisibility(sessionToken, user, request.assembly(), request.column(),
-                                      request.visible(), linkUri);
+      return ViewsheetSessionService.warningsBody(
+         tableService.setFieldVisibility(sessionToken, user, request.assembly(), request.column(),
+                                      request.visible(), linkUri));
    }
 
    public record CrosstabColumnVisibilityRequest(String assembly, List<String> columns,
@@ -607,7 +613,7 @@ public class BindingAgentController {
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/calc/cell")
-   public void setCalcCell(@PathVariable String sessionToken,
+   public Map<String, Object> setCalcCell(@PathVariable String sessionToken,
                            @RequestBody CellBindingRequest request,
                            Principal user)
       throws Exception
@@ -620,8 +626,9 @@ public class BindingAgentController {
             "coordinate.");
       }
 
-      calcService.setCellBinding(sessionToken, user, request.assembly(), request.row(),
-                                 request.col(), request.binding());
+      return ViewsheetSessionService.warningsBody(
+         calcService.setCellBinding(sessionToken, user, request.assembly(), request.row(),
+                                    request.col(), request.binding()));
    }
 
    @GetMapping("/api/wiz/v1/agent/binding/{sessionToken}/calc/cell/format")
@@ -665,31 +672,33 @@ public class BindingAgentController {
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/sort")
-   public void setTableSort(@PathVariable String sessionToken,
+   public Map<String, Object> setTableSort(@PathVariable String sessionToken,
                             @RequestBody TableSortRequest request,
                             Principal user)
       throws Exception
    {
       requireEnabled();
-      tableService.setSort(sessionToken, user, request.assembly(), request.shelf(),
+      return ViewsheetSessionService.warningsBody(
+         tableService.setSort(sessionToken, user, request.assembly(), request.shelf(),
                            request.column(), request.index(),
                            new DimensionSortRanking.Sort(request.direction(),
                                                          request.sortByField(),
-                                                         request.manualOrder()));
+                                                         request.manualOrder())));
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/ranking")
-   public void setTableRanking(@PathVariable String sessionToken,
+   public Map<String, Object> setTableRanking(@PathVariable String sessionToken,
                                @RequestBody TableRankingRequest request,
                                Principal user)
       throws Exception
    {
       requireEnabled();
-      tableService.setRanking(sessionToken, user, request.assembly(), request.shelf(),
+      return ViewsheetSessionService.warningsBody(
+         tableService.setRanking(sessionToken, user, request.assembly(), request.shelf(),
                               request.column(), request.index(),
                               new DimensionSortRanking.Ranking(request.mode(), request.n(),
                                                                request.measure(),
-                                                               request.others()));
+                                                               request.others())));
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/labels")
@@ -708,13 +717,14 @@ public class BindingAgentController {
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/option")
-   public void setTableOptions(@PathVariable String sessionToken,
+   public Map<String, Object> setTableOptions(@PathVariable String sessionToken,
                                @RequestBody TableOptionRequest request,
                                Principal user)
       throws Exception
    {
       requireEnabled();
-      tableService.setOptions(sessionToken, user, request.assembly(), request.options());
+      return ViewsheetSessionService.warningsBody(
+         tableService.setOptions(sessionToken, user, request.assembly(), request.options()));
    }
 
    public record TableColumnWidthRequest(String assembly, Map<String, Double> widths) {}
@@ -737,15 +747,16 @@ public class BindingAgentController {
    public record TableColumnSortRequest(String assembly, String column, String direction) {}
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/column-sort")
-   public void setTableColumnSort(@PathVariable String sessionToken,
+   public Map<String, Object> setTableColumnSort(@PathVariable String sessionToken,
                                   @RequestBody TableColumnSortRequest request,
                                   @RequestParam(required = false, defaultValue = "") String linkUri,
                                   Principal user)
       throws Exception
    {
       requireEnabled();
-      tableService.setColumnSort(sessionToken, user, request.assembly(), request.column(),
-                                 request.direction(), linkUri);
+      return ViewsheetSessionService.warningsBody(
+         tableService.setColumnSort(sessionToken, user, request.assembly(), request.column(),
+                                 request.direction(), linkUri));
    }
 
    public record CalcLayoutRequest(String assembly, String op, Integer row, Integer col,
