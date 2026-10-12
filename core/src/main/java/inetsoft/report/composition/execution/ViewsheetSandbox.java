@@ -2581,6 +2581,13 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    /**
     * After changing for Bug #45263, each thread can only used the variable execute result of itself, so need
     * process onload script for export thread.
+    *
+    * <p>The onLoad scripts of the embedded viewsheets (at any depth) are re-run here as well, after
+    * this sheet's own, parent before child, so a failure of any of them is recorded in this box's
+    * {@link #getExportScriptError()}, the only flag the exporters read. Their open-time runs (host
+    * reset) swallow script errors, and remembering those would report a failure of another request
+    * (the current-view export reuses the live viewer box). Like the existing re-run of this sheet's
+    * own onLoad, re-running an embedded onLoad changes the live embedded box's variables. (#78255)
     */
    public void prepareForExport() {
       exportScriptError = null;
@@ -2603,6 +2610,47 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          // so the exporter can say so on the document. (#76780)
          recordExportScriptError(ex);
       }
+
+      prepareEmbeddedForExport(vs);
+   }
+
+   /**
+    * Re-run the onLoad script of each embedded viewsheet of the specified sheet, then of the
+    * viewsheets embedded in it, recording a failure into this box's export flag. All embedded
+    * sandboxes live in the root's {@code bmap}, keyed by absolute name; the walk follows the
+    * assembly tree so a parent always runs before its children and sees the variables it sets.
+    * Only existing sandboxes are run: one that was never created never ran its onLoad. (#78255)
+    */
+   private void prepareEmbeddedForExport(Viewsheet sheet) {
+      if(sheet == null) {
+         return;
+      }
+
+      for(Assembly assembly : sheet.getAssemblies()) {
+         if(!(assembly instanceof Viewsheet embedded)) {
+            continue;
+         }
+
+         String name = embedded.getAbsoluteName();
+         ViewsheetSandbox box = root.bmap.get(name);
+
+         if(box != null) {
+            Consumer<Exception> handler = ex -> recordExportScriptError(ex, name);
+
+            try {
+               box.processOnLoad(new ChangedAssemblyList(), false, handler);
+            }
+            catch(Exception ex) {
+               handler.accept(ex);
+            }
+         }
+
+         prepareEmbeddedForExport(embedded);
+      }
+   }
+
+   private void recordExportScriptError(Exception ex) {
+      recordExportScriptError(ex, getSheetName());
    }
 
    /**
@@ -2612,15 +2660,16 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     * captured via {@link #executeVSScript} (through {@link #processOnLoad}'s
     * handler) and when some other exception escapes {@link #processOnLoad} back
     * up to {@link #prepareForExport}'s own catch.
+    * @param sheetName the name of the sheet whose onLoad failed, this sheet or an embedded one.
     */
-   private void recordExportScriptError(Exception ex) {
+   private void recordExportScriptError(Exception ex, String sheetName) {
       if(exportScriptError == null) {
          exportScriptError = ex;
       }
 
       LOG.error("Failed to process the onLoad script for export of \"{}\"; the exported " +
                    "content will not reflect anything that script sets, including any " +
-                   "query parameters it computes", getSheetName(), ex);
+                   "query parameters it computes", sheetName, ex);
    }
 
    /**
