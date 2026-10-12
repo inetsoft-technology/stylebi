@@ -147,7 +147,8 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       this.flyoverCancelled = ConcurrentHashMap.newKeySet();
       this.dmap = new DataMap();
       this.dKeyMap = new DataMap();
-      this.fmap = new HashMap<>();
+      this.fmap = new ConcurrentHashMap<>();
+      this.fgens = new ConcurrentHashMap<>();
       this.scriptChangedFormSet = Collections.synchronizedSet(new HashSet<>());
       this.tmap = Collections.synchronizedMap(new HashMap<>());
       this.vset = Collections.synchronizedSet(new HashSet<>());
@@ -3341,6 +3342,8 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       VSAScriptable scriptable = getScope().getVSAScriptable(name);
 
       if(scriptable instanceof TableDataVSAScriptable && !scriptChangedFormSet.contains(name)) {
+         // a form table being built from the data before this reset must not be cached (#78398)
+         fgens.merge(name, 1L, Long::sum);
          fmap.remove(name);
          scriptable.setAssembly(name);
       }
@@ -8048,26 +8051,68 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
       FormTableLens flens = fmap.get(name);
 
-      if(flens == null) {
+      // the fetch runs without the sandbox locks (#74001), so other threads may build the same
+      // form table at the same time, e.g. a table load and a script. The first one built is
+      // kept and returned to all of them, edits are only made on the cached one (#78398)
+      for(int attempt = 1; flens == null; attempt++) {
+         long gen = fgens.getOrDefault(name, 0L);
+         ColumnSelection cols = getFormColumnSelection(info);
+         FormTableLens nlens = new FormTableLens(getFormData(name));
+         nlens.setEdit(info.isEdit());
+         nlens.setColumnSelection(cols);
+         // one built from the data before a reset is dropped and built again, a bounded number
+         // of times, the last one is cached as the newest data there is
+         boolean last = attempt >= MAX_FORM_RESET_ATTEMPTS;
+         flens = fmap.compute(name, (key, cached) -> cached != null ? cached :
+            last || fgens.getOrDefault(key, 0L) == gen ? nlens : null);
+
+         if(flens == null) {
+            LOG.debug("Form table {} reset while it was built, build it again", name);
+         }
+      }
+
+      return flens;
+   }
+
+   /**
+    * Get the column selection of a form table with every column a FormRef. A selection that
+    * isn't converted yet is converted on a copy that replaces it, the shared selection is never
+    * cleared, other threads may be reading it (#78398).
+    */
+   private static ColumnSelection getFormColumnSelection(TableVSAssemblyInfo info) {
+      synchronized(info) {
          ColumnSelection cols = info.getColumnSelection();
-         ColumnSelection ncols = (ColumnSelection) cols.clone();
-         cols.clear();
+         // a copy, the selection may be changed while it's read, e.g. by a query
+         ColumnSelection fcols = cols.clone(true);
+         boolean converted = true;
+
+         for(int i = 0; i < fcols.getAttributeCount(); i++) {
+            DataRef ref = fcols.getAttribute(i);
+
+            if(ref != null && !(ref instanceof FormRef)) {
+               converted = false;
+               break;
+            }
+         }
+
+         if(converted) {
+            return cols;
+         }
+
+         ColumnSelection ncols = fcols.clone();
+         fcols.clear();
 
          for(int i = 0; i < ncols.getAttributeCount(); i++) {
             DataRef ref = ncols.getAttribute(i);
 
             if(ref != null) {
-               cols.addAttribute(i, FormRef.toFormRef(ref));
+               fcols.addAttribute(i, FormRef.toFormRef(ref));
             }
          }
 
-         flens = new FormTableLens(getFormData(name));
-         flens.setEdit(info.isEdit());
-         flens.setColumnSelection(cols);
-         fmap.put(name, flens);
+         info.setColumnSelection(fcols);
+         return fcols;
       }
-
-      return flens;
    }
 
    /**
@@ -9275,11 +9320,15 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    private final DataMap dKeyMap; // data map
    private final VariableTable myvars = new VariableTable();
    private final Map<String, FormTableLens> fmap; // form table map
+   // the times each form table is reset, a form table built across a reset isn't cached
+   private final Map<String, Long> fgens;
    private final Set<String> scriptChangedFormSet; // form table updated by script.
    private final Map<String, Long> tmap; // clear timestamp map
    // the times a query cancelled by newer changes is run at most, see
    // executeDataAfterChangeCancel()
    private static final int MAX_CHANGE_CANCEL_ATTEMPTS = 20;
+   // the times a form table reset while it is built is built at most, see getFormTableLens()
+   private static final int MAX_FORM_RESET_ATTEMPTS = 3;
    private final Set<String> vset; // view set
    private final Map<String, ViewsheetSandbox> bmap; // viewsheet sandbox map
    // the root variables this embedded sandbox inherited, at creation or the last push
