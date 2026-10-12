@@ -16,7 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { DateTipHelper } from "./data-tip/date-tip-helper";
-import { makeComponent, makeVSObject, makeDataTipService } from "./vs-object-container.component.test-helpers";
+import { makeComponent, makeDataTipService, makeObjectFormat, makeVSObject, makeVsInfo }
+   from "./vs-object-container.component.test-helpers";
 
 // Bug #76461 / #76458: a max-mode (enlarged) assembly and a different assembly's active
 // Data Tip popup both received the identical +99999 z-index boost from
@@ -199,5 +200,121 @@ describe("VSObjectContainer anchored-lane chrome suppression", () => {
 
       expect(comp.isChromeSuppressed(anchored(20, true, "VSRangeSlider"))).toBe(false);
       expect(comp.isChromeSuppressed(anchored(0, true, "VSText"))).toBe(false);
+   });
+});
+
+// A shrunk table in a bottom-tabs tab publishes how far its card draws below objectFormat.top;
+// a marked table's strip and focus outline follow the card, an unmarked table's stay put.
+describe("VSObjectContainer chrome on a shifted table card", () => {
+   const scrollless = { scrollHeight: 600, clientHeight: 600 } as any;
+
+   const shiftedTable = (overrides: any = {}): any => Object.assign(makeVSObject({
+      absoluteName: "Table1",
+      objectType: "VSTable",
+      objectFormat: makeObjectFormat({ top: 40, left: 250, width: 400, height: 300 }),
+      container: "Tab1",
+      containerType: "VSTab",
+   }), {
+      vizModern: true,
+      shrink: true,
+      titleVisible: true,
+      titleFormat: { height: 30 },
+      padding: { top: 12, left: 10, bottom: 12, right: 6 },
+      objectHeight: 180,
+      cardTopShift: 120,
+   }, overrides);
+
+   const viewerComponent = (obj: any) => {
+      const { comp } = makeComponent({
+         context: { viewer: true, preview: false, binding: false } as any,
+         vsObjectActions: [{ showingActions: [], toolbarActions: [] } as any],
+      });
+      comp.containerRef = scrollless;
+      comp.vsInfo = makeVsInfo([obj]);
+      return comp;
+   };
+
+   it("anchors a marked table's strip in the title lane of the shifted card", () => {
+      const obj = shiftedTable();
+      const comp = viewerComponent(obj);
+
+      expect(comp.isToolbarAnchored(obj)).toBe(true);
+      // card top, then the lane's inset top and the centring (30 - 24) / 2
+      expect(comp.getToolbarTop(obj, 0)).toBe(40 + 120 + 12 + 3);
+   });
+
+   it("keeps the strip on objectFormat.top when nothing or zero is published", () => {
+      for(const cardTopShift of [undefined, 0]) {
+         const obj = shiftedTable({ cardTopShift });
+         const comp = viewerComponent(obj);
+
+         expect(comp.getToolbarTop(obj, 0)).toBe(40 + 12 + 3);
+         expect(comp.getVsObjectPosition(obj, 0, true)).toBe(40);
+      }
+   });
+
+   it("leaves the strip's horizontal geometry alone", () => {
+      const obj = shiftedTable({ realWidth: 320 });
+      const comp = viewerComponent(obj);
+
+      expect(comp.getToolbarLeft(obj, 0)).toBe(250 + 10);
+      expect(comp.getAnchoredToolbarWidth(obj)).toBe(320 - 10 - 6);
+   });
+
+   it("puts a marked table's focus outline on the shifted card", () => {
+      const obj = shiftedTable();
+      const comp = viewerComponent(obj);
+
+      expect(comp.getVsObjectPosition(obj, 0, true)).toBe(40 + 120);
+      expect(comp.getVsObjectPosition(obj, 0, false)).toBe(250);
+      expect(comp.getVsObjectHeight(obj)).toBe(300 - 120);
+   });
+
+   it("ends the outline on the card bottom for a crosstab with a hidden title", () => {
+      // objectHeight is published before the crosstab takes its hidden title off the card
+      const obj = shiftedTable({
+         absoluteName: "Crosstab1", objectType: "VSCrosstab", titleVisible: false,
+         objectHeight: 194, cardTopShift: 126,
+      });
+      const comp = viewerComponent(obj);
+
+      expect(comp.getVsObjectPosition(obj, 0, true)).toBe(40 + 126);
+      expect(comp.getVsObjectPosition(obj, 0, true) + comp.getVsObjectHeight(obj)).toBe(40 + 300);
+   });
+
+   it("still moves the outline at dense, where the lane holds no strip", () => {
+      const obj = shiftedTable({ titleFormat: { height: 20 } });
+      const comp = viewerComponent(obj);
+
+      expect(comp.isChromeSuppressed(obj)).toBe(true);
+      expect(comp.getVsObjectPosition(obj, 0, true)).toBe(40 + 120);
+   });
+
+   it("leaves an unmarked table's floating strip and outline where they were", () => {
+      const obj = shiftedTable({ vizModern: false, padding: undefined, cardTopShift: 200 });
+      const comp = viewerComponent(obj);
+
+      expect(comp.isToolbarAnchored(obj)).toBe(false);
+      expect(comp.getToolbarTop(obj, 0)).toBe(40);
+      expect(comp.getVsObjectPosition(obj, 0, true)).toBe(40);
+      expect(comp.getVsObjectHeight(obj)).toBe(180);
+   });
+
+   it("ignores a stale shift in max mode", () => {
+      const obj = shiftedTable({ maxMode: true });
+      const comp = viewerComponent(obj);
+
+      expect(comp.getToolbarTop(obj, 0)).toBe(40 + 12 + 3);
+      expect(comp.getVsObjectPosition(obj, 0, true)).toBeNull();
+   });
+
+   it("keeps the outline height rule for assemblies without a shift", () => {
+      const comp = viewerComponent(shiftedTable());
+      const list = makeVSObject({ objectType: "VSSelectionList", ...({ objectHeight: 30 } as any) });
+      const chart = makeVSObject({ objectType: "VSChart" });
+
+      expect(comp.getVsObjectHeight(list)).toBe(30);
+      expect(comp.getVsObjectHeight(chart)).toBe(100);
+      expect(comp.getVsObjectHeight(shiftedTable({ cardTopShift: undefined }))).toBe(180);
    });
 });

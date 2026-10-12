@@ -543,6 +543,15 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
       return object.padding ?? none;
    }
 
+   /**
+    * How far a marked table's card draws below objectFormat.top, as the table published it; zero
+    * in max mode, where the card fills the view.
+    */
+   private static getCardTopShift(object: VSObjectModel): number {
+      return !object.vizModern || (<any> object).maxMode ? 0 :
+         (<BaseTableModel> object).cardTopShift || 0;
+   }
+
    public getToolbarTop(object: VSObjectModel, i: number): number {
       if(this.isToolbarAnchored(object)) {
          // Inside the assembly, at the lane's top inset. The inset is the assembly's own card
@@ -551,7 +560,9 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
          const slack = anchoredLaneHeight(object) - GuiTool.MINI_TOOLBAR_HEIGHT_MODERN;
          const centring = Math.floor(Math.max(0, slack) / 2);
 
-         return object.objectFormat.top + VSObjectContainer.getLaneInset(object).top + centring;
+         // a shrunk table in bottom tabs draws its card below objectFormat.top
+         return object.objectFormat.top + VSObjectContainer.getCardTopShift(object) +
+            VSObjectContainer.getLaneInset(object).top + centring;
       }
 
       let actionHeight = 28;
@@ -818,8 +829,12 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
       if(obj.objectType === "VSCalcTable" || obj.objectType === "VSTable" ||
          obj.objectType === "VSCrosstab")
       {
-         return (this.viewer || this.embeddedVS) && !(<any> obj).maxMode ?
-            top ? obj?.objectFormat?.top : obj?.objectFormat?.left : null;
+         if(!(this.viewer || this.embeddedVS) || (<any> obj).maxMode) {
+            return null;
+         }
+
+         return top ? obj?.objectFormat?.top + VSObjectContainer.getCardTopShift(obj)
+            : obj?.objectFormat?.left;
       }
       else if(obj.objectType === "VSChart") {
          return (<any> obj).maxMode ? 0 : (this.viewer || obj.inEmbeddedViewsheet && !this.context.binding
@@ -995,6 +1010,16 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
    getActualWidth(vsObject: VSObjectModel): number {
       return this.dataTipService.isDataTip(vsObject.absoluteName) && !!vsObject.realWidth ?
          vsObject.realWidth : vsObject.objectFormat.width;
+   }
+
+   /**
+    * The focus outline's height; a shifted card keeps its bottom on the design bottom.
+    */
+   getVsObjectHeight(vsObject: VSObjectModel): number {
+      const shift = VSObjectContainer.getCardTopShift(vsObject);
+
+      return shift > 0 ? vsObject.objectFormat.height - shift
+         : (<any> vsObject).objectHeight || vsObject.objectFormat.height;
    }
 
    onMouseEnter(vsObject: VSObjectModel, event: any): void {

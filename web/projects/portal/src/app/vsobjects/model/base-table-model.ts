@@ -78,6 +78,7 @@ export interface BaseTableModel extends VSObjectModel {
    multiSelect?: boolean;
    empty?: boolean;
    objectHeight?: number;
+   cardTopShift?: number; // client-only: how far the viewer draws the card below objectFormat.top
    editing?: boolean;
    maxMode?: boolean;
    resizingCell?: boolean;
