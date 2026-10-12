@@ -431,7 +431,10 @@ class ChartAestheticMutatorTest {
       ChartBindingModel model = new ChartBindingModel();
       model.setChartType(GraphTypes.CHART_GANTT);
       ChartBindingMutator.setSingleShelf(model, "start", measure("Ship Date", "Max"));
-      ChartBindingMutator.setSingleShelf(model, "milestone", dimension("Phase"));
+      ChartDimensionRefModel milestone = new ChartDimensionRefModel();
+      milestone.setColumnValue("Phase");
+      milestone.setName("Phase");
+      model.setMilestoneField(milestone);
 
       ChartAestheticMutator.setFrame(model, "color", spec("type", "static", "color", "#cc2222"));
 

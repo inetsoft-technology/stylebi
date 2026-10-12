@@ -21,6 +21,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.internal.Util;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.SourceInfo;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.graph.CandleChartInfo;
 import inetsoft.uql.viewsheet.graph.GanttChartInfo;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
@@ -485,6 +486,11 @@ public final class ChartBindingMutator {
 
       ChartRefModel ref = field == null
          ? null : FieldRefFactory.toChartRef(field, model, rvs, source, refModelService);
+
+      // After toChartRef so a missing/invalid 'type' keeps the type error, and before
+      // assignSingleShelf so a refusal leaves the shelf and any prior binding untouched.
+      requireFieldKindForShelf(model, name, ref, field);
+
       ChartRefModel previous = readSingleShelf(model, name);
       carryForwardSameField(previous, ref, field);
 
@@ -545,6 +551,56 @@ public final class ChartBindingMutator {
             chartInfo.getChartType() + "), so a field bound there would be discarded. Only " +
             holders + " charts hold it; call set_chart_type to switch to one first, then bind '" +
             shelf + "'.");
+      }
+   }
+
+   /**
+    * Refuses a field of the wrong kind on a single shelf, mirroring the native drop rules the agent
+    * write path bypasses (it never goes through the drop handlers, which silently drop a wrong
+    * kind). open/high/low/close and start/end/milestone take a measure
+    * ({@code ChartDndHandler.dropToHighLow} :548-555, {@code dropToGantt} :632-679); source/target
+    * take a dimension ({@code dropToTree} :590-593); {@code path} takes either. Like native
+    * {@code isMeasure()}, a measure is an aggregate that is not discrete.
+    *
+    * <p>The Gantt shelves also need a date-typed column ({@code dropToGantt} raises
+    * {@code common.DataEditor.ganttDateField}); skipped when the column's type is not known.
+    */
+   private static void requireFieldKindForShelf(ChartBindingModel model, String shelf,
+                                                ChartRefModel ref, FieldRef field)
+   {
+      if(ref == null) {
+         return;
+      }
+
+      boolean measure = ref instanceof ChartAggregateRefModel agg && !agg.isDiscrete();
+      boolean gantt = "start".equals(shelf) || "end".equals(shelf) || "milestone".equals(shelf);
+      boolean measureShelf = gantt || "open".equals(shelf) || "high".equals(shelf) ||
+         "low".equals(shelf) || "close".equals(shelf);
+      boolean dimensionShelf = "source".equals(shelf) || "target".equals(shelf);
+      String column = field.column();
+
+      if(measureShelf && !measure) {
+         throw new IllegalArgumentException(
+            "'" + column + "' is a dimension, but the '" + shelf + "' shelf holds a measure " +
+            "(open/high/low/close and start/end/milestone take a measure)." +
+            (gantt ? " For Gantt, send a date column as {type:\"measure\", aggregate:\"None\"} " +
+             "(or Max/Min)." : ""));
+      }
+
+      if(dimensionShelf && measure) {
+         throw new IllegalArgumentException(
+            "'" + column + "' is a measure, but the '" + shelf + "' shelf holds a dimension " +
+            "(source/target take a dimension).");
+      }
+
+      if(gantt) {
+         String type = FieldRefFactory.dataTypeOf(model, column);
+
+         if(type != null && !XSchema.isDateType(type)) {
+            throw new IllegalArgumentException(
+               "'" + column + "' is a " + type + " column, but the '" + shelf + "' shelf needs a " +
+               "date column bound as {type:\"measure\", aggregate:\"None\"} (or Max/Min).");
+         }
       }
    }
 
