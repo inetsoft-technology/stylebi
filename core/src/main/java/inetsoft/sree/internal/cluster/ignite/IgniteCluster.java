@@ -174,7 +174,8 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
             // only constructed when the watchdog is actually enabled, so the common case (the
             // property unset) doesn't start an extra probe thread for nothing
             healthService = new ClusterHealthService(this, KeyValueStorageManager.getInstance());
-            healthWatchdog = new ClusterHealthWatchdog(ignite, this::sampleHealthStatus, -1L,
+            healthWatchdog = new ClusterHealthWatchdog(ignite, this::sampleHealthStatus,
+               () -> getMinorityIslandMessage() != null, -1L,
                TimeUnit.MINUTES.toMillis(stuckExchangeHaltMinutes));
             healthWatchdog.start();
          }

@@ -252,12 +252,18 @@ public class ClusterConfig implements Serializable {
 
    /**
     * The number of minutes a server node's cluster health check must continuously report the
-    * cluster not ready before the node raises a segmentation failure on itself, so that Ignite
-    * halts it and the container orchestrator restarts it into a fresh join of the cluster. This
-    * recovers a node that is stuck mid partition map exchange rather than cleanly segmented or
-    * in a minority island, which {@code cluster.minorityIslandHalt} does not cover. Unset (the
-    * default) disables this watchdog entirely, so existing deployments see no behavior change
-    * until an operator opts in.
+    * cluster not ready, excluding any time spent as a confirmed minority island, before the node
+    * raises a segmentation failure on itself, so that Ignite halts it and the container
+    * orchestrator restarts it into a fresh join of the cluster. This recovers a node that is
+    * stuck mid partition map exchange for a reason other than being a minority island. Unset
+    * (the default) disables this watchdog entirely, so existing deployments see no behavior
+    * change until an operator opts in.
+    * <p>
+    * This is independent of {@code cluster.minorityIslandHalt}: a confirmed minority island never
+    * by itself counts toward this threshold, no matter how long it lasts, so a node left in a
+    * minority island only halts if {@code cluster.minorityIslandHalt} is also enabled. If the
+    * island condition later clears while the node is still not ready for an unrelated reason,
+    * this watchdog resumes counting from there.
     *
     * @return the threshold in minutes, or {@code null} if disabled.
     */

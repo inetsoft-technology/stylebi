@@ -37,7 +37,11 @@ import static org.mockito.Mockito.*;
  * Bug #78141: {@link ClusterHealthWatchdog} must halt the node once the cluster health status has
  * been continuously not-ready for longer than the configured threshold, must never halt while the
  * status is ready, and a brief ready blip must reset the not-ready timer rather than let two
- * sub-threshold not-ready stretches add up to a halt.
+ * sub-threshold not-ready stretches add up to a halt. Review finding I1 (round 1 of community PR
+ * #6777): a confirmed minority island must never drive this watchdog's halt by itself, however
+ * long it persists (that remains exclusively {@code cluster.minorityIslandHalt}'s job), and once
+ * the island condition clears, genuine not-ready time must resume accruing without crediting the
+ * excluded island time toward the threshold.
  * <p>
  * This exercises {@link ClusterHealthWatchdog#check()} directly (its own javadoc says it is
  * "called only on the watchdog thread, or directly by tests") against a mocked {@link IgniteEx}
@@ -110,6 +114,67 @@ class ClusterHealthWatchdogTest {
    }
 
    /**
+    * Bug #78141 review finding I1: {@code ClusterHealthService} reports not-ready whenever the
+    * node is a confirmed minority island, regardless of {@code cluster.minorityIslandHalt} — so a
+    * minority island, by itself, must never drive this watchdog's halt no matter how long it
+    * persists. Only {@code cluster.minorityIslandHalt} is allowed to act on that condition.
+    */
+   @Test
+   void minorityIslandAloneNeverHaltsNoMatterHowLong() throws InterruptedException {
+      Fixture fx = new Fixture(200L);
+      fx.ready = false;
+      fx.minorityIsland = true;
+
+      for(int i = 0; i < 5; i++) {
+         fx.watchdog.check();
+         Thread.sleep(100L);
+      }
+      fx.watchdog.check();
+
+      assertTrue(fx.failures.isEmpty(),
+                 "a confirmed minority island must not drive the stuck-exchange halt by itself, " +
+                    "however long it persists");
+   }
+
+   /**
+    * Bug #78141 review finding I1, boundary case: once the minority-island condition clears, if
+    * the node is still genuinely not-ready for an unrelated reason, the watchdog must resume
+    * timing from that point — neither crediting the time spent excluded as a minority island
+    * (it must not halt immediately once the island clears) nor discarding it unfairly (it must
+    * still halt after roughly one more full threshold's worth of genuine not-ready time, not
+    * threshold-plus-island-duration).
+    */
+   @Test
+   void minorityIslandClearingResumesTimingWithoutCountingIslandTime() throws InterruptedException {
+      Fixture fx = new Fixture(200L);
+
+      // not-ready and a confirmed minority island for well over the threshold: must not halt
+      fx.ready = false;
+      fx.minorityIsland = true;
+      fx.watchdog.check();
+      Thread.sleep(250L);
+      fx.watchdog.check();
+      assertTrue(fx.failures.isEmpty(), "must not halt while excluded as a minority island");
+
+      // the island clears, but the node is still genuinely not-ready (e.g. a stuck exchange);
+      // this alone must not immediately cross the threshold
+      fx.minorityIsland = false;
+      Thread.sleep(100L);
+      fx.watchdog.check();
+      assertTrue(fx.failures.isEmpty(),
+                 "resuming after the island clears must not retroactively credit the excluded " +
+                    "island time toward the threshold");
+
+      // once genuine not-ready time (excluding the island stretch) itself exceeds the threshold,
+      // it must still halt
+      Thread.sleep(150L);
+      fx.watchdog.check();
+      assertEquals(1, fx.failures.size(),
+                   "genuine not-ready time accrued after the island clears must still be able " +
+                      "to reach the threshold and halt");
+   }
+
+   /**
     * Wires a {@link ClusterHealthWatchdog} to a mocked {@link IgniteEx} whose
     * {@link FailureProcessor#process(FailureContext)} just records the context instead of
     * raising a real failure (which would halt this test JVM, per
@@ -118,6 +183,7 @@ class ClusterHealthWatchdogTest {
     */
    private static final class Fixture {
       volatile boolean ready = true;
+      volatile boolean minorityIsland = false;
       final List<FailureContext> failures = new CopyOnWriteArrayList<>();
       final ClusterHealthWatchdog watchdog;
 
@@ -134,7 +200,8 @@ class ClusterHealthWatchdogTest {
 
          // intervalMillis is irrelevant here: check() is called directly, never via the
          // watchdog's own scheduled executor (start() is never called in this test)
-         watchdog = new ClusterHealthWatchdog(ignite, this::status, -1L, thresholdMillis);
+         watchdog = new ClusterHealthWatchdog(
+            ignite, this::status, () -> minorityIsland, -1L, thresholdMillis);
       }
 
       private ClusterHealthStatus status() {

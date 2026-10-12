@@ -27,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.*;
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -42,26 +43,46 @@ import java.util.function.Supplier;
  * and restarts the container by hand, which is exactly what the reported incident describes.
  * <p>
  * This watchdog samples the cluster health status on a daemon thread, tracks how long it has been
- * continuously not-ready (the timestamp resets the instant the status is observed ready again, it
+ * continuously not-ready (the timer resets the instant the status is observed ready again, it
  * never latches), and once that duration exceeds {@code cluster.stuckExchangeHaltMinutes}, raises
  * the identical synthetic {@link FailureType#SEGMENTATION} failure that {@code
  * MinorityIslandDetector.halt()} already raises for a minority island — funneling into the same
  * halt-and-restart path a genuine segmentation already uses today. It is off by default: {@code
  * cluster.stuckExchangeHaltMinutes} is unset unless an operator opts in.
+ * <p>
+ * <b>Minority-island carve-out.</b> {@code ClusterHealthService} reports not-ready whenever this
+ * node is a confirmed minority island, regardless of {@code cluster.minorityIslandHalt} — that
+ * flag only gates whether {@code MinorityIslandDetector} itself halts the node, not whether the
+ * health status reflects the condition. To keep the two opt-in knobs functionally independent as
+ * documented, this watchdog excludes any tick where the cluster is currently a confirmed minority
+ * island from its not-ready timer entirely: such a tick neither starts, advances, nor resets the
+ * timer. So a node that is a minority island for longer than {@code
+ * cluster.stuckExchangeHaltMinutes} is never halted by this watchdog on that basis alone — only
+ * {@code cluster.minorityIslandHalt} can do that. If the island condition later clears while the
+ * node is still not-ready for an unrelated reason (e.g. a genuinely stuck exchange), timing
+ * resumes from wherever it had already reached before the island excluded it — island time is
+ * never counted, but genuine not-ready time already accrued before or after the island is not
+ * discarded either.
  */
 final class ClusterHealthWatchdog implements AutoCloseable {
    /**
-    * @param ignite          the local Ignite instance, used only to raise the segmentation
-    *                        failure once the threshold is exceeded.
-    * @param statusSupplier  gets the current cluster health status. May be called from the
-    *                        watchdog thread only; any failure is treated as an inconclusive tick,
-    *                        neither starting nor clearing the not-ready timer.
-    * @param intervalMillis  the sampling interval, or a value {@code <= 0} for the default.
-    * @param thresholdMillis how long the status must be continuously not-ready before this node
-    *                        halts itself. Must be positive; callers only construct this watchdog
-    *                        when the feature is enabled.
+    * @param ignite              the local Ignite instance, used only to raise the segmentation
+    *                            failure once the threshold is exceeded.
+    * @param statusSupplier      gets the current cluster health status. May be called from the
+    *                            watchdog thread only; any failure is treated as an inconclusive
+    *                            tick, neither starting nor clearing the not-ready timer.
+    * @param minorityIslandSupplier reports whether this node is currently a confirmed minority
+    *                            island. May be called from the watchdog thread only; any failure
+    *                            is treated as "not a minority island" so the not-ready timer still
+    *                            evaluates normally on that tick.
+    * @param intervalMillis      the sampling interval, or a value {@code <= 0} for the default.
+    * @param thresholdMillis     how long the status must be continuously not-ready, excluding any
+    *                            time spent as a confirmed minority island, before this node halts
+    *                            itself. Must be positive; callers only construct this watchdog
+    *                            when the feature is enabled.
     */
    ClusterHealthWatchdog(Ignite ignite, Supplier<ClusterHealthStatus> statusSupplier,
+                         BooleanSupplier minorityIslandSupplier,
                          long intervalMillis, long thresholdMillis)
    {
       if(thresholdMillis <= 0) {
@@ -70,6 +91,7 @@ final class ClusterHealthWatchdog implements AutoCloseable {
 
       this.ignite = ignite;
       this.statusSupplier = statusSupplier;
+      this.minorityIslandSupplier = minorityIslandSupplier;
       this.intervalMillis = intervalMillis > 0 ? intervalMillis : DEFAULT_INTERVAL_MILLIS;
       this.thresholdMillis = thresholdMillis;
       this.executor = Executors.newSingleThreadScheduledExecutor(r -> {
@@ -119,21 +141,47 @@ final class ClusterHealthWatchdog implements AutoCloseable {
          return;
       }
 
-      update(status != null && status.isReady(), System.currentTimeMillis());
+      boolean minorityIsland;
+
+      try {
+         minorityIsland = minorityIslandSupplier.getAsBoolean();
+      }
+      catch(Throwable e) {
+         // an inconclusive island check shouldn't block the stuck-exchange timer from working;
+         // fail open to "not a minority island" and evaluate the tick normally
+         LOG.debug("Failed to sample minority-island status", e);
+         minorityIsland = false;
+      }
+
+      update(status != null && status.isReady(), minorityIsland, System.currentTimeMillis());
    }
 
-   private synchronized void update(boolean ready, long now) {
+   private synchronized void update(boolean ready, boolean minorityIsland, long now) {
       if(ready) {
          notReadySince = -1L;
+         excludedMillis = 0L;
          haltPending = false;
+         lastTickMillis = now;
          return;
       }
 
+      long elapsed = lastTickMillis < 0 ? 0L : Math.max(0L, now - lastTickMillis);
+      lastTickMillis = now;
+
       if(notReadySince < 0) {
+         // the first tick of a new not-ready stretch: nothing has elapsed within this stretch
+         // yet, whether or not this very tick happens to be a minority island
          notReadySince = now;
+         excludedMillis = 0L;
+      }
+      else if(minorityIsland) {
+         // minority-island halting is governed entirely by cluster.minorityIslandHalt; exclude
+         // this tick's elapsed time from the stuck-exchange timer so the two knobs stay
+         // independent, without discarding genuine not-ready time already accrued
+         excludedMillis += elapsed;
       }
 
-      if(!haltPending && now - notReadySince >= thresholdMillis) {
+      if(!haltPending && now - notReadySince - excludedMillis >= thresholdMillis) {
          haltPending = true;
       }
 
@@ -169,10 +217,13 @@ final class ClusterHealthWatchdog implements AutoCloseable {
 
    private final Ignite ignite;
    private final Supplier<ClusterHealthStatus> statusSupplier;
+   private final BooleanSupplier minorityIslandSupplier;
    private final long intervalMillis;
    private final long thresholdMillis;
    private final ScheduledExecutorService executor;
-   private long notReadySince = -1L; // guarded by this
+   private long notReadySince = -1L; // guarded by this; start of the current not-ready stretch
+   private long excludedMillis; // guarded by this; minority-island time within that stretch
+   private long lastTickMillis = -1L; // guarded by this; time of the previous processed tick
    private boolean haltPending; // guarded by this
 
    private static final long DEFAULT_INTERVAL_MILLIS = 30_000L;
