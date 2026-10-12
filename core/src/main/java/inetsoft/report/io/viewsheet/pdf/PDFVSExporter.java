@@ -52,6 +52,7 @@ import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.util.*;
+import java.util.List;
 
 /**
  * The class is used to export pdf.
@@ -82,6 +83,91 @@ public class PDFVSExporter extends AbstractVSExporter {
    }
 
    /**
+    * Whether a sheet inherits a print layout depends on runtime visibility, which can differ
+    * between the exported states, and write() emits either the print layout reports or the
+    * canvas pages, never both. So the inheritance has to be decided over all states. (#78131)
+    */
+   @Override
+   public boolean isPrepareStatesRequired() {
+      return true;
+   }
+
+   /**
+    * Decide whether the exported states inherit the print layout of an embedded viewsheet.
+    * They do only when every state without a print layout of its own would inherit one;
+    * when any of them would draw the canvas, all of them draw the canvas, so no state is
+    * dropped and the print layout reports are never written after canvas pages. (#78131)
+    * @param boxes the sandboxes of every state, in export order.
+    */
+   @Override
+   public void prepareStates(List<ViewsheetSandbox> boxes) {
+      inheritedBoxes.clear();
+      boolean inherit = true;
+
+      for(ViewsheetSandbox box : boxes) {
+         PrintLayout playout = box.getViewsheet().getLayoutInfo().getPrintLayout();
+
+         // the own print layout is part of the definition, the same for every state
+         if(playout != null && !playout.isEmpty()) {
+            continue;
+         }
+
+         ViewsheetSandbox embeddedBox = getInheritedLayoutBox(box);
+
+         if(embeddedBox == null) {
+            inherit = false;
+            break;
+         }
+
+         inheritedBoxes.put(box, embeddedBox);
+      }
+
+      if(!inherit) {
+         inheritedBoxes.clear();
+      }
+
+      inheritLayout = inherit;
+   }
+
+   /**
+    * Get the sandbox of the embedded viewsheet whose print layout is used to export the
+    * state, or <tt>null</tt> to export the canvas.
+    * @param box the sandbox of the state being exported.
+    */
+   private ViewsheetSandbox getExportLayoutBox(ViewsheetSandbox box) {
+      // prepareStates() found a state that draws the canvas
+      if(Boolean.FALSE.equals(inheritLayout)) {
+         return null;
+      }
+
+      // a caller that did not call prepareStates() exported a canvas state already; the
+      // print layout reports would replace its page, so keep drawing the canvas
+      if(canvasExported) {
+         return null;
+      }
+
+      // reuse the decision of prepareStates(), so a state can't resolve differently now
+      ViewsheetSandbox embeddedBox = inheritedBoxes.get(box);
+      return embeddedBox != null ? embeddedBox : getInheritedLayoutBox(box);
+   }
+
+   /**
+    * Get the sandbox of the embedded viewsheet whose non-empty print layout the exported
+    * sheet inherits, or <tt>null</tt> if it inherits none.
+    * @param box the sandbox of the sheet being exported.
+    */
+   private ViewsheetSandbox getInheritedLayoutBox(ViewsheetSandbox box) {
+      ViewsheetSandbox embeddedBox = getInheritedLayoutSandbox(box, box.getViewsheet());
+      Viewsheet embeddedVS = embeddedBox == null ? null : embeddedBox.getViewsheet();
+      PrintLayout embeddedLayout = embeddedVS == null ?
+         null : embeddedVS.getLayoutInfo().getPrintLayout();
+
+      // the sandbox is not guaranteed to hold the same viewsheet instance the layout was
+      // resolved from, so validate the layout that is actually going to be rendered
+      return embeddedLayout != null && !embeddedLayout.isEmpty() ? embeddedBox : null;
+   }
+
+   /**
     * Export one single viewsheet to document.
     * @param box the viewsheet sandbox.
     * @param sheet the sheet name.
@@ -103,17 +189,12 @@ public class PDFVSExporter extends AbstractVSExporter {
       if(playout == null) {
          // the sheet being exported may be a thin wrapper around a reusable viewsheet that
          // carries the print layout; render that one instead of falling back to the canvas
-         ViewsheetSandbox embeddedBox = getInheritedLayoutSandbox(box, viewsheet);
-         Viewsheet embeddedVS = embeddedBox == null ? null : embeddedBox.getViewsheet();
-         PrintLayout embeddedLayout = embeddedVS == null ?
-            null : embeddedVS.getLayoutInfo().getPrintLayout();
+         ViewsheetSandbox embeddedBox = getExportLayoutBox(box);
 
-         // the sandbox is not guaranteed to hold the same viewsheet instance the layout was
-         // resolved from, so validate the layout that is actually going to be rendered
-         if(embeddedLayout != null && !embeddedLayout.isEmpty()) {
+         if(embeddedBox != null) {
             layoutBox = embeddedBox;
-            viewsheet = embeddedVS;
-            playout = embeddedLayout;
+            viewsheet = embeddedBox.getViewsheet();
+            playout = viewsheet.getLayoutInfo().getPrintLayout();
             LOG.debug("Exporting with the print layout of embedded viewsheet {}.",
                       viewsheet.getName());
          }
@@ -150,6 +231,7 @@ public class PDFVSExporter extends AbstractVSExporter {
          return;
       }
 
+      canvasExported = true;
       super.export(box, sheet, index, helper);
    }
 
@@ -1181,6 +1263,11 @@ public class PDFVSExporter extends AbstractVSExporter {
    @Override
    public void write() throws IOException {
       if(!reportList.isEmpty()) {
+         if(canvasExported) {
+            LOG.warn("The PDF export mixes print layout and canvas states, the canvas " +
+                        "pages are dropped. Export the states in separate files.");
+         }
+
          // Generate closes the output stream so we need to build a CompositeSheet
          // from the currentview, bookmarks, etc, then call generate only once
          generator.setPrintLayoutMode(true);
@@ -1277,6 +1364,12 @@ public class PDFVSExporter extends AbstractVSExporter {
    private PDF3Generator generator;
    private boolean genLink;
    private ArrayList<ReportSheet> reportList = new ArrayList<>();
+   // the decision of prepareStates(), null if it was not called (#78131)
+   private Boolean inheritLayout;
+   // the state sandbox -> the embedded sandbox whose print layout it inherits
+   private final Map<ViewsheetSandbox, ViewsheetSandbox> inheritedBoxes = new IdentityHashMap<>();
+   // true once a state was drawn on the canvas
+   private boolean canvasExported;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(PDFVSExporter.class);
