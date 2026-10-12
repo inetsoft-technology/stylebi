@@ -33,13 +33,14 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.*;
+import java.awt.geom.Rectangle2D;
 import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * A container showing the current selection draws one collapsed row per selection outside it,
@@ -87,6 +88,79 @@ class SelectionContainerOutRowsExportTest {
       assertEquals(40, htmlChildOffset(null, true) - htmlChildOffset(null, false));
    }
 
+   @Test
+   void aMarkedContainerWithAHiddenTitleFramesTheWholeBox() {
+      assertEquals(new Rectangle2D.Double(418, 38, 300, 240), drawn(VizMark.MODERN_LIGHT, false).frame);
+   }
+
+   @Test
+   void anUnmarkedContainerWithAHiddenTitleFramesBelowTheLaneAsBefore() {
+      assertEquals(new Rectangle2D.Double(418, 58, 300, 220), drawn(null, false).frame);
+   }
+
+   @Test
+   void aVisibleTitleFramesTheWholeBoxAsBefore() {
+      assertEquals(new Rectangle2D.Double(418, 38, 300, 240), drawn(VizMark.MODERN_LIGHT, true).frame);
+   }
+
+   @Test
+   void aMarkedContainerWithAHiddenTitleDrawsItsOutRowsFromItsTop() {
+      assertEquals(List.of(38.0, 68.0), drawn(VizMark.MODERN_LIGHT, false).rows);
+   }
+
+   @Test
+   void aMarkedContainerWithAVisibleTitleDrawsItsOutRowsUnderTheTitleAsBefore() {
+      assertEquals(List.of(68.0, 98.0), drawn(VizMark.MODERN_LIGHT, true).rows);
+   }
+
+   @Test
+   void anUnmarkedContainerWithAHiddenTitleDrawsItsOutRowsUnderTheLaneAsBefore() {
+      assertEquals(List.of(58.0, 78.0), drawn(null, false).rows);
+   }
+
+   @Test
+   void aMarkedContainerWithAHiddenTitleStacksItsChildUnderTheRowsFromItsTop() {
+      CurrentSelectionVSAssembly container = container(VizMark.MODERN_LIGHT, true, false);
+      VSAssembly child = (VSAssembly) container.getViewsheet().getAssembly("SelectionList2");
+      assertEquals(98f, CoordinateHelper.getContainerChildTop(container, child, 38, null));
+   }
+
+   private static Probe drawn(VizMark mark, boolean titleVisible) {
+      CurrentSelectionVSAssembly container = container(mark, true, titleVisible);
+      Probe probe = new Probe(container.getViewsheet());
+      probe.write(container);
+      return probe;
+   }
+
+   // the PDF, PNG and PowerPoint helpers share this drawing; the probe records it
+   private static final class Probe extends VSCurrentSelectionHelper {
+      Probe(Viewsheet vs) {
+         cHelper = new CoordinateHelper();
+         cHelper.setViewsheet(vs);
+      }
+
+      @Override
+      protected void writeTitle(CurrentSelectionVSAssemblyInfo info) {
+      }
+
+      @Override
+      protected void drawTextBox(String value, Rectangle2D bounds, VSCompositeFormat format,
+                                 Insets padding)
+      {
+         frame = bounds;
+      }
+
+      @Override
+      protected void writeOutTitle(String title, String value, Rectangle2D bounds,
+                                   VSCompositeFormat format, double titleRatio, Insets padding)
+      {
+         rows.add(bounds.getY());
+      }
+
+      private Rectangle2D frame;
+      private final List<Double> rows = new ArrayList<>();
+   }
+
    private static int htmlChildOffset(VizMark mark, boolean showCurrent) {
       CurrentSelectionVSAssembly container = container(mark, showCurrent);
       HTMLCoordinateHelper helper = new HTMLCoordinateHelper();
@@ -124,6 +198,12 @@ class SelectionContainerOutRowsExportTest {
    }
 
    private static CurrentSelectionVSAssembly container(VizMark mark, boolean showCurrent) {
+      return container(mark, showCurrent, true);
+   }
+
+   private static CurrentSelectionVSAssembly container(VizMark mark, boolean showCurrent,
+                                                       boolean titleVisible)
+   {
       Viewsheet vs = new Viewsheet();
       vs.getViewsheetInfo().setVizDensity("comfortable");
       CurrentSelectionVSAssembly container = new CurrentSelectionVSAssembly(vs, "CurrentSelection1");
@@ -131,6 +211,7 @@ class SelectionContainerOutRowsExportTest {
       container.getVSAssemblyInfo().setPixelOffset(new Point(418, 38));
       container.getVSAssemblyInfo().setPixelSize(new Dimension(300, 240));
       container.getVSAssemblyInfo().setVizMark(mark);
+      ((CurrentSelectionVSAssemblyInfo) container.getVSAssemblyInfo()).setTitleVisibleValue(titleVisible);
       list(vs, "SelectionList2", new Point(418, 58));
       list(vs, "SelectionList1", new Point(38, 38));
       list(vs, "SelectionList5", new Point(40, 320));

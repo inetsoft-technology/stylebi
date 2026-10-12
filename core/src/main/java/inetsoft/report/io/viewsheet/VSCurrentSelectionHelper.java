@@ -63,7 +63,8 @@ public abstract class VSCurrentSelectionHelper extends ExporterHelper {
       Point cellpos = info.getViewsheet().getPixelPosition(info);
       Rectangle2D bounds = cHelper.createBounds(cellpos, info.getPixelSize());
 
-      if(!info.isTitleVisible()) {
+      // a hidden title leaves its lane empty above the frame, unless the container drops the lane
+      if(!info.isTitleVisible() && !info.isTitleLaneDropped()) {
          Rectangle2D title = getTitleBounds(info);
          double y = bounds.getY() + title.getHeight();
          double h = bounds.getHeight() - title.getHeight();
@@ -122,7 +123,7 @@ public abstract class VSCurrentSelectionHelper extends ExporterHelper {
 
       size = new Dimension(size.width, info.getOutSelectionRowHeight(AssetUtil.defh));
       Point startPos = info.getViewsheet().getPixelPosition(info);
-      startPos = new Point(startPos.x, startPos.y + info.getTitleHeight());
+      startPos = new Point(startPos.x, startPos.y + info.getTitleLaneHeight());
       Rectangle2D tbounds = cHelper.createBounds(startPos, size);
       double currentY = tbounds.getY();
       double theight = tbounds.getHeight();
