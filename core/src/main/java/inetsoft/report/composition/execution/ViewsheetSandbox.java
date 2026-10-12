@@ -8071,6 +8071,23 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    }
 
    /**
+    * Get the FormTableLens of a form table if it was built, without building it. Edits are
+    * only made on the built one, so a form table without it has no edits (#78244).
+    * @param name the specified table data assembly name.
+    * @return the FormTableLens, or <tt>null</tt> if it isn't built.
+    */
+   public FormTableLens getCachedFormTableLens(String name) {
+      int index = name.lastIndexOf('.');
+
+      if(index >= 0) {
+         ViewsheetSandbox box = getSandbox(name.substring(0, index));
+         return box == null ? null : box.getCachedFormTableLens(name.substring(index + 1));
+      }
+
+      return disposed ? null : fmap.get(name);
+   }
+
+   /**
     * Get the fully loaded data of a form table. The data is a lazy table, and a cancel of the
     * assembly's query manager after it is returned and before it is read, e.g. by a selection's
     * change or a newer query of the table, cuts it short: it keeps only the rows read before the

@@ -81,12 +81,46 @@ class FormTableLensCancelTest {
       assertEquals(1, fetches.get(), "the user's cancel must not be fetched again");
    }
 
+   // the pending edits check of every update tick reads it, it must not run the query
+   @Test
+   void cachedFormTableLensIsOnlyTheBuiltOne() throws Exception {
+      ViewsheetSandbox box = formTableBox(new AtomicInteger(), n -> false, false);
+
+      try(MockedStatic<VSAQuery> st =
+             Mockito.mockStatic(VSAQuery.class, Mockito.CALLS_REAL_METHODS))
+      {
+         st.when(() -> VSAQuery.createVSAQuery(Mockito.any(), Mockito.any(),
+                                               Mockito.anyInt())).thenReturn(query);
+         assertNull(box.getCachedFormTableLens("Table1"), "it must not build the form table");
+         Mockito.verify(query, Mockito.never()).getData();
+
+         FormTableLens form = box.getFormTableLens("Table1");
+         assertSame(form, box.getCachedFormTableLens("Table1"));
+      }
+   }
+
    /**
     * Get the form table lens of a form table whose query returns a condition filter, which the
     * query manager cancels after it is returned on the fetches the predicate accepts.
     */
    private FormTableLens getFormTableLens(AtomicInteger fetches, IntPredicate cut,
                                           boolean userCancel)
+      throws Exception
+   {
+      ViewsheetSandbox box = formTableBox(fetches, cut, userCancel);
+
+      try(MockedStatic<VSAQuery> st =
+             Mockito.mockStatic(VSAQuery.class, Mockito.CALLS_REAL_METHODS))
+      {
+         st.when(() -> VSAQuery.createVSAQuery(Mockito.any(), Mockito.any(),
+                                               Mockito.anyInt())).thenReturn(query);
+         return box.getFormTableLens("Table1");
+      }
+   }
+
+   // a sandbox of a form table "Table1" whose query is the query field
+   private ViewsheetSandbox formTableBox(AtomicInteger fetches, IntPredicate cut,
+                                         boolean userCancel)
       throws Exception
    {
       Viewsheet vs = new Viewsheet();
@@ -99,7 +133,7 @@ class FormTableLensCancelTest {
                                                   false, entry);
       QueryManager qmgr = box.getQueryManager("Table1");
 
-      TableVSAQuery query = Mockito.mock(TableVSAQuery.class);
+      query = Mockito.mock(TableVSAQuery.class);
       Mockito.when(query.getData()).thenAnswer(inv -> {
          ConditionFilter data =
             new ConditionFilter(XTableUtil.getDefaultTableLens(), new ConditionGroup());
@@ -117,13 +151,8 @@ class FormTableLensCancelTest {
 
          return data;
       });
-
-      try(MockedStatic<VSAQuery> st =
-             Mockito.mockStatic(VSAQuery.class, Mockito.CALLS_REAL_METHODS))
-      {
-         st.when(() -> VSAQuery.createVSAQuery(Mockito.any(), Mockito.any(),
-                                               Mockito.anyInt())).thenReturn(query);
-         return box.getFormTableLens("Table1");
-      }
+      return box;
    }
+
+   private TableVSAQuery query; // the query of the last formTableBox()
 }
