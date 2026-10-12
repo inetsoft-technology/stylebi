@@ -216,9 +216,12 @@ class ChartBindingMutatorTest {
                                  "start", "end", "milestone"))
       {
          ChartBindingModel model = new ChartBindingModel();
+         boolean dimensionShelf = "source".equals(shelf) || "target".equals(shelf);
 
          ChartBindingMutator.setSingleShelf(
-            model, shelf, new FieldRef("Price", "measure", "Sum", null, null));
+            model, shelf, dimensionShelf
+               ? new FieldRef("Region", "dimension", null, null, null)
+               : new FieldRef("Price", "measure", "Sum", null, null));
 
          assertNotNull(ChartBindingMutator.readSingleShelf(model, shelf),
                        shelf + " must be readable after being set");
@@ -1141,13 +1144,128 @@ class ChartBindingMutatorTest {
 
       ChartBindingModel relation = new ChartBindingModel();
       ChartBindingMutator.setSingleShelf(
-         relation, "source", measure("Price"), null, null, null, new RelationVSChartInfo());
+         relation, "source", dimension("Region"), null, null, null, new RelationVSChartInfo());
       assertNotNull(ChartBindingMutator.readSingleShelf(relation, "source"));
 
       ChartBindingModel gantt = new ChartBindingModel();
       ChartBindingMutator.setSingleShelf(
          gantt, "start", measure("Price"), null, null, null, new GanttVSChartInfo());
       assertNotNull(ChartBindingMutator.readSingleShelf(gantt, "start"));
+   }
+
+   // ── single shelf field kind (#78360) ──────────────────────────────────────
+
+   private static FieldRef dimension(String col) {
+      return new FieldRef(col, "dimension", null, null, null);
+   }
+
+   private static ChartBindingModel modelWithColumn(String name, String dataType) {
+      ChartBindingModel model = new ChartBindingModel();
+      BindingModel.SourceTable table = new BindingModel.SourceTable();
+      BindingModel.SourceTableColumn column = new BindingModel.SourceTableColumn();
+      column.setName(name);
+      column.setDataType(dataType);
+      table.setColumns(List.of(column));
+      model.setTables(List.of(table));
+      return model;
+   }
+
+   @Test
+   void refusesADimensionOnAMeasureOnlySingleShelf() {
+      for(String shelf : List.of("open", "high", "low", "close", "start", "end", "milestone")) {
+         ChartBindingModel model = new ChartBindingModel();
+         IllegalArgumentException e = assertThrows(
+            IllegalArgumentException.class,
+            () -> ChartBindingMutator.setSingleShelf(model, shelf, dimension("Region")));
+         assertTrue(e.getMessage().contains("'Region'") && e.getMessage().contains("'" + shelf + "'")
+                       && e.getMessage().contains("measure"), e.getMessage());
+         assertNull(ChartBindingMutator.readSingleShelf(model, shelf));
+      }
+   }
+
+   @Test
+   void theGanttRefusalNamesAWorkingShape() {
+      IllegalArgumentException e = assertThrows(
+         IllegalArgumentException.class,
+         () -> ChartBindingMutator.setSingleShelf(
+            new ChartBindingModel(), "start", dimension("Ship Date")));
+      assertTrue(e.getMessage().contains("aggregate:\"None\""), e.getMessage());
+   }
+
+   @Test
+   void refusesAMeasureOnSourceAndTarget() {
+      for(String shelf : List.of("source", "target")) {
+         ChartBindingModel model = new ChartBindingModel();
+         IllegalArgumentException e = assertThrows(
+            IllegalArgumentException.class,
+            () -> ChartBindingMutator.setSingleShelf(model, shelf, measure("Price")));
+         assertTrue(e.getMessage().contains("'Price'") && e.getMessage().contains("'" + shelf + "'")
+                       && e.getMessage().contains("dimension"), e.getMessage());
+         assertNull(ChartBindingMutator.readSingleShelf(model, shelf));
+      }
+   }
+
+   @Test
+   void theKindGateAlsoFiresWithAChartInfo() {
+      ChartBindingModel model = new ChartBindingModel();
+      assertThrows(IllegalArgumentException.class,
+                   () -> ChartBindingMutator.setSingleShelf(
+                      model, "open", dimension("Region"), null, null, null,
+                      new CandleVSChartInfo()));
+      assertNull(ChartBindingMutator.readSingleShelf(model, "open"));
+   }
+
+   @Test
+   void theKindIsCaseInsensitiveAndPathTakesEither() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setSingleShelf(
+         model, "open", new FieldRef("Price", "MEASURE", "Sum", null, null));
+      assertNotNull(ChartBindingMutator.readSingleShelf(model, "open"));
+      ChartBindingMutator.setSingleShelf(model, "path", dimension("Region"));
+      assertInstanceOf(ChartDimensionRefModel.class,
+                       ChartBindingMutator.readSingleShelf(model, "path"));
+      ChartBindingMutator.setSingleShelf(model, "path", measure("Price"));
+      assertInstanceOf(ChartAggregateRefModel.class,
+                       ChartBindingMutator.readSingleShelf(model, "path"));
+   }
+
+   @Test
+   void aMissingTypeKeepsTheTypeErrorNotTheKindError() {
+      ChartBindingModel model = new ChartBindingModel();
+      IllegalArgumentException e = assertThrows(
+         IllegalArgumentException.class,
+         () -> ChartBindingMutator.setSingleShelf(
+            model, "open", new FieldRef("Price", null, null, null, null)));
+      assertTrue(e.getMessage().contains("type"), e.getMessage());
+      assertFalse(e.getMessage().contains("holds a measure"), e.getMessage());
+   }
+
+   @Test
+   void aRefusedWriteLeavesThePriorBindingOnTheShelf() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setSingleShelf(model, "close", measure("Price"));
+      Object before = ChartBindingMutator.readSingleShelf(model, "close");
+
+      assertThrows(IllegalArgumentException.class,
+                   () -> ChartBindingMutator.setSingleShelf(model, "close", dimension("Region")));
+      assertSame(before, ChartBindingMutator.readSingleShelf(model, "close"));
+   }
+
+   @Test
+   void ganttRefusesAMeasureOnANonDateColumnButAllowsADateOrUnknownColumn() {
+      ChartBindingModel model = modelWithColumn("Price", "double");
+      IllegalArgumentException e = assertThrows(
+         IllegalArgumentException.class,
+         () -> ChartBindingMutator.setSingleShelf(model, "start", measure("Price")));
+      assertTrue(e.getMessage().contains("date"), e.getMessage());
+      assertNull(ChartBindingMutator.readSingleShelf(model, "start"));
+
+      ChartBindingModel dateModel = modelWithColumn("Ship Date", "date");
+      ChartBindingMutator.setSingleShelf(
+         dateModel, "start", new FieldRef("Ship Date", "measure", "None", null, null));
+      assertNotNull(ChartBindingMutator.readSingleShelf(dateModel, "start"));
+
+      ChartBindingMutator.setSingleShelf(new ChartBindingModel(), "end", measure("Unknown"));
    }
 
    @Test
