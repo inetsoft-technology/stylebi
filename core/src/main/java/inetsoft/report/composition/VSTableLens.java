@@ -2155,9 +2155,9 @@ public class VSTableLens extends DefaultTableFilter implements XMLSerializable, 
       int inset = getEffectiveRowInset(row, info);
 
       // what the stored height left out is lost only where a stylesheet displaces the assembly's
-      // padding on every column of the row. Under partial or no coverage the assembly's own value is already in
-      // the inset, so flooring there would stop an author padding below it from shortening
-      // the row at all - the pane's vertical half could then only grow one
+      // padding on every column of the row. Under partial or no coverage the assembly's own value
+      // is already in the inset, so flooring there would stop an author padding below it from
+      // shortening the row at all - the pane's vertical half could then only grow one
       if(isCSSRowFullyPadded(row) && !isCSSRowHeightDefined(row)) {
          return Math.max(inset, VSDensityDefaults.excludedCellPaddingHeight(info));
       }
@@ -2183,7 +2183,7 @@ public class VSTableLens extends DefaultTableFilter implements XMLSerializable, 
 
    /**
     * Whether a CSSTableStyle sets this row's height, in which case the stored height is the
-    * stylesheet's rather than the shrunk density one and no seed came out of it.
+    * stylesheet's rather than the shrunk density one and nothing was left out of it.
     *
     * Read off the style rather than through getCSSDataRowHeight, which stops reporting a height
     * once the author sets one of their own. Store and render sit on opposite sides of that flag

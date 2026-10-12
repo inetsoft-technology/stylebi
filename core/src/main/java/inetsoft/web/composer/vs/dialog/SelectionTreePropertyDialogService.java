@@ -333,10 +333,8 @@ public class SelectionTreePropertyDialogService {
          int minListHeight;
 
          if(streeInfo.getVizMark() != null) {
-            // a marked tree's rows and title lane follow the density, and its rows sit inside the
-            // card inset
-            minListHeight = streeInfo.getListBodyHeight() +
-               (streeInfo.isTitleVisible() ? streeInfo.getTitleHeight() : 0);
+            // a marked tree's rows sit under its title lane and inside its card inset, as a list's do
+            minListHeight = streeInfo.getTitleHeight() + streeInfo.getListBodyHeight();
          }
          else {
             minListHeight = streeInfo.getListHeight() * AssetUtil.defh;

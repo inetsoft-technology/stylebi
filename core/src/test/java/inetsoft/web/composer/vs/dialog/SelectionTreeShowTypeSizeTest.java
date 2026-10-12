@@ -85,6 +85,19 @@ class SelectionTreeShowTypeSizeTest {
       assertEquals(6 * 28 + 30 + 32, switchedToList(info).getPixelSize().height);
    }
 
+   // title hidden: the rebuild still counts the title lane, as a list's does, so the box does not
+   // come back a lane short
+   @Test
+   void switchingAMarkedTreeWithAHiddenTitleToListKeepsTheTitleLane() throws Exception {
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      SelectionTreeVSAssemblyInfo info = new SelectionTreeVSAssemblyInfo();
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      VizModernizeUtil.reseedAfterRestore(info);
+      info.setTitleVisibleValue(false);
+
+      assertEquals(6 * 28 + 30 + 32, switchedToList(info).getPixelSize().height);
+   }
+
    // unmarked: six 20px rows and a 20px cell for the title, exactly as before
    @Test
    void switchingAnUnmarkedTreeToListKeepsTheLegacyHeight() throws Exception {
