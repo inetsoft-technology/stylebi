@@ -646,8 +646,7 @@ class VSEmailServiceCreateSandboxTest {
       // Bug #77446: the export streams were closed only after a successful export, and the PNG
       // branch with several bookmarks opened an extra stream it never used or closed. An open
       // stream keeps the cache file locked on Windows, so list the open file descriptors.
-      Path fds = Path.of("/proc/self/fd");
-      assumeTrue(Files.isDirectory(fds), "needs /proc/self/fd to list open files");
+      assumeTrue(hasProcFds(), "needs /proc/self/fd to list open files");
 
       ViewsheetSandbox liveBox = mock(ViewsheetSandbox.class);
       when(liveBox.getVariableTable()).thenReturn(new VariableTable());
@@ -713,8 +712,7 @@ class VSEmailServiceCreateSandboxTest {
       // Bug #77446: a large Excel export is written to an .xlsx file and then exported again as
       // CSV, which zips and deletes the .xlsx. The .xlsx stream must be closed before the CSV
       // export, and neither stream may stay open when either export fails.
-      assumeTrue(Files.isDirectory(Path.of("/proc/self/fd")),
-                 "needs /proc/self/fd to list open files");
+      assumeTrue(hasProcFds(), "needs /proc/self/fd to list open files");
 
       ViewsheetSandbox liveBox = mock(ViewsheetSandbox.class);
       when(liveBox.getVariableTable()).thenReturn(new VariableTable());
@@ -779,6 +777,15 @@ class VSEmailServiceCreateSandboxTest {
 
       assertEquals(List.of(), openFilesIn(dir),
          "emailViewsheet must close the xlsx and csv streams it opens");
+   }
+
+   /**
+    * Whether /proc/self/fd lists this process's descriptors as symbolic links. On Windows,
+    * "/proc/self/fd" resolves to a directory on the current drive, so a stray directory of
+    * that name is not enough (Bug #78370).
+    */
+   private static boolean hasProcFds() {
+      return Files.isSymbolicLink(Path.of("/proc/self/fd/0"));
    }
 
    /**
