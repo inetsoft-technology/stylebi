@@ -17,6 +17,7 @@
  */
 package inetsoft.util.swap;
 
+import inetsoft.mv.data.DimValueList;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.MockCluster;
 import inetsoft.test.*;
@@ -30,7 +31,10 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.File;
+import java.io.RandomAccessFile;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.util.*;
 import java.util.concurrent.locks.Lock;
@@ -291,6 +295,50 @@ class XSwapperStaleSwapFileMapTest {
       clearDataCache.invoke(new ClearOldCacheFilesRunnable());
       assertTrue(live2.exists(), "clearDataCache, live foreign seed");
       assertFalse(unk.exists(), "clearDataCache, unknown seed");
+   }
+
+   /**
+    * Bug #78368, the fragment files of a dimension value list are written while an MV is built
+    * and read back only when its dictionary is written, so the recurring sweep must not delete
+    * them in between, neither in this JVM nor in another JVM that shares the cache directory.
+    */
+   @Test
+   void dimValueListFragmentsSurviveSweepOfThisAndOtherLiveJvm() throws Exception {
+      DimValueList list = new DimValueList();
+      File out = FileSystemService.getInstance().getCacheFile("b78368_dimvalue_out.dat");
+      created.add(out);
+
+      try {
+         // one full fragment is written to the cache directory
+         for(int i = 0; i < 10001; i++) {
+            list.add("value" + i);
+         }
+
+         Field field = DimValueList.class.getDeclaredField("fragmentFiles");
+         field.setAccessible(true);
+         File fragment = ((List<File>) field.get(list)).get(0);
+         created.add(fragment);
+         assertTrue(XSwapper.getSwapper().isOwnSwapFile(fragment.getName()), fragment.getName());
+
+         // the same name written by a running JVM of another live node
+         Map<Long, String> seeds = Cluster.getInstance().getMap(XSwapper.SWAP_SEED_MAP);
+         seeds.put(931L, OTHER_LIVE_NODE);
+         File foreign = createUnregistered(
+            "s931" + fragment.getName().substring(fragment.getName().indexOf('_')));
+         assertTrue(fragment.setLastModified(System.currentTimeMillis() - 2 * 3600000L));
+
+         new SwapFileSweepRunnable().run();
+
+         assertTrue(fragment.exists(), "fragment of this JVM was deleted");
+         assertTrue(foreign.exists(), "fragment of another live JVM was deleted");
+
+         try(FileChannel channel = new RandomAccessFile(out, "rw").getChannel()) {
+            list.write(channel);
+         }
+      }
+      finally {
+         list.dispose();
+      }
    }
 
    // not in SWAP_FILE_MAP: a swappable that never registers its files, or one still inside the

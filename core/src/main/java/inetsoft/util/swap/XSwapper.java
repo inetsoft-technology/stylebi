@@ -477,8 +477,15 @@ public final class XSwapper {
 
    /**
     * Deletes the swap files of this cache directory that are not in use by a JVM that may still
-    * be running (see {@link RegisteredSwapFiles#contains}): not registered in the swap file map
-    * and not of a seed that a node of the current cluster topology owns, as long as the file is past {@link #SWAP_FILE_GRACE_PERIOD}. This is
+    * be running (see {@link RegisteredSwapFiles#contains}). A <tt>*.tdat</tt> file past
+    * {@link #SWAP_FILE_GRACE_PERIOD} that is not this JVM's own and not a snapshot copy in use is
+    * deleted when either the seed in its name is registered in {@link #SWAP_SEED_MAP} and none of
+    * its owner nodes is in the current cluster topology (whether or not the file is in the swap
+    * file map), or the file is not in the swap file map and its name has no seed or its seed is
+    * not registered in {@link #SWAP_SEED_MAP}. Unregistered files named with the seed of a
+    * running JVM (<tt>s&lt;seed&gt;_...</tt>), e.g. the MV dictionary files of a running local
+    * scheduler, are kept (Bug #78322), so a live swap or scratch <tt>*.tdat</tt> file that is not
+    * in the swap file map must carry the swapper prefix (Bug #78368). This is
     * the same, unmodified check the constructor's one-shot startup sweep above runs; it is
     * factored out here, unchanged, so it can also be re-run by a short recurring task
     * (Bug #78245) instead of only once per JVM. A swap file written in the last seconds of a
