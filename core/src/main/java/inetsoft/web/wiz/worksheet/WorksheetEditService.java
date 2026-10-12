@@ -448,10 +448,11 @@ public class WorksheetEditService {
       }
 
       /**
-       * Removes the named column from the table's public {@link ColumnSelection}, with an
+       * Removes the named column from the table's private {@link ColumnSelection}, with an
        * explicit {@code confirmed} override for the "downstream table's own condition, ranking,
        * expression, or aggregate/group-by references this column" conflict (Bug #77005 /
-       * WBS-093/094). No-ops if the column does not exist.
+       * WBS-093/094). Refuses a column that does not exist, and a non-expression column of a
+       * {@link ComposedTableAssembly} (Bug #76480).
        *
        * <p>Unlike {@code rename_column} (Bug #77005), which can safely PROPAGATE the change into
        * every downstream reference ({@link RenameColumnController#renameTableColumn}), a removal
@@ -482,57 +483,75 @@ public class WorksheetEditService {
          ColumnSelection cs = t.getColumnSelection();
          DataRef toRemove = WorksheetMutationSupport.resolveFieldOrNull(t, col, false);
 
-         if(toRemove != null) {
-            WorksheetMutationSupport.assertSnapshotAllowsColumnRemove(t, table, col, toRemove);
-
-            if(toRemove instanceof ColumnRef cr &&
-               !WorksheetControllerService.allowsDeletion(ws, t, cr))
-            {
-               throw new PairingException(Catalog.getCatalog().getString(
-                  "common.columnDependency", col));
-            }
-
-            if(toRemove instanceof ColumnRef cr && !confirmed) {
-               List<WorksheetControllerService.AggregateInputLossConflict> aggregateConflicts =
-                  WorksheetControllerService.findAggregateInputLossConflicts(ws, t, cr);
-               List<WorksheetControllerService.ColumnReferenceLossConflict> referenceConflicts =
-                  WorksheetControllerService.findColumnReferenceLossConflicts(ws, t, cr);
-               // Bug #78234 / WBS-108: the table's OWN conditions (incl. MV lists and value
-               // slots) and sort on this column are dropped (or left stale) just as silently as
-               // a downstream table's. Scanned here only, not in the shared downstream walker:
-               // hiding a column keeps it in the private selection, so its own conditions
-               // survive there.
-               List<String> ownReferences = dedupe(
-                  WorksheetControllerService.findOwnColumnReferences(t, cr));
-
-               if(!aggregateConflicts.isEmpty() || !referenceConflicts.isEmpty() ||
-                  !ownReferences.isEmpty())
-               {
-                  throw new PairingException(describeRemoveColumnConflicts(
-                     table, ownReferences, aggregateConflicts, referenceConflicts));
-               }
-            }
-
-            // For embedded tables, also remove the data column from XEmbeddedTable.
-            // Snapshots are excluded, and not just as an optimization: the guard above lets
-            // only an expression column through, an expression column has no data column, so
-            // findColumn could never match. What it WOULD do is call getEmbeddedData(), which
-            // on a snapshot goes through getTable() -> initTable() and can fault the whole
-            // swapped-out data file back in to answer a question already known to be "no".
-            if(t instanceof EmbeddedTableAssembly embedded &&
-               !(t instanceof SnapshotEmbeddedTableAssembly))
-            {
-               XEmbeddedTable data = embedded.getEmbeddedData();
-               int index = AssetUtil.findColumn(data, toRemove);
-
-               if(index >= 0) {
-                  data.deleteCol(index);
-               }
-            }
-
-            cs.removeAttribute(toRemove);
-            t.setColumnSelection(cs);
+         if(toRemove == null) {
+            throw new PairingException("Column not found: " + col);
          }
+
+         // Bug #76480 (VBS-009): a composed table's non-expression column is derived from its
+         // source table(s), and the post-edit refresh re-adds it from the sources' default
+         // selection, so the removal never sticks. Native Composer disables delete for exactly
+         // these columns (ws-details-table-data.component.ts updateCanRemoveSelectedHeaders);
+         // refuse the same set, before anything mutates.
+         if(t instanceof ComposedTableAssembly &&
+            !(toRemove instanceof ColumnRef ref && ref.isExpression()))
+         {
+            throw new PairingException(
+               "Cannot remove column '" + col + "' from '" + table + "': it is derived from " +
+               "the source table(s) of this join/merge/concatenation/mirror/rotate/unpivot " +
+               "table, and StyleBI cannot delete such a column (only an expression column " +
+               "added to this table can be removed). To hide it, use set_column_visibility " +
+               "with visible:false, or remove the column from the source table instead.");
+         }
+
+         WorksheetMutationSupport.assertSnapshotAllowsColumnRemove(t, table, col, toRemove);
+
+         if(toRemove instanceof ColumnRef cr &&
+            !WorksheetControllerService.allowsDeletion(ws, t, cr))
+         {
+            throw new PairingException(Catalog.getCatalog().getString(
+               "common.columnDependency", col));
+         }
+
+         if(toRemove instanceof ColumnRef cr && !confirmed) {
+            List<WorksheetControllerService.AggregateInputLossConflict> aggregateConflicts =
+               WorksheetControllerService.findAggregateInputLossConflicts(ws, t, cr);
+            List<WorksheetControllerService.ColumnReferenceLossConflict> referenceConflicts =
+               WorksheetControllerService.findColumnReferenceLossConflicts(ws, t, cr);
+            // Bug #78234 / WBS-108: the table's OWN conditions (incl. MV lists and value
+            // slots) and sort on this column are dropped (or left stale) just as silently as
+            // a downstream table's. Scanned here only, not in the shared downstream walker:
+            // hiding a column keeps it in the private selection, so its own conditions
+            // survive there.
+            List<String> ownReferences = dedupe(
+               WorksheetControllerService.findOwnColumnReferences(t, cr));
+
+            if(!aggregateConflicts.isEmpty() || !referenceConflicts.isEmpty() ||
+               !ownReferences.isEmpty())
+            {
+               throw new PairingException(describeRemoveColumnConflicts(
+                  table, ownReferences, aggregateConflicts, referenceConflicts));
+            }
+         }
+
+         // For embedded tables, also remove the data column from XEmbeddedTable.
+         // Snapshots are excluded, and not just as an optimization: the guard above lets
+         // only an expression column through, an expression column has no data column, so
+         // findColumn could never match. What it WOULD do is call getEmbeddedData(), which
+         // on a snapshot goes through getTable() -> initTable() and can fault the whole
+         // swapped-out data file back in to answer a question already known to be "no".
+         if(t instanceof EmbeddedTableAssembly embedded &&
+            !(t instanceof SnapshotEmbeddedTableAssembly))
+         {
+            XEmbeddedTable data = embedded.getEmbeddedData();
+            int index = AssetUtil.findColumn(data, toRemove);
+
+            if(index >= 0) {
+               data.deleteCol(index);
+            }
+         }
+
+         cs.removeAttribute(toRemove);
+         t.setColumnSelection(cs);
       }
 
       private static List<String> dedupe(List<String> references) {
