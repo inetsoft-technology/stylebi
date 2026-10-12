@@ -150,6 +150,22 @@ class DataSourceCubePermissionTest {
       assertEquals(keys("CbFd2/CbE"), grants("CbFd2/CbE"));
    }
 
+   // a member whose definition is damaged is removed with the folder, its stored domain is read
+   @Test
+   void folderDeleteOfAMemberThatCantBeLoadedRemovesCubeGrants() throws Exception {
+      addFolder("CbUd");
+      addFolder("CbUd2");
+      seed("CbUd/CbU");
+      seed("CbUd2/CbU");
+      corrupt("CbUd/CbU");
+
+      assertTrue(repository.removeDataSourceFolder("CbUd"));
+
+      assertFalse(containsDataSource("CbUd/CbU"));
+      assertEquals(List.of(), grants("CbUd/CbU"));
+      assertEquals(keys("CbUd2/CbU"), grants("CbUd2/CbU"));
+   }
+
    @Test
    void registryRenameMovesCubeGrants() throws Exception {
       seed("CbC");
