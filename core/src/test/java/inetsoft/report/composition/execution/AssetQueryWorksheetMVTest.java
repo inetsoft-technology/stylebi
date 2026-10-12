@@ -28,6 +28,7 @@ import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.TabularTableAssemblyInfo;
 import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.tabular.*;
 import inetsoft.uql.viewsheet.TableVSAssembly;
@@ -295,6 +296,69 @@ class AssetQueryWorksheetMVTest {
    }
 
    @Test
+   void aliasedCrosstabAggregateUsesTheWorksheetMV() throws Exception {
+      // a crosstab aggregate whose name differs from its column is aliased to a column without
+      // an entity (VSAggregateRef.update), which can't be moved down to the bound table (#78340)
+      addAliasedAggregate(root);
+
+      AssetQuery query = createQuery(viewsheetBox(), root, AssetQuerySandbox.RUNTIME_MODE, false);
+
+      assertInstanceOf(MVAssetQuery.class, deepestQuery(query),
+                       "the bound table must be read from the worksheet mv, not the database");
+   }
+
+   @Test
+   void aliasedCrosstabAggregateOfARenamedTableUsesTheWorksheetMV() throws Exception {
+      TableAssembly vroot = viewsheetRoot();
+      addAliasedAggregate(vroot);
+
+      AssetQuery query = createQuery(viewsheetBox(), vroot, AssetQuerySandbox.RUNTIME_MODE,
+                                     false);
+
+      assertInstanceOf(MVAssetQuery.class, deepestQuery(query),
+                       "the bound table must be read from the worksheet mv, not the database");
+   }
+
+   @Test
+   void aggregateThatCannotBeMovedDownLeavesTheTablesUnchanged() throws Exception {
+      // the date group can be moved down and changes the columns of both tables when it is,
+      // the aliased aggregate after it can't
+      Worksheet ws2 = new Worksheet();
+      PhysicalBoundTableAssembly orders = new PhysicalBoundTableAssembly(ws2, "ORDERS");
+      orders.setSourceInfo(new SourceInfo(SourceInfo.PHYSICAL_TABLE, "Orders", "ORDERS"));
+      ColumnSelection ocols = new ColumnSelection();
+      ocols.addAttribute(column("ORDERS", "ORDER_ID", XSchema.INTEGER));
+      ocols.addAttribute(column("ORDERS", "ORDER_DATE", XSchema.DATE));
+      orders.setColumnSelection(ocols);
+      ws2.addAssembly(orders);
+      TableAssembly vroot = (TableAssembly) ws2.getVSTableAssembly("ORDERS")
+         .copyAssembly("V_MORDERS_Crosstab1");
+      ws2.addAssembly(vroot);
+
+      ColumnSelection cols = vroot.getColumnSelection(false);
+      ColumnRef year = new ColumnRef(new DateRangeRef(
+         "Year(ORDER_DATE)", new AttributeRef("ORDERS", "ORDER_DATE"), DateRangeRef.YEAR_INTERVAL));
+      cols.addAttribute(year);
+      vroot.setColumnSelection(cols, false);
+      addAliasedAggregate(vroot, year, "ORDER_ID");
+      String rootColumns = vroot.getColumnSelection(false).toString();
+      AggregateInfo rootAggregates = (AggregateInfo) vroot.getAggregateInfo().clone();
+      String boundColumns = orders.getColumnSelection(false).toString();
+
+      MirrorTableAssembly result = (MirrorTableAssembly) WSMVTransformer.transform(vroot);
+      TableAssembly bound = result.getTableAssembly();
+
+      assertEquals(rootColumns, result.getColumnSelection(false).toString());
+      // the groups and aggregates still refer to the columns of the viewsheet table
+      assertArrayEquals(rootAggregates.getGroups(), result.getAggregateInfo().getGroups());
+      assertEquals(year, result.getAggregateInfo().getGroup(0).getDataRef());
+      assertArrayEquals(rootAggregates.getAggregates(), result.getAggregateInfo().getAggregates());
+      assertEquals(boundColumns, bound.getColumnSelection(false).toString());
+      assertTrue(bound.getAggregateInfo().isEmpty());
+      assertNull(bound.getProperty("aggregate.down"));
+   }
+
+   @Test
    void boundRootIsNotGivenTheMV() throws Exception {
       // WSMVTransformer drops the runtime conditions of a bound root
       AssetQuery query = createQuery(viewsheetBox(), customers, AssetQuerySandbox.RUNTIME_MODE,
@@ -500,6 +564,28 @@ class AssetQueryWorksheetMVTest {
          .copyAssembly("V_MCUSTOMERS_TableView1");
       ws.addAssembly(vroot);
       return vroot;
+   }
+
+   /**
+    * Group a viewsheet table by CITY and sum CUSTOMER_ID like a crosstab, whose aggregate is
+    * an alias of a column without an entity (VSAggregateRef.update).
+    */
+   private static void addAliasedAggregate(TableAssembly table) {
+      addAliasedAggregate(table, table.getColumnSelection(false).getAttribute(1), "CUSTOMER_ID");
+   }
+
+   private static void addAliasedAggregate(TableAssembly table, DataRef group, String column) {
+      ColumnSelection cols = table.getColumnSelection(false);
+      ColumnRef sum = new ColumnRef(new AliasDataRef("Sum(" + column + ")",
+                                                     new AttributeRef(null, column)));
+      sum.setDataType(XSchema.INTEGER);
+      cols.addAttribute(sum);
+      table.setColumnSelection(cols, false);
+
+      AggregateInfo ainfo = new AggregateInfo();
+      ainfo.addGroup(new GroupRef(group));
+      ainfo.addAggregate(new AggregateRef(sum, AggregateFormula.SUM));
+      table.setAggregateInfo(ainfo);
    }
 
    /**
