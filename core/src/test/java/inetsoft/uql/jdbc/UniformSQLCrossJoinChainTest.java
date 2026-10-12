@@ -324,9 +324,8 @@ class UniformSQLCrossJoinChainTest {
          "select * from a cross join b natural join c",
          "select * from ((d natural join c))",
          "select * from ((d natural join c)) left join e on c.id = e.id",
-         // a USING join whose left operand has more than one table (#77490)
-         "select * from a cross join b join c using (id)",
-         "select * from ((a join b on a.id = b.id)) join c using (id)",
+         // a USING join whose left operand has more than one table parses since Bug #78381
+         // (the last table's column), see UniformSQLUsingChainLastTableTest
          // a nested join on the right of a LEFT join (#77515)
          "select * from a left join (b cross join c) on a.id = b.id",
          "select * from a left join b cross join c on a.id = b.id",

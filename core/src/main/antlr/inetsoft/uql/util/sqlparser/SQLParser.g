@@ -631,13 +631,13 @@ private void clearUsingMerges(UniformSQL sql) {
  * Get the alias of the left operand table that has a column of a JOIN USING. The parser
  * has no column metadata, so it's only known for a left operand of one table, or for a
  * column of an earlier inner or RIGHT JOIN USING of the same left operand, whose merged
- * column is the joined table's column. Otherwise the column could be in any table of
- * the left operand, so the join fails the parse and the original sql runs (Bug #77490).
+ * column is the joined table's column. Otherwise it's the last table of the left operand,
+ * which a chain (a join b using (x) join c using (y)) usually joins (Bug #78381). If the
+ * column is only in an earlier table of the left operand, the regenerated sql fails on
+ * the database (last.y doesn't exist). If several tables have it, the original sql is
+ * ambiguous, an error except on SQLite, which takes the first table (Bug #77490).
  */
-private String getUsingTable(UniformSQL sql, String column, int lstart, int rstart,
-                             String jc, Token tok)
-   throws SemanticException
-{
+private String getUsingTable(UniformSQL sql, String column, int lstart, int rstart) {
    if(rstart - lstart == 1) {
       return sql.getTableAlias(lstart);
    }
@@ -648,12 +648,26 @@ private String getUsingTable(UniformSQL sql, String column, int lstart, int rsta
    // a join of a nested join in the left operand has its own left operand, the other
    // tables of this left operand may have the column too
    if(table == null || table[1] != lstart || table[0] >= rstart) {
-      throw new SemanticException(
-         "Unsupported USING join, the left operand table of the column is unknown: " + jc,
-         getFilename(), tok.getLine(), tok.getColumn());
+      return sql.getTableAlias(rstart - 1);
    }
 
    return sql.getTableAlias(table[0]);
+}
+
+/**
+ * Create the column of a table in a JOIN USING, keeping the quotes of the column
+ * (using ("Col")), as the ON form (t."Col") does. Without them, the regenerated
+ * t.Col is folded by the database, e.g. to t.col on PostgreSQL (Bug #78381).
+ */
+private XExpression createUsingColumn(String table, String column, int quote) {
+   XExpression exp = new XExpression(table + "." + column, XExpression.FIELD);
+
+   if(quote != XExpression.QUOTE_NONE) {
+      exp.setQuote(quote);
+      exp.setQuotedColumn(column);
+   }
+
+   return exp;
 }
 
 /**
@@ -5120,9 +5134,10 @@ join_condition [UniformSQL sql, String op, String tbl2, int rstart, int rend] re
         ;
 
 named_columns_join [UniformSQL sql, String op, String tbl2, int rstart, int rend] returns [String jc = ""]
-        {String tmp; Vector list = null; if(sql != null){list = new Vector();} {checkStatus();}}
+        {String tmp; Vector list = null; Vector quotes = null;
+         if(sql != null){list = new Vector(); quotes = new Vector();} {checkStatus();}}
         :
-        a:USING OPEN_PAREN tmp = join_column_list[list] CLOSE_PAREN
+        a:USING OPEN_PAREN tmp = join_column_list[list, quotes] CLOSE_PAREN
         {jc = a.getText() + "(" + tmp + ")";
          if(sql != null && list.size()>0) {
           // the database merges a USING column, so select * returns one copy and an
@@ -5159,11 +5174,11 @@ named_columns_join [UniformSQL sql, String op, String tbl2, int rstart, int rend
            node.setName(getUniqueName());
 
            if(list.size() == 1) {
-                String t1 = getUsingTable(sql, (String) list.elementAt(0), lstart, rstart, jc, a);
-                e1 = new XExpression(t1+"."+(String)list.elementAt(0),
-                                        XExpression.FIELD);
-                e2 = new XExpression(t2+"."+(String)list.elementAt(0),
-                                        XExpression.FIELD);
+                String col = (String) list.elementAt(0);
+                int quote = ((Integer) quotes.elementAt(0)).intValue();
+                String t1 = getUsingTable(sql, col, lstart, rstart);
+                e1 = createUsingColumn(t1, col, quote);
+                e2 = createUsingColumn(t2, col, quote);
                 ((XJoin)node).setExpression1(e1);
                 ((XJoin)node).setExpression2(e2);
                 ((XJoin)node).setOp(joinOp);
@@ -5171,12 +5186,11 @@ named_columns_join [UniformSQL sql, String op, String tbl2, int rstart, int rend
            else {
                 ((XSet)node).setRelation(XSet.AND);
                 for(int i = 0; i < list.size(); i++) {
-                        String t1 = getUsingTable(sql, (String) list.elementAt(i), lstart,
-                                                  rstart, jc, a);
-                        e1 = new XExpression(t1+"."+(String)list.elementAt(i),
-                                                XExpression.FIELD);
-                        e2 = new XExpression(t2+"."+(String)list.elementAt(i),
-                                                XExpression.FIELD);
+                        String col = (String) list.elementAt(i);
+                        int quote = ((Integer) quotes.elementAt(i)).intValue();
+                        String t1 = getUsingTable(sql, col, lstart, rstart);
+                        e1 = createUsingColumn(t1, col, quote);
+                        e2 = createUsingColumn(t2, col, quote);
                         tmpNode = new XJoin();
                         tmpNode.setExpression1(e1);
                         tmpNode.setExpression2(e2);
@@ -5209,10 +5223,16 @@ named_columns_join [UniformSQL sql, String op, String tbl2, int rstart, int rend
         }
         ;
 
-join_column_list [Vector list] returns [String jcl = ""]
-        {checkStatus();}
+// the quotes of each column (identQuote, reset by the next column_name) are kept in
+// quotes, so the column is regenerated quoted (Bug #78381)
+join_column_list [Vector list, Vector quotes] returns [String jcl = ""]
+        {String tmp; {checkStatus();}}
         :
-        jcl = column_name_list[list]
+        jcl = column_name
+        {if(list != null){list.addElement(jcl); quotes.addElement(Integer.valueOf(identQuote));}}
+        ( COMMA tmp = column_name
+        {jcl += "," + tmp;
+         if(list != null){list.addElement(tmp); quotes.addElement(Integer.valueOf(identQuote));}})*
         ;
 
 corresponding_spec returns [String cs = ""]
