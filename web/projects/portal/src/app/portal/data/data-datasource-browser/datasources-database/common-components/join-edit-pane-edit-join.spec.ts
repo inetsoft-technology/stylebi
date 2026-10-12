@@ -34,7 +34,6 @@ import { Rectangle } from "../../../../../common/data/rectangle";
 import {
    TYPE_COLUMN_INTERACTION_TARGET
 } from "../../../../../composer/gui/ws/jsplumb/jsplumb-graph-schema.config";
-import { FixedDropdownService } from "../../../../../widget/fixed-dropdown/fixed-dropdown.service";
 import { Cardinality } from "../../../model/datasources/database/physical-model/cardinality.enum";
 import { GraphColumnInfo } from "../../../model/datasources/database/physical-model/graph/graph-column-info";
 import { JoinEditPaneModel } from "../../../model/datasources/database/physical-model/graph/join-edit-pane-model";
@@ -117,8 +116,7 @@ describe("Edit Join from a join-edit pane line (Bug #77996)", () => {
          imports: [PhysicalJoinEditPane, QueryJoinEditPane],
          providers: [
             provideHttpClient(),
-            provideHttpClientTesting(),
-            { provide: FixedDropdownService, useValue: {} }
+            provideHttpClientTesting()
          ]
       });
 
@@ -198,17 +196,20 @@ describe("Edit Join from a join-edit pane line (Bug #77996)", () => {
    }
 
    async function selectJoinType(index: number): Promise<void> {
-      const select = document.querySelector<HTMLSelectElement>("edit-join-dialog select");
-      select.selectedIndex = index;
-      select.dispatchEvent(new Event("change"));
+      document.querySelector<HTMLButtonElement>("edit-join-dialog .custom-select-trigger").click();
+      await settle();
+      document.querySelectorAll<HTMLButtonElement>(".custom-select-option")[index]
+         .dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
       await settle();
    }
 
    async function typeOrderPriority(value: string): Promise<void> {
       const input = document.querySelector<HTMLInputElement>(
-         "edit-join-dialog input[name=orderPriority]");
+         "edit-join-dialog number-stepper[name=orderPriority] input");
       input.value = value;
       input.dispatchEvent(new Event("input"));
+      // the stepper commits on blur
+      input.dispatchEvent(new Event("blur"));
       await settle();
    }
 

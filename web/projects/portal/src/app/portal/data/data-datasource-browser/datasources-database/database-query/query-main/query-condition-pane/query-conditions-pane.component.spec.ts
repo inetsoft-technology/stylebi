@@ -81,14 +81,17 @@ describe("QueryConditionsPaneComponent", () => {
       const input = element().querySelector("input[type=number]") as HTMLInputElement;
       input.value = val;
       input.dispatchEvent(new Event("input"));
+      // the stepper commits on blur
+      input.dispatchEvent(new Event("blur"));
       await settle();
    };
 
    const changeOperator = async (name: string) => {
-      const select = element().querySelector("select.operation_check_id") as HTMLSelectElement;
-      select.selectedIndex = Array.from(select.options)
-         .findIndex((option) => option.textContent.trim() == name);
-      select.dispatchEvent(new Event("change"));
+      (element().querySelector(".operation_check_id .custom-select-trigger") as HTMLElement).click();
+      await settle();
+      (Array.from(document.querySelectorAll(".custom-select-option")) as HTMLElement[])
+         .find((option) => option.textContent.trim() == name)
+         .dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
       await settle();
    };
 

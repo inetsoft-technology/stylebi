@@ -24,6 +24,7 @@ import {
    Output,
    SimpleChanges
 } from "@angular/core";
+import { NgFor, NgIf } from "@angular/common";
 import { ClauseValueModel } from "../../../../../data/model/datasources/database/vpm/condition/clause/clause-value-model";
 import { OperationModel } from "../../../../../data/model/datasources/database/vpm/condition/clause/operation-model";
 import { VPMColumnModel } from "../../../../../data/model/datasources/database/vpm/condition/vpm-column-model";
@@ -38,7 +39,7 @@ import { VPMConditionEditor } from "./vpm-condition-editor.component";
     selector: "one-of-vpm-condition-editor",
     templateUrl: "one-of-vpm-condition-editor.component.html",
     styleUrls: ["one-of-vpm-condition-editor.component.scss"],
-    imports: [VPMConditionEditor]
+    imports: [NgFor, NgIf, VPMConditionEditor]
 })
 export class OneOfVpmConditionEditor implements OnChanges {
    _valueModel: ClauseValueModel;

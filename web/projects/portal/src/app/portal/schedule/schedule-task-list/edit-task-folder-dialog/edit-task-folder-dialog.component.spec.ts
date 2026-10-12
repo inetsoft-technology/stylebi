@@ -19,6 +19,7 @@ import { HttpClient } from "@angular/common/http";
 import { TestBed } from "@angular/core/testing";
 import { of } from "rxjs";
 import { describe, expect, it, vi } from "vitest";
+import { AiAssistantDialogService } from "../../../../common/services/ai-assistant-dialog.service";
 import { EditTaskFolderDialog } from "./edit-task-folder-dialog.component";
 
 // Bug #77856, a task folder name made only of whitespace is refused like an empty one
@@ -92,7 +93,11 @@ describe("EditTaskFolderDialog (portal) rendered folder name", () => {
    function render(folderName: string = "") {
       TestBed.configureTestingModule({
          imports: [EditTaskFolderDialog],
-         providers: [{ provide: HttpClient, useValue: { post: vi.fn(() => of({ duplicate: false })) } }]
+         providers: [
+            { provide: HttpClient, useValue: { post: vi.fn(() => of({ duplicate: false })) } },
+            // the modal header's AI assistant chain loads the current user
+            { provide: AiAssistantDialogService, useValue: {} }
+         ]
       });
       const fixture = TestBed.createComponent(EditTaskFolderDialog);
       fixture.componentInstance.model = {
