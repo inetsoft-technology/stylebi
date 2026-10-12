@@ -26,10 +26,13 @@ import inetsoft.sree.security.Organization;
 import inetsoft.test.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.asset.internal.TabularTableAssemblyInfo;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.tabular.*;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.util.credential.CredentialType;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -74,6 +77,51 @@ class AssetQueryWorksheetMVTest {
       XRepository xRepository() {
          return mock(XRepository.class);
       }
+   }
+
+   /**
+    * A connector query with a string property, like the url suffix of the rest connectors.
+    */
+   public static class TestTabularQuery extends TabularQuery {
+      public TestTabularQuery() {
+         super("Test78339");
+      }
+
+      @Property(label = "Suffix")
+      public String getSuffix() {
+         return suffix;
+      }
+
+      public void setSuffix(String suffix) {
+         this.suffix = suffix;
+      }
+
+      private String suffix;
+   }
+
+   /**
+    * A connector data source with a string property, like the url of the rest connectors.
+    */
+   public static class TestTabularDataSource extends TabularDataSource<TestTabularDataSource> {
+      public TestTabularDataSource() {
+         super("Test78339", TestTabularDataSource.class);
+      }
+
+      @Override
+      protected CredentialType getCredentialType() {
+         return null;
+      }
+
+      @Property(label = "URL")
+      public String getURL() {
+         return url;
+      }
+
+      public void setURL(String url) {
+         this.url = url;
+      }
+
+      private String url;
    }
 
    @BeforeEach
@@ -185,6 +233,47 @@ class AssetQueryWorksheetMVTest {
    void conditionWithoutAVariableUsesTheMV() throws Exception {
       // a constant condition of the worksheet is in the mv already
       customers.setPreConditionList(cityCondition("Paris"));
+
+      assertInstanceOf(MVAssetQuery.class,
+                       subQuery(createQuery(viewsheetBox(), root, AssetQuerySandbox.RUNTIME_MODE,
+                                            false)));
+   }
+
+   @Test
+   void tabularQueryWithAVariableIsNotGivenTheMV() throws Exception {
+      // the query properties are substituted with the variables at runtime (TabularHandler)
+      useTabularTable("/customers?city=$(pCity)", "http://host/api");
+
+      assertFalse(subQuery(createQuery(viewsheetBox(), root, AssetQuerySandbox.RUNTIME_MODE,
+                                       false)) instanceof MVAssetQuery,
+                  "a tabular query on a parameter must be evaluated live");
+      verifyNoLookup();
+   }
+
+   @Test
+   void tabularDataSourceWithAVariableIsNotGivenTheMV() throws Exception {
+      // the data source properties are substituted with the variables too
+      useTabularTable("/customers", "http://host/$(pCity)");
+
+      assertFalse(subQuery(createQuery(viewsheetBox(), root, AssetQuerySandbox.RUNTIME_MODE,
+                                       false)) instanceof MVAssetQuery,
+                  "a tabular query whose data source is on a parameter must be evaluated live");
+      verifyNoLookup();
+   }
+
+   @Test
+   void tabularQueryWithASessionVariableIsNotGivenTheMV() throws Exception {
+      useTabularTable("/customers?user=$(_USER_)", "http://host/api");
+
+      assertFalse(subQuery(createQuery(viewsheetBox(), root, AssetQuerySandbox.RUNTIME_MODE,
+                                       false)) instanceof MVAssetQuery,
+                  "a tabular query on a session variable must be evaluated live");
+      verifyNoLookup();
+   }
+
+   @Test
+   void tabularQueryWithoutAVariableUsesTheMV() throws Exception {
+      useTabularTable("/customers", "http://host/api");
 
       assertInstanceOf(MVAssetQuery.class,
                        subQuery(createQuery(viewsheetBox(), root, AssetQuerySandbox.RUNTIME_MODE,
@@ -433,6 +522,29 @@ class AssetQueryWorksheetMVTest {
       table.setColumnSelection(cols);
       ws.addAssembly(table);
       return table;
+   }
+
+   /**
+    * Replace the worksheet with one whose CUSTOMERS is bound to a connector query.
+    */
+   private void useTabularTable(String suffix, String url) {
+      ws = new Worksheet();
+      TabularTableAssembly table = new TabularTableAssembly(ws, "CUSTOMERS");
+      TestTabularDataSource ds = new TestTabularDataSource();
+      ds.setURL(url);
+      TestTabularQuery query = new TestTabularQuery();
+      query.setSuffix(suffix);
+      query.setDataSource(ds);
+      ((TabularTableAssemblyInfo) table.getTableInfo()).setQuery(query);
+      ColumnSelection cols = new ColumnSelection();
+      cols.addAttribute(column("CUSTOMERS", "CUSTOMER_ID", XSchema.INTEGER));
+      cols.addAttribute(column("CUSTOMERS", "CITY", XSchema.STRING));
+      table.setColumnSelection(cols);
+      ws.addAssembly(table);
+
+      TableAssembly vtable = ws.getVSTableAssembly("CUSTOMERS");
+      root = (TableAssembly) vtable.copyAssembly("V_MCUSTOMERS_Table1");
+      ws.addAssembly(root);
    }
 
    /**
