@@ -95,6 +95,16 @@ class PDFVSExporterMixedStateTest {
       assertPrintLayout(export(caller, SUMMARY, SUMMARY), 2);
    }
 
+   // bookmarks only, without the current view: the decision is made over the bookmarks alone
+   @ParameterizedTest
+   @EnumSource(value = Caller.class, names = { "EXPORT_DIALOG", "REST_API", "EMAIL" })
+   void bookmarksOnlyInheritedThenCanvasExportsBothCanvasPages(Caller caller) throws Exception {
+      RuntimeViewsheet rvs = wrapper.getRuntimeViewsheet();
+      saveBookmark(rvs, "Summary0", SUMMARY);
+      saveBookmark(rvs, "Detail1", DETAIL);
+      assertCanvas(new Pdf(caller.export(rvs, false, "Summary0", "Detail1")), 2, 1);
+   }
+
    // the cases below run the exporter's decision once, each through another caller
 
    // canvas state first, then an inherited state
