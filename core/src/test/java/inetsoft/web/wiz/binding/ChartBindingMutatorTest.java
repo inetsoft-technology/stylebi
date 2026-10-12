@@ -2203,15 +2203,12 @@ class ChartBindingMutatorTest {
    }
 
    @Test
-   void changeCalculatorBareColumnBoundAtTwoLevelsIsRefusedListingFullNames() {
+   void changeCalculatorNamingANamedGroupDimensionByItsRuntimeFullNameIsAccepted() {
       ChartBindingModel model = new ChartBindingModel();
       ChartBindingMutator.setShelf(model, "x",
-         List.of(dimensionWithTimeSeries("Order Date", "year", null),
-                 dimensionWithTimeSeries("Order Date", "month", null)));
-      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-         () -> ChartBindingMutator.setShelf(model, "y", List.of(changeMeasure("Order Date"))));
-      assertTrue(e.getMessage().contains("Year(Order Date)") &&
-                 e.getMessage().contains("Month(Order Date)"), e.getMessage());
+         List.of(dimensionWithTimeSeries("Region", null, null)));
+      assertDoesNotThrow(() -> ChartBindingMutator.setShelf(model, "y",
+         List.of(changeMeasure("DataGroup(Region)"))));
    }
 
    @Test

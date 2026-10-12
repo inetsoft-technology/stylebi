@@ -18,9 +18,13 @@
 package inetsoft.web.wiz.binding;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.graph.calc.ValueOfCalc;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.VSDataRef;
+import inetsoft.uql.viewsheet.XDimensionRef;
+import inetsoft.uql.viewsheet.graph.AbstractCalc;
 import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.ChartDescriptor;
 import inetsoft.uql.viewsheet.graph.ChartRef;
@@ -40,6 +44,7 @@ import inetsoft.web.binding.model.graph.AestheticInfo;
 import inetsoft.web.binding.model.graph.ChartAggregateRefModel;
 import inetsoft.web.binding.model.graph.ChartDimensionRefModel;
 import inetsoft.web.binding.model.graph.ChartRefModel;
+import inetsoft.web.binding.model.graph.calc.ValueOfCalcInfo;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
@@ -96,6 +101,7 @@ public class ChartBindingService {
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          ChartVSAssembly chart = requireChart(rvs, assemblyName);
          ChartBindingModel model = (ChartBindingModel) binding.createModel(chart);
+         ChartBindingModel previous = (ChartBindingModel) binding.createModel(chart);
          applySource(model, sourceTable);
          ChartBindingMutator.setShelf(
             model, shelf, fields, rvs, chart.getSourceInfo(), refModelService,
@@ -106,7 +112,91 @@ public class ChartBindingService {
          event.setFieldType(shelf);
          event.setModel(model);
          refService.changeChartRef(runtimeId, event, user, dispatcher, linkUri);
+
+         try {
+            requireCalculatorsResolved(requireChart(rvs, assemblyName).getVSChartInfo(), shelf,
+                                       fields);
+         }
+         catch(IllegalArgumentException e) {
+            // The write is already committed here (the session does not roll a thrown mutation
+            // back), so put the shelf back before refusing.
+            try {
+               ChangeChartRefEvent restore = new ChangeChartRefEvent();
+               restore.setName(assemblyName);
+               restore.setFieldType(shelf);
+               restore.setModel(previous);
+               refService.changeChartRef(runtimeId, restore, user, dispatcher, linkUri);
+            }
+            catch(Exception ignore) {
+            }
+
+            throw e;
+         }
       });
+   }
+
+   /**
+    * Post-write read-back (bug #78403): a CHANGE/VALUE calculator the caller sent with a
+    * {@code columnName} must still name a dimension after the runtime processed the write.
+    * {@code ChangeChartProcessor} nulls a name it cannot match, which would otherwise be reported
+    * as success with a calculator that designates nothing.
+    */
+   static void requireCalculatorsResolved(VSChartInfo info, String shelf, List<FieldRef> fields) {
+      if(info == null || fields == null) {
+         return;
+      }
+
+      ChartRef[] stored = switch(shelf == null ? "" : shelf.toLowerCase()) {
+         case "x" -> info.getXFields();
+         case "y" -> info.getYFields();
+         case "group" -> info.getGroupFields();
+         default -> null;
+      };
+
+      if(stored == null) {
+         return;
+      }
+
+      for(int i = 0; i < fields.size() && i < stored.length; i++) {
+         if(!(fields.get(i).calculateInfo() instanceof ValueOfCalcInfo sent)) {
+            continue;
+         }
+
+         String columnName = sent.getColumnName();
+
+         if(columnName == null || columnName.isBlank() ||
+            AbstractCalc.ROW_INNER.equals(columnName) ||
+            AbstractCalc.COLUMN_INNER.equals(columnName))
+         {
+            continue;
+         }
+
+         if(stored[i] instanceof ChartAggregateRef aggregate &&
+            aggregate.getCalculator() instanceof ValueOfCalc calc && calc.getColumnName() == null)
+         {
+            List<String> names = new ArrayList<>();
+
+            for(ChartRef[] refs : new ChartRef[][] {
+               info.getXFields(), info.getYFields(), info.getGroupFields()})
+            {
+               for(ChartRef ref : refs) {
+                  if(ref instanceof XDimensionRef && ref instanceof VSDataRef dim &&
+                     !names.contains(dim.getFullName()))
+                  {
+                     names.add(dim.getFullName());
+                  }
+               }
+            }
+
+            throw new IllegalArgumentException(
+               "calculateInfo.columnName '" + columnName + "' does not designate one bound " +
+               "dimension (unknown, or the same column is bound at several levels), so the " +
+               "calculator would store no dimension. " + (names.isEmpty()
+                  ? "No dimension is bound; bind the dimension first."
+                  : "Use one of the bound dimensions' full names: " + String.join(", ", names) +
+                    ".") + " The write was not applied.");
+         }
+      }
    }
 
    /**

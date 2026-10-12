@@ -20,7 +20,6 @@ package inetsoft.web.wiz.binding;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.internal.Util;
 import inetsoft.uql.XConstants;
-import inetsoft.uql.asset.DateRangeRef;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.graph.AbstractCalc;
@@ -236,10 +235,12 @@ public final class ChartBindingMutator {
    }
 
    /**
-    * A CHANGE/VALUE calculator written in this shelf write must name a dimension bound on the
-    * chart. The processor otherwise nulls an unmatched name silently (bug #78403), leaving a
-    * calculator that designates no dimension. The bare column of exactly one dimension is accepted
-    * (the processor rewrites it to that dimension's full name, e.g. {@code Month(Order:Date)}).
+    * Cheap pre-check for a CHANGE/VALUE calculator written in this shelf write: some bound
+    * dimension's column must appear in {@code columnName}. Deliberately not a full-name match --
+    * the runtime decides the spelling (date level, named group, period...), so the authoritative
+    * refusal is {@code ChartBindingService}'s post-write read-back; this only catches a write
+    * that can never resolve (nothing bound, or a column that is not a bound dimension) before
+    * anything is committed.
     */
    private static void requireCalculatorDimensions(ChartBindingModel model,
                                                     List<ChartRefModel> refs,
@@ -267,39 +268,31 @@ public final class ChartBindingMutator {
             dims = boundDimensions(model);
          }
 
-         List<String> fullNames = new ArrayList<>();
-         List<String> bareMatches = new ArrayList<>();
-         boolean exact = false;
+         List<String> columns = new ArrayList<>();
 
          for(ChartDimensionRefModel dim : dims) {
             String column = dim.getColumnValue() == null ? dim.getName() : dim.getColumnValue();
-            String full = fullNameOf(dim, column);
-            fullNames.add(full);
 
-            if(columnName.equalsIgnoreCase(full)) {
-               exact = true;
-            }
-            else if(columnName.equalsIgnoreCase(column)) {
-               bareMatches.add(full);
+            if(column != null) {
+               columns.add(column);
+
+               if(columnName.toLowerCase().contains(column.toLowerCase())) {
+                  columns = null;
+                  break;
+               }
             }
          }
 
-         if(exact || bareMatches.size() == 1) {
+         if(columns == null) {
             continue;
-         }
-
-         if(bareMatches.size() > 1) {
-            throw new IllegalArgumentException(
-               "calculateInfo.columnName '" + columnName + "' is ambiguous: that column is bound " +
-               "at several levels. Use the dimension's full name, one of: " +
-               String.join(", ", bareMatches) + ".");
          }
 
          throw new IllegalArgumentException(
             "calculateInfo.columnName '" + columnName + "' does not name a dimension bound on " +
-            "this chart" + (fullNames.isEmpty()
-               ? " (no dimension is bound yet -- bind the dimension to x, y or group first)"
-               : ". Bound dimensions: " + String.join(", ", fullNames)) +
+            "this chart" + (columns.isEmpty()
+               ? " (no dimension is bound yet -- bind the dimension to x, y, group or an " +
+                 "aesthetic channel first)"
+               : ". Bound dimension columns: " + String.join(", ", columns)) +
             ". Use the dimension's full name, e.g. Month(Order Date) for a date dimension.");
       }
    }
@@ -328,24 +321,6 @@ public final class ChartBindingMutator {
       }
 
       return dims;
-   }
-
-   private static String fullNameOf(ChartDimensionRefModel dim, String column) {
-      String level = dim.getDateLevel();
-
-      if(column != null && level != null && !level.isBlank() && !DateLevels.isDynamicValue(level)) {
-         try {
-            int value = Integer.parseInt(level.trim());
-
-            if(value > 0 && (dim.getDataType() == null || XSchema.isDateType(dim.getDataType()))) {
-               return DateRangeRef.getName(column, value);
-            }
-         }
-         catch(NumberFormatException ignore) {
-         }
-      }
-
-      return column;
    }
 
    private static void assignShelf(ChartBindingModel model, String name, List<ChartRefModel> refs) {
