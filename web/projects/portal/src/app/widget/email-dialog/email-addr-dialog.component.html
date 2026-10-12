@@ -42,7 +42,7 @@
         </div>
       </ng-template>
     </ng-container>
-    <ng-container ngbNavItem="query-email-tab">
+    <ng-container ngbNavItem="query-email-tab" [destroyOnHide]="false">
       <a ngbNavLink>_#(Query)</a>
       <ng-template ngbNavContent>
         <query-email-pane [addressString]="queryAddress"
