@@ -913,8 +913,8 @@ class ConditionVocabularyTest {
    }
 
    @Test
-   void refusesARawBooleanForANumericOrStringField() {
-      for(String type : List.of("integer", "double", "string")) {
+   void refusesARawBooleanForANumericField() {
+      for(String type : List.of("integer", "double", "long", "float", "decimal")) {
          DataRefModel[] fields = { field("Budget", type) };
 
          Exception thrown = assertThrows(IllegalArgumentException.class,
@@ -927,16 +927,32 @@ class ConditionVocabularyTest {
    }
 
    @Test
-   void refusesARawNumberForABooleanOrStringField() {
-      for(String type : List.of("boolean", "string")) {
-         DataRefModel[] fields = { field("Paid", type) };
+   void refusesARawNumberForABooleanField() {
+      DataRefModel[] fields = { field("Paid", "boolean") };
 
-         Exception thrown = assertThrows(IllegalArgumentException.class,
-            () -> ConditionVocabulary.toConditionList(
-               List.of(clause("Paid", "equals", List.of(5), null)), fields), type);
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> ConditionVocabulary.toConditionList(
+            List.of(clause("Paid", "equals", List.of(5), null)), fields));
 
-         assertTrue(thrown.getMessage().contains("Paid"), type);
-         assertTrue(thrown.getMessage().contains("number"), type);
+      assertTrue(thrown.getMessage().contains("Paid"));
+      assertTrue(thrown.getMessage().contains("number"));
+   }
+
+   @Test
+   void normalizesARawNumberOrBooleanForAStringOrCharField() {
+      Object[][] cases = {
+         { 5, "5" }, { 5.0, "5" }, { 5.5, "5.5" }, { 5L, "5" }, { true, "true" }
+      };
+
+      for(String type : List.of("string", "char")) {
+         for(Object[] c : cases) {
+            DataRefModel[] fields = { field("Code", type) };
+            Object[] list = ConditionVocabulary.toConditionList(
+               List.of(clause("Code", "equals", List.of(c[0]), null)), fields);
+            ConditionModel model = (ConditionModel) list[0];
+
+            assertEquals(c[1], model.getValues()[0].getValue(), type + " " + c[0]);
+         }
       }
    }
 
