@@ -57,6 +57,9 @@ public class SQLBoundQuery extends BoundQuery {
       this(mode, box, stable, metadata);
       this.table = table;
       this.table.update();
+      // Bug #78383, a wildcard of a stored sql is expanded before the query is copied for the
+      // execution, also when the variables of the table weren't collected (getAllVariables)
+      table.fixStoredWildcard();
       this.nquery = ((SQLBoundTableAssemblyInfo) table.getInfo()).getQuery();
       this.oquery = (JDBCQuery) nquery.clone();
       this.xquery = (JDBCQuery) nquery.clone();

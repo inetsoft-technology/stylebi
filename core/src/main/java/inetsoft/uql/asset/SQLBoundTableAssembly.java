@@ -146,20 +146,36 @@ public class SQLBoundTableAssembly extends BoundTableAssembly {
          UniformSQL uniformSQL = (UniformSQL) sqlDefinition;
 
          try {
-            fixUniformSQLInfo(uniformSQL, orgID);
+            uniformSQL = fixUniformSQLInfo(uniformSQL, orgID);
          }
          catch(Exception ex) {
             LOG.error(ex.getMessage(), ex);
             return;
          }
 
-         fixXFilterVariable(((UniformSQL) sqlDefinition).getWhere(), orgID, list);
-         fixXFilterVariable(((UniformSQL) sqlDefinition).getHaving(), orgID, list);
+         fixXFilterVariable(uniformSQL.getWhere(), orgID, list);
+         fixXFilterVariable(uniformSQL.getHaving(), orgID, list);
       }
    }
 
-   private void fixUniformSQLInfo(UniformSQL uniformSQL, String orgID) throws Exception {
+   /**
+    * Fix the information of the sql of the query by connecting the database.
+    * @return the sql of the query, which replaces the given sql if it's parsed again.
+    */
+   private UniformSQL fixUniformSQLInfo(UniformSQL uniformSQL, String orgID) throws Exception {
       if(uniformSQL.getTableCount() > 0) {
+         // Bug #78383, a wildcard of a stored sql is expanded on the sql parsed again, before
+         // the metadata step below could fail its parse without trying
+         if(JDBCUtil.hasStoredWildcard(uniformSQL)) {
+            JDBCDataSource ds = getJDBCDataSource(orgID);
+            UniformSQL nsql = ds == null ? null :
+               reparseStoredWildcard(getJDBCQuery(), uniformSQL, ds);
+
+            if(nsql != null) {
+               return nsql;
+            }
+         }
+
          XField[] fields = uniformSQL.getFieldList();
 
          if(fields.length == 0) {
@@ -168,7 +184,7 @@ public class SQLBoundTableAssembly extends BoundTableAssembly {
                (JDBCDataSource) registry.getDataSource(getSourceInfo().getSource(), orgID);
 
             if(ds == null) {
-               return;
+               return uniformSQL;
             }
 
             Principal principal = ThreadContext.getContextPrincipal();
@@ -176,6 +192,75 @@ public class SQLBoundTableAssembly extends BoundTableAssembly {
             JDBCUtil.fixUniformSQLInfo(uniformSQL, XRepository.getRepository(), userName, ds);
          }
       }
+
+      return uniformSQL;
+   }
+
+   /**
+    * Bug #78383, parse the stored sql of the query again if its selection still holds a
+    * wildcard of a table (e.g. saved by an older version), and expand the wildcard to the
+    * columns of the table. The stored sql is replaced, not changed, so a copy of the query
+    * taken meanwhile is never half parsed. A wildcard that can't be expanded fails the parse.
+    */
+   public void fixStoredWildcard() {
+      JDBCQuery query = getJDBCQuery();
+      SQLDefinition sql = query == null ? null : query.getSQLDefinition();
+
+      // checked first, the data source isn't looked up for every execution
+      if(sql instanceof UniformSQL && JDBCUtil.hasStoredWildcard((UniformSQL) sql)) {
+         JDBCDataSource ds = getJDBCDataSource(query.getOrganizationId());
+
+         if(ds != null) {
+            reparseStoredWildcard(query, (UniformSQL) sql, ds);
+         }
+      }
+   }
+
+   /**
+    * Parse the sql of the query again, and put the result in place of the sql.
+    * @return the sql parsed again, or <tt>null</tt> if the sql isn't parsed again.
+    */
+   private UniformSQL reparseStoredWildcard(JDBCQuery query, UniformSQL sql, JDBCDataSource ds) {
+      XRepository repository;
+
+      try {
+         repository = XRepository.getRepository();
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to get the repository", ex);
+         return null;
+      }
+
+      UniformSQL nsql = JDBCUtil.reparseStoredWildcard(sql, repository, getUserName(), ds);
+
+      if(nsql != null) {
+         query.setSQLDefinition(nsql);
+      }
+
+      return nsql;
+   }
+
+   private JDBCDataSource getJDBCDataSource(String orgID) {
+      SourceInfo sinfo = getSourceInfo();
+
+      if(sinfo == null) {
+         return null;
+      }
+
+      try {
+         XDataSource ds =
+            DataSourceRegistry.getRegistry().getDataSource(sinfo.getSource(), orgID);
+         return ds instanceof JDBCDataSource ? (JDBCDataSource) ds : null;
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to get the data source: {}", sinfo.getSource(), ex);
+         return null;
+      }
+   }
+
+   private static String getUserName() {
+      Principal principal = ThreadContext.getContextPrincipal();
+      return principal == null ? null : principal.getName();
    }
 
    private void fixXFilterVariable(XFilterNode xFilterNode, String orgID, List<UserVariable> list) {
